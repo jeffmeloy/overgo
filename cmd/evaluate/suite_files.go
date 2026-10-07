@@ -72,6 +72,60 @@ func writePassages(ctx context.Context, parquet, out string) error {
 	return writeSuite(out, suite, cases, "passages")
 }
 
+// tableBytes bounds what reading a table's rows may decode at once, far above
+// the few megabytes a tabular benchmark's table holds, and
+// requestDirectoryMode is the permission of the directory its requests are
+// written to.
+const (
+	tableBytes           = 1 << 30
+	requestDirectoryMode = 0o700
+)
+
+// writeTabularRequests builds the classification requests of the credit-g
+// parquet table and writes each to directory, numbered in order.
+func writeTabularRequests(ctx context.Context, parquet, directory string) error {
+	leaves, err := dataset.ParquetLeaves(parquet)
+	if err != nil {
+		return err
+	}
+	names := make([]string, len(leaves))
+	columns := make([]evaluation.TableColumn, len(leaves))
+	for index, leaf := range leaves {
+		names[index], columns[index] = leaf.Name, evaluation.TableColumn{Name: leaf.Name, Integer: leaf.Integer}
+	}
+	rows, err := dataset.OpenParquetRows(ctx, parquet, names, tableBytes)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for row := range rows.Rows() {
+		cells, err := rows.Read(ctx, row)
+		if err != nil {
+			return err
+		}
+		for index, name := range names {
+			if cells[name] == nil {
+				return fmt.Errorf("evaluate: row %d of %s has no %s", row, parquet, name)
+			}
+			columns[index].Cells = append(columns[index].Cells, *cells[name])
+		}
+	}
+	requests, err := evaluation.BuildCreditGRequests(columns)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(directory, requestDirectoryMode); err != nil {
+		return err
+	}
+	for index, request := range requests {
+		if err := os.WriteFile(filepath.Join(directory, fmt.Sprintf("request-%02d.json", index)), request, suiteFileMode); err != nil {
+			return err
+		}
+	}
+	fmt.Printf("tabular requests %s: %d requests from %d rows\n", directory, len(requests), rows.Rows())
+	return nil
+}
+
 // writeFunctionCalls builds the function-call suite of the leaderboard's
 // simple category held in directory and writes it to out.
 func writeFunctionCalls(directory, out string) error {

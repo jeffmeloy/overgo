@@ -130,6 +130,21 @@ func TestPlainStringsAndColumnSelection(t *testing.T) {
 	if _, _, err := stringColumnLeaf(metadata, "absent"); err == nil {
 		t.Fatal("absent column resolved")
 	}
+	// An integer column is read when it is asked for by name, its values as
+	// decimal text; the column left unnamed above stayed a string one.
+	if leaf, _, err := stringColumnLeaf(metadata, "count"); err != nil || leaf != 2 {
+		t.Fatalf("named integer column = (%d, %v), want its leaf", leaf, err)
+	}
+	var integers []byte
+	for _, value := range []int64{-7, 1 << 40} {
+		integers = binary.LittleEndian.AppendUint64(integers, uint64(value))
+	}
+	if values, err := decodePlainIntegers(integers, 2, nil); err != nil || len(values) != 2 || values[0] != "-7" || values[1] != "1099511627776" {
+		t.Fatalf("plain integers = %v, %v", values, err)
+	}
+	if _, err := decodePlainIntegers(integers[:9], 2, nil); err == nil {
+		t.Fatal("truncated integers decoded")
+	}
 	metadata.schema[2].name = "id"
 	if _, _, err := stringColumnLeaf(metadata, "id"); err == nil {
 		t.Fatal("ambiguous byte-array leaf resolved")

@@ -107,6 +107,8 @@ func run() error {
 	seriesContext := flag.Int("context", defaultSeriesContext, "with -build-series-forecast: readings each window shows")
 	seriesHorizon := flag.Int("horizon", defaultSeriesHorizon, "with -build-series-forecast: readings each window asks for")
 	passagesParquet := flag.String("build-passages", "", "write the held-out likelihood suite of this WikiText-2 test parquet file to -suite-out: passages evenly spaced through the split, each starting on a line and ending on a word")
+	tabularParquet := flag.String("build-tabular-requests", "", "write the held-out classification requests of this credit-g parquet table to the directory -requests-out names: disjoint requests of context rows with their classes and query rows to answer")
+	requestsOut := flag.String("requests-out", "", "with -build-tabular-requests: the directory the request files are written to")
 	suiteOut := flag.String("suite-out", "", "with a -build- flag: the suite file to write")
 	cpuProfile := flag.String("cpuprofile", "", "write a Go CPU profile of this process to the file (the host side of a pass; a worker's file is its own)")
 	flag.Parse()
@@ -196,6 +198,12 @@ func run() error {
 			return errors.New("usage: evaluate -build-function-calls <leaderboard directory> -suite-out <suite.json>")
 		}
 		return writeFunctionCalls(directory, strings.TrimSpace(*suiteOut))
+	}
+	if parquet := strings.TrimSpace(*tabularParquet); parquet != "" {
+		if flag.NArg() != 0 || strings.TrimSpace(*requestsOut) == "" {
+			return errors.New("usage: evaluate -build-tabular-requests <credit-g dataset.parquet> -requests-out <directory>")
+		}
+		return writeTabularRequests(context.Background(), parquet, strings.TrimSpace(*requestsOut))
 	}
 	if parquet := strings.TrimSpace(*passagesParquet); parquet != "" {
 		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" {

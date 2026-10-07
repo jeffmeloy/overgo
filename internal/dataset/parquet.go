@@ -21,6 +21,7 @@ import (
 const (
 	parquetMagic = "PAR1"
 
+	parquetTypeInt64     = 2
 	parquetTypeByteArray = 6
 
 	parquetCodecUncompressed = 0
@@ -90,6 +91,42 @@ func ReadParquetTextRows(ctx context.Context, path, column string, limit int, ob
 		return errors.New("dataset: parquet column carried no values")
 	}
 	return nil
+}
+
+// ParquetLeaf names one column of a flat parquet table and says whether it
+// holds 64-bit integers; a column that does not holds strings.
+type ParquetLeaf struct {
+	Name    string
+	Integer bool
+}
+
+// ParquetLeaves lists the columns of a flat parquet table of string and
+// integer columns, in schema order, for a reader that takes a table as it
+// finds it. A nested or repeated field, or another physical type, is outside
+// the subset and refuses.
+func ParquetLeaves(path string) ([]ParquetLeaf, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+	metadata, err := readParquetFooter(file, info.Size())
+	if err != nil {
+		return nil, err
+	}
+	var leaves []ParquetLeaf
+	for _, element := range metadata.schema[1:] {
+		integer := element.kind == parquetTypeInt64
+		if element.numChildren > 0 || !element.hasKind || !integer && element.kind != parquetTypeByteArray {
+			return nil, fmt.Errorf("dataset: parquet column %q is not a string or integer column of a flat table", element.name)
+		}
+		leaves = append(leaves, ParquetLeaf{Name: element.name, Integer: integer})
+	}
+	return leaves, nil
 }
 
 type parquetMetadata struct {
@@ -305,7 +342,9 @@ func stringColumnLeaf(metadata parquetMetadata, column string) (int, int, error)
 		if element.numChildren > 0 {
 			stack = append(stack, frame{remaining: element.numChildren, optional: optional, path: path})
 		} else {
-			if element.hasKind && element.kind == parquetTypeByteArray {
+			// An integer column is read, as decimal text, only when it is
+			// asked for by name: the column a caller leaves unnamed is text.
+			if element.hasKind && (element.kind == parquetTypeByteArray || column != "" && element.kind == parquetTypeInt64) {
 				candidates = append(candidates, candidate{leaf: leaf, optional: optional, name: element.name, path: path})
 			}
 			leaf++
@@ -351,7 +390,7 @@ func readColumnChunk(
 	budget *parquetBudget,
 	observe func(uint64, parquetValue) error,
 ) error {
-	if column.kind != parquetTypeByteArray {
+	if column.kind != parquetTypeByteArray && column.kind != parquetTypeInt64 {
 		return errors.New("dataset: parquet string column has a different physical type")
 	}
 	if column.codec != parquetCodecSnappy && column.codec != parquetCodecUncompressed {
@@ -404,13 +443,20 @@ func readColumnChunk(
 			if err != nil {
 				return err
 			}
-			dictionary, err = decodePlainStrings(plain, header.numValues, budget)
+			if column.kind == parquetTypeInt64 {
+				dictionary, err = decodePlainIntegers(plain, header.numValues, budget)
+			} else {
+				dictionary, err = decodePlainStrings(plain, header.numValues, budget)
+			}
 			if err != nil {
 				return err
 			}
 		case parquetPageData, parquetPageDataV2:
 			if header.numValues > column.numValues-values {
 				return errors.New("dataset: parquet page exceeds declared row count")
+			}
+			if column.kind == parquetTypeInt64 && dictionary == nil {
+				return errors.New("dataset: parquet integer columns without a dictionary are outside the supported subset")
 			}
 			pageValues, err := decodeDataPage(payload, column.codec, header, maxDefinition, dictionary, budget)
 			if err != nil {
@@ -676,6 +722,26 @@ func decodePlainStrings(data []byte, count int64, budget *parquetBudget) ([]stri
 		}
 		values = append(values, string(data[offset:offset+length]))
 		offset += length
+	}
+	return values, nil
+}
+
+// decimalBase is the base an integer column's values are written in.
+const decimalBase = 10
+
+// decodePlainIntegers decodes a dictionary of 64-bit integers, each as its
+// decimal text: a column's values are text whatever its physical type.
+func decodePlainIntegers(data []byte, count int64, budget *parquetBudget) ([]string, error) {
+	width := binary.Size(int64(0))
+	if count < 0 || count > int64(len(data)/width) {
+		return nil, errors.New("dataset: parquet integer count exceeds page")
+	}
+	if err := budget.take(count, parquetStringBytes); err != nil {
+		return nil, err
+	}
+	values := make([]string, count)
+	for index := range values {
+		values[index] = strconv.FormatInt(int64(binary.LittleEndian.Uint64(data[index*width:])), decimalBase)
 	}
 	return values, nil
 }

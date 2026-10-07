@@ -4,28 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "latent-codec-training",
-      "title": "Train an installed decoder natively and show a held-out gain over it, or record that there is none",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 1900,
-        "reason": "The codec route's objective mode: read a registered picture dataset's two memberships, train the bridge on one and have the frozen decoder draw the other through the installed and the trained bridge for a held-out verdict; cut a manifest's clips into the pictures a dataset registers; and publish a checkpoint for a trainer that compiles no program of its own. The backward pass and the trainer are committed"
-      },
-      "steps": [
-        {
-          "id": "win",
-          "title": "Adapt the decoder to one domain and publish the held-out verdict against the installed decoder",
-          "status": "open",
-          "verify": "go test ./cmd/train -count=1 -run '^TestCodecAdaptationPublishesItsHeldOutVerdict$'",
-          "rationale": "The lane's first supervised win: the decoder adapted on training frames of one domain against the installed decoder, the same latents going into both, scored by the round-trip evaluation on frames the adaptation never saw, and published as a held-out verdict the way the text objective's is. A loss is a result: the step closes on the verdict either way, and the adapted weights are a candidate that this row never activates. If the reach step ended in a refusal, this step waits on the operator it named.\n\nServes: judge on held-out data. Disappears: nothing. Evidence: the verdict record. Batch: device.",
-          "depends_on": [
-            "latent-codec-training/reach"
-          ]
-        }
-      ]
-    },
-    {
       "id": "census-rebind-after-latent-rows",
       "title": "Rebind the accepted model census after this campaign's registrations and evaluations",
       "owner": "master-lead",

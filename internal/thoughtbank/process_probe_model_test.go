@@ -4,7 +4,6 @@ package thoughtbank
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -12,10 +11,7 @@ import (
 )
 
 func TestFractaleTwentyTokenProcessProbe(t *testing.T) {
-	modelDirectory := os.Getenv("OVERGO_THOUGHTBANK_MODEL")
-	if modelDirectory == "" {
-		modelDirectory = `C:\Users\jeffm\adaptive_new\models\Fractale-350M-base`
-	}
+	modelDirectory := fractaleDirectory(t)
 	weights, config, err := LoadCheckpoint(filepath.Join(modelDirectory, "model.pt"))
 	if err != nil {
 		t.Fatal(err)

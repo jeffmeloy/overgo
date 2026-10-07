@@ -7,7 +7,6 @@ import (
 	"slices"
 	"testing"
 
-	"overgo/internal/dataroot"
 	"overgo/internal/densecausal"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
@@ -119,11 +118,7 @@ func modelFromGolden(t *testing.T, g *qwen2Golden) *densecausal.Model {
 // absent artifact skips LOUDLY.
 func artifactDir(t *testing.T, name string) string {
 	t.Helper()
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	dir := filepath.Join(roots.Models, name)
+	dir := testutil.ModelArtifactDir(t, name)
 	if _, err := os.Stat(filepath.Join(dir, "model.safetensors")); err != nil {
 		if _, err := os.Stat(filepath.Join(dir, "model.safetensors.index.json")); err != nil {
 			t.Skipf("UNAVAILABLE: %s artifact absent at %s; real-artifact training NOT verified", name, dir)

@@ -8,13 +8,17 @@
       "title": "Move the remaining models out of adaptive_new and drop the test variables that point there",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 20,
+        "reason": "testutil.ModelArtifactDir looks under every model root instead of joining the configured one: that is what lets a test find a model copied beside the store while its original stays where it was"
+      },
       "steps": [
         {
           "id": "do",
           "title": "Move the remaining models out of adaptive_new and drop the test variables that point there",
           "status": "open",
           "verify": "go test ./internal/repoanalysis -run '^TestNoTestReadsAdaptiveNew$' -count=1",
-          "rationale": "Owner recommendation 2026-09-27. Once goldens lock the ports, move the remaining models under adaptive_new/models (Wan, the Gemma configs) into overgo/models as TabFM was, and drop the test environment variables that point there: fewer outside paths, fewer environment-dependent skips and flakes. OWNER PERMISSION needed for the moves: the guard protects model directories.\n\nServes: inference and training on local models. Disappears: the remaining model paths into adaptive_new and their test variables. Batch: host.\n\nFrom simplify-checkpoint-locations, retired 2026-09-29: move a checkpoint out of adaptive_new only where a live dependency on the retired root remains; verify the staged copy (hash, servable identity, baseline lookup, bounded inference, rollback) before switching locators; keep the original; no model vanishes.\n\nLanes (expected; the gate reads them from the diff): the lanes of the packages whose tests move. From goldens-own-parity (closed 2026-09-30): the reference comparisons that remain (cmd/vqaparity, most of internal/adaptiveparity, the rest of cmd/sensenovaparity) stay because their goldens live outside git, in adaptive_new fixtures and store captures. Committing those goldens and pointing the kept tests at them is what lets those packages go; a provenance manifest would not. Never-run tests found on the way, each gated on a variable or tag nothing sets: TestGemma4FP8Leadership (OVERGO_GEMMA4_BASELINE), TestInferenceTextAndStructuredEvidenceIdentity, the modeltest process-peak tests, cmd/vqaparity TestRxBrainProductionParity, sensenovarecipe's SeededLatent and FullGeneration tests, and projector TestGemma4Real* and TestQwen3VLRealFixture. Each goes into a lane that sets its gate, or is deleted if a running test covers it. Also never run (2026-09-30): internal/adaptiveparity's experiment probes (TestComponentCompositionViability, TestTier0ChainViability, TestTier0ChainDoseResponse, TestBridgeSynthesisProducesEvidenceOrRefusal, TestAdapterRetrialProbe) sit behind OVERGO_PROBE_TEST, which no lane sets, and need Carbon-500M or MiniCPM5-1B, which are not registered on the master-lead machine. They are the only real-model runs of the graft and chain code that moved to trainingworkflow."
+          "rationale": "Owner recommendation 2026-09-27. Once goldens lock the ports, move the remaining models under adaptive_new/models (Wan, the Gemma configs) into overgo/models as TabFM was, and drop the test environment variables that point there: fewer outside paths, fewer environment-dependent skips and flakes. OWNER PERMISSION needed for the moves: the guard protects model directories.\n\nServes: inference and training on local models. Disappears: the remaining model paths into adaptive_new and their test variables. Batch: host.\n\nFrom simplify-checkpoint-locations, retired 2026-09-29: move a checkpoint out of adaptive_new only where a live dependency on the retired root remains; verify the staged copy (hash, servable identity, baseline lookup, bounded inference, rollback) before switching locators; keep the original; no model vanishes.\n\nLanes (expected; the gate reads them from the diff): the lanes of the packages whose tests move. From goldens-own-parity (closed 2026-09-30): the reference comparisons that remain (cmd/vqaparity, most of internal/adaptiveparity, the rest of cmd/sensenovaparity) stay because their goldens live outside git, in adaptive_new fixtures and store captures. Committing those goldens and pointing the kept tests at them is what lets those packages go; a provenance manifest would not. Never-run tests found on the way, each gated on a variable or tag nothing sets: TestGemma4FP8Leadership (OVERGO_GEMMA4_BASELINE), TestInferenceTextAndStructuredEvidenceIdentity, the modeltest process-peak tests, cmd/vqaparity TestRxBrainProductionParity, sensenovarecipe's SeededLatent and FullGeneration tests, and projector TestGemma4Real* and TestQwen3VLRealFixture. Each goes into a lane that sets its gate, or is deleted if a running test covers it. Also never run (2026-09-30): internal/adaptiveparity's experiment probes (TestComponentCompositionViability, TestTier0ChainViability, TestTier0ChainDoseResponse, TestBridgeSynthesisProducesEvidenceOrRefusal, TestAdapterRetrialProbe) sit behind OVERGO_PROBE_TEST, which no lane sets, and need Carbon-500M or MiniCPM5-1B, which are not registered on the master-lead machine. They are the only real-model runs of the graft and chain code that moved to trainingworkflow.\n\nAfter the small step (2026-10-07): the ten models under 10 GB are beside the store and read there. This step is done when TestNoTestReadsAdaptiveNew exists and holds with no list: internal/repoanalysis's referenceTreeReaders names the eight Go files that still hold a path into the reference tree (model directories of Krea and SenseNova named outright, reference goldens and fixtures that live outside git, three flag defaults in cmd/validate). Measured 2026-10-07: every directory under adaptive_new/models is a git clone whose LFS object cache repeats its weights, so the ten large models are about 204 GB of working files, not the 400 GB the directories occupy; adaptive_new/checkpoints is a further 211 GB and is the checkpoints root both local-models.json files configure, which validate -onboard and server training write into; the store also records locations under adaptive_new/checkpoints and adaptive_new/docs. C: had 495 GB free after the small copies, so copying everything while the originals stay does not fit: see the decision adaptive-new-large-models. The frozen image/video inventory pins the recorded location of every image and video model (TestImageVideoInventoryAcceptance compares each media-scope census entry, location included, with the census the inventory froze), so the store's locations of Un-0 and SimpleDiffusion were switched and switched back: their copies are beside the store and the tests read them, and their recorded locations, like those of Wan, LiveEdit, Krea and SenseNova, move only when that inventory is frozen again. tmp/switch_model_locations.go switches a named model's recorded locations between two roots while both copies exist, and undoes it with the roots swapped."
         }
       ]
     },
@@ -129,7 +133,8 @@
             "record-training-route-decision/do",
             "say-contracts-in-words/do",
             "scorecard-wording-baseline/do",
-            "record-adaptive-new-copy-budget/do"
+            "record-adaptive-new-copy-budget/do",
+            "plan-decision-blocks/do"
           ]
         }
       ]
@@ -324,6 +329,21 @@
       "recommendation": "Copy the models under 10 GB now, and decide the large ones separately",
       "asked": "2026-10-06",
       "answer": "Copy the models under 10 GB now, and decide the large ones separately"
+    },
+    {
+      "id": "adaptive-new-large-models",
+      "question": "The ten large models under adaptive_new/models are about 204 GB of working files (their directories hold as much again in git LFS caches), adaptive_new/checkpoints is a further 211 GB and is overgo's configured checkpoints root, and C: has about 495 GB free. Copying all of it while the originals stay does not fit. How should the large models and the checkpoints root leave adaptive_new?",
+      "options": [
+        "Leave them where they are for now, found through local-models.json, and take the hard-coded paths out of the tests",
+        "Move them: rename the large model directories and the checkpoints root into overgo_data (same volume, no disk cost, no copy time); this changes adaptive_new, so it needs the owner's word",
+        "Copy the large models' working files (about 204 GB, originals kept, leaves about 290 GB free) and leave the checkpoints root in adaptive_new"
+      ],
+      "recommendation": "Leave them where they are for now, found through local-models.json, and take the hard-coded paths out of the tests",
+      "blocks": [
+        "models-out-of-adaptive-new"
+      ],
+      "asked": "2026-10-07",
+      "answer": "Leave them where they are for now, found through local-models.json, and take the hard-coded paths out of the tests"
     }
   ]
 }

@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"overgo/internal/dataroot"
 	"overgo/internal/testutil"
 )
 
@@ -14,11 +13,7 @@ import (
 // absent artifact skips LOUDLY.
 func artifactDir(t *testing.T, name string) string {
 	t.Helper()
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	dir := filepath.Join(roots.Models, name)
+	dir := testutil.ModelArtifactDir(t, name)
 	// Single-file or sharded-index checkpoints both qualify (OpenSource contract).
 	if _, err := os.Stat(filepath.Join(dir, "model.safetensors")); err != nil {
 		if _, err := os.Stat(filepath.Join(dir, "model.safetensors.index.json")); err != nil {

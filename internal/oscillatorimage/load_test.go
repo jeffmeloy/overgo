@@ -5,9 +5,10 @@ import (
 	"image/gif"
 	"image/png"
 	"os"
-	"path/filepath"
 	"reflect"
 	"testing"
+
+	"overgo/internal/testutil"
 )
 
 func generatePlanar(t testing.TB, model *Model, request Request) ([]float32, error) {
@@ -68,7 +69,7 @@ func TestArtifactPublishesReferenceGIF(t *testing.T) {
 	if len(decoded.Image) != encoded.Frames || decoded.Image[0].Bounds().Dx() != encoded.Width || decoded.Image[0].Bounds().Dy() != encoded.Height {
 		t.Fatalf("decoded GIF frames=%d bounds=%v", len(decoded.Image), decoded.Image[0].Bounds())
 	}
-	referencePath := filepath.Join(filepath.Dir(filepath.Dir(artifactDir(t))), "docs", "image_gen_samples", "un0_video_direct_seed202_frames6.gif")
+	referencePath := testutil.FixturePath(t, "un0", "un0_video_direct_seed202_frames6.gif")
 	reference, err := os.ReadFile(referencePath)
 	if err != nil {
 		t.Fatalf("UNAVAILABLE: reference video %s: %v", referencePath, err)
@@ -159,7 +160,7 @@ func TestArtifactPublishesReferencePNG(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	referencePath := filepath.Join(filepath.Dir(filepath.Dir(artifactDir(t))), "docs", "image_gen_samples", "un0_direct_seed42.png")
+	referencePath := testutil.FixturePath(t, "un0", "un0_direct_seed42.png")
 	referenceFile, err := os.Open(referencePath)
 	if err != nil {
 		t.Fatalf("UNAVAILABLE: reference image %s: %v", referencePath, err)

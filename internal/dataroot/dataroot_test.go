@@ -3,6 +3,7 @@ package dataroot
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 )
 
@@ -138,6 +139,36 @@ func TestResolveModelPathPrefersExistingThenRoots(t *testing.T) {
 	}
 	if got := roots.ResolveModelPath(existing); got != existing {
 		t.Fatalf("existing path must win unchanged: %q", got)
+	}
+}
+
+// TestAModelBesideTheStoreWinsOverTheConfiguredRoot holds the order models are
+// found in when a checkout's configuration points the models root at another
+// home: a model that both hold resolves beside the store, so a copy brought
+// there is read without the original being moved or the configuration
+// edited, and a model only the configured root holds still resolves there.
+func TestAModelBesideTheStoreWinsOverTheConfiguredRoot(t *testing.T) {
+	t.Setenv(Env, "")
+	work, elsewhere := t.TempDir(), t.TempDir()
+	config := `{"models":` + strconv.Quote(filepath.ToSlash(elsewhere)) + `}`
+	if err := os.WriteFile(filepath.Join(work, ConfigFile), []byte(config), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	roots, err := Resolve(work)
+	if err != nil {
+		t.Fatal(err)
+	}
+	beside := filepath.Join(work, "models")
+	for _, directory := range []string{filepath.Join(elsewhere, "both"), filepath.Join(beside, "both"), filepath.Join(elsewhere, "outside-only")} {
+		if err := os.MkdirAll(directory, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := roots.ResolveModelPath("both"); got != filepath.Join(beside, "both") {
+		t.Fatalf("a model both roots hold resolved to %q, want the copy beside the store", got)
+	}
+	if got := roots.ResolveModelPath("outside-only"); got != filepath.Join(elsewhere, "outside-only") {
+		t.Fatalf("a model only the configured root holds resolved to %q", got)
 	}
 }
 

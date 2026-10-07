@@ -11,10 +11,7 @@ import (
 )
 
 func TestRealCheckpointCodeCompletion(t *testing.T) {
-	modelDir := os.Getenv("OVERGO_THOUGHTBANK_MODEL")
-	if modelDir == "" {
-		modelDir = `C:\Users\jeffm\adaptive_new\models\Fractale-350M-base`
-	}
+	modelDir := fractaleDirectory(t)
 	checkpoint := filepath.Join(modelDir, "model.pt")
 	if _, err := os.Stat(checkpoint); err != nil {
 		t.Skipf("Fractale checkpoint unavailable: %v", err)

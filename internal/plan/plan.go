@@ -188,10 +188,12 @@ func Validate(d Plan) error {
 	seen := map[string]bool{}
 	for _, decision := range d.Decisions {
 		// The recommendation is one of the options, so an answer is one
-		// choice; the items it blocks may land and leave the plan.
+		// choice; the items it blocks may land and leave the plan, but each
+		// is an item's name: a blank one blocks nothing and says it does.
 		if _, err := time.Parse(time.DateOnly, decision.Asked); err != nil || decision.ID == "" || seen[decision.ID] ||
-			decision.Question == "" || len(decision.Options) < decisionOptions || !slices.Contains(decision.Options, decision.Recommendation) {
-			return fmt.Errorf("plan decision %q needs a unique id, a question, two or more options, one of them recommended, and the day it was asked", decision.ID)
+			decision.Question == "" || len(decision.Options) < decisionOptions || !slices.Contains(decision.Options, decision.Recommendation) ||
+			slices.ContainsFunc(decision.Blocks, func(item string) bool { return !worklease.ValidPlanID(item) }) {
+			return fmt.Errorf("plan decision %q needs a unique id, a question, two or more options, one of them recommended, the day it was asked, and item names for what it blocks", decision.ID)
 		}
 		seen[decision.ID] = true
 	}

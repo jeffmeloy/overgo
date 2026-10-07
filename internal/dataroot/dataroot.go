@@ -77,20 +77,22 @@ type Roots struct {
 	// declares that store here. Unset, it is the checkout's own store.
 	AudioReference string `json:"audio_reference_store,omitzero"`
 	// StoreModels is the models directory beside the store when
-	// local-models.json points Models elsewhere: models are found there too,
-	// as the audio acceptances find theirs beside the reference store, so a
-	// model moved beside the store resolves without editing the
-	// configuration.
+	// local-models.json points Models elsewhere: models are found there
+	// first, as the audio acceptances find theirs beside the reference store,
+	// so a model copied beside the store resolves there without editing the
+	// configuration, whether or not the copy it came from is still in place.
 	StoreModels string `json:"store_models,omitzero"`
 	Source      string `json:"-"`
 }
 
-// ModelRoots lists every directory a model is found under, Models first.
+// ModelRoots lists every directory a model is found under, the one beside the
+// store first: a model the store's own home holds is the one to read, and the
+// configured root holds the models that have not come there.
 func (r Roots) ModelRoots() []string {
 	if r.StoreModels == "" {
 		return []string{r.Models}
 	}
-	return []string{r.Models, r.StoreModels}
+	return []string{r.StoreModels, r.Models}
 }
 
 // ResolveCurrent returns roots for the process working directory.

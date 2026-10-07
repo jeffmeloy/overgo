@@ -2,21 +2,19 @@ package thoughtbank
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"overgo/internal/pytorchzip"
+	"overgo/internal/testutil"
 )
 
-// defaultModelPath is where the shipped Fractale-350M-base checkpoint lives;
-// override with THOUGHTBANK_MODEL_PT. The test skips when the file is absent, so
-// it is model-gated rather than a hard dependency.
-const defaultModelPath = `C:\Users\jeffm\adaptive_new\models\Fractale-350M-base\model.pt`
-
-func modelPath() string {
-	if p := os.Getenv("THOUGHTBANK_MODEL_PT"); p != "" {
-		return p
-	}
-	return defaultModelPath
+// fractaleDirectory is the shipped Fractale-350M-base model's directory under
+// the model roots. A test skips when its checkpoint is absent, so it is
+// model-gated rather than a hard dependency.
+func fractaleDirectory(t testing.TB) string {
+	t.Helper()
+	return testutil.ModelArtifactDir(t, "Fractale-350M-base")
 }
 
 func cfgInt(t *testing.T, cfg map[string]any, key string) int {
@@ -43,7 +41,7 @@ func cfgInt(t *testing.T, cfg map[string]any, key string) int {
 // tensor inventory is complete: every tensor the forward binds is present and no
 // tensor is unaccounted. No torch and no tokenizer download are involved.
 func TestConfigParseMatchesShippedCheckpoint(t *testing.T) {
-	path := modelPath()
+	path := filepath.Join(fractaleDirectory(t), "model.pt")
 	if _, err := os.Stat(path); err != nil {
 		t.Skipf("checkpoint unavailable at %s: %v", path, err)
 	}

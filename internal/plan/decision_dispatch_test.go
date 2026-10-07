@@ -26,6 +26,26 @@ func TestAnswerTakesOneOfTheOptions(t *testing.T) {
 	}
 }
 
+// TestADecisionBlocksNamedItems holds what a decision blocks to item names:
+// an item that has landed and left the plan is still a name, and a blank
+// entry, which blocks nothing while saying it blocks something, is refused.
+func TestADecisionBlocksNamedItems(t *testing.T) {
+	t.Parallel()
+	decision := Decision{ID: "choose", Question: "Which?", Options: []string{"a", "b"}, Recommendation: "a", Asked: "2026-09-28"}
+	for _, blocks := range [][]string{nil, {"a-row-that-landed"}} {
+		decision.Blocks = blocks
+		if err := Validate(Plan{Campaign: "fixture", Doctrine: "fixture", Decisions: []Decision{decision}}); err != nil {
+			t.Fatalf("a decision blocking %q was refused: %v", blocks, err)
+		}
+	}
+	for _, blocks := range [][]string{{""}, {"a-row", ""}, {"an/item/path"}} {
+		decision.Blocks = blocks
+		if err := Validate(Plan{Campaign: "fixture", Doctrine: "fixture", Decisions: []Decision{decision}}); err == nil {
+			t.Fatalf("a decision blocking %q was accepted", blocks)
+		}
+	}
+}
+
 // TestDispatchPassesRowsAwaitingADecision holds dispatch to the owner's
 // open decisions: a row an unanswered decision blocks is passed over for
 // the next ready row, an answer releases it, and when every open row waits

@@ -17,10 +17,7 @@ func TestFractalePrefillLeadership(t *testing.T) {
 	if os.Getenv("OVERGO_FRACTALE_BASELINE") != "1" {
 		t.Skip(testskip.Inapplicable + ": set OVERGO_FRACTALE_BASELINE=1 for matched Fractale leadership")
 	}
-	modelDirectory := os.Getenv("OVERGO_THOUGHTBANK_MODEL")
-	if modelDirectory == "" {
-		modelDirectory = `C:\Users\jeffm\adaptive_new\models\Fractale-350M-base`
-	}
+	modelDirectory := fractaleDirectory(t)
 	checkpoint := filepath.Join(modelDirectory, "model.pt")
 	if _, err := os.Stat(checkpoint); err != nil {
 		t.Skipf("Fractale checkpoint unavailable: %v", err)
@@ -132,10 +129,7 @@ func TestFractaleIncrementalLeadership(t *testing.T) {
 	if os.Getenv("OVERGO_FRACTALE_BASELINE") != "1" {
 		t.Skip(testskip.Inapplicable + ": set OVERGO_FRACTALE_BASELINE=1 for matched Fractale leadership")
 	}
-	modelDirectory := os.Getenv("OVERGO_THOUGHTBANK_MODEL")
-	if modelDirectory == "" {
-		modelDirectory = `C:\Users\jeffm\adaptive_new\models\Fractale-350M-base`
-	}
+	modelDirectory := fractaleDirectory(t)
 	checkpoint := filepath.Join(modelDirectory, "model.pt")
 	if _, err := os.Stat(checkpoint); err != nil {
 		t.Skipf("Fractale checkpoint unavailable: %v", err)

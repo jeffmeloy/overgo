@@ -101,12 +101,17 @@ func RequireElementsWithin[L, R Float](t testing.TB, name string, got []L, want 
 }
 
 // ModelArtifactDir resolves one named model directory under the
-// repository data roots for artifact-gated golden tests.
+// repository data roots for artifact-gated golden tests: the first model
+// root that holds it, and the configured models root, where a test reports it
+// absent, when none does.
 func ModelArtifactDir(t testing.TB, name string) string {
 	t.Helper()
 	roots, err := dataroot.Resolve(RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)
+	}
+	if resolved := roots.ResolveModelPath(name); filepath.IsAbs(resolved) {
+		return resolved
 	}
 	return filepath.Join(roots.Models, name)
 }

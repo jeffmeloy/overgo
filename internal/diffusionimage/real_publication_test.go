@@ -5,8 +5,9 @@ package diffusionimage
 import (
 	"bytes"
 	"os"
-	"path/filepath"
 	"testing"
+
+	"overgo/internal/testutil"
 )
 
 func TestRealCheckpointPublishesReferencePNG(t *testing.T) {
@@ -23,7 +24,7 @@ func TestRealCheckpointPublishesReferencePNG(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	referencePath := filepath.Join(filepath.Dir(filepath.Dir(artifactDir(t))), "docs", "image_gen_samples", "uvit_direct_seed7_steps2_64.png")
+	referencePath := testutil.FixturePath(t, "simplediffusion", "uvit_direct_seed7_steps2_64.png")
 	reference, err := os.ReadFile(referencePath)
 	if err != nil {
 		t.Fatalf("UNAVAILABLE: reference image %s: %v", referencePath, err)

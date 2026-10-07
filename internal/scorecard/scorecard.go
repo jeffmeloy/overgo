@@ -36,17 +36,21 @@ const catalogLimit = 4096
 // base model value on the same contract, from the held-out verdict that
 // judged the two; nil where no verdict judged the value against a base.
 type Cell struct {
-	Value         float64             `json:"value,omitzero"`
-	Base          *float64            `json:"base,omitempty"`
-	Unit          string              `json:"unit,omitzero"`
-	Label         string              `json:"label,omitzero"`
-	Source        artifact.ID         `json:"source,omitzero"`
-	CodeCommit    string              `json:"code_commit,omitzero"`
-	Environment   artifact.ID         `json:"environment,omitzero"`
-	Reason        string              `json:"reason,omitzero"`
-	NotApplicable bool                `json:"not_applicable,omitzero"`
-	Direction     runrecord.Direction `json:"direction,omitzero"`
-	Contract      Contract            `json:"contract,omitzero"`
+	Value         float64     `json:"value,omitzero"`
+	Base          *float64    `json:"base,omitempty"`
+	Unit          string      `json:"unit,omitzero"`
+	Label         string      `json:"label,omitzero"`
+	Source        artifact.ID `json:"source,omitzero"`
+	CodeCommit    string      `json:"code_commit,omitzero"`
+	Environment   artifact.ID `json:"environment,omitzero"`
+	Reason        string      `json:"reason,omitzero"`
+	NotApplicable bool        `json:"not_applicable,omitzero"`
+	// Proposed marks a held-out quality that is not applicable only because its
+	// task's held-out evaluation is proposed and not yet defined: the one case that
+	// is work to do, and the one the cycle files a row for.
+	Proposed  bool                `json:"proposed,omitzero"`
+	Direction runrecord.Direction `json:"direction,omitzero"`
+	Contract  Contract            `json:"contract,omitzero"`
 	// Attempts is the denominator of a failed share: the attempts it counts, so
 	// two shares compare as counts and not as rates over unlike samples.
 	Attempts int `json:"attempts,omitzero"`
@@ -188,6 +192,15 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 				}
 				row.Cells[metric.Quality] = record.cell(capability.Task)
 			}
+			if quality := row.Cells[metric.Quality]; quality.Proposed && (capability.Task == recipe.TaskImageGen || capability.Task == recipe.TaskVideoGen) {
+				captioned, err := takesCaption(ctx, store, capability.Recipe)
+				if err != nil {
+					return nil, err
+				}
+				if !captioned {
+					row.Cells[metric.Quality] = inapplicable(uncaptionedGeneration)
+				}
+			}
 			row.Cells[metric.Failures] = failureCell(observed)
 			row.Cells[metric.Load] = loadCell(benchmark, measured, observed)
 			row.Cells[metric.PeakMemory] = peakMemoryCell(benchmark, measured, observed)
@@ -200,6 +213,31 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 		return cmp.Or(strings.Compare(left.Name, right.Name), strings.Compare(string(left.Task), string(right.Task)))
 	})
 	return rows, nil
+}
+
+// uncaptionedGeneration is why an image or video model that takes no caption has no held-out
+// quality a caption's questions could measure: the held-out evaluations of the generators ask a
+// vision-language model about what a caption said to draw, and a class index over a few pixels, or
+// no condition at all, says nothing to ask about.
+const uncaptionedGeneration = "this model does not draw from a caption alone (its input is a class, nothing, or a video to edit), so the held-out evaluation of the generators, a vision-language model's answers to a caption's questions about what it drew, cannot be asked of it"
+
+// takesCaption reports whether the recipe's definition takes a prompt as an input, the one condition
+// under which a caption can be drawn from.
+func takesCaption(ctx context.Context, store *overgodb.Store, id artifact.ID) (bool, error) {
+	definition, err := recipe.RequireDefinition(ctx, store, id)
+	if err != nil {
+		return false, err
+	}
+	return acceptsCaption(definition), nil
+}
+
+// acceptsCaption reports whether a definition has an input of prompt conditioning and no video to
+// edit: a generator draws from a caption alone, and an editor changes a video it is given.
+func acceptsCaption(definition recipe.Definition) bool {
+	has := func(kind recipe.DataKind) bool {
+		return slices.ContainsFunc(definition.Inputs, func(input recipe.Input) bool { return input.Data == kind })
+	}
+	return has(recipe.DataPromptConditioning) && !has(recipe.DataVideo)
 }
 
 // projectionInRequest is why a projection cell no attempt measured is not applicable.
@@ -716,7 +754,9 @@ func qualityCell(task recipe.Task, summaries []evaluation.EvalSummary, descripto
 	case task == recipe.TaskTraining:
 		return inapplicable(trainingProvesRoute), nil
 	case heldoutProposals[task] != "":
-		return inapplicable(fmt.Sprintf("no held-out evaluation for %s yet; proposed: %s", task, heldoutProposals[task])), nil
+		proposal := inapplicable(fmt.Sprintf("no held-out evaluation for %s yet; proposed: %s", task, heldoutProposals[task]))
+		proposal.Proposed = true
+		return proposal, nil
 	default:
 		return gap("no held-out evaluation of this recipe"), nil
 	}

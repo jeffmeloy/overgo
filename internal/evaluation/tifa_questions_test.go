@@ -58,7 +58,7 @@ func TestTIFAQuestionsAskAboutThePictureOfEachCaption(t *testing.T) {
 		if item.ID == "coco_bad" || len(item.Questions) != 2 {
 			t.Fatalf("picked %+v, which is no well-formed caption of two questions", item)
 		}
-		images[item.ID] = strings.Repeat("a", 64)
+		images[item.ID] = strings.Repeat("a", 64) + imageExtension
 	}
 	suite, err := BuildTIFAQuestions(items, images, "judge-a")
 	if err != nil {

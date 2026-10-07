@@ -85,7 +85,7 @@ func PickTIFA(path string, count int, seed uint64) ([]TIFAItem, error) {
 
 // BuildTIFAQuestions builds the held-out suite that asks a judge about each
 // picture drawn from a TIFA caption: one case for each question, naming the
-// picture by its digest, which images maps the caption's identity to, and
+// picture by its file name, which images maps the caption's identity to, and
 // asking which choice, lettered in the file's order, the picture shows. The
 // judge is named in the suite, since the score depends on it.
 func BuildTIFAQuestions(items []TIFAItem, images map[string]string, judge string) (GeneratedAnswerSuite, error) {
@@ -97,7 +97,7 @@ func BuildTIFAQuestions(items []TIFAItem, images map[string]string, judge string
 		Transforms: []string{TransformTrimSpace, transformLowercase},
 	}
 	for _, item := range items {
-		digest, drawn := images[item.ID]
+		name, drawn := images[item.ID]
 		if !drawn {
 			return GeneratedAnswerSuite{}, fmt.Errorf("evaluation: caption %s has no picture", item.ID)
 		}
@@ -108,7 +108,7 @@ func BuildTIFAQuestions(items []TIFAItem, images map[string]string, judge string
 			}
 			suite.Cases = append(suite.Cases, GeneratedAnswerCase{
 				Name:      fmt.Sprintf("%s/%s/%d", tifaSource, item.ID, number),
-				Prompt:    mediaPrompt(MediaImage, digest+imageExtension, fmt.Sprintf("%s\n%s\nAnswer with the letter only.", question.Question, strings.Join(listing, "\n"))),
+				Prompt:    mediaPrompt(MediaImage, name, fmt.Sprintf("%s\n%s\nAnswer with the letter only.", question.Question, strings.Join(listing, "\n"))),
 				MaxTokens: tifaAnswerTokens,
 				Answers:   []string{string(tifaLetters[slices.Index(question.Choices, question.Answer)])},
 			})

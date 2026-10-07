@@ -59,7 +59,7 @@ func TestCapabilityTasksAreTheOnesASessionExists(t *testing.T) {
 	if len(capabilitySessions) == 0 {
 		t.Fatal("no capability session is named")
 	}
-	for _, task := range []string{"seq2seq", "forecast", "vqa", "speech", "image-gen"} {
+	for _, task := range []string{"seq2seq", "forecast", "vqa", "speech", "image-gen", "video-gen"} {
 		if capabilitySessions[task] == nil {
 			t.Errorf("task %q has no capability session", task)
 		}

@@ -94,9 +94,11 @@ func run() error {
 	captionSeed := flag.Uint64("seed", defaultCaptionSeed, "with -build-caption-matching: the seed that picks the clips and the distractors")
 	framesOut := flag.String("frames-out", "", "with -build-caption-matching: cut each case's clip to its middle frame in this directory and ask for a description of the frame, for a model that reads one image and describes it")
 	speechParquet := flag.String("build-speech-round-trip", "", "write the speech round-trip suite of this LibriSpeech parquet file's transcripts to -suite-out: -cases of them, read aloud and judged by the recognizer -judge names")
-	speechJudge := flag.String("judge", "", "with -build-speech-round-trip or -render-tifa: the model that judges, a speech recognizer directory that listens or a vision-language model file that looks")
+	speechJudge := flag.String("judge", "", "with -build-speech-round-trip, -render-tifa or -render-vidgen: the model that judges, a speech recognizer directory that listens or a vision-language model file that looks")
 	tifaQuestions := flag.String("render-tifa", "", "draw a picture of each of -cases TIFA captions with the image model -model-path names, and write the suite that asks the judge about them to -suite-out, the pictures to -media-out: the argument is TIFA's question-answer file")
-	mediaOut := flag.String("media-out", "", "with -render-tifa: the directory the pictures and their render manifest are written to")
+	vidgenCaptions := flag.String("render-vidgen", "", "draw a clip of each of -cases VidGen captions with the video model -model-path names, and write the suite that asks the judge which of four captions each shows to -suite-out, the clips to -media-out: the argument is VidGen's caption file")
+	renderSet := flag.String("render-set", "", "with -render-tifa or -render-vidgen: comma-separated name=number settings that replace fields of the request the model's verification ran, such as width=416,height=240")
+	mediaOut := flag.String("media-out", "", "with -render-tifa or -render-vidgen: the directory the pictures or clips and their render manifest are written to")
 	speechVoice := flag.String("voice", defaultSpeechVoice, "with -build-speech-round-trip: the voice that reads")
 	functionCalls := flag.String("build-function-calls", "", "write the function-call suite of the Berkeley Function-Calling Leaderboard's simple category held in this directory to -suite-out")
 	seriesCSV := flag.String("build-series-forecast", "", "write the series-forecast suite of this ETT file's oil temperature to -suite-out: consecutive windows that show -context readings and ask for the -horizon after them")
@@ -157,11 +159,16 @@ func run() error {
 		defer cancel()
 		return evaluateTranscriptionResourceManifest(ctx, *repository, path)
 	}
-	if questions := strings.TrimSpace(*tifaQuestions); questions != "" {
-		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" || strings.TrimSpace(*mediaOut) == "" || strings.TrimSpace(*speechJudge) == "" || strings.TrimSpace(*modelPath) == "" {
-			return errors.New("usage: evaluate -render-tifa <tifa_v1.0_question_answers.json> -model-path <image model directory> -judge <vision-language model> -media-out <directory> -suite-out <suite.json> [-repo <store>] [-cases N] [-seed N]")
+	if source := cmp.Or(strings.TrimSpace(*tifaQuestions), strings.TrimSpace(*vidgenCaptions)); source != "" {
+		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" || strings.TrimSpace(*mediaOut) == "" || strings.TrimSpace(*speechJudge) == "" || strings.TrimSpace(*modelPath) == "" ||
+			strings.TrimSpace(*tifaQuestions) != "" && strings.TrimSpace(*vidgenCaptions) != "" {
+			return errors.New("usage: evaluate -render-tifa <tifa_v1.0_question_answers.json> | -render-vidgen <VidGen_1M_video_caption.json> -model-path <generator directory> -judge <vision-language model> -media-out <directory> -suite-out <suite.json> [-repo <store>] [-render-set name=number,...] [-cases N] [-seed N]")
 		}
-		return writeTIFAImages(context.Background(), questions, strings.TrimSpace(*modelPath), *repository, strings.TrimSpace(*speechJudge), strings.TrimSpace(*mediaOut), strings.TrimSpace(*suiteOut), *captionCases, *captionSeed)
+		draw := writeTIFAImages
+		if strings.TrimSpace(*vidgenCaptions) != "" {
+			draw = writeVidGenClips
+		}
+		return draw(context.Background(), source, strings.TrimSpace(*modelPath), *repository, strings.TrimSpace(*speechJudge), strings.TrimSpace(*mediaOut), strings.TrimSpace(*suiteOut), strings.TrimSpace(*renderSet), *captionCases, *captionSeed)
 	}
 	if parquet := strings.TrimSpace(*speechParquet); parquet != "" {
 		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" || strings.TrimSpace(*speechJudge) == "" {

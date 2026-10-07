@@ -38,6 +38,10 @@
       "title": "Define the held-out evaluation that measures video-gen quality",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 1500,
+        "reason": "The clip side of the render command (cmd/evaluate/render.go), the VidGen caption picking and the generated-video suite (internal/evaluation) and the judged session's video task are the production code a held-out evaluation of a video model needs: its output is a clip, and evaluate could neither draw one at a size a judge can read nor ask a judge which caption it shows"
+      },
       "steps": [
         {
           "id": "do",
@@ -161,25 +165,6 @@
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-image-embedding",
           "rationale": "- webssl-dino300m-full2b-224 held-out-quality: no held-out evaluation for image-embedding yet; proposed: Imagenette 160 px (fast.ai imagenette2-160, 100 MB) k-nearest-neighbour accuracy from the model's own embeddings\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-unscored-image-gen",
-      "title": "Define the held-out evaluation that measures image-gen quality",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 2400,
-        "reason": "The render command and its manifest (cmd/evaluate/render.go), the judged image session (cmd/evaluate/judged.go), the TIFA question suite and the judge a generated-answer suite names (internal/evaluation) are the production code a held-out evaluation of an image model needs: its output is a picture, which evaluate could neither draw from a caption outside the serving record nor have a vision-language model judge"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Define the held-out evaluation that measures image-gen quality",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-image-gen",
-          "rationale": "- Krea-2-Turbo held-out-quality: no held-out evaluation for image-gen yet; proposed: TIFA v1.0 (github.com/Yushi-Hu/tifa, 10 MB) question answering over each image by a local vision-language model\n- SenseNova-U1-8B-MoT-Infographic-V3 held-out-quality: no held-out evaluation for image-gen yet; proposed: TIFA v1.0 (github.com/Yushi-Hu/tifa, 10 MB) question answering over each image by a local vision-language model\n- SimpleDiffusion-TensorProductAttentionRope held-out-quality: no held-out evaluation for image-gen yet; proposed: TIFA v1.0 (github.com/Yushi-Hu/tifa, 10 MB) question answering over each image by a local vision-language model\n- Un-0 held-out-quality: no held-out evaluation for image-gen yet; proposed: TIFA v1.0 (github.com/Yushi-Hu/tifa, 10 MB) question answering over each image by a local vision-language model\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
         }
       ]
     }

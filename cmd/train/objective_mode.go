@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -35,6 +36,11 @@ type objectiveRun struct {
 	// continue from, all on the host.
 	SaveEvery, Keep int
 	ResumeRun       string
+	// Order, when not zero, seeds the order the run reads its training records in.
+	Order uint64
+	// Runs, when positive, trains that many runs from the same base, their order
+	// seeds counting up from Order, and publishes them as a change corpus.
+	Runs int
 }
 
 // loraFlags are the -lora flags as parsed.
@@ -108,12 +114,10 @@ func runObjectiveMode(ctx context.Context, store *overgodb.Store, run objectiveR
 			return fmt.Errorf("training recipe: %w", err)
 		}
 	}
-	result, err := trainingworkflow.RunTextHeldout(ctx, store, trainingworkflow.TextHeldoutRequest{
-		Alias: run.Alias, Recipe: recipeID, ModelDirectory: run.Model, OutputDirectory: run.Out, Steps: run.Steps, MaximumSequence: run.Sequence,
-		Host: run.Host || run.LoRA != nil || run.Average > 0 || run.SaveEvery > 0 || run.ResumeRun != "", Device: denseDevice, FreezeLexical: run.FreezeLexical, MaxProjectedWall: run.MaxWall, Progress: output,
-		Proof: run.Proof, LoRA: run.LoRA, Average: run.Average,
-		CheckpointEvery: run.SaveEvery, CheckpointKeep: run.Keep, Resume: run.ResumeRun,
-	})
+	if run.Runs > 0 {
+		return runChangeCorpus(ctx, store, run, recipeID, output)
+	}
+	result, err := trainingworkflow.RunTextHeldout(ctx, store, run.request(recipeID, run.Order, run.Out, output))
 	if err != nil {
 		return err
 	}
@@ -127,6 +131,40 @@ func runObjectiveMode(ctx context.Context, store *overgodb.Store, run objectiveR
 		}
 	}
 	return reportVerdict(output, result)
+}
+
+// request is the held-out text run the flags ask for, reading its training
+// records by order and publishing at out.
+func (run objectiveRun) request(recipeID artifact.ID, order uint64, out string, output io.Writer) trainingworkflow.TextHeldoutRequest {
+	return trainingworkflow.TextHeldoutRequest{
+		Alias: run.Alias, Recipe: recipeID, ModelDirectory: run.Model, OutputDirectory: out, Steps: run.Steps, MaximumSequence: run.Sequence,
+		Host: run.Host || run.LoRA != nil || run.Average > 0 || run.SaveEvery > 0 || run.ResumeRun != "", Device: denseDevice, FreezeLexical: run.FreezeLexical, MaxProjectedWall: run.MaxWall, Progress: output,
+		Proof: run.Proof, LoRA: run.LoRA, Average: run.Average,
+		CheckpointEvery: run.SaveEvery, CheckpointKeep: run.Keep, Resume: run.ResumeRun, Order: order,
+	}
+}
+
+// firstOrderSeed is the order seed a corpus counts up from when the run gives
+// none: zero is membership order, which is no seed.
+const firstOrderSeed = 1
+
+// runChangeCorpus trains run.Runs bounded runs of one base under one
+// objective, their order seeds counting up from the run's, or from
+// firstOrderSeed when it gives none, publishes them as a change corpus, and
+// writes one line a run: the change and the verdict it earned.
+func runChangeCorpus(ctx context.Context, store *overgodb.Store, run objectiveRun, recipeID artifact.ID, output io.Writer) error {
+	corpus, err := trainingworkflow.CollectChangeCorpus(ctx, store, run.request(recipeID, 0, run.Out, output), max(run.Order, firstOrderSeed), run.Runs)
+	if err != nil {
+		return err
+	}
+	lines := json.NewEncoder(output)
+	for _, change := range corpus.Changes {
+		if err := lines.Encode(change); err != nil {
+			return err
+		}
+	}
+	_, err = fmt.Fprintf(output, "change corpus %s: %d changes of model %s under objective %s, judged by %s\n", corpus.ID, len(corpus.Changes), corpus.Model, corpus.Objective, corpus.Metric)
+	return err
 }
 
 // reportVerdict writes what a held-out run published.

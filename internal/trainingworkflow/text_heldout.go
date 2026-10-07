@@ -93,6 +93,12 @@ type TextHeldoutRequest struct {
 	// parameters. The checkpoint holds the model with the adapter merged, which
 	// the verdict judges, and the adapter beside it as a PEFT directory.
 	LoRA *LoRA
+	// Order, when not zero, seeds the order the training records are packed
+	// in, in place of membership order: a run of fewer updates than the
+	// stream holds windows then trains on other text for each seed, and two
+	// runs that differ in nothing else are two changes of one base. The
+	// held-out records and their order do not depend on it.
+	Order uint64
 }
 
 // promptAnswers is one record of a generation objective: a prompt and the
@@ -211,7 +217,7 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 	if request.MaximumSequence > 0 {
 		sequence = min(sequence, request.MaximumSequence)
 	}
-	data, records, err := textObjectiveData(ctx, store, objective, tokenizer, sequence, request.Conversations)
+	data, records, err := orderedTextObjectiveData(ctx, store, objective, tokenizer, sequence, request.Conversations, request.Order)
 	if err != nil {
 		return HeldoutResult{}, err
 	}
@@ -508,9 +514,15 @@ func windowPosition(documents [][]int, sequence, updates int) uint64 {
 // record's sequence, which training packs, and what a held-out generation
 // answers it from return keyed by record.
 func textObjectiveData(ctx context.Context, reader artifact.Reader, objective trainingprogram.ObjectiveDocument, tokenizer trainableTokenizer, sequence int, conversations bool) (ObjectiveData, map[string]textRecord, error) {
+	return orderedTextObjectiveData(ctx, reader, objective, tokenizer, sequence, conversations, 0)
+}
+
+// orderedTextObjectiveData is textObjectiveData with the training records
+// read in the order a seed draws (seededObjectiveExamples).
+func orderedTextObjectiveData(ctx context.Context, reader artifact.Reader, objective trainingprogram.ObjectiveDocument, tokenizer trainableTokenizer, sequence int, conversations bool, order uint64) (ObjectiveData, map[string]textRecord, error) {
 	generation := objective.Metric == trainingprogram.MetricGeneratedAnswer
 	records := map[string]textRecord{}
-	data, err := ObjectiveExamples(ctx, reader, objective, []byte("overgo/training/text-utf8/v1"), recipecontract.ModalityText,
+	data, err := seededObjectiveExamples(ctx, reader, objective, order, []byte("overgo/training/text-utf8/v1"), recipecontract.ModalityText,
 		trainingdata.Passthrough(trainingdata.RoleInput, recipecontract.ModalityText, "utf-8"),
 		func(example trainingdata.Example) (HeldoutExample, error) {
 			if len(example.Values) != 1 {

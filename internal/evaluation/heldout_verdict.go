@@ -411,6 +411,39 @@ func VisitHeldoutVerdicts(ctx context.Context, store *overgodb.Store, visit func
 	return err
 }
 
+// HeldoutVerdictFacts is what one committed held-out verdict binds and
+// found: the objective it judged, the target plan and the held-out inputs
+// both models were scored on, the training session and the checkpoint that
+// session published, and the declared metric's value for the base model and
+// for the trained one.
+type HeldoutVerdictFacts struct {
+	Objective, Plan, Inputs, Observation, Trained artifact.ID
+	Metric                                        trainingprogram.EvaluationMetric
+	Direction                                     runrecord.Direction
+	BaselineValue, CandidateValue                 float64
+}
+
+// ReadHeldoutVerdict reads one committed held-out verdict after
+// reconstructing it from the checkpoint, memberships and reports it names,
+// as VisitHeldoutVerdicts does for each verdict it visits.
+func ReadHeldoutVerdict(ctx context.Context, reader artifact.Reader, id artifact.ID) (HeldoutVerdictFacts, error) {
+	verdict, err := heldoutVerdictCodec.Require(ctx, reader, id)
+	if err != nil {
+		return HeldoutVerdictFacts{}, err
+	}
+	objective, err := trainingprogram.LoadObjective(ctx, reader, verdict.Objective)
+	if err == nil {
+		err = reconstructHeldoutVerdict(ctx, reader, verdict, objective)
+	}
+	if err != nil {
+		return HeldoutVerdictFacts{}, err
+	}
+	return HeldoutVerdictFacts{
+		Objective: verdict.Objective, Plan: verdict.Plan, Inputs: verdict.Inputs, Observation: verdict.Observation, Trained: verdict.Trained,
+		Metric: verdict.Metric, Direction: verdict.Direction, BaselineValue: verdict.BaselineValue, CandidateValue: verdict.CandidateValue,
+	}, nil
+}
+
 // IsHeldoutVerdict reports whether a descriptor names a held-out verdict.
 func IsHeldoutVerdict(descriptor artifact.Descriptor) bool {
 	return descriptor.MediaType == heldoutVerdictMediaType && descriptor.Schema == heldoutVerdictSchema

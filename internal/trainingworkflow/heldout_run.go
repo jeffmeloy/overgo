@@ -87,6 +87,9 @@ type HeldoutResult struct {
 type ObjectiveData struct {
 	Examples          map[string]HeldoutExample
 	Training, Heldout artifact.ID
+	// Order is the training records as a seeded stream read them, the order
+	// a run then trains them in; nil trains them in membership order.
+	Order []string
 }
 
 // LoadObjectiveAlias loads the objective an alias names, refusing an alias
@@ -149,7 +152,7 @@ func runHeldout(ctx context.Context, store *overgodb.Store, run HeldoutRun, mode
 	if err != nil {
 		return HeldoutResult{}, err
 	}
-	trainingExamples, err := membershipExamples(training, run.Data.Examples)
+	trainingExamples, err := membershipExamples(training, run.Data)
 	if err != nil {
 		return HeldoutResult{}, err
 	}
@@ -260,6 +263,17 @@ func objectiveMemberships(ctx context.Context, reader artifact.Reader, objective
 // the one process the processor profile names, serving modality to itself,
 // and decodes each processed record into its example.
 func ObjectiveExamples(ctx context.Context, reader artifact.Reader, objective trainingprogram.ObjectiveDocument, profile []byte, modality recipecontract.Modality, process trainingdata.Processor, decode func(trainingdata.Example) (HeldoutExample, error)) (ObjectiveData, error) {
+	return seededObjectiveExamples(ctx, reader, objective, 0, profile, modality, process, decode)
+}
+
+// seededObjectiveExamples is ObjectiveExamples with the training membership
+// read in the order a seed draws: a seed that is not zero shuffles the
+// training stream by it, as the training data path shuffles any stream, and
+// the data returns that order for the run to train in. The training stream's
+// identity then names the seed. The held-out membership is read the same way
+// whatever the seed, so every run of an objective is judged on the same
+// inputs.
+func seededObjectiveExamples(ctx context.Context, reader artifact.Reader, objective trainingprogram.ObjectiveDocument, seed uint64, profile []byte, modality recipecontract.Modality, process trainingdata.Processor, decode func(trainingdata.Example) (HeldoutExample, error)) (ObjectiveData, error) {
 	training, heldout, err := objectiveMemberships(ctx, reader, objective)
 	if err != nil {
 		return ObjectiveData{}, err
@@ -271,10 +285,15 @@ func ObjectiveExamples(ctx context.Context, reader artifact.Reader, objective tr
 	modalities := []recipecontract.Modality{modality}
 	data := ObjectiveData{Examples: map[string]HeldoutExample{}}
 	for _, membership := range []dataset.Membership{training, heldout} {
-		materialized, err := trainingdata.Materialize(ctx, reader, trainingdata.Authority{
+		shuffled := seed != 0 && membership.ID == training.ID
+		authority := trainingdata.Authority{
 			Dataset: objective.Dataset, Split: membership.ID, Processors: []artifact.ID{processor},
 			Signature: recipecontract.ModalitySignature{Inputs: modalities, Outputs: modalities},
-		}, []trainingdata.ProcessorBinding{{Artifact: processor, Modalities: modalities, Process: process}})
+		}
+		if shuffled {
+			authority.Seed, authority.Shuffle = seed, true
+		}
+		materialized, err := trainingdata.Materialize(ctx, reader, authority, []trainingdata.ProcessorBinding{{Artifact: processor, Modalities: modalities, Process: process}})
 		if err != nil {
 			return ObjectiveData{}, err
 		}
@@ -292,20 +311,43 @@ func ObjectiveExamples(ctx context.Context, reader artifact.Reader, objective tr
 			if data.Examples[record.ID], err = decode(record); err != nil {
 				return ObjectiveData{}, fmt.Errorf("training workflow: record %s: %w", record.ID, err)
 			}
+			if shuffled {
+				data.Order = append(data.Order, record.ID)
+			}
 		}
 	}
 	return data, nil
 }
 
-func membershipExamples(membership dataset.Membership, examples map[string]HeldoutExample) ([]HeldoutExample, error) {
-	selected := make([]HeldoutExample, 0, len(membership.Records))
-	for _, record := range membership.Records {
-		example, found := examples[record.ID]
-		if !found {
-			return nil, fmt.Errorf("training workflow: training record %q has no example", record.ID)
+// membershipExamples is the training membership's examples in the order a
+// run trains them: the membership's own, or the data's seeded order, which
+// must name each of the membership's records once.
+func membershipExamples(membership dataset.Membership, data ObjectiveData) ([]HeldoutExample, error) {
+	order := data.Order
+	if order == nil {
+		for _, record := range membership.Records {
+			order = append(order, record.ID)
 		}
-		example.Record = record.ID
+	}
+	members := make(map[string]bool, len(membership.Records))
+	for _, record := range membership.Records {
+		members[record.ID] = true
+	}
+	selected := make([]HeldoutExample, 0, len(order))
+	for _, id := range order {
+		example, found := data.Examples[id]
+		if !found {
+			return nil, fmt.Errorf("training workflow: training record %q has no example", id)
+		}
+		if !members[id] {
+			return nil, fmt.Errorf("training workflow: the training order names %q, which the training membership does not hold, or names it twice", id)
+		}
+		delete(members, id)
+		example.Record = id
 		selected = append(selected, example)
+	}
+	if len(members) != 0 {
+		return nil, fmt.Errorf("training workflow: the training order leaves out %d of the training membership's records", len(members))
 	}
 	return selected, nil
 }

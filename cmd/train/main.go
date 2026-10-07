@@ -70,6 +70,8 @@ func run() error {
 	resumeRun := flag.String("resume-run", "", "with -objective: continue from a checkpoint a run saved with -save-every, on the host; the run ends where an uninterrupted one would")
 	loraQuantized := flag.Bool("lora-quantized", false, "with -lora-rank and a GGUF -model: keep each adapted projection as the file stores it, quantized, dequantizing it as its layer reads it, so the run needs far less memory; the model published is then the base as stored, with the adapter in its adapter directory")
 	loraFrom := flag.String("lora-from", "", "with -objective: continue training the PEFT adapter in this directory, which brings its own rank, alpha and targets")
+	orderSeed := flag.Uint64("order-seed", 0, "with -objective: read the training records in the order this seed draws rather than in membership order, so a run of fewer updates than the text holds windows trains on other text for each seed")
+	runs := flag.Int("runs", 0, "with -objective: train this many runs from the same base, their order seeds counting up from -order-seed (from 1 without it), each published under -out in a directory named after its seed, and publish them as a change corpus, one line a run")
 	flag.Parse()
 	if *proof && *objective == "" {
 		return fmt.Errorf("train: -proof re-verifies an -objective recipe; it needs -objective")
@@ -87,6 +89,9 @@ func run() error {
 	if lora != nil && *objective == "" {
 		return fmt.Errorf("train: a LoRA adapter trains under an -objective; -lora-rank and -lora-from need -objective")
 	}
+	if (*orderSeed != 0 || *runs != 0) && *objective == "" {
+		return fmt.Errorf("train: an order seed and a corpus of runs belong to an -objective run; -order-seed and -runs need -objective")
+	}
 	store, err := overgodb.Open(*storePath)
 	if err != nil {
 		return err
@@ -98,6 +103,7 @@ func run() error {
 		return runObjectiveMode(ctx, store, objectiveRun{
 			Alias: *objective, Recipe: *recipeID, Model: *model, Out: *output, Steps: *steps, Sequence: *maximumSequence, Host: *host,
 			FreezeLexical: *freezeLexical, Proof: *proof, MaxWall: *maxWall, LoRA: lora, Average: *average, SaveEvery: *saveEvery, Keep: *keepLast, ResumeRun: *resumeRun,
+			Order: *orderSeed, Runs: *runs,
 		}, set, os.Stdout)
 	}
 	if *previewDataset != "" {

@@ -22,6 +22,158 @@
       ]
     },
     {
+      "id": "latent-codec-roundtrip",
+      "title": "Run an installed autoencoder as a capability of its own and measure what a round trip loses",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 0,
+        "reason": "A codec task in the capability catalog, its two installed pairs, and a reconstruction suite in evaluate: the autoencoders exist on master only as hidden stages of the generators, so nothing can encode and decode on request or be scored for what it loses"
+      },
+      "steps": [
+        {
+          "id": "capability",
+          "title": "Encode and decode a picture or clip with an installed autoencoder as one request",
+          "status": "open",
+          "verify": "go test ./internal/mediacapability -count=1 -run '^TestCodecRoundTripsThroughAnInstalledAutoencoder$'",
+          "rationale": "Master takes over the VAE lane here (owner, 2026-10-07; branch codex/overgo_vae, campaign overgo_rsi_with_vae). The lane's goal stands: an autoencoder's latent is one way to propose a change inside the improvement loop, judged on held-out data like any other, and never an authority of its own. Its method does not: in five weeks it landed about 3000 lines of contracts and none of its 32 open steps, because every contract waited for a later consumer. Master builds the consumers first and ports a lane file only in the commit that first calls it. The branch stays as a source to port from, as adaptive_new is; master no longer merges it, and its worktree and store are the owner's to archive.\n\nThis step is the lane's first proof, exact inference of an installed autoencoder, made a capability: a codec task whose request is a picture or clip and whose answer is the reconstruction and the latent's size. Two installed pairs can round-trip today: the Wan2.1 VAE, whose device encode and decode run inside the video editor and through media.CodecChunkStream (the one part of the lane master already holds, with three production callers), and the representation autoencoder, the DINOv2 encoder that already serves image-embedding feeding internal/rae's decoder. The Krea image VAE has a decoder and no encoder on master; it is named as that, not given a pretend round trip.\n\nServes: inference on local models, and the control every later latent row is compared with. Disappears: autoencoders that only a generator can reach. Evidence: a fixture frame round-trips within the tolerance the decode goldens hold. Batch: device."
+        },
+        {
+          "id": "heldout",
+          "title": "Measure what a round trip loses on held-out frames and clips",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-codec",
+          "rationale": "A reconstruction suite in evaluate: held-out VidGen frames (the ones cut for the image-embedding evaluation) and 21-frame clips go in, the reconstruction comes back, and the score is the peak signal-to-noise ratio between them, with the latent's size as a share of the input's shown beside it. The scorecard proposes the evaluation for the codec task and this step closes its gap, as the other tasks' rows did.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the scorecard's codec rows carry a held-out quality. Batch: device.",
+          "depends_on": [
+            "latent-codec-roundtrip/capability"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "latent-encoder-bridge",
+      "title": "Train a connector between two encoders' latents and judge it by what the decoder then reconstructs",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 0,
+        "reason": "A bridge route over the existing bridge trainer and one composed codec pair: the lane's tensor-bridge proof needs a trained connector with a consumer, and the installed WebSSL encoder and RAE decoder are that consumer"
+      },
+      "steps": [
+        {
+          "id": "train",
+          "title": "Train the connector with Muon and compare its rungs on held-out reconstruction",
+          "status": "open",
+          "verify": "go test ./internal/bridgetrain ./cmd/train -count=1 -run '^TestEncoderBridgeIsJudgedByHeldOutReconstruction$'",
+          "rationale": "The lane's tensor-bridge proof in its smallest useful form. Two installed parts do not fit each other: the WebSSL DINO encoder gives features 1024 wide and the RAE decoder expects DINOv2-base features 768 wide. A trained map from one feature space to the other makes them a working pair, and it needs no backward pass through either model: the targets are the DINOv2 encoder's own features of the training frames. The rungs, simplest first: no bridge (refused as a width error, the control), an affine map, a low-rank affine map. Muon trains the dense matrix through internal/bridgetrain. Each rung is judged by the round-trip evaluation of the row before, on held-out frames, beside the native DINOv2 pair as the ceiling; the simplest rung within resampling noise of the best is kept and registered as a composed pair.\n\nServes: train or change, on the smallest trainable latent component the installed models offer. Disappears: nothing. Evidence: the held-out reconstruction of each rung and of the ceiling. Batch: device.",
+          "depends_on": [
+            "latent-codec-roundtrip/heldout"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "latent-codec-training",
+      "title": "Train an installed decoder natively and show a held-out gain over it, or record that there is none",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 0,
+        "reason": "A reconstruction objective and a codec training route: nothing on master trains an autoencoder, so the lane's first supervised win has no trainer to run on"
+      },
+      "steps": [
+        {
+          "id": "reach",
+          "title": "Find which installed decoder the existing backward operators can train, and take one step",
+          "status": "open",
+          "verify": "go test ./cmd/train -count=1 -run '^TestCodecRouteTrainsADecoderOrNamesTheMissingOperator$'",
+          "rationale": "Nothing on master trains an autoencoder: there is no reconstruction objective and no backward pass for the Wan VAE's three-dimensional convolutions or the RAE decoder's transformer. Before building either, this step answers by measurement which one is in reach: a codec training route binds a reconstruction objective to an installed decoder and either takes a finite Muon step whose loss falls on training frames, or refuses and names the first operator that has no backward pass. The candidates in order of least new code are the RAE decoder, whose attention and feed-forward blocks the dense trainers already differentiate, then the Wan VAE decoder. No width, depth, rate or schedule is chosen by hand: each comes from the checkpoint, from the training program's derivation, or is refused.\n\nServes: train or change. Disappears: nothing. Evidence: the route's proof run, or its refusal naming the operator. Batch: device.",
+          "depends_on": [
+            "latent-codec-roundtrip/heldout"
+          ]
+        },
+        {
+          "id": "win",
+          "title": "Adapt the decoder to one domain and publish the held-out verdict against the installed decoder",
+          "status": "open",
+          "verify": "go test ./cmd/train -count=1 -run '^TestCodecAdaptationPublishesItsHeldOutVerdict$'",
+          "rationale": "The lane's first supervised win: the decoder adapted on training frames of one domain against the installed decoder, the same latents going into both, scored by the round-trip evaluation on frames the adaptation never saw, and published as a held-out verdict the way the text objective's is. A loss is a result: the step closes on the verdict either way, and the adapted weights are a candidate that this row never activates. If the reach step ended in a refusal, this step waits on the operator it named.\n\nServes: judge on held-out data. Disappears: nothing. Evidence: the verdict record. Batch: device.",
+          "depends_on": [
+            "latent-codec-training/reach"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "latent-change-proposer",
+      "title": "Propose a model change from a latent of earlier changes and judge it on held-out data against plain controls",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 0,
+        "reason": "A corpus of weight changes with verdicts, a proposer over it and its judged comparison: the campaign's central claim has never been tested because there is no corpus to learn from and no proposer to judge"
+      },
+      "steps": [
+        {
+          "id": "corpus",
+          "title": "Collect bounded fine-tunes of one model as weight changes with their held-out verdicts",
+          "status": "open",
+          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestChangeCorpusBindsEachChangeToItsVerdict$'",
+          "rationale": "The campaign's central claim is that a latent over earlier model changes can propose a better one. The store holds one training verdict today, Qwen2.5-0.5B on the registered text objective, which is nothing to learn from. This step runs short fine-tunes of that model that differ only in seed and data order, and publishes each as its change from the base with the held-out verdict it earned. How many runs is set by the measured time of one against a night of device time, and is stated in the step's outcome. The unit of independence is the run.\n\nServes: train or change. Disappears: nothing. Evidence: the corpus manifest, one line a run: the change and its verdict. Batch: device."
+        },
+        {
+          "id": "proposal",
+          "title": "Propose a change from the corpus and judge it against the best run, the mean and a random direction",
+          "status": "open",
+          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestProposedChangeIsJudgedAgainstItsControls$'",
+          "rationale": "Proposers, simplest first: a low-rank linear code of the changes, decoded along the direction that best predicts the verdict's gain; then a small deterministic autoencoder over the changes, only if the linear code leaves gain unexplained. Controls: the best single run, the plain mean of all runs, the mean of the runs that improved, and a random direction of the same size. Every candidate is materialized and scored by the same held-out objective, and compared by paired resampling over held-out records; the lane's block resampling in tensorstats is ported in this commit, with this caller. A proposer is kept only if its candidate beats the best control beyond resampling noise. If none does, that refusal is the recorded outcome.\n\nWhat stays unplanned until a proposer is kept: a stochastic residual, multimodal fusion, discrete codes, curved geometry and transport alignment, learned priors. Each was a retain-or-refuse row on the lane; none is filed on master before a measured result calls for it.\n\nServes: judge on held-out data. Disappears: nothing. Evidence: the held-out score of each candidate and control. Batch: device.",
+          "depends_on": [
+            "latent-change-proposer/corpus"
+          ]
+        },
+        {
+          "id": "lifecycle",
+          "title": "Take the kept candidate through admission, isolated evaluation, promotion or refusal, and rollback",
+          "status": "open",
+          "verify": "go test ./internal/modelrecipe -count=1 -run '^TestProposedChangeRunsTheCandidateLifecycle$'",
+          "rationale": "A proposed change is a proposal and nothing more: it goes through the candidate path every change takes (admit, materialize, evaluate in isolation, ablate, promote or refuse, roll back), without serving, the production alias untouched. This is the lane's safety binding and end-to-end proof in one step: no check is added for latents, because the existing ones already stand between a candidate and activation. If the proposal step kept no candidate, this step closes on that recorded refusal.\n\nServes: promote or revert. Disappears: nothing. Evidence: the candidate's lifecycle records, or the refusal. Batch: device.",
+          "depends_on": [
+            "latent-change-proposer/proposal"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "experiment-evidence",
+      "title": "Give a proposer the past experiments that bear on its choice and measure whether that helps",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 0,
+        "reason": "The lane's bounded reader of past experiment records, on master's overgodb query: it is the one lane addition besides the codec stream that already had a production caller, and the proposer of the row before is its first real reader"
+      },
+      "steps": [
+        {
+          "id": "retrieval",
+          "title": "Read the past experiments that bear on a change, bounded in size and cut off at the proposal's time",
+          "status": "open",
+          "verify": "go test ./cmd/overgodb ./internal/runrecord ./internal/overgodb -count=1 -run 'TestExperimentalEvidence|TestDocumentHistoricalContentCutoff|TestDocumentContentByteBudget'",
+          "rationale": "What the lane called PEARL, in plain terms: before proposing, read what was already tried. The lane built a read-only reader for it (a query that returns past experiment records under a byte budget and a historical cutoff, so that no outcome later than the proposal can leak into it) with a command flag as its caller. This step ports that reader onto master's overgodb query, repaired for the gate lifecycle master has since renamed, with the lane's tests. It stores nothing new and adds no record family.\n\nServes: measure and find the gap, by showing what was tried. Disappears: nothing. Evidence: the ported tests. Batch: host."
+        },
+        {
+          "id": "conditioning",
+          "title": "Measure whether that evidence improves the proposer's candidates",
+          "status": "open",
+          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestEvidenceConditionedProposalIsCompared$'",
+          "rationale": "Three arms with the same proposer and the same budget: no evidence, the store's current retrieval, and the cut-off reader of the step before. The exact bytes each arm read are recorded. Judged by the held-out objective of the proposer's row; no benefit is a valid outcome and closes the step. A learned encoder of experiment paths is not planned unless the plain reader measurably falls short.\n\nServes: judge on held-out data. Disappears: nothing. Evidence: the held-out score of each arm. Batch: device.",
+          "depends_on": [
+            "experiment-evidence/retrieval",
+            "latent-change-proposer/proposal"
+          ]
+        }
+      ]
+    },
+    {
       "id": "speech-document-admission",
       "title": "Admit or retire the GUI lane's document speech program",
       "owner": "professional_overgo_gui",
@@ -33,41 +185,6 @@
           "status": "open",
           "verify": "test -f internal/speechsynth/document_admission_test.go \u0026\u0026 go test ./internal/speechsynth -run '^TestDocumentProgramAdmission$' -count=1",
           "rationale": "Owned by professional_overgo_gui/gui-text-to-speech. Master adds no second executor and does not retire that lane's foundation; it stays open until lane work proves admission or a retirement decision lands."
-        }
-      ]
-    },
-    {
-      "id": "vae-latent-campaign",
-      "title": "Carry the VAE lane's latent campaign surface until the lane closes it",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Carry the VAE lane's latent campaign surface until the lane closes it",
-          "status": "open",
-          "verify": "go test ./internal/plan -run '^TestVAECampaignClosedOut$' -count=1",
-          "rationale": "The overgo_vae lane (branch codex/overgo_vae, campaign overgo_rsi_with_vae, design docs/overgo_rsi_with_vae.md) runs the native-Go latent RSI and PEARL campaign with its own plan in its own worktree. Owner decision 2026-09-25: master takes the lane in parts that have a production consumer, not whole. Master ported the runtime part at e1ee1326fe2b (row vae-codec-stream-port: media.CodecChunkStream owning causal codec state, the Wan VAE host and CUDA encode and CUDA decode through it; the host streaming DecodeLatentVideo stays a test on master until it has a production caller); the ported files are byte-identical to the lane's, so merging master back is clean. DIRECTION FOR THE LANE when it merges master (master is in a consolidation-only phase: two birds with one stone, minimize to the maximum practical extent, no ledger where construction can prevent the object): (1) consumer first -- land each latent contract (representation latent state and codec, geometry, tensorstats resampling and robust scalars, media latent volume) together with its first production consumer; the first merge unit is first-latent-capability/existing-vae-inference-proof, and no export arrives without a caller; (2) no new record families -- express experimental evidence through the shared record table that automation-one-record-table builds instead of runrecord experimental_* families, and keep campaign-history adoption out of master's internal/plan; (3) reconcile pinned media runtime moves with a reviewed delta in docs/media_reviewed_deltas.json backed by a device receipt, never by narrowing TestReviewedDeltaRegistryExplainsTheTree; (4) never raise docs/clone_baseline.json -- the merged tree measured 7964 against master's 7991 while the lane raised it to 9970; (5) after merging master, drop the lane's testCodecChunkState copy in internal/media/codec_latent_test.go: master's TestCodecChunkStreamOwnsCausalState owns it; (6) keep evidence identities in compatibility.json refreshed from master's store, not the lane's. Master keeps its plan; any staged surface a later merge brings retires with this row. Done when the lane's campaign closeout has merged and TestVAECampaignClosedOut proves no staged entry names this row."
-        }
-      ]
-    },
-    {
-      "id": "merge-e1ee1326fe2b",
-      "title": "Merge the VAE lane once its first latent capability has a production consumer",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "paydown": "automation-one-record-table",
-        "reason": "the VAE lane adds typed latent state, codec and readiness contracts, experimental evidence records (runrecord) and campaign-history adoption (plan); automation-one-record-table consolidates the record families"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Merge the VAE lane once its first latent capability has a production consumer",
-          "status": "open",
-          "verify": "go run ./cmd/validate -claims \u0026\u0026 go test ./internal/representation -run '^TestLatentStateObservationAndSampleContract$' -count=1",
-          "rationale": "Superseded by the owner's decision (2026-09-25) to take the VAE lane in consumer-backed parts: vae-codec-stream-port ported the runtime part; the lane's research scaffolding (typed latent state, codec, geometry, readiness and robust-statistics contracts without production callers, runrecord experimental_* record families, campaign-history adoption in internal/plan) stays in the lane until its first latent capability has a consumer. This row merges the lane at that point, re-titled to the head then merged; its harness growth is budgeted against automation-one-record-table."
         }
       ]
     },
@@ -85,8 +202,6 @@
           "rationale": "Run final host, race, device, browser and release checks once, reusing only proven-independent evidence. Resolve high-priority findings; record dispositions and reopen triggers for deferred capability. Reconcile census, baseline and reports at the closing commit and bind the census. The operator stop stays until the operator resumes.",
           "depends_on": [
             "speech-document-admission/do",
-            "vae-latent-campaign/do",
-            "merge-e1ee1326fe2b/do",
             "training-rate-per-layer/do",
             "validate-currency/do",
             "plan-review-2026-10-03/do",
@@ -135,7 +250,13 @@
             "record-adaptive-new-copy-budget/do",
             "plan-decision-blocks/do",
             "evaluation-builders-in-go/do",
-            "video-edit-evaluation/do"
+            "video-edit-evaluation/do",
+            "latent-codec-roundtrip/heldout",
+            "latent-encoder-bridge/train",
+            "latent-codec-training/win",
+            "latent-change-proposer/lifecycle",
+            "experiment-evidence/conditioning",
+            "vae-lane-takeover-plan/do"
           ]
         }
       ]
@@ -345,6 +466,25 @@
       ],
       "asked": "2026-10-07",
       "answer": "Leave them where they are for now, found through local-models.json, and take the hard-coded paths out of the tests"
+    },
+    {
+      "id": "vae-lane-takeover-shape",
+      "question": "The owner told master on 2026-10-07 to take over the VAE lane and plan it as master sees fit. The lane's own plan is 32 steps, none started, behind about 3000 lines of contracts with no caller. What shape does the work take on master?",
+      "options": [
+        "Five measured rows on master, each lane file ported with its first caller, optional branches unplanned until a proposer is kept",
+        "Merge the lane's contracts whole and follow its 32-step plan in order",
+        "Keep only the installed-autoencoder capability and its held-out measure, and retire the rest of the campaign"
+      ],
+      "recommendation": "Five measured rows on master, each lane file ported with its first caller, optional branches unplanned until a proposer is kept",
+      "blocks": [
+        "latent-codec-roundtrip",
+        "latent-encoder-bridge",
+        "latent-codec-training",
+        "latent-change-proposer",
+        "experiment-evidence"
+      ],
+      "asked": "2026-10-07",
+      "answer": "Five measured rows on master, each lane file ported with its first caller, optional branches unplanned until a proposer is kept"
     }
   ]
 }

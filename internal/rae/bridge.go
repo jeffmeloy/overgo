@@ -136,17 +136,10 @@ func LoadBridgedAutoencoder(directory string) (*BridgedAutoencoder, error) {
 	if !held {
 		return nil, fmt.Errorf("rae: %s holds no encoder bridge", directory)
 	}
-	file, err := safetensors.OpenFile(pair.Bridge)
+	bridge, err := LoadEncoderBridge(pair.Bridge)
 	if err != nil {
 		return nil, err
 	}
-	var bridge EncoderBridge
-	weight, weightErr := safetensors.ReadF32(file.Tensors[bridgeWeightTensor])
-	bias, biasErr := safetensors.ReadF32(file.Tensors[bridgeBiasTensor])
-	if err := errors.Join(weightErr, biasErr, file.Close()); err != nil {
-		return nil, fmt.Errorf("rae: read the bridge: %w", err)
-	}
-	bridge.Weight, bridge.Bias = weight, bias
 	source, err := vitencoder.Load(pair.SourceEncoder)
 	if err != nil {
 		return nil, err
@@ -156,6 +149,21 @@ func LoadBridgedAutoencoder(directory string) (*BridgedAutoencoder, error) {
 		return nil, err
 	}
 	return bridgeTo(decoder, source, bridge)
+}
+
+// LoadEncoderBridge reads the bridge a bridged pair keeps in the file at
+// path, for a caller that joins it to parts it has already loaded.
+func LoadEncoderBridge(path string) (EncoderBridge, error) {
+	file, err := safetensors.OpenFile(path)
+	if err != nil {
+		return EncoderBridge{}, err
+	}
+	weight, weightErr := safetensors.ReadF32(file.Tensors[bridgeWeightTensor])
+	bias, biasErr := safetensors.ReadF32(file.Tensors[bridgeBiasTensor])
+	if err := errors.Join(weightErr, biasErr, file.Close()); err != nil {
+		return EncoderBridge{}, fmt.Errorf("rae: read the bridge: %w", err)
+	}
+	return EncoderBridge{Weight: weight, Bias: bias}, nil
 }
 
 // Bridged joins another loaded encoder and a bridge to this pair's decoder,

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"image"
 	"math"
 	"math/rand/v2"
 	"os"
@@ -201,22 +202,39 @@ func bridgeTokens(ctx context.Context, pair *rae.Autoencoder, source *vitencoder
 	return bridgeFrame{picture: picture, source: sourceTokens, target: target}, nil
 }
 
-// clipBridgeFrame cuts a clip's first frame to the pair's size, keeping its proportions,
-// and computes its tokens, or reads them from the cache when a run before this one
-// computed them for a clip of the same bytes.
-func clipBridgeFrame(ctx context.Context, pair *rae.Autoencoder, source *vitencoder.Encoder, clip, cache string) (bridgeFrame, error) {
-	side := pair.Side()
+// clipFirstFrame cuts a clip's first frame to a square of side, keeping its proportions.
+func clipFirstFrame(ctx context.Context, clip string, side int) (image.Image, error) {
 	frames, err := media.DecodeVideoFileCovering(ctx, clip, os.Getenv("OVERGO_FFMPEG"), bridgeFrameFPS, tensor.SingletonExtent, side, side)
 	if err != nil || len(frames) != tensor.SingletonExtent {
-		return bridgeFrame{}, fmt.Errorf("encoder bridge: %s gave %d frames: %w", clip, len(frames), err)
+		return nil, fmt.Errorf("encoder bridge: %s gave %d frames: %w", clip, len(frames), err)
 	}
-	video, err := latentvideo.SourceVideoFromFrames(frames)
+	return frames[0], nil
+}
+
+// unitPicture lays one decoded picture out channel-first in [0, 1], as a pair takes it.
+func unitPicture(decoded image.Image) ([]float32, error) {
+	video, err := latentvideo.SourceVideoFromFrames([]image.Image{decoded})
 	if err != nil {
-		return bridgeFrame{}, err
+		return nil, err
 	}
 	picture := make([]float32, len(video.Pixels))
 	for index, value := range video.Pixels {
 		picture[index] = (value + tensor.SingletonExtent) / tensor.PairedExtent
+	}
+	return picture, nil
+}
+
+// clipBridgeFrame cuts a clip's first frame to the pair's size, keeping its proportions,
+// and computes its tokens, or reads them from the cache when a run before this one
+// computed them for a clip of the same bytes.
+func clipBridgeFrame(ctx context.Context, pair *rae.Autoencoder, source *vitencoder.Encoder, clip, cache string) (bridgeFrame, error) {
+	cut, err := clipFirstFrame(ctx, clip, pair.Side())
+	if err != nil {
+		return bridgeFrame{}, err
+	}
+	picture, err := unitPicture(cut)
+	if err != nil {
+		return bridgeFrame{}, err
 	}
 	data, err := os.ReadFile(clip)
 	if err != nil {
@@ -227,22 +245,37 @@ func clipBridgeFrame(ctx context.Context, pair *rae.Autoencoder, source *vitenco
 	targetWidth, targetGrid := pair.Latent()
 	sourceValues, targetValues := sourceGrid*sourceGrid*sourceWidth, targetGrid*targetGrid*targetWidth
 	cached := filepath.Join(cache, hex.EncodeToString(sum[:])+".tokens")
-	if raw, err := os.ReadFile(cached); err == nil && len(raw) == (sourceValues+targetValues)*binary.Size(float32(0)) {
-		values := make([]float32, sourceValues+targetValues)
-		for index := range values {
-			values[index] = math.Float32frombits(binary.LittleEndian.Uint32(raw[index*binary.Size(float32(0)):]))
-		}
+	if values, kept := readTokens(cached, sourceValues+targetValues); kept {
 		return bridgeFrame{picture: picture, source: values[:sourceValues], target: values[sourceValues:]}, nil
 	}
 	frame, err := bridgeTokens(ctx, pair, source, picture)
 	if err != nil {
 		return bridgeFrame{}, err
 	}
-	raw := make([]byte, 0, (sourceValues+targetValues)*binary.Size(float32(0)))
-	for _, value := range slices.Concat(frame.source, frame.target) {
+	return frame, writeTokens(cached, slices.Concat(frame.source, frame.target))
+}
+
+// readTokens reads count token values a run before this one kept at path; kept is
+// false when the file is absent or holds another count.
+func readTokens(path string, count int) (values []float32, kept bool) {
+	raw, err := os.ReadFile(path)
+	if err != nil || len(raw) != count*binary.Size(float32(0)) {
+		return nil, false
+	}
+	values = make([]float32, count)
+	for index := range values {
+		values[index] = math.Float32frombits(binary.LittleEndian.Uint32(raw[index*binary.Size(float32(0)):]))
+	}
+	return values, true
+}
+
+// writeTokens keeps token values at path for the runs after this one.
+func writeTokens(path string, values []float32) error {
+	raw := make([]byte, 0, len(values)*binary.Size(float32(0)))
+	for _, value := range values {
 		raw = binary.LittleEndian.AppendUint32(raw, math.Float32bits(value))
 	}
-	return frame, os.WriteFile(cached, raw, bridgeCacheFileMode)
+	return os.WriteFile(path, raw, bridgeCacheFileMode)
 }
 
 // trainEncoderBridge is the encoder-bridge route: it fits the affine map that lets one

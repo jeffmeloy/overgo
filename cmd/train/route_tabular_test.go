@@ -162,12 +162,22 @@ func registerTableSplit(t *testing.T, ctx context.Context, store *overgodb.Store
 			t.Fatal(err)
 		}
 	}
-	registered, err := dataset.RegisterDirectoryDataset(ctx, store, "tables", corpus)
+	source, training := registerSplit(t, ctx, store, "tables", corpus, len(tables), groups)
+	return registerTableObjective(t, ctx, store, root, source, training, metric)
+}
+
+// registerSplit registers the count files of corpus as a dataset, one record
+// a file in name order, and splits it in halves by group, groups[i] being
+// record i's group or, for nil groups, each record its own. It returns the
+// dataset and its training membership.
+func registerSplit(t *testing.T, ctx context.Context, store *overgodb.Store, name, corpus string, count int, groups []string) (source, training artifact.ID) {
+	t.Helper()
+	registered, err := dataset.RegisterDirectoryDataset(ctx, store, name, corpus)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var records []dataset.Record
-	for index := range uint64(len(tables)) {
+	for index := range uint64(count) {
 		id := dataset.RecordID(registered.Dataset, dataset.InventoryAssetName, index)
 		group := id
 		if groups != nil {
@@ -186,20 +196,30 @@ func registerTableSplit(t *testing.T, ctx context.Context, store *overgodb.Store
 	if _, err := artifact.CommitBatch(ctx, store, splitBatch); err != nil {
 		t.Fatal(err)
 	}
-	var training artifact.ID
 	for _, membership := range split.Memberships {
 		if membership.Partition == "train" {
 			training = membership.ID
 		}
 	}
-	return registerTableObjective(t, ctx, store, root, registered.Dataset, training, metric)
+	return registered.Dataset, training
 }
 
 // registerTableObjective registers a table-prediction objective judged by
-// metric over the dataset's training membership, with stand-in descriptors
-// for the contract and bootstrap identities it names, and writes a head file
-// to record.
+// metric over the dataset's training membership, and writes a head file to
+// record.
 func registerTableObjective(t *testing.T, ctx context.Context, store *overgodb.Store, root string, source, training artifact.ID, metric trainingprogram.EvaluationMetric) (trainingprogram.ObjectiveDocument, string) {
+	t.Helper()
+	return registerObjective(t, ctx, store, root, tableObjectiveAlias, trainingprogram.ObjectiveSpec{
+		Name: "tables", Kind: trainingprogram.ObjectiveTablePrediction, Signature: tableSignature,
+		Dataset: source, Split: training, Metric: metric,
+	})
+}
+
+// registerObjective registers, under alias, the declared objective spec
+// names over its dataset's training membership, with stand-in descriptors
+// for the contract and bootstrap identities it names, and writes a weights
+// file to record.
+func registerObjective(t *testing.T, ctx context.Context, store *overgodb.Store, root, alias string, spec trainingprogram.ObjectiveSpec) (trainingprogram.ObjectiveDocument, string) {
 	t.Helper()
 	var referenced []artifact.ID
 	stand := func(kind artifact.Kind, name string) artifact.ID {
@@ -210,13 +230,10 @@ func registerTableObjective(t *testing.T, ctx context.Context, store *overgodb.S
 		referenced = append(referenced, id)
 		return id
 	}
-	objective, err := trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
-		Name: "tables", Kind: trainingprogram.ObjectiveTablePrediction, Signature: tableSignature,
-		Dataset: source, Split: training, Processors: []artifact.ID{stand(artifact.KindProfile, "overgo/tabular-test/processor")},
-		Loss: stand(artifact.KindProfile, "overgo/tabular-test/loss"), Evaluation: stand(artifact.KindProfile, "overgo/tabular-test/evaluation"),
-		Metric: metric, Evidence: []artifact.ID{stand(artifact.KindEvidence, "overgo/tabular-test/note")},
-		Authority: trainingprogram.ObjectiveDeclared,
-	})
+	spec.Processors = []artifact.ID{stand(artifact.KindProfile, "overgo/objective-test/processor")}
+	spec.Loss, spec.Evaluation = stand(artifact.KindProfile, "overgo/objective-test/loss"), stand(artifact.KindProfile, "overgo/objective-test/evaluation")
+	spec.Evidence, spec.Authority = []artifact.ID{stand(artifact.KindEvidence, "overgo/objective-test/note")}, trainingprogram.ObjectiveDeclared
+	objective, err := trainingprogram.NewObjective(spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,7 +246,7 @@ func registerTableObjective(t *testing.T, ctx context.Context, store *overgodb.S
 	}
 	batch := artifact.Batch{
 		Key: "test-objective", Contents: []artifact.Content{content},
-		Aliases: []artifact.AliasBinding{{Name: tableObjectiveAlias, Target: objective.ID}},
+		Aliases: []artifact.AliasBinding{{Name: alias, Target: objective.ID}},
 	}
 	for _, id := range referenced {
 		batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: id})

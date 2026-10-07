@@ -4,27 +4,13 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "census-rebind-after-latent-rows",
-      "title": "Rebind the accepted model census after this campaign's registrations and evaluations",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Rebind the accepted model census after this campaign's registrations and evaluations",
-          "status": "open",
-          "verify": "OVERGO_STORE_ACCEPTANCE=1 go test ./cmd/validate -count=1 -run '^TestAcceptedCapabilityCensus$'"
-        }
-      ]
-    },
-    {
       "id": "latent-codec-training",
       "title": "Train an installed decoder natively and show a held-out gain over it, or record that there is none",
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 4000,
-        "reason": "A backward pass for the representation autoencoder's decoder, a trainer that steps a bridge with Muon against the picture the frozen decoder draws, and the train route that runs it under a supervised session: no installed autoencoder had any part that could be trained against its pictures"
+        "nodes": 1900,
+        "reason": "The codec route's objective mode: read a registered picture dataset's two memberships, train the bridge on one and have the frozen decoder draw the other through the installed and the trained bridge for a held-out verdict; cut a manifest's clips into the pictures a dataset registers; and publish a checkpoint for a trainer that compiles no program of its own. The backward pass and the trainer are committed"
       },
       "steps": [
         {
@@ -36,6 +22,20 @@
           "depends_on": [
             "latent-codec-training/reach"
           ]
+        }
+      ]
+    },
+    {
+      "id": "census-rebind-after-latent-rows",
+      "title": "Rebind the accepted model census after this campaign's registrations and evaluations",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Rebind the accepted model census after this campaign's registrations and evaluations",
+          "status": "open",
+          "verify": "OVERGO_STORE_ACCEPTANCE=1 go test ./cmd/validate -count=1 -run '^TestAcceptedCapabilityCensus$'"
         }
       ]
     },

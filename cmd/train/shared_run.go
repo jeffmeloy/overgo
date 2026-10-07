@@ -254,6 +254,21 @@ func publishTrained(ctx context.Context, store *overgodb.Store, recipeID artifac
 	return session.publishWeights(ctx, target, trainer.Program(), trainer, stream)
 }
 
+// publishPlannedTrained is publishTrained for a trainer that compiled no
+// program of its own: its checkpoint names the program the recipe's
+// objective compiles over the trainer's optimizer plan.
+func publishPlannedTrained(ctx context.Context, store *overgodb.Store, recipeID artifact.ID, target string, trainer planned, stream trainingdata.StreamState) (trainingprogram.Checkpoint, error) {
+	session, err := bindSession(ctx, store, recipeID)
+	if err != nil {
+		return trainingprogram.Checkpoint{}, err
+	}
+	program, err := trainingprogram.CompileObjectiveProgram(session.authority.Objective, nil, trainer.OptimizerPlan())
+	if err != nil {
+		return trainingprogram.Checkpoint{}, err
+	}
+	return session.publishWeights(ctx, target, program, trainer, stream)
+}
+
 // publishPlanned publishes, as a checkpoint at target, what trainer trained
 // over records of the dataset the session read, under the program the
 // session's objective compiles over the trainer's optimizer plan.

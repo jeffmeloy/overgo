@@ -45,8 +45,10 @@ var heldoutTextScorers = map[trainingprogram.EvaluationMetric]textScorerSpec{
 }
 
 // heldoutSignalMetrics are the declared metrics a signal verifier measures
-// on a produced media signal against the expected one.
-var heldoutSignalMetrics = []trainingprogram.EvaluationMetric{trainingprogram.MetricAudioSNR}
+// on a produced media signal against the expected one: a waveform's
+// signal-to-noise ratio, and a picture's peak signal-to-noise ratio over
+// values in [0, 1].
+var heldoutSignalMetrics = []trainingprogram.EvaluationMetric{trainingprogram.MetricAudioSNR, trainingprogram.MetricImagePSNRUnit}
 
 // HeldoutCase is one held-out record's expected answer as the objective's
 // metric reads it: target values or a label for a numeric metric, the

@@ -88,6 +88,17 @@ func TestOversizedRequestDigestsInline(t *testing.T) {
 	if beyond.Descriptor.Schema != "overgo.digest-test-input-digest.v1" || body.RequestBytes <= artifact.MaxContentBytes || len(beyond.Data) > inlineRequestBytes {
 		t.Fatalf("request over the document bound = schema %q, %d request bytes, %d digest bytes", beyond.Descriptor.Schema, body.RequestBytes, len(beyond.Data))
 	}
+	// An input a request maps to a recipe's port is recorded the same way:
+	// whole when it is small, by its digest under the schema's digest name
+	// when it is bulk, so a stage's record of a decoded clip stays small.
+	whole, err := InputContent("overgo.digest-test-port.v1", []float32{1, 2, 3})
+	if err != nil || whole.Descriptor.Schema != "overgo.digest-test-port.v1" || string(whole.Data) != "[1,2,3]" {
+		t.Fatalf("small port input = schema %q data %q, %v", whole.Descriptor.Schema, whole.Data, err)
+	}
+	bulk, err := InputContent("overgo.digest-test-port.v1", make([]float32, inlineRequestBytes))
+	if err != nil || bulk.Descriptor.Schema != "overgo.digest-test-port-digest.v1" || len(bulk.Data) > inlineRequestBytes {
+		t.Fatalf("bulk port input = schema %q, %d bytes, %v", bulk.Descriptor.Schema, len(bulk.Data), err)
+	}
 }
 
 // scalarProgram reuses the package capability fixture for

@@ -40,13 +40,21 @@ func videoCapability() Capability {
 		},
 		latentvideo.RegisterLiveEditRuntime,
 		func(request latentvideo.ReferenceEditRequest) (map[recipe.PortName]capabilityruntime.MappedInput, error) {
-			contents, err := latentvideo.ReferenceEditInputContent(request)
+			// The conditioning's text context and the source clip's decoded
+			// pixels are bulk: each is recorded by its digest once it is
+			// over the inline bound, so a clip of any size the device holds
+			// is one the workflow can record.
+			condition, err := capabilityruntime.InputContent("overgo.liveedit-conditioning.v1", request.Condition)
+			if err != nil {
+				return nil, err
+			}
+			source, err := capabilityruntime.InputContent("overgo.source-video.v1", request.Source)
 			if err != nil {
 				return nil, err
 			}
 			return map[recipe.PortName]capabilityruntime.MappedInput{
-				"condition": {Value: request.Condition, Content: contents["condition"]},
-				"source":    {Value: request.Source, Content: contents["source"]},
+				"condition": {Value: request.Condition, Content: condition},
+				"source":    {Value: request.Source, Content: source},
 			}, nil
 		},
 	)

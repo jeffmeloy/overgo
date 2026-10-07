@@ -880,25 +880,30 @@ func decodeJSONInput[Input any](
 	if program.Definition().Model != modelID {
 		return input, artifact.Content{}, errors.New("capability runtime: program model differs from binding")
 	}
-	payload, err := json.Marshal(input)
-	if err != nil {
-		return input, artifact.Content{}, err
-	}
-	// A request over the inline bound embeds bulk conditioning -- raw
-	// tensors, contexts, pixel buffers -- that is provenance the digest
-	// carries, not knowledge the store archives (owner ruling
-	// 2026-08-27). The durable document keeps the full request's hash
-	// for identity and an abbreviated form for the reader; execution
-	// identity derives from it, so replay semantics are unchanged for
-	// any given request. The digest is taken from the request's bytes,
-	// never from a document of them: a document is bounded, and a clip's
-	// decoded pixels pass that bound at an ordinary size.
-	if len(payload) > inlineRequestBytes {
-		content, err := digestRequestContent(name, payload)
-		return input, content, err
-	}
-	content, err := artifact.JSONContract(artifact.KindFile, "overgo."+name+requestSchema).ContentBytes(payload)
+	content, err := InputContent("overgo."+name+requestSchema, input)
 	return input, content, err
+}
+
+// InputContent is the document a run records for a request, or for one of the
+// inputs a request maps to a recipe's ports: the value whole when it is
+// settings-sized, and its digest when it is over the inline bound. Such a
+// value embeds bulk conditioning -- raw tensors, contexts, pixel buffers --
+// that is provenance the digest carries, not knowledge the store archives
+// (owner ruling 2026-08-27). The digest document keeps the full value's hash
+// for identity and an abbreviated form for the reader; execution identity
+// derives from it, so replay semantics are unchanged for any given value. The
+// digest is taken from the value's bytes, never from a document of them: a
+// document is bounded, and a clip's decoded pixels pass that bound at an
+// ordinary size.
+func InputContent(schema string, value any) (artifact.Content, error) {
+	payload, err := json.Marshal(value)
+	if err != nil {
+		return artifact.Content{}, err
+	}
+	if len(payload) > inlineRequestBytes {
+		return digestContent(schema, payload)
+	}
+	return artifact.JSONContract(artifact.KindFile, schema).ContentBytes(payload)
 }
 
 // inlineRequestBytes bounds the request document stored verbatim; a
@@ -906,8 +911,14 @@ func decodeJSONInput[Input any](
 // embedded-tensor classes measured at tens of megabytes.
 const inlineRequestBytes = 1 << 20
 
-// requestSchema ends the schema of a request a run retains whole.
-const requestSchema = "-input.v1"
+// requestSchema ends the schema of a request a run retains whole, and
+// schemaVersion and digestMark are how the schema of a value's digest is made
+// from the schema of the value: the mark goes before the version.
+const (
+	requestSchema = "-input.v1"
+	schemaVersion = ".v1"
+	digestMark    = "-digest"
+)
 
 // RetainedRequest is the request a run retained whole; an oversized request
 // keeps only its digest, which nothing can execute.
@@ -916,10 +927,10 @@ func RetainedRequest(content artifact.Content) (string, bool) {
 	return string(content.Data), descriptor.ID.Kind() == artifact.KindFile && strings.HasSuffix(descriptor.Schema, requestSchema)
 }
 
-// digestRequestContent replaces an oversized request document with its
-// durable footprint: the full request's digest and size for identity,
+// digestContent replaces an oversized value of the given schema with its
+// durable footprint: the full value's digest and size for identity,
 // and an abbreviated rendering for the reader.
-func digestRequestContent(name string, full []byte) (artifact.Content, error) {
+func digestContent(schema string, full []byte) (artifact.Content, error) {
 	id, err := artifact.IdentifyBytes(artifact.KindFile, full)
 	if err != nil {
 		return artifact.Content{}, err
@@ -938,7 +949,7 @@ func digestRequestContent(name string, full []byte) (artifact.Content, error) {
 		Abbreviated:   jsonabbrev.Value(document),
 	}
 	return artifact.JSONContent(
-		artifact.JSONContract(artifact.KindFile, "overgo."+name+"-input-digest.v1"), body,
+		artifact.JSONContract(artifact.KindFile, strings.TrimSuffix(schema, schemaVersion)+digestMark+schemaVersion), body,
 	)
 }
 

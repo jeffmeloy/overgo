@@ -19,7 +19,6 @@ import (
 	"overgo/internal/checked"
 	"overgo/internal/media"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/recipe"
 	"overgo/internal/sampling"
 	"overgo/internal/strictjson"
 	"overgo/internal/tensor"
@@ -383,18 +382,6 @@ func (request ReferenceEditRequest) SessionKey() (string, error) {
 		return "", err
 	}
 	return "liveedit:" + content.Descriptor.ID.String(), nil
-}
-
-func ReferenceEditInputContent(request ReferenceEditRequest) (map[recipe.PortName]artifact.Content, error) {
-	condition, err := artifact.JSONContent(artifact.JSONContract(artifact.KindFile, "overgo.liveedit-conditioning.v1"), request.Condition)
-	if err != nil {
-		return nil, err
-	}
-	source, err := artifact.JSONContent(artifact.JSONContract(artifact.KindFile, "overgo.source-video.v1"), request.Source)
-	if err != nil {
-		return nil, err
-	}
-	return map[recipe.PortName]artifact.Content{"condition": condition, "source": source}, nil
 }
 
 type wanPlan struct{ request WanRequest }

@@ -301,13 +301,11 @@ func writeVidGenClips(ctx context.Context, captions, model, repository, judge, d
 const (
 	// editSourceFrames frames at editSourceFPS a second, editSourceWidth by editSourceHeight,
 	// are what a clip is cut to for an editor: six latent frames of the video stack, which the
-	// editor's chunks of three admit, at the largest of the stack's sizes whose decoded clip
-	// the editor's workflow can record. A step's record is bounded by the store, and the clip
-	// the generators' suite is judged at, 416 by 240, passes that bound.
+	// editor's chunks of three admit, at the size the generators' clips are judged at.
 	editSourceFrames = 21
 	editSourceFPS    = 16
-	editSourceWidth  = 320
-	editSourceHeight = 192
+	editSourceWidth  = 416
+	editSourceHeight = 240
 	// colorFull is a channel's full value as image colors report it.
 	colorFull = 0xffff
 )

@@ -1,6 +1,7 @@
 package evaluation
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"math/rand/v2"
@@ -16,6 +17,9 @@ const (
 	// generatedVideoRounds is how many questions a clip is asked, each with its own distractors:
 	// a clip is cheap to ask about and costly to draw.
 	generatedVideoRounds = 2
+	// nearMissPool is how many captions of other videos, in the seed's order, a caption's
+	// near misses are sought among: enough to hold captions of the same subject.
+	nearMissPool = 20000
 )
 
 // VideoCaptionQuestion is one question about a clip: the captions the judge chooses among,
@@ -34,12 +38,13 @@ type VideoCaptionItem struct {
 }
 
 // PickVideoCaptions reads the VidGen caption file and picks count captions by seed, each
-// with two questions. A question's distractors are captions of other scenes of the same
-// source video, which describe the same people and places doing something else and so
-// can be told from the true one only by what the clip shows; a round takes scenes the
-// round before did not, and where the source video has too few, captions of other
-// videos fill it. Captions of unrelated videos alone are told apart by any clip of the
-// right subject, and a suite of them reads full marks for every generator that works.
+// with two questions. A question's distractors are near misses: captions of other scenes
+// of the same source video, which describe the same people and places doing something
+// else, and, where the source video has too few, which is most of the file, the captions
+// of other videos nearest the true one in wording, from a sample the seed fixes. A round
+// takes captions the round before did not. Captions of unrelated videos are told apart by
+// any clip of the right subject, and a suite of them reads full marks for every generator
+// that works.
 func PickVideoCaptions(path string, count int, seed uint64) ([]VideoCaptionItem, error) {
 	if count <= 0 {
 		return nil, errors.New("evaluation: a generated-video suite draws at least one caption")
@@ -64,10 +69,18 @@ func PickVideoCaptions(path string, count int, seed uint64) ([]VideoCaptionItem,
 	rng := rand.New(rand.NewPCG(seed, seed))
 	picked := slices.Clone(identities)
 	rng.Shuffle(len(picked), func(left, right int) { picked[left], picked[right] = picked[right], picked[left] })
+	// The captions after the picked ones, in the seed's order, are the sample the near
+	// misses of other videos are found in.
+	pool := picked[count:min(len(picked), count+nearMissPool)]
+	poolWords := make([]map[string]int, len(pool))
+	for index, candidate := range pool {
+		poolWords[index] = wordCounts(captions[candidate])
+	}
 	var items []VideoCaptionItem
 	for _, identity := range picked[:count] {
 		source, _, _ := strings.Cut(identity, sceneMarker)
-		// The sibling scenes whose captions differ from this one's and from each other's.
+		// The sibling scenes whose captions differ from this one's and from each other's,
+		// then the captions of other videos nearest this one in wording, nearest first.
 		var siblings []string
 		for _, sibling := range bySource[source] {
 			if captions[sibling] != captions[identity] && !slices.ContainsFunc(siblings, func(kept string) bool { return captions[kept] == captions[sibling] }) {
@@ -75,21 +88,36 @@ func PickVideoCaptions(path string, count int, seed uint64) ([]VideoCaptionItem,
 			}
 		}
 		rng.Shuffle(len(siblings), func(left, right int) { siblings[left], siblings[right] = siblings[right], siblings[left] })
+		words := wordCounts(captions[identity])
+		nearest := make([]int, 0, len(pool))
+		scores := make([]float64, len(pool))
+		for index, candidate := range pool {
+			if candidateSource, _, _ := strings.Cut(candidate, sceneMarker); candidateSource != source {
+				scores[index] = wordOverlap(words, poolWords[index])
+				nearest = append(nearest, index)
+			}
+		}
+		slices.SortFunc(nearest, func(left, right int) int {
+			return cmp.Or(cmp.Compare(scores[right], scores[left]), strings.Compare(pool[left], pool[right]))
+		})
 		item := VideoCaptionItem{ID: identity, Caption: captions[identity]}
+		var offered []string
 		for range generatedVideoRounds {
 			options := []string{identity}
 			taken := min(len(siblings), captionChoices-1)
 			options, siblings = append(options, siblings[:taken]...), siblings[taken:]
-			for draws := 0; len(options) < captionChoices; draws++ {
-				if draws > len(identities) {
+			for len(options) < captionChoices {
+				if len(nearest) == 0 {
 					return nil, fmt.Errorf("evaluation: %s holds too few distinct captions to offer %d choices", path, captionChoices)
 				}
-				other := identities[rng.IntN(len(identities))]
-				otherSource, _, _ := strings.Cut(other, sceneMarker)
-				if otherSource != source && !slices.ContainsFunc(options, func(chosen string) bool { return captions[chosen] == captions[other] }) {
+				other := pool[nearest[0]]
+				nearest = nearest[1:]
+				distinct := func(chosen string) bool { return captions[chosen] == captions[other] }
+				if !slices.ContainsFunc(options, distinct) && !slices.ContainsFunc(offered, distinct) {
 					options = append(options, other)
 				}
 			}
+			offered = append(offered, options...)
 			rng.Shuffle(len(options), func(left, right int) { options[left], options[right] = options[right], options[left] })
 			question := VideoCaptionQuestion{Answer: slices.Index(options, identity)}
 			for _, option := range options {

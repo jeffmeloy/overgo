@@ -10,7 +10,7 @@ import (
 // its construction: each picked caption has two questions of four distinct options of
 // which only one is its own; the distractors are captions of other scenes of the same
 // source video while it has scenes left, a round never repeating the round before's, and
-// captions of other videos after; the clip is named by its file; and the answer is the
+// the captions of other videos nearest it in wording after; the clip is named by its file; and the answer is the
 // letter of the caption the clip was drawn from.
 func TestGeneratedVideoMatchingAsksWhichCaptionAClipWasDrawnFrom(t *testing.T) {
 	t.Parallel()
@@ -39,10 +39,16 @@ func TestGeneratedVideoMatchingAsksWhichCaptionAClipWasDrawnFrom(t *testing.T) {
 				t.Fatalf("item %s question %d does not offer its own caption among %d: %+v", item.ID, round, captionChoices, question)
 			}
 			siblings := 0
+			_, scene, _ := strings.Cut(item.ID, sceneMarker)
 			for _, option := range question.Options {
 				offered[option]++
 				if option != item.Caption && sibling(option) {
 					siblings++
+				}
+				// A caption of another video that fills a round is the nearest in wording:
+				// in this fixture, one of the same scene number, which shares a word more.
+				if !sibling(option) && !strings.HasSuffix(option, sceneMarker+scene) {
+					t.Fatalf("item %s question %d fills a round with %q, not a caption nearest it in wording", item.ID, round, option)
 				}
 			}
 			if want := []int{3, 2}[round]; siblings != want {

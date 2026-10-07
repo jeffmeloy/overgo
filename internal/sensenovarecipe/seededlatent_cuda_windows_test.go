@@ -4,11 +4,13 @@ package sensenovarecipe
 
 import (
 	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
 	"overgo/internal/routedlm"
 	"overgo/internal/safetensors"
@@ -16,10 +18,19 @@ import (
 	"overgo/internal/torchrng"
 )
 
-const (
-	senseNovaModelDir       = `C:\Users\jeffm\adaptive_new\models\SenseNova-U1-8B-MoT-Infographic-V3`
-	senseNovaGenerationGold = `..\..\fixtures\sensenova\generation_native_256.json`
-)
+const senseNovaGenerationGold = `..\..\fixtures\sensenova\generation_native_256.json`
+
+// senseNovaModelDir is the real SenseNova artifact under the model roots,
+// resolved once from the repository root two directories up: a value, not a
+// function of a test, because the pinned production-oracle test reads it as
+// one.
+var senseNovaModelDir = func() string {
+	roots, err := dataroot.Resolve(filepath.Join("..", ".."))
+	if err != nil {
+		panic(err)
+	}
+	return roots.ResolveModelPath("SenseNova-U1-8B-MoT-Infographic-V3")
+}()
 
 type seededLatentOracle struct {
 	Request struct {

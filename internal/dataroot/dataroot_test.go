@@ -170,6 +170,11 @@ func TestAModelBesideTheStoreWinsOverTheConfiguredRoot(t *testing.T) {
 	if got := roots.ResolveModelPath("outside-only"); got != filepath.Join(elsewhere, "outside-only") {
 		t.Fatalf("a model only the configured root holds resolved to %q", got)
 	}
+	// What overgo is compared against is kept beside the store too, wherever
+	// the configuration points the models.
+	if got := roots.References(); got != filepath.Join(work, "references") {
+		t.Fatalf("references = %q, want the directory beside the store", got)
+	}
 }
 
 func TestOvergoDBRuntimeAuthority(t *testing.T) {

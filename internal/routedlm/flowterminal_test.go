@@ -7,9 +7,8 @@ import (
 	"testing"
 
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testutil"
 )
-
-const senseNovaGenerationOracle = `C:\Users\jeffm\adaptive_new\fixtures\sensenova\generation_oracle_256.json`
 
 // Reference formula: [cos half | sin half], angle_i = v*period^(-i/half).
 func TestSinusoidalEmbeddingMatchesReference(t *testing.T) {
@@ -298,7 +297,7 @@ func TestRopePatch2DSmallCase(t *testing.T) {
 // Fixture-derivable module checks: the oracle's request reproduces the
 // schedule knots, the z geometry, and the derived noise sigma.
 func TestSenseNovaFlowScheduleMatchesGenerationOracle(t *testing.T) {
-	raw, err := os.ReadFile(senseNovaGenerationOracle)
+	raw, err := os.ReadFile(testutil.FixturePath(t, "sensenova", "generation_oracle_256.json"))
 	if err != nil {
 		t.Skipf("UNAVAILABLE: fixture absent: %v", err)
 	}

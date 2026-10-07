@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"overgo/internal/artifact"
+	"overgo/internal/dataroot"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/trainingprogram"
@@ -41,9 +42,10 @@ const (
 	// denseGrounding is the training lane's smoke corpus, byte for byte: the
 	// data its dense-workflow recipes were bootstrapped over.
 	denseGrounding = "docs/verification/dense-training-stimulus.txt"
-	// motFixtures holds the golden RxBrain prefill the mot route trains on,
-	// beside the models it was captured from.
-	motFixtures = "C:/Users/jeffm/adaptive_new/fixtures"
+	// motGrounding is the stimulus the mot route's recipe is grounded on;
+	// the route trains on the golden RxBrain prefill among the reference
+	// fixtures.
+	motGrounding = "docs/verification/rxbrain-mot-training-stimulus.txt"
 )
 
 // trainingRoute is one route a training proof runs: the committed data its
@@ -57,9 +59,7 @@ type trainingRoute struct {
 
 var trainingRoutes = []trainingRoute{
 	{grounding: ditGrounding, arguments: []string{"-route", "dit", "-schedule-index", "0", "-steps", routeSteps, "-max-wall", "60m"}},
-	{grounding: "docs/verification/rxbrain-mot-training-stimulus.txt", arguments: []string{
-		"-route", "mot", "-fixtures", motFixtures, "-binding", "rxbrain", "-steps", routeSteps, "-max-wall", "30m",
-	}},
+	{grounding: motGrounding, arguments: []string{"-route", "mot", "-binding", "rxbrain", "-steps", routeSteps, "-max-wall", "30m"}},
 	{grounding: hybridGrounding, arguments: []string{"-route", "hybrid-stack", "-lane", "layer-streamed", "-steps", routeSteps, "-max-wall", "120m"},
 		environment: []string{"GOGC=50", "GOMEMLIMIT=68GiB"}},
 	{grounding: denseGrounding, arguments: []string{
@@ -168,6 +168,12 @@ func trainingRun(cell ModelValidation, store string) (args, environment []string
 		return nil, nil, errors.New("a training run needs the model's weights")
 	case at < 0:
 		inputs = append(inputs, "-recipe", cell.Recipe.String())
+	case cell.Grounding == motGrounding:
+		roots, err := dataroot.ResolveCurrent()
+		if err != nil {
+			return nil, nil, err
+		}
+		inputs = append(inputs, "-fixtures", referenceFixtures(roots))
 	case cell.Grounding == hybridGrounding:
 		inputs = []string{"-model", cell.Location}
 	case cell.Grounding == denseGrounding:

@@ -33,7 +33,7 @@ func TestImagePublicationStreamsEncodedArtifact(t *testing.T) {
 	ctx := t.Context()
 	totalStart := time.Now()
 	profile := kreaProfileOrSkip(t)
-	generator, err := LoadGenerator(ctx, kreaModelDir, profile, request)
+	generator, err := LoadGenerator(ctx, kreaModelDir(t), profile, request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +163,7 @@ func TestImageSessionCacheReusesResidentRuntime(t *testing.T) {
 		Width:  256, Height: 256, Steps: 8, Seed: 42, DynamicShiftMu: 1.15,
 	}
 	ctx := t.Context()
-	generator, err := LoadGenerator(ctx, kreaModelDir, kreaProfileOrSkip(t), request)
+	generator, err := LoadGenerator(ctx, kreaModelDir(t), kreaProfileOrSkip(t), request)
 	if err != nil {
 		t.Fatal(err)
 	}

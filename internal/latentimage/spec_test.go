@@ -7,19 +7,25 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"overgo/internal/testutil"
 )
 
-// kreaModelDir: the real Krea-2-Turbo artifact (READ-ONLY). Absent -> skip
-// (worktrees / non-model hosts have no models/); this is a structural oracle,
-// not a unit test of pure logic.
-const kreaModelDir = `C:\Users\jeffm\adaptive_new\models\Krea-2-Turbo`
+// kreaModelDir: the real Krea-2-Turbo artifact under the model roots
+// (READ-ONLY). Absent -> skip (worktrees / non-model hosts have no models/);
+// this is a structural oracle, not a unit test of pure logic.
+func kreaModelDir(t testing.TB) string {
+	t.Helper()
+	return testutil.ModelArtifactDir(t, "Krea-2-Turbo")
+}
 
 func kreaDirOrSkip(t *testing.T) string {
 	t.Helper()
-	if _, err := os.Stat(kreaModelDir + `\model_index.json`); err != nil {
+	directory := kreaModelDir(t)
+	if _, err := os.Stat(filepath.Join(directory, "model_index.json")); err != nil {
 		t.Skipf("UNAVAILABLE: Krea-2-Turbo not present: %v", err)
 	}
-	return kreaModelDir
+	return directory
 }
 
 func kreaProfileOrSkip(t *testing.T) Profile {
@@ -93,9 +99,8 @@ func TestVerifyCheckpoint(t *testing.T) {
 // TestEnumerate: scanning the models root surfaces the artifact as a
 // serving-in-progress image-diffusion media model (serving path not yet built).
 func TestEnumerate(t *testing.T) {
-	kreaDirOrSkip(t)
+	root := filepath.Dir(kreaDirOrSkip(t))
 	profile := kreaProfileOrSkip(t)
-	root := `C:\Users\jeffm\adaptive_new\models`
 	models, err := Enumerate(root)
 	if err != nil {
 		t.Fatalf("Enumerate: %v", err)

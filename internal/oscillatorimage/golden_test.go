@@ -23,17 +23,16 @@ const (
 	tolGenerator = 1e-3
 )
 
-// referenceFixturePath: the un0 goldens ship in the REFERENCE repo's
-// fixtures/ directory (sibling of the models root per the data-root
-// contract), not inside the artifact directory; read them where they live,
-// never copied.
+// referenceFixturePath: the un0 goldens were captured by the reference
+// implementation and are too large for git; they are kept among the
+// references beside the store, not inside the artifact directory.
 func referenceFixturePath(t *testing.T, name string) string {
 	t.Helper()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)
 	}
-	return filepath.Join(filepath.Dir(roots.Models), "fixtures", name)
+	return filepath.Join(roots.References(), "fixtures", name)
 }
 
 // loadReferenceGolden decodes a reference-shipped golden; absence skips LOUDLY.

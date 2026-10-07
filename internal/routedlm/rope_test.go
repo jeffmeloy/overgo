@@ -7,23 +7,28 @@ import (
 
 	"overgo/internal/hostmath"
 	"overgo/internal/safetensors"
+	"overgo/internal/testutil"
 )
 
-const senseNovaDir = `C:\Users\jeffm\adaptive_new\models\SenseNova-U1-8B-MoT-Infographic-V3`
+// senseNovaDir is the real SenseNova artifact under the model roots.
+func senseNovaDir(t testing.TB) string {
+	t.Helper()
+	return testutil.ModelArtifactDir(t, "SenseNova-U1-8B-MoT-Infographic-V3")
+}
 
 // Section widths must come from the checkpoint's norm tensor shapes and the
 // thetas from the config keys the binding names — verified against the real
 // SenseNova artifact (READ-ONLY).
 func TestCompileRopePlanSenseNovaRealArtifact(t *testing.T) {
-	if _, err := os.Stat(senseNovaDir); err != nil {
-		t.Skipf("UNAVAILABLE: artifact absent at %s: %v", senseNovaDir, err)
+	if _, err := os.Stat(senseNovaDir(t)); err != nil {
+		t.Skipf("UNAVAILABLE: artifact absent at %s: %v", senseNovaDir(t), err)
 	}
 	binding := SenseNovaBinding()
-	cfg, err := LoadConfig(senseNovaDir, binding)
+	cfg, err := LoadConfig(senseNovaDir(t), binding)
 	if err != nil {
 		t.Fatal(err)
 	}
-	src, err := safetensors.OpenSource(senseNovaDir)
+	src, err := safetensors.OpenSource(senseNovaDir(t))
 	if err != nil {
 		t.Fatal(err)
 	}

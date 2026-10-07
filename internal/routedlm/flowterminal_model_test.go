@@ -13,24 +13,24 @@ import (
 
 // Real-checkpoint shapes: every derived dim comes from config + tensors.
 func TestSenseNovaFlowTerminalRealArtifact(t *testing.T) {
-	if _, err := os.Stat(senseNovaDir); err != nil {
-		t.Skipf("UNAVAILABLE: artifact absent at %s: %v", senseNovaDir, err)
+	if _, err := os.Stat(senseNovaDir(t)); err != nil {
+		t.Skipf("UNAVAILABLE: artifact absent at %s: %v", senseNovaDir(t), err)
 	}
 	binding := SenseNovaBinding()
-	cfg, err := LoadConfig(senseNovaDir, binding)
+	cfg, err := LoadConfig(senseNovaDir(t), binding)
 	if err != nil {
 		t.Fatal(err)
 	}
-	flowCfg, err := LoadFlowConfig(senseNovaDir)
+	flowCfg, err := LoadFlowConfig(senseNovaDir(t))
 	if err != nil {
 		t.Fatal(err)
 	}
-	src, err := safetensors.OpenSource(senseNovaDir)
+	src, err := safetensors.OpenSource(senseNovaDir(t))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer src.Close()
-	flow, err := InspectFlowProfile(senseNovaDir)
+	flow, err := InspectFlowProfile(senseNovaDir(t))
 	if err != nil {
 		t.Fatal(err)
 	}

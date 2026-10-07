@@ -9,23 +9,36 @@ import (
 	"image/png"
 	"math"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/dataroot"
 	"overgo/internal/testskip"
+	"overgo/internal/testutil"
 )
 
 const krea2048AdaptivePNG = "b25fa024af3b623ee443c74207b6a6ee32abeb6d0a5df7ba61cc6147c8522a5c"
 
-const krea2048AdaptivePNGPath = `C:\Users\jeffm\adaptive_new\.claude\worktrees\image_gen\.media_artifacts\image_artifacts\krea2_native_go_fox_seed42.png`
+// krea2048AdaptivePNGPath is the picture the reference tree's image lane
+// rendered for the same request, kept among overgo's references: a golden
+// too large for git.
+func krea2048AdaptivePNGPath(b *testing.B) string {
+	b.Helper()
+	roots, err := dataroot.Resolve(testutil.RepoRoot(b))
+	if err != nil {
+		b.Fatal(err)
+	}
+	return filepath.Join(roots.References(), "krea", "krea2_native_go_fox_seed42.png")
+}
 
 func BenchmarkKrea2048Leadership(b *testing.B) {
 	if os.Getenv("OVERGO_CUDA_TEST") != "1" {
 		testskip.NotApplicable(b, "set OVERGO_CUDA_TEST=1")
 	}
-	if _, err := os.Stat(kreaModelDir + `\model_index.json`); err != nil {
+	if _, err := os.Stat(filepath.Join(kreaModelDir(b), "model_index.json")); err != nil {
 		b.Fatalf("Krea artifact unavailable: %v", err)
 	}
 	request := Request{
@@ -41,11 +54,11 @@ func benchmarkKrea2048(b *testing.B, request Request) {
 	b.Helper()
 	ctx := b.Context()
 	totalStart := time.Now()
-	profile, err := ResolveProfile(kreaModelDir)
+	profile, err := ResolveProfile(kreaModelDir(b))
 	if err != nil {
 		b.Fatal(err)
 	}
-	generator, err := LoadGenerator(ctx, kreaModelDir, profile, request)
+	generator, err := LoadGenerator(ctx, kreaModelDir(b), profile, request)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -85,7 +98,7 @@ func benchmarkKrea2048(b *testing.B, request Request) {
 	}
 	totalWall := time.Since(totalStart)
 	hash := fmt.Sprintf("%x", sha256.Sum256(encoded))
-	mae, rmse, err := compareAdaptivePNG(encoded, krea2048AdaptivePNGPath)
+	mae, rmse, err := compareAdaptivePNG(encoded, krea2048AdaptivePNGPath(b))
 	if err != nil {
 		b.Fatal(err)
 	}

@@ -64,7 +64,7 @@ func TestUnlimitedOCRProductionParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fixtureRoot := filepath.Join(filepath.Dir(roots.Models), "fixtures")
+	fixtureRoot := filepath.Join(roots.References(), "fixtures")
 	modelPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "Unlimited-OCR-bf16.gguf")
 	projectorPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "Unlimited-OCR-mmproj-bf16.gguf")
 	imagePath := filepath.Join(fixtureRoot, "unlimitedocr_image.png")

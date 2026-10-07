@@ -95,6 +95,13 @@ func (r Roots) ModelRoots() []string {
 	return []string{r.StoreModels, r.Models}
 }
 
+// References is the directory beside the store that holds what overgo is
+// compared against and git is too small for: the reference fixtures a parity
+// ladder reads and the pictures a render is measured against.
+func (r Roots) References() string {
+	return filepath.Join(filepath.Dir(r.Store), "references")
+}
+
 // ResolveCurrent returns roots for the process working directory.
 func ResolveCurrent() (Roots, error) {
 	working, err := os.Getwd()

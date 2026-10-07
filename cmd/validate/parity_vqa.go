@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 
+	"overgo/internal/dataroot"
 	"overgo/internal/hfbpe"
 	"overgo/internal/parity"
 	"overgo/internal/patchtower"
@@ -25,6 +26,22 @@ type campaignContext struct {
 	fixturesDir string
 }
 
+// vqaModel names the RxBrain checkpoint under the model roots, and the
+// directory inside it that ships its demo cases.
+const vqaModel = "Hy-Embodied-RxBrain-1.0"
+
+// vqaDemoImage is the bridgev2 case a checkpoint directory ships: the image
+// the ladder's goldens were captured on and the recipe modes serve by default.
+func vqaDemoImage(modelDir string) string {
+	return filepath.Join(modelDir, vqaModel, "demo_cases", "bridgev2_move_toy", "input", "obs_1.jpg")
+}
+
+// referenceFixtures is where the reference fixtures a parity ladder or a
+// training route reads are kept: too large for git, beside the store.
+func referenceFixtures(roots dataroot.Roots) string {
+	return filepath.Join(roots.References(), "fixtures")
+}
+
 // vqaParity is validate -parity vqa: it walks the RxBrain vision-QA fixture
 // parity ladder IN ORDER on the canonical bridgev2 case against overgo's
 // neutral host packages (patchtower + routedlm + hfbpe), asserting each stage
@@ -32,8 +49,12 @@ type campaignContext struct {
 // device and recipe flags run one device stage or the activated VQA recipe
 // instead.
 func vqaParity(flags *flag.FlagSet, args []string) error {
-	modelDir := flags.String("model", `C:\Users\jeffm\adaptive_new\models\Hy-Embodied-RxBrain-1.0`, "checkpoint dir")
-	fixturesDir := flags.String("fixtures", `C:\Users\jeffm\adaptive_new\fixtures`, "fixture dir")
+	roots, err := dataroot.ResolveCurrent()
+	if err != nil {
+		return err
+	}
+	modelDir := flags.String("model", roots.ResolveModelPath(vqaModel), "checkpoint dir")
+	fixturesDir := flags.String("fixtures", referenceFixtures(roots), "fixture dir")
 	logPath := flags.String("log", `build\rxbrain_port_log.txt`, "liveness log path")
 	fromStage := flags.String("from", "", "skip stages before this name")
 	toStage := flags.String("to", "", "stop after this stage name")
@@ -46,10 +67,13 @@ func vqaParity(flags *flag.FlagSet, args []string) error {
 	recipeServeMode := flags.Bool("recipe-serve", false, "serve the canonical case THROUGH the activated VQA recipe (gate on active recipe, real processor, decode-until-EOS)")
 	recipeVerifyMode := flags.Bool("recipe-verify-activate", false, "verify the canonical real-device VQA case, activate its recipe, then replay through the active recipe")
 	repoFlag := flags.String("repo", "", "OvergoDB store for recipe modes; empty resolves via the data-root contract")
-	imageFlag := flags.String("image", `C:\Users\jeffm\adaptive_new\models\Hy-Embodied-RxBrain-1.0\Hy-Embodied-RxBrain-1.0\demo_cases\bridgev2_move_toy\input\obs_1.jpg`, "serve image path")
+	imageFlag := flags.String("image", "", "serve image path; the model's bridgev2 demo case when empty")
 	questionFlag := flags.String("question", "What objects are on the stovetop, and where is the green toy?", "serve question")
 	if err := flags.Parse(args); err != nil {
 		return err
+	}
+	if *imageFlag == "" {
+		*imageFlag = vqaDemoImage(*modelDir)
 	}
 	l := &campaignContext{Campaign: parity.NewCampaign(*logPath), modelDir: *modelDir, fixturesDir: *fixturesDir}
 	// The first mode named runs, in this order; with none the host ladder runs.
@@ -159,7 +183,7 @@ func vqaLadder(l *campaignContext, fromStage, toStage string) error {
 		imagePath := ""
 		for _, candidate := range []string{
 			firstOrEmpty(pg.Request.Images),
-			filepath.Join(l.modelDir, "Hy-Embodied-RxBrain-1.0", "demo_cases", "bridgev2_move_toy", "input", "obs_1.jpg"),
+			vqaDemoImage(l.modelDir),
 		} {
 			if candidate == "" {
 				continue

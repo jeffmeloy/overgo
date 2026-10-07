@@ -9,7 +9,9 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
 
+	"overgo/internal/dataroot"
 	"overgo/internal/hfbpe"
 	"overgo/internal/jsonfile"
 	"overgo/internal/parity"
@@ -38,8 +40,12 @@ import (
 // are reported FRONTIER with the exact blocker and the exact next stage — a
 // weak check is never dressed up as parity.
 func senseNovaParity(flags *flag.FlagSet, args []string) error {
-	modelDir := flags.String("model", `C:\Users\jeffm\adaptive_new\models\SenseNova-U1-8B-MoT-Infographic-V3`, "checkpoint dir (READ-ONLY)")
-	fixturesDir := flags.String("fixtures", `C:\Users\jeffm\adaptive_new\fixtures\sensenova`, "fixture dir (READ-ONLY)")
+	roots, err := dataroot.ResolveCurrent()
+	if err != nil {
+		return err
+	}
+	modelDir := flags.String("model", roots.ResolveModelPath("SenseNova-U1-8B-MoT-Infographic-V3"), "checkpoint dir (READ-ONLY)")
+	fixturesDir := flags.String("fixtures", filepath.Join("fixtures", "sensenova"), "fixture dir (READ-ONLY)")
 	logPath := flags.String("log", `build\sensenova_parity_log.txt`, "liveness log path")
 	deviceMode := flags.Bool("device", false, "run the CUDA device denoise-terminal stages after the CPU ladder")
 	if err := flags.Parse(args); err != nil {

@@ -4,6 +4,31 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "liveedit-served-parity",
+      "title": "Serve LiveEdit's edits as the earlier implementation draws them, and score them again",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 400,
+        "reason": "The served edit path's output range, the frame count an edit source is cut to, and a device test that holds the served path to the earlier implementation's reference case"
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "Serve LiveEdit's edits as the earlier implementation draws them, and score them again",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/mediacapability -count=1 -run '^TestServedEditMatchesTheReferenceEdit$'"
+        },
+        {
+          "id": "rescore",
+          "title": "Render and judge the held-out edit suite again and replace LiveEdit's score",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-video-gen",
+          "rationale": "Commit 763e01ce7 recorded LiveEdit at 12 of 64 on the held-out edit suite and said the score was low because that is what the model does. That was not verified against a reference, and it is wrong in at least one way: the served edit path writes the runtime's frames, whose values run from 0 to 1, as if they ran from -1 to 1, so every edited clip the judge saw was washed out, its blacks lifted to grey (finding c5bacaa6; the owner pointed to adaptive_new/image_gen_report.md, whose Python and earlier-Go pictures of the reference case are vivid and complete). The suite also cuts each clip to 21 frames where the reference edits 81, a quarter of what the model was built for. Once the step before this holds the served path to the reference case, this step renders the 64 clips again at the length the reference uses, judges them with the same question, and replaces the recorded score; the old media and the old score are named as superseded, and findings c5bacaa6 and 55a65f65 are closed on the result.\n\nServes: measure and find the gap. Disappears: a recorded score that measured a rendering fault. Evidence: the judged evaluation in the real store and the scorecard row. Batch: device."
+        }
+      ]
+    },
+    {
       "id": "latent-change-proposer",
       "title": "Propose a model change from a latent of earlier changes and judge it on held-out data against plain controls",
       "owner": "master-lead",
@@ -13,13 +38,6 @@
         "reason": "A corpus of weight changes with verdicts, a proposer over it and its judged comparison: the campaign's central claim has never been tested because there is no corpus to learn from and no proposer to judge"
       },
       "steps": [
-        {
-          "id": "corpus",
-          "title": "Collect bounded fine-tunes of one model as weight changes with their held-out verdicts",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestChangeCorpusBindsEachChangeToItsVerdict$'",
-          "rationale": "The campaign's central claim is that a latent over earlier model changes can propose a better one. The store holds one training verdict today, Qwen2.5-0.5B on the registered text objective, which is nothing to learn from. This step runs short fine-tunes of that model that differ only in seed and data order, and publishes each as its change from the base with the held-out verdict it earned. How many runs is set by the measured time of one against a night of device time, and is stated in the step's outcome. The unit of independence is the run.\n\nServes: train or change. Disappears: nothing. Evidence: the corpus manifest, one line a run: the change and its verdict. Batch: device."
-        },
         {
           "id": "proposal",
           "title": "Propose a change from the corpus and judge it against the best run, the mean and a random direction",
@@ -156,7 +174,8 @@
             "latent-change-proposer/lifecycle",
             "experiment-evidence/conditioning",
             "vae-lane-takeover-plan/do",
-            "census-rebind-after-latent-rows/do"
+            "census-rebind-after-latent-rows/do",
+            "liveedit-served-parity/do"
           ]
         }
       ]

@@ -72,6 +72,7 @@ func run() error {
 	loraFrom := flag.String("lora-from", "", "with -objective: continue training the PEFT adapter in this directory, which brings its own rank, alpha and targets")
 	orderSeed := flag.Uint64("order-seed", 0, "with -objective: read the training records in the order this seed draws rather than in membership order, so a run of fewer updates than the text holds windows trains on other text for each seed")
 	runs := flag.Int("runs", 0, "with -objective: train this many runs from the same base, their order seeds counting up from -order-seed (from 1 without it), each published under -out in a directory named after its seed, and publish them as a change corpus, one line a run")
+	propose := flag.String("propose", "", "change corpus artifact ID: propose a change from the corpus's runs under -out, write it and its controls under -out/proposal, score each on the corpus's held-out inputs at -seq, and publish the judgment; needs -model, the corpus's base")
 	flag.Parse()
 	if *proof && *objective == "" {
 		return fmt.Errorf("train: -proof re-verifies an -objective recipe; it needs -objective")
@@ -97,6 +98,12 @@ func run() error {
 		return err
 	}
 	defer store.Close()
+	if *propose != "" {
+		if *objective != "" || *model == "" || *output == "" {
+			return fmt.Errorf("train: -propose reads a corpus, which names its own objective; it needs -model and -out and takes no -objective")
+		}
+		return proposeChange(ctx, store, *propose, *model, *output, *maximumSequence, os.Stdout)
+	}
 	if *objective != "" {
 		set := map[string]bool{}
 		flag.Visit(func(given *flag.Flag) { set[given.Name] = true })

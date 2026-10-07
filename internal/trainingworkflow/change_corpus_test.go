@@ -10,9 +10,57 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/runrecord"
+	"overgo/internal/strictjson"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 )
+
+// TestChangeCorpusRecordListsEachRunOnce reads the record of the corpus
+// collected from the installed text model: one line a run, each a change with
+// its verdict. The record is a corpus as the document type takes one: its
+// lines canonicalize under the corpus it names, the order seeds count up from
+// one with none repeated, every run was judged against one base reading, and
+// every run improved on it.
+func TestChangeCorpusRecordListsEachRunOnce(t *testing.T) {
+	t.Parallel()
+	record, err := os.ReadFile(filepath.Join(testutil.RepoRoot(t), "docs", "verification", "change-corpus-qwen25-05b.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var corpus ChangeCorpus
+	for line := range strings.Lines(string(record)) {
+		line = strings.TrimSpace(line)
+		if id, found := strings.CutPrefix(line, "corpus: "); found {
+			if corpus.ID, err = artifact.ParseID(id); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if !strings.HasPrefix(line, "{") {
+			continue
+		}
+		var change WeightChange
+		if err := strictjson.DecodeBytes([]byte(line), &change); err != nil {
+			t.Fatalf("record line %q: %v", line, err)
+		}
+		corpus.Changes = append(corpus.Changes, change)
+	}
+	if corpus.ID.Kind() != artifact.KindEvidence || len(corpus.Changes) == 0 {
+		t.Fatalf("the record names corpus %s and %d runs", corpus.ID, len(corpus.Changes))
+	}
+	named := corpus.ID
+	corpus.Version, corpus.Metric = artifact.InitialDocumentVersion, trainingprogram.MetricTokenAccuracy
+	corpus.Objective, corpus.Plan, corpus.Inputs = testutil.ArtifactID(t, artifact.KindProfile, "objective"), testutil.ArtifactID(t, artifact.KindProfile, "plan"), testutil.ArtifactID(t, artifact.KindProfile, "inputs")
+	corpus.Model = testutil.ArtifactID(t, artifact.KindModel, "base")
+	if err := canonicalizeChangeCorpus(&corpus); err != nil {
+		t.Fatalf("the record's runs are not a corpus: %v", err)
+	}
+	for index, change := range corpus.Changes {
+		if change.Order != uint64(index+1) || change.Base != corpus.Changes[0].Base || !(change.Changed > change.Base) {
+			t.Fatalf("run %d of the record has order %d and reads %v from a base of %v", index+1, change.Order, change.Changed, change.Base)
+		}
+	}
+	t.Logf("corpus %s: %d runs from a base of %.4f", named, len(corpus.Changes), corpus.Changes[0].Base)
+}
 
 // TestChangeCorpusBindsEachChangeToItsVerdict fine-tunes one tiny model
 // under one text objective in runs that differ only in the seed their

@@ -91,7 +91,14 @@ type HeldoutPlan struct {
 type HeldoutReport struct {
 	id, plan artifact.ID
 	metrics  []runrecord.Metric
+	records  []RecordScore
 	batch    func(string) (artifact.Batch, error)
+}
+
+// RecordScore is one held-out record's value of the metric a plan measures.
+type RecordScore struct {
+	Record string
+	Value  float64
 }
 
 // CompileHeldoutPlan binds the target plan that measures the objective's
@@ -136,6 +143,12 @@ func (plan HeldoutPlan) Score(observations []HeldoutObservation) (HeldoutReport,
 
 // ID names the scored report.
 func (report HeldoutReport) ID() artifact.ID { return report.id }
+
+// RecordScores is each record's value of the plan's metric, in record order,
+// the values the report's metric is the mean of: what two reports under one
+// plan are compared by, record against record. A numeric or a signal plan
+// keeps them; a plan of another kind returns none.
+func (report HeldoutReport) RecordScores() []RecordScore { return slices.Clone(report.records) }
 
 // Batch stages the report with its lineage.
 func (report HeldoutReport) Batch(key string) (artifact.Batch, error) {
@@ -312,7 +325,7 @@ func CommittedHeldoutVerdictPassed(
 	if !trainingprogram.SameContract(objective, current) {
 		return false, fmt.Errorf("evaluation: verdict %s judged a different objective contract", id)
 	}
-	if err := reconstructHeldoutVerdict(ctx, reader, verdict, objective); err != nil {
+	if _, err := reconstructHeldoutVerdict(ctx, reader, verdict, objective); err != nil {
 		return false, err
 	}
 	if !slices.Contains(current.Evidence, verdict.Observation) {
@@ -322,43 +335,45 @@ func CommittedHeldoutVerdictPassed(
 }
 
 // reconstructHeldoutVerdict is the shared evidence check for approval and
-// reporting. It verifies retained inputs and reports, including valid losses;
-// the caller owns whether a current objective may adopt that evidence.
-func reconstructHeldoutVerdict(ctx context.Context, reader artifact.Reader, verdict heldoutVerdict, objective trainingprogram.ObjectiveDocument) error {
+// reporting. It verifies retained inputs and reports, including valid losses,
+// and returns the two reports as they rescore, the base model's then the
+// trained one's; the caller owns whether a current objective may adopt that
+// evidence.
+func reconstructHeldoutVerdict(ctx context.Context, reader artifact.Reader, verdict heldoutVerdict, objective trainingprogram.ObjectiveDocument) ([]HeldoutReport, error) {
 	view, err := sftEvaluationViewCodec.Require(ctx, reader, verdict.View)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	training, heldout, err := viewMemberships(ctx, reader, view)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if partner, err := dataset.SplitPartner(ctx, reader, training.ID); err != nil || partner.ID != heldout.ID {
-		return errors.Join(fmt.Errorf("evaluation: verdict %s judges on a membership its split does not pair with the training one", verdict.ID), err)
+		return nil, errors.Join(fmt.Errorf("evaluation: verdict %s judges on a membership its split does not pair with the training one", verdict.ID), err)
 	}
 	recompiled, err := CompileSFTEvaluationView(objective, training, heldout)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if recompiled.ID != view.ID {
-		return fmt.Errorf("evaluation: verdict %s view does not recompile from its memberships", verdict.ID)
+		return nil, fmt.Errorf("evaluation: verdict %s view does not recompile from its memberships", verdict.ID)
 	}
 	plan, reports, err := requireHeldout(ctx, reader, verdict.Plan, verdict.Baseline, verdict.Candidate)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	trained, err := requireTraining(ctx, reader, verdict)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	judged, err := JudgeHeldout(objective, view, plan, reports[0], reports[1], trained)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if judged.ID != verdict.ID {
-		return fmt.Errorf("evaluation: verdict %s differs from its recomputation", verdict.ID)
+		return nil, fmt.Errorf("evaluation: verdict %s differs from its recomputation", verdict.ID)
 	}
-	return nil
+	return reports, nil
 }
 
 // VisitHeldoutVerdicts visits every committed held-out verdict, newest
@@ -378,7 +393,7 @@ func VisitHeldoutVerdicts(ctx context.Context, store *overgodb.Store, visit func
 	}, heldoutVerdictCodec.Parse, func(_ overgodb.DocumentView, verdict heldoutVerdict) error {
 		objective, err := trainingprogram.LoadObjective(ctx, store, verdict.Objective)
 		if err == nil {
-			err = reconstructHeldoutVerdict(ctx, store, verdict, objective)
+			_, err = reconstructHeldoutVerdict(ctx, store, verdict, objective)
 		}
 		if err != nil {
 			// A cancelled read is no unreadable verdict: it stops the visit.
@@ -415,12 +430,13 @@ func VisitHeldoutVerdicts(ctx context.Context, store *overgodb.Store, visit func
 // found: the objective it judged, the target plan and the held-out inputs
 // both models were scored on, the training session and the checkpoint that
 // session published, and the declared metric's value for the base model and
-// for the trained one.
+// for the trained one, over all records and record by record.
 type HeldoutVerdictFacts struct {
 	Objective, Plan, Inputs, Observation, Trained artifact.ID
 	Metric                                        trainingprogram.EvaluationMetric
 	Direction                                     runrecord.Direction
 	BaselineValue, CandidateValue                 float64
+	BaselineScores, CandidateScores               []RecordScore
 }
 
 // ReadHeldoutVerdict reads one committed held-out verdict after
@@ -432,15 +448,17 @@ func ReadHeldoutVerdict(ctx context.Context, reader artifact.Reader, id artifact
 		return HeldoutVerdictFacts{}, err
 	}
 	objective, err := trainingprogram.LoadObjective(ctx, reader, verdict.Objective)
-	if err == nil {
-		err = reconstructHeldoutVerdict(ctx, reader, verdict, objective)
+	if err != nil {
+		return HeldoutVerdictFacts{}, err
 	}
+	reports, err := reconstructHeldoutVerdict(ctx, reader, verdict, objective)
 	if err != nil {
 		return HeldoutVerdictFacts{}, err
 	}
 	return HeldoutVerdictFacts{
 		Objective: verdict.Objective, Plan: verdict.Plan, Inputs: verdict.Inputs, Observation: verdict.Observation, Trained: verdict.Trained,
 		Metric: verdict.Metric, Direction: verdict.Direction, BaselineValue: verdict.BaselineValue, CandidateValue: verdict.CandidateValue,
+		BaselineScores: reports[0].RecordScores(), CandidateScores: reports[1].RecordScores(),
 	}, nil
 }
 

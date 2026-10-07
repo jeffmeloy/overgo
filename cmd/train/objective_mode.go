@@ -167,6 +167,35 @@ func runChangeCorpus(ctx context.Context, store *overgodb.Store, run objectiveRu
 	return err
 }
 
+// proposalDirectory is where a proposal's candidates are written, under the
+// directory its corpus was collected in.
+const proposalDirectory = "proposal"
+
+// proposeChange has a change proposed from the corpus whose runs sit under
+// out and judged against its controls, and writes the judgment: a line for
+// each candidate, then whether the proposal is kept and by what margin.
+func proposeChange(ctx context.Context, store *overgodb.Store, corpus, model, out string, sequence int, output io.Writer) error {
+	corpusID, err := artifact.ParseID(corpus)
+	if err != nil {
+		return fmt.Errorf("change corpus: %w", err)
+	}
+	judgment, err := trainingworkflow.ProposeChange(ctx, store, trainingworkflow.ChangeProposalRequest{
+		Corpus: corpusID, ModelDirectory: model, RunsDirectory: out, OutputDirectory: filepath.Join(out, proposalDirectory), MaximumSequence: sequence, Progress: output,
+	})
+	if err != nil {
+		return err
+	}
+	lines := json.NewEncoder(output)
+	for _, candidate := range judgment.Candidates {
+		if err := lines.Encode(candidate); err != nil {
+			return err
+		}
+	}
+	_, err = fmt.Fprintf(output, "change judgment %s: kept=%t; proposed less %s is %.6f, between %.6f and %.6f over the redrawn held-out records; a code of rank %d explains %.3f of a left-out run's gain; the runs' gains spread %.6f against a noise of %.6f\n",
+		judgment.ID, judgment.Kept, judgment.Control, judgment.Difference, judgment.Lower, judgment.Upper, judgment.Rank, judgment.Explained, judgment.GainSpread, judgment.GainNoise)
+	return err
+}
+
 // reportVerdict writes what a held-out run published.
 func reportVerdict(output io.Writer, result trainingworkflow.HeldoutResult) error {
 	_, err := fmt.Fprintf(output, "held-out verdict %s passed=%t observation=%s trained=%s view=%s plan=%s baseline=%s candidate=%s\n",

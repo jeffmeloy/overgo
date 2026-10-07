@@ -331,9 +331,16 @@ func declaring(stage func(string) (artifact.Batch, error), key string, declared 
 	return batch, err
 }
 
-// heldout is the report as the held-out judge reads it.
+// heldout is the report as the held-out judge reads it: its metrics, and each
+// record's value under the first of them.
 func (report mediaTargetReport) heldout() HeldoutReport {
-	return HeldoutReport{id: report.ID, plan: report.Plan, metrics: report.Metrics, batch: report.Batch}
+	var records []RecordScore
+	for _, record := range report.Records {
+		if len(record.Verifiers) != 0 {
+			records = append(records, RecordScore{Record: record.Record, Value: record.Verifiers[0].Value})
+		}
+	}
+	return HeldoutReport{id: report.ID, plan: report.Plan, metrics: report.Metrics, records: records, batch: report.Batch}
 }
 
 // rescore scores the outputs, oracle results and verifier values each of

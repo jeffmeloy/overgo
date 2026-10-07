@@ -217,9 +217,16 @@ func compileNumericHeldout(view SFTEvaluationView, scorer numericScorer, cases [
 	}}, nil
 }
 
-// heldout is the report as the held-out judge reads it.
+// heldout is the report as the held-out judge reads it: its metrics, and each
+// record's score under the first of them.
 func (report numericTargetReport) heldout() HeldoutReport {
-	return HeldoutReport{id: report.ID, plan: report.Plan, metrics: report.Metrics, batch: report.Batch}
+	var records []RecordScore
+	for _, record := range report.Records {
+		if len(record.Scores) != 0 {
+			records = append(records, RecordScore{Record: record.Record, Value: record.Scores[0].Value})
+		}
+	}
+	return HeldoutReport{id: report.ID, plan: report.Plan, metrics: report.Metrics, records: records, batch: report.Batch}
 }
 
 // rescore scores the answers each of report's records retains under plan.

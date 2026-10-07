@@ -34,25 +34,6 @@
       ]
     },
     {
-      "id": "scorecard-unscored-video-gen",
-      "title": "Define the held-out evaluation that measures video-gen quality",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 1900,
-        "reason": "The clip side of the render command and its reuse of what a directory already holds (cmd/evaluate/render.go), the VidGen caption picking with same-source distractors and the generated-video suite (internal/evaluation) and the judged session's video task are the production code a held-out evaluation of a video model needs: its output is a clip, and evaluate could neither draw one at a size a judge can read nor ask a judge which caption it shows"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Define the held-out evaluation that measures video-gen quality",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-video-gen",
-          "rationale": "- LiveEdit held-out-quality: no held-out evaluation for video-gen yet; proposed: held-out VidGen-1M captions (on disk), each clip matched to its caption by a local vision-language model\n- Un-0 held-out-quality: no held-out evaluation for video-gen yet; proposed: held-out VidGen-1M captions (on disk), each clip matched to its caption by a local vision-language model\n- Wan2.1-T2V-1.3B held-out-quality: no held-out evaluation for video-gen yet; proposed: held-out VidGen-1M captions (on disk), each clip matched to its caption by a local vision-language model\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
-        }
-      ]
-    },
-    {
       "id": "vae-latent-campaign",
       "title": "Carry the VAE lane's latent campaign surface until the lane closes it",
       "owner": "master-lead",

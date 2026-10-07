@@ -145,3 +145,13 @@ func reconstructionCapability() Capability {
 	)
 	return inventoryCapability(autoencoderInventory, sessionExecutor(director, err))
 }
+
+// OpenAutoencoder loads the autoencoder in a directory onto the device and
+// holds it until the caller closes it.
+func OpenAutoencoder(path string) (Autoencoder, error) {
+	runtime, err := latentvideo.LoadAutoencoderRuntime(path)
+	if err != nil {
+		return nil, err
+	}
+	return runtime, nil
+}

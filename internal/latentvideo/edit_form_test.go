@@ -40,6 +40,16 @@ func TestEditPolicyDeclaresTheReferenceSchedule(t *testing.T) {
 		len(policy.DenoisingTimesteps) != 4 || policy.DenoisingTimesteps[0] != 1000 || policy.DenoisingTimesteps[3] != 250 {
 		t.Fatalf("policy = %+v", policy)
 	}
+	// The upstream latent of 60 by 104 at the autoencoder's stride of eight:
+	// the size a clip is cut to for this editor.
+	if width, height, err := EditSourceSize(edit); err != nil || width != 832 || height != 480 {
+		t.Fatalf("edit source size = %dx%d, %v, want 832x480", width, height, err)
+	}
+	sizeless := policy
+	sizeless.SourceWidth = 0
+	if err := sizeless.validate(); err == nil {
+		t.Fatal("a policy that declares no source size was accepted")
+	}
 	// The denoiser's chunk arithmetic: whole chunks beyond the first, inside
 	// the local attention history.
 	for latent, admitted := range map[int]bool{3: false, 4: false, 6: true, 9: true, 24: true, 27: false} {

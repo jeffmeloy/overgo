@@ -9,6 +9,8 @@
     "sigma_min": 0,
     "sigma_max": 1,
     "extra_one_step": true,
-    "context_timestep": 0
+    "context_timestep": 0,
+    "source_width": 832,
+    "source_height": 480
   }
 ]

@@ -299,31 +299,36 @@ func writeVidGenClips(ctx context.Context, captions, model, repository, judge, d
 }
 
 const (
-	// editSourceFrames frames at editSourceFPS a second, editSourceWidth by editSourceHeight,
-	// are what a clip is cut to for an editor: six latent frames of the video stack, which the
-	// editor's chunks of three admit, at the size the generators' clips are judged at.
+	// editSourceFrames frames at editSourceFPS a second are what a clip is cut to for an
+	// editor: six latent frames of the video stack, which the editor's chunks of three admit.
+	// The size is the editor's own, the one its policy says it was trained at: cut at a
+	// quarter of it, the installed editor kept a clip's content and made the change asked
+	// in 9 clips of 64.
 	editSourceFrames = 21
 	editSourceFPS    = 16
-	editSourceWidth  = 416
-	editSourceHeight = 240
 	// colorFull is a channel's full value as image colors report it.
 	colorFull = 0xffff
 )
 
-// publishEditSources cuts each item's clip to the frames an editor takes, encodes them as
-// the clip a video model returns, and publishes that to the store, where the editor's
-// request names it. It returns each clip's artifact by its identity.
-func publishEditSources(ctx context.Context, repository, clips string, items []evaluation.VideoEditItem) (map[string]artifact.ID, error) {
+// publishEditSources cuts each item's clip to the frames an editor takes, at the size the
+// editor at model works at, encodes them as the clip a video model returns, and publishes
+// that to the store, where the editor's request names it. It returns each clip's artifact
+// by its identity.
+func publishEditSources(ctx context.Context, repository, clips, model string, items []evaluation.VideoEditItem) (map[string]artifact.ID, error) {
+	width, height, err := latentvideo.EditSourceSize(model)
+	if err != nil {
+		return nil, err
+	}
 	store, err := overgodb.OpenContext(ctx, repository)
 	if err != nil {
 		return nil, err
 	}
 	defer store.Close()
 	sources := map[string]artifact.ID{}
-	plane := editSourceWidth * editSourceHeight
+	plane := width * height
 	for _, item := range items {
 		clip := filepath.Join(clips, item.ID+clipFileExtension)
-		frames, err := media.DecodeVideoFileAt(ctx, clip, os.Getenv("OVERGO_FFMPEG"), editSourceFPS, editSourceFrames, editSourceWidth, editSourceHeight)
+		frames, err := media.DecodeVideoFileAt(ctx, clip, os.Getenv("OVERGO_FFMPEG"), editSourceFPS, editSourceFrames, width, height)
 		if err != nil || len(frames) != editSourceFrames {
 			return nil, fmt.Errorf("evaluate: %s gave %d of the %d frames an edit takes: %v", clip, len(frames), editSourceFrames, err)
 		}
@@ -335,12 +340,12 @@ func publishEditSources(ctx context.Context, repository, clips string, items []e
 			origin := frame.Bounds().Min
 			pixels := make([]float32, media.RGBChannels*plane)
 			for at := range plane {
-				red, green, blue, _ := frame.At(origin.X+at%editSourceWidth, origin.Y+at/editSourceWidth).RGBA()
+				red, green, blue, _ := frame.At(origin.X+at%width, origin.Y+at/width).RGBA()
 				for channel, value := range []uint32{red, green, blue} {
 					pixels[channel*plane+at] = float32(value) / colorFull
 				}
 			}
-			if err := encoder.Add(index, pixels, editSourceHeight, editSourceWidth); err != nil {
+			if err := encoder.Add(index, pixels, height, width); err != nil {
 				return nil, err
 			}
 		}
@@ -375,7 +380,7 @@ func writeVideoEdits(ctx context.Context, clips, captions, model, repository, ju
 	if err != nil {
 		return err
 	}
-	sources, err := publishEditSources(ctx, repository, clips, items)
+	sources, err := publishEditSources(ctx, repository, clips, model, items)
 	if err != nil {
 		return err
 	}

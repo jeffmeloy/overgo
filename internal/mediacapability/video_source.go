@@ -1,6 +1,8 @@
 package mediacapability
 
 import (
+	"context"
+
 	"overgo/internal/artifact"
 	"overgo/internal/hfrepo"
 	"overgo/internal/latentvideo"
@@ -26,6 +28,14 @@ func resolveDeclaredVideoSource(path string) (Source, error) {
 		definition, err := modelrecipe.GenerationDefinition(source.Prepare, modelID, artifact.ID{})
 		return definition, nil, err
 	}}, nil
+}
+
+// Autoencoder is an installed autoencoder held open for many round trips,
+// which is what an evaluation asks of one: a clip in, the clip that comes
+// back, and the extent of the latent between them.
+type Autoencoder interface {
+	RoundTrip(ctx context.Context, source latentvideo.SourceVideo) (latentvideo.SourceVideo, latentvideo.SourceVideoShape, error)
+	Close(context.Context) error
 }
 
 // autoencoderInventory reads the one file an autoencoder is, whichever

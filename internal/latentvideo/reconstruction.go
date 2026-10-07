@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"image/color"
 	// A picture arrives as a PNG or a JPEG.
 	_ "image/jpeg"
 	_ "image/png"
@@ -69,20 +70,57 @@ func sourcePicture(data []byte, rows, columns int) (SourceVideo, int, int, error
 	if !checked.PositiveInts(height, width, rows, columns) {
 		return SourceVideo{}, 0, 0, errors.New("latent video: the picture or the autoencoder's stride is empty")
 	}
-	paddedHeight, paddedWidth := (height+rows-1)/rows*rows, (width+columns-1)/columns*columns
-	plane := paddedHeight * paddedWidth
-	pixels := make([]float32, media.RGBChannels*plane)
-	for y := range paddedHeight {
-		for x := range paddedWidth {
-			red, green, blue, _ := decoded.At(bounds.Min.X+min(x, width-1), bounds.Min.Y+min(y, height-1)).RGBA()
-			for channel, value := range [media.RGBChannels]uint32{red, green, blue} {
-				pixels[channel*plane+y*paddedWidth+x] = media.U8ToSignedUnitF32(media.RGBAChannel8(value))
+	source, err := SourceVideoFromFrames([]image.Image{extendedPicture{
+		Image: decoded, extent: image.Rect(bounds.Min.X, bounds.Min.Y, bounds.Min.X+(width+columns-1)/columns*columns, bounds.Min.Y+(height+rows-1)/rows*rows),
+	}})
+	return source, height, width, err
+}
+
+// extendedPicture shows a picture at a larger extent by repeating its last
+// row and column.
+type extendedPicture struct {
+	image.Image
+	extent image.Rectangle
+}
+
+// Bounds is the larger extent.
+func (picture extendedPicture) Bounds() image.Rectangle { return picture.extent }
+
+// At is the picture's own pixel where it has one, and its nearest edge pixel
+// in the extension.
+func (picture extendedPicture) At(x, y int) color.Color {
+	inner := picture.Image.Bounds()
+	return picture.Image.At(min(x, inner.Max.X-tensor.SingletonExtent), min(y, inner.Max.Y-tensor.SingletonExtent))
+}
+
+// SourceVideoFromFrames lays decoded frames of one size out as the planar
+// signed-unit clip an autoencoder takes: channel, then frame, then row.
+func SourceVideoFromFrames(frames []image.Image) (SourceVideo, error) {
+	first, ok := checked.First(frames)
+	if !ok {
+		return SourceVideo{}, errors.New("latent video: a clip has no frames")
+	}
+	height, width := first.Bounds().Dy(), first.Bounds().Dx()
+	if !checked.PositiveInts(height, width) {
+		return SourceVideo{}, errors.New("latent video: a clip's frames are empty")
+	}
+	plane := height * width
+	pixels := make([]float32, media.RGBChannels*len(frames)*plane)
+	for index, frame := range frames {
+		bounds := frame.Bounds()
+		if bounds.Dy() != height || bounds.Dx() != width {
+			return SourceVideo{}, fmt.Errorf("latent video: frame %d is %dx%d in a clip of %dx%d", index, bounds.Dy(), bounds.Dx(), height, width)
+		}
+		for y := range height {
+			for x := range width {
+				red, green, blue, _ := frame.At(bounds.Min.X+x, bounds.Min.Y+y).RGBA()
+				for channel, value := range [media.RGBChannels]uint32{red, green, blue} {
+					pixels[(channel*len(frames)+index)*plane+y*width+x] = media.U8ToSignedUnitF32(media.RGBAChannel8(value))
+				}
 			}
 		}
 	}
-	return SourceVideo{
-		Pixels: pixels, Channels: media.RGBChannels, Frames: tensor.SingletonExtent, Height: paddedHeight, Width: paddedWidth,
-	}, height, width, nil
+	return SourceVideo{Pixels: pixels, Channels: media.RGBChannels, Frames: len(frames), Height: height, Width: width}, nil
 }
 
 // cropPicture keeps the top-left height by width of one planar frame.

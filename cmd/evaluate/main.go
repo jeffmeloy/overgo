@@ -101,6 +101,8 @@ func run() error {
 	renderSet := flag.String("render-set", "", "with -render-tifa or -render-vidgen: comma-separated name=number settings that replace fields of the request the model's verification ran, such as width=416,height=240")
 	sceneClips := flag.String("build-scene-retrieval", "", "write the scene-retrieval suite of the clips in this directory to -suite-out, the frames to -media-out: a frame of every clip with a sibling scene of its source video, and of -distractors clips with none")
 	sceneDistractors := flag.Int("distractors", defaultSceneDistractors, "with -build-scene-retrieval: clips of a source video with no other scene to add to the gallery")
+	reconstructionClips := flag.String("build-reconstruction", "", "write the reconstruction suite of the clips in this directory to -suite-out: -cases clips, picked by -seed and bound to the digest of their files, each cut to -frames frames for an autoencoder to take into its latent and give back")
+	reconstructionFrames := flag.Int("frames", defaultReconstructionFrames, "with -build-reconstruction: frames of each clip the autoencoder is given; 1 is a picture")
 	mediaOut := flag.String("media-out", "", "with -render-tifa, -render-vidgen or -build-scene-retrieval: the directory the pictures, clips or frames are written to, with the render manifest of a generator")
 	speechVoice := flag.String("voice", defaultSpeechVoice, "with -build-speech-round-trip: the voice that reads")
 	functionCalls := flag.String("build-function-calls", "", "write the function-call suite of the Berkeley Function-Calling Leaderboard's simple category held in this directory to -suite-out")
@@ -170,6 +172,12 @@ func run() error {
 			return errors.New("usage: evaluate -build-scene-retrieval <clip directory> -media-out <frames directory> -suite-out <suite.json> [-distractors N] [-seed N]")
 		}
 		return writeSceneRetrieval(context.Background(), clips, strings.TrimSpace(*mediaOut), strings.TrimSpace(*suiteOut), *sceneDistractors, *captionSeed)
+	}
+	if clips := strings.TrimSpace(*reconstructionClips); clips != "" {
+		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" {
+			return errors.New("usage: evaluate -build-reconstruction <clip directory> -suite-out <suite.json> [-frames N] [-cases N] [-seed N]")
+		}
+		return writeClipReconstruction(clips, strings.TrimSpace(*suiteOut), *captionCases, *reconstructionFrames, *captionSeed)
 	}
 	if clips := strings.TrimSpace(*editClips); clips != "" {
 		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" || strings.TrimSpace(*mediaOut) == "" || strings.TrimSpace(*speechJudge) == "" || strings.TrimSpace(*modelPath) == "" {

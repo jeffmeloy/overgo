@@ -24,8 +24,10 @@ var editPolicyCatalogJSON []byte
 
 // editPolicy declares the reference-edit schedule a LiveEdit checkpoint
 // runs under: the causal chunking, the denoising timesteps, and the flow
-// schedule their sigmas compile from. The catalog restates the upstream
-// few-step configuration (LiveEdit/configs/wan_mm-ar-forcing-local.yaml).
+// schedule their sigmas compile from, and the size of the clips the editor
+// was trained to change. The catalog restates the upstream few-step
+// configuration (LiveEdit/configs/wan_mm-ar-forcing-local.yaml), whose latent
+// of 60 by 104 is a clip of 480 by 832.
 type editPolicy struct {
 	Checkpoint           string  `json:"checkpoint"`
 	FramesPerChunk       int     `json:"frames_per_chunk"`
@@ -37,6 +39,8 @@ type editPolicy struct {
 	SigmaMax             float32 `json:"sigma_max"`
 	ExtraStep            bool    `json:"extra_one_step"`
 	ContextTimestep      int64   `json:"context_timestep"`
+	SourceWidth          int     `json:"source_width"`
+	SourceHeight         int     `json:"source_height"`
 }
 
 // The reference layout of a LiveEdit model directory: the edit checkpoint
@@ -73,13 +77,22 @@ func resolveEditPolicy(modelDirectory string) (editPolicy, error) {
 }
 
 func (policy editPolicy) validate() error {
-	if !checked.PositiveInts(policy.FramesPerChunk, policy.LocalAttentionFrames, policy.InferenceSteps) {
+	if !checked.PositiveInts(policy.FramesPerChunk, policy.LocalAttentionFrames, policy.InferenceSteps, policy.SourceWidth, policy.SourceHeight) {
 		return errors.New("latent video: incomplete edit policy")
 	}
 	if _, ok := checked.First(policy.DenoisingTimesteps); !ok || policy.ContextTimestep < 0 {
 		return errors.New("latent video: incomplete edit policy")
 	}
 	return nil
+}
+
+// EditSourceSize is the width and height the editor in a LiveEdit directory
+// was trained to change a clip at, as its policy declares. It edits a clip of
+// another size too, but at a quarter of this one it changes a clip's texture
+// and not what the instruction asks, so a clip cut for it is cut to this.
+func EditSourceSize(modelDirectory string) (width, height int, err error) {
+	policy, err := resolveEditPolicy(modelDirectory)
+	return policy.SourceWidth, policy.SourceHeight, err
 }
 
 // admitLatentFrames restates the edit denoiser's chunk arithmetic for a

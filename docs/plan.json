@@ -27,8 +27,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "A codec task in the capability catalog, its two installed pairs, and a reconstruction suite in evaluate: the autoencoders exist on master only as hidden stages of the generators, so nothing can encode and decode on request or be scored for what it loses"
+        "nodes": 2900,
+        "reason": "A reconstruction task in the capability catalog, its two installed pairs, and a reconstruction suite in evaluate with the session and builder that run it: the autoencoders exist on master only as hidden stages of the generators, so nothing can encode and decode on request or be scored for what it loses"
       },
       "steps": [
         {

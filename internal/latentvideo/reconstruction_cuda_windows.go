@@ -60,12 +60,12 @@ func LoadAutoencoderRuntime(directory string) (runtime *AutoencoderRuntime, err 
 	return runtime, err
 }
 
-// roundTrip encodes planar signed-unit frames into the normalized latent and
+// RoundTrip encodes planar signed-unit frames into the normalized latent and
 // decodes that latent back. It returns the frames that come out and the
 // latent's extent. The height and width are multiples of the autoencoder's
 // stride, and a clip's frame count is one the causal decoder gives back: one
 // more than a multiple of the temporal stride.
-func (r *AutoencoderRuntime) roundTrip(ctx context.Context, source SourceVideo) (SourceVideo, SourceVideoShape, error) {
+func (r *AutoencoderRuntime) RoundTrip(ctx context.Context, source SourceVideo) (SourceVideo, SourceVideoShape, error) {
 	if r == nil || r.encoder == nil || r.decoder == nil {
 		return SourceVideo{}, SourceVideoShape{}, errors.New("latent video: the autoencoder runtime is closed")
 	}
@@ -107,7 +107,7 @@ func (r *AutoencoderRuntime) Reconstruct(ctx context.Context, request Reconstruc
 	if err != nil {
 		return latentimage.EncodedImage{}, err
 	}
-	decoded, _, err := r.roundTrip(ctx, source)
+	decoded, _, err := r.RoundTrip(ctx, source)
 	if err != nil {
 		return latentimage.EncodedImage{}, err
 	}

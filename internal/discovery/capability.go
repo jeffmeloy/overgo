@@ -2,6 +2,7 @@ package discovery
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -50,14 +51,19 @@ func CapabilityCatalog(ctx context.Context, store *overgodb.Store, limit int, me
 // RememberedCapabilityCatalog is CapabilityCatalog over the store's own digest
 // memo: what the pass hashes is published, so the next one, in this process or
 // another, answers each registered file from its stat instead of reading its
-// bytes again. A pass that hashed nothing publishes nothing.
+// bytes again. A pass that hashed nothing publishes nothing. A store opened for
+// reading cannot keep what the pass hashed: the catalog it read is whole all
+// the same, so it is returned, and the next pass that can write keeps it.
 func RememberedCapabilityCatalog(ctx context.Context, store *overgodb.Store, limit int) ([]CatalogEntry, bool, error) {
 	memo := LoadMemo(ctx, store)
 	entries, truncated, err := CapabilityCatalog(ctx, store, limit, memo)
 	if err != nil {
 		return nil, false, err
 	}
-	return entries, truncated, PublishMemo(ctx, store, memo)
+	if err := PublishMemo(ctx, store, memo); err != nil && !errors.Is(err, overgodb.ErrReadOnly) {
+		return nil, false, err
+	}
+	return entries, truncated, nil
 }
 
 // RegisteredCatalog includes every registered model identity, even without an

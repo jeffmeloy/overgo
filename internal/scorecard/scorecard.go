@@ -221,7 +221,7 @@ const uncaptionedGeneration = "this model takes no caption or instruction (its i
 
 // editorProposal is the held-out evaluation proposed for a model that changes a video it is
 // given: a caption alone does not drive it, so the generators' evaluation is not its own.
-const editorProposal = "no held-out evaluation for this editor yet; proposed: held-out VidGen clips (on disk) changed by instruction, a local vision-language model asked which change each edited clip shows and which caption still describes it"
+const editorProposal = "no held-out evaluation for this editor yet; proposed: held-out VidGen clips (on disk) changed by instruction, a local vision-language model asked whether each edited clip shows what it showed with the change made"
 
 // unmeasuredGeneration is what an image or video recipe's held-out quality reads while no
 // evaluation has measured it. A generator, which draws from a caption alone, keeps the proposal

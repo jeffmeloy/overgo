@@ -106,6 +106,35 @@ func TestRememberedCapabilityCatalogPersistsWhatItHashed(t *testing.T) {
 	}
 }
 
+// TestRememberedCapabilityCatalogAnswersAStoreItCannotWrite holds a listing over a store opened
+// for reading to answering: a model registered since the memo was last kept is hashed, the catalog
+// names it present, and the pass does not fail because it cannot keep the digest. The scorecard
+// reads the store this way, and it read "store is read-only" after every registration.
+func TestRememberedCapabilityCatalogAnswersAStoreItCannotWrite(t *testing.T) {
+	ctx := t.Context()
+	root := t.TempDir()
+	store, err := overgodb.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest, _, _ := activatedForecaster(t, store)
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	reader, err := overgodb.OpenReadOnly(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	entries, _, err := RememberedCapabilityCatalog(ctx, reader, 100)
+	if err != nil || len(entries) != 1 || entries[0].Model != manifest.ID || !entries[0].Present {
+		t.Fatalf("a read-only listing = (%+v, %v), want the forecast model present", entries, err)
+	}
+	if _, bound, err := artifact.ResolveAlias(ctx, reader, IdentityEvidenceAlias); err != nil || bound {
+		t.Fatalf("a read-only listing kept identity evidence (%t, %v)", bound, err)
+	}
+}
+
 // TestCapabilityCatalogListsNonInferenceActivations closes the "why only
 // five servable" finding: a model whose only activation is a capability
 // task (forecast here) is invisible to the inference-only Servable query

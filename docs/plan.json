@@ -22,40 +22,35 @@
       ]
     },
     {
-      "id": "latent-codec-roundtrip",
-      "title": "Run an installed autoencoder as a capability of its own and measure what a round trip loses",
+      "id": "census-rebind-after-latent-rows",
+      "title": "Rebind the accepted model census after this campaign's registrations and evaluations",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 2900,
-        "reason": "A reconstruction task in the capability catalog, its two installed pairs, and a reconstruction suite in evaluate with the session and builder that run it: the autoencoders exist on master only as hidden stages of the generators, so nothing can encode and decode on request or be scored for what it loses"
-      },
       "steps": [
         {
-          "id": "representation-heldout",
-          "title": "Measure what the representation autoencoder's round trip loses, beside the Wan autoencoder on the same pictures",
+          "id": "do",
+          "title": "Rebind the accepted model census after this campaign's registrations and evaluations",
           "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-reconstruction",
-          "rationale": "Once the pair is registered its scorecard row proposes the reconstruction evaluation. The pair works at one size, 256 by 256, so a suite of held-out VidGen frames is cut to that size (evaluate -build-reconstruction -frames 1 -width 256 -height 256), and the Wan autoencoder is scored on the same suite, so the two families of latent are read on the same pictures: one keeps the pixels through a latent a twelfth their size, the other keeps what the picture shows through a latent as large as the picture. Serves: measure and find the gap; the control the encoder bridge is judged against. Disappears: nothing. Evidence: both autoencoders' rows carry a held-out quality on the shared suite. Batch: host for the pair, device for the Wan autoencoder."
+          "verify": "OVERGO_STORE_ACCEPTANCE=1 go test ./cmd/validate -count=1 -run '^TestAcceptedCapabilityCensus$'"
         }
       ]
     },
     {
       "id": "latent-encoder-bridge",
-      "title": "Train a connector between two encoders' latents and judge it by what the decoder then reconstructs",
+      "title": "Fit a connector between two encoders' latents and judge it by what the decoder then reconstructs",
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "A bridge route over the existing bridge trainer and one composed codec pair: the lane's tensor-bridge proof needs a trained connector with a consumer, and the installed WebSSL encoder and RAE decoder are that consumer"
+        "nodes": 3200,
+        "reason": "A bridged pair as a runtime of the reconstruction task and a train route that fits its bridge in closed form and judges it by what the decoder draws: the installed WebSSL encoder and RAE decoder do not fit each other, and nothing on master could join two encoders' feature spaces for a decoder"
       },
       "steps": [
         {
           "id": "train",
-          "title": "Train the connector with Muon and compare its rungs on held-out reconstruction",
+          "title": "Register the bridged pair and measure it on the shared suite beside the decoder's own encoder",
           "status": "open",
-          "verify": "go test ./internal/bridgetrain ./cmd/train -count=1 -run '^TestEncoderBridgeIsJudgedByHeldOutReconstruction$'",
-          "rationale": "The lane's tensor-bridge proof in its smallest useful form. Two installed parts do not fit each other: the WebSSL DINO encoder gives features 1024 wide and the RAE decoder expects DINOv2-base features 768 wide. A trained map from one feature space to the other makes them a working pair, and it needs no backward pass through either model: the targets are the DINOv2 encoder's own features of the training frames. The rungs, simplest first: no bridge (refused as a width error, the control), an affine map, a low-rank affine map. Muon trains the dense matrix through internal/bridgetrain. Each rung is judged by the round-trip evaluation of the row before, on held-out frames, beside the native DINOv2 pair as the ceiling; the simplest rung within resampling noise of the best is kept and registered as a composed pair.\n\nServes: train or change, on the smallest trainable latent component the installed models offer. Disappears: nothing. Evidence: the held-out reconstruction of each rung and of the ceiling. Batch: device.",
+          "verify": "go test -tags modeltest ./internal/mediacapability -count=1 -run '^TestPictureRoundTripsThroughABridgedPair$' \u0026\u0026 go run ./cmd/validate -scorecard -gap scorecard-unscored-reconstruction",
+          "rationale": "The lane's tensor-bridge proof in its smallest useful form. Two installed parts do not fit each other: the WebSSL DINO encoder gives features 1024 wide and the RAE decoder expects DINOv2-base features 768 wide. A map from one feature space to the other makes them a working pair, and it needs no backward pass through either model: the targets are the DINOv2 encoder's own features of the same frames. A probe on 40 frames showed it works: the decoder draws the same scene from the bridged features, about 3 dB under what it draws from its own encoder's.\n\nThe row's shape changed with what was found. The fit is linear least squares, which the seam alignment already on master solves exactly (composition.AlignSeamAdapter), so the affine rung is fitted in closed form by the fit step and is the kept rung unless something beats it. A Muon rung on the same objective has nothing to gain: it starts at the optimum of the loss it would descend. What could gain is training the bridge against the decoder's picture rather than the encoder's features, which needs the decoder's backward pass; whether master has one is what the codec-training row's reach step measures, and that rung belongs there. The low-rank rung is dropped: it has fewer weights and no way to beat the full map on held-out frames once the fit has frames enough.\n\nThis step registers the fitted bridge as a pair of its own, a model made of the bridge, the encoder it maps and the decoder it feeds, and scores it on the shared suite of the row before, beside the decoder's own encoder as the ceiling.\n\nServes: train or change, on the smallest latent component the installed models offer. Disappears: nothing. Evidence: the bridged pair's held-out reconstruction beside the ceiling's. Batch: host.",
           "depends_on": [
             "latent-codec-roundtrip/heldout"
           ]
@@ -246,7 +241,8 @@
             "latent-codec-training/win",
             "latent-change-proposer/lifecycle",
             "experiment-evidence/conditioning",
-            "vae-lane-takeover-plan/do"
+            "vae-lane-takeover-plan/do",
+            "census-rebind-after-latent-rows/do"
           ]
         }
       ]

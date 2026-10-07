@@ -68,23 +68,58 @@ func (a *Autoencoder) Latent() (channels, grid int) { return a.decoder.latent, a
 // the same layout and range. The picture is resized to the encoder's input
 // and normalized as the reference does before it encodes.
 func (a *Autoencoder) RoundTrip(ctx context.Context, picture []float32) ([]float32, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	side, channels := a.Side(), len(a.decoder.pixelMean)
-	input, _, _ := a.encoder.Shape()
-	pixels, err := vitencoder.InterpolateBicubic(picture, channels, side, side, input, input)
+	pixels, err := a.EncoderInput(ctx, picture)
 	if err != nil {
 		return nil, err
-	}
-	for channel := range channels {
-		plane := pixels[channel*input*input:][:input*input]
-		for index, value := range plane {
-			plane[index] = (value - a.decoder.pixelMean[channel]) / a.decoder.pixelStd[channel]
-		}
 	}
 	tokens, err := a.encoder.Patches(pixels, false)
 	if err != nil {
+		return nil, err
+	}
+	return a.Decode(ctx, tokens)
+}
+
+// EncoderInput turns one picture of Side by Side, channel-first in [0, 1],
+// into what the pair's encoder is given: resized to the encoder's input and
+// normalized, as the reference does before it encodes. Another encoder of
+// the same input and normalization, bridged to this decoder, is given the
+// same pixels.
+func (a *Autoencoder) EncoderInput(ctx context.Context, picture []float32) ([]float32, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return encoderInput(picture, a.Side(), a.encoder)
+}
+
+// encoderInput resizes a square picture of side, channel-first in [0, 1], to
+// the input an encoder takes and normalizes it by that encoder's own mean
+// and deviation.
+func encoderInput(picture []float32, side int, encoder *vitencoder.Encoder) ([]float32, error) {
+	input, _, _ := encoder.Shape()
+	mean, deviation := encoder.Normalization()
+	pixels, err := vitencoder.InterpolateBicubic(picture, len(mean), side, side, input, input)
+	if err != nil {
+		return nil, err
+	}
+	for channel := range mean {
+		plane := pixels[channel*input*input:][:input*input]
+		for index, value := range plane {
+			plane[index] = (value - mean[channel]) / deviation[channel]
+		}
+	}
+	return pixels, nil
+}
+
+// Tokens are the encoder's tokens for the pixels EncoderInput gives: the
+// latent, one row of Latent channels for each patch of the grid.
+func (a *Autoencoder) Tokens(pixels []float32) ([]float32, error) {
+	return a.encoder.Patches(pixels, false)
+}
+
+// Decode turns tokens, the pair's own or another encoder's bridged to them,
+// into the picture the decoder makes of them, channel-first in [0, 1].
+func (a *Autoencoder) Decode(ctx context.Context, tokens []float32) ([]float32, error) {
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	return a.decoder.decodeTokens(tokens)
@@ -95,11 +130,17 @@ func (a *Autoencoder) RoundTrip(ctx context.Context, picture []float32) ([]float
 // side is Side and the middle square of it is taken, which is what the pair
 // works at.
 func (a *Autoencoder) Reconstruct(ctx context.Context, encoded []byte) (latentimage.EncodedImage, error) {
+	return reconstructPicture(ctx, encoded, a.Side(), a.RoundTrip)
+}
+
+// reconstructPicture scales an encoded picture until its shorter side is
+// side, takes the middle square, passes it through roundTrip and encodes
+// what comes back as a PNG.
+func reconstructPicture(ctx context.Context, encoded []byte, side int, roundTrip func(context.Context, []float32) ([]float32, error)) (latentimage.EncodedImage, error) {
 	decoded, _, err := image.Decode(bytes.NewReader(encoded))
 	if err != nil {
 		return latentimage.EncodedImage{}, fmt.Errorf("rae: decode the picture: %w", err)
 	}
-	side := a.Side()
 	height, width := decoded.Bounds().Dy(), decoded.Bounds().Dx()
 	if !checked.PositiveInts(height, width) {
 		return latentimage.EncodedImage{}, errors.New("rae: the picture is empty")
@@ -122,7 +163,7 @@ func (a *Autoencoder) Reconstruct(ctx context.Context, encoded []byte) (latentim
 			}
 		}
 	}
-	pixels, err := a.RoundTrip(ctx, picture)
+	pixels, err := roundTrip(ctx, picture)
 	if err != nil {
 		return latentimage.EncodedImage{}, err
 	}

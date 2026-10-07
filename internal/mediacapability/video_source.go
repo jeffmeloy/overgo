@@ -54,30 +54,53 @@ func autoencoderInventory(path string) (modelartifact.Inventory, error) {
 	})
 }
 
-// resolveAutoencoder reads a directory as the autoencoder it holds: a
-// representation autoencoder's collection, whose pair is its decoder, the
-// latent statistics it decodes under and the encoder beside the collection,
-// on the host topology; or a Wan release's one autoencoder file.
-func resolveAutoencoder(path string) (Source, error) {
-	collection, held, err := rae.ResolveCollection(path)
-	if err != nil {
-		return Source{}, err
-	}
-	if !held {
-		inventory, err := autoencoderInventory(path)
-		return Source{Inventory: inventory}, err
-	}
-	// The pair spans the collection and its encoder's repository beside
-	// it, so the inventory roots at their common parent; the capability
-	// resolves only from the collection, which is recorded beside the root.
-	encoder := collection.EncoderDirectory()
-	inventory, err := modelartifact.FromFiles(filepath.Dir(filepath.Clean(path)), []modelartifact.FileSpec{
+// pairFiles are the files a decoder and the encoder that feeds it are: the
+// collection's decoder and latent statistics, and the encoder's weights,
+// configuration and image processor.
+func pairFiles(collection rae.Collection, encoder string) []modelartifact.FileSpec {
+	return []modelartifact.FileSpec{
 		{Path: collection.Decoder, Name: "decoder", Role: artifact.ComponentWeights},
 		{Path: collection.Statistics, Name: "statistics", Role: artifact.ComponentWeights},
 		{Path: filepath.Join(encoder, "model.safetensors"), Name: "encoder/weights", Role: artifact.ComponentWeights},
 		{Path: filepath.Join(encoder, "config.json"), Name: "encoder/config", Role: artifact.ComponentConfig},
 		{Path: filepath.Join(encoder, "preprocessor_config.json"), Name: "encoder/processor", Role: artifact.ComponentConfig},
-	})
+	}
+}
+
+// resolveAutoencoder reads a directory as the autoencoder it holds, on the
+// host topology: a bridged pair, whose parts are its bridge, the encoder the
+// bridge maps and the decoder of the collection it maps to; or a
+// representation autoencoder's collection, whose pair is its decoder, the
+// latent statistics it decodes under and the encoder beside the collection.
+// Any other directory is read as a Wan release's one autoencoder file, on the
+// device topology.
+func resolveAutoencoder(path string) (Source, error) {
+	bridged, isBridged, err := rae.ResolveBridgedPair(path)
+	if err != nil {
+		return Source{}, err
+	}
+	collection, held, err := rae.ResolveCollection(path)
+	if err != nil {
+		return Source{}, err
+	}
+	if !held && !isBridged {
+		inventory, err := autoencoderInventory(path)
+		return Source{Inventory: inventory}, err
+	}
+	// A pair spans directories beside each other, so the inventory roots
+	// at their common parent; the capability resolves only from the pair's
+	// own directory, which is recorded beside the root.
+	files := pairFiles(collection, collection.EncoderDirectory())
+	if isBridged {
+		// The bridged pair runs the source encoder in place of the
+		// decoder's own, of which it reads only the image processor.
+		files = append([]modelartifact.FileSpec{{Path: bridged.Bridge, Name: "bridge", Role: artifact.ComponentWeights}},
+			pairFiles(bridged.Collection, bridged.SourceEncoder)...)
+		files = append(files, modelartifact.FileSpec{
+			Path: filepath.Join(bridged.Collection.EncoderDirectory(), "preprocessor_config.json"), Name: "decoder/processor", Role: artifact.ComponentConfig,
+		})
+	}
+	inventory, err := modelartifact.FromFiles(filepath.Dir(filepath.Clean(path)), files)
 	if err == nil {
 		var own artifact.Location
 		own, err = artifact.CanonicalLocalLocation(inventory.Manifest.ID, artifact.LocationDirectory, path)
@@ -86,12 +109,33 @@ func resolveAutoencoder(path string) (Source, error) {
 	return definitionSource(inventory, err, modelrecipe.RepresentationReconstructionDefinition)
 }
 
+// hostPair is a representation autoencoder as the host runs one, the
+// collection's own pair or a bridged one: a square picture of its side in and
+// out, through a latent of its channels over its grid.
+type hostPair interface {
+	Side() int
+	Latent() (channels, grid int)
+	RoundTrip(ctx context.Context, picture []float32) ([]float32, error)
+	Reconstruct(ctx context.Context, encoded []byte) (latentimage.EncodedImage, error)
+}
+
+// loadHostPair loads the pair a directory holds: a bridged pair where the
+// directory holds a bridge, else the collection's own.
+func loadHostPair(path string) (hostPair, error) {
+	if _, bridged, err := rae.ResolveBridgedPair(path); err != nil {
+		return nil, err
+	} else if bridged {
+		return rae.LoadBridgedAutoencoder(path)
+	}
+	return rae.LoadAutoencoder(path)
+}
+
 // representationReconstruction passes a picture through a representation
 // autoencoder on the host, the same on every platform.
-var representationReconstruction = capabilityruntime.JSONScalar[latentvideo.ReconstructionRequest, *rae.Autoencoder, latentimage.EncodedImage](
+var representationReconstruction = capabilityruntime.JSONScalar[latentvideo.ReconstructionRequest, hostPair, latentimage.EncodedImage](
 	"reconstruction", latentvideo.ValidateReconstructionRequest,
-	capabilityruntime.IgnoreInput[latentvideo.ReconstructionRequest](rae.LoadAutoencoder),
-	func(runtime *workflowruntime.Runtime, modelID artifact.ID, pair *rae.Autoencoder) error {
+	capabilityruntime.IgnoreInput[latentvideo.ReconstructionRequest](loadHostPair),
+	func(runtime *workflowruntime.Runtime, modelID artifact.ID, pair hostPair) error {
 		return workflowruntime.RegisterContextStage(runtime, modelrecipe.ModuleReconstructRepresentation, modelID,
 			func(ctx context.Context, request latentvideo.ReconstructionRequest) (latentimage.EncodedImage, error) {
 				return pair.Reconstruct(ctx, request.Image)
@@ -114,12 +158,16 @@ func reconstructionCapability() Capability {
 // OpenAutoencoder loads the autoencoder a directory holds and keeps it until
 // the caller closes it.
 func OpenAutoencoder(path string) (Autoencoder, error) {
+	_, bridged, err := rae.ResolveBridgedPair(path)
+	if err != nil {
+		return nil, err
+	}
 	if _, held, err := rae.ResolveCollection(path); err != nil {
 		return nil, err
-	} else if !held {
+	} else if !held && !bridged {
 		return openDeviceAutoencoder(path)
 	}
-	pair, err := rae.LoadAutoencoder(path)
+	pair, err := loadHostPair(path)
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +177,7 @@ func OpenAutoencoder(path string) (Autoencoder, error) {
 // representationAutoencoder is a representation autoencoder as an
 // evaluation holds one: it takes a single picture of the pair's own size, in
 // the signed unit range clips are held in.
-type representationAutoencoder struct{ pair *rae.Autoencoder }
+type representationAutoencoder struct{ pair hostPair }
 
 // RoundTrip passes the one picture through the pair.
 func (a representationAutoencoder) RoundTrip(ctx context.Context, source latentvideo.SourceVideo) (latentvideo.SourceVideo, latentvideo.SourceVideoShape, error) {

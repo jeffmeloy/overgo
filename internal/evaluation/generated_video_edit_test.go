@@ -12,11 +12,12 @@ import (
 
 // TestGeneratedVideoEditAsksWhatChangedAndWhatStayed holds the suite to its
 // construction: each picked clip is one the directory holds, with one instruction
-// from the list; its change question offers the statement of that change, the
-// statement that nothing changed and two other changes' statements, each once; its
-// content question offers the clip's own caption among four; a clip whose caption
-// already shows a change is never picked; the same seed picks the same items; and
-// each clip yields two cases that name its edited clip and are answered by a letter.
+// from the list; its one question offers the clip's own caption and one other, each
+// with that change made and without it, and the answer is the clip's own with the
+// change made, so a clip given back as it was and a changed clip of another scene
+// are both wrong; a clip whose caption already shows a change is never picked; the
+// same seed picks the same items; and each clip yields one case that names its
+// edited clip and is answered by a letter.
 func TestGeneratedVideoEditAsksWhatChangedAndWhatStayed(t *testing.T) {
 	t.Parallel()
 	spec := captionFixture(t, 6, 6)
@@ -39,31 +40,36 @@ func TestGeneratedVideoEditAsksWhatChangedAndWhatStayed(t *testing.T) {
 		if made < 0 {
 			t.Fatalf("item %s is given %q, not an instruction of the list", item.ID, item.Instruction)
 		}
-		if len(item.Change.Options) != captionChoices || item.Change.Options[item.Change.Answer] != videoChanges[made].statement ||
-			!slices.Contains(item.Change.Options, unchangedStatement) || len(slices.Compact(slices.Sorted(slices.Values(item.Change.Options)))) != captionChoices {
-			t.Fatalf("item %s change question = %+v, want the statement of %q, the unchanged statement and two others, each once", item.ID, item.Change, item.Instruction)
+		change := videoChanges[made]
+		options := item.Question.Options
+		if len(options) != editChoices || options[item.Question.Answer] != item.Caption+" "+change.statement ||
+			!slices.Contains(options, item.Caption+" "+change.absence) || len(slices.Compact(slices.Sorted(slices.Values(options)))) != editChoices {
+			t.Fatalf("item %s question = %+v, want its caption with %q made as the answer and without it as another, four statements in all", item.ID, item.Question, item.Instruction)
 		}
-		for _, option := range item.Change.Options {
-			if option != unchangedStatement && !slices.ContainsFunc(videoChanges, func(change videoChange) bool { return change.statement == option }) {
-				t.Fatalf("item %s offers %q, not a statement of the list", item.ID, option)
+		made, own := 0, 0
+		for _, option := range options {
+			if strings.HasSuffix(option, " "+change.statement) {
+				made++
+			}
+			if strings.HasPrefix(option, item.Caption+" ") {
+				own++
 			}
 		}
-		if len(item.Content.Options) != captionChoices || item.Content.Options[item.Content.Answer] != item.Caption {
-			t.Fatalf("item %s content question = %+v, want its own caption among %d", item.ID, item.Content, captionChoices)
+		if made != 2 || own != 2 {
+			t.Fatalf("item %s offers the change made in %d statements and its own caption in %d, want two of each", item.ID, made, own)
 		}
 	}
 	suite, err := BuildGeneratedVideoEdit(items, videos, "judge-a")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := CompileGeneratedAnswer(suite); err != nil || suite.Judge != "judge-a" || len(suite.Cases) != 2*len(items) {
-		t.Fatalf("suite = %d cases judged by %q (%v), want two a clip that compile", len(suite.Cases), suite.Judge, err)
+	if _, err := CompileGeneratedAnswer(suite); err != nil || suite.Judge != "judge-a" || len(suite.Cases) != len(items) {
+		t.Fatalf("suite = %d cases judged by %q (%v), want one a clip that compile", len(suite.Cases), suite.Judge, err)
 	}
 	kind, name, question, ok := ParseMediaPrompt(suite.Cases[0].Prompt)
-	if !ok || kind != MediaVideo || name != items[0].ID+".gif" || !strings.Contains(question, unchangedStatement) ||
-		suite.Cases[0].Answers[0] != string(captionLetters[items[0].Change.Answer]) || !strings.HasSuffix(suite.Cases[0].Name, items[0].ID+"/"+editChangeCase) ||
-		!strings.HasSuffix(suite.Cases[1].Name, items[0].ID+"/"+editContentCase) || suite.Cases[1].Answers[0] != string(captionLetters[items[0].Content.Answer]) {
-		t.Fatalf("first cases = %s answering %v and %s answering %v", suite.Cases[0].Name, suite.Cases[0].Answers, suite.Cases[1].Name, suite.Cases[1].Answers)
+	if !ok || kind != MediaVideo || name != items[0].ID+".gif" || !strings.Contains(question, items[0].Caption) ||
+		suite.Cases[0].Answers[0] != string(captionLetters[items[0].Question.Answer]) || !strings.HasSuffix(suite.Cases[0].Name, "/"+items[0].ID) {
+		t.Fatalf("first case = %s answering %v", suite.Cases[0].Name, suite.Cases[0].Answers)
 	}
 	if _, err := BuildGeneratedVideoEdit(items, map[string]string{}, "judge-a"); err == nil {
 		t.Error("a suite was built for clips with no edited clip")
@@ -120,7 +126,7 @@ func TestVideoEditsPassOverClipsThatShowAChangeAlready(t *testing.T) {
 		t.Fatal("a clip that shows a change already was counted among those to edit")
 	}
 	for _, change := range videoChanges {
-		if change.instruction == "" || change.statement == "" || len(change.words) == 0 {
+		if change.instruction == "" || change.statement == "" || change.absence == "" || change.statement == change.absence || len(change.words) == 0 {
 			t.Errorf("change %+v is incomplete", change)
 		}
 	}

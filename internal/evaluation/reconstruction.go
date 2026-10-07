@@ -165,10 +165,10 @@ func bindReconstruction(compiled reconstructionPlan, authorities ExactAuthoritie
 	return bindKindPlan(compiled.dataset, compiled.split, compiled.identity, compiled.suite, reconstructionKind, authorities)
 }
 
-// peakSignalToNoise is the peak signal-to-noise ratio, in decibels, of what came back
+// PeakSignalToNoise is the peak signal-to-noise ratio, in decibels, of what came back
 // against what went in, both read as the eight-bit pixels a viewer is shown. A round trip
 // that changes nothing has no ratio and is refused: nothing was lost for it to measure.
-func peakSignalToNoise(source, output []float32) (float64, error) {
+func PeakSignalToNoise(source, output []float32) (float64, error) {
 	if len(source) == 0 || len(source) != len(output) {
 		return 0, fmt.Errorf("evaluation: %d values went in and %d came back", len(source), len(output))
 	}
@@ -218,7 +218,7 @@ func evaluateReconstruction(
 		if err != nil {
 			return reconstructionReport{}, fmt.Errorf("evaluation: reconstruction case %q: %w", testCase.Name, err)
 		}
-		ratio, err := peakSignalToNoise(trip.Source, trip.Output)
+		ratio, err := PeakSignalToNoise(trip.Source, trip.Output)
 		if err != nil || trip.LatentValues <= 0 {
 			return reconstructionReport{}, fmt.Errorf("evaluation: reconstruction case %q: a latent of %d values: %w", testCase.Name, trip.LatentValues, err)
 		}

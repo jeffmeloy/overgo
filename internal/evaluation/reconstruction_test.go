@@ -135,13 +135,13 @@ func TestSignalToNoiseRefusesWhatIsNoRoundTrip(t *testing.T) {
 		"no number":      {-1, 0, float32(math.NaN()), 0.5},
 		"nothing at all": nil,
 	} {
-		if ratio, err := peakSignalToNoise(source, output); err == nil {
+		if ratio, err := PeakSignalToNoise(source, output); err == nil {
 			t.Errorf("a ratio of %v was given for %s", ratio, name)
 		}
 	}
 	// 1.5 is shown as the brightest pixel, as 1 is; only the last value differs, by the 64
 	// levels between 0.5 and 0: a mean squared error of 64 squared over four values.
-	ratio, err := peakSignalToNoise(source, []float32{-1, 0, 1.5, 0})
+	ratio, err := PeakSignalToNoise(source, []float32{-1, 0, 1.5, 0})
 	levels := float64(media.SignedUnitF32ToU8(0.5)) - float64(media.SignedUnitF32ToU8(0))
 	if want := 10 * math.Log10(255*255*4/(levels*levels)); err != nil || math.Abs(ratio-want) > 1e-9 {
 		t.Fatalf("ratio = %v, %v, want %v", ratio, err, want)

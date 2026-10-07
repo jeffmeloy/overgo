@@ -20,6 +20,7 @@ const routeFlag = "-route"
 var trainRoutes = map[string]func(ctx context.Context, flags *flag.FlagSet, args []string) error{
 	"diffusionimage":  trainDiffusionImage,
 	"dit":             trainDiT,
+	"encoder-bridge":  trainEncoderBridge,
 	"flow-organ":      trainFlowOrgan,
 	"graft":           trainGraft,
 	"mixture":         trainMixture,

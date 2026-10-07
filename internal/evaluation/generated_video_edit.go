@@ -11,53 +11,52 @@ import (
 
 const (
 	generatedEditSource = "vidgen-1m/generated-video-edit"
-	generatedEditSchema = "overgo/vidgen-generated-video-edit/v1"
-	// generatedEditQuestion asks which change an edited clip shows.
+	generatedEditSchema = "overgo/vidgen-generated-video-edit/v2"
+	// generatedEditQuestion asks what an edited clip shows and whether it was changed.
 	generatedEditQuestion = "Which statement is true of the video?\n%s\nAnswer with the letter only."
-	// unchangedStatement is the choice that is true of a clip the editor gave back as it
-	// was: an editor that changes nothing answers every change question wrong.
-	unchangedStatement = "It is an ordinary video, and none of the other statements is true of it."
-	// editChangeCase and editContentCase name the two questions asked of an edited clip.
-	editChangeCase  = "change"
-	editContentCase = "content"
+	// editChoices is how many statements the one question about an edited clip offers:
+	// the clip's own caption and one near miss, each with the change made and without.
+	editChoices = 4
 )
 
 // videoChange is one change an editor is told to make: the instruction it is given, the
-// statement that is true of a clip once it is made, and the caption words that mean a
-// clip shows it already, which leaves nothing to tell apart.
+// statement that is true of a clip once it is made, the statement that is true of a clip
+// it was not made to, and the caption words that mean a clip shows it already, which
+// leaves nothing to tell apart.
 type videoChange struct {
-	instruction, statement string
-	words                  []string
+	instruction, statement, absence string
+	words                           []string
 }
 
 // videoChanges are changes of a whole clip that a viewer sees at a glance whatever the
 // clip shows, so that one list serves every source clip.
 var videoChanges = []videoChange{
-	{"Make it snow heavily.", "Heavy snow is falling.", []string{"snow", "snowing", "snowy", "snowfall"}},
-	{"Make it rain heavily.", "Heavy rain is falling.", []string{"rain", "raining", "rainy"}},
-	{"Change the time to night.", "It is night.", []string{"night", "nighttime", "dark"}},
-	{"Cover the scene in thick fog.", "Thick fog covers the scene.", []string{"fog", "foggy", "mist", "misty"}},
-	{"Turn the video into a black-and-white pencil sketch.", "It is a black-and-white pencil sketch.", []string{"sketch", "drawing", "drawn", "pencil"}},
-	{"Turn the video into a colorful cartoon.", "It is a colorful cartoon.", []string{"cartoon", "animated", "animation"}},
+	{"Make it snow heavily.", "Heavy snow is falling.", "No snow is falling.", []string{"snow", "snowing", "snowy", "snowfall"}},
+	{"Make it rain heavily.", "Heavy rain is falling.", "No rain is falling.", []string{"rain", "raining", "rainy"}},
+	{"Change the time to night.", "It is night.", "It is not night.", []string{"night", "nighttime", "dark"}},
+	{"Cover the scene in thick fog.", "Thick fog covers the scene.", "There is no fog.", []string{"fog", "foggy", "mist", "misty"}},
+	{"Turn the video into a black-and-white pencil sketch.", "It is a black-and-white pencil sketch.", "It is ordinary footage, not a sketch.", []string{"sketch", "drawing", "drawn", "pencil"}},
+	{"Turn the video into a colorful cartoon.", "It is a colorful cartoon.", "It is ordinary footage, not a cartoon.", []string{"cartoon", "animated", "animation"}},
 }
 
 // VideoEditItem is a clip a video editor is asked to change: the clip's identity and
-// caption, the instruction the editor is given, and the two questions the judge is asked
-// about the result, which change it shows and which caption still describes it.
+// caption, the instruction the editor is given, and the one question the judge is asked
+// about the result.
 type VideoEditItem struct {
 	ID          string
 	Caption     string
 	Instruction string
-	Change      VideoCaptionQuestion
-	Content     VideoCaptionQuestion
+	Question    VideoCaptionQuestion
 }
 
 // PickVideoEdits picks count captioned clips of a directory by seed and gives each an
 // instruction from a fixed list of whole-clip changes. A clip whose caption says it shows
-// one of the changes already is passed over. The change question offers the statement of
-// the change made, those of two other changes, and that the clip is unchanged; the content
-// question offers the clip's caption among near misses, as the generators' suite does: an
-// editor is held both to making the change and to keeping what the clip showed.
+// one of the changes already is passed over. An edit is right only when the change was
+// made and the clip still shows what it showed, so the one question about it offers four
+// statements: the clip's own caption with the change made, the same caption without it,
+// which is true of a clip given back as it was, and a near-miss caption each way, which
+// are true of a clip that no longer shows what it showed. An editor that changes nothing
+// is wrong on every clip, and so is one that draws snow over another scene.
 func PickVideoEdits(clips, path string, count int, seed uint64) ([]VideoEditItem, error) {
 	if count <= 0 {
 		return nil, errors.New("evaluation: a video-edit suite edits at least one clip")
@@ -99,31 +98,39 @@ func PickVideoEdits(clips, path string, count int, seed uint64) ([]VideoEditItem
 	field := newCaptionField(path, captions, identities, pool[:min(len(pool), nearMissPool)])
 	var items []VideoEditItem
 	for _, identity := range local[:count] {
-		// The change made, then two others to tell it from, in the seed's order.
-		order := rng.Perm(len(videoChanges))
-		change := videoChanges[order[0]]
-		statements := []string{change.statement, unchangedStatement}
-		for _, other := range order[1 : captionChoices-len(statements)+1] {
-			statements = append(statements, videoChanges[other].statement)
+		// The seed's draws stay in the order the first form of this suite made them, so
+		// the same seed gives every clip the instruction it had and clips already edited
+		// for it are asked the new question: the change, the order of four statements,
+		// then the near misses of the clip's caption.
+		change := videoChanges[rng.Perm(len(videoChanges))[0]]
+		order := make([]int, editChoices)
+		for position := range order {
+			order[position] = position
 		}
-		rng.Shuffle(len(statements), func(left, right int) { statements[left], statements[right] = statements[right], statements[left] })
+		rng.Shuffle(len(order), func(left, right int) { order[left], order[right] = order[right], order[left] })
 		content, err := field.questions(rng, identity, 1)
 		if err != nil {
 			return nil, err
 		}
-		items = append(items, VideoEditItem{
-			ID: identity, Caption: captions[identity], Instruction: change.instruction,
-			Change:  VideoCaptionQuestion{Options: statements, Answer: slices.Index(statements, change.statement)},
-			Content: content[0],
-		})
+		own := captions[identity]
+		other := content[0].Options[(content[0].Answer+1)%len(content[0].Options)]
+		statements := []string{own + " " + change.statement, own + " " + change.absence, other + " " + change.statement, other + " " + change.absence}
+		question := VideoCaptionQuestion{Options: make([]string, editChoices)}
+		for position, statement := range order {
+			question.Options[position] = statements[statement]
+			if statement == 0 {
+				question.Answer = position
+			}
+		}
+		items = append(items, VideoEditItem{ID: identity, Caption: own, Instruction: change.instruction, Question: question})
 	}
 	return items, nil
 }
 
-// BuildGeneratedVideoEdit builds the held-out suite that asks a judge about each edited
-// clip: which change it shows, and which caption describes it. videos maps a clip's
-// identity to the file name of its edited clip. The judge is named in the suite, since the
-// score depends on it.
+// BuildGeneratedVideoEdit builds the held-out suite that asks a judge one question about
+// each edited clip: which of four statements, of what it shows and whether the change
+// was made, is true of it. videos maps a clip's identity to the file name of its edited
+// clip. The judge is named in the suite, since the score depends on it.
 func BuildGeneratedVideoEdit(items []VideoEditItem, videos map[string]string, judge string) (GeneratedAnswerSuite, error) {
 	if strings.TrimSpace(judge) == "" {
 		return GeneratedAnswerSuite{}, errors.New("evaluation: a suite of questions about clips names its judge")
@@ -137,20 +144,12 @@ func BuildGeneratedVideoEdit(items []VideoEditItem, videos map[string]string, ju
 		if !edited {
 			return GeneratedAnswerSuite{}, fmt.Errorf("evaluation: clip %s has no edited clip", item.ID)
 		}
-		for _, asked := range []struct {
-			name, question string
-			choices        VideoCaptionQuestion
-		}{
-			{editChangeCase, generatedEditQuestion, item.Change},
-			{editContentCase, generatedVideoQuestion, item.Content},
-		} {
-			suite.Cases = append(suite.Cases, GeneratedAnswerCase{
-				Name:      fmt.Sprintf("%s/%s/%s", generatedEditSource, item.ID, asked.name),
-				Prompt:    mediaPrompt(MediaVideo, name, fmt.Sprintf(asked.question, lettered(asked.choices.Options))),
-				MaxTokens: captionAnswerTokens,
-				Answers:   []string{string(captionLetters[asked.choices.Answer])},
-			})
-		}
+		suite.Cases = append(suite.Cases, GeneratedAnswerCase{
+			Name:      fmt.Sprintf("%s/%s", generatedEditSource, item.ID),
+			Prompt:    mediaPrompt(MediaVideo, name, fmt.Sprintf(generatedEditQuestion, lettered(item.Question.Options))),
+			MaxTokens: captionAnswerTokens,
+			Answers:   []string{string(captionLetters[item.Question.Answer])},
+		})
 	}
 	return suite, nil
 }

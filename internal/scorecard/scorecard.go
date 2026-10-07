@@ -193,13 +193,11 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 				row.Cells[metric.Quality] = record.cell(capability.Task)
 			}
 			if quality := row.Cells[metric.Quality]; quality.Proposed && (capability.Task == recipe.TaskImageGen || capability.Task == recipe.TaskVideoGen) {
-				captioned, err := takesCaption(ctx, store, capability.Recipe)
+				definition, err := recipe.RequireDefinition(ctx, store, capability.Recipe)
 				if err != nil {
 					return nil, err
 				}
-				if !captioned {
-					row.Cells[metric.Quality] = inapplicable(uncaptionedGeneration)
-				}
+				row.Cells[metric.Quality] = unmeasuredGeneration(quality, definition)
 			}
 			row.Cells[metric.Failures] = failureCell(observed)
 			row.Cells[metric.Load] = loadCell(benchmark, measured, observed)
@@ -215,29 +213,49 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 	return rows, nil
 }
 
-// uncaptionedGeneration is why an image or video model that takes no caption has no held-out
-// quality a caption's questions could measure: the held-out evaluations of the generators ask a
-// vision-language model about what a caption said to draw, and a class index over a few pixels, or
+// uncaptionedGeneration is why an image or video model that takes no words has no held-out
+// quality a vision-language model's answers could measure: the held-out evaluations ask about what
+// a caption said to draw or an instruction said to change, and a class index over a few pixels, or
 // no condition at all, says nothing to ask about.
-const uncaptionedGeneration = "this model does not draw from a caption alone (its input is a class, nothing, or a video to edit), so the held-out evaluation of the generators, a vision-language model's answers to a caption's questions about what it drew, cannot be asked of it"
+const uncaptionedGeneration = "this model takes no caption or instruction (its input is a class, or nothing), so the held-out evaluations of the generators and editors, a vision-language model's answers about what a caption said to draw or an instruction said to change, cannot be asked of it"
 
-// takesCaption reports whether the recipe's definition takes a prompt as an input, the one condition
-// under which a caption can be drawn from.
-func takesCaption(ctx context.Context, store *overgodb.Store, id artifact.ID) (bool, error) {
-	definition, err := recipe.RequireDefinition(ctx, store, id)
-	if err != nil {
-		return false, err
+// editorProposal is the held-out evaluation proposed for a model that changes a video it is
+// given: a caption alone does not drive it, so the generators' evaluation is not its own.
+const editorProposal = "no held-out evaluation for this editor yet; proposed: held-out VidGen clips (on disk) changed by instruction, a local vision-language model asked which change each edited clip shows and which caption still describes it"
+
+// unmeasuredGeneration is what an image or video recipe's held-out quality reads while no
+// evaluation has measured it. A generator, which draws from a caption alone, keeps the proposal
+// of its task. An editor, which changes a video by an instruction, is proposed the edit
+// evaluation. A model conditioned on a class, on an image or on nothing has no words to be asked
+// about: its quality is not applicable, and no row is filed for it.
+func unmeasuredGeneration(proposed Cell, definition recipe.Definition) Cell {
+	switch {
+	case acceptsCaption(definition):
+		return proposed
+	case editsVideo(definition):
+		proposal := inapplicable(editorProposal)
+		proposal.Proposed = true
+		return proposal
+	default:
+		return inapplicable(uncaptionedGeneration)
 	}
-	return acceptsCaption(definition), nil
+}
+
+// takes reports whether a definition has an input of the given kind.
+func takes(definition recipe.Definition, kind recipe.DataKind) bool {
+	return slices.ContainsFunc(definition.Inputs, func(input recipe.Input) bool { return input.Data == kind })
 }
 
 // acceptsCaption reports whether a definition has an input of prompt conditioning and no video to
-// edit: a generator draws from a caption alone, and an editor changes a video it is given.
+// edit: a generator draws from a caption alone.
 func acceptsCaption(definition recipe.Definition) bool {
-	has := func(kind recipe.DataKind) bool {
-		return slices.ContainsFunc(definition.Inputs, func(input recipe.Input) bool { return input.Data == kind })
-	}
-	return has(recipe.DataPromptConditioning) && !has(recipe.DataVideo)
+	return takes(definition, recipe.DataPromptConditioning) && !takes(definition, recipe.DataVideo)
+}
+
+// editsVideo reports whether a definition takes both words and a video: an editor changes the
+// video it is given as the words say.
+func editsVideo(definition recipe.Definition) bool {
+	return takes(definition, recipe.DataPromptConditioning) && takes(definition, recipe.DataVideo)
 }
 
 // projectionInRequest is why a projection cell no attempt measured is not applicable.

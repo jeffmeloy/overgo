@@ -17,7 +17,7 @@
           "id": "do",
           "title": "Measure the video editor: a held-out evaluation of instructed changes to real clips",
           "status": "open",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestAnEditorIsProposedItsOwnEvaluation$'"
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-video-gen"
         }
       ]
     },

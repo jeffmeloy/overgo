@@ -39,8 +39,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1500,
-        "reason": "The clip side of the render command (cmd/evaluate/render.go), the VidGen caption picking and the generated-video suite (internal/evaluation) and the judged session's video task are the production code a held-out evaluation of a video model needs: its output is a clip, and evaluate could neither draw one at a size a judge can read nor ask a judge which caption it shows"
+        "nodes": 1900,
+        "reason": "The clip side of the render command and its reuse of what a directory already holds (cmd/evaluate/render.go), the VidGen caption picking with same-source distractors and the generated-video suite (internal/evaluation) and the judged session's video task are the production code a held-out evaluation of a video model needs: its output is a clip, and evaluate could neither draw one at a size a judge can read nor ask a judge which caption it shows"
       },
       "steps": [
         {

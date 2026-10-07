@@ -67,6 +67,37 @@ func TestAPictureIsJudgedOnlyWhenTheEvaluatedRecipeDrewIt(t *testing.T) {
 	}
 }
 
+// TestARenderReusesOnlyWhatTheSameRecipeAndSettingsDrew holds what a render may take
+// from a directory already drawn into: the files of the captions its manifest lists,
+// when the model, recipe, task and settings are the render's own, with the commit that
+// drew them kept; nothing from a directory with no manifest; and a refusal for media
+// another recipe or other settings drew.
+func TestARenderReusesOnlyWhatTheSameRecipeAndSettingsDrew(t *testing.T) {
+	t.Parallel()
+	model := testutil.ArtifactID(t, artifact.KindModel, "drawing-model")
+	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "drawing-recipe")
+	want := renderManifest{Model: model, Recipe: recipeID, Task: recipe.TaskImageGen, CodeCommit: "new", Files: map[string]string{}}
+	fresh, drawn, err := alreadyDrawn(t.TempDir(), want)
+	if err != nil || len(drawn) != 0 || fresh.CodeCommit != "new" {
+		t.Fatalf("an empty directory gave %+v, %v, %v; want nothing to reuse and this render's commit", fresh, drawn, err)
+	}
+	directory, name := renderedDirectory(t, model, recipeID)
+	held, drawn, err := alreadyDrawn(directory, want)
+	if err != nil || drawn["coco_1"] != name || held.CodeCommit != "abc" {
+		t.Fatalf("a directory this recipe drew gave %+v, %v, %v; want its picture and the commit that drew it", held, drawn, err)
+	}
+	other := want
+	other.Recipe = testutil.ArtifactID(t, artifact.KindRecipe, "another-recipe")
+	if _, _, err := alreadyDrawn(directory, other); err == nil {
+		t.Error("media another recipe drew were reused")
+	}
+	resized := want
+	resized.Settings = map[string]float64{"width": 416}
+	if _, _, err := alreadyDrawn(directory, resized); err == nil {
+		t.Error("media drawn with other settings were reused")
+	}
+}
+
 // TestAJudgedRuntimeAnswersOnlyAboutAVerifiedPicture holds the judge to its
 // contract: it names itself, it asks nothing of a prompt that names no picture,
 // and it looks at nothing the manifest does not bind to the evaluated recipe.

@@ -40,14 +40,43 @@ const (
 )
 
 // renderManifest binds a directory of pictures or clips to the model and recipe that drew
-// them, the commit of the code that ran them, and the caption each was drawn from, by the
-// file name, which is the digest of its bytes and its extension.
+// them, the commit of the code that ran them, the settings that replaced fields of the
+// recipe's verified request, and the caption each was drawn from, by the file name, which
+// is the digest of its bytes and its extension.
 type renderManifest struct {
-	Model      artifact.ID       `json:"model"`
-	Recipe     artifact.ID       `json:"recipe"`
-	Task       recipe.Task       `json:"task"`
-	CodeCommit string            `json:"code_commit"`
-	Files      map[string]string `json:"files"`
+	Model      artifact.ID        `json:"model"`
+	Recipe     artifact.ID        `json:"recipe"`
+	Task       recipe.Task        `json:"task"`
+	CodeCommit string             `json:"code_commit"`
+	Settings   map[string]float64 `json:"settings,omitempty"`
+	Files      map[string]string  `json:"files"`
+}
+
+// alreadyDrawn is what a directory's manifest lets a render reuse: the file of each
+// caption it has drawn, when the manifest binds the directory to the same model, recipe,
+// task and settings. A directory with no manifest has nothing to reuse; one drawn by
+// another model, recipe or settings is refused, since its media are not this render's.
+func alreadyDrawn(directory string, want renderManifest) (renderManifest, map[string]string, error) {
+	data, err := os.ReadFile(filepath.Join(directory, renderManifestFile))
+	if errors.Is(err, os.ErrNotExist) {
+		return want, map[string]string{}, nil
+	}
+	if err != nil {
+		return renderManifest{}, nil, err
+	}
+	var held renderManifest
+	if err := json.Unmarshal(data, &held); err != nil {
+		return renderManifest{}, nil, fmt.Errorf("evaluate: read the render manifest of %s: %w", directory, err)
+	}
+	if held.Model != want.Model || held.Recipe != want.Recipe || held.Task != want.Task || !maps.Equal(held.Settings, want.Settings) {
+		return renderManifest{}, nil, fmt.Errorf("evaluate: %s holds media drawn by %s under %s with settings %v, not by %s under %s with %v: draw into another directory",
+			directory, held.Model, held.Recipe, held.Settings, want.Model, want.Recipe, want.Settings)
+	}
+	drawn := make(map[string]string, len(held.Files))
+	for name, id := range held.Files {
+		drawn[id] = name
+	}
+	return held, drawn, nil
 }
 
 // renderPrompt is one caption to draw and the identity the suite refers to it by.
@@ -143,9 +172,32 @@ func renderMedia(ctx context.Context, repository, path string, task recipe.Task,
 	if err := os.MkdirAll(directory, renderDirectoryMode); err != nil {
 		return nil, err
 	}
-	manifest := renderManifest{Model: modelID, Recipe: selected.Activation.Definition.ID, Task: task, CodeCommit: commit, Files: map[string]string{}}
+	manifest, held, err := alreadyDrawn(directory, renderManifest{
+		Model: modelID, Recipe: selected.Activation.Definition.ID, Task: task, CodeCommit: commit, Settings: settings, Files: map[string]string{},
+	})
+	if err != nil {
+		return nil, err
+	}
+	// The manifest is written after every draw, so a render that is cut short resumes.
+	save := func() error {
+		data, err := json.MarshalIndent(manifest, "", "  ")
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(filepath.Join(directory, renderManifestFile), data, renderFileMode)
+	}
 	names := map[string]string{}
 	for index, item := range prompts {
+		if name, drawn := held[item.ID]; drawn {
+			if err := verifyRendered(directory, manifest.Model, manifest.Recipe, name); err != nil {
+				return nil, err
+			}
+			names[item.ID] = name
+			continue
+		}
+		if manifest.CodeCommit != commit {
+			return nil, fmt.Errorf("evaluate: the media of %s were drawn at commit %.12s and this build is %.12s: draw the rest with that build, or into another directory", directory, manifest.CodeCommit, commit)
+		}
 		request := make(map[string]any, len(template)+len(settings))
 		maps.Copy(request, template)
 		for name, value := range settings {
@@ -173,13 +225,12 @@ func renderMedia(ctx context.Context, repository, path string, task recipe.Task,
 			return nil, err
 		}
 		manifest.Files[name], names[item.ID] = item.ID, name
+		if err := save(); err != nil {
+			return nil, err
+		}
 		fmt.Printf("  drew %d/%d: %s\n", index+1, len(prompts), item.ID)
 	}
-	data, err := json.MarshalIndent(manifest, "", "  ")
-	if err != nil {
-		return nil, err
-	}
-	return names, os.WriteFile(filepath.Join(directory, renderManifestFile), data, renderFileMode)
+	return names, save()
 }
 
 // writeTIFAImages draws the pictures of -cases TIFA captions and writes the suite

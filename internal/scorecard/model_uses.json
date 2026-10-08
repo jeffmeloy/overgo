@@ -24,7 +24,7 @@
       "measure": "tifa-v1.0/image-questions",
       "use": "to draw and edit infographics: large pictures dense with small text, laid out as a page",
       "source": "its model card: \"designed for integrated infographic generation and editing\", recommended at 50 steps with a guidance scale of 4, at 2048 by 2048 by default and 2720 by 1536 in its example",
-      "measured": "whether a judge finds in the picture what the caption of a photograph named, with each picture drawn at 512 by 512 in four steps: a sixteenth of the pixels and about a twelfth of the steps its maker recommends, and no question asks whether text in the picture can be read",
+      "measured": "whether a judge finds in the picture what the caption of a photograph named, with each picture drawn as its maker recommends, at 2048 by 2048 in 50 steps with a guidance scale of 4 and a timestep shift of 3; no question asks whether text in the picture can be read. A picture at those settings takes about two minutes to draw, and the row's first-output time is of a smaller and faster request than the reading's pictures",
       "needs": "nothing that is not on this machine: prompts that ask for stated text, drawn at the model's own size and steps, with a model that reads text reading back whether the text asked for is the text drawn. It is the plan's next step for this model if a picture costs minutes"
     },
     {

@@ -132,11 +132,18 @@ func PickVideoEdits(clips, path string, count int, seed uint64) ([]VideoEditItem
 // was made, is true of it. videos maps a clip's identity to the file name of its edited
 // clip. The judge is named in the suite, since the score depends on it.
 func BuildGeneratedVideoEdit(items []VideoEditItem, videos map[string]string, judge string) (GeneratedAnswerSuite, error) {
+	return buildVideoEdit(generatedEditSource, generatedEditSchema, items, videos, judge)
+}
+
+// buildVideoEdit builds a suite of one question about each edited clip, under
+// the source and schema of the measure that asks it: a change to the whole
+// clip, or to one thing in it.
+func buildVideoEdit(source, schema string, items []VideoEditItem, videos map[string]string, judge string) (GeneratedAnswerSuite, error) {
 	if strings.TrimSpace(judge) == "" {
 		return GeneratedAnswerSuite{}, errors.New("evaluation: a suite of questions about clips names its judge")
 	}
 	suite := GeneratedAnswerSuite{
-		Kind: GeneratedAnswerKind, Schema: generatedEditSchema, Source: generatedEditSource, Judge: judge,
+		Kind: GeneratedAnswerKind, Schema: schema, Source: source, Judge: judge,
 		Transforms: []string{TransformTrimSpace, transformLowercase},
 	}
 	for _, item := range items {
@@ -145,7 +152,7 @@ func BuildGeneratedVideoEdit(items []VideoEditItem, videos map[string]string, ju
 			return GeneratedAnswerSuite{}, fmt.Errorf("evaluation: clip %s has no edited clip", item.ID)
 		}
 		suite.Cases = append(suite.Cases, GeneratedAnswerCase{
-			Name:      fmt.Sprintf("%s/%s", generatedEditSource, item.ID),
+			Name:      fmt.Sprintf("%s/%s", source, item.ID),
 			Prompt:    mediaPrompt(MediaVideo, name, fmt.Sprintf(generatedEditQuestion, lettered(item.Question.Options))),
 			MaxTokens: captionAnswerTokens,
 			Answers:   []string{string(captionLetters[item.Question.Answer])},

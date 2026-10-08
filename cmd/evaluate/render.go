@@ -397,8 +397,9 @@ func publishEditSources(ctx context.Context, repository, clips, model string, it
 
 // writeVideoEdits picks captioned clips of a directory, has the editor at model change each
 // by its instruction, writes the edited clips to directory and the suite that asks the
-// judge about them to out.
-func writeVideoEdits(ctx context.Context, clips, captions, model, repository, judge, directory, out string, cases int, seed uint64) error {
+// judge about them to out. The instruction changes the whole clip, from a fixed list, or,
+// with oneThing, the colour of one worn thing the clip's caption names.
+func writeVideoEdits(ctx context.Context, clips, captions, model, repository, judge, directory, out string, oneThing bool, cases int, seed uint64) error {
 	commit, err := runrecord.ExecutableCodeCommit(".")
 	if err != nil {
 		return err
@@ -406,7 +407,11 @@ func writeVideoEdits(ctx context.Context, clips, captions, model, repository, ju
 	if captions == "" {
 		captions = filepath.Join(clips, captionFile)
 	}
-	items, err := evaluation.PickVideoEdits(clips, captions, cases, seed)
+	pick, build, measure := evaluation.PickVideoEdits, evaluation.BuildGeneratedVideoEdit, "generated-video edit"
+	if oneThing {
+		pick, build, measure = evaluation.PickLocalVideoEdits, evaluation.BuildGeneratedVideoLocalEdit, "generated-video local edit"
+	}
+	items, err := pick(clips, captions, cases, seed)
 	if err != nil {
 		return err
 	}
@@ -422,11 +427,11 @@ func writeVideoEdits(ctx context.Context, clips, captions, model, repository, ju
 	if err != nil {
 		return err
 	}
-	suite, err := evaluation.BuildGeneratedVideoEdit(items, edited, filepath.Base(judge))
+	suite, err := build(items, edited, filepath.Base(judge))
 	if err != nil {
 		return err
 	}
-	return writeSuite(out, suite, len(suite.Cases), "generated-video edit")
+	return writeSuite(out, suite, len(suite.Cases), measure)
 }
 
 // verifyRendered refuses a picture or clip the manifest of its directory does not bind

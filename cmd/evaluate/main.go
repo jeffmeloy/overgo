@@ -98,6 +98,7 @@ func run() error {
 	tifaQuestions := flag.String("render-tifa", "", "draw a picture of each of -cases TIFA captions with the image model -model-path names, and write the suite that asks the judge about them to -suite-out, the pictures to -media-out: the argument is TIFA's question-answer file")
 	vidgenCaptions := flag.String("render-vidgen", "", "draw a clip of each of -cases VidGen captions with the video model -model-path names, and write the suite that asks the judge which of four captions each shows to -suite-out, the clips to -media-out: the argument is VidGen's caption file")
 	editClips := flag.String("render-edits", "", "change each of -cases captioned clips of this directory with the video editor -model-path names, by an instruction from a fixed list, and write the suite that asks the judge one question about each edited clip, whether it shows what it showed with the change made, to -suite-out, the edited clips to -media-out; -captions names the caption file")
+	editOneThing := flag.Bool("one-thing", false, "with -render-edits: tell the editor to change the colour of one worn thing each clip's caption names, and nothing else, where the fixed list changes the whole clip; a clip whose caption names no such thing is passed over")
 	drawnText := flag.Bool("render-drawn-text", false, "draw an infographic from each of -cases briefs of a fixed list with the image model -model-path names, each asked to hold a title, three lines with a figure and a line of small print, and write the suite that asks the judge which of four texts each picture holds to -suite-out, the pictures to -media-out")
 	renderSet := flag.String("render-set", "", "with -render-tifa, -render-drawn-text or -render-vidgen: comma-separated name=number settings that replace fields of the request the model's verification ran, such as width=416,height=240")
 	sceneClips := flag.String("build-scene-retrieval", "", "write the scene-retrieval suite of the clips in this directory to -suite-out, the frames to -media-out: a frame of every clip with a sibling scene of its source video, and of -distractors clips with none")
@@ -185,9 +186,9 @@ func run() error {
 	}
 	if clips := strings.TrimSpace(*editClips); clips != "" {
 		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" || strings.TrimSpace(*mediaOut) == "" || strings.TrimSpace(*speechJudge) == "" || strings.TrimSpace(*modelPath) == "" {
-			return errors.New("usage: evaluate -render-edits <clip directory> -model-path <editor directory> -judge <vision-language model> -media-out <directory> -suite-out <suite.json> [-captions <file>] [-repo <store>] [-cases N] [-seed N]")
+			return errors.New("usage: evaluate -render-edits <clip directory> -model-path <editor directory> -judge <vision-language model> -media-out <directory> -suite-out <suite.json> [-one-thing] [-captions <file>] [-repo <store>] [-cases N] [-seed N]")
 		}
-		return writeVideoEdits(context.Background(), clips, strings.TrimSpace(*captionSource), strings.TrimSpace(*modelPath), *repository, strings.TrimSpace(*speechJudge), strings.TrimSpace(*mediaOut), strings.TrimSpace(*suiteOut), *captionCases, *captionSeed)
+		return writeVideoEdits(context.Background(), clips, strings.TrimSpace(*captionSource), strings.TrimSpace(*modelPath), *repository, strings.TrimSpace(*speechJudge), strings.TrimSpace(*mediaOut), strings.TrimSpace(*suiteOut), *editOneThing, *captionCases, *captionSeed)
 	}
 	if *drawnText {
 		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" || strings.TrimSpace(*mediaOut) == "" || strings.TrimSpace(*speechJudge) == "" || strings.TrimSpace(*modelPath) == "" ||

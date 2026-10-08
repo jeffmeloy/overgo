@@ -148,7 +148,29 @@ func (s *Synthesizer) voiceState(name string) (*VoiceState, error) {
 	return voice, nil
 }
 
+// frameNoise fills the noise one frame of a generation starts from.
+type frameNoise func(step int, values []float32)
+
+// seededNoise is the noise a served generation draws: normal values of the
+// plan's temperature, from the plan's seed.
+func seededNoise(plan generationPlan) frameNoise {
+	random := rand.New(rand.NewSource(plan.seed))
+	deviation := math.Sqrt(plan.temperature)
+	return func(_ int, values []float32) {
+		for index := range values {
+			values[index] = float32(deviation * random.NormFloat64())
+		}
+	}
+}
+
 func (s *Synthesizer) generate(ctx context.Context, plan generationPlan) (LatentBatch, error) {
+	return s.generateFrom(ctx, plan, seededNoise(plan))
+}
+
+// generateFrom generates the plan's frames from the noise given: the voice's
+// stored state, then the text, then frames until the end of speech is seen and
+// the plan's frames after it.
+func (s *Synthesizer) generateFrom(ctx context.Context, plan generationPlan, noise frameNoise) (LatentBatch, error) {
 	if !s.complete() || len(plan.tokens) == tensor.FirstOffset || plan.maxFrames <= tensor.FirstOffset ||
 		plan.voice == "" || plan.temperature <= 0 {
 		return LatentBatch{}, errors.New("speechsynth: invalid generation plan")
@@ -157,15 +179,8 @@ func (s *Synthesizer) generate(ctx context.Context, plan generationPlan) (Latent
 	if err != nil {
 		return LatentBatch{}, err
 	}
-	random := rand.New(rand.NewSource(plan.seed))
-	deviation := math.Sqrt(plan.temperature)
 	latents, _, err := s.model.GenerateLatentsWithVoice(ctx, voice, plan.tokens, GenerateParams{
-		MaxFrames: plan.maxFrames, EOSThreshold: referenceEOSThreshold, FramesAfterEOS: plan.framesAfterEnd,
-		NoiseAt: func(_ int, values []float32) {
-			for index := range values {
-				values[index] = float32(deviation * random.NormFloat64())
-			}
-		},
+		MaxFrames: plan.maxFrames, EOSThreshold: referenceEOSThreshold, FramesAfterEOS: plan.framesAfterEnd, NoiseAt: noise,
 	})
 	if err != nil {
 		return LatentBatch{}, err

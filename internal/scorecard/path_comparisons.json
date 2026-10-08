@@ -75,6 +75,13 @@
       "package": "internal/thoughtbank",
       "test": "TestCarriedNotesGainOnTheNextChunk",
       "holds": "the token ids of every held-out document to the ids the model's own tokenizer gives, and of one document in twelve both losses of the blank turn after four chunks, with the bank they wrote and with a fresh one, to the model's own code's within 0.02 nats a token, measured within 0.001; TestPassageLossMatchesUpstream holds the perplexity beside it to that code the same way; a fresh bank is seed slots of zeros on both sides, where that code's own random seeding reads the gain higher"
+    },
+    {
+      "model": "pocket-tts",
+      "task": "speech",
+      "package": "internal/speechsynth",
+      "test": "TestServedSpeechMatchesUpstream",
+      "holds": "what a request is served, from its text to the samples of its recording, to the model's own code speaking the same text in the same stored voice, when the request is given the noise that code drew: the speech ends in the same frame and every sample is within 0.02, measured within 0.0012, on four of the evaluation's texts and two short ones; the drawing of the noise, Go's generator where that code uses torch's, is not compared, and TestSpokenTextMatchesUpstream holds the preparation of every text of the evaluation"
     }
   ]
 }

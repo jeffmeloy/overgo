@@ -11,6 +11,13 @@ import (
 // segment is generated and decoded, and their samples follow one another. The
 // recording is complete only when every segment ended on its own.
 func (s *Synthesizer) Speak(ctx context.Context, request DocumentRequest) (Audio, error) {
+	return s.speakFrom(ctx, request, seededNoise)
+}
+
+// speakFrom is Speak with the noise of each segment's generation given by the
+// caller: a served request draws it from its seed, and a comparison with the
+// model's own code hands in the noise that code drew.
+func (s *Synthesizer) speakFrom(ctx context.Context, request DocumentRequest, noise func(generationPlan) frameNoise) (Audio, error) {
 	plan, err := s.PlanDocument(ctx, request)
 	if err != nil {
 		return Audio{}, err
@@ -22,7 +29,7 @@ func (s *Synthesizer) Speak(ctx context.Context, request DocumentRequest) (Audio
 		if err != nil {
 			return Audio{}, err
 		}
-		latents, err := s.generate(ctx, generation)
+		latents, err := s.generateFrom(ctx, generation, noise(generation))
 		if err != nil {
 			return Audio{}, err
 		}

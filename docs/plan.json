@@ -127,25 +127,6 @@
       ]
     },
     {
-      "id": "scorecard-uncompared-speech",
-      "title": "Compare the path a speech request takes with a reference output for each model it is scored on",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 400,
-        "reason": "The comparison of the speech model's served waveform with its upstream package's for the same text, voice and seed, or a recorded deferral; a step of the owner's double-check of the scorecard, named for the gap the scorecard files for it"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Hold pocket-tts's served waveform to its upstream package's",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-speech",
-          "rationale": "pocket-tts is scored by recognizing its speech and counting the words that come back wrong, 0.0504 on 64 utterances. That measure passes any intelligible voice: it cannot tell the model's voice and prosody from another's. The step compares features of the served waveform with the upstream package's for the same text, voice and seed, with a tolerance from two upstream runs, names the test, or records why the comparison is not made and what would reopen it.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the test or the recorded deferral, and the gap closing. Batch: host."
-        }
-      ]
-    },
-    {
       "id": "scorecard-uncompared-reconstruction",
       "title": "Compare the path a reconstruction request takes with a reference output for each model it is scored on",
       "owner": "master-lead",

@@ -20,6 +20,61 @@
       "package": "internal/thoughtbank",
       "test": "TestPassageLossMatchesUpstream",
       "holds": "the token ids of every held-out passage to the ids the model's own tokenizer gives, and the loss of one passage in eight, read in the windows a served request reads it in and from a bank of zeros, to the model's own code's within 0.002 nats a token; that code seeds a fresh bank with random numbers where the served path seeds zeros, which the fixture measures at about 0.004 nats a token"
+    },
+    {
+      "model": "granite-speech-5.0-470m-turboctc",
+      "task": "transcription",
+      "package": "internal/audioparity",
+      "test": "TestASRCPUBaselineAcceptance",
+      "holds": "the transcripts the production evaluator, run in its own process on the pinned checkpoint, gives for the recordings of its reference to the transcripts transformers' GraniteSpeech5ForCTC.generate gives for them, exactly"
+    },
+    {
+      "model": "nemotron-3.5-asr-streaming-0.6b",
+      "task": "transcription",
+      "package": "internal/audioparity",
+      "test": "TestSecondASROfflineAcceptance",
+      "holds": "for the recordings its registered captures of the model's own code hold, every encoder block, the decoder's states and logits at every step, the tokens with their durations and the text to those captures, exactly; the test puts the recognizer's parts together itself, so the assembly a served request loads is not what is compared"
+    },
+    {
+      "model": "Hy-Embodied-RxBrain-1.0",
+      "task": "vqa",
+      "package": "cmd/validate",
+      "test": "TestRxBrainProductionParity",
+      "holds": "the answer to one question about the model's own demonstration picture, from the picture file to the tokens generated, to the tokens the model's own code generates for it; the frames the evaluation cuts from clips are not compared"
+    },
+    {
+      "model": "webssl-dino300m-full2b-224",
+      "task": "image-embedding",
+      "package": "internal/vitencoder",
+      "test": "TestDinov2MatchesReference",
+      "holds": "a synthetic picture's resize byte for byte, its normalized pixels exactly and its class and patch tokens within float32 accumulation order to the model repository's own torch code with its image processor; the decoding of a picture file and the retrieval scoring are not compared"
+    },
+    {
+      "model": "timesfm-2.5-200m-transformers",
+      "task": "forecast",
+      "package": "internal/seriesforecast",
+      "test": "TestForecastMatchesGolden",
+      "holds": "the function a served forecast calls, on two synthetic series, every step and every output, to the forecast of the model's official PyTorch checkpoint within 0.01; the evaluation's own windows are not compared"
+    },
+    {
+      "model": "timesfm-3.0-pytorch",
+      "task": "forecast",
+      "package": "internal/seriesforecast",
+      "test": "TestNativeDeclarationLoads",
+      "holds": "every quantile of the forecasts of three synthetic series to the model repository's own torch code within a hundred-thousandth of their scale, and the point a served forecast reports to their median; the evaluation's own windows are not compared"
+    },
+    {
+      "model": "gemma-4-E4B-it",
+      "task": "projection",
+      "package": "internal/server",
+      "test": "TestE4BHTTPModalities",
+      "holds": "image, audio, several-image, video and mixed requests over the three served protocols, from the request to the complete output, to captures of transformers running the model"
+    },
+    {
+      "model": "Qwen3.8-27B",
+      "task": "projection",
+      "deferred": "no test runs the current code against a reference: the comparison on record is of an earlier commit's twenty image and video answers with native results stored then, which internal/evaluation TestRetainedProjectionResults reads back without executing a model",
+      "reopens": "a reference for the GGUF file made on this machine: a build of llama.cpp with its multimodal tool at the baseline commit, whose source is at C:/Users/jeffm/llama.cpp, or the model's original weights"
     }
   ]
 }

@@ -108,25 +108,6 @@
       ]
     },
     {
-      "id": "scorecard-uncompared-transcription",
-      "title": "Compare the path a transcription request takes with a reference output for each model it is scored on",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 400,
-        "reason": "The comparison of each speech recognizer's served transcript with its reference's on the same audio, or a recorded deferral; a step of the owner's double-check of the scorecard, named for the gap the scorecard files for it"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Hold granite-speech's and nemotron's served transcripts to their references'",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-transcription",
-          "rationale": "granite-speech-5.0-470m-turboctc and nemotron-3.5-asr-streaming-0.6b are each scored by word error rate on 32 held-out utterances. A low error rate says the transcripts are near the truth; it does not say they are the transcripts the model's own code writes, and for nemotron it says nothing of whether decoding in chunks, which is what streaming is, equals decoding the whole utterance. The step names, for each, the test that compares a served transcript with its reference implementation's on the same audio, writes it where the reference is on this machine, and for nemotron compares chunked with offline decoding within a tolerance taken from the reference; or it records why no comparison is made and what would reopen it. The vendor's published error rate on a standard set is a different check and needs that set, which is an owner decision if it is not on this machine.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the tests or the recorded deferrals, and the gap closing. Batch: host."
-        }
-      ]
-    },
-    {
       "id": "scorecard-uncompared-tabular",
       "title": "Compare the path a tabular request takes with a reference output for each model it is scored on",
       "owner": "master-lead",
@@ -153,25 +134,6 @@
       ]
     },
     {
-      "id": "scorecard-uncompared-forecast",
-      "title": "Compare the path a forecast request takes with a reference output for each model it is scored on",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 400,
-        "reason": "The comparison of each forecasting model's served forecasts and quantiles with its Python original's on the same windows, or a recorded deferral; a step of the owner's double-check of the scorecard, named for the gap the scorecard files for it"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Hold the two forecasting models' served forecasts to their Python originals'",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-forecast",
-          "rationale": "timesfm-2.5-200m-transformers reads a mean absolute error of 2.24 on 11 held-out windows and timesfm-3.0-pytorch 2.178 on 30. The recommendation notes a golden script exists for the 3.0 model. The step finds whether that golden is of the forward pass or of what a served request returns, names the test if it is the latter and extends it to the served forecast and its quantiles if not, does the same for the 2.5 model, and records a deferral where a reference cannot be run here.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the tests or the recorded deferrals, and the gap closing. Batch: host."
-        }
-      ]
-    },
-    {
       "id": "scorecard-uncompared-speech",
       "title": "Compare the path a speech request takes with a reference output for each model it is scored on",
       "owner": "master-lead",
@@ -191,44 +153,6 @@
       ]
     },
     {
-      "id": "scorecard-uncompared-vqa",
-      "title": "Compare the path a vqa request takes with a reference output for each model it is scored on",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 400,
-        "reason": "The comparison of the embodied model's served answers with its reference code's on the same frames, or a recorded deferral; a step of the owner's double-check of the scorecard, named for the gap the scorecard files for it"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Hold Hy-Embodied-RxBrain's served answers to its reference code's on the same frames",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-vqa",
-          "rationale": "Hy-Embodied-RxBrain-1.0 reads 0.625 on 64 cases where chance is 0.25. The step names the test that compares what a served question about frames returns with the reference code's answer on the same frames, writes it where the reference can be run here, or records the deferral. That the measure is caption matching and the model is for embodied and spatial reasoning is the other step's question, of readings outside a model's use.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the test or the recorded deferral, and the gap closing. Batch: device."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-uncompared-projection",
-      "title": "Compare the path a projection request takes with a reference output for each model it is scored on",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 400,
-        "reason": "The comparison of each projector's served multimodal answer with its reference's on the same picture, clip or audio, or a recorded deferral; a step of the owner's double-check of the scorecard, named for the gap the scorecard files for it"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Hold the two projectors' served multimodal answers to their references'",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-projection",
-          "rationale": "Qwen3.8-27B's projector reads 0.9219 on 64 description-matching cases and gemma-4-E4B-it's reads a word error rate of 0.02567 on 32 utterances. A projector turns a picture, a clip or audio into what the language model reads; a fault in it reads as a weaker model, not as an error. The step names, for each, the test that compares the projected input or the served answer with the reference implementation's on the same media, writes it where the reference is on this machine, or records the deferral.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the tests or the recorded deferrals, and the gap closing. Batch: device."
-        }
-      ]
-    },
-    {
       "id": "scorecard-uncompared-reconstruction",
       "title": "Compare the path a reconstruction request takes with a reference output for each model it is scored on",
       "owner": "master-lead",
@@ -244,25 +168,6 @@
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-reconstruction",
           "rationale": "Wan2.1's video autoencoder reads 41.37 dB on 128 frames, the representation autoencoder 20.53 dB on 128 pictures, and the encoder bridged into it 18.16 dB. A reconstruction measure compares a model's output with its own input, so a path that loses detail reads as a model that loses detail. The step names, for each, the test that compares the served latent or the served reconstruction with the reference implementation's on the same picture, writes it where the reference is on this machine, or records the deferral.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the tests or the recorded deferrals, and the gap closing. Batch: device."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-uncompared-image-embedding",
-      "title": "Compare the path an image-embedding request takes with a reference output for each model it is scored on",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 400,
-        "reason": "The comparison of the image encoder's served features with its reference's on the same picture, or a recorded deferral; a step of the owner's double-check of the scorecard, named for the gap the scorecard files for it"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Hold webssl's served features to its reference's",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-image-embedding",
-          "rationale": "webssl-dino300m-full2b-224 reads 0.4578 on 483 retrieval cases. Golden scripts exist for the two DINOv2 encoders; whether one covers this Web-SSL variant, and whether it covers what a served request returns or only the forward pass, has not been checked. The step finds out, names the test, extends it to the served features where it stops short, or records the deferral.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the test or the recorded deferral, and the gap closing. Batch: host."
         }
       ]
     },

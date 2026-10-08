@@ -371,6 +371,11 @@ const (
 	qwen35SplitRegex = `(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?[\p{L}\p{M}]+|\p{N}| ?[^\s\p{L}\p{M}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+`
 	digitSplitRegex  = `\p{N}{1,3}`
 	llama3SplitRegex = `(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}+| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+`
+	// DeepSeek-V3's second and third splits, as Unlimited-OCR's tokenizer
+	// file writes them: the line breaks in its classes are the characters
+	// themselves, where the files above write them as escapes.
+	deepSeekV3ScriptRegex = "[一-龥぀-ゟ゠-ヿ]+"
+	deepSeekV3WordRegex   = "[!\"#$%&'()*+,\\-./:;<=>?@\\[\\\\\\]^_`{|}~][A-Za-z]+|[^\r\n\\p{L}\\p{P}\\p{S}]?[\\p{L}\\p{M}]+| ?[\\p{P}\\p{S}]+[\r\n]*|\\s*[\r\n]+|\\s+(?!\\S)|\\s+"
 )
 
 var splitRegexPre = map[string]string{
@@ -379,6 +384,7 @@ var splitRegexPre = map[string]string{
 	qwen35SplitRegex:                          "qwen35",
 	tokenizer.BPEPatternKimi:                  "kimi",
 	digitSplitRegex + "\n" + llama3SplitRegex: "llama-bpe",
+	digitSplitRegex + "\n" + deepSeekV3ScriptRegex + "\n" + deepSeekV3WordRegex: "deepseek-v3",
 }
 
 type preTokenizerNode struct {

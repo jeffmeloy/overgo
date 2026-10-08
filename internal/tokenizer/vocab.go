@@ -414,6 +414,7 @@ var preTokenizers = map[string]preTokenizerPolicy{
 	"bailingmoe":       {split: preTokenizeQwen2},
 	"bailingmoe2":      {split: preTokenizeQwen2},
 	"deepseek-llm":     {split: preTokenizeDeepSeekLLM},
+	"deepseek-v3":      {split: preTokenizeDeepSeekV3},
 	"qwen35":           {split: preTokenizeQwen35},
 	"kimi":             {split: preTokenizeKimi, ignoreMerges: true, rankBPE: true},
 	"dbrx":             {split: preTokenizeLlama3, addBOS: true, ignoreMerges: true},

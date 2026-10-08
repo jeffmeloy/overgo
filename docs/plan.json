@@ -44,6 +44,32 @@
       ]
     },
     {
+      "id": "word-error-forms",
+      "title": "Count a word error rate over a reference and a transcript written one way, as the recognizers' own evaluations do",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 5000,
+        "reason": "A port of the English normalizer that speech recognizers' evaluations count word errors with, about 480 lines of Python of which the reader of spelled-out numbers is the bulk, with its tables embedded as that code builds them; the suite field that names it and the builders that write it. A step of the owner's double-check of the scorecard: hold a reading to its own protocol"
+      },
+      "steps": [
+        {
+          "id": "round-trip",
+          "title": "Let a speech round-trip suite say how its words are counted, and build new ones counted the recognizers' way",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestSpeechRoundTripCountsWordsWrittenOneWay$'",
+          "rationale": "A round-trip suite does not say how its words are counted: the three steps are a variable of the package, so changing them would change what a stored suite's reading means without changing its identity. Give the suite the field a transcription suite has, absent meaning the three steps a stored suite was scored with, and have the builder write the recognizers' normalizer, so a new suite is a new identity that says how it is counted."
+        },
+        {
+          "id": "rescore",
+          "title": "Score the three recognizers and pocket-tts again with both sides written one way",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestSpeechRoundTripCountsWordsWrittenOneWay$'",
+          "rationale": "Data and store records: rebuild the held-out transcription suite and the round-trip suite with the normalizer named, rehearse each on a copy of the store, then score granite-speech, nemotron, the E4B projector and pocket-tts on the store. Expected from the measurement of 2026-10-08, which used the stored transcripts: granite-speech near 0.009, nemotron near 0.030, the projector near 0.019, pocket-tts near 0.022. State beside each what the old count was and that the old and new are one set of transcripts counted two ways. The readings the scorecard marks as tied should come apart; say what 32 utterances can and cannot rank."
+        }
+      ]
+    },
+    {
       "id": "scorecard-uncompared-image-gen",
       "title": "Compare the path an image-gen request takes with a reference output for each model it is scored on",
       "owner": "master-lead",

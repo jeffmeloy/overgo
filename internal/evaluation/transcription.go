@@ -11,6 +11,7 @@ import (
 	"unicode"
 
 	"overgo/internal/artifact"
+	"overgo/internal/englishnorm"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
 	"overgo/internal/speechrecognition"
@@ -33,7 +34,7 @@ var transcriptionReportContract = artifact.DocumentContract{
 }
 
 var transcriptionNormalizations = []TranscriptionNormalization{
-	TranscriptionLowercase, TranscriptionStripPunctuation, TranscriptionCollapseWhitespace,
+	TranscriptionLowercase, TranscriptionStripPunctuation, TranscriptionCollapseWhitespace, transcriptionWhisperEnglish,
 }
 
 // TranscriptionNormalization names one ordered, code-owned text transform.
@@ -47,6 +48,14 @@ const (
 	TranscriptionStripPunctuation TranscriptionNormalization = "strip-punctuation"
 	// TranscriptionCollapseWhitespace trims and collapses Unicode whitespace.
 	TranscriptionCollapseWhitespace TranscriptionNormalization = "collapse-whitespace"
+	// transcriptionWhisperEnglish writes English text as the evaluations of
+	// speech recognizers write a reference and a transcript before counting:
+	// the normalizer of Whisper's evaluation, which the Open ASR leaderboard
+	// counts with. Numbers become digits, contractions and titles are spelled
+	// out, hesitations, symbols and diacritics go, and the words are left
+	// lower case with one space between them. A recognizer that writes "10"
+	// and "was not" for "ten" and "wasn't" is charged for neither.
+	transcriptionWhisperEnglish TranscriptionNormalization = "whisper-english"
 )
 
 // TranscriptionCase binds a reference only to an already pinned audio source.
@@ -470,6 +479,10 @@ func normalizeTranscription(value string, operations []TranscriptionNormalizatio
 			}, value)
 		case TranscriptionCollapseWhitespace:
 			value = strings.Join(strings.Fields(value), " ")
+		case transcriptionWhisperEnglish:
+			// That normalizer leaves a space where a text opened or closed with
+			// something it removed; characters are counted too, so the ends go.
+			value = strings.TrimSpace(englishnorm.Text(value))
 		}
 	}
 	return value

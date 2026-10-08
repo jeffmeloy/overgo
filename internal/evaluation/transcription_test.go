@@ -273,6 +273,56 @@ func TestCharacterErrorRateUsesUnicodeRunes(t *testing.T) {
 	}
 }
 
+// TestTranscriptionCountsWordsWrittenOneWay holds a suite that names the
+// recognizers' own normalizer to charging a transcript nothing for writing
+// what was said in its own conventions, digits for a spelled-out number and a
+// contraction written out, where the plain steps charge it for each; and a
+// suite to naming no step the evaluator does not own.
+func TestTranscriptionCountsWordsWrittenOneWay(t *testing.T) {
+	t.Parallel()
+	const said, heard = "It wasn't ten, Mr. Smith: five hundred thousand throats.", "it was not 10 mister smith 500000 throats"
+	fixture := singleTranscriptionEvaluationFixture(t, TranscriptionCase{
+		Name: "numbers", Group: "clean", Source: audioReference(t, "numbers"), Reference: said, SampleCount: 16_000, SampleRate: 16_000,
+	})
+	defer fixture.store.Close()
+	predictions := []TranscriptionPrediction{fixture.successfulPrediction(t, "numbers", heard)}
+	plain, err := EvaluateTranscription(t.Context(), fixture.store, fixture.compiled, fixture.plan, predictions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plain.Observations[0].WordEdits == 0 {
+		t.Fatal("lowercased and stripped of punctuation, a transcript in its own conventions was charged nothing: the case tries nothing")
+	}
+	suite := fixture.compiled.suite
+	suite.Normalization = []TranscriptionNormalization{transcriptionWhisperEnglish}
+	compiled, err := CompileTranscription(suite)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := BindTranscription(compiled, ExactAuthorities{
+		ModelDefinition: fixture.plan.body.ModelDefinition, RuntimeRecipe: fixture.recipe,
+		CodeCommit: transcriptionTestCommit, Environment: fixture.environment,
+		Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Identity() == fixture.plan.Identity() {
+		t.Fatal("a suite counted another way has the plan of the suite it was made from")
+	}
+	report, err := EvaluateTranscription(t.Context(), fixture.store, compiled, plan, predictions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if counted := report.Observations[0]; counted.WordEdits != 0 || counted.CharacterEdits != 0 || counted.ReferenceWords != uint64(len(strings.Fields(heard))) {
+		t.Fatalf("written one way, the transcript is charged %d of %d words and %d characters, and it says what was said", counted.WordEdits, counted.ReferenceWords, counted.CharacterEdits)
+	}
+	suite.Normalization = []TranscriptionNormalization{"as-heard"}
+	if _, err := CompileTranscription(suite); err == nil {
+		t.Fatal("a suite named a normalization the evaluator does not own")
+	}
+}
+
 func stringsForTranscriptionScore(value string) []string {
 	return strings.Fields(normalizeTranscription(value, []TranscriptionNormalization{
 		TranscriptionLowercase, TranscriptionStripPunctuation, TranscriptionCollapseWhitespace,

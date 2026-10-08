@@ -101,32 +101,6 @@
       ]
     },
     {
-      "id": "scorecard-uncompared-tabular",
-      "title": "Compare the path a tabular request takes with a reference output for each model it is scored on",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 400,
-        "reason": "The comparison of the tabular model's served answers with its upstream package's on the same requests, or a recorded deferral; a step of the owner's double-check of the scorecard, named for the gap the scorecard files for it"
-      },
-      "steps": [
-        {
-          "id": "rescore",
-          "title": "Run the held-out verdict on the requests that show the model the table",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestCreditGRequestsAreDisjointAndStandardized$'",
-          "rationale": "The requests are rebuilt with 520 context rows. Register them as a dataset and as the table objective, rehearse the tabular route on a copy of the store, run it on the store, and record the base model's reading and the trained one beside the 0.70 a constant answer scores and the 0.756 the model's own forward pass reads on all sixteen requests. Serves: measure and find the gap. Disappears: a reading of a starved model. Evidence: the verdict on the scorecard. Batch: host."
-        },
-        {
-          "id": "do",
-          "title": "Hold tabfm's served answers to its upstream package's on the held-out requests",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-tabular",
-          "rationale": "tabfm-1.0.0-pytorch reads 0.6611 on 6 held-out requests, no better than the 0.70 that always answering the majority class scores, and its trained model reads 0.6889, also under it. A zero-shot tabular model that does not beat the majority class on a well-known table is either a model that does not suit the table as it was cut into requests, or a served path that does not compute what the model computes. Only its upstream package's answers on the same requests tell the two apart. The step runs the upstream package on the held-out requests as a golden reference from the Python original and compares answer by answer, names the test, and scores again if a fault is found; if the package is not on this machine it stops for the owner's approval of that download, or records the deferral.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the comparison, and the gap closing. Batch: host."
-        }
-      ]
-    },
-    {
       "id": "scorecard-uncompared-reconstruction",
       "title": "Compare the path a reconstruction request takes with a reference output for each model it is scored on",
       "owner": "master-lead",

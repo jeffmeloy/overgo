@@ -82,6 +82,13 @@
       "package": "internal/speechsynth",
       "test": "TestServedSpeechMatchesUpstream",
       "holds": "what a request is served, from its text to the samples of its recording, to the model's own code speaking the same text in the same stored voice, when the request is given the noise that code drew: the speech ends in the same frame and every sample is within 0.02, measured within 0.0012, on four of the evaluation's texts and two short ones; the drawing of the noise, Go's generator where that code uses torch's, is not compared, and TestSpokenTextMatchesUpstream holds the preparation of every text of the evaluation"
+    },
+    {
+      "model": "tabfm-1.0.0-pytorch",
+      "task": "tabular",
+      "package": "internal/tabularicl",
+      "test": "TestRequestLogitsMatchUpstream",
+      "holds": "the model's answer for every class of every row asked about, on one in six of the held-out evaluation's requests, to the upstream package's own model run on the same request file, within 0.001 and measured within 0.0001, with every request file held to the digest that code read; the requests are overgo's preparation of the table, where the package's own classifier prepares the columns and votes among 32 passes, which is not ported and was measured to be worth two points at this context"
     }
   ]
 }

@@ -6,6 +6,13 @@
       "package": "internal/adaptiveparity",
       "test": "TestServedEditMatchesTheReferenceEdit",
       "holds": "the clip a served edit request returns for the editor's own test case to the clip the earlier implementation drew for it"
+    },
+    {
+      "model": "needle",
+      "task": "seq2seq",
+      "package": "internal/seq2seq",
+      "test": "TestNeedleCallsMatchUpstreamOnEvaluationCases",
+      "holds": "the encoder input a served request builds and the call it answers with, on every case of the function-call evaluation, to what the model's own code builds and answers on its bfloat16 parameters with the arithmetic in float32 and its constrained decoding off"
     }
   ]
 }

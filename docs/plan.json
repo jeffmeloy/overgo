@@ -4,6 +4,32 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "scorecard-uncompared-seq2seq",
+      "title": "Compare the path a seq2seq request takes with a reference output for each model it is scored on",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 3500,
+        "reason": "The three things needle's own code does between a request's text and the model that the served path did not: segmenting text by the tokenizer model's byte-pair merges, read from the model file with its piece types; building the encoder's input from the request and its tools apart; and rewriting tool names in snake case and back, which to match that code to the character means its snake-case rule written out step by step and reading and writing JSON as it does, keys in their order and numbers and escapes as Python writes them. Held to that code on the evaluation's 400 cases"
+      },
+      "steps": [
+        {
+          "id": "described-tools",
+          "title": "Describe each tool to a function-calling model the way needle's own examples and data describe one",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestFunctionCallSuiteDescribesEachTool$'",
+          "rationale": "The function-call suite gives a model each case's one tool as a name and each parameter's type, the form the model's quickstart shows. The model's own examples and the generator of its training data describe a tool more fully: a name, a description, and for each parameter its type, its description and whether it is required. Asked through its own code, on the same 400 cases, needle is accepted in 8 with the bare form and in 104 with the described one: it reads the descriptions to decide what to pass, and without them it answers with no call in a quarter of the cases and with text that is not a call in another quarter. The leaderboard's own file holds every one of those descriptions; the suite's builder dropped them. A measure that withholds what the model was trained to read measures the builder. This step makes the builder write each tool as the model's own data does, from the leaderboard's definitions, keys and parameters in the order given; the acceptance rule and the cases are unchanged, so the rebuilt suite is the same measure built again and the scorecard reads its newest build.\n\nServes: measure and find the gap. Disappears: a measure that withheld what its model reads. Evidence: the test, and upstream's answers under both forms. Batch: host."
+        },
+        {
+          "id": "rescore",
+          "title": "Score needle again on the repaired path, with each tool described",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-seq2seq",
+          "rationale": "Needle's recorded 5 of 400 measured a path that fed the model ids it was not trained on, with tools described in a form it was not trained to read. With both repaired, the suite is built again from the leaderboard's two files and needle is scored on it by the evaluator built at the commit that holds the repairs, rehearsed on a copy of the store first. Upstream's own code is accepted in 104 of 400 on the described tools with its constrained decoding on; overgo, which does not constrain, is expected near it. The reading replaces 5 of 400, and the commit says what the old one measured.\n\nServes: measure and find the gap. Disappears: a reading of two faults. Evidence: the evaluation record, and the scorecard. Batch: host."
+        }
+      ]
+    },
+    {
       "id": "score-double-check",
       "title": "Hold each weak or surprising scorecard reading to a reference, a baseline and its own protocol before calling it the model's",
       "owner": "master-lead",
@@ -33,25 +59,6 @@
           "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -count=1 -run '^TestServedEditMatchesTheReferenceEdit$'",
           "rationale": "The served edit agrees with the earlier implementation's clip at about 28 dB over 8-pixel squares when its source arrives as a GIF, smoothed, and at 41 dB when the runtime is given the frames the reference fed. What is left is the format the source arrives in: a GIF keeps 256 colours a frame, and the smoothing that removes its grain also removes detail the editor would have kept. Smoothing is a repair of a lossy source, not a way to carry one.\n\nThe step gives an edit request a way to carry its source without loss, as frames or as the video file the evaluation already decodes, keeps the GIF form with its smoothing for requests that send one, and raises the served comparison's bound to what the lossless form reaches. The held-out edit suite is rendered from lossless sources and judged again if the comparison moves by more than its tolerance.\n\nServes: generate. Disappears: a known loss in the editor's input. Evidence: the device test at its new bound, and the edit reading. Batch: device."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-uncompared-seq2seq",
-      "title": "Compare the path a seq2seq request takes with a reference output for each model it is scored on",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 600,
-        "reason": "The comparison of needle's served calls with its upstream code on the evaluation's own cases, and the decoding-loop comparison the earlier implementation carried; a step of the owner's double-check of the scorecard, named for the gap the scorecard files for it"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Compare needle's calls with its upstream code on the evaluation's own cases",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-seq2seq",
-          "rationale": "Needle reads 5 of 400 on the function-calling leaderboard's simple category, and commit cbf5abfee said the number is low because the 26M model writes malformed or repeated arguments. That is what its output looks like; it is not a comparison. The recommendation records that needle's forward pass is held to its JAX original and its documented example passes, which is more than LiveEdit had; what is not held is the decoding loop and the form the request is given in, and the earlier implementation carried a test of the decoding loop against the JAX original that master does not carry. LiveEdit's inner runtime matched its reference too; its faults were all in the path around it.\n\nThe step runs the upstream generate on a sample of the evaluation's cases that includes both passes and failures, as a golden reference from the Python original, and compares the calls case by case with the ones overgo writes; it confirms the request form, since the repository's test joins query and tools in one string where the model's documentation passes them apart; and it ports the decoding-loop comparison. If the upstream code needs a package that is not on this machine, the step stops for the owner's approval of that download. Equal calls mean the reading is the model's on these cases, and the commit's claim gains its evidence. Different calls are a fault: it is fixed and needle is scored again.\n\nThe model's documentation says it is meant to be finetuned on one's own tools. If the calls are equal, a small finetune on a tool set through the seq2seq train route, judged on held-out calls, is the measure of its use; it is done here if it is an hour's work, and named as a gap if not.\n\nServes: measure and find the gap. Disappears: an unverified claim. Evidence: the case-by-case comparison. Batch: host."
         }
       ]
     },

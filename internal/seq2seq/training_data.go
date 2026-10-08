@@ -28,11 +28,11 @@ func (g *Generator) TrainingPair(example trainingdata.Example) (TrainingPair, er
 	if err != nil {
 		return TrainingPair{}, err
 	}
-	source, err := g.tokenizer.Encode(input)
+	source, _, err := g.source(input, false)
 	if err != nil {
 		return TrainingPair{}, fmt.Errorf("seq2seq: tokenize training input: %w", err)
 	}
-	answer, err := g.tokenizer.Encode(target)
+	answer, err := g.segment(target)
 	if err != nil {
 		return TrainingPair{}, fmt.Errorf("seq2seq: tokenize training target: %w", err)
 	}

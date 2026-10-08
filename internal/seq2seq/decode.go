@@ -9,6 +9,7 @@ package seq2seq
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	"overgo/internal/hostmath"
 )
@@ -94,6 +95,9 @@ type encodedRequest struct {
 	memory     []float32
 	sourceRows int
 	maxTokens  int
+	// names holds, for each tool name the request's tools were rewritten to,
+	// the name the caller gave, to be written back into the answer.
+	names map[string]string
 }
 
 type generationSession struct {
@@ -112,15 +116,24 @@ type textSelector interface {
 type textGeneration struct {
 	tokens    tokenSelector
 	generator *Generator
+	names     map[string]string
 }
 
+// callMarker is the piece the model writes before the calls it answers with.
+const callMarker = "<tool_call>"
+
+// selectText reads the selected ids back as the model's own code returns
+// them: the text they spell, less the marker the model opens its calls with,
+// and with the tool names the caller gave written back where the request's
+// tools were renamed.
 func (s textGeneration) selectText() (string, error) {
 	tokens, err := s.tokens.selectTokens()
 	if err != nil {
 		return "", err
 	}
 	s.generator.selected = uint64(len(tokens))
-	return s.generator.tokenizer.Decode(tokens), nil
+	text := strings.TrimPrefix(s.generator.tokenizer.Decode(tokens), callMarker)
+	return restoreToolNames(text, s.names), nil
 }
 
 func (m *Model) encodeTokens(source []int, maxTokens int) (encodedRequest, error) {

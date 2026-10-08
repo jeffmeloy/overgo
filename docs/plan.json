@@ -175,13 +175,6 @@
       },
       "steps": [
         {
-          "id": "rescore",
-          "title": "Score pocket-tts's round trip again, spoken to its end",
-          "status": "open",
-          "verify": "go test ./internal/speechsynth -count=1 -run '^TestSpokenTextMatchesUpstream$'",
-          "rationale": "The recorded round-trip reading, 0.0504 on 64 utterances, is of speech cut at the frame its end was first seen in. Build evaluate at the commit that speaks on as the model's own code does, rehearse the suite on a copy of the store, score it on the store, and record the reading. The suite is unchanged, so it is the same measure. Serves: measure and find the gap. Disappears: a reading of a clipped voice. Evidence: the new reading beside the old. Batch: host."
-        },
-        {
           "id": "do",
           "title": "Hold pocket-tts's served waveform to its upstream package's",
           "status": "open",

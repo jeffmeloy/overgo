@@ -320,19 +320,21 @@ const failureNoise = 1
 
 // The kinds of gap besides the regressions. Their names order the rows: trained
 // models that fall below their base, then failures a user met, then declines,
-// then measurements to take, then held-out evaluations to define. A trained
-// model below its base judges a training against its base model, not the record
-// against its reference.
+// then served paths to compare with a reference output, then measurements to
+// take, then held-out evaluations to define. A trained model below its base
+// judges a training against its base model, not the record against its
+// reference.
 const (
 	gapBelowBase  = "below-base"
 	gapFailing    = "failing"
+	gapUncompared = "uncompared"
 	gapUnmeasured = "unmeasured"
 	gapUnscored   = "unscored"
 )
 
 // gapKinds are the kinds of gap that name a task, each the middle of a gap's
 // key.
-var gapKinds = []string{gapBelowBase, gapFailing, gapUnmeasured, gapUnscored}
+var gapKinds = []string{gapBelowBase, gapFailing, gapUncompared, gapUnmeasured, gapUnscored}
 
 // gapKeyPrefix begins every gap's key.
 const gapKeyPrefix = "scorecard"
@@ -453,6 +455,9 @@ func (record Record) Gaps(reference *Record) []Gap {
 		if cell := row.Cells[metric.Quality]; cell.Measured() && cell.Base != nil && worse(metric.Quality, cell.Direction, cell.Value, *cell.Base, 0) {
 			add(gapBelowBase, row, metric.Quality, cell.QualityText())
 		}
+		if row.PathUnchecked() {
+			add(gapUncompared, row, metric.Quality, uncompared)
+		}
 	}
 	gaps := declines
 	for _, gap := range grouped {
@@ -469,6 +474,8 @@ func gapTitle(kind string, task recipe.Task) string {
 		return fmt.Sprintf("Make %s beat its base model on held-out quality", task)
 	case gapFailing:
 		return fmt.Sprintf("Fix the %s attempts that failed", task)
+	case gapUncompared:
+		return fmt.Sprintf("Compare the path a %s request takes with a reference output for each model it is scored on", task)
 	case gapUnscored:
 		return fmt.Sprintf("Define the held-out evaluation that measures %s quality", task)
 	default:

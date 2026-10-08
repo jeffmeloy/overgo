@@ -31,7 +31,10 @@ func scoredRow(t *testing.T, source artifact.ID, name string, task recipe.Task, 
 	for _, column := range metric.Columns {
 		cells[column] = scorecard.Cell{Value: 1, Source: source}
 	}
+	// The reading is one a test compares with a reference, so a row files the
+	// gaps these tests are of and not the comparison every unchecked reading asks for.
 	cells[metric.Quality] = scorecard.Cell{Value: accuracy, Label: "accuracy, store/mmlu (raw-completion)", Source: source, Direction: runrecord.DirectionMaximize,
+		Compared: "internal/fixture TestServedPathMatchesItsReference",
 		Contract: scorecard.Contract{Metric: "accuracy", Origin: "evaluation", Suite: "store/mmlu", Protocol: "raw-completion", Comparison: testutil.ArtifactID(t, artifact.KindProfile, "mmlu-raw-environment")}}
 	cells[metric.Failures] = scorecard.Cell{Value: failures, Label: "attempts", Source: source}
 	cells[metric.Load] = load

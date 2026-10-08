@@ -14,13 +14,6 @@
       },
       "steps": [
         {
-          "id": "standing",
-          "title": "Say beside each held-out reading how many cases it rests on, what a constant answer would score, and whether a reference comparison stands behind it",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestScorecardReadingStatesItsStanding$'",
-          "rationale": "A weak reading has three possible causes: the model, a fault in the port or the path a request takes, or a measure that is not how the model is meant to be used. Twice the first was written down without the other two being ruled out. LiveEdit was recorded at 12 of 64 with the words that the score was low because that is what the model does; held to its reference, the served path had four faults. Needle was recorded at 5 of 400 with nearly the same sentence (commit cbf5abfee) and has not been compared with its upstream code on the evaluation's cases. The scorecard gave no sign that either reading had never met a reference. The owner asked on 2026-10-07 for the model double-check recommendation to be planned; this row is that plan, cheapest check first.\n\nThis step makes the scorecard say three things beside a held-out reading, from records it already holds where it can. How many cases the reading rests on and the noise that implies, so that 0.4715 beside 0.4669 reads as a tie and a reading on 24 records is not taken for a fine instrument. What a constant answer would score where the measure has one: chance for a choice among n, the majority class for table accuracy (tabfm reads 0.6611 where always answering good scores 0.70 on the same rows, and the cell does not say whether it is the model before or after its 24 training steps), the base for a trained reading. And the named comparison of the served path with a reference, or that there is none. A reading with none becomes a named gap, as an unscored cell is today, so the steps after this one each close gaps the scorecard names, and a new model cannot arrive with an unexamined reading unnoticed.\n\nA comparison's tolerance comes from the reference's own variation, two runs of the upstream code on the same input or the precision floor of the arithmetic, never a constant chosen to pass.\n\nServes: measure and find the gap. Disappears: readings that look more certain than they are. Evidence: the test, and the scorecard itself. Batch: host."
-        },
-        {
           "id": "speech-pair",
           "title": "Find why two speech models read the same error rate to four digits, and score each from its own transcript",
           "status": "open",
@@ -28,25 +21,11 @@
           "rationale": "granite-speech-5.0-470m-turboctc and nemotron-3.5-asr-streaming-0.6b both read a word error rate of 0.03209 on the same held-out set. Two different recognizers agreeing to four digits is either a coincidence on a small set, both making the same few errors, or one record standing for both: a carried reading, or one model's transcript scored twice. It has not been checked which. The step reads the two evaluation records and their transcripts. If the transcripts are each model's own, it records the counts that make the readings equal and closes. If not, that is a fault in how one of them is scored, and it is fixed and both are scored again.\n\nNot in this step: whether nemotron's chunked decoding equals its offline decoding, and either model against its vendor's published figure; the step before names those as gaps.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the two records, or the fix. Batch: host."
         },
         {
-          "id": "needle-upstream",
-          "title": "Compare needle's calls with its upstream code on the evaluation's own cases",
-          "status": "open",
-          "verify": "go test ./internal/adaptiveparity -count=1 -run '^TestNeedleCallsMatchUpstreamOnEvaluationCases$'",
-          "rationale": "Needle reads 5 of 400 on the function-calling leaderboard's simple category, and commit cbf5abfee said the number is low because the 26M model writes malformed or repeated arguments. That is what its output looks like; it is not a comparison. The recommendation records that needle's forward pass is held to its JAX original and its documented example passes, which is more than LiveEdit had; what is not held is the decoding loop and the form the request is given in, and the earlier implementation carried a test of the decoding loop against the JAX original that master does not carry. LiveEdit's inner runtime matched its reference too; its faults were all in the path around it.\n\nThe step runs the upstream generate on a sample of the evaluation's cases that includes both passes and failures, as a golden reference from the Python original, and compares the calls case by case with the ones overgo writes; it confirms the request form, since the repository's test joins query and tools in one string where the model's documentation passes them apart; and it ports the decoding-loop comparison. If the upstream code needs a package that is not on this machine, the step stops for the owner's approval of that download. Equal calls mean the reading is the model's on these cases, and the commit's claim gains its evidence. Different calls are a fault: it is fixed and needle is scored again.\n\nThe model's documentation says it is meant to be finetuned on one's own tools. If the calls are equal, a small finetune on a tool set through the seq2seq train route, judged on held-out calls, is the measure of its use; it is done here if it is an hour's work, and named as a gap if not.\n\nServes: measure and find the gap. Disappears: an unverified claim. Evidence: the case-by-case comparison. Batch: host."
-        },
-        {
           "id": "answer-protocol",
           "title": "Score one assistant model on MMLU-Pro the way its vendor does, and name the answer protocol on every such cell",
           "status": "open",
           "verify": "go test ./cmd/validate -count=1 -run '^TestScorecardNamesTheAnswerProtocol$'",
           "rationale": "The recommendation sets the vendors' published MMLU-Pro figures beside overgo's: Qwen3.5-4B 79.1 against 0.4715, Qwen3.5-9B 82.5 against 0.4669, gemma-4-E4B-it 69.4 against 0.4385, gemma-4-12B 77.2 against 0.4926; on IFEval the 9B model is 91.5 against 0.8429. Those vendor figures came from reading, not from a run, and the step first cites each from the model card on disk. A gap of 25 to 35 points on one suite against 7 on another points at how the answer is asked for, not at the arithmetic: overgo's cells are carried from earlier evaluations and the scorecard does not show their suite size, generation limit or whether the model was allowed to think. That is a hypothesis.\n\nThe step reads those three facts off the records, then scores Qwen3.5-4B on a sample of the suite with thinking on and a generation limit that does not truncate, beside the protocol the cell uses today. If the gap closes, the protocol was the cause: every such cell is named for its protocol, a direct answer, the thinking reading is recorded beside it for the model that was run, and the other post-trained models are treated alike without a run each. If it does not close, a fault is suspected, and the next step is the model's logits against its reference on questions it fails, as a row of its own.\n\nThat the 9B model does not beat the 4B model under the chat template is a tie within noise and is not pursued by itself; that the larger model gains nothing is what the protocol reading should explain.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the two readings of one model on the same questions. Batch: device."
-        },
-        {
-          "id": "served-generators",
-          "title": "Hold each served image and video generator's request path to the output its reference kept",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -count=1 -run '^TestServed(Image|Video)MatchesItsReference$'",
-          "rationale": "LiveEdit's runtime agreed with the earlier implementation's latent and clip while the path a request takes around it read its source in the wrong range, wrote its frames in the wrong range, projected its prompt with the wrong weights and drew its clips in a palette the editor read as content. Krea-2-Turbo, SenseNova-U1, Wan2.1 and SimpleDiffusion have comparisons of their runtimes; for none is the path from a prompt to the served bytes held to a reference. High judged readings (0.93, 0.91) do not excuse them: a judge asked which caption fits can pass a washed picture.\n\nFor each generator whose reference kept a fixed-seed output and its settings, the step sends the same prompt, seed and settings as a served request and compares the output with the kept one, square by square and in its dark and bright levels, as the edit test does, with a tolerance taken from the reference's own variation. Where the reference kept none, the gap stays named, and SimpleDiffusion's needs its upstream code run twice. A difference is a fault in the path: it is fixed and the generator is scored again.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the device tests. Batch: device."
         },
         {
           "id": "use-case-cells",
@@ -61,13 +40,253 @@
           "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -count=1 -run '^TestServedEditMatchesTheReferenceEdit$'",
           "rationale": "The served edit agrees with the earlier implementation's clip at about 28 dB over 8-pixel squares when its source arrives as a GIF, smoothed, and at 41 dB when the runtime is given the frames the reference fed. What is left is the format the source arrives in: a GIF keeps 256 colours a frame, and the smoothing that removes its grain also removes detail the editor would have kept. Smoothing is a repair of a lossy source, not a way to carry one.\n\nThe step gives an edit request a way to carry its source without loss, as frames or as the video file the evaluation already decodes, keeps the GIF form with its smoothing for requests that send one, and raises the served comparison's bound to what the lossless form reaches. The held-out edit suite is rendered from lossless sources and judged again if the comparison moves by more than its tolerance.\n\nServes: generate. Disappears: a known loss in the editor's input. Evidence: the device test at its new bound, and the edit reading. Batch: device."
-        },
+        }
+      ]
+    },
+    {
+      "id": "scorecard-uncompared-seq2seq",
+      "title": "Compare the path a seq2seq request takes with a reference output for each model it is scored on",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 600,
+        "reason": "The comparison of needle's served calls with its upstream code on the evaluation's own cases, and the decoding-loop comparison the earlier implementation carried; a step of the owner's double-check of the scorecard, named for the gap the scorecard files for it"
+      },
+      "steps": [
         {
-          "id": "remaining-gaps",
-          "title": "Give each reading still without a reference comparison its comparison or a deferral with its reason",
+          "id": "do",
+          "title": "Compare needle's calls with its upstream code on the evaluation's own cases",
           "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestEveryReadingHasAReferenceOrAReasonedDeferral$'",
-          "rationale": "After the steps before this one the scorecard names what remains unexamined. From the recommendation's list that is expected to include: MiniCPM5 with its thinking switch on and off and a tool call, its stated strength; Bonsai-27B against its unquantized source; the fp8 gemma against its bf16 original; granite-speech against its vendor's published figure; pocket-tts, whose round-trip error rate cannot judge voice or prosody, against its upstream package on the same text, voice and seed; the forecasting models against their Python originals, one of which already has a golden script; webssl's features against its reference; tabfm's answers against its upstream package on the same requests.\n\nEach gets its comparison where the reference is on this machine and the work is small, and otherwise a deferral recorded with its reason and what would reopen it, shown on the scorecard as a deferral and not as a pass. A comparison that needs a download becomes an owner decision. The step closes when no reading is both unexamined and undecided.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the comparisons and the recorded deferrals. Batch: device."
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-seq2seq",
+          "rationale": "Needle reads 5 of 400 on the function-calling leaderboard's simple category, and commit cbf5abfee said the number is low because the 26M model writes malformed or repeated arguments. That is what its output looks like; it is not a comparison. The recommendation records that needle's forward pass is held to its JAX original and its documented example passes, which is more than LiveEdit had; what is not held is the decoding loop and the form the request is given in, and the earlier implementation carried a test of the decoding loop against the JAX original that master does not carry. LiveEdit's inner runtime matched its reference too; its faults were all in the path around it.\n\nThe step runs the upstream generate on a sample of the evaluation's cases that includes both passes and failures, as a golden reference from the Python original, and compares the calls case by case with the ones overgo writes; it confirms the request form, since the repository's test joins query and tools in one string where the model's documentation passes them apart; and it ports the decoding-loop comparison. If the upstream code needs a package that is not on this machine, the step stops for the owner's approval of that download. Equal calls mean the reading is the model's on these cases, and the commit's claim gains its evidence. Different calls are a fault: it is fixed and needle is scored again.\n\nThe model's documentation says it is meant to be finetuned on one's own tools. If the calls are equal, a small finetune on a tool set through the seq2seq train route, judged on held-out calls, is the measure of its use; it is done here if it is an hour's work, and named as a gap if not.\n\nServes: measure and find the gap. Disappears: an unverified claim. Evidence: the case-by-case comparison. Batch: host."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-uncompared-image-gen",
+      "title": "Compare the path an image-gen request takes with a reference output for each model it is scored on",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 600,
+        "reason": "The comparison of each served image generator's request path with the fixed-seed picture its reference kept, as the served edit path is compared; a step of the owner's double-check of the scorecard, named for the gap the scorecard files for it"
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "Hold each served image generator's request path to the picture its reference kept",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-image-gen",
+          "rationale": "LiveEdit's runtime agreed with the earlier implementation's latent and clip while the path a request takes around it read its source in the wrong range, wrote its frames in the wrong range, projected its prompt with the wrong weights and drew its clips in a palette the editor read as content. Krea-2-Turbo and SenseNova-U1 have comparisons of their runtimes; for neither is the path from a prompt to the served picture held to a reference. Their judged readings, 0.9301 and 0.5157 on 415 cases, do not excuse them: a judge asked which caption fits can pass a washed picture.\n\nFor each generator whose reference kept a fixed-seed picture and its settings, the step sends the same prompt, seed and settings as a served request and compares the picture with the kept one, square by square and in its dark and bright levels, as the edit test does, with a tolerance taken from the reference's own variation, and names the test in the scorecard's path comparisons. Where the reference kept none, it records the deferral and what would reopen it. A difference is a fault in the path: it is fixed and the generator is scored again. SimpleDiffusion has no held-out reading and so no gap here; its comparison with its upstream code, run twice for a tolerance, is done with these if its reference can be run.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the device tests, and the gap closing. Batch: device."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-uncompared-video-gen",
+      "title": "Compare the path a video-gen request takes with a reference output for each model it is scored on",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 400,
+        "reason": "The comparison of the served video generator's request path with the fixed-seed clip its reference kept, as the served edit path is compared; a step of the owner's double-check of the scorecard, named for the gap the scorecard files for it"
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "Hold Wan2.1's served request path to the clip its reference kept",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-video-gen",
+          "rationale": "LiveEdit's video-gen reading is compared: a device test holds the clip a served edit request returns to the clip the earlier implementation drew. Wan2.1-T2V-1.3B's is not. Its runtime has a comparison with the earlier implementation; the path from a prompt to the served clip, the text context, the sampler settings and the clip's encoding, is what LiveEdit's four faults were in, and Wan2.1 shares the text encoder and the clip encoder with it. Its judged reading of 0.9141 does not excuse it: a judge asked which caption fits can pass a washed clip.\n\nThe step sends the prompt, seed and settings of a clip the reference tree kept as a served request and compares the result with the kept clip, square by square and in its dark and bright levels, with a tolerance taken from the reference's own variation; it names the test in the scorecard's path comparisons. A difference is a fault in the path: it is fixed and the generator is scored again.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the device test, and the gap closing. Batch: device."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-uncompared-inference",
+      "title": "Compare the path an inference request takes with a reference output for each model it is scored on",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 600,
+        "reason": "For each of the eleven text models the scorecard reads, the test that compares what a served request returns with a reference output, named where it exists and written where the reference is on this machine, or a recorded deferral; a step of the owner's double-check of the scorecard, named for the gap the scorecard files for it"
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "Name, write or defer the comparison of each text model's served path with a reference output",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-inference",
+          "rationale": "Eleven text models are scored on inference: Bonsai-27B-Q1_0, Carbon-500M, MiniCPM5-1B, Qwen2.5-0.5B, Qwen3.5-4B, Qwen3.5-9B, Qwen3.8-27B, Unlimited-OCR, gemma-4-E4B-it and the two builds of gemma-4-12B-it-fp8. For none does the scorecard name a test that compares what a served request returns with a reference output. That is not to say none exists: the recommendation counted many tests that name an oracle or a parity, and the benchmark report already sets a published figure, and for some models a run of the Hugging Face implementation on the same weights, beside each suite. What has not been done is to say, model by model, which test holds the served path, the prompt as a request renders it, the tokens, the sampler and the decoded text, and not only the forward pass, to a reference.\n\nThe step goes through the eleven. For each it names the test that makes that comparison where one exists; writes it where the reference output is on this machine, which for the two quantized builds is the unquantized original and for the fp8 gemma its bf16 one; and otherwise records why no comparison is made and what would reopen it, a deferral shown on the scorecard as a deferral and not as a pass. A comparison that needs a download becomes an owner decision. MiniCPM5's thinking switch and its tool call, its stated strength, are compared on and off where its reference can be run.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the tests and the recorded deferrals, and the gap closing. Batch: device."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-uncompared-transcription",
+      "title": "Compare the path a transcription request takes with a reference output for each model it is scored on",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 400,
+        "reason": "The comparison of each speech recognizer's served transcript with its reference's on the same audio, or a recorded deferral; a step of the owner's double-check of the scorecard, named for the gap the scorecard files for it"
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "Hold granite-speech's and nemotron's served transcripts to their references'",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-transcription",
+          "rationale": "granite-speech-5.0-470m-turboctc and nemotron-3.5-asr-streaming-0.6b are each scored by word error rate on 32 held-out utterances. A low error rate says the transcripts are near the truth; it does not say they are the transcripts the model's own code writes, and for nemotron it says nothing of whether decoding in chunks, which is what streaming is, equals decoding the whole utterance. The step names, for each, the test that compares a served transcript with its reference implementation's on the same audio, writes it where the reference is on this machine, and for nemotron compares chunked with offline decoding within a tolerance taken from the reference; or it records why no comparison is made and what would reopen it. The vendor's published error rate on a standard set is a different check and needs that set, which is an owner decision if it is not on this machine.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the tests or the recorded deferrals, and the gap closing. Batch: host."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-uncompared-tabular",
+      "title": "Compare the path a tabular request takes with a reference output for each model it is scored on",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 400,
+        "reason": "The comparison of the tabular model's served answers with its upstream package's on the same requests, or a recorded deferral; a step of the owner's double-check of the scorecard, named for the gap the scorecard files for it"
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "Hold tabfm's served answers to its upstream package's on the held-out requests",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-tabular",
+          "rationale": "tabfm-1.0.0-pytorch reads 0.6611 on 6 held-out requests, no better than the 0.70 that always answering the majority class scores, and its trained model reads 0.6889, also under it. A zero-shot tabular model that does not beat the majority class on a well-known table is either a model that does not suit the table as it was cut into requests, or a served path that does not compute what the model computes. Only its upstream package's answers on the same requests tell the two apart. The step runs the upstream package on the held-out requests as a golden reference from the Python original and compares answer by answer, names the test, and scores again if a fault is found; if the package is not on this machine it stops for the owner's approval of that download, or records the deferral.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the comparison, and the gap closing. Batch: host."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-uncompared-forecast",
+      "title": "Compare the path a forecast request takes with a reference output for each model it is scored on",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 400,
+        "reason": "The comparison of each forecasting model's served forecasts and quantiles with its Python original's on the same windows, or a recorded deferral; a step of the owner's double-check of the scorecard, named for the gap the scorecard files for it"
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "Hold the two forecasting models' served forecasts to their Python originals'",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-forecast",
+          "rationale": "timesfm-2.5-200m-transformers reads a mean absolute error of 2.24 on 11 held-out windows and timesfm-3.0-pytorch 2.178 on 30. The recommendation notes a golden script exists for the 3.0 model. The step finds whether that golden is of the forward pass or of what a served request returns, names the test if it is the latter and extends it to the served forecast and its quantiles if not, does the same for the 2.5 model, and records a deferral where a reference cannot be run here.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the tests or the recorded deferrals, and the gap closing. Batch: host."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-uncompared-speech",
+      "title": "Compare the path a speech request takes with a reference output for each model it is scored on",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 400,
+        "reason": "The comparison of the speech model's served waveform with its upstream package's for the same text, voice and seed, or a recorded deferral; a step of the owner's double-check of the scorecard, named for the gap the scorecard files for it"
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "Hold pocket-tts's served waveform to its upstream package's",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-speech",
+          "rationale": "pocket-tts is scored by recognizing its speech and counting the words that come back wrong, 0.0504 on 64 utterances. That measure passes any intelligible voice: it cannot tell the model's voice and prosody from another's. The step compares features of the served waveform with the upstream package's for the same text, voice and seed, with a tolerance from two upstream runs, names the test, or records why the comparison is not made and what would reopen it.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the test or the recorded deferral, and the gap closing. Batch: host."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-uncompared-vqa",
+      "title": "Compare the path a vqa request takes with a reference output for each model it is scored on",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 400,
+        "reason": "The comparison of the embodied model's served answers with its reference code's on the same frames, or a recorded deferral; a step of the owner's double-check of the scorecard, named for the gap the scorecard files for it"
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "Hold Hy-Embodied-RxBrain's served answers to its reference code's on the same frames",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-vqa",
+          "rationale": "Hy-Embodied-RxBrain-1.0 reads 0.625 on 64 cases where chance is 0.25. The step names the test that compares what a served question about frames returns with the reference code's answer on the same frames, writes it where the reference can be run here, or records the deferral. That the measure is caption matching and the model is for embodied and spatial reasoning is the other step's question, of readings outside a model's use.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the test or the recorded deferral, and the gap closing. Batch: device."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-uncompared-projection",
+      "title": "Compare the path a projection request takes with a reference output for each model it is scored on",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 400,
+        "reason": "The comparison of each projector's served multimodal answer with its reference's on the same picture, clip or audio, or a recorded deferral; a step of the owner's double-check of the scorecard, named for the gap the scorecard files for it"
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "Hold the two projectors' served multimodal answers to their references'",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-projection",
+          "rationale": "Qwen3.8-27B's projector reads 0.9219 on 64 description-matching cases and gemma-4-E4B-it's reads a word error rate of 0.02567 on 32 utterances. A projector turns a picture, a clip or audio into what the language model reads; a fault in it reads as a weaker model, not as an error. The step names, for each, the test that compares the projected input or the served answer with the reference implementation's on the same media, writes it where the reference is on this machine, or records the deferral.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the tests or the recorded deferrals, and the gap closing. Batch: device."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-uncompared-generation",
+      "title": "Compare the path a generation request takes with a reference output for each model it is scored on",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 400,
+        "reason": "The comparison of the thought-bank text model's served output with its own code's, or a recorded deferral; a step of the owner's double-check of the scorecard, named for the gap the scorecard files for it"
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "Hold Fractale's served output to its own code's",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-generation",
+          "rationale": "Fractale-350M-base reads a WikiText-2 perplexity of 118.9 on 64 cases. Its documentation gives its own figures by its own measure, with the commands that reproduce them. The step names the test that compares what a served request computes with the model's own code on the same text, by reproducing one documented figure with its documented command where that can be run here, or records the deferral.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the test or the recorded deferral, and the gap closing. Batch: host."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-uncompared-reconstruction",
+      "title": "Compare the path a reconstruction request takes with a reference output for each model it is scored on",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 400,
+        "reason": "The comparison of each autoencoder's served reconstruction with its reference's on the same picture, or a recorded deferral; a step of the owner's double-check of the scorecard, named for the gap the scorecard files for it"
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "Hold the three autoencoders' served reconstructions to their references'",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-reconstruction",
+          "rationale": "Wan2.1's video autoencoder reads 41.37 dB on 128 frames, the representation autoencoder 20.53 dB on 128 pictures, and the encoder bridged into it 18.16 dB. A reconstruction measure compares a model's output with its own input, so a path that loses detail reads as a model that loses detail. The step names, for each, the test that compares the served latent or the served reconstruction with the reference implementation's on the same picture, writes it where the reference is on this machine, or records the deferral.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the tests or the recorded deferrals, and the gap closing. Batch: device."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-uncompared-image-embedding",
+      "title": "Compare the path an image-embedding request takes with a reference output for each model it is scored on",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 400,
+        "reason": "The comparison of the image encoder's served features with its reference's on the same picture, or a recorded deferral; a step of the owner's double-check of the scorecard, named for the gap the scorecard files for it"
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "Hold webssl's served features to its reference's",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-image-embedding",
+          "rationale": "webssl-dino300m-full2b-224 reads 0.4578 on 483 retrieval cases. Golden scripts exist for the two DINOv2 encoders; whether one covers this Web-SSL variant, and whether it covers what a served request returns or only the forward pass, has not been checked. The step finds out, names the test, extends it to the served features where it stops short, or records the deferral.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the test or the recorded deferral, and the gap closing. Batch: host."
         }
       ]
     },

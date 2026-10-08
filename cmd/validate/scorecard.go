@@ -200,11 +200,56 @@ func printScorecard(ctx context.Context, rows []scorecard.Row, root string, outp
 	if len(gaps) != 0 {
 		text += "\nGaps:\n" + strings.Join(gaps, "\n") + "\n"
 	}
+	standing, err := pathStanding(rows)
+	if err != nil {
+		return err
+	}
+	text += standing
 	if len(inapplicable) != 0 {
 		text += "\nNot applicable:\n" + strings.Join(inapplicable, "\n") + "\n"
 	}
-	_, err := io.WriteString(output, text)
+	_, err = io.WriteString(output, text)
 	return err
+}
+
+// pathStanding says, for each held-out reading a served path produced, what
+// stands between it and being called the model's: the test that compares the
+// path a request takes with a reference output and what it holds, the
+// recorded reason no comparison is made, or that none is named, in which case
+// a fault in the path would read as the model's score. None named is not
+// none made: a test may compare a path that the document does not yet name.
+func pathStanding(rows []scorecard.Row) (string, error) {
+	comparisons, err := scorecard.PathComparisons()
+	if err != nil {
+		return "", err
+	}
+	var compared, deferred, unchecked []string
+	for _, row := range rows {
+		cell, name := row.Cells[metric.Quality], row.Name+" "+string(row.Task)
+		at := slices.IndexFunc(comparisons, func(entry scorecard.PathComparison) bool { return entry.Model == row.Name && entry.Task == row.Task })
+		switch {
+		case row.PathUnchecked():
+			unchecked = append(unchecked, "- "+name)
+		case cell.Compared != "" && at >= 0:
+			compared = append(compared, fmt.Sprintf("- %s: %s holds %s", name, cell.Compared, comparisons[at].Holds))
+		case cell.Uncompared != "" && at >= 0:
+			deferred = append(deferred, fmt.Sprintf("- %s: %s; reopened by: %s", name, cell.Uncompared, comparisons[at].Reopens))
+		}
+	}
+	var text strings.Builder
+	for _, section := range []struct {
+		heading string
+		lines   []string
+	}{
+		{"Held-out readings whose served path a test compares with a reference output:", compared},
+		{"Held-out readings whose served path is not compared with a reference, by a recorded decision:", deferred},
+		{"Held-out readings for whose served path no comparison with a reference output is named, so that a fault in the path would read as the model's score:", unchecked},
+	} {
+		if len(section.lines) != 0 {
+			text.WriteString("\n" + section.heading + "\n" + strings.Join(section.lines, "\n") + "\n")
+		}
+	}
+	return text.String(), nil
 }
 
 // declarationShare states how many served models a declaration alone

@@ -75,6 +75,13 @@ type Cell struct {
 	// where it has none, as a judged generation has: there another model answers
 	// about what this one drew.
 	Constant *float64 `json:"constant,omitempty"`
+	// Compared names the test that compares the path a request takes with a
+	// reference output, for a held-out quality that path produced, and
+	// Uncompared says why no such comparison is made where one was decided
+	// against. A reading with neither has met no reference: a fault in its
+	// path would read as its score.
+	Compared   string `json:"compared,omitzero"`
+	Uncompared string `json:"uncompared,omitzero"`
 }
 
 // QualityText renders a held-out quality as a user reads it: its value, its
@@ -255,7 +262,7 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 	slices.SortFunc(rows, func(left, right Row) int {
 		return cmp.Or(strings.Compare(left.Name, right.Name), strings.Compare(string(left.Task), string(right.Task)))
 	})
-	return rows, nil
+	return rows, comparePaths(rows)
 }
 
 // uncaptionedGeneration is why an image or video model that takes no words has no held-out

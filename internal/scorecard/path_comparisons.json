@@ -1,0 +1,11 @@
+{
+  "comparisons": [
+    {
+      "model": "LiveEdit",
+      "task": "video-gen",
+      "package": "internal/adaptiveparity",
+      "test": "TestServedEditMatchesTheReferenceEdit",
+      "holds": "the clip a served edit request returns for the editor's own test case to the clip the earlier implementation drew for it"
+    }
+  ]
+}

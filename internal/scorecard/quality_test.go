@@ -195,6 +195,9 @@ func TestQualityReadsEachTasksHeldoutEvidence(t *testing.T) {
 		return Row{Model: id(artifact.KindModel, name), Name: name, Task: task, Cells: cells}
 	}
 	proposed, _ := qualityCell(recipe.TaskImageGen, nil, nil)
+	// The projector's reading is one a test compares with a reference, so its
+	// row files nothing: this test is of the evaluations still to define.
+	cell.Compared = "internal/fixture TestProjectorMatchesItsReference"
 	published := Record{Commit: "b", Rows: []Row{row("projector", recipe.TaskProjection, cell), row("painter", recipe.TaskImageGen, proposed)}}
 	reference := Record{Commit: "a"}
 	gaps := published.Gaps(&reference)

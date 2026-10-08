@@ -149,7 +149,7 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 		return nil, fmt.Errorf("scorecard: the activation listing was truncated at %d", catalogLimit)
 	}
 	suites, descriptors := evaluation.DerivedSuiteCatalog(ctx, store, evaluation.ListingAuthorities())
-	if err := nameEvaluatedSets(ctx, store, suites); err != nil {
+	if err := nameEvaluatedSets(ctx, store, suites, descriptors); err != nil {
 		return nil, err
 	}
 	index := evaluation.LatestEvidence(ctx, store, suites, 0)
@@ -576,8 +576,12 @@ func throughputCell(task recipe.Task, benchmark evaluation.BenchmarkSummary, ben
 // the evaluation to a plan over the set and its split, so a held-out set of
 // another task, such as E4B projection's image, video and audio caption
 // matching, is read like a derived suite; a gate's or smoke run's wall time
-// has no such evidence.
-func nameEvaluatedSets(ctx context.Context, store *overgodb.Store, suites map[artifact.ID]string) error {
+// has no such evidence. It adds to descriptors, under the set's identity, the
+// name of the measure the set's plan was run for, where the store holds a
+// case profile that gives one: a set's identity is that of its cases, so only
+// that name tells a measure built again from another measure. The set's cases
+// stay uncounted, as they were.
+func nameEvaluatedSets(ctx context.Context, store *overgodb.Store, suites map[artifact.ID]string, descriptors map[string]evaluation.SuiteDescriptor) error {
 	_, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{
 			Kind: artifact.KindEvidence, MediaType: evaluation.EvaluationEvidenceMediaType, Schema: evaluation.EvaluationEvidenceSchema,
@@ -585,8 +589,13 @@ func nameEvaluatedSets(ctx context.Context, store *overgodb.Store, suites map[ar
 		// Naming is order-independent; any one order reads them all.
 		Order: overgodb.DocumentOldestFirst,
 	}, evaluation.ParseEvaluationEvidence, func(_ overgodb.DocumentView, evidence evaluation.EvaluationEvidence) error {
-		if _, named := suites[evidence.Dataset]; !named {
-			suites[evidence.Dataset] = evidence.Dataset.String()
+		if _, named := suites[evidence.Dataset]; named {
+			return nil
+		}
+		name := evidence.Dataset.String()
+		suites[evidence.Dataset] = name
+		if measure, ok := evaluation.EvaluatedMeasure(ctx, store, evidence.Plan); ok && descriptors != nil {
+			descriptors[name] = evaluation.SuiteDescriptor{Source: measure}
 		}
 		return nil
 	})
@@ -737,16 +746,36 @@ var heldoutProposals = map[recipe.Task]string{
 
 // qualityCell is the headline metric of the recipe's newest evaluation of
 // its largest held-out suite: the most cases say the most about held-out
-// answers, and the index selects the newest run per bound contract. A set outside the derived
-// catalog counts no cases, so of two equal suites the one named first, then
-// the protocol named first, is read, the same in every record. It also
-// returns the recipe's other current held-out qualities, one per suite and
-// protocol. A recipe no suite measures reads not applicable when its task
-// has a held-out evaluation proposed, else a gap.
+// answers, and the index selects the newest run per bound contract. A set no
+// descriptor counts holds no cases, so of two equal suites the one named
+// first, then the protocol named first, is read, the same in every record. A
+// measure built again, as an edit evaluation is each time its model draws the
+// clips again, is another set its descriptor's source names as the same
+// measure: it stands where its first build's set stood among the recipe's
+// suites, and of its builds the one evaluated last is read. One set's
+// execution alternatives keep the order of their contracts, whichever ran
+// last. It also returns the recipe's other held-out qualities, one per suite
+// and protocol, an earlier build's among them. A recipe no suite measures
+// reads not applicable when its task has a held-out evaluation proposed, else
+// a gap.
 func qualityCell(task recipe.Task, summaries []evaluation.EvalSummary, descriptors map[string]evaluation.SuiteDescriptor) (Cell, []Cell) {
 	type heldout struct {
 		cases uint64
+		// first is the set of the measure's first build, and built where the
+		// set's newest evaluation arrived among the summaries.
+		first string
+		built int
 		cell  Cell
+	}
+	// The summaries arrive newest first: the last set of a measure is its
+	// first build's, and a set's first summary its newest evaluation.
+	measure := func(set string) string { return cmp.Or(descriptors[set].Source, set) }
+	first, built := map[string]string{}, map[string]int{}
+	for arrived, summary := range summaries {
+		first[measure(summary.Suite)] = summary.Suite
+		if _, seen := built[summary.Suite]; !seen {
+			built[summary.Suite] = arrived
+		}
 	}
 	var measured []heldout
 	for _, summary := range summaries {
@@ -759,7 +788,7 @@ func qualityCell(task recipe.Task, summaries []evaluation.EvalSummary, descripto
 				// the carrying run only replayed a sample of.
 				label, commit = label+", carried", summary.ScoredCommit
 			}
-			measured = append(measured, heldout{cases: descriptors[summary.Suite].Cases, cell: Cell{
+			measured = append(measured, heldout{cases: descriptors[summary.Suite].Cases, first: first[measure(summary.Suite)], built: built[summary.Suite], cell: Cell{
 				Value: value, Label: label, Source: summary.Record, Direction: summary.Directions[name],
 				CodeCommit: commit, Environment: summary.Environment,
 				Contract: Contract{Metric: name, Origin: originEvaluation, Suite: summary.Suite, Protocol: summary.Prompting, Comparison: summary.Comparison},
@@ -780,9 +809,9 @@ func qualityCell(task recipe.Task, summaries []evaluation.EvalSummary, descripto
 		return gap("no held-out evaluation of this recipe"), nil
 	}
 	slices.SortFunc(measured, func(left, right heldout) int {
-		return cmp.Or(cmp.Compare(right.cases, left.cases), strings.Compare(left.cell.Contract.Suite, right.cell.Contract.Suite),
-			strings.Compare(left.cell.Contract.Protocol, right.cell.Contract.Protocol), artifact.CompareID(left.cell.Contract.Comparison, right.cell.Contract.Comparison),
-			artifact.CompareID(left.cell.Source, right.cell.Source))
+		return cmp.Or(cmp.Compare(right.cases, left.cases), strings.Compare(left.first, right.first),
+			strings.Compare(left.cell.Contract.Protocol, right.cell.Contract.Protocol), cmp.Compare(left.built, right.built),
+			artifact.CompareID(left.cell.Contract.Comparison, right.cell.Contract.Comparison), artifact.CompareID(left.cell.Source, right.cell.Source))
 	})
 	others := make([]Cell, 0, len(measured)-1)
 	for _, other := range measured[1:] {

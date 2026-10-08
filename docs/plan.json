@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "liveedit-served-parity",
-      "title": "Serve LiveEdit's edits as the earlier implementation draws them, and score them again",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 1100,
-        "reason": "A median-cut palette and a second clip encoder that draws each frame in its own colours, the smoothing of a decoded source clip over a dither's reach, the edit checkpoint's own text projection in the served path, and the value ranges of the source and the edited frames: the served edit path had four faults against its reference, and the clip format was the largest"
-      },
-      "steps": [
-        {
-          "id": "rescore",
-          "title": "Render and judge the held-out edit suite again and replace LiveEdit's score",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-video-gen",
-          "rationale": "Commit 763e01ce7 recorded LiveEdit at 12 of 64 on the held-out edit suite and said the score was low because that is what the model does. That was not verified against a reference, and it is wrong in at least one way: the served edit path writes the runtime's frames, whose values run from 0 to 1, as if they ran from -1 to 1, so every edited clip the judge saw was washed out, its blacks lifted to grey (finding c5bacaa6; the owner pointed to adaptive_new/image_gen_report.md, whose Python and earlier-Go pictures of the reference case are vivid and complete). The suite also cuts each clip to 21 frames where the reference edits 81, a quarter of what the model was built for. Once the step before this holds the served path to the reference case, this step renders the 64 clips again at the length the reference uses, judges them with the same question, and replaces the recorded score; the old media and the old score are named as superseded, and findings c5bacaa6 and 55a65f65 are closed on the result.\n\nServes: measure and find the gap. Disappears: a recorded score that measured a rendering fault. Evidence: the judged evaluation in the real store and the scorecard row. Batch: device."
-        }
-      ]
-    },
-    {
       "id": "latent-change-proposer",
       "title": "Propose a model change from a latent of earlier changes and judge it on held-out data against plain controls",
       "owner": "master-lead",
@@ -36,7 +17,7 @@
           "id": "proposal",
           "title": "Propose a change from the corpus and judge it against the best run, the mean and a random direction",
           "status": "open",
-          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestProposedChangeIsJudgedAgainstItsControls$'",
+          "verify": "go test ./internal/trainingworkflow -count=1 -run '^(TestProposedChangeIsJudgedAgainstItsControls|TestChangeProposalRecordIsTheJudgmentItNames)$'",
           "rationale": "Proposers, simplest first: a low-rank linear code of the changes, decoded along the direction that best predicts the verdict's gain; then a small deterministic autoencoder over the changes, only if the linear code leaves gain unexplained. Controls: the best single run, the plain mean of all runs, the mean of the runs that improved, and a random direction of the same size. Every candidate is materialized and scored by the same held-out objective, and compared by paired resampling over held-out records; the lane's block resampling in tensorstats is ported in this commit, with this caller. A proposer is kept only if its candidate beats the best control beyond resampling noise. If none does, that refusal is the recorded outcome.\n\nWhat stays unplanned until a proposer is kept: a stochastic residual, multimodal fusion, discrete codes, curved geometry and transport alignment, learned priors. Each was a retain-or-refuse row on the lane; none is filed on master before a measured result calls for it.\n\nServes: judge on held-out data. Disappears: nothing. Evidence: the held-out score of each candidate and control. Batch: device.",
           "depends_on": [
             "latent-change-proposer/corpus"
@@ -46,7 +27,7 @@
           "id": "lifecycle",
           "title": "Take the kept candidate through admission, isolated evaluation, promotion or refusal, and rollback",
           "status": "open",
-          "verify": "go test ./internal/modelrecipe -count=1 -run '^TestProposedChangeRunsTheCandidateLifecycle$'",
+          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestChangeProposalRecordIsTheJudgmentItNames$'",
           "rationale": "A proposed change is a proposal and nothing more: it goes through the candidate path every change takes (admit, materialize, evaluate in isolation, ablate, promote or refuse, roll back), without serving, the production alias untouched. This is the lane's safety binding and end-to-end proof in one step: no check is added for latents, because the existing ones already stand between a candidate and activation. If the proposal step kept no candidate, this step closes on that recorded refusal.\n\nServes: promote or revert. Disappears: nothing. Evidence: the candidate's lifecycle records, or the refusal. Batch: device.",
           "depends_on": [
             "latent-change-proposer/proposal"
@@ -70,7 +51,87 @@
           "status": "open",
           "verify": "go test ./cmd/overgodb ./internal/runrecord ./internal/overgodb -count=1 -run 'TestExperimentalEvidence|TestDocumentHistoricalContentCutoff|TestDocumentContentByteBudget'",
           "rationale": "What the lane called PEARL, in plain terms: before proposing, read what was already tried. The lane built a read-only reader for it (a query that returns past experiment records under a byte budget and a historical cutoff, so that no outcome later than the proposal can leak into it) with a command flag as its caller. This step ports that reader onto master's overgodb query, repaired for the gate lifecycle master has since renamed, with the lane's tests. It stores nothing new and adds no record family.\n\nServes: measure and find the gap, by showing what was tried. Disappears: nothing. Evidence: the ported tests. Batch: host."
+        }
+      ]
+    },
+    {
+      "id": "score-double-check",
+      "title": "Hold each weak or surprising scorecard reading to a reference, a baseline and its own protocol before calling it the model's",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 1500,
+        "reason": "The scorecard says beside each held-out reading what it rests on and what stands behind it, and each served path the rows compare gains its comparison with a reference; the owner asked on 2026-10-07 for the model double-check recommendation to be planned"
+      },
+      "steps": [
+        {
+          "id": "standing",
+          "title": "Say beside each held-out reading how many cases it rests on, what a constant answer would score, and whether a reference comparison stands behind it",
+          "status": "open",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestScorecardReadingStatesItsStanding$'",
+          "rationale": "A weak reading has three possible causes: the model, a fault in the port or the path a request takes, or a measure that is not how the model is meant to be used. Twice the first was written down without the other two being ruled out. LiveEdit was recorded at 12 of 64 with the words that the score was low because that is what the model does; held to its reference, the served path had four faults. Needle was recorded at 5 of 400 with nearly the same sentence (commit cbf5abfee) and has not been compared with its upstream code on the evaluation's cases. The scorecard gave no sign that either reading had never met a reference. The owner asked on 2026-10-07 for the model double-check recommendation to be planned; this row is that plan, cheapest check first.\n\nThis step makes the scorecard say three things beside a held-out reading, from records it already holds where it can. How many cases the reading rests on and the noise that implies, so that 0.4715 beside 0.4669 reads as a tie and a reading on 24 records is not taken for a fine instrument. What a constant answer would score where the measure has one: chance for a choice among n, the majority class for table accuracy (tabfm reads 0.6611 where always answering good scores 0.70 on the same rows, and the cell does not say whether it is the model before or after its 24 training steps), the base for a trained reading. And the named comparison of the served path with a reference, or that there is none. A reading with none becomes a named gap, as an unscored cell is today, so the steps after this one each close gaps the scorecard names, and a new model cannot arrive with an unexamined reading unnoticed.\n\nA comparison's tolerance comes from the reference's own variation, two runs of the upstream code on the same input or the precision floor of the arithmetic, never a constant chosen to pass.\n\nServes: measure and find the gap. Disappears: readings that look more certain than they are. Evidence: the test, and the scorecard itself. Batch: host."
         },
+        {
+          "id": "speech-pair",
+          "title": "Find why two speech models read the same error rate to four digits, and score each from its own transcript",
+          "status": "open",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestSpeechReadingsAreEachModelsOwn$'",
+          "rationale": "granite-speech-5.0-470m-turboctc and nemotron-3.5-asr-streaming-0.6b both read a word error rate of 0.03209 on the same held-out set. Two different recognizers agreeing to four digits is either a coincidence on a small set, both making the same few errors, or one record standing for both: a carried reading, or one model's transcript scored twice. It has not been checked which. The step reads the two evaluation records and their transcripts. If the transcripts are each model's own, it records the counts that make the readings equal and closes. If not, that is a fault in how one of them is scored, and it is fixed and both are scored again.\n\nNot in this step: whether nemotron's chunked decoding equals its offline decoding, and either model against its vendor's published figure; the step before names those as gaps.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the two records, or the fix. Batch: host."
+        },
+        {
+          "id": "needle-upstream",
+          "title": "Compare needle's calls with its upstream code on the evaluation's own cases",
+          "status": "open",
+          "verify": "go test ./internal/adaptiveparity -count=1 -run '^TestNeedleCallsMatchUpstreamOnEvaluationCases$'",
+          "rationale": "Needle reads 5 of 400 on the function-calling leaderboard's simple category, and commit cbf5abfee said the number is low because the 26M model writes malformed or repeated arguments. That is what its output looks like; it is not a comparison. The recommendation records that needle's forward pass is held to its JAX original and its documented example passes, which is more than LiveEdit had; what is not held is the decoding loop and the form the request is given in, and the earlier implementation carried a test of the decoding loop against the JAX original that master does not carry. LiveEdit's inner runtime matched its reference too; its faults were all in the path around it.\n\nThe step runs the upstream generate on a sample of the evaluation's cases that includes both passes and failures, as a golden reference from the Python original, and compares the calls case by case with the ones overgo writes; it confirms the request form, since the repository's test joins query and tools in one string where the model's documentation passes them apart; and it ports the decoding-loop comparison. If the upstream code needs a package that is not on this machine, the step stops for the owner's approval of that download. Equal calls mean the reading is the model's on these cases, and the commit's claim gains its evidence. Different calls are a fault: it is fixed and needle is scored again.\n\nThe model's documentation says it is meant to be finetuned on one's own tools. If the calls are equal, a small finetune on a tool set through the seq2seq train route, judged on held-out calls, is the measure of its use; it is done here if it is an hour's work, and named as a gap if not.\n\nServes: measure and find the gap. Disappears: an unverified claim. Evidence: the case-by-case comparison. Batch: host."
+        },
+        {
+          "id": "answer-protocol",
+          "title": "Score one assistant model on MMLU-Pro the way its vendor does, and name the answer protocol on every such cell",
+          "status": "open",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestScorecardNamesTheAnswerProtocol$'",
+          "rationale": "The recommendation sets the vendors' published MMLU-Pro figures beside overgo's: Qwen3.5-4B 79.1 against 0.4715, Qwen3.5-9B 82.5 against 0.4669, gemma-4-E4B-it 69.4 against 0.4385, gemma-4-12B 77.2 against 0.4926; on IFEval the 9B model is 91.5 against 0.8429. Those vendor figures came from reading, not from a run, and the step first cites each from the model card on disk. A gap of 25 to 35 points on one suite against 7 on another points at how the answer is asked for, not at the arithmetic: overgo's cells are carried from earlier evaluations and the scorecard does not show their suite size, generation limit or whether the model was allowed to think. That is a hypothesis.\n\nThe step reads those three facts off the records, then scores Qwen3.5-4B on a sample of the suite with thinking on and a generation limit that does not truncate, beside the protocol the cell uses today. If the gap closes, the protocol was the cause: every such cell is named for its protocol, a direct answer, the thinking reading is recorded beside it for the model that was run, and the other post-trained models are treated alike without a run each. If it does not close, a fault is suspected, and the next step is the model's logits against its reference on questions it fails, as a row of its own.\n\nThat the 9B model does not beat the 4B model under the chat template is a tie within noise and is not pursued by itself; that the larger model gains nothing is what the protocol reading should explain.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the two readings of one model on the same questions. Batch: device."
+        },
+        {
+          "id": "served-generators",
+          "title": "Hold each served image and video generator's request path to the output its reference kept",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -count=1 -run '^TestServed(Image|Video)MatchesItsReference$'",
+          "rationale": "LiveEdit's runtime agreed with the earlier implementation's latent and clip while the path a request takes around it read its source in the wrong range, wrote its frames in the wrong range, projected its prompt with the wrong weights and drew its clips in a palette the editor read as content. Krea-2-Turbo, SenseNova-U1, Wan2.1 and SimpleDiffusion have comparisons of their runtimes; for none is the path from a prompt to the served bytes held to a reference. High judged readings (0.93, 0.91) do not excuse them: a judge asked which caption fits can pass a washed picture.\n\nFor each generator whose reference kept a fixed-seed output and its settings, the step sends the same prompt, seed and settings as a served request and compares the output with the kept one, square by square and in its dark and bright levels, as the edit test does, with a tolerance taken from the reference's own variation. Where the reference kept none, the gap stays named, and SimpleDiffusion's needs its upstream code run twice. A difference is a fault in the path: it is fixed and the generator is scored again.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the device tests. Batch: device."
+        },
+        {
+          "id": "use-case-cells",
+          "title": "Mark or retire the readings that measure something other than their model's use, and ask the owner for the data the right measures need",
+          "status": "open",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestScorecardMarksAReadingOutsideItsModelsUse$'",
+          "rationale": "Some readings are true and beside the point. Carbon-500M is, by its own documentation, a draft model for speculative decoding beside a larger Carbon model, and its DNA perplexity of 910 is not a measure of that. Unlimited-OCR reads documents and is scored on MMLU-Pro at 0.119. SenseNova-U1 Infographic V3 draws large text-heavy infographics and was scored at 0.5157 on photo captions drawn at 512 by 512 in four steps, where its own recorded verification includes a picture of 1536 by 2720. Fractale's documentation gives its own figures by its own measure, and overgo's WikiText-2 perplexity of 118.9 has nothing to be read against. Hy-Embodied-RxBrain is for embodied and spatial reasoning and is scored on matching captions. Un-0 has no documentation, loads in under a millisecond and holds no memory, and it has not been asked whether it belongs on the scorecard at all.\n\nThe step marks each such reading on the scorecard as outside its model's use, from the model's own documentation, or retires the cell where nothing is left to learn from it, and decides Un-0. The right measures mostly need data that is not on this machine: document pictures with their text for OCR, a larger Carbon model for draft acceptance, the vendor's benchmark for embodied reasoning when it is released. Each is recorded as an owner decision with its file and size, and nothing is downloaded without the answer. The one measure that needs no download is built here if a picture costs minutes: infographic prompts drawn at SenseNova's native size and steps, with the installed OCR model reading back whether the text it was asked to draw is the text it drew.\n\nLiveEdit belongs on this list by measurement. Its documentation says it edits what an instruction names while preserving backgrounds and regions that are not edited, and its own test case changes one fruit into another. The held-out edit suite asks only for changes to the whole clip: a pencil sketch, a cartoon, night, rain, snow, fog. Scored again on the served path as held to its reference, it reads 16 of 64: the judge finds the clip kept in 56 and the change made in 19, and on the eight clips looked at by eye the judge's answer is what the clip shows. A measure of its use asks for the change of one thing in a clip and checks that thing and the rest apart; it can be built from the clips on disk with the installed judge writing the instruction, and it is built here if a clip costs minutes.\n\nServes: measure and find the gap. Disappears: readings that mislead. Evidence: the test, the scorecard, and the decisions. Batch: device."
+        },
+        {
+          "id": "edit-source",
+          "title": "Let an edit request carry its source clip without loss",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -count=1 -run '^TestServedEditMatchesTheReferenceEdit$'",
+          "rationale": "The served edit agrees with the earlier implementation's clip at about 28 dB over 8-pixel squares when its source arrives as a GIF, smoothed, and at 41 dB when the runtime is given the frames the reference fed. What is left is the format the source arrives in: a GIF keeps 256 colours a frame, and the smoothing that removes its grain also removes detail the editor would have kept. Smoothing is a repair of a lossy source, not a way to carry one.\n\nThe step gives an edit request a way to carry its source without loss, as frames or as the video file the evaluation already decodes, keeps the GIF form with its smoothing for requests that send one, and raises the served comparison's bound to what the lossless form reaches. The held-out edit suite is rendered from lossless sources and judged again if the comparison moves by more than its tolerance.\n\nServes: generate. Disappears: a known loss in the editor's input. Evidence: the device test at its new bound, and the edit reading. Batch: device."
+        },
+        {
+          "id": "remaining-gaps",
+          "title": "Give each reading still without a reference comparison its comparison or a deferral with its reason",
+          "status": "open",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestEveryReadingHasAReferenceOrAReasonedDeferral$'",
+          "rationale": "After the steps before this one the scorecard names what remains unexamined. From the recommendation's list that is expected to include: MiniCPM5 with its thinking switch on and off and a tool call, its stated strength; Bonsai-27B against its unquantized source; the fp8 gemma against its bf16 original; granite-speech against its vendor's published figure; pocket-tts, whose round-trip error rate cannot judge voice or prosody, against its upstream package on the same text, voice and seed; the forecasting models against their Python originals, one of which already has a golden script; webssl's features against its reference; tabfm's answers against its upstream package on the same requests.\n\nEach gets its comparison where the reference is on this machine and the work is small, and otherwise a deferral recorded with its reason and what would reopen it, shown on the scorecard as a deferral and not as a pass. A comparison that needs a download becomes an owner decision. The step closes when no reading is both unexamined and undecided.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the comparisons and the recorded deferrals. Batch: device."
+        }
+      ]
+    },
+    {
+      "id": "evidence-conditioning",
+      "title": "Measure whether past-experiment evidence improves the proposer's candidates",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 0,
+        "reason": "The comparison of a proposer with and without the past experiments the reader of experiment-evidence returns; split from that row so the owner's double-check of the scorecard's readings runs before it, the comparison not having started"
+      },
+      "steps": [
         {
           "id": "conditioning",
           "title": "Measure whether that evidence improves the proposer's candidates",

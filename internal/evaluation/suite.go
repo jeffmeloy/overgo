@@ -2,6 +2,8 @@ package evaluation
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -27,6 +29,44 @@ type SuiteDescriptor struct {
 	Plan    artifact.ID `json:"plan"`
 	Dataset artifact.ID `json:"dataset"`
 	Cases   uint64      `json:"cases"`
+}
+
+// EvaluatedMeasure names the measure a stored plan was run for, from the
+// plan's case profile: the source its builder gave it, and the cases it asks
+// about, by their names alone. A set's identity is that of its whole cases, so
+// a measure built again, over clips a model drew again, is another set though
+// it asks the same cases; this name is what says the two are one measure. The
+// source alone would not: one builder gives one source to the sets it builds at
+// different sizes and lengths, which ask different cases and are different
+// measures. A plan the store cannot read, or a profile without a source or with
+// a case that has no name, reports false.
+func EvaluatedMeasure(ctx context.Context, reader artifact.Reader, plan artifact.ID) (string, bool) {
+	stored, err := loadEvidencePlan(ctx, reader, plan)
+	if err != nil {
+		return "", false
+	}
+	profile, found, err := artifact.ReadContent(ctx, reader, stored.body.CaseProfile)
+	if err != nil || !found {
+		return "", false
+	}
+	var named struct {
+		Source string `json:"source"`
+		Cases  []struct {
+			Name string `json:"name"`
+		} `json:"cases"`
+	}
+	if json.Unmarshal(profile.Data, &named) != nil || strings.TrimSpace(named.Source) == "" || len(named.Cases) == 0 {
+		return "", false
+	}
+	asked := sha256.New()
+	for _, testCase := range named.Cases {
+		if testCase.Name == "" {
+			return "", false
+		}
+		asked.Write([]byte(testCase.Name))
+		asked.Write([]byte{'\n'})
+	}
+	return named.Source + " " + hex.EncodeToString(asked.Sum(nil)), true
 }
 
 type suiteResult struct {

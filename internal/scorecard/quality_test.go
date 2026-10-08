@@ -170,7 +170,7 @@ func TestQualityReadsEachTasksHeldoutEvidence(t *testing.T) {
 	record(timed, timing, []runrecord.Metric{{Name: "smoke_wall_ns", Value: 1, Direction: runrecord.DirectionMinimize}})
 
 	suites := map[artifact.ID]string{}
-	if err := nameEvaluatedSets(ctx, store, suites); err != nil {
+	if err := nameEvaluatedSets(ctx, store, suites, nil); err != nil {
 		t.Fatal(err)
 	}
 	index := evaluation.LatestEvidence(ctx, store, suites, 0)

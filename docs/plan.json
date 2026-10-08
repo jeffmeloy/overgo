@@ -14,13 +14,6 @@
       },
       "steps": [
         {
-          "id": "infographic-text-score",
-          "title": "Draw the infographics at SenseNova's own size and steps, and record what the judge reads in them",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestScorecardMarksAReadingOutsideItsModelsUse$'",
-          "rationale": "The step before this one builds the measure: twenty briefs, each an infographic asked to hold a title, three lines with a figure and a line of small print, and for each text a question that offers it among three near it. This step is the reading. Build evaluate at the commit that holds the measure; draw the twenty at 2048 by 2048, 50 steps, guidance 4, timestep shift 3, against a copy of the store, about two minutes a picture; look at four of the pictures by eye; judge them on the copy first, where a reading at the ceiling or at chance says the measure tells nothing, then on the real store; and say on the scorecard which of SenseNova's readings is of its use. The judge's own reading of text is part of what is measured: say what it reads on a picture whose text is known to be right, if one can be made without a download. Serves: measure and find the gap. Disappears: a reading beside the point. Evidence: the reading on the scorecard, and the four pictures looked at. Batch: device."
-        },
-        {
           "id": "local-edit-score",
           "title": "Edit the clips as told, look at eight, and record what the judge finds changed and kept",
           "status": "open",

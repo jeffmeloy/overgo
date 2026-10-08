@@ -113,7 +113,7 @@ func (c Cell) QualityText() string {
 		text += fmt.Sprintf(" vs base %.4g", *c.Base)
 	}
 	if c.Cases > 0 {
-		text += fmt.Sprintf(" on %d cases", c.Cases)
+		text += fmt.Sprintf(" on %d cases", c.Cases) + shareAtAnEnd(c)
 	}
 	if c.Unread > 0 {
 		text += fmt.Sprintf(", %d of them answered with no option named and counted wrong", c.Unread)
@@ -141,6 +141,25 @@ func shareError(share float64, cases uint64) float64 {
 		return 0
 	}
 	return math.Sqrt(share * (1 - share) / float64(cases))
+}
+
+// wilsonZ is the normal deviate of a two-sided 95 in 100 interval.
+const wilsonZ = 1.96
+
+// shareAtAnEnd says, of a share that is every case or none, what its standard
+// error cannot: that error is zero there, and the reading would look exact. A
+// suite every case of which is answered right is at its ceiling, and says
+// only how near the ceiling the true share must be: the Wilson score bound,
+// cases over cases plus the deviate squared, at 95 in 100.
+func shareAtAnEnd(c Cell) string {
+	if c.Contract.Metric != shareMetric || c.Cases == 0 || c.Value != 0 && c.Value != 1 {
+		return ""
+	}
+	margin := wilsonZ * wilsonZ / (float64(c.Cases) + wilsonZ*wilsonZ)
+	if c.Value == 1 {
+		return fmt.Sprintf(", every one right, which at 95 in 100 puts the true share at %.3g or more", 1-margin)
+	}
+	return fmt.Sprintf(", none right, which at 95 in 100 puts the true share at %.3g or less", margin)
 }
 
 // Contract is what a measured value is, so two cells compare only when both

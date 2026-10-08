@@ -81,3 +81,32 @@ func TestHeldoutReadingStatesItsCasesAndNoise(t *testing.T) {
 		t.Fatalf("of two evaluated sets the row is headed by %s on %d cases, want the set named first with its own 16 cases", cell.Contract.Suite, cell.Cases)
 	}
 }
+
+// TestHeldoutShareAtAnEndSaysHowNearItMustBe holds a share that is every case
+// or none to saying so. Its standard error is zero there, so the reading
+// would stand as if exact; a suite answered wholly right is at its ceiling,
+// and all it tells is how near the ceiling the true share must be. A share
+// between the ends, a reading with no cases counted, and a value of one on a
+// measure that is no share say nothing more than they did.
+func TestHeldoutShareAtAnEndSaysHowNearItMustBe(t *testing.T) {
+	t.Parallel()
+	read := func(metric string, value float64, cases uint64) string {
+		cell, _ := qualityCell(recipe.TaskImageGen, []evaluation.EvalSummary{{
+			Suite: "set", Prompting: "protocol", Record: testutil.ArtifactID(t, artifact.KindEvaluation, metric), Cases: cases,
+			Metrics: map[string]float64{metric: value}, Directions: map[string]runrecord.Direction{metric: runrecord.DirectionMaximize},
+		}}, nil)
+		return cell.QualityText()
+	}
+	for want, got := range map[string]string{
+		"1 on 100 cases, every one right, which at 95 in 100 puts the true share at 0.963 or more (accuracy, set (protocol))": read("accuracy", 1, 100),
+		"0 on 100 cases, none right, which at 95 in 100 puts the true share at 0.037 or less (accuracy, set (protocol))":      read("accuracy", 0, 100),
+		"1 on 4 cases, every one right, which at 95 in 100 puts the true share at 0.51 or more (accuracy, set (protocol))":    read("accuracy", 1, 4),
+		"0.99 ±0.0099 on 100 cases (accuracy, set (protocol))":                                                                read("accuracy", 0.99, 100),
+		"1 (accuracy, set (protocol))":                     read("accuracy", 1, 0),
+		"1 on 100 cases (signal-to-noise, set (protocol))": read("signal-to-noise", 1, 100),
+	} {
+		if got != want {
+			t.Errorf("the reading says %q, want %q", got, want)
+		}
+	}
+}

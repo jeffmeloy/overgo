@@ -13,6 +13,13 @@
       "package": "internal/seq2seq",
       "test": "TestNeedleCallsMatchUpstreamOnEvaluationCases",
       "holds": "the encoder input a served request builds and the call it answers with, on every case of the function-call evaluation, to what the model's own code builds and answers on its bfloat16 parameters with the arithmetic in float32 and its constrained decoding off"
+    },
+    {
+      "model": "Fractale-350M-base",
+      "task": "generation",
+      "package": "internal/thoughtbank",
+      "test": "TestPassageLossMatchesUpstream",
+      "holds": "the token ids of every held-out passage to the ids the model's own tokenizer gives, and the loss of one passage in eight, read in the windows a served request reads it in and from a bank of zeros, to the model's own code's within 0.002 nats a token; that code seeds a fresh bank with random numbers where the served path seeds zeros, which the fixture measures at about 0.004 nats a token"
     }
   ]
 }

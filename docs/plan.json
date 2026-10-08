@@ -222,25 +222,6 @@
       ]
     },
     {
-      "id": "scorecard-uncompared-generation",
-      "title": "Compare the path a generation request takes with a reference output for each model it is scored on",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 400,
-        "reason": "The comparison of the thought-bank text model's served output with its own code's, or a recorded deferral; a step of the owner's double-check of the scorecard, named for the gap the scorecard files for it"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Hold Fractale's served output to its own code's",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-generation",
-          "rationale": "Fractale-350M-base reads a WikiText-2 perplexity of 118.9 on 64 cases. Its documentation gives its own figures by its own measure, with the commands that reproduce them. The step names the test that compares what a served request computes with the model's own code on the same text, by reproducing one documented figure with its documented command where that can be run here, or records the deferral.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the test or the recorded deferral, and the gap closing. Batch: host."
-        }
-      ]
-    },
-    {
       "id": "scorecard-uncompared-reconstruction",
       "title": "Compare the path a reconstruction request takes with a reference output for each model it is scored on",
       "owner": "master-lead",

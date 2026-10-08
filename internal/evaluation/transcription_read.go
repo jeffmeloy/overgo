@@ -3,6 +3,7 @@ package evaluation
 import (
 	"context"
 	"errors"
+	"math"
 	"reflect"
 	"strings"
 
@@ -63,6 +64,34 @@ func RequireTranscriptionReport(ctx context.Context, reader artifact.Reader, id 
 	return report, nil
 }
 
+// pooledRateError is the standard error of a group's word error rate. The
+// rate is one sum over the group's utterances divided by another, word edits
+// over reference words, and what was sampled is utterances, not words: a
+// speaker's errors come together, so the words of one utterance are not so
+// many independent trials. The error is that of a ratio of sums over the
+// utterances, each utterance's edits taken against what the rate expects of
+// its words. Fewer than two utterances, or no words, have none.
+func pooledRateError(observations []transcriptionObservation, group string) float64 {
+	var edits, words, count float64
+	for _, observation := range observations {
+		if observation.Group == group && !observation.SilentControl {
+			edits, words, count = edits+float64(observation.WordEdits), words+float64(observation.ReferenceWords), count+1
+		}
+	}
+	if count <= 1 || words == 0 {
+		return 0
+	}
+	rate := edits / words
+	var squares float64
+	for _, observation := range observations {
+		if observation.Group == group && !observation.SilentControl {
+			residual := float64(observation.WordEdits) - rate*float64(observation.ReferenceWords)
+			squares += residual * residual
+		}
+	}
+	return math.Sqrt(squares*count/(count-1)) / words
+}
+
 // TranscriptionQualities reads the newest transcription report of each
 // runtime recipe, re-scored from its persisted outputs, as the recipe's word
 // error rate on the report's largest group. The summary's suite is the
@@ -120,9 +149,9 @@ func TranscriptionQualities(ctx context.Context, store *overgodb.Store, unreadab
 		}
 		summary := EvalSummary{
 			Suite: report.Dataset.String() + "/" + largest.Name, Prompting: strings.Join(protocol, ", "), Record: report.ID,
-			// The rate pools the group's words, so its utterances are its cases
-			// and no noise follows from the rate alone.
-			Cases:      largest.Utterances,
+			// The rate pools the group's words over its utterances, which are its
+			// cases; its noise follows from how the edits fall among them.
+			Cases: largest.Utterances, Noise: pooledRateError(report.Observations, largest.Name),
 			Metrics:    map[string]float64{wordErrorRateMetric: largest.WordErrorRate},
 			Directions: map[string]runrecord.Direction{wordErrorRateMetric: runrecord.DirectionMinimize},
 		}

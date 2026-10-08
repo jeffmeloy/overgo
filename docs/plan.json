@@ -14,13 +14,6 @@
       },
       "steps": [
         {
-          "id": "speech-pair",
-          "title": "Find why two speech models read the same error rate to four digits, and score each from its own transcript",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestSpeechReadingsAreEachModelsOwn$'",
-          "rationale": "granite-speech-5.0-470m-turboctc and nemotron-3.5-asr-streaming-0.6b both read a word error rate of 0.03209 on the same held-out set. Two different recognizers agreeing to four digits is either a coincidence on a small set, both making the same few errors, or one record standing for both: a carried reading, or one model's transcript scored twice. It has not been checked which. The step reads the two evaluation records and their transcripts. If the transcripts are each model's own, it records the counts that make the readings equal and closes. If not, that is a fault in how one of them is scored, and it is fixed and both are scored again.\n\nNot in this step: whether nemotron's chunked decoding equals its offline decoding, and either model against its vendor's published figure; the step before names those as gaps.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the two records, or the fix. Batch: host."
-        },
-        {
           "id": "answer-protocol",
           "title": "Score one assistant model on MMLU-Pro the way its vendor does, and name the answer protocol on every such cell",
           "status": "open",

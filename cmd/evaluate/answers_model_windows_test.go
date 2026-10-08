@@ -45,6 +45,22 @@ const (
 	decisiveMargin = 0.25
 )
 
+// knownAnswerDifferences are the scored files whose answers stand further
+// from the reference than half precision explains, each for a way of
+// computing that is the file's own and that the reference does not share.
+// Such a file is held, by the name of its fixture, to a wider band, set a
+// little past what was measured on it, and must still stand outside the
+// common band on some case: an entry that outlives its difference fails this
+// test until it is removed.
+var knownAnswerDifferences = map[string]struct {
+	tolerance, margin float64
+	reason            string
+}{
+	"gemma-4-12B-it-fp8-native": {0.3, 2.5, "over a prompt of 32 tokens or more this build rounds what goes into each feed-forward product to fp8, " +
+		"a scale to a token, as the checkpoint's quantization declares; the reference and the bf16 build round the weights alone. Measured: " +
+		"0.223 a token on one answer, and one of 24 second tokens other than the reference's, which held it 1.86 above its next (finding 170f2bfa)"},
+}
+
 // answerReference is one model's fixture: for each case of its prompt
 // fixture, the tokens transformers generates greedily from the case's tokens
 // with the log-probability of each and its margin over the next likeliest,
@@ -116,7 +132,15 @@ func TestModelsAnswerAsTransformersDoes(t *testing.T) {
 		if err := json.Unmarshal(raw, &reference); err != nil || len(reference.Cases) == 0 {
 			t.Fatalf("%s holds no case: %v", fixture, err)
 		}
-		t.Run(strings.TrimSuffix(filepath.Base(fixture), filepath.Ext(fixture)), func(t *testing.T) {
+		name := strings.TrimSuffix(filepath.Base(fixture), filepath.Ext(fixture))
+		t.Run(name, func(t *testing.T) {
+			// The band the file is held to, and whether any case stands outside
+			// the common one.
+			tolerance, margin, outside := answerTolerance, decisiveMargin, false
+			known, differs := knownAnswerDifferences[name]
+			if differs {
+				tolerance, margin = known.tolerance, known.margin
+			}
 			asked, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(reference.Prompts)))
 			if err != nil {
 				t.Fatal(err)
@@ -154,9 +178,10 @@ func TestModelsAnswerAsTransformersDoes(t *testing.T) {
 						apart := math.Abs(score.LogProbability-held.LogProbability) / float64(held.Tokens)
 						widest = max(widest, apart)
 						tokens += held.Tokens
-						if int(score.Tokens) != held.Tokens || apart > answerTolerance {
+						outside = outside || apart > answerTolerance
+						if int(score.Tokens) != held.Tokens || apart > tolerance {
 							t.Errorf("%s continuation %d: %d tokens at %.4f, where the reference gives %d at %.4f: %.4f a token apart, over %.2f",
-								own.Name, candidate, score.Tokens, score.LogProbability, held.Tokens, held.LogProbability, apart, answerTolerance)
+								own.Name, candidate, score.Tokens, score.LogProbability, held.Tokens, held.LogProbability, apart, tolerance)
 						}
 					}
 					continue
@@ -168,9 +193,10 @@ func TestModelsAnswerAsTransformersDoes(t *testing.T) {
 				apart := math.Abs(scores[0].LogProbability-own.LogProbability) / float64(len(own.Generated))
 				widest = max(widest, apart)
 				tokens += len(own.Generated)
-				if apart > answerTolerance {
+				outside = outside || apart > answerTolerance
+				if apart > tolerance {
 					t.Errorf("%s: the reference's answer is given %.4f where the reference gives it %.4f: %.4f a token apart, over %.2f",
-						own.Name, scores[0].LogProbability, own.LogProbability, apart, answerTolerance)
+						own.Name, scores[0].LogProbability, own.LogProbability, apart, tolerance)
 				}
 				// The evaluation's own generation, but for the stop at an end of turn:
 				// the reference wrote its whole length, so both are read to it.
@@ -189,15 +215,22 @@ func TestModelsAnswerAsTransformersDoes(t *testing.T) {
 					if generated[position] == token {
 						continue
 					}
-					if own.Margins[position] > decisiveMargin {
+					outside = outside || own.Margins[position] > decisiveMargin
+					if own.Margins[position] > margin {
 						t.Errorf("%s: token %d of the answer is %d where the reference's is %d, which it held %.3f above its next",
 							own.Name, position, generated[position], token, own.Margins[position])
 					} else {
-						t.Logf("%s: token %d of the answer parts from the reference's at a near tie (%.4f between its first two)",
+						t.Logf("%s: token %d of the answer parts from the reference's where its first two stood %.4f apart",
 							own.Name, position, own.Margins[position])
 					}
 					break
 				}
+			}
+			switch {
+			case differs && !outside:
+				t.Errorf("%s stands within the common band on every case: its difference is gone, so remove its entry (%s)", name, known.reason)
+			case differs:
+				t.Logf("%s is held to %.2f a token and a margin of %.2f, not the common %.2f and %.2f: %s", name, tolerance, margin, answerTolerance, decisiveMargin, known.reason)
 			}
 			if reference.Protocol == promptChat {
 				t.Logf("%s: %d of %d answers are the reference's token for token, any other parting at a near tie; the reference's answers are scored within %.4f a token over %d tokens",

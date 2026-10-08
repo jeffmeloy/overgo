@@ -104,20 +104,6 @@
       "reopens": "a run in torch of the three parts on a frame of the evaluation, the source encoder's own code, the stored map and the reference decoder, all of which are on this machine: it would hold the join of the parts, which nothing now does"
     },
     {
-      "model": "gemma-4-E4B-it",
-      "task": "inference",
-      "package": "cmd/evaluate",
-      "test": "TestPromptsReachEachModelAsItsOwnTokenizerGivesThem",
-      "holds": "the tokens the model is given for 24 of its reading's questions, each in the user's turn of the model's own chat template with the model's turn opened, to what its own tokenizer file and template give for the same words; past the tokens, internal/server TestE4BHTTPModalities holds one served text request, from the request to the complete output over the three served protocols, to captures of transformers running the model; no test holds an answer to one of the evaluation's own questions"
-    },
-    {
-      "model": "gemma-4-12B-it-fp8-native",
-      "task": "inference",
-      "package": "cmd/evaluate",
-      "test": "TestPromptsReachEachModelAsItsOwnTokenizerGivesThem",
-      "holds": "the tokens the model is given for 24 of its reading's questions, each in the user's turn of the model's own chat template with the model's turn opened, to what its own tokenizer file and template give for the same words; past the tokens, internal/adaptiveparity TestMultimodalInputMatrix holds the first token the model generates for a picture question to the one transformers generates; no test holds an answer to a question of text alone"
-    },
-    {
       "model": "Carbon-500M-f16-ropefix",
       "task": "inference",
       "package": "cmd/evaluate",
@@ -137,6 +123,27 @@
       "package": "cmd/evaluate",
       "test": "TestModelsAnswerAsTransformersDoes",
       "holds": "the eight tokens the scored file generates greedily for 24 of its reading's questions, from the tokens the model's own template and tokenizer give for each, to the likeliest tokens by transformers running the model's own weights in float32, token for token wherever the reference's choice was not a near tie, and the log-probability it gives the reference's answer within 0.05 a token; the questions' tokens are held by TestPromptsReachEachModelAsItsOwnTokenizerGivesThem; internal/adaptiveparity TestMultimodalInputMatrix holds the first token generated for a picture question and for a clip question to the one transformers generates; past the one shape a reading asks in, TestChatModesReachAModelAsItsOwnTemplateGivesThem holds ten conversations to its own template, with the thinking switch on and off, a system turn, tools offered and a tool called and answered, and this test holds the 24 tokens it answers each with, the tool call it writes among them, to transformers"
+    },
+    {
+      "model": "gemma-4-E4B-it",
+      "task": "inference",
+      "package": "cmd/evaluate",
+      "test": "TestModelsAnswerAsTransformersDoes",
+      "holds": "the eight tokens the scored file generates greedily for 24 of its reading's questions, from the tokens the model's own template and tokenizer give for each, to the likeliest tokens by transformers running the model's own weights in float32, token for token wherever the reference's choice was not a near tie, and the log-probability it gives the reference's answer within 0.05 a token; the questions' tokens are held by TestPromptsReachEachModelAsItsOwnTokenizerGivesThem; past the one shape a reading asks in, TestChatModesReachAModelAsItsOwnTemplateGivesThem holds ten conversations to its own template, with the thinking switch on and off, a system turn, tools offered and a tool called and answered, and this test holds the 24 tokens it answers each with to the same reference; internal/server TestE4BHTTPModalities holds one served text request, from the request to the complete output over the three served protocols, to captures of transformers running the model"
+    },
+    {
+      "model": "gemma-4-12B-it-fp8",
+      "task": "inference",
+      "package": "cmd/evaluate",
+      "test": "TestModelsAnswerAsTransformersDoes",
+      "holds": "the eight tokens the scored file, the bf16 build, generates greedily for 24 of its reading's questions, from the tokens the model's own template and tokenizer give for each, to the likeliest tokens by transformers running the unquantized model with each of its 144 fp8 tensors put in place as fp8 value times its row's scale, a rule checked against the unquantized weights, token for token wherever the reference's choice was not a near tie, and the log-probability it gives the reference's answer within 0.05 a token; the questions' tokens are held by TestPromptsReachEachModelAsItsOwnTokenizerGivesThem; past the one shape a reading asks in, TestChatModesReachAModelAsItsOwnTemplateGivesThem holds ten conversations to its own template, with the thinking switch on and off, a system turn, tools offered and a tool called and answered, and this test holds the 24 tokens it answers each with to the same reference; the reference rounds weights and not activations, as this build does and as the checkpoint's declared quantization does not (finding 170f2bfa)"
+    },
+    {
+      "model": "gemma-4-12B-it-fp8-native",
+      "task": "inference",
+      "package": "cmd/evaluate",
+      "test": "TestModelsAnswerAsTransformersDoes",
+      "holds": "the eight tokens the scored file, the native fp8 build, generates greedily for 24 of its reading's questions, from the tokens the model's own template and tokenizer give for each, to the likeliest tokens by transformers running the unquantized model with each of its 144 fp8 tensors put in place as fp8 value times its row's scale, and the log-probability it gives the reference's answer, within a wider band than the other files': 0.3 a token and a margin of 2.5, where they are held to 0.05 and 0.25, because this build rounds activations to fp8 while it evaluates a prompt and the reference does not (finding 170f2bfa); measured, 23 of 24 answers are the reference's and the furthest stands 0.223 a token off; the questions' tokens are held by TestPromptsReachEachModelAsItsOwnTokenizerGivesThem; past the one shape a reading asks in, TestChatModesReachAModelAsItsOwnTemplateGivesThem holds ten conversations to its own template, with the thinking switch on and off, a system turn, tools offered and a tool called and answered, and this test holds the 24 tokens it answers each with to the same reference, within the common band; internal/adaptiveparity TestMultimodalInputMatrix holds the first token generated for a picture question to the one transformers generates"
     }
   ]
 }

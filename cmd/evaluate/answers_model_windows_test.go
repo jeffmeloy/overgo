@@ -84,6 +84,12 @@ type answerReference struct {
 // was not a near tie. A sequence is scored whole, and its log-probability
 // must be the reference's within the same tolerance a token.
 //
+// A fixture named for a model's conversations starts instead from the tokens
+// TestChatModesReachAModelAsItsOwnTemplateGivesThem holds: a request with the
+// thinking switch on and off, with tools offered, and with a tool called and
+// answered. Its answers are longer, long enough to show whether the model
+// opens a tool call and with which arguments.
+//
 // The models are those whose own weights are on this machine and small enough
 // for transformers to run on the host.
 func TestModelsAnswerAsTransformersDoes(t *testing.T) {

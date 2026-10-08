@@ -38,16 +38,17 @@ type SuiteDescriptor struct {
 // it asks the same cases; this name is what says the two are one measure. The
 // source alone would not: one builder gives one source to the sets it builds at
 // different sizes and lengths, which ask different cases and are different
-// measures. A plan the store cannot read, or a profile without a source or with
-// a case that has no name, reports false.
-func EvaluatedMeasure(ctx context.Context, reader artifact.Reader, plan artifact.ID) (string, bool) {
+// measures. With the name comes how many cases the set holds. A plan the store
+// cannot read, or a profile without a source or with a case that has no name,
+// reports false.
+func EvaluatedMeasure(ctx context.Context, reader artifact.Reader, plan artifact.ID) (measure string, cases uint64, ok bool) {
 	stored, err := loadEvidencePlan(ctx, reader, plan)
 	if err != nil {
-		return "", false
+		return "", 0, false
 	}
 	profile, found, err := artifact.ReadContent(ctx, reader, stored.body.CaseProfile)
 	if err != nil || !found {
-		return "", false
+		return "", 0, false
 	}
 	var named struct {
 		Source string `json:"source"`
@@ -56,17 +57,17 @@ func EvaluatedMeasure(ctx context.Context, reader artifact.Reader, plan artifact
 		} `json:"cases"`
 	}
 	if json.Unmarshal(profile.Data, &named) != nil || strings.TrimSpace(named.Source) == "" || len(named.Cases) == 0 {
-		return "", false
+		return "", 0, false
 	}
 	asked := sha256.New()
 	for _, testCase := range named.Cases {
 		if testCase.Name == "" {
-			return "", false
+			return "", 0, false
 		}
 		asked.Write([]byte(testCase.Name))
 		asked.Write([]byte{'\n'})
 	}
-	return named.Source + " " + hex.EncodeToString(asked.Sum(nil)), true
+	return named.Source + " " + hex.EncodeToString(asked.Sum(nil)), uint64(len(named.Cases)), true
 }
 
 type suiteResult struct {

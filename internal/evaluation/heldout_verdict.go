@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 
 	"overgo/internal/artifact"
@@ -392,8 +393,9 @@ func VisitHeldoutVerdicts(ctx context.Context, store *overgodb.Store, visit func
 		Contracts: []artifact.DocumentContract{heldoutVerdictCodec.Contract}, Order: overgodb.DocumentNewestFirst,
 	}, heldoutVerdictCodec.Parse, func(_ overgodb.DocumentView, verdict heldoutVerdict) error {
 		objective, err := trainingprogram.LoadObjective(ctx, store, verdict.Objective)
+		var reports []HeldoutReport
 		if err == nil {
-			_, err = reconstructHeldoutVerdict(ctx, store, verdict, objective)
+			reports, err = reconstructHeldoutVerdict(ctx, store, verdict, objective)
 		}
 		if err != nil {
 			// A cancelled read is no unreadable verdict: it stops the visit.
@@ -414,16 +416,36 @@ func VisitHeldoutVerdicts(ctx context.Context, store *overgodb.Store, visit func
 			return err
 		}
 		metric := string(verdict.Metric)
-		summary := func(value float64) EvalSummary {
+		// Each model's value is the mean of its report's record scores, so the
+		// records are its cases and their spread its noise.
+		summary := func(value float64, report HeldoutReport) EvalSummary {
 			return EvalSummary{
 				Suite: verdict.View.String(), Prompting: verdict.Plan.String(), Record: verdict.ID,
-				Comparison: comparison,
-				Metrics:    map[string]float64{metric: value}, Directions: map[string]runrecord.Direction{metric: verdict.Direction},
+				Comparison: comparison, Cases: uint64(len(report.records)), Noise: meanError(report.records),
+				Metrics: map[string]float64{metric: value}, Directions: map[string]runrecord.Direction{metric: verdict.Direction},
 			}
 		}
-		return visit(verdict.Observation, summary(verdict.BaselineValue), summary(verdict.CandidateValue))
+		return visit(verdict.Observation, summary(verdict.BaselineValue, reports[0]), summary(verdict.CandidateValue, reports[1]))
 	})
 	return err
+}
+
+// meanError is the standard error of the mean of record scores: their sample
+// deviation over the root of their count. Fewer than two records have none.
+func meanError(records []RecordScore) float64 {
+	count := float64(len(records))
+	if len(records) <= 1 {
+		return 0
+	}
+	var mean, squares float64
+	for _, record := range records {
+		mean += record.Value
+	}
+	mean /= count
+	for _, record := range records {
+		squares += (record.Value - mean) * (record.Value - mean)
+	}
+	return math.Sqrt(squares / (count - 1) / count)
 }
 
 // HeldoutVerdictFacts is what one committed held-out verdict binds and

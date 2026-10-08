@@ -9,6 +9,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -58,16 +59,46 @@ type Cell struct {
 	// median (their range over it): the cell's own repeat noise, which a comparison allows beside the
 	// column's. Zero where one attempt measured it.
 	Spread float64 `json:"spread,omitzero"`
+	// Cases is how many cases a held-out quality rests on: a suite's cases, a
+	// held-out verdict's records, a transcription report's utterances. Zero
+	// where no record counts them.
+	Cases uint64 `json:"cases,omitzero"`
+	// Noise is a held-out quality's standard error where it follows soundly
+	// from what the record keeps: of a share of cases answered right, that of
+	// the share; of a held-out verdict's value, that of the mean of its records'
+	// scores. Zero where it does not, as for an error rate over pooled words. It
+	// is stated beside the reading and does not yet judge a move.
+	Noise float64 `json:"noise,omitzero"`
 }
 
 // QualityText renders a held-out quality as a user reads it: its value, its
-// base model's beside it when a verdict judged it against one, and what it
+// base model's beside it when a verdict judged it against one, the noise of
+// the value and the cases it rests on where a record gives them, and what it
 // measures.
 func (c Cell) QualityText() string {
-	if c.Base != nil {
-		return fmt.Sprintf("%.4g vs base %.4g (%s)", c.Value, *c.Base, c.Label)
+	text := fmt.Sprintf("%.4g", c.Value)
+	if c.Noise > 0 {
+		text += fmt.Sprintf(" ±%.2g", c.Noise)
 	}
-	return fmt.Sprintf("%.4g (%s)", c.Value, c.Label)
+	if c.Base != nil {
+		text += fmt.Sprintf(" vs base %.4g", *c.Base)
+	}
+	if c.Cases > 0 {
+		text += fmt.Sprintf(" on %d cases", c.Cases)
+	}
+	return text + " (" + c.Label + ")"
+}
+
+// shareMetric is the metric a suite reports as the share of its cases a model
+// answered right, whose standard error follows from the share and the cases.
+const shareMetric = "accuracy"
+
+// shareError is the standard error of a share of cases answered right.
+func shareError(share float64, cases uint64) float64 {
+	if cases == 0 || share < 0 || share > 1 {
+		return 0
+	}
+	return math.Sqrt(share * (1 - share) / float64(cases))
 }
 
 // Contract is what a measured value is, so two cells compare only when both
@@ -577,10 +608,10 @@ func throughputCell(task recipe.Task, benchmark evaluation.BenchmarkSummary, ben
 // another task, such as E4B projection's image, video and audio caption
 // matching, is read like a derived suite; a gate's or smoke run's wall time
 // has no such evidence. It adds to descriptors, under the set's identity, the
-// name of the measure the set's plan was run for, where the store holds a
-// case profile that gives one: a set's identity is that of its cases, so only
-// that name tells a measure built again from another measure. The set's cases
-// stay uncounted, as they were.
+// name of the measure the set's plan was run for and the cases it holds, where
+// the store holds a case profile that gives them: a set's identity is that of
+// its cases, so only that name tells a measure built again from another
+// measure. Such a descriptor has no kind, which only a compiled suite has.
 func nameEvaluatedSets(ctx context.Context, store *overgodb.Store, suites map[artifact.ID]string, descriptors map[string]evaluation.SuiteDescriptor) error {
 	_, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{
@@ -594,8 +625,8 @@ func nameEvaluatedSets(ctx context.Context, store *overgodb.Store, suites map[ar
 		}
 		name := evidence.Dataset.String()
 		suites[evidence.Dataset] = name
-		if measure, ok := evaluation.EvaluatedMeasure(ctx, store, evidence.Plan); ok && descriptors != nil {
-			descriptors[name] = evaluation.SuiteDescriptor{Source: measure}
+		if measure, cases, ok := evaluation.EvaluatedMeasure(ctx, store, evidence.Plan); ok && descriptors != nil {
+			descriptors[name] = evaluation.SuiteDescriptor{Source: measure, Cases: cases}
 		}
 		return nil
 	})
@@ -788,9 +819,21 @@ func qualityCell(task recipe.Task, summaries []evaluation.EvalSummary, descripto
 				// the carrying run only replayed a sample of.
 				label, commit = label+", carried", summary.ScoredCommit
 			}
-			measured = append(measured, heldout{cases: descriptors[summary.Suite].Cases, first: first[measure(summary.Suite)], built: built[summary.Suite], cell: Cell{
+			// A reading rests on the cases its record's reader counted, else on
+			// its set's. Only a suite the derived catalog compiled, which has a
+			// kind, is ranked by them: an evaluated set's cases are frames at one
+			// size or clips at another, and say nothing of which measure says more.
+			descriptor := descriptors[summary.Suite]
+			cases, noise, ranked := cmp.Or(summary.Cases, descriptor.Cases), summary.Noise, descriptor.Cases
+			if name == shareMetric {
+				noise = shareError(value, cases)
+			}
+			if descriptor.Kind == "" {
+				ranked = 0
+			}
+			measured = append(measured, heldout{cases: ranked, first: first[measure(summary.Suite)], built: built[summary.Suite], cell: Cell{
 				Value: value, Label: label, Source: summary.Record, Direction: summary.Directions[name],
-				CodeCommit: commit, Environment: summary.Environment,
+				CodeCommit: commit, Environment: summary.Environment, Cases: cases, Noise: noise,
 				Contract: Contract{Metric: name, Origin: originEvaluation, Suite: summary.Suite, Protocol: summary.Prompting, Comparison: summary.Comparison},
 			}})
 		}

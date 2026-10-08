@@ -10,10 +10,10 @@ import (
 // TestEvaluatedMeasureNamesAMeasureBuiltAgain evaluates one measure twice,
 // its cases asking about other clips the second time, as they do when a model
 // draws the clips a judge is asked about again. The two sets have two
-// identities, and the stored plans name them as one measure. A set the same
-// builder made over other cases, as it does at another size or length, is
-// another measure under the same source. A plan the store does not hold names
-// nothing.
+// identities, and the stored plans name them as one measure and count each
+// set's cases. A set the same builder made over other cases, as it does at
+// another size or length, is another measure under the same source. A plan the
+// store does not hold names nothing.
 func TestEvaluatedMeasureNamesAMeasureBuiltAgain(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
@@ -52,9 +52,9 @@ func TestEvaluatedMeasureNamesAMeasureBuiltAgain(t *testing.T) {
 		if _, err := evaluateGeneratedAnswer(t.Context(), store, exactGenerator{pieces: []string{"a"}}, compiled, plan); err != nil {
 			t.Fatal(err)
 		}
-		measure, ok := EvaluatedMeasure(t.Context(), store, plan.Identity())
-		if !ok {
-			t.Fatalf("the plan over %v names no measure", clips)
+		measure, cases, ok := EvaluatedMeasure(t.Context(), store, plan.Identity())
+		if !ok || cases != uint64(len(clips)) {
+			t.Fatalf("the plan over %v names measure %q of %d cases (%t), want its %d cases counted", clips, measure, cases, ok, len(clips))
 		}
 		return compiled.dataset, measure
 	}
@@ -64,7 +64,7 @@ func TestEvaluatedMeasureNamesAMeasureBuiltAgain(t *testing.T) {
 	if first == again || first == other || measure != rebuilt || measure == variant {
 		t.Fatalf("sets %s, %s and %s name measures %q, %q and %q: want three sets, the first two one measure and the third another", first, again, other, measure, rebuilt, variant)
 	}
-	if measure, ok := EvaluatedMeasure(t.Context(), store, planID(t, artifact.KindProfile, "no such plan")); ok {
+	if measure, _, ok := EvaluatedMeasure(t.Context(), store, planID(t, artifact.KindProfile, "no such plan")); ok {
 		t.Fatalf("a plan the store does not hold names measure %q", measure)
 	}
 }

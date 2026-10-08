@@ -14,6 +14,13 @@
       },
       "steps": [
         {
+          "id": "baseline",
+          "title": "Say beside a held-out reading what a constant answer would score, where the measure has one",
+          "status": "open",
+          "verify": "go test ./internal/scorecard ./internal/evaluation -count=1 -run '^TestHeldoutReadingStatesWhatAConstantAnswerScores$'",
+          "rationale": "The second third of the step after this one. Where a measure has an answer that needs no model, the scorecard states what it scores beside the reading: the majority class for table accuracy, from the held-out cases' own labels, and chance for a choice among the options a case offers. The tabular model is why: its 0.6611 is the base model's reading and its trained model reads 0.6889, both under the 0.70 that always answering the majority class scores on those rows, and nothing on the scorecard says so. A reading under its constant answer is said to be so in words. A judged generation, where another model answers about what this one drew, has no constant answer of its own and states none.\n\nServes: measure and find the gap. Disappears: readings no better than no model that do not say so. Evidence: the test, and the scorecard itself. Batch: host."
+        },
+        {
           "id": "standing",
           "title": "Say beside each held-out reading how many cases it rests on, what a constant answer would score, and whether a reference comparison stands behind it",
           "status": "open",

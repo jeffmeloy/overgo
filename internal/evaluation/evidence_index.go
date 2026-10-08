@@ -66,13 +66,21 @@ func HeadlineMetric(metrics map[string]float64) (name string, value float64, ok 
 // reconstructed target reports bind exact targets/inputs without asserting
 // known execution. Neither identity certifies current source.
 type EvalSummary struct {
-	Suite       string             `json:"suite"`
-	Prompting   string             `json:"prompting"`
-	Record      artifact.ID        `json:"record,omitzero"`
-	Metrics     map[string]float64 `json:"metrics"`
-	Comparison  artifact.ID        `json:"comparison,omitzero"`
-	Environment artifact.ID        `json:"environment,omitzero"`
-	CodeCommit  string             `json:"code_commit,omitzero"`
+	Suite     string             `json:"suite"`
+	Prompting string             `json:"prompting"`
+	Record    artifact.ID        `json:"record,omitzero"`
+	Metrics   map[string]float64 `json:"metrics"`
+	// Cases is how many cases the metrics rest on, where the record's reader
+	// counts them: a held-out verdict's records, a transcription report's
+	// utterances. Zero where a suite's descriptor is what counts them.
+	Cases uint64 `json:"cases,omitzero"`
+	// Noise is the standard error of the headline metric where the record
+	// keeps what it follows from: for a held-out verdict, that of the mean
+	// of its records' scores. Zero where it does not.
+	Noise       float64     `json:"noise,omitzero"`
+	Comparison  artifact.ID `json:"comparison,omitzero"`
+	Environment artifact.ID `json:"environment,omitzero"`
+	CodeCommit  string      `json:"code_commit,omitzero"`
 	// Directions says which way each metric improves: the scorecard judges
 	// a held-out regression by it.
 	Directions map[string]runrecord.Direction `json:"-"`

@@ -120,6 +120,9 @@ func TranscriptionQualities(ctx context.Context, store *overgodb.Store, unreadab
 		}
 		summary := EvalSummary{
 			Suite: report.Dataset.String() + "/" + largest.Name, Prompting: strings.Join(protocol, ", "), Record: report.ID,
+			// The rate pools the group's words, so its utterances are its cases
+			// and no noise follows from the rate alone.
+			Cases:      largest.Utterances,
 			Metrics:    map[string]float64{wordErrorRateMetric: largest.WordErrorRate},
 			Directions: map[string]runrecord.Direction{wordErrorRateMetric: runrecord.DirectionMinimize},
 		}

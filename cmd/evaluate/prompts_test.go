@@ -18,9 +18,10 @@ import (
 // after it. Under the chat-template protocol the question goes into the
 // user's turn with the evaluation's instruction, which this file's four
 // letters cannot write: the refusal names the case, and the protocol itself
-// is held on the scored models by the test of their own tokens. A file of no
-// cases, a file that is not JSON, a file that is not there and a model file
-// that is not one are refused.
+// is held on the scored models by the test of their own tokens. A bare
+// sequence is scored whole under either protocol. A file of no cases, a file
+// that is not JSON, a file that is not there and a model file that is not one
+// are refused.
 func TestReadPromptsGivesEachCaseAsTheModelIsGivenIt(t *testing.T) {
 	t.Parallel()
 	const template = "{% for message in messages %}a{{ message['content'] }}{% endfor %}{% if add_generation_prompt %}b{% endif %}"
@@ -54,6 +55,16 @@ func TestReadPromptsGivesEachCaseAsTheModelIsGivenIt(t *testing.T) {
 	if _, err := readPrompts(model, cases, true); err == nil || !strings.Contains(err.Error(), "case one") {
 		// The instruction the evaluation adds is in words the four-letter vocabulary cannot write.
 		t.Fatalf("a question the file's vocabulary cannot write was read: %v", err)
+	}
+
+	// A bare sequence is scored whole after the prefix the vocabulary declares, here none, under either protocol.
+	sequences := write("sequences.json", `{"cases":[{"name":"sequence","text":"abcd"}]}`)
+	for _, chat := range []bool{false, true} {
+		scored, err := readPrompts(model, sequences, chat)
+		if err != nil || len(scored) != 1 || scored[0].Prompt != "" || !slices.Equal(scored[0].Candidates, []string{"abcd"}) ||
+			scored[0].Text != "" || len(scored[0].IDs) == 0 || len(scored[0].Continuations) != 1 || len(scored[0].Continuations[0]) == 0 {
+			t.Fatalf("a sequence is read as %+v: %v", scored, err)
+		}
 	}
 
 	for name, refused := range map[string][2]string{

@@ -54,15 +54,22 @@ func (s templateShaper) ShapeChatPrompt(prompt string) (string, error) {
 // question shaped as one user turn with the model's turn opened for its
 // answer, tokenized as a generation tokenizes it. Under raw completion it is
 // the prompt and each candidate's continuation of it, tokenized as a scoring
-// tokenizes them. The texts and tokens come from the evaluation's own code,
-// so they can be set beside what the model's own tokenizer gives.
+// tokenizes them. A case of a sequence-scoring suite, a bare text, is read as
+// that suite scores it: whole, after the prefix the model's vocabulary
+// declares. The texts and tokens come from the evaluation's own code, so they
+// can be set beside what the model's own tokenizer gives.
 func readPrompts(path, casesPath string, chat bool) ([]readPrompt, error) {
 	data, err := os.ReadFile(casesPath)
 	if err != nil {
 		return nil, err
 	}
 	var suite struct {
-		Cases []evaluation.MultipleChoiceCase `json:"cases"`
+		Cases []struct {
+			evaluation.MultipleChoiceCase
+			// Text is a case of a sequence-scoring suite: a bare sequence, scored
+			// whole after the prefix the model's vocabulary declares.
+			Text string `json:"text"`
+		} `json:"cases"`
 	}
 	if err := json.Unmarshal(data, &suite); err != nil {
 		return nil, fmt.Errorf("evaluate: %s: %w", casesPath, err)
@@ -75,9 +82,14 @@ func readPrompts(path, casesPath string, chat bool) ([]readPrompt, error) {
 		return nil, err
 	}
 	read := make([]readPrompt, 0, len(suite.Cases))
-	for _, testCase := range suite.Cases {
+	for _, listed := range suite.Cases {
+		testCase, generated := listed.MultipleChoiceCase, chat
+		if listed.Text != "" {
+			// A sequence is scored and never asked, whatever the protocol.
+			testCase.Prompt, testCase.Candidates, generated = reader.ScoringPrefix(), []string{listed.Text}, false
+		}
 		prompt := readPrompt{Name: testCase.Name, Prompt: testCase.Prompt, Candidates: testCase.Candidates}
-		if chat {
+		if generated {
 			if prompt.Text, err = evaluation.ChatChoicePrompt(templateShaper{reader, &prompt.User}, testCase); err == nil {
 				prompt.IDs, err = reader.GenerationTokens(prompt.Text, true)
 			}

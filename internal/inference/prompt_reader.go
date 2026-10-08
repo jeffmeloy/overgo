@@ -50,5 +50,10 @@ func (p *PromptReader) ContinuationTokens(prompt string, candidates []string, pa
 	return p.runner.continuationTokens(prompt, candidates, parseSpecial)
 }
 
+// ScoringPrefix is what the file's vocabulary declares a bare sequence is
+// scored after, as a DNA model's opening tag is; empty where it declares
+// none.
+func (p *PromptReader) ScoringPrefix() string { return p.runner.ScoringPrefix() }
+
 // Close releases the model file.
 func (p *PromptReader) Close() error { return p.runner.file.Close() }

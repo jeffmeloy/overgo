@@ -102,6 +102,27 @@
       "task": "reconstruction",
       "deferred": "no test runs the bridged pair against a reference: its bridge is an affine map overgo fitted from one encoder's tokens to another's, which no code but overgo's computes, so the reading is of that fitted map as served and has no original to stand against; its two frozen halves are held to their own code, the source encoder by internal/vitencoder TestDinov2MatchesReference and the decoder by internal/rae TestRAEDecoderMatchesReference, and that decoder joined to an encoder by internal/mediacapability TestRepresentationRoundTripMatchesReference",
       "reopens": "a run in torch of the three parts on a frame of the evaluation, the source encoder's own code, the stored map and the reference decoder, all of which are on this machine: it would hold the join of the parts, which nothing now does"
+    },
+    {
+      "model": "gemma-4-E4B-it",
+      "task": "inference",
+      "package": "cmd/evaluate",
+      "test": "TestPromptsReachEachModelAsItsOwnTokenizerGivesThem",
+      "holds": "the tokens the model is given for 24 of its reading's questions, each in the user's turn of the model's own chat template with the model's turn opened, to what its own tokenizer file and template give for the same words; past the tokens, internal/server TestE4BHTTPModalities holds one served text request, from the request to the complete output over the three served protocols, to captures of transformers running the model; no test holds an answer to one of the evaluation's own questions"
+    },
+    {
+      "model": "Qwen3.5-4B",
+      "task": "inference",
+      "package": "cmd/evaluate",
+      "test": "TestPromptsReachEachModelAsItsOwnTokenizerGivesThem",
+      "holds": "the tokens the model is given for 24 of its reading's questions, each in the user's turn of the model's own chat template with the model's turn opened, to what its own tokenizer file and template give for the same words; past the tokens, internal/adaptiveparity TestMultimodalInputMatrix holds the first token the model generates for a picture question and for a clip question to the one transformers generates; no test holds an answer to a question of text alone"
+    },
+    {
+      "model": "gemma-4-12B-it-fp8-native",
+      "task": "inference",
+      "package": "cmd/evaluate",
+      "test": "TestPromptsReachEachModelAsItsOwnTokenizerGivesThem",
+      "holds": "the tokens the model is given for 24 of its reading's questions, each in the user's turn of the model's own chat template with the model's turn opened, to what its own tokenizer file and template give for the same words; past the tokens, internal/adaptiveparity TestMultimodalInputMatrix holds the first token the model generates for a picture question to the one transformers generates; no test holds an answer to a question of text alone"
     }
   ]
 }

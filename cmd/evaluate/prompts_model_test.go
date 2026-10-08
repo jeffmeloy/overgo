@@ -31,6 +31,11 @@ var knownPromptFaults = map[string]string{
 		"two tokens where the model's own tokenizer joins them (finding 34979bff)",
 }
 
+// promptChat and promptSequence are the protocols a fixture names beside raw
+// completion: questions asked through the chat template, and the bare
+// sequences of a sequence-scoring suite.
+const promptChat, promptSequence = "chat", "sequence"
+
 // promptReference is one model's fixture: the scored file, the protocol its
 // reading was asked under, and each case with the tokens the model's own
 // tokenizer and template give for it.
@@ -90,11 +95,21 @@ func TestPromptsReachEachModelAsItsOwnTokenizerGivesThem(t *testing.T) {
 			t.Logf("%s: the scored file %s is not on this machine; its questions are not read", reference.Model, reference.File)
 			continue
 		}
+		// The cases as their suite holds them: a question with its candidates,
+		// or the bare sequence of a sequence-scoring suite.
+		type listed struct {
+			evaluation.MultipleChoiceCase
+			Text string `json:"text,omitempty"`
+		}
 		cases := struct {
-			Cases []evaluation.MultipleChoiceCase `json:"cases"`
+			Cases []listed `json:"cases"`
 		}{}
-		for _, reference := range reference.Cases {
-			cases.Cases = append(cases.Cases, reference.MultipleChoiceCase)
+		for _, own := range reference.Cases {
+			held := listed{MultipleChoiceCase: own.MultipleChoiceCase}
+			if reference.Protocol == promptSequence {
+				held.Text = own.Text
+			}
+			cases.Cases = append(cases.Cases, held)
 		}
 		encoded, err := json.Marshal(cases)
 		if err != nil {
@@ -104,7 +119,7 @@ func TestPromptsReachEachModelAsItsOwnTokenizerGivesThem(t *testing.T) {
 		if err := os.WriteFile(path, encoded, 0o600); err != nil {
 			t.Fatal(err)
 		}
-		chat := reference.Protocol == "chat"
+		chat := reference.Protocol == promptChat
 		read, err := readPrompts(model, path, chat)
 		if err != nil || len(read) != len(reference.Cases) {
 			t.Fatalf("%s: %d of %d cases were read: %v", reference.Model, len(read), len(reference.Cases), err)

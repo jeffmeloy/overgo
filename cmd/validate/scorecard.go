@@ -318,8 +318,10 @@ func pathStanding(rows []scorecard.Row) (string, error) {
 // held-out quality does not measure, what the model is for and where its
 // documentation says so, what is measured in its place, and what a measure of
 // its use needs. A model with a reading is listed apart from one with none,
-// whose use is recorded because nothing states it. A use recorded for a model
-// the scorecard does not hold is not shown.
+// whose use is recorded because nothing states it. A model whose reading is
+// on another measure than the one its recorded use speaks of is read on its
+// use and is not listed, and a use recorded for a model the scorecard does
+// not hold is not shown.
 func useStanding(rows []scorecard.Row, uses []scorecard.ModelUse) string {
 	var beside, unread []string
 	for _, row := range rows {
@@ -328,10 +330,11 @@ func useStanding(rows []scorecard.Row, uses []scorecard.ModelUse) string {
 			continue
 		}
 		line := fmt.Sprintf("- %s %s: it is for: %s (%s). Measured: %s. A measure of its use needs: %s.", row.Name, row.Task, uses[at].Use, uses[at].Source, uses[at].Measured, uses[at].Needs)
-		if row.Cells[metric.Quality].Measured() {
-			beside = append(beside, line)
-		} else {
+		switch cell := row.Cells[metric.Quality]; {
+		case !cell.Measured():
 			unread = append(unread, line)
+		case cell.OutsideUse != "":
+			beside = append(beside, line)
 		}
 	}
 	var text strings.Builder

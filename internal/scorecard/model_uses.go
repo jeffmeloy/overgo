@@ -3,6 +3,7 @@ package scorecard
 import (
 	_ "embed"
 	"fmt"
+	"slices"
 	"strings"
 
 	"overgo/internal/recipe"
@@ -22,17 +23,28 @@ import (
 var modelUsesJSON []byte
 
 // ModelUse is one model and task's use, as its documentation states it, set
-// against what its held-out reading measures. Source says where the
+// against what its held-out reading measures. Measure names the measure that
+// reading was scored on, a suite by its name or an evaluated set by the
+// source its builder gave it, and is empty where the model has no reading: a
+// reading on any other measure is not spoken of. Source says where the
 // documentation states the use, or that none ships with the model. Needs says
 // what a measure of the use would take: data that is the owner's to approve,
 // a path that is not served, or work that is planned.
 type ModelUse struct {
 	Model    string      `json:"model"`
 	Task     recipe.Task `json:"task"`
+	Measure  string      `json:"measure,omitzero"`
 	Use      string      `json:"use"`
 	Source   string      `json:"source"`
 	Measured string      `json:"measured"`
 	Needs    string      `json:"needs"`
+}
+
+// speaksOf reports whether the use speaks of a reading on measure: the
+// measure it names, or a set built for it, whose name carries its cases after
+// the source.
+func (use ModelUse) speaksOf(measure string) bool {
+	return use.Measure != "" && (measure == use.Measure || strings.HasPrefix(measure, use.Measure+" "))
 }
 
 // ModelUses reads the embedded uses. Each names a model and a task once and
@@ -56,20 +68,33 @@ func ModelUses() ([]ModelUse, error) {
 	return document.Uses, nil
 }
 
-// markUses states, on each measured held-out quality whose model and task a
-// use is recorded for, what the reading measures in place of that use. A cell
-// that reads nothing is left as it is: its own reason says why.
+// markUses states, on each measured held-out quality of a model and task a
+// use is recorded for, what the reading measures in place of that use, where
+// it was scored on the measure the use names. A row's reading on another
+// measure is left unmarked, and is the one a user reads first: where the
+// headline is marked and another of the row's readings is not, the two change
+// places. A cell that reads nothing is left as it is: its own reason says why.
 func markUses(rows []Row, uses []ModelUse) {
-	for index, row := range rows {
-		cell := row.Cells[metric.Quality]
-		if !cell.Measured() {
+	for index := range rows {
+		row := &rows[index]
+		at := slices.IndexFunc(uses, func(entry ModelUse) bool { return entry.Model == row.Name && entry.Task == row.Task })
+		if at < 0 {
 			continue
 		}
-		for _, entry := range uses {
-			if entry.Model == row.Name && entry.Task == row.Task {
-				cell.OutsideUse = entry.Measured
+		mark := func(cell Cell) Cell {
+			if cell.Measured() && uses[at].speaksOf(cell.Measure) {
+				cell.OutsideUse = uses[at].Measured
 			}
+			return cell
 		}
-		rows[index].Cells[metric.Quality] = cell
+		headline := mark(row.Cells[metric.Quality])
+		for other := range row.Heldout {
+			row.Heldout[other] = mark(row.Heldout[other])
+		}
+		ofUse := slices.IndexFunc(row.Heldout, func(cell Cell) bool { return cell.Measured() && cell.OutsideUse == "" })
+		if headline.OutsideUse != "" && ofUse >= 0 {
+			headline, row.Heldout[ofUse] = row.Heldout[ofUse], headline
+		}
+		row.Cells[metric.Quality] = headline
 	}
 }

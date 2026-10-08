@@ -86,6 +86,10 @@ type Cell struct {
 	// its model is for by the model's own documentation. Empty where the
 	// reading is of the model's use, or no use is recorded for it.
 	OutsideUse string `json:"outside_use,omitzero"`
+	// Measure names what a held-out quality from an evaluation was scored on: a
+	// catalogued suite by its name, a set the evaluation circuit scored by the
+	// source its builder gave it and its cases, which a set built again shares.
+	Measure string `json:"measure,omitzero"`
 }
 
 // QualityText renders a held-out quality as a user reads it: its value, its
@@ -270,15 +274,14 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 	slices.SortFunc(rows, func(left, right Row) int {
 		return cmp.Or(strings.Compare(left.Name, right.Name), strings.Compare(string(left.Task), string(right.Task)))
 	})
-	if err := comparePaths(rows); err != nil {
-		return nil, err
-	}
+	// The uses choose which of a row's readings is read first, and the path
+	// comparison is stated on that one.
 	uses, err := ModelUses()
 	if err != nil {
 		return nil, err
 	}
 	markUses(rows, uses)
-	return rows, nil
+	return rows, comparePaths(rows)
 }
 
 // uncaptionedGeneration is why an image or video model that takes no words has no held-out
@@ -874,7 +877,7 @@ func qualityCell(task recipe.Task, summaries []evaluation.EvalSummary, descripto
 			}
 			measured = append(measured, heldout{cases: ranked, first: first[measure(summary.Suite)], built: built[summary.Suite], cell: Cell{
 				Value: value, Label: label, Source: summary.Record, Direction: summary.Directions[name],
-				CodeCommit: commit, Environment: summary.Environment, Cases: cases, Noise: noise, Constant: constant,
+				CodeCommit: commit, Environment: summary.Environment, Cases: cases, Noise: noise, Constant: constant, Measure: measure(summary.Suite),
 				Contract: Contract{Metric: name, Origin: originEvaluation, Suite: summary.Suite, Protocol: summary.Prompting, Comparison: summary.Comparison},
 			}})
 		}

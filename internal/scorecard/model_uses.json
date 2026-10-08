@@ -3,6 +3,7 @@
     {
       "model": "Carbon-500M-f16-ropefix",
       "task": "inference",
+      "measure": "store/dna",
       "use": "to draft tokens for a larger Carbon model that checks them, so the pair generates DNA faster with the larger model's output unchanged",
       "source": "its model card: \"intended primarily as a draft model for speculative decoding\", paired with Carbon-3B or Carbon-8B, and \"not designed to be competitive with the 3B/8B Carbon models on downstream benchmarks\"",
       "measured": "how well it predicts DNA text read alone, a perplexity; a drafter is judged by how many of its tokens the larger model accepts and the time that saves",
@@ -11,6 +12,7 @@
     {
       "model": "Unlimited-OCR-bf16",
       "task": "inference",
+      "measure": "store/mmlu-pro",
       "use": "to read a picture of a document, one page or many, and write out its text and layout",
       "source": "its model card: an image-text-to-text model for \"one-shot long-horizon parsing\", whose every example hands it a picture with the prompt \"document parsing.\"",
       "measured": "general-knowledge multiple choice asked of its text decoder alone, with no picture; the reading stands beside what a constant answer scores, and says whether the decoder is a general assistant and nothing about how it reads a page",
@@ -19,6 +21,7 @@
     {
       "model": "SenseNova-U1-8B-MoT-Infographic-V3",
       "task": "image-gen",
+      "measure": "tifa-v1.0/image-questions",
       "use": "to draw and edit infographics: large pictures dense with small text, laid out as a page",
       "source": "its model card: \"designed for integrated infographic generation and editing\", recommended at 50 steps with a guidance scale of 4, at 2048 by 2048 by default and 2720 by 1536 in its example",
       "measured": "whether a judge finds in the picture what the caption of a photograph named, with each picture drawn at 512 by 512 in four steps: a sixteenth of the pixels and about a twelfth of the steps its maker recommends, and no question asks whether text in the picture can be read",
@@ -27,6 +30,7 @@
     {
       "model": "Fractale-350M-base",
       "task": "generation",
+      "measure": "wikitext-2-raw-v1/test",
       "use": "to carry what it read across separate passes in eight notes it writes to itself, its only memory of anything before the 512 tokens in front of it; a research model built to test that, and by its card \"not an assistant\"",
       "source": "its model card, whose headline measure is how much the carried notes help it predict the opening of a chunk it has not seen, against the same model with the notes reset: 9.42 nats on code and 7.27 on web text",
       "measured": "the perplexity of encyclopedia passages read 512 tokens at a time, each window from empty notes, so the memory the model exists for is never written or read. The card gives one figure of this kind, a perplexity of 94 on web text, which is the nearest thing the reading can be set beside, on another corpus",
@@ -35,6 +39,7 @@
     {
       "model": "Hy-Embodied-RxBrain-1.0",
       "task": "vqa",
+      "measure": "vidgen-1m/frame-description-matching",
       "use": "to reason about a physical scene for a robot: answer questions over pictures and video, predict the frames an action leads to, and plan a task as steps with a picture of each goal",
       "source": "its model card: \"a unified multimodal foundation model for embodied cognition\"; its own benchmark, RxBrain-Bench, is listed there as not yet released",
       "measured": "whether its description of a video frame shares more words with the frame's own caption than with three others; it answers no lettered question, so nothing is asked of its reasoning, and neither its predicted frames nor its plans are looked at",
@@ -43,6 +48,7 @@
     {
       "model": "LiveEdit",
       "task": "video-gen",
+      "measure": "vidgen-1m/generated-video-edit",
       "use": "to change what an instruction names in a video and leave the rest of it as it was",
       "source": "its model card: it edits \"while preserving backgrounds and non-edited regions\", and its own test case changes one fruit in a bowl into another",
       "measured": "changes to the whole clip, a pencil sketch, a cartoon, night, rain, snow, fog, which leave no region unedited to preserve; the judge is asked one question of each clip, whether it shows what it showed with the change made",

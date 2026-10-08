@@ -268,6 +268,36 @@ func writeTIFAImages(ctx context.Context, questions, model, repository, judge, d
 	return writeSuite(out, suite, len(suite.Cases), "TIFA image-question")
 }
 
+// writeDrawnText draws an infographic from each of -cases briefs and writes the suite
+// that asks the judge which text each picture holds.
+func writeDrawnText(ctx context.Context, model, repository, judge, directory, out, settings string, cases int, seed uint64) error {
+	commit, err := runrecord.ExecutableCodeCommit(".")
+	if err != nil {
+		return err
+	}
+	changes, err := parseSettings(settings)
+	if err != nil {
+		return err
+	}
+	items, err := evaluation.PickDrawnText(cases, seed)
+	if err != nil {
+		return err
+	}
+	prompts := make([]renderPrompt, len(items))
+	for index, item := range items {
+		prompts[index] = renderPrompt{ID: item.ID, Prompt: item.Caption}
+	}
+	images, err := renderMedia(ctx, repository, model, recipe.TaskImageGen, directory, prompts, changes, commit)
+	if err != nil {
+		return err
+	}
+	suite, err := evaluation.BuildDrawnText(items, images, filepath.Base(judge))
+	if err != nil {
+		return err
+	}
+	return writeSuite(out, suite, len(suite.Cases), "drawn-text")
+}
+
 // writeVidGenClips draws the clips of -cases VidGen captions and writes the suite that
 // asks the judge which of four captions each shows.
 func writeVidGenClips(ctx context.Context, captions, model, repository, judge, directory, out, settings string, cases int, seed uint64) error {

@@ -89,11 +89,19 @@ func PickTIFA(path string, count int, seed uint64) ([]TIFAItem, error) {
 // asking which choice, lettered in the file's order, the picture shows. The
 // judge is named in the suite, since the score depends on it.
 func BuildTIFAQuestions(items []TIFAItem, images map[string]string, judge string) (GeneratedAnswerSuite, error) {
+	return buildPictureQuestions(tifaSource, tifaSchema, items, images, judge)
+}
+
+// buildPictureQuestions builds a suite of lettered questions about pictures
+// drawn from captions, under the source and schema of the measure that asks
+// them: TIFA's questions about what a caption named, or the questions of what
+// text a picture was told to hold.
+func buildPictureQuestions(source, schema string, items []TIFAItem, images map[string]string, judge string) (GeneratedAnswerSuite, error) {
 	if strings.TrimSpace(judge) == "" {
 		return GeneratedAnswerSuite{}, errors.New("evaluation: a suite of questions about pictures names its judge")
 	}
 	suite := GeneratedAnswerSuite{
-		Kind: GeneratedAnswerKind, Schema: tifaSchema, Source: tifaSource, Judge: judge,
+		Kind: GeneratedAnswerKind, Schema: schema, Source: source, Judge: judge,
 		Transforms: []string{TransformTrimSpace, transformLowercase},
 	}
 	for _, item := range items {
@@ -107,7 +115,7 @@ func BuildTIFAQuestions(items []TIFAItem, images map[string]string, judge string
 				listing = append(listing, fmt.Sprintf("%c. %s", tifaLetters[position], choice))
 			}
 			suite.Cases = append(suite.Cases, GeneratedAnswerCase{
-				Name:      fmt.Sprintf("%s/%s/%d", tifaSource, item.ID, number),
+				Name:      fmt.Sprintf("%s/%s/%d", source, item.ID, number),
 				Prompt:    mediaPrompt(MediaImage, name, fmt.Sprintf("%s\n%s\nAnswer with the letter only.", question.Question, strings.Join(listing, "\n"))),
 				MaxTokens: tifaAnswerTokens,
 				Answers:   []string{string(tifaLetters[slices.Index(question.Choices, question.Answer)])},

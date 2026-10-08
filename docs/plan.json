@@ -9,8 +9,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 400,
-        "reason": "The builder of the function-calling suite describes each tool, and a test holds it to the text"
+        "nodes": 300,
+        "reason": "A test refuses a Python file git would track; two scripts move to the ignored place"
       },
       "steps": [
         {

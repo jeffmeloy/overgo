@@ -12,7 +12,9 @@ This records an independent output target. The real model weights, tokenizer,
 and exact execution environment are not present in this fixture, so these
 tests do not establish Overgo real-model numerical parity.
 
-`make_olmoe_tiny.py` independently serializes `olmoe_tiny.gguf` in GGUF v3.
+`scripts/python_golden_references/make_olmoe_tiny.py`, kept on the machine
+that wrote the fixture and not in git, independently serializes
+`olmoe_tiny.gguf` in GGUF v3.
 Its 15 deterministic F32 tensors model a one-block **structural** inventory,
 not trained weights. `olmoe_tiny.json` records every tensor's shape, payload
 hash, and a small Q-data sum probe. The GGUF SHA-256 is

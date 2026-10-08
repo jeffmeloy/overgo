@@ -379,9 +379,15 @@ var documentPathspecs = []string{"*.json", "*.md", "*.txt", "*.jsonl", documents
 // tracks and what it would track if added, so a stray document is measured
 // before it is committed.
 func TrackedDocuments(ctx context.Context, root string) ([]string, error) {
+	return checkoutFiles(ctx, root, documentPathspecs)
+}
+
+// checkoutFiles lists what the checkout at root holds of the pathspecs: what
+// git tracks and what it would track if added.
+func checkoutFiles(ctx context.Context, root string, pathspecs []string) ([]string, error) {
 	var output, failure bytes.Buffer
 	receipt, err := processcontrol.Run(ctx, processcontrol.Command{
-		Path: "git", Args: append([]string{"-C", root, "ls-files", "-co", "--exclude-standard", "--"}, documentPathspecs...),
+		Path: "git", Args: append([]string{"-C", root, "ls-files", "-co", "--exclude-standard", "--"}, pathspecs...),
 		Stdout: &output, Stderr: &failure,
 	})
 	if err != nil {

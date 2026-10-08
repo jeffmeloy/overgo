@@ -1,6 +1,6 @@
 {
  "schema": "needle_upstream_calls/v1",
- "source": "needle's upstream generate_batch over overgo's bfcl-v3/simple function-call cases; internal/seq2seq/testdata/needle_upstream_calls.py",
+ "source": "needle's upstream generate_batch over overgo's bfcl-v3/simple function-call cases; scripts/python_golden_references/needle_upstream_calls.py",
  "jax_version": "0.11.0",
  "generated_tokens": 256,
  "cases": [

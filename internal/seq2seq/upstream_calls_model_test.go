@@ -14,8 +14,9 @@ import (
 )
 
 // upstreamCallsScript writes the fixture this test reads, from the model's
-// own code.
-const upstreamCallsScript = "internal/seq2seq/testdata/needle_upstream_calls.py"
+// own code. It is kept where Python is kept, on the machine that ran it and
+// not in git: the fixture is the data.
+const upstreamCallsScript = "scripts/python_golden_references/needle_upstream_calls.py"
 
 // upstreamCalls mirrors fixtures/needle_upstream_calls.json: for each case of
 // the function-call evaluation, what needle's upstream code builds and answers.

@@ -10,8 +10,10 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/evaluation"
 	"overgo/internal/inferencesurface"
 	"overgo/internal/overgodb"
+	"overgo/internal/recipe"
 	"overgo/internal/scorecard"
 	"overgo/internal/scorecard/metric"
 )
@@ -204,12 +206,38 @@ func printScorecard(ctx context.Context, rows []scorecard.Row, root string, outp
 	if err != nil {
 		return err
 	}
-	text += standing
+	text += choiceProtocols(rows) + standing
 	if len(inapplicable) != 0 {
 		text += "\nNot applicable:\n" + strings.Join(inapplicable, "\n") + "\n"
 	}
 	_, err = io.WriteString(output, text)
 	return err
+}
+
+// choiceProtocols says how the text models' multiple-choice readings were
+// asked for: for each prompting protocol an inference reading with a constant
+// answer of chance was scored under, the models read that way and what the
+// protocol does. A reading under the chat template is a direct answer, and
+// one whose maker published a thinking-mode figure is not to be read against
+// that figure. Another task's pipeline shapes its own prompt and is not
+// described here.
+func choiceProtocols(rows []scorecard.Row) string {
+	asked := map[string][]string{}
+	for _, row := range rows {
+		cell := row.Cells[metric.Quality]
+		if _, known := evaluation.ChoiceProtocol(cell.Contract.Protocol); known && row.Task == recipe.TaskInference && cell.Measured() && cell.Constant != nil {
+			asked[cell.Contract.Protocol] = append(asked[cell.Contract.Protocol], row.Name)
+		}
+	}
+	var text strings.Builder
+	for _, protocol := range slices.Sorted(maps.Keys(asked)) {
+		words, _ := evaluation.ChoiceProtocol(protocol)
+		text.WriteString(fmt.Sprintf("- %s (%s): %s.\n", protocol, strings.Join(asked[protocol], ", "), words))
+	}
+	if text.String() == "" {
+		return ""
+	}
+	return "\nHow the multiple-choice readings were asked for:\n" + text.String()
 }
 
 // pathStanding says, for each held-out reading a served path produced, what

@@ -56,6 +56,24 @@ const chatChoiceMethod = "generated-letter-opener"
 // than run on at a per-case cost the decode rate cannot afford.
 const chatAnswerTokens = 8
 
+// ChoiceProtocol says in words how a suite of choices is answered under the
+// prompting protocol a label names, from the constants that protocol runs on,
+// so that a reading can say what was asked of the model and the words cannot
+// drift from what is done. Under the chat template the model answers at once:
+// its turn is opened for it and a letter is read from the few tokens that
+// follow, which is not how a model published with a thinking-mode figure was
+// measured. It reports false for a label that names neither protocol.
+func ChoiceProtocol(label string) (string, bool) {
+	switch label {
+	case PromptingChatTemplate.Label():
+		return fmt.Sprintf("the question is asked through the model's own chat template, with thinking switched off where the template has the switch and %q added; the model's turn is opened with %q, and its answer is the first option letter in the %d tokens it writes next. The model answers at once, with no room to reason first, so a figure its maker measured in a thinking mode is not this measure",
+			strings.TrimSpace(chatChoiceInstruction), chatAnswerOpener, chatAnswerTokens), true
+	case PromptingRawCompletion.Label():
+		return "the question is given as plain text with no chat template, and the model's answer is the option it finds likeliest to come next; no text is generated, so a model trained only to converse is asked in a form it was not trained on", true
+	}
+	return "", false
+}
+
 // matchChoiceLetter reads the first standalone candidate letter in the
 // generated text: a letter that is not part of a longer word. Candidates
 // carry the suite's leading space; the comparison ignores it.

@@ -17,7 +17,7 @@ const qwen38ReasoningXHigh = "Reasoning effort is set to xhigh. Please think car
 // thinking-mode control, and preserved historical thinking must render
 // the exact conversation framing the model documentation prescribes.
 func TestChatJinjaQwen38Template(t *testing.T) {
-	source, err := os.ReadFile(filepath.Join("testdata", "qwen38_chat_template.jinja"))
+	source, err := os.ReadFile(filepath.Join("testdata", "chat_templates", "qwen38.jinja"))
 	if err != nil {
 		t.Fatal(err)
 	}

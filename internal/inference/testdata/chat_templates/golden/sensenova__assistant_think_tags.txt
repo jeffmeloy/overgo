@@ -1,7 +1,0 @@
-<|im_start|>user
-Q<|im_end|>
-<|im_start|>assistant
-final answer<|im_end|>
-<|im_start|>user
-more<|im_end|>
-<|im_start|>assistant

@@ -256,7 +256,9 @@ func TestFormatJinjaChatSuppliesToolsAndToolCalls(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `weather={"type": "object"};user:weather?;assistant:[call_1:weather({"city":"Paris"})];tool:sunny;thinking=False;generate=True`
+	// The call's arguments reach a template as the mapping they hold, and a
+	// mapping printed bare is printed as Python prints a dict.
+	want := `weather={"type": "object"};user:weather?;assistant:[call_1:weather({'city': 'Paris'})];tool:sunny;thinking=False;generate=True`
 	if got != want {
 		t.Fatalf("tool-aware Jinja prompt = %q, want %q", got, want)
 	}

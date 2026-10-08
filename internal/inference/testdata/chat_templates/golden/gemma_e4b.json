@@ -1,0 +1,87 @@
+{
+ "schema": "chat_template_renders/v1",
+ "template": "gemma_e4b.jinja",
+ "source": "transformers 5.14.1 render_jinja_template, jinja2 3.1.6; scripts/python_golden_references/chat_template_renders.py",
+ "renders": [
+  {
+   "name": "sys_user_gen_think",
+   "text": "<s><|turn>system\n<|think|>\nBe concise.<turn|>\n<|turn>user\nHello<turn|>\n<|turn>model\n"
+  },
+  {
+   "name": "sys_user_gen_nothink",
+   "text": "<s><|turn>system\nBe concise.<turn|>\n<|turn>user\nHello<turn|>\n<|turn>model\n"
+  },
+  {
+   "name": "user_only",
+   "text": "<s><|turn>system\n<|think|>\n<turn|>\n<|turn>user\nHello<turn|>\n<|turn>model\n"
+  },
+  {
+   "name": "user_nogen",
+   "text": "<s><|turn>system\n<|think|>\n<turn|>\n<|turn>user\nHello<turn|>\n"
+  },
+  {
+   "name": "multiturn",
+   "text": "<s><|turn>system\n<|think|>\nBe concise.<turn|>\n<|turn>user\nHi<turn|>\n<|turn>model\nHello there<turn|>\n<|turn>user\nWeather?<turn|>\n<|turn>model\n"
+  },
+  {
+   "name": "assistant_reasoning",
+   "text": "<s><|turn>system\n<|think|>\n<turn|>\n<|turn>user\nQ<turn|>\n<|turn>model\nanswer<turn|>\n<|turn>user\nagain<turn|>\n<|turn>model\n"
+  },
+  {
+   "name": "tools_sys_user",
+   "text": "<s><|turn>system\n<|think|>\nBe concise.<|tool>declaration:weather{description:<|\"|>Get weather<|\"|>,parameters:{properties:{city:{description:<|\"|>City name<|\"|>,type:<|\"|>STRING<|\"|>}},required:[<|\"|>city<|\"|>],type:<|\"|>OBJECT<|\"|>}}<tool|><turn|>\n<|turn>user\nWeather in Paris?<turn|>\n<|turn>model\n"
+  },
+  {
+   "name": "tools_sys_user_nothink",
+   "text": "<s><|turn>system\nBe concise.<|tool>declaration:weather{description:<|\"|>Get weather<|\"|>,parameters:{properties:{city:{description:<|\"|>City name<|\"|>,type:<|\"|>STRING<|\"|>}},required:[<|\"|>city<|\"|>],type:<|\"|>OBJECT<|\"|>}}<tool|><turn|>\n<|turn>user\nWeather in Paris?<turn|>\n<|turn>model\n"
+  },
+  {
+   "name": "tools_no_system",
+   "text": "<s><|turn>system\n<|think|>\n<|tool>declaration:weather{description:<|\"|>Get weather<|\"|>,parameters:{properties:{city:{description:<|\"|>City name<|\"|>,type:<|\"|>STRING<|\"|>}},required:[<|\"|>city<|\"|>],type:<|\"|>OBJECT<|\"|>}}<tool|><turn|>\n<|turn>user\nWeather in Paris?<turn|>\n<|turn>model\n"
+  },
+  {
+   "name": "tool_history",
+   "text": "<s><|turn>system\n<|think|>\nBe concise.<|tool>declaration:weather{description:<|\"|>Get weather<|\"|>,parameters:{properties:{city:{description:<|\"|>City name<|\"|>,type:<|\"|>STRING<|\"|>}},required:[<|\"|>city<|\"|>],type:<|\"|>OBJECT<|\"|>}}<tool|><turn|>\n<|turn>user\nWeather in Paris?<turn|>\n<|turn>model\n<|tool_call>call:weather{city:<|\"|>Paris<|\"|>}<tool_call|><|tool_response>response:weather{value:<|\"|>sunny<|\"|>}<tool_response|><|channel>thought\n"
+  },
+  {
+   "name": "assistant_think_tags",
+   "text": "<s><|turn>system\n<|think|>\n<turn|>\n<|turn>user\nQ<turn|>\n<|turn>model\n<think>\nreason here\n</think>\n\nfinal answer<turn|>\n<|turn>user\nmore<turn|>\n<|turn>model\n"
+  },
+  {
+   "name": "special_chars",
+   "text": "<s><|turn>system\n<|think|>\nquote \" and 'apos' & <lt> \\slash\\ tab\tend<turn|>\n<|turn>user\nunicode café 日本語 \n newline\n line2<turn|>\n<|turn>model\n"
+  },
+  {
+   "name": "two_tools",
+   "text": "<s><|turn>system\n<|think|>\nBe concise.<|tool>declaration:weather{description:<|\"|>Get weather<|\"|>,parameters:{properties:{city:{description:<|\"|>City name<|\"|>,type:<|\"|>STRING<|\"|>}},required:[<|\"|>city<|\"|>],type:<|\"|>OBJECT<|\"|>}}<tool|><|tool>declaration:clock{description:<|\"|>Get time<|\"|>,parameters:{properties:{tz:{type:<|\"|>STRING<|\"|>}},type:<|\"|>OBJECT<|\"|>}}<tool|><turn|>\n<|turn>user\nWeather?<turn|>\n<|turn>model\n"
+  },
+  {
+   "name": "empty_content_toolcall",
+   "text": "<s><|turn>system\n<|think|>\n<|tool>declaration:weather{description:<|\"|>Get weather<|\"|>,parameters:{properties:{city:{description:<|\"|>City name<|\"|>,type:<|\"|>STRING<|\"|>}},required:[<|\"|>city<|\"|>],type:<|\"|>OBJECT<|\"|>}}<tool|><turn|>\n<|turn>user\nWeather in Paris?<turn|>\n<|turn>model\n<|tool_call>call:weather{city:<|\"|>Paris<|\"|>}<tool_call|><|tool_response>response:weather{value:<|\"|>rainy & cold<|\"|>}<tool_response|><|channel>thought\n"
+  },
+  {
+   "name": "assistant_prose_toolcall",
+   "text": "<s><|turn>system\n<|think|>\n<|tool>declaration:weather{description:<|\"|>Get weather<|\"|>,parameters:{properties:{city:{description:<|\"|>City name<|\"|>,type:<|\"|>STRING<|\"|>}},required:[<|\"|>city<|\"|>],type:<|\"|>OBJECT<|\"|>}}<tool|><turn|>\n<|turn>user\nWeather in Paris?<turn|>\n<|turn>model\n<|tool_call>call:weather{city:<|\"|>Paris<|\"|>}<tool_call|><|tool_response>response:weather{value:<|\"|>sunny<|\"|>}<tool_response|>Let me check.<turn|>\n<|channel>thought\n"
+  },
+  {
+   "name": "marked_tool",
+   "text": "<s><|turn>system\n<|tool>declaration:convert_temperature{description:<|\"|>Convert a temperature. Use it when a value is < 0 °C, or for a café & bar's \"cold room\".<|\"|>,parameters:{properties:{to:{enum:[<|\"|>celsius<|\"|>,<|\"|>fahrenheit<|\"|>],type:<|\"|>STRING<|\"|>},unit_from:{enum:[<|\"|>celsius<|\"|>,<|\"|>fahrenheit<|\"|>],type:<|\"|>STRING<|\"|>},value:{description:<|\"|>The temperature to convert.<|\"|>,type:<|\"|>NUMBER<|\"|>}},required:[<|\"|>value<|\"|>,<|\"|>unit_from<|\"|>,<|\"|>to<|\"|>],type:<|\"|>OBJECT<|\"|>}}<tool|><turn|>\n<|turn>user\nIs -3 °C below freezing in fahrenheit too?<turn|>\n<|turn>model\n"
+  },
+  {
+   "name": "marked_tool_history",
+   "text": "<s><|turn>system\n<|tool>declaration:convert_temperature{description:<|\"|>Convert a temperature. Use it when a value is < 0 °C, or for a café & bar's \"cold room\".<|\"|>,parameters:{properties:{to:{enum:[<|\"|>celsius<|\"|>,<|\"|>fahrenheit<|\"|>],type:<|\"|>STRING<|\"|>},unit_from:{enum:[<|\"|>celsius<|\"|>,<|\"|>fahrenheit<|\"|>],type:<|\"|>STRING<|\"|>},value:{description:<|\"|>The temperature to convert.<|\"|>,type:<|\"|>NUMBER<|\"|>}},required:[<|\"|>value<|\"|>,<|\"|>unit_from<|\"|>,<|\"|>to<|\"|>],type:<|\"|>OBJECT<|\"|>}}<tool|><turn|>\n<|turn>user\nIs -3 °C below freezing in fahrenheit too?<turn|>\n<|turn>model\n<|tool_call>call:convert_temperature{to:<|\"|>fahrenheit<|\"|>,unit_from:<|\"|>celsius<|\"|>,value:-3}<tool_call|><|tool_response>response:convert_temperature{value:<|\"|>{\"value\": 26.6, \"unit\": \"fahrenheit\"}<|\"|>}<tool_response|>"
+  },
+  {
+   "name": "argument_kinds",
+   "text": "<s><|turn>system\n<|tool>declaration:search{description:<|\"|><|\"|>,parameters:{properties:{count:{type:<|\"|>INTEGER<|\"|>},note:{type:<|\"|>['STRING', 'NULL']<|\"|>},ratio:{type:<|\"|>NUMBER<|\"|>},strict:{type:<|\"|>BOOLEAN<|\"|>},tags:{items:{type:<|\"|>STRING<|\"|>},type:<|\"|>ARRAY<|\"|>},text:{type:<|\"|>STRING<|\"|>},where:{properties:{lat:{type:<|\"|>NUMBER<|\"|>},lon:{type:<|\"|>NUMBER<|\"|>}},type:<|\"|>OBJECT<|\"|>},whole:{type:<|\"|>NUMBER<|\"|>}},required:[<|\"|>text<|\"|>],type:<|\"|>OBJECT<|\"|>}}<tool|><turn|>\n<|turn>user\nFind it.<turn|>\n<|turn>model\n<|tool_call>call:search{count:3,note:null,ratio:0.5,strict:true,tags:[<|\"|>a<|\"|>,<|\"|>b<|\"|>],text:<|\"|>line one\nline <two> & more<|\"|>,where:{lat:45.76,lon:4.84},whole:2.0}<tool_call|><|tool_response>response:search{value:<|\"|>nothing found<|\"|>}<tool_response|>"
+  },
+  {
+   "name": "two_calls",
+   "text": "<s><|turn>system\n<|tool>declaration:weather{description:<|\"|>Get weather<|\"|>,parameters:{properties:{city:{description:<|\"|>City name<|\"|>,type:<|\"|>STRING<|\"|>}},required:[<|\"|>city<|\"|>],type:<|\"|>OBJECT<|\"|>}}<tool|><|tool>declaration:clock{description:<|\"|>Get time<|\"|>,parameters:{properties:{tz:{type:<|\"|>STRING<|\"|>}},type:<|\"|>OBJECT<|\"|>}}<tool|><turn|>\n<|turn>user\nWeather and time in Paris?<turn|>\n<|turn>model\n<|tool_call>call:weather{city:<|\"|>Paris<|\"|>}<tool_call|><|tool_call>call:clock{tz:<|\"|>Europe/Paris<|\"|>}<tool_call|><|tool_response>response:weather{value:<|\"|>sunny<|\"|>}<tool_response|><|tool_response>response:clock{value:<|\"|>14:05<|\"|>}<tool_response|>"
+  },
+  {
+   "name": "tool_loop_then_question",
+   "text": "<s><|turn>system\n<|think|>\n<|tool>declaration:weather{description:<|\"|>Get weather<|\"|>,parameters:{properties:{city:{description:<|\"|>City name<|\"|>,type:<|\"|>STRING<|\"|>}},required:[<|\"|>city<|\"|>],type:<|\"|>OBJECT<|\"|>}}<tool|><turn|>\n<|turn>user\nWeather in Paris?<turn|>\n<|turn>model\n<|tool_call>call:weather{city:<|\"|>Paris<|\"|>}<tool_call|><|tool_response>response:weather{value:<|\"|>sunny<|\"|>}<tool_response|>It is sunny in Paris.<turn|>\n<|turn>user\nThanks. And tomorrow?<turn|>\n<|turn>model\n"
+  }
+ ]
+}

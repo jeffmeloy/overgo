@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 
+	"overgo/internal/jinja"
 	"overgo/internal/strictjson"
 )
 
@@ -79,6 +81,49 @@ type ChatToolFunction struct {
 type ChatTool struct {
 	Type     ChatToolType       `json:"type"`
 	Function ChatToolDefinition `json:"function"`
+	// written is the tool as a request wrote it. A model's template writes a
+	// tool out as it finds it, so the order of the request's keys is part of
+	// what the model reads, and the fields above, a Go map among them, do not
+	// keep it.
+	written json.RawMessage
+}
+
+// UnmarshalJSON reads a tool's fields and keeps the tool as the request wrote
+// it beside them.
+func (t *ChatTool) UnmarshalJSON(data []byte) error {
+	var fields struct {
+		Type     ChatToolType       `json:"type"`
+		Function ChatToolDefinition `json:"function"`
+	}
+	if err := strictjson.DecodeBytes(data, &fields); err != nil {
+		return err
+	}
+	t.Type, t.Function, t.written = fields.Type, fields.Function, slices.Clone(data)
+	return nil
+}
+
+// FunctionTool makes a function tool from its name, its description and its
+// parameters as a request wrote them, for the protocols that write a tool in
+// another shape than chat completions does. The parameters keep the order the
+// request gave their keys, which a struct of their fields would lose.
+func FunctionTool(name, description string, parameters json.RawMessage) (ChatTool, error) {
+	function := struct {
+		Name        string          `json:"name"`
+		Description string          `json:"description,omitzero"`
+		Parameters  json.RawMessage `json:"parameters"`
+	}{name, description, parameters}
+	written, err := json.Marshal(struct {
+		Type     ChatToolType `json:"type"`
+		Function any          `json:"function"`
+	}{ChatToolTypeFunction, function})
+	if err != nil {
+		return ChatTool{}, err
+	}
+	var tool ChatTool
+	if err := tool.UnmarshalJSON(written); err != nil {
+		return ChatTool{}, err
+	}
+	return tool, nil
 }
 
 type ChatToolDefinition struct {
@@ -356,11 +401,10 @@ func (r *Runner) FormatChatWithOptions(
 	return "", errors.New("inference: vocabulary has no supported chat-template boundaries")
 }
 
-// buildChatContext assembles the template variable context shared by the gonja
-// and stdlib (internal/jinja) rendering paths. Messages and tools are []any so
-// both engines iterate them identically.
+// buildChatContext assembles the variables a chat template is rendered over,
+// as transformers hands them to a template: the messages, the tools or None,
+// the two tokens, the switches, and no documents.
 func (r *Runner) buildChatContext(
-	source string,
 	messages []ChatMessage,
 	options ChatFormatOptions,
 ) (map[string]any, error) {
@@ -400,28 +444,28 @@ func (r *Runner) buildChatContext(
 						err,
 					)
 				}
-				arguments := any(call.Function.Arguments)
-				if chatTemplateUsesObjectArguments(source) {
-					var object any
-					if json.Unmarshal([]byte(call.Function.Arguments), &object) == nil {
-						arguments = object
-					}
-				}
-				calls[callIndex] = chatTemplateToolCall{
-					call:      call,
-					arguments: arguments,
-				}
+				calls[callIndex] = templateToolCall(call)
 			}
 			wire["tool_calls"] = calls
 		}
 		wireMessages[index] = wire
 	}
-	wireTools := make([]any, len(options.Tools))
-	for index, tool := range options.Tools {
-		if err := validateChatTool(tool); err != nil {
-			return nil, fmt.Errorf("inference: chat tool %d: %w", index, err)
+	// A request that offers no tool gives a template None for its tools, as
+	// transformers does, and not an empty list.
+	tools := jinja.None
+	if len(options.Tools) != 0 {
+		wireTools := make([]any, len(options.Tools))
+		for index, tool := range options.Tools {
+			if err := validateChatTool(tool); err != nil {
+				return nil, fmt.Errorf("inference: chat tool %d: %w", index, err)
+			}
+			described, err := templateTool(tool)
+			if err != nil {
+				return nil, fmt.Errorf("inference: chat tool %d: %w", index, err)
+			}
+			wireTools[index] = described
 		}
-		wireTools[index] = chatTemplateTool{tool: tool}
+		tools = wireTools
 	}
 	bos := vocabularyTokenText(r.vocab, r.vocab.BOS)
 	eos := vocabularyTokenText(r.vocab, r.vocab.EOS)
@@ -431,12 +475,16 @@ func (r *Runner) buildChatContext(
 		"eos_token":             eos,
 		"add_generation_prompt": options.AddGenerationPrompt,
 		"enable_thinking":       options.EnableThinking,
-		"tools":                 wireTools,
-		"documents":             nil,
+		"tools":                 tools,
+		"documents":             jinja.None,
 	}
 	for name, value := range options.TemplateKwargs {
 		if _, reserved := context[name]; reserved {
 			return nil, fmt.Errorf("inference: chat template kwarg %q overrides a reserved context key", name)
+		}
+		if value == nil {
+			// A variable a request sets to null is None to a template, not a name left undefined.
+			value = jinja.None
 		}
 		context[name] = value
 	}
@@ -456,130 +504,51 @@ func validateChatTool(tool ChatTool) error {
 	return nil
 }
 
-// chatTemplateTool, chatTemplateToolFunction, chatTemplateToolCall, and
-// chatTemplateCallFunction adapt chat tools/calls for template access. Their
-// JinjaGet methods (see chat_jinja.go) expose attribute/item access to the
-// stdlib interpreter; their unexported fields make encoding/json emit "{}",
-// matching gonja's tojson fallback for these opaque objects.
-type chatTemplateTool struct {
-	tool ChatTool
-}
-
-type chatTemplateToolFunction struct {
-	definition ChatToolDefinition
-}
-
-type chatTemplateToolCall struct {
-	call      ChatToolCall
-	arguments any
-}
-
-type chatTemplateCallFunction struct {
-	function  ChatToolFunction
-	arguments any
-}
-
-func writeChatTemplateJSON(output *strings.Builder, value any) {
-	switch typed := value.(type) {
-	case chatTemplateTool:
-		output.WriteString(`{"type": "function", "function": `)
-		writeChatTemplateJSON(
-			output,
-			chatTemplateToolFunction{definition: typed.tool.Function},
-		)
-		output.WriteByte('}')
-	case chatTemplateToolFunction:
-		output.WriteString(`{"name": `)
-		writeChatTemplateJSON(output, typed.definition.Name)
-		output.WriteString(`, "description": `)
-		writeChatTemplateJSON(output, typed.definition.Description)
-		output.WriteString(`, "parameters": `)
-		writeChatTemplateJSON(output, typed.definition.Parameters)
-		output.WriteByte('}')
-	case chatTemplateToolCall:
-		output.WriteString(`{"type": "function", "function": `)
-		writeChatTemplateJSON(output, chatTemplateCallFunction{
-			function:  typed.call.Function,
-			arguments: typed.arguments,
-		})
-		if typed.call.ID != "" {
-			output.WriteString(`, "id": `)
-			writeChatTemplateJSON(output, typed.call.ID)
+// templateTool is a tool as a template is handed it, which is as
+// transformers hands a template the tool a caller passes: a mapping with its
+// keys, and those of every object in it, in the order the request wrote
+// them. A tool built here and written by no request, or changed since it was
+// read, has no such order, and is handed over as its fields marshal: type
+// before function, name before description before parameters, and each
+// object of the parameters by sorted key.
+func templateTool(tool ChatTool) (any, error) {
+	if len(tool.written) != 0 {
+		var read ChatTool
+		if err := read.UnmarshalJSON(tool.written); err == nil && read.Type == tool.Type && read.Function.Name == tool.Function.Name &&
+			read.Function.Description == tool.Function.Description && reflect.DeepEqual(read.Function.Parameters, tool.Function.Parameters) {
+			return jinja.DecodeJSON(tool.written)
 		}
-		output.WriteByte('}')
-	case chatTemplateCallFunction:
-		output.WriteString(`{"name": `)
-		writeChatTemplateJSON(output, typed.function.Name)
-		output.WriteString(`, "arguments": `)
-		writeChatTemplateJSON(output, typed.arguments)
-		output.WriteByte('}')
-	case map[string]any:
-		keys := make([]string, 0, len(typed))
-		for key := range typed {
-			keys = append(keys, key)
-		}
-		slices.Sort(keys)
-		output.WriteByte('{')
-		for index, key := range keys {
-			if index != 0 {
-				output.WriteString(", ")
-			}
-			writeChatTemplateJSON(output, key)
-			output.WriteString(": ")
-			writeChatTemplateJSON(output, typed[key])
-		}
-		output.WriteByte('}')
-	case []any:
-		output.WriteByte('[')
-		for index, item := range typed {
-			if index != 0 {
-				output.WriteString(", ")
-			}
-			writeChatTemplateJSON(output, item)
-		}
-		output.WriteByte(']')
-	case []string:
-		output.WriteByte('[')
-		for index, item := range typed {
-			if index != 0 {
-				output.WriteString(", ")
-			}
-			writeChatTemplateJSON(output, item)
-		}
-		output.WriteByte(']')
-	default:
-		data, err := json.Marshal(typed)
-		if err != nil {
-			output.WriteString("null")
-			return
-		}
-		output.Write(data)
 	}
+	marshalled, err := json.Marshal(tool)
+	if err != nil {
+		return nil, err
+	}
+	return jinja.DecodeJSON(marshalled)
 }
 
-func normalizeChatTemplateSource(source string) string {
-	// Gemma: normalize parenthesized inline conditional.
-	source = strings.ReplaceAll(
-		source,
-		`(first_user_prefix if loop.first else "")`,
-		`((loop.first and first_user_prefix) or "")`,
-	)
-	// Qwen: normalize method-call precedence.
-	source = strings.ReplaceAll(
-		source,
-		`(not loop.last and (not reasoning_content.strip() == ''))`,
-		`(not loop.last and ((reasoning_content|trim|length) > 0))`,
-	)
-	return strings.ReplaceAll(
-		source,
-		`not reasoning_content.strip() == ''`,
-		`(reasoning_content|trim|length) > 0`,
-	)
-}
-
-func chatTemplateUsesObjectArguments(source string) bool {
-	return strings.Contains(source, "tool_call.arguments") &&
-		strings.Contains(source, "| tojson")
+// templateToolCall is an earlier tool call as a template is handed it: a
+// mapping in the order a request writes one, with the call's arguments, a
+// JSON text in a request, as the mapping that text holds. That is what
+// transformers' documentation tells a caller to pass and what the models'
+// templates read: they walk the arguments' items. Arguments that are not a
+// JSON object are handed over as the text they are.
+func templateToolCall(call ChatToolCall) any {
+	function := jinja.NewDict()
+	function.Set("name", call.Function.Name)
+	arguments := any(call.Function.Arguments)
+	if decoded, err := jinja.DecodeJSON([]byte(call.Function.Arguments)); err == nil {
+		if _, mapping := decoded.(*jinja.Dict); mapping {
+			arguments = decoded
+		}
+	}
+	function.Set("arguments", arguments)
+	described := jinja.NewDict()
+	if call.ID != "" {
+		described.Set("id", call.ID)
+	}
+	described.Set("type", string(call.Type))
+	described.Set("function", function)
+	return described
 }
 
 func formatChatML(messages []ChatMessage) (string, error) {

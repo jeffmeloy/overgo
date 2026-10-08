@@ -1136,7 +1136,7 @@
      "contains": "case \"image\":",
      "path": "internal/server/anthropic_tools.go",
      "role": "source",
-     "identity": "file:sha256:781b49079dee3c741b2a5d6cb6fc676b9c028fe6cb9a67c2ceb1eda04e529b36"
+     "identity": "file:sha256:76c213d1740eddcda058dfa5215233944161c518ed6cadb48c8c6bc7d8d7a007"
     },
     {
      "contains": "func TestAnthropicImageToolsAndTokenCounting(",

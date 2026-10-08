@@ -9,7 +9,7 @@ func getAttr(obj any, name string) (any, bool) {
 	case map[string]any:
 		v, ok := o[name]
 		return v, ok
-	case *odict:
+	case *Dict:
 		return o.get(name)
 	}
 	return nil, false
@@ -61,7 +61,7 @@ func getIndexOrKey(obj any, key any) (any, bool) {
 		if v, ok := o[ks]; ok {
 			return v, true
 		}
-	case *odict:
+	case *Dict:
 		if v, ok := o.get(ks); ok {
 			return v, true
 		}
@@ -91,7 +91,7 @@ func contains(container any, item any) bool {
 			return ok
 		}
 		return false
-	case *odict:
+	case *Dict:
 		if ks, ok := item.(string); ok {
 			_, ok := c.get(ks)
 			return ok
@@ -132,7 +132,7 @@ func iterate(v any) []loopEntry {
 			out[i] = loopEntry{key: k, val: o[k]}
 		}
 		return out
-	case *odict:
+	case *Dict:
 		out := make([]loopEntry, len(o.order))
 		for i, k := range o.order {
 			out[i] = loopEntry{key: k, val: o.vals[k]}

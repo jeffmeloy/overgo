@@ -47,14 +47,14 @@ func namespaceGlobal(_ []any, kwargs map[string]any) (any, error) {
 }
 
 func dictGlobal(_ []any, kwargs map[string]any) (any, error) {
-	d := newODict()
+	d := NewDict()
 	keys := make([]string, 0, len(kwargs))
 	for k := range kwargs {
 		keys = append(keys, k)
 	}
 	slices.Sort(keys)
 	for _, k := range keys {
-		d.set(k, kwargs[k])
+		d.Set(k, kwargs[k])
 	}
 	return d, nil
 }
@@ -71,8 +71,8 @@ func (r *renderer) dispatchMethod(obj any, name string, n callNode, sc *scope) (
 		return strMethod(o, name, args)
 	case map[string]any:
 		return dictMethod(o, name, args, kwargs)
-	case *odict:
-		return odictMethod(o, name, args)
+	case *Dict:
+		return orderedMethod(o, name, args)
 	case Getter:
 		// gonja dispatches methods by native type; adapters expose no methods.
 		return nil, fmt.Errorf("jinja: %q is not callable on adapter", name)
@@ -80,11 +80,21 @@ func (r *renderer) dispatchMethod(obj any, name string, n callNode, sc *scope) (
 	return nil, fmt.Errorf("jinja: %q is not callable on %T", name, obj)
 }
 
+// replaceOperands is how many arguments str.replace must have: what to
+// replace and what to put in its place. A count may follow them.
+const replaceOperands = 2
+
 func strMethod(self, name string, args []any) (any, error) {
 	switch name {
 	case "split":
-		if len(args) < 1 {
-			return nil, fmt.Errorf("jinja: split requires a separator")
+		if len(args) < 1 || isNone(args[0]) {
+			// With no separator Python splits on runs of whitespace and keeps no empty piece.
+			fields := strings.Fields(self)
+			out := make([]any, len(fields))
+			for i, field := range fields {
+				out[i] = field
+			}
+			return out, nil
 		}
 		sep, ok := args[0].(string)
 		if !ok {
@@ -95,41 +105,31 @@ func strMethod(self, name string, args []any) (any, error) {
 			maxsplit = toInt(args[1])
 		}
 		return pySplit(self, sep, maxsplit), nil
-	case "strip":
+	case "strip", "lstrip", "rstrip":
+		// With no argument, or None, Python strips whitespace.
 		cut := ""
-		if len(args) >= 1 {
+		if len(args) >= 1 && !isNone(args[0]) {
 			s, ok := args[0].(string)
 			if !ok {
-				return nil, fmt.Errorf("jinja: strip cutset must be a string")
+				return nil, fmt.Errorf("jinja: %s takes the characters to strip as a string", name)
 			}
 			cut = s
 		}
-		return pyStrip(self, cut, true, true), nil
-	case "lstrip":
-		if len(args) < 1 {
-			return nil, fmt.Errorf("jinja: failed to validate argument 'cutset': not a string")
-		}
-		s, ok := args[0].(string)
-		if !ok {
-			return nil, fmt.Errorf("jinja: lstrip cutset must be a string")
-		}
-		return pyStrip(self, s, true, false), nil
-	case "rstrip":
-		if len(args) < 1 {
-			return nil, fmt.Errorf("jinja: failed to validate argument 'cutset': not a string")
-		}
-		s, ok := args[0].(string)
-		if !ok {
-			return nil, fmt.Errorf("jinja: rstrip cutset must be a string")
-		}
-		return pyStrip(self, s, false, true), nil
+		return pyStrip(self, cut, name != "rstrip", name != "lstrip"), nil
 	case "replace":
-		if len(args) < 3 {
-			return nil, fmt.Errorf("jinja: replace missing required 3rd positional argument 'count'")
+		// The count is Python's optional third argument: every occurrence without it.
+		if len(args) < replaceOperands {
+			return nil, fmt.Errorf("jinja: replace takes what to replace and what to put in its place")
 		}
-		old, _ := args[0].(string)
-		nw, _ := args[1].(string)
-		count := toInt(args[2])
+		old, isOld := args[0].(string)
+		nw, isNew := args[1].(string)
+		if !isOld || !isNew {
+			return nil, fmt.Errorf("jinja: replace takes strings")
+		}
+		count := -1
+		if len(args) > replaceOperands {
+			count = toInt(args[replaceOperands])
+		}
 		return strings.Replace(self, old, nw, count), nil
 	case "startswith":
 		if len(args) < 1 {
@@ -151,6 +151,14 @@ func strMethod(self, name string, args []any) (any, error) {
 	case "endswith":
 		if len(args) < 1 {
 			return nil, fmt.Errorf("jinja: endswith requires a suffix")
+		}
+		if suffixes, ok := args[0].([]any); ok {
+			for _, s := range suffixes {
+				if ss, ok := s.(string); ok && strings.HasSuffix(self, ss) {
+					return true, nil
+				}
+			}
+			return false, nil
 		}
 		p, ok := args[0].(string)
 		if !ok {
@@ -221,7 +229,7 @@ func dictMethod(self map[string]any, name string, args []any, _ map[string]any) 
 		if len(args) == 2 {
 			return args[1], nil
 		}
-		return nil, nil
+		return None, nil
 	case "keys":
 		keys := make([]string, 0, len(self))
 		for k := range self {
@@ -259,7 +267,7 @@ func dictMethod(self map[string]any, name string, args []any, _ map[string]any) 
 	return nil, fmt.Errorf("jinja: unknown dict method %q", name)
 }
 
-func odictMethod(self *odict, name string, args []any) (any, error) {
+func orderedMethod(self *Dict, name string, args []any) (any, error) {
 	switch name {
 	case "get":
 		if len(args) < 1 || len(args) > 2 {
@@ -272,7 +280,7 @@ func odictMethod(self *odict, name string, args []any) (any, error) {
 		if len(args) == 2 {
 			return args[1], nil
 		}
-		return nil, nil
+		return None, nil
 	case "keys":
 		out := make([]any, len(self.order))
 		for i, k := range self.order {

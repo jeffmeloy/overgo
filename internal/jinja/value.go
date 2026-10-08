@@ -1,12 +1,19 @@
-// Package jinja is a bounded, stdlib-only interpreter for the Jinja2 subset
-// used by served-model chat templates. It is engineered to render those
-// templates byte-identically to github.com/nikolalohinski/gonja/v2, which it
-// replaces. Semantics (value stringification, truthiness, comparison, map key
-// ordering, whitespace control, filter/test/method behavior) intentionally
-// mirror gonja's observable output; see internal/jinja for the parity gate.
+// Package jinja is a bounded, stdlib-only interpreter for the part of Jinja2
+// that served models' chat templates use. What it is held to is Python's
+// Jinja2 in the environment transformers compiles a chat template in, since
+// that is the language the templates are written for: its tests compare it,
+// construct by construct and template by template, with what Python renders.
+//
+// It was first written to reproduce github.com/nikolalohinski/gonja/v2, a Go
+// template library it replaced, and a comment that says a behaviour mirrors
+// gonja records where that behaviour came from. Where gonja and Python part,
+// in a string method's optional arguments, the order a mapping is walked in,
+// what None prints as, how tojson writes and how block tags eat their lines,
+// Python is followed.
 package jinja
 
 import (
+	"math"
 	"slices"
 	"sort"
 	"strconv"
@@ -22,27 +29,47 @@ type Getter interface {
 	JinjaGet(key string) (any, bool)
 }
 
-// odict is an insertion-ordered dictionary, used for dict literals and the
-// dict() global. Go maps (map[string]any) model JSON objects and iterate in
-// case-insensitively sorted key order, matching gonja.
-type odict struct {
+// Dict is a mapping that keeps its keys in the order they were first set, as
+// a Python dict does. A template's dict literals are Dicts, and so are the
+// objects of a request's JSON, which a template must read in the order the
+// request holds them: a model's template writes a tool's schema as it finds
+// it. A Go map handed to a template has no order of its own and is read in
+// case-insensitively sorted key order.
+type Dict struct {
 	order []string
 	vals  map[string]any
 }
 
-func newODict() *odict { return &odict{vals: map[string]any{}} }
+// NewDict returns an empty ordered mapping.
+func NewDict() *Dict { return &Dict{vals: map[string]any{}} }
 
-func (d *odict) set(k string, v any) {
-	if _, ok := d.vals[k]; !ok {
-		d.order = append(d.order, k)
+// Set binds key to value, at the end of the order when the key is new and in
+// its first place when it is not, as assigning to a Python dict does.
+func (d *Dict) Set(key string, value any) {
+	if _, ok := d.vals[key]; !ok {
+		d.order = append(d.order, key)
 	}
-	d.vals[k] = v
+	d.vals[key] = value
 }
 
-func (d *odict) get(k string) (any, bool) {
+func (d *Dict) get(k string) (any, bool) {
 	v, ok := d.vals[k]
 	return v, ok
 }
+
+// noneType is the type of None.
+type noneType struct{}
+
+// None is Python's None as a template meets it: the literal none, a JSON
+// null, a dict's get of a key it does not hold, and a variable a caller sets
+// to nothing, as transformers sets tools when a request offers none. It is
+// defined, it is none, it is false, and it prints as "None". Go's nil is
+// something else to a template: a name or attribute that is not defined,
+// which is not none and prints as nothing.
+var None any = noneType{}
+
+// isNone reports whether a value is None.
+func isNone(v any) bool { _, ok := v.(noneType); return ok }
 
 // callable is a template-invocable function (globals like range/namespace,
 // registered runtime functions, and macros).
@@ -91,7 +118,7 @@ func isList(v any) bool { _, ok := v.([]any); return ok }
 
 func isDict(v any) bool {
 	switch v.(type) {
-	case map[string]any, *odict:
+	case map[string]any, *Dict:
 		return true
 	}
 	return false
@@ -184,7 +211,7 @@ func asBool(v any) bool {
 // truthy mirrors gonja Value.IsTrue().
 func truthy(v any) bool {
 	switch n := v.(type) {
-	case nil:
+	case nil, noneType:
 		return false
 	case bool:
 		return n
@@ -194,7 +221,7 @@ func truthy(v any) bool {
 		return len(n) > 0
 	case map[string]any:
 		return len(n) > 0
-	case *odict:
+	case *Dict:
 		return len(n.order) > 0
 	}
 	if isInteger(v) {
@@ -216,7 +243,7 @@ func length(v any) int {
 		return len(n)
 	case map[string]any:
 		return len(n)
-	case *odict:
+	case *Dict:
 		return len(n.order)
 	}
 	return 0
@@ -227,6 +254,8 @@ func stringify(v any) string {
 	switch n := v.(type) {
 	case nil:
 		return ""
+	case noneType:
+		return "None"
 	case string:
 		return n
 	case bool:
@@ -262,7 +291,7 @@ func stringify(v any) string {
 		}
 		slices.Sort(pairs)
 		return "{" + strings.Join(pairs, ", ") + "}"
-	case *odict:
+	case *Dict:
 		pairs := make([]string, 0, len(n.order))
 		for _, k := range n.order {
 			pairs = append(pairs, mapPairRepr(k, n.vals[k]))
@@ -286,21 +315,38 @@ func mapPairRepr(key string, val any) string {
 	return k + ": " + vs
 }
 
-// formatFloat mirrors gonja's formatFloatString (compact 'g', with a trailing
-// .0 for integral values). Chat templates rarely emit floats.
+// formatFloat writes a float as Python's repr does, which is how a template
+// prints one and how tojson writes one: the shortest digits that read back as
+// the same value, in fixed notation with a fraction always shown, and in
+// exponent notation when the decimal point would stand more than sixteen
+// digits right of the first digit or more than three zeros left of it.
 func formatFloat(f float64) string {
-	s := strconv.FormatFloat(f, 'g', -1, binaryschema.Width64Bits)
-	if s == "NaN" || strings.HasSuffix(s, "Inf") {
-		return s
+	switch {
+	case math.IsNaN(f):
+		return "nan"
+	case math.IsInf(f, 1):
+		return "inf"
+	case math.IsInf(f, -1):
+		return "-inf"
 	}
-	if strings.ContainsAny(s, "eE") {
-		return s
+	scientific := strconv.FormatFloat(f, 'e', -1, binaryschema.Width64Bits)
+	exponent, err := strconv.Atoi(scientific[strings.IndexByte(scientific, 'e')+1:])
+	if err != nil || exponent < pythonFixedFrom || exponent >= pythonFixedBelow {
+		return scientific
 	}
-	if strings.ContainsAny(s, ".") {
-		return s
+	fixed := strconv.FormatFloat(f, 'f', -1, binaryschema.Width64Bits)
+	if strings.Contains(fixed, ".") {
+		return fixed
 	}
-	return s + ".0"
+	return fixed + ".0"
 }
+
+// Python's repr writes a float in fixed notation when its decimal exponent is
+// from -4 up to, and not including, 16.
+const (
+	pythonFixedFrom  = -4
+	pythonFixedBelow = 16
+)
 
 // equal mirrors gonja Value.EqualValueTo().
 func equal(a, b any) bool {
@@ -315,6 +361,9 @@ func equal(a, b any) bool {
 	}
 	if a == nil || b == nil {
 		return false
+	}
+	if isNone(a) || isNone(b) {
+		return isNone(a) && isNone(b)
 	}
 	if la, ok := a.([]any); ok {
 		if lb, ok := b.([]any); ok {
@@ -370,14 +419,14 @@ func (m goMapDict) lookup(k string) (any, bool) {
 	return v, ok
 }
 
-func (d *odict) keys() []string              { return append([]string(nil), d.order...) }
-func (d *odict) lookup(k string) (any, bool) { return d.get(k) }
+func (d *Dict) keys() []string              { return append([]string(nil), d.order...) }
+func (d *Dict) lookup(k string) (any, bool) { return d.get(k) }
 
 func asDictLike(v any) (dictLike, bool) {
 	switch n := v.(type) {
 	case map[string]any:
 		return goMapDict(n), true
-	case *odict:
+	case *Dict:
 		return n, true
 	}
 	return nil, false

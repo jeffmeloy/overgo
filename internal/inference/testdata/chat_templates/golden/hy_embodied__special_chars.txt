@@ -1,3 +1,0 @@
-quote " and 'apos' & <lt> \slash\ tab	end<｜hy_place▁holder▁no▁3｜><｜hy_User｜>unicode café 日本語 
- newline
- line2/think<｜hy_Assistant｜><think>

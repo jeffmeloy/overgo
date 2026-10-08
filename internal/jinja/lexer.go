@@ -23,6 +23,10 @@ type chunk struct {
 	name         string // cBlock: control-structure name
 	toks         []etok // cOutput / cBlock expression tokens
 	trimL, trimR bool
+	// keepL and keepR are the plus signs of a tag: the whitespace before it on
+	// its line, and the line break after it, are kept where they would be
+	// stripped.
+	keepL, keepR bool
 }
 
 type etKind int
@@ -79,10 +83,10 @@ func lex(src string) ([]chunk, error) {
 					endDelim, kind = "#}", cComment
 				}
 				// left trim control
-				trimL := false
+				trimL, keepL := false, false
 				inner := i + 2
 				if inner < n && (src[inner] == '-' || src[inner] == '+') {
-					trimL = src[inner] == '-'
+					trimL, keepL = src[inner] == '-', src[inner] == '+'
 					inner++
 				}
 				// find end delimiter, honoring right-trim control (- or + before it)
@@ -91,15 +95,15 @@ func lex(src string) ([]chunk, error) {
 					return nil, fmt.Errorf("jinja: unclosed %q", endDelim)
 				}
 				contentEnd := inner + idx
-				trimR := false
+				trimR, keepR := false, false
 				body := src[inner:contentEnd]
 				if kind == cComment {
 					if strings.HasSuffix(body, "-") {
 						trimR = true
 					} else if strings.HasSuffix(body, "+") {
-						body = body[:len(body)-1]
+						keepR = true
 					}
-					chunks = append(chunks, chunk{kind: cComment, trimL: trimL, trimR: trimR})
+					chunks = append(chunks, chunk{kind: cComment, trimL: trimL, trimR: trimR, keepL: keepL, keepR: keepR})
 				} else {
 					// trailing whitespace-control char immediately before delimiter
 					trimmed := strings.TrimRight(body, " \t")
@@ -107,13 +111,14 @@ func lex(src string) ([]chunk, error) {
 						trimR = true
 						body = before
 					} else if before, ok := strings.CutSuffix(trimmed, "+"); ok {
+						keepR = true
 						body = before
 					}
 					toks, name, err := lexExpr(body, kind)
 					if err != nil {
 						return nil, err
 					}
-					chunks = append(chunks, chunk{kind: kind, name: name, toks: toks, trimL: trimL, trimR: trimR})
+					chunks = append(chunks, chunk{kind: kind, name: name, toks: toks, trimL: trimL, trimR: trimR, keepL: keepL, keepR: keepR})
 				}
 				i = contentEnd + len(endDelim)
 				textStart = i

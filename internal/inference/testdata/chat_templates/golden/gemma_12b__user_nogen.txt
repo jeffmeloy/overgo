@@ -1,5 +1,0 @@
-<|turn>system
-<|think|>
-<turn|>
-<|turn>user
-Hello<turn|>

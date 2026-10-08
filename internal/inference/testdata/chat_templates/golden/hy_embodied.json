@@ -1,0 +1,87 @@
+{
+ "schema": "chat_template_renders/v1",
+ "template": "hy_embodied.jinja",
+ "source": "transformers 5.14.1 render_jinja_template, jinja2 3.1.6; scripts/python_golden_references/chat_template_renders.py",
+ "renders": [
+  {
+   "name": "sys_user_gen_think",
+   "text": "<s>Be concise.<｜hy_place▁holder▁no▁3｜><｜hy_User｜>Hello/think<｜hy_Assistant｜><think>"
+  },
+  {
+   "name": "sys_user_gen_nothink",
+   "text": "<s>Be concise.<｜hy_place▁holder▁no▁3｜><｜hy_User｜>Hello/no_think<｜hy_Assistant｜><think>\n\n</think>\n"
+  },
+  {
+   "name": "user_only",
+   "text": "<s><｜hy_User｜>Hello/think<｜hy_Assistant｜><think>"
+  },
+  {
+   "name": "user_nogen",
+   "text": "<s><｜hy_User｜>Hello/think"
+  },
+  {
+   "name": "multiturn",
+   "text": "<s>Be concise.<｜hy_place▁holder▁no▁3｜><｜hy_User｜>Hi/no_think<｜hy_Assistant｜><think>\n\n</think>\n<answer>\nHello there\n</answer></s><｜hy_User｜>Weather?/think<｜hy_Assistant｜><think>"
+  },
+  {
+   "name": "assistant_reasoning",
+   "text": "<s><｜hy_User｜>Q/no_think<｜hy_Assistant｜><think>\n\n</think>\n<answer>\nanswer\n</answer></s><｜hy_User｜>again/think<｜hy_Assistant｜><think>"
+  },
+  {
+   "name": "tools_sys_user",
+   "text": "<s>Be concise.\n\n# Tools\n\nYou may call one or more functions to assist with the user query.\n\nYou are provided with function signatures within <tools></tools> XML tags:\n<tools>\n{\"type\": \"function\", \"function\": {\"name\": \"weather\", \"description\": \"Get weather\", \"parameters\": {\"type\": \"object\", \"properties\": {\"city\": {\"type\": \"string\", \"description\": \"City name\"}}, \"required\": [\"city\"]}}}\n</tools>\n\nFor function call returns, you should first print <tool_calls>For each function call, you should return object like:\n<tool_call>function_name\n```json\nfunction_arguments_in_json_format\n```</tool_call>At the end of function call returns, you should print </tool_calls><｜hy_place▁holder▁no▁3｜><｜hy_User｜>Weather in Paris?/think<｜hy_Assistant｜><think>"
+  },
+  {
+   "name": "tools_sys_user_nothink",
+   "text": "<s>Be concise.\n\n# Tools\n\nYou may call one or more functions to assist with the user query.\n\nYou are provided with function signatures within <tools></tools> XML tags:\n<tools>\n{\"type\": \"function\", \"function\": {\"name\": \"weather\", \"description\": \"Get weather\", \"parameters\": {\"type\": \"object\", \"properties\": {\"city\": {\"type\": \"string\", \"description\": \"City name\"}}, \"required\": [\"city\"]}}}\n</tools>\n\nFor function call returns, you should first print <tool_calls>For each function call, you should return object like:\n<tool_call>function_name\n```json\nfunction_arguments_in_json_format\n```</tool_call>At the end of function call returns, you should print </tool_calls><｜hy_place▁holder▁no▁3｜><｜hy_User｜>Weather in Paris?/no_think<｜hy_Assistant｜><think>\n\n</think>\n"
+  },
+  {
+   "name": "tools_no_system",
+   "text": "<s># Tools\n\nYou may call one or more functions to assist with the user query.\n\nYou are provided with function signatures within <tools></tools> XML tags:\n<tools>\n{\"type\": \"function\", \"function\": {\"name\": \"weather\", \"description\": \"Get weather\", \"parameters\": {\"type\": \"object\", \"properties\": {\"city\": {\"type\": \"string\", \"description\": \"City name\"}}, \"required\": [\"city\"]}}}\n</tools>\n\nFor function call returns, you should first print <tool_calls>For each function call, you should return object like:\n<tool_call>function_name\n```json\nfunction_arguments_in_json_format\n```</tool_call>At the end of function call returns, you should print </tool_calls><｜hy_place▁holder▁no▁3｜><｜hy_User｜>Weather in Paris?/think<｜hy_Assistant｜><think>"
+  },
+  {
+   "name": "tool_history",
+   "text": "<s>Be concise.\n\n# Tools\n\nYou may call one or more functions to assist with the user query.\n\nYou are provided with function signatures within <tools></tools> XML tags:\n<tools>\n{\"type\": \"function\", \"function\": {\"name\": \"weather\", \"description\": \"Get weather\", \"parameters\": {\"type\": \"object\", \"properties\": {\"city\": {\"type\": \"string\", \"description\": \"City name\"}}, \"required\": [\"city\"]}}}\n</tools>\n\nFor function call returns, you should first print <tool_calls>For each function call, you should return object like:\n<tool_call>function_name\n```json\nfunction_arguments_in_json_format\n```</tool_call>At the end of function call returns, you should print </tool_calls><｜hy_place▁holder▁no▁3｜><｜hy_User｜>Weather in Paris?/think<｜hy_Assistant｜><tool_calls><tool_call>weather\n```json\n{\"city\": \"Paris\"}\n```</tool_call></tool_calls></s><｜hy_User｜><tool_responses><tool_response>sunny</tool_response></tool_responses><｜hy_Assistant｜><think>"
+  },
+  {
+   "name": "assistant_think_tags",
+   "text": "<s><｜hy_User｜>Q/no_think<｜hy_Assistant｜><think>\n\n</think>\n<answer>\n<think>\nreason here\n</think>\n\nfinal answer\n</answer></s><｜hy_User｜>more/think<｜hy_Assistant｜><think>"
+  },
+  {
+   "name": "special_chars",
+   "text": "<s>quote \" and 'apos' & <lt> \\slash\\ tab\tend<｜hy_place▁holder▁no▁3｜><｜hy_User｜>unicode café 日本語 \n newline\n line2/think<｜hy_Assistant｜><think>"
+  },
+  {
+   "name": "two_tools",
+   "text": "<s>Be concise.\n\n# Tools\n\nYou may call one or more functions to assist with the user query.\n\nYou are provided with function signatures within <tools></tools> XML tags:\n<tools>\n{\"type\": \"function\", \"function\": {\"name\": \"weather\", \"description\": \"Get weather\", \"parameters\": {\"type\": \"object\", \"properties\": {\"city\": {\"type\": \"string\", \"description\": \"City name\"}}, \"required\": [\"city\"]}}}{\"type\": \"function\", \"function\": {\"name\": \"clock\", \"description\": \"Get time\", \"parameters\": {\"type\": \"object\", \"properties\": {\"tz\": {\"type\": \"string\"}}}}}\n</tools>\n\nFor function call returns, you should first print <tool_calls>For each function call, you should return object like:\n<tool_call>function_name\n```json\nfunction_arguments_in_json_format\n```</tool_call>At the end of function call returns, you should print </tool_calls><｜hy_place▁holder▁no▁3｜><｜hy_User｜>Weather?/think<｜hy_Assistant｜><think>"
+  },
+  {
+   "name": "empty_content_toolcall",
+   "text": "<s># Tools\n\nYou may call one or more functions to assist with the user query.\n\nYou are provided with function signatures within <tools></tools> XML tags:\n<tools>\n{\"type\": \"function\", \"function\": {\"name\": \"weather\", \"description\": \"Get weather\", \"parameters\": {\"type\": \"object\", \"properties\": {\"city\": {\"type\": \"string\", \"description\": \"City name\"}}, \"required\": [\"city\"]}}}\n</tools>\n\nFor function call returns, you should first print <tool_calls>For each function call, you should return object like:\n<tool_call>function_name\n```json\nfunction_arguments_in_json_format\n```</tool_call>At the end of function call returns, you should print </tool_calls><｜hy_place▁holder▁no▁3｜><｜hy_User｜>Weather in Paris?/think<｜hy_Assistant｜><tool_calls><tool_call>weather\n```json\n{\"city\": \"Paris\"}\n```</tool_call></tool_calls></s><｜hy_User｜><tool_responses><tool_response>rainy & cold</tool_response></tool_responses><｜hy_Assistant｜><think>"
+  },
+  {
+   "name": "assistant_prose_toolcall",
+   "text": "<s># Tools\n\nYou may call one or more functions to assist with the user query.\n\nYou are provided with function signatures within <tools></tools> XML tags:\n<tools>\n{\"type\": \"function\", \"function\": {\"name\": \"weather\", \"description\": \"Get weather\", \"parameters\": {\"type\": \"object\", \"properties\": {\"city\": {\"type\": \"string\", \"description\": \"City name\"}}, \"required\": [\"city\"]}}}\n</tools>\n\nFor function call returns, you should first print <tool_calls>For each function call, you should return object like:\n<tool_call>function_name\n```json\nfunction_arguments_in_json_format\n```</tool_call>At the end of function call returns, you should print </tool_calls><｜hy_place▁holder▁no▁3｜><｜hy_User｜>Weather in Paris?/think<｜hy_Assistant｜>Let me check.<tool_calls><tool_call>weather\n```json\n{\"city\": \"Paris\"}\n```</tool_call></tool_calls></s><｜hy_User｜><tool_responses><tool_response>sunny</tool_response></tool_responses><｜hy_Assistant｜><think>"
+  },
+  {
+   "name": "marked_tool",
+   "text": "<s># Tools\n\nYou may call one or more functions to assist with the user query.\n\nYou are provided with function signatures within <tools></tools> XML tags:\n<tools>\n{\"type\": \"function\", \"function\": {\"name\": \"convert_temperature\", \"description\": \"Convert a temperature. Use it when a value is < 0 °C, or for a café & bar's \\\"cold room\\\".\", \"parameters\": {\"type\": \"object\", \"properties\": {\"value\": {\"type\": \"number\", \"description\": \"The temperature to convert.\"}, \"unit_from\": {\"type\": \"string\", \"enum\": [\"celsius\", \"fahrenheit\"]}, \"to\": {\"type\": \"string\", \"enum\": [\"celsius\", \"fahrenheit\"]}}, \"required\": [\"value\", \"unit_from\", \"to\"]}}}\n</tools>\n\nFor function call returns, you should first print <tool_calls>For each function call, you should return object like:\n<tool_call>function_name\n```json\nfunction_arguments_in_json_format\n```</tool_call>At the end of function call returns, you should print </tool_calls><｜hy_place▁holder▁no▁3｜><｜hy_User｜>Is -3 °C below freezing in fahrenheit too?/no_think<｜hy_Assistant｜><think>\n\n</think>\n"
+  },
+  {
+   "name": "marked_tool_history",
+   "text": "<s># Tools\n\nYou may call one or more functions to assist with the user query.\n\nYou are provided with function signatures within <tools></tools> XML tags:\n<tools>\n{\"type\": \"function\", \"function\": {\"name\": \"convert_temperature\", \"description\": \"Convert a temperature. Use it when a value is < 0 °C, or for a café & bar's \\\"cold room\\\".\", \"parameters\": {\"type\": \"object\", \"properties\": {\"value\": {\"type\": \"number\", \"description\": \"The temperature to convert.\"}, \"unit_from\": {\"type\": \"string\", \"enum\": [\"celsius\", \"fahrenheit\"]}, \"to\": {\"type\": \"string\", \"enum\": [\"celsius\", \"fahrenheit\"]}}, \"required\": [\"value\", \"unit_from\", \"to\"]}}}\n</tools>\n\nFor function call returns, you should first print <tool_calls>For each function call, you should return object like:\n<tool_call>function_name\n```json\nfunction_arguments_in_json_format\n```</tool_call>At the end of function call returns, you should print </tool_calls><｜hy_place▁holder▁no▁3｜><｜hy_User｜>Is -3 °C below freezing in fahrenheit too?/no_think<｜hy_Assistant｜><tool_calls><tool_call>convert_temperature\n```json\n{\"value\": -3, \"unit_from\": \"celsius\", \"to\": \"fahrenheit\"}\n```</tool_call></tool_calls></s><｜hy_User｜><tool_responses><tool_response>{\"value\": 26.6, \"unit\": \"fahrenheit\"}</tool_response></tool_responses><｜hy_Assistant｜><think>\n\n</think>\n"
+  },
+  {
+   "name": "argument_kinds",
+   "text": "<s># Tools\n\nYou may call one or more functions to assist with the user query.\n\nYou are provided with function signatures within <tools></tools> XML tags:\n<tools>\n{\"type\": \"function\", \"function\": {\"name\": \"search\", \"parameters\": {\"type\": \"object\", \"properties\": {\"text\": {\"type\": \"string\"}, \"count\": {\"type\": \"integer\", \"minimum\": 1, \"default\": 3}, \"ratio\": {\"type\": \"number\", \"default\": 0.5}, \"whole\": {\"type\": \"number\"}, \"strict\": {\"type\": \"boolean\", \"default\": false}, \"note\": {\"type\": [\"string\", \"null\"], \"default\": null}, \"tags\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}}, \"where\": {\"type\": \"object\", \"properties\": {\"lat\": {\"type\": \"number\"}, \"lon\": {\"type\": \"number\"}}, \"additionalProperties\": false}}, \"required\": [\"text\"]}}}\n</tools>\n\nFor function call returns, you should first print <tool_calls>For each function call, you should return object like:\n<tool_call>function_name\n```json\nfunction_arguments_in_json_format\n```</tool_call>At the end of function call returns, you should print </tool_calls><｜hy_place▁holder▁no▁3｜><｜hy_User｜>Find it./no_think<｜hy_Assistant｜><tool_calls><tool_call>search\n```json\n{\"text\": \"line one\\nline <two> & more\", \"count\": 3, \"ratio\": 0.5, \"whole\": 2.0, \"strict\": true, \"note\": null, \"tags\": [\"a\", \"b\"], \"where\": {\"lat\": 45.76, \"lon\": 4.84}}\n```</tool_call></tool_calls></s><｜hy_User｜><tool_responses><tool_response>nothing found</tool_response></tool_responses><｜hy_Assistant｜><think>\n\n</think>\n"
+  },
+  {
+   "name": "two_calls",
+   "text": "<s># Tools\n\nYou may call one or more functions to assist with the user query.\n\nYou are provided with function signatures within <tools></tools> XML tags:\n<tools>\n{\"type\": \"function\", \"function\": {\"name\": \"weather\", \"description\": \"Get weather\", \"parameters\": {\"type\": \"object\", \"properties\": {\"city\": {\"type\": \"string\", \"description\": \"City name\"}}, \"required\": [\"city\"]}}}{\"type\": \"function\", \"function\": {\"name\": \"clock\", \"description\": \"Get time\", \"parameters\": {\"type\": \"object\", \"properties\": {\"tz\": {\"type\": \"string\"}}}}}\n</tools>\n\nFor function call returns, you should first print <tool_calls>For each function call, you should return object like:\n<tool_call>function_name\n```json\nfunction_arguments_in_json_format\n```</tool_call>At the end of function call returns, you should print </tool_calls><｜hy_place▁holder▁no▁3｜><｜hy_User｜>Weather and time in Paris?/no_think<｜hy_Assistant｜><tool_calls><tool_call>weather\n```json\n{\"city\": \"Paris\"}\n```</tool_call>\n<tool_call>clock\n```json\n{\"tz\": \"Europe/Paris\"}\n```</tool_call></tool_calls></s><｜hy_User｜><tool_responses><tool_response>sunny</tool_response>\n<tool_response>14:05</tool_response></tool_responses><｜hy_Assistant｜><think>\n\n</think>\n"
+  },
+  {
+   "name": "tool_loop_then_question",
+   "text": "<s># Tools\n\nYou may call one or more functions to assist with the user query.\n\nYou are provided with function signatures within <tools></tools> XML tags:\n<tools>\n{\"type\": \"function\", \"function\": {\"name\": \"weather\", \"description\": \"Get weather\", \"parameters\": {\"type\": \"object\", \"properties\": {\"city\": {\"type\": \"string\", \"description\": \"City name\"}}, \"required\": [\"city\"]}}}\n</tools>\n\nFor function call returns, you should first print <tool_calls>For each function call, you should return object like:\n<tool_call>function_name\n```json\nfunction_arguments_in_json_format\n```</tool_call>At the end of function call returns, you should print </tool_calls><｜hy_place▁holder▁no▁3｜><｜hy_User｜>Weather in Paris?/no_think<｜hy_Assistant｜><tool_calls><tool_call>weather\n```json\n{\"city\": \"Paris\"}\n```</tool_call></tool_calls></s><｜hy_User｜><tool_responses><tool_response>sunny</tool_response><｜hy_Assistant｜><think>\n\n</think>\n<answer>\nIt is sunny in Paris.\n</answer></s><｜hy_User｜>Thanks. And tomorrow?/think<｜hy_Assistant｜><think>"
+  }
+ ]
+}

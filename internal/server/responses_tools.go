@@ -44,11 +44,11 @@ func selectResponsesTools(
 			)
 		}
 		var definitions []struct {
-			Type        string         `json:"type"`
-			Name        string         `json:"name"`
-			Description string         `json:"description"`
-			Parameters  map[string]any `json:"parameters"`
-			Strict      *bool          `json:"strict"`
+			Type        string          `json:"type"`
+			Name        string          `json:"name"`
+			Description string          `json:"description"`
+			Parameters  json.RawMessage `json:"parameters"`
+			Strict      *bool           `json:"strict"`
 		}
 		if err := strictjson.DecodeBytes(rawTools, &definitions); err != nil {
 			return chatToolSelection{}, errors.New(
@@ -70,20 +70,21 @@ func selectResponsesTools(
 					index,
 				)
 			}
-			if definition.Parameters == nil {
+			if !strictjson.HasValue(definition.Parameters) {
 				return chatToolSelection{}, fmt.Errorf(
 					"tool %d parameters are required",
 					index,
 				)
 			}
-			tools[index] = inference.ChatTool{
-				Type: inference.ChatToolTypeFunction,
-				Function: inference.ChatToolDefinition{
-					Name:        definition.Name,
-					Description: definition.Description,
-					Parameters:  definition.Parameters,
-				},
+			// The parameters are handed on as the request wrote them: a model's
+			// template writes them out in the order of their keys.
+			tool, err := inference.FunctionTool(definition.Name, definition.Description, definition.Parameters)
+			if err != nil {
+				return chatToolSelection{}, errors.New(
+					"tools must be an array of Responses function definitions",
+				)
 			}
+			tools[index] = tool
 		}
 	}
 

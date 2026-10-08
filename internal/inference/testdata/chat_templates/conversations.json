@@ -1,0 +1,75 @@
+{
+  "bos_token": "<s>",
+  "eos_token": "</s>",
+  "tools": {
+    "weather": {"type": "function", "function": {"name": "weather", "description": "Get weather", "parameters": {"type": "object", "properties": {"city": {"type": "string", "description": "City name"}}, "required": ["city"]}}},
+    "clock": {"type": "function", "function": {"name": "clock", "description": "Get time", "parameters": {"type": "object", "properties": {"tz": {"type": "string"}}}}},
+    "convert": {"type": "function", "function": {"name": "convert_temperature", "description": "Convert a temperature. Use it when a value is < 0 °C, or for a café & bar's \"cold room\".", "parameters": {"type": "object", "properties": {"value": {"type": "number", "description": "The temperature to convert."}, "unit_from": {"type": "string", "enum": ["celsius", "fahrenheit"]}, "to": {"type": "string", "enum": ["celsius", "fahrenheit"]}}, "required": ["value", "unit_from", "to"]}}},
+    "search": {"type": "function", "function": {"name": "search", "parameters": {"type": "object", "properties": {"text": {"type": "string"}, "count": {"type": "integer", "minimum": 1, "default": 3}, "ratio": {"type": "number", "default": 0.5}, "whole": {"type": "number"}, "strict": {"type": "boolean", "default": false}, "note": {"type": ["string", "null"], "default": null}, "tags": {"type": "array", "items": {"type": "string"}}, "where": {"type": "object", "properties": {"lat": {"type": "number"}, "lon": {"type": "number"}}, "additionalProperties": false}}, "required": ["text"]}}}
+  },
+  "conversations": [
+    {"name": "sys_user_gen_think", "add_generation_prompt": true, "enable_thinking": true, "messages": [
+      {"role": "system", "content": "Be concise."}, {"role": "user", "content": "Hello"}]},
+    {"name": "sys_user_gen_nothink", "add_generation_prompt": true, "enable_thinking": false, "messages": [
+      {"role": "system", "content": "Be concise."}, {"role": "user", "content": "Hello"}]},
+    {"name": "user_only", "add_generation_prompt": true, "enable_thinking": true, "messages": [
+      {"role": "user", "content": "Hello"}]},
+    {"name": "user_nogen", "add_generation_prompt": false, "enable_thinking": true, "messages": [
+      {"role": "user", "content": "Hello"}]},
+    {"name": "multiturn", "add_generation_prompt": true, "enable_thinking": true, "messages": [
+      {"role": "system", "content": "Be concise."}, {"role": "user", "content": "Hi"},
+      {"role": "assistant", "content": "Hello there"}, {"role": "user", "content": "Weather?"}]},
+    {"name": "assistant_reasoning", "add_generation_prompt": true, "enable_thinking": true, "messages": [
+      {"role": "user", "content": "Q"}, {"role": "assistant", "content": "answer", "reasoning_content": "because"},
+      {"role": "user", "content": "again"}]},
+    {"name": "tools_sys_user", "add_generation_prompt": true, "enable_thinking": true, "tools": ["weather"], "messages": [
+      {"role": "system", "content": "Be concise."}, {"role": "user", "content": "Weather in Paris?"}]},
+    {"name": "tools_sys_user_nothink", "add_generation_prompt": true, "enable_thinking": false, "tools": ["weather"], "messages": [
+      {"role": "system", "content": "Be concise."}, {"role": "user", "content": "Weather in Paris?"}]},
+    {"name": "tools_no_system", "add_generation_prompt": true, "enable_thinking": true, "tools": ["weather"], "messages": [
+      {"role": "user", "content": "Weather in Paris?"}]},
+    {"name": "tool_history", "add_generation_prompt": true, "enable_thinking": true, "tools": ["weather"], "messages": [
+      {"role": "system", "content": "Be concise."}, {"role": "user", "content": "Weather in Paris?"},
+      {"role": "assistant", "content": "", "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "weather", "arguments": "{\"city\":\"Paris\"}"}}]},
+      {"role": "tool", "content": "sunny", "tool_call_id": "call_1"}]},
+    {"name": "assistant_think_tags", "add_generation_prompt": true, "enable_thinking": true, "messages": [
+      {"role": "user", "content": "Q"}, {"role": "assistant", "content": "<think>\nreason here\n</think>\n\nfinal answer"},
+      {"role": "user", "content": "more"}]},
+    {"name": "special_chars", "add_generation_prompt": true, "enable_thinking": true, "messages": [
+      {"role": "system", "content": "quote \" and 'apos' & <lt> \\slash\\ tab\tend"},
+      {"role": "user", "content": "unicode café 日本語 \n newline\n line2"}]},
+    {"name": "two_tools", "add_generation_prompt": true, "enable_thinking": true, "tools": ["weather", "clock"], "messages": [
+      {"role": "system", "content": "Be concise."}, {"role": "user", "content": "Weather?"}]},
+    {"name": "empty_content_toolcall", "add_generation_prompt": true, "enable_thinking": true, "tools": ["weather"], "messages": [
+      {"role": "user", "content": "Weather in Paris?"},
+      {"role": "assistant", "content": "", "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "weather", "arguments": "{\"city\":\"Paris\"}"}}]},
+      {"role": "tool", "content": "rainy & cold", "tool_call_id": "call_1"}]},
+    {"name": "assistant_prose_toolcall", "add_generation_prompt": true, "enable_thinking": true, "tools": ["weather"], "messages": [
+      {"role": "user", "content": "Weather in Paris?"},
+      {"role": "assistant", "content": "Let me check.", "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "weather", "arguments": "{\"city\":\"Paris\"}"}}]},
+      {"role": "tool", "content": "sunny", "tool_call_id": "call_1"}]},
+    {"name": "marked_tool", "add_generation_prompt": true, "enable_thinking": false, "tools": ["convert"], "messages": [
+      {"role": "user", "content": "Is -3 °C below freezing in fahrenheit too?"}]},
+    {"name": "marked_tool_history", "add_generation_prompt": true, "enable_thinking": false, "tools": ["convert"], "messages": [
+      {"role": "user", "content": "Is -3 °C below freezing in fahrenheit too?"},
+      {"role": "assistant", "content": "", "tool_calls": [{"id": "call_2", "type": "function", "function": {"name": "convert_temperature", "arguments": "{\"value\": -3, \"unit_from\": \"celsius\", \"to\": \"fahrenheit\"}"}}]},
+      {"role": "tool", "content": "{\"value\": 26.6, \"unit\": \"fahrenheit\"}", "tool_call_id": "call_2", "name": "convert_temperature"}]},
+    {"name": "argument_kinds", "add_generation_prompt": true, "enable_thinking": false, "tools": ["search"], "messages": [
+      {"role": "user", "content": "Find it."},
+      {"role": "assistant", "content": "", "tool_calls": [{"id": "call_3", "type": "function", "function": {"name": "search", "arguments": "{\"text\": \"line one\\nline <two> & more\", \"count\": 3, \"ratio\": 0.5, \"whole\": 2.0, \"strict\": true, \"note\": null, \"tags\": [\"a\", \"b\"], \"where\": {\"lat\": 45.76, \"lon\": 4.84}}"}}]},
+      {"role": "tool", "content": "nothing found", "tool_call_id": "call_3", "name": "search"}]},
+    {"name": "two_calls", "add_generation_prompt": true, "enable_thinking": false, "tools": ["weather", "clock"], "messages": [
+      {"role": "user", "content": "Weather and time in Paris?"},
+      {"role": "assistant", "content": "", "tool_calls": [
+        {"id": "call_4", "type": "function", "function": {"name": "weather", "arguments": "{\"city\":\"Paris\"}"}},
+        {"id": "call_5", "type": "function", "function": {"name": "clock", "arguments": "{\"tz\":\"Europe/Paris\"}"}}]},
+      {"role": "tool", "content": "sunny", "tool_call_id": "call_4", "name": "weather"},
+      {"role": "tool", "content": "14:05", "tool_call_id": "call_5", "name": "clock"}]},
+    {"name": "tool_loop_then_question", "add_generation_prompt": true, "enable_thinking": true, "tools": ["weather"], "messages": [
+      {"role": "user", "content": "Weather in Paris?"},
+      {"role": "assistant", "content": "", "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "weather", "arguments": "{\"city\":\"Paris\"}"}}]},
+      {"role": "tool", "content": "sunny", "tool_call_id": "call_1", "name": "weather"},
+      {"role": "assistant", "content": "It is sunny in Paris."},
+      {"role": "user", "content": "Thanks. And tomorrow?"}]}
+  ]
+}

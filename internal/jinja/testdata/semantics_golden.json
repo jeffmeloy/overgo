@@ -1,0 +1,270 @@
+{
+ "schema": "jinja_semantics/v1",
+ "source": "transformers 5.14.1 _compile_jinja_template, jinja2 3.1.6; scripts/python_golden_references/jinja_semantics.py",
+ "renders": [
+  {
+   "name": "text",
+   "text": "hello"
+  },
+  {
+   "name": "output",
+   "text": "hi"
+  },
+  {
+   "name": "literals",
+   "text": "True|False|None|True|None"
+  },
+  {
+   "name": "undefined_prints_nothing",
+   "text": "[][][]"
+  },
+  {
+   "name": "numbers",
+   "text": "5|0.5|2.0|1e-05|0.0001|1e+16|1000000000000000.0|26.6|-3"
+  },
+  {
+   "name": "arithmetic",
+   "text": "3|1.5|1|8|1|2.5|2.0|-5"
+  },
+  {
+   "name": "concat",
+   "text": "abn3aNonef2.0tTrue"
+  },
+  {
+   "name": "escape_nl",
+   "text": "a\nb"
+  },
+  {
+   "name": "trim_left",
+   "text": "xY"
+  },
+  {
+   "name": "trim_right",
+   "text": "Y"
+  },
+  {
+   "name": "block_lines",
+   "text": "one\nx1\nx2\nend"
+  },
+  {
+   "name": "for_loop",
+   "text": "110TrueFalse33;221FalseFalse32;332FalseTrue31;"
+  },
+  {
+   "name": "for_else",
+   "text": "none"
+  },
+  {
+   "name": "for_if",
+   "text": "31;22;"
+  },
+  {
+   "name": "for_mapping_keeps_order",
+   "text": "b;A;c;"
+  },
+  {
+   "name": "for_items",
+   "text": "b=1;A=2;c=3;"
+  },
+  {
+   "name": "items_filter",
+   "text": "b=1;A=2;c=3;"
+  },
+  {
+   "name": "dictsort",
+   "text": "A=2;b=1;c=3;"
+  },
+  {
+   "name": "keys_values",
+   "text": "['b', 'A', 'c']|[1, 2, 3]|['b', 'A', 'c']|3"
+  },
+  {
+   "name": "dict_get",
+   "text": "1|def|None|True"
+  },
+  {
+   "name": "if_elif_else",
+   "text": "five"
+  },
+  {
+   "name": "set_and_use",
+   "text": "z"
+  },
+  {
+   "name": "block_set",
+   "text": "a1"
+  },
+  {
+   "name": "block_set_methods",
+   "text": "[x ][  \n x][x][True]"
+  },
+  {
+   "name": "namespace",
+   "text": "6"
+  },
+  {
+   "name": "ternary",
+   "text": "yn[]"
+  },
+  {
+   "name": "ternary_in_parentheses",
+   "text": "hib;A;c;"
+  },
+  {
+   "name": "not_binds_looser_than_comparison",
+   "text": "has|none|True"
+  },
+  {
+   "name": "not_inside_a_loop_condition",
+   "text": "NYY"
+  },
+  {
+   "name": "tests_defined_none",
+   "text": "TrueFalseTrue|FalseFalseTrue|TrueFalse"
+  },
+  {
+   "name": "tests_kinds",
+   "text": "TrueTrueTrueTrueTrueFalseTrueTrueFalse"
+  },
+  {
+   "name": "tests_containers",
+   "text": "TrueTrueTrueFalse|TrueFalse|TrueTrueTrueFalse"
+  },
+  {
+   "name": "tests_true_false",
+   "text": "TrueTrueFalseFalseFalse"
+  },
+  {
+   "name": "truthiness",
+   "text": "nnnnnnyn"
+  },
+  {
+   "name": "equality",
+   "text": "TrueTrueTrueTrueTrueTrueTrueTrue"
+  },
+  {
+   "name": "in_and_not_in",
+   "text": "TrueTrueTrueFalseTrue"
+  },
+  {
+   "name": "slices",
+   "text": "4321|el|lo|[2, 3]|h|2"
+  },
+  {
+   "name": "filters_strings",
+   "text": "X|ab|2|0.5|None|True|5!"
+  },
+  {
+   "name": "filters_lists",
+   "text": "13|['A', 'B']|3|['user', 'assistant']"
+  },
+  {
+   "name": "default",
+   "text": "DENoneGhi"
+  },
+  {
+   "name": "macro",
+   "text": "hi!yo?"
+  },
+  {
+   "name": "split",
+   "text": "b|['a', 'b', 'c']|['a', 'b', '', 'c']|['a', 'b,c']"
+  },
+  {
+   "name": "strip",
+   "text": "[x y][x y \n ][  \n x y][x][axx][xxa]"
+  },
+  {
+   "name": "replace",
+   "text": "a+b+c|a+b-c"
+  },
+  {
+   "name": "starts_ends",
+   "text": "TrueTrueTrueFalseHIab"
+  },
+  {
+   "name": "comment",
+   "text": "ab"
+  },
+  {
+   "name": "print_containers",
+   "text": "[3, 1, 2]|['b', 'A', 'c']|{'b': 1, 'A': 2, 'c': 3}|[1, 'a', None, True, 0.5]|{'k': 'v', 'n': 1}|{'type': 'object', 'properties': {'value': {'type': 'number', 'default': 2.0}, 'to': {'enum': ['x', 'y'], 'note': None}}, 'required': ['value'], 'strict': False, 'count': 3}"
+  },
+  {
+   "name": "tojson_default",
+   "text": "{\"type\": \"object\", \"properties\": {\"value\": {\"type\": \"number\", \"default\": 2.0}, \"to\": {\"enum\": [\"x\", \"y\"], \"note\": null}}, \"required\": [\"value\"], \"strict\": false, \"count\": 3}"
+  },
+  {
+   "name": "tojson_scalars",
+   "text": "\"hi\"|5|0.5|2.0|1e-05|1e+16|true|null|[3, 1, 2]|[]|{}"
+  },
+  {
+   "name": "tojson_marks",
+   "text": "\"line one\\nline <two> & \\\"more\\\" café 日本 \\\\ \\u0001 😀\""
+  },
+  {
+   "name": "tojson_ensure_ascii",
+   "text": "\"line one\\nline <two> & \\\"more\\\" caf\\u00e9 \\u65e5\\u672c \\\\ \\u0001 \\ud83d\\ude00\"|\"line one\\nline <two> & \\\"more\\\" café 日本 \\\\ \\u0001 😀\""
+  },
+  {
+   "name": "tojson_indent",
+   "text": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"value\": {\n      \"type\": \"number\",\n      \"default\": 2.0\n    },\n    \"to\": {\n      \"enum\": [\n        \"x\",\n        \"y\"\n      ],\n      \"note\": null\n    }\n  },\n  \"required\": [\n    \"value\"\n  ],\n  \"strict\": false,\n  \"count\": 3\n}|[\n    3,\n    1,\n    2\n]|{}|[\n [],\n {}\n]"
+  },
+  {
+   "name": "tojson_sort_keys",
+   "text": "{\"count\": 3, \"properties\": {\"to\": {\"enum\": [\"x\", \"y\"], \"note\": null}, \"value\": {\"default\": 2.0, \"type\": \"number\"}}, \"required\": [\"value\"], \"strict\": false, \"type\": \"object\"}"
+  },
+  {
+   "name": "tojson_separators",
+   "text": "{\"type\":\"object\",\"properties\":{\"value\":{\"type\":\"number\",\"default\":2.0},\"to\":{\"enum\":[\"x\",\"y\"],\"note\":null}},\"required\":[\"value\"],\"strict\":false,\"count\":3}"
+  },
+  {
+   "name": "tojson_of_literal",
+   "text": "{\"b\": 1, \"a\": [true, null, \"x\"]}"
+  },
+  {
+   "name": "tool_call_shape",
+   "text": "user:one,assistant:two"
+  },
+  {
+   "name": "raise",
+   "error": "TemplateError: stop here"
+  },
+  {
+   "name": "length_of_mapping_and_string",
+   "text": "3202"
+  },
+  {
+   "name": "string_times",
+   "text": "abab|---"
+  },
+  {
+   "name": "string_escapes",
+   "text": "tab\tend|q\"q|it's|back\\slash|ué|n\\n|single ' in double"
+  },
+  {
+   "name": "loop_neighbours",
+   "text": "<3>1;3<1>2;1<2>;"
+  },
+  {
+   "name": "plus_keeps_whitespace",
+   "text": "a\n  b\n\nc"
+  },
+  {
+   "name": "comment_lines",
+   "text": "a\nbc"
+  },
+  {
+   "name": "output_keeps_its_line",
+   "text": "a\n  hi\nbhic"
+  },
+  {
+   "name": "tags_on_one_line",
+   "text": "  x  |\n  12"
+  },
+  {
+   "name": "trailing_newline",
+   "text": "x\ny\n"
+  }
+ ]
+}

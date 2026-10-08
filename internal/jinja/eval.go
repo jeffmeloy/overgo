@@ -326,8 +326,8 @@ func setMember(obj any, key string, val any) error {
 	case map[string]any:
 		m[key] = val
 		return nil
-	case *odict:
-		m.set(key, val)
+	case *Dict:
+		m.Set(key, val)
 		return nil
 	}
 	return fmt.Errorf("jinja: cannot set %q on %T", key, obj)
@@ -411,7 +411,7 @@ func (r *renderer) eval(e expr, sc *scope) (any, error) {
 		}
 		return out, nil
 	case dictNode:
-		d := newODict()
+		d := NewDict()
 		for _, p := range n.pairs {
 			k, err := r.eval(p.key, sc)
 			if err != nil {
@@ -421,7 +421,7 @@ func (r *renderer) eval(e expr, sc *scope) (any, error) {
 			if err != nil {
 				return nil, err
 			}
-			d.set(stringify(k), v)
+			d.Set(stringify(k), v)
 		}
 		return d, nil
 	case getAttrNode:
@@ -556,6 +556,14 @@ func (r *renderer) evalBin(n binNode, sc *scope) (any, error) {
 	case "%":
 		return toInt(l) % toInt(rt), nil
 	case "**":
+		if isInteger(l) && isInteger(rt) && toInt(rt) >= 0 {
+			// A whole number to a whole power is a whole number, as in Python.
+			power := 1
+			for range toInt(rt) {
+				power *= toInt(l)
+			}
+			return power, nil
+		}
 		return math.Pow(toFloat(l), toFloat(rt)), nil
 	case "~":
 		return stringify(l) + stringify(rt), nil
@@ -621,12 +629,17 @@ func (r *renderer) evalTest(n testNode, sc *scope) (any, error) {
 	switch n.name {
 	case "defined":
 		res = v != nil
-	case "undefined", "none":
+	case "undefined":
 		res = v == nil
+	case "none":
+		// A name that is not defined is not none; only None is.
+		res = isNone(v)
 	case "mapping":
 		res = isDict(v)
 	case "sequence":
-		res = isList(v)
+		// Python's test asks for a length and for indexing, which a string and
+		// a mapping have as a list does.
+		res = isIterable(v)
 	case "string":
 		res = isString(v)
 	case "iterable":
@@ -634,7 +647,8 @@ func (r *renderer) evalTest(n testNode, sc *scope) (any, error) {
 	case "boolean":
 		res = isBool(v)
 	case "number":
-		res = isNumber(v)
+		// A Python bool is a number, though not an integer to the integer test.
+		res = isNumber(v) || isBool(v)
 	case "integer":
 		res = isInteger(v)
 	case "float":
@@ -644,7 +658,8 @@ func (r *renderer) evalTest(n testNode, sc *scope) (any, error) {
 	case "true":
 		res = asBool(v)
 	case "false":
-		res = !asBool(v)
+		// Only False is false to this test: None and an empty string are not.
+		res = isBool(v) && !asBool(v)
 	case "in":
 		if n.arg == nil {
 			res = false

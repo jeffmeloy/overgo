@@ -21,21 +21,11 @@ import (
 // machine that ran it and not in git: the fixtures are the data.
 const chatModesScript = "scripts/python_golden_references/chat_mode_ids.py"
 
-// The conversations that offer tools, and of them the two that hold an
-// earlier call and its answer.
-var (
-	toolConversations = []string{
-		"tool-offered", "tool-offered-thinking-on", "system-two-tools-offered",
-		"tool-called-and-answered", "marked-tool-offered", "marked-tool-called-and-answered",
-	}
-	toolCallConversations = []string{"tool-called-and-answered", "marked-tool-called-and-answered"}
-)
-
-// toolTurnsFault is what parts a conversation with tools from the model's own
-// rendering of it: the template engine and the tool values it is handed were
-// written to reproduce another Go library and not Python Jinja2 as
-// transformers runs it, which the models' templates are written for.
-const toolTurnsFault = " (finding 399a51cc)"
+// toolConversations are the conversations that offer tools.
+var toolConversations = []string{
+	"tool-offered", "tool-offered-thinking-on", "system-two-tools-offered",
+	"tool-called-and-answered", "marked-tool-offered", "marked-tool-called-and-answered",
+}
 
 // knownChatModeFaults are the conversations that do not reach a model as its
 // own template and tokenizer give them, each model's with what parts them and
@@ -46,16 +36,6 @@ var knownChatModeFaults = map[string]struct {
 	conversations []string
 	fault         string
 }{
-	"MiniCPM5-1B-native-chat": {toolConversations, "tools offered with no system turn are refused, the template's lstrip() with no argument being one the engine does not take; " +
-		"with a system turn each tool is written as {}, the engine's tojson given an argument writing a tool as an empty object" + toolTurnsFault},
-	"Qwen3.5-4B": {toolConversations, "a tool's keys are written in alphabetical order and its < and & as escapes, where the model's own template keeps " +
-		"the request's order and writes the characters" + toolTurnsFault},
-	"gemma-4-E4B-it": {toolCallConversations, "an earlier tool call is refused by the template's own check, its arguments being handed to the template " +
-		"as a text and not as the mapping they hold" + toolTurnsFault},
-	"gemma-4-12B-it-fp8": {toolCallConversations, "an earlier tool call is refused, the template calling get on a call and the engine " +
-		"giving a tool call no methods" + toolTurnsFault},
-	"gemma-4-12B-it-fp8-native": {toolCallConversations, "an earlier tool call is refused, the template calling get on a call and the engine " +
-		"giving a tool call no methods" + toolTurnsFault},
 	"Qwen2.5-0.5B": {append([]string{"thinking-off", "thinking-on", "second-question-after-an-answer"}, toolConversations...),
 		"the scored file carries no chat template, so a conversation with no system turn is rendered without the one the model's own template " +
 			"opens with, and tools are refused (finding e683b1e7)"},

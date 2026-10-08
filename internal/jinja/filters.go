@@ -2,7 +2,6 @@ package jinja
 
 import (
 	"fmt"
-	"slices"
 	"sort"
 	"strings"
 )
@@ -23,6 +22,7 @@ func registerBuiltinFilters(e *Env) {
 	e.filters["min"] = filterMin
 	e.filters["max"] = filterMax
 	e.filters["map"] = e.filterMap
+	e.filters["tojson"] = filterToJSON
 }
 
 func filterDefault(in any, args []any, kwargs map[string]any) (any, error) {
@@ -132,7 +132,7 @@ func dictAllKeys(in any) []string {
 			keys = append(keys, k)
 		}
 		return keys
-	case *odict:
+	case *Dict:
 		return append([]string(nil), d.order...)
 	}
 	return nil
@@ -149,8 +149,9 @@ func filterItems(in any, _ []any, _ map[string]any) (any, error) {
 	if !ok {
 		return nil, fmt.Errorf("jinja: items requires a mapping")
 	}
-	keys := dictAllKeys(in)
-	slices.Sort(keys)
+	// A mapping's own order, as Python's items gives it; a Go map has none and
+	// is read sorted.
+	keys := dl.keys()
 	out := make([]any, 0, len(keys))
 	for _, k := range keys {
 		v, _ := dl.lookup(k)

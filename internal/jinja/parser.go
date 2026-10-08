@@ -27,21 +27,56 @@ func parseTemplate(src string) ([]stmt, error) {
 	return body, nil
 }
 
-// applyTrim implements gonja whitespace control: a tag with left-control (-)
-// strips trailing whitespace of the preceding text; right-control (-) strips
-// leading whitespace of the following text.
+// applyTrim strips the whitespace around tags as Jinja2 does in the
+// environment transformers compiles a chat template in, which sets
+// trim_blocks and lstrip_blocks. A minus sign in a tag strips all whitespace
+// on its side. Without one, the line break straight after a block tag or a
+// comment is dropped, and the spaces and tabs before a block tag or a comment
+// are dropped when nothing else stands before it on its line; a plus sign
+// keeps either. An output tag strips nothing without a minus sign.
 func applyTrim(chunks []chunk) {
 	const ws = " \t\r\n"
+	// lineStart is whether the tag before the text ended a line: there is
+	// none before the first text, and after that one whose close took a line
+	// break with it.
+	lineStart := true
 	for i := range chunks {
 		if chunks[i].kind != cText {
+			if i > 0 && chunks[i-1].kind != cText {
+				// Two tags with nothing between them: the first took no line break.
+				lineStart = false
+			}
 			continue
 		}
-		if i > 0 && chunks[i-1].kind != cText && chunks[i-1].trimR {
-			chunks[i].text = strings.TrimLeft(chunks[i].text, ws)
+		text := chunks[i].text
+		if i > 0 {
+			before := chunks[i-1]
+			statement := before.kind == cBlock || before.kind == cComment
+			switch {
+			case before.trimR:
+				stripped := strings.TrimLeft(text, ws)
+				lineStart = strings.HasSuffix(text[:len(text)-len(stripped)], "\n")
+				text = stripped
+			case statement && !before.keepR && strings.HasPrefix(text, "\n"):
+				text, lineStart = text[1:], true
+			default:
+				lineStart = false
+			}
 		}
-		if i+1 < len(chunks) && chunks[i+1].kind != cText && chunks[i+1].trimL {
-			chunks[i].text = strings.TrimRight(chunks[i].text, ws)
+		if i+1 < len(chunks) {
+			after := chunks[i+1]
+			statement := after.kind == cBlock || after.kind == cComment
+			switch {
+			case after.trimL:
+				text = strings.TrimRight(text, ws)
+			case statement && !after.keepL:
+				line := strings.LastIndexByte(text, '\n') + 1
+				if (line > 0 || lineStart) && line < len(text) && strings.TrimLeft(text[line:], ws) == "" {
+					text = text[:line]
+				}
+			}
 		}
+		chunks[i].text = text
 	}
 }
 
@@ -710,8 +745,8 @@ func (p *eparser) parsePrimary() (expr, error) {
 			node = litNode{val: true}
 		case "false", "False":
 			node = litNode{val: false}
-		case "none", "None", "nil":
-			node = litNode{val: nil}
+		case "none", "None":
+			node = litNode{val: None}
 		default:
 			node = nameNode{name: t.val}
 		}

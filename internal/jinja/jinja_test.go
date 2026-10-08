@@ -1,53 +1,101 @@
 package jinja
 
-import "testing"
+import (
+	"encoding/json"
+	"errors"
+	"os"
+	"path/filepath"
+	"testing"
+)
 
-func TestRenderCoreConstructs(t *testing.T) {
-	cases := []struct {
-		name string
-		src  string
-		ctx  map[string]any
-		want string
-	}{
-		{"text", `hello`, nil, "hello"},
-		{"output", `{{ x }}`, map[string]any{"x": "hi"}, "hi"},
-		{"bool_render", `{{ true }}|{{ false }}|{{ none }}`, nil, "True|False|"},
-		{"int_concat", `{{ 'a' + 'b' }}{{ 1 + 2 }}{{ 'n' ~ 3 }}`, nil, "ab3n3"},
-		{"escape_nl", `{{ 'a\nb' }}`, nil, "a\nb"},
-		{"trim_left", "x  {%- if true %}Y{% endif %}", nil, "xY"},
-		{"trim_right", "{% if true -%}  Y{% endif %}", nil, "Y"},
-		{"for_loop", `{% for i in [1,2,3] %}{{ i }}{{ loop.index }}{{ loop.last }};{% endfor %}`, nil,
-			"11False;22False;33True;"},
-		{"for_map_sorted", `{% for k in d %}{{ k }};{% endfor %}`, map[string]any{"d": map[string]any{"b": 1, "A": 2, "c": 3}}, "A;b;c;"},
-		{"if_elif_else", `{% if x == 1 %}one{% elif x == 2 %}two{% else %}other{% endif %}`, map[string]any{"x": 2}, "two"},
-		{"set_and_use", `{% set y = 'z' %}{{ y }}`, nil, "z"},
-		{"block_set", `{% set b %}a{{ 1 }}{% endset %}{{ b }}`, nil, "a1"},
-		{"namespace", `{% set ns = namespace(v=0) %}{% for i in [1,2,3] %}{% set ns.v = ns.v + i %}{% endfor %}{{ ns.v }}`, nil, "6"},
-		{"ternary", `{{ 'y' if x else 'n' }}`, map[string]any{"x": true}, "y"},
-		{"ternary_noelse", `[{{ 'z' if x }}]`, map[string]any{"x": false}, "[]"},
-		{"tests", `{{ x is defined }}{{ y is none }}{{ x is string }}{{ n is number }}`,
-			map[string]any{"x": "s", "n": 5}, "TrueTrueTrueTrue"},
-		{"is_not_in", `{{ 'a' in ['a','b'] }}{{ 'c' not in ['a','b'] }}`, nil, "TrueTrue"},
-		{"slice_step", `{% for i in [1,2,3,4][::-1] %}{{ i }}{% endfor %}`, nil, "4321"},
-		{"slice_range", `{{ 'hello'[1:3] }}`, nil, "el"},
-		{"filters", `{{ '  x  '|trim|upper }}{{ [3,1,2]|min }}{{ ['a','b']|map('upper')|list }}`, nil, "X1['A', 'B']"},
-		{"default", `{{ missing|default('D') }}{{ ''|default('E', true) }}`, nil, "DE"},
-		{"macro", `{% macro g(a, b='!') %}{{ a }}{{ b }}{% endmacro %}{{ g('hi') }}{{ g('yo','?') }}`, nil, "hi!yo?"},
-		{"method_split", `{{ 'a</t>b'.split('</t>')[-1] }}`, nil, "b"},
-		{"method_strip", `[{{ '\n x \n'.strip() }}][{{ '\nx\n'.strip('\n') }}]`, nil, "[x][x]"},
-		{"comment", `a{# hidden #}b`, nil, "ab"},
-		{"dict_get", `{{ d.get('k', 'def') }}{{ d.get('missing', 'def') }}`, map[string]any{"d": map[string]any{"k": "v"}}, "vdef"},
+// semanticsScript writes the golden this test reads, from Python's Jinja2 as
+// transformers compiles a chat template. It is kept where Python is kept, on
+// the machine that ran it and not in git: the golden is the data.
+const semanticsScript = "scripts/python_golden_references/jinja_semantics.py"
+
+// TestRendersAsPythonJinjaDoes holds the engine, construct by construct, to
+// the language the templates it serves are written in: Python's Jinja2 in
+// the environment transformers compiles a chat template in. Each case of
+// testdata/semantics.json is one small template over the file's one context,
+// read as a request's JSON reaches a template, and the text must be what
+// Python renders, or the engine must refuse what Python raises on.
+//
+// The cases are the ones a chat template leans on: what None and a name that
+// is not defined print as and test as, how a float is written, the order a
+// mapping is walked in, Python's string methods with and without their
+// arguments, tojson with each of its arguments, and how block tags eat the
+// lines they stand on.
+func TestRendersAsPythonJinjaDoes(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("testdata", "semantics.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document struct {
+		Context json.RawMessage `json:"context"`
+		Cases   []struct {
+			Name     string `json:"name"`
+			Template string `json:"template"`
+		} `json:"cases"`
+	}
+	if err := json.Unmarshal(raw, &document); err != nil || len(document.Cases) == 0 {
+		t.Fatalf("no case is on file: %v", err)
+	}
+	decoded, err := DecodeJSON(document.Context)
+	if err != nil {
+		t.Fatal(err)
+	}
+	object, isObject := decoded.(*Dict)
+	if !isObject {
+		t.Fatal("the context is not an object")
+	}
+	context := map[string]any{}
+	for _, name := range object.keys() {
+		context[name], _ = object.get(name)
+	}
+	raw, err = os.ReadFile(filepath.Join("testdata", "semantics_golden.json"))
+	if err != nil {
+		t.Fatalf("%v; write the golden with %s", err, semanticsScript)
+	}
+	var golden struct {
+		Renders []struct {
+			Name  string `json:"name"`
+			Text  string `json:"text"`
+			Error string `json:"error"`
+		} `json:"renders"`
+	}
+	if err := json.Unmarshal(raw, &golden); err != nil || len(golden.Renders) != len(document.Cases) {
+		t.Fatalf("the golden holds %d renders for %d cases (%v); write it again with %s", len(golden.Renders), len(document.Cases), err, semanticsScript)
 	}
 	env := New()
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			got, err := env.Render(c.src, c.ctx)
-			if err != nil {
-				t.Fatalf("render error: %v", err)
-			}
-			if got != c.want {
-				t.Fatalf("got %q, want %q", got, c.want)
+	env.SetGlobal("raise_exception", func(args []any, _ map[string]any) (any, error) {
+		return nil, errors.New(stringify(args[0]))
+	})
+	for index, testCase := range document.Cases {
+		want := golden.Renders[index]
+		if want.Name != testCase.Name {
+			t.Fatalf("render %d is of %s and case %d is %s", index, want.Name, index, testCase.Name)
+		}
+		t.Run(testCase.Name, func(t *testing.T) {
+			got, err := env.Render(testCase.Template, context)
+			switch {
+			case want.Error != "" && err == nil:
+				t.Errorf("rendered %q where Python raises %s", got, want.Error)
+			case want.Error == "" && err != nil:
+				t.Errorf("refused where Python renders %q: %v", want.Text, err)
+			case want.Error == "" && got != want.Text:
+				t.Errorf("rendered\n%q\nwhere Python renders\n%q", got, want.Text)
 			}
 		})
+	}
+}
+
+// TestDecodeJSONRefusesWhatIsNotOneValue holds the reader of a request's JSON
+// to refusing what is not one value: nothing, a value cut short, and a value
+// with another after it.
+func TestDecodeJSONRefusesWhatIsNotOneValue(t *testing.T) {
+	for _, text := range []string{``, `{"a": `, `[1, 2`, `{"a": 1} {"b": 2}`, `{1: 2}`} {
+		if value, err := DecodeJSON([]byte(text)); err == nil {
+			t.Errorf("%q was read as %v", text, value)
+		}
 	}
 }

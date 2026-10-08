@@ -19,9 +19,9 @@ func selectAnthropicTools(
 	var tools []inference.ChatTool
 	if strictjson.HasValue(rawTools) {
 		var definitions []struct {
-			Name        string         `json:"name"`
-			Description string         `json:"description"`
-			InputSchema map[string]any `json:"input_schema"`
+			Name        string          `json:"name"`
+			Description string          `json:"description"`
+			InputSchema json.RawMessage `json:"input_schema"`
 		}
 		if err := strictjson.DecodeBytes(rawTools, &definitions); err != nil {
 			return chatToolSelection{}, errors.New("tools must be an array of Anthropic tool definitions")
@@ -31,17 +31,16 @@ func selectAnthropicTools(
 			if definition.Name == "" {
 				return chatToolSelection{}, fmt.Errorf("tool %d name is required", index)
 			}
-			if definition.InputSchema == nil {
+			if !strictjson.HasValue(definition.InputSchema) {
 				return chatToolSelection{}, fmt.Errorf("tool %d input_schema is required", index)
 			}
-			tools[index] = inference.ChatTool{
-				Type: inference.ChatToolTypeFunction,
-				Function: inference.ChatToolDefinition{
-					Name:        definition.Name,
-					Description: definition.Description,
-					Parameters:  definition.InputSchema,
-				},
+			// The schema is handed on as the request wrote it: a model's template
+			// writes it out in the order of its keys.
+			tool, err := inference.FunctionTool(definition.Name, definition.Description, definition.InputSchema)
+			if err != nil {
+				return chatToolSelection{}, errors.New("tools must be an array of Anthropic tool definitions")
 			}
+			tools[index] = tool
 		}
 	}
 

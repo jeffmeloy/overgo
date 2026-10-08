@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "scorecard-uncompared-seq2seq",
-      "title": "Compare the path a seq2seq request takes with a reference output for each model it is scored on",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 300,
-        "reason": "A test refuses a Python file git would track; two scripts move to the ignored place"
-      },
-      "steps": [
-        {
-          "id": "rescore",
-          "title": "Score needle again on the repaired path, with each tool described",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-seq2seq",
-          "rationale": "Needle's recorded 5 of 400 measured a path that fed the model ids it was not trained on, with tools described in a form it was not trained to read. With both repaired, the suite is built again from the leaderboard's two files and needle is scored on it by the evaluator built at the commit that holds the repairs, rehearsed on a copy of the store first. Upstream's own code is accepted in 104 of 400 on the described tools with its constrained decoding on; overgo, which does not constrain, is expected near it. The reading replaces 5 of 400, and the commit says what the old one measured.\n\nServes: measure and find the gap. Disappears: a reading of two faults. Evidence: the evaluation record, and the scorecard. Batch: host."
-        }
-      ]
-    },
-    {
       "id": "score-double-check",
       "title": "Hold each weak or surprising scorecard reading to a reference, a baseline and its own protocol before calling it the model's",
       "owner": "master-lead",

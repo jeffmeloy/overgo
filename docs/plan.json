@@ -35,13 +35,6 @@
           "rationale": "The step before this one builds the measure: a clip whose caption names one worn thing by a colour, the instruction to change that colour and nothing else, and one question of four captions that tells the change and the rest apart. This step is the reading. Build evaluate at the commit that holds the measure; edit 64 clips with -render-edits -one-thing against a copy of the store, at the editor's own size, about 75 seconds a clip; look at eight edited clips beside their sources by eye, and say what the editor did; judge on the copy first, where a reading at the ceiling or at chance says the measure tells nothing, then on the real store; tally the wrong answers by kind, unchanged or scene lost. Serves: measure and find the gap. Disappears: a reading beside the point. Evidence: the reading on the scorecard, the tally, and the eight clips looked at. Batch: device."
         },
         {
-          "id": "carried-notes-score",
-          "title": "Score Fractale on what its carried notes gain, and read it first on its row",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestScorecardMarksAReadingOutsideItsModelsUse$'",
-          "rationale": "The step before this one builds the measure and holds it to the model's own code: a document's first four chunks written into the bank, then the loss of a blank turn asked for the opening of the fifth, with the bank carried and with a fresh one. This step is the reading: build evaluate at the commit that holds the measure, build the suite of long WikiText-2 test articles, rehearse on a copy of the store, score on the store, and let the scorecard read the gain first on Fractale's row with the perplexity beside it. Say beside it what the model's own code reads on the same documents and what its card reports on its own text. Serves: measure and find the gap. Disappears: a reading that never touches what the model is for. Evidence: the gain on the scorecard. Batch: host."
-        },
-        {
           "id": "edit-source",
           "title": "Let an edit request carry its source clip without loss",
           "status": "open",

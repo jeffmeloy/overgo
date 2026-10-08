@@ -15,13 +15,6 @@
       "holds": "the encoder input a served request builds and the call it answers with, on every case of the function-call evaluation, to what the model's own code builds and answers on its bfloat16 parameters with the arithmetic in float32 and its constrained decoding off"
     },
     {
-      "model": "Fractale-350M-base",
-      "task": "generation",
-      "package": "internal/thoughtbank",
-      "test": "TestPassageLossMatchesUpstream",
-      "holds": "the token ids of every held-out passage to the ids the model's own tokenizer gives, and the loss of one passage in eight, read in the windows a served request reads it in and from a bank of zeros, to the model's own code's within 0.002 nats a token; that code seeds a fresh bank with random numbers where the served path seeds zeros, which the fixture measures at about 0.004 nats a token"
-    },
-    {
       "model": "granite-speech-5.0-470m-turboctc",
       "task": "transcription",
       "package": "internal/audioparity",
@@ -75,6 +68,13 @@
       "task": "projection",
       "deferred": "no test runs the current code against a reference: the comparison on record is of an earlier commit's twenty image and video answers with native results stored then, which internal/evaluation TestRetainedProjectionResults reads back without executing a model",
       "reopens": "a reference for the GGUF file made on this machine: a build of llama.cpp with its multimodal tool at the baseline commit, whose source is at C:/Users/jeffm/llama.cpp, or the model's original weights"
+    },
+    {
+      "model": "Fractale-350M-base",
+      "task": "generation",
+      "package": "internal/thoughtbank",
+      "test": "TestCarriedNotesGainOnTheNextChunk",
+      "holds": "the token ids of every held-out document to the ids the model's own tokenizer gives, and of one document in twelve both losses of the blank turn after four chunks, with the bank they wrote and with a fresh one, to the model's own code's within 0.02 nats a token, measured within 0.001; TestPassageLossMatchesUpstream holds the perplexity beside it to that code the same way; a fresh bank is seed slots of zeros on both sides, where that code's own random seeding reads the gain higher"
     }
   ]
 }

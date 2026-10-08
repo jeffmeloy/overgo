@@ -45,6 +45,12 @@ func (r thoughtBankRuntime) ScoreContinuations(ctx context.Context, prompt strin
 	return r.generator.ScoreContinuations(ctx, prompt, candidates)
 }
 
+// ScoreCarried scores a document's deferred turn with the notes its chunks
+// wrote and with a fresh bank.
+func (r thoughtBankRuntime) ScoreCarried(ctx context.Context, text string, chunks, opening int) (carried, reset sequencescore.Score, err error) {
+	return r.generator.ScoreCarried(ctx, text, chunks, opening)
+}
+
 // seq2seqRuntime is an encoder-decoder generator as an evaluation runtime: it
 // answers a request with the text its decoder selects, and reports no
 // likelihoods, so its suites score what it writes.

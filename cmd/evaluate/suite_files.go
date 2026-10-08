@@ -55,9 +55,9 @@ func writeSeriesForecast(csv, out string, context, horizon int) error {
 // the few thousand a WikiText-2 split holds.
 const passageLines = 1 << 20
 
-// writePassages builds the held-out likelihood suite of a WikiText-2 test
-// parquet file's text column and writes it to out.
-func writePassages(ctx context.Context, parquet, out string) error {
+// writeTextSuite builds a suite of a WikiText-2 test parquet file's text
+// column, its passages or the starts of its articles, and writes it to out.
+func writeTextSuite(ctx context.Context, parquet, out, measure string, build func(lines []string) (any, int, error)) error {
 	var lines []string
 	if err := dataset.ReadParquetTextRows(ctx, parquet, "text", passageLines, func(_ uint64, line string) error {
 		lines = append(lines, line)
@@ -65,11 +65,11 @@ func writePassages(ctx context.Context, parquet, out string) error {
 	}); err != nil {
 		return err
 	}
-	suite, cases, err := evaluation.BuildWikiTextPassages(lines)
+	suite, cases, err := build(lines)
 	if err != nil {
 		return err
 	}
-	return writeSuite(out, suite, cases, "passages")
+	return writeSuite(out, suite, cases, measure)
 }
 
 // tableBytes bounds what reading a table's rows may decode at once, far above

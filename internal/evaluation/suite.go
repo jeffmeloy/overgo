@@ -258,6 +258,21 @@ func compileSuite(data []byte, authorities ExactAuthorities) (CompiledSuite, err
 				report, err := evaluateSeriesForecast(ctx, repository, runtime, compiled, plan)
 				return suiteResult{Report: report.ID, Metrics: seriesForecastMetrics(report.MeanAbsoluteError)}, err
 			})
+	case carriedContinuationKind:
+		var source CarriedContinuationSuite
+		if err := strictjson.DecodeBytes(data, &source); err != nil {
+			return CompiledSuite{}, err
+		}
+		compiled, err := compileCarriedContinuation(source)
+		if err != nil {
+			return CompiledSuite{}, err
+		}
+		plan, err := bindCarriedContinuation(compiled, authorities)
+		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err, carriedContinuationMetrics(0, 0, 0),
+			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (suiteResult, error) {
+				report, err := evaluateCarriedContinuation(ctx, repository, runtime, compiled, plan)
+				return suiteResult{Report: report.ID, Metrics: carriedContinuationMetrics(report.CarriedGain, report.CarriedLoss, report.ResetLoss)}, err
+			})
 	case functionCallKind:
 		var source FunctionCallSuite
 		if err := strictjson.DecodeBytes(data, &source); err != nil {

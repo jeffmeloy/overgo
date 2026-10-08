@@ -1,0 +1,453 @@
+{
+ "schema": "fractale_carried_gain/v1",
+ "source": "the upstream Fractale package's forward, as its research code's evaluate_by_depth runs it, over overgo's wikitext-2-raw-v1/test/carried documents; scripts/python_golden_references/fractale_carried_gain.py",
+ "torch_version": "2.12.0+cu126",
+ "tokenizers_version": "0.22.2",
+ "window_tokens": 512,
+ "chunks": 4,
+ "opening": 16,
+ "seed_slots": 4,
+ "seed_init": "uniform01",
+ "cases": [
+  {
+   "name": "wikitext-2-raw-v1/test/carried/00",
+   "text_sha256": "bc3d5b1df7c4f8bfa36edeeabd33d88cbdfd1088b29cec81679c73771294c047",
+   "ids_sha256": "a6ea3d2e1f2465ca585077d48f67b33751789136fe350d0288ccad5cbfd0b97b",
+   "tokens": 16,
+   "carried": 105.82944044316739,
+   "reset": 207.17398141355318,
+   "seeded": [
+    [
+     105.0273773705209,
+     230.96019060946014
+    ],
+    [
+     104.69839389141993,
+     231.0117402587203
+    ],
+    [
+     104.85825888813517,
+     227.85974708797625
+    ],
+    [
+     104.9336844278075,
+     231.14299216342533
+    ]
+   ]
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/01",
+   "text_sha256": "226c244d0b4c9be963613e4ad77cebf6cf14e4585cae5ebb87554ec9d60b4acc",
+   "ids_sha256": "1bc620cedfd54eeb9dfb0c87dd141fe751b18e19cb9d8b906f7f4cb0167cd44c",
+   "tokens": 16,
+   "carried": 120.57503720048075,
+   "reset": 235.19272819192213,
+   "seeded": [
+    [
+     115.24763730768665,
+     255.1838352236798
+    ],
+    [
+     115.19646393518448,
+     255.00662567355909
+    ],
+    [
+     115.25397129846334,
+     256.72949961425957
+    ],
+    [
+     115.5905612338588,
+     255.43118878675065
+    ]
+   ]
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/02",
+   "text_sha256": "46d487251f9dfbbf701200163d4b90298e18dfa2de590b8202188eddea91bceb",
+   "ids_sha256": "89bf81e3af7a803d081ed54079ee2e3dd9a96dc7129f21ce1010e0c2b368c1ea",
+   "tokens": 16,
+   "carried": 102.20973278784156,
+   "reset": 198.57839173109335,
+   "seeded": [
+    [
+     101.77069081290796,
+     223.72752930260208
+    ],
+    [
+     101.87388437558936,
+     223.23267414310254
+    ],
+    [
+     102.09358123396584,
+     221.45099697115117
+    ],
+    [
+     102.01613891165158,
+     224.01672648859585
+    ]
+   ]
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/03",
+   "text_sha256": "6aca9e95a9993e69a5b48067517fae5e64803786c1fca96af69ef21e0dd6d9c7",
+   "ids_sha256": "abc92d605e66a6965d6fcca02d8e27cd570343575140e9449c31d86a2b773ac1",
+   "tokens": 16,
+   "carried": 78.35747587534289,
+   "reset": 139.40770882398886,
+   "seeded": [
+    [
+     78.9938562762356,
+     155.25368602610138
+    ],
+    [
+     77.98485539934603,
+     154.6036893043784
+    ],
+    [
+     77.92910189470119,
+     153.3256659269541
+    ],
+    [
+     77.51452456781475,
+     156.6981475598868
+    ]
+   ]
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/04",
+   "text_sha256": "d60e4c9a622843ce445ae1d948f71df8f61f4da92401c98520a203f7bff5d233",
+   "ids_sha256": "6b7ab2bced1178c3af18d4ac58c5b750a39f6fcadc58d9012fe65022934530a5",
+   "tokens": 16,
+   "carried": 111.4812032785788,
+   "reset": 198.63284304768843,
+   "seeded": [
+    [
+     111.5273689064439,
+     217.24384428597
+    ],
+    [
+     111.38524014791241,
+     216.83108814695157
+    ],
+    [
+     111.23172135365309,
+     215.528206682226
+    ],
+    [
+     111.60155225990613,
+     216.7479081399497
+    ]
+   ]
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/05",
+   "text_sha256": "dd846d4c1f97e97a0b09bee56c3034979e242acafe931b38bc75f8a70802f087",
+   "ids_sha256": "5e1a623bd5f291cbf2e3f6852e4b39ce784584cc249d92019829d127fb1ff890",
+   "tokens": 16,
+   "carried": 113.41202407576358,
+   "reset": 201.68997320563597,
+   "seeded": [
+    [
+     115.24948870979435,
+     219.01985360718277
+    ],
+    [
+     115.20952662757293,
+     218.6257523510722
+    ],
+    [
+     114.90854594816845,
+     217.21025941373998
+    ],
+    [
+     115.33804898593189,
+     218.24609144998158
+    ]
+   ]
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/06",
+   "text_sha256": "53dd70b93832045535ae62b60159c7382e02a9c75c4335aba1c5fea11ebac3de",
+   "ids_sha256": "8d3705684d31ed9ff2b9e525f3d1709e1608dbc6e9c094a09daa78c8576910c6",
+   "tokens": 16,
+   "carried": 103.93112497239659,
+   "reset": 202.92178788811964,
+   "seeded": [
+    [
+     102.42388708724309,
+     227.39020483232048
+    ],
+    [
+     102.03106341381763,
+     226.6925749991206
+    ],
+    [
+     102.32452311127187,
+     223.00963900091344
+    ],
+    [
+     102.24940127400164,
+     227.33796011877618
+    ]
+   ]
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/07",
+   "text_sha256": "ce905647cf0fce8dfe1d60196baa50cd221b6d8380df7b6a0353b468831419a8",
+   "ids_sha256": "0fd374b78c2bf59b9df00df4744e8901fce553761637c97dab91d7f399446266",
+   "tokens": 16,
+   "carried": 126.82640570302871,
+   "reset": 218.10799595744413,
+   "seeded": [
+    [
+     127.13912869901029,
+     241.64554061031845
+    ],
+    [
+     127.15169618414811,
+     240.8683324072627
+    ],
+    [
+     127.19164362334831,
+     238.175594127199
+    ],
+    [
+     127.06081962193987,
+     242.34168460441197
+    ]
+   ]
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/08",
+   "text_sha256": "0b4f6c998ea6b5c5710af682bbd7f473378812fac3327084d88ab3057fa9ff1d",
+   "ids_sha256": "911229a54b8bc4ea2c465d505e300b8ca0cbb585c5ead8702a7ed88e3cf9cdbb",
+   "tokens": 16,
+   "carried": 138.60530630036914,
+   "reset": 215.20494666726393
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/09",
+   "text_sha256": "fe3ab6927ab0bd266962ac47eccb1814014dfcf211f0de02d7fdd8f578475041",
+   "ids_sha256": "690bfac5a7f30602a3c41d4be00e1c8b606f5a6e6caa1a6098e96abc48549512",
+   "tokens": 16,
+   "carried": 78.11409851174112,
+   "reset": 183.29308587343496
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/10",
+   "text_sha256": "639d11366500a61660c13210f8e63ca62b52d1bab288cd2b107c31da6b6f70bd",
+   "ids_sha256": "6a13b4d41406d05f3b34a7714901d6324c20d3bf9e4cdd66b04c097eb5700510",
+   "tokens": 16,
+   "carried": 108.08871534905421,
+   "reset": 172.6161041560869
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/11",
+   "text_sha256": "9c59cf3141a4ab1cdadbc5e37ebc6260d58d5c35f891b6a1fe73c215cf6dbe57",
+   "ids_sha256": "8d798840a414de9f65351e2ac15dba98d3ddf64ba14245757d0840ba03ae5f0d",
+   "tokens": 16,
+   "carried": 104.97268641756338,
+   "reset": 173.60667169124883
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/12",
+   "text_sha256": "e593d45536813bb3ab53fc41ec72f77dae348443ea37844296e61966c7bc72b4",
+   "ids_sha256": "f9c6f6409989b190670494ff1a9dedf99b3b44e50ff54da92382c46c73b1b2e2",
+   "tokens": 16,
+   "carried": 122.99352175465435,
+   "reset": 219.0725207033853
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/13",
+   "text_sha256": "2bfe8ba97bfd174b9d308ef63af665dfc70ec95106475b092049e184e7c491ab",
+   "ids_sha256": "ca11ad7353abb5e9810e4d91472839aec3c2436b64f56e8294185339f9493328",
+   "tokens": 16,
+   "carried": 105.19280214197879,
+   "reset": 193.0216372314195
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/14",
+   "text_sha256": "9df851d5a7fe1ff048d903e8146d4e22c58a88a0e6c3d90869f7db728d7ee489",
+   "ids_sha256": "4b4162f1650a93dfc1fd71e3e8d8e9967f16c213cadf2ac68355c9060df89189",
+   "tokens": 16,
+   "carried": 100.41866549177071,
+   "reset": 209.95920482308668
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/15",
+   "text_sha256": "8b0e2decddb901bbc8feb8e343bb22cf715e4c4a7114abc5b6fe6a801f18321e",
+   "ids_sha256": "a775e98424bf15cc63cd32e9754e301bdde72f959ca83cc0b64a581c34fac770",
+   "tokens": 16,
+   "carried": 118.77924493860226,
+   "reset": 223.3170930448274
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/16",
+   "text_sha256": "9d0642709ae03c7f9be24a7b5f02f41ec89605e7a501cbbc8b75835ab75ce875",
+   "ids_sha256": "3bf1a51b3570ec0ecc1dd93c8b36db5831de327d791fc5c6e6e67e6b704317b7",
+   "tokens": 16,
+   "carried": 110.45206192152071,
+   "reset": 213.6390940252046
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/17",
+   "text_sha256": "d6f2d61423d0ced95545bb5fdf44fa4c5904b83273af215b09625dbcfceeaf06",
+   "ids_sha256": "cc9864964377c90469cc91b395662e44919da49fd096c26d69f77d7a6490c521",
+   "tokens": 16,
+   "carried": 105.77058420722108,
+   "reset": 203.3844527009229
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/18",
+   "text_sha256": "5b811e7f11984a8358ec1c321b0ba1660ef67d506686d0474c83a20b4827b2a9",
+   "ids_sha256": "025b297cd90ee7b6a50091b9832b1b61b82b5984f2ef8aa9ceb399e5f35d4897",
+   "tokens": 16,
+   "carried": 132.99275294406613,
+   "reset": 188.5872998538713
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/19",
+   "text_sha256": "f2227323f89c2bd178bbe90cefb043cd7cd020bf70b67c0852e999ae6e654de2",
+   "ids_sha256": "0ea4f7d58444694fc44d95aa6c785c0c48fdfdaa297e5f5ee513185153804d8c",
+   "tokens": 16,
+   "carried": 129.65020448013718,
+   "reset": 203.509022668312
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/20",
+   "text_sha256": "fc31381d2a4f91eb2ada24654e91d00415527db4efa53b995c940350a7411d05",
+   "ids_sha256": "c8c95a80981d81c14f33a3991a1476b6a9c5edc522d00d0c9af9edf7950f7865",
+   "tokens": 16,
+   "carried": 110.69457009793429,
+   "reset": 194.45726437152427
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/21",
+   "text_sha256": "459eeb524c60bcb8ad5fe8c57c884d7b2eec5ef0b9ec4729f8cb3e7b8e5c5266",
+   "ids_sha256": "22bc65bec5e1b3d9b4ea8423f0594dc55b1721f51b55b3c5db88a53fa6eefbe5",
+   "tokens": 16,
+   "carried": 121.01075712743342,
+   "reset": 216.71583381326002
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/22",
+   "text_sha256": "52f7e89278c36cbc3dde09b4dd6b389347943da8a8baaf35fadd6030b2cd506e",
+   "ids_sha256": "8ec737e67d1ee5d74a48771a288330891f1a5b71ce5911802935ea542abdf024",
+   "tokens": 16,
+   "carried": 99.01384824728433,
+   "reset": 194.00300431282324
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/23",
+   "text_sha256": "40f564d8e54dc127879900651ffb5d3aea44734bf743a4ccdd2e11a8f68f0a96",
+   "ids_sha256": "9d2b4905cd66f149d75eeb4a73b40cfb32157d607629d41f3eaef902d919d20f",
+   "tokens": 16,
+   "carried": 82.3584525480891,
+   "reset": 183.7356812062959
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/24",
+   "text_sha256": "60a8299b2d2be7286fa04e08efdbcdfceef57c1564af4a41056d36efb6873ca9",
+   "ids_sha256": "b81ecedf3ca6e5f6ec949a37b8e1cba2f2c97abbebd34c6a300a09e8d48682cb",
+   "tokens": 16,
+   "carried": 111.64716071095054,
+   "reset": 221.2240708175401
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/25",
+   "text_sha256": "edbb8b4585d2988b760dfca4faa33f1c293c55c26ad2bd9df6ef7e8203689e55",
+   "ids_sha256": "b248a8e91650c967f072b805b59cca4e6e9490642c7b73d9daa3ab0c785c6bbf",
+   "tokens": 16,
+   "carried": 94.26966257053796,
+   "reset": 173.70347917110723
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/26",
+   "text_sha256": "ab5dfebea0573150719b4cdbcff4542d76aaf407d79caa0aa1ab0eb2583b1643",
+   "ids_sha256": "340604ed104ba5d338a8604b6584e5a10cbd3a1f5b44a7138b49ec85a84cfe31",
+   "tokens": 16,
+   "carried": 135.3174682064331,
+   "reset": 200.5055250230531
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/27",
+   "text_sha256": "dda720cb312b62527069894bd742436229b8bd6b8c0bb9bc3183b0e956885436",
+   "ids_sha256": "1103edba522e9e8448fdef6d902393c87f89f7596eacaa242d7daab6b1cd7428",
+   "tokens": 16,
+   "carried": 114.29110803749926,
+   "reset": 203.50642293722433
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/28",
+   "text_sha256": "b9d729b605d04646475ce15ba0c19f92ee5d70673a9087d1cd3b6809bc96b0ee",
+   "ids_sha256": "56503b004394612209a62b8d4a9b579dafab5743e27d27c62a529547fc6d7d20",
+   "tokens": 16,
+   "carried": 136.1785433575432,
+   "reset": 209.33860805661482
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/29",
+   "text_sha256": "ac0718c0e0842a763b23e637ed77c5d9102d0448ab110f3a915c5526399e1eb0",
+   "ids_sha256": "81cd26b280b0ae39b467a25e20a51c997f08fd9d2486c742378ea09a450af39d",
+   "tokens": 16,
+   "carried": 104.64446915835364,
+   "reset": 210.51999437839788
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/30",
+   "text_sha256": "781c895a79305f9574e47cf0911f6a64e0f97403c6446ecd1efff9e1f63d8d83",
+   "ids_sha256": "02ee17f911b28a7005ffc82115c367ab5181a7c5b1810b9a34b4b9fadb905102",
+   "tokens": 16,
+   "carried": 94.90921285311487,
+   "reset": 163.72819119722647
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/31",
+   "text_sha256": "da937240d214b77326432d2d84ebebd88dc02df97842fdbdba1559369629dd0d",
+   "ids_sha256": "7324b3b61b8e371db91ce10ad8d0ebf9968b7f361145380a7a9072addbb53272",
+   "tokens": 16,
+   "carried": 109.33214619540007,
+   "reset": 217.62279322774214
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/32",
+   "text_sha256": "a1c999cd18ac1a6cd40a850f617b02cb55c973e969c34edf5d969a55e17053b3",
+   "ids_sha256": "ca8a3a229fc26e126710cc9709000d2dc19dd236990275eb8cfcf63bc6ac07f6",
+   "tokens": 16,
+   "carried": 50.51438299044928,
+   "reset": 131.52351424128813
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/33",
+   "text_sha256": "1f8c53e69f2fd8efbe1db818cf26ec593ffd69ea806ab411c13e632cf5ad1b87",
+   "ids_sha256": "e5d50b16cc7bc0de37b1027dbc4b304c431b74a522ebd5f15951822e5bd2136d",
+   "tokens": 16,
+   "carried": 110.39336945440753,
+   "reset": 222.4111194017629
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/34",
+   "text_sha256": "21e34dd89771fbd4a7c635ea0dec293cc67a82263d4c2758d95a15292260cdc8",
+   "ids_sha256": "40c684642c84fe4f41befaa68ac9dc5576f3f15b69f909e5e3a1fa88b2c7fbb8",
+   "tokens": 16,
+   "carried": 110.39368287579248,
+   "reset": 210.1013282168011
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/35",
+   "text_sha256": "4bed15d95a1e740af919dac4b4936e0447b0642ae03fd8f09fddd1793073160c",
+   "ids_sha256": "1ef530a477c6da26b71237e0feecc313e32229d18b7414f8c13869632d455048",
+   "tokens": 16,
+   "carried": 117.0236023135916,
+   "reset": 208.67803290517134
+  },
+  {
+   "name": "wikitext-2-raw-v1/test/carried/36",
+   "text_sha256": "64ce1a56698d201fc195a3c12fc68fed73371a4fb16417cc032c37afba76ceeb",
+   "ids_sha256": "e225ce6c61f5dc1a5e4b313b1f247a277f4ca0f7ebfff0521beb77f4a44f9267",
+   "tokens": 16,
+   "carried": 100.32784934104819,
+   "reset": 200.04590824277204
+  }
+ ]
+}

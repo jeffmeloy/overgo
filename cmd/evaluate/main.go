@@ -115,6 +115,7 @@ func run() error {
 	seriesContext := flag.Int("context", defaultSeriesContext, "with -build-series-forecast: readings each window shows")
 	seriesHorizon := flag.Int("horizon", defaultSeriesHorizon, "with -build-series-forecast: readings each window asks for")
 	passagesParquet := flag.String("build-passages", "", "write the held-out likelihood suite of this WikiText-2 test parquet file to -suite-out: passages evenly spaced through the split, each starting on a line and ending on a word")
+	documentsParquet := flag.String("build-carried-documents", "", "write the carried-continuation suite of this WikiText-2 test parquet file to -suite-out: the start of every article long enough for a model to write four chunks into its memory and be asked, shown nothing, for the opening of the fifth")
 	tabularParquet := flag.String("build-tabular-requests", "", "write the held-out classification requests of this credit-g parquet table to the directory -requests-out names: disjoint requests of context rows with their classes and query rows to answer")
 	requestsOut := flag.String("requests-out", "", "with -build-tabular-requests: the directory the request files are written to")
 	suiteOut := flag.String("suite-out", "", "with a -build- flag: the suite file to write")
@@ -236,7 +237,13 @@ func run() error {
 		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" {
 			return errors.New("usage: evaluate -build-passages <wikitext test parquet> -suite-out <suite.json>")
 		}
-		return writePassages(context.Background(), parquet, strings.TrimSpace(*suiteOut))
+		return writeTextSuite(context.Background(), parquet, strings.TrimSpace(*suiteOut), "passages", evaluation.BuildWikiTextPassages)
+	}
+	if parquet := strings.TrimSpace(*documentsParquet); parquet != "" {
+		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" {
+			return errors.New("usage: evaluate -build-carried-documents <wikitext test parquet> -suite-out <suite.json>")
+		}
+		return writeTextSuite(context.Background(), parquet, strings.TrimSpace(*suiteOut), "carried-continuation", evaluation.BuildWikiTextDocuments)
 	}
 	if clips := strings.TrimSpace(*captionClips); clips != "" {
 		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" {

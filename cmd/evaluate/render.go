@@ -332,7 +332,7 @@ func publishEditSources(ctx context.Context, repository, clips, model string, it
 		if err != nil || len(frames) != editSourceFrames {
 			return nil, fmt.Errorf("evaluate: %s gave %d of the %d frames an edit takes: %v", clip, len(frames), editSourceFrames, err)
 		}
-		encoder, err := latentvideo.NewGIFEncoder(editSourceFPS, latentvideo.UnitPixels)
+		encoder, err := latentvideo.NewClipEncoder(editSourceFPS, latentvideo.UnitPixels)
 		if err != nil {
 			return nil, err
 		}

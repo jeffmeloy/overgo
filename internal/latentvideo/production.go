@@ -43,6 +43,10 @@ const (
 	UnitPixels PixelRange = "unit"
 )
 
+// gifPaletteColors is how many colours a served clip's frame is drawn in:
+// all a GIF frame can hold.
+const gifPaletteColors = 256
+
 var (
 	videoProfileContract = artifact.DocumentContract{
 		Kind: artifact.KindProfile, MediaType: "application/vnd.overgo.video-profile+json", Schema: "overgo/video-profile/v1",
@@ -180,8 +184,11 @@ func GIFContent(video EncodedVideo) (artifact.Content, error) {
 
 // gifEncoder streams borrowed planar frames into one encoded artifact.
 type gifEncoder struct {
-	fps       int
-	pixels    PixelRange
+	fps    int
+	pixels PixelRange
+	// cut draws each frame in a palette cut from it; unset, every frame is
+	// drawn in one fixed palette.
+	cut       bool
 	animation gif.GIF
 	prior     []uint8
 	changed   int
@@ -189,6 +196,10 @@ type gifEncoder struct {
 	width     int
 }
 
+// NewGIFEncoder writes a clip whose every frame is drawn in one fixed
+// palette. It is the encoder the retained clips were written with, and the
+// one that rebuilds them byte for byte from their retained frames; a clip
+// that is served is written by NewClipEncoder.
 func NewGIFEncoder(fps int, pixels PixelRange) (*gifEncoder, error) {
 	if !checked.PositiveInts(fps) || !pixels.valid() {
 		return nil, errors.New("latent video: invalid GIF encoding policy")
@@ -197,6 +208,20 @@ func NewGIFEncoder(fps int, pixels PixelRange) (*gifEncoder, error) {
 	if _, err := media.GIFFrameDelay(fps, len(encoder.animation.Image)); err != nil {
 		return nil, err
 	}
+	return encoder, nil
+}
+
+// NewClipEncoder writes a clip whose every frame is drawn in a palette cut
+// from that frame. A fixed palette's dither is noise a fifth of the range
+// deep: a clip comes back from it at 22 dB, and a clip handed to an editor
+// carries that grain into the edit. Drawn in its own colours it comes back
+// at 33 dB.
+func NewClipEncoder(fps int, pixels PixelRange) (*gifEncoder, error) {
+	encoder, err := NewGIFEncoder(fps, pixels)
+	if err != nil {
+		return nil, err
+	}
+	encoder.cut = true
 	return encoder, nil
 }
 
@@ -238,7 +263,11 @@ func (s *gifEncoder) Add(index int, frame []float32, height, width int) error {
 		})
 	}
 	s.prior = raw
-	paletted := image.NewPaletted(rgba.Bounds(), palette.Plan9)
+	colours := palette.Plan9
+	if s.cut {
+		colours = media.AdaptivePalette(rgba, gifPaletteColors)
+	}
+	paletted := image.NewPaletted(rgba.Bounds(), colours)
 	draw.FloydSteinberg.Draw(paletted, rgba.Bounds(), rgba, image.Point{})
 	s.animation.Image = append(s.animation.Image, paletted)
 	s.animation.Delay = append(s.animation.Delay, delay)

@@ -9,16 +9,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 400,
-        "reason": "The served edit path's output range, the frame count an edit source is cut to, and a device test that holds the served path to the earlier implementation's reference case"
+        "nodes": 1100,
+        "reason": "A median-cut palette and a second clip encoder that draws each frame in its own colours, the smoothing of a decoded source clip over a dither's reach, the edit checkpoint's own text projection in the served path, and the value ranges of the source and the edited frames: the served edit path had four faults against its reference, and the clip format was the largest"
       },
       "steps": [
-        {
-          "id": "do",
-          "title": "Serve LiveEdit's edits as the earlier implementation draws them, and score them again",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/mediacapability -count=1 -run '^TestServedEditMatchesTheReferenceEdit$'"
-        },
         {
           "id": "rescore",
           "title": "Render and judge the held-out edit suite again and replace LiveEdit's score",

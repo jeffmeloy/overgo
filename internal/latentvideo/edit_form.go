@@ -17,6 +17,7 @@ import (
 	"overgo/internal/media"
 	"overgo/internal/sampling"
 	"overgo/internal/strictjson"
+	"overgo/internal/tensor"
 )
 
 //go:embed edit_profiles.json
@@ -128,9 +129,14 @@ func validateReferenceEditRequestForm(request ReferenceEditRequest) error {
 	return nil
 }
 
-// sourceVideoFromGIF decodes an animated GIF into the planar signed-unit
-// source video the reference edit consumes, compositing each frame over
-// the logical screen so a partial frame resolves against its predecessors.
+// sourceVideoFromGIF decodes an animated GIF into the planar source video
+// the reference edit consumes, compositing each frame over the logical
+// screen so a partial frame resolves against its predecessors. Its values
+// run from 0 to 1, not from -1 to 1 as an autoencoder's pictures otherwise
+// do: the edit checkpoint was trained on source clips read that way (the
+// reference reads its source without centering it), and a source centered
+// on zero is a clip it was never shown. Each plane is then smoothed over the
+// reach of a palette's dither (smoothDither).
 func sourceVideoFromGIF(data []byte) (SourceVideo, error) {
 	animation, err := gif.DecodeAll(bytes.NewReader(data))
 	if err != nil {
@@ -154,12 +160,42 @@ func sourceVideoFromGIF(data []byte) (SourceVideo, error) {
 			for x := range width {
 				offset := canvas.PixOffset(bounds.Min.X+x, bounds.Min.Y+y)
 				for channel := range media.RGBChannels {
-					pixels[(channel*frames+frame)*plane+y*width+x] = media.U8ToSignedUnitF32(canvas.Pix[offset+channel])
+					pixels[(channel*frames+frame)*plane+y*width+x] = media.U8ToUnitF32(canvas.Pix[offset+channel])
 				}
 			}
 		}
 	}
+	scratch := make([]float32, plane)
+	for part := range media.RGBChannels * frames {
+		smoothDither(pixels[part*plane:][:plane], scratch, height, width)
+	}
 	return SourceVideo{Pixels: pixels, Channels: media.RGBChannels, Frames: frames, Height: height, Width: width}, nil
+}
+
+// smoothDither replaces each value of one plane by the mean of its three by
+// three neighbourhood, its own row and column counted twice, the plane's
+// edge repeated beyond it. A clip arrives as palette pictures, and a palette
+// picture of a real scene is dithered: its colours are right over a few
+// pixels and wrong pixel by pixel. The editor reads that grain as content
+// and edits what it was not asked to; on its reference clip, given through a
+// GIF, it turns a strawberry into a dark fruit beside the grapes it was asked
+// for. Smoothed over the dither's reach, the clip is closer to the scene
+// than the dithered one, and the edit is the edit of the scene. scratch
+// holds a plane.
+func smoothDither(values, scratch []float32, height, width int) {
+	const center, sum = tensor.PairedExtent, tensor.PairedExtent + tensor.PairedExtent
+	for y := range height {
+		row := values[y*width:][:width]
+		for x := range width {
+			scratch[y*width+x] = (row[max(x-1, 0)] + center*row[x] + row[min(x+1, width-1)]) / sum
+		}
+	}
+	for y := range height {
+		above, below := scratch[max(y-1, 0)*width:][:width], scratch[min(y+1, height-1)*width:][:width]
+		for x := range width {
+			values[y*width+x] = (above[x] + center*scratch[y*width+x] + below[x]) / sum
+		}
+	}
 }
 
 // ResolveClipRequest completes a clip-form request against the model
@@ -208,7 +244,20 @@ func ResolveClipRequest(ctx context.Context, reader artifact.Reader, modelDirect
 	if err != nil {
 		return ReferenceEditRequest{}, err
 	}
-	conditioning, err := TextConditioning(ctx, WanTextConditioningSpec(wanDirectory, base.TextLen), request.Prompt)
+	// The prompt is encoded by the base model's text encoder and projected by
+	// the edit checkpoint's own projection, which its training moved from the
+	// base model's: a context projected by the base's is not the one the edit
+	// denoiser was trained to read.
+	_, checkpointPath := LiveEditArtifacts(modelDirectory)
+	checkpoint, err := CompileReferenceEditCheckpoint(checkpointPath, base)
+	if err != nil {
+		return ReferenceEditRequest{}, err
+	}
+	projection, projectionBytes, err := checkpoint.loadTextProjection()
+	if err != nil {
+		return ReferenceEditRequest{}, err
+	}
+	conditioning, err := textConditioningWithWeights(ctx, WanTextConditioningSpec(wanDirectory, base.TextLen), request.Prompt, projection, projectionBytes)
 	if err != nil {
 		return ReferenceEditRequest{}, err
 	}

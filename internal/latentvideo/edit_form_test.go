@@ -108,16 +108,19 @@ func TestReferenceEditRequestFormAdmitsClipOrTensors(t *testing.T) {
 	}
 }
 
-// TestSourceVideoFromGIFRoundTrips encodes a planar signed-unit clip through
-// the production GIF encoder and decodes it back within the byte
-// quantization, in the planar channel-major layout the edit consumes.
+// TestSourceVideoFromGIFRoundTrips encodes a planar clip of values from 0 to
+// 1 through the production GIF encoder and decodes it back within the byte
+// quantization, in the planar channel-major layout and the range the edit
+// consumes: a black pixel is 0 and not -1. The decoded clip is smoothed over
+// a dither's reach, so the two columns at an edge each take a quarter of the
+// other side and every other pixel keeps its value.
 func TestSourceVideoFromGIFRoundTrips(t *testing.T) {
 	const frames, height, width = 3, 4, 6
-	encoder, err := NewGIFEncoder(16, SignedUnitPixels)
+	encoder, err := NewGIFEncoder(16, UnitPixels)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Every pixel is a corner of the signed-unit cube, an exact palette
+	// Every pixel is a corner of the unit cube, an exact palette
 	// colour, so the dithered encoder reproduces it and the comparison pins
 	// the channel, frame and position mapping rather than the palette.
 	want := make([]float32, media.RGBChannels*frames*height*width)
@@ -126,11 +129,15 @@ func TestSourceVideoFromGIFRoundTrips(t *testing.T) {
 		frameValues := make([]float32, media.RGBChannels*plane)
 		for channel := range media.RGBChannels {
 			for index := range plane {
-				value := float32(-1)
+				value := float32(0)
 				if (channel == frame%media.RGBChannels) != (index%width >= width/2) {
 					value = 1
 				}
 				frameValues[channel*plane+index] = value
+				// A column beside the edge is three parts its own side and one part the other.
+				if column := index % width; column == width/2-1 || column == width/2 {
+					value = 0.75*value + 0.25*(1-value)
+				}
 				want[(channel*frames+frame)*plane+index] = value
 			}
 		}
@@ -155,7 +162,7 @@ func TestSourceVideoFromGIFRoundTrips(t *testing.T) {
 			t.Fatalf("pixel %d = %g want %g", index, source.Pixels[index], want[index])
 		}
 	}
-	if media.U8ToSignedUnitF32(media.SignedUnitF32ToU8(0.25)) < 0.24 || media.U8ToSignedUnitF32(media.SignedUnitF32ToU8(0.25)) > 0.26 {
+	if media.U8ToUnitF32(media.UnitF32ToU8(0.25)) < 0.24 || media.U8ToUnitF32(media.UnitF32ToU8(0.25)) > 0.26 {
 		t.Fatal("byte mapping does not invert")
 	}
 }

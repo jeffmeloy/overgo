@@ -128,7 +128,7 @@ func (r *WanRuntime) Generate(ctx context.Context, request WanRequest) (EncodedV
 	if err != nil {
 		return EncodedVideo{}, err
 	}
-	sink, err := NewGIFEncoder(r.profile.SampleFPS, SignedUnitPixels)
+	sink, err := NewClipEncoder(r.profile.SampleFPS, SignedUnitPixels)
 	if err != nil {
 		return EncodedVideo{}, err
 	}
@@ -213,8 +213,12 @@ func (r *LiveEditRuntime) Reset(context.Context, ReferenceEditRequest) error {
 	return nil
 }
 
+// Generate edits the request's source clip and returns the edited clip. The
+// edit works in the range its source arrives in, 0 to 1 (sourceVideoFromGIF),
+// so the frames it decodes are written as that range: read as -1 to 1 they
+// come out washed, every black lifted to grey.
 func (r *LiveEditRuntime) Generate(ctx context.Context, request ReferenceEditRequest) (EncodedVideo, error) {
-	sink, err := NewGIFEncoder(r.profile.SampleFPS, SignedUnitPixels)
+	sink, err := NewClipEncoder(r.profile.SampleFPS, UnitPixels)
 	if err != nil {
 		return EncodedVideo{}, err
 	}

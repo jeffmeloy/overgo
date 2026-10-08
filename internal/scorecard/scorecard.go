@@ -69,12 +69,19 @@ type Cell struct {
 	// scores. Zero where it does not, as for an error rate over pooled words. It
 	// is stated beside the reading and does not yet judge a move.
 	Noise float64 `json:"noise,omitzero"`
+	// Constant is what an answer that reads no input scores on a held-out
+	// quality's measure, where the measure has one: chance for a choice among a
+	// case's alternatives, the commonest label or class for label accuracy. Nil
+	// where it has none, as a judged generation has: there another model answers
+	// about what this one drew.
+	Constant *float64 `json:"constant,omitempty"`
 }
 
 // QualityText renders a held-out quality as a user reads it: its value, its
 // base model's beside it when a verdict judged it against one, the noise of
-// the value and the cases it rests on where a record gives them, and what it
-// measures.
+// the value and the cases it rests on where a record gives them, what a
+// constant answer scores where the measure has one, in words when the value
+// is no better than it, and what it measures.
 func (c Cell) QualityText() string {
 	text := fmt.Sprintf("%.4g", c.Value)
 	if c.Noise > 0 {
@@ -85,6 +92,13 @@ func (c Cell) QualityText() string {
 	}
 	if c.Cases > 0 {
 		text += fmt.Sprintf(" on %d cases", c.Cases)
+	}
+	if c.Constant != nil {
+		if worse(metric.Quality, c.Direction, *c.Constant, c.Value, 0) {
+			text += fmt.Sprintf(", a constant answer scores %.4g", *c.Constant)
+		} else {
+			text += fmt.Sprintf(", no better than the %.4g a constant answer scores", *c.Constant)
+		}
 	}
 	return text + " (" + c.Label + ")"
 }
@@ -625,8 +639,8 @@ func nameEvaluatedSets(ctx context.Context, store *overgodb.Store, suites map[ar
 		}
 		name := evidence.Dataset.String()
 		suites[evidence.Dataset] = name
-		if measure, cases, ok := evaluation.EvaluatedMeasure(ctx, store, evidence.Plan); ok && descriptors != nil {
-			descriptors[name] = evaluation.SuiteDescriptor{Source: measure, Cases: cases}
+		if set, ok := evaluation.EvaluatedMeasure(ctx, store, evidence.Plan); ok && descriptors != nil {
+			descriptors[name] = evaluation.SuiteDescriptor{Source: set.Measure, Cases: set.Cases, Chance: set.Chance}
 		}
 		return nil
 	})
@@ -824,16 +838,20 @@ func qualityCell(task recipe.Task, summaries []evaluation.EvalSummary, descripto
 			// kind, is ranked by them: an evaluated set's cases are frames at one
 			// size or clips at another, and say nothing of which measure says more.
 			descriptor := descriptors[summary.Suite]
-			cases, noise, ranked := cmp.Or(summary.Cases, descriptor.Cases), summary.Noise, descriptor.Cases
+			cases, noise, ranked, constant := cmp.Or(summary.Cases, descriptor.Cases), summary.Noise, descriptor.Cases, summary.Constant
 			if name == shareMetric {
 				noise = shareError(value, cases)
+				// A share of choices answered right has chance as its constant answer.
+				if constant == nil && descriptor.Chance > 0 {
+					constant = &descriptor.Chance
+				}
 			}
 			if descriptor.Kind == "" {
 				ranked = 0
 			}
 			measured = append(measured, heldout{cases: ranked, first: first[measure(summary.Suite)], built: built[summary.Suite], cell: Cell{
 				Value: value, Label: label, Source: summary.Record, Direction: summary.Directions[name],
-				CodeCommit: commit, Environment: summary.Environment, Cases: cases, Noise: noise,
+				CodeCommit: commit, Environment: summary.Environment, Cases: cases, Noise: noise, Constant: constant,
 				Contract: Contract{Metric: name, Origin: originEvaluation, Suite: summary.Suite, Protocol: summary.Prompting, Comparison: summary.Comparison},
 			}})
 		}

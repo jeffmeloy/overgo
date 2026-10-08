@@ -93,6 +93,9 @@ type HeldoutReport struct {
 	id, plan artifact.ID
 	metrics  []runrecord.Metric
 	records  []RecordScore
+	// constant is what an answer that reads no input scores on the plan's
+	// cases, where the plan's metric has one; nil where it has none.
+	constant *float64
 	batch    func(string) (artifact.Batch, error)
 }
 
@@ -421,7 +424,7 @@ func VisitHeldoutVerdicts(ctx context.Context, store *overgodb.Store, visit func
 		summary := func(value float64, report HeldoutReport) EvalSummary {
 			return EvalSummary{
 				Suite: verdict.View.String(), Prompting: verdict.Plan.String(), Record: verdict.ID,
-				Comparison: comparison, Cases: uint64(len(report.records)), Noise: meanError(report.records),
+				Comparison: comparison, Cases: uint64(len(report.records)), Noise: meanError(report.records), Constant: report.constant,
 				Metrics: map[string]float64{metric: value}, Directions: map[string]runrecord.Direction{metric: verdict.Direction},
 			}
 		}

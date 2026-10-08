@@ -29,26 +29,39 @@ type SuiteDescriptor struct {
 	Plan    artifact.ID `json:"plan"`
 	Dataset artifact.ID `json:"dataset"`
 	Cases   uint64      `json:"cases"`
+	// Chance is what an answer drawn at random among each case's alternatives
+	// scores, for a suite whose every case is a choice among options or
+	// candidates; zero for any other. It is read where a suite is compiled and
+	// is not part of the listing a client reads.
+	Chance float64 `json:"-"`
 }
 
-// EvaluatedMeasure names the measure a stored plan was run for, from the
-// plan's case profile: the source its builder gave it, and the cases it asks
-// about, by their names alone. A set's identity is that of its whole cases, so
-// a measure built again, over clips a model drew again, is another set though
-// it asks the same cases; this name is what says the two are one measure. The
-// source alone would not: one builder gives one source to the sets it builds at
-// different sizes and lengths, which ask different cases and are different
-// measures. With the name comes how many cases the set holds. A plan the store
+// EvaluatedSet is what a stored plan's case profile says of the set the plan
+// was run over. Measure names the measure the set was built for: the source
+// its builder gave it and the cases it asks about, by their names alone. A
+// set's identity is that of its whole cases, so a measure built again, over
+// clips a model drew again, is another set though it asks the same cases;
+// this name is what says the two are one measure. The source alone would not:
+// one builder gives one source to the sets it builds at different sizes and
+// lengths, which ask different cases and are different measures. Cases is how
+// many the set holds, and Chance what a suite descriptor's is.
+type EvaluatedSet struct {
+	Measure string
+	Cases   uint64
+	Chance  float64
+}
+
+// EvaluatedMeasure reads the set a stored plan was run over. A plan the store
 // cannot read, or a profile without a source or with a case that has no name,
 // reports false.
-func EvaluatedMeasure(ctx context.Context, reader artifact.Reader, plan artifact.ID) (measure string, cases uint64, ok bool) {
+func EvaluatedMeasure(ctx context.Context, reader artifact.Reader, plan artifact.ID) (EvaluatedSet, bool) {
 	stored, err := loadEvidencePlan(ctx, reader, plan)
 	if err != nil {
-		return "", 0, false
+		return EvaluatedSet{}, false
 	}
 	profile, found, err := artifact.ReadContent(ctx, reader, stored.body.CaseProfile)
 	if err != nil || !found {
-		return "", 0, false
+		return EvaluatedSet{}, false
 	}
 	var named struct {
 		Source string `json:"source"`
@@ -57,17 +70,47 @@ func EvaluatedMeasure(ctx context.Context, reader artifact.Reader, plan artifact
 		} `json:"cases"`
 	}
 	if json.Unmarshal(profile.Data, &named) != nil || strings.TrimSpace(named.Source) == "" || len(named.Cases) == 0 {
-		return "", 0, false
+		return EvaluatedSet{}, false
 	}
 	asked := sha256.New()
 	for _, testCase := range named.Cases {
 		if testCase.Name == "" {
-			return "", 0, false
+			return EvaluatedSet{}, false
 		}
 		asked.Write([]byte(testCase.Name))
 		asked.Write([]byte{'\n'})
 	}
-	return named.Source + " " + hex.EncodeToString(asked.Sum(nil)), uint64(len(named.Cases)), true
+	return EvaluatedSet{
+		Measure: named.Source + " " + hex.EncodeToString(asked.Sum(nil)), Cases: uint64(len(named.Cases)), Chance: choiceChance(profile.Data),
+	}, true
+}
+
+// choiceChance is what an answer drawn at random among each case's
+// alternatives scores over a suite document's cases: the mean, over the
+// cases, of one over the options or candidates a case offers. A suite one of
+// whose cases offers fewer than two, as a case that is answered in words
+// does, or names no one of them as its answer, as a case that weighs several
+// does, is not a suite of choices, and has none.
+func choiceChance(suite []byte) float64 {
+	var choices struct {
+		Cases []struct {
+			Options    []json.RawMessage `json:"options"`
+			Candidates []json.RawMessage `json:"candidates"`
+			Answer     json.RawMessage   `json:"answer"`
+		} `json:"cases"`
+	}
+	if json.Unmarshal(suite, &choices) != nil || len(choices.Cases) == 0 {
+		return 0
+	}
+	var chance float64
+	for _, testCase := range choices.Cases {
+		alternatives := len(testCase.Options) + len(testCase.Candidates)
+		if alternatives <= 1 || len(testCase.Answer) == 0 {
+			return 0
+		}
+		chance += 1 / float64(alternatives)
+	}
+	return chance / float64(len(choices.Cases))
 }
 
 type suiteResult struct {
@@ -94,6 +137,7 @@ func CompileSuite(data []byte, authorities ExactAuthorities) (CompiledSuite, err
 		return CompiledSuite{}, err
 	}
 	suite.source = data
+	suite.descriptor.Chance = choiceChance(data)
 	return suite, nil
 }
 

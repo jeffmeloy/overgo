@@ -77,7 +77,12 @@ type EvalSummary struct {
 	// Noise is the standard error of the headline metric where the record
 	// keeps what it follows from: for a held-out verdict, that of the mean
 	// of its records' scores. Zero where it does not.
-	Noise       float64     `json:"noise,omitzero"`
+	Noise float64 `json:"noise,omitzero"`
+	// Constant is what an answer that reads no input scores on the headline
+	// metric, where the record's reader can tell: for a held-out verdict judged
+	// on label accuracy, always answering the commonest label or class. Nil
+	// where the metric has no such answer or a suite's descriptor gives it.
+	Constant    *float64    `json:"constant,omitempty"`
 	Comparison  artifact.ID `json:"comparison,omitzero"`
 	Environment artifact.ID `json:"environment,omitzero"`
 	CodeCommit  string      `json:"code_commit,omitzero"`

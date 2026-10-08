@@ -52,11 +52,11 @@ func TestEvaluatedMeasureNamesAMeasureBuiltAgain(t *testing.T) {
 		if _, err := evaluateGeneratedAnswer(t.Context(), store, exactGenerator{pieces: []string{"a"}}, compiled, plan); err != nil {
 			t.Fatal(err)
 		}
-		measure, cases, ok := EvaluatedMeasure(t.Context(), store, plan.Identity())
-		if !ok || cases != uint64(len(clips)) {
-			t.Fatalf("the plan over %v names measure %q of %d cases (%t), want its %d cases counted", clips, measure, cases, ok, len(clips))
+		set, ok := EvaluatedMeasure(t.Context(), store, plan.Identity())
+		if !ok || set.Cases != uint64(len(clips)) || set.Chance != 0 {
+			t.Fatalf("the plan over %v reads %+v (%t), want its %d cases counted and, its cases being answered in words, no chance", clips, set, ok, len(clips))
 		}
-		return compiled.dataset, measure
+		return compiled.dataset, set.Measure
 	}
 	first, measure := build("first", "one", "two")
 	again, rebuilt := build("again", "one", "two")
@@ -64,7 +64,7 @@ func TestEvaluatedMeasureNamesAMeasureBuiltAgain(t *testing.T) {
 	if first == again || first == other || measure != rebuilt || measure == variant {
 		t.Fatalf("sets %s, %s and %s name measures %q, %q and %q: want three sets, the first two one measure and the third another", first, again, other, measure, rebuilt, variant)
 	}
-	if measure, _, ok := EvaluatedMeasure(t.Context(), store, planID(t, artifact.KindProfile, "no such plan")); ok {
-		t.Fatalf("a plan the store does not hold names measure %q", measure)
+	if set, ok := EvaluatedMeasure(t.Context(), store, planID(t, artifact.KindProfile, "no such plan")); ok {
+		t.Fatalf("a plan the store does not hold reads %+v", set)
 	}
 }

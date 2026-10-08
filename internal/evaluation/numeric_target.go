@@ -217,8 +217,9 @@ func compileNumericHeldout(view SFTEvaluationView, scorer numericScorer, cases [
 	}}, nil
 }
 
-// heldout is the report as the held-out judge reads it: its metrics, and each
-// record's score under the first of them.
+// heldout is the report as the held-out judge reads it: its metrics, each
+// record's score under the first of them, and what a constant answer scores
+// where that metric has one.
 func (report numericTargetReport) heldout() HeldoutReport {
 	var records []RecordScore
 	for _, record := range report.Records {
@@ -226,7 +227,39 @@ func (report numericTargetReport) heldout() HeldoutReport {
 			records = append(records, RecordScore{Record: record.Record, Value: record.Scores[0].Value})
 		}
 	}
-	return HeldoutReport{id: report.ID, plan: report.Plan, metrics: report.Metrics, records: records, batch: report.Batch}
+	return HeldoutReport{id: report.ID, plan: report.Plan, metrics: report.Metrics, records: records, constant: report.constantAnswer(), batch: report.Batch}
+}
+
+// constantAnswer is what the best answer that reads no input scores under a
+// report whose first metric is label accuracy: always the label the labelled
+// records expect most, and always the class the other records' rows hold
+// most, each record scored as the report scores it, a label as right or
+// wrong and rows as the share that match. A model that reads its input and
+// scores no better has learned no more than which answer is commonest. Nil
+// under another metric, which has no such answer.
+func (report numericTargetReport) constantAnswer() *float64 {
+	if len(report.Records) == 0 || len(report.Metrics) == 0 || report.Metrics[0].Name != string(numericLabelAccuracy) {
+		return nil
+	}
+	labels, classes := map[string]float64{}, map[float64]float64{}
+	for _, record := range report.Records {
+		if record.ExpectedLabel != "" {
+			labels[record.ExpectedLabel]++
+			continue
+		}
+		for _, class := range record.Expected {
+			classes[class] += 1 / float64(len(record.Expected))
+		}
+	}
+	var label, class float64
+	for _, share := range labels {
+		label = max(label, share)
+	}
+	for _, share := range classes {
+		class = max(class, share)
+	}
+	constant := (label + class) / float64(len(report.Records))
+	return &constant
 }
 
 // rescore scores the answers each of report's records retains under plan.

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -106,9 +107,53 @@ func TestFunctionCallSuiteScoresAGeneratorAndRefusesWhatItCannotCompile(t *testi
 	}
 }
 
+// TestFunctionCallSuiteDescribesEachTool holds the builder to the form a
+// function-calling model's own examples and data give a tool: after the
+// request, the one tool with its name, its description, and each parameter's
+// type, description and whether it is required, the parameters in the order
+// the leaderboard's definition lists them and not in the order of their
+// names. A definition with no description and no required list describes its
+// tool with empty descriptions and nothing required.
+func TestFunctionCallSuiteDescribesEachTool(t *testing.T) {
+	t.Parallel()
+	directory := t.TempDir()
+	questions := filepath.Join(directory, "questions.json")
+	answers := filepath.Join(directory, "answers.json")
+	if err := os.WriteFile(questions, []byte(`{"id":"simple_0","question":[[{"role":"user","content":"Find the area of a triangle."}]],"function":[{"name":"geometry.area","description":"The area of a <triangle> & more.","parameters":{"type":"dict","properties":{"unit":{"type":"string","description":"The unit, \"cm\" by default."},"base":{"type":"integer","description":"The base."},"height":{"type":"float","description":"The height."}},"required":["base","height"]}}]}
+{"id":"simple_1","question":[[{"role":"user","content":"Second."}]],"function":[{"name":"second","parameters":{"type":"dict","properties":{"only":{"type":"boolean"}}}}]}
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(answers, []byte(`{"id":"simple_0","ground_truth":[{"area":{"base":[10],"height":[5.0],"unit":["cm",""]}}]}
+{"id":"simple_1","ground_truth":[{"second":{"only":[true]}}]}
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	suite, err := BuildBFCLFunctionCalls(FunctionCallSpec{Questions: questions, Answers: answers})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for index, want := range []string{
+		`Find the area of a triangle. <tools> [{"name":"geometry.area","description":"The area of a <triangle> & more.","parameters":{"unit":{"type":"string","description":"The unit, \"cm\" by default.","required":false},"base":{"type":"integer","description":"The base.","required":true},"height":{"type":"float","description":"The height.","required":true}}}]`,
+		`Second. <tools> [{"name":"second","description":"","parameters":{"only":{"type":"boolean","description":"","required":false}}}]`,
+	} {
+		if suite.Cases[index].Prompt != want {
+			t.Errorf("case %d asks\n  %s\nwant\n  %s", index, suite.Cases[index].Prompt, want)
+		}
+		var tools []map[string]any
+		_, listed, _ := strings.Cut(suite.Cases[index].Prompt, " <tools> ")
+		if err := json.Unmarshal([]byte(listed), &tools); err != nil || len(tools) != 1 {
+			t.Errorf("case %d's tools are not a JSON list of one tool: %v", index, err)
+		}
+	}
+	if _, err := compileFunctionCall(suite); err != nil {
+		t.Fatalf("the suite does not compile: %v", err)
+	}
+}
+
 // TestBFCLFunctionCallsReadTheLeaderboardsFiles holds the builder to the form
-// a function-calling model reads: the request, then the one tool with each
-// parameter's type, and the accepted values as the answer file gives them.
+// a function-calling model reads: the request, then the one tool described,
+// and the accepted values as the answer file gives them.
 func TestBFCLFunctionCallsReadTheLeaderboardsFiles(t *testing.T) {
 	t.Parallel()
 	directory := t.TempDir()
@@ -129,7 +174,7 @@ func TestBFCLFunctionCallsReadTheLeaderboardsFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(suite.Cases) != 2 || suite.Cases[0].Name != "bfcl-v3-simple/simple_0" || suite.Cases[0].Function != "calculate_triangle_area" ||
-		suite.Cases[0].Prompt != `Find the area of a triangle. <tools> [{"name":"calculate_triangle_area","parameters":{"base":"integer","unit":"string"}}]` ||
+		suite.Cases[0].Prompt != `Find the area of a triangle. <tools> [{"name":"calculate_triangle_area","description":"","parameters":{"base":{"type":"integer","description":"","required":false},"unit":{"type":"string","description":"","required":false}}}]` ||
 		len(suite.Cases[0].Arguments["unit"]) != 2 {
 		t.Fatalf("suite = %+v", suite)
 	}

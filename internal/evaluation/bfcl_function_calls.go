@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 )
 
@@ -29,14 +30,71 @@ type bfclQuestion struct {
 	Question [][]struct {
 		Content string `json:"content"`
 	} `json:"question"`
-	Function []struct {
-		Name       string `json:"name"`
-		Parameters struct {
-			Properties map[string]struct {
-				Type string `json:"type"`
-			} `json:"properties"`
-		} `json:"parameters"`
-	} `json:"function"`
+	Function []bfclFunction `json:"function"`
+}
+
+// bfclFunction is one function as the leaderboard defines it. Its properties
+// are kept as written, so that a tool lists its parameters in the order the
+// definition gives them.
+type bfclFunction struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Parameters  struct {
+		Properties json.RawMessage `json:"properties"`
+		Required   []string        `json:"required"`
+	} `json:"parameters"`
+}
+
+// describedTools writes the function as the one tool of a tools list, the way
+// a function-calling model's own examples and training data describe a tool:
+// its name, its description, and for each parameter its type, its description
+// and whether it is required. A model trained on tools so described reads the
+// descriptions to decide what to pass; given a name and types alone, needle's
+// own code answers 8 of the leaderboard's 400 simple cases acceptably, and
+// given this, 104.
+func describedTools(function bfclFunction) (string, error) {
+	// quoted writes a text as a JSON string, its angle brackets and ampersands
+	// as they are.
+	quoted := func(text string) string {
+		var written strings.Builder
+		encoder := json.NewEncoder(&written)
+		encoder.SetEscapeHTML(false)
+		// A string always encodes; the encoder ends it with a line break.
+		_ = encoder.Encode(text)
+		return strings.TrimSuffix(written.String(), "\n")
+	}
+	var tools strings.Builder
+	fmt.Fprintf(&tools, `[{"name":%s,"description":%s,"parameters":{`, quoted(function.Name), quoted(function.Description))
+	if len(function.Parameters.Properties) != 0 {
+		properties := json.NewDecoder(strings.NewReader(string(function.Parameters.Properties)))
+		if _, err := properties.Token(); err != nil {
+			return "", err
+		}
+		for first := true; properties.More(); first = false {
+			name, err := properties.Token()
+			if err != nil {
+				return "", err
+			}
+			var property struct {
+				Type        string `json:"type"`
+				Description string `json:"description"`
+			}
+			if err := properties.Decode(&property); err != nil {
+				return "", err
+			}
+			parameter, named := name.(string)
+			if !named {
+				return "", fmt.Errorf("evaluation: function %s lists a parameter that has no name", function.Name)
+			}
+			if !first {
+				tools.WriteByte(',')
+			}
+			fmt.Fprintf(&tools, `%s:{"type":%s,"description":%s,"required":%t}`,
+				quoted(parameter), quoted(property.Type), quoted(property.Description), slices.Contains(function.Parameters.Required, parameter))
+		}
+	}
+	tools.WriteString(`}}]`)
+	return tools.String(), nil
 }
 
 type bfclAnswer struct {
@@ -47,8 +105,8 @@ type bfclAnswer struct {
 // BuildBFCLFunctionCalls builds the function-call suite of the leaderboard's
 // simple category: each case gives the model a request and the one function it
 // may call, in the form a function-calling model reads, the request then the
-// tools, a tool being a name and each parameter's type, and accepts the call
-// the leaderboard accepts.
+// tools, the tool described as describedTools describes it, and accepts the
+// call the leaderboard accepts.
 func BuildBFCLFunctionCalls(spec FunctionCallSpec) (FunctionCallSuite, error) {
 	var questions []bfclQuestion
 	if err := readJSONValues(spec.Questions, &questions); err != nil {
@@ -82,13 +140,9 @@ func BuildBFCLFunctionCalls(spec FunctionCallSpec) (FunctionCallSuite, error) {
 		if len(answer) != 1 || function.Name != written && !strings.HasSuffix(function.Name, "."+written) {
 			return FunctionCallSuite{}, fmt.Errorf("evaluation: case %s accepts a call of another function than %s", question.ID, function.Name)
 		}
-		parameters := make(map[string]string, len(function.Parameters.Properties))
-		for name, property := range function.Parameters.Properties {
-			parameters[name] = property.Type
-		}
-		tools, err := json.Marshal([]any{map[string]any{"name": function.Name, "parameters": parameters}})
+		tools, err := describedTools(function)
 		if err != nil {
-			return FunctionCallSuite{}, err
+			return FunctionCallSuite{}, fmt.Errorf("evaluation: case %s: %w", question.ID, err)
 		}
 		suite.Cases = append(suite.Cases, FunctionCallCase{
 			Name:      "bfcl-v3-simple/" + question.ID,

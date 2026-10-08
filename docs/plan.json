@@ -9,17 +9,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 3500,
-        "reason": "The three things needle's own code does between a request's text and the model that the served path did not: segmenting text by the tokenizer model's byte-pair merges, read from the model file with its piece types; building the encoder's input from the request and its tools apart; and rewriting tool names in snake case and back, which to match that code to the character means its snake-case rule written out step by step and reading and writing JSON as it does, keys in their order and numbers and escapes as Python writes them. Held to that code on the evaluation's 400 cases"
+        "nodes": 400,
+        "reason": "The builder of the function-calling suite describes each tool, and a test holds it to the text"
       },
       "steps": [
-        {
-          "id": "described-tools",
-          "title": "Describe each tool to a function-calling model the way needle's own examples and data describe one",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestFunctionCallSuiteDescribesEachTool$'",
-          "rationale": "The function-call suite gives a model each case's one tool as a name and each parameter's type, the form the model's quickstart shows. The model's own examples and the generator of its training data describe a tool more fully: a name, a description, and for each parameter its type, its description and whether it is required. Asked through its own code, on the same 400 cases, needle is accepted in 8 with the bare form and in 104 with the described one: it reads the descriptions to decide what to pass, and without them it answers with no call in a quarter of the cases and with text that is not a call in another quarter. The leaderboard's own file holds every one of those descriptions; the suite's builder dropped them. A measure that withholds what the model was trained to read measures the builder. This step makes the builder write each tool as the model's own data does, from the leaderboard's definitions, keys and parameters in the order given; the acceptance rule and the cases are unchanged, so the rebuilt suite is the same measure built again and the scorecard reads its newest build.\n\nServes: measure and find the gap. Disappears: a measure that withheld what its model reads. Evidence: the test, and upstream's answers under both forms. Batch: host."
-        },
         {
           "id": "rescore",
           "title": "Score needle again on the repaired path, with each tool described",

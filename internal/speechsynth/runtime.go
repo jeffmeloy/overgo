@@ -40,11 +40,14 @@ type Audio struct {
 }
 
 type generationPlan struct {
-	tokens      []int
-	maxFrames   int
-	seed        int64
-	voice       string
-	temperature float64
+	tokens    []int
+	maxFrames int
+	// framesAfterEnd is how many frames are generated after the end of speech
+	// is first seen, as the model's own code generates them.
+	framesAfterEnd int
+	seed           int64
+	voice          string
+	temperature    float64
 }
 
 func ValidateSynthesisRequest(request SynthesisRequest) error {
@@ -110,7 +113,11 @@ func (s *Synthesizer) tokenize(request SynthesisRequest) (generationPlan, error)
 	if err := ValidateSynthesisRequest(request); err != nil {
 		return generationPlan{}, err
 	}
-	tokens, err := s.tokenizer.Encode(request.Text)
+	text, framesAfterEnd, err := spokenText(request.Text)
+	if err != nil {
+		return generationPlan{}, err
+	}
+	tokens, err := s.tokenizer.Encode(text)
 	if err != nil {
 		return generationPlan{}, err
 	}
@@ -119,7 +126,7 @@ func (s *Synthesizer) tokenize(request SynthesisRequest) (generationPlan, error)
 		temperature = s.defaultTemperature
 	}
 	return generationPlan{
-		tokens: tokens, maxFrames: request.MaxFrames, seed: request.Seed,
+		tokens: tokens, maxFrames: request.MaxFrames, framesAfterEnd: framesAfterEnd, seed: request.Seed,
 		voice: strings.TrimSpace(request.Voice), temperature: temperature,
 	}, nil
 }
@@ -153,7 +160,7 @@ func (s *Synthesizer) generate(ctx context.Context, plan generationPlan) (Latent
 	random := rand.New(rand.NewSource(plan.seed))
 	deviation := math.Sqrt(plan.temperature)
 	latents, _, err := s.model.GenerateLatentsWithVoice(ctx, voice, plan.tokens, GenerateParams{
-		MaxFrames: plan.maxFrames, EOSThreshold: referenceEOSThreshold,
+		MaxFrames: plan.maxFrames, EOSThreshold: referenceEOSThreshold, FramesAfterEOS: plan.framesAfterEnd,
 		NoiseAt: func(_ int, values []float32) {
 			for index := range values {
 				values[index] = float32(deviation * random.NormFloat64())

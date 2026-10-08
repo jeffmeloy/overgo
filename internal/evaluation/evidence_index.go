@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"maps"
 	"slices"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/benchmarkrecord"
@@ -146,6 +147,9 @@ func recordExecution(ctx context.Context, store *overgodb.Store, record runrecor
 	}
 	summary.Comparison, summary.Environment, summary.CodeCommit = comparison, bound.Environment, bound.CodeCommit
 	summary.Prompting, summary.Reproducible, summary.ExecutionKnown = policy.Prompting.Label(), environment.Reproducible(), true
+	if counting := namedCounting(ctx, store, plan); len(counting) != 0 {
+		summary.Prompting = strings.Join(append([]string{summary.Prompting}, counting...), protocolSeparator)
+	}
 	return summary
 }
 

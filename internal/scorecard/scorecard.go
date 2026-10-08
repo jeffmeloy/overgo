@@ -823,7 +823,8 @@ var heldoutProposals = map[recipe.Task]string{
 // measure built again, as an edit evaluation is each time its model draws the
 // clips again, is another set its descriptor's source names as the same
 // measure: it stands where its first build's set stood among the recipe's
-// suites, and of its builds the one evaluated last is read. One set's
+// suites, and of its builds the one evaluated last is read, under whatever
+// protocol it was, as a set counted again another way is. One set's
 // execution alternatives keep the order of their contracts, whichever ran
 // last. It also returns the recipe's other held-out qualities, one per suite
 // and protocol, an earlier build's among them. A recipe no suite measures
@@ -896,8 +897,11 @@ func qualityCell(task recipe.Task, summaries []evaluation.EvalSummary, descripto
 		return gap("no held-out evaluation of this recipe"), nil
 	}
 	slices.SortFunc(measured, func(left, right heldout) int {
+		// A measure's builds are ordered before a build's protocols: a build
+		// evaluated later is read first whatever its protocol is called, and
+		// only one set's own alternatives fall to the order of their names.
 		return cmp.Or(cmp.Compare(right.cases, left.cases), strings.Compare(left.first, right.first),
-			strings.Compare(left.cell.Contract.Protocol, right.cell.Contract.Protocol), cmp.Compare(left.built, right.built),
+			cmp.Compare(left.built, right.built), strings.Compare(left.cell.Contract.Protocol, right.cell.Contract.Protocol),
 			artifact.CompareID(left.cell.Contract.Comparison, right.cell.Contract.Comparison), artifact.CompareID(left.cell.Source, right.cell.Source))
 	})
 	others := make([]Cell, 0, len(measured)-1)

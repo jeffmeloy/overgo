@@ -148,7 +148,7 @@ func TranscriptionQualities(ctx context.Context, store *overgodb.Store, unreadab
 			protocol = append(protocol, string(operation))
 		}
 		summary := EvalSummary{
-			Suite: report.Dataset.String() + "/" + largest.Name, Prompting: strings.Join(protocol, ", "), Record: report.ID,
+			Suite: report.Dataset.String() + "/" + largest.Name, Prompting: strings.Join(protocol, protocolSeparator), Record: report.ID,
 			// The rate pools the group's words over its utterances, which are its
 			// cases; its noise follows from how the edits fall among them.
 			Cases: largest.Utterances, Noise: pooledRateError(report.Observations, largest.Name),

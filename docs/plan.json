@@ -54,11 +54,11 @@
       },
       "steps": [
         {
-          "id": "rescore",
-          "title": "Score the three recognizers and pocket-tts again with both sides written one way",
+          "id": "projector",
+          "title": "Score the E4B projector's transcription again, counted the recognizers' way",
           "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestSpeechRoundTripCountsWordsWrittenOneWay$'",
-          "rationale": "Data and store records: rebuild the held-out transcription suite and the round-trip suite with the normalizer named, rehearse each on a copy of the store, then score granite-speech, nemotron, the E4B projector and pocket-tts on the store. Expected from the measurement of 2026-10-08, which used the stored transcripts: granite-speech near 0.009, nemotron near 0.030, the projector near 0.019, pocket-tts near 0.022. State beside each what the old count was and that the old and new are one set of transcripts counted two ways. The readings the scorecard marks as tied should come apart; say what 32 utterances can and cannot rank."
+          "verify": "go run ./cmd/validate -scorecard",
+          "rationale": "The projector's 32 held-out transcripts cannot be counted again from the store as the two recognizers' were (commit of word-error-forms/rescore): a projected transcription run is bound to the plan it ran under, which names the prompt and the token budget it decoded with, and a suite counted another way is another plan, so the evaluator refuses the stored runs (transcription run authority differs). Its reading therefore stays 0.02567, counted over the words as written, and the scorecard says so beside the two recognizers counted the other way; with the normalizer's own code the stored transcripts read 15 words wrong of 787, 0.019. To move the reading: recover the suite from the store (the plan's case profile of report evaluation:sha256:69f0bfa7cf at sequence 7989), name whisper-english in it, rebuild the resource manifest's inputs from the LibriSpeech test parquet rows the suite names, and run evaluate -transcription-resource-manifest for gemma-4-E4B-it on the device, on a copy of the store first. Done when the scorecard's section on how word error rates were counted names no reading counted as written."
         }
       ]
     },

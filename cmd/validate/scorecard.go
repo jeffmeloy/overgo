@@ -214,7 +214,7 @@ func printScorecard(ctx context.Context, rows []scorecard.Row, root string, outp
 	if err != nil {
 		return err
 	}
-	text += choiceProtocols(rows, samples) + standing + useStanding(rows, uses)
+	text += choiceProtocols(rows, samples) + wordCounting(rows) + standing + useStanding(rows, uses)
 	if len(inapplicable) != 0 {
 		text += "\nNot applicable:\n" + strings.Join(inapplicable, "\n") + "\n"
 	}
@@ -272,6 +272,31 @@ func choiceProtocols(rows []scorecard.Row, samples []scorecard.ProtocolSample) s
 		text.WriteString("\nA reading's questions asked another way, on a sample too small to stand for the suite:\n" + beside.String())
 	}
 	return "\nHow the multiple-choice readings were asked for:\n" + text.String()
+}
+
+// wordCounting says how each word error rate on the scorecard was counted:
+// the readings whose reference and transcript were written one way before
+// their words were compared, and the readings counted over the words as each
+// side wrote them. The two are not one measure, and a reader who sets a rate
+// of one kind against a rate of the other is misled, so each way of counting
+// names the readings counted by it. A scorecard with no word error rate says
+// nothing.
+func wordCounting(rows []scorecard.Row) string {
+	counted := map[string][]string{}
+	for _, row := range rows {
+		cell := row.Cells[metric.Quality]
+		if words, rate := evaluation.WordCounting(cell.Contract.Metric, cell.Contract.Protocol); rate && cell.Measured() {
+			counted[words] = append(counted[words], fmt.Sprintf("%s %s", row.Name, row.Task))
+		}
+	}
+	var text strings.Builder
+	for _, words := range slices.Sorted(maps.Keys(counted)) {
+		text.WriteString(fmt.Sprintf("- %s: %s.\n", strings.Join(counted[words], ", "), words))
+	}
+	if text.Len() == 0 {
+		return ""
+	}
+	return "\nHow the word error rates were counted:\n" + text.String()
 }
 
 // pathStanding says, for each held-out reading a served path produced, what

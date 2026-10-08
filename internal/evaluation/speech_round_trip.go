@@ -34,6 +34,8 @@ const (
 	libriSpeechTextColumn = "text"
 	// libriSpeechRows bounds the rows of one test-clean file the builder reads.
 	libriSpeechRows = 1 << 20
+	// roundTripErrorMetric names a round trip's word error rate among its metrics.
+	roundTripErrorMetric = "word_error_rate"
 	// roundTripMinimumWords and roundTripMaximumWords bound a text the suite reads aloud:
 	// a phrase too short to say anything, and a sentence long enough to span segments.
 	roundTripMinimumWords = 6
@@ -243,7 +245,7 @@ func evaluateSpeechRoundTrip(
 
 // speechRoundTripMetrics reports the word error rate: lower is better.
 func speechRoundTripMetrics(wordErrorRate float64) []runrecord.Metric {
-	return []runrecord.Metric{{Name: "word_error_rate", Value: wordErrorRate, Direction: runrecord.DirectionMinimize}}
+	return []runrecord.Metric{{Name: roundTripErrorMetric, Value: wordErrorRate, Direction: runrecord.DirectionMinimize}}
 }
 
 // SpeechRoundTripSpec names what a LibriSpeech round-trip suite is built from:

@@ -142,13 +142,16 @@ func TestSpeechRoundTripCountsWordsWrittenOneWay(t *testing.T) {
 	if oneWayReport.Errors != 0 || oneWayReport.Words != uint64(len(strings.Fields(heard))) {
 		t.Fatalf("written one way, the judge is charged %d of %d words, and it wrote what was said", oneWayReport.Errors, oneWayReport.Words)
 	}
-	if plainPlan.identity == oneWayPlan.identity {
-		t.Fatal("a suite counted another way has the identity of the suite it was made from")
+	if plainPlan.identity == oneWayPlan.identity || plainPlan.dataset == oneWayPlan.dataset || oneWayReport.Dataset != oneWayPlan.dataset {
+		t.Fatal("a suite counted another way is the suite, or the set, it was made from: its reading could not be told from the plain one")
 	}
 	named := plain
 	named.Normalization = slices.Clone(roundTripNormalization)
-	if _, namedReport := score(named); namedReport.Errors != plainReport.Errors || namedReport.Words != plainReport.Words {
-		t.Fatalf("a suite that names no counting is charged %d of %d words, and one that names the plain steps %d of %d", plainReport.Errors, plainReport.Words, namedReport.Errors, namedReport.Words)
+	if namedPlan, namedReport := score(named); namedReport.Errors != plainReport.Errors || namedReport.Words != plainReport.Words || namedPlan.dataset != plainPlan.dataset {
+		t.Fatalf("a suite that names no counting is charged %d of %d words, and one that names the plain steps %d of %d, over the same set: %v", plainReport.Errors, plainReport.Words, namedReport.Errors, namedReport.Words, namedPlan.dataset == plainPlan.dataset)
+	}
+	if texts, err := artifact.JSONID(artifact.KindDataset, plain.Cases); err != nil || texts != plainPlan.dataset {
+		t.Fatalf("the texts counted the plain way are no longer the set their texts alone identify: %v", err)
 	}
 	if encoded, err := json.Marshal(plain); err != nil || bytes.Contains(encoded, []byte("normalization")) {
 		t.Fatalf("a suite that names no counting is written with one, so a stored suite's identity would move: %s, %v", encoded, err)

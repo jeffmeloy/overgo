@@ -98,6 +98,9 @@ type speechRoundTripPlan struct {
 	suite    SpeechRoundTripSuite
 	// normalization is the suite's, or the plain steps of a suite that names none.
 	normalization []TranscriptionNormalization
+	// set is what the dataset identifies and holds: the texts, with how they
+	// are counted when that is not the plain way.
+	set any
 }
 
 type speechRoundTripObservation struct {
@@ -145,7 +148,17 @@ func compileSpeechRoundTrip(suite SpeechRoundTripSuite) (speechRoundTripPlan, er
 	if err != nil {
 		return speechRoundTripPlan{}, err
 	}
-	dataset, err := artifact.JSONID(artifact.KindDataset, suite.Cases)
+	// What a judge is charged for a text depends on the text and on how both
+	// sides are written, so a suite counted another way than the plain steps
+	// is another set than the same texts counted plainly. Two contracts over
+	// one set under one protocol have no order a reader could tell; two sets
+	// of one measure do, the one evaluated last. The texts counted the plain
+	// way are the texts alone, as they always were.
+	var set any = suite.Cases
+	if !slices.Equal(normalization, roundTripNormalization) {
+		set = countedTexts{Normalization: normalization, Cases: suite.Cases}
+	}
+	dataset, err := artifact.JSONID(artifact.KindDataset, set)
 	if err != nil {
 		return speechRoundTripPlan{}, err
 	}
@@ -155,7 +168,14 @@ func compileSpeechRoundTrip(suite SpeechRoundTripSuite) (speechRoundTripPlan, er
 	if err != nil {
 		return speechRoundTripPlan{}, err
 	}
-	return speechRoundTripPlan{identity: identity, dataset: dataset, split: split, suite: suite, normalization: normalization}, nil
+	return speechRoundTripPlan{identity: identity, dataset: dataset, split: split, suite: suite, normalization: normalization, set: set}, nil
+}
+
+// countedTexts is the set of a suite counted another way than the plain
+// steps: its texts and how they and their transcripts are written.
+type countedTexts struct {
+	Normalization []TranscriptionNormalization `json:"normalization"`
+	Cases         []SpeechRoundTripCase        `json:"cases"`
 }
 
 func bindSpeechRoundTrip(compiled speechRoundTripPlan, authorities ExactAuthorities) (Plan, error) {
@@ -181,7 +201,7 @@ func evaluateSpeechRoundTrip(
 		return speechRoundTripReport{}, fmt.Errorf("evaluation: the suite is judged by %q, this session by %q", compiled.suite.Judge, speaker.Judge())
 	}
 	contents, err := datasetContents(
-		compiled.dataset, compiled.split, compiled.suite.Cases, speechRoundTripDatasetContract, speechRoundTripSplitContract,
+		compiled.dataset, compiled.split, compiled.set, speechRoundTripDatasetContract, speechRoundTripSplitContract,
 	)
 	if err != nil {
 		return speechRoundTripReport{}, err

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/checked"
 	"overgo/internal/extent"
 )
 
@@ -29,6 +30,14 @@ type DocumentQuery struct {
 	Order         DocumentOrder
 	MaxResults    int
 	Cursor        *QueryCursor
+	// ThroughSequence limits selection to content durable at this journal
+	// sequence. Zero selects the current view. Mutable aliases are unavailable
+	// with a historical cutoff.
+	ThroughSequence uint64
+	// MaxContentBytes bounds the selected page's decoded payload bytes. Zero
+	// leaves the byte budget unrestricted. Exceeding it refuses the page before
+	// materializing content or invoking the visitor.
+	MaxContentBytes uint64
 }
 
 // DocumentView carries one streamed document and catalog facts.
@@ -44,6 +53,9 @@ type DocumentPage struct {
 	Sequence  uint64
 	Truncated bool
 	Next      *QueryCursor
+	// ContentBytes is the exact payload size of the selected page. It excludes
+	// catalog traversal, descriptors, and caller-owned decoded structures.
+	ContentBytes uint64
 }
 
 // DocumentReader streams exact document projections.
@@ -67,6 +79,10 @@ func (s *Store) VisitDocuments(
 	if err := s.ready(false); err != nil {
 		s.mu.RUnlock()
 		return DocumentPage{}, err
+	}
+	if query.ThroughSequence > s.sequence {
+		s.mu.RUnlock()
+		return DocumentPage{}, errors.New("overgodb: document cutoff is in the future")
 	}
 	contract, err := documentQueryDigest(query)
 	if err != nil {
@@ -105,6 +121,7 @@ func (s *Store) VisitDocuments(
 	var entries []documentEntry
 	var last artifact.ID
 	var lastSequence uint64
+	var budgetErr error
 	// take files one matching document and reports whether the page has
 	// room for another look.
 	take := func(position int) bool {
@@ -116,6 +133,12 @@ func (s *Store) VisitDocuments(
 			page.Truncated = true
 			return false
 		}
+		contentBytes, fits := checked.Add64(page.ContentBytes, entry.descriptor.Size)
+		if !fits || query.MaxContentBytes != 0 && contentBytes > query.MaxContentBytes {
+			budgetErr = errors.New("overgodb: document page exceeds its content byte budget")
+			return false
+		}
+		page.ContentBytes = contentBytes
 		entries = append(entries, entry)
 		last, lastSequence = entry.descriptor.ID, entry.sequence
 		return true
@@ -132,6 +155,10 @@ func (s *Store) VisitDocuments(
 				break
 			}
 		}
+	}
+	if budgetErr != nil {
+		s.mu.RUnlock()
+		return DocumentPage{}, budgetErr
 	}
 	if page.Truncated {
 		page.Next = &QueryCursor{
@@ -197,7 +224,9 @@ func (s catalogState) documentAt(position int, query DocumentQuery, aliases map[
 	id := s.artifacts.bySequence[position]
 	record, _ := s.artifacts.record(id)
 	locator, hasContent := s.contents.locator(id)
-	if !hasContent || locator.released != 0 || !matchesDocumentContract(record.descriptor, query.Contracts) {
+	if !hasContent || locator.released != 0 ||
+		query.ThroughSequence != 0 && locator.sequence > query.ThroughSequence ||
+		!matchesDocumentContract(record.descriptor, query.Contracts) {
 		return documentEntry{}, false
 	}
 	names, selected := aliases[id]
@@ -271,6 +300,9 @@ func validateDocumentQuery(query DocumentQuery, visit func(DocumentView) error) 
 	if query.MaxResults < 0 || visit == nil {
 		return errors.New("overgodb: invalid document query bound or visitor")
 	}
+	if query.ThroughSequence != 0 && len(query.AliasPrefixes) != 0 {
+		return errors.New("overgodb: historical document query cannot use current aliases")
+	}
 	for index, prefix := range query.AliasPrefixes {
 		if prefix == "" || strings.TrimSpace(prefix) != prefix || strings.ContainsAny(prefix, "\r\n") ||
 			slices.Contains(query.AliasPrefixes[:index], prefix) {
@@ -285,10 +317,11 @@ func validateDocumentQuery(query DocumentQuery, visit func(DocumentView) error) 
 
 func documentQueryDigest(query DocumentQuery) ([sha256.Size]byte, error) {
 	payload, err := json.Marshal(struct {
-		Contracts     []artifact.DocumentContract
-		AliasPrefixes []string
-		Order         DocumentOrder
-	}{query.Contracts, query.AliasPrefixes, query.Order})
+		Contracts       []artifact.DocumentContract
+		AliasPrefixes   []string
+		Order           DocumentOrder
+		ThroughSequence uint64 `json:",omitzero"`
+	}{query.Contracts, query.AliasPrefixes, query.Order, query.ThroughSequence})
 	if err != nil {
 		return [sha256.Size]byte{}, err
 	}

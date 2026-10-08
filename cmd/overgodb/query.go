@@ -56,6 +56,8 @@ func query(flags *flag.FlagSet, args []string, output io.Writer) error {
 	profiles := flags.Bool("profiles", false, "audit registered architecture-profile publication")
 	datasets := flags.Bool("datasets", false, "audit active dataset catalog publication")
 	contentDump := flags.Bool("content", false, "print the raw committed content bytes of the artifact named by -id")
+	verdicts := flags.Bool("verdicts", false, "list held-out verdicts, oldest first, with each one's base and trained scores: every one the store holds, or with -to-sequence those it held when its journal stood there")
+	maxBytes := flags.Uint64("max-bytes", 0, "with -verdicts: refuse a listing whose verdict documents exceed this many bytes (0 for no bound)")
 	if handled, err := commanddoc.OvergodbQuery.Command.ParseForHelp(flags, args, output); err != nil || handled {
 		return err
 	}
@@ -116,6 +118,9 @@ func query(flags *flag.FlagSet, args []string, output io.Writer) error {
 	}
 	if *contentDump {
 		return writeContent(output, *repository, *idText)
+	}
+	if *verdicts {
+		return writeVerdicts(output, *repository, *to, *maxBytes)
 	}
 	query := overgodb.Query{
 		Alias: *alias, MaxDepth: uint32(*maxDepth), MaxResults: *limit,

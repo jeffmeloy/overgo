@@ -24,7 +24,7 @@ func TestQueryHelpContract(t *testing.T) {
 			t.Fatalf("%s exited non-zero: %v", arg, err)
 		}
 		text := out.String()
-		for _, want := range []string{"overgodb query:", "-repo", "-id", "-content", "-limit", "-alias"} {
+		for _, want := range []string{"overgodb query:", "-repo", "-id", "-content", "-limit", "-alias", "-verdicts", "-max-bytes"} {
 			if !strings.Contains(text, want) {
 				t.Fatalf("%s help missing %q in:\n%s", arg, want, text)
 			}

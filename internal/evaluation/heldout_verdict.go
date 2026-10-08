@@ -462,6 +462,29 @@ func ReadHeldoutVerdict(ctx context.Context, reader artifact.Reader, id artifact
 	}, nil
 }
 
+// PastHeldoutVerdicts names the held-out verdicts the store held when its
+// journal stood at a sequence, oldest first, with the bytes of the verdict
+// documents that names; a sequence of zero reads the store as it stands. A
+// proposer shown what was tried before it must be shown nothing its own
+// proposal came before, so a verdict the journal introduced later is not
+// named. A budget, when given, bounds those bytes: verdicts over it are
+// refused whole and not cut short, since a proposer shown some of what was
+// tried cannot tell which part it was shown.
+func PastHeldoutVerdicts(ctx context.Context, store *overgodb.Store, through, budget uint64) ([]artifact.ID, uint64, error) {
+	var verdicts []artifact.ID
+	page, err := store.VisitDocuments(ctx, overgodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{heldoutVerdictCodec.Contract}, Order: overgodb.DocumentOldestFirst,
+		ThroughSequence: through, MaxContentBytes: budget,
+	}, func(view overgodb.DocumentView) error {
+		verdicts = append(verdicts, view.Content.Descriptor.ID)
+		return nil
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	return verdicts, page.ContentBytes, nil
+}
+
 // IsHeldoutVerdict reports whether a descriptor names a held-out verdict.
 func IsHeldoutVerdict(descriptor artifact.Descriptor) bool {
 	return descriptor.MediaType == heldoutVerdictMediaType && descriptor.Schema == heldoutVerdictSchema

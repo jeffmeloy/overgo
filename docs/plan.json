@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "experiment-evidence",
-      "title": "Give a proposer the past experiments that bear on its choice and measure whether that helps",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "The lane's bounded reader of past experiment records, on master's overgodb query: it is the one lane addition besides the codec stream that already had a production caller, and the proposer of the row before is its first real reader"
-      },
-      "steps": [
-        {
-          "id": "retrieval",
-          "title": "Read the past experiments that bear on a change, bounded in size and cut off at the proposal's time",
-          "status": "open",
-          "verify": "go test ./cmd/overgodb ./internal/runrecord ./internal/overgodb -count=1 -run 'TestExperimentalEvidence|TestDocumentHistoricalContentCutoff|TestDocumentContentByteBudget'",
-          "rationale": "What the lane called PEARL, in plain terms: before proposing, read what was already tried. The lane built a read-only reader for it (a query that returns past experiment records under a byte budget and a historical cutoff, so that no outcome later than the proposal can leak into it) with a command flag as its caller. This step ports that reader onto master's overgodb query, repaired for the gate lifecycle master has since renamed, with the lane's tests. It stores nothing new and adds no record family.\n\nServes: measure and find the gap, by showing what was tried. Disappears: nothing. Evidence: the ported tests. Batch: host."
-        }
-      ]
-    },
-    {
       "id": "score-double-check",
       "title": "Hold each weak or surprising scorecard reading to a reference, a baseline and its own protocol before calling it the model's",
       "owner": "master-lead",

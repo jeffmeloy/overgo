@@ -31,12 +31,14 @@ func creditGFixture() []TableColumn {
 }
 
 // TestCreditGRequestsAreDisjointAndStandardized holds the requests to their
-// construction: sixteen requests of thirty context and thirty query rows,
-// each part holding nine bad and twenty-one good customers; no row in two
-// requests; a text column its value's index in the column's sorted values;
-// an integer column standardized by its request's own context rows; the same
-// table building the same bytes; and a table without the classes, with a
-// third class or with too few rows of one refused.
+// construction: sixteen requests, each asking about thirty rows, nine bad and
+// twenty-one good customers; no row asked about twice; the context of every
+// request the same rows, all those no request asks about, at the table's own
+// share of each class, so that no query row's class is shown anywhere; a text
+// column its value's index in the column's sorted values; an integer column
+// standardized by the context rows; the same table building the same bytes;
+// and a table without the classes, with a third class, with too few rows of
+// one, or with no row left for the context refused.
 func TestCreditGRequestsAreDisjointAndStandardized(t *testing.T) {
 	t.Parallel()
 	table := creditGFixture()
@@ -47,7 +49,9 @@ func TestCreditGRequestsAreDisjointAndStandardized(t *testing.T) {
 	if again, _ := BuildCreditGRequests(table); len(built) != creditGRequests || !slices.EqualFunc(built, again, slices.Equal[[]byte]) {
 		t.Fatalf("the same table built %d requests, and not the same bytes twice", len(built))
 	}
-	seen := map[float64]int{}
+	asked, query := map[float64]int{}, creditGBadRows+creditGGoodRows
+	context := len(table[0].Cells) - creditGRequests*query
+	var shown []float64
 	for index, document := range built {
 		var request struct {
 			Task        string    `json:"task"`
@@ -61,34 +65,35 @@ func TestCreditGRequestsAreDisjointAndStandardized(t *testing.T) {
 		if err := json.Unmarshal(document, &request); err != nil {
 			t.Fatal(err)
 		}
-		rows, context := creditGBadRows+creditGGoodRows, (creditGBadRows+creditGGoodRows)/halves
+		rows := context + query
 		if request.Task != "classification" || request.Rows != rows || request.Cols != 3 || request.TrainRows != context ||
 			len(request.X) != rows*request.Cols || len(request.Y) != rows || !slices.Equal(request.Categorical, []int{0, 1}) {
 			t.Fatalf("request %d = %s rows %d cols %d train %d categorical %v", index, request.Task, request.Rows, request.Cols, request.TrainRows, request.Categorical)
 		}
-		var sum, squares float64
+		var sum, squares, contextGood, queryGood float64
+		var identities []float64
 		for row := range rows {
 			identity, purpose, amount := request.X[row*3], request.X[row*3+1], request.X[row*3+2]
-			if seen[identity]++; seen[identity] > 1 {
-				t.Fatalf("row %v sits in two requests", identity)
-			}
 			source := int(identity)
 			if purpose != float64(source%3) || request.Y[row] != creditGClassOf(table, source) {
 				t.Fatalf("request %d row %d: purpose %v class %v do not belong to source row %d", index, row, purpose, request.Y[row], source)
 			}
-			if row < context {
-				sum += amount
-				squares += amount * amount
+			if row >= context {
+				if asked[identity]++; asked[identity] > 1 {
+					t.Fatalf("row %v is asked about twice", identity)
+				}
+				queryGood += request.Y[row]
+				continue
 			}
+			identities = append(identities, identity)
+			sum, squares, contextGood = sum+amount, squares+amount*amount, contextGood+request.Y[row]
 		}
-		for part, from := range []int{0, context} {
-			good := 0.0
-			for _, class := range request.Y[from : from+context] {
-				good += class
-			}
-			if good != creditGGoodRows/halves {
-				t.Fatalf("request %d part %d holds %v good rows, want %d", index, part, good, creditGGoodRows/halves)
-			}
+		if shown == nil {
+			shown = identities
+		}
+		// The table's seven good rows in ten, in the query and in the context.
+		if !slices.Equal(identities, shown) || queryGood != creditGGoodRows || contextGood*float64(query) != creditGGoodRows*float64(context) {
+			t.Fatalf("request %d shows %d context rows with %v good and asks about %v good, want the same context as the first request and the table's share of each class", index, len(identities), contextGood, queryGood)
 		}
 		// Standardized by the context rows: their mean is zero and their
 		// spread one, to the six decimals a value keeps.
@@ -97,8 +102,13 @@ func TestCreditGRequestsAreDisjointAndStandardized(t *testing.T) {
 			t.Fatalf("request %d context amounts have mean %v and spread %v, want 0 and 1", index, mean, spread)
 		}
 	}
-	if len(seen) != creditGRequests*(creditGBadRows+creditGGoodRows) {
-		t.Fatalf("the requests hold %d distinct rows", len(seen))
+	if len(asked) != creditGRequests*query {
+		t.Fatalf("the requests ask about %d distinct rows", len(asked))
+	}
+	for _, identity := range shown {
+		if asked[identity] != 0 {
+			t.Fatalf("row %v is shown as context and asked about", identity)
+		}
 	}
 	for name, change := range map[string]func([]TableColumn) []TableColumn{
 		"no class column": func(columns []TableColumn) []TableColumn { return columns[:3] },
@@ -110,6 +120,12 @@ func TestCreditGRequestsAreDisjointAndStandardized(t *testing.T) {
 		"too few rows": func(columns []TableColumn) []TableColumn {
 			for index := range columns {
 				columns[index].Cells = columns[index].Cells[:400]
+			}
+			return columns
+		},
+		"no row left for the context": func(columns []TableColumn) []TableColumn {
+			for index := range columns {
+				columns[index].Cells = columns[index].Cells[:creditGRequests*(creditGBadRows+creditGGoodRows)]
 			}
 			return columns
 		},

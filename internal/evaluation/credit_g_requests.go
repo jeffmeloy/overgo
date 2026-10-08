@@ -17,12 +17,17 @@ const (
 	creditGGood  = "good"
 	// creditGSeed fixes which rows each request takes and their order.
 	creditGSeed = 17
-	// creditGRequests requests of creditGBadRows bad and creditGGoodRows good
-	// customers are what the table's thousand rows give without a row
-	// sitting in two requests, at the table's own share of each class.
+	// creditGRequests requests each ask about creditGBadRows bad and
+	// creditGGoodRows good customers, the table's own share of each class, and
+	// no row is asked about twice. Every row that is asked about by no request
+	// is context for all of them: 520 of the table's thousand, at the same
+	// share. The model learns a table from its context rows, and a request
+	// that showed it 30 read below the rate of always answering good, in the
+	// model's own code as in overgo's; from a hundred rows up both read above
+	// it.
 	creditGRequests = 16
-	creditGBadRows  = 18
-	creditGGoodRows = 42
+	creditGBadRows  = 9
+	creditGGoodRows = 21
 	// creditGSpreadFloor keeps a column every context row agrees on from
 	// dividing by zero, and creditGDecimals is how many decimals a
 	// standardized value keeps.
@@ -53,12 +58,14 @@ type TableColumn struct {
 // BuildCreditGRequests builds the held-out classification requests of the
 // credit-g table, each as the JSON document the tabular objective reads: a
 // request holds context rows with their classes and query rows whose classes
-// the model answers, half of each class in each part, and no row sits in two
-// requests, so a split of the requests keeps every held-out row off the
-// training ones. A text column is its value's index in the column's sorted
-// values; an integer column is standardized by its request's own context
-// rows. Rows and order come from a seeded generator, the one the published
-// set was drawn with, so the same table builds the same bytes.
+// the model answers. No row is a query row of two requests, and no query row
+// is a context row of any, so a split of the requests keeps every held-out
+// row's class off the training ones; the context rows, every row no request
+// asks about, are the same in all of them, as the rows of a table a model has
+// been shown are the same for every new row it is asked about. A text column
+// is its value's index in the column's sorted values; an integer column is
+// standardized by the context rows. Rows and order come from a seeded
+// generator, so the same table builds the same bytes.
 func BuildCreditGRequests(columns []TableColumn) ([][]byte, error) {
 	label := slices.IndexFunc(columns, func(column TableColumn) bool { return column.Name == creditGLabel })
 	if label < 0 || columns[label].Integer {
@@ -107,21 +114,23 @@ func BuildCreditGRequests(columns []TableColumn) ([][]byte, error) {
 	random := seededPythonRandom(creditGSeed)
 	random.shuffle(bad)
 	random.shuffle(good)
+	// The rows after every request's query rows are asked about by none.
+	context := slices.Concat(bad[creditGRequests*creditGBadRows:], good[creditGRequests*creditGGoodRows:])
+	if len(context) == 0 {
+		return nil, fmt.Errorf("evaluation: the table's %d rows leave none for the requests' context", len(classes))
+	}
+	random.shuffle(context)
+	means, spreads := make([]float64, len(features)), make([]float64, len(features))
+	for index, column := range integers {
+		if column != nil {
+			means[index], spreads[index] = meanAndSpread(column, context)
+		}
+	}
 	var requests [][]byte
 	for request := range creditGRequests {
-		someBad := bad[request*creditGBadRows : (request+1)*creditGBadRows]
-		someGood := good[request*creditGGoodRows : (request+1)*creditGGoodRows]
-		context := slices.Concat(someBad[:creditGBadRows/halves], someGood[:creditGGoodRows/halves])
-		query := slices.Concat(someBad[creditGBadRows/halves:], someGood[creditGGoodRows/halves:])
-		random.shuffle(context)
+		query := slices.Concat(bad[request*creditGBadRows:(request+1)*creditGBadRows], good[request*creditGGoodRows:(request+1)*creditGGoodRows])
 		random.shuffle(query)
 		order := slices.Concat(context, query)
-		means, spreads := make([]float64, len(features)), make([]float64, len(features))
-		for index, column := range integers {
-			if column != nil {
-				means[index], spreads[index] = meanAndSpread(column, context)
-			}
-		}
 		var x, y []string
 		for _, row := range order {
 			for index := range features {
@@ -145,10 +154,6 @@ func BuildCreditGRequests(columns []TableColumn) ([][]byte, error) {
 	}
 	return requests, nil
 }
-
-// halves is the two parts a request's rows of a class are divided between:
-// the context and the query.
-const halves = 2
 
 // meanAndSpread are the mean and the population standard deviation of a
 // column's values at the given rows, each rounded to a float once: the sums

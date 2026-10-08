@@ -137,6 +137,13 @@
       },
       "steps": [
         {
+          "id": "rescore",
+          "title": "Run the held-out verdict on the requests that show the model the table",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestCreditGRequestsAreDisjointAndStandardized$'",
+          "rationale": "The requests are rebuilt with 520 context rows. Register them as a dataset and as the table objective, rehearse the tabular route on a copy of the store, run it on the store, and record the base model's reading and the trained one beside the 0.70 a constant answer scores and the 0.756 the model's own forward pass reads on all sixteen requests. Serves: measure and find the gap. Disappears: a reading of a starved model. Evidence: the verdict on the scorecard. Batch: host."
+        },
+        {
           "id": "do",
           "title": "Hold tabfm's served answers to its upstream package's on the held-out requests",
           "status": "open",

@@ -50,8 +50,15 @@ var (
 	speechRoundTripReportContract = artifact.DocumentContract{
 		Kind: artifact.KindEvaluation, MediaType: speechRoundTripReportMedia, Schema: speechRoundTripReportSchema,
 	}
-	// roundTripNormalization is how the reference and the transcript are made comparable.
+	// roundTripNormalization is how the text and the transcript are made
+	// comparable in a suite that does not say: the three plain steps every
+	// suite was counted with before one could.
 	roundTripNormalization = []TranscriptionNormalization{TranscriptionLowercase, TranscriptionStripPunctuation, TranscriptionCollapseWhitespace}
+	// writtenOneWay is how a suite built now is counted: the text and the
+	// transcript both written by the recognizers' own normalizer, so that a
+	// judge who writes "10" for "ten" is not heard as a speaker who said it
+	// wrong.
+	writtenOneWay = []TranscriptionNormalization{transcriptionWhisperEnglish}
 )
 
 // SpeechRoundTripper is what a speech session offers a suite: the model reads
@@ -69,15 +76,19 @@ type SpeechRoundTripCase struct {
 }
 
 // SpeechRoundTripSuite is a set of texts, the voice that reads them, the seed
-// that fixes its randomness and the judge that listens.
+// that fixes its randomness, the judge that listens, and how the text and
+// what the judge wrote are written before their words are compared. A suite
+// that names no normalization is counted with the three plain steps, as every
+// suite was before one could name any.
 type SpeechRoundTripSuite struct {
-	Kind   string                `json:"kind"`
-	Schema string                `json:"schema"`
-	Source string                `json:"source"`
-	Voice  string                `json:"voice"`
-	Seed   int64                 `json:"seed"`
-	Judge  string                `json:"judge"`
-	Cases  []SpeechRoundTripCase `json:"cases"`
+	Kind          string                       `json:"kind"`
+	Schema        string                       `json:"schema"`
+	Source        string                       `json:"source"`
+	Voice         string                       `json:"voice"`
+	Seed          int64                        `json:"seed"`
+	Judge         string                       `json:"judge"`
+	Normalization []TranscriptionNormalization `json:"normalization,omitempty"`
+	Cases         []SpeechRoundTripCase        `json:"cases"`
 }
 
 type speechRoundTripPlan struct {
@@ -85,6 +96,8 @@ type speechRoundTripPlan struct {
 	dataset  artifact.ID
 	split    artifact.ID
 	suite    SpeechRoundTripSuite
+	// normalization is the suite's, or the plain steps of a suite that names none.
+	normalization []TranscriptionNormalization
 }
 
 type speechRoundTripObservation struct {
@@ -111,9 +124,16 @@ func compileSpeechRoundTrip(suite SpeechRoundTripSuite) (speechRoundTripPlan, er
 		strings.TrimSpace(suite.Voice) == "" || strings.TrimSpace(suite.Judge) == "" || len(suite.Cases) == 0 {
 		return speechRoundTripPlan{}, errors.New("evaluation: invalid speech-round-trip suite")
 	}
+	normalization := roundTripNormalization
+	if len(suite.Normalization) != 0 {
+		normalization = slices.Clone(suite.Normalization)
+	}
+	if err := checkTranscriptionNormalization(normalization); err != nil {
+		return speechRoundTripPlan{}, err
+	}
 	names := make(map[string]struct{}, len(suite.Cases))
 	for _, testCase := range suite.Cases {
-		if strings.TrimSpace(testCase.Name) == "" || len(strings.Fields(normalizeTranscription(testCase.Text, roundTripNormalization))) == 0 {
+		if strings.TrimSpace(testCase.Name) == "" || len(strings.Fields(normalizeTranscription(testCase.Text, normalization))) == 0 {
 			return speechRoundTripPlan{}, errors.New("evaluation: invalid speech-round-trip case")
 		}
 		if _, duplicate := names[testCase.Name]; duplicate {
@@ -135,7 +155,7 @@ func compileSpeechRoundTrip(suite SpeechRoundTripSuite) (speechRoundTripPlan, er
 	if err != nil {
 		return speechRoundTripPlan{}, err
 	}
-	return speechRoundTripPlan{identity: identity, dataset: dataset, split: split, suite: suite}, nil
+	return speechRoundTripPlan{identity: identity, dataset: dataset, split: split, suite: suite, normalization: normalization}, nil
 }
 
 func bindSpeechRoundTrip(compiled speechRoundTripPlan, authorities ExactAuthorities) (Plan, error) {
@@ -176,8 +196,8 @@ func evaluateSpeechRoundTrip(
 		if err != nil {
 			return speechRoundTripReport{}, fmt.Errorf("evaluation: speech-round-trip case %q: %w", testCase.Name, err)
 		}
-		reference := strings.Fields(normalizeTranscription(testCase.Text, roundTripNormalization))
-		heard := strings.Fields(normalizeTranscription(transcript, roundTripNormalization))
+		reference := strings.Fields(normalizeTranscription(testCase.Text, compiled.normalization))
+		heard := strings.Fields(normalizeTranscription(transcript, compiled.normalization))
 		observation := speechRoundTripObservation{
 			Name: testCase.Name, Transcript: strings.ToValidUTF8(transcript, string(unicode.ReplacementChar)),
 			Errors: uint64(sequenceEditDistance(reference, heard)), Words: uint64(len(reference)),
@@ -222,7 +242,8 @@ type SpeechRoundTripSpec struct {
 // BuildLibriSpeechRoundTrip builds the round-trip suite of LibriSpeech
 // test-clean's transcripts: Cases of those between six and twenty-five words,
 // picked by seed, each said as a sentence, the way the corpus's capitals and
-// missing punctuation are not.
+// missing punctuation are not. The suite is counted with the text and the
+// transcript written one way, by the recognizers' own normalizer.
 func BuildLibriSpeechRoundTrip(ctx context.Context, spec SpeechRoundTripSpec) (SpeechRoundTripSuite, error) {
 	if spec.Cases <= 0 {
 		return SpeechRoundTripSuite{}, errors.New("evaluation: a round-trip suite reads at least one text aloud")
@@ -250,7 +271,7 @@ func speechRoundTripSuiteOf(texts []string, spec SpeechRoundTripSpec) (SpeechRou
 	rng.Shuffle(len(texts), func(left, right int) { texts[left], texts[right] = texts[right], texts[left] })
 	suite := SpeechRoundTripSuite{
 		Kind: speechRoundTripKind, Schema: libriSpeechSchema, Source: libriSpeechSource,
-		Voice: spec.Voice, Seed: spec.SynthesisSeed, Judge: spec.Judge,
+		Voice: spec.Voice, Seed: spec.SynthesisSeed, Judge: spec.Judge, Normalization: slices.Clone(writtenOneWay),
 	}
 	for index, text := range texts[:spec.Cases] {
 		suite.Cases = append(suite.Cases, SpeechRoundTripCase{Name: fmt.Sprintf("%s/%03d", libriSpeechSource, index), Text: text})

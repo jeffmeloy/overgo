@@ -1,7 +1,9 @@
 package evaluation
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -87,6 +89,78 @@ func TestSpeechRoundTripScoresTheWordsThatSurviveTheTrip(t *testing.T) {
 	}
 	if _, err := evaluateSpeechRoundTrip(t.Context(), store, textOnlyRuntime{}, compiled, plan); err == nil {
 		t.Fatal("a runtime that cannot speak was evaluated")
+	}
+}
+
+// TestSpeechRoundTripCountsWordsWrittenOneWay holds a round-trip suite to the
+// counting it names. A judge that writes digits for a spelled-out number and
+// a contraction in full is charged for each by the plain steps, and for none
+// by the recognizers' own normalizer; a suite that names no counting is the
+// suite it always was, to its identity, and is counted the plain way; a suite
+// built now names the normalizer; and no suite names a step the evaluator
+// does not own.
+func TestSpeechRoundTripCountsWordsWrittenOneWay(t *testing.T) {
+	t.Parallel()
+	const (
+		said  = "Departing from five hundred thousand throats, three cheers burst forth; it wasn't the goat's."
+		heard = "departing from 500000 throats 3 cheers burst forth it was not the goat is"
+	)
+	score := func(suite SpeechRoundTripSuite) (speechRoundTripPlan, speechRoundTripReport) {
+		t.Helper()
+		compiled, err := compileSpeechRoundTrip(suite)
+		if err != nil {
+			t.Fatal(err)
+		}
+		plan, err := bindSpeechRoundTrip(compiled, ExactAuthorities{
+			ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"),
+			CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"),
+			Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		store, err := overgodb.Open(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer store.Close()
+		publishPlanFixtureAuthorities(t, store, plan)
+		report, err := evaluateSpeechRoundTrip(t.Context(), store, echoSpeaker{judge: "recognizer-a", heard: map[string]string{said: heard}}, compiled, plan)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return compiled, report
+	}
+	plain := SpeechRoundTripSuite{Kind: speechRoundTripKind, Schema: "fixture/v1", Source: "fixture", Voice: "alba", Seed: 7, Judge: "recognizer-a", Cases: []SpeechRoundTripCase{{Name: "numbers", Text: said}}}
+	oneWay := plain
+	oneWay.Normalization = slices.Clone(writtenOneWay)
+	plainPlan, plainReport := score(plain)
+	oneWayPlan, oneWayReport := score(oneWay)
+	if plainReport.Errors == 0 {
+		t.Fatal("the plain steps charged a judge nothing for writing in its own conventions: the case tries nothing")
+	}
+	if oneWayReport.Errors != 0 || oneWayReport.Words != uint64(len(strings.Fields(heard))) {
+		t.Fatalf("written one way, the judge is charged %d of %d words, and it wrote what was said", oneWayReport.Errors, oneWayReport.Words)
+	}
+	if plainPlan.identity == oneWayPlan.identity {
+		t.Fatal("a suite counted another way has the identity of the suite it was made from")
+	}
+	named := plain
+	named.Normalization = slices.Clone(roundTripNormalization)
+	if _, namedReport := score(named); namedReport.Errors != plainReport.Errors || namedReport.Words != plainReport.Words {
+		t.Fatalf("a suite that names no counting is charged %d of %d words, and one that names the plain steps %d of %d", plainReport.Errors, plainReport.Words, namedReport.Errors, namedReport.Words)
+	}
+	if encoded, err := json.Marshal(plain); err != nil || bytes.Contains(encoded, []byte("normalization")) {
+		t.Fatalf("a suite that names no counting is written with one, so a stored suite's identity would move: %s, %v", encoded, err)
+	}
+	built, err := speechRoundTripSuiteOf([]string{sentence("ONE TEXT OF THE CORPUS READ ALOUD")}, SpeechRoundTripSpec{Parquet: "corpus.parquet", Cases: 1, Voice: "alba", Judge: "granite"})
+	if err != nil || !slices.Equal(built.Normalization, writtenOneWay) {
+		t.Fatalf("a suite built now is counted by %v, %v", built.Normalization, err)
+	}
+	unknown := plain
+	unknown.Normalization = []TranscriptionNormalization{"as-heard"}
+	if _, err := compileSpeechRoundTrip(unknown); err == nil {
+		t.Fatal("a suite named a counting the evaluator does not own")
 	}
 }
 

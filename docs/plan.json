@@ -54,13 +54,6 @@
       },
       "steps": [
         {
-          "id": "round-trip",
-          "title": "Let a speech round-trip suite say how its words are counted, and build new ones counted the recognizers' way",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestSpeechRoundTripCountsWordsWrittenOneWay$'",
-          "rationale": "A round-trip suite does not say how its words are counted: the three steps are a variable of the package, so changing them would change what a stored suite's reading means without changing its identity. Give the suite the field a transcription suite has, absent meaning the three steps a stored suite was scored with, and have the builder write the recognizers' normalizer, so a new suite is a new identity that says how it is counted."
-        },
-        {
           "id": "rescore",
           "title": "Score the three recognizers and pocket-tts again with both sides written one way",
           "status": "open",

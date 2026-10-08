@@ -176,15 +176,8 @@ func CompileTranscription(suite TranscriptionSuite) (TranscriptionPlan, error) {
 		return TranscriptionPlan{}, errors.New("evaluation: projected transcription requires a prompt and positive token budget")
 	}
 	suite.Normalization = slices.Clone(suite.Normalization)
-	seenOperations := make(map[TranscriptionNormalization]struct{}, len(suite.Normalization))
-	for _, operation := range suite.Normalization {
-		if !slices.Contains(transcriptionNormalizations, operation) {
-			return TranscriptionPlan{}, errors.New("evaluation: unknown transcription normalization")
-		}
-		if _, duplicate := seenOperations[operation]; duplicate {
-			return TranscriptionPlan{}, errors.New("evaluation: duplicate transcription normalization")
-		}
-		seenOperations[operation] = struct{}{}
+	if err := checkTranscriptionNormalization(suite.Normalization); err != nil {
+		return TranscriptionPlan{}, err
 	}
 	suite.Cases = slices.Clone(suite.Cases)
 	var totalSamples uint64
@@ -461,6 +454,22 @@ func validateTranscriptionCase(testCase TranscriptionCase, normalization []Trans
 	}
 	if normalizeTranscription(testCase.Reference, normalization) == "" {
 		return errors.New("evaluation: transcription reference is empty after normalization")
+	}
+	return nil
+}
+
+// checkTranscriptionNormalization refuses a list of steps that names one the
+// evaluator does not own, or one step twice.
+func checkTranscriptionNormalization(operations []TranscriptionNormalization) error {
+	seen := make(map[TranscriptionNormalization]struct{}, len(operations))
+	for _, operation := range operations {
+		if !slices.Contains(transcriptionNormalizations, operation) {
+			return errors.New("evaluation: unknown transcription normalization")
+		}
+		if _, duplicate := seen[operation]; duplicate {
+			return errors.New("evaluation: duplicate transcription normalization")
+		}
+		seen[operation] = struct{}{}
 	}
 	return nil
 }

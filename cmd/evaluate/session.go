@@ -133,14 +133,26 @@ type chatShapedRuntime struct {
 	*inference.Runner
 }
 
-// ShapeChatPrompt renders the prompt as one user turn with the model
-// turn opened, thinking disabled where the template offers the switch:
-// the evaluation asks for the answer letter, not a reasoning trace.
-func (r chatShapedRuntime) ShapeChatPrompt(prompt string) (string, error) {
-	return r.Runner.FormatChatWithOptions(
+// chatFormatter renders a conversation through a model's chat template: a
+// loaded model's runner, or a reader of the template its file carries.
+type chatFormatter interface {
+	FormatChatWithOptions(messages []inference.ChatMessage, options inference.ChatFormatOptions) (string, error)
+}
+
+// userTurn renders the prompt as one user turn with the model turn
+// opened, thinking disabled where the template offers the switch: the
+// evaluation asks for the answer letter, not a reasoning trace.
+func userTurn(formatter chatFormatter, prompt string) (string, error) {
+	return formatter.FormatChatWithOptions(
 		[]inference.ChatMessage{{Role: inference.ChatRoleUser, Content: prompt}},
 		inference.ChatFormatOptions{AddGenerationPrompt: true, EnableThinking: false},
 	)
+}
+
+// ShapeChatPrompt renders the prompt as the user turn the evaluation asks
+// every chat-template question in.
+func (r chatShapedRuntime) ShapeChatPrompt(prompt string) (string, error) {
+	return userTurn(r.Runner, prompt)
 }
 
 // Generate parses the template's special tokens out of the shaped

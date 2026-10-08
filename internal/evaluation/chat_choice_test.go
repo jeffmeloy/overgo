@@ -44,6 +44,52 @@ func (f *chatFixture) ScoreContinuations(context.Context, string, []string) ([]s
 	panic("chat-template scoring must not score likelihoods")
 }
 
+// askedChat keeps the text each generation started from.
+type askedChat struct {
+	*chatFixture
+	asked []string
+}
+
+func (a *askedChat) Generate(ctx context.Context, prompt string, options inference.GenerateOptions) ([]tokenizer.TokenID, string, error) {
+	a.asked = append(a.asked, prompt)
+	return a.chatFixture.Generate(ctx, prompt, options)
+}
+
+// TestChatChoicePromptIsTheTextTheEvaluationGeneratesFrom holds the one
+// function that says what a model is asked under the chat-template protocol
+// to being what the evaluation generates from: the question with its
+// instruction as the user's turn, in the runtime's shaping, and the model's
+// turn opened. A case whose candidates are texts is asked as lettered options.
+// A reader of prompts that calls it reads what the model was given.
+func TestChatChoicePromptIsTheTextTheEvaluationGeneratesFrom(t *testing.T) {
+	t.Parallel()
+	runtime := &askedChat{chatFixture: &chatFixture{answers: []string{" B"}}}
+	for _, testCase := range []MultipleChoiceCase{
+		{Name: "letters", Prompt: "Q1\nA. one\nB. two\nAnswer:", Candidates: []string{" A", " B"}, Answer: 1},
+		{Name: "texts", Prompt: "Is it so?", Candidates: []string{" False", " True"}, Answer: 1},
+	} {
+		want, err := ChatChoicePrompt(runtime, testCase)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := answerChoiceByGeneration(t.Context(), runtime, testCase); err != nil {
+			t.Fatal(err)
+		}
+		if asked := runtime.asked[len(runtime.asked)-1]; asked != want {
+			t.Errorf("%s: the evaluation generated from %q, and the prompt is said to be %q", testCase.Name, asked, want)
+		}
+		if !strings.HasPrefix(want, "<user>"+testCase.Prompt) || !strings.HasSuffix(want, chatChoiceInstruction+"<model>"+chatAnswerOpener) {
+			t.Errorf("%s: the prompt is %q", testCase.Name, want)
+		}
+	}
+	if listed, _ := ChatChoicePrompt(runtime, MultipleChoiceCase{Name: "texts", Prompt: "Is it so?", Candidates: []string{" False", " True"}}); !strings.Contains(listed, "\nOptions:\nA. False\nB. True") {
+		t.Errorf("candidates that are texts are asked as %q", listed)
+	}
+	if _, err := ChatChoicePrompt(runtime, MultipleChoiceCase{Name: "many", Prompt: "Q", Candidates: make([]string, chatOptionLetters+1)}); err == nil {
+		t.Error("a case with more options than letters was given a prompt")
+	}
+}
+
 func TestMatchChoiceLetterReadsTheFirstStandaloneLetter(t *testing.T) {
 	t.Parallel()
 	candidates := []string{" A", " B", " C", " D"}

@@ -106,10 +106,24 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 600,
-        "reason": "For each of the eleven text models the scorecard reads, the test that compares what a served request returns with a reference output, named where it exists and written where the reference is on this machine, or a recorded deferral; a step of the owner's double-check of the scorecard, named for the gap the scorecard files for it"
+        "nodes": 1400,
+        "reason": "For each of the eleven text models the scorecard reads, the test that compares what a served request returns with a reference output, named where it exists and written where the reference is on this machine, or a recorded deferral; and, since there was no way to see what a model is given without loading it, a reader of prompts that needs no model: a type in the runner's package, the one function that says what the chat-template protocol asks, and a mode of evaluate that prints it. A step of the owner's double-check of the scorecard, named for the gap the scorecard files for it"
       },
       "steps": [
+        {
+          "id": "qwen25-template",
+          "title": "Give Qwen2.5-0.5B its own chat template and score it again",
+          "status": "open",
+          "verify": "go test -tags modeltest ./cmd/evaluate -count=1 -run '^TestPromptsReachEachModelAsItsOwnTokenizerGivesThem$'",
+          "rationale": "Finding e683b1e7: the scored file of Qwen2.5-0.5B was converted before the converter carried a chat template, so its chat-template questions are asked in overgo's built-in ChatML with no system turn, where the model's own template opens with one. Its reading, 0.0786 on MMLU-Pro, is below the 0.1109 of a constant answer. Convert the model again so the file carries its template, register it, score store/mmlu-pro under the chat-template protocol on the device, and remove its entry from the test's known faults, which fails once the tokens match. Whether the reading moves is not known; say what it does."
+        },
+        {
+          "id": "ocr-splitting-rule",
+          "title": "Give Unlimited-OCR the splitting rule of its own tokenizer, or retire its plain-text reading",
+          "status": "open",
+          "verify": "go test -tags modeltest ./cmd/evaluate -count=1 -run '^TestPromptsReachEachModelAsItsOwnTokenizerGivesThem$'",
+          "rationale": "Finding 34979bff: the scored file of Unlimited-OCR names the pre-tokenizer of an earlier DeepSeek tokenizer, and the model's tokenizer.json holds a later rule that joins a mark with the line break after it; overgo has no such rule. The model's own short prompts tokenize the same either way, so its use is untouched; its MMLU-Pro reading, already marked as not a measure of what the model is for, was asked with every line's end tokenized otherwise. Adding the rule changes internal/tokenizer, which moves the pinned inference surface and costs a device pass; the owner may prefer to retire the plain-text reading of an OCR model instead. Decide with the cost in hand, then do one or the other and remove the entry from the test's known faults."
+        },
         {
           "id": "do",
           "title": "Name, write or defer the comparison of each text model's served path with a reference output",

@@ -118,6 +118,7 @@ func run() error {
 	documentsParquet := flag.String("build-carried-documents", "", "write the carried-continuation suite of this WikiText-2 test parquet file to -suite-out: the start of every article long enough for a model to write four chunks into its memory and be asked, shown nothing, for the opening of the fifth")
 	tabularParquet := flag.String("build-tabular-requests", "", "write the held-out classification requests of this credit-g parquet table to the directory -requests-out names: disjoint requests of context rows with their classes and query rows to answer")
 	requestsOut := flag.String("requests-out", "", "with -build-tabular-requests: the directory the request files are written to")
+	promptCases := flag.String("read-prompts", "", "print, as JSON, each multiple-choice case of this file as the model file -model-path names is given it, read from that file's chat template and vocabulary without loading the model: under -chat-protocol the question as one user turn with the answer opened, and the tokens a generation starts from; else the prompt's tokens and each candidate's continuation, as raw completion scores them")
 	suiteOut := flag.String("suite-out", "", "with a -build- flag: the suite file to write")
 	cpuProfile := flag.String("cpuprofile", "", "write a Go CPU profile of this process to the file (the host side of a pass; a worker's file is its own)")
 	flag.Parse()
@@ -161,6 +162,12 @@ func run() error {
 			return errors.New("usage: evaluate -transcription-manifest <manifest.json> [-repo <store>]")
 		}
 		return evaluateTranscriptionManifest(context.Background(), *repository, path)
+	}
+	if cases := strings.TrimSpace(*promptCases); cases != "" {
+		if flag.NArg() != 0 || *worker || *allModels || strings.TrimSpace(*modelPath) == "" {
+			return errors.New("usage: evaluate -read-prompts <cases.json> -model-path <model.gguf> [-chat-protocol]")
+		}
+		return writePrompts(strings.TrimSpace(*modelPath), cases, *chatProtocol)
 	}
 	if path := strings.TrimSpace(*transcriptionResourceManifest); path != "" {
 		if flag.NArg() != 0 || *worker || strings.TrimSpace(*manifestPath) != "" || *allModels {

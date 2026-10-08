@@ -104,25 +104,44 @@ func answerChoiceByGeneration(
 	runtime chatChoiceRuntime,
 	testCase MultipleChoiceCase,
 ) (choiceObservation, error) {
-	prompt, letters, err := chatChoicePrompt(testCase)
+	prompt, err := ChatChoicePrompt(runtime, testCase)
 	if err != nil {
 		return choiceObservation{}, err
 	}
-	shaped, err := runtime.ShapeChatPrompt(prompt)
-	if err != nil {
-		return choiceObservation{}, err
-	}
-	result, err := Record(ctx, runtime, testCase.Name, shaped+chatAnswerOpener, chatAnswerTokens)
+	result, err := Record(ctx, runtime, testCase.Name, prompt, chatAnswerTokens)
 	if err != nil {
 		return choiceObservation{}, err
 	}
 	observation := choiceObservation{
 		Name: testCase.Name, Answer: testCase.Answer, Raw: result.Text, Selected: unmatchedChoice,
 	}
-	if index, matched := matchChoiceLetter(result.Text, letters); matched {
+	if index, matched := matchChoiceLetter(result.Text, chatChoiceLetters(testCase)); matched {
 		observation.Selected = index
 	}
 	return observation, nil
+}
+
+// ChatShaper renders one user message through a model's declared chat
+// template with the model's turn opened.
+type ChatShaper interface {
+	ShapeChatPrompt(prompt string) (string, error)
+}
+
+// ChatChoicePrompt is the whole text a model is given for one case under the
+// chat-template protocol: the case's question as one user turn in the model's
+// own template, and the model's turn opened with the words its answer
+// follows. The evaluation generates from exactly this, so a reader of what a
+// model is asked reads it here and nowhere else.
+func ChatChoicePrompt(shaper ChatShaper, testCase MultipleChoiceCase) (string, error) {
+	prompt, _, err := chatChoicePrompt(testCase)
+	if err != nil {
+		return "", err
+	}
+	shaped, err := shaper.ShapeChatPrompt(prompt)
+	if err != nil {
+		return "", err
+	}
+	return shaped + chatAnswerOpener, nil
 }
 
 // chatChoiceLetters returns the letters the extractor reads for a case,

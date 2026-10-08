@@ -11,6 +11,29 @@ import (
 	"overgo/internal/testutil"
 )
 
+// TestHeldoutReadingSaysHowManyAnswersNamedNoOption holds a reading whose
+// answers were generated to saying how many of them named no option: each was
+// counted wrong, and a reader who is not told takes a model that began to
+// reason for one that chose badly. A reading whose every answer named one
+// reads as it did.
+func TestHeldoutReadingSaysHowManyAnswersNamedNoOption(t *testing.T) {
+	t.Parallel()
+	summary := evaluation.EvalSummary{
+		Suite: "suite", Prompting: "chat-template", Record: testutil.ArtifactID(t, artifact.KindEvaluation, "unread"),
+		Metrics: map[string]float64{"accuracy": 0.25}, Directions: map[string]runrecord.Direction{"accuracy": runrecord.DirectionMaximize},
+	}
+	suite := map[string]evaluation.SuiteDescriptor{"suite": {Kind: "multiple-choice", Source: "suite", Cases: 64, Chance: 0.1}}
+	named, _ := qualityCell(recipe.TaskInference, []evaluation.EvalSummary{summary}, suite)
+	if named.Unread != 0 || named.QualityText() != "0.25 ±0.054 on 64 cases, a constant answer scores 0.1 (accuracy, suite (chat-template))" {
+		t.Fatalf("a reading whose every answer named an option reads %q", named.QualityText())
+	}
+	summary.Unread = 9
+	unread, _ := qualityCell(recipe.TaskInference, []evaluation.EvalSummary{summary}, suite)
+	if unread.Unread != 9 || unread.QualityText() != "0.25 ±0.054 on 64 cases, 9 of them answered with no option named and counted wrong, a constant answer scores 0.1 (accuracy, suite (chat-template))" {
+		t.Fatalf("a reading nine of whose answers named no option reads %q", unread.QualityText())
+	}
+}
+
 // TestHeldoutReadingStatesItsCasesAndNoise holds what a held-out reading says
 // of how much stands behind it. A share of a suite's cases answered right
 // states those cases and the standard error of the share. A reading whose

@@ -83,7 +83,13 @@ type EvalSummary struct {
 	// metric, where the record's reader can tell: for a held-out verdict judged
 	// on label accuracy, always answering the commonest label or class. Nil
 	// where the metric has no such answer or a suite's descriptor gives it.
-	Constant    *float64    `json:"constant,omitempty"`
+	Constant *float64 `json:"constant,omitempty"`
+	// Unread is how many of the answers generated under the chat-template
+	// protocol named no option the evaluation could read. Each is counted
+	// wrong: a model that begins to reason, or says the answer is not among
+	// the options, is scored as one that chose badly. Zero where every answer
+	// named one, and where answers were scored and not generated.
+	Unread      uint64      `json:"unread,omitzero"`
 	Comparison  artifact.ID `json:"comparison,omitzero"`
 	Environment artifact.ID `json:"environment,omitzero"`
 	CodeCommit  string      `json:"code_commit,omitzero"`
@@ -150,7 +156,63 @@ func recordExecution(ctx context.Context, store *overgodb.Store, record runrecor
 	if counting := namedCounting(ctx, store, plan); len(counting) != 0 {
 		summary.Prompting = strings.Join(append([]string{summary.Prompting}, counting...), protocolSeparator)
 	}
+	if policy.Prompting == PromptingChatTemplate {
+		summary.Unread = unreadAnswers(ctx, store, bound)
+	}
 	return summary
+}
+
+// unreadAnswers counts, in the report of the run that scored a record's
+// cases, the generated answers in which no option was read. A run that
+// carried an earlier result forward is followed to the run that scored it. A
+// report that cannot be read, or that holds no generated answer, counts none:
+// the count says what is known and does not stand in the way of a reading.
+func unreadAnswers(ctx context.Context, store *overgodb.Store, bound runrecord.Run) uint64 {
+	for {
+		_, earlier, readable := carriedReceipt(ctx, store, bound)
+		if !readable {
+			return 0
+		}
+		if !earlier.Valid() {
+			break
+		}
+		record, err := runrecord.RequireEvaluation(ctx, store, earlier)
+		if err != nil {
+			return 0
+		}
+		if bound, err = runrecord.RequireRun(ctx, store, record.Run); err != nil {
+			return 0
+		}
+	}
+	if len(bound.Outputs) != 1 {
+		return 0
+	}
+	content, found, err := artifact.ReadContent(ctx, store, bound.Outputs[0])
+	if err != nil || !found {
+		return 0
+	}
+	return countUnread(content.Data)
+}
+
+// countUnread counts the answers of a report's observations that were
+// generated and named no option.
+func countUnread(report []byte) uint64 {
+	var answers struct {
+		Observations []struct {
+			Selected int    `json:"selected"`
+			Raw      string `json:"raw"`
+		} `json:"observations"`
+	}
+	if json.Unmarshal(report, &answers) != nil {
+		return 0
+	}
+	var unread uint64
+	for _, answer := range answers.Observations {
+		if answer.Raw != "" && answer.Selected == unmatchedChoice {
+			unread++
+		}
+	}
+	return unread
 }
 
 // carriedReceipt names the replay receipt a run reports and the record that

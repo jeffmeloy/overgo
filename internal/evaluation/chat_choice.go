@@ -66,7 +66,7 @@ const chatAnswerTokens = 8
 func ChoiceProtocol(label string) (string, bool) {
 	switch label {
 	case PromptingChatTemplate.Label():
-		return fmt.Sprintf("the question is asked through the model's own chat template, with thinking switched off where the template has the switch and %q added; the model's turn is opened with %q, and its answer is the first option letter in the %d tokens it writes next. The model answers at once, with no room to reason first, so a figure its maker measured in a thinking mode is not this measure",
+		return fmt.Sprintf("the question is asked through the model's own chat template, with thinking switched off where the template has the switch and %q added; the model's turn is opened with %q, and its answer is the first option letter in the %d tokens it writes next; an answer that names no letter in them is counted wrong, and a reading says how many of its answers did not. The model answers at once, with no room to reason first, so a figure its maker measured in a thinking mode is not this measure",
 			strings.TrimSpace(chatChoiceInstruction), chatAnswerOpener, chatAnswerTokens), true
 	case PromptingRawCompletion.Label():
 		return "the question is given as plain text with no chat template, and the model's answer is the option it finds likeliest to come next; no text is generated, so a model trained only to converse is asked in a form it was not trained on", true

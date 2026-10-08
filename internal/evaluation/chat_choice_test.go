@@ -90,6 +90,24 @@ func TestChatChoicePromptIsTheTextTheEvaluationGeneratesFrom(t *testing.T) {
 	}
 }
 
+// TestCountUnreadCountsGeneratedAnswersThatNamedNoOption holds the count the
+// scorecard states beside a generated-letter reading: the answers of a report
+// that were generated and in which no option was read. An answer that named
+// one, and a case scored by likelihood, which has no text, are not counted;
+// what is no report counts none.
+func TestCountUnreadCountsGeneratedAnswersThatNamedNoOption(t *testing.T) {
+	t.Parallel()
+	report := `{"observations":[{"selected":1,"raw":" B"},{"selected":-1,"raw":" not given in the options"},{"selected":-1,"raw":" calculated as follows"},{"selected":-1},{"selected":0}]}`
+	if unread := countUnread([]byte(report)); unread != 2 {
+		t.Fatalf("%d answers are counted as naming no option, want the two that were generated and named none", unread)
+	}
+	for _, other := range []string{`{"observations":[]}`, `{"accuracy":0.5}`, `not a report`} {
+		if unread := countUnread([]byte(other)); unread != 0 {
+			t.Errorf("%d answers are counted in %s", unread, other)
+		}
+	}
+}
+
 func TestMatchChoiceLetterReadsTheFirstStandaloneLetter(t *testing.T) {
 	t.Parallel()
 	candidates := []string{" A", " B", " C", " D"}

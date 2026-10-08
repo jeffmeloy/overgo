@@ -90,14 +90,20 @@ type Cell struct {
 	// catalogued suite by its name, a set the evaluation circuit scored by the
 	// source its builder gave it and its cases, which a set built again shares.
 	Measure string `json:"measure,omitzero"`
+	// Unread is how many of the answers a held-out quality rests on named no
+	// option the evaluation could read, where the answers were generated: each
+	// is counted wrong, so a reading with many says as much of how answers are
+	// read as of what the model knows.
+	Unread uint64 `json:"unread,omitzero"`
 }
 
 // QualityText renders a held-out quality as a user reads it: its value, its
 // base model's beside it when a verdict judged it against one, the noise of
-// the value and the cases it rests on where a record gives them, what a
-// constant answer scores where the measure has one, in words when the value
-// is no better than it, that it is not a measure of what the model is for
-// where that is recorded, and what it measures.
+// the value and the cases it rests on where a record gives them, how many of
+// its answers named no option where some did not, what a constant answer
+// scores where the measure has one, in words when the value is no better than
+// it, that it is not a measure of what the model is for where that is
+// recorded, and what it measures.
 func (c Cell) QualityText() string {
 	text := fmt.Sprintf("%.4g", c.Value)
 	if c.Noise > 0 {
@@ -108,6 +114,9 @@ func (c Cell) QualityText() string {
 	}
 	if c.Cases > 0 {
 		text += fmt.Sprintf(" on %d cases", c.Cases)
+	}
+	if c.Unread > 0 {
+		text += fmt.Sprintf(", %d of them answered with no option named and counted wrong", c.Unread)
 	}
 	if c.Constant != nil {
 		if worse(metric.Quality, c.Direction, *c.Constant, c.Value, 0) {
@@ -878,7 +887,7 @@ func qualityCell(task recipe.Task, summaries []evaluation.EvalSummary, descripto
 			}
 			measured = append(measured, heldout{cases: ranked, first: first[measure(summary.Suite)], built: built[summary.Suite], cell: Cell{
 				Value: value, Label: label, Source: summary.Record, Direction: summary.Directions[name],
-				CodeCommit: commit, Environment: summary.Environment, Cases: cases, Noise: noise, Constant: constant, Measure: measure(summary.Suite),
+				CodeCommit: commit, Environment: summary.Environment, Cases: cases, Noise: noise, Constant: constant, Measure: measure(summary.Suite), Unread: summary.Unread,
 				Contract: Contract{Metric: name, Origin: originEvaluation, Suite: summary.Suite, Protocol: summary.Prompting, Comparison: summary.Comparison},
 			}})
 		}

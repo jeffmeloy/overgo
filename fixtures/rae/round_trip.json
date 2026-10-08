@@ -1,0 +1,42 @@
+{
+  "source": "bytetriper/RAE stage1.RAE.forward, torch 2.12.0+cu126, float32 on the CPU; scripts/python_golden_references/rae_round_trip.py",
+  "reference_commit": "a4d18c4db766419cbe7cb8c02cd9f7ceb0ec9041",
+  "encoder": "facebook/dinov2-with-registers-base",
+  "decoder": "decoders/dinov2/wReg_base/ViTXL_n08/model.pt",
+  "statistics": "stats/dinov2/wReg_base/imagenet1k/stat.pt",
+  "case": "vidgen-1m/reconstruction/1x256x256-cropped/JHmqvp9MkdU-Scene-0045",
+  "clip": "JHmqvp9MkdU-Scene-0045.mp4",
+  "clip_sha256": "5da311fdd816516d04b4edf2530b903f57cff62c66e3da58fc44f92b5d1c140a",
+  "cut": {
+    "frames": 1,
+    "fps": 16,
+    "width": 256,
+    "height": 256,
+    "crop": true
+  },
+  "latent_shape": [
+    768,
+    16,
+    16
+  ],
+  "mean_squared_error": 0.03516804799437523,
+  "picture": {
+    "file": "raw/round_trip_source.f32le",
+    "shape": [
+      3,
+      1,
+      256,
+      256
+    ],
+    "sha256": "63868a634558907f1379c22ecd4302845204b1ecd5d0698b3fb428d6fc99beeb"
+  },
+  "image": {
+    "file": "raw/round_trip_image.f32le",
+    "shape": [
+      3,
+      256,
+      256
+    ],
+    "sha256": "99f2c1941966b7dcde04ba19de0af2f84edcffffc27d0b4b77e2009efd4401ef"
+  }
+}

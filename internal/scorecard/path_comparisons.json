@@ -111,18 +111,32 @@
       "holds": "the tokens the model is given for 24 of its reading's questions, each in the user's turn of the model's own chat template with the model's turn opened, to what its own tokenizer file and template give for the same words; past the tokens, internal/server TestE4BHTTPModalities holds one served text request, from the request to the complete output over the three served protocols, to captures of transformers running the model; no test holds an answer to one of the evaluation's own questions"
     },
     {
-      "model": "Qwen3.5-4B",
-      "task": "inference",
-      "package": "cmd/evaluate",
-      "test": "TestPromptsReachEachModelAsItsOwnTokenizerGivesThem",
-      "holds": "the tokens the model is given for 24 of its reading's questions, each in the user's turn of the model's own chat template with the model's turn opened, to what its own tokenizer file and template give for the same words; past the tokens, internal/adaptiveparity TestMultimodalInputMatrix holds the first token the model generates for a picture question and for a clip question to the one transformers generates; no test holds an answer to a question of text alone"
-    },
-    {
       "model": "gemma-4-12B-it-fp8-native",
       "task": "inference",
       "package": "cmd/evaluate",
       "test": "TestPromptsReachEachModelAsItsOwnTokenizerGivesThem",
       "holds": "the tokens the model is given for 24 of its reading's questions, each in the user's turn of the model's own chat template with the model's turn opened, to what its own tokenizer file and template give for the same words; past the tokens, internal/adaptiveparity TestMultimodalInputMatrix holds the first token the model generates for a picture question to the one transformers generates; no test holds an answer to a question of text alone"
+    },
+    {
+      "model": "Carbon-500M-f16-ropefix",
+      "task": "inference",
+      "package": "cmd/evaluate",
+      "test": "TestModelsAnswerAsTransformersDoes",
+      "holds": "the log-probability the scored file gives 16 of its reading's 128 sequences, every eighth, 10670 tokens in all, to the one transformers gives running the model's own weights in float32, within 0.05 a token as a mean over a sequence; each sequence's tokens are held to the model's own tokenizer by TestPromptsReachEachModelAsItsOwnTokenizerGivesThem; what the evaluation then makes of a log-probability is its own arithmetic and is not held to a reference here"
+    },
+    {
+      "model": "MiniCPM5-1B-native-chat",
+      "task": "inference",
+      "package": "cmd/evaluate",
+      "test": "TestModelsAnswerAsTransformersDoes",
+      "holds": "the eight tokens the scored file generates greedily for 24 of its reading's questions, from the tokens the model's own template and tokenizer give for each, to the likeliest tokens by transformers running the model's own weights in float32, token for token wherever the reference's choice was not a near tie, and the log-probability it gives the reference's answer within 0.05 a token; the questions' tokens are held by TestPromptsReachEachModelAsItsOwnTokenizerGivesThem; TestChatModesReachAModelAsItsOwnTemplateGivesThem holds its thinking switch, a system turn and a second question to its own template, and records that its tool turns do not reach it as its own template gives them (finding 399a51cc), which no scored reading asks"
+    },
+    {
+      "model": "Qwen3.5-4B",
+      "task": "inference",
+      "package": "cmd/evaluate",
+      "test": "TestModelsAnswerAsTransformersDoes",
+      "holds": "the eight tokens the scored file generates greedily for 24 of its reading's questions, from the tokens the model's own template and tokenizer give for each, to the likeliest tokens by transformers running the model's own weights in float32, token for token wherever the reference's choice was not a near tie, and the log-probability it gives the reference's answer within 0.05 a token; the questions' tokens are held by TestPromptsReachEachModelAsItsOwnTokenizerGivesThem; internal/adaptiveparity TestMultimodalInputMatrix holds the first token generated for a picture question and for a clip question to the one transformers generates; TestChatModesReachAModelAsItsOwnTemplateGivesThem records that its tool turns do not reach it as its own template gives them (finding 399a51cc), which no scored reading asks"
     }
   ]
 }

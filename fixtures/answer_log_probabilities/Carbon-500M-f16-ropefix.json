@@ -1,0 +1,160 @@
+{
+ "schema": "answer_log_probabilities/v1",
+ "model": "Carbon-500M-f16-ropefix",
+ "file": "overgo-hfconvert/Carbon-500M-f16-ropefix.gguf",
+ "protocol": "sequence",
+ "new_tokens": 0,
+ "source": "transformers 5.14.1 LlamaForCausalLM, torch 2.12.0+cu126, float32 on the CPU, over Carbon-500M; scripts/python_golden_references/answer_log_probabilities.py",
+ "prompts": "fixtures/prompt_ids/Carbon-500M-f16-ropefix.json",
+ "prompts_sha256": "3ca3c1364b08ff0223cf94a307ac9d31afe49fd9acd6dac6ed24abbd52c1f3d0",
+ "weights": [
+  "model.safetensors"
+ ],
+ "weights_unused": 0,
+ "cases": [
+  {
+   "name": "dna/eukaryote_generator-fungi/corpus-slice/0",
+   "continuations": [
+    {
+     "tokens": 121,
+     "log_probability": -996.9165248773031
+    }
+   ]
+  },
+  {
+   "name": "dna/eukaryote_generator-fungi/corpus-slice/8",
+   "continuations": [
+    {
+     "tokens": 84,
+     "log_probability": -633.8823959368088
+    }
+   ]
+  },
+  {
+   "name": "dna/eukaryote_generator-invertebrate/corpus-slice/0",
+   "continuations": [
+    {
+     "tokens": 589,
+     "log_probability": -4384.505795677714
+    }
+   ]
+  },
+  {
+   "name": "dna/eukaryote_generator-invertebrate/corpus-slice/8",
+   "continuations": [
+    {
+     "tokens": 2214,
+     "log_probability": -16276.736641720818
+    }
+   ]
+  },
+  {
+   "name": "dna/eukaryote_generator-plant/corpus-slice/0",
+   "continuations": [
+    {
+     "tokens": 262,
+     "log_probability": -1288.055393984752
+    }
+   ]
+  },
+  {
+   "name": "dna/eukaryote_generator-plant/corpus-slice/8",
+   "continuations": [
+    {
+     "tokens": 287,
+     "log_probability": -2029.1745700930446
+    }
+   ]
+  },
+  {
+   "name": "dna/eukaryote_generator-protozoa/corpus-slice/0",
+   "continuations": [
+    {
+     "tokens": 470,
+     "log_probability": -3417.1882481814873
+    }
+   ]
+  },
+  {
+   "name": "dna/eukaryote_generator-protozoa/corpus-slice/8",
+   "continuations": [
+    {
+     "tokens": 14,
+     "log_probability": -80.68097514203704
+    }
+   ]
+  },
+  {
+   "name": "dna/eukaryote_generator-vertebrate_mammalian/corpus-slice/0",
+   "continuations": [
+    {
+     "tokens": 1260,
+     "log_probability": -7780.317063263612
+    }
+   ]
+  },
+  {
+   "name": "dna/eukaryote_generator-vertebrate_mammalian/corpus-slice/8",
+   "continuations": [
+    {
+     "tokens": 4096,
+     "log_probability": -28399.402666008195
+    }
+   ]
+  },
+  {
+   "name": "dna/eukaryote_generator-vertebrate_other/corpus-slice/0",
+   "continuations": [
+    {
+     "tokens": 30,
+     "log_probability": -225.01850809234875
+    }
+   ]
+  },
+  {
+   "name": "dna/eukaryote_generator-vertebrate_other/corpus-slice/8",
+   "continuations": [
+    {
+     "tokens": 37,
+     "log_probability": -65.00742981048612
+    }
+   ]
+  },
+  {
+   "name": "dna/mrna_evo2/corpus-slice/0",
+   "continuations": [
+    {
+     "tokens": 278,
+     "log_probability": -1592.613550275376
+    }
+   ]
+  },
+  {
+   "name": "dna/mrna_evo2/corpus-slice/8",
+   "continuations": [
+    {
+     "tokens": 40,
+     "log_probability": -316.1685485089562
+    }
+   ]
+  },
+  {
+   "name": "dna/mrna_splice_evo2/corpus-slice/0",
+   "continuations": [
+    {
+     "tokens": 506,
+     "log_probability": -3999.7204692431997
+    }
+   ]
+  },
+  {
+   "name": "dna/mrna_splice_evo2/corpus-slice/8",
+   "continuations": [
+    {
+     "tokens": 382,
+     "log_probability": -2431.2940559633207
+    }
+   ]
+  }
+ ]
+}

@@ -14,13 +14,6 @@
       },
       "steps": [
         {
-          "id": "answer-protocol",
-          "title": "Score one assistant model on MMLU-Pro the way its vendor does, and name the answer protocol on every such cell",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestScorecardNamesTheAnswerProtocol$'",
-          "rationale": "The recommendation sets the vendors' published MMLU-Pro figures beside overgo's: Qwen3.5-4B 79.1 against 0.4715, Qwen3.5-9B 82.5 against 0.4669, gemma-4-E4B-it 69.4 against 0.4385, gemma-4-12B 77.2 against 0.4926; on IFEval the 9B model is 91.5 against 0.8429. Those vendor figures came from reading, not from a run, and the step first cites each from the model card on disk. A gap of 25 to 35 points on one suite against 7 on another points at how the answer is asked for, not at the arithmetic: overgo's cells are carried from earlier evaluations and the scorecard does not show their suite size, generation limit or whether the model was allowed to think. That is a hypothesis.\n\nThe step reads those three facts off the records, then scores Qwen3.5-4B on a sample of the suite with thinking on and a generation limit that does not truncate, beside the protocol the cell uses today. If the gap closes, the protocol was the cause: every such cell is named for its protocol, a direct answer, the thinking reading is recorded beside it for the model that was run, and the other post-trained models are treated alike without a run each. If it does not close, a fault is suspected, and the next step is the model's logits against its reference on questions it fails, as a row of its own.\n\nThat the 9B model does not beat the 4B model under the chat template is a tie within noise and is not pursued by itself; that the larger model gains nothing is what the protocol reading should explain.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the two readings of one model on the same questions. Batch: device."
-        },
-        {
           "id": "use-case-cells",
           "title": "Mark or retire the readings that measure something other than their model's use, and ask the owner for the data the right measures need",
           "status": "open",

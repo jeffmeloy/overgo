@@ -206,7 +206,11 @@ func printScorecard(ctx context.Context, rows []scorecard.Row, root string, outp
 	if err != nil {
 		return err
 	}
-	text += choiceProtocols(rows) + standing
+	samples, err := scorecard.ProtocolSamples()
+	if err != nil {
+		return err
+	}
+	text += choiceProtocols(rows, samples) + standing
 	if len(inapplicable) != 0 {
 		text += "\nNot applicable:\n" + strings.Join(inapplicable, "\n") + "\n"
 	}
@@ -221,7 +225,14 @@ func printScorecard(ctx context.Context, rows []scorecard.Row, root string, outp
 // one whose maker published a thinking-mode figure is not to be read against
 // that figure. Another task's pipeline shapes its own prompt and is not
 // described here.
-func choiceProtocols(rows []scorecard.Row) string {
+//
+// Where some of a reading's questions were also asked another way, the sample
+// is set beside the reading: how many of the same questions each way answers,
+// how many the two differ on, what the model's maker publishes for the other
+// way, and what ran the sample. Every count is counted from the sample's
+// outcomes. A sample for a model that is not on the scorecard, or whose
+// reading was not scored under the protocol the sample names, is not shown.
+func choiceProtocols(rows []scorecard.Row, samples []scorecard.ProtocolSample) string {
 	asked := map[string][]string{}
 	for _, row := range rows {
 		cell := row.Cells[metric.Quality]
@@ -236,6 +247,25 @@ func choiceProtocols(rows []scorecard.Row) string {
 	}
 	if text.String() == "" {
 		return ""
+	}
+	var beside strings.Builder
+	for _, sample := range samples {
+		if sample.Task != recipe.TaskInference || !slices.Contains(asked[sample.Protocol], sample.Model) {
+			continue
+		}
+		tally := sample.Tally()
+		fmt.Fprintf(&beside, "- %s %s, on %d of its questions: %d right (%.4g ±%.2g), where the %s protocol answers %d of the same %d (%.4g ±%.2g); the two differ on %d questions, %d of them right only this way.",
+			sample.Model, sample.Way, tally.Cases, tally.Sample, tally.Share(tally.Sample), tally.SampleNoise,
+			sample.Protocol, tally.Reading, tally.Cases, tally.Share(tally.Reading), tally.ReadingNoise,
+			tally.ReadingOnly+tally.SampleOnly, tally.SampleOnly)
+		if sample.Published != 0 {
+			fmt.Fprintf(&beside, " Its maker publishes %.4g for the suite (%s).", sample.Published, sample.PublishedBy)
+		}
+		fmt.Fprintf(&beside, " Asked: %s. A question and its answer ran to %d tokens on average, and %d of the %d ran to the limit of %d tokens. From %s.\n",
+			sample.Asked, tally.MeanTokens, tally.Cut, tally.Cases, sample.Limit, sample.ProducedBy)
+	}
+	if beside.Len() != 0 {
+		text.WriteString("\nA reading's questions asked another way, on a sample too small to stand for the suite:\n" + beside.String())
 	}
 	return "\nHow the multiple-choice readings were asked for:\n" + text.String()
 }

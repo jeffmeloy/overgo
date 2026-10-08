@@ -1,0 +1,297 @@
+{
+  "samples": [
+    {
+      "model": "Qwen3.5-4B",
+      "task": "inference",
+      "protocol": "chat-template",
+      "way": "left to think before it answers",
+      "asked": "thinking left on in the model's chat template; the question worded as the benchmark words it for a model that reasons, to think step by step and finish with \"the answer is (X)\"; sampled by the settings the model's card gives for thinking mode (temperature 1, top_p 0.95, top_k 20, presence penalty 1.5) with a seed for each question; up to 32768 new tokens, which no answer reached; the answer read as the last letter stated after the thought closes. The questions are 40 taken evenly through the suite",
+      "limit": 32768,
+      "published": 0.791,
+      "published_by": "the model's card, Benchmark Results, MMLU-Pro, where the models are said to think by default",
+      "produced_by": "a scratch program run once on 2026-10-08 against the model's f16 file, which asked each question both ways; not an evaluation the store holds, and not one the evaluation tools can run (finding 69b4c1ed)",
+      "cases": [
+        {
+          "name": "mmlu-pro/default/test/0",
+          "answer": 8,
+          "reading": 5,
+          "sample": 8,
+          "tokens": 2414
+        },
+        {
+          "name": "mmlu-pro/default/test/300",
+          "answer": 3,
+          "reading": 9,
+          "sample": 3,
+          "tokens": 6298
+        },
+        {
+          "name": "mmlu-pro/default/test/601",
+          "answer": 7,
+          "reading": 3,
+          "sample": 9,
+          "tokens": 8084
+        },
+        {
+          "name": "mmlu-pro/default/test/902",
+          "answer": 2,
+          "reading": 2,
+          "sample": 2,
+          "tokens": 4957
+        },
+        {
+          "name": "mmlu-pro/default/test/1203",
+          "answer": 3,
+          "reading": 0,
+          "sample": 0,
+          "tokens": 4941
+        },
+        {
+          "name": "mmlu-pro/default/test/1504",
+          "answer": 0,
+          "reading": 0,
+          "sample": 0,
+          "tokens": 5106
+        },
+        {
+          "name": "mmlu-pro/default/test/1804",
+          "answer": 0,
+          "reading": 6,
+          "sample": 6,
+          "tokens": 9788
+        },
+        {
+          "name": "mmlu-pro/default/test/2105",
+          "answer": 3,
+          "reading": 6,
+          "sample": 6,
+          "tokens": 8831
+        },
+        {
+          "name": "mmlu-pro/default/test/2406",
+          "answer": 2,
+          "reading": 0,
+          "sample": 2,
+          "tokens": 8767
+        },
+        {
+          "name": "mmlu-pro/default/test/2707",
+          "answer": 5,
+          "reading": 5,
+          "sample": 5,
+          "tokens": 2996
+        },
+        {
+          "name": "mmlu-pro/default/test/3008",
+          "answer": 5,
+          "reading": 5,
+          "sample": 5,
+          "tokens": 4511
+        },
+        {
+          "name": "mmlu-pro/default/test/3308",
+          "answer": 7,
+          "reading": 7,
+          "sample": 7,
+          "tokens": 3783
+        },
+        {
+          "name": "mmlu-pro/default/test/3609",
+          "answer": 9,
+          "reading": 9,
+          "sample": 9,
+          "tokens": 4971
+        },
+        {
+          "name": "mmlu-pro/default/test/3910",
+          "answer": 2,
+          "reading": 0,
+          "sample": 2,
+          "tokens": 7362
+        },
+        {
+          "name": "mmlu-pro/default/test/4211",
+          "answer": 7,
+          "reading": 7,
+          "sample": 7,
+          "tokens": 5175
+        },
+        {
+          "name": "mmlu-pro/default/test/4512",
+          "answer": 4,
+          "reading": 5,
+          "sample": 4,
+          "tokens": 6568
+        },
+        {
+          "name": "mmlu-pro/default/test/4812",
+          "answer": 5,
+          "reading": 5,
+          "sample": 5,
+          "tokens": 4320
+        },
+        {
+          "name": "mmlu-pro/default/test/5113",
+          "answer": 1,
+          "reading": 1,
+          "sample": 1,
+          "tokens": 11627
+        },
+        {
+          "name": "mmlu-pro/default/test/5414",
+          "answer": 7,
+          "reading": 5,
+          "sample": 7,
+          "tokens": 4744
+        },
+        {
+          "name": "mmlu-pro/default/test/5715",
+          "answer": 0,
+          "reading": 6,
+          "sample": 0,
+          "tokens": 4127
+        },
+        {
+          "name": "mmlu-pro/default/test/6016",
+          "answer": 4,
+          "reading": 4,
+          "sample": 4,
+          "tokens": 2459
+        },
+        {
+          "name": "mmlu-pro/default/test/6316",
+          "answer": 6,
+          "reading": 4,
+          "sample": 4,
+          "tokens": 11388
+        },
+        {
+          "name": "mmlu-pro/default/test/6617",
+          "answer": 6,
+          "reading": 6,
+          "sample": 6,
+          "tokens": 2741
+        },
+        {
+          "name": "mmlu-pro/default/test/6918",
+          "answer": 8,
+          "reading": 8,
+          "sample": 2,
+          "tokens": 3466
+        },
+        {
+          "name": "mmlu-pro/default/test/7219",
+          "answer": 8,
+          "reading": 1,
+          "sample": 8,
+          "tokens": 3723
+        },
+        {
+          "name": "mmlu-pro/default/test/7520",
+          "answer": 1,
+          "reading": 1,
+          "sample": 1,
+          "tokens": 3592
+        },
+        {
+          "name": "mmlu-pro/default/test/7820",
+          "answer": 9,
+          "reading": 1,
+          "sample": 9,
+          "tokens": 10621
+        },
+        {
+          "name": "mmlu-pro/default/test/8121",
+          "answer": 7,
+          "reading": 9,
+          "sample": 7,
+          "tokens": 4680
+        },
+        {
+          "name": "mmlu-pro/default/test/8422",
+          "answer": 8,
+          "reading": 0,
+          "sample": 8,
+          "tokens": 11668
+        },
+        {
+          "name": "mmlu-pro/default/test/8723",
+          "answer": 2,
+          "reading": 2,
+          "sample": 2,
+          "tokens": 951
+        },
+        {
+          "name": "mmlu-pro/default/test/9024",
+          "answer": 7,
+          "reading": 7,
+          "sample": 7,
+          "tokens": 2677
+        },
+        {
+          "name": "mmlu-pro/default/test/9324",
+          "answer": 8,
+          "reading": 1,
+          "sample": 8,
+          "tokens": 2669
+        },
+        {
+          "name": "mmlu-pro/default/test/9625",
+          "answer": 0,
+          "reading": 0,
+          "sample": 0,
+          "tokens": 3606
+        },
+        {
+          "name": "mmlu-pro/default/test/9926",
+          "answer": 2,
+          "reading": 2,
+          "sample": 2,
+          "tokens": 8279
+        },
+        {
+          "name": "mmlu-pro/default/test/10227",
+          "answer": 8,
+          "reading": -1,
+          "sample": 8,
+          "tokens": 1115
+        },
+        {
+          "name": "mmlu-pro/default/test/10528",
+          "answer": 0,
+          "reading": 0,
+          "sample": 0,
+          "tokens": 2879
+        },
+        {
+          "name": "mmlu-pro/default/test/10828",
+          "answer": 3,
+          "reading": 3,
+          "sample": 3,
+          "tokens": 4992
+        },
+        {
+          "name": "mmlu-pro/default/test/11129",
+          "answer": 2,
+          "reading": 1,
+          "sample": 2,
+          "tokens": 8257
+        },
+        {
+          "name": "mmlu-pro/default/test/11430",
+          "answer": 5,
+          "reading": 5,
+          "sample": 5,
+          "tokens": 7269
+        },
+        {
+          "name": "mmlu-pro/default/test/11731",
+          "answer": 3,
+          "reading": 0,
+          "sample": 3,
+          "tokens": 13508
+        }
+      ]
+    }
+  ]
+}

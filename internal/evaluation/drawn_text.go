@@ -13,7 +13,7 @@ import (
 
 const (
 	drawnTextSource = "overgo/drawn-text"
-	drawnTextSchema = "overgo/drawn-text-questions/v1"
+	drawnTextSchema = "overgo/drawn-text-questions/v2"
 	// drawnTextQuestion asks a judge to read a picture: the texts it is offered
 	// differ by a word or a digit, so what the picture shows of its subject does
 	// not answer it.
@@ -31,14 +31,20 @@ const (
 	// nearTexts is how many texts near the one asked for a question offers
 	// beside it, and how many lines with a figure a brief holds.
 	nearTexts = 3
+	// titleSwaps is how many words of its title a brief names another word
+	// for, and swapWords the words a swap holds, the title's and the one put
+	// in its place. Two swaps make three titles near a title: the one made,
+	// the other made, and both.
+	titleSwaps, swapWords = 2, 2
 	// decimalDigits are the digits a number is written in, in order, so that a
 	// digit is turned to another by its place among them.
 	decimalDigits = "0123456789"
-	// nearTurn and farTurn are how far a number's last digit is turned to make
-	// two numbers near it, and firstTurn how far its first.
-	nearTurn, farTurn, firstTurn = 3, 6, 1
-	// twoDigits is the least length a number has two digits to exchange at.
-	twoDigits = 2
+	// smallTurn and largeTurn are how far one digit of a number is turned to
+	// make the three numbers near it: by the one, by the other, and by both.
+	// No two of the four digits that gives are the same, among ten digits or
+	// among nine, and none is far from the digit asked for: a year stays a
+	// year someone might have written.
+	smallTurn, largeTurn = 1, 2
 )
 
 // drawnBriefsJSON holds the infographics the measure asks for: everyday
@@ -60,19 +66,20 @@ type drawnLine struct {
 func (line drawnLine) with(number string) string { return line.Before + number + line.After }
 
 // drawnBrief is an infographic to ask for: what it is about, its title with
-// three titles that differ from it by a word, three lines that each state a
+// two swaps of one of its words for another, three lines that each state a
 // figure, and a line of small print that states a year.
 type drawnBrief struct {
 	ID      string      `json:"id"`
 	Subject string      `json:"subject"`
 	Title   string      `json:"title"`
-	Titles  []string    `json:"titles"`
+	Swaps   [][]string  `json:"swaps"`
 	Lines   []drawnLine `json:"lines"`
 	Print   drawnLine   `json:"print"`
 }
 
 // drawnBriefs reads the embedded briefs. Each is named once, and holds a
-// subject, a title with three other titles, and three lines.
+// subject, a title with two swaps that make three titles near it, and three
+// lines.
 func drawnBriefs() ([]drawnBrief, error) {
 	var document struct {
 		Briefs []drawnBrief `json:"briefs"`
@@ -82,46 +89,89 @@ func drawnBriefs() ([]drawnBrief, error) {
 	}
 	seen := map[string]bool{}
 	for _, brief := range document.Briefs {
-		if brief.ID == "" || seen[brief.ID] || brief.Subject == "" || brief.Title == "" || len(brief.Titles) != nearTexts || len(brief.Lines) != nearTexts ||
-			slices.Contains(brief.Titles, brief.Title) {
+		if brief.ID == "" || seen[brief.ID] || brief.Subject == "" || len(brief.Lines) != nearTexts {
 			return nil, fmt.Errorf("evaluation: drawn-text brief %q is repeated or incomplete", brief.ID)
+		}
+		if _, err := nearTitles(brief.Title, brief.Swaps); err != nil {
+			return nil, fmt.Errorf("evaluation: drawn-text brief %s: %w", brief.ID, err)
 		}
 		seen[brief.ID] = true
 	}
 	return document.Briefs, nil
 }
 
-// nearNumbers gives three numbers near one written in digits, each as long
-// as it and none of them it: its last two digits exchanged, its last digit
-// turned, its first digit turned, its last digit turned further, in that order
-// and passing over any that repeats one before it or would open with a zero.
-// They are the numbers a careless reading of the picture gives.
-func nearNumbers(number string) ([]string, error) {
-	turned := func(at, by int) string {
-		digit := decimalDigits[(strings.IndexByte(decimalDigits, number[at])+by)%len(decimalDigits)]
-		// A number of several digits does not open with a zero.
-		if at == 0 && len(number) > 1 && digit == decimalDigits[0] {
-			digit = decimalDigits[firstTurn]
-		}
-		return number[:at] + string(digit) + number[at+1:]
+// A question must not answer itself. Three texts each made by one change to
+// the text asked for point at it: it is the one text a single change away
+// from every other, and a judge shown a picture with no text in it found it
+// two times in three. So the four texts a question offers are the corners of
+// a square: two changes, each made or not, which leaves every text one change
+// from two of the others and two changes from the third, and none standing
+// apart. The changes say nothing of the picture's subject either, or a judge
+// would read the answer from what the picture shows.
+
+// nearTitles gives the three titles near a title: the first of its two swaps
+// made, the second, and both. A swap names a word the title holds once and a
+// word it does not hold to put in its place, and the two swap different
+// words.
+func nearTitles(title string, swaps [][]string) ([]string, error) {
+	words := strings.Fields(title)
+	if len(words) == 0 || title != strings.Join(words, " ") || len(swaps) != titleSwaps {
+		return nil, fmt.Errorf("evaluation: the title %q is not words one space apart with %d swaps", title, titleSwaps)
 	}
+	held := func(word string) int {
+		return len(words) - len(slices.DeleteFunc(slices.Clone(words), func(other string) bool { return other == word }))
+	}
+	swapped := func(made ...[]string) string {
+		changed := slices.Clone(words)
+		for _, swap := range made {
+			changed[slices.Index(words, swap[0])] = swap[1]
+		}
+		return strings.Join(changed, " ")
+	}
+	for _, swap := range swaps {
+		if len(swap) != swapWords || held(swap[0]) != 1 || strings.TrimSpace(swap[1]) == "" || held(swap[1]) != 0 {
+			return nil, fmt.Errorf("evaluation: the title %q does not hold the word a swap names once, or holds the word it puts in: %q", title, swap)
+		}
+	}
+	if swaps[0][0] == swaps[1][0] {
+		return nil, fmt.Errorf("evaluation: the title %q swaps one word twice", title)
+	}
+	return []string{swapped(swaps[0]), swapped(swaps[1]), swapped(swaps[0], swaps[1])}, nil
+}
+
+// nearNumbers gives the three numbers near one written in digits, each as
+// long as it: one of its digits turned by a small step, by a large one, and by
+// both. Each step goes forward or back as back draws, so the number asked for
+// is as likely to be any corner of the four as another, and nothing in the
+// four says which it was. The digit turned is the last that is not a zero, so
+// a round number's four are all as round as it, and a judge who expects a
+// round figure learns nothing. A number's first digit is turned among the
+// digits from one to nine, so no number opens with a zero or is one; any
+// other digit among all ten.
+func nearNumbers(number string, back func() bool) ([]string, error) {
 	if number == "" || strings.Trim(number, decimalDigits) != "" {
 		return nil, fmt.Errorf("evaluation: %q is not a number written in digits", number)
 	}
-	last := len(number) - 1
-	var candidates, near []string
-	if len(number) >= twoDigits && (len(number) > twoDigits || number[last] != decimalDigits[0]) {
-		candidates = append(candidates, number[:last-1]+string(number[last])+string(number[last-1]))
+	place := strings.LastIndexAny(number, decimalDigits[1:])
+	if place < 0 {
+		return nil, fmt.Errorf("evaluation: %q has no digit to turn that is not a zero", number)
 	}
-	for _, candidate := range append(candidates, turned(last, nearTurn), turned(0, firstTurn), turned(last, farTurn)) {
-		if len(near) < nearTexts && candidate != number && !slices.Contains(near, candidate) {
-			near = append(near, candidate)
-		}
+	digits := decimalDigits
+	if place == 0 {
+		digits = decimalDigits[1:]
 	}
-	if len(near) < nearTexts {
-		return nil, fmt.Errorf("evaluation: %q has fewer than %d numbers near it", number, nearTexts)
+	at := strings.IndexByte(digits, number[place])
+	turned := func(by int) string {
+		return number[:place] + string(digits[((at+by)%len(digits)+len(digits))%len(digits)]) + number[place+1:]
 	}
-	return near, nil
+	small, large := smallTurn, largeTurn
+	if back() {
+		small = -small
+	}
+	if back() {
+		large = -large
+	}
+	return []string{turned(small), turned(large), turned(small + large)}, nil
 }
 
 // PickDrawnText picks count infographics to ask an image model for, by seed,
@@ -129,9 +179,10 @@ func nearNumbers(number string) ([]string, error) {
 // the five texts the picture is to hold in quotation marks: a title, three
 // lines that each state a figure, and a line of small print. Each of the five
 // is one question, offering the text asked for among three near it, a title
-// with one word changed or a line with its number misread, in an order the
-// seed draws. No text near an asked one is in any prompt, so a picture that
-// holds what it was asked for holds one of the four.
+// with one or both of two words swapped or a line with its number's last
+// digit turned, in an order the seed draws. No text near an asked one is in
+// any prompt, so a picture that holds what it was asked for holds one of the
+// four, and the four do not say which.
 func PickDrawnText(count int, seed uint64) ([]TIFAItem, error) {
 	briefs, err := drawnBriefs()
 	if err != nil {
@@ -142,6 +193,7 @@ func PickDrawnText(count int, seed uint64) ([]TIFAItem, error) {
 	}
 	rng := rand.New(rand.NewPCG(seed, seed))
 	rng.Shuffle(len(briefs), func(left, right int) { briefs[left], briefs[right] = briefs[right], briefs[left] })
+	back := func() bool { return rng.Uint64()&1 == 1 }
 	items := make([]TIFAItem, 0, count)
 	for _, brief := range briefs[:count] {
 		// The prompt names its subject and then the five texts, in the order asked.
@@ -153,9 +205,13 @@ func PickDrawnText(count int, seed uint64) ([]TIFAItem, error) {
 			rng.Shuffle(len(choices), func(left, right int) { choices[left], choices[right] = choices[right], choices[left] })
 			item.Questions = append(item.Questions, TIFAQuestion{Question: drawnTextQuestion, Choices: choices, Answer: text})
 		}
-		ask(brief.Title, brief.Titles)
+		titles, err := nearTitles(brief.Title, brief.Swaps)
+		if err != nil {
+			return nil, fmt.Errorf("evaluation: drawn-text brief %s: %w", brief.ID, err)
+		}
+		ask(brief.Title, titles)
 		for _, line := range append(slices.Clone(brief.Lines), brief.Print) {
-			numbers, err := nearNumbers(line.Number)
+			numbers, err := nearNumbers(line.Number, back)
 			if err != nil {
 				return nil, fmt.Errorf("evaluation: drawn-text brief %s: %w", brief.ID, err)
 			}

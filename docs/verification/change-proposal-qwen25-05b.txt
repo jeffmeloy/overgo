@@ -1,0 +1,27 @@
+overgo change proposal: a change proposed from a corpus of fine-tunes, judged against plain controls
+tool: cmd/train -propose <corpus> (trainingworkflow.ProposeChange), built at commit b02a618d0
+corpus: evidence:sha256:aa99fadce714d52bd87e66f3d8d762dc20ccf1f4e9cdf23fa8f20defa51794d1 (docs/verification/change-corpus-qwen25-05b.txt: 24 fine-tunes of Qwen2.5-0.5B)
+store: the experiment store the corpus was collected in, overgo_data/experiments/change-corpus/store
+flags: -seq 512, the corpus runs' sequence length; candidates written under the corpus's runs directory, proposal/
+
+every candidate is the base plus a weighted sum of the 24 runs' changes, scored on the 24 held-out records
+the runs were judged on (token accuracy; the base reads 0.5001):
+  proposed          0.5183
+  best-run          0.5194
+  mean              0.5209
+  random-direction  0.5121
+every run improved, so the mean of the improved runs is the mean and is not scored twice.
+
+the code: 2 directions of the runs' changes, which predict 0.221 of the gain of a run left out.
+the runs' gains spread 0.0022 (standard deviation) against a noise of 0.0025 in one run's gain over the
+held-out records: the runs do not differ in gain by more than the measurement can tell.
+
+judged: the proposal less the best control, the mean, is -0.0025, between -0.0066 and 0.0017 over ten thousand
+redraws of the held-out records. The proposal is not kept.
+beside the judgment, by the same redrawing of the same reports: the proposal less the random direction of the
+same size is +0.0062, between +0.0016 and +0.0113, so the code's direction is better than a direction drawn
+at random; the proposal less the best run is -0.0010 and the mean less the best run +0.0015, both within the
+noise. Moving a typical run's distance from the mean costs more than the direction earns.
+
+judgment: evaluation:sha256:a24025d3de826178888917345d14e92c18f006f58e2ef426cf25e535a72bb3d3
+document: {"version":1,"corpus":"evidence:sha256:aa99fadce714d52bd87e66f3d8d762dc20ccf1f4e9cdf23fa8f20defa51794d1","resampling":"profile:sha256:c24dc53f082ddf345f5cc68aaaa9bafafdcd5c88599819fce97c5a8b55affced","rank":2,"explained":0.22148384756714457,"gain_spread":0.0022196534538632385,"gain_noise":0.0025278228784258714,"base":0.5001176590690053,"candidates":[{"name":"proposed","weights":[0.06588861675703084,0.011638767194129797,-0.06895792969095332,0.10913497716145934,0.05361388066218836,0.04089004203278018,0.16198506113902486,0.2384485817308581,0.019854405727388398,-0.11841185248805891,-0.27329527449938595,0.28872741858272394,-0.03987202722653672,0.2186299351656886,-0.027506361700429034,-0.08271068360787256,-0.049068594855943955,-0.07071309150616797,-0.2299922674044557,0.3521975099987615,0.005835428967776425,0.3757760306440616,0.20768336911925925,-0.18977594190332703],"report":"evaluation:sha256:a39f89e6e443286e63f0cec97de8ab65317d586e85c8b090e78d26efadd75ebf","score":0.518342702801843},{"name":"best-run","weights":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0],"report":"evaluation:sha256:e4cffd8529333c14888ed880c69829c0d68502415d4a164bd8416395be7809ba","score":0.5193663799592},{"name":"mean","weights":[0.041666666666666664,0.041666666666666664,0.041666666666666664,0.041666666666666664,0.041666666666666664,0.041666666666666664,0.041666666666666664,0.041666666666666664,0.041666666666666664,0.041666666666666664,0.041666666666666664,0.041666666666666664,0.041666666666666664,0.041666666666666664,0.041666666666666664,0.041666666666666664,0.041666666666666664,0.041666666666666664,0.041666666666666664,0.041666666666666664,0.041666666666666664,0.041666666666666664,0.041666666666666664,0.041666666666666664],"report":"evaluation:sha256:0e3d47cf3ff7da35dee97091166e800593c3d215076e743f592d945a274b9f1a","score":0.5208576654018316},{"name":"random-direction","weights":[0.02120139821470703,0.07729290519842882,0.14863164390241496,-0.04047560089342806,0.024755218339774746,0.04625754802661392,-0.07834846131340176,-0.14760385537599385,0.06347390289294916,0.2034400525804974,0.3691577226623473,-0.2059548192949519,0.11974311194632875,-0.1281246141990771,0.09596901309050887,0.1523630815813678,0.11395705261649813,0.15546155697901293,0.3244028104149011,-0.2599716094381661,0.07225906679251308,-0.2865340248131421,-0.12400017728329735,0.2826470773725941],"report":"evaluation:sha256:656c0010a8958adca7fb745328949dfbcd9c447033aa9387b21bc1a80a6b407b","score":0.5120985533125353}],"control":"mean","difference":-0.002514962599988624,"lower":-0.006579175036898234,"upper":0.0017123287671232815,"kept":false}

@@ -4,38 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "latent-change-proposer",
-      "title": "Propose a model change from a latent of earlier changes and judge it on held-out data against plain controls",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "A corpus of weight changes with verdicts, a proposer over it and its judged comparison: the campaign's central claim has never been tested because there is no corpus to learn from and no proposer to judge"
-      },
-      "steps": [
-        {
-          "id": "proposal",
-          "title": "Propose a change from the corpus and judge it against the best run, the mean and a random direction",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow -count=1 -run '^(TestProposedChangeIsJudgedAgainstItsControls|TestChangeProposalRecordIsTheJudgmentItNames)$'",
-          "rationale": "Proposers, simplest first: a low-rank linear code of the changes, decoded along the direction that best predicts the verdict's gain; then a small deterministic autoencoder over the changes, only if the linear code leaves gain unexplained. Controls: the best single run, the plain mean of all runs, the mean of the runs that improved, and a random direction of the same size. Every candidate is materialized and scored by the same held-out objective, and compared by paired resampling over held-out records; the lane's block resampling in tensorstats is ported in this commit, with this caller. A proposer is kept only if its candidate beats the best control beyond resampling noise. If none does, that refusal is the recorded outcome.\n\nWhat stays unplanned until a proposer is kept: a stochastic residual, multimodal fusion, discrete codes, curved geometry and transport alignment, learned priors. Each was a retain-or-refuse row on the lane; none is filed on master before a measured result calls for it.\n\nServes: judge on held-out data. Disappears: nothing. Evidence: the held-out score of each candidate and control. Batch: device.",
-          "depends_on": [
-            "latent-change-proposer/corpus"
-          ]
-        },
-        {
-          "id": "lifecycle",
-          "title": "Take the kept candidate through admission, isolated evaluation, promotion or refusal, and rollback",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestChangeProposalRecordIsTheJudgmentItNames$'",
-          "rationale": "A proposed change is a proposal and nothing more: it goes through the candidate path every change takes (admit, materialize, evaluate in isolation, ablate, promote or refuse, roll back), without serving, the production alias untouched. This is the lane's safety binding and end-to-end proof in one step: no check is added for latents, because the existing ones already stand between a candidate and activation. If the proposal step kept no candidate, this step closes on that recorded refusal.\n\nServes: promote or revert. Disappears: nothing. Evidence: the candidate's lifecycle records, or the refusal. Batch: device.",
-          "depends_on": [
-            "latent-change-proposer/proposal"
-          ]
-        }
-      ]
-    },
-    {
       "id": "experiment-evidence",
       "title": "Give a proposer the past experiments that bear on its choice and measure whether that helps",
       "owner": "master-lead",

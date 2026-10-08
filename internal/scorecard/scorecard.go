@@ -82,13 +82,18 @@ type Cell struct {
 	// path would read as its score.
 	Compared   string `json:"compared,omitzero"`
 	Uncompared string `json:"uncompared,omitzero"`
+	// OutsideUse says what a held-out quality measures where that is not what
+	// its model is for by the model's own documentation. Empty where the
+	// reading is of the model's use, or no use is recorded for it.
+	OutsideUse string `json:"outside_use,omitzero"`
 }
 
 // QualityText renders a held-out quality as a user reads it: its value, its
 // base model's beside it when a verdict judged it against one, the noise of
 // the value and the cases it rests on where a record gives them, what a
 // constant answer scores where the measure has one, in words when the value
-// is no better than it, and what it measures.
+// is no better than it, that it is not a measure of what the model is for
+// where that is recorded, and what it measures.
 func (c Cell) QualityText() string {
 	text := fmt.Sprintf("%.4g", c.Value)
 	if c.Noise > 0 {
@@ -106,6 +111,9 @@ func (c Cell) QualityText() string {
 		} else {
 			text += fmt.Sprintf(", no better than the %.4g a constant answer scores", *c.Constant)
 		}
+	}
+	if c.OutsideUse != "" {
+		text += ", not a measure of what the model is for"
 	}
 	return text + " (" + c.Label + ")"
 }
@@ -262,7 +270,15 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 	slices.SortFunc(rows, func(left, right Row) int {
 		return cmp.Or(strings.Compare(left.Name, right.Name), strings.Compare(string(left.Task), string(right.Task)))
 	})
-	return rows, comparePaths(rows)
+	if err := comparePaths(rows); err != nil {
+		return nil, err
+	}
+	uses, err := ModelUses()
+	if err != nil {
+		return nil, err
+	}
+	markUses(rows, uses)
+	return rows, nil
 }
 
 // uncaptionedGeneration is why an image or video model that takes no words has no held-out

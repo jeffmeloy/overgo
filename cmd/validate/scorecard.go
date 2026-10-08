@@ -210,7 +210,11 @@ func printScorecard(ctx context.Context, rows []scorecard.Row, root string, outp
 	if err != nil {
 		return err
 	}
-	text += choiceProtocols(rows, samples) + standing
+	uses, err := scorecard.ModelUses()
+	if err != nil {
+		return err
+	}
+	text += choiceProtocols(rows, samples) + standing + useStanding(rows, uses)
 	if len(inapplicable) != 0 {
 		text += "\nNot applicable:\n" + strings.Join(inapplicable, "\n") + "\n"
 	}
@@ -308,6 +312,41 @@ func pathStanding(rows []scorecard.Row) (string, error) {
 		}
 	}
 	return text.String(), nil
+}
+
+// useStanding says, for each model on the scorecard whose recorded use its
+// held-out quality does not measure, what the model is for and where its
+// documentation says so, what is measured in its place, and what a measure of
+// its use needs. A model with a reading is listed apart from one with none,
+// whose use is recorded because nothing states it. A use recorded for a model
+// the scorecard does not hold is not shown.
+func useStanding(rows []scorecard.Row, uses []scorecard.ModelUse) string {
+	var beside, unread []string
+	for _, row := range rows {
+		at := slices.IndexFunc(uses, func(entry scorecard.ModelUse) bool { return entry.Model == row.Name && entry.Task == row.Task })
+		if at < 0 {
+			continue
+		}
+		line := fmt.Sprintf("- %s %s: it is for: %s (%s). Measured: %s. A measure of its use needs: %s.", row.Name, row.Task, uses[at].Use, uses[at].Source, uses[at].Measured, uses[at].Needs)
+		if row.Cells[metric.Quality].Measured() {
+			beside = append(beside, line)
+		} else {
+			unread = append(unread, line)
+		}
+	}
+	var text strings.Builder
+	for _, section := range []struct {
+		heading string
+		lines   []string
+	}{
+		{"Held-out readings that measure something other than what their model is for, by the model's own documentation:", beside},
+		{"Models with no held-out reading, and what naming a measure of their use waits on:", unread},
+	} {
+		if len(section.lines) != 0 {
+			text.WriteString("\n" + section.heading + "\n" + strings.Join(section.lines, "\n") + "\n")
+		}
+	}
+	return text.String()
 }
 
 // declarationShare states how many served models a declaration alone

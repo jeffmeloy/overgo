@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"overgo/internal/cuda/driver"
+	"overgo/internal/processmeasure"
 	"overgo/internal/pytorchzip"
 	"overgo/internal/sampling"
 	"overgo/internal/tensor"
@@ -133,11 +134,13 @@ func (g *Generator) Generate(ctx context.Context, request GenerateRequest) (resu
 	ctx = cmp.Or(ctx, context.Background())
 	g.denoiser.ctx = ctx
 	g.decoder.ctx = ctx
+	denoised := processmeasure.Stage(ctx, "clip denoised")
 	result.Denoise, err = g.denoiser.Program.DenoiseWithBackend(g, DenoiseRequest{
 		Steps: request.Steps, Shift: request.Shift, GuideScale: request.GuideScale,
 		CondContext: request.CondContext, UncondContext: request.UncondContext,
 		InitialSample: request.InitialSample, Noise: request.Noise, StepHook: request.StepHook,
 	})
+	denoised()
 	if err != nil {
 		return result, err
 	}
@@ -149,11 +152,13 @@ func (g *Generator) Generate(ctx context.Context, request GenerateRequest) (resu
 	if err != nil {
 		return result, err
 	}
+	decoded := processmeasure.Stage(ctx, "clip decoded")
 	result.Decode, err = g.decoder.Decode(
 		g.stats, result.Denoise.Latent,
 		g.geometry.LatentFrames, g.geometry.LatentHeight, g.geometry.LatentWidth,
 		request.Sink,
 	)
+	decoded()
 	if err != nil {
 		return result, err
 	}

@@ -273,17 +273,25 @@ type encoderStats struct {
 
 // EncodeTokensStreamed runs the full encoder, loading one block's weights at
 // a time (peak host memory ~ one F32-decoded block, never the checkpoint).
+// It encodes the rows up to the last one the mask keeps and returns those:
+// a row the mask keeps attends to no row it leaves out, so the padding after
+// a prompt enters none of the prompt's rows, and a prompt of twenty tokens is
+// twenty rows of work where its padded sequence is 512.
 func EncodeTokensStreamed(ctx context.Context, checkpoint string, plan encoderPlan, tokenIDs, mask []int) ([]float32, encoderStats, error) {
 	var stats encoderStats
 	if err := ctx.Err(); err != nil {
 		return nil, stats, err
 	}
 	config := plan.Config
-	if len(tokenIDs) == 0 {
-		return nil, stats, fmt.Errorf("encoder: no token ids")
-	}
 	if len(mask) != len(tokenIDs) {
 		return nil, stats, fmt.Errorf("encoder: mask=%d tokens=%d", len(mask), len(tokenIDs))
+	}
+	for len(mask) > 0 && mask[len(mask)-1] == 0 {
+		mask = mask[:len(mask)-1]
+	}
+	tokenIDs = tokenIDs[:len(mask)]
+	if len(tokenIDs) == 0 {
+		return nil, stats, fmt.Errorf("encoder: no token ids")
 	}
 	if err := plan.validateRuntimeBindings(); err != nil {
 		return nil, stats, err

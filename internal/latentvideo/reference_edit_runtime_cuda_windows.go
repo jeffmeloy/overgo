@@ -11,6 +11,7 @@ import (
 
 	"overgo/internal/checked"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/processmeasure"
 	"overgo/internal/pytorchzip"
 	"overgo/internal/sampling"
 	"overgo/internal/tensor"
@@ -183,6 +184,7 @@ func (r *referenceEditRuntime) Run(ctx context.Context, source, initialNoise []f
 	} else if err := noise.Advance(len(initialNoise)); err != nil {
 		return result, err
 	}
+	encoded := processmeasure.Stage(ctx, "source clip encoded")
 	fingerprint := sha256.Sum256(driver.Bytes(source))
 	sourceLatent, sourceStats := r.sourceLatent, r.sourceStats
 	if sourceLatent == nil || fingerprint != r.sourceFingerprint {
@@ -195,12 +197,14 @@ func (r *referenceEditRuntime) Run(ctx context.Context, source, initialNoise []f
 		sourceStats.CacheHit = true
 		sourceStats.WallSeconds = float64(tensor.FirstOffset)
 	}
+	encoded()
 	result.Source = sourceStats
 	denoiseStarted := time.Now()
 	result.Latent, result.Sampler, err = runEditSampler(ctx, editSamplerRequest{
 		Plan: r.editPlan, InitialNoise: initialNoise, Source: sourceLatent,
 		Sigmas: r.config.Sigmas, ContextTimestep: r.config.ContextTimestep, Arithmetic: editBF16,
 		Denoise: func(ctx context.Context, step editStep, combined, flow []float32) error {
+			defer processmeasure.Stage(ctx, "denoising pass")()
 			headE, blockE, err := CompileTimestepConditioning([]float64{float64(step.Timestep)}, r.denoiser.cold.timestepWeights)
 			if err != nil {
 				return err
@@ -236,10 +240,12 @@ func (r *referenceEditRuntime) Run(ctx context.Context, source, initialNoise []f
 	if err != nil {
 		return result, err
 	}
+	decoded := processmeasure.Stage(ctx, "clip decoded")
 	result.Decode, err = r.decoder.DecodeContext(
 		ctx, r.config.LatentStats, result.Latent,
 		r.editPlan.Latent.LatentFrames, r.editPlan.Latent.LatentHeight, r.editPlan.Latent.LatentWidth, sink,
 	)
+	decoded()
 	if err == nil {
 		result.DecoderMemory, err = r.decoder.MemoryStats()
 	}

@@ -16,6 +16,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
 	"overgo/internal/media"
+	"overgo/internal/processmeasure"
 	"overgo/internal/sampling"
 	"overgo/internal/strictjson"
 	"overgo/internal/tensor"
@@ -304,6 +305,7 @@ func ResolveClipRequest(ctx context.Context, reader artifact.Reader, modelDirect
 	if err := validateReferenceEditRequestForm(request); err != nil {
 		return ReferenceEditRequest{}, err
 	}
+	read := processmeasure.Stage(ctx, "source clip read")
 	content, found, err := artifact.ReadContent(ctx, reader, request.SourceArtifact)
 	if err != nil {
 		return ReferenceEditRequest{}, err
@@ -312,9 +314,11 @@ func ResolveClipRequest(ctx context.Context, reader artifact.Reader, modelDirect
 		return ReferenceEditRequest{}, fmt.Errorf("latent video: source clip %s is absent", request.SourceArtifact)
 	}
 	source, err := sourceVideoFromContent(content)
+	read()
 	if err != nil {
 		return ReferenceEditRequest{}, err
 	}
+	defer processmeasure.Stage(ctx, "edit checkpoint compiled")()
 	policy, err := resolveEditPolicy(modelDirectory)
 	if err != nil {
 		return ReferenceEditRequest{}, err

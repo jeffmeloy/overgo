@@ -512,6 +512,7 @@ func attemptCapability(
 	end, _ := processmeasure.Counter()
 	measured, _ := output.(capabilityruntime.Measured)
 	peak, peakMeasured := devicePeak(processDevicePeak(), measured, err)
+	defer processmeasure.Stage(ctx, "serving attempt recorded")()
 	recordErr := servingattempt.RecordWholeOutput(context.WithoutCancel(ctx), store, servingattempt.WholeOutput{
 		Model: modelID, Recipe: selected.Activation.Definition.ID, Run: measured.Run, Task: task, Started: started, Wall: end - begin,
 		Load: measured.Load, Decode: measured.Decode, OutputTokens: measured.OutputTokens,
@@ -566,9 +567,19 @@ func measureCapability(repository, path string, task recipe.Task, capability med
 	if err != nil {
 		return err
 	}
-	output, err := attemptCapability(capabilityruntime.FreshRun(ctx), store, path, modelID, task, selected, capability, request)
+	ctx, stages := processmeasure.WithStages(capabilityruntime.FreshRun(ctx))
+	clock := processmeasure.NewStopwatch()
+	output, err := attemptCapability(ctx, store, path, modelID, task, selected, capability, request)
 	if err != nil {
 		return err
+	}
+	// Where the measured request's time went goes beside its output, on the
+	// other stream: the parts of its path that name themselves, and what none does.
+	if wall, clockErr := clock.Elapsed(); clockErr == nil {
+		fmt.Fprintf(os.Stderr, "recipe: the request took %.2f s\n", time.Duration(wall).Seconds())
+		if _, err := stages.Report(os.Stderr, time.Duration(wall)); err != nil {
+			fmt.Fprintf(os.Stderr, "recipe: its parts are no division of it: %v\n", err)
+		}
 	}
 	return json.NewEncoder(os.Stdout).Encode(capabilityruntime.Unwrap(output))
 }

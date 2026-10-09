@@ -10,6 +10,7 @@ package pytorchzip
 import (
 	"archive/zip"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -17,6 +18,7 @@ import (
 	"path"
 	"sort"
 
+	"overgo/internal/hostmath"
 	"overgo/internal/tensor/dtype"
 )
 
@@ -583,7 +585,6 @@ type Reader struct {
 	f       *os.File
 	root    string
 	entries map[string]*zip.File
-	scratch []byte
 }
 
 // Open indexes the checkpoint's storage entries for offset reads.
@@ -617,11 +618,10 @@ func (r *Reader) Close() error {
 		}
 		r.zr = nil
 	}
-	r.scratch = nil
 	return err
 }
 
-// ReadBindingValues decodes compiled bindings in order; scratch is reused.
+// ReadBindingValues decodes compiled bindings in order.
 func (r *Reader) ReadBindingValues(bindings []TensorBinding) ([][]float32, error) {
 	if r == nil || r.f == nil {
 		return nil, fmt.Errorf("pytorchzip: reader is closed")
@@ -720,31 +720,37 @@ func (r *Reader) storageDataOffset(meta TensorMeta) (int64, error) {
 	return entry.DataOffset()
 }
 
-// decodeAt reads len(out) elements at byteOffset in chunks through scratch.
+// decodeAt reads len(out) elements at byteOffset a megabyte at a time, on as
+// many workers as the tensor is worth. A read names its own place in the
+// file, so the workers read their spans at once, each through its own
+// megabyte: a text encoder's eleven gigabytes are decoded in the time the
+// file takes to read, where one worker took eight seconds over them.
 func (r *Reader) decodeAt(byteOffset, elemBytes int64, convert func(uint16) float32, out []float32) error {
-	chunkElems := min(max(1, len(out)), max(1, scratchChunkBytes/int(elemBytes)))
-	need := chunkElems * int(elemBytes)
-	if cap(r.scratch) < need {
-		r.scratch = make([]byte, need)
-	}
-	for start := 0; start < len(out); {
-		n := min(len(out)-start, chunkElems)
-		buf := r.scratch[:n*int(elemBytes)]
-		if _, err := r.f.ReadAt(buf, byteOffset+int64(start)*elemBytes); err != nil {
-			return err
-		}
-		if convert == nil {
-			for i := range n {
-				out[start+i] = math.Float32frombits(binary.LittleEndian.Uint32(buf[i*4:]))
+	chunkElems := max(1, scratchChunkBytes/int(elemBytes))
+	chunks := (len(out) + chunkElems - 1) / chunkElems
+	failed := make([]error, chunks)
+	hostmath.ParallelRangeF64(chunks, chunkElems, func(first, last int) {
+		scratch := make([]byte, min(len(out), chunkElems)*int(elemBytes))
+		for chunk := first; chunk < last; chunk++ {
+			start := chunk * chunkElems
+			span := out[start:min(start+chunkElems, len(out))]
+			buf := scratch[:len(span)*int(elemBytes)]
+			if _, err := r.f.ReadAt(buf, byteOffset+int64(start)*elemBytes); err != nil {
+				failed[chunk] = err
+				return
 			}
-		} else {
-			for i := range n {
-				out[start+i] = convert(binary.LittleEndian.Uint16(buf[i*2:]))
+			if convert == nil {
+				for i := range span {
+					span[i] = math.Float32frombits(binary.LittleEndian.Uint32(buf[i*4:]))
+				}
+			} else {
+				for i := range span {
+					span[i] = convert(binary.LittleEndian.Uint16(buf[i*2:]))
+				}
 			}
 		}
-		start += n
-	}
-	return nil
+	})
+	return errors.Join(failed...)
 }
 
 func storageEntries(files []*zip.File) (string, map[string]*zip.File, error) {

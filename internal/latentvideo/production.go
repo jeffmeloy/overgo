@@ -19,6 +19,7 @@ import (
 	"overgo/internal/checked"
 	"overgo/internal/media"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/processmeasure"
 	"overgo/internal/sampling"
 	"overgo/internal/strictjson"
 	"overgo/internal/tensor"
@@ -444,7 +445,8 @@ func registerWanRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, g
 
 func registerReferenceEditRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, generate func(context.Context, ReferenceEditRequest) (EncodedVideo, error)) error {
 	if err := workflowruntime.RegisterResolvedStage(runtime, modelrecipe.ModuleReferenceVideoPrepare, modelID,
-		func(_ context.Context, step workflowruntime.StepRequest) (referenceEditPlan, error) {
+		func(ctx context.Context, step workflowruntime.StepRequest) (referenceEditPlan, error) {
+			defer processmeasure.Stage(ctx, "request read by its stage")()
 			condition, err := workflowruntime.ScalarInput[ReferenceEditCondition](step, "condition")
 			if err != nil {
 				return referenceEditPlan{}, err

@@ -11,6 +11,7 @@ import (
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/media"
+	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
 	"overgo/internal/tensor/dtype"
@@ -135,12 +136,14 @@ func (r *WanRuntime) Generate(ctx context.Context, request WanRequest) (EncodedV
 	_, err = r.generator.Generate(ctx, GenerateRequest{
 		Steps: request.Steps, Shift: request.Shift, GuideScale: request.GuideScale,
 		CondContext: request.CondContext, UncondContext: request.UncondContext,
-		InitialSample: request.InitialSample, Noise: request.Noise, Sink: sink.Add,
+		InitialSample: request.InitialSample, Noise: request.Noise, Sink: sink.timed(ctx),
 	})
 	if err != nil {
 		return EncodedVideo{}, err
 	}
+	written := processmeasure.Stage(ctx, "clip written")
 	video, err := sink.Finish()
+	written()
 	if err == nil {
 		r.runs++
 		video.ResidentRun = r.runs
@@ -222,15 +225,26 @@ func (r *LiveEditRuntime) Generate(ctx context.Context, request ReferenceEditReq
 	if err != nil {
 		return EncodedVideo{}, err
 	}
-	if _, err := r.runtime.Run(ctx, request.Source.Pixels, request.Condition.InitialNoise, sink.Add); err != nil {
+	if _, err := r.runtime.Run(ctx, request.Source.Pixels, request.Condition.InitialNoise, sink.timed(ctx)); err != nil {
 		return EncodedVideo{}, err
 	}
+	written := processmeasure.Stage(ctx, "clip written")
 	video, err := sink.Finish()
+	written()
 	if err == nil {
 		r.runs++
 		video.ResidentRun = r.runs
 	}
 	return video, err
+}
+
+// timed is the encoder's Add with the drawing of each frame timed as a part
+// of the request the context carries a ledger for.
+func (s *gifEncoder) timed(ctx context.Context) VideoFrameSink {
+	return func(index int, frame []float32, height, width int) error {
+		defer processmeasure.Stage(ctx, "clip frame drawn")()
+		return s.Add(index, frame, height, width)
+	}
 }
 
 // PeakDeviceBytes reports the largest peak the resident device

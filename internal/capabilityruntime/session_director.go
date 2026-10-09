@@ -481,21 +481,30 @@ func (c *ModelSessionDirector[Input, Model, Output]) execute(
 	}
 	program := execution.Program
 	modelID := program.Definition().Model
+	read := processmeasure.Stage(ctx, "request read")
 	input, content, err := decodeJSONInput(c.name, c.validate, modelID, program, raw)
+	read()
 	if err != nil {
 		return zero, err
 	}
 	definition, resources := program.Definition(), execution.Resources
+	identified := processmeasure.Stage(ctx, "request inputs identified")
 	inputs, err := c.inputs(input, content, definition)
+	identified()
 	if err != nil {
 		return zero, err
 	}
 	// A request the store already answers is answered from it: no session is leased and no model loaded.
 	runKey := RunKey(definition, content)
-	if output, result, held, err := measuredRun[Output](ctx, store, modelID, program, runKey, inputs, nil); err != nil || held {
+	sought := processmeasure.Stage(ctx, "stored answer sought")
+	output, result, held, err := measuredRun[Output](ctx, store, modelID, program, runKey, inputs, nil)
+	sought()
+	if err != nil || held {
 		return Measured{Output: output, Run: result.Run.ID, Input: content}, err
 	}
+	keyed := processmeasure.Stage(ctx, "session identified")
 	policy, err := c.policy(input)
+	keyed()
 	if err != nil || policy == "" {
 		return zero, errors.Join(errors.New("capability runtime: invalid execution policy"), err)
 	}
@@ -505,7 +514,9 @@ func (c *ModelSessionDirector[Input, Model, Output]) execute(
 	}
 
 	// A session leased resident loaded nothing for this run: its load is zero.
+	leased := processmeasure.Stage(ctx, "model session leased")
 	entry, fresh, loaded, err := c.lease(ctx, store, path, key, execution, input)
+	leased()
 	if err != nil {
 		return zero, err
 	}
@@ -515,10 +526,12 @@ func (c *ModelSessionDirector[Input, Model, Output]) execute(
 			return zero, c.retire(ctx, key, entry, err)
 		}
 	}
+	recorded := processmeasure.Stage(ctx, "run recorded")
 	output, result, executeErr := ExecuteMeasured[Output](
 		ctx, store, modelID, program, runKey, inputs,
 		func(runtime *workflowruntime.Runtime) error { return c.bind(runtime, modelID, entry.model) },
 	)
+	recorded()
 	measured := Measured{Run: result.Run.ID}
 	if executeErr == nil {
 		measured = measure(output, entry.model, result, loaded, program)

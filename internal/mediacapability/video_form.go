@@ -8,6 +8,7 @@ import (
 	"overgo/internal/capabilityruntime"
 	"overgo/internal/latentvideo"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/processmeasure"
 )
 
 // resolveEditForm completes a clip-form LiveEdit request before the session
@@ -32,7 +33,9 @@ func resolveEditForm(
 		if err != nil {
 			return nil, err
 		}
+		written := processmeasure.Stage(ctx, "resolved request written")
 		encoded, err := json.Marshal(resolved)
+		written()
 		if err != nil {
 			return nil, err
 		}

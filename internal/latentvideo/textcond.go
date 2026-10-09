@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 
 	"overgo/internal/checked"
+	"overgo/internal/processmeasure"
 	"overgo/internal/pytorchzip"
 	"overgo/internal/representation"
 	"overgo/internal/safetensors"
@@ -74,6 +75,7 @@ func textConditioningWithWeights(ctx context.Context, spec TextConditioningSpec,
 	if !checked.PositiveInts(spec.SequenceLength) {
 		return out, fmt.Errorf("text conditioning: positive sequence length required")
 	}
+	defer processmeasure.Stage(ctx, "prompt tokenized and projected")()
 	tok, err := loadFixedUnigramTokenizer(spec.TokenizerDir, spec.SequenceLength)
 	if err != nil {
 		return out, err
@@ -109,7 +111,9 @@ func textConditioningWithWeights(ctx context.Context, spec TextConditioningSpec,
 	if !checked.PositiveInts(tokenCount) || !checked.AtMostInt(tokenCount, len(ids)) {
 		return out, fmt.Errorf("text conditioning: bad token count %d", tokenCount)
 	}
+	run := processmeasure.Stage(ctx, "text encoder run")
 	encoded, encoderStats, err := EncodeTokensStreamed(ctx, spec.EncoderCheckpoint, plan, ids, mask)
+	run()
 	if err != nil {
 		return out, err
 	}

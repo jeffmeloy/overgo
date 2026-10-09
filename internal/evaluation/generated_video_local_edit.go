@@ -92,6 +92,13 @@ func recoloured(caption, colour, thing, changed string) string {
 // and so is one that recolours the thing and redraws the scene. The other
 // captions are never of another scene of the clip's own source video, which
 // shows the same people in the same place and could be true of a right edit.
+//
+// The count of right answers is the reading; which wrong caption was chosen
+// does not sort the fault. A judge takes the old colour's caption whenever the
+// new one is false of the thing named, whether the editor gave the clip back
+// as it was, recoloured something else in it, or replaced the thing with
+// another. And a caption says nothing of whose face it is: an edit that draws
+// the wearer as another person in the same place is right by this measure.
 func PickLocalVideoEdits(clips, path string, count int, seed uint64) ([]VideoEditItem, error) {
 	if count <= 0 {
 		return nil, errors.New("evaluation: a video-edit suite edits at least one clip")

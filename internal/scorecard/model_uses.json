@@ -62,7 +62,7 @@
       "use": "to change what an instruction names in a video and leave the rest of it as it was",
       "source": "its model card: it edits \"while preserving backgrounds and non-edited regions\", and its own test case changes one fruit in a bowl into another",
       "measured": "changes to the whole clip, a pencil sketch, a cartoon, night, rain, snow, fog, which leave no region unedited to preserve; the judge is asked one question of each clip, whether it shows what it showed with the change made",
-      "needs": "nothing that is not on this machine: instructions that change one thing in a clip, with the thing and the rest of the clip checked apart, built from the clips on disk with the installed judge. It is the plan's next step for this model if a clip costs minutes"
+      "needs": "nothing more to exist: the one-thing measure tells the editor to change the colour of one worn thing a clip's caption names and nothing else, at the editor's own size, and has a judge say which of four captions is true of the edited clip, the clip's own with the new colour, its own with the old, or another video's; this model is read on it, and that reading heads its row in place of this one. A caption does not say whose face it is: of eight edits the judge passed, set beside their sources, five had the wearer's face drawn again, three of them as another person's, and each of the four with lettering on screen had lost it. A reading of what is kept needs the edited clip set against its source outside the thing changed, by a mask of the thing or by a judge shown both clips, and neither is built"
     },
     {
       "model": "Un-0",

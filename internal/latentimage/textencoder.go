@@ -97,18 +97,39 @@ type encLayerWeights struct {
 	gate, up, down      []float32
 }
 
-// ropeTableLlama builds per-position cos/sin of length headDim in the rotate-half
-// (Llama/NeoX) convention: for position p and pair i<half, freq=theta^(-2i/hd),
-// angle=p*freq, and cos/sin are DUPLICATED across the two halves so index i and
-// index half+i share the same (cos,sin). Matches adaptive runtimeCausalRoPEInto.
-func ropeTableLlama(seq, headDim int, theta float64) (cos, sin []float64) {
+// attendedPositions gives each token of a sequence the position its rotary
+// embedding turns by: the count of attended tokens up to and including it, less
+// one, and not below zero. Padding takes no position. In the
+// [prefix][prompt][pad][suffix] layout the suffix then follows the prompt,
+// which is how the model was trained: its own pipeline builds positions as the
+// running count of its attention mask, less one, and says that numbering every
+// slot would give the suffix a shifted phase. A nil mask attends every token
+// and gives the token indices.
+func attendedPositions(seq int, mask []bool) []uint32 {
+	positions := make([]uint32, seq)
+	var attended uint32
+	for token := range positions {
+		if mask == nil || mask[token] {
+			attended++
+		}
+		positions[token] = max(attended, tensor.SingletonExtent) - tensor.SingletonExtent
+	}
+	return positions
+}
+
+// ropeTableLlama builds each token's cos/sin of length headDim in the rotate-half
+// (Llama/NeoX) convention: for a token at position p and pair i<half,
+// freq=theta^(-2i/hd), angle=p*freq, and cos/sin are DUPLICATED across the two
+// halves so index i and index half+i share the same (cos,sin). Matches adaptive
+// runtimeCausalRoPEInto.
+func ropeTableLlama(positions []uint32, headDim int, theta float64) (cos, sin []float64) {
 	half := headDim / 2
-	cos = make([]float64, seq*headDim)
-	sin = make([]float64, seq*headDim)
-	for p := range seq {
+	cos = make([]float64, len(positions)*headDim)
+	sin = make([]float64, len(positions)*headDim)
+	for p, position := range positions {
 		for i := range half {
 			freq := math.Pow(theta, -float64(2*i)/float64(headDim))
-			angle := float64(p) * freq
+			angle := float64(position) * freq
 			c, s := math.Cos(angle), math.Sin(angle)
 			cos[p*headDim+i], cos[p*headDim+half+i] = c, c
 			sin[p*headDim+i], sin[p*headDim+half+i] = s, s
@@ -167,7 +188,7 @@ func encodeSelected(e TextEncoderSpec, eps float64, seq, inter int, embedRows []
 	h := e.Hidden
 	L := len(e.SelectLayers)
 	out := &SelectedHiddenStates{Seq: seq, LayerCount: L, Hidden: h, Data: make([]float64, seq*L*h)}
-	cos, sin := ropeTableLlama(seq, e.HeadDim, e.RopeTheta)
+	cos, sin := ropeTableLlama(attendedPositions(seq, keyMask), e.HeadDim, e.RopeTheta)
 	x := embedRows
 	captured := tensor.FirstOffset
 	maxNeeded, _ := checked.Last(e.SelectLayers) // captureSlots established a non-empty selection

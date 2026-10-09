@@ -178,19 +178,8 @@ func editServing(t *testing.T, edit, wan, name string) (*overgodb.Store, func(la
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { store.Close() })
-	var extent uint64
-	if err := filepath.WalkDir(edit, func(_ string, entry os.DirEntry, walkErr error) error {
-		if walkErr != nil || entry.IsDir() {
-			return walkErr
-		}
-		info, err := entry.Info()
-		extent += uint64(info.Size())
-		return err
-	}); err != nil {
-		t.Fatal(err)
-	}
 	if _, err := store.Commit(context.Background(), artifact.Batch{
-		Key: "test/artifact/" + modelID.String(), Artifacts: []artifact.Descriptor{{ID: modelID, Size: extent}}, Contents: []artifact.Content{profileContent},
+		Key: "test/artifact/" + modelID.String(), Artifacts: []artifact.Descriptor{{ID: modelID, Size: directoryExtent(t, edit)}}, Contents: []artifact.Content{profileContent},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -210,6 +199,24 @@ func editServing(t *testing.T, edit, wan, name string) (*overgodb.Store, func(la
 		}
 		return video
 	}
+}
+
+// directoryExtent is the size of the files under a model's directory: the
+// size its artifact stands in a store at.
+func directoryExtent(t *testing.T, directory string) uint64 {
+	t.Helper()
+	var extent uint64
+	if err := filepath.WalkDir(directory, func(_ string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil || entry.IsDir() {
+			return walkErr
+		}
+		info, err := entry.Info()
+		extent += uint64(info.Size())
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return extent
 }
 
 // servedSquareMeans is a served clip, frame by frame, each as the mean of

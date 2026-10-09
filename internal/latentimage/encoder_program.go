@@ -92,12 +92,10 @@ func compileEncoderProgram(e TextEncoderSpec, eps float32, seq int, matmulType d
 	scale := float32(1.0 / math.Sqrt(float64(headDim)))
 	theta := float32(e.RopeTheta)
 
-	// sequential token positions -- Qwen3-VL mrope collapses to standard rope for
-	// a pure-text sequence (all three position sections share the token index).
-	positions := make([]uint32, seq)
-	for i := range positions {
-		positions[i] = uint32(i)
-	}
+	// Qwen3-VL mrope collapses to standard rope for a pure-text sequence (all
+	// three position sections share one index): the index is the token's place
+	// among the attended tokens (attendedPositions).
+	positions := attendedPositions(seq, mask)
 
 	p := &EncoderProgram{
 		E: e, Eps: eps, Seq: seq, MatmulType: matmulType,

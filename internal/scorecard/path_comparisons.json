@@ -151,6 +151,13 @@
       "package": "internal/adaptiveparity",
       "test": "TestServedEditMatchesTheModelsOwnEdit",
       "holds": "the clip a served edit request returns, for a clip of the held-out measure and its instruction, to the clip the model's own code, its repository's inference run from the checkpoint, makes of the same 21 frames with the same seed: square for square over 16-pixel squares, where the model's own code at another seed, and the served edit of a source carried as a GIF, stand 12 dB further off; TestServedEditMatchesTheReferenceEdit holds the editor's own 81-frame test case to the clip the earlier implementation drew for it, and what a request resolves to, source frames and text context, to what that run recorded"
+    },
+    {
+      "model": "Krea-2-Turbo",
+      "task": "image-gen",
+      "package": "internal/adaptiveparity",
+      "test": "TestServedPictureMatchesTheModelsOwnPipeline",
+      "holds": "the picture a served request returns for a prompt, a seed, a size and a number of steps, with no schedule named, to the picture the model's own pipeline, diffusers' Krea2Pipeline loaded from the model's directory, draws for the same: over 8-pixel squares, where a picture from another seed, one drawn at the wrong timestep shift and one whose prompt template is numbered past its padding each stand 16 dB or more further off; the reference's text encoder is run in float32, since in bfloat16 its own rounding moves its picture further than the served one stands from it. The row's reading was taken before this comparison, from pictures the path as it then was drew in 4 steps, and is to be taken again"
     }
   ]
 }

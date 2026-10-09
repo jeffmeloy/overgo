@@ -89,7 +89,7 @@ func LoadGenerator(ctx context.Context, modelDir string, profile Profile, reques
 	if err != nil {
 		return nil, fmt.Errorf("latent image: patch grid: %w", err)
 	}
-	request = request.withPolicy(profile.Sampling, gridH*gridW)
+	request = request.withPolicy(profile.Sampling, gridH*gridW, spec.Distilled)
 	tokenizer, err := hfbpe.Load(filepath.Join(modelDir, "tokenizer"))
 	if err != nil {
 		return nil, err
@@ -153,7 +153,10 @@ func LoadGenerator(ctx context.Context, modelDir string, profile Profile, reques
 	}, nil
 }
 
-func (r Request) withPolicy(policy samplingPolicy, imageSequence int) Request {
+// withPolicy fills what a request leaves unnamed from the sampling policy: the
+// steps, the training timesteps, and the timestep shift for a picture of
+// imageSequence patches drawn by a checkpoint that is or is not distilled.
+func (r Request) withPolicy(policy samplingPolicy, imageSequence int, distilled bool) Request {
 	if !checked.Nonzero(r.Steps) {
 		r.Steps = policy.DefaultSteps
 	}
@@ -161,7 +164,7 @@ func (r Request) withPolicy(policy samplingPolicy, imageSequence int) Request {
 		r.NumTrainTimesteps = policy.TrainTimesteps
 	}
 	if !checked.Nonzero(r.DynamicShiftMu) {
-		r.DynamicShiftMu = policy.dynamicShiftMu(imageSequence)
+		r.DynamicShiftMu = policy.dynamicShiftMu(imageSequence, distilled)
 	}
 	return r
 }
@@ -183,7 +186,7 @@ func (g *Generator) Reset(ctx context.Context, request Request) error {
 	if err := ValidateRequest(request); err != nil {
 		return err
 	}
-	request = request.withPolicy(g.profile.Sampling, g.pipeline.Denoiser.GH*g.pipeline.Denoiser.GW)
+	request = request.withPolicy(g.profile.Sampling, g.pipeline.Denoiser.GH*g.pipeline.Denoiser.GW, g.spec.Distilled)
 	if request.Prompt != g.request.Prompt || request.Width != g.request.Width || request.Height != g.request.Height {
 		return errors.New("latent image: request requires another resident session")
 	}
@@ -200,7 +203,7 @@ func (g *Generator) prepare(ctx context.Context, request Request) (*Generator, e
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if g == nil || g.pipeline == nil || request.withPolicy(g.profile.Sampling, g.pipeline.Denoiser.GH*g.pipeline.Denoiser.GW) != g.request || g.prepared {
+	if g == nil || g.pipeline == nil || request.withPolicy(g.profile.Sampling, g.pipeline.Denoiser.GH*g.pipeline.Denoiser.GW, g.spec.Distilled) != g.request || g.prepared {
 		return nil, errors.New("latent image: generation session is unavailable")
 	}
 	if g.pipeline.conditioning == nil {

@@ -194,12 +194,17 @@ func (p Profile) validate() error {
 	return nil
 }
 
-func (p samplingPolicy) dynamicShiftMu(imageSequence int) float64 {
+// dynamicShiftMu is the timestep shift a request that names none is given. A
+// checkpoint that is not distilled takes a shift that grows with the picture,
+// from the base shift to the largest. A distilled one takes the largest at
+// every size: it was distilled at that shift, and its own pipeline fixes it
+// there whatever the picture's size.
+func (p samplingPolicy) dynamicShiftMu(imageSequence int, distilled bool) float64 {
+	if distilled || checked.AtLeastInt(imageSequence, p.MaxImageSequence) {
+		return p.MaxShift
+	}
 	if checked.AtMostInt(imageSequence, p.BaseImageSequence) {
 		return p.BaseShift
-	}
-	if checked.AtLeastInt(imageSequence, p.MaxImageSequence) {
-		return p.MaxShift
 	}
 	position := float64(imageSequence-p.BaseImageSequence) / float64(p.MaxImageSequence-p.BaseImageSequence)
 	return p.BaseShift + position*(p.MaxShift-p.BaseShift)

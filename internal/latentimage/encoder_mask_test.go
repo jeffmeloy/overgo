@@ -2,6 +2,7 @@ package latentimage
 
 import (
 	"math"
+	"slices"
 	"testing"
 
 	"overgo/internal/tensor"
@@ -183,6 +184,71 @@ func TestEncoderProgramMaskedMatchesHostReference(t *testing.T) {
 		t.Fatalf("masked and maskless encoder agree (max_abs=%.3e); mask is inert", diff)
 	}
 	t.Logf("masked encoder graph vs masked host: max_abs=%.3e; masked-vs-maskless delta=%.3e (mask active)", maxAbs, diff)
+}
+
+// TestPaddingTakesNoPosition holds what padding in the middle of a sequence
+// does to the tokens around it: nothing. In the [prefix][prompt][pad][suffix]
+// layout the padding is masked as a key and takes no position, so every real
+// token is encoded as it would be were the padding not there, the suffix after
+// it included. The model's own pipeline numbers positions that way, by the
+// running count of its attention mask, because the model was trained so; when
+// every slot was numbered, the suffix after a long padding was turned by a
+// phase it had never been trained at. The positions themselves are held first:
+// padding repeats the position before it, a sequence that opens with padding
+// starts at zero, and no mask gives the token indices.
+func TestPaddingTakesNoPosition(t *testing.T) {
+	for _, held := range []struct {
+		mask []bool
+		want []uint32
+	}{
+		{[]bool{true, true, true, false, false, true, true}, []uint32{0, 1, 2, 2, 2, 3, 4}},
+		{[]bool{false, false, true, true}, []uint32{0, 0, 0, 1}},
+		{nil, []uint32{0, 1, 2, 3}},
+	} {
+		if got := attendedPositions(len(held.want), held.mask); !slices.Equal(got, held.want) {
+			t.Fatalf("mask %v gives positions %v, want %v", held.mask, got, held.want)
+		}
+	}
+
+	e := syntheticEncoderSpec()
+	store := encoderStore(e)
+	const seq = 7
+	embed := syntheticEncoderEmbed(seq, e.Hidden)
+	mask := []bool{true, true, true, false, false, true, true}
+	real := []int{0, 1, 2, 5, 6}
+	compact := make([]float64, 0, len(real)*e.Hidden)
+	for _, token := range real {
+		compact = append(compact, embed[token*e.Hidden:][:e.Hidden]...)
+	}
+	padded, err := encodeSelected(e, e.RMSNormEps, seq, e.Intermediate, append([]float64(nil), embed...), storeLayerAt(e, store), mask)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bare, err := encodeSelected(e, e.RMSNormEps, len(real), e.Intermediate, append([]float64(nil), compact...), storeLayerAt(e, store), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prog, err := CompileEncoderProgramMasked(e, float32(e.RMSNormEps), seq, dtype.F32, mask)
+	if err != nil {
+		t.Fatal(err)
+	}
+	graph, err := prog.RunHostFeed(reference.Execute, func(name string) ([]float32, error) { return store[name], nil }, f32slice(embed))
+	if err != nil {
+		t.Fatal(err)
+	}
+	row := padded.LayerCount * padded.Hidden
+	var hostApart, graphApart float64
+	for at, token := range real {
+		for index := range row {
+			want := bare.Data[at*row+index]
+			hostApart = max(hostApart, math.Abs(padded.Data[token*row+index]-want))
+			graphApart = max(graphApart, math.Abs(graph.Data[token*row+index]-want))
+		}
+	}
+	// The host oracle is float64 and the graph float32: the same bounds the masked graph is held to its oracle at.
+	if hostApart > 1e-9 || graphApart > 1e-3 {
+		t.Fatalf("a real token beside padding is encoded %.3e (host) and %.3e (graph) from the same token with no padding", hostApart, graphApart)
+	}
 }
 
 // CompileEncoderProgram builds the maskless-causal Qwen3-VL selected-layer

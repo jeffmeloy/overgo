@@ -261,6 +261,7 @@ func (l *landing) lanes(ctx context.Context) error {
 	waiting := time.Now()
 	return processcontrol.ResourceTransaction(laneTurn, func() error {
 		turnWait := time.Since(waiting).Round(time.Millisecond)
+		l.spent.Turn = turnWait
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 		entries, failures := map[string]string{}, map[string]error{}
@@ -282,7 +283,9 @@ func (l *landing) lanes(ctx context.Context) error {
 				cancel()
 				return
 			}
-			entries[candidate.name] = describeLane(candidate.name, wall, output)
+			var admission time.Duration
+			entries[candidate.name], admission = describeLane(candidate.name, wall, output)
+			l.spent.Device += admission
 		}
 		beside, shared := splitLanes(reached)
 		var group sync.WaitGroup
@@ -324,10 +327,10 @@ const admittedMarker = "state=admitted wait="
 // describeLane is a passed lane's entry in the measurement: its wall time;
 // the device admission wait its admitted lines add up to, where the lane
 // claims the device; and, where its output carries go test's package lines,
-// how many packages go test executed and how many it replayed from cache.
-func describeLane(name string, wall time.Duration, output string) string {
+// how many packages go test executed and how many it replayed from cache. The
+// admission wait is returned beside the entry, for the landing's record.
+func describeLane(name string, wall time.Duration, output string) (entry string, admission time.Duration) {
 	claimed := false
-	var admission time.Duration
 	executed, cached := 0, 0
 	for line := range strings.Lines(output) {
 		_, wait, found := strings.Cut(line, admittedMarker)
@@ -342,14 +345,14 @@ func describeLane(name string, wall time.Duration, output string) string {
 			executed++
 		}
 	}
-	entry := fmt.Sprintf("%s passed %s", name, wall)
+	entry = fmt.Sprintf("%s passed %s", name, wall)
 	if claimed {
 		entry += fmt.Sprintf(" admission %s", admission)
 	}
 	if executed+cached > 0 {
 		entry += fmt.Sprintf(" executed %d cached %d", executed, cached)
 	}
-	return entry
+	return entry, admission
 }
 
 // describeLanes is the lanes stage's measurement: the time finding the

@@ -85,12 +85,14 @@ type landing struct {
 	advanced  plan.Plan
 	terms     plan.Plan
 	verifiers []string
+	// spent is where the run's time went, for the checkout's record.
+	spent spent
 }
 
 // Run lands the row and returns the commit. Every check runs over the
 // candidate; the first that fails refuses the landing and nothing is
 // committed.
-func Run(ctx context.Context, options Options) (string, error) {
+func Run(ctx context.Context, options Options) (landed string, err error) {
 	if _, err := rows(options.Ref); err != nil {
 		return "", err
 	}
@@ -108,8 +110,16 @@ func Run(ctx context.Context, options Options) (string, error) {
 	}
 	defer os.RemoveAll(scratch)
 	l := &landing{Options: options, scratch: scratch, details: map[string]string{}}
+	// Where the run's time went is recorded however it ends. A record that
+	// cannot be written is said and changes nothing: the landing stands.
+	l.spent = spent{Reference: options.Ref, Started: time.Now(), Outcome: gateClass, Stages: map[string]time.Duration{}}
+	defer func() {
+		if unrecorded := l.recordSpent(); unrecorded != nil {
+			fmt.Fprintf(options.Log, "land: where the run's time went was not recorded: %v\n", unrecorded)
+		}
+	}()
 	if options.Quiet {
-		release, err := l.holdQuiet(ctx)
+		release, err := l.holdQuiet(ctx, quietMachine)
 		if err != nil {
 			return "", err
 		}
@@ -133,10 +143,12 @@ func Run(ctx context.Context, options Options) (string, error) {
 	}
 	for _, check := range checks {
 		started := time.Now()
-		if err := check.run(ctx); err != nil {
+		l.spent.Outcome = check.name
+		err := check.run(ctx)
+		wall := time.Since(started).Round(time.Millisecond)
+		if l.spent.Stages[check.name] = wall; err != nil {
 			return "", fmt.Errorf("%s%s: %w", stagePrefix, check.name, err)
 		}
-		wall := time.Since(started).Round(time.Millisecond)
 		entry := check.name + " " + wall.String()
 		if detail := l.details[check.name]; detail != "" {
 			entry += " (" + detail + ")"
@@ -146,9 +158,15 @@ func Run(ctx context.Context, options Options) (string, error) {
 		fmt.Fprintf(options.Log, "land: %s ok %s\n", check.name, strings.TrimPrefix(entry, check.name+" "))
 	}
 	if options.Preflight {
+		l.spent.Outcome = outcomePreflight
 		return "", nil
 	}
-	return l.commit(ctx)
+	// Every stage passed: a refusal from here is the commit's.
+	l.spent.Outcome = outcomeConflict
+	if landed, err = l.commit(ctx); landed != "" {
+		l.spent.Outcome = outcomeLanded
+	}
+	return landed, err
 }
 
 // check is one stage of the gate; cheap says the preflight runs it.

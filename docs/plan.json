@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "landing-terms",
-      "title": "Judge a change by terms it cannot set, bound what an item may add, and record where a landing waits",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 380,
-        "reason": "The gate's own rules: reading a row's terms from the commit a change builds on, charging growth across landings, the four reported figures, and a record of each run's time by cause. Filed at 862 for both steps before either was designed; the first used 556 after it was trimmed from 755, and the record of the second needs 360 where 306 were left, so the remainder is raised by 74, with a margin of 20"
-      },
-      "steps": [
-        {
-          "id": "waits",
-          "title": "Measure where a session's time between landings goes",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestLandingRecordsItsWaitsByCause$'",
-          "rationale": "The gate averaged 4.9 minutes a landing over the last 300, 24.4 hours in nine days, which does not show what limits the pace. Time blocked from editing, time waiting for a turn, time recovering from a conflict, host checks and time waiting for the device are not told apart. The step has a landing record each.\n\nIt is filed here and not with commit-queue, whose other step waits on the owner: the record takes a week of landings to say anything, and the week runs while the rows between are built. A queue still commits one change at a time and is bounded by the gate's own time, so it helps only if editing, and not committing, is what waits; if the record shows otherwise commit-queue is retired. Keeping sessions' files apart does not wait on this measurement: session-isolation/worktrees does that whatever the waits are.\n\nServes: change. Disappears: nothing. Evidence: the waits by cause over a week of landings. Batch: host."
-        }
-      ]
-    },
-    {
       "id": "recipe-eligibility",
       "title": "Keep whether a recipe may be used apart from which recipe is selected",
       "owner": "master-lead",

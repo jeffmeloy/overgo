@@ -422,11 +422,20 @@ func TestLanesMeasurementLine(t *testing.T) {
 		"ok  \tovergo/cmd/recipe\t(cached)\n" +
 		"    trainer_test.go:12: ok  \tquoted by a test log\n" +
 		"?   \tovergo/internal/fixture\t[no test files]\n"
-	got := describeLanes(41200*time.Millisecond, 12*time.Minute, []string{
-		describeLane("device", 2*time.Minute, device),
-		describeLane("cuda", 30*time.Minute+time.Second, cuda),
-		describeLane("webui", 3*time.Second, "webui lane: PASS browser=edge\n"),
-	}, []string{"audio", "e4b"})
+	var passed []string
+	var admission time.Duration
+	for _, described := range []struct {
+		name   string
+		wall   time.Duration
+		output string
+	}{{"device", 2 * time.Minute, device}, {"cuda", 30*time.Minute + time.Second, cuda}, {"webui", 3 * time.Second, "webui lane: PASS browser=edge\n"}} {
+		entry, waited := describeLane(described.name, described.wall, described.output)
+		passed, admission = append(passed, entry), admission+waited
+	}
+	if admission != 1750*time.Millisecond {
+		t.Errorf("the lanes waited %s for the device, want the device lane's two admissions added", admission)
+	}
+	got := describeLanes(41200*time.Millisecond, 12*time.Minute, passed, []string{"audio", "e4b"})
 	want := "discovery 41.2s, turn wait 12m0s, device passed 2m0s admission 1.75s, " +
 		"cuda passed 30m1s executed 1 cached 2, webui passed 3s, skipped audio e4b"
 	if got != want {

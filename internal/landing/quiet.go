@@ -47,22 +47,23 @@ func awaitQuiet(ctx context.Context, name string, alone bool, waiting func()) (r
 		return nil, 0, err
 	}
 	if attempts > 1 {
-		waited = time.Since(started).Round(time.Millisecond)
+		waited = time.Since(started)
 	}
 	return release, waited, nil
 }
 
-// holdQuiet is a landing's side: it runs until the landing ends.
-func (l *landing) holdQuiet(ctx context.Context) (release func() error, err error) {
-	release, waited, err := awaitQuiet(ctx, quietMachine, false, func() {
+// holdQuiet is a landing's side of the machine named: it runs until the
+// landing ends, and the wait for it is the landing's to record.
+func (l *landing) holdQuiet(ctx context.Context, machine string) (release func() error, err error) {
+	release, waited, err := awaitQuiet(ctx, machine, false, func() {
 		fmt.Fprintln(l.Log, "land: waiting for a timed measurement of the cycle to finish")
 	})
 	if err != nil {
 		return nil, fmt.Errorf("the quiet machine: %w", err)
 	}
-	if waited > 0 {
-		fmt.Fprintf(l.Log, "land: waited %s for a timed measurement to finish\n", waited)
-		l.measured = append(l.measured, "timed measurement wait "+waited.String())
+	if l.spent.Measurement = waited; waited > 0 {
+		fmt.Fprintf(l.Log, "land: waited %s for a timed measurement to finish\n", waited.Round(time.Millisecond))
+		l.measured = append(l.measured, "timed measurement wait "+waited.Round(time.Millisecond).String())
 	}
 	return release, nil
 }
@@ -84,7 +85,7 @@ func Measuring(ctx context.Context, output io.Writer, run func() error) (err err
 	}
 	defer func() { err = errors.Join(err, release()) }()
 	if waited > 0 {
-		fmt.Fprintf(output, "measuring: waited %s for the landing running on this machine\n", waited)
+		fmt.Fprintf(output, "measuring: waited %s for the landing running on this machine\n", waited.Round(time.Millisecond))
 	}
 	return run()
 }

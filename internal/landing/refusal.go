@@ -54,15 +54,25 @@ func Classify(reference, refusal string) Refusal {
 	return classified
 }
 
+// stateRecords reads the list the checkout at root keeps under name in its
+// process state: where the list is kept, and the records it holds, none when
+// it was never written.
+func stateRecords[Record any](root, name string) (record string, earlier []Record, err error) {
+	if err := processlock.EnsureStateDirectory(root); err != nil {
+		return "", nil, err
+	}
+	record = filepath.Join(root, processlock.StateDirectory, name)
+	if err := jsonfile.Decode(record, &earlier); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return "", nil, err
+	}
+	return record, earlier, nil
+}
+
 // RecordRefusal adds the refusal, its recurrences counted, to the record of
 // the checkout at root.
 func RecordRefusal(root string, refusal Refusal) (Refusal, error) {
-	if err := processlock.EnsureStateDirectory(root); err != nil {
-		return refusal, err
-	}
-	record := filepath.Join(root, processlock.StateDirectory, refusalRecord)
-	var earlier []Refusal
-	if err := jsonfile.Decode(record, &earlier); err != nil && !errors.Is(err, fs.ErrNotExist) {
+	record, earlier, err := stateRecords[Refusal](root, refusalRecord)
+	if err != nil {
 		return refusal, err
 	}
 	for _, past := range earlier {

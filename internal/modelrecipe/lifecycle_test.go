@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/model"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/testutil"
@@ -87,90 +86,6 @@ func TestAtomicEvidenceGatedActivation(t *testing.T) {
 	}
 }
 
-func TestLifecyclePromotionAndSupersession(t *testing.T) {
-	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	modelID := testutil.ArtifactID(t, artifact.KindModel, "lifecycle-model")
-	if _, err := store.Commit(ctx, artifact.Batch{
-		Key:       "fixture/lifecycle/facts",
-		Artifacts: []artifact.Descriptor{{ID: modelID, Size: uint64(len("lifecycle-model"))}},
-	}); err != nil {
-		t.Fatal(err)
-	}
-	first, err := inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionRequest)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := PublishCandidate(ctx, store, "fixture/lifecycle/first/candidate", first); err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := Transition(ctx, store, "fixture/lifecycle/first/validated", first, recipe.StatusValidated, nil, nil); err != nil {
-		t.Fatal(err)
-	}
-	firstVerification := publishVerification(t, store, first.ID, "fixture/lifecycle/first/verification")
-	if _, _, err := Transition(
-		ctx, store, "fixture/lifecycle/first/unverified", first, recipe.StatusActive,
-		[]artifact.ID{firstVerification.Gate, firstVerification.Run}, nil,
-	); err == nil {
-		t.Fatal("ordinary lifecycle transition bypassed verified activation")
-	}
-	if _, _, err := ActivateVerified(
-		ctx, store, "fixture/lifecycle/first/active", first, firstVerification,
-		recipe.EvidenceVerified, "first fixture activation", nil, nil,
-	); err != nil {
-		t.Fatal(err)
-	}
-	activation, ok, err := ActiveRecord(ctx, store, modelID, recipe.TaskInference)
-	active := activation.Definition
-	if err != nil || !ok || active.ID != first.ID {
-		t.Fatalf("first active = (%s, %v, %v)", active.ID, ok, err)
-	}
-
-	second, err := inferenceFixture(modelID, recipe.PlacementDevice, DecodeSessionRequest)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := PublishCandidate(ctx, store, "fixture/lifecycle/second/candidate", second); err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := Transition(ctx, store, "fixture/lifecycle/second/validated", second, recipe.StatusValidated, nil, nil); err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := ActivateVerified(
-		ctx, store, "fixture/lifecycle/second/mismatched", second, firstVerification,
-		recipe.EvidenceVerified, "mismatched fixture activation", nil, &first.ID,
-	); err == nil {
-		t.Fatal("activation accepted verifier output for another recipe")
-	}
-	secondVerification := publishVerification(t, store, second.ID, "fixture/lifecycle/second/verification")
-	if _, _, err := ActivateVerified(
-		ctx, store, "fixture/lifecycle/second/active", second, secondVerification,
-		recipe.EvidenceVerified, "second fixture activation", nil, &first.ID,
-	); err != nil {
-		t.Fatal(err)
-	}
-	activation, ok, err = ActiveRecord(ctx, store, modelID, recipe.TaskInference)
-	active = activation.Definition
-	if err != nil || !ok || active.ID != second.ID {
-		t.Fatalf("second active = (%s, %v, %v)", active.ID, ok, err)
-	}
-	oldStatus, err := currentEvent(ctx, store, first.ID)
-	if err != nil || oldStatus.To != recipe.StatusSuperseded {
-		t.Fatalf("old status = (%+v, %v)", oldStatus, err)
-	}
-	compiled, ok, err := compileActiveFixture(
-		ctx, store, modelID,
-		model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama"}}, model.Weights{},
-	)
-	if err != nil || !ok || compiled.Recipe.ID != second.ID {
-		t.Fatalf("compiled active = (%s, %v, %v)", compiled.Recipe.ID, ok, err)
-	}
-}
-
 func TestActivateCapabilityRequiresBoundVerification(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
@@ -224,100 +139,6 @@ func TestActivateCapabilityRequiresBoundVerification(t *testing.T) {
 	if err != nil || !active || activation.Tier != recipe.EvidenceProduction ||
 		!slices.Contains(activation.Event.Evidence, secondRefresh.Gate) {
 		t.Fatalf("second refreshed active = (%+v, %v, %v)", activation, active, err)
-	}
-}
-
-func TestRetireActiveCapabilityRequiresFailedEvidence(t *testing.T) {
-	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	modelID := testutil.ArtifactID(t, artifact.KindModel, "retirement-model")
-	testutil.PublishArtifact(t, store, modelID)
-	active, err := inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionRequest)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := PublishCandidate(ctx, store, "fixture/retirement/active-candidate", active); err != nil {
-		t.Fatal(err)
-	}
-	activeVerification := publishVerification(t, store, active.ID, "fixture/retirement/active-verification")
-	if err := ActivateCapability(
-		ctx, store, active, activeVerification, recipe.EvidenceVerified, "legacy activation",
-	); err != nil {
-		t.Fatal(err)
-	}
-	candidate, err := inferenceFixture(modelID, recipe.PlacementDevice, DecodeSessionRequest)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := PublishCandidate(ctx, store, "fixture/retirement/candidate", candidate); err != nil {
-		t.Fatal(err)
-	}
-	if err := RetireActiveCapability(
-		ctx, store, candidate, activeVerification, "exact output mismatch",
-	); err == nil {
-		t.Fatal("successful verifier evidence retired an active recipe")
-	}
-	failed := publishFailedVerification(t, store, candidate.ID, "fixture/retirement/failed-verification")
-	if err := RetireActiveCapability(
-		ctx, store, candidate, failed, "exact output mismatch",
-	); err != nil {
-		t.Fatal(err)
-	}
-	if declared, err := HasActiveRecipe(ctx, store, modelID, recipe.TaskInference); err != nil || declared {
-		t.Fatalf("retired active declaration = (%v, %v)", declared, err)
-	}
-	status, published, err := Status(ctx, store, active.ID)
-	if err != nil || !published || status != recipe.StatusSuperseded {
-		t.Fatalf("retired status = (%s, %v, %v)", status, published, err)
-	}
-	// Retirement keeps the alias (rollback supersedes it); successor-less
-	// release removes it once; second release refused.
-	if _, bound, err := artifact.ResolveAlias(ctx, store, activeAlias(modelID, recipe.TaskInference)); err != nil || !bound {
-		t.Fatalf("retired alias bound = (%v, %v)", bound, err)
-	}
-	if err := ReleaseRetiredAlias(ctx, store, modelID, recipe.TaskInference); err != nil {
-		t.Fatal(err)
-	}
-	if _, bound, err := artifact.ResolveAlias(ctx, store, activeAlias(modelID, recipe.TaskInference)); err != nil || bound {
-		t.Fatalf("released alias bound = (%v, %v)", bound, err)
-	}
-	if err := ReleaseRetiredAlias(ctx, store, modelID, recipe.TaskInference); err == nil || !strings.Contains(err.Error(), "no active alias") {
-		t.Fatalf("releasing a released alias: %v", err)
-	}
-}
-
-// TestReleaseRetiredAliasRefusesActiveRecipe: release precondition; an
-// active alias stays bound.
-func TestReleaseRetiredAliasRefusesActiveRecipe(t *testing.T) {
-	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	modelID := testutil.ArtifactID(t, artifact.KindModel, "release-model")
-	testutil.PublishArtifact(t, store, modelID)
-	active, err := inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionRequest)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := PublishCandidate(ctx, store, "fixture/release/candidate", active); err != nil {
-		t.Fatal(err)
-	}
-	if err := ActivateCapability(
-		ctx, store, active, publishVerification(t, store, active.ID, "fixture/release/verification"), recipe.EvidenceVerified, "fixture activation",
-	); err != nil {
-		t.Fatal(err)
-	}
-	if err := ReleaseRetiredAlias(ctx, store, modelID, recipe.TaskInference); err == nil || !strings.Contains(err.Error(), "not retired") {
-		t.Fatalf("releasing an active alias: %v", err)
-	}
-	if activation, ok, err := ActiveRecord(ctx, store, modelID, recipe.TaskInference); err != nil || !ok || activation.Definition.ID != active.ID {
-		t.Fatalf("activation after the refused release = (%+v, %v, %v)", activation, ok, err)
 	}
 }
 

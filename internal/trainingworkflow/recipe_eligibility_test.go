@@ -35,10 +35,18 @@ const (
 	// opRollback returns the slot of a retired recipe to the recipe its
 	// activation took the slot from, reinstating that one.
 	opRollback = "rollback"
+	// opRelease releases the slot a retired recipe still holds.
+	opRelease = "release"
 	// opRestart closes the store and opens it.
 	opRestart = "restart"
 	// opReplay sends the last lifecycle message again.
 	opReplay = "replay"
+	// Three messages a lifecycle refuses: an activation no decision accepted,
+	// an activation on proof made over another recipe, and a retirement on
+	// proof that passed.
+	opUnproved  = "activate-undecided"
+	opMisproved = "activate-on-another's-proof"
+	opUnfailed  = "retire-on-passed-proof"
 )
 
 const (
@@ -54,6 +62,24 @@ const (
 	noRecipe = -1
 )
 
+// The failures a reference can be made to have. A store is held to the
+// reference, so a reference with a failure differs from a sound store exactly
+// where a store with that failure would differ from the sound reference: a
+// sequence that tells them apart is one that catches the failure.
+const (
+	sound                 = ""
+	faultSelectionRestore = "selecting a recipe makes the one retired before it trainable again"
+	faultNoSupersession   = "an activation leaves the recipe it took the slot from active"
+	faultSlotStays        = "an activation leaves the slot naming the recipe that held it"
+	faultUnproved         = "an activation no decision accepted is recorded"
+	faultMisproved        = "an activation on proof made over another recipe is accepted"
+	faultUnfailed         = "a retirement on proof that passed retires the recipe"
+	faultNoRetirement     = "a retirement on failed proof leaves the recipe as it was"
+	faultRetirementDrops  = "a retirement takes the slot from the recipe it retires"
+	faultReleaseKeeps     = "a release leaves the slot naming the retired recipe"
+	faultReleaseAlways    = "a slot is released whatever it names, and when it names nothing"
+)
+
 // lifecycleStep is one thing that happens, and the recipe it happens to.
 type lifecycleStep struct {
 	op     string
@@ -62,7 +88,7 @@ type lifecycleStep struct {
 
 func (s lifecycleStep) String() string {
 	switch s.op {
-	case opRetire, opRollback, opRestart, opReplay:
+	case opRetire, opRollback, opRelease, opRestart, opReplay, opUnfailed:
 		return s.op
 	}
 	return s.op + " " + recipeName(s.recipe)
@@ -87,18 +113,43 @@ type recipeRecord struct {
 // lifecycleModel is the reference a store is compared with. It keeps each
 // recipe's own record and, apart from them, which recipe the model has
 // selected: nothing in it reads the selection to say whether a recipe may be
-// used.
+// used, unless it is given the failure that does.
 type lifecycleModel struct {
 	recipes  []recipeRecord
 	selected int
+	fault    string
 }
 
-func newLifecycleModel() *lifecycleModel {
-	model := &lifecycleModel{recipes: make([]recipeRecord, lifecycleRecipes), selected: noRecipe}
+func newLifecycleModel(fault string) *lifecycleModel {
+	model := &lifecycleModel{recipes: make([]recipeRecord, lifecycleRecipes), selected: noRecipe, fault: fault}
 	for index := range model.recipes {
 		model.recipes[index] = recipeRecord{status: recipe.StatusCandidate, over: noRecipe}
 	}
 	return model
+}
+
+// active returns the selected recipe when it is active, and noRecipe when the
+// slot names a retired recipe or none.
+func (m *lifecycleModel) active() int {
+	if m.selected != noRecipe && m.recipes[m.selected].status == recipe.StatusActive {
+		return m.selected
+	}
+	return noRecipe
+}
+
+// refuses reports whether a run asking to train under the recipe is refused.
+func (m *lifecycleModel) refuses(index int) bool {
+	if m.fault == faultSelectionRestore && m.active() != noRecipe && m.selected != index {
+		return false
+	}
+	return m.recipes[index].refused
+}
+
+// activates reports whether an activation of the recipe would take the slot:
+// the recipe is a candidate, validated or not.
+func (m *lifecycleModel) activates(index int) bool {
+	status := m.recipes[index].status
+	return status == recipe.StatusCandidate || status == recipe.StatusValidated
 }
 
 // predecessor returns the recipe a rollback restores: the one the selected
@@ -110,15 +161,16 @@ func (m *lifecycleModel) predecessor() int {
 	return m.recipes[m.selected].over
 }
 
-// retires reports whether a retirement finds an active recipe to retire.
-func (m *lifecycleModel) retires() bool {
-	return m.selected != noRecipe && m.recipes[m.selected].status == recipe.StatusActive
-}
-
 // reinstates reports whether the recipe is one a reinstatement activates: a
 // superseded recipe that does not hold the slot.
 func (m *lifecycleModel) reinstates(index int) bool {
 	return m.recipes[index].status == recipe.StatusSuperseded && m.selected != index
+}
+
+// releases reports whether a release finds a slot to release: one that names
+// a retired recipe.
+func (m *lifecycleModel) releases() bool {
+	return m.fault == faultReleaseAlways || m.selected != noRecipe && m.recipes[m.selected].refused
 }
 
 // take gives a recipe the slot, active. The recipe that held it loses the
@@ -126,10 +178,23 @@ func (m *lifecycleModel) reinstates(index int) bool {
 // one already retired keeps its refusal.
 func (m *lifecycleModel) take(index int) {
 	held := m.selected
-	if held != noRecipe && m.recipes[held].status == recipe.StatusActive {
+	if held != noRecipe && held != index && m.recipes[held].status == recipe.StatusActive && m.fault != faultNoSupersession {
 		m.recipes[held].status = recipe.StatusSuperseded
 	}
-	m.recipes[index], m.selected = recipeRecord{status: recipe.StatusActive, over: held}, index
+	if m.recipes[index] = (recipeRecord{status: recipe.StatusActive, over: held}); held == noRecipe || m.fault != faultSlotStays {
+		m.selected = index
+	}
+}
+
+// retire retires the active recipe on failed proof: it is superseded and
+// refused, and keeps the slot.
+func (m *lifecycleModel) retire() int {
+	retired := m.selected
+	m.recipes[retired].status, m.recipes[retired].refused = recipe.StatusSuperseded, true
+	if m.fault == faultRetirementDrops {
+		m.selected = noRecipe
+	}
+	return retired
 }
 
 // apply moves the reference by one step. It returns the one recipe whose
@@ -141,14 +206,28 @@ func (m *lifecycleModel) apply(step lifecycleStep) int {
 	case opSelect, opRetry:
 		// A run under an active recipe verifies it again, and one under a
 		// recipe that lost the slot verifies it and leaves the slot where it is.
-		if record := m.recipes[step.recipe]; !record.refused && record.status == recipe.StatusCandidate {
+		if !m.recipes[step.recipe].refused && m.activates(step.recipe) {
 			m.take(step.recipe)
 		}
+	case opUnproved:
+		if m.fault == faultUnproved && m.activates(step.recipe) {
+			m.take(step.recipe)
+		}
+	case opMisproved:
+		// The activation validates a candidate before it reads the proof, so a
+		// candidate it refuses is left validated.
+		if m.fault == faultMisproved && m.activates(step.recipe) {
+			m.take(step.recipe)
+		} else if m.recipes[step.recipe].status == recipe.StatusCandidate {
+			m.recipes[step.recipe].status = recipe.StatusValidated
+		}
 	case opRetire:
-		if m.retires() {
-			retired := &m.recipes[m.selected]
-			retired.status, retired.refused = recipe.StatusSuperseded, true
-			return m.selected
+		if m.active() != noRecipe && m.fault != faultNoRetirement {
+			return m.retire()
+		}
+	case opUnfailed:
+		if m.fault == faultUnfailed && m.active() != noRecipe {
+			return m.retire()
 		}
 	case opReinstate:
 		if m.reinstates(step.recipe) {
@@ -160,38 +239,48 @@ func (m *lifecycleModel) apply(step lifecycleStep) int {
 			m.take(restored)
 			return restored
 		}
+	case opRelease:
+		if m.releases() && m.fault != faultReleaseKeeps {
+			m.selected = noRecipe
+		}
 	}
 	return noRecipe
 }
 
 // lifecycleReading is what a store says of a model's training recipes: each
-// one's state, the refusal a run asking to train under it meets, and which the
-// model has selected.
+// one's state, the refusal a run asking to train under it meets, which recipe
+// the slot names, whether the model declares an active recipe, and which
+// recipe its verified activation is.
 type lifecycleReading struct {
 	statuses []recipe.Status
 	refusals []error
 	selected int
+	declared bool
+	active   int
 }
 
 // differs says where a reading departs from the reference, or nothing.
 func (m *lifecycleModel) differs(reading lifecycleReading) string {
 	if reading.selected != m.selected {
-		return fmt.Sprintf("the store has selected recipe %s and the reference %s", recipeName(reading.selected), recipeName(m.selected))
+		return fmt.Sprintf("the store's slot names recipe %s and the reference's %s", recipeName(reading.selected), recipeName(m.selected))
+	}
+	if active := m.active(); reading.active != active || reading.declared != (active != noRecipe) {
+		return fmt.Sprintf("the store's verified activation is recipe %s, declared %t, and the reference's is %s", recipeName(reading.active), reading.declared, recipeName(active))
 	}
 	for index, record := range m.recipes {
 		if reading.statuses[index] != record.status {
 			return fmt.Sprintf("recipe %s is %q in the store and %q in the reference", recipeName(index), reading.statuses[index], record.status)
 		}
-		if refused := reading.refusals[index] != nil; refused != record.refused {
+		if refused := reading.refusals[index] != nil; refused != m.refuses(index) {
 			return fmt.Sprintf("recipe %s: a run asking to train under it is refused %t (%v), and the reference refuses it %t",
-				recipeName(index), refused, reading.refusals[index], record.refused)
+				recipeName(index), refused, reading.refusals[index], m.refuses(index))
 		}
 	}
 	return ""
 }
 
 // recipeLifecycle drives one model's training recipes in a store through the
-// doors a run, a retirement and a reinstatement use.
+// doors a run, a retirement, a reinstatement, a rollback and a release use.
 type recipeLifecycle struct {
 	t           *testing.T
 	directory   string
@@ -209,11 +298,6 @@ func newRecipeLifecycle(t *testing.T) *recipeLifecycle {
 	root, ctx := t.TempDir(), t.Context()
 	lifecycle := &recipeLifecycle{t: t, directory: filepath.Join(root, "store")}
 	lifecycle.open()
-	t.Cleanup(func() {
-		if err := lifecycle.store.Close(); err != nil {
-			t.Error(err)
-		}
-	})
 	modelPath := filepath.Join(root, "model.safetensors")
 	if err := os.WriteFile(modelPath, []byte("weights"), 0o600); err != nil {
 		t.Fatal(err)
@@ -247,6 +331,13 @@ func (f *recipeLifecycle) open() {
 		f.t.Fatal(err)
 	}
 	f.store = store
+}
+
+func (f *recipeLifecycle) close() {
+	f.t.Helper()
+	if err := f.store.Close(); err != nil {
+		f.t.Fatal(err)
+	}
 }
 
 func (f *recipeLifecycle) commit(batch artifact.Batch, err error) {
@@ -297,14 +388,14 @@ func (f *recipeLifecycle) session(index int, outcome error) {
 
 // proof publishes a verifier's gate and run over a recipe, with the outcome
 // given.
-func (f *recipeLifecycle) proof(id artifact.ID, outcome runrecord.Outcome) modelrecipe.Verification {
+func (f *recipeLifecycle) proof(index int, outcome runrecord.Outcome) modelrecipe.Verification {
 	f.t.Helper()
 	f.proofs++
 	step, failure := runrecord.StepSucceeded, ""
 	if outcome == runrecord.OutcomeFailed {
 		step, failure = runrecord.StepFailed, "exact-mismatch"
 	}
-	record, err := runrecord.NewGateRecord(id, f.environment, strings.Repeat("f0", 20), outcome, failure, f.proofs, []runrecord.GateStep{{
+	record, err := runrecord.NewGateRecord(f.recipes[index].ID, f.environment, strings.Repeat("f0", 20), outcome, failure, f.proofs, []runrecord.GateStep{{
 		Name: "verify", Phase: runrecord.PhaseValidate, Outcome: step, DurationNS: f.proofs,
 	}})
 	if err != nil {
@@ -312,6 +403,18 @@ func (f *recipeLifecycle) proof(id artifact.ID, outcome runrecord.Outcome) model
 	}
 	f.commit(record.Batch(fmt.Sprintf("eligibility/proof/%d", f.proofs)))
 	return modelrecipe.Verification{Gate: record.Result.ID, Run: record.Run.ID}
+}
+
+// index returns which of the model's recipes id is.
+func (f *recipeLifecycle) index(id artifact.ID) int {
+	f.t.Helper()
+	for index, definition := range f.recipes {
+		if definition.ID == id {
+			return index
+		}
+	}
+	f.t.Fatalf("%s is none of the model's recipes", id)
+	return noRecipe
 }
 
 // selected returns the recipe the model's training slot names.
@@ -324,26 +427,23 @@ func (f *recipeLifecycle) selected() (int, *artifact.ID) {
 	if !bound {
 		return noRecipe, nil
 	}
-	for index, definition := range f.recipes {
-		if definition.ID == id {
-			return index, &id
-		}
-	}
-	f.t.Fatalf("the model's training slot names %s, none of its recipes", id)
-	return noRecipe, nil
+	return f.index(id), &id
 }
 
-// retire retires the selected recipe on proof that failed over it.
-func (f *recipeLifecycle) retire() error {
+// retire retires the selected recipe on proof with the outcome given: proof
+// that failed retires it, and proof that passed is refused. The proof is over
+// the selected recipe or, every other time, over the recipe after it, as a
+// candidate meant to replace it: either is proof about the model's training.
+func (f *recipeLifecycle) retire(outcome runrecord.Outcome) error {
 	f.t.Helper()
 	index, _ := f.selected()
 	if index == noRecipe {
 		return errors.New("no recipe is selected")
 	}
-	ctx, definition := f.t.Context(), f.recipes[index]
-	failed := f.proof(definition.ID, runrecord.OutcomeFailed)
+	candidate := (index + int(f.proofs%uint64(len(f.recipes)-1))) % len(f.recipes)
+	ctx, proved := f.t.Context(), f.proof(candidate, outcome)
 	f.last = func() error {
-		return modelrecipe.RetireActiveCapability(ctx, f.store, definition, failed, "its proof failed when it was run again")
+		return modelrecipe.RetireActiveCapability(ctx, f.store, f.recipes[candidate], proved, "its proof was run again")
 	}
 	return f.last()
 }
@@ -352,12 +452,11 @@ func (f *recipeLifecycle) retire() error {
 // recipe holds the slot.
 func (f *recipeLifecycle) reinstate(index int) error {
 	f.t.Helper()
-	ctx, definition := f.t.Context(), f.recipes[index]
-	fresh := f.proof(definition.ID, runrecord.OutcomeSucceeded)
+	ctx, fresh := f.t.Context(), f.proof(index, runrecord.OutcomeSucceeded)
 	_, held := f.selected()
 	key := fmt.Sprintf("eligibility/reinstated/%d", f.proofs)
 	f.last = func() error {
-		_, _, err := modelrecipe.ActivateVerified(ctx, f.store, key, definition, fresh, recipe.EvidenceVerified, "reinstated on fresh proof", nil, held)
+		_, _, err := modelrecipe.ActivateVerified(ctx, f.store, key, f.recipes[index], fresh, recipe.EvidenceVerified, "reinstated on fresh proof", nil, held)
 		return err
 	}
 	return f.last()
@@ -367,18 +466,34 @@ func (f *recipeLifecycle) reinstate(index int) error {
 // it from, on fresh proof over the recipe named.
 func (f *recipeLifecycle) rollback(restored int) error {
 	f.t.Helper()
-	ctx := f.t.Context()
-	fresh := f.proof(f.recipes[restored].ID, runrecord.OutcomeSucceeded)
+	ctx, fresh := f.t.Context(), f.proof(restored, runrecord.OutcomeSucceeded)
 	f.last = func() error {
 		return modelrecipe.RollbackActivation(ctx, f.store, f.model, recipe.TaskTraining, fresh, recipe.EvidenceVerified, "restored on fresh proof")
 	}
 	return f.last()
 }
 
+// unproved records an activation of the recipe with a verifier's gate and run
+// and no decision that accepted them.
+func (f *recipeLifecycle) unproved(index int) error {
+	f.t.Helper()
+	proved := f.proof(index, runrecord.OutcomeSucceeded)
+	_, _, err := modelrecipe.Transition(f.t.Context(), f.store, fmt.Sprintf("eligibility/unproved/%d", f.proofs), f.recipes[index],
+		recipe.StatusActive, []artifact.ID{proved.Gate, proved.Run}, nil)
+	return err
+}
+
+// misproved activates the recipe on proof made over the recipe after it.
+func (f *recipeLifecycle) misproved(index int) error {
+	f.t.Helper()
+	another := f.proof((index+1)%len(f.recipes), runrecord.OutcomeSucceeded)
+	return modelrecipe.ActivateCapability(f.t.Context(), f.store, f.recipes[index], another, recipe.EvidenceVerified, "proof made over another recipe")
+}
+
 func (f *recipeLifecycle) read() lifecycleReading {
 	f.t.Helper()
 	ctx := f.t.Context()
-	reading := lifecycleReading{statuses: make([]recipe.Status, len(f.recipes)), refusals: make([]error, len(f.recipes))}
+	reading := lifecycleReading{statuses: make([]recipe.Status, len(f.recipes)), refusals: make([]error, len(f.recipes)), active: noRecipe}
 	reading.selected, _ = f.selected()
 	for index, definition := range f.recipes {
 		status, _, err := modelrecipe.Status(ctx, f.store, definition.ID)
@@ -388,89 +503,153 @@ func (f *recipeLifecycle) read() lifecycleReading {
 		reading.statuses[index] = status
 		_, reading.refusals[index] = ResolveSessionAuthority(ctx, f.store, f.model, definition.ID)
 	}
+	declared, err := modelrecipe.HasActiveRecipe(ctx, f.store, f.model, recipe.TaskTraining)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	reading.declared = declared
+	// A slot that names a retired recipe is no activation: its record is an error.
+	if activation, found, err := modelrecipe.ActiveRecord(ctx, f.store, f.model, recipe.TaskTraining); err == nil && found {
+		reading.active = f.index(activation.Definition.ID)
+	}
 	return reading
 }
 
-// runLifecycle takes one model's recipes through steps in a store, and after
-// each holds the store to two things: no step changed whether a recipe may be
-// trained under but for the one recipe the step is about, and the store reads
-// as the reference does.
-func runLifecycle(t *testing.T, steps []lifecycleStep) {
+// perform sends one step through the store's doors and says how the door's
+// answer departs from what the reference, before the step, expects of it.
+func (f *recipeLifecycle) perform(step lifecycleStep, model *lifecycleModel) string {
+	f.t.Helper()
+	answered := func(err error, accepted bool) string {
+		if (err == nil) != accepted {
+			return fmt.Sprintf("the store answered %v, and the reference accepts the step: %t", err, accepted)
+		}
+		return ""
+	}
+	switch step.op {
+	case opSelect, opRetry:
+		f.session(step.recipe, nil)
+	case opFail:
+		f.session(step.recipe, errors.New("the run failed"))
+	case opCancel:
+		f.session(step.recipe, context.Canceled)
+	case opRetire:
+		return answered(f.retire(runrecord.OutcomeFailed), model.active() != noRecipe)
+	case opUnfailed:
+		return answered(f.retire(runrecord.OutcomeSucceeded), false)
+	case opUnproved:
+		return answered(f.unproved(step.recipe), false)
+	case opMisproved:
+		return answered(f.misproved(step.recipe), false)
+	case opReinstate:
+		if model.reinstates(step.recipe) {
+			return answered(f.reinstate(step.recipe), true)
+		}
+	case opRollback:
+		// A rollback with nothing to restore is refused whatever proof it brings.
+		restored := model.predecessor()
+		return answered(f.rollback(max(restored, 0)), restored != noRecipe)
+	case opRelease:
+		return answered(modelrecipe.ReleaseRetiredAlias(f.t.Context(), f.store, f.model, recipe.TaskTraining), model.releases())
+	case opRestart:
+		f.close()
+		f.open()
+	case opReplay:
+		// A message sent again may be accepted or refused; what it may not do
+		// is change anything, which the reading after it holds.
+		if f.last != nil {
+			f.t.Logf("%s: the message sent again answered %v", step, f.last())
+		}
+	}
+	return ""
+}
+
+// lifecycleDifference takes one model's recipes through steps in a store and
+// holds the store, after each step, to two things: no step changed whether a
+// recipe may be trained under but for the one recipe the step is about, and
+// the store reads as the reference does. It returns the first departure, or
+// nothing.
+func lifecycleDifference(t *testing.T, model *lifecycleModel, steps []lifecycleStep) string {
 	t.Helper()
-	lifecycle, model := newRecipeLifecycle(t), newLifecycleModel()
+	lifecycle := newRecipeLifecycle(t)
+	defer lifecycle.close()
 	before := lifecycle.read()
 	if difference := model.differs(before); difference != "" {
-		t.Fatalf("before any step: %s", difference)
+		return "before any step: " + difference
 	}
 	for index, step := range steps {
-		done := steps[:index+1]
-		switch step.op {
-		case opSelect, opRetry:
-			lifecycle.session(step.recipe, nil)
-		case opFail:
-			lifecycle.session(step.recipe, errors.New("the run failed"))
-		case opCancel:
-			lifecycle.session(step.recipe, context.Canceled)
-		case opRetire:
-			if err := lifecycle.retire(); (err == nil) != model.retires() {
-				t.Fatalf("after %v: the retirement answered %v, and the reference retires a recipe: %t", done, err, model.retires())
-			}
-		case opReinstate:
-			if model.reinstates(step.recipe) {
-				if err := lifecycle.reinstate(step.recipe); err != nil {
-					t.Fatalf("after %v: %v", done, err)
-				}
-			}
-		case opRollback:
-			// A rollback with nothing to restore is refused whatever proof it brings.
-			restored := model.predecessor()
-			if err := lifecycle.rollback(max(restored, 0)); (err == nil) != (restored != noRecipe) {
-				t.Fatalf("after %v: the rollback answered %v, and the reference restores recipe %s", done, err, recipeName(restored))
-			}
-		case opRestart:
-			if err := lifecycle.store.Close(); err != nil {
-				t.Fatal(err)
-			}
-			lifecycle.open()
-		case opReplay:
-			if lifecycle.last != nil {
-				t.Logf("after %v: the message sent again answered %v", done, lifecycle.last())
-			}
-		}
+		difference := lifecycle.perform(step, model)
 		subject := model.apply(step)
 		after := lifecycle.read()
 		for other := range after.refusals {
-			if other != subject && (after.refusals[other] == nil) != (before.refusals[other] == nil) {
-				t.Fatalf("after %v: the step changed whether a run may train under recipe %s, which it is not about: refused %v before and %v after",
-					done, recipeName(other), before.refusals[other], after.refusals[other])
+			if difference == "" && other != subject && (after.refusals[other] == nil) != (before.refusals[other] == nil) {
+				difference = fmt.Sprintf("the step changed whether a run may train under recipe %s, which it is not about: refused %v before and %v after",
+					recipeName(other), before.refusals[other], after.refusals[other])
 			}
 		}
-		if difference := model.differs(after); difference != "" {
-			t.Fatalf("after %v: %s", done, difference)
+		if difference == "" {
+			difference = model.differs(after)
+		}
+		if difference != "" {
+			return fmt.Sprintf("after %v: %s", steps[:index+1], difference)
 		}
 		before = after
 	}
+	return ""
 }
 
-// generateLifecycle draws a sequence of steps. A retry is of the recipe the
-// run before it trained under.
-func generateLifecycle(random *rand.Rand) []lifecycleStep {
+// lifecycleSequence is a named sequence of steps.
+type lifecycleSequence struct {
+	name  string
+	steps []lifecycleStep
+}
+
+// lifecycleSequences are the sequences a store is taken through: four that
+// are fixed, and the generated ones. A generated sequence draws its steps; a
+// retry is of the recipe the run before it trained under.
+func lifecycleSequences() []lifecycleSequence {
+	const a, b, c = 0, 1, 2
+	sequences := []lifecycleSequence{
+		// The sequence the rule was written for: A is retired, B is selected,
+		// and A is refused until it is reinstated.
+		{"retired, another selected, asked for", []lifecycleStep{
+			{opSelect, a}, {opRetire, a}, {opSelect, b}, {opFail, a}, {opReinstate, a}, {opSelect, a},
+		}},
+		// The case the superseded state was first admitted for: runs of two
+		// objectives alternate on one model, each under its own recipe.
+		{"objectives alternating on one model", []lifecycleStep{{opSelect, a}, {opSelect, b}, {opSelect, a}, {opSelect, b}}},
+		// A slot may come back to one recipe more than once, and from a recipe
+		// that was verified again after it took the slot.
+		{"rolled back to the same recipe twice", []lifecycleStep{
+			{opSelect, a}, {opSelect, b}, {opSelect, b}, {opRetire, b}, {opRollback, a}, {opSelect, c}, {opRetire, c}, {opRollback, a}, {opSelect, a},
+		}},
+		// The messages a lifecycle refuses change nothing, a refused activation
+		// leaves a candidate validated and still activatable, and a slot is
+		// released once, when the recipe it names is retired.
+		{"refused messages, and a slot released", []lifecycleStep{
+			{opSelect, a}, {opUnproved, b}, {opMisproved, b}, {opSelect, b}, {opUnfailed, b}, {opRelease, b},
+			{opRetire, b}, {opRelease, b}, {opRelease, b}, {opSelect, c}, {opRelease, c},
+		}},
+	}
 	ops := []string{
-		opSelect, opSelect, opSelect, opSelect, opRetry, opFail, opCancel,
-		opRetire, opRetire, opRetire, opReinstate, opReinstate, opRollback, opRollback, opRestart, opReplay,
+		opSelect, opSelect, opSelect, opSelect, opRetry, opFail, opCancel, opRetire, opRetire, opRetire, opReinstate, opReinstate,
+		opRollback, opRollback, opRelease, opUnproved, opMisproved, opUnfailed, opRestart, opReplay,
 	}
-	steps, ran := make([]lifecycleStep, lifecycleLength), 0
-	for index := range steps {
-		step := lifecycleStep{op: ops[random.IntN(len(ops))], recipe: random.IntN(lifecycleRecipes)}
-		switch step.op {
-		case opRetry:
-			step.recipe = ran
-		case opSelect, opFail, opCancel:
-			ran = step.recipe
+	for sequence := range generatedLifecycles {
+		random := rand.New(rand.NewPCG(uint64(sequence), lifecycleSeed))
+		steps, ran := make([]lifecycleStep, lifecycleLength), 0
+		for index := range steps {
+			step := lifecycleStep{op: ops[random.IntN(len(ops))], recipe: random.IntN(lifecycleRecipes)}
+			switch step.op {
+			case opRetry:
+				step.recipe = ran
+			case opSelect, opFail, opCancel:
+				ran = step.recipe
+			}
+			steps[index] = step
 		}
-		steps[index] = step
+		sequences = append(sequences, lifecycleSequence{fmt.Sprintf("generated %d", sequence), steps})
 	}
-	return steps
+	return sequences
 }
 
 // TestSelectionNeverRestoresEligibility holds the rule that changing which
@@ -482,42 +661,56 @@ func generateLifecycle(random *rand.Rand) []lifecycleStep {
 // whatever is selected after it, until an accepted decision over fresh proof
 // activates it again.
 //
-// Two sequences are fixed. One is the sequence the rule was written for: A is
-// selected and retired, B is selected, A is asked for and refused, and A is
-// admitted once it is reinstated. The other is the alternation the superseded
-// state was first admitted for. The rest are generated: runs that succeed,
-// fail and are cancelled, retries, retirements, reinstatements, restarts of
-// the store and messages sent twice, over three recipes of one model. Each is
-// run against a real store through the doors a training run, a retirement and
-// a reinstatement use, and after every step the store is held to a reference
-// that keeps eligibility and selection apart.
+// Four sequences are fixed and the rest are generated: runs that succeed, fail
+// and are cancelled, retries, retirements, reinstatements, rollbacks, releases
+// of a retired recipe's slot, messages a lifecycle refuses, restarts of the
+// store and messages sent twice, over three recipes of one model. Each is run
+// against a real store through the doors a training run, a retirement, a
+// reinstatement, a rollback and a release use, and after every step the store
+// is held to a reference that keeps eligibility and selection apart.
 func TestSelectionNeverRestoresEligibility(t *testing.T) {
 	stubExecutableCodeCommit(t, strings.Repeat("e1", 20))
-	const a, b = 0, 1
-	t.Run("retired, another selected, asked for", func(t *testing.T) {
-		runLifecycle(t, []lifecycleStep{
-			{op: opSelect, recipe: a}, {op: opRetire}, {op: opSelect, recipe: b},
-			{op: opFail, recipe: a}, {op: opReinstate, recipe: a}, {op: opSelect, recipe: a},
+	for _, sequence := range lifecycleSequences() {
+		t.Run(sequence.name, func(t *testing.T) {
+			if difference := lifecycleDifference(t, newLifecycleModel(sound), sequence.steps); difference != "" {
+				t.Fatal(difference)
+			}
 		})
-	})
-	// The case the superseded state was first admitted for: runs of two
-	// objectives alternate on one model, each under its own recipe.
-	t.Run("objectives alternating on one model", func(t *testing.T) {
-		runLifecycle(t, []lifecycleStep{
-			{op: opSelect, recipe: a}, {op: opSelect, recipe: b}, {op: opSelect, recipe: a}, {op: opSelect, recipe: b},
-		})
-	})
-	// A slot may come back to one recipe more than once, and from a recipe
-	// that was verified again after it took the slot.
-	t.Run("rolled back to the same recipe twice", func(t *testing.T) {
-		const c = 2
-		runLifecycle(t, []lifecycleStep{
-			{op: opSelect, recipe: a}, {op: opSelect, recipe: b}, {op: opSelect, recipe: b}, {op: opRetire}, {op: opRollback},
-			{op: opSelect, recipe: c}, {op: opRetire}, {op: opRollback}, {op: opSelect, recipe: a},
-		})
-	})
-	for sequence := range generatedLifecycles {
-		steps := generateLifecycle(rand.New(rand.NewPCG(uint64(sequence), lifecycleSeed)))
-		t.Run(fmt.Sprintf("generated %d", sequence), func(t *testing.T) { runLifecycle(t, steps) })
+	}
+}
+
+// TestEveryRetiredLifecycleFailureIsStillCaught holds the sequences to the
+// failures the tests they replaced were written to catch. Three tests of
+// internal/modelrecipe were retired for the sequences: each built its own
+// store and recipes to walk one path through the lifecycle and assert the
+// states along it. For every failure one of them caught, the reference is
+// given that failure, and some sequence must tell it from the store; a
+// failure no sequence tells apart is one the retirement lost. The first
+// failure is the one this rule was written against, which no test caught.
+func TestEveryRetiredLifecycleFailureIsStillCaught(t *testing.T) {
+	stubExecutableCodeCommit(t, strings.Repeat("e1", 20))
+	sequences := lifecycleSequences()
+	for _, failure := range []struct{ fault, caughtBy string }{
+		{faultSelectionRestore, "no test: SQA-099"},
+		{faultNoSupersession, "TestLifecyclePromotionAndSupersession: the first recipe is superseded when the second is activated"},
+		{faultSlotStays, "TestLifecyclePromotionAndSupersession: the active record is the second recipe"},
+		{faultUnproved, "TestLifecyclePromotionAndSupersession: an ordinary transition cannot bypass verified activation"},
+		{faultMisproved, "TestLifecyclePromotionAndSupersession: an activation refuses verifier output for another recipe"},
+		{faultUnfailed, "TestRetireActiveCapabilityRequiresFailedEvidence: successful evidence retires nothing"},
+		{faultNoRetirement, "TestRetireActiveCapabilityRequiresFailedEvidence: the retired recipe is superseded and no longer declared"},
+		{faultRetirementDrops, "TestRetireActiveCapabilityRequiresFailedEvidence: a retirement keeps the slot"},
+		{faultReleaseKeeps, "TestRetireActiveCapabilityRequiresFailedEvidence: a release removes the retired recipe's slot"},
+		{faultReleaseAlways, "TestRetireActiveCapabilityRequiresFailedEvidence: a slot is released once; TestReleaseRetiredAliasRefusesActiveRecipe: an active slot stays bound"},
+	} {
+		caught := ""
+		for _, sequence := range sequences {
+			if caught = lifecycleDifference(t, newLifecycleModel(failure.fault), sequence.steps); caught != "" {
+				t.Logf("%s: %s: %s", failure.fault, sequence.name, caught)
+				break
+			}
+		}
+		if caught == "" {
+			t.Errorf("no sequence fails when %s, the failure once caught by %s", failure.fault, failure.caughtBy)
+		}
 	}
 }

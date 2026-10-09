@@ -127,7 +127,8 @@ func improvementFor(store string) improvement {
 // returns the record published at that commit and the reference its cells are
 // compared with (scorecard.Reference). A
 // cycle the run before this one left unfinished continues where it stopped
-// (see cycleState), and the record it published is the one returned. Rows land
+// (see cycleState), at the commit it began at and not at the HEAD root has
+// moved to since, and the record it published is the one returned. Rows land
 // in root while it runs: the claims it records bind the commit the cycle
 // checkout holds. A failed validation returns its error beside the record;
 // a run that published nothing at the commit returns none.
@@ -137,6 +138,10 @@ func (w improvement) Measure() (*scorecard.Record, *scorecard.Record, error) {
 		return nil, nil, err
 	}
 	commit := strings.TrimSpace(string(head))
+	if begun := w.unfinished(); begun != "" && begun != commit {
+		fmt.Printf("loop: continuing the cycle a run began at %.12s and left unfinished; the checkout has moved to %.12s, which the next cycle measures\n", begun, commit)
+		commit = begun
+	}
 	measured := w.inCycle(commit, func(checkout string) error {
 		return w.measure(checkout, func() error { return w.file(commit) })
 	})
@@ -145,6 +150,19 @@ func (w improvement) Measure() (*scorecard.Record, *scorecard.Record, error) {
 		return nil, nil, errors.Join(measured, err)
 	}
 	return &records[len(records)-1], scorecard.Reference(records), measured
+}
+
+// unfinished returns the commit of a cycle a run began and did not finish, or
+// nothing: the commit the cells kept beside the cycle checkout were measured
+// at. A cycle that reaches its end removes them (Fill), so cells still kept
+// are those of a run cut short, by its starter's time limit among the causes,
+// and landings since then do not cost the cycle what it measured.
+func (w improvement) unfinished() string {
+	var kept struct{ Commit string }
+	if jsonfile.Decode(filepath.Join(w.root, processlock.StateDirectory, cycleCreditFile), &kept) != nil {
+		return ""
+	}
+	return kept.Commit
 }
 
 // file writes the gaps of the record published for commit as rows, as the cycle's

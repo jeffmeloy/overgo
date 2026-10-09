@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "baseline-resume",
-      "title": "Finish the baseline at the commit it began at",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 110,
-        "reason": "One reading of the kept cells' commit in Measure; the built change measures 81 nodes, and the count leaves the gate's own figure a margin"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Continue an unfinished cycle at the commit it began at",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestUnfinishedCycleContinuesAtItsOwnCommit$'",
-          "rationale": "The owner's first recommendation of 2026-10-09. The baseline cycle begun at 96ebdbe05 was cut off at two hours with 84 of its 93 cells measured and kept (.overgo-runtime/cycle_credit.json, keyed by that commit and the store; cmd/validate cell_credit.go). Measure reads the main checkout's HEAD each time it starts (cmd/loop improve.go), so after the commits that landed meanwhile a second run would measure every cell again at the new commit, and the newest published scorecard would stay the one of 2026-10-07, which shows 46.1 and 83.6 seconds for the two video rows.\n\nThe step has a cycle that a run left unfinished continue at the commit it began at: while the cells kept beside the cycle checkout name a commit, that commit is measured, whatever HEAD has moved to; the cycle's end removes what was kept (Fill), so the cycle after it measures HEAD. Its test begins a cycle, cuts it short, lands a commit, and holds the next run to the first commit and the one after to the second. The run itself is started outside a session, as a process of its own, so the session's limit does not end it; whether the kept cells are credited when it continues is read from that run's first lines.\n\nServes: measure. Disappears: a baseline lost to the commits that land beside it. Evidence: the test, and the record published at 96ebdbe05. Batch: host."
-        }
-      ]
-    },
-    {
       "id": "session-isolation",
       "title": "Charge each session with its own work and no other's",
       "owner": "master-lead",

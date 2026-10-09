@@ -270,6 +270,70 @@ func TestCycleRunsInItsOwnCheckout(t *testing.T) {
 	}
 }
 
+// TestUnfinishedCycleContinuesAtItsOwnCommit holds a cycle a run began and did
+// not finish to the commit it began at. A run measures at one commit, keeps
+// the cells it measured there as validate -run does, and is cut short before
+// it publishes; rows land in the main checkout meanwhile. The run after it
+// measures in the cycle checkout at the first commit, where the kept cells are
+// credited, publishes that commit's record and ends the cycle, which removes
+// what was kept; and the cycle after that measures the commit the checkout has
+// moved to.
+func TestUnfinishedCycleContinuesAtItsOwnCommit(t *testing.T) {
+	t.Parallel()
+	repository := t.TempDir()
+	git := func(directory string, arguments ...string) string { return gitFixture(t, directory, arguments...) }
+	git(repository, "init", "-q", "-b", "master")
+	planPath := filepath.Join(repository, "plan.json")
+	if err := plan.Save(planPath, plan.Plan{Campaign: "improvement", Doctrine: "the scorecard's gaps are the work", Lane: "master-lead"}); err != nil {
+		t.Fatal(err)
+	}
+	git(repository, "add", "plan.json")
+	git(repository, "commit", "-q", "-m", "begun")
+	begun := git(repository, "rev-parse", "HEAD")
+
+	source := testutil.ArtifactID(t, artifact.KindEvidence, "loop-cycle-continued")
+	records := filepath.Join(t.TempDir(), "scorecards")
+	published := time.Date(2026, time.October, 9, 12, 0, 0, 0, time.UTC)
+	kept := filepath.Join(repository, processlock.StateDirectory, cycleCreditFile)
+	cut := errors.New("the run was cut short")
+	var measured []string
+	improver := improvement{root: repository, plan: planPath, records: records, fill: func(string) error { return nil }}
+	improver.measure = func(checkout string, _ func() error) error {
+		at := git(checkout, "rev-parse", "HEAD")
+		measured = append(measured, at)
+		// The first run keeps a cell and ends before it publishes.
+		if len(measured) == 1 {
+			credit := fmt.Sprintf(`{"commit": %q, "store": "store", "cells": ["a measured cell"]}`, at)
+			return errors.Join(cut, os.WriteFile(kept, []byte(credit), cycleStateMode))
+		}
+		published = published.Add(time.Hour)
+		_, err := scorecard.Publish(records, published, scorecard.Record{Commit: at, Rows: []scorecard.Row{
+			scoredRow(t, source, "alpha", recipe.TaskInference, 0.5, 0, scorecard.Cell{Value: 1, Source: source})}})
+		return err
+	}
+	if _, err := loop.Improve(improver); !errors.Is(err, cut) {
+		t.Fatalf("the run that was cut short ended with %v", err)
+	}
+	git(repository, "commit", "-q", "--allow-empty", "-m", "landed while the cycle was unfinished")
+	moved := git(repository, "rev-parse", "HEAD")
+	if _, err := loop.Improve(improver); err != nil {
+		t.Fatalf("the run that continues the cycle: %v", err)
+	}
+	if _, err := os.Stat(kept); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("a cycle that reached its end left its measured cells kept (%v), so the next would continue it again", err)
+	}
+	if _, err := loop.Improve(improver); err != nil {
+		t.Fatalf("the cycle after the continued one: %v", err)
+	}
+	if want := []string{begun, begun, moved}; !slices.Equal(measured, want) {
+		t.Fatalf("the runs measured at %v; want the unfinished cycle continued at the commit it began at, then the commit the checkout moved to: %v", measured, want)
+	}
+	held, err := scorecard.Records(records)
+	if err != nil || len(held) != 2 || held[0].Commit != begun || held[1].Commit != moved {
+		t.Fatalf("the published records are of %+v (%v); want one of the commit the cycle began at and one of the commit after it", held, err)
+	}
+}
+
 // planWorld drives the loop over a plan file: its worker lands the
 // dispatched row the way the gate does, by removing it, and records the
 // verify command of the row it landed.

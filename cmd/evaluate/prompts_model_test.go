@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"overgo/internal/dataroot"
@@ -20,13 +21,16 @@ import (
 // machine that ran it and not in git: the fixtures are the data.
 const promptIDsScript = "scripts/python_golden_references/chat_prompt_ids.py"
 
-// knownPromptFaults are the models whose questions do not reach them as
-// their own files give them, each with what parts the two and the finding
-// that records it. A model named here must differ, so that mending its fault
-// fails this test until its entry is removed; a model not named must not.
+// knownPromptFaults are the fixtures whose questions do not reach their
+// model as its own files give them, by the fixture's name, each with what
+// parts the two and the finding that records it. A fixture named here must
+// differ, so that mending its fault fails this test until its entry is
+// removed; a fixture not named must not. A model may have one fixture for
+// each way its questions are asked: Qwen2.5-0.5B's questions asked as plain
+// text, the way its reading is taken, reach it as its own tokens.
 var knownPromptFaults = map[string]string{
-	"Qwen2.5-0.5B": "the scored file carries no chat template, so the question is asked in overgo's built-in ChatML with no system turn, " +
-		"where the model's own template opens with one (finding e683b1e7)",
+	"Qwen2.5-0.5B": "asked as a conversation, the scored file carrying no chat template, the question is shaped by overgo's built-in ChatML with no " +
+		"system turn, where the model's own template opens with one (finding e683b1e7)",
 	"Unlimited-OCR-bf16": "the scored file names an earlier DeepSeek tokenizer's splitting rule, so a mark and the line break after it are " +
 		"two tokens where the model's own tokenizer joins them (finding 34979bff)",
 }
@@ -138,12 +142,13 @@ func TestPromptsReachEachModelAsItsOwnTokenizerGivesThem(t *testing.T) {
 				}
 			}
 		}
-		fault, known := knownPromptFaults[reference.Model]
+		name := strings.TrimSuffix(filepath.Base(fixture), filepath.Ext(fixture))
+		fault, known := knownPromptFaults[name]
 		switch {
 		case known && differ == 0:
-			t.Errorf("%s is given its own tokens on every case: its fault is mended, so remove its entry (%s)", reference.Model, fault)
+			t.Errorf("%s is given its own tokens on every case: its fault is mended, so remove its entry (%s)", name, fault)
 		case known:
-			faulted[reference.Model] = true
+			faulted[name] = true
 			t.Logf("%s (%s): %d of %d cases reach it as other tokens than its own files give: %s", reference.Model, reference.Protocol, differ, len(read), fault)
 		case differ != 0:
 			ours, own := read[first], reference.Cases[first]
@@ -158,12 +163,12 @@ func TestPromptsReachEachModelAsItsOwnTokenizerGivesThem(t *testing.T) {
 			t.Logf("%s (%s): %d cases reach it as the tokens its own files give%s", reference.Model, reference.Protocol, len(read), noted(reference.Note))
 		}
 	}
-	for model := range knownPromptFaults {
-		if !faulted[model] && held+len(faulted) == len(fixtures) {
-			t.Errorf("%s is named as a known fault and no fixture read here shows it", model)
+	for name := range knownPromptFaults {
+		if !faulted[name] && held+len(faulted) == len(fixtures) {
+			t.Errorf("%s is named as a known fault and no fixture read here shows it", name)
 		}
 	}
-	t.Logf("%d models are given their own tokens, %d are not, of %d on file", held, len(faulted), len(fixtures))
+	t.Logf("%d fixtures reach their model as its own tokens, %d do not, of %d on file", held, len(faulted), len(fixtures))
 }
 
 // noted is a fixture's note, set off from what precedes it.

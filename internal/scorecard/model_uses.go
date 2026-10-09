@@ -29,22 +29,29 @@ var modelUsesJSON []byte
 // reading on any other measure is not spoken of. Source says where the
 // documentation states the use, or that none ships with the model. Needs says
 // what a measure of the use would take: data that is the owner's to approve,
-// a path that is not served, or work that is planned.
+// a path that is not served, or work that is planned. Protocol, where it is
+// given, narrows the reading spoken of to the one asked that way: the same
+// questions can be beside a model's use asked as a conversation and of its
+// use put as plain text, as they are for a base language model its maker
+// says is not for conversations.
 type ModelUse struct {
 	Model    string      `json:"model"`
 	Task     recipe.Task `json:"task"`
 	Measure  string      `json:"measure,omitzero"`
+	Protocol string      `json:"protocol,omitzero"`
 	Use      string      `json:"use"`
 	Source   string      `json:"source"`
 	Measured string      `json:"measured"`
 	Needs    string      `json:"needs"`
 }
 
-// speaksOf reports whether the use speaks of a reading on measure: the
-// measure it names, or a set built for it, whose name carries its cases after
-// the source.
-func (use ModelUse) speaksOf(measure string) bool {
-	return use.Measure != "" && (measure == use.Measure || strings.HasPrefix(measure, use.Measure+" "))
+// speaksOf reports whether the use speaks of a reading on measure asked
+// under protocol: the measure it names, or a set built for it, whose name
+// carries its cases after the source, and the protocol it names where it
+// names one.
+func (use ModelUse) speaksOf(measure, protocol string) bool {
+	return use.Measure != "" && (measure == use.Measure || strings.HasPrefix(measure, use.Measure+" ")) &&
+		(use.Protocol == "" || use.Protocol == protocol)
 }
 
 // ModelUses reads the embedded uses. Each names a model and a task once and
@@ -82,7 +89,7 @@ func markUses(rows []Row, uses []ModelUse) {
 			continue
 		}
 		mark := func(cell Cell) Cell {
-			if cell.Measured() && uses[at].speaksOf(cell.Measure) {
+			if cell.Measured() && uses[at].speaksOf(cell.Measure, cell.Contract.Protocol) {
 				cell.OutsideUse = uses[at].Measured
 			}
 			return cell

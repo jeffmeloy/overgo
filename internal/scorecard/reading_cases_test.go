@@ -110,3 +110,30 @@ func TestHeldoutShareAtAnEndSaysHowNearItMustBe(t *testing.T) {
 		}
 	}
 }
+
+// TestHeldoutReadingNearAConstantAnswerSaysSo holds a reading set beside what
+// a constant answer scores to saying which side of its own noise it stands
+// on. A share below the constant answer's is no better than it; a share above
+// it by less than two of its own standard errors is within its noise of it,
+// and tells nothing a constant answer does not; only a share further above
+// states the constant answer's score as a floor it has cleared.
+func TestHeldoutReadingNearAConstantAnswerSaysSo(t *testing.T) {
+	t.Parallel()
+	suite := map[string]evaluation.SuiteDescriptor{"suite": {Kind: "multiple-choice", Source: "suite", Cases: 12032, Chance: 0.1109}}
+	read := func(value float64) string {
+		cell, _ := qualityCell(recipe.TaskInference, []evaluation.EvalSummary{{
+			Suite: "suite", Prompting: "protocol", Record: testutil.ArtifactID(t, artifact.KindEvaluation, "near"),
+			Metrics: map[string]float64{"accuracy": value}, Directions: map[string]runrecord.Direction{"accuracy": runrecord.DirectionMaximize},
+		}}, suite)
+		return cell.QualityText()
+	}
+	for want, got := range map[string]string{
+		"0.0786 ±0.0025 on 12032 cases, no better than the 0.1109 a constant answer scores (accuracy, suite (protocol))":      read(0.0786),
+		"0.1119 ±0.0029 on 12032 cases, within its noise of the 0.1109 a constant answer scores (accuracy, suite (protocol))": read(0.1119),
+		"0.119 ±0.003 on 12032 cases, a constant answer scores 0.1109 (accuracy, suite (protocol))":                           read(0.119),
+	} {
+		if got != want {
+			t.Errorf("the reading says %q, want %q", got, want)
+		}
+	}
+}

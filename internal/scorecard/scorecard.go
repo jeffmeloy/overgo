@@ -119,10 +119,15 @@ func (c Cell) QualityText() string {
 		text += fmt.Sprintf(", %d of them answered with no option named and counted wrong", c.Unread)
 	}
 	if c.Constant != nil {
-		if worse(metric.Quality, c.Direction, *c.Constant, c.Value, 0) {
-			text += fmt.Sprintf(", a constant answer scores %.4g", *c.Constant)
-		} else {
+		advantage, directed := c.Direction.Advantage(c.Value, *c.Constant)
+		switch {
+		case !worse(metric.Quality, c.Direction, *c.Constant, c.Value, 0):
 			text += fmt.Sprintf(", no better than the %.4g a constant answer scores", *c.Constant)
+		case directed && advantage < noiseDeviates*c.Noise:
+			// Better by less than its own noise tells nothing from a constant answer.
+			text += fmt.Sprintf(", within its noise of the %.4g a constant answer scores", *c.Constant)
+		default:
+			text += fmt.Sprintf(", a constant answer scores %.4g", *c.Constant)
 		}
 	}
 	if c.OutsideUse != "" {
@@ -145,6 +150,10 @@ func shareError(share float64, cases uint64) float64 {
 
 // wilsonZ is the normal deviate of a two-sided 95 in 100 interval.
 const wilsonZ = 1.96
+
+// noiseDeviates is how many of its own standard errors a reading must stand
+// above what a constant answer scores before it is read as better than one.
+const noiseDeviates = 2
 
 // shareAtAnEnd says, of a share that is every case or none, what its standard
 // error cannot: that error is zero there, and the reading would look exact. A

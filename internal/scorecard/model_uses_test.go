@@ -67,3 +67,44 @@ func TestReadingOutsideItsModelsUseSaysSo(t *testing.T) {
 		t.Fatalf("the editor's other readings are %+v, want both builds of the whole-clip measure, marked", editor.Heldout)
 	}
 }
+
+// TestReadingAskedOutsideItsModelsUseGivesWayToTheSameQuestionsAskedWithinIt
+// holds a use that names how a reading was asked. A base language model its
+// maker says is not for conversations is read beside the point when a suite's
+// questions are put to it as a conversation, and on its use when the same
+// questions are put as plain text: only the first is marked, and the second
+// is the one read first though both are of one measure. A use that names no
+// protocol speaks of the measure however it was asked, as it did.
+func TestReadingAskedOutsideItsModelsUseGivesWayToTheSameQuestionsAskedWithinIt(t *testing.T) {
+	t.Parallel()
+	asked := func(model, protocol string, value float64) Cell {
+		return Cell{
+			Value: value, Label: "accuracy, store/questions (" + protocol + ")", Cases: 128, Measure: "store/questions",
+			Source:   testutil.ArtifactID(t, artifact.KindEvaluation, model+protocol),
+			Contract: Contract{Metric: "accuracy", Origin: originEvaluation, Suite: "store/questions", Protocol: protocol},
+		}
+	}
+	row := func(model string) Row {
+		return Row{Name: model, Task: recipe.TaskInference, Cells: map[metric.Name]Cell{metric.Quality: asked(model, "chat-template", 0.08)},
+			Heldout: []Cell{asked(model, "raw-completion", 0.11)}}
+	}
+	rows := []Row{row("a base model"), row("a model for something else")}
+	markUses(rows, []ModelUse{
+		{Model: "a base model", Task: recipe.TaskInference, Measure: "store/questions", Protocol: "chat-template",
+			Use: "to be trained further", Source: "its card", Measured: "questions put as a conversation", Needs: "nothing"},
+		{Model: "a model for something else", Task: recipe.TaskInference, Measure: "store/questions",
+			Use: "to read documents", Source: "its card", Measured: "general knowledge", Needs: "documents"},
+	})
+	base := rows[0]
+	if headline := base.Cells[metric.Quality]; headline.Contract.Protocol != "raw-completion" || headline.OutsideUse != "" || headline.Value != 0.11 {
+		t.Fatalf("the base model's headline is %+v, want its plain-text reading, unmarked", headline)
+	}
+	if len(base.Heldout) != 1 || base.Heldout[0].Contract.Protocol != "chat-template" || base.Heldout[0].OutsideUse != "questions put as a conversation" {
+		t.Fatalf("the base model's other reading is %+v, want the one asked as a conversation, marked", base.Heldout)
+	}
+	other := rows[1]
+	if headline := other.Cells[metric.Quality]; headline.Contract.Protocol != "chat-template" || headline.OutsideUse != "general knowledge" ||
+		len(other.Heldout) != 1 || other.Heldout[0].OutsideUse != "general knowledge" {
+		t.Fatalf("a use that names no protocol leaves %+v and %+v, want both marked and neither moved", headline, other.Heldout)
+	}
+}

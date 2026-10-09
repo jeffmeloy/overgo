@@ -190,8 +190,8 @@ func collectTensorMappings(
 		if len(shape) == 0 || len(shape) > gguf.MaxDimensions {
 			return nil, fmt.Errorf("HF/GGUF adapter: tensor %q rank %d is unsupported", sourceName, len(shape))
 		}
-		// Native scalar/vector and SSM convolution kernels consume F32.
-		storage, ok := ggufStorage(tensor.DType, len(shape) == 1 || strings.HasSuffix(name, ".ssm_conv1d.weight"))
+		// Native scalar/vector, SSM convolution kernels and an expert router consume F32.
+		storage, ok := ggufStorage(tensor.DType, len(shape) == 1 || strings.HasSuffix(name, ".ssm_conv1d.weight") || strings.HasSuffix(name, expertRouterSuffix))
 		if !ok {
 			return nil, fmt.Errorf("HF/GGUF adapter: tensor %q dtype %q needs conversion", tensor.Name, tensor.DType)
 		}
@@ -300,6 +300,11 @@ func mapLayerTensor(
 	block := uint64(blockOffset) + index
 	return fmt.Sprintf("blk.%d.%s", block, destination), index, nil
 }
+
+// expertRouterSuffix ends the name of a block's expert router, which the
+// graph that routes among experts takes in F32 whatever the checkpoint holds
+// it in.
+const expertRouterSuffix = ".ffn_gate_inp.weight"
 
 func ggufStorage(dataType string, promoteVector bool) (gguf.DType, bool) {
 	if promoteVector {

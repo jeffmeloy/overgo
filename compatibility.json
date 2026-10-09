@@ -399,7 +399,7 @@
      "contains": "func ValidateDenseRepository(",
      "path": "internal/hfgguf/catalog.go",
      "role": "source",
-     "identity": "file:sha256:3e10e83e343f974084b0fa3c935bf2f976db1d1bf1ad5c06f47f8bfbe79dac59"
+     "identity": "file:sha256:ff59461fd59f19b9d2277be6c4b3398d9cbcb35620d7fda362ecbd18cbba40fd"
     },
     {
      "contains": "func TestValidateDenseRepositoryUsesRuntimeCatalog(",

@@ -1,8 +1,10 @@
 package hfgguf
 
 import (
+	"strings"
 	"testing"
 
+	"overgo/internal/gguf"
 	"overgo/internal/hfrepo"
 	"overgo/internal/modeltest"
 )
@@ -41,6 +43,21 @@ func TestDeepSeekOCRConversionValidatesCheckpoint(t *testing.T) {
 	}
 	if len(metadata) == 0 || len(tensors) == 0 {
 		t.Fatal("conversion produced nothing")
+	}
+	// The graph that routes among experts takes a block's router in F32, and refuses
+	// to be built on any other: a conversion that kept the checkpoint's BF16 wrote a
+	// file overgo could not serve.
+	routers := uint32(0)
+	for _, tensor := range tensors {
+		if strings.HasSuffix(tensor.Name, expertRouterSuffix) {
+			routers++
+			if tensor.Type != gguf.DTypeF32 {
+				t.Errorf("%s is written as %v; the routing graph takes it in F32", tensor.Name, tensor.Type)
+			}
+		}
+	}
+	if routers != spec.BlockCount-spec.LeadingDenseBlocks {
+		t.Fatalf("%d routers written for %d routed blocks", routers, spec.BlockCount-spec.LeadingDenseBlocks)
 	}
 	t.Logf("blocks=%d experts=%d used=%d shared=%d leading dense=%d tensors=%d", spec.BlockCount, spec.ExpertCount, spec.ExpertUsedCount, spec.SharedExpertCount, spec.LeadingDenseBlocks, len(tensors))
 }

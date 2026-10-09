@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "word-error-forms",
-      "title": "Count a word error rate over a reference and a transcript written one way, as the recognizers' own evaluations do",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 5000,
-        "reason": "A port of the English normalizer that speech recognizers' evaluations count word errors with, about 480 lines of Python of which the reader of spelled-out numbers is the bulk, with its tables embedded as that code builds them; the suite field that names it and the builders that write it. A step of the owner's double-check of the scorecard: hold a reading to its own protocol"
-      },
-      "steps": [
-        {
-          "id": "projector",
-          "title": "Score the E4B projector's transcription again, counted the recognizers' way",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard",
-          "rationale": "The projector's 32 held-out transcripts cannot be counted again from the store as the two recognizers' were (commit of word-error-forms/rescore): a projected transcription run is bound to the plan it ran under, which names the prompt and the token budget it decoded with, and a suite counted another way is another plan, so the evaluator refuses the stored runs (transcription run authority differs). Its reading therefore stays 0.02567, counted over the words as written, and the scorecard says so beside the two recognizers counted the other way; with the normalizer's own code the stored transcripts read 15 words wrong of 787, 0.019. To move the reading: recover the suite from the store (the plan's case profile of report evaluation:sha256:69f0bfa7cf at sequence 7989), name whisper-english in it, rebuild the resource manifest's inputs from the LibriSpeech test parquet rows the suite names, and run evaluate -transcription-resource-manifest for gemma-4-E4B-it on the device, on a copy of the store first. Done when the scorecard's section on how word error rates were counted names no reading counted as written."
-        }
-      ]
-    },
-    {
       "id": "scorecard-uncompared-image-gen",
       "title": "Compare the path an image-gen request takes with a reference output for each model it is scored on",
       "owner": "master-lead",

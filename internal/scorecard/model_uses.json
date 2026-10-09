@@ -10,6 +10,16 @@
       "needs": "a larger Carbon model for it to draft for. None is on this machine; Carbon-3B is a download of roughly 6 GB, an estimate from its size at bfloat16, and is the owner's to approve. The drafting itself is built, and internal/inference TestCarbonSpeculativeChain holds the draft side alone until then"
     },
     {
+      "model": "Qwen2.5-0.5B",
+      "task": "inference",
+      "measure": "store/mmlu-pro",
+      "protocol": "chat-template",
+      "use": "to be trained further, or to continue a text: it is the base language model of its family, not the instruction-tuned one",
+      "source": "its model card: \"We do not recommend using base language models for conversations. Instead, you can apply post-training, e.g., SFT, RLHF, continued pretraining, etc., on this model\"",
+      "measured": "multiple-choice questions put to it as a conversation, which its maker advises against, and through a chat form the scored file does not carry: the file holds no chat template, so the turn is shaped by a built-in form that leaves out the system turn the model's own template opens with. Nearly half its answers so asked name no option",
+      "needs": "nothing more to exist: the same questions put as plain text, with the answer read as the option the model finds likeliest to come next after a space, as the benchmark's own harness scores it, are asked of it too, and that reading heads its row in place of this one"
+    },
+    {
       "model": "Unlimited-OCR-bf16",
       "task": "inference",
       "measure": "store/mmlu-pro",

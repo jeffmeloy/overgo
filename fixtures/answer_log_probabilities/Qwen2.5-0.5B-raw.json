@@ -1,0 +1,1064 @@
+{
+ "schema": "answer_log_probabilities/v1",
+ "model": "Qwen2.5-0.5B",
+ "file": "overgo-hfconvert/Qwen2.5-0.5B-f16.gguf",
+ "protocol": "raw",
+ "new_tokens": 0,
+ "source": "transformers 5.14.1 Qwen2ForCausalLM, torch 2.12.0+cu126, float32 on the CPU, over Qwen2.5-0.5B; scripts/python_golden_references/answer_log_probabilities.py",
+ "prompts": "fixtures/prompt_ids/Qwen2.5-0.5B-raw.json",
+ "prompts_sha256": "99ae4eb26febf1f3859f5767115c77fc0eb12d6d4697a55cd5a1ecdb7f752bf4",
+ "weights": [
+  "model.safetensors"
+ ],
+ "weights_unused": 0,
+ "cases": [
+  {
+   "name": "mmlu-pro/default/test/0",
+   "continuations": [
+    {
+     "tokens": 1,
+     "log_probability": -1.8404292371531066
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.380157401825958
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.948467185761505
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.0685290601511535
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.5572098996897275
+    },
+    {
+     "tokens": 1,
+     "log_probability": -4.598279884125763
+    },
+    {
+     "tokens": 1,
+     "log_probability": -4.356187751557403
+    },
+    {
+     "tokens": 1,
+     "log_probability": -5.120098045136505
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.4115428235788876
+    }
+   ]
+  },
+  {
+   "name": "mmlu-pro/default/test/481",
+   "continuations": [
+    {
+     "tokens": 1,
+     "log_probability": -1.6353038997687994
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.6206058712043463
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.7821811885871588
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.2504753322639166
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.4547638149299322
+    },
+    {
+     "tokens": 1,
+     "log_probability": -4.065569326404542
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.101160451892823
+    },
+    {
+     "tokens": 1,
+     "log_probability": -4.533710882190674
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.263033315662354
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.312838003162354
+    }
+   ]
+  },
+  {
+   "name": "mmlu-pro/default/test/962",
+   "continuations": [
+    {
+     "tokens": 1,
+     "log_probability": -2.162471113957662
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.0735505206959433
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.9872620685475055
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.9400952442066852
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.219550429143209
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.7411397083180136
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.5338662250416464
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.8174832446949667
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.9961674793141073
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.8624833209889118
+    }
+   ]
+  },
+  {
+   "name": "mmlu-pro/default/test/1443",
+   "continuations": [
+    {
+     "tokens": 1,
+     "log_probability": -1.8538509389446067
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.6998077413127708
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.3379245778606226
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.3754516622112085
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.313253023295193
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.821197130350857
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.3039108296916773
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.251048662333279
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.4383064290569116
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.981929399637966
+    }
+   ]
+  },
+  {
+   "name": "mmlu-pro/default/test/1925",
+   "continuations": [
+    {
+     "tokens": 1,
+     "log_probability": -1.8646547889117744
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.926405200899079
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.447778949678376
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.0119593238238838
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.611076602876618
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.9730064963702705
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.2535784339313056
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.966078052461579
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.6781294440631416
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.250067005098298
+    }
+   ]
+  },
+  {
+   "name": "mmlu-pro/default/test/2406",
+   "continuations": [
+    {
+     "tokens": 1,
+     "log_probability": -2.792139924001086
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.5375260476583126
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.115200913380969
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.1772374276631954
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.9722394113057733
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.411301529836047
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.9241646890157342
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.8744591836446405
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.7408627633565548
+    }
+   ]
+  },
+  {
+   "name": "mmlu-pro/default/test/2887",
+   "continuations": [
+    {
+     "tokens": 1,
+     "log_probability": -2.1590804527883276
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.333005852568601
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.9699458550100073
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.712898201811765
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.4273700188283667
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.8463553856496557
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.3544368218068823
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.392301506865476
+    },
+    {
+     "tokens": 1,
+     "log_probability": -4.537265725005124
+    },
+    {
+     "tokens": 1,
+     "log_probability": -5.251081414092038
+    }
+   ]
+  },
+  {
+   "name": "mmlu-pro/default/test/3368",
+   "continuations": [
+    {
+     "tokens": 1,
+     "log_probability": -1.8324010058417735
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.4812543078437266
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.9670045062079844
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.738961903668922
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.4007146044745857
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.9395329638495857
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.9324357195868904
+    },
+    {
+     "tokens": 1,
+     "log_probability": -4.150712697125953
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.90217563352732
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.549890248395484
+    }
+   ]
+  },
+  {
+   "name": "mmlu-pro/default/test/3850",
+   "continuations": [
+    {
+     "tokens": 1,
+     "log_probability": -1.6607980027145315
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.0388077988571096
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.7707242264694143
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.0662144913619924
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.4558820023483205
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.702683378691094
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.4505337967819143
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.2860211625045705
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.367640425199883
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.9760236039108205
+    }
+   ]
+  },
+  {
+   "name": "mmlu-pro/default/test/4331",
+   "continuations": [
+    {
+     "tokens": 1,
+     "log_probability": -1.8286726350934266
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.6335737581403016
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.9266321535260438
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.8305876131207703
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.2225153322369815
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.2357275362164737
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.6163465852887393
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.300268399253583
+    },
+    {
+     "tokens": 1,
+     "log_probability": -4.031734692588544
+    },
+    {
+     "tokens": 1,
+     "log_probability": -4.645364987388349
+    }
+   ]
+  },
+  {
+   "name": "mmlu-pro/default/test/4812",
+   "continuations": [
+    {
+     "tokens": 1,
+     "log_probability": -2.3855637299491788
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.1089237915946866
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.1481713044120694
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.093712686248007
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.297587274260702
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.085247873015585
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.499260781951132
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.93189704293746
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.8035477387382413
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.2409123169853116
+    }
+   ]
+  },
+  {
+   "name": "mmlu-pro/default/test/5294",
+   "continuations": [
+    {
+     "tokens": 1,
+     "log_probability": -2.249220285994115
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.0183395486894273
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.4034151178422594
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.0909065347734117
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.0282177072587633
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.148500834089818
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.6162094217363023
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.6285747629228258
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.083265696150365
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.1004461389604234
+    }
+   ]
+  },
+  {
+   "name": "mmlu-pro/default/test/5775",
+   "continuations": [
+    {
+     "tokens": 1,
+     "log_probability": -2.042633844689248
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.2276962531365134
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.0662449134148337
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.324468447045205
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.286819292382119
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.92911322243583
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.878804041222451
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.626250101403115
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.803223444298623
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.029316736534951
+    }
+   ]
+  },
+  {
+   "name": "mmlu-pro/default/test/6256",
+   "continuations": [
+    {
+     "tokens": 1,
+     "log_probability": -1.7227030146524414
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.044066463749121
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.4794245112344724
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.068366085331152
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.2980451929971677
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.781327282230566
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.927722011844824
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.806933437626074
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.9003630030557614
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.8324652064249023
+    }
+   ]
+  },
+  {
+   "name": "mmlu-pro/default/test/6737",
+   "continuations": [
+    {
+     "tokens": 1,
+     "log_probability": -1.8506045960020292
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.583192410333084
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.222430767877029
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.545329632623123
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.3403754852842558
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.830363812310623
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.586589398248123
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.6541724823545683
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.7345252655576933
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.9023156784605253
+    }
+   ]
+  },
+  {
+   "name": "mmlu-pro/default/test/7219",
+   "continuations": [
+    {
+     "tokens": 1,
+     "log_probability": -1.6288299113229205
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.9731978922799518
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.913289979071944
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.0767707377389364
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.9417304545358114
+    },
+    {
+     "tokens": 1,
+     "log_probability": -4.765492394538253
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.9202889948800497
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.5071258097604208
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.831514313788741
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.6941718607858114
+    }
+   ]
+  },
+  {
+   "name": "mmlu-pro/default/test/7700",
+   "continuations": [
+    {
+     "tokens": 1,
+     "log_probability": -2.0170918277714045
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.7635498813602717
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.1455002597782404
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.214231567761639
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.3735771945926936
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.145088272473553
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.632312851330975
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.092910843274334
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.522487717053631
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.516590195080975
+    }
+   ]
+  },
+  {
+   "name": "mmlu-pro/default/test/8181",
+   "continuations": [
+    {
+     "tokens": 1,
+     "log_probability": -1.5840137096549507
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.6593520733024116
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.2363040538932317
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.0229995342399114
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.39115596734538
+    },
+    {
+     "tokens": 1,
+     "log_probability": -4.040097007384443
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.1011226268912786
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.8916213604117864
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.0330169292594427
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.9375217052604192
+    }
+   ]
+  },
+  {
+   "name": "mmlu-pro/default/test/8663",
+   "continuations": [
+    {
+     "tokens": 1,
+     "log_probability": -1.7885508984611038
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.8588119000480179
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.0578170270011427
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.201753184227705
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.5832820385978223
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.4045062512443067
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.8349891156241895
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.8365426510856153
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.8043380230948927
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.183890864281416
+    }
+   ]
+  },
+  {
+   "name": "mmlu-pro/default/test/9144",
+   "continuations": [
+    {
+     "tokens": 1,
+     "log_probability": -1.7942169631222402
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.8419369185665762
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.0213154280880605
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.0100239241818105
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.164793821642748
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.810911985705248
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.4462727034786855
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.7397621596554433
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.6206291640499746
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.6781567061642324
+    }
+   ]
+  },
+  {
+   "name": "mmlu-pro/default/test/9625",
+   "continuations": [
+    {
+     "tokens": 1,
+     "log_probability": -2.3567695894744904
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.1498260775116
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.8523197451141389
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.17100527673035
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.4627571383026154
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.551433590939334
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.2344570436981233
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.498374966671756
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.8033027925994904
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.466028241207889
+    }
+   ]
+  },
+  {
+   "name": "mmlu-pro/default/test/10106",
+   "continuations": [
+    {
+     "tokens": 1,
+     "log_probability": -1.781147736211849
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.7006862341366538
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.9955222784481772
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.170929688116146
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.3611915289364585
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.461577194830013
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.766815918584896
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.4002921759091147
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.41636158814056
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.9423682867489585
+    }
+   ]
+  },
+  {
+   "name": "mmlu-pro/default/test/10588",
+   "continuations": [
+    {
+     "tokens": 1,
+     "log_probability": -1.00943421649248
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.9634842805793942
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.549536221497363
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.4014801912239254
+    }
+   ]
+  },
+  {
+   "name": "mmlu-pro/default/test/11069",
+   "continuations": [
+    {
+     "tokens": 1,
+     "log_probability": -1.6250696162846847
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.7226343135503097
+    },
+    {
+     "tokens": 1,
+     "log_probability": -1.9925127010014816
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.1299810390141767
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.134737966504411
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.403405187573747
+    },
+    {
+     "tokens": 1,
+     "log_probability": -2.727675435986833
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.4075803737309736
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.3088960628178876
+    },
+    {
+     "tokens": 1,
+     "log_probability": -3.473200796094255
+    }
+   ]
+  }
+ ]
+}

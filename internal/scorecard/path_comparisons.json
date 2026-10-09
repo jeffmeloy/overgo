@@ -144,6 +144,13 @@
       "package": "cmd/evaluate",
       "test": "TestModelsAnswerAsTransformersDoes",
       "holds": "the eight tokens the scored file, the native fp8 build, generates greedily for 24 of its reading's questions, from the tokens the model's own template and tokenizer give for each, to the likeliest tokens by transformers running the unquantized model with each of its 144 fp8 tensors put in place as fp8 value times its row's scale, and the log-probability it gives the reference's answer, within a wider band than the other files': 0.3 a token and a margin of 2.5, where they are held to 0.05 and 0.25, because this build rounds activations to fp8 while it evaluates a prompt and the reference does not (finding 170f2bfa); measured, 23 of 24 answers are the reference's and the furthest stands 0.223 a token off; the questions' tokens are held by TestPromptsReachEachModelAsItsOwnTokenizerGivesThem; past the one shape a reading asks in, TestChatModesReachAModelAsItsOwnTemplateGivesThem holds ten conversations to its own template, with the thinking switch on and off, a system turn, tools offered and a tool called and answered, and this test holds the 24 tokens it answers each with to the same reference, within the common band; internal/adaptiveparity TestMultimodalInputMatrix holds the first token generated for a picture question to the one transformers generates"
+    },
+    {
+      "model": "Qwen2.5-0.5B",
+      "task": "inference",
+      "package": "cmd/evaluate",
+      "test": "TestModelsAnswerAsTransformersDoes",
+      "holds": "for 24 of its reading's questions put as plain text, the log-probability the scored file gives each option letter after the question, and the option it finds likeliest, to transformers running the model's own weights in float32: each letter within the tolerance a single token is held to, and the likeliest option the reference's wherever the reference's first two were not a near tie; the tokens of those questions and letters are held to the model's own tokenizer by TestPromptsReachEachModelAsItsOwnTokenizerGivesThem, and what is scored after each question to lm-eval's own requests by internal/evaluation TestMMLUProAsksAsLMEvalDoes; asked as a conversation, which is not its reading, the file carries no chat template and the same test records that as a known fault (finding e683b1e7)"
     }
   ]
 }

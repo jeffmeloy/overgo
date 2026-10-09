@@ -43,6 +43,13 @@ const (
 	// margin the two are a tie that half precision may break either way, and
 	// the answers past it are no longer answers to the same words.
 	decisiveMargin = 0.25
+	// tokenTolerance is how far one token's log-probability may stand from
+	// the reference's: half the decisive margin, the 0.11 measured rounded
+	// up. A continuation of a single token, as a candidate letter is, has no
+	// mean to average its noise away, so it is held to this, and one of a few
+	// tokens to this over the square root of their count, down to the mean's
+	// own tolerance.
+	tokenTolerance = decisiveMargin / 2
 )
 
 // knownAnswerDifferences are the scored files whose answers stand further
@@ -173,16 +180,42 @@ func TestModelsAnswerAsTransformersDoes(t *testing.T) {
 					if err != nil || len(scores) != len(own.Continuations) {
 						t.Fatalf("%s: %d of %d continuations were scored: %v", own.Name, len(scores), len(own.Continuations), err)
 					}
+					// The candidate each finds likeliest, and how far the reference's
+					// stood above its next: what a choice among candidates is read from.
+					chosen, likeliest, next := 0, 0, math.Inf(-1)
 					for candidate, score := range scores {
 						held := own.Continuations[candidate]
 						apart := math.Abs(score.LogProbability-held.LogProbability) / float64(held.Tokens)
+						// A mean over few tokens averages less of each token's own noise away.
+						few := max(1, tokenTolerance/math.Sqrt(float64(held.Tokens))/answerTolerance)
 						widest = max(widest, apart)
 						tokens += held.Tokens
-						outside = outside || apart > answerTolerance
-						if int(score.Tokens) != held.Tokens || apart > tolerance {
-							t.Errorf("%s continuation %d: %d tokens at %.4f, where the reference gives %d at %.4f: %.4f a token apart, over %.2f",
-								own.Name, candidate, score.Tokens, score.LogProbability, held.Tokens, held.LogProbability, apart, tolerance)
+						outside = outside || apart > answerTolerance*few
+						if int(score.Tokens) != held.Tokens || apart > tolerance*few {
+							t.Errorf("%s continuation %d: %d tokens at %.4f, where the reference gives %d at %.4f: %.4f a token apart, over %.3f",
+								own.Name, candidate, score.Tokens, score.LogProbability, held.Tokens, held.LogProbability, apart, tolerance*few)
 						}
+						if score.LogProbability > scores[chosen].LogProbability {
+							chosen = candidate
+						}
+						switch best := own.Continuations[likeliest].LogProbability; {
+						case candidate == 0:
+						case held.LogProbability > best:
+							likeliest, next = candidate, best
+						default:
+							next = max(next, held.LogProbability)
+						}
+					}
+					if stood := own.Continuations[likeliest].LogProbability - next; len(scores) > 1 && chosen != likeliest {
+						outside = outside || stood > decisiveMargin
+						if stood > margin {
+							t.Errorf("%s: candidate %d is found likeliest where the reference finds candidate %d, which it held %.3f above its next",
+								own.Name, chosen, likeliest, stood)
+						} else {
+							t.Logf("%s: the likeliest candidate parts from the reference's where its first two stood %.4f apart", own.Name, stood)
+						}
+					} else if len(scores) > 1 {
+						same++
 					}
 					continue
 				}
@@ -234,6 +267,11 @@ func TestModelsAnswerAsTransformersDoes(t *testing.T) {
 			}
 			if reference.Protocol == promptChat {
 				t.Logf("%s: %d of %d answers are the reference's token for token, any other parting at a near tie; the reference's answers are scored within %.4f a token over %d tokens",
+					reference.Model, same, len(reference.Cases), widest, tokens)
+				return
+			}
+			if same != 0 {
+				t.Logf("%s: on %d of %d questions the candidate found likeliest is the reference's, any other parting at a near tie; the candidates are scored within %.4f a token over %d tokens",
 					reference.Model, same, len(reference.Cases), widest, tokens)
 				return
 			}

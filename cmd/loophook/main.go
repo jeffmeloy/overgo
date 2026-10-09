@@ -124,23 +124,34 @@ func runStop(hookJSON string) int {
 	session := parseHook(hookJSON).Session
 	// A review session owns no row and edits nothing tracked (the guard
 	// refuses it), so it is held to no row and charged with no file, and
-	// reads no dispatch.
-	if base, ok := readTurnBase(session); ok && base.Review {
+	// reads no dispatch. Neither does a session in a worktree another
+	// implementing session holds.
+	if base, ok := readTurnBase(session); ok && (base.Review || base.Holder != "") {
 		return 0
 	}
 	dispatch := nextDispatch()
 	operatorStopped := dispatch.Stop != nil && dispatch.Stop.Blocked
 	dirtyWork := hasTurnCreatedDirt(session)
 	verdict := stopDecision(false, operatorStopped, gateCommitting(), dispatch.Complete, dirtyWork)
+	// A turn that ends with nothing left for the session to do here gives the
+	// worktree back to the next implementing session; a turn a valve lets end,
+	// or one that leaves work uncommitted, keeps it.
+	rested := (operatorStopped || dispatch.Complete || dispatch.Waiting != "") && !dirtyWork
 	// A session whose role has no row to work is not held to the loop, but it
 	// is still held to the work its own turn left uncommitted: it can write code.
 	if dispatch.Waiting != "" {
 		fmt.Fprintln(os.Stderr, dispatch.Line)
 		if verdict != stopOrphan {
+			if rested {
+				releaseWorktree(session)
+			}
 			return 0
 		}
 	}
 	if verdict == stopAllow {
+		if rested {
+			releaseWorktree(session)
+		}
 		return 0
 	}
 	fmt.Fprint(os.Stderr, stopMessage(verdict, headAdvancedSinceTurnStart(session), dispatch))
@@ -185,8 +196,70 @@ func runPostCommit(hookJSON string) {
 	if strings.Contains(hookJSON, "cmd/gate") {
 		session := parseHook(hookJSON).Session
 		base, _ := readTurnBase(session)
-		writeTurnBase(session, base.Review)
+		writeTurnBase(session, base.Review, base.Holder)
 	}
+}
+
+// worktreeHolder is the file, in a worktree's process state, that names the
+// implementing session that holds the worktree. A landing takes the
+// checkout's whole tree as its candidate, so two implementing sessions in one
+// worktree would land each other's files; the second is sent to a worktree of
+// its own. A hook is a short process and can keep no lock of the system's
+// open for a session, so the file is the holding, and its creation is atomic.
+const worktreeHolder = "implementing_session"
+
+// takeoverDeclaration opens the message of a session that takes a worktree
+// from the session that holds it, when that session is gone or its work here
+// is this one's to continue.
+const takeoverDeclaration = "take over this worktree"
+
+// stateFileMode is the mode of a file the hooks keep in a worktree's process
+// state: the session's own, and its owner's to read.
+const stateFileMode = 0o600
+
+// holdWorktree takes the worktree for an implementing session as its turn
+// begins, and returns the session that holds it when that is another. The
+// first session to begin a turn here holds it, a session that holds it keeps
+// it, and one that declares a takeover takes it. A session the harness does
+// not name takes none.
+func holdWorktree(session string, takeover bool) (holder string) {
+	path, err := filepath.Join(processlock.StateDirectory, worktreeHolder), processlock.EnsureStateDirectory(".")
+	if session == "" || err != nil {
+		return ""
+	}
+	if takeover {
+		_ = os.WriteFile(path, []byte(session), stateFileMode)
+		return ""
+	}
+	if file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, stateFileMode); err == nil {
+		_, _ = file.WriteString(session)
+		_ = file.Close()
+		return ""
+	}
+	held, _ := os.ReadFile(path)
+	// A file another session has created and not yet written names it no less.
+	if holder = cmp.Or(strings.TrimSpace(string(held)), "that began as this one did"); holder == session {
+		return ""
+	}
+	return holder
+}
+
+// releaseWorktree gives the worktree back when the session that holds it
+// ends a turn with nothing left to do here.
+func releaseWorktree(session string) {
+	path, err := filepath.Join(processlock.StateDirectory, worktreeHolder), processlock.EnsureStateDirectory(".")
+	if held, readErr := os.ReadFile(path); err == nil && readErr == nil && session != "" && strings.TrimSpace(string(held)) == session {
+		_ = os.Remove(path)
+	}
+}
+
+// heldNotice is what a session is told, in place of the lane's dispatched
+// row, in a worktree another implementing session holds.
+func heldNotice(holder string) string {
+	return "OVERGO WORKTREE HELD. Session " + holder + " holds this worktree. A commit takes the checkout's whole tree, so two implementing sessions here would commit each other's files. " +
+		"This session lands nothing here and edits no file the repository tracks (the guard refuses both); it is dispatched no row, held to none, and asked again at its next message. " +
+		"Work in a worktree of its own: git worktree add <directory> -b <branch> master, and open the session there. " +
+		"If that session is gone and its work here is this one's to continue, begin a message with \"" + takeoverDeclaration + "\"."
 }
 
 // reviewDeclaration opens the first message of a session that only reviews.
@@ -200,8 +273,15 @@ func runDoctrine(hookJSON string) {
 	session := parseHook(hookJSON).Session
 	// A session that declared itself a review session stays one when it is
 	// resumed or compacted, and is told so in place of the turn contract.
-	if base, ok := readTurnBase(session); ok && base.Review {
+	base, ok := readTurnBase(session)
+	if ok && base.Review {
 		fmt.Println(reviewNotice)
+		return
+	}
+	// A session sent away from a worktree stays sent away until its next
+	// message asks again.
+	if ok && base.Holder != "" {
+		fmt.Println(heldNotice(base.Holder))
 		return
 	}
 	// A turn never spans sessions -- any pending boundary is stale.
@@ -228,11 +308,17 @@ func runDoctrine(hookJSON string) {
 // creates, not to another session's or another lane's parked work. It reports
 // whether the session is a review session: one is declared by the first
 // message of a session the harness names, opening with reviewDeclaration,
-// and stays one.
+// and stays one. Any other session is an implementing session and takes the
+// worktree, or is recorded as sent away by the session that holds it.
 func beginTurn(input hookInput) (review bool) {
 	base, known := readTurnBase(input.Session)
-	review = base.Review || !known && input.Session != "" && strings.HasPrefix(strings.ToLower(strings.TrimSpace(input.Prompt)), reviewDeclaration)
-	writeTurnBase(input.Session, review)
+	opening := strings.ToLower(strings.TrimSpace(input.Prompt))
+	review = base.Review || !known && input.Session != "" && strings.HasPrefix(opening, reviewDeclaration)
+	holder := ""
+	if !review {
+		holder = holdWorktree(input.Session, strings.HasPrefix(opening, takeoverDeclaration))
+	}
+	writeTurnBase(input.Session, review, holder)
 	return review
 }
 
@@ -240,6 +326,10 @@ func runPrompt(hookJSON string) {
 	input := parseHook(hookJSON)
 	if beginTurn(input) {
 		fmt.Println(reviewNotice)
+		return
+	}
+	if base, _ := readTurnBase(input.Session); base.Holder != "" {
+		fmt.Println(heldNotice(base.Holder))
 		return
 	}
 	if boundedRequestText(input.Prompt) {
@@ -316,24 +406,27 @@ func currentDirtyFacts() ([]dirtyFact, error) {
 }
 
 // turnBase is a session's turn-start snapshot: the dirty set (orphan check)
-// and the HEAD commit (loop-progress check), and whether the session declared
-// itself a review session, which the guard reads too.
+// and the HEAD commit (loop-progress check), and what the guard reads too:
+// whether the session declared itself a review session, and the session that
+// holds this worktree when another implementing session does.
 type turnBase struct {
 	Head   string      `json:"head"`
 	Facts  []dirtyFact `json:"facts"`
 	Review bool        `json:"review,omitzero"`
+	Holder string      `json:"holder,omitzero"`
 }
 
 // writeTurnBase snapshots dirt and HEAD for the session at a prompt or commit
-// boundary, and keeps whether it is a review session.
-func writeTurnBase(session string, review bool) {
+// boundary, and keeps whether it is a review session and who holds the
+// worktree in its place.
+func writeTurnBase(session string, review bool, holder string) {
 	facts, err := currentDirtyFacts()
 	if err != nil {
 		return
 	}
-	data, err := json.Marshal(turnBase{Head: gitHead(), Facts: facts, Review: review})
+	data, err := json.Marshal(turnBase{Head: gitHead(), Facts: facts, Review: review, Holder: holder})
 	if err == nil {
-		_ = os.WriteFile(turnBaseFile(session), append(data, '\n'), 0o600)
+		_ = os.WriteFile(turnBaseFile(session), append(data, '\n'), stateFileMode)
 	}
 }
 

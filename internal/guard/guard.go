@@ -87,19 +87,30 @@ func SessionState(session string) string {
 // landing is a command that lands a change through the gate.
 var landing = regexp.MustCompile(`(?i)\./cmd/(?:loop\b[^\n;&|]*\s-land\b|gate\b)`)
 
-// reviewVerdict refuses what a review session may not do, and allows the
-// rest: a session that declared itself one (its state says so) lands nothing
-// and edits no file the repository tracks or would track, so it has no work
-// of its own for the stop gate to hold it to. A file outside the checkout, or
-// one the repository ignores, is scratch and is its own to write.
+// reviewVerdict refuses what a session that changes nothing here may not do,
+// and allows the rest. A session that declared itself a review session (its
+// state says so) lands nothing and edits no file the repository tracks or
+// would track, so it has no work of its own for the stop gate to hold it to.
+// Neither does an implementing session in a worktree another implementing
+// session holds (its state names the holder): a landing takes the checkout's
+// whole tree, so its files would join the holder's commit, and it is sent to
+// a worktree of its own. A file outside the checkout, or one the repository
+// ignores, is scratch and is any session's to write.
 func reviewVerdict(call ToolCall, root string) string {
-	var state struct{ Review bool }
+	var state struct {
+		Review bool
+		Holder string
+	}
 	data, _ := os.ReadFile(filepath.Join(root, processlock.StateDirectory, SessionState(call.Session)))
-	if call.Session == "" || json.Unmarshal(data, &state) != nil || !state.Review {
+	if call.Session == "" || json.Unmarshal(data, &state) != nil || !state.Review && state.Holder == "" {
 		return ""
 	}
+	session, instead := "a review session", "report what it found (go run ./cmd/finding)"
+	if !state.Review {
+		session, instead = "a session in a worktree session "+state.Holder+" holds", "work in a worktree of its own (git worktree add)"
+	}
 	if landing.MatchString(call.ToolInput.Command) {
-		return "a review session lands nothing; report what it found (go run ./cmd/finding) and leave the landing to the lane's session"
+		return session + " lands nothing here; " + instead
 	}
 	relative, err := filepath.Rel(root, cmp.Or(call.ToolInput.Path, root))
 	if err != nil || relative == "." || !filepath.IsLocal(relative) {
@@ -108,7 +119,7 @@ func reviewVerdict(call ToolCall, root string) string {
 	if _, ignored := gitauthority.Query(context.Background(), root, "check-ignore", "-q", relative); ignored == nil {
 		return ""
 	}
-	return "a review session edits no file the repository tracks (" + filepath.ToSlash(relative) + "); report what it found (go run ./cmd/finding), or write to a scratch path"
+	return session + " edits no file the repository tracks (" + filepath.ToSlash(relative) + "); " + instead + ", or write to a scratch path"
 }
 
 // Verdict judges one tool call. Empty string allows; otherwise the deny

@@ -81,10 +81,13 @@ func charged(t *testing.T, session string) []string {
 // was no longer charged with the file it wrote. Each session's snapshot is its
 // own: the first is still charged with its file, the second is not charged
 // with a file that was there when it began, and a commit boundary in one
-// session moves that session's snapshot and leaves the other's.
+// session moves that session's snapshot and leaves the other's. The second
+// session takes the worktree over from the first, as a session does that
+// continues another's work in its checkout, so both are implementing sessions
+// there, one after the other.
 func TestOverlappingSessionsKeepTheirOwnTurnSnapshots(t *testing.T) {
 	write := sessionCheckout(t)
-	first, second := hookInput{Session: "session-one", Prompt: "work the row"}, hookInput{Session: "session-two", Prompt: "work another row"}
+	first, second := hookInput{Session: "session-one", Prompt: "work the row"}, hookInput{Session: "session-two", Prompt: "Take over this worktree and work another row"}
 	beginTurn(first)
 	write("first.txt", "the first session's work\n")
 	beginTurn(second)
@@ -146,7 +149,7 @@ func TestReviewSessionIsNotHeldAndAnyOtherRoleIs(t *testing.T) {
 	} {
 		t.Setenv(plan.AutomationRoleEnvironment, held.role)
 		session := "session-" + held.role
-		beginTurn(hookInput{Session: session, Prompt: "work"})
+		beginTurn(hookInput{Session: session, Prompt: "take over this worktree and work"})
 		if ended := stopHook(session) == 0; ended != held.idle {
 			t.Errorf("%s, its turn having left nothing: the turn may end %t, want %t", held.name, ended, held.idle)
 		}

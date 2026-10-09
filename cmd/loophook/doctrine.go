@@ -76,4 +76,9 @@ the Stop gate holds it to the work its own turns leave uncommitted, judged
 against the snapshot this session took when the turn began. A session that
 only reviews says so in its first message, which opens with the words
 "review session": it is then dispatched no row, lands nothing, edits no file
-the repository tracks (the guard refuses both), and is held to no row.`
+the repository tracks (the guard refuses both), and is held to no row. An
+implementing session holds its worktree from its first message until a turn
+of its ends with the plan stopped or complete and nothing left uncommitted. A
+second implementing session in that worktree is told so and treated as a
+review session is, until it works in a worktree of its own (git worktree
+add) or begins a message with "take over this worktree".`

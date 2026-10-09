@@ -4,6 +4,28 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "session-isolation",
+      "title": "Charge each session with its own work and no other's",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 460,
+        "reason": "The second step's measured figure, 427 production nodes as the gate's preflight counts the built change, and a margin of 33: the file that names the session holding a worktree, its taking, giving back and takeover, the notice a second session is given, and the guard's refusal by a session's state. The row was sized at 540 for both steps before either was built; the first measured 471 and left 69"
+      },
+      "steps": [
+        {
+          "id": "worktrees",
+          "title": "Hold one implementing session to a worktree, by a lock taken when it starts",
+          "status": "open",
+          "verify": "go test ./cmd/loophook -count=1 -run '^TestSecondImplementingSessionIsSentToAWorktreeOfItsOwn$'",
+          "rationale": "A landing takes the checkout's whole dirty tree as its candidate (internal/landing landing.go: shipSet), so a file a second session leaves in the checkout joins the first session's commit, and neither session's files can be told from the other's. Separate checkouts end both whatever limits the pace, so this step waits on no measurement and on no queue. An implementing session takes its worktree's lock when it starts, as the unattended driver already takes one for a worktree; a second implementing session there is refused and told to open a worktree of its own, and a review session takes none. Whether a second worktree may commit to master is commit-queue's question and the owner's decision; this step only keeps one session's files out of another's commit.\n\nServes: change. Disappears: files of two sessions in one candidate. Evidence: the test's second session, refused in the first one's worktree and admitted in its own. Batch: host.",
+          "depends_on": [
+            "session-isolation/sessions"
+          ]
+        }
+      ]
+    },
+    {
       "id": "capability-identity",
       "title": "Reuse a stored result while the code that can change it is unchanged",
       "owner": "master-lead",
@@ -14,21 +36,26 @@
       },
       "steps": [
         {
-          "id": "carry",
-          "title": "Carry an evaluation while its execution identity is unchanged, and measure it again when it is not",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestMeasurementRunsNoCaseAgainAfterAnUnrelatedCommit$'",
-          "rationale": "A full result is carried today after 32 sampled cases reproduce (internal/evaluation replay.go: replayCases), which shows agreement on those cases and not on the suite; SQA-078 holds that risk. Under an unchanged identity the result is the result, with no replay. Under a changed one the suite is measured again. Its test goes through the improvement run's own launch, in separate processes: it measures, commits a change outside every identity, measures again and holds that no case was executed the second time, then commits a change inside one identity and holds that only that capability's cases were. A result already in the store is re-keyed only when its record names every build and runtime input the identity is made of; the commit alone does not name them all, and any other result is measured once more. The step states how many suites that is and what they cost before it lands. The sampled replay is deleted only when every consumer of a carried result reads the identity; the reader of replay receipts already in the store stays.\n\nServes: judge on held-out data. Disappears: the sampled replay. Evidence: the cases executed by each of the test's three measurements, and the count of suites measured once more for the change of key. Batch: host.",
-          "depends_on": [
-            "capability-identity/identities"
-          ]
-        },
-        {
           "id": "second-kind",
           "title": "Keep a second kind of model's session across requests that change only what a request gives",
           "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 go test ./internal/mediacapability -count=1 -run '^TestServedPictureKeepsItsSession$'",
           "rationale": "Commit 527df96d9 took the instruction's context and the seed out of a video session's key (video-request-speed/handoff). Before the split of resident resources, compiled execution and request becomes the rule for every kind, it is measured on one more: picture generation, served through the same session director (internal/mediacapability image_cuda_windows.go). Its test serves three pictures, another prompt and then another seed, and holds that the second and third loaded nothing, that each picture is the picture a fresh session makes, and that a cancelled request releases what it held.\n\nServes: generate. Disappears: a reload for each new prompt or seed, where the measurement finds one. Evidence: the load each request measures. Batch: device."
+        }
+      ]
+    },
+    {
+      "id": "identity-carry",
+      "title": "Carry an evaluation while its execution identity is unchanged, and measure it again when it is not",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Carry an evaluation while its execution identity is unchanged, and measure it again when it is not",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestMeasurementRunsNoCaseAgainAfterAnUnrelatedCommit$'",
+          "rationale": "A full result is carried today after 32 sampled cases reproduce (internal/evaluation replay.go: replayCases), which shows agreement on those cases and not on the suite; SQA-078 holds that risk. Under an unchanged identity the result is the result, with no replay. Under a changed one the suite is measured again. Its test goes through the improvement run's own launch, in separate processes: it measures, commits a change outside every identity, measures again and holds that no case was executed the second time, then commits a change inside one identity and holds that only that capability's cases were. A result already in the store is re-keyed only when its record names every build and runtime input the identity is made of; the commit alone does not name them all, and any other result is measured once more. The step states how many suites that is and what they cost before it lands. The sampled replay is deleted only when every consumer of a carried result reads the identity; the reader of replay receipts already in the store stays.\n\nServes: judge on held-out data. Disappears: the sampled replay. Evidence: the cases executed by each of the test's three measurements, and the count of suites measured once more for the change of key. Batch: host.\n\nMoved out of capability-identity on 2026-10-09 so that row's last step is not held by the decision this one waits on. What the step asked to be stated before it lands, measured that day on the store: 46 of the 87 newest evaluation results stand on a result a sampled replay carried forward, 30 of them carried 19 or 20 times since the run that scored every case, and those runs took 13 hours 55 minutes in all, the longest 1 hour 44 minutes. The code an evaluation's result depends on, the closure of cmd/evaluate, changed on 112 of the last 300 commits, and the text surface alone on 34; the two newest scorecards lie several hundred commits apart. So an identity is certain to have moved between one cycle and the next at this pace, and with the sampled replay deleted every cycle scores those 46 again, about 14 hours on top of a cycle's three to five. The replay's weakness is that its sample never changes (internal/evaluation replay.go: replaySelection, the 8 longest cases and 24 at even length ranks): a change that misses those 32 is not seen however often the result is carried. The row has no count: it is sized when the decision says what it builds."
         }
       ]
     },
@@ -60,28 +87,6 @@
           "rationale": "EvaluationEvidence copies phases and metrics that other records own, and its reader checks that the copies agree (internal/evaluation evidence.go). One evaluator, built from a dataset, a protocol, an execution and a scorer from a short list, writes per-case observations and then scores; each keeps its typed content under one shared envelope, and evidence and acceptance refer to them by identity. The quality floor, memory ceiling, speed target, base and decision rule are fixed in a record before confirmation is read. Its test changes a scorer and holds that no case is executed again, that the same observations are read, and that the decision against the named base is the expected one. Readers of evidence already in the store stay until it is migrated.\n\nServes: judge on held-out data. Disappears: for this family, the copied measurements, the checks that they agree, and the evaluation files the one evaluator replaces. Evidence: the family's scores before and after, equal, and the count of record schemas before and after. Batch: host.",
           "depends_on": [
             "capability-identity/identities"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "session-isolation",
-      "title": "Charge each session with its own work and no other's",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 69,
-        "reason": "An estimate, not a preflight figure: the owner's ceiling of 125 was sized as landing-terms' 407 was, and that row measured 916. Two steps of the kind landing-terms' second was (360 measured): a snapshot keyed by session with a review mode, and a lock taken at session start. Replaced by each step's measured figure before it is dispatched"
-      },
-      "steps": [
-        {
-          "id": "worktrees",
-          "title": "Hold one implementing session to a worktree, by a lock taken when it starts",
-          "status": "open",
-          "verify": "go test ./cmd/loophook -count=1 -run '^TestSecondImplementingSessionIsSentToAWorktreeOfItsOwn$'",
-          "rationale": "A landing takes the checkout's whole dirty tree as its candidate (internal/landing landing.go: shipSet), so a file a second session leaves in the checkout joins the first session's commit, and neither session's files can be told from the other's. Separate checkouts end both whatever limits the pace, so this step waits on no measurement and on no queue. An implementing session takes its worktree's lock when it starts, as the unattended driver already takes one for a worktree; a second implementing session there is refused and told to open a worktree of its own, and a review session takes none. Whether a second worktree may commit to master is commit-queue's question and the owner's decision; this step only keeps one session's files out of another's commit.\n\nServes: change. Disappears: files of two sessions in one candidate. Evidence: the test's second session, refused in the first one's worktree and admitted in its own. Batch: host.",
-          "depends_on": [
-            "session-isolation/sessions"
           ]
         }
       ]
@@ -281,7 +286,8 @@
             "raise-landing-terms-count/do",
             "baseline-resume/do",
             "count-evaluation-chain/do",
-            "count-capability-identity/do"
+            "count-capability-identity/do",
+            "count-session-isolation/do"
           ]
         }
       ]
@@ -606,6 +612,20 @@
         "Leave them recorded and unranked"
       ],
       "recommendation": "Rank them into this plan after the rows that move a measured result",
+      "asked": "2026-10-09"
+    },
+    {
+      "id": "carry-cost",
+      "question": "identity-carry was filed to carry an evaluation only while the code it depends on is unchanged and to delete the sampled replay. Measured 2026-10-09: 46 of the 87 newest results stand on a replay-carried result, 30 of them carried 19 or 20 times; scoring those 46 in full took 13 hours 55 minutes; the code an evaluation depends on changed on 112 of the last 300 commits and cycles lie hundreds of commits apart, so with the replay deleted every cycle scores them all again, about 14 hours more a cycle. The replay's sample is the same 32 cases every time, so a change that misses them is never seen. What should carrying do?",
+      "options": [
+        "Carry under an unchanged identity, else by a replay whose sample changes each time",
+        "Carry only under an unchanged identity and score the rest in full every cycle",
+        "Leave carrying as it is"
+      ],
+      "recommendation": "Carry under an unchanged identity, else by a replay whose sample changes each time",
+      "blocks": [
+        "identity-carry"
+      ],
       "asked": "2026-10-09"
     }
   ]

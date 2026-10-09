@@ -4,35 +4,13 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "session-isolation",
-      "title": "Charge each session with its own work and no other's",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 69,
-        "reason": "An estimate, not a preflight figure: the owner's ceiling of 125 was sized as landing-terms' 407 was, and that row measured 916. Two steps of the kind landing-terms' second was (360 measured): a snapshot keyed by session with a review mode, and a lock taken at session start. Replaced by each step's measured figure before it is dispatched"
-      },
-      "steps": [
-        {
-          "id": "worktrees",
-          "title": "Hold one implementing session to a worktree, by a lock taken when it starts",
-          "status": "open",
-          "verify": "go test ./cmd/loophook -count=1 -run '^TestSecondImplementingSessionIsSentToAWorktreeOfItsOwn$'",
-          "rationale": "A landing takes the checkout's whole dirty tree as its candidate (internal/landing landing.go: shipSet), so a file a second session leaves in the checkout joins the first session's commit, and neither session's files can be told from the other's. Separate checkouts end both whatever limits the pace, so this step waits on no measurement and on no queue. An implementing session takes its worktree's lock when it starts, as the unattended driver already takes one for a worktree; a second implementing session there is refused and told to open a worktree of its own, and a review session takes none. Whether a second worktree may commit to master is commit-queue's question and the owner's decision; this step only keeps one session's files out of another's commit.\n\nServes: change. Disappears: files of two sessions in one candidate. Evidence: the test's second session, refused in the first one's worktree and admitted in its own. Batch: host.",
-          "depends_on": [
-            "session-isolation/sessions"
-          ]
-        }
-      ]
-    },
-    {
       "id": "evaluation-chain",
       "title": "Judge a trained change on data large enough to see it and never used to choose it",
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1229,
-        "reason": "A ceiling, not a target: the present size of internal/runrecord budget.go, the split and budget records the row gives their first consumers outside the controller, counted 2026-10-09 as the gate counts production nodes. The row was filed with no count, under which its first step, which adds a pool, an acceptance record and a charge and deletes nothing, could not land; observations deletes the copies it replaces. The lead lowers it when the first step reports."
+        "nodes": 2380,
+        "reason": "The first step's measured figure, 2,354 production nodes as the gate counts them, and a margin of 26: the held-out pool, its acceptance record, the reading of the gains on record and the command that publishes them. Filed at 1,229, the size of internal/runrecord budget.go, before any step was designed. The second step's figure is added when it is built and measured, in the plan of the commit before it; the third deletes"
       },
       "steps": [
         {
@@ -60,6 +38,28 @@
           "rationale": "EvaluationEvidence copies phases and metrics that other records own, and its reader checks that the copies agree (internal/evaluation evidence.go). One evaluator, built from a dataset, a protocol, an execution and a scorer from a short list, writes per-case observations and then scores; each keeps its typed content under one shared envelope, and evidence and acceptance refer to them by identity. The quality floor, memory ceiling, speed target, base and decision rule are fixed in a record before confirmation is read. Its test changes a scorer and holds that no case is executed again, that the same observations are read, and that the decision against the named base is the expected one. Readers of evidence already in the store stay until it is migrated.\n\nServes: judge on held-out data. Disappears: for this family, the copied measurements, the checks that they agree, and the evaluation files the one evaluator replaces. Evidence: the family's scores before and after, equal, and the count of record schemas before and after. Batch: host.",
           "depends_on": [
             "capability-identity/identities"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "session-isolation",
+      "title": "Charge each session with its own work and no other's",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 69,
+        "reason": "An estimate, not a preflight figure: the owner's ceiling of 125 was sized as landing-terms' 407 was, and that row measured 916. Two steps of the kind landing-terms' second was (360 measured): a snapshot keyed by session with a review mode, and a lock taken at session start. Replaced by each step's measured figure before it is dispatched"
+      },
+      "steps": [
+        {
+          "id": "worktrees",
+          "title": "Hold one implementing session to a worktree, by a lock taken when it starts",
+          "status": "open",
+          "verify": "go test ./cmd/loophook -count=1 -run '^TestSecondImplementingSessionIsSentToAWorktreeOfItsOwn$'",
+          "rationale": "A landing takes the checkout's whole dirty tree as its candidate (internal/landing landing.go: shipSet), so a file a second session leaves in the checkout joins the first session's commit, and neither session's files can be told from the other's. Separate checkouts end both whatever limits the pace, so this step waits on no measurement and on no queue. An implementing session takes its worktree's lock when it starts, as the unattended driver already takes one for a worktree; a second implementing session there is refused and told to open a worktree of its own, and a review session takes none. Whether a second worktree may commit to master is commit-queue's question and the owner's decision; this step only keeps one session's files out of another's commit.\n\nServes: change. Disappears: files of two sessions in one candidate. Evidence: the test's second session, refused in the first one's worktree and admitted in its own. Batch: host.",
+          "depends_on": [
+            "session-isolation/sessions"
           ]
         }
       ]
@@ -293,7 +293,8 @@
             "video-request-speed/do",
             "repeated-request/do",
             "raise-landing-terms-count/do",
-            "baseline-resume/do"
+            "baseline-resume/do",
+            "count-evaluation-chain/do"
           ]
         }
       ]

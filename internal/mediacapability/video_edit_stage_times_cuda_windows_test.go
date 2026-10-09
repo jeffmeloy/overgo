@@ -28,10 +28,11 @@ const unnamedShare = 0.05
 
 // servedEditCeiling is the time a served edit of 21 frames may take. It took
 // 75 seconds while the text encoder ran a prompt's padding with the prompt,
-// and takes 41 without; the ceiling stands between the two, so that cost
+// 41 without, and takes 30 with the autoencoder's convolutions computed in
+// tiles; the ceiling stands under what it took before that, so either cost
 // coming back fails here. The model's own code takes four seconds over the
 // same clip on this device, and each part mended brings the ceiling down.
-const servedEditCeiling = 64 * time.Second
+const servedEditCeiling = 40 * time.Second
 
 // TestServedEditStageTimes says where a served edit's time goes. It serves the
 // edit of one clip of 21 frames at the size the editor was trained at, the

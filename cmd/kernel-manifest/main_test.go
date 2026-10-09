@@ -81,7 +81,7 @@ func TestRunUpdatesAndRejectsStaleManifest(t *testing.T) {
   "target": "compute_89",
   "compilerFlags": ["-ptx"],
   "defaultThreads": 256,
-  "vaeConvTile": 64,
+  "vaeConvTile": %d,
   "sharedMemoryABI": "explicit-per-launch-v1",
   "modules": [{
     "source": "src/x.cu",
@@ -98,7 +98,7 @@ func TestRunUpdatesAndRejectsStaleManifest(t *testing.T) {
       "functions": ["x"]
     }]
   }]
-}`, cudaKernel.BundleABIVersion)
+}`, cudaKernel.BundleABIVersion, cudaKernel.BundleVAEConvTile)
 	if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(manifestPath)), []byte(document), 0o644); err != nil {
 		t.Fatal(err)
 	}

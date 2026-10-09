@@ -14,13 +14,6 @@
       },
       "steps": [
         {
-          "id": "codec",
-          "title": "Decode and encode a clip in the time the autoencoder's own code takes",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -count=1 -run '^TestClipCodecKeepsToItsOwnCodesTime$'",
-          "rationale": "Finding 71cd0c71, the step after the measurement. Of a served edit of 21 frames at 832 by 480, 41 seconds once the text encoder left a prompt's padding out, the autoencoder is the largest part left: decoding the edited clip takes 10.1 seconds and encoding the source clip 8.1, where the model's own code, on the same device over a clip of the same size, decodes in 1.25 and encodes in 0.7 to 1.0 (internal/mediacapability TestServedEditStageTimes; scripts/python_golden_references/liveedit_own_edit.py times the model's own stages). Wan2.1's generation decodes through the same session, so its request carries the same cost a frame.\n\nNothing says yet where inside the two the time goes. The decoder session keeps a profile by operation (vaeDecoderCUDASession.Profile); read it first, and the encoder's the same way. Read from the code, each convolution is a kernel of overgo's own launched over the output's elements, one latent frame a chunk, and each decoded frame comes back to the host a colour plane at a time; the model's own code runs the library's convolutions. The step measures by operation, then mends what the profile names: the convolution kernel if it is the convolutions, the crossings if it is those.\n\nThe clip stays the clip: internal/mediacapability TestVideoAutoencoderRoundTripMatchesItsOwnCode holds the served reconstruction to the autoencoder's own code value for value, and internal/adaptiveparity TestServedEditMatchesTheModelsOwnEdit and TestServedGenerationMatchesTheModelsOwnClip hold the edit and the generated clip. The step's test times the session's decode and encode of a clip of this size and holds each to a ceiling the mended time sets, the model's own beside it, and TestServedEditStageTimes's ceiling comes down with it.\n\nServes: generate. Disappears: an autoencoder that takes eight to ten times its own code's time on the same device. Evidence: the two stages' times before and after, by operation. Batch: device."
-        },
-        {
           "id": "handoff",
           "title": "Hand a resolved edit to its session as it stands, and keep the session across instructions and seeds",
           "status": "open",

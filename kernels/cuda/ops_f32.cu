@@ -7127,44 +7127,6 @@ __device__ float moe_expert_value(
 
 // ---- Wan causal 3-D VAE decode (streamed chunk-major, latentvideo) ----
 
-extern "C" __global__ void vae_downsample2d_f32(
-		float * out,
-		const float * input,
-		const float * weight,
-		const float * bias,
-		unsigned int channels,
-		unsigned int frames,
-		unsigned int height,
-		unsigned int width,
-		unsigned int output_height,
-		unsigned int output_width,
-		unsigned int count) {
-	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-	if (index >= count) return;
-	const unsigned int plane = frames * output_height * output_width;
-	const unsigned int output_channel = index / plane;
-	unsigned int remainder = index - output_channel * plane;
-	const unsigned int frame = remainder / (output_height * output_width);
-	remainder -= frame * output_height * output_width;
-	const unsigned int output_y = remainder / output_width;
-	const unsigned int output_x = remainder - output_y * output_width;
-	double sum = (double) bias[output_channel];
-	for (unsigned int input_channel = 0; input_channel < channels; ++input_channel) {
-		for (unsigned int kernel_y = 0; kernel_y < 3; ++kernel_y) {
-			const unsigned int input_y = 2 * output_y + kernel_y;
-			if (input_y >= height) continue;
-			for (unsigned int kernel_x = 0; kernel_x < 3; ++kernel_x) {
-				const unsigned int input_x = 2 * output_x + kernel_x;
-				if (input_x >= width) continue;
-				const unsigned int input_index = ((input_channel * frames + frame) * height + input_y) * width + input_x;
-				const unsigned int weight_index = ((output_channel * channels + input_channel) * 3 + kernel_y) * 3 + kernel_x;
-				sum += (double) input[input_index] * (double) weight[weight_index];
-			}
-		}
-	}
-	out[index] = (float) sum;
-}
-
 extern "C" __global__ void vae_temporal_downsample_f32(
 		float * out,
 		const float * input,
@@ -7201,16 +7163,199 @@ extern "C" __global__ void vae_temporal_downsample_f32(
 	out[index] = (float) sum;
 }
 
+// vae_conv_tile: one tile of a stride-1 same-padded causal 3-D convolution,
+// fp32 FMA accumulation in the fixed ascending kernel-value order from a fused
+// mandatory bias. The kernel's extents are literals, and so is whether the
+// input stands at half the outputs' height and width, each of its pixels
+// under four of them (the resample stack's nearest-neighbour upsample, fused).
+//
+// A block of 256 threads computes a tile of 256 positions by 96 output
+// channels, each thread 8 positions by 12 channels of it in registers. The
+// device runs four warps' arithmetic in a cycle and one warp's read of shared
+// memory, so the reads set the pace: a thread's 8 inputs and 12 weights lie
+// side by side in the tile and are read four at a time, 5 reads for 96 FMAs,
+// where a 4 by 4 block read 8 values singly for 16. The codec's widths are
+// multiples of 96, so a tile that wide leaves no channel idle and loads a
+// position's inputs once for 96 channels.
+//
+// A tile is loaded whole input channels at a time, as many as make at most 32
+// kernel values, so a kernel value's place in a load fixes its offsets in
+// time, height and width when the kernel is compiled, and loading an input is
+// an add, a test and a read. A thread loads the inputs of its own position; a
+// warp's 32 positions of one kernel value lie side by side in the input and
+// are one read of the device's memory. A warp loads 32 kernel values of one
+// output channel, which lie side by side in the weight. A thread's reads of
+// the device's memory are all issued before any is stored, so they are in
+// flight together: read one at a time, the weights alone cost as much as the
+// arithmetic.
+#define VAE_CONV_TILE 96
+#define VAE_CONV_POSITIONS 256
+#define VAE_CONV_K 32
+#define VAE_CONV_POSITION_BLOCK 8
+#define VAE_CONV_CHANNEL_BLOCK 12
+#define VAE_CONV_WEIGHT_ROW (VAE_CONV_TILE + 4)
+#define VAE_CONV_WEIGHT_ROUNDS (VAE_CONV_K * VAE_CONV_TILE / VAE_CONV_POSITIONS)
+template <int KT, int KH, int KW, bool UPSAMPLED>
+static __device__ __forceinline__ void vae_conv_tile(
+        float * out,
+        const float * x,
+        const float * cache,
+        const float * weight,
+        const float * bias,
+        const int c_in,
+        const int c_out,
+        const int in_t,
+        const int in_h,
+        const int in_w,
+        const int cache_t,
+        float (* activations)[VAE_CONV_POSITIONS],
+        float (* weights)[VAE_CONV_WEIGHT_ROW]) {
+    // The kernel values of one input channel, the input channels a load takes,
+    // and the kernel values that is.
+    const int taps = KT * KH * KW;
+    const int load_channels = VAE_CONV_K / taps;
+    const int load_values = load_channels * taps;
+    const int lane = threadIdx.x;
+    const int tx = lane % (VAE_CONV_TILE / VAE_CONV_CHANNEL_BLOCK);
+    const int ty = lane / (VAE_CONV_TILE / VAE_CONV_CHANNEL_BLOCK);
+    const int plane = in_h * in_w;
+    const int positions = in_t * plane;
+    const int source_w = UPSAMPLED ? in_w / 2 : in_w;
+    const int source_plane = (UPSAMPLED ? in_h / 2 : in_h) * source_w;
+    const int channel_tiles = (c_out + VAE_CONV_TILE - 1) / VAE_CONV_TILE;
+    const int position_tile = blockIdx.x / channel_tiles;
+    const int channel_tile = blockIdx.x - position_tile * channel_tiles;
+    const int kernel_values = c_in * taps;
+    // The position this thread loads the inputs of. For each offset in time,
+    // the buffer that frame is in, where the frame begins in a channel of it
+    // and how long a channel of it is; for each offset in height and in width,
+    // where that row and that column begin; and for each kernel value of a
+    // channel, whether its input lies inside the volume.
+    const int own = position_tile * VAE_CONV_POSITIONS + lane;
+    const int clamped = own < positions ? own : positions - 1;
+    const int own_t = clamped / plane;
+    const int own_rem = clamped - own_t * plane;
+    const int own_h = own_rem / in_w;
+    const int own_w = own_rem - own_h * in_w;
+    const float * buffer[KT];
+    int frame[KT];
+    int channel[KT];
+    int row[KH];
+    int column[KW];
+    unsigned int inside = 0;
+    #pragma unroll
+    for (int kh = 0; kh < KH; ++kh) {
+        const int ih = own_h + kh - KH / 2;
+        row[kh] = (UPSAMPLED ? ih >> 1 : ih) * source_w;
+    }
+    #pragma unroll
+    for (int kw = 0; kw < KW; ++kw) {
+        const int iw = own_w + kw - KW / 2;
+        column[kw] = UPSAMPLED ? iw >> 1 : iw;
+    }
+    #pragma unroll
+    for (int kt = 0; kt < KT; ++kt) {
+        const int padded_t = own_t + kt - (2 * (KT / 2) - cache_t);
+        const bool in_cache = padded_t < cache_t;
+        buffer[kt] = in_cache ? cache : x;
+        frame[kt] = (in_cache ? padded_t : padded_t - cache_t) * source_plane;
+        channel[kt] = (in_cache ? cache_t : in_t) * source_plane;
+        #pragma unroll
+        for (int kh = 0; kh < KH; ++kh) {
+            const int ih = own_h + kh - KH / 2;
+            #pragma unroll
+            for (int kw = 0; kw < KW; ++kw) {
+                const int iw = own_w + kw - KW / 2;
+                if (own < positions && padded_t >= 0 && padded_t < cache_t + in_t &&
+                        ih >= 0 && ih < in_h && iw >= 0 && iw < in_w) {
+                    inside |= 1u << ((kt * KH + kh) * KW + kw);
+                }
+            }
+        }
+    }
+    float acc[VAE_CONV_POSITION_BLOCK][VAE_CONV_CHANNEL_BLOCK];
+    for (int i = 0; i < VAE_CONV_POSITION_BLOCK; ++i) {
+        const int position = position_tile * VAE_CONV_POSITIONS + ty * VAE_CONV_POSITION_BLOCK + i;
+        for (int j = 0; j < VAE_CONV_CHANNEL_BLOCK; ++j) {
+            const int co = channel_tile * VAE_CONV_TILE + tx * VAE_CONV_CHANNEL_BLOCK + j;
+            acc[i][j] = (position < positions && co < c_out) ? bias[co] : 0.0f;
+        }
+    }
+    for (int first = 0; first < c_in; first += load_channels) {
+        float input[VAE_CONV_K];
+        float fetched[VAE_CONV_WEIGHT_ROUNDS];
+        #pragma unroll
+        for (int k = 0; k < load_values; ++k) {
+            const int ci = first + k / taps;
+            const int tap = k % taps;
+            const int kt = tap / (KH * KW);
+            float value = 0.0f;
+            if (ci < c_in && ((inside >> tap) & 1u)) {
+                value = buffer[kt][ci * channel[kt] + frame[kt] + row[tap / KW % KH] + column[tap % KW]];
+            }
+            input[k] = value;
+        }
+        #pragma unroll
+        for (int round = 0; round < VAE_CONV_WEIGHT_ROUNDS; ++round) {
+            const int flat = lane + round * VAE_CONV_POSITIONS;
+            const int k = flat % VAE_CONV_K;
+            const int input_kernel = first * taps + k;
+            const int load_co = channel_tile * VAE_CONV_TILE + flat / VAE_CONV_K;
+            fetched[round] = (k < load_values && load_co < c_out && input_kernel < kernel_values)
+                ? weight[load_co * kernel_values + input_kernel]
+                : 0.0f;
+        }
+        #pragma unroll
+        for (int k = 0; k < load_values; ++k) {
+            activations[k][lane] = input[k];
+        }
+        #pragma unroll
+        for (int round = 0; round < VAE_CONV_WEIGHT_ROUNDS; ++round) {
+            const int flat = lane + round * VAE_CONV_POSITIONS;
+            if (flat % VAE_CONV_K < load_values) {
+                weights[flat % VAE_CONV_K][flat / VAE_CONV_K] = fetched[round];
+            }
+        }
+        __syncthreads();
+        for (int k = 0; k < load_values; ++k) {
+            float a[VAE_CONV_POSITION_BLOCK];
+            float b[VAE_CONV_CHANNEL_BLOCK];
+            const float4 * a4 = reinterpret_cast<const float4 *>(&activations[k][ty * VAE_CONV_POSITION_BLOCK]);
+            const float4 * b4 = reinterpret_cast<const float4 *>(&weights[k][tx * VAE_CONV_CHANNEL_BLOCK]);
+            for (int i = 0; i < VAE_CONV_POSITION_BLOCK / 4; ++i) {
+                const float4 v = a4[i];
+                a[4 * i] = v.x; a[4 * i + 1] = v.y; a[4 * i + 2] = v.z; a[4 * i + 3] = v.w;
+            }
+            for (int j = 0; j < VAE_CONV_CHANNEL_BLOCK / 4; ++j) {
+                const float4 v = b4[j];
+                b[4 * j] = v.x; b[4 * j + 1] = v.y; b[4 * j + 2] = v.z; b[4 * j + 3] = v.w;
+            }
+            for (int i = 0; i < VAE_CONV_POSITION_BLOCK; ++i) {
+                for (int j = 0; j < VAE_CONV_CHANNEL_BLOCK; ++j) {
+                    acc[i][j] = fmaf(a[i], b[j], acc[i][j]);
+                }
+            }
+        }
+        __syncthreads();
+    }
+    for (int i = 0; i < VAE_CONV_POSITION_BLOCK; ++i) {
+        const int position = position_tile * VAE_CONV_POSITIONS + ty * VAE_CONV_POSITION_BLOCK + i;
+        if (position >= positions) continue;
+        for (int j = 0; j < VAE_CONV_CHANNEL_BLOCK; ++j) {
+            const int co = channel_tile * VAE_CONV_TILE + tx * VAE_CONV_CHANNEL_BLOCK + j;
+            if (co < c_out) {
+                out[co * positions + position] = acc[i][j];
+            }
+        }
+    }
+}
+
 // vae_causal_conv3d_f32: stride-1 same-padded causal 3-D convolution over one
-// streamed chunk with a temporal prefix cache of cache_t frames. 64x64
-// position-by-channel tiles with 4x4 register blocking per thread (8 shared
-// reads per 16 FMA) and per-block position decomposition precomputed once;
-// fp32 FMA accumulation in the fixed ascending kernel-value order, fused
-// mandatory bias. Output dims equal input dims (stride 1 everywhere in the
-// decoder). Covers 3x3x3, temporal 3x1x1, and 1x1x1 pointwise convs.
-#define VAE_CONV_TILE 64
-#define VAE_CONV_K 16
-#define VAE_CONV_SPAN 16
+// streamed chunk with a temporal prefix cache of cache_t frames (vae_conv_tile).
+// Output dims equal input dims (stride 1 everywhere in the decoder). It has
+// the three kernels the codec has, 3x3x3, temporal 3x1x1 and 1x1x1, and writes
+// nothing for another: the launch refuses one. Launched with 256 threads a
+// block, a block for each 256 positions of each 96 output channels.
 extern "C" __global__ void vae_causal_conv3d_f32(
         float * out,
         const float * x,
@@ -7225,97 +7370,173 @@ extern "C" __global__ void vae_causal_conv3d_f32(
         int kt_n,
         int kh_n,
         int kw_n,
-        int pad_t,
-        int pad_h,
-        int pad_w,
         int cache_t) {
-    __shared__ float activations[VAE_CONV_K][VAE_CONV_TILE];
-    __shared__ float weights[VAE_CONV_K][VAE_CONV_TILE];
-    __shared__ int pos_t[VAE_CONV_TILE];
-    __shared__ int pos_h[VAE_CONV_TILE];
-    __shared__ int pos_w[VAE_CONV_TILE];
+    __shared__ __align__(16) float activations[VAE_CONV_K][VAE_CONV_POSITIONS];
+    __shared__ __align__(16) float weights[VAE_CONV_K][VAE_CONV_WEIGHT_ROW];
+    if (kt_n == 3 && kh_n == 3 && kw_n == 3) {
+        vae_conv_tile<3, 3, 3, false>(out, x, cache, weight, bias, c_in, c_out, in_t, in_h, in_w, cache_t, activations, weights);
+    } else if (kt_n == 1 && kh_n == 1 && kw_n == 1) {
+        vae_conv_tile<1, 1, 1, false>(out, x, cache, weight, bias, c_in, c_out, in_t, in_h, in_w, cache_t, activations, weights);
+    } else if (kt_n == 3 && kh_n == 1 && kw_n == 1) {
+        vae_conv_tile<3, 1, 1, false>(out, x, cache, weight, bias, c_in, c_out, in_t, in_h, in_w, cache_t, activations, weights);
+    }
+}
+
+// vae_upsample2d_f32: nearest-neighbor 2x spatial upsample fused with a
+// same-padded 3x3 Conv2d per frame (Wan resample stack), fp32 FMA, fused
+// mandatory bias (vae_conv_tile). The outputs are frames of out_h by out_w
+// and the input frames of half that. Launched as vae_causal_conv3d_f32 is.
+extern "C" __global__ void vae_upsample2d_f32(
+        float * out,
+        const float * x,
+        const float * weight,
+        const float * bias,
+        int c_in,
+        int c_out,
+        int frames,
+        int out_h,
+        int out_w) {
+    __shared__ __align__(16) float activations[VAE_CONV_K][VAE_CONV_POSITIONS];
+    __shared__ __align__(16) float weights[VAE_CONV_K][VAE_CONV_WEIGHT_ROW];
+    vae_conv_tile<1, 3, 3, true>(out, x, x, weight, bias, c_in, c_out, frames, out_h, out_w, 0, activations, weights);
+}
+
+// vae_downsample2d_f32: the resample stack's stride-2 3x3 Conv2d per frame,
+// its input padded by a zero row below and a zero column to the right, f64
+// accumulation in the fixed ascending kernel-value order from the bias
+// (reference engine convention). The outputs are frames of out_h by out_w.
+// Launched as vae_causal_conv3d_f32 is, a block for each 256 positions of
+// each 96 output channels.
+//
+// The device has one double-precision unit for every 64 of single, and this
+// kernel is bound by them. A thread that sums one output spends three of
+// their operations on a product, two operands widened and the product added;
+// a thread here sums 8 positions by 6 channels and widens 14 operands for 48
+// products. A block computes its tile in two halves of 128 positions, so that
+// a thread holds no more than 48 sums, and loads each half as vae_conv_tile
+// loads a tile: three input channels a load, a thread's reads of the device's
+// memory issued together.
+#define VAE_DOWN_POSITIONS (VAE_CONV_POSITIONS / 2)
+#define VAE_DOWN_POSITION_BLOCK 8
+#define VAE_DOWN_CHANNEL_BLOCK 6
+#define VAE_DOWN_TAPS 9
+#define VAE_DOWN_VALUES (VAE_CONV_K / VAE_DOWN_TAPS * VAE_DOWN_TAPS)
+#define VAE_DOWN_INPUT_ROUNDS ((VAE_DOWN_VALUES + 1) / 2)
+extern "C" __global__ void vae_downsample2d_f32(
+        float * out,
+        const float * x,
+        const float * weight,
+        const float * bias,
+        int channels,
+        int frames,
+        int height,
+        int width,
+        int out_h,
+        int out_w) {
+    __shared__ __align__(16) float activations[VAE_CONV_K][VAE_DOWN_POSITIONS];
+    __shared__ __align__(16) float weights[VAE_CONV_K][VAE_CONV_WEIGHT_ROW];
     const int lane = threadIdx.x;
-    const int tx = lane % VAE_CONV_SPAN;
-    const int ty = lane / VAE_CONV_SPAN;
-    const int positions = in_t * in_h * in_w;
-    const int channel_tiles = (c_out + VAE_CONV_TILE - 1) / VAE_CONV_TILE;
+    const int tx = lane % (VAE_CONV_TILE / VAE_DOWN_CHANNEL_BLOCK);
+    const int ty = lane / (VAE_CONV_TILE / VAE_DOWN_CHANNEL_BLOCK);
+    const int plane = out_h * out_w;
+    const int positions = frames * plane;
+    const int channel_tiles = (channels + VAE_CONV_TILE - 1) / VAE_CONV_TILE;
     const int position_tile = blockIdx.x / channel_tiles;
     const int channel_tile = blockIdx.x - position_tile * channel_tiles;
-    const int kernel_values = c_in * kt_n * kh_n * kw_n;
-    const int kernel_plane = kt_n * kh_n * kw_n;
-    if (lane < VAE_CONV_TILE) {
-        const int position = position_tile * VAE_CONV_TILE + lane;
-        const int clamped = position < positions ? position : positions - 1;
-        const int ot = clamped / (in_h * in_w);
-        const int prem = clamped - ot * in_h * in_w;
-        pos_t[lane] = ot;
-        pos_h[lane] = prem / in_w;
-        pos_w[lane] = prem - (prem / in_w) * in_w;
-    }
-    float acc[4][4];
-    for (int i = 0; i < 4; ++i) {
-        const int position = position_tile * VAE_CONV_TILE + ty + i * VAE_CONV_SPAN;
-        for (int j = 0; j < 4; ++j) {
-            const int co = channel_tile * VAE_CONV_TILE + tx + j * VAE_CONV_SPAN;
-            acc[i][j] = (position < positions && co < c_out) ? bias[co] : 0.0f;
+    const int kernel_values = channels * VAE_DOWN_TAPS;
+    // A thread loads, for one position of the half, the kernel values of one
+    // parity: two threads share a position.
+    const int parity = lane / VAE_DOWN_POSITIONS;
+    const int column = lane % VAE_DOWN_POSITIONS;
+    for (int half = 0; half < VAE_CONV_POSITIONS / VAE_DOWN_POSITIONS; ++half) {
+        const int origin = position_tile * VAE_CONV_POSITIONS + half * VAE_DOWN_POSITIONS;
+        const int own = origin + column;
+        const int clamped = own < positions ? own : positions - 1;
+        const int own_t = clamped / plane;
+        const int own_rem = clamped - own_t * plane;
+        const int own_h = own_rem / out_w;
+        const int own_w = own_rem - own_h * out_w;
+        const int source = (own_t * height + 2 * own_h) * width + 2 * own_w;
+        unsigned int inside = 0;
+        #pragma unroll
+        for (int tap = 0; tap < VAE_DOWN_TAPS; ++tap) {
+            if (own < positions && 2 * own_h + tap / 3 < height && 2 * own_w + tap % 3 < width) {
+                inside |= 1u << tap;
+            }
         }
-    }
-    __syncthreads();
-    for (int base = 0; base < kernel_values; base += VAE_CONV_K) {
-        for (int flat = lane; flat < VAE_CONV_K * VAE_CONV_TILE; flat += blockDim.x) {
-            const int k = flat / VAE_CONV_TILE;
-            const int m = flat - k * VAE_CONV_TILE;
-            const int input_kernel = base + k;
-            const int position = position_tile * VAE_CONV_TILE + m;
-            float value = 0.0f;
-            if (position < positions && input_kernel < kernel_values) {
-                const int ci = input_kernel / kernel_plane;
-                int z = input_kernel - ci * kernel_plane;
-                const int kt = z / (kh_n * kw_n);
-                z -= kt * kh_n * kw_n;
-                const int kh = z / kw_n;
-                const int kw = z - kh * kw_n;
-                const int padded_t = pos_t[m] + kt - (2 * pad_t - cache_t);
-                const int ih = pos_h[m] + kh - pad_h;
-                const int iw = pos_w[m] + kw - pad_w;
-                if (padded_t >= 0 && padded_t < cache_t + in_t &&
-                        ih >= 0 && ih < in_h && iw >= 0 && iw < in_w) {
-                    if (padded_t < cache_t) {
-                        value = cache[((ci * cache_t + padded_t) * in_h + ih) * in_w + iw];
-                    } else {
-                        value = x[((ci * in_t + padded_t - cache_t) * in_h + ih) * in_w + iw];
+        double acc[VAE_DOWN_POSITION_BLOCK][VAE_DOWN_CHANNEL_BLOCK];
+        for (int i = 0; i < VAE_DOWN_POSITION_BLOCK; ++i) {
+            const int position = origin + ty * VAE_DOWN_POSITION_BLOCK + i;
+            for (int j = 0; j < VAE_DOWN_CHANNEL_BLOCK; ++j) {
+                const int co = channel_tile * VAE_CONV_TILE + tx * VAE_DOWN_CHANNEL_BLOCK + j;
+                acc[i][j] = (position < positions && co < channels) ? (double) bias[co] : 0.0;
+            }
+        }
+        for (int first = 0; first < channels; first += VAE_CONV_K / VAE_DOWN_TAPS) {
+            float input[VAE_DOWN_INPUT_ROUNDS];
+            float fetched[VAE_CONV_WEIGHT_ROUNDS];
+            #pragma unroll
+            for (int round = 0; round < VAE_DOWN_INPUT_ROUNDS; ++round) {
+                const int k = 2 * round + parity;
+                const int ci = first + k / VAE_DOWN_TAPS;
+                const int tap = k % VAE_DOWN_TAPS;
+                float value = 0.0f;
+                if (k < VAE_DOWN_VALUES && ci < channels && ((inside >> tap) & 1u)) {
+                    value = x[ci * frames * height * width + source + tap / 3 * width + tap % 3];
+                }
+                input[round] = value;
+            }
+            #pragma unroll
+            for (int round = 0; round < VAE_CONV_WEIGHT_ROUNDS; ++round) {
+                const int flat = lane + round * VAE_CONV_POSITIONS;
+                const int k = flat % VAE_CONV_K;
+                const int input_kernel = first * VAE_DOWN_TAPS + k;
+                const int load_co = channel_tile * VAE_CONV_TILE + flat / VAE_CONV_K;
+                fetched[round] = (k < VAE_DOWN_VALUES && load_co < channels && input_kernel < kernel_values)
+                    ? weight[load_co * kernel_values + input_kernel]
+                    : 0.0f;
+            }
+            #pragma unroll
+            for (int round = 0; round < VAE_DOWN_INPUT_ROUNDS; ++round) {
+                if (2 * round + parity < VAE_DOWN_VALUES) {
+                    activations[2 * round + parity][column] = input[round];
+                }
+            }
+            #pragma unroll
+            for (int round = 0; round < VAE_CONV_WEIGHT_ROUNDS; ++round) {
+                const int flat = lane + round * VAE_CONV_POSITIONS;
+                if (flat % VAE_CONV_K < VAE_DOWN_VALUES) {
+                    weights[flat % VAE_CONV_K][flat / VAE_CONV_K] = fetched[round];
+                }
+            }
+            __syncthreads();
+            for (int k = 0; k < VAE_DOWN_VALUES; ++k) {
+                double a[VAE_DOWN_POSITION_BLOCK];
+                double b[VAE_DOWN_CHANNEL_BLOCK];
+                const float4 * a4 = reinterpret_cast<const float4 *>(&activations[k][ty * VAE_DOWN_POSITION_BLOCK]);
+                for (int i = 0; i < VAE_DOWN_POSITION_BLOCK / 4; ++i) {
+                    const float4 v = a4[i];
+                    a[4 * i] = (double) v.x; a[4 * i + 1] = (double) v.y; a[4 * i + 2] = (double) v.z; a[4 * i + 3] = (double) v.w;
+                }
+                for (int j = 0; j < VAE_DOWN_CHANNEL_BLOCK; ++j) {
+                    b[j] = (double) weights[k][tx * VAE_DOWN_CHANNEL_BLOCK + j];
+                }
+                for (int i = 0; i < VAE_DOWN_POSITION_BLOCK; ++i) {
+                    for (int j = 0; j < VAE_DOWN_CHANNEL_BLOCK; ++j) {
+                        acc[i][j] += a[i] * b[j];
                     }
                 }
             }
-            activations[k][m] = value;
-            const int load_co = channel_tile * VAE_CONV_TILE + m;
-            weights[k][m] = (load_co < c_out && input_kernel < kernel_values)
-                ? weight[load_co * kernel_values + input_kernel]
-                : 0.0f;
+            __syncthreads();
         }
-        __syncthreads();
-        for (int k = 0; k < VAE_CONV_K; ++k) {
-            float a[4];
-            float b[4];
-            for (int i = 0; i < 4; ++i) {
-                a[i] = activations[k][ty + i * VAE_CONV_SPAN];
-                b[i] = weights[k][tx + i * VAE_CONV_SPAN];
-            }
-            for (int i = 0; i < 4; ++i) {
-                for (int j = 0; j < 4; ++j) {
-                    acc[i][j] = fmaf(a[i], b[j], acc[i][j]);
+        for (int i = 0; i < VAE_DOWN_POSITION_BLOCK; ++i) {
+            const int position = origin + ty * VAE_DOWN_POSITION_BLOCK + i;
+            if (position >= positions) continue;
+            for (int j = 0; j < VAE_DOWN_CHANNEL_BLOCK; ++j) {
+                const int co = channel_tile * VAE_CONV_TILE + tx * VAE_DOWN_CHANNEL_BLOCK + j;
+                if (co < channels) {
+                    out[co * positions + position] = (float) acc[i][j];
                 }
-            }
-        }
-        __syncthreads();
-    }
-    for (int i = 0; i < 4; ++i) {
-        const int position = position_tile * VAE_CONV_TILE + ty + i * VAE_CONV_SPAN;
-        if (position >= positions) continue;
-        for (int j = 0; j < 4; ++j) {
-            const int co = channel_tile * VAE_CONV_TILE + tx + j * VAE_CONV_SPAN;
-            if (co < c_out) {
-                out[co * positions + position] = acc[i][j];
             }
         }
     }
@@ -7324,7 +7545,18 @@ extern "C" __global__ void vae_causal_conv3d_f32(
 // vae_channel_rms_norm_f32: RMS over channels at each position, sqrt(C)
 // scale, 1e-12 zero guard, f64 accumulation (reference engine convention),
 // optional fused SiLU applied after the f32 rounding (host rounding order).
-// One block per position; shared = blockDim.x doubles.
+// One thread per position.
+//
+// The squares are summed in the order a block of 256 threads summed them
+// when every position had a block to itself: 256 partial sums, each of the
+// channels one thread strode over, folded by halves from the widest stride
+// down. A thread takes those partial sums in bit-reversed order and folds
+// them on a stack, which is the same tree with the same operands at every
+// node, so each value is the value that kernel gave. Partial sums past the
+// channels are zero and fold to nothing, so the tree is walked only as wide
+// as the channels reach.
+#define VAE_RMS_FOLD 256
+#define VAE_RMS_FOLD_BITS 8
 extern "C" __global__ void vae_channel_rms_norm_f32(
         float * out,
         const float * x,
@@ -7332,28 +7564,34 @@ extern "C" __global__ void vae_channel_rms_norm_f32(
         int channels,
         int plane,
         int apply_silu) {
-    extern __shared__ double vae_rms_reduce[];
-    const int pos = blockIdx.x;
-    const int tid = threadIdx.x;
-    double sum = 0.0;
-    for (int ch = tid; ch < channels; ch += blockDim.x) {
-        const double v = (double) x[ch * plane + pos];
-        sum += v * v;
+    const int pos = blockIdx.x * blockDim.x + threadIdx.x;
+    if (pos >= plane) {
+        return;
     }
-    vae_rms_reduce[tid] = sum;
-    __syncthreads();
-    for (int stride = blockDim.x / 2; stride; stride >>= 1) {
-        if (tid < stride) {
-            vae_rms_reduce[tid] += vae_rms_reduce[tid + stride];
+    int bits = 0;
+    while (bits < VAE_RMS_FOLD_BITS && (1 << bits) < channels) {
+        ++bits;
+    }
+    double folded[VAE_RMS_FOLD_BITS + 1];
+    int depth = 0;
+    for (unsigned int leaf = 0; leaf < (1u << bits); ++leaf) {
+        const int first = bits ? (int) (__brev(leaf) >> (32 - bits)) : 0;
+        double sum = 0.0;
+        for (int ch = first; ch < channels; ch += VAE_RMS_FOLD) {
+            const double v = (double) x[ch * plane + pos];
+            sum += v * v;
         }
-        __syncthreads();
+        for (unsigned int carry = leaf; carry & 1u; carry >>= 1) {
+            sum = folded[--depth] + sum;
+        }
+        folded[depth++] = sum;
     }
-    double norm = sqrt(vae_rms_reduce[0]);
+    double norm = sqrt(folded[0]);
     if (norm < 1.0e-12) {
         norm = 1.0e-12;
     }
     const double scale = sqrt((double) channels) / norm;
-    for (int ch = tid; ch < channels; ch += blockDim.x) {
+    for (int ch = 0; ch < channels; ++ch) {
         const int idx = ch * plane + pos;
         float value = (float) ((double) x[idx] * scale * (double) gamma[ch]);
         if (apply_silu) {
@@ -7430,55 +7668,6 @@ extern "C" __global__ void vae_spatial_attention_f32(
         }
         out[(ch * groups + g) * frame + qi] = acc;
     }
-}
-
-// vae_upsample2d_f32: nearest-neighbor 2x spatial upsample fused with a
-// same-padded 3x3 Conv2d per frame (Wan resample stack), fp32 FMA, fused
-// mandatory bias. One thread per output element.
-extern "C" __global__ void vae_upsample2d_f32(
-        float * out,
-        const float * x,
-        const float * weight,
-        const float * bias,
-        int c_in,
-        int c_out,
-        int frames,
-        int height,
-        int width,
-        int out_h,
-        int out_w,
-        unsigned int count) {
-    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index >= count) {
-        return;
-    }
-    const int plane = frames * out_h * out_w;
-    const int co = (int) index / plane;
-    int rem = (int) index - co * plane;
-    const int ti = rem / (out_h * out_w);
-    rem -= ti * out_h * out_w;
-    const int oh = rem / out_w;
-    const int ow = rem - oh * out_w;
-    float acc = bias[co];
-    for (int ci = 0; ci < c_in; ++ci) {
-        for (int kh = 0; kh < 3; ++kh) {
-            const int uh = oh + kh - 1;
-            if (uh < 0 || uh >= out_h) {
-                continue;
-            }
-            const int ih = uh / 2;
-            for (int kw = 0; kw < 3; ++kw) {
-                const int uw = ow + kw - 1;
-                if (uw < 0 || uw >= out_w) {
-                    continue;
-                }
-                const int iw = uw / 2;
-                acc = fmaf(x[((ci * frames + ti) * height + ih) * width + iw],
-                           weight[((co * c_in + ci) * 3 + kh) * 3 + kw], acc);
-            }
-        }
-    }
-    out[index] = acc;
 }
 
 // vae_time_interleave_f32: temporal upsample reshape - the time conv's

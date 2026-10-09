@@ -14,6 +14,7 @@ import (
 	"math"
 	"os"
 	"runtime"
+	"slices"
 	"time"
 	"unsafe"
 
@@ -211,21 +212,37 @@ func launchVAEKernel(state *device.State, function driver.Function, grid, block 
 	return err
 }
 
+// convExtents are a convolution kernel's extents in time, height and width.
+type convExtents [tensor.TripleExtent]int
+
+// convKernels are the extents the convolution kernel is compiled for: it
+// writes nothing for another.
+var convKernels = [...]convExtents{
+	{tensor.TripleExtent, tensor.TripleExtent, tensor.TripleExtent},
+	{tensor.TripleExtent, tensor.SingletonExtent, tensor.SingletonExtent},
+	{tensor.SingletonExtent, tensor.SingletonExtent, tensor.SingletonExtent},
+}
+
+// convGrid is the launch of a tiled convolution: a block computes a tile of
+// output channels for as many positions as it has threads.
+func convGrid(cOut, positions int) driver.Dim3 {
+	tile, threads := kernel.VAEConvTile(), kernel.DefaultThreads()
+	return kernel.Grid1D(((cOut + tile - 1) / tile) * ((positions + threads - 1) / threads))
+}
+
 func (s *vaeDecoderCUDASession) conv3d(state *device.State, out, x, cache driver.DevicePtr, cacheT int, weight, bias driver.DevicePtr, cIn, cOut, frames, h, w, kt, kh, kw int) error {
-	positions := frames * h * w
-	tile := kernel.VAEConvTile()
-	channelTiles := (cOut + tile - 1) / tile
-	positionTiles := (positions + tile - 1) / tile
+	if !slices.Contains(convKernels[:], convExtents{kt, kh, kw}) {
+		return fmt.Errorf("vae cuda convolution: no kernel of %dx%dx%d", kt, kh, kw)
+	}
 	cInArg, cOutArg := uint32(cIn), uint32(cOut)
 	inT, inH, inW := uint32(frames), uint32(h), uint32(w)
 	ktArg, khArg, kwArg := uint32(kt), uint32(kh), uint32(kw)
-	padT, padH, padW := uint32(kt/tensor.PairedExtent), uint32(kh/tensor.PairedExtent), uint32(kw/tensor.PairedExtent)
 	cacheTArg := uint32(cacheT)
 	return launchVAEKernel(state, s.kernels[media.CodecKernelConvolution],
-		kernel.Grid1D(channelTiles*positionTiles), kernel.DefaultBlock1D(), kernel.NoSharedMemoryBytes(),
+		convGrid(cOut, frames*h*w), kernel.DefaultBlock1D(), kernel.NoSharedMemoryBytes(),
 		&out, &x, &cache, &weight, &bias,
 		&cInArg, &cOutArg, &inT, &inH, &inW,
-		&ktArg, &khArg, &kwArg, &padT, &padH, &padW, &cacheTArg)
+		&ktArg, &khArg, &kwArg, &cacheTArg)
 }
 
 func (s *vaeDecoderCUDASession) rmsNorm(state *device.State, out, x, gamma driver.DevicePtr, c, plane int, silu bool) error {
@@ -234,7 +251,7 @@ func (s *vaeDecoderCUDASession) rmsNorm(state *device.State, out, x, gamma drive
 		applySiLU = uint32(tensor.SingletonExtent)
 	}
 	return launchVAEKernel(state, s.kernels[media.CodecKernelRMSNorm],
-		kernel.Grid1D(plane), kernel.DefaultBlock1D(), uint32(kernel.DefaultThreads()*binaryschema.Uint64Bytes),
+		kernel.ElementwiseGrid(plane), kernel.DefaultBlock1D(), kernel.NoSharedMemoryBytes(),
 		&out, &x, &gamma, &channels, &planeArg, &applySiLU)
 }
 
@@ -538,24 +555,21 @@ func (s *vaeDecoderCUDASession) runOp(state *device.State, opIndex, chunkIndex i
 func (s *vaeDecoderCUDASession) upsample2D(state *device.State, out, x, weight, bias driver.DevicePtr, cIn, cOut, frames, h, w int) error {
 	scale := media.CodecUpsampleSpatial.SpatialScale()
 	outH, outW := scale*h, scale*w
-	elements := cOut * frames * outH * outW
 	cInArg, cOutArg, framesArg := uint32(cIn), uint32(cOut), uint32(frames)
-	heightArg, widthArg := uint32(h), uint32(w)
-	outHArg, outWArg, count := uint32(outH), uint32(outW), uint32(elements)
-	return launchVAEKernel(state, s.kernels[media.CodecKernelUpsample], kernel.ElementwiseGrid(elements), kernel.DefaultBlock1D(), kernel.NoSharedMemoryBytes(),
+	outHArg, outWArg := uint32(outH), uint32(outW)
+	return launchVAEKernel(state, s.kernels[media.CodecKernelUpsample], convGrid(cOut, frames*outH*outW), kernel.DefaultBlock1D(), kernel.NoSharedMemoryBytes(),
 		&out, &x, &weight, &bias,
-		&cInArg, &cOutArg, &framesArg, &heightArg, &widthArg, &outHArg, &outWArg, &count)
+		&cInArg, &cOutArg, &framesArg, &outHArg, &outWArg)
 }
 
 func (s *vaeDecoderCUDASession) downsample2D(state *device.State, out, x, weight, bias driver.DevicePtr, channels, frames, h, w int) error {
 	scale := media.CodecDownsampleSpatial.SpatialScale()
 	outH, outW := h/scale, w/scale
-	elements := channels * frames * outH * outW
 	channelsArg, framesArg := uint32(channels), uint32(frames)
 	heightArg, widthArg := uint32(h), uint32(w)
-	outHArg, outWArg, count := uint32(outH), uint32(outW), uint32(elements)
-	return launchVAEKernel(state, s.kernels[media.CodecKernelDownsample], kernel.ElementwiseGrid(elements), kernel.DefaultBlock1D(), kernel.NoSharedMemoryBytes(),
-		&out, &x, &weight, &bias, &channelsArg, &framesArg, &heightArg, &widthArg, &outHArg, &outWArg, &count)
+	outHArg, outWArg := uint32(outH), uint32(outW)
+	return launchVAEKernel(state, s.kernels[media.CodecKernelDownsample], convGrid(channels, frames*outH*outW), kernel.DefaultBlock1D(), kernel.NoSharedMemoryBytes(),
+		&out, &x, &weight, &bias, &channelsArg, &framesArg, &heightArg, &widthArg, &outHArg, &outWArg)
 }
 
 func (s *vaeDecoderCUDASession) temporalDownsample(state *device.State, out, x, prior, weight, bias driver.DevicePtr, channels, frames, priorFrames, spatial, outFrames int) error {

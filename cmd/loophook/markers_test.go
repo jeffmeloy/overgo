@@ -22,13 +22,13 @@ func TestLoopMarkersLiveInTheRuntimeDirectory(t *testing.T) {
 	if err := os.WriteFile(legacy, []byte(`{"head":"abc123","facts":[]}`+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if path := turnBaseFile(); path != filepath.Join(processlock.StateDirectory, "loop_state") {
+	if path := turnBaseFile(""); path != filepath.Join(processlock.StateDirectory, "loop_state") {
 		t.Fatalf("turn snapshot at %q, want the state directory", path)
 	}
 	if _, err := os.Stat(legacy); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("the legacy snapshot stayed under docs: %v", err)
 	}
-	if base, ok := readTurnBase(); !ok || base.Head != "abc123" {
+	if base, ok := readTurnBase(""); !ok || base.Head != "abc123" {
 		t.Fatalf("the legacy snapshot was not carried across: %+v %v", base, ok)
 	}
 }

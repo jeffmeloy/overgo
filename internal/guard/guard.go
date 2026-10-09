@@ -13,11 +13,17 @@ package guard
 
 import (
 	"bufio"
+	"cmp"
+	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
+
+	"overgo/internal/gitauthority"
+	"overgo/internal/processlock"
 )
 
 const commandBoundary = "(?:^|[\\n;|&(`])\\s*"
@@ -54,12 +60,55 @@ var (
 	rawCommit = regexp.MustCompile("(?i)" + commandBoundary + `git\s+(?:[^\n;|&]*\s)?commit(?:\s|$)`)
 )
 
-// ToolCall is the harness PreToolUse payload subset the guard judges.
+// ToolCall is the harness PreToolUse payload subset the guard judges: the
+// session the call is made in, a shell tool's command, and the file an
+// editing tool writes.
 type ToolCall struct {
 	ToolName  string `json:"tool_name"`
+	Session   string `json:"session_id"`
 	ToolInput struct {
 		Command string `json:"command"`
+		Path    string `json:"file_path"`
 	} `json:"tool_input"`
+}
+
+// SessionState names the file, in a checkout's process state, where the
+// loop's hooks keep what they know of one session: the snapshot its turn
+// began with, and whether it declared itself a review session. A session the
+// harness does not name, or whose name is not one path element, has the one
+// file all sessions shared before they were told apart.
+func SessionState(session string) string {
+	if session == "" || filepath.Base(session) != session {
+		return "loop_state"
+	}
+	return "loop_state-" + session
+}
+
+// landing is a command that lands a change through the gate.
+var landing = regexp.MustCompile(`(?i)\./cmd/(?:loop\b[^\n;&|]*\s-land\b|gate\b)`)
+
+// reviewVerdict refuses what a review session may not do, and allows the
+// rest: a session that declared itself one (its state says so) lands nothing
+// and edits no file the repository tracks or would track, so it has no work
+// of its own for the stop gate to hold it to. A file outside the checkout, or
+// one the repository ignores, is scratch and is its own to write.
+func reviewVerdict(call ToolCall, root string) string {
+	var state struct{ Review bool }
+	data, _ := os.ReadFile(filepath.Join(root, processlock.StateDirectory, SessionState(call.Session)))
+	if call.Session == "" || json.Unmarshal(data, &state) != nil || !state.Review {
+		return ""
+	}
+	if landing.MatchString(call.ToolInput.Command) {
+		return "a review session lands nothing; report what it found (go run ./cmd/finding) and leave the landing to the lane's session"
+	}
+	relative, err := filepath.Rel(root, cmp.Or(call.ToolInput.Path, root))
+	if err != nil || relative == "." || !filepath.IsLocal(relative) {
+		return ""
+	}
+	if _, ignored := gitauthority.Query(context.Background(), root, "check-ignore", "-q", relative); ignored == nil {
+		return ""
+	}
+	return "a review session edits no file the repository tracks (" + filepath.ToSlash(relative) + "); report what it found (go run ./cmd/finding), or write to a scratch path"
 }
 
 // Verdict judges one tool call. Empty string allows; otherwise the deny
@@ -67,6 +116,9 @@ type ToolCall struct {
 func Verdict(call ToolCall, root string) (message string, wrapped bool) {
 	if call.ToolName == "PowerShell" {
 		return "the PowerShell tool is disabled; use the Bash tool", false
+	}
+	if message := reviewVerdict(call, root); message != "" {
+		return message, false
 	}
 	for index, command := range payloads(call.ToolInput.Command, 0) {
 		if m := ruleVerdict(command, root); m != "" {

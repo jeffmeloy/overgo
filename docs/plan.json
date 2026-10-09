@@ -9,17 +9,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 540,
+        "nodes": 69,
         "reason": "An estimate, not a preflight figure: the owner's ceiling of 125 was sized as landing-terms' 407 was, and that row measured 916. Two steps of the kind landing-terms' second was (360 measured): a snapshot keyed by session with a review mode, and a lock taken at session start. Replaced by each step's measured figure before it is dispatched"
       },
       "steps": [
-        {
-          "id": "sessions",
-          "title": "Keep each session's turn snapshot under its own session, and give a review session a mode in which it edits nothing and is held to no row",
-          "status": "open",
-          "verify": "go test ./cmd/loophook -count=1 -run '^(TestOverlappingSessionsKeepTheirOwnTurnSnapshots|TestReviewSessionIsNotHeldAndAnyOtherRoleIs)$'",
-          "rationale": "The stop gate charges a turn with every file that became dirty after the turn began (cmd/loophook main.go: hasTurnCreatedDirt compares the tree with the turn's first snapshot). The snapshot is one file for the checkout (main.go: turnBaseFile names no session), so when two sessions overlap, each prompt overwrites the other's snapshot and a turn is judged against a baseline it did not take. The step names the file by the session the hook is called for.\n\nWith its own snapshot a session is still charged with the files another session edits during its turn. On 2026-10-09 a review-only session was told to land or revert the lane's uncommitted files at the end of most of its turns, and to continue the lane's dispatched row at the end of the others. The exemption is for review alone and is declared, at session start, as a mode that owns no row. A session of the plan's lane, of another implementing role, or of no role (which is treated as the lane's, internal/plan plan.go) stays held, since each of those can write code and an exemption would hide its unfinished edits. The guard refuses a review session's edits to tracked files, so it has nothing to leave behind, and the session-start text says which kind of session it is. Its tests begin two turns in two sessions and hold that each is judged against its own snapshot, and hold a review session free and each other kind held.\n\nFiled as two steps and tightened to one landing: both key the stop gate's judgment by the session the hook is called for.\n\nServes: change. Disappears: a turn judged against another session's baseline, and a review session's turns spent answering the gate for work it may not touch. Evidence: the two tests' sessions. Batch: host."
-        },
         {
           "id": "worktrees",
           "title": "Hold one implementing session to a worktree, by a lock taken when it starts",

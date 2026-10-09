@@ -31,6 +31,7 @@ import (
 	"strings"
 
 	"overgo/internal/gitauthority"
+	"overgo/internal/guard"
 	"overgo/internal/plan"
 	"overgo/internal/processlock"
 	"overgo/internal/repoanalysis"
@@ -38,11 +39,22 @@ import (
 
 // turnBaseFile is the process-state file that snapshots dirt at
 // UserPromptSubmit so the Stop gate blocks only on TURN-CREATED dirt.
-// Pre-existing dirt is another lane's parked in-flight work. Empty when the
-// state directory cannot be made: no snapshot, so the gate reads none.
-func turnBaseFile() string {
-	path, _ := processlock.StateFile(".", "loop_state", "docs/.loop_state")
+// Pre-existing dirt is another lane's parked in-flight work. Each session has
+// its own, named by the session the hook is called for: sessions that overlap
+// in one checkout each take a snapshot when their turn begins, and one file
+// for the checkout had every prompt overwrite the other session's, so a turn
+// was judged against a snapshot it did not take. Empty when the state
+// directory cannot be made: no snapshot, so the gate reads none.
+func turnBaseFile(session string) string {
+	path, _ := processlock.StateFile(".", guard.SessionState(session), "docs/.loop_state")
 	return path
+}
+
+// hookInput is what the harness hands a hook, as far as the loop reads it:
+// the session the hook is called for, and the prompt of a prompt hook.
+type hookInput struct {
+	Session string `json:"session_id"`
+	Prompt  string `json:"prompt"`
 }
 
 func main() {
@@ -56,7 +68,7 @@ func main() {
 	case "post-commit":
 		runPostCommit(readStdin())
 	case "doctrine":
-		runDoctrine()
+		runDoctrine(readStdin())
 	case "prompt":
 		runPrompt(readStdin())
 	default:
@@ -68,6 +80,13 @@ func main() {
 func readStdin() string {
 	b, _ := io.ReadAll(os.Stdin)
 	return string(b)
+}
+
+// parseHook reads the harness's input; text that is not the input it sends
+// names no session, and its hooks share the one snapshot sessions had.
+func parseHook(hookJSON string) (input hookInput) {
+	_ = json.Unmarshal([]byte(hookJSON), &input)
+	return input
 }
 
 // Stop verdict reasons. Allow whenever a valve fires; otherwise a turn-end is
@@ -102,23 +121,35 @@ func runStop(hookJSON string) int {
 	if strings.Contains(hookJSON, `"stop_hook_active":true`) || strings.Contains(hookJSON, `"stop_hook_active": true`) {
 		return 0
 	}
-	dispatch := nextDispatch()
-	if dispatch.Waiting != "" {
-		fmt.Fprintln(os.Stderr, dispatch.Line)
+	session := parseHook(hookJSON).Session
+	// A review session owns no row and edits nothing tracked (the guard
+	// refuses it), so it is held to no row and charged with no file, and
+	// reads no dispatch.
+	if base, ok := readTurnBase(session); ok && base.Review {
 		return 0
 	}
+	dispatch := nextDispatch()
 	operatorStopped := dispatch.Stop != nil && dispatch.Stop.Blocked
-	gateRunning := gateProcessRunning()
-	dirtyWork := hasTurnCreatedDirt()
-	progressed := headAdvancedSinceTurnStart()
-
-	verdict := stopDecision(false, operatorStopped, gateRunning, dispatch.Complete, dirtyWork)
+	dirtyWork := hasTurnCreatedDirt(session)
+	verdict := stopDecision(false, operatorStopped, gateCommitting(), dispatch.Complete, dirtyWork)
+	// A session whose role has no row to work is not held to the loop, but it
+	// is still held to the work its own turn left uncommitted: it can write code.
+	if dispatch.Waiting != "" {
+		fmt.Fprintln(os.Stderr, dispatch.Line)
+		if verdict != stopOrphan {
+			return 0
+		}
+	}
 	if verdict == stopAllow {
 		return 0
 	}
-	fmt.Fprint(os.Stderr, stopMessage(verdict, progressed, dispatch))
+	fmt.Fprint(os.Stderr, stopMessage(verdict, headAdvancedSinceTurnStart(session), dispatch))
 	return 2
 }
+
+// gateCommitting reports a gate committing now; a test of the stop gate, which
+// the gate itself runs, says none is.
+var gateCommitting = gateProcessRunning
 
 // stopMessage renders the refusal for a verdict, naming the dispatched row
 // from the dispatch's own fields.
@@ -152,13 +183,29 @@ func stopMessage(verdict string, progressed bool, dispatch plan.Dispatch) string
 // dispatch-marker lifecycle is retired: cmd/loop owns continuity.
 func runPostCommit(hookJSON string) {
 	if strings.Contains(hookJSON, "cmd/gate") {
-		writeTurnBase()
+		session := parseHook(hookJSON).Session
+		base, _ := readTurnBase(session)
+		writeTurnBase(session, base.Review)
 	}
 }
 
-func runDoctrine() {
+// reviewDeclaration opens the first message of a session that only reviews.
+const reviewDeclaration = "review session"
+
+// reviewNotice is what a review session is told when it starts and at each
+// prompt, in place of the lane's dispatched row.
+const reviewNotice = "OVERGO REVIEW SESSION. This session reviews: it lands nothing and edits no file the repository tracks (the guard refuses both), it is dispatched no row, and the stop gate holds it to none. Report what it finds with go run ./cmd/finding; scratch belongs in a path the repository ignores."
+
+func runDoctrine(hookJSON string) {
+	session := parseHook(hookJSON).Session
+	// A session that declared itself a review session stays one when it is
+	// resumed or compacted, and is told so in place of the turn contract.
+	if base, ok := readTurnBase(session); ok && base.Review {
+		fmt.Println(reviewNotice)
+		return
+	}
 	// A turn never spans sessions -- any pending boundary is stale.
-	_ = os.Remove(turnBaseFile())
+	_ = os.Remove(turnBaseFile(session))
 	fmt.Println(doctrineText)
 	fmt.Println()
 	fmt.Println("Dispatched now (go run ./cmd/plan -next):")
@@ -176,14 +223,26 @@ func runDoctrine() {
 	}
 }
 
+// beginTurn snapshots the dirty set as a turn starts, for the session the
+// hook is called for: the Stop gate then owes a block only to dirt this turn
+// creates, not to another session's or another lane's parked work. It reports
+// whether the session is a review session: one is declared by the first
+// message of a session the harness names, opening with reviewDeclaration,
+// and stays one.
+func beginTurn(input hookInput) (review bool) {
+	base, known := readTurnBase(input.Session)
+	review = base.Review || !known && input.Session != "" && strings.HasPrefix(strings.ToLower(strings.TrimSpace(input.Prompt)), reviewDeclaration)
+	writeTurnBase(input.Session, review)
+	return review
+}
+
 func runPrompt(hookJSON string) {
-	// Every turn starts by snapshotting the dirty set: the Stop gate then owes a
-	// block only to dirt this turn creates, not to another lane's parked work.
-	writeTurnBase()
-	var input struct {
-		Prompt string `json:"prompt"`
+	input := parseHook(hookJSON)
+	if beginTurn(input) {
+		fmt.Println(reviewNotice)
+		return
 	}
-	if json.Unmarshal([]byte(hookJSON), &input) == nil && boundedRequestText(input.Prompt) {
+	if boundedRequestText(input.Prompt) {
 		fmt.Println("OVERGO BOUNDED REQUEST: answer this request concisely, THEN continue the dispatched plan row in this same turn -- a prompt never pauses the loop (owner rule). Only an explicit user stop pauses; record it with go run ./cmd/plan -stop user-stop:<detail>.")
 		return
 	}
@@ -256,28 +315,31 @@ func currentDirtyFacts() ([]dirtyFact, error) {
 	return facts, nil
 }
 
-// turnBase is the turn-start snapshot: the dirty set (orphan check) and the
-// HEAD commit (loop-progress check).
+// turnBase is a session's turn-start snapshot: the dirty set (orphan check)
+// and the HEAD commit (loop-progress check), and whether the session declared
+// itself a review session, which the guard reads too.
 type turnBase struct {
-	Head  string      `json:"head"`
-	Facts []dirtyFact `json:"facts"`
+	Head   string      `json:"head"`
+	Facts  []dirtyFact `json:"facts"`
+	Review bool        `json:"review,omitzero"`
 }
 
-// writeTurnBase snapshots dirt and HEAD at a prompt or commit boundary.
-func writeTurnBase() {
+// writeTurnBase snapshots dirt and HEAD for the session at a prompt or commit
+// boundary, and keeps whether it is a review session.
+func writeTurnBase(session string, review bool) {
 	facts, err := currentDirtyFacts()
 	if err != nil {
 		return
 	}
-	data, err := json.Marshal(turnBase{Head: gitHead(), Facts: facts})
+	data, err := json.Marshal(turnBase{Head: gitHead(), Facts: facts, Review: review})
 	if err == nil {
-		_ = os.WriteFile(turnBaseFile(), append(data, '\n'), 0o600)
+		_ = os.WriteFile(turnBaseFile(session), append(data, '\n'), 0o600)
 	}
 }
 
-// readTurnBase parses the snapshot; ok=false on a missing or legacy file.
-func readTurnBase() (turnBase, bool) {
-	raw, err := os.ReadFile(turnBaseFile())
+// readTurnBase parses the session's snapshot; ok=false on a missing or legacy file.
+func readTurnBase(session string) (turnBase, bool) {
+	raw, err := os.ReadFile(turnBaseFile(session))
 	if err != nil {
 		return turnBase{}, false
 	}
@@ -298,8 +360,8 @@ func readTurnBaseFrom(raw []byte) (turnBase, bool) {
 // A missing or legacy snapshot fails toward ALLOW (progressed=true): without a
 // baseline the gate cannot prove the turn made no progress, and the harassment
 // direction is the wrong error.
-func headAdvancedSinceTurnStart() bool {
-	base, ok := readTurnBase()
+func headAdvancedSinceTurnStart(session string) bool {
+	base, ok := readTurnBase(session)
 	if !ok {
 		return true
 	}
@@ -310,12 +372,12 @@ func headAdvancedSinceTurnStart() bool {
 // A missing or unreadable snapshot FAILS SAFE toward the old behavior -- all
 // dirt blocks -- so a lost marker errs toward "commit your work", never toward
 // orphaning it.
-func hasTurnCreatedDirt() bool {
+func hasTurnCreatedDirt(session string) bool {
 	current, currentErr := currentDirtyFacts()
 	if currentErr != nil {
 		return true
 	}
-	base, ok := readTurnBase()
+	base, ok := readTurnBase(session)
 	if !ok {
 		return len(current) > 0
 	}

@@ -69,4 +69,11 @@ For unattended continuity run go run ./cmd/loop.
 
 SCOPE. A bounded request -- a status readout, an explanation, or a review --
 bounds the ANSWER, not the turn: keep the answer to what was asked (no
-inflating it into a campaign), then continue the dispatched row.`
+inflating it into a campaign), then continue the dispatched row.
+
+SESSIONS. This is an implementing session: it works the dispatched row, and
+the Stop gate holds it to the work its own turns leave uncommitted, judged
+against the snapshot this session took when the turn began. A session that
+only reviews says so in its first message, which opens with the words
+"review session": it is then dispatched no row, lands nothing, edits no file
+the repository tracks (the guard refuses both), and is held to no row.`

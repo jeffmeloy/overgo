@@ -19,12 +19,14 @@ const unnamedShare = 0.05
 
 // servedEditCeiling is the time a served edit of 21 frames may take. It took
 // 75 seconds while the text encoder ran a prompt's padding with the prompt, 41
-// without, 30 with the autoencoder's convolutions computed in tiles, and takes
-// 20 handed to its session as it stands, 12.6 from a session already loaded;
-// the ceiling stands under what it took before that, so any of those costs
-// coming back fails here. The model's own code takes four seconds over the
-// same clip on this device, and each part mended brings the ceiling down.
-const servedEditCeiling = 24 * time.Second
+// without, 30 with the autoencoder's convolutions computed in tiles, 20 handed
+// to its session as it stands, and takes 17.6 with the text encoder
+// multiplying by its weights as stored: 11 from a session already loaded, 8.8
+// when the instruction is one the encoder has kept. The ceiling stands a
+// quarter over the slowest of the three, so a part's cost coming back whole
+// fails here. The model's own code takes four seconds over the same clip on
+// this device, and each part mended brings the ceiling down.
+const servedEditCeiling = 22 * time.Second
 
 // TestServedEditStageTimes says where a served edit's time goes. It serves the
 // edit of one clip of 21 frames at the size the editor was trained at, the
@@ -49,9 +51,12 @@ func TestServedEditStageTimes(t *testing.T) {
 		name, prompt string
 		seed         int64
 	}{
-		{"nothing loaded", "turn the stripes green", 3},
-		{"another instruction", "turn the stripes into falling snow", 3},
-		{"another seed", "turn the stripes into falling snow", 4},
+		// Instructions no other test of this process gives: the encoder keeps
+		// the rows of a prompt it has encoded, and the first two requests here
+		// are to pay for theirs.
+		{"nothing loaded", "turn the stripes green and time each part", 3},
+		{"another instruction", "turn the stripes into falling snow and time each part", 3},
+		{"another seed", "turn the stripes into falling snow and time each part", 4},
 	} {
 		ctx, stages := processmeasure.WithStages(t.Context())
 		clock := processmeasure.NewStopwatch()

@@ -14,9 +14,12 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/bits"
 	"os"
 	"path"
 	"sort"
+	"sync"
+	"unsafe"
 
 	"overgo/internal/hostmath"
 	"overgo/internal/tensor/dtype"
@@ -585,6 +588,14 @@ type Reader struct {
 	f       *os.File
 	root    string
 	entries map[string]*zip.File
+
+	// handles are every handle open on the file, f among them, and idle
+	// those no worker is reading through. A system that lets a handle read in
+	// one place at a time reads in as many places as there are handles, so
+	// workers that read a tensor's spans at once each read through their own.
+	handleMu sync.Mutex
+	handles  []*os.File
+	idle     []*os.File
 }
 
 // Open indexes the checkpoint's storage entries for offset reads.
@@ -603,14 +614,38 @@ func Open(filename string) (*Reader, error) {
 		zr.Close()
 		return nil, err
 	}
-	return &Reader{zr: zr, f: f, root: root, entries: entries}, nil
+	return &Reader{zr: zr, f: f, root: root, entries: entries, handles: []*os.File{f}, idle: []*os.File{f}}, nil
+}
+
+// borrow gives a handle no other worker is reading through, opening one when
+// every handle is in use, and the function that gives it back.
+func (r *Reader) borrow() (*os.File, func(), error) {
+	r.handleMu.Lock()
+	defer r.handleMu.Unlock()
+	var handle *os.File
+	if last := len(r.idle) - 1; last >= 0 {
+		handle, r.idle = r.idle[last], r.idle[:last]
+	} else {
+		opened, err := os.Open(r.f.Name())
+		if err != nil {
+			return nil, nil, err
+		}
+		handle, r.handles = opened, append(r.handles, opened)
+	}
+	return handle, func() {
+		r.handleMu.Lock()
+		r.idle = append(r.idle, handle)
+		r.handleMu.Unlock()
+	}, nil
 }
 
 func (r *Reader) Close() error {
 	var err error
 	if r.f != nil {
-		err = r.f.Close()
-		r.f = nil
+		for _, handle := range r.handles {
+			err = errors.Join(err, handle.Close())
+		}
+		r.f, r.handles, r.idle = nil, nil, nil
 	}
 	if r.zr != nil {
 		if zerr := r.zr.Close(); err == nil {
@@ -664,6 +699,69 @@ func (r *Reader) ReadBinding(binding TensorBinding) ([]float32, error) {
 	values := make([]float32, int(meta.Numel))
 	if err := r.decodeAt(dataOffset+meta.StorageOffset*elemBytes, elemBytes, convert, values); err != nil {
 		return nil, err
+	}
+	return values, nil
+}
+
+// ReadBF16 validates identity then reads a bfloat16 tensor as it is stored,
+// into reuse when that is long enough. A matrix its caller multiplies a few
+// rows by is widened where it is multiplied; widened here it is written out
+// again at twice its size, which for a text encoder of eleven gigabytes was
+// most of the time a short prompt took.
+func (r *Reader) ReadBF16(binding TensorBinding, reuse []uint16) ([]uint16, error) {
+	if r == nil || r.f == nil {
+		return nil, fmt.Errorf("pytorchzip: reader is closed")
+	}
+	identity, err := compileTensorIdentity(binding.Meta)
+	if err != nil {
+		return nil, err
+	}
+	if identity != binding.Identity {
+		return nil, fmt.Errorf("pytorchzip: binding identity drift for %s", binding.Identity.Name)
+	}
+	meta := binding.Meta
+	if stored, err := StorageType(meta.DType); err != nil || stored != dtype.BF16 {
+		return nil, fmt.Errorf("pytorchzip: %s is stored as %s, not bfloat16", meta.Name, meta.DType)
+	}
+	width := int64(unsafe.Sizeof(uint16(0)))
+	if uint64(meta.Numel) > uint64(^uint(0)>>1) || meta.StorageOffset > math.MaxInt64/width {
+		return nil, fmt.Errorf("pytorchzip: %s byte span overflows", meta.Name)
+	}
+	dataOffset, err := r.storageDataOffset(meta)
+	if err != nil {
+		return nil, err
+	}
+	if cap(reuse) < int(meta.Numel) {
+		reuse = make([]uint16, meta.Numel)
+	}
+	values := reuse[:meta.Numel]
+	stored := unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(values))), len(values)*int(width))
+	chunks := (len(stored) + scratchChunkBytes - 1) / scratchChunkBytes
+	failed := make([]error, chunks)
+	hostmath.ParallelRangeF64(chunks, scratchChunkBytes, func(first, last int) {
+		file, done, err := r.borrow()
+		if err != nil {
+			failed[first] = err
+			return
+		}
+		defer done()
+		for chunk := first; chunk < last; chunk++ {
+			start := chunk * scratchChunkBytes
+			span := stored[start:min(start+scratchChunkBytes, len(stored))]
+			if _, err := file.ReadAt(span, dataOffset+meta.StorageOffset*width+int64(start)); err != nil {
+				failed[chunk] = err
+				return
+			}
+		}
+	})
+	if err := errors.Join(failed...); err != nil {
+		return nil, err
+	}
+	// The file's values are little-endian; a host that is not turns each.
+	if binary.NativeEndian.Uint16([]byte{1, 0}) != 1 {
+		for index, value := range values {
+			values[index] = bits.ReverseBytes16(value)
+		}
 	}
 	return values, nil
 }
@@ -730,12 +828,18 @@ func (r *Reader) decodeAt(byteOffset, elemBytes int64, convert func(uint16) floa
 	chunks := (len(out) + chunkElems - 1) / chunkElems
 	failed := make([]error, chunks)
 	hostmath.ParallelRangeF64(chunks, chunkElems, func(first, last int) {
+		file, done, err := r.borrow()
+		if err != nil {
+			failed[first] = err
+			return
+		}
+		defer done()
 		scratch := make([]byte, min(len(out), chunkElems)*int(elemBytes))
 		for chunk := first; chunk < last; chunk++ {
 			start := chunk * chunkElems
 			span := out[start:min(start+chunkElems, len(out))]
 			buf := scratch[:len(span)*int(elemBytes)]
-			if _, err := r.f.ReadAt(buf, byteOffset+int64(start)*elemBytes); err != nil {
+			if _, err := file.ReadAt(buf, byteOffset+int64(start)*elemBytes); err != nil {
 				failed[chunk] = err
 				return
 			}

@@ -15,7 +15,6 @@ import (
 
 	"overgo/internal/checked"
 	"overgo/internal/processmeasure"
-	"overgo/internal/pytorchzip"
 	"overgo/internal/representation"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
@@ -68,70 +67,48 @@ func TextConditioning(ctx context.Context, spec TextConditioningSpec, prompt str
 }
 
 func textConditioningWithWeights(ctx context.Context, spec TextConditioningSpec, prompt string, weights projectionWeights, sourceBytes int64) (textConditioningResult, error) {
-	var out textConditioningResult
-	if err := ctx.Err(); err != nil {
-		return out, err
+	conditioned, err := textConditioningsWithWeights(ctx, spec, weights, sourceBytes, prompt)
+	if err != nil {
+		return textConditioningResult{}, err
 	}
-	if !checked.PositiveInts(spec.SequenceLength) {
-		return out, fmt.Errorf("text conditioning: positive sequence length required")
+	return conditioned[0], nil
+}
+
+// textConditioningsWithWeights conditions several prompts of one request
+// together: the encoder's rows of each (encodePrompts), the ones not kept
+// from an earlier request encoded in one pass over the checkpoint, each
+// projected and padded. Encoder is the measures of that pass, zero for a
+// request whose prompts were all kept.
+func textConditioningsWithWeights(ctx context.Context, spec TextConditioningSpec, weights projectionWeights, sourceBytes int64, prompts ...string) ([]textConditioningResult, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	defer processmeasure.Stage(ctx, "prompt tokenized and projected")()
-	tok, err := loadFixedUnigramTokenizer(spec.TokenizerDir, spec.SequenceLength)
+	encoded, textDim, encoderStats, err := encodePrompts(ctx, spec, prompts...)
 	if err != nil {
-		return out, err
+		return nil, err
 	}
-	catalog, err := pytorchzip.ReadCatalog(spec.EncoderCheckpoint)
-	if err != nil {
-		return out, err
-	}
-	metas := catalog.Tensors
-	plan, err := CompileEncoderPlan(metas, encoderConfig{RelativeMaxDistance: spec.RelativeMaxDistance, NormEps: spec.NormEps})
-	if err != nil {
-		return out, err
-	}
-	if !plan.OK {
-		return out, fmt.Errorf("text conditioning encoder contract: missing=%v unexpected=%v dtype=%v shape=%v", plan.Missing, plan.Unexpected, plan.DTypeMismatches, plan.ShapeMismatches)
-	}
-	textDim := plan.Config.Dim
 	projection, err := representation.CompileTwoLayerProjectionF32(textDim, weights.Linear0W, weights.Linear0B, weights.Linear2W, weights.Linear2B)
 	if err != nil {
-		return out, fmt.Errorf("text conditioning: %w", err)
+		return nil, fmt.Errorf("text conditioning: %w", err)
 	}
 	dim := projection.OutputWidth
-	ids, mask, err := tok.EncodeWithMask(prompt)
-	if err != nil {
-		return out, err
-	}
-	tokenCount := tensor.FirstOffset
-	for _, v := range mask {
-		if checked.Nonzero(v) {
-			tokenCount++
+	conditioned := make([]textConditioningResult, len(prompts))
+	for index, rows := range encoded {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		tokenCount := len(rows) / textDim
+		context, err := projectCompactTextConditioning(rows, tokenCount, spec.SequenceLength, textDim, dim, weights, true)
+		if err != nil {
+			return nil, err
+		}
+		conditioned[index] = textConditioningResult{
+			Context: context, Rows: spec.SequenceLength, Dim: dim,
+			TokenCount: tokenCount, Encoder: encoderStats, ProjectionSourceBytes: sourceBytes,
 		}
 	}
-	if !checked.PositiveInts(tokenCount) || !checked.AtMostInt(tokenCount, len(ids)) {
-		return out, fmt.Errorf("text conditioning: bad token count %d", tokenCount)
-	}
-	run := processmeasure.Stage(ctx, "text encoder run")
-	encoded, encoderStats, err := EncodeTokensStreamed(ctx, spec.EncoderCheckpoint, plan, ids, mask)
-	run()
-	if err != nil {
-		return out, err
-	}
-	encoded = encoded[:tokenCount*textDim]
-	if err := ctx.Err(); err != nil {
-		return out, err
-	}
-	context, err := projectCompactTextConditioning(encoded, tokenCount, spec.SequenceLength, textDim, dim, weights, true)
-	if err != nil {
-		return out, err
-	}
-	if err := ctx.Err(); err != nil {
-		return out, err
-	}
-	return textConditioningResult{
-		Context: context, Rows: spec.SequenceLength, Dim: dim,
-		TokenCount: tokenCount, Encoder: encoderStats, ProjectionSourceBytes: sourceBytes,
-	}, nil
+	return conditioned, ctx.Err()
 }
 
 func loadProjectionWeights(dir string) (projectionWeights, int64, error) {

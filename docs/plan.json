@@ -14,13 +14,6 @@
       },
       "steps": [
         {
-          "id": "prompt",
-          "title": "Encode a prompt in the time its tokens take, and a prompt already encoded not at all",
-          "status": "open",
-          "verify": "go test ./internal/latentvideo -count=1 -run '^TestPromptAlreadyEncodedIsNotEncodedAgain$'",
-          "rationale": "Finding 71cd0c71. A prompt's context took 38 to 42 seconds, whatever its length, until the encoder left the padding after a prompt out and the checkpoint's weights were decoded on every worker; it now takes 3.6 seconds for 6 tokens, 4.8 for 22 and 10.9 for the 126 of Wan2.1's own negative prompt, the same values bit for bit. The model's own code holds the encoder on the device and takes 0.1 to 0.2 seconds.\n\nWhat is left is two costs. Every prompt reads the encoder's eleven gigabytes again, about 3.4 seconds however short the prompt, a block at a time, each block allocated afresh and collected after. And every row costs 60 milliseconds on the host, so a long prompt is slow, and Wan2.1's request encodes two prompts in two passes over the file, one of them a negative prompt that is the same text for every request that names none.\n\nCandidates, to be measured before one is chosen: encode a request's prompts in one pass over the weights; keep the context of a prompt already encoded, in the process and in the store under the encoder's and the projection's identity, so the negative prompt is encoded once for an installation and an instruction given twice is encoded once; hold the weights where a second prompt does not read the file again, on the host as the file's own bytes or on the device, whose cost is eleven gigabytes of peak-device-memory for both video rows and is stated against what it buys. The contexts stay the contexts: internal/latentvideo TestTextConditioningGoldenParity and TestEncodeTokensStreamedMatchesReferenceHost hold them, and a context kept must be the context computed.\n\nServes: generate. Disappears: a text stage that costs seconds where the model's own costs tenths, and a negative prompt encoded again for every clip. Evidence: the text stage's time for one prompt and for Wan2.1's pair, before and after, and both video rows' first-output. Batch: device."
-        },
-        {
           "id": "frames",
           "title": "Draw a clip's frames at once",
           "status": "open",

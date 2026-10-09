@@ -17,6 +17,7 @@ import (
 	"overgo/internal/binaryschema"
 	"overgo/internal/checked"
 	"overgo/internal/hostmath"
+	"overgo/internal/processmeasure"
 	"overgo/internal/pytorchzip"
 	"overgo/internal/representation"
 	"overgo/internal/tensor"
@@ -246,13 +247,27 @@ func (p encoderPlan) validateRuntimeBindings() error {
 	return nil
 }
 
+// encoderMatrix is one weight matrix of a block: widened to float32, or as the
+// bfloat16 the checkpoint stores, which the streamed encoder multiplies by as
+// it is.
+type encoderMatrix struct {
+	wide   []float32
+	stored []uint16
+}
+
+func (m encoderMatrix) elements() int { return max(len(m.wide), len(m.stored)) }
+
 type encoderBlockWeights struct {
 	Norm1, Norm2 []float32
-	Q, K, V, O   []float32
-	Gate, FC1    []float32
-	FC2          []float32
+	Q, K, V, O   encoderMatrix
+	Gate, FC1    encoderMatrix
+	FC2          encoderMatrix
 	PosEmbedding []float32
 }
+
+// blockMatrices are the places, among a block's tensors, of its weight
+// matrices, in the order a pass keeps their storage.
+var blockMatrices = [...]int{blockQ, blockK, blockV, blockO, blockGate, blockFC1, blockFC2}
 
 // encoderStats: measured streaming behavior; PeakHeapAllocBytes is the
 // largest sampled Go heap live-set DELTA over the entry baseline
@@ -271,27 +286,50 @@ type encoderStats struct {
 	PeakHeapAllocBytes  uint64
 }
 
+// encoderSequence is one token sequence and the mask of the rows it keeps.
+type encoderSequence struct {
+	tokens, mask []int
+}
+
 // EncodeTokensStreamed runs the full encoder, loading one block's weights at
-// a time (peak host memory ~ one F32-decoded block, never the checkpoint).
+// a time (peak host memory ~ one block as stored, never the checkpoint).
 // It encodes the rows up to the last one the mask keeps and returns those:
 // a row the mask keeps attends to no row it leaves out, so the padding after
 // a prompt enters none of the prompt's rows, and a prompt of twenty tokens is
 // twenty rows of work where its padded sequence is 512.
 func EncodeTokensStreamed(ctx context.Context, checkpoint string, plan encoderPlan, tokenIDs, mask []int) ([]float32, encoderStats, error) {
-	var stats encoderStats
 	if err := ctx.Err(); err != nil {
+		return nil, encoderStats{}, err
+	}
+	encoded, stats, err := encodeSequencesStreamed(ctx, checkpoint, plan, []encoderSequence{{tokens: tokenIDs, mask: mask}})
+	if err != nil {
 		return nil, stats, err
 	}
+	return encoded[0], stats, nil
+}
+
+// encodeSequencesStreamed runs the encoder over several sequences in one pass
+// over the checkpoint: each block's weights are read once, as stored, into
+// storage the pass keeps from block to block, and every sequence goes through
+// them. Reading and widening the checkpoint for one prompt took 3.3 seconds
+// whatever the prompt's length, and a request that carries two prompts paid it
+// twice.
+func encodeSequencesStreamed(ctx context.Context, checkpoint string, plan encoderPlan, sequences []encoderSequence) ([][]float32, encoderStats, error) {
+	var stats encoderStats
 	config := plan.Config
-	if len(mask) != len(tokenIDs) {
-		return nil, stats, fmt.Errorf("encoder: mask=%d tokens=%d", len(mask), len(tokenIDs))
-	}
-	for len(mask) > 0 && mask[len(mask)-1] == 0 {
-		mask = mask[:len(mask)-1]
-	}
-	tokenIDs = tokenIDs[:len(mask)]
-	if len(tokenIDs) == 0 {
-		return nil, stats, fmt.Errorf("encoder: no token ids")
+	sequences = slices.Clone(sequences)
+	for index, sequence := range sequences {
+		if len(sequence.mask) != len(sequence.tokens) {
+			return nil, stats, fmt.Errorf("encoder: mask=%d tokens=%d", len(sequence.mask), len(sequence.tokens))
+		}
+		for len(sequence.mask) > 0 && sequence.mask[len(sequence.mask)-1] == 0 {
+			sequence.mask = sequence.mask[:len(sequence.mask)-1]
+		}
+		sequence.tokens = sequence.tokens[:len(sequence.mask)]
+		if len(sequence.tokens) == 0 {
+			return nil, stats, fmt.Errorf("encoder: no token ids")
+		}
+		sequences[index] = sequence
 	}
 	if err := plan.validateRuntimeBindings(); err != nil {
 		return nil, stats, err
@@ -305,18 +343,20 @@ func EncodeTokensStreamed(ctx context.Context, checkpoint string, plan encoderPl
 	if !ok {
 		return nil, stats, fmt.Errorf("encoder: token binding absent")
 	}
-	hidden, err := reader.ReadTensorRows(tokenBinding, tokenIDs, config.Dim)
-	if err != nil {
-		return nil, stats, err
+	hidden, buckets := make([][]float32, len(sequences)), make([][]int, len(sequences))
+	for index, sequence := range sequences {
+		if hidden[index], err = reader.ReadTensorRows(tokenBinding, sequence.tokens, config.Dim); err != nil {
+			return nil, stats, err
+		}
+		rows := len(sequence.tokens)
+		stats.TokenRows += rows
+		if buckets[index], err = representation.RelativePositionBuckets(rows, rows, config.RelativeBuckets, config.RelativeMaxDistance, true); err != nil {
+			return nil, stats, err
+		}
 	}
-	stats.TokenRows = len(tokenIDs)
 	stats.Engine = "host_streamed"
 	started := time.Now()
-	stats.EmbeddingBytesRead = int64(len(tokenIDs) * config.Dim * binaryschema.Uint16Bytes)
-	buckets, err := representation.RelativePositionBuckets(len(tokenIDs), len(tokenIDs), config.RelativeBuckets, config.RelativeMaxDistance, true)
-	if err != nil {
-		return nil, stats, err
-	}
+	stats.EmbeddingBytesRead = int64(stats.TokenRows * config.Dim * binaryschema.Uint16Bytes)
 	// Delta over the entry baseline: the streamed bound must hold regardless
 	// of unrelated live heap (other tests' resident weights).
 	var baseline runtime.MemStats
@@ -328,23 +368,27 @@ func EncodeTokensStreamed(ctx context.Context, checkpoint string, plan encoderPl
 			stats.PeakHeapAllocBytes = ms.HeapAlloc - baseline.HeapAlloc
 		}
 	}
+	var kept [len(blockMatrices)][]uint16
 	for layer := range config.Layers {
 		if err := ctx.Err(); err != nil {
 			return nil, stats, err
 		}
 		start := tensor.SingletonExtent + layer*blockTensorCount
-		weights, err := loadEncoderBlockWeights(reader, plan.bindings[start:start+blockTensorCount])
+		read := processmeasure.Stage(ctx, "text encoder weights read")
+		weights, err := loadEncoderBlockWeights(reader, plan.bindings[start:start+blockTensorCount], &kept)
+		read()
 		if err != nil {
 			return nil, stats, err
 		}
-		if err := ctx.Err(); err != nil {
-			return nil, stats, err
+		for index, sequence := range sequences {
+			if err := ctx.Err(); err != nil {
+				return nil, stats, err
+			}
+			hidden[index], err = encoderBlockForward(hidden[index], sequence.mask, buckets[index], tensor.SingletonExtent, len(sequence.mask), config.Dim, config.Heads, config.FFNDim, config.RelativeBuckets, weights, config.NormEps, true)
+			if err != nil {
+				return nil, stats, err
+			}
 		}
-		next, err := encoderBlockForward(hidden, mask, buckets, tensor.SingletonExtent, len(mask), config.Dim, config.Heads, config.FFNDim, config.RelativeBuckets, weights, config.NormEps, true)
-		if err != nil {
-			return nil, stats, err
-		}
-		hidden = next
 		samplePeak()
 		stats.Layers++
 		blockBytes := plan.blockWeightBytes[layer]
@@ -352,7 +396,6 @@ func EncodeTokensStreamed(ctx context.Context, checkpoint string, plan encoderPl
 		if blockBytes > stats.MaxBlockWeightBytes {
 			stats.MaxBlockWeightBytes = blockBytes
 		}
-		runtime.GC()
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, stats, err
@@ -365,44 +408,61 @@ func EncodeTokensStreamed(ctx context.Context, checkpoint string, plan encoderPl
 	if err != nil {
 		return nil, stats, err
 	}
-	hostmath.RMSNormInto(hidden, hidden, norm, len(tokenIDs), config.Dim, config.NormEps)
-	dtype.RoundBF16Slice(hidden)
+	for index, sequence := range sequences {
+		hostmath.RMSNormInto(hidden[index], hidden[index], norm, len(sequence.tokens), config.Dim, config.NormEps)
+		dtype.RoundBF16Slice(hidden[index])
+	}
 	stats.FinalNormBytes = int64(len(norm) * binaryschema.Uint16Bytes)
-	stats.OutputRows = len(tokenIDs)
+	stats.OutputRows = stats.TokenRows
 	stats.OutputDim = config.Dim
 	stats.EncoderWallSec = time.Since(started).Seconds()
 	return hidden, stats, nil
 }
 
-func loadEncoderBlockWeights(reader *pytorchzip.Reader, bindings []pytorchzip.TensorBinding) (encoderBlockWeights, error) {
+// loadEncoderBlockWeights reads one block: its matrices as stored, into the
+// storage kept from the block before, and its three small tensors widened.
+func loadEncoderBlockWeights(reader *pytorchzip.Reader, bindings []pytorchzip.TensorBinding, kept *[len(blockMatrices)][]uint16) (encoderBlockWeights, error) {
 	if len(bindings) != blockTensorCount {
 		return encoderBlockWeights{}, fmt.Errorf("encoder block bindings=%d want=%d", len(bindings), blockTensorCount)
 	}
-	values, err := reader.ReadBindingValues(bindings)
-	if err != nil {
-		return encoderBlockWeights{}, err
+	var err error
+	for index, place := range blockMatrices {
+		if kept[index], err = reader.ReadBF16(bindings[place], kept[index]); err != nil {
+			return encoderBlockWeights{}, err
+		}
 	}
-	return encoderBlockWeights{
-		Norm1: values[blockNorm1], Q: values[blockQ], K: values[blockK],
-		V: values[blockV], O: values[blockO], Norm2: values[blockNorm2],
-		Gate: values[blockGate], FC1: values[blockFC1], FC2: values[blockFC2],
-		PosEmbedding: values[blockPosition],
-	}, nil
+	var small [blockTensorCount][]float32
+	for _, place := range [...]int{blockNorm1, blockNorm2, blockPosition} {
+		if small[place], err = reader.ReadBinding(bindings[place]); err != nil {
+			return encoderBlockWeights{}, err
+		}
+	}
+	weights := encoderBlockWeights{Norm1: small[blockNorm1], Norm2: small[blockNorm2], PosEmbedding: small[blockPosition]}
+	// In blockMatrices' order.
+	for index, matrix := range [...]*encoderMatrix{&weights.Q, &weights.K, &weights.V, &weights.O, &weights.Gate, &weights.FC1, &weights.FC2} {
+		matrix.stored = kept[index]
+	}
+	return weights, nil
 }
 
-func validateEncoderBlockWeights(w encoderBlockWeights, dim, ffnDim, heads, numBuckets int) error {
+func validateEncoderBlockWeights(w encoderBlockWeights, dim, ffnDim, heads, numBuckets int, bf16 bool) error {
 	for _, field := range [...]struct {
 		name      string
 		got, want int
 	}{
 		{"norm1", len(w.Norm1), dim}, {"norm2", len(w.Norm2), dim},
-		{"q", len(w.Q), dim * dim}, {"k", len(w.K), dim * dim},
-		{"v", len(w.V), dim * dim}, {"o", len(w.O), dim * dim},
-		{"gate", len(w.Gate), ffnDim * dim}, {"fc1", len(w.FC1), ffnDim * dim},
-		{"fc2", len(w.FC2), dim * ffnDim}, {"pos_embedding", len(w.PosEmbedding), numBuckets * heads},
+		{"q", w.Q.elements(), dim * dim}, {"k", w.K.elements(), dim * dim},
+		{"v", w.V.elements(), dim * dim}, {"o", w.O.elements(), dim * dim},
+		{"gate", w.Gate.elements(), ffnDim * dim}, {"fc1", w.FC1.elements(), ffnDim * dim},
+		{"fc2", w.FC2.elements(), dim * ffnDim}, {"pos_embedding", len(w.PosEmbedding), numBuckets * heads},
 	} {
 		if field.got != field.want {
 			return fmt.Errorf("encoder block: %s=%d want=%d", field.name, field.got, field.want)
+		}
+	}
+	for _, matrix := range [...]encoderMatrix{w.Q, w.K, w.V, w.O, w.Gate, w.FC1, w.FC2} {
+		if matrix.stored != nil && !bf16 {
+			return fmt.Errorf("encoder block: a matrix as stored is multiplied in its own arithmetic, not the wider one")
 		}
 	}
 	return nil
@@ -426,7 +486,7 @@ func encoderBlockForward(x []float32, mask, buckets []int, batch, seq, dim, head
 			return nil, fmt.Errorf("encoder block: mask: %w", err)
 		}
 	}
-	if err := validateEncoderBlockWeights(w, dim, ffnDim, heads, numBuckets); err != nil {
+	if err := validateEncoderBlockWeights(w, dim, ffnDim, heads, numBuckets, bf16); err != nil {
 		return nil, err
 	}
 	norm1 := rmsNormWithReduction(x, w.Norm1, batch*seq, dim, eps, bf16)
@@ -477,16 +537,22 @@ func roundBF16If(enabled bool, values ...[]float32) {
 }
 
 // linearWithAccumulation: bf16=true uses F32 accumulation (the native-dtype
-// convention); bf16=false uses the F64 wider-accumulate convention.
-func linearWithAccumulation(x, w []float32, rows, inDim, outDim int, bf16 bool) []float32 {
+// convention); bf16=false uses the F64 wider-accumulate convention. A matrix
+// as stored is widened where it is multiplied, to the value it has widened
+// beforehand.
+func linearWithAccumulation(x []float32, w encoderMatrix, rows, inDim, outDim int, bf16 bool) []float32 {
 	if bf16 {
 		out := make([]float32, rows*outDim)
 		// hostmath.Linear accumulates F32 over the input dim in ascending
 		// order — the identical per-element arithmetic, fanned out.
-		hostmath.Linear(out, x, w, rows, inDim, outDim)
+		if w.stored != nil {
+			hostmath.LinearBF16(out, x, w.stored, rows, inDim, outDim)
+		} else {
+			hostmath.Linear(out, x, w.wide, rows, inDim, outDim)
+		}
 		return out
 	}
-	return hostmath.LinearF64New(x, w, nil, rows, inDim, outDim)
+	return hostmath.LinearF64New(x, w.wide, nil, rows, inDim, outDim)
 }
 
 // rmsNormWithReduction: bf16=true reduces squares in F32 (native-dtype

@@ -118,13 +118,9 @@ func promptContexts(ctx context.Context, spec TextConditioningSpec, request WanR
 	if err != nil {
 		return nil, nil, err
 	}
-	conditional, err := textConditioningWithWeights(ctx, spec, request.Prompt, weights, sourceBytes)
+	conditioned, err := textConditioningsWithWeights(ctx, spec, weights, sourceBytes, request.Prompt, request.NegativePrompt)
 	if err != nil {
 		return nil, nil, err
 	}
-	unconditional, err := textConditioningWithWeights(ctx, spec, request.NegativePrompt, weights, sourceBytes)
-	if err != nil {
-		return nil, nil, err
-	}
-	return conditional.Context, unconditional.Context, nil
+	return conditioned[0].Context, conditioned[1].Context, nil
 }

@@ -50,14 +50,14 @@ func TestEncoderBlockMatchesTorchFixture(t *testing.T) {
 	x := []float32{-0.5, -0.4000000059604645, -0.30000001192092896, -0.19999998807907104, -0.09999999403953552, 0, 0.10000002384185791, 0.19999998807907104, 0.30000001192092896, 0.3999999761581421, 0.5, 0.6000000238418579}
 	w := encoderBlockWeights{
 		Norm1:        arithmeticFloat32Sequence(-0.08, 0.02, 4),
-		Q:            arithmeticFloat32Sequence(-0.06, 0.02, 16),
-		K:            arithmeticFloat32Sequence(-0.04, 0.02, 16),
-		V:            arithmeticFloat32Sequence(-0.02, 0.02, 16),
-		O:            arithmeticFloat32Sequence(0.00, 0.02, 16),
+		Q:            encoderMatrix{wide: arithmeticFloat32Sequence(-0.06, 0.02, 16)},
+		K:            encoderMatrix{wide: arithmeticFloat32Sequence(-0.04, 0.02, 16)},
+		V:            encoderMatrix{wide: arithmeticFloat32Sequence(-0.02, 0.02, 16)},
+		O:            encoderMatrix{wide: arithmeticFloat32Sequence(0.00, 0.02, 16)},
 		Norm2:        arithmeticFloat32Sequence(0.02, 0.02, 4),
-		Gate:         arithmeticFloat32Sequence(0.04, 0.02, 24),
-		FC1:          arithmeticFloat32Sequence(0.06, 0.02, 24),
-		FC2:          arithmeticFloat32Sequence(0.08, 0.02, 24),
+		Gate:         encoderMatrix{wide: arithmeticFloat32Sequence(0.04, 0.02, 24)},
+		FC1:          encoderMatrix{wide: arithmeticFloat32Sequence(0.06, 0.02, 24)},
+		FC2:          encoderMatrix{wide: arithmeticFloat32Sequence(0.08, 0.02, 24)},
 		PosEmbedding: arithmeticFloat32Sequence(0.10, 0.02, 8),
 	}
 	positive, err := representation.RelativePositionBuckets(1, 3, 4, 8, true)

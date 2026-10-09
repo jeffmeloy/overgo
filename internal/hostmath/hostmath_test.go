@@ -56,6 +56,30 @@ func TestLinearBF16MatchesPromotedLinear(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Fatalf("native BF16 linear = %v, promoted = %v", got, want)
 	}
+	// Six input rows: a block of four taken together and two taken singly, of
+	// sums long enough for their order to show in the last place.
+	const rows, in, out = 6, 37, 5
+	state := uint32(7)
+	next := func() uint32 {
+		state = state*1664525 + 1013904223
+		return state
+	}
+	wide, stored := make([]float32, rows*in), make([]uint16, out*in)
+	for index := range wide {
+		wide[index] = float32(next()>>8)/float32(1<<24) - 0.5
+	}
+	promoted := make([]float32, len(stored))
+	for index := range stored {
+		// Sign and seven mantissa bits vary; the exponent stays near one.
+		stored[index] = uint16(next()>>16)&0x807f | 0x3f00
+		promoted[index] = math.Float32frombits(uint32(stored[index]) << 16)
+	}
+	want, got = make([]float32, rows*out), make([]float32, rows*out)
+	Linear(want, wide, promoted, rows, in, out)
+	LinearBF16(got, wide, stored, rows, in, out)
+	if !slices.Equal(got, want) {
+		t.Fatalf("native BF16 linear of %d rows = %v, promoted = %v", rows, got, want)
+	}
 }
 
 func TestLinearBF16BackwardInput(t *testing.T) {

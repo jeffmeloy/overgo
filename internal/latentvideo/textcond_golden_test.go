@@ -115,6 +115,11 @@ func TestTextConditioningGoldenParity(t *testing.T) {
 	if _, err := os.Stat(spec.EncoderCheckpoint); err != nil {
 		t.Skipf("UNAVAILABLE: encoder checkpoint absent: %v", err)
 	}
+	// The streaming measures below are of a pass over the checkpoint: a prompt
+	// another test of this process conditioned would be given its kept rows.
+	promptEncoders.Lock()
+	clear(promptEncoders.byKey)
+	promptEncoders.Unlock()
 	for _, branch := range []struct {
 		name   string
 		prompt string

@@ -138,6 +138,21 @@ func TestSyntheticCheckpointRoundTrip(t *testing.T) {
 			t.Fatalf("value[%d]=%g want %g", i, got[i], want)
 		}
 	}
+	// As stored: the same values unwidened, into the caller's storage when it
+	// is long enough.
+	kept := make([]uint16, len(values)+1)
+	stored, err := reader.ReadBF16(bindings[0], kept)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stored) != len(values) || &stored[0] != &kept[0] {
+		t.Fatalf("%d stored values in storage of the reader's own, want %d in the caller's", len(stored), len(values))
+	}
+	for i, want := range values {
+		if stored[i] != dtype.Float32ToBF16(want) {
+			t.Fatalf("stored[%d]=%#04x want %#04x", i, stored[i], dtype.Float32ToBF16(want))
+		}
+	}
 	rows, err := reader.ReadTensorRows(bindings[0], []int{1, 0}, 3)
 	if err != nil {
 		t.Fatal(err)

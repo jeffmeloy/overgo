@@ -4,6 +4,8 @@ package hostmath
 import (
 	"math"
 	"slices"
+
+	"overgo/internal/tensor/dtype"
 )
 
 const QuickGELUScale = 1.702
@@ -232,19 +234,18 @@ func LinearInputProjection(dst, projected, x, projection, weight, bias []float32
 }
 
 // LinearBF16: Linear with native BF16 weight storage and F32 accumulation.
+// A worker widens one weight row at a time into a row of its own and takes
+// the output columns of it as linearCols does, so a weight row streams once,
+// and is widened once, for every input row. A result is what Linear gives of
+// the same weights widened beforehand.
 func LinearBF16(dst, x []float32, w []uint16, rows, inDim, outDim int) {
 	parallelRangeCost(outDim, rows*inDim, macF32, func(oStart, oEnd int) {
-		for r := range rows {
-			xRow := x[r*inDim : (r+1)*inDim]
-			dRow := dst[r*outDim : (r+1)*outDim]
-			for o := oStart; o < oEnd; o++ {
-				wRow := w[o*inDim : (o+1)*inDim]
-				var sum float32
-				for c, value := range wRow {
-					sum += math.Float32frombits(uint32(value)<<16) * xRow[c]
-				}
-				dRow[o] = sum
+		wide := make([]float32, inDim)
+		for o := oStart; o < oEnd; o++ {
+			for c, stored := range w[o*inDim : (o+1)*inDim] {
+				wide[c] = dtype.BF16ToFloat32(stored)
 			}
+			linearCols(dst[o:], x, wide, rows, inDim, outDim, 0, 1)
 		}
 	})
 }

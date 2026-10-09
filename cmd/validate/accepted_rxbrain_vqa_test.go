@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/capabilityruntime"
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
@@ -145,7 +144,9 @@ func TestAcceptedRxBrainVQA(t *testing.T) {
 	if _, err := vqaserve.ReadImage(t.Context(), store, protocol.Image); err != nil {
 		t.Fatal(err)
 	}
-	operation, err := workflowruntime.ExecutionID(definition.ID, capabilityruntime.RunKey(definition, requestContent))
+	// The accepted run was made when a capability run's key was its recipe and its request alone, and its
+	// receipt is kept under that key; a run made since is keyed on the code that made it as well.
+	operation, err := workflowruntime.ExecutionID(definition.ID, "recipe/run/"+definition.ID.String()+"/"+requestContent.Descriptor.ID.String())
 	if err != nil {
 		t.Fatal(err)
 	}

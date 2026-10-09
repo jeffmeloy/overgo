@@ -102,21 +102,43 @@ func ExecuteMeasured[Output any](
 	inputs map[recipe.PortName]workflowruntime.Value,
 	bind func(*workflowruntime.Runtime) error,
 ) (Output, workflowruntime.Result, error) {
+	value, result, _, err := measuredRun[Output](ctx, store, modelID, program, key, inputs, bind)
+	return value, result, err
+}
+
+// measuredRun runs a program under the operation its key and the context's
+// scope name, with the adapters bind registers. Given no bind it only
+// replays: it answers the request from the store when the store holds its
+// whole answer, and reports false when the request must be executed. No model
+// is bound for a replay, because no stage runs, so a caller asks for one
+// before it loads a model, and a request already answered costs neither a
+// load nor a stage.
+func measuredRun[Output any](
+	ctx context.Context,
+	store artifact.Repository,
+	modelID artifact.ID,
+	program recipe.Program,
+	key string,
+	inputs map[recipe.PortName]workflowruntime.Value,
+	bind func(*workflowruntime.Runtime) error,
+) (Output, workflowruntime.Result, bool, error) {
 	var zero Output
 	var result workflowruntime.Result
 	definition := program.Definition()
 	if definition.Model != modelID {
-		return zero, result, errorProgramModelDiffers
+		return zero, result, false, errorProgramModelDiffers
 	}
 	if len(definition.Outputs) != 1 {
-		return zero, result, errorProgramOutputArity
+		return zero, result, false, errorProgramOutputArity
 	}
 	runtime, err := workflowruntime.NewForProgram(store, program)
 	if err != nil {
-		return zero, result, err
+		return zero, result, false, err
 	}
-	if err := bind(runtime); err != nil {
-		return zero, result, err
+	if bind != nil {
+		if err := bind(runtime); err != nil {
+			return zero, result, false, err
+		}
 	}
 	if ctx != nil {
 		if scope, ok := ctx.Value(freshRunContextKey{}).(string); ok {
@@ -125,12 +147,17 @@ func ExecuteMeasured[Output any](
 	}
 	operation, err := workflowruntime.ExecutionID(definition.ID, key)
 	if err != nil {
-		return zero, result, err
+		return zero, result, false, err
 	}
-	result, err = runtime.ExecuteProgram(ctx, key, operation, nil, program, inputs)
-	if err != nil {
-		return zero, result, err
+	held := true
+	if bind == nil {
+		result, held, err = runtime.Replay(ctx, key, operation, program, inputs)
+	} else {
+		result, err = runtime.ExecuteProgram(ctx, key, operation, nil, program, inputs)
+	}
+	if err != nil || !held {
+		return zero, result, false, err
 	}
 	value, err := singleOutput[Output](definition, result)
-	return value, result, err
+	return value, result, err == nil, err
 }

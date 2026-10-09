@@ -338,10 +338,7 @@ func newProductionProbeFixtureInStore(t *testing.T, store *overgodb.Store, name 
 	if err != nil {
 		t.Fatal(err)
 	}
-	operation, err := workflowruntime.ExecutionID(
-		definition.ID,
-		"recipe/run/"+definition.ID.String()+"/"+inputContent.Descriptor.ID.String(),
-	)
+	operation, err := workflowruntime.ExecutionID(definition.ID, capabilityruntime.RunKey(definition, inputContent))
 	if err != nil {
 		t.Fatal(err)
 	}

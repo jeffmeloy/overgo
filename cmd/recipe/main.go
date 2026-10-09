@@ -77,7 +77,7 @@ func run() error {
 	reverify := flags.Bool("reverify", false, "re-verify the model's active projection recipe on the verification this run records; refused when the code derives another recipe (verify -task projection)")
 	alias := flags.String("alias", "", "OvergoDB model alias (run)")
 	selection := flags.String("selection", string(modelrecipe.SessionWarm), "alias session selection: pin | warm | spillover (run)")
-	fresh := flags.Bool("fresh", false, "run the request as its own operation, where an identical earlier request is answered with what the store kept of it (run)")
+	fresh := flags.Bool("fresh", false, "run the request as its own operation, where an identical request this build already answered is answered with what the store kept of it (run)")
 	compatibility := flags.String("compatibility", "", "remote peer compatibility evidence ID (spillover run)")
 	if err := flags.Parse(os.Args[2:]); err != nil {
 		return err
@@ -401,10 +401,11 @@ func verifyCapability(repository, path string, task recipe.Task, capability medi
 }
 
 // executeCapability serves one request through the model's active recipe, or
-// the one an alias selects, and prints the output. A request identical to an
-// earlier one is answered with what the store kept of that one; fresh runs it
-// as its own operation instead, as a measurement does, so the output is what
-// the path gives now.
+// the one an alias selects, and prints the output. A request identical to one
+// the same code already answered is answered with what the store kept of that
+// answer, loading no model; fresh runs it as its own operation instead, as a
+// measurement does. Under go run every command is its own code and answers
+// nothing from the store.
 func executeCapability(
 	repository, path, alias, compatibilityText string,
 	selection modelrecipe.SessionSelection,

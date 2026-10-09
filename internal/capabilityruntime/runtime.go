@@ -61,6 +61,13 @@ func JSONScalar[Input, Model, Output any](
 		if err != nil {
 			return nil, err
 		}
+		// A request the store already answers is answered from it: no model is loaded.
+		inputPort := program.Definition().Inputs[0]
+		if output, result, held, err := measuredRun[Output](ctx, store, modelID, program, RunKey(program.Definition(), content),
+			map[recipe.PortName]workflowruntime.Value{inputPort.Name: workflowruntime.ArtifactValue(inputPort.Data, input, content)}, nil,
+		); err != nil || held {
+			return Measured{Output: output, Run: result.Run.ID, Input: content}, err
+		}
 		clock := processmeasure.NewStopwatch()
 		model, err := load(ctx, store, path, program, input)
 		if err != nil {

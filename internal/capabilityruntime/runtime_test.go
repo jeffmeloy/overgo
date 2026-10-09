@@ -616,8 +616,9 @@ func TestComponentSessionDirectorFollowsCompiledLifetimes(t *testing.T) {
 		requestResources.Identity == resources.Identity {
 		t.Fatalf("request resources=%+v", requestResources)
 	}
-	for range 2 {
-		if _, err := execute(t.Context(), store, "model", modelrecipetest.CandidateExecution(t, store, requestProgram), `{"value":6}`); err != nil {
+	// Two requests, not one twice: a request the store already answers leases no session.
+	for _, raw := range []string{`{"value":6}`, `{"value":7}`} {
+		if _, err := execute(t.Context(), store, "model", modelrecipetest.CandidateExecution(t, store, requestProgram), raw); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -740,8 +741,9 @@ func TestVideoProductionActivation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for range 2 {
-		output, err := director.Executor()(t.Context(), store, "model", modelrecipetest.CandidateExecution(t, store, program), `{"condition":2,"source":3}`)
+	// Two requests of one session, not one twice: a request the store already answers leases no session.
+	for _, raw := range []string{`{"condition":2,"source":3}`, `{"condition":4,"source":1}`} {
+		output, err := director.Executor()(t.Context(), store, "model", modelrecipetest.CandidateExecution(t, store, program), raw)
 		if err != nil {
 			t.Fatal(err)
 		}

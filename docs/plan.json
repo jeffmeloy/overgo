@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "repeated-request",
-      "title": "Serve a request that repeats an earlier one: never refuse it, never run it only to give back the old answer",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 200,
-        "reason": "Reading the stage receipts a store holds under the earlier contract takes a second codec, derived from the present one, and a reader that picks by the stored schema; there is nothing to delete for it, since the earlier contract's reader was removed when the contract moved and that removal is the fault."
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Serve a request that repeats an earlier one: never refuse it, never run it only to give back the old answer",
-          "status": "open",
-          "verify": "go test ./internal/workflowruntime ./internal/capabilityruntime ./cmd/recipe -count=1 -run '^(TestReplayRunsNoStageItsOutputDoesNotNeed|TestReplayDoesNotCrossAVerification|TestVerificationDrawsTheCandidate)$'",
-          "rationale": "\n\nFinding a7c3e885. A repeated image or video request is run again and then answered with the picture kept from the first time. An ordinary request's operation is keyed on its recipe and its bytes, and the runtime takes from the store any completed stage whose output the store kept; that is deliberate and tested for a one-stage program, where a repeat runs nothing and returns the stored answer. A picture's program is three stages whose first two hand on values the store does not keep, so they run again on every repeat, 13 seconds of denoising for Krea-2-Turbo, and their result is dropped when the last stage is taken from the store. Nothing in the key moves when the code that draws the picture changes: after commit 56a5820a7 mended Krea's path, its verification request served again returned the picture from before the mend, byte for byte, and verifying a media recipe again on a request it was verified on before validates the stored picture. Two parts. First, make a replay whole: when the stage a program's output comes from is taken from the store, the stages that only feed it do not run. Second, stop a replay crossing a change in what the path computes: key the operation on the verification the activation rests on as well as the recipe, and have verification itself run fresh, so that verifying a path again after it changes both draws the candidate and retires the replays of what it drew before. The second part changes what a replay is keyed on, a design the owner may want made differently; it is said in the report before it is built. Serves: generate, and every capability request. Disappears: requests that pay for a drawing and are given an old one. Evidence: the tests, and Krea's verification request served on a copy of the store before and after. Batch: host, then device."
-        }
-      ]
-    },
-    {
       "id": "scorecard-uncompared-video-gen",
       "title": "Compare the path a video-gen request takes with a reference output for each model it is scored on",
       "owner": "master-lead",

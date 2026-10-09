@@ -202,7 +202,33 @@ func (r *Runtime) ExecuteProgram(
 	if !program.UsesCatalog(r.catalog) {
 		return Result{}, errors.New("workflow runtime: compiled program uses another module catalog")
 	}
-	return r.executeProgram(ctx, key, operation, attempts, program, inputs)
+	return r.executeProgram(ctx, key, operation, attempts, program, inputs, false)
+}
+
+// errStagesMustRun ends a replay the store does not hold the whole of.
+var errStagesMustRun = errors.New("workflow runtime: the store does not hold the operation's whole answer")
+
+// Replay answers a request from what the store holds of its operation, when
+// that is the whole answer: every stage the program's outputs need left its
+// outputs durable, so no stage runs and no adapter need be registered. It
+// publishes the run as an execution does and reports true. When a stage would
+// have to run, or a receipt could not be recovered from, it reports false and
+// publishes nothing: that is the execution's to meet and to record.
+func (r *Runtime) Replay(
+	ctx context.Context,
+	key string,
+	operation artifact.ID,
+	program recipe.Program,
+	inputs map[recipe.PortName]Value,
+) (Result, bool, error) {
+	if r == nil || r.store == nil || r.catalog == nil || ctx == nil || operation.Kind() != artifact.KindEvidence || !program.UsesCatalog(r.catalog) {
+		return Result{}, false, errors.New("workflow runtime: invalid replay")
+	}
+	result, err := r.executeProgram(ctx, key, operation, nil, program, inputs, true)
+	if errors.Is(err, errStagesMustRun) {
+		return Result{}, false, nil
+	}
+	return result, err == nil, err
 }
 
 // ExecutionID derives one stable operation identity from recipe and caller key.
@@ -223,17 +249,24 @@ func (r *Runtime) executeProgram(
 	attempts AttemptRecorder,
 	program recipe.Program,
 	inputs map[recipe.PortName]Value,
+	replayOnly bool,
 ) (Result, error) {
 	definition := program.Definition()
 	readySets := program.ReadySets()
-	if err := r.publishExecutionAuthority(context.WithoutCancel(ctx), definition, operation); err != nil {
-		return Result{}, err
+	// An operation the store holds the whole of has its authority there already.
+	if !replayOnly {
+		if err := r.publishExecutionAuthority(context.WithoutCancel(ctx), definition, operation); err != nil {
+			return Result{}, err
+		}
 	}
 	inputIDs, inputFacts, err := externalFacts(inputs, false)
 	if err != nil {
 		return Result{}, err
 	}
-	outputs, nodeWalls, executeErr := r.executePlan(ctx, definition, readySets, operation, attempts, inputs)
+	outputs, nodeWalls, executeErr := r.executePlan(ctx, definition, readySets, operation, attempts, inputs, replayOnly)
+	if errors.Is(executeErr, errStagesMustRun) {
+		return Result{}, executeErr
+	}
 	outcome, failure := runrecord.OutcomeSucceeded, ""
 	if executeErr != nil {
 		outputs = nil
@@ -279,6 +312,7 @@ func (r *Runtime) executePlan(
 	operation artifact.ID,
 	attempts AttemptRecorder,
 	external map[recipe.PortName]Value,
+	replayOnly bool,
 ) (map[recipe.PortName]Value, []NodeWall, error) {
 	var walls []NodeWall
 	bound := make(map[recipe.Endpoint][]Value)
@@ -292,11 +326,18 @@ func (r *Runtime) executePlan(
 		}
 		bound[input.Target] = append(bound[input.Target], cloneValue(value))
 	}
+	replay, err := r.planReplay(ctx, definition, readySets, operation)
+	if replayOnly && (err != nil || len(replay.run) != 0) {
+		return nil, nil, errStagesMustRun
+	}
+	if err != nil {
+		return nil, nil, err
+	}
 	for _, ready := range readySets {
 		if err := ctx.Err(); err != nil {
 			return nil, nil, err
 		}
-		completed, err := r.executeReadySet(ctx, definition, ready, operation, attempts, bound)
+		completed, err := r.executeReadySet(ctx, definition, ready, operation, attempts, bound, replay)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -329,6 +370,61 @@ func (r *Runtime) executePlan(
 		outputs[output.Name] = value
 	}
 	return outputs, walls, nil
+}
+
+// replayPlan is what a store already answers of an operation and what is left
+// to do: the outputs of each stage whose completed receipt left them durable,
+// and the stages that must run for the program's outputs to be had. A stage
+// that only feeds recovered stages is in neither. Nothing asks for what it
+// would compute, so it does not run: a request the store holds the answer to
+// costs no stage.
+type replayPlan struct {
+	recovered map[recipe.NodeID]map[recipe.PortName]Value
+	run       map[recipe.NodeID]bool
+}
+
+// planReplay reads what the store holds of an operation's stages and decides
+// which must run. What is asked for is each stage the program's outputs come
+// from and each stage no other stage reads; a stage asked for runs unless the
+// store holds its outputs, and what it reads is then asked for in turn.
+func (r *Runtime) planReplay(ctx context.Context, definition recipe.Definition, readySets [][]recipe.Stage, operation artifact.ID) (replayPlan, error) {
+	replay := replayPlan{recovered: map[recipe.NodeID]map[recipe.PortName]Value{}, run: map[recipe.NodeID]bool{}}
+	for _, ready := range readySets {
+		for _, stage := range ready {
+			outputs, recovered, err := r.recoverStage(ctx, definition, stage, operation)
+			if err != nil {
+				return replay, fmt.Errorf("workflow runtime: step %q: %w", stage.Node.ID, err)
+			}
+			if recovered {
+				replay.recovered[stage.Node.ID] = outputs
+			}
+		}
+	}
+	read := map[recipe.NodeID]bool{}
+	for _, edge := range definition.Edges {
+		read[edge.From.Node] = true
+	}
+	var ask func(recipe.NodeID)
+	ask = func(node recipe.NodeID) {
+		if _, held := replay.recovered[node]; held || replay.run[node] {
+			return
+		}
+		replay.run[node] = true
+		for _, edge := range definition.Edges {
+			if edge.To.Node == node {
+				ask(edge.From.Node)
+			}
+		}
+	}
+	for _, output := range definition.Outputs {
+		ask(output.Source.Node)
+	}
+	for _, node := range definition.Nodes {
+		if !read[node.ID] {
+			ask(node.ID)
+		}
+	}
+	return replay, nil
 }
 
 type stageExecution struct {
@@ -373,18 +469,24 @@ func (r *Runtime) executeReadySet(
 	operation artifact.ID,
 	attempts AttemptRecorder,
 	bound map[recipe.Endpoint][]Value,
+	replay replayPlan,
 ) ([]stageExecution, error) {
-	stages := make([]stageExecution, len(ready))
+	stages := make([]stageExecution, 0, len(ready))
 	active := 0
-	for index, stage := range ready {
+	for _, stage := range ready {
+		if outputs, held := replay.recovered[stage.Node.ID]; held {
+			stages = append(stages, stageExecution{stage: stage, outputs: outputs, recovered: true})
+			continue
+		}
+		if !replay.run[stage.Node.ID] {
+			continue
+		}
 		execution, err := r.prepareStage(ctx, definition, stage, operation, attempts, bound)
 		if err != nil {
 			return nil, fmt.Errorf("workflow runtime: step %q: %w", stage.Node.ID, err)
 		}
-		stages[index] = execution
-		if !execution.recovered {
-			active++
-		}
+		stages = append(stages, execution)
+		active++
 	}
 	if active != 0 {
 		runContext, cancel := context.WithCancelCause(ctx)
@@ -481,11 +583,7 @@ func (r *Runtime) prepareStage(
 		Recipe: definition.ID, Operation: operation, Model: model,
 		Task: definition.Task, Node: step.ID, Attempts: attempts, Inputs: inputs,
 	}, adapter: adapter}
-	outputs, recovered, err := r.recoverStage(ctx, definition, stage, operation)
-	if err != nil || recovered {
-		execution.outputs, execution.recovered = outputs, recovered
-		return execution, err
-	}
+	var err error
 	execution.base, err = r.beginStage(ctx, definition, stage, operation, execution.request)
 	return execution, err
 }

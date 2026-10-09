@@ -485,11 +485,20 @@ func (c *ModelSessionDirector[Input, Model, Output]) execute(
 	if err != nil {
 		return zero, err
 	}
+	definition, resources := program.Definition(), execution.Resources
+	inputs, err := c.inputs(input, content, definition)
+	if err != nil {
+		return zero, err
+	}
+	// A request the store already answers is answered from it: no session is leased and no model loaded.
+	runKey := RunKey(definition, content)
+	if output, result, held, err := measuredRun[Output](ctx, store, modelID, program, runKey, inputs, nil); err != nil || held {
+		return Measured{Output: output, Run: result.Run.ID, Input: content}, err
+	}
 	policy, err := c.policy(input)
 	if err != nil || policy == "" {
 		return zero, errors.Join(errors.New("capability runtime: invalid execution policy"), err)
 	}
-	definition, resources := program.Definition(), execution.Resources
 	key := sessionKey{
 		model: modelID, recipe: definition.ID, resources: resources.Identity,
 		device: c.device, policy: policy,
@@ -506,29 +515,21 @@ func (c *ModelSessionDirector[Input, Model, Output]) execute(
 			return zero, c.retire(ctx, key, entry, err)
 		}
 	}
-	inputs, err := c.inputs(input, content, program.Definition())
-	if err == nil {
-		output, result, executeErr := ExecuteMeasured[Output](
-			ctx, store, modelID, program,
-			RunKey(program.Definition(), content), inputs,
-			func(runtime *workflowruntime.Runtime) error { return c.bind(runtime, modelID, entry.model) },
-		)
-		measured := Measured{Run: result.Run.ID}
-		if executeErr == nil {
-			measured = measure(output, entry.model, result, loaded, program)
-		}
-		measured.Input = content
-		if executeErr != nil {
-			err = c.retire(ctx, key, entry, executeErr)
-		} else if resources.RequestScoped() {
-			err = c.retire(ctx, key, entry, nil)
-		}
-		return measured, err
+	output, result, executeErr := ExecuteMeasured[Output](
+		ctx, store, modelID, program, runKey, inputs,
+		func(runtime *workflowruntime.Runtime) error { return c.bind(runtime, modelID, entry.model) },
+	)
+	measured := Measured{Run: result.Run.ID}
+	if executeErr == nil {
+		measured = measure(output, entry.model, result, loaded, program)
 	}
-	if err != nil {
-		err = c.retire(ctx, key, entry, err)
+	measured.Input = content
+	if executeErr != nil {
+		err = c.retire(ctx, key, entry, executeErr)
+	} else if resources.RequestScoped() {
+		err = c.retire(ctx, key, entry, nil)
 	}
-	return zero, err
+	return measured, err
 }
 
 func (c *ModelSessionDirector[Input, Model, Output]) lease(

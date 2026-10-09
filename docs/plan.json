@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "score-double-check",
-      "title": "Hold each weak or surprising scorecard reading to a reference, a baseline and its own protocol before calling it the model's",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 2000,
-        "reason": "A new kind of held-out suite, for a model that remembers a document in notes it writes to itself: its cases, its report and its builder, beside the measure in the model's package; the owner asked on 2026-10-07 for the model double-check recommendation to be planned"
-      },
-      "steps": [
-        {
-          "id": "edit-source-score",
-          "title": "Read the one-thing edits again from sources carried without loss",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestScorecardMarksAReadingOutsideItsModelsUse$'",
-          "rationale": "LiveEdit's reading of its use, 0.875 on 64 clips, was taken from sources published as GIFs, which reach the editor in 256 colours a frame and smoothed. The step that gave an edit request a source without loss moved the served comparison with the reference from 28 dB to 40, far past any tolerance, and the evaluation now publishes its sources as frames; so the reading is taken again. Build evaluate at the commit that holds the frames form; edit the same 64 clips with -render-edits -one-thing against a copy of the store, 99 seconds a clip; judge on the copy and then on the store; set the same sixteen clips beside their sources with tmp/edit_sheets.py, the eight the judge passed (cases 0, 9, 18, 27, 36, 45, 54, 63) and the eight it refused (15, 20, 22, 24, 37, 38, 48, 49), and say what moved. It follows the step on the model's own code, since a defect found there would have this reading taken a third time. The whole-clip reading, marked as beside the model's use, is left as taken. Serves: measure and find the gap. Disappears: a reading taken through a known loss in the editor's input. Evidence: the reading on the scorecard and the sixteen clips looked at. Batch: device.\n\nWhat the step on the model's own code found, for this one. The redrawn wearer is the model's own behaviour: its repository's inference draws the same other person on two of the clips, and overgo's edit agrees with it at 38 dB over 16-pixel squares from a source of frames and at 26 from a GIF. So this reading is expected to move by what the GIF cost the edit and not by what the model does; the sixteen clips are set beside their sources to say which. The model's own script edits a clip's first 81 frames at the clip's own frame rate; this measure cuts 21 at 16 a second, and stays there, said as a departure, because 81 frames a clip is about seven hours for 64 clips at overgo's present speed (finding 71cd0c71). Its own code draws the wearer again at 81 as at 21, so the cut does not hide a better editor."
-        }
-      ]
-    },
-    {
       "id": "word-error-forms",
       "title": "Count a word error rate over a reference and a transcript written one way, as the recognizers' own evaluations do",
       "owner": "master-lead",
@@ -121,6 +102,25 @@
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-reconstruction",
           "rationale": "Wan2.1's video autoencoder reads 41.37 dB on 128 frames, the representation autoencoder 20.53 dB on 128 pictures, and the encoder bridged into it 18.16 dB. A reconstruction measure compares a model's output with its own input, so a path that loses detail reads as a model that loses detail. The step names, for each, the test that compares the served latent or the served reconstruction with the reference implementation's on the same picture, writes it where the reference is on this machine, or records the deferral.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the tests or the recorded deferrals, and the gap closing. Batch: device."
+        }
+      ]
+    },
+    {
+      "id": "video-request-speed",
+      "title": "Serve a video request in the time the model's own code takes, beginning with where the time goes",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 3000,
+        "reason": "A device test that times a served edit by stage, and the mending of the largest stage: by the code as read, keeping the video models' text encoder resident and run on the device where each request now streams it from disk through the host, and a kept context for a prompt already encoded. Found by the owner's double-check of the scorecard, when the edit model's own code was run beside overgo's"
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "Serve a video request in the time the model's own code takes, beginning with where the time goes",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/mediacapability -count=1 -run '^TestServedEditStageTimes$'",
+          "rationale": "\n\nFinding 71cd0c71. The edit model's own code, run on this machine's device, edits a clip of 21 frames in about 4 seconds once loaded, 2.4 of them generation, and a clip of 81 frames in 17. overgo's served edit of the same 21 frames is the same edit, 38 dB from it over 16-pixel squares, and took 99 seconds a clip over the 64 the evaluation edited; the scorecard's first-output time for LiveEdit video-gen is 46 seconds and for Wan2.1-T2V-1.3B 84. Nothing is profiled. Read from the code, every request runs internal/latentvideo TextConditioning, which reads the tokenizer, catalogues the 11 GB text-encoder checkpoint and streams its blocks from disk through the host, where the model's own code holds that encoder on the device and encodes a prompt in a fraction of a second; the edit request also compiles the edit checkpoint and loads its projection each time, and every clip is encoded as a GIF with a palette cut from each frame. Both video models take the same text path.\n\nThe step measures before it mends. Time one served 21-frame edit by stage with the model resident, text conditioning, source encoding, each denoising pass, decoding, clip encoding, in a device test that logs each and fails while their sum is not the request's time; set each beside the model's own code's stage, which scripts/python_golden_references/liveedit_own_edit.py can time. Then mend the largest: if it is the text encoder, the first candidates are to keep its weights resident and run it on the device, and to keep a context already encoded for a prompt. What is mended is stated against the scorecard's first-output and peak-device-memory, since a resident encoder costs memory, and the edit stays the edit: internal/adaptiveparity TestServedEditMatchesTheModelsOwnEdit and the text-context cosine of TestServedEditMatchesTheReferenceEdit hold it. If the mending is more than one commit the step splits there.\n\nServes: generate. Disappears: a request that costs 12 to 25 times what the model's own code does for the same clip, and with it the reason the edit measure cuts 21 frames where the model's own protocol takes 81. Evidence: the stage times before and after, and the scorecard's first-output for both video rows. Batch: device."
         }
       ]
     },
@@ -232,7 +232,8 @@
             "experiment-evidence/conditioning",
             "vae-lane-takeover-plan/do",
             "census-rebind-after-latent-rows/do",
-            "liveedit-served-parity/do"
+            "liveedit-served-parity/do",
+            "video-request-speed/do"
           ]
         }
       ]

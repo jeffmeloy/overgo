@@ -203,6 +203,13 @@
       "task": "inference",
       "deferred": "Its answers are held to no reference, and its reading is asked with other tokens than the model's own. The scored file names an earlier tokenizer's splitting rule: 22 of the 24 questions held reach it with a mark and the line break after it as two tokens where the model's own tokenizer joins them (cmd/evaluate TestPromptsReachEachModelAsItsOwnTokenizerGivesThem names the fault; finding 34979bff). The reading is of the text decoder alone on general-knowledge questions, outside what the model is for. A file overgo converts with the model's own rule is given the model's own tokens on all 24 and is served, validated and activated on a copy of the store (commit 9ab17724a), and has not taken the scored file's place.",
       "reopens": "The re-converted file taking the scored file's place. That needs a model activated today to be able to join the accepted coverage (finding 813ba9e0) and onboarding to carry a new model past its guard (finding 38c5458e); the scored file's activation is then retired on an exact case of the model's own tokens, which it fails by its count of prompt tokens. After that its answers are held to the model's own code as the other text models' are; or its text reading gives way to a reading of document pictures, which needs a set the owner approves."
+    },
+    {
+      "model": "Wan2.1_VAE.pth",
+      "task": "reconstruction",
+      "package": "internal/mediacapability",
+      "test": "TestVideoAutoencoderRoundTripMatchesItsOwnCode",
+      "holds": "the reconstruction a served request returns for one 832 by 480 frame of the evaluation's first clip, cut as the evaluation cuts it and sent as the PNG a request carries, to the frame the autoencoder's own code, Wan2.1's WanVAE decode(encode(x)) in float32, makes of it: every value within 2 of its 255 levels of the reference's rounded frame, where it reads 1, and the frame's error against its source within 4 parts in 100 of the reference's once rounded to bytes, where it reads 35.48 dB against 35.41"
     }
   ]
 }

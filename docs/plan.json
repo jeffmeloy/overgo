@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "scorecard-uncompared-reconstruction",
-      "title": "Compare the path a reconstruction request takes with a reference output for each model it is scored on",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 400,
-        "reason": "The comparison of each autoencoder's served reconstruction with its reference's on the same picture, or a recorded deferral; a step of the owner's double-check of the scorecard, named for the gap the scorecard files for it"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Hold the three autoencoders' served reconstructions to their references'",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-reconstruction",
-          "rationale": "Wan2.1's video autoencoder reads 41.37 dB on 128 frames, the representation autoencoder 20.53 dB on 128 pictures, and the encoder bridged into it 18.16 dB. A reconstruction measure compares a model's output with its own input, so a path that loses detail reads as a model that loses detail. The step names, for each, the test that compares the served latent or the served reconstruction with the reference implementation's on the same picture, writes it where the reference is on this machine, or records the deferral.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the tests or the recorded deferrals, and the gap closing. Batch: device."
-        }
-      ]
-    },
-    {
       "id": "video-request-speed",
       "title": "Serve a video request in the time the model's own code takes, beginning with where the time goes",
       "owner": "master-lead",

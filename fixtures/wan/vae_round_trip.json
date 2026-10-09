@@ -1,0 +1,41 @@
+{
+  "source": "Wan2.1 wan/modules/vae.py WanVAE decode(encode(x)), torch 2.12.0+cu126, float32 on the CPU; scripts/python_golden_references/wan_vae_round_trip.py",
+  "weights": "Wan2.1_VAE.pth",
+  "case": "vidgen-1m/reconstruction/1x480x832/JHmqvp9MkdU-Scene-0045",
+  "clip": "JHmqvp9MkdU-Scene-0045.mp4",
+  "clip_sha256": "5da311fdd816516d04b4edf2530b903f57cff62c66e3da58fc44f92b5d1c140a",
+  "cut": {
+    "frames": 1,
+    "fps": 16,
+    "width": 832,
+    "height": 480
+  },
+  "latent_shape": [
+    16,
+    1,
+    60,
+    104
+  ],
+  "mean_squared_error": 0.0011447842698544264,
+  "psnr_db": 35.433363380486014,
+  "picture": {
+    "file": "raw/vae_round_trip_source.png",
+    "shape": [
+      3,
+      1,
+      480,
+      832
+    ],
+    "sha256": "9fd35ad4497f11851e72b2d6aefe68d452435f2e8e52f17bafa0cb408fb7fe19"
+  },
+  "image": {
+    "file": "raw/vae_round_trip_image.png",
+    "shape": [
+      3,
+      1,
+      480,
+      832
+    ],
+    "sha256": "452c1e981303ecc2461ffe0e88952f66a9a8f6fd827089b875e5ab8e2fb2bb9d"
+  }
+}

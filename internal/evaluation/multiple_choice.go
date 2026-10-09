@@ -61,6 +61,38 @@ type multipleChoicePlan struct {
 	dataset  artifact.ID
 	split    artifact.ID
 	suite    MultipleChoiceSuite
+	// delimiter is what a likelihood scoring puts between a case's prompt and
+	// each of its candidates, where the suite's candidates are bare labels
+	// and do not carry it: lm-eval's target delimiter, for a task whose
+	// choices it writes bare. It is no part of the suite, so the suite's
+	// identity, and with it every plan that asks its questions another way,
+	// is what it was; a likelihood plan that scores with it names a method of
+	// its own.
+	delimiter string
+}
+
+// delimitedChoiceMethod names the likelihood scoring of a suite of bare
+// labels with the target delimiter before each, so that its records are
+// another plan than those scored with each label glued to the answer cue,
+// which every earlier likelihood record of such a suite was.
+const delimitedChoiceMethod = "likelihood-target-delimiter"
+
+// delimited returns the suite as a likelihood scoring is to score it: each
+// candidate with the plan's delimiter before it.
+func (p multipleChoicePlan) delimited() MultipleChoiceSuite {
+	if p.delimiter == "" {
+		return p.suite
+	}
+	scored := p.suite
+	scored.Cases = make([]MultipleChoiceCase, len(p.suite.Cases))
+	for index, testCase := range p.suite.Cases {
+		testCase.Candidates = slices.Clone(testCase.Candidates)
+		for candidate := range testCase.Candidates {
+			testCase.Candidates[candidate] = p.delimiter + testCase.Candidates[candidate]
+		}
+		scored.Cases[index] = testCase
+	}
+	return scored
 }
 
 type choiceObservation struct {
@@ -186,6 +218,8 @@ func BindMultipleChoice(compiled multipleChoicePlan, authorities ExactAuthoritie
 		if prompting == PromptingHostedChat {
 			scorer.Method = hostedChoiceMethod
 		}
+	} else if compiled.delimiter != "" {
+		scorer.Method = delimitedChoiceMethod
 	}
 	return bindPlan(compiled.dataset, compiled.split, compiled.identity, compiled.suite, scorer, authorities)
 }

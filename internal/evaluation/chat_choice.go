@@ -70,6 +70,8 @@ func ChoiceProtocol(label string) (string, bool) {
 			strings.TrimSpace(chatChoiceInstruction), chatAnswerOpener, chatAnswerTokens), true
 	case PromptingRawCompletion.Label():
 		return "the question is given as plain text with no chat template, and the model's answer is the option it finds likeliest to come next; no text is generated, so a model trained only to converse is asked in a form it was not trained on", true
+	case PromptingRawCompletion.Label() + protocolSeparator + gluedLetters:
+		return "the question is given as plain text with no chat template, and the model's answer is the option it finds likeliest to come next, with each option letter scored glued to the answer cue and not after a space, as the benchmark's own harness scores it. A tokenizer writes a colon and a letter together as one rare token for most letters and as two for some, so the choice follows the tokenizer as much as the question, and a small model's is nearly constant. Such a reading is kept until its model is read again the harness's way, and is not that benchmark's figure", true
 	}
 	return "", false
 }

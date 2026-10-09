@@ -156,6 +156,9 @@ func recordExecution(ctx context.Context, store *overgodb.Store, record runrecor
 	if counting := namedCounting(ctx, store, plan); len(counting) != 0 {
 		summary.Prompting = strings.Join(append([]string{summary.Prompting}, counting...), protocolSeparator)
 	}
+	if policy.Prompting == PromptingRawCompletion && scoredGlued(ctx, store, plan) {
+		summary.Prompting += protocolSeparator + gluedLetters
+	}
 	if policy.Prompting == PromptingChatTemplate {
 		summary.Unread = unreadAnswers(ctx, store, bound)
 	}

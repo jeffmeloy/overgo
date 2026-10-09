@@ -230,7 +230,7 @@ func assembleMMLUSuite(cases []storeCase) (any, int, error) {
 
 func assembleMMLUProSuite(cases []storeCase) (any, int, error) {
 	suite := mmluProSuite{
-		Kind: mmluProKind, Schema: "lm-eval/leaderboard-mmlu-pro/v0.1", Source: "store/mmlu-pro",
+		Kind: mmluProKind, Schema: mmluProSchema, Source: "store/mmlu-pro",
 		Labels: choiceLetters, Normalization: sequencescore.NormalizationSum,
 	}
 	for _, entry := range cases {

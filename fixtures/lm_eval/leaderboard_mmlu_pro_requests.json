@@ -1,0 +1,485 @@
+{
+ "schema": "lm_eval_mmlu_pro_requests/v1",
+ "source": "lm-eval 0.4.9.1 task leaderboard_mmlu_pro, build_all_requests; scripts/python_golden_references/lm_eval_mmlu_pro_requests.py",
+ "target_delimiter": " ",
+ "fewshot_delimiter": "\n\n",
+ "documents": {
+  "0": {
+   "question": "Typical advertising regulatory bodies suggest, for example that adverts must not: encourage _________, cause unnecessary ________ or _____, and must not cause _______ offence.",
+   "options": [
+    "Safe practices, Fear, Jealousy, Trivial",
+    "Unsafe practices, Distress, Joy, Trivial",
+    "Safe practices, Wants, Jealousy, Trivial",
+    "Safe practices, Distress, Fear, Trivial",
+    "Unsafe practices, Wants, Jealousy, Serious",
+    "Safe practices, Distress, Jealousy, Serious",
+    "Safe practices, Wants, Fear, Serious",
+    "Unsafe practices, Wants, Fear, Trivial",
+    "Unsafe practices, Distress, Fear, Serious"
+   ],
+   "answer": 8,
+   "category": "business"
+  },
+  "1": {
+   "question": "Managers are entrusted to run the company in the best interest of ________. Specifically, they have a duty to act for the benefit of the company, as well as a duty of ________ and of _______.",
+   "options": [
+    "Shareholders, Diligence, Self-interest",
+    "Shareholders, Self-interest, Care and Skill",
+    "Stakeholders, Care and skill, Self-interest",
+    "Stakeholders, Diligence, Care and Skill",
+    "Customers, Care and Skill, Diligence",
+    "Shareholders, Care and Skill, Diligence",
+    "Shareholders, Self-interest, Diligence",
+    "Employees, Care and Skill, Diligence",
+    "Stakeholders, Self-interest, Diligence",
+    "Stakeholder, Care and Skill, Diligence"
+   ],
+   "answer": 5,
+   "category": "business"
+  },
+  "2": {
+   "question": "There are two main issues associated with _____ sizing. _______ is a key issue as due to the information policy of the corporation it can be argued that employees have a right to know if they are being made redundant. _______ is a second issue, particularly the ________ package that employees receive when laid off.",
+   "options": [
+    "Down, Autonomy, Remuneration, Benefit",
+    "Down, Involvement, Independence, Benefit",
+    "Up, Independence, Involvement, Benefit",
+    "Down, Privacy, Autonomy, Benefit",
+    "Up, Involvement, Autonomy, Compensation",
+    "Down, Independence, Autonomy, Compensation",
+    "Up, Involvement, Remuneration, Severance",
+    "Up, Privacy, Remuneration, Severance",
+    "Up, Autonomy, Remuneration, Compensation",
+    "Down, Involvement, Remuneration, Compensation"
+   ],
+   "answer": 9,
+   "category": "business"
+  },
+  "70": {
+   "question": "Mr. Norman Schwartz, age 30, wants to take out a $15,000 insurance policy. What will be his difference in annual premiums between a 20-payment life policy and an ordinary life paid-up-at 65 policy? If he dies at age 62, how much will he have paid in for each policy?",
+   "options": [
+    "$30.55",
+    "$29.55",
+    "$34.55",
+    "$32.55",
+    "$33.55",
+    "$28.55",
+    "$27.55",
+    "$26.55",
+    "$31.55",
+    "$25.55"
+   ],
+   "answer": 1,
+   "category": "business"
+  },
+  "500": {
+   "question": "An 8% bond with 18 years to maturity has a yield of 9%. What is the price of this bond?",
+   "options": [
+    "91.17",
+    "100.00",
+    "110.00",
+    "88.34",
+    "105.68",
+    "85.23",
+    "95.50",
+    "102.56",
+    "77.89",
+    "120.45"
+   ],
+   "answer": 0,
+   "category": "business"
+  },
+  "2406": {
+   "question": "Unilateral damage to the left (dominant) hemisphere is least likely to result in an inability to:",
+   "options": [
+    "use the process of elimination to answer multiple-choice questions.",
+    "interpret visual cues.",
+    "read a map.",
+    "perform mathematical calculations.",
+    "write a coherent sentence.",
+    "perform physical tasks with the right side of the body.",
+    "memorize vocabulary words.",
+    "construct a daily schedule.",
+    "understand spoken language."
+   ],
+   "answer": 2,
+   "category": "psychology"
+  },
+  "7700": {
+   "question": "5.6-9. In Example 5.6-4, compute $P(1.7 \\leq Y \\leq 3.2)$ with $n=4$ and compare your answer with the normal approximation of this probability.\n",
+   "options": [
+    "$0.7254$",
+    " $0.6749$",
+    "$0.6182$",
+    "$0.7035$",
+    "$0.7891$",
+    "$0.9524$",
+    "$0.5918$",
+    "$0.4876$",
+    "$0.5603$",
+    "$0.8421$"
+   ],
+   "answer": 1,
+   "category": "math"
+  },
+  "12031": {
+   "question": "The frequency range of a commercially broadcast FM signal is 88 to 108 MHz, with carrier swing of 125 kHz. Find the percentage modulation of the signal.",
+   "options": [
+    "110%",
+    "125%",
+    "50%",
+    "62.5%",
+    "75%",
+    "83.3%",
+    "93.8%",
+    "57.1%",
+    "100%",
+    "90%"
+   ],
+   "answer": 5,
+   "category": "engineering"
+  }
+ },
+ "demonstrations": [
+  {
+   "question": "The symmetric group $S_n$ has $\n\\factorial{n}$ elements, hence it is not true that $S_{10}$ has 10 elements.\nFind the characteristic of the ring 2Z.",
+   "options": [
+    "0",
+    "30",
+    "3",
+    "10",
+    "12",
+    "50",
+    "2",
+    "100",
+    "20",
+    "5"
+   ],
+   "answer": 0,
+   "category": "math"
+  },
+  {
+   "question": "Let V be the set of all real polynomials p(x). Let transformations T, S be defined on V by T:p(x) -> xp(x) and S:p(x) -> p'(x) = d/dx p(x), and interpret (ST)(p(x)) as S(T(p(x))). Which of the following is true?",
+   "options": [
+    "ST + TS is the identity map of V onto itself.",
+    "TS = 0",
+    "ST = 1",
+    "ST - TS = 0",
+    "ST = T",
+    "ST = 0",
+    "ST = TS",
+    "ST - TS is the identity map of V onto itself.",
+    "TS = T",
+    "ST = S"
+   ],
+   "answer": 7,
+   "category": "math"
+  },
+  {
+   "question": "Let A be the set of all ordered pairs of integers (m, n) such that 7m + 12n = 22. What is the greatest negative number in the set B = {m + n : (m, n) \\in A}?",
+   "options": [
+    "-5",
+    "0",
+    "-3",
+    "-7",
+    "-4",
+    "-6",
+    "-1",
+    "-2",
+    "-9",
+    "N/A"
+   ],
+   "answer": 4,
+   "category": "math"
+  },
+  {
+   "question": "A tank initially contains a salt solution of 3 grams of salt dissolved in 100 liters of water. A salt solution containing 0.02 grams of salt per liter of water is sprayed into the tank at a rate of 4 liters per minute. The sprayed solution is continually mixed with the salt solution in the tank, and the mixture flows out of the tank at a rate of 4 liters per minute. If the mixing is instantaneous, how many grams of salt are in the tank after 100 minutes have elapsed?",
+   "options": [
+    "3 + e^-2",
+    "2 - e^-4",
+    "2 - e^-2",
+    "3 + e^-4",
+    "2 + e^-3",
+    "2 - e^-3",
+    "3 - e^-2",
+    "2 + e^-2",
+    "2 + e^-4",
+    "2"
+   ],
+   "answer": 8,
+   "category": "math"
+  },
+  {
+   "question": "A total of 30 players will play basketball at a park. There will be exactly 5 players on each team. Which statement correctly explains how to find the number of teams needed?",
+   "options": [
+    "Multiply 5 by 5 to find 25 teams.",
+    "Divide 30 by 5 to find 6 teams.",
+    "Add 5 to 30 to find 35 teams.",
+    "Subtract 30 from 5 to find -25 teams.",
+    "Divide 5 by 30 to find 0.1667 teams.",
+    "Add 5 to 30 then divide by 2 to find 17.5 teams.",
+    "N/A",
+    "N/A",
+    "N/A",
+    "N/A"
+   ],
+   "answer": 1,
+   "category": "math"
+  }
+ ],
+ "without_demonstrations": [
+  {
+   "document": 0,
+   "context": "Typical advertising regulatory bodies suggest, for example that adverts must not: encourage _________, cause unnecessary ________ or _____, and must not cause _______ offence.\nA. Safe practices, Fear, Jealousy, Trivial\nB. Unsafe practices, Distress, Joy, Trivial\nC. Safe practices, Wants, Jealousy, Trivial\nD. Safe practices, Distress, Fear, Trivial\nE. Unsafe practices, Wants, Jealousy, Serious\nF. Safe practices, Distress, Jealousy, Serious\nG. Safe practices, Wants, Fear, Serious\nH. Unsafe practices, Wants, Fear, Trivial\nI. Unsafe practices, Distress, Fear, Serious\nAnswer:",
+   "continuations": [
+    " A",
+    " B",
+    " C",
+    " D",
+    " E",
+    " F",
+    " G",
+    " H",
+    " I"
+   ]
+  },
+  {
+   "document": 1,
+   "context": "Managers are entrusted to run the company in the best interest of ________. Specifically, they have a duty to act for the benefit of the company, as well as a duty of ________ and of _______.\nA. Shareholders, Diligence, Self-interest\nB. Shareholders, Self-interest, Care and Skill\nC. Stakeholders, Care and skill, Self-interest\nD. Stakeholders, Diligence, Care and Skill\nE. Customers, Care and Skill, Diligence\nF. Shareholders, Care and Skill, Diligence\nG. Shareholders, Self-interest, Diligence\nH. Employees, Care and Skill, Diligence\nI. Stakeholders, Self-interest, Diligence\nJ. Stakeholder, Care and Skill, Diligence\nAnswer:",
+   "continuations": [
+    " A",
+    " B",
+    " C",
+    " D",
+    " E",
+    " F",
+    " G",
+    " H",
+    " I",
+    " J"
+   ]
+  },
+  {
+   "document": 2,
+   "context": "There are two main issues associated with _____ sizing. _______ is a key issue as due to the information policy of the corporation it can be argued that employees have a right to know if they are being made redundant. _______ is a second issue, particularly the ________ package that employees receive when laid off.\nA. Down, Autonomy, Remuneration, Benefit\nB. Down, Involvement, Independence, Benefit\nC. Up, Independence, Involvement, Benefit\nD. Down, Privacy, Autonomy, Benefit\nE. Up, Involvement, Autonomy, Compensation\nF. Down, Independence, Autonomy, Compensation\nG. Up, Involvement, Remuneration, Severance\nH. Up, Privacy, Remuneration, Severance\nI. Up, Autonomy, Remuneration, Compensation\nJ. Down, Involvement, Remuneration, Compensation\nAnswer:",
+   "continuations": [
+    " A",
+    " B",
+    " C",
+    " D",
+    " E",
+    " F",
+    " G",
+    " H",
+    " I",
+    " J"
+   ]
+  },
+  {
+   "document": 70,
+   "context": "Mr. Norman Schwartz, age 30, wants to take out a $15,000 insurance policy. What will be his difference in annual premiums between a 20-payment life policy and an ordinary life paid-up-at 65 policy? If he dies at age 62, how much will he have paid in for each policy?\nA. $30.55\nB. $29.55\nC. $34.55\nD. $32.55\nE. $33.55\nF. $28.55\nG. $27.55\nH. $26.55\nI. $31.55\nJ. $25.55\nAnswer:",
+   "continuations": [
+    " A",
+    " B",
+    " C",
+    " D",
+    " E",
+    " F",
+    " G",
+    " H",
+    " I",
+    " J"
+   ]
+  },
+  {
+   "document": 500,
+   "context": "An 8% bond with 18 years to maturity has a yield of 9%. What is the price of this bond?\nA. 91.17\nB. 100.00\nC. 110.00\nD. 88.34\nE. 105.68\nF. 85.23\nG. 95.50\nH. 102.56\nI. 77.89\nJ. 120.45\nAnswer:",
+   "continuations": [
+    " A",
+    " B",
+    " C",
+    " D",
+    " E",
+    " F",
+    " G",
+    " H",
+    " I",
+    " J"
+   ]
+  },
+  {
+   "document": 2406,
+   "context": "Unilateral damage to the left (dominant) hemisphere is least likely to result in an inability to:\nA. use the process of elimination to answer multiple-choice questions.\nB. interpret visual cues.\nC. read a map.\nD. perform mathematical calculations.\nE. write a coherent sentence.\nF. perform physical tasks with the right side of the body.\nG. memorize vocabulary words.\nH. construct a daily schedule.\nI. understand spoken language.\nAnswer:",
+   "continuations": [
+    " A",
+    " B",
+    " C",
+    " D",
+    " E",
+    " F",
+    " G",
+    " H",
+    " I"
+   ]
+  },
+  {
+   "document": 7700,
+   "context": "5.6-9. In Example 5.6-4, compute $P(1.7 \\leq Y \\leq 3.2)$ with $n=4$ and compare your answer with the normal approximation of this probability.\n\nA. $0.7254$\nB.  $0.6749$\nC. $0.6182$\nD. $0.7035$\nE. $0.7891$\nF. $0.9524$\nG. $0.5918$\nH. $0.4876$\nI. $0.5603$\nJ. $0.8421$\nAnswer:",
+   "continuations": [
+    " A",
+    " B",
+    " C",
+    " D",
+    " E",
+    " F",
+    " G",
+    " H",
+    " I",
+    " J"
+   ]
+  },
+  {
+   "document": 12031,
+   "context": "The frequency range of a commercially broadcast FM signal is 88 to 108 MHz, with carrier swing of 125 kHz. Find the percentage modulation of the signal.\nA. 110%\nB. 125%\nC. 50%\nD. 62.5%\nE. 75%\nF. 83.3%\nG. 93.8%\nH. 57.1%\nI. 100%\nJ. 90%\nAnswer:",
+   "continuations": [
+    " A",
+    " B",
+    " C",
+    " D",
+    " E",
+    " F",
+    " G",
+    " H",
+    " I",
+    " J"
+   ]
+  }
+ ],
+ "with_five_demonstrations": [
+  {
+   "document": 0,
+   "context": "The symmetric group $S_n$ has $\n\\factorial{n}$ elements, hence it is not true that $S_{10}$ has 10 elements.\nFind the characteristic of the ring 2Z.\nA. 0\nB. 30\nC. 3\nD. 10\nE. 12\nF. 50\nG. 2\nH. 100\nI. 20\nJ. 5\nAnswer: A\n\nLet V be the set of all real polynomials p(x). Let transformations T, S be defined on V by T:p(x) -> xp(x) and S:p(x) -> p'(x) = d/dx p(x), and interpret (ST)(p(x)) as S(T(p(x))). Which of the following is true?\nA. ST + TS is the identity map of V onto itself.\nB. TS = 0\nC. ST = 1\nD. ST - TS = 0\nE. ST = T\nF. ST = 0\nG. ST = TS\nH. ST - TS is the identity map of V onto itself.\nI. TS = T\nJ. ST = S\nAnswer: H\n\nLet A be the set of all ordered pairs of integers (m, n) such that 7m + 12n = 22. What is the greatest negative number in the set B = {m + n : (m, n) \\in A}?\nA. -5\nB. 0\nC. -3\nD. -7\nE. -4\nF. -6\nG. -1\nH. -2\nI. -9\nJ. N/A\nAnswer: E\n\nA tank initially contains a salt solution of 3 grams of salt dissolved in 100 liters of water. A salt solution containing 0.02 grams of salt per liter of water is sprayed into the tank at a rate of 4 liters per minute. The sprayed solution is continually mixed with the salt solution in the tank, and the mixture flows out of the tank at a rate of 4 liters per minute. If the mixing is instantaneous, how many grams of salt are in the tank after 100 minutes have elapsed?\nA. 3 + e^-2\nB. 2 - e^-4\nC. 2 - e^-2\nD. 3 + e^-4\nE. 2 + e^-3\nF. 2 - e^-3\nG. 3 - e^-2\nH. 2 + e^-2\nI. 2 + e^-4\nJ. 2\nAnswer: I\n\nA total of 30 players will play basketball at a park. There will be exactly 5 players on each team. Which statement correctly explains how to find the number of teams needed?\nA. Multiply 5 by 5 to find 25 teams.\nB. Divide 30 by 5 to find 6 teams.\nC. Add 5 to 30 to find 35 teams.\nD. Subtract 30 from 5 to find -25 teams.\nE. Divide 5 by 30 to find 0.1667 teams.\nF. Add 5 to 30 then divide by 2 to find 17.5 teams.\nG. N/A\nH. N/A\nI. N/A\nJ. N/A\nAnswer: B\n\nTypical advertising regulatory bodies suggest, for example that adverts must not: encourage _________, cause unnecessary ________ or _____, and must not cause _______ offence.\nA. Safe practices, Fear, Jealousy, Trivial\nB. Unsafe practices, Distress, Joy, Trivial\nC. Safe practices, Wants, Jealousy, Trivial\nD. Safe practices, Distress, Fear, Trivial\nE. Unsafe practices, Wants, Jealousy, Serious\nF. Safe practices, Distress, Jealousy, Serious\nG. Safe practices, Wants, Fear, Serious\nH. Unsafe practices, Wants, Fear, Trivial\nI. Unsafe practices, Distress, Fear, Serious\nAnswer:",
+   "continuations": [
+    " A",
+    " B",
+    " C",
+    " D",
+    " E",
+    " F",
+    " G",
+    " H",
+    " I"
+   ]
+  },
+  {
+   "document": 1,
+   "context": "The symmetric group $S_n$ has $\n\\factorial{n}$ elements, hence it is not true that $S_{10}$ has 10 elements.\nFind the characteristic of the ring 2Z.\nA. 0\nB. 30\nC. 3\nD. 10\nE. 12\nF. 50\nG. 2\nH. 100\nI. 20\nJ. 5\nAnswer: A\n\nLet V be the set of all real polynomials p(x). Let transformations T, S be defined on V by T:p(x) -> xp(x) and S:p(x) -> p'(x) = d/dx p(x), and interpret (ST)(p(x)) as S(T(p(x))). Which of the following is true?\nA. ST + TS is the identity map of V onto itself.\nB. TS = 0\nC. ST = 1\nD. ST - TS = 0\nE. ST = T\nF. ST = 0\nG. ST = TS\nH. ST - TS is the identity map of V onto itself.\nI. TS = T\nJ. ST = S\nAnswer: H\n\nLet A be the set of all ordered pairs of integers (m, n) such that 7m + 12n = 22. What is the greatest negative number in the set B = {m + n : (m, n) \\in A}?\nA. -5\nB. 0\nC. -3\nD. -7\nE. -4\nF. -6\nG. -1\nH. -2\nI. -9\nJ. N/A\nAnswer: E\n\nA tank initially contains a salt solution of 3 grams of salt dissolved in 100 liters of water. A salt solution containing 0.02 grams of salt per liter of water is sprayed into the tank at a rate of 4 liters per minute. The sprayed solution is continually mixed with the salt solution in the tank, and the mixture flows out of the tank at a rate of 4 liters per minute. If the mixing is instantaneous, how many grams of salt are in the tank after 100 minutes have elapsed?\nA. 3 + e^-2\nB. 2 - e^-4\nC. 2 - e^-2\nD. 3 + e^-4\nE. 2 + e^-3\nF. 2 - e^-3\nG. 3 - e^-2\nH. 2 + e^-2\nI. 2 + e^-4\nJ. 2\nAnswer: I\n\nA total of 30 players will play basketball at a park. There will be exactly 5 players on each team. Which statement correctly explains how to find the number of teams needed?\nA. Multiply 5 by 5 to find 25 teams.\nB. Divide 30 by 5 to find 6 teams.\nC. Add 5 to 30 to find 35 teams.\nD. Subtract 30 from 5 to find -25 teams.\nE. Divide 5 by 30 to find 0.1667 teams.\nF. Add 5 to 30 then divide by 2 to find 17.5 teams.\nG. N/A\nH. N/A\nI. N/A\nJ. N/A\nAnswer: B\n\nManagers are entrusted to run the company in the best interest of ________. Specifically, they have a duty to act for the benefit of the company, as well as a duty of ________ and of _______.\nA. Shareholders, Diligence, Self-interest\nB. Shareholders, Self-interest, Care and Skill\nC. Stakeholders, Care and skill, Self-interest\nD. Stakeholders, Diligence, Care and Skill\nE. Customers, Care and Skill, Diligence\nF. Shareholders, Care and Skill, Diligence\nG. Shareholders, Self-interest, Diligence\nH. Employees, Care and Skill, Diligence\nI. Stakeholders, Self-interest, Diligence\nJ. Stakeholder, Care and Skill, Diligence\nAnswer:",
+   "continuations": [
+    " A",
+    " B",
+    " C",
+    " D",
+    " E",
+    " F",
+    " G",
+    " H",
+    " I",
+    " J"
+   ]
+  },
+  {
+   "document": 2,
+   "context": "The symmetric group $S_n$ has $\n\\factorial{n}$ elements, hence it is not true that $S_{10}$ has 10 elements.\nFind the characteristic of the ring 2Z.\nA. 0\nB. 30\nC. 3\nD. 10\nE. 12\nF. 50\nG. 2\nH. 100\nI. 20\nJ. 5\nAnswer: A\n\nLet V be the set of all real polynomials p(x). Let transformations T, S be defined on V by T:p(x) -> xp(x) and S:p(x) -> p'(x) = d/dx p(x), and interpret (ST)(p(x)) as S(T(p(x))). Which of the following is true?\nA. ST + TS is the identity map of V onto itself.\nB. TS = 0\nC. ST = 1\nD. ST - TS = 0\nE. ST = T\nF. ST = 0\nG. ST = TS\nH. ST - TS is the identity map of V onto itself.\nI. TS = T\nJ. ST = S\nAnswer: H\n\nLet A be the set of all ordered pairs of integers (m, n) such that 7m + 12n = 22. What is the greatest negative number in the set B = {m + n : (m, n) \\in A}?\nA. -5\nB. 0\nC. -3\nD. -7\nE. -4\nF. -6\nG. -1\nH. -2\nI. -9\nJ. N/A\nAnswer: E\n\nA tank initially contains a salt solution of 3 grams of salt dissolved in 100 liters of water. A salt solution containing 0.02 grams of salt per liter of water is sprayed into the tank at a rate of 4 liters per minute. The sprayed solution is continually mixed with the salt solution in the tank, and the mixture flows out of the tank at a rate of 4 liters per minute. If the mixing is instantaneous, how many grams of salt are in the tank after 100 minutes have elapsed?\nA. 3 + e^-2\nB. 2 - e^-4\nC. 2 - e^-2\nD. 3 + e^-4\nE. 2 + e^-3\nF. 2 - e^-3\nG. 3 - e^-2\nH. 2 + e^-2\nI. 2 + e^-4\nJ. 2\nAnswer: I\n\nA total of 30 players will play basketball at a park. There will be exactly 5 players on each team. Which statement correctly explains how to find the number of teams needed?\nA. Multiply 5 by 5 to find 25 teams.\nB. Divide 30 by 5 to find 6 teams.\nC. Add 5 to 30 to find 35 teams.\nD. Subtract 30 from 5 to find -25 teams.\nE. Divide 5 by 30 to find 0.1667 teams.\nF. Add 5 to 30 then divide by 2 to find 17.5 teams.\nG. N/A\nH. N/A\nI. N/A\nJ. N/A\nAnswer: B\n\nThere are two main issues associated with _____ sizing. _______ is a key issue as due to the information policy of the corporation it can be argued that employees have a right to know if they are being made redundant. _______ is a second issue, particularly the ________ package that employees receive when laid off.\nA. Down, Autonomy, Remuneration, Benefit\nB. Down, Involvement, Independence, Benefit\nC. Up, Independence, Involvement, Benefit\nD. Down, Privacy, Autonomy, Benefit\nE. Up, Involvement, Autonomy, Compensation\nF. Down, Independence, Autonomy, Compensation\nG. Up, Involvement, Remuneration, Severance\nH. Up, Privacy, Remuneration, Severance\nI. Up, Autonomy, Remuneration, Compensation\nJ. Down, Involvement, Remuneration, Compensation\nAnswer:",
+   "continuations": [
+    " A",
+    " B",
+    " C",
+    " D",
+    " E",
+    " F",
+    " G",
+    " H",
+    " I",
+    " J"
+   ]
+  },
+  {
+   "document": 70,
+   "context": "The symmetric group $S_n$ has $\n\\factorial{n}$ elements, hence it is not true that $S_{10}$ has 10 elements.\nFind the characteristic of the ring 2Z.\nA. 0\nB. 30\nC. 3\nD. 10\nE. 12\nF. 50\nG. 2\nH. 100\nI. 20\nJ. 5\nAnswer: A\n\nLet V be the set of all real polynomials p(x). Let transformations T, S be defined on V by T:p(x) -> xp(x) and S:p(x) -> p'(x) = d/dx p(x), and interpret (ST)(p(x)) as S(T(p(x))). Which of the following is true?\nA. ST + TS is the identity map of V onto itself.\nB. TS = 0\nC. ST = 1\nD. ST - TS = 0\nE. ST = T\nF. ST = 0\nG. ST = TS\nH. ST - TS is the identity map of V onto itself.\nI. TS = T\nJ. ST = S\nAnswer: H\n\nLet A be the set of all ordered pairs of integers (m, n) such that 7m + 12n = 22. What is the greatest negative number in the set B = {m + n : (m, n) \\in A}?\nA. -5\nB. 0\nC. -3\nD. -7\nE. -4\nF. -6\nG. -1\nH. -2\nI. -9\nJ. N/A\nAnswer: E\n\nA tank initially contains a salt solution of 3 grams of salt dissolved in 100 liters of water. A salt solution containing 0.02 grams of salt per liter of water is sprayed into the tank at a rate of 4 liters per minute. The sprayed solution is continually mixed with the salt solution in the tank, and the mixture flows out of the tank at a rate of 4 liters per minute. If the mixing is instantaneous, how many grams of salt are in the tank after 100 minutes have elapsed?\nA. 3 + e^-2\nB. 2 - e^-4\nC. 2 - e^-2\nD. 3 + e^-4\nE. 2 + e^-3\nF. 2 - e^-3\nG. 3 - e^-2\nH. 2 + e^-2\nI. 2 + e^-4\nJ. 2\nAnswer: I\n\nA total of 30 players will play basketball at a park. There will be exactly 5 players on each team. Which statement correctly explains how to find the number of teams needed?\nA. Multiply 5 by 5 to find 25 teams.\nB. Divide 30 by 5 to find 6 teams.\nC. Add 5 to 30 to find 35 teams.\nD. Subtract 30 from 5 to find -25 teams.\nE. Divide 5 by 30 to find 0.1667 teams.\nF. Add 5 to 30 then divide by 2 to find 17.5 teams.\nG. N/A\nH. N/A\nI. N/A\nJ. N/A\nAnswer: B\n\nMr. Norman Schwartz, age 30, wants to take out a $15,000 insurance policy. What will be his difference in annual premiums between a 20-payment life policy and an ordinary life paid-up-at 65 policy? If he dies at age 62, how much will he have paid in for each policy?\nA. $30.55\nB. $29.55\nC. $34.55\nD. $32.55\nE. $33.55\nF. $28.55\nG. $27.55\nH. $26.55\nI. $31.55\nJ. $25.55\nAnswer:",
+   "continuations": [
+    " A",
+    " B",
+    " C",
+    " D",
+    " E",
+    " F",
+    " G",
+    " H",
+    " I",
+    " J"
+   ]
+  },
+  {
+   "document": 500,
+   "context": "The symmetric group $S_n$ has $\n\\factorial{n}$ elements, hence it is not true that $S_{10}$ has 10 elements.\nFind the characteristic of the ring 2Z.\nA. 0\nB. 30\nC. 3\nD. 10\nE. 12\nF. 50\nG. 2\nH. 100\nI. 20\nJ. 5\nAnswer: A\n\nLet V be the set of all real polynomials p(x). Let transformations T, S be defined on V by T:p(x) -> xp(x) and S:p(x) -> p'(x) = d/dx p(x), and interpret (ST)(p(x)) as S(T(p(x))). Which of the following is true?\nA. ST + TS is the identity map of V onto itself.\nB. TS = 0\nC. ST = 1\nD. ST - TS = 0\nE. ST = T\nF. ST = 0\nG. ST = TS\nH. ST - TS is the identity map of V onto itself.\nI. TS = T\nJ. ST = S\nAnswer: H\n\nLet A be the set of all ordered pairs of integers (m, n) such that 7m + 12n = 22. What is the greatest negative number in the set B = {m + n : (m, n) \\in A}?\nA. -5\nB. 0\nC. -3\nD. -7\nE. -4\nF. -6\nG. -1\nH. -2\nI. -9\nJ. N/A\nAnswer: E\n\nA tank initially contains a salt solution of 3 grams of salt dissolved in 100 liters of water. A salt solution containing 0.02 grams of salt per liter of water is sprayed into the tank at a rate of 4 liters per minute. The sprayed solution is continually mixed with the salt solution in the tank, and the mixture flows out of the tank at a rate of 4 liters per minute. If the mixing is instantaneous, how many grams of salt are in the tank after 100 minutes have elapsed?\nA. 3 + e^-2\nB. 2 - e^-4\nC. 2 - e^-2\nD. 3 + e^-4\nE. 2 + e^-3\nF. 2 - e^-3\nG. 3 - e^-2\nH. 2 + e^-2\nI. 2 + e^-4\nJ. 2\nAnswer: I\n\nA total of 30 players will play basketball at a park. There will be exactly 5 players on each team. Which statement correctly explains how to find the number of teams needed?\nA. Multiply 5 by 5 to find 25 teams.\nB. Divide 30 by 5 to find 6 teams.\nC. Add 5 to 30 to find 35 teams.\nD. Subtract 30 from 5 to find -25 teams.\nE. Divide 5 by 30 to find 0.1667 teams.\nF. Add 5 to 30 then divide by 2 to find 17.5 teams.\nG. N/A\nH. N/A\nI. N/A\nJ. N/A\nAnswer: B\n\nAn 8% bond with 18 years to maturity has a yield of 9%. What is the price of this bond?\nA. 91.17\nB. 100.00\nC. 110.00\nD. 88.34\nE. 105.68\nF. 85.23\nG. 95.50\nH. 102.56\nI. 77.89\nJ. 120.45\nAnswer:",
+   "continuations": [
+    " A",
+    " B",
+    " C",
+    " D",
+    " E",
+    " F",
+    " G",
+    " H",
+    " I",
+    " J"
+   ]
+  },
+  {
+   "document": 2406,
+   "context": "The symmetric group $S_n$ has $\n\\factorial{n}$ elements, hence it is not true that $S_{10}$ has 10 elements.\nFind the characteristic of the ring 2Z.\nA. 0\nB. 30\nC. 3\nD. 10\nE. 12\nF. 50\nG. 2\nH. 100\nI. 20\nJ. 5\nAnswer: A\n\nLet V be the set of all real polynomials p(x). Let transformations T, S be defined on V by T:p(x) -> xp(x) and S:p(x) -> p'(x) = d/dx p(x), and interpret (ST)(p(x)) as S(T(p(x))). Which of the following is true?\nA. ST + TS is the identity map of V onto itself.\nB. TS = 0\nC. ST = 1\nD. ST - TS = 0\nE. ST = T\nF. ST = 0\nG. ST = TS\nH. ST - TS is the identity map of V onto itself.\nI. TS = T\nJ. ST = S\nAnswer: H\n\nLet A be the set of all ordered pairs of integers (m, n) such that 7m + 12n = 22. What is the greatest negative number in the set B = {m + n : (m, n) \\in A}?\nA. -5\nB. 0\nC. -3\nD. -7\nE. -4\nF. -6\nG. -1\nH. -2\nI. -9\nJ. N/A\nAnswer: E\n\nA tank initially contains a salt solution of 3 grams of salt dissolved in 100 liters of water. A salt solution containing 0.02 grams of salt per liter of water is sprayed into the tank at a rate of 4 liters per minute. The sprayed solution is continually mixed with the salt solution in the tank, and the mixture flows out of the tank at a rate of 4 liters per minute. If the mixing is instantaneous, how many grams of salt are in the tank after 100 minutes have elapsed?\nA. 3 + e^-2\nB. 2 - e^-4\nC. 2 - e^-2\nD. 3 + e^-4\nE. 2 + e^-3\nF. 2 - e^-3\nG. 3 - e^-2\nH. 2 + e^-2\nI. 2 + e^-4\nJ. 2\nAnswer: I\n\nA total of 30 players will play basketball at a park. There will be exactly 5 players on each team. Which statement correctly explains how to find the number of teams needed?\nA. Multiply 5 by 5 to find 25 teams.\nB. Divide 30 by 5 to find 6 teams.\nC. Add 5 to 30 to find 35 teams.\nD. Subtract 30 from 5 to find -25 teams.\nE. Divide 5 by 30 to find 0.1667 teams.\nF. Add 5 to 30 then divide by 2 to find 17.5 teams.\nG. N/A\nH. N/A\nI. N/A\nJ. N/A\nAnswer: B\n\nUnilateral damage to the left (dominant) hemisphere is least likely to result in an inability to:\nA. use the process of elimination to answer multiple-choice questions.\nB. interpret visual cues.\nC. read a map.\nD. perform mathematical calculations.\nE. write a coherent sentence.\nF. perform physical tasks with the right side of the body.\nG. memorize vocabulary words.\nH. construct a daily schedule.\nI. understand spoken language.\nAnswer:",
+   "continuations": [
+    " A",
+    " B",
+    " C",
+    " D",
+    " E",
+    " F",
+    " G",
+    " H",
+    " I"
+   ]
+  },
+  {
+   "document": 7700,
+   "context": "The symmetric group $S_n$ has $\n\\factorial{n}$ elements, hence it is not true that $S_{10}$ has 10 elements.\nFind the characteristic of the ring 2Z.\nA. 0\nB. 30\nC. 3\nD. 10\nE. 12\nF. 50\nG. 2\nH. 100\nI. 20\nJ. 5\nAnswer: A\n\nLet V be the set of all real polynomials p(x). Let transformations T, S be defined on V by T:p(x) -> xp(x) and S:p(x) -> p'(x) = d/dx p(x), and interpret (ST)(p(x)) as S(T(p(x))). Which of the following is true?\nA. ST + TS is the identity map of V onto itself.\nB. TS = 0\nC. ST = 1\nD. ST - TS = 0\nE. ST = T\nF. ST = 0\nG. ST = TS\nH. ST - TS is the identity map of V onto itself.\nI. TS = T\nJ. ST = S\nAnswer: H\n\nLet A be the set of all ordered pairs of integers (m, n) such that 7m + 12n = 22. What is the greatest negative number in the set B = {m + n : (m, n) \\in A}?\nA. -5\nB. 0\nC. -3\nD. -7\nE. -4\nF. -6\nG. -1\nH. -2\nI. -9\nJ. N/A\nAnswer: E\n\nA tank initially contains a salt solution of 3 grams of salt dissolved in 100 liters of water. A salt solution containing 0.02 grams of salt per liter of water is sprayed into the tank at a rate of 4 liters per minute. The sprayed solution is continually mixed with the salt solution in the tank, and the mixture flows out of the tank at a rate of 4 liters per minute. If the mixing is instantaneous, how many grams of salt are in the tank after 100 minutes have elapsed?\nA. 3 + e^-2\nB. 2 - e^-4\nC. 2 - e^-2\nD. 3 + e^-4\nE. 2 + e^-3\nF. 2 - e^-3\nG. 3 - e^-2\nH. 2 + e^-2\nI. 2 + e^-4\nJ. 2\nAnswer: I\n\nA total of 30 players will play basketball at a park. There will be exactly 5 players on each team. Which statement correctly explains how to find the number of teams needed?\nA. Multiply 5 by 5 to find 25 teams.\nB. Divide 30 by 5 to find 6 teams.\nC. Add 5 to 30 to find 35 teams.\nD. Subtract 30 from 5 to find -25 teams.\nE. Divide 5 by 30 to find 0.1667 teams.\nF. Add 5 to 30 then divide by 2 to find 17.5 teams.\nG. N/A\nH. N/A\nI. N/A\nJ. N/A\nAnswer: B\n\n5.6-9. In Example 5.6-4, compute $P(1.7 \\leq Y \\leq 3.2)$ with $n=4$ and compare your answer with the normal approximation of this probability.\n\nA. $0.7254$\nB.  $0.6749$\nC. $0.6182$\nD. $0.7035$\nE. $0.7891$\nF. $0.9524$\nG. $0.5918$\nH. $0.4876$\nI. $0.5603$\nJ. $0.8421$\nAnswer:",
+   "continuations": [
+    " A",
+    " B",
+    " C",
+    " D",
+    " E",
+    " F",
+    " G",
+    " H",
+    " I",
+    " J"
+   ]
+  },
+  {
+   "document": 12031,
+   "context": "The symmetric group $S_n$ has $\n\\factorial{n}$ elements, hence it is not true that $S_{10}$ has 10 elements.\nFind the characteristic of the ring 2Z.\nA. 0\nB. 30\nC. 3\nD. 10\nE. 12\nF. 50\nG. 2\nH. 100\nI. 20\nJ. 5\nAnswer: A\n\nLet V be the set of all real polynomials p(x). Let transformations T, S be defined on V by T:p(x) -> xp(x) and S:p(x) -> p'(x) = d/dx p(x), and interpret (ST)(p(x)) as S(T(p(x))). Which of the following is true?\nA. ST + TS is the identity map of V onto itself.\nB. TS = 0\nC. ST = 1\nD. ST - TS = 0\nE. ST = T\nF. ST = 0\nG. ST = TS\nH. ST - TS is the identity map of V onto itself.\nI. TS = T\nJ. ST = S\nAnswer: H\n\nLet A be the set of all ordered pairs of integers (m, n) such that 7m + 12n = 22. What is the greatest negative number in the set B = {m + n : (m, n) \\in A}?\nA. -5\nB. 0\nC. -3\nD. -7\nE. -4\nF. -6\nG. -1\nH. -2\nI. -9\nJ. N/A\nAnswer: E\n\nA tank initially contains a salt solution of 3 grams of salt dissolved in 100 liters of water. A salt solution containing 0.02 grams of salt per liter of water is sprayed into the tank at a rate of 4 liters per minute. The sprayed solution is continually mixed with the salt solution in the tank, and the mixture flows out of the tank at a rate of 4 liters per minute. If the mixing is instantaneous, how many grams of salt are in the tank after 100 minutes have elapsed?\nA. 3 + e^-2\nB. 2 - e^-4\nC. 2 - e^-2\nD. 3 + e^-4\nE. 2 + e^-3\nF. 2 - e^-3\nG. 3 - e^-2\nH. 2 + e^-2\nI. 2 + e^-4\nJ. 2\nAnswer: I\n\nA total of 30 players will play basketball at a park. There will be exactly 5 players on each team. Which statement correctly explains how to find the number of teams needed?\nA. Multiply 5 by 5 to find 25 teams.\nB. Divide 30 by 5 to find 6 teams.\nC. Add 5 to 30 to find 35 teams.\nD. Subtract 30 from 5 to find -25 teams.\nE. Divide 5 by 30 to find 0.1667 teams.\nF. Add 5 to 30 then divide by 2 to find 17.5 teams.\nG. N/A\nH. N/A\nI. N/A\nJ. N/A\nAnswer: B\n\nThe frequency range of a commercially broadcast FM signal is 88 to 108 MHz, with carrier swing of 125 kHz. Find the percentage modulation of the signal.\nA. 110%\nB. 125%\nC. 50%\nD. 62.5%\nE. 75%\nF. 83.3%\nG. 93.8%\nH. 57.1%\nI. 100%\nJ. 90%\nAnswer:",
+   "continuations": [
+    " A",
+    " B",
+    " C",
+    " D",
+    " E",
+    " F",
+    " G",
+    " H",
+    " I",
+    " J"
+   ]
+  }
+ ]
+}

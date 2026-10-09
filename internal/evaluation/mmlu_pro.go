@@ -2,6 +2,7 @@ package evaluation
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"slices"
 	"strings"
@@ -14,7 +15,41 @@ const (
 	mmluProKind         = "mmlu-pro"
 	mmluProReportMedia  = "application/vnd.overgo.mmlu-pro-report+json"
 	mmluProReportSchema = "overgo/mmlu-pro-report/v1"
+	// mmluProSchema names the task the store's MMLU-Pro suite is a port of.
+	mmluProSchema = "lm-eval/leaderboard-mmlu-pro/v0.1"
+	// gluedLetters is the part of a protocol label that marks a likelihood
+	// reading of MMLU-Pro taken before its candidates were given the task's
+	// target delimiter: each option letter was scored glued to the answer
+	// cue, "Answer:A".
+	gluedLetters = "letters glued to the cue"
 )
+
+// scoredGlued reports whether a plan is a likelihood scoring of MMLU-Pro
+// that glued each option letter to the answer cue: the suite of that task,
+// under a scorer that names no method, which is every likelihood plan of it
+// bound before the delimiter was. Such a record is not a reading of the
+// benchmark as its harness asks it, and its label says so.
+func scoredGlued(ctx context.Context, reader artifact.Reader, plan Plan) bool {
+	profile, found, err := artifact.ReadContent(ctx, reader, plan.body.CaseProfile)
+	if err != nil || !found {
+		return false
+	}
+	var suite struct {
+		Kind   string `json:"kind"`
+		Schema string `json:"schema"`
+	}
+	if json.Unmarshal(profile.Data, &suite) != nil || suite.Kind != MultipleChoiceKind || suite.Schema != mmluProSchema {
+		return false
+	}
+	scorer, found, err := artifact.ReadContent(ctx, reader, plan.body.Scorer)
+	if err != nil || !found {
+		return false
+	}
+	var method struct {
+		Method string `json:"method"`
+	}
+	return json.Unmarshal(scorer.Data, &method) == nil && method.Method == ""
+}
 
 var mmluProReportContract = artifact.DocumentContract{
 	Kind: artifact.KindEvaluation, MediaType: mmluProReportMedia, Schema: mmluProReportSchema,
@@ -78,6 +113,7 @@ func compileMMLUPro(suite mmluProSuite) (mmluProPlan, error) {
 			return mmluProPlan{}, err
 		}
 		renderMMLUProCase(&demonstrations, example, labels)
+		demonstrations.WriteString(targetDelimiter)
 		demonstrations.WriteString(labels[example.Answer])
 		demonstrations.WriteString("\n\n")
 	}
@@ -103,6 +139,9 @@ func compileMMLUPro(suite mmluProSuite) (mmluProPlan, error) {
 	if err != nil {
 		return mmluProPlan{}, err
 	}
+	// The task this suite is a port of writes its choices as bare letters and
+	// leaves the space before each to its target delimiter.
+	choice.delimiter = targetDelimiter
 	return mmluProPlan{choice: choice, categories: categories}, nil
 }
 
@@ -127,7 +166,7 @@ func evaluateMMLUPro(
 	if err := publishPlanAuthorities(ctx, repository, plan, contents); err != nil {
 		return mmluProReport{}, err
 	}
-	observations, categories, accuracy, err := scoreChoiceGroups(ctx, scorer, compiled.choice.suite, compiled.categories)
+	observations, categories, accuracy, err := scoreChoiceGroups(ctx, scorer, compiled.choice.delimited(), compiled.categories)
 	if err != nil {
 		return mmluProReport{}, err
 	}

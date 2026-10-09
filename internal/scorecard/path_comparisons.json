@@ -172,6 +172,13 @@
       "package": "internal/adaptiveparity",
       "test": "TestServedSampleMatchesTheUpstreamSampler",
       "holds": "the picture a served request returns for a seed, a size and a number of steps to the picture the model's upstream sampler, the function sample() of the training script beside its weights, integrates the same starting noise to: at the size and steps of the model's accepted sample, 256 by 256 in 8 steps, over 8-pixel squares, where the upstream sampler's own picture in one step fewer stands 11 dB further off and from another seed's noise 30. The noise is overgo's own, given to the reference: the upstream sampler draws torch's, which a seed of overgo's does not name, so what is held is every step after the noise and the range the picture is written in. The model has no held-out reading; its accepted sample, pale and noisy, is what its upstream sampler draws from that noise, to 54 dB"
+    },
+    {
+      "model": "Wan2.1-T2V-1.3B",
+      "task": "video-gen",
+      "package": "internal/adaptiveparity",
+      "test": "TestServedGenerationMatchesTheModelsOwnClip",
+      "holds": "the clip a served text-to-video request returns for a prompt, a seed, a number of frames, a size, steps, a shift and a guidance scale, with no negative prompt named, to the clip the model's own code, its repository's generate(), draws for the same: nine frames at 416 by 240 in 20 steps with a guidance scale of 5, over 16-pixel squares, where the model's own clip at another shift, with a blank negative prompt, at another guidance scale or from another seed stands 15 dB or more further off. The reference is run in float32: the repository holds both its models in bfloat16, and its own bfloat16 clip stands further from its float32 one than the served clip does. The row's reading is of clips drawn at seventeen frames with that guidance, where the model's own two precisions stand 16 to 21 dB apart and the served clip 16 to 23 dB from either: there the comparison tells a served clip from another seed's, at 10 dB, and not from the model's own rounding"
     }
   ]
 }

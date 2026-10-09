@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "scorecard-uncompared-video-gen",
-      "title": "Compare the path a video-gen request takes with a reference output for each model it is scored on",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 400,
-        "reason": "The comparison of the served video generator's request path with the fixed-seed clip its reference kept, as the served edit path is compared; a step of the owner's double-check of the scorecard, named for the gap the scorecard files for it"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Hold Wan2.1's served request path to the clip its reference kept",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-video-gen",
-          "rationale": "LiveEdit's video-gen reading is compared: a device test holds the clip a served edit request returns to the clip the earlier implementation drew. Wan2.1-T2V-1.3B's is not. Its runtime has a comparison with the earlier implementation; the path from a prompt to the served clip, the text context, the sampler settings and the clip's encoding, is what LiveEdit's four faults were in, and Wan2.1 shares the text encoder and the clip encoder with it. Its judged reading of 0.9141 does not excuse it: a judge asked which caption fits can pass a washed clip.\n\nThe step sends the prompt, seed and settings of a clip the reference tree kept as a served request and compares the result with the kept clip, square by square and in its dark and bright levels, with a tolerance taken from the reference's own variation; it names the test in the scorecard's path comparisons. A difference is a fault in the path: it is fixed and the generator is scored again.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the device test, and the gap closing. Batch: device."
-        }
-      ]
-    },
-    {
       "id": "scorecard-uncompared-inference",
       "title": "Compare the path an inference request takes with a reference output for each model it is scored on",
       "owner": "master-lead",

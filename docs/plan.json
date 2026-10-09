@@ -14,18 +14,33 @@
       },
       "steps": [
         {
-          "id": "krea-frozen-sample",
-          "title": "Draw Krea-2-Turbo's accepted sample again with the mended path and record its acceptance",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_KREA_BASELINE=1 go test ./internal/mediacapability -count=1 -run '^TestFrozenKreaGeneration$'",
-          "rationale": "The accepted sample of Krea-2-Turbo, docs/media_samples/4508f19a...png with its acquisition and review in docs/image_video_latent_images.json and its run in docs/verification/image-video-coverage.json, is the picture the faulty path drew for the frozen request. The mended path draws another, output 4844851d..., and internal/mediacapability TestFrozenKreaGeneration, which is run only when OVERGO_KREA_BASELINE is set, now fails on it. The records of the old acceptance are of runs that happened and stay true as history; what is stale is the claim that the frozen request still draws that picture. This step draws the frozen request again, looks at the picture, records acquisition and review as commits f20d54190 and 51c87fce4 did, and moves the test and the accepted documents to the new sample, each with the digest its test pins. Serves: generate. Disappears: an accepted sample the served path no longer draws. Evidence: the frozen test passing with the baseline set, and the accepted documents. Batch: device."
-        },
-        {
           "id": "do",
           "title": "Hold each served image generator's request path to the picture its reference kept",
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-image-gen",
           "rationale": "LiveEdit's runtime agreed with the earlier implementation's latent and clip while the path a request takes around it read its source in the wrong range, wrote its frames in the wrong range, projected its prompt with the wrong weights and drew its clips in a palette the editor read as content. Krea-2-Turbo and SenseNova-U1 have comparisons of their runtimes; for neither is the path from a prompt to the served picture held to a reference. Their judged readings, 0.9301 and 0.5157 on 415 cases, do not excuse them: a judge asked which caption fits can pass a washed picture.\n\nFor each generator whose reference kept a fixed-seed picture and its settings, the step sends the same prompt, seed and settings as a served request and compares the picture with the kept one, square by square and in its dark and bright levels, as the edit test does, with a tolerance taken from the reference's own variation, and names the test in the scorecard's path comparisons. Where the reference kept none, it records the deferral and what would reopen it. A difference is a fault in the path: it is fixed and the generator is scored again. SimpleDiffusion has no held-out reading and so no gap here; its comparison with its upstream code, run twice for a tolerance, is done with these if its reference can be run.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the device tests, and the gap closing. Batch: device."
+        }
+      ]
+    },
+    {
+      "id": "repeated-request",
+      "title": "Serve a request that repeats an earlier one: never refuse it, never run it only to give back the old answer",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "earlier-receipts",
+          "title": "Read the stage records of the earlier form, so a request first served before they changed is served again",
+          "status": "open",
+          "verify": "go test ./internal/runrecord ./internal/workflowruntime -count=1 -run '^(TestStageReceiptOfTheEarlierFormIsRead|TestOperationRunsOnFromAnEarlierFormReceipt)$'",
+          "rationale": "Finding 3c9083de. A request that repeats, byte for byte, one served before 2026-08-29 under a recipe still active is refused: the stage records kept of its operation are of schema overgo/stage-receipt/v1, the contract moved to v2 in commit d38908b96, and runrecord.ResolveStageReceipt reads the alias only as v2, so beginStage and recoverStage fail with 'incompatible document content' before any stage runs. Krea-2-Turbo's frozen request is one; so is every frozen media request. The earlier form is a subset of the present one, a receipt that binds no invocation, and a document's identity is its kind and bytes, so the earlier receipt is read as it stands and the chain goes on from it: its attempt, its identity as the next receipt's previous, and the alias moved from it. Tests publish an earlier-form receipt at an operation's alias, resolve it, and run the operation. Serves: generate, and every capability request. Disappears: a class of requests the served path refuses. Evidence: the two tests, and the frozen request served on a copy of the store. Batch: host."
+        },
+        {
+          "id": "do",
+          "title": "Serve a request that repeats an earlier one: never refuse it, never run it only to give back the old answer",
+          "status": "open",
+          "verify": "go test ./internal/workflowruntime ./internal/capabilityruntime ./cmd/recipe -count=1 -run '^(TestReplayRunsNoStageItsOutputDoesNotNeed|TestReplayDoesNotCrossAVerification|TestVerificationDrawsTheCandidate)$'",
+          "rationale": "\n\nFinding a7c3e885. A repeated image or video request is run again and then answered with the picture kept from the first time. An ordinary request's operation is keyed on its recipe and its bytes, and the runtime takes from the store any completed stage whose output the store kept; that is deliberate and tested for a one-stage program, where a repeat runs nothing and returns the stored answer. A picture's program is three stages whose first two hand on values the store does not keep, so they run again on every repeat, 13 seconds of denoising for Krea-2-Turbo, and their result is dropped when the last stage is taken from the store. Nothing in the key moves when the code that draws the picture changes: after commit 56a5820a7 mended Krea's path, its verification request served again returned the picture from before the mend, byte for byte, and verifying a media recipe again on a request it was verified on before validates the stored picture. Two parts. First, make a replay whole: when the stage a program's output comes from is taken from the store, the stages that only feed it do not run. Second, stop a replay crossing a change in what the path computes: key the operation on the verification the activation rests on as well as the recipe, and have verification itself run fresh, so that verifying a path again after it changes both draws the candidate and retires the replays of what it drew before. The second part changes what a replay is keyed on, a design the owner may want made differently; it is said in the report before it is built. Serves: generate, and every capability request. Disappears: requests that pay for a drawing and are given an old one. Evidence: the tests, and Krea's verification request served on a copy of the store before and after. Batch: host, then device."
         }
       ]
     },
@@ -221,7 +236,8 @@
             "vae-lane-takeover-plan/do",
             "census-rebind-after-latent-rows/do",
             "liveedit-served-parity/do",
-            "video-request-speed/do"
+            "video-request-speed/do",
+            "repeated-request/do"
           ]
         }
       ]

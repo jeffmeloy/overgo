@@ -61,8 +61,9 @@ func TestFrozenKreaGeneration(t *testing.T) {
 	if err := strictjson.DecodeBytes(input.Data, &request); err != nil {
 		t.Fatal(err)
 	}
-	// Accepted reacquisition and review: docs/image_video_latent_images.json.
-	const outputHash = "4508f19a532591c01d1c9c5b1e783b21f593484e7debf93e104e3f0df41ccb44"
+	// The accepted sample, with its run and review: docs/verification/image-video-coverage.json.
+	// docs/image_video_latent_images.json keeps the acquisition of the picture it replaced.
+	const outputHash = "4844851dc3b37f5ec51704cc74f4863f53077ff903efde231daa482d834fc327"
 	want, err := os.ReadFile(filepath.Join(root, "docs/media_samples", outputHash+".png"))
 	if err != nil {
 		t.Fatal(err)

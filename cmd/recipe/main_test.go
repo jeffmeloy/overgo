@@ -447,8 +447,10 @@ func TestCapabilityMeasurementRecordsLoadAndDevicePeak(t *testing.T) {
 // request again recovers it: two runs of the request run the model's one
 // node once. A measurement of that request recovers nothing, so the attempt
 // it records times the model and not the store's replay: each of two
-// measurements runs the node. Serving the request afterwards still recovers.
-// The forecast is an output returned whole: no attempt records a decode.
+// measurements runs the node. Serving the request afterwards still recovers,
+// and serving it fresh runs the node, as its own operation that leaves the
+// request's replay as it was. The forecast is an output returned whole: no
+// attempt records a decode.
 func TestCapabilityMeasurementRunsTheModel(t *testing.T) {
 	const request = `[1,2,3]`
 	inventory := measuredModel(t)
@@ -477,23 +479,23 @@ func TestCapabilityMeasurementRunsTheModel(t *testing.T) {
 		),
 	}
 	for index, step := range []struct {
-		measure bool
-		runs    int32
-	}{{runs: 1}, {runs: 1}, {measure: true, runs: 2}, {measure: true, runs: 3}, {runs: 3}} {
+		measure, fresh bool
+		runs           int32
+	}{{runs: 1}, {runs: 1}, {measure: true, runs: 2}, {measure: true, runs: 3}, {runs: 3}, {fresh: true, runs: 4}, {runs: 4}} {
 		var err error
 		if step.measure {
 			err = measureCapability(directory, "fixture-path", recipe.TaskForecast, capability)
 		} else {
-			err = executeCapability(directory, "fixture-path", "", "", modelrecipe.SessionWarm, recipe.TaskForecast, capability, request)
+			err = executeCapability(directory, "fixture-path", "", "", modelrecipe.SessionWarm, recipe.TaskForecast, capability, request, step.fresh)
 		}
 		if err != nil || runs.Load() != step.runs {
-			t.Fatalf("execution %d (measurement: %t) left the model's node run %d times (%v); want %d: a served request recovers its stored stage, a measurement runs the model",
-				index, step.measure, runs.Load(), err, step.runs)
+			t.Fatalf("execution %d (measurement: %t, fresh: %t) left the model's node run %d times (%v); want %d: a served request recovers its stored stage, a measurement or a fresh run runs the model",
+				index, step.measure, step.fresh, runs.Load(), err, step.runs)
 		}
 	}
 	attempts := servingAttempts(t, directory)
-	if len(attempts) != 5 {
-		t.Fatalf("serving attempts = %d; want each of the five executions recorded", len(attempts))
+	if len(attempts) != 7 {
+		t.Fatalf("serving attempts = %d; want each of the seven executions recorded", len(attempts))
 	}
 	store, err := overgodb.Open(directory)
 	if err != nil {
@@ -523,8 +525,8 @@ func TestCapabilityMeasurementRunsTheModel(t *testing.T) {
 		}
 	}
 	attempts = servingAttempts(t, directory)
-	if len(attempts) != 7 || runs.Load() != 5 {
-		t.Fatalf("terminal attempts=%d, executed nodes=%d; want seven attempts and five executions", len(attempts), runs.Load())
+	if len(attempts) != 9 || runs.Load() != 6 {
+		t.Fatalf("terminal attempts=%d, executed nodes=%d; want nine attempts and six executions", len(attempts), runs.Load())
 	}
 	store, err = overgodb.Open(directory)
 	if err != nil {

@@ -116,4 +116,4 @@ func TestAcceptedImageVideoEvidence(t *testing.T) {
 	t.Logf("%d frozen cases, %d models, %d accepted phases; acquisition=0; original quality/resource scopes retained", len(coverage.Cases), len(coverage.Models), len(coverage.Proofs))
 }
 
-const acceptedImageVideoSHA256 = "93b2c25e87bb6c8765c42657591ff37cc20ff7f23bb6033cfd5cfc588ab770c1"
+const acceptedImageVideoSHA256 = "980bc5a49ca52b9a7feba80a6131378076bd0ec21bb061f3e181340994d7c76c"

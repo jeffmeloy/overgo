@@ -77,6 +77,7 @@ func run() error {
 	reverify := flags.Bool("reverify", false, "re-verify the model's active projection recipe on the verification this run records; refused when the code derives another recipe (verify -task projection)")
 	alias := flags.String("alias", "", "OvergoDB model alias (run)")
 	selection := flags.String("selection", string(modelrecipe.SessionWarm), "alias session selection: pin | warm | spillover (run)")
+	fresh := flags.Bool("fresh", false, "run the request as its own operation, where an identical earlier request is answered with what the store kept of it (run)")
 	compatibility := flags.String("compatibility", "", "remote peer compatibility evidence ID (spillover run)")
 	if err := flags.Parse(os.Args[2:]); err != nil {
 		return err
@@ -218,7 +219,7 @@ func run() error {
 		}
 		return executeCapability(
 			repository, path, strings.TrimSpace(*alias), strings.TrimSpace(*compatibility),
-			selectedSession, selectedTask, capability, rawInput,
+			selectedSession, selectedTask, capability, rawInput, *fresh,
 		)
 	case "measure":
 		if selectedTask == recipe.TaskInference {
@@ -399,14 +400,26 @@ func verifyCapability(repository, path string, task recipe.Task, capability medi
 	return json.NewEncoder(os.Stdout).Encode(result)
 }
 
+// executeCapability serves one request through the model's active recipe, or
+// the one an alias selects, and prints the output. A request identical to an
+// earlier one is answered with what the store kept of that one; fresh runs it
+// as its own operation instead, as a measurement does, so the output is what
+// the path gives now.
 func executeCapability(
 	repository, path, alias, compatibilityText string,
 	selection modelrecipe.SessionSelection,
 	task recipe.Task,
 	capability mediacapability.Capability,
 	input string,
+	fresh bool,
 ) error {
 	ctx := context.Background()
+	if fresh {
+		if selection == modelrecipe.SessionSpillover {
+			return errors.New("recipe: -fresh runs the request here; a spillover run is the peer's")
+		}
+		ctx = capabilityruntime.FreshRun(ctx)
+	}
 	store, err := overgodb.Open(repository)
 	if err != nil {
 		return err

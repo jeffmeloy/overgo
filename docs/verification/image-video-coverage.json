@@ -1,6 +1,6 @@
 {
   "Version": 1,
-  "Scope": "Fifteen frozen generation cases accepted at their named producer commits. Exact output reproduction and native/lifecycle checks retain their own scopes. Historical visual reviews, resources and UI receipts retain original provenance; no broad quality, speedup or production composition-gain claim.",
+  "Scope": "Fifteen frozen generation cases accepted at their named producer commits. Exact output reproduction and native/lifecycle checks retain their own scopes. Historical visual reviews, resources and UI receipts retain original provenance; no broad quality, speedup or production composition-gain claim. Krea-2-Turbo's case names the picture its frozen request draws since commit 56a5820a7 mended two faults in the path to it, with that picture's own run and review: its proofs, at commit 51c87fce, are of the path as it stood then and of the picture this one replaces, and TestFrozenKreaGeneration holds the bytes of the new one.",
   "Models": [
     {
       "Model": "model:sha256:03a237541f9d21f2c0fd477e5f29b56fecaf5dfa26a8cadc8da69aa5e3a42476",
@@ -177,11 +177,11 @@
     "docs/image_video_protocol.json": "def4f5e35c40adaa5b2c07bbd44c9e8ee8ca7c09e976195f4e2fc8cd1b73f932",
     "docs/image_video_resources.json": "efd505cc4aa3cfcd932fbad40caf5b48ceddb4d985bf9ace53b57550ad344654",
     "docs/image_video_routed_images.json": "70456dd2c5a3c7dbfd5800ed4f32b3b1bee1a78e65460569f0035c8043c0b7c7",
-    "docs/image_video_validation.json": "4e24d0e69802d2cbc4221fc3899836b9ceb8d06e35a505274fba647f0eeafd08",
+    "docs/image_video_validation.json": "7aa221a0aaef231efd9fb650f6b3a13c39ab10afe701404bb69c0387b5b205fe",
     "docs/image_video_wan.json": "559c811d0a7f10d6ca90c4088805250435d78eb57736a95175e7d86a0c68157a",
     "internal/diffusionimage/frozen_generation_cuda_windows_test.go": "82c6a387330ea00c8bbb64622730c9b815813125d1c12e3ace68423aa539d10b",
     "internal/latentvideo/frozen_generation_cuda_windows_test.go": "2650ae0b0ffe2c1599869797e356ec6b711d93549aa3f5dde4a81cf28b6fb410",
-    "internal/mediacapability/frozen_krea_cuda_windows_test.go": "37dade144db4e4eaf9d21fe70e3e6d3fff091723ef92545bf85333b94088f297",
+    "internal/mediacapability/frozen_krea_cuda_windows_test.go": "7e03196f082e97c0726f9805310afaefec01beb12ed5a2d180bee4e323c3b1a4",
     "internal/oscillatorimage/frozen_modalities_test.go": "18b376a50a7a2eb9a612ec4d22e64d7f33895cefc946027f2efac74498343dd0",
     "internal/sensenovarecipe/frozen_generation_cuda_windows_test.go": "85f13920ad55a945c9dbdbc6eaae05e9e54bd16513b390d029f436b3cc188930"
   },
@@ -272,9 +272,9 @@
     },
     {
       "Case": "Krea-2-Turbo/image-gen/1",
-      "Run": "run:sha256:4efc558f87ef63b732b712ea09b67215649270f15f058f40595540c58d988c22",
-      "Output": "output:sha256:4508f19a532591c01d1c9c5b1e783b21f593484e7debf93e104e3f0df41ccb44",
-      "Review": "evidence:sha256:d16ec1d5d91dd506afca4a9f2a6067cae7e1e9c1ce7e522d215fe2d67d78f6a2"
+      "Run": "run:sha256:9466c847a87c8bd83626013fbf7c990bdee8f623319c90c4a0f7a7b5c64803cd",
+      "Output": "output:sha256:4844851dc3b37f5ec51704cc74f4863f53077ff903efde231daa482d834fc327",
+      "Review": "evidence:sha256:878a60f22eac31e355d9d25ba92f47684a1ad193b4ea0e75870b35559db3988d"
     }
   ]
 }

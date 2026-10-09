@@ -9,8 +9,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 306,
-        "reason": "A ceiling, not a target: one check the size of admits, four counters the size of productionNodes (internal/landing rules.go) and five more of that size for the five waits a landing records, counted 2026-10-09 as the gate counts production nodes. The lead lowers it when the first step reports."
+        "nodes": 380,
+        "reason": "The gate's own rules: reading a row's terms from the commit a change builds on, charging growth across landings, the four reported figures, and a record of each run's time by cause. Filed at 862 for both steps before either was designed; the first used 556 after it was trimmed from 755, and the record of the second needs 360 where 306 were left, so the remainder is raised by 74, with a margin of 20"
       },
       "steps": [
         {
@@ -346,7 +346,8 @@
             "census-rebind-after-latent-rows/do",
             "liveedit-served-parity/do",
             "video-request-speed/do",
-            "repeated-request/do"
+            "repeated-request/do",
+            "raise-landing-terms-count/do"
           ]
         }
       ]

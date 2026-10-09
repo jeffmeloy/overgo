@@ -4,6 +4,25 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "landing-terms",
+      "title": "Judge a change by terms it cannot set, bound what an item may add, and record where a landing waits",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 306,
+        "reason": "A ceiling, not a target: one check the size of admits, four counters the size of productionNodes (internal/landing rules.go) and five more of that size for the five waits a landing records, counted 2026-10-09 as the gate counts production nodes. The lead lowers it when the first step reports."
+      },
+      "steps": [
+        {
+          "id": "waits",
+          "title": "Measure where a session's time between landings goes",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestLandingRecordsItsWaitsByCause$'",
+          "rationale": "The gate averaged 4.9 minutes a landing over the last 300, 24.4 hours in nine days, which does not show what limits the pace. Time blocked from editing, time waiting for a turn, time recovering from a conflict, host checks and time waiting for the device are not told apart. The step has a landing record each.\n\nIt is filed here and not with commit-queue, whose other step waits on the owner: the record takes a week of landings to say anything, and the week runs while the rows between are built. A queue still commits one change at a time and is bounded by the gate's own time, so it helps only if editing, and not committing, is what waits; if the record shows otherwise commit-queue is retired. Keeping sessions' files apart does not wait on this measurement: session-isolation/worktrees does that whatever the waits are.\n\nServes: change. Disappears: nothing. Evidence: the waits by cause over a week of landings. Batch: host."
+        }
+      ]
+    },
+    {
       "id": "recipe-eligibility",
       "title": "Keep whether a recipe may be used apart from which recipe is selected",
       "owner": "master-lead",
@@ -29,32 +48,6 @@
           "depends_on": [
             "recipe-eligibility/do"
           ]
-        }
-      ]
-    },
-    {
-      "id": "landing-terms",
-      "title": "Judge a change by terms it cannot set, bound what an item may add, and record where a landing waits",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 862,
-        "reason": "A ceiling, not a target: one check the size of admits, four counters the size of productionNodes (internal/landing rules.go) and five more of that size for the five waits a landing records, counted 2026-10-09 as the gate counts production nodes. The lead lowers it when the first step reports."
-      },
-      "steps": [
-        {
-          "id": "terms",
-          "title": "Read a row's budget and verify command from the commit a change builds on, and charge an item's growth across its landings",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^(TestChangeIsJudgedByTheTermsItStartedWith|TestItemsGrowthIsChargedAcrossItsLandings)$'",
-          "rationale": "The gate reads a row's budget and its verify command from the change it is checking (internal/landing landing.go: row reads the candidate's plan), so a change can raise the allowance or replace the check it is judged by. A reason with no count admits any growth (internal/landing rules.go: admits), and evidence-conditioning's budget is such a one. A count is granted whole to every landing of its item (landing.go: row adds the item's nodes for each landing), so an item of four steps may add its count four times. Production Go grew from 351,117 lines on 2026-10-01 to 374,022 on 2026-10-09, and test Go from 275,233 to 304,417, which the rule does not read (rules.go: productionNodes skips test files).\n\nThe step reads a row's budget and verify from the commit the change builds on. A row filed with an earlier landing, as the plan is refactored after each task, is already there; only a row added and closed by one change needs a commit of its own first, which lands on its verify alone. A reason then explains a count and does not replace it, and each open row that has none is given one. A landing charges its growth to its item: the plan it advances carries what is left of the count, so the next landing reads the remainder from the commit it builds on. The gate writes four more figures into each landing's message: test code, CUDA source and kernel entry points, record schemas, and fixtures with their generators; generated output is not counted as written code. Those four are reported and not refused: a change still ships the test that would have caught its failure. Its tests hold that a change that edits its own budget and verify is still held to the earlier ones, and land two steps of one item and hold that the second is refused the growth the first used.\n\nFiled as two steps and tightened to one landing: both change what row reads and what admits allows, and the remainder is read from the commit the gate is first made to read.\n\nServes: change, and judge. Disappears: a change that sets its own terms, and growth without a bound. Evidence: the two tests, and the figures in each landing's message. Batch: host."
-        },
-        {
-          "id": "waits",
-          "title": "Measure where a session's time between landings goes",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestLandingRecordsItsWaitsByCause$'",
-          "rationale": "The gate averaged 4.9 minutes a landing over the last 300, 24.4 hours in nine days, which does not show what limits the pace. Time blocked from editing, time waiting for a turn, time recovering from a conflict, host checks and time waiting for the device are not told apart. The step has a landing record each.\n\nIt is filed here and not with commit-queue, whose other step waits on the owner: the record takes a week of landings to say anything, and the week runs while the rows between are built. A queue still commits one change at a time and is bounded by the gate's own time, so it helps only if editing, and not committing, is what waits; if the record shows otherwise commit-queue is retired. Keeping sessions' files apart does not wait on this measurement: session-isolation/worktrees does that whatever the waits are.\n\nServes: change. Disappears: nothing. Evidence: the waits by cause over a week of landings. Batch: host."
         }
       ]
     },
@@ -187,8 +180,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "The comparison of a proposer with and without the past experiments the reader of experiment-evidence returns; split from that row so the owner's double-check of the scorecard's readings runs before it, the comparison not having started"
+        "nodes": 450,
+        "reason": "The comparison of a proposer with and without the past experiments the reader of experiment-evidence returns; split from that row so the owner's double-check of the scorecard's readings runs before it, the comparison not having started. The count is an estimate, a third of what evaluation-chain's three steps were given, for a runner of three arms that reuses the proposer and the reader it compares"
       },
       "steps": [
         {

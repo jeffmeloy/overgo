@@ -58,11 +58,15 @@ type Step struct {
 	VerificationBatch *VerificationBatch `json:"verification_batch,omitempty"`
 }
 
-// Budget is the scope a row declared through the plan. A row without one
-// maintains: it may not grow production nodes at all. Reason records why the
-// row grows, and admits the growth the gate measures; Nodes, when declared,
-// caps it -- negative for a row that must shrink. Paydown names the open row
-// that pays for a harness baseline raise.
+// Budget is the scope a row declared through the plan. Nodes is the
+// production syntax nodes the row may still add, over all its landings: each
+// landing takes what it adds from the count, and returns what it removes, in
+// the plan it publishes. A row without a count maintains: it may not grow
+// production code at all, and a negative count is a row that must shrink.
+// Reason says why the row grows; it explains a count and admits nothing by
+// itself. A landing reads the count from the plan of the commit it builds on,
+// so a change cannot raise its own. Paydown names the open row that pays for a
+// harness baseline raise.
 type Budget struct {
 	Nodes   int    `json:"nodes"`
 	Paydown string `json:"paydown,omitzero"`

@@ -6,7 +6,10 @@
 // the changed files with HEAD, the row's own check passes, and a change that
 // reaches the benchmark runs the scorecard's inference slice; then that
 // candidate, with the row's step removed from its plan, is committed onto
-// the HEAD the landing found. Git holds the record: the message says what
+// the HEAD the landing found. The check and the count of production code the
+// row may add are the ones the plan at that HEAD gives it, not the ones the
+// change carries, and the plan the commit publishes holds what the landing
+// left of the count. Git holds the record: the message says what
 // the gate measured, and the slice's trailer carries it for the next landing
 // to compare against. A refusal names the stage that refused it; the loop
 // classes it, an antivirus quarantine as an external prerequisite, and
@@ -76,13 +79,12 @@ type landing struct {
 	// candidate is the tree the checks validate and the commit publishes.
 	candidate string
 	// planned is the plan the candidate holds and advanced is it with the
-	// landed steps removed; verifiers and budget are the steps' checks and
-	// the declared growth of their rows, summed over the distinct rows, as
-	// that plan states them.
+	// landed steps removed. terms is the plan the change is judged by, and
+	// verifiers the landed steps' checks as it states them.
 	planned   []byte
 	advanced  plan.Plan
+	terms     plan.Plan
 	verifiers []string
-	budget    plan.Budget
 }
 
 // Run lands the row and returns the commit. Every check runs over the
@@ -126,7 +128,7 @@ func Run(ctx context.Context, options Options) (string, error) {
 	// A change to the plan alone is data the row read above has validated;
 	// nothing compiles it, so only the row's verify can speak to it, and
 	// the tests that read the plan run with the next code landing.
-	if !slices.ContainsFunc(l.paths, func(changed string) bool { return changed != plan.Path }) {
+	if l.planOnly() {
 		checks = slices.DeleteFunc(checks, func(check check) bool { return check.name != "verify" })
 	}
 	for _, check := range checks {
@@ -140,7 +142,8 @@ func Run(ctx context.Context, options Options) (string, error) {
 			entry += " (" + detail + ")"
 		}
 		l.measured = append(l.measured, entry)
-		fmt.Fprintf(options.Log, "land: %s ok %s\n", check.name, wall)
+		// What a stage measured is said as it passes, so a preflight shows it too.
+		fmt.Fprintf(options.Log, "land: %s ok %s\n", check.name, strings.TrimPrefix(entry, check.name+" "))
 	}
 	if options.Preflight {
 		return "", nil
@@ -231,14 +234,20 @@ func (l *landing) shipSet(ctx context.Context) error {
 	if l.candidate, err = l.capture(ctx); err != nil {
 		return err
 	}
-	if err := l.row(ctx); err != nil {
-		return err
-	}
 	entries, err := dirtyTree(ctx, l.Repo)
 	if err != nil {
 		return err
 	}
 	l.paths = nil
+	for _, entry := range entries {
+		l.paths = append(l.paths, entry.Path)
+		if entry.OriginalPath != "" {
+			l.paths = append(l.paths, entry.OriginalPath)
+		}
+	}
+	if err := l.row(ctx); err != nil {
+		return err
+	}
 	tracked, err := gitauthority.Query(ctx, l.Repo, "ls-tree", "--name-only", "HEAD")
 	if err != nil {
 		return err
@@ -249,13 +258,14 @@ func (l *landing) shipSet(ctx context.Context) error {
 		if entry.IndexStatus == "?" && !slices.Contains(tops, top) {
 			return fmt.Errorf("land: the dirty tree adds the untracked top-level entry %q; track it in its own change or remove it", top)
 		}
-		l.paths = append(l.paths, entry.Path)
-		if entry.OriginalPath != "" {
-			l.paths = append(l.paths, entry.OriginalPath)
-		}
 	}
 	l.entries = entries
 	return nil
+}
+
+// planOnly reports a change to the plan alone.
+func (l *landing) planOnly() bool {
+	return !slices.ContainsFunc(l.paths, func(changed string) bool { return changed != plan.Path })
 }
 
 // capture writes the working tree, as git add -A stages it, through the
@@ -269,9 +279,15 @@ func (l *landing) capture(ctx context.Context) (string, error) {
 	return strings.TrimSpace(tree), err
 }
 
-// row reads the landed row from the plan the candidate holds, so the check
-// the gate runs, the growth the rules admit and the plan the commit
-// publishes all come from the bytes the gate validates.
+// row reads the plan the candidate holds, which the commit publishes with the
+// landed steps removed, and the terms the change is judged by: each landed
+// step's check and what its row may still add. The terms come from the plan
+// of the commit the landing builds on, so a change that edits its own row's
+// count or check is held to the ones it started with, and a step the change
+// itself adds has no terms to land by. Two changes have no earlier terms and
+// are judged by the plan they hold: a change to the plan alone, which is how
+// a row is filed and a count raised, and a merge, whose row is named for the
+// head it joins.
 func (l *landing) row(ctx context.Context) error {
 	data, err := gitauthority.Query(ctx, l.Repo, "cat-file", "blob", l.candidate+":"+plan.Path)
 	if err != nil {
@@ -281,28 +297,35 @@ func (l *landing) row(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	l.terms = document
+	if len(l.merging) == 0 && !l.planOnly() {
+		held, err := gitauthority.Query(ctx, l.Repo, "cat-file", "blob", l.head+":"+plan.Path)
+		if err != nil {
+			return err
+		}
+		if l.terms, err = plan.Parse(held); err != nil {
+			return err
+		}
+	}
 	named, err := rows(l.Ref)
 	if err != nil {
 		return err
 	}
-	l.advanced, l.verifiers, l.budget = document, nil, plan.Budget{}
-	counted := map[string]bool{}
+	l.advanced, l.verifiers = document, nil
 	for _, row := range named {
-		// A step's check and its row's declared growth are read from the plan before the step is removed.
-		for _, item := range l.advanced.Items {
-			if item.ID != row.item {
-				continue
-			}
-			if !counted[item.ID] {
-				counted[item.ID] = true
-				l.budget.Nodes += item.Budget.Nodes
-				l.budget.Reason = cmp.Or(l.budget.Reason, item.Budget.Reason)
-			}
+		judged := false
+		for _, item := range l.terms.Items {
 			for _, step := range item.Steps {
-				if step.ID == row.step && !slices.Contains(l.verifiers, step.Verify) {
+				if item.ID != row.item || step.ID != row.step {
+					continue
+				}
+				if judged = true; !slices.Contains(l.verifiers, step.Verify) {
 					l.verifiers = append(l.verifiers, step.Verify)
 				}
 			}
+		}
+		if !judged {
+			return fmt.Errorf("land: %s is not a step of the plan at %.12s, the commit this change builds on, and a change is judged by the count and the check its row had before it; land the plan's edit alone first", row, l.head)
 		}
 		if l.advanced, err = plan.Advance(l.advanced, row.item, row.step); err != nil {
 			return fmt.Errorf("land: %s is not an open step of the plan: %w", row, err)
@@ -310,6 +333,28 @@ func (l *landing) row(ctx context.Context) error {
 	}
 	l.planned = data
 	return nil
+}
+
+// charge takes the change's growth from the count of the row it lands, in the
+// plan the commit publishes, and returns what the landed rows could add
+// before it. A change that shrinks production code adds what it removed to
+// the count, so a row may delete in one landing and add in the next what one
+// landing could do at once. Rows landed together are admitted by the sum of
+// their counts and charged as one: the growth is taken from the first of them
+// the plan still holds and the others keep their own, so rows whose growth is
+// to be told apart land apart.
+func (l *landing) charge(growth int) (left int) {
+	named, _ := rows(l.Ref)
+	for _, item := range l.terms.Items {
+		if !slices.ContainsFunc(named, func(row ref) bool { return row.item == item.ID }) {
+			continue
+		}
+		left += item.Budget.Nodes
+		if at := slices.IndexFunc(l.advanced.Items, func(open plan.Item) bool { return open.ID == item.ID }); at >= 0 {
+			l.advanced.Items[at].Budget.Nodes, growth = item.Budget.Nodes-growth, 0
+		}
+	}
+	return left
 }
 
 // ref names one plan step a landing completes.

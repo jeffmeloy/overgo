@@ -74,7 +74,7 @@ func (f *sliceFixture) read(name string) string {
 
 // TestLandingCompletesSeveralSteps holds a landing that names several steps, joined by commas, to
 // one gate run over one candidate: each step must be open in the plan and each step's check must
-// pass, the rows' declared growth adds up, one commit removes every named step and leaves the
+// pass, the rows' counts add up, one commit removes every named step and leaves the
 // others, and the commit carries a Landed-Row trailer for each; a step named twice or not open,
 // or one whose check fails, refuses the whole landing.
 func TestLandingCompletesSeveralSteps(t *testing.T) {
@@ -96,8 +96,8 @@ func TestLandingCompletesSeveralSteps(t *testing.T) {
 	fixture.write("a.txt", "changed\n")
 
 	l := fixture.candidateOf("row/do,other/do")
-	if l.budget.Nodes != 15 || len(l.verifiers) != 1 {
-		t.Fatalf("budget %+v and checks %q, want the two rows' growth added and the one check, which both steps share, run once", l.budget, l.verifiers)
+	if left := l.charge(0); left != 15 || len(l.verifiers) != 1 {
+		t.Fatalf("the rows may add %d and their checks are %q, want the two rows' counts added and the one check, which both steps share, run once", left, l.verifiers)
 	}
 	if err := l.verify(t.Context()); err != nil {
 		t.Fatal(err)

@@ -19,13 +19,15 @@ import (
 
 	"overgo/internal/gitauthority"
 	"overgo/internal/gosyntax"
-	"overgo/internal/plan"
 	"overgo/internal/repoanalysis"
 )
 
 // rules compares the changed files with HEAD: no bytes a record pins move,
 // no new style finding, no new inline policy number, no new legacy form go fix
-// leaves, no new export without a consumer, and no CUDA-gated test no lane runs.
+// leaves, no new export without a consumer, no CUDA-gated test no lane runs,
+// and no more production code than the landed rows may still add. It says
+// what the change adds of each kind of written code; only production code is
+// bounded.
 func (l *landing) rules(ctx context.Context) error {
 	stale, err := stalePins(l.Repo, l.paths)
 	if err != nil {
@@ -54,21 +56,28 @@ func (l *landing) rules(ctx context.Context) error {
 	for _, directory := range uncovered {
 		findings = append(findings, directory+" has CUDA-gated tests that no lane runs; add it to a lane that sets "+cudaTestEnvironment)
 	}
-	if growth := productionNodes(candidate) - productionNodes(base); !admits(l.budget, growth) {
-		findings = append(findings, fmt.Sprintf("adds %d production syntax nodes beyond the budget %+v of the row(s) %s; pay for them with deletions, or declare the growth in the row's budget", growth, l.budget, l.Ref))
+	growth := writtenNodes(candidate, false) - writtenNodes(base, false)
+	left := l.charge(growth)
+	if growth > left {
+		findings = append(findings, fmt.Sprintf("adds %d production syntax nodes, and the row(s) %s may add %d; pay for the rest with deletions, or raise the count where this change's terms are read, in a change to the plan alone before it, or in the row of a merge", growth, l.Ref, left))
 	}
 	if len(findings) != 0 {
 		return errors.New(strings.Join(findings, "; "))
 	}
+	l.details["rules"] = fmt.Sprintf("production %+d nodes of the %d its row may add, test code %+d nodes, record schemas %+d, %s",
+		growth, left, writtenNodes(candidate, true)-writtenNodes(base, true), recordSchemas(candidate)-recordSchemas(base), l.outsideGo(ctx))
 	return nil
 }
 
-// productionNodes counts the syntax nodes of a snapshot's production Go
-// files; tests, testdata and generated files are not the code a row grows.
-func productionNodes(snapshot gosyntax.Snapshot) int {
+// writtenNodes counts the syntax nodes of a snapshot's written Go: its
+// production files, which a row's count bounds, or its test files, which a
+// landing reports and nothing bounds, since a change still ships the test
+// that would have caught its failure. Testdata and generated files are
+// neither.
+func writtenNodes(snapshot gosyntax.Snapshot, tests bool) int {
 	nodes := 0
 	for _, file := range snapshot.Files {
-		if file.Test || strings.Contains("/"+file.Path, "/testdata/") {
+		if file.Test != tests || strings.Contains("/"+file.Path, "/testdata/") {
 			continue
 		}
 		syntax, err := file.Syntax()
@@ -85,19 +94,65 @@ func productionNodes(snapshot gosyntax.Snapshot) int {
 	return nodes
 }
 
-// admits reports whether a row's budget admits a change that grows
-// production code by growth nodes: a row without a budget may not grow, a
-// stated reason admits the growth, and declared nodes cap it (negative for a
-// row that must shrink).
-func admits(budget plan.Budget, growth int) bool {
-	switch {
-	case budget.Nodes != 0:
-		return growth <= budget.Nodes
-	case budget.Reason != "":
-		return true
-	default:
-		return growth <= 0
+// recordSchemas counts the record schemas a snapshot's production files name:
+// the strings that open with overgo and close with a version after a dot or a
+// slash, as overgo.recipe-lifecycle.v1 and overgo/decision/v1 do.
+func recordSchemas(snapshot gosyntax.Snapshot) (named int) {
+	for _, file := range snapshot.Files {
+		syntax, err := file.Syntax()
+		if file.Test || err != nil {
+			continue
+		}
+		ast.Inspect(syntax, func(node ast.Node) bool {
+			if literal, ok := node.(*ast.BasicLit); ok && literal.Kind == token.STRING {
+				name := strings.Trim(literal.Value, "\"`")
+				version, found := strings.CutPrefix(name[strings.LastIndexAny(name, "./")+1:], "v")
+				if _, err := strconv.Atoi(version); found && err == nil && strings.HasPrefix(name, "overgo") {
+					named++
+				}
+			}
+			return true
+		})
 	}
+	return named
+}
+
+// Where the device kernels are written, the word that opens each of their
+// entry points, and the mark of a kernel file that is generated output and not
+// written code.
+const (
+	kernelSources   = "kernels/cuda/"
+	kernelEntry     = "__global__"
+	generatedKernel = "_generated"
+)
+
+// outsideGo says what a change adds outside Go source: lines of device kernel
+// source and kernel entry points, and fixture files with their bytes, the
+// generators kept beside them among them. A file HEAD lacks, or the tree no
+// longer holds, counts as empty.
+func (l *landing) outsideGo(ctx context.Context) string {
+	var lines, entryPoints, fixtures, fixtureBytes int
+	for _, entry := range l.entries {
+		kernel := strings.HasPrefix(entry.Path, kernelSources) && !strings.Contains(entry.Path, generatedKernel)
+		if !kernel && !strings.Contains("/"+entry.Path, "/testdata/") {
+			continue
+		}
+		before, absent := gitauthority.Query(ctx, l.Repo, "show", "HEAD:"+cmp.Or(entry.OriginalPath, entry.Path))
+		after, gone := os.ReadFile(filepath.Join(l.Repo, filepath.FromSlash(entry.Path)))
+		if kernel {
+			lines += bytes.Count(after, []byte("\n")) - bytes.Count(before, []byte("\n"))
+			entryPoints += bytes.Count(after, []byte(kernelEntry)) - bytes.Count(before, []byte(kernelEntry))
+			continue
+		}
+		if absent == nil {
+			fixtures--
+		}
+		if gone == nil {
+			fixtures++
+		}
+		fixtureBytes += len(after) - len(before)
+	}
+	return fmt.Sprintf("CUDA source %+d lines and %+d entry points, fixtures %+d files and %+d bytes", lines, entryPoints, fixtures, fixtureBytes)
 }
 
 // changedSource is every Go file of the changed packages as the tree holds

@@ -4,6 +4,42 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "capability-identity",
+      "title": "Reuse a stored result while the code that can change it is unchanged",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 2160,
+        "reason": "The first step's measured figure, 2,097 production nodes as the gate's preflight counts the built change, and a margin of 63 for what the later stages of the checks may still ask of it: the count of an identity for each capability package, the reads of the environment it declares, the libraries and settings of the process, the linker flag and the two launches that pass it, the key of a stored answer, and the files a model reads beside its inventory. Filed at 1,862, the size of internal/inferencesurface, before the step was designed. The second step deletes the code scope and the sampled replay; the third step's figure is added when it is built and measured, in the plan of the commit before it"
+      },
+      "steps": [
+        {
+          "id": "identities",
+          "title": "Give every capability the identity of the code its result depends on, recorded in the executable, and answer a repeated request from the store while it holds",
+          "status": "open",
+          "verify": "go test ./internal/inferencesurface -count=1 -run '^TestCapabilityIdentityMovesOnlyWithItsOwnSources$' \u0026\u0026 go test ./internal/capabilityruntime -count=1 -run '^TestStoredResultIsReusedOnlyUnderItsOwnIdentity$'",
+          "rationale": "internal/inferencesurface already digests the sources text inference depends on (surface.go: surfaceRoots), and the scorecard and the long-form records read it. Stored answers do not: an answer is scoped to the commit, or to the process when the tree is changed (internal/capabilityruntime run_key.go: codeScope). Measured 2026-10-09 over the last 300 commits with today's dependency lists, the store and run records left out as the surface leaves them out: the sources of text, video, picture and speech execution changed on 14 to 16 commits in 100, of evaluation on 33, of the training workflow on 42, of the server command on 55. The commit changed on every one. The figures leave embedded files out and say how often a result would be measured again, not the time that saves.\n\nThe step extends the one digest to an identity for each capability's entry package, with the kernel sources, generated and embedded files, build tags and settings, and loaded libraries its result depends on. A model's files join it where its inventory does not hold them: a video model reads its text encoder's checkpoint and its tokenizer, and neither is in the inventory its identity is made of (internal/mediacapability video_cuda_windows.go: resolveVideoSource), so a changed encoder would answer from the store today. How the identity reaches the executable is the step's first question, since go run and a plain go build record none: the repository's build command counts it from the files it compiles and sets it at link time, and a binary built any other way keeps the scope of its own process, as now. The improvement run starts its measurements with a plain go run in a checkout of the measured commit (cmd/loop improve.go: validateTo), so that launch counts the identities from that checkout and sets them too; without it the run that measures would reuse nothing. A setting read from the environment that changes a result joins the key, and one that is not declared keeps the wider scope: a wrong identity would serve a stale answer and say nothing. Separate keys are built from shared parts: a resident session's key leaves the prompt and the seed out, and a stored output's key holds them.\n\nA stored output is keyed by its capability's execution identity and the exact request and inputs. A stored score is keyed by its observations, its scorer and its protocol. A timing is keyed by its execution identity, its environment and the attempt that measured it. Its first test changes a source outside an identity and holds the identity, then changes a source, an embedded file, a library and a setting inside it and holds that each moves it, and holds that an unstamped build reuses nothing older. Its second holds four cases: after a change outside the identity the request is answered from the store and nothing is scored again; after a change to a scorer alone the scores are computed again and no case is executed; after a change to a model, a kernel or the preprocessing the affected outputs are computed again; and a request for a fresh measurement always runs.\n\nFiled as two steps and tightened to one landing: an identity nothing reads is an export without a consumer, which the gate refuses, and the answers are its first reader.\n\nServes: measure, generate, and judge. Disappears: the commit and process scopes of codeScope for a stamped build. Evidence: the share of recent commits each identity moves on, beside the commit's, and the count of executions and of scorings in each of the four cases. Batch: host and device."
+        },
+        {
+          "id": "carry",
+          "title": "Carry an evaluation while its execution identity is unchanged, and measure it again when it is not",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestMeasurementRunsNoCaseAgainAfterAnUnrelatedCommit$'",
+          "rationale": "A full result is carried today after 32 sampled cases reproduce (internal/evaluation replay.go: replayCases), which shows agreement on those cases and not on the suite; SQA-078 holds that risk. Under an unchanged identity the result is the result, with no replay. Under a changed one the suite is measured again. Its test goes through the improvement run's own launch, in separate processes: it measures, commits a change outside every identity, measures again and holds that no case was executed the second time, then commits a change inside one identity and holds that only that capability's cases were. A result already in the store is re-keyed only when its record names every build and runtime input the identity is made of; the commit alone does not name them all, and any other result is measured once more. The step states how many suites that is and what they cost before it lands. The sampled replay is deleted only when every consumer of a carried result reads the identity; the reader of replay receipts already in the store stays.\n\nServes: judge on held-out data. Disappears: the sampled replay. Evidence: the cases executed by each of the test's three measurements, and the count of suites measured once more for the change of key. Batch: host.",
+          "depends_on": [
+            "capability-identity/identities"
+          ]
+        },
+        {
+          "id": "second-kind",
+          "title": "Keep a second kind of model's session across requests that change only what a request gives",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/mediacapability -count=1 -run '^TestServedPictureKeepsItsSession$'",
+          "rationale": "Commit 527df96d9 took the instruction's context and the seed out of a video session's key (video-request-speed/handoff). Before the split of resident resources, compiled execution and request becomes the rule for every kind, it is measured on one more: picture generation, served through the same session director (internal/mediacapability image_cuda_windows.go). Its test serves three pictures, another prompt and then another seed, and holds that the second and third loaded nothing, that each picture is the picture a fresh session makes, and that a cancelled request releases what it held.\n\nServes: generate. Disappears: a reload for each new prompt or seed, where the measurement finds one. Evidence: the load each request measures. Batch: device."
+        }
+      ]
+    },
+    {
       "id": "evaluation-chain",
       "title": "Judge a trained change on data large enough to see it and never used to choose it",
       "owner": "master-lead",
@@ -54,42 +90,6 @@
           "depends_on": [
             "session-isolation/sessions"
           ]
-        }
-      ]
-    },
-    {
-      "id": "capability-identity",
-      "title": "Reuse a stored result while the code that can change it is unchanged",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 1862,
-        "reason": "A ceiling, not a target: the present size of internal/inferencesurface, the owner the item extends, counted 2026-10-09 as the gate counts production nodes. The steps after the first delete codeScope and the sampled replay. The lead lowers it when the first step reports."
-      },
-      "steps": [
-        {
-          "id": "identities",
-          "title": "Give every capability the identity of the code its result depends on, recorded in the executable, and answer a repeated request from the store while it holds",
-          "status": "open",
-          "verify": "go test ./internal/inferencesurface -count=1 -run '^TestCapabilityIdentityMovesOnlyWithItsOwnSources$' \u0026\u0026 go test ./internal/capabilityruntime -count=1 -run '^TestStoredResultIsReusedOnlyUnderItsOwnIdentity$'",
-          "rationale": "internal/inferencesurface already digests the sources text inference depends on (surface.go: surfaceRoots), and the scorecard and the long-form records read it. Stored answers do not: an answer is scoped to the commit, or to the process when the tree is changed (internal/capabilityruntime run_key.go: codeScope). Measured 2026-10-09 over the last 300 commits with today's dependency lists, the store and run records left out as the surface leaves them out: the sources of text, video, picture and speech execution changed on 14 to 16 commits in 100, of evaluation on 33, of the training workflow on 42, of the server command on 55. The commit changed on every one. The figures leave embedded files out and say how often a result would be measured again, not the time that saves.\n\nThe step extends the one digest to an identity for each capability's entry package, with the kernel sources, generated and embedded files, build tags and settings, and loaded libraries its result depends on. A model's files join it where its inventory does not hold them: a video model reads its text encoder's checkpoint and its tokenizer, and neither is in the inventory its identity is made of (internal/mediacapability video_cuda_windows.go: resolveVideoSource), so a changed encoder would answer from the store today. How the identity reaches the executable is the step's first question, since go run and a plain go build record none: the repository's build command counts it from the files it compiles and sets it at link time, and a binary built any other way keeps the scope of its own process, as now. The improvement run starts its measurements with a plain go run in a checkout of the measured commit (cmd/loop improve.go: validateTo), so that launch counts the identities from that checkout and sets them too; without it the run that measures would reuse nothing. A setting read from the environment that changes a result joins the key, and one that is not declared keeps the wider scope: a wrong identity would serve a stale answer and say nothing. Separate keys are built from shared parts: a resident session's key leaves the prompt and the seed out, and a stored output's key holds them.\n\nA stored output is keyed by its capability's execution identity and the exact request and inputs. A stored score is keyed by its observations, its scorer and its protocol. A timing is keyed by its execution identity, its environment and the attempt that measured it. Its first test changes a source outside an identity and holds the identity, then changes a source, an embedded file, a library and a setting inside it and holds that each moves it, and holds that an unstamped build reuses nothing older. Its second holds four cases: after a change outside the identity the request is answered from the store and nothing is scored again; after a change to a scorer alone the scores are computed again and no case is executed; after a change to a model, a kernel or the preprocessing the affected outputs are computed again; and a request for a fresh measurement always runs.\n\nFiled as two steps and tightened to one landing: an identity nothing reads is an export without a consumer, which the gate refuses, and the answers are its first reader.\n\nServes: measure, generate, and judge. Disappears: the commit and process scopes of codeScope for a stamped build. Evidence: the share of recent commits each identity moves on, beside the commit's, and the count of executions and of scorings in each of the four cases. Batch: host and device."
-        },
-        {
-          "id": "carry",
-          "title": "Carry an evaluation while its execution identity is unchanged, and measure it again when it is not",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestMeasurementRunsNoCaseAgainAfterAnUnrelatedCommit$'",
-          "rationale": "A full result is carried today after 32 sampled cases reproduce (internal/evaluation replay.go: replayCases), which shows agreement on those cases and not on the suite; SQA-078 holds that risk. Under an unchanged identity the result is the result, with no replay. Under a changed one the suite is measured again. Its test goes through the improvement run's own launch, in separate processes: it measures, commits a change outside every identity, measures again and holds that no case was executed the second time, then commits a change inside one identity and holds that only that capability's cases were. A result already in the store is re-keyed only when its record names every build and runtime input the identity is made of; the commit alone does not name them all, and any other result is measured once more. The step states how many suites that is and what they cost before it lands. The sampled replay is deleted only when every consumer of a carried result reads the identity; the reader of replay receipts already in the store stays.\n\nServes: judge on held-out data. Disappears: the sampled replay. Evidence: the cases executed by each of the test's three measurements, and the count of suites measured once more for the change of key. Batch: host.",
-          "depends_on": [
-            "capability-identity/identities"
-          ]
-        },
-        {
-          "id": "second-kind",
-          "title": "Keep a second kind of model's session across requests that change only what a request gives",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/mediacapability -count=1 -run '^TestServedPictureKeepsItsSession$'",
-          "rationale": "Commit 527df96d9 took the instruction's context and the seed out of a video session's key (video-request-speed/handoff). Before the split of resident resources, compiled execution and request becomes the rule for every kind, it is measured on one more: picture generation, served through the same session director (internal/mediacapability image_cuda_windows.go). Its test serves three pictures, another prompt and then another seed, and holds that the second and third loaded nothing, that each picture is the picture a fresh session makes, and that a cancelled request releases what it held.\n\nServes: generate. Disappears: a reload for each new prompt or seed, where the measurement finds one. Evidence: the load each request measures. Batch: device."
         }
       ]
     },
@@ -287,7 +287,8 @@
             "repeated-request/do",
             "raise-landing-terms-count/do",
             "baseline-resume/do",
-            "count-evaluation-chain/do"
+            "count-evaluation-chain/do",
+            "count-capability-identity/do"
           ]
         }
       ]

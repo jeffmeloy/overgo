@@ -179,6 +179,30 @@
       "package": "internal/adaptiveparity",
       "test": "TestServedGenerationMatchesTheModelsOwnClip",
       "holds": "the clip a served text-to-video request returns for a prompt, a seed, a number of frames, a size, steps, a shift and a guidance scale, with no negative prompt named, to the clip the model's own code, its repository's generate(), draws for the same: nine frames at 416 by 240 in 20 steps with a guidance scale of 5, over 16-pixel squares, where the model's own clip at another shift, with a blank negative prompt, at another guidance scale or from another seed stands 15 dB or more further off. The reference is run in float32: the repository holds both its models in bfloat16, and its own bfloat16 clip stands further from its float32 one than the served clip does. The row's reading is of clips drawn at seventeen frames with that guidance, where the model's own two precisions stand 16 to 21 dB apart and the served clip 16 to 23 dB from either: there the comparison tells a served clip from another seed's, at 10 dB, and not from the model's own rounding"
+    },
+    {
+      "model": "Bonsai-27B-Q1_0",
+      "task": "inference",
+      "deferred": "The scored file is a GGUF quantized to Q1_0, with no directory of its own, and no unquantized original of the model is on this machine: there is no reference to run on the same weights. The first stretch of its path is held: its reading's questions reach it as the tokens the tokenizer and template of Qwen3.5-4B, a model of its family, give (cmd/evaluate TestPromptsReachEachModelAsItsOwnTokenizerGivesThem). What it answers from those tokens is held to nothing.",
+      "reopens": "The owner approving a reference: a download of the unquantized model, which transformers then runs as it runs the other text models' and cmd/evaluate TestModelsAnswerAsTransformersDoes takes within a band its quantization sets; or a build of llama.cpp, which reads the same file and gives log-probabilities from the same tokens to hold the served ones to."
+    },
+    {
+      "model": "Qwen3.5-9B",
+      "task": "inference",
+      "deferred": "The scored file is a GGUF quantized to Q8_0, with no directory of its own, and no unquantized original of the model is on this machine: there is no reference to run on the same weights. The first stretch of its path is held: its reading's questions reach it as the tokens the tokenizer and template of Qwen3.5-4B, a model of its family, give (cmd/evaluate TestPromptsReachEachModelAsItsOwnTokenizerGivesThem). What it answers from those tokens is held to nothing.",
+      "reopens": "The owner approving a reference: a download of the unquantized model, which transformers then runs as it runs the other text models' and cmd/evaluate TestModelsAnswerAsTransformersDoes takes within a band its quantization sets; or a build of llama.cpp, which reads the same file and gives log-probabilities from the same tokens to hold the served ones to."
+    },
+    {
+      "model": "Qwen3.8-27B",
+      "task": "inference",
+      "deferred": "The scored file is a GGUF quantized to Q6_K, with no directory of its own, and no unquantized original of the model is on this machine: there is no reference to run on the same weights. The first stretch of its path is held: its reading's questions reach it as the tokens the tokenizer and template of Qwen3.5-4B, a model of its family, give (cmd/evaluate TestPromptsReachEachModelAsItsOwnTokenizerGivesThem). What it answers from those tokens is held to nothing.",
+      "reopens": "The owner approving a reference: a download of the unquantized model, which transformers then runs as it runs the other text models' and cmd/evaluate TestModelsAnswerAsTransformersDoes takes within a band its quantization sets; or a build of llama.cpp, which reads the same file and gives log-probabilities from the same tokens to hold the served ones to."
+    },
+    {
+      "model": "Unlimited-OCR-bf16",
+      "task": "inference",
+      "deferred": "Its answers are held to no reference, and its reading is asked with other tokens than the model's own. The scored file names an earlier tokenizer's splitting rule: 22 of the 24 questions held reach it with a mark and the line break after it as two tokens where the model's own tokenizer joins them (cmd/evaluate TestPromptsReachEachModelAsItsOwnTokenizerGivesThem names the fault; finding 34979bff). The reading is of the text decoder alone on general-knowledge questions, outside what the model is for. A file overgo converts with the model's own rule is given the model's own tokens on all 24 and is served, validated and activated on a copy of the store (commit 9ab17724a), and has not taken the scored file's place.",
+      "reopens": "The re-converted file taking the scored file's place. That needs a model activated today to be able to join the accepted coverage (finding 813ba9e0) and onboarding to carry a new model past its guard (finding 38c5458e); the scored file's activation is then retired on an exact case of the model's own tokens, which it fails by its count of prompt tokens. After that its answers are held to the model's own code as the other text models' are; or its text reading gives way to a reading of document pictures, which needs a set the owner approves."
     }
   ]
 }

@@ -3,13 +3,8 @@
 package adaptiveparity
 
 import (
-	"bytes"
-	"context"
 	"encoding/binary"
-	"encoding/json"
 	"image"
-	"image/draw"
-	"image/gif"
 	"io"
 	"math"
 	"os"
@@ -18,18 +13,11 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/capabilityruntime"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/latentvideo"
 	"overgo/internal/media"
-	"overgo/internal/mediacapability"
-	"overgo/internal/modelrecipe"
-	"overgo/internal/modelrecipetest"
 	"overgo/internal/modeltest"
-	"overgo/internal/overgodb"
-	"overgo/internal/recipe"
 	"overgo/internal/testskip"
-	"overgo/internal/testutil"
 )
 
 // The reference case of the edit model: the clip its own repository tests
@@ -93,45 +81,7 @@ func TestServedEditMatchesTheReferenceEdit(t *testing.T) {
 	if cudatest.MeasurementProcess(t, 0) {
 		return
 	}
-	profile, err := latentvideo.ResolveProfile(wan)
-	if err != nil {
-		t.Fatal(err)
-	}
-	profileContent, err := profile.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
-	modelID := testutil.ArtifactID(t, artifact.KindModel, "liveedit-reference-edit")
-	definition, err := modelrecipe.ReferenceVideoEditDefinition(modelID, profile.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	program, err := modelrecipe.CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
-	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	// The model's artifact stands in the store at the size of its directory.
-	var extent uint64
-	if err := filepath.WalkDir(edit, func(_ string, entry os.DirEntry, walkErr error) error {
-		if walkErr != nil || entry.IsDir() {
-			return walkErr
-		}
-		info, err := entry.Info()
-		extent += uint64(info.Size())
-		return err
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := store.Commit(context.Background(), artifact.Batch{
-		Key: "test/artifact/" + modelID.String(), Artifacts: []artifact.Descriptor{{ID: modelID, Size: extent}},
-	}); err != nil {
-		t.Fatal(err)
-	}
+	store, serve := editServing(t, edit, wan, "liveedit-reference-edit")
 
 	// The source clip, from the frames the earlier run fed: channel, then frame, then row, 0 to 1.
 	plane := referenceEditHeight * referenceEditWidth
@@ -180,10 +130,8 @@ func TestServedEditMatchesTheReferenceEdit(t *testing.T) {
 	}
 	// The frames of this clip are 36 MiB, and the store bounds a batch as it is
 	// written, a third larger: they are committed alone.
-	for key, contents := range map[string][]artifact.Content{
-		"test/video-edit-reference": {profileContent, clip}, "test/video-edit-reference-frames": {frames},
-	} {
-		if _, err := store.Commit(t.Context(), artifact.Batch{Key: key, Contents: contents}); err != nil {
+	for key, content := range map[string]artifact.Content{"test/video-edit-reference": clip, "test/video-edit-reference-frames": frames} {
+		if _, err := store.Commit(t.Context(), artifact.Batch{Key: key, Contents: []artifact.Content{content}}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -214,10 +162,6 @@ func TestServedEditMatchesTheReferenceEdit(t *testing.T) {
 		{"frames", frames.Descriptor.ID, framesSourceFloor, true},
 	} {
 		form := latentvideo.ReferenceEditRequest{Prompt: referenceEditInstruction, Seed: referenceEditSeed, SourceArtifact: carried.source}
-		request, err := json.Marshal(form)
-		if err != nil {
-			t.Fatal(err)
-		}
 		// What the request resolves to, held to what the earlier run recorded: the
 		// source frames it fed and the text context it conditioned on. A source
 		// read from -1 to 1 misses the first by the whole range, and a context
@@ -250,24 +194,15 @@ func TestServedEditMatchesTheReferenceEdit(t *testing.T) {
 		if !carried.served {
 			continue
 		}
-		output, err := mediacapability.Catalog[recipe.TaskVideoGen].Execute(t.Context(), store, edit, modelrecipetest.CandidateExecution(t, store, program), string(request))
-		if err != nil {
-			t.Fatal(err)
+		video := serve(form)
+		frames := servedSquareMeans(t, video, referenceEditBlock)
+		if video.Frames != referenceEditFrames || video.Height != referenceEditHeight || video.Width != referenceEditWidth || len(frames) != referenceEditFrames {
+			t.Fatalf("source as %s: served edit of %d frames at %dx%d, %d decoded", carried.name, video.Frames, video.Width, video.Height, len(frames))
 		}
-		video, ok := capabilityruntime.Unwrap(output).(latentvideo.EncodedVideo)
-		if !ok || video.Frames != referenceEditFrames || video.Height != referenceEditHeight || video.Width != referenceEditWidth {
-			t.Fatalf("source as %s: served edit = %T of %d frames at %dx%d", carried.name, output, video.Frames, video.Width, video.Height)
-		}
-		animation, err := gif.DecodeAll(bytes.NewReader(video.Data))
-		if err != nil || len(animation.Image) != referenceEditFrames {
-			t.Fatalf("source as %s: the served clip gave %d frames (%v), want %d", carried.name, len(animation.Image), err, referenceEditFrames)
-		}
-		canvas := image.NewRGBA(image.Rect(0, 0, referenceEditWidth, referenceEditHeight))
 		var squared, servedDark, servedBright, wantDark, wantBright float64
 		blocks := 0
-		for frame, paletted := range animation.Image {
-			draw.Draw(canvas, paletted.Bounds(), paletted, paletted.Bounds().Min, draw.Over)
-			served, want := squareMeans(canvas), squareMeans(reference[frame])
+		for frame, served := range frames {
+			want := squareMeans(reference[frame], referenceEditBlock)
 			for index := range served {
 				squared += (served[index] - want[index]) * (served[index] - want[index])
 			}
@@ -290,19 +225,19 @@ func TestServedEditMatchesTheReferenceEdit(t *testing.T) {
 	}
 }
 
-// squareMeans is a frame as the mean of each colour over each square of
-// referenceEditBlock pixels, row by row, on the byte scale.
-func squareMeans(frame image.Image) []float64 {
+// squareMeans is a frame as the mean of each colour over each square of side
+// pixels, row by row, on the byte scale.
+func squareMeans(frame image.Image, side int) []float64 {
 	bounds := frame.Bounds()
-	columns, rows := bounds.Dx()/referenceEditBlock, bounds.Dy()/referenceEditBlock
+	columns, rows := bounds.Dx()/side, bounds.Dy()/side
 	means := make([]float64, media.RGBChannels*rows*columns)
 	const scale = math.MaxUint16 / math.MaxUint8
-	for y := range rows * referenceEditBlock {
-		for x := range columns * referenceEditBlock {
+	for y := range rows * side {
+		for x := range columns * side {
 			red, green, blue, _ := frame.At(bounds.Min.X+x, bounds.Min.Y+y).RGBA()
-			block := (y/referenceEditBlock*columns + x/referenceEditBlock) * media.RGBChannels
+			block := (y/side*columns + x/side) * media.RGBChannels
 			for channel, value := range []uint32{red, green, blue} {
-				means[block+channel] += float64(value) / scale / (referenceEditBlock * referenceEditBlock)
+				means[block+channel] += float64(value) / scale / float64(side*side)
 			}
 		}
 	}

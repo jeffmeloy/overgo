@@ -1,13 +1,6 @@
 {
   "comparisons": [
     {
-      "model": "LiveEdit",
-      "task": "video-gen",
-      "package": "internal/adaptiveparity",
-      "test": "TestServedEditMatchesTheReferenceEdit",
-      "holds": "the clip a served edit request returns for the editor's own test case to the clip the earlier implementation drew for it"
-    },
-    {
       "model": "needle",
       "task": "seq2seq",
       "package": "internal/seq2seq",
@@ -151,6 +144,13 @@
       "package": "cmd/evaluate",
       "test": "TestModelsAnswerAsTransformersDoes",
       "holds": "for 24 of its reading's questions put as plain text, the log-probability the scored file gives each option letter after the question, and the option it finds likeliest, to transformers running the model's own weights in float32: each letter within the tolerance a single token is held to, and the likeliest option the reference's wherever the reference's first two were not a near tie; the tokens of those questions and letters are held to the model's own tokenizer by TestPromptsReachEachModelAsItsOwnTokenizerGivesThem, and what is scored after each question to lm-eval's own requests by internal/evaluation TestMMLUProAsksAsLMEvalDoes; asked as a conversation, which is not its reading, the file carries no chat template and the same test records that as a known fault (finding e683b1e7)"
+    },
+    {
+      "model": "LiveEdit",
+      "task": "video-gen",
+      "package": "internal/adaptiveparity",
+      "test": "TestServedEditMatchesTheModelsOwnEdit",
+      "holds": "the clip a served edit request returns, for a clip of the held-out measure and its instruction, to the clip the model's own code, its repository's inference run from the checkpoint, makes of the same 21 frames with the same seed: square for square over 16-pixel squares, where the model's own code at another seed, and the served edit of a source carried as a GIF, stand 12 dB further off; TestServedEditMatchesTheReferenceEdit holds the editor's own 81-frame test case to the clip the earlier implementation drew for it, and what a request resolves to, source frames and text context, to what that run recorded"
     }
   ]
 }

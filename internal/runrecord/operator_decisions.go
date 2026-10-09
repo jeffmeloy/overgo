@@ -70,7 +70,7 @@ func DeriveOperatorTimeline(
 	// receipt names the one before it, so the walk reads what the timeline shows.
 	err := store.VisitAliases(ctx, StageReceiptAliasRoot+operation.String()+"/", func(alias overgodb.AliasView) error {
 		for id := alias.Target; id.Valid(); {
-			receipt, err := stageReceiptCodec.Require(ctx, store, id)
+			receipt, err := requireStageReceipt(ctx, store, id)
 			if err != nil {
 				return err
 			}

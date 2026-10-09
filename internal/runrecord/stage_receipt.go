@@ -65,6 +65,30 @@ var stageReceiptCodec = artifact.JSONDocumentCodec(
 	cloneStageReceipt,
 )
 
+// stageReceiptEarlierSchema is the contract stage receipts were written under
+// before a receipt could bind an invocation. A store keeps the receipts of
+// every request it served under it, at the aliases a repeat of the request
+// resolves.
+const stageReceiptEarlierSchema = "overgo/stage-receipt/v1"
+
+// stageReceiptEarlierCodec reads a receipt of the earlier contract. Each is,
+// byte for byte, a receipt of the present contract that binds no invocation,
+// and a document's identity is its kind and bytes, so an earlier receipt is
+// read as it stands, under the identity the store holds it by: the next
+// receipt of its stage names that identity as its previous and moves the
+// stage's alias from it. Nothing is written under the earlier contract.
+var stageReceiptEarlierCodec = func() artifact.DocumentCodec[StageReceipt] {
+	earlier := stageReceiptCodec
+	earlier.Contract.Schema = stageReceiptEarlierSchema
+	earlier.Canonicalize = func(value *StageReceipt) error {
+		if value != nil && value.Invocation != nil {
+			return errors.New("run record: a stage receipt of the earlier contract binds no invocation")
+		}
+		return canonicalizeStageReceipt(value)
+	}
+	return earlier
+}()
+
 // NewStageReceipt identifies one validated node transition.
 func NewStageReceipt(value StageReceipt) (StageReceipt, error) {
 	return stageReceiptCodec.NewInitial(value)
@@ -75,6 +99,18 @@ func ParseStageReceipt(content []byte) (StageReceipt, error) {
 	return stageReceiptCodec.Parse(content)
 }
 
+// requireStageReceipt reads one stored receipt, of the present contract or
+// the earlier one.
+func requireStageReceipt(ctx context.Context, reader artifact.Reader, id artifact.ID) (StageReceipt, error) {
+	codec := stageReceiptCodec
+	if descriptor, _, err := reader.Artifact(ctx, id); err != nil {
+		return StageReceipt{}, err
+	} else if descriptor.Schema == stageReceiptEarlierSchema {
+		codec = stageReceiptEarlierCodec
+	}
+	return codec.Require(ctx, reader, id)
+}
+
 // ResolveStageReceipt returns the latest receipt for one operation node.
 func ResolveStageReceipt(
 	ctx context.Context,
@@ -82,7 +118,12 @@ func ResolveStageReceipt(
 	operation artifact.ID,
 	node recipe.NodeID,
 ) (StageReceipt, bool, error) {
-	return stageReceiptCodec.Resolve(ctx, reader, stageReceiptAlias(operation, node))
+	id, found, err := artifact.ResolveAlias(ctx, reader, stageReceiptAlias(operation, node))
+	if err != nil || !found {
+		return StageReceipt{}, found, err
+	}
+	receipt, err := requireStageReceipt(ctx, reader, id)
+	return receipt, true, err
 }
 
 // PublishStageReceipt advances one operation-node lifecycle.

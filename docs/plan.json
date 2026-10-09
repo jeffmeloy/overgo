@@ -8,14 +8,11 @@
       "title": "Serve a request that repeats an earlier one: never refuse it, never run it only to give back the old answer",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 200,
+        "reason": "Reading the stage receipts a store holds under the earlier contract takes a second codec, derived from the present one, and a reader that picks by the stored schema; there is nothing to delete for it, since the earlier contract's reader was removed when the contract moved and that removal is the fault."
+      },
       "steps": [
-        {
-          "id": "earlier-receipts",
-          "title": "Read the stage records of the earlier form, so a request first served before they changed is served again",
-          "status": "open",
-          "verify": "go test ./internal/runrecord ./internal/workflowruntime -count=1 -run '^(TestStageReceiptOfTheEarlierFormIsRead|TestOperationRunsOnFromAnEarlierFormReceipt)$'",
-          "rationale": "Finding 3c9083de. A request that repeats, byte for byte, one served before 2026-08-29 under a recipe still active is refused: the stage records kept of its operation are of schema overgo/stage-receipt/v1, the contract moved to v2 in commit d38908b96, and runrecord.ResolveStageReceipt reads the alias only as v2, so beginStage and recoverStage fail with 'incompatible document content' before any stage runs. Krea-2-Turbo's frozen request is one; so is every frozen media request. The earlier form is a subset of the present one, a receipt that binds no invocation, and a document's identity is its kind and bytes, so the earlier receipt is read as it stands and the chain goes on from it: its attempt, its identity as the next receipt's previous, and the alias moved from it. Tests publish an earlier-form receipt at an operation's alias, resolve it, and run the operation. Serves: generate, and every capability request. Disappears: a class of requests the served path refuses. Evidence: the two tests, and the frozen request served on a copy of the store. Batch: host."
-        },
         {
           "id": "do",
           "title": "Serve a request that repeats an earlier one: never refuse it, never run it only to give back the old answer",

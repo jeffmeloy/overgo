@@ -14,13 +14,6 @@
       },
       "steps": [
         {
-          "id": "krea-own-settings-score",
-          "title": "Read Krea-2-Turbo again on the photograph captions, drawn by the mended path at its own settings",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestScorecardMarksAReadingOutsideItsModelsUse$'",
-          "rationale": "Krea-2-Turbo's held-out reading, 0.9301 on 415 questions about 64 pictures, was taken before the step that held its served picture to its own pipeline. Those pictures were drawn by a path with two faults, the closing tokens of the prompt template numbered past the padding and a timestep shift taken from the picture's size where the distilled checkpoint fixes it, and from the recipe's verification request, 512 by 512 in 4 steps, where the model's card draws in 8 and its pipeline's own size is 1024 by 1024 (finding 6afd86d9). So the reading is of pictures the model's own code would not draw. Build evaluate at the commit that holds the mended path; draw the same 64 captions with -render-tifa and -render-set steps=8,width=1024,height=1024 against a copy of the store; look at eight beside the old ones; judge on the copy and then on the store; say what moved and which way, and say on the scorecard's row what settings the reading is of. Serves: measure and find the gap. Disappears: a reading of pictures drawn off the model's own protocol by a faulty path. Evidence: the reading on the scorecard and the eight pictures looked at. Batch: device."
-        },
-        {
           "id": "krea-frozen-sample",
           "title": "Draw Krea-2-Turbo's accepted sample again with the mended path and record its acceptance",
           "status": "open",

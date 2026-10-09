@@ -20,34 +20,31 @@ type SessionAuthority struct {
 }
 
 // trainableStatuses are the lifecycle states a training run may train a
-// recipe in: published and not retired. A run's own success is what
-// verifies and activates a candidate.
-var trainableStatuses = []recipe.Status{recipe.StatusCandidate, recipe.StatusValidated, recipe.StatusActive}
-
-// supersededBySibling reports whether recipeID, in status, lost the model's
-// active training slot to another recipe that is active and verified now, not to
-// a retirement with failed proof, which leaves the slot naming the retired one.
-func supersededBySibling(ctx context.Context, repository artifact.Reader, model, recipeID artifact.ID, status recipe.Status) bool {
-	if status != recipe.StatusSuperseded {
-		return false
-	}
-	active, found, err := modelrecipe.ActiveRecord(ctx, repository, model, recipe.TaskTraining)
-	return err == nil && found && active.Definition.ID != recipeID
-}
+// recipe in. A run's own success is what verifies and activates a candidate.
+// Superseded is among them for the recipe that lost its model's one active
+// training slot to another recipe's activation: a model keeps one active
+// training recipe, a run under another objective's default activates its own,
+// and the next run of the first objective trains under the recipe that lost
+// the slot. A recipe retired on failed proof is superseded too, and is told
+// from that one by the refusal its own record cites.
+var trainableStatuses = []recipe.Status{recipe.StatusCandidate, recipe.StatusValidated, recipe.StatusActive, recipe.StatusSuperseded}
 
 // ResolveSessionAuthority resolves the exact training policy of the
-// published, unretired training recipe recipeID for model. A recipe that
-// another training recipe of the model superseded by activating is not
-// retired: a model keeps one active training recipe, a run under another
-// objective's default activates its own, and the next run of the first
-// objective trains under the recipe it lost the slot to a live successor.
+// published training recipe recipeID for model, when the recipe's own record
+// leaves it eligible: in a state a run may train in, and refused by no
+// decision. Which recipe the model has selected plays no part, so selecting
+// another recipe neither admits a retired one nor refuses one in good
+// standing.
 func ResolveSessionAuthority(ctx context.Context, repository artifact.Reader, model, recipeID artifact.ID) (SessionAuthority, error) {
-	status, published, err := modelrecipe.Status(ctx, repository, recipeID)
+	eligibility, err := modelrecipe.RecipeEligibility(ctx, repository, recipeID)
 	if err != nil {
 		return SessionAuthority{}, err
 	}
-	if !published || !slices.Contains(trainableStatuses, status) && !supersededBySibling(ctx, repository, model, recipeID, status) {
-		return SessionAuthority{}, fmt.Errorf("training workflow: recipe %s is %q, not a published training recipe a run may train under", recipeID, status)
+	if eligibility.Refusal != "" {
+		return SessionAuthority{}, fmt.Errorf("training workflow: recipe %s was refused and no run may train under it until it is activated again on fresh proof: %s", recipeID, eligibility.Refusal)
+	}
+	if !eligibility.Published || !slices.Contains(trainableStatuses, eligibility.Status) {
+		return SessionAuthority{}, fmt.Errorf("training workflow: recipe %s is %q, not a published training recipe a run may train under", recipeID, eligibility.Status)
 	}
 	definition, err := recipe.RequireDefinition(ctx, repository, recipeID)
 	if err != nil {

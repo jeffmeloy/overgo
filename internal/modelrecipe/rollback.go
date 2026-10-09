@@ -44,8 +44,11 @@ func RollbackActivation(
 			retiredEvent.To,
 		)
 	}
+	// The activation is the event that made the retired recipe active. Each
+	// verification of it after that left an event from active to active, which
+	// supersedes nothing and is passed over.
 	activation := retiredEvent
-	for activation.To != recipe.StatusActive {
+	for activation.To != recipe.StatusActive || activation.From == recipe.StatusActive {
 		if activation.PreviousEvent == nil {
 			return errors.New("model recipe: the retired recipe was never active; nothing to roll back")
 		}
@@ -68,8 +71,10 @@ func RollbackActivation(
 	if predecessor.Model != model || predecessor.Task != task {
 		return errors.New("model recipe: rollback predecessor subject mismatch")
 	}
+	// A slot may come back to one recipe more than once, so the batch is named
+	// by the retirement the rollback answers as well as by the recipe restored.
 	_, _, err = ActivateVerified(
-		ctx, store, "recipe/rollback/"+predecessor.ID.String(), predecessor,
+		ctx, store, "recipe/rollback/"+predecessor.ID.String()+"/"+retiredEvent.ID.String(), predecessor,
 		verification, tier, reason, []artifact.ID{retiredEvent.ID}, &retiredID,
 	)
 	return err

@@ -616,14 +616,7 @@ func ActiveRecord(ctx context.Context, store artifact.Reader, modelID artifact.I
 		return Activation{}, false, err
 	}
 	if event.To != recipe.StatusActive {
-		reason := ""
-		for _, decision := range decisions {
-			if decision.Subject == definition.ID && decision.Outcome == recipe.DecisionRefused {
-				reason = decision.Reason
-				break
-			}
-		}
-		if reason != "" {
+		if reason := refusal(decisions, definition.ID); reason != "" {
 			return Activation{}, false, fmt.Errorf("model recipe: active alias names refused recipe: %s", reason)
 		}
 		return Activation{}, false, fmt.Errorf("model recipe: active alias names recipe in %q state", event.To)
@@ -700,6 +693,48 @@ func Status(ctx context.Context, store artifact.Reader, recipeID artifact.ID) (r
 		return "", false, err
 	}
 	return event.To, true, nil
+}
+
+// Eligibility is what a recipe's own lifecycle record says of using it: the
+// state its current event leaves it in and, when that event cites a decision
+// that refused the recipe, the decision's reason. Which recipe a model has
+// selected is the active alias's to say and no part of this, so activating
+// one recipe changes no other recipe's eligibility: a recipe retired on
+// failed proof stays refused until an accepted decision over fresh proof
+// activates it again, and a recipe that only lost its slot to another's
+// activation was refused by nothing.
+type Eligibility struct {
+	Status    recipe.Status
+	Published bool
+	Refusal   string
+}
+
+// RecipeEligibility reads recipeID's eligibility from its current lifecycle
+// event and the decisions the event cites.
+func RecipeEligibility(ctx context.Context, store artifact.Reader, recipeID artifact.ID) (Eligibility, error) {
+	if _, ok, err := artifact.ResolveAlias(ctx, store, statusAlias(recipeID)); err != nil || !ok {
+		return Eligibility{}, err
+	}
+	event, err := currentEvent(ctx, store, recipeID)
+	if err != nil {
+		return Eligibility{}, err
+	}
+	decisions, err := loadDecisions(ctx, store, event.Evidence)
+	if err != nil {
+		return Eligibility{}, err
+	}
+	return Eligibility{Status: event.To, Published: true, Refusal: refusal(decisions, recipeID)}, nil
+}
+
+// refusal returns the reason of the decision among decisions that refused
+// subject, or nothing.
+func refusal(decisions []recipe.Decision, subject artifact.ID) string {
+	for _, decision := range decisions {
+		if decision.Subject == subject && decision.Outcome == recipe.DecisionRefused {
+			return decision.Reason
+		}
+	}
+	return ""
 }
 
 func currentEvent(ctx context.Context, store artifact.Reader, recipeID artifact.ID) (recipe.LifecycleEvent, error) {

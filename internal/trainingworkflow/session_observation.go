@@ -334,13 +334,14 @@ func (o *Observer) Verify(ctx context.Context, recipeID artifact.ID, evidence ..
 	}
 	verification := modelrecipe.Verification{Gate: record.Result.ID, Run: record.Run.ID}
 	// A recipe that lost the model's training slot to another one's activation trained and published all the same, but
-	// does not take the slot back: activation resumes only from candidate or validated.
-	state, _, err := modelrecipe.Status(ctx, o.store, recipeID)
+	// does not take the slot back: activation resumes only from candidate or validated. One a decision refused while
+	// its run trained is not verified by the run: its activation is refused below.
+	eligibility, err := modelrecipe.RecipeEligibility(ctx, o.store, recipeID)
 	if err != nil {
 		return err
 	}
-	if supersededBySibling(ctx, o.store, definition.Model, recipeID, state) {
-		fmt.Printf("training recipe %s verified by its run; another recipe of the model holds the active training slot\n", recipeID)
+	if eligibility.Status == recipe.StatusSuperseded && eligibility.Refusal == "" {
+		fmt.Printf("training recipe %s verified by its run; it lost the model's active training slot to another recipe's activation and does not take it back\n", recipeID)
 	} else if err := modelrecipe.ActivateCapability(ctx, o.store, definition, verification, recipe.EvidenceVerified, trainingVerificationReason); err != nil {
 		return err
 	}

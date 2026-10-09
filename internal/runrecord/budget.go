@@ -89,6 +89,21 @@ func ParseSplitPartition(data []byte) (SplitPartition, error) {
 	return splitPartitionCodec.Parse(data)
 }
 
+// NewSplitPartition binds a dataset to the four shards its roles read, in the
+// order development, selection, promotion and audit, and names the proposer
+// the last two are blinded from.
+func NewSplitPartition(dataset, development, selection, promotion, audit, proposer artifact.ID) (SplitPartition, error) {
+	return splitPartitionCodec.NewInitial(SplitPartition{
+		Dataset: dataset, Development: development, Selection: selection, Promotion: promotion, Audit: audit, Proposer: proposer,
+	})
+}
+
+// Batch stages the partition with lineage to its dataset and shards.
+func (value SplitPartition) Batch(key string) (artifact.Batch, error) {
+	return splitPartitionCodec.Batch(key, value, artifact.DependencyLineage(
+		value.ID, value.Dataset, value.Development, value.Selection, value.Promotion, value.Audit), nil)
+}
+
 func ParseBudget(data []byte) (Budget, error) {
 	return budgetCodec.Parse(data)
 }

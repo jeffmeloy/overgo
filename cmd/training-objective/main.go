@@ -58,8 +58,14 @@ func run(args []string, output io.Writer) error {
 	observationsText := flags.String("observations", "", "comma-separated succeeded training session observation IDs grounding the promotion")
 	approve := flags.String("approve", "", "registered objective alias to promote from adaptive-evidence to approved (with -evaluations)")
 	evaluationsText := flags.String("evaluations", "", "comma-separated committed passed evaluation report IDs grounding the approval; at least one must be a held-out verdict for this objective")
+	pool := flags.String("pool", "", "registered objective alias to publish a held-out pool for (with -pool-gain and -pool-weights)")
+	poolGain := flags.Float64("pool-gain", 0, "the gain the pool is sized to show, in standard deviations of the paired per-document difference, stated from the gains the objective's verdicts show")
+	poolWeights := flags.String("pool-weights", "", "weights dividing the held-out documents no verdict has read: development=<w>,selection=<w>,promotion=<w>,audit=<w>")
 	if err := flags.Parse(args); err != nil {
 		return err
+	}
+	if strings.TrimSpace(*pool) != "" {
+		return buildPool(*repository, *pool, *poolGain, *poolWeights, output)
 	}
 	if strings.TrimSpace(*promote) != "" {
 		return promoteObjective(*repository, *promote, *observationsText, trainingworkflow.PromoteObjectiveAdaptive, output)

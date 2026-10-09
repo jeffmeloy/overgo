@@ -9,17 +9,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 2380,
+        "nodes": 22,
         "reason": "The first step's measured figure, 2,354 production nodes as the gate counts them, and a margin of 26: the held-out pool, its acceptance record, the reading of the gains on record and the command that publishes them. Filed at 1,229, the size of internal/runrecord budget.go, before any step was designed. The second step's figure is added when it is built and measured, in the plan of the commit before it; the third deletes"
       },
       "steps": [
-        {
-          "id": "pool",
-          "title": "Build a held-out pool for one training family, sized from the gain to detect and split by document into the four parts a split already has",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestHeldOutPoolIsSizedForItsDeclaredGain$'",
-          "rationale": "The three training rows that carry a held-out comparison gain about what their uncertainty is: Qwen2.5-0.5B 0.5082 against 0.5001 on 24 cases, tabfm 0.7286 against 0.7238 on 7, the bridge 18.49 against 18.08 on 76 (validate -scorecard, 2026-10-09). Splitting sets this small would weaken them further.\n\nThe split has an owner already. internal/runrecord budget.go binds a dataset to four distinct parts, development, selection, promotion and audit, blinds the last two from the proposer, and grants each a budget of queries that committed charges consume (SplitPartition, Budget, BudgetCharge, ValidateBlinding); the controller's promotion reads it and the change proposer does not. The step builds, for Qwen2.5-0.5B's text objective, a pool split by document into those four parts, from sources its training data does not hold, with duplicates removed, and publishes it as that record. It also writes the acceptance record a confirmation is judged by, before any confirmation is read: the gain, the two error rates, the base, the measure, the decision rule, and the number of confirmations the promotion part may answer, which follows from the error rates under the sequential rule the record names. The 24 fine-tunes on record are development data and confirm nothing; they give what the pool is sized from. The gain to detect is the lead's to state, from the gains those runs show, and the two error rates the verdict accepts, a gain reported that is not there and a gain missed, are named constants with their reasons. The size follows from the three and from the variance measured on the present records, counted in documents and not tokens, since adjacent tokens are not independent. The measure is the paired per-token likelihood of base and candidate on the same records; the task's own measure stays for what likelihood does not show. A verdict is one of three: a gain, a loss, or not enough evidence. The pool is built first from data already on this machine; if that cannot reach the size, the step names the dataset it needs and asks the owner before any download. The 24 present records stay as a regression check.\n\nServes: judge on held-out data. Disappears: nothing; it adds a consumer to the split and budget records and no second partition scheme. Evidence: the pool's size, the gain, error rates and variance it was sized from, the smallest gain it can show, and the budget it grants. Batch: host; the readings of real models belong to the cycle."
-        },
         {
           "id": "confirmation",
           "title": "Confirm a proposed change on records no choice was made from, and charge every confirmation to a budget",
@@ -563,6 +556,17 @@
       "blocks": [
         "commit-queue"
       ],
+      "asked": "2026-10-09"
+    },
+    {
+      "id": "gui-recommendations",
+      "question": "The GUI lane's worktree was removed on 2026-10-09 and the lane left what it recommends and did not land in the main checkout, as docs/gui_update_plan.json: a deadline on every browser wait, a top-p control in Settings, the output size shown before an export, the Train tab's samples shown while a run goes, rsLoRA and LoRA+ offered for an adapter run, a few demo datasets, documents turned into a conversation dataset, the resident model kept only when it fits beside a training run, and whether a chat turn needs the request number a workflow run carries, with its notes for starting a lane again. The file is not committed: nothing reads it, the repository keeps no document without a reader, and it is ignored in that checkout so it stays as the lane left it. None of the nine is a row of this plan and none has a session. Who takes them?",
+      "options": [
+        "Rank them into this plan after the rows that move a measured result",
+        "Open a GUI lane for them again",
+        "Leave them recorded and unranked"
+      ],
+      "recommendation": "Rank them into this plan after the rows that move a measured result",
       "asked": "2026-10-09"
     }
   ]

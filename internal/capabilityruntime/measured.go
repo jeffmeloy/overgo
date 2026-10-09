@@ -141,6 +141,9 @@ func measuredRun[Output any](
 		}
 	}
 	if ctx != nil {
+		if beside, ok := ctx.Value(besideContextKey{}).(string); ok {
+			key += "/beside/" + beside
+		}
 		if scope, ok := ctx.Value(freshRunContextKey{}).(string); ok {
 			key += "/measurement/" + scope
 		}

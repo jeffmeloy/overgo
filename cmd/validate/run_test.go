@@ -328,3 +328,31 @@ func TestValidateRunUnbound(t *testing.T) {
 		t.Fatalf("unbound run = %v", err)
 	}
 }
+
+// TestOnlyACommandStartedWithGoRunIsLinkedWithIdentities holds what a cell's
+// command is given of this command's own execution identities: a go run is
+// linked with them, ahead of what it runs and with its arguments kept; a go
+// test, a tool that is not the Go tool and a command with no arguments are
+// left as they are; and a command that holds no identities passes none on.
+func TestOnlyACommandStartedWithGoRunIsLinkedWithIdentities(t *testing.T) {
+	t.Parallel()
+	const linked = "-X=overgo/internal/inferencesurface.stamp=overgo/internal/latentvideo=abc"
+	measure := []string{"run", "./cmd/recipe", "measure", "-task", "video-gen"}
+	if got, want := linkedRun("go", measure, linked), []string{"run", "-ldflags=" + linked, "./cmd/recipe", "measure", "-task", "video-gen"}; !slices.Equal(got, want) || len(measure) != len(want)-1 {
+		t.Fatalf("a go run is started with %v; want %v, and the cell's own arguments untouched", got, want)
+	}
+	for _, kept := range []struct {
+		name   string
+		args   []string
+		linked string
+	}{
+		{"go", []string{"test", "./internal/cuda/...", "-count=1"}, linked},
+		{"nvidia-smi", []string{"run"}, linked},
+		{"go", nil, linked},
+		{"go", measure, ""},
+	} {
+		if got := linkedRun(kept.name, kept.args, kept.linked); !slices.Equal(got, kept.args) {
+			t.Errorf("%s %v with the flag %q is started with %v; want it left as it is", kept.name, kept.args, kept.linked, got)
+		}
+	}
+}

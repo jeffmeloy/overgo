@@ -8,8 +8,6 @@ package inferencesurface
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -94,26 +92,49 @@ func computeSurface(ctx context.Context, root string) (string, error) {
 	}
 	var files []string
 	for _, pkg := range packages {
-		entries, err := os.ReadDir(pkg.Dir)
+		sources, err := packageFiles(pkg)
 		if err != nil {
 			return "", err
 		}
-		for _, entry := range entries {
-			name := entry.Name()
-			if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-				continue
-			}
-			files = append(files, filepath.Join(pkg.Dir, name))
-		}
-		for _, embedded := range pkg.EmbedFiles {
-			files = append(files, filepath.Join(pkg.Dir, embedded))
-		}
+		files = append(files, sources...)
 	}
+	kernels, err := kernelFiles(root)
+	if err != nil {
+		return "", err
+	}
+	return digestFiles(root, append(files, kernels...), modules...)
+}
+
+// packageFiles are the files of one package a build of it reads: its non-test
+// Go sources, generated ones among them, and the files it embeds.
+func packageFiles(pkg Package) ([]string, error) {
+	entries, err := os.ReadDir(pkg.Dir)
+	if err != nil {
+		return nil, err
+	}
+	var files []string
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		files = append(files, filepath.Join(pkg.Dir, name))
+	}
+	for _, embedded := range pkg.EmbedFiles {
+		files = append(files, filepath.Join(pkg.Dir, embedded))
+	}
+	return files, nil
+}
+
+// kernelFiles are the kernel sources of the tree at root: the manifest and
+// the CUDA sources beside it.
+func kernelFiles(root string) ([]string, error) {
+	var files []string
 	for _, kernel := range surfaceKernels {
 		path := filepath.Join(root, kernel)
 		info, err := os.Stat(path)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		if !info.IsDir() {
 			files = append(files, path)
@@ -121,7 +142,7 @@ func computeSurface(ctx context.Context, root string) (string, error) {
 		}
 		entries, err := os.ReadDir(path)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		for _, entry := range entries {
 			if !entry.IsDir() {
@@ -129,7 +150,7 @@ func computeSurface(ctx context.Context, root string) (string, error) {
 			}
 		}
 	}
-	return digestFiles(root, files, modules...)
+	return files, nil
 }
 
 // Moves returns, of the repository-relative paths a change touches, the
@@ -252,20 +273,39 @@ func Packages(ctx context.Context, root string) ([]Package, error) {
 // module-local packages and, as module@version, every other module the walk
 // reaches. The standard library belongs to the toolchain and is not listed.
 func closure(ctx context.Context, root string) ([]Package, []string, error) {
-	arguments := append([]string{"list", "-deps", "-json"}, surfaceRoots...)
+	listed, module, err := list(ctx, root, surfaceRoots...)
+	if err != nil {
+		return nil, nil, err
+	}
+	var roots []string
+	for _, root := range surfaceRoots {
+		roots = append(roots, module+strings.TrimPrefix(root, "."))
+	}
+	packages, modules := reach(listed, module, roots...)
+	if len(packages) == 0 {
+		return nil, nil, errors.New("longform: the inference surface lists no module-local package")
+	}
+	return packages, modules, nil
+}
+
+// list asks the Go tool for every package the roots depend on, themselves
+// among them, by import path, with the path of the module at root. The
+// standard library belongs to the toolchain and is not listed.
+func list(ctx context.Context, root string, roots ...string) (map[string]Package, string, error) {
+	arguments := append([]string{"list", "-deps", "-json"}, roots...)
 	var stdout, stderr bytes.Buffer
 	receipt, err := processcontrol.Run(ctx, processcontrol.Command{
 		Path: "go", Args: arguments, Dir: root, Env: os.Environ(), Stdout: &stdout, Stderr: &stderr,
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("inference surface: go list: %w: %s", err, strings.TrimSpace(stderr.String()))
+		return nil, "", fmt.Errorf("inference surface: go list: %w: %s", err, strings.TrimSpace(stderr.String()))
 	}
 	if receipt.ExitCode != 0 {
-		return nil, nil, fmt.Errorf("inference surface: go list: exit=%d: %s", receipt.ExitCode, strings.TrimSpace(stderr.String()))
+		return nil, "", fmt.Errorf("inference surface: go list: exit=%d: %s", receipt.ExitCode, strings.TrimSpace(stderr.String()))
 	}
-	modulePath, err := modulePath(root)
+	module, err := modulePath(root)
 	if err != nil {
-		return nil, nil, err
+		return nil, "", err
 	}
 	listed := map[string]Package{}
 	decoder := json.NewDecoder(&stdout)
@@ -274,23 +314,27 @@ func closure(ctx context.Context, root string) ([]Package, []string, error) {
 		if err := decoder.Decode(&pkg); errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
-			return nil, nil, err
+			return nil, "", err
 		}
 		if pkg.Module != nil {
 			listed[pkg.ImportPath] = pkg
 		}
 	}
+	return listed, module, nil
+}
+
+// reach walks the listed packages from the roots, by import path, without
+// descending into the identity-addressed packages: it returns the packages of
+// module and, as module@version, every other module the walk reaches.
+func reach(listed map[string]Package, module string, roots ...string) ([]Package, []string) {
 	pruned := map[string]bool{}
 	for _, name := range identityAddressed {
-		pruned[modulePath+"/"+name] = true
+		pruned[module+"/"+name] = true
 	}
 	var packages []Package
 	var modules []string
 	reached := map[string]bool{}
-	var queue []string
-	for _, root := range surfaceRoots {
-		queue = append(queue, modulePath+strings.TrimPrefix(root, "."))
-	}
+	queue := slices.Clone(roots)
 	for len(queue) > 0 {
 		path := queue[0]
 		queue = queue[1:]
@@ -299,18 +343,15 @@ func closure(ctx context.Context, root string) ([]Package, []string, error) {
 			continue
 		}
 		reached[path] = true
-		if pkg.Module.Path == modulePath {
+		if pkg.Module.Path == module {
 			packages = append(packages, pkg)
 		} else {
 			modules = append(modules, pkg.Module.Path+"@"+pkg.Module.Version)
 		}
 		queue = append(queue, pkg.Imports...)
 	}
-	if len(packages) == 0 {
-		return nil, nil, errors.New("longform: the inference surface lists no module-local package")
-	}
 	slices.Sort(modules)
-	return packages, slices.Compact(modules), nil
+	return packages, slices.Compact(modules)
 }
 
 // modulePath reads the module path from the root's go.mod.
@@ -332,27 +373,6 @@ func modulePath(root string) (string, error) {
 // module, so the digest is the same on every host that holds the same
 // sources and resolves the same modules.
 func digestFiles(root string, files []string, modules ...string) (string, error) {
-	slices.Sort(files)
-	surface := sha256.New()
-	for _, file := range files {
-		relative, err := filepath.Rel(root, file)
-		if err != nil {
-			return "", err
-		}
-		content := sha256.New()
-		handle, err := os.Open(file)
-		if err != nil {
-			return "", err
-		}
-		_, copyErr := io.Copy(content, handle)
-		closeErr := handle.Close()
-		if copyErr != nil || closeErr != nil {
-			return "", errors.Join(copyErr, closeErr)
-		}
-		fmt.Fprintf(surface, "%s\n%x\n", filepath.ToSlash(relative), content.Sum(nil))
-	}
-	for _, module := range modules {
-		fmt.Fprintf(surface, "module %s\n", module)
-	}
-	return hex.EncodeToString(surface.Sum(nil)), nil
+	digest, _, err := sources{}.digest(root, files, modules, "")
+	return digest, err
 }

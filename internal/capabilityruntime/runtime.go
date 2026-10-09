@@ -5,8 +5,11 @@ package capabilityruntime
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"overgo/internal/artifact"
@@ -43,6 +46,32 @@ func (catalog ExecutorCatalog) Execute(
 	return execute(ctx, store, path, execution, raw)
 }
 
+// besideContextKey carries the state of the files a model reads beside its
+// inventory to the key its run is kept under.
+type besideContextKey struct{}
+
+// Reading returns an executor whose answers are kept under the files its
+// model reads beside its inventory as well: a text encoder, a tokenizer, an
+// image processor, which files names from the model's path. A model's
+// identity is its inventory's, so a file outside it can change with no
+// identity moving, and the answer it shaped would be given again. Each file is
+// taken as a change to it shows, its place, size and time, since a checkpoint
+// of gigabytes cannot be digested for every request; one that is absent is
+// recorded so.
+func Reading(execute Executor, files func(path string) []string) Executor {
+	return func(ctx context.Context, store artifact.Repository, path string, execution modelrecipe.CapabilityEvidenceSelection, raw string) (any, error) {
+		state := sha256.New()
+		for _, file := range files(path) {
+			if info, err := os.Stat(file); err == nil {
+				fmt.Fprintf(state, "%s %d %d\n", file, info.Size(), info.ModTime().UnixNano())
+			} else {
+				fmt.Fprintf(state, "%s absent\n", file)
+			}
+		}
+		return execute(context.WithValue(ctx, besideContextKey{}, hex.EncodeToString(state.Sum(nil))), store, path, execution, raw)
+	}
+}
+
 func JSONScalar[Input, Model, Output any](
 	name string,
 	validate func(Input) error,
@@ -63,7 +92,7 @@ func JSONScalar[Input, Model, Output any](
 		}
 		// A request the store already answers is answered from it: no model is loaded.
 		inputPort := program.Definition().Inputs[0]
-		if output, result, held, err := measuredRun[Output](ctx, store, modelID, program, RunKey(program.Definition(), content),
+		if output, result, held, err := measuredRun[Output](ctx, store, modelID, program, RunKeyOf[Model](program.Definition(), content),
 			map[recipe.PortName]workflowruntime.Value{inputPort.Name: workflowruntime.ArtifactValue(inputPort.Data, input, content)}, nil,
 		); err != nil || held {
 			return Measured{Output: output, Run: result.Run.ID, Input: content}, err

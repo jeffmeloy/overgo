@@ -56,6 +56,17 @@ type Collection struct {
 	encoder                         string
 }
 
+// ProcessorFiles names the file a collection's generation reads that the
+// collection's inventory does not hold: the image processor of the encoder
+// beside it. A directory that resolves as no collection names none.
+func ProcessorFiles(directory string) []string {
+	collection, held, err := ResolveCollection(directory)
+	if err != nil || !held {
+		return nil
+	}
+	return []string{filepath.Join(collection.encoder, processorConfig)}
+}
+
 // ResolveCollection reads directory as an RAE collection served with the
 // reviewed sampler. held is false when the directory holds no such DiT
 // checkpoint, so the caller resolves it as another kind of model; a held

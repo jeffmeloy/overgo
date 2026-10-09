@@ -538,7 +538,7 @@ func (c *ModelSessionDirector[Input, Model, Output]) serve(
 		return zero, err
 	}
 	// A request the store already answers is answered from it: no session is leased and no model loaded.
-	runKey := RunKey(definition, content)
+	runKey := RunKeyOf[Model](definition, content)
 	sought := processmeasure.Stage(ctx, "stored answer sought")
 	output, result, held, err := measuredRun[Output](ctx, store, modelID, program, runKey, inputs, nil)
 	sought()
@@ -1041,7 +1041,7 @@ func executeScalar[Input, Model, Output any](
 	inputPort := definition.Inputs[0]
 	return ExecuteMeasured[Output](
 		ctx, store, modelID, program,
-		RunKey(definition, content),
+		RunKeyOf[Model](definition, content),
 		map[recipe.PortName]workflowruntime.Value{
 			inputPort.Name: workflowruntime.ArtifactValue(inputPort.Data, input, content),
 		},

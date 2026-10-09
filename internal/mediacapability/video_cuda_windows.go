@@ -28,9 +28,11 @@ func videoCapability() Capability {
 		},
 		latentvideo.RegisterWanRuntime,
 	)
-	wan := sessionExecutor(wanDirector, wanErr)
+	// Both read the base model's text encoder and tokenizer, which no
+	// inventory holds, so their answers are kept under those files too.
+	wan := capabilityruntime.Reading(sessionExecutor(wanDirector, wanErr), latentvideo.TextPipelineFiles)
 
-	edit := editExecutor(editSessions())
+	edit := capabilityruntime.Reading(editExecutor(editSessions()), latentvideo.TextPipelineFiles)
 	oscillator := capabilityruntime.JSONScalar[oscillatorimage.VideoRequest, *oscillatorimage.Model, oscillatorimage.EncodedVideo](
 		"video-gen", oscillatorimage.ValidateVideoRequest,
 		func(_ context.Context, _ artifact.Repository, path string, _ recipe.Program, _ oscillatorimage.VideoRequest) (*oscillatorimage.Model, error) {

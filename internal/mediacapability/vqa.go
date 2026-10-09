@@ -57,7 +57,7 @@ func executeVQA(ctx context.Context, store artifact.Repository, path string, sel
 	program := selection.Program
 	definition := program.Definition()
 	var decoded vqaserve.Result
-	answer, result, err := vqaserve.RunProgram(ctx, store, definition.Model, program, capabilityruntime.RunKey(definition, request), image, form.Question,
+	answer, result, err := vqaserve.RunProgram(ctx, store, definition.Model, program, capabilityruntime.RunKeyOf[vqaserve.Prepared](definition, request), image, form.Question,
 		func(image []byte, question string) (vqaserve.Prepared, error) {
 			return vqaserve.Prepare(path, image, question)
 		},

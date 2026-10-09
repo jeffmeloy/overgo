@@ -15,6 +15,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/evaluation"
+	"overgo/internal/inferencesurface"
 	"overgo/internal/jsonfile"
 	"overgo/internal/landing"
 	"overgo/internal/modelrecipe"
@@ -359,10 +360,23 @@ func requiredPass(report testevidence.GoTestReport, packages []string, selected 
 	return nil
 }
 
+// linkedRun gives a command this one starts with go run the execution
+// identities this one was linked with: both are built from one tree, and a
+// plain go run would hold none and give again nothing a process before it
+// answered. Any other command is left as it is, a go test above all: a test's
+// build keeps no answer beyond its process.
+func linkedRun(name string, args []string, linked string) []string {
+	if linked == "" || name != "go" || len(args) == 0 || args[0] != "run" {
+		return args
+	}
+	return slices.Insert(slices.Clone(args), 1, "-ldflags="+linked)
+}
+
 // runCell executes one re-acquisition command at the repository root through the
 // process owner, with environment added to this process's; the invoked
 // producer guards its own device admission.
 func runCell(ctx context.Context, output io.Writer, root, name string, args []string, environment ...string) error {
+	args = linkedRun(name, args, inferencesurface.Linked())
 	var stderr bytes.Buffer
 	receipt, err := processcontrol.Run(ctx, processcontrol.Command{
 		Path: name, Args: args, Dir: root, Env: append(os.Environ(), environment...), Stdout: output, Stderr: io.MultiWriter(output, &stderr),

@@ -158,7 +158,7 @@ type fixedUnigramTokenizer struct {
 }
 
 func loadFixedUnigramTokenizer(dir string, length int) (*fixedUnigramTokenizer, error) {
-	raw, err := os.ReadFile(filepath.Join(dir, "special_tokens_map.json"))
+	raw, err := os.ReadFile(filepath.Join(dir, tokenizerRoles))
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +173,7 @@ func loadFixedUnigramTokenizer(dir string, length int) (*fixedUnigramTokenizer, 
 	if !checked.PositiveInts(length) || !checked.NonzeroAll(roles.Pad, roles.End, roles.UNK) {
 		return nil, fmt.Errorf("fixed unigram tokenizer: incomplete sequence policy")
 	}
-	table, artifactUnkID, byteFallback, err := tokenizer.LoadHFUnigramJSON(filepath.Join(dir, "tokenizer.json"))
+	table, artifactUnkID, byteFallback, err := tokenizer.LoadHFUnigramJSON(filepath.Join(dir, tokenizerTable))
 	if err != nil {
 		return nil, err
 	}

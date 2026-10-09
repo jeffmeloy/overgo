@@ -108,10 +108,13 @@ func raeImageSource(path string, collection rae.Collection) (Source, error) {
 
 // raeImage generates an RAE collection's image on the host, the same on
 // every platform: the request's class and seed in, the decoded PNG out.
-var raeImage = capabilityruntime.JSONScalar[rae.Request, *rae.Generator, latentimage.EncodedImage](
+// The decoder normalizes by the image processor of the encoder beside the
+// collection, which the inventory does not hold, so an answer is kept under
+// that file too.
+var raeImage = capabilityruntime.Reading(capabilityruntime.JSONScalar[rae.Request, *rae.Generator, latentimage.EncodedImage](
 	"image-gen", rae.ValidateRequest,
 	capabilityruntime.IgnoreInput[rae.Request](rae.Load), rae.RegisterRuntime,
-)
+), rae.ProcessorFiles)
 
 // latentImageComponentBindings slots the latent-image stages onto the
 // diffusers-layout component groups: prepare on the text encoder,

@@ -21,6 +21,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/gitauthority"
+	"overgo/internal/inferencesurface"
 	"overgo/internal/jsonfile"
 	"overgo/internal/plan"
 	"overgo/internal/processlock"
@@ -481,6 +482,15 @@ func validateTo(output io.Writer, checkout, store string, environment []string, 
 	if err != nil {
 		return err
 	}
-	command := append([]string{"go", "-C", checkout, "run", "./cmd/validate"}, arguments...)
+	// A plain go run records no execution identity, and a process without one
+	// gives again nothing an earlier process answered. The measured checkout's
+	// identities are counted here and linked into the command, which links
+	// them into each command it starts with go run in turn (cmd/validate
+	// runCell).
+	identities, err := inferencesurface.LinkFlag(context.Background(), checkout)
+	if err != nil {
+		return err
+	}
+	command := append([]string{"go", "-C", checkout, "run", "-ldflags=" + identities, "./cmd/validate"}, arguments...)
 	return runToolEnv(slices.Concat(loopEnvironment(), bound, environment), nil, output, os.Stderr, append(command, "-repo", store)...)
 }

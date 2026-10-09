@@ -3,6 +3,7 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -20,6 +21,7 @@ import (
 	"time"
 
 	"overgo/internal/clioptions"
+	"overgo/internal/inferencesurface"
 	"overgo/internal/runrecord"
 )
 
@@ -152,6 +154,14 @@ func buildArchive(root string) ([]byte, error) {
 		return nil, err
 	}
 	defer func() { _ = os.RemoveAll(binaryDirectory) }()
+	// Every command is linked with the execution identities of the tree it is
+	// built from, so a released server gives a stored answer again while the
+	// code that gave it is unchanged. They are counted from the sources, so
+	// two builds of one tree link the same.
+	identities, err := inferencesurface.LinkFlag(context.Background(), root)
+	if err != nil {
+		return nil, err
+	}
 	entries := make([]archiveEntry, 0, len(releaseCommands)+len(releaseDocuments)+1)
 	for _, name := range releaseCommands {
 		output := filepath.Join(binaryDirectory, name+".exe")
@@ -159,7 +169,7 @@ func buildArchive(root string) ([]byte, error) {
 			"go", "build",
 			"-trimpath",
 			"-buildvcs=false",
-			"-ldflags=-s -w -buildid=",
+			"-ldflags=-s -w -buildid= "+identities,
 			"-o", output,
 			"./cmd/"+name,
 		)

@@ -9,17 +9,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 2160,
+        "nodes": 63,
         "reason": "The first step's measured figure, 2,097 production nodes as the gate's preflight counts the built change, and a margin of 63 for what the later stages of the checks may still ask of it: the count of an identity for each capability package, the reads of the environment it declares, the libraries and settings of the process, the linker flag and the two launches that pass it, the key of a stored answer, and the files a model reads beside its inventory. Filed at 1,862, the size of internal/inferencesurface, before the step was designed. The second step deletes the code scope and the sampled replay; the third step's figure is added when it is built and measured, in the plan of the commit before it"
       },
       "steps": [
-        {
-          "id": "identities",
-          "title": "Give every capability the identity of the code its result depends on, recorded in the executable, and answer a repeated request from the store while it holds",
-          "status": "open",
-          "verify": "go test ./internal/inferencesurface -count=1 -run '^TestCapabilityIdentityMovesOnlyWithItsOwnSources$' \u0026\u0026 go test ./internal/capabilityruntime -count=1 -run '^TestStoredResultIsReusedOnlyUnderItsOwnIdentity$'",
-          "rationale": "internal/inferencesurface already digests the sources text inference depends on (surface.go: surfaceRoots), and the scorecard and the long-form records read it. Stored answers do not: an answer is scoped to the commit, or to the process when the tree is changed (internal/capabilityruntime run_key.go: codeScope). Measured 2026-10-09 over the last 300 commits with today's dependency lists, the store and run records left out as the surface leaves them out: the sources of text, video, picture and speech execution changed on 14 to 16 commits in 100, of evaluation on 33, of the training workflow on 42, of the server command on 55. The commit changed on every one. The figures leave embedded files out and say how often a result would be measured again, not the time that saves.\n\nThe step extends the one digest to an identity for each capability's entry package, with the kernel sources, generated and embedded files, build tags and settings, and loaded libraries its result depends on. A model's files join it where its inventory does not hold them: a video model reads its text encoder's checkpoint and its tokenizer, and neither is in the inventory its identity is made of (internal/mediacapability video_cuda_windows.go: resolveVideoSource), so a changed encoder would answer from the store today. How the identity reaches the executable is the step's first question, since go run and a plain go build record none: the repository's build command counts it from the files it compiles and sets it at link time, and a binary built any other way keeps the scope of its own process, as now. The improvement run starts its measurements with a plain go run in a checkout of the measured commit (cmd/loop improve.go: validateTo), so that launch counts the identities from that checkout and sets them too; without it the run that measures would reuse nothing. A setting read from the environment that changes a result joins the key, and one that is not declared keeps the wider scope: a wrong identity would serve a stale answer and say nothing. Separate keys are built from shared parts: a resident session's key leaves the prompt and the seed out, and a stored output's key holds them.\n\nA stored output is keyed by its capability's execution identity and the exact request and inputs. A stored score is keyed by its observations, its scorer and its protocol. A timing is keyed by its execution identity, its environment and the attempt that measured it. Its first test changes a source outside an identity and holds the identity, then changes a source, an embedded file, a library and a setting inside it and holds that each moves it, and holds that an unstamped build reuses nothing older. Its second holds four cases: after a change outside the identity the request is answered from the store and nothing is scored again; after a change to a scorer alone the scores are computed again and no case is executed; after a change to a model, a kernel or the preprocessing the affected outputs are computed again; and a request for a fresh measurement always runs.\n\nFiled as two steps and tightened to one landing: an identity nothing reads is an export without a consumer, which the gate refuses, and the answers are its first reader.\n\nServes: measure, generate, and judge. Disappears: the commit and process scopes of codeScope for a stamped build. Evidence: the share of recent commits each identity moves on, beside the commit's, and the count of executions and of scorings in each of the four cases. Batch: host and device."
-        },
         {
           "id": "carry",
           "title": "Carry an evaluation while its execution identity is unchanged, and measure it again when it is not",
@@ -290,6 +283,51 @@
             "count-evaluation-chain/do",
             "count-capability-identity/do"
           ]
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-45ceeaafaa2be823",
+      "title": "Restore Hy-Embodied-RxBrain-1.0 vqa throughput to 173.41692 tok/s",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Hy-Embodied-RxBrain-1.0 vqa throughput to 173.41692 tok/s",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-45ceeaafaa2be823 -target 173.41692028891256",
+          "rationale": "- Hy-Embodied-RxBrain-1.0 throughput, {Metric:output tokens over decode time Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:24f6d5c81c752c600bf32907c8ca4b34379bf0e1910dd30f7d3014091e1fbcbb}: 173.41692 to 141.508266 (-31.9086544, -18.4%; serving output tokens over decode time, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261009T224309Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-b22137c6b1f9b2cc",
+      "title": "Restore pocket-tts speech held-out-quality to 0.0504009164 ",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore pocket-tts speech held-out-quality to 0.0504009164 ",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-b22137c6b1f9b2cc -target 0.050400916380297825",
+          "rationale": "- pocket-tts held-out-quality, {Metric:word_error_rate Origin:evaluation Suite:dataset:sha256:fd1ccc539452b1a79d5413eb87917b79f82330f5160047299fc807fab9c94422 Protocol:raw-completion Comparison:profile:sha256:003a74fb6d22635a51867f837c55f10b1b543a9ea3a12048047d250cb20f55fa Scope:}: 0.0504009164 to 0.0515463918 (+0.00114547537, +2.3%; word_error_rate, dataset:sha256:fd1ccc539452b1a79d5413eb87917b79f82330f5160047299fc807fab9c94422 (raw-completion))\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261009T224309Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unmeasured-training",
+      "title": "Measure training's unmeasured cells",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure training's unmeasured cells",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-training",
+          "rationale": "- tabfm-1.0.0-pytorch load-time: no benchmark load time and no recorded load phase\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261009T224309Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
         }
       ]
     }

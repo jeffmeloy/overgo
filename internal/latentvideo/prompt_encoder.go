@@ -71,7 +71,7 @@ func promptEncoderFor(spec TextConditioningSpec) (*promptEncoder, error) {
 	if !checked.PositiveInts(spec.SequenceLength) {
 		return nil, fmt.Errorf("text conditioning: positive sequence length required")
 	}
-	tokenizer, err := stateOf(filepath.Join(spec.TokenizerDir, "tokenizer.json"))
+	tokenizer, err := stateOf(filepath.Join(spec.TokenizerDir, tokenizerTable))
 	if err != nil {
 		return nil, err
 	}

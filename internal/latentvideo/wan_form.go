@@ -27,7 +27,29 @@ const referenceNegativePrompt = "色调艳丽，过曝，静态，细节模糊�
 const (
 	wanEncoderCheckpoint = "models_t5_umt5-xxl-enc-bf16.pth"
 	wanTokenizerDir      = "google/umt5-xxl"
+	// tokenizerTable and tokenizerRoles are the two files of the tokenizer
+	// directory the pipeline reads: the unigram table and its special tokens.
+	tokenizerTable = "tokenizer.json"
+	tokenizerRoles = "special_tokens_map.json"
 )
+
+// TextPipelineFiles names the files a video model's text pipeline reads that
+// the model's inventory does not hold: the umT5 encoder checkpoint and the
+// tokenizer's two files, in the Wan directory the model conditions through,
+// which is its own or, for a LiveEdit model, the base beside it. A stored
+// answer is kept under them as well as under the model
+// (capabilityruntime.Reading), so a changed encoder or tokenizer asks again.
+func TextPipelineFiles(modelDirectory string) []string {
+	if IsLiveEdit(modelDirectory) {
+		modelDirectory, _ = LiveEditArtifacts(modelDirectory)
+	}
+	tokenizer := filepath.Join(modelDirectory, filepath.FromSlash(wanTokenizerDir))
+	return []string{
+		filepath.Join(modelDirectory, wanEncoderCheckpoint),
+		filepath.Join(tokenizer, tokenizerTable),
+		filepath.Join(tokenizer, tokenizerRoles),
+	}
+}
 
 // WanTextConditioningSpec locates the text pipeline inside a Wan model
 // directory at the denoiser's context length: the tokenizer, the encoder

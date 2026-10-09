@@ -379,7 +379,9 @@ func verifyCapability(repository, path string, task recipe.Task, capability medi
 	}
 	started := time.Now()
 	var measured capabilityruntime.Measured
-	output, err := capability.Execute(ctx, store, path, execution, input)
+	// A verification measures the candidate, so it runs it: an answer the
+	// store keeps under the same execution identity proves nothing of this run.
+	output, err := capability.Execute(capabilityruntime.FreshRun(ctx), store, path, execution, input)
 	if err != nil {
 		return err
 	}
@@ -404,8 +406,9 @@ func verifyCapability(repository, path string, task recipe.Task, capability medi
 // the one an alias selects, and prints the output. A request identical to one
 // the same code already answered is answered with what the store kept of that
 // answer, loading no model; fresh runs it as its own operation instead, as a
-// measurement does. Under go run every command is its own code and answers
-// nothing from the store.
+// measurement does. The same code is the capability's execution identity where
+// the build counted one; under a plain go run every command is its own code
+// and answers nothing from the store.
 func executeCapability(
 	repository, path, alias, compatibilityText string,
 	selection modelrecipe.SessionSelection,

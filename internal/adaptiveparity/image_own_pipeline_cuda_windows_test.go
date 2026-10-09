@@ -55,6 +55,89 @@ type ownPictures struct {
 // 15.
 const ownPictureFloor = 31
 
+// pictureService is the way a request for a picture is served from a model's
+// directory: the image capability, a candidate execution of the recipe the
+// directory resolves to, and a store that holds what that recipe binds.
+type pictureService struct {
+	store      *overgodb.Store
+	capability mediacapability.Capability
+	execution  modelrecipe.CapabilityEvidenceSelection
+	directory  string
+}
+
+// pictureServing serves pictures from an image model's directory on an empty
+// store, which is given the model's inventory, its components' manifests and
+// its profile.
+func pictureServing(t *testing.T, directory, name string) pictureService {
+	t.Helper()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := store.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	capability := mediacapability.Catalog[recipe.TaskImageGen]
+	source, err := capability.Resolve(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition, facts, err := source.Define(source.Inventory.Manifest.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch, err := source.Inventory.Batch("test/" + name + "/inventory")
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch.Manifests = append(batch.Manifests, source.Manifests...)
+	batch.Contents = append(batch.Contents, facts...)
+	if _, err := store.Commit(t.Context(), batch); err != nil {
+		t.Fatal(err)
+	}
+	program, err := modelrecipe.CompileCapability(definition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return pictureService{store: store, capability: capability, execution: modelrecipetest.CandidateExecution(t, store, program), directory: directory}
+}
+
+// agreement serves one request for a picture and returns how nearly the
+// picture agrees with a reference's picture of the same request, in dB over
+// the means of every colour in squares of side pixels, which the reference
+// gives a byte each, row by row.
+func (service pictureService) agreement(t *testing.T, request any, width, height, side int, reference []byte) float64 {
+	t.Helper()
+	raw, err := json.Marshal(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	output, err := service.capability.Execute(t.Context(), service.store, service.directory, service.execution, string(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	served, ok := capabilityruntime.Unwrap(output).(latentimage.EncodedImage)
+	if !ok {
+		t.Fatalf("a served picture is %T", capabilityruntime.Unwrap(output))
+	}
+	decoded, err := png.Decode(bytes.NewReader(served.Data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	means := squareMeans(decoded, side)
+	if bounds := decoded.Bounds(); bounds.Dx() != width || bounds.Dy() != height || len(means) != len(reference) {
+		t.Fatalf("served %v, %d square means; the reference is %dx%d, %d", bounds, len(means), width, height, len(reference))
+	}
+	var squared float64
+	for index, mean := range means {
+		apart := mean - float64(reference[index])
+		squared += apart * apart
+	}
+	return 20 * math.Log10(math.MaxUint8/math.Sqrt(squared/float64(len(means))))
+}
+
 // TestServedPictureMatchesTheModelsOwnPipeline holds the picture a request is
 // served to the image model's own pipeline: the same prompt, seed, size and
 // steps, and nothing else named, as a page sends them. The runtime under the
@@ -79,62 +162,10 @@ func TestServedPictureMatchesTheModelsOwnPipeline(t *testing.T) {
 	if cudatest.MeasurementProcess(t, 0) {
 		return
 	}
-	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	capability := mediacapability.Catalog[recipe.TaskImageGen]
-	source, err := capability.Resolve(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
-	definition, facts, err := source.Define(source.Inventory.Manifest.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// The model's inventory and its components' manifests stand in the store beside the facts its recipe binds.
-	batch, err := source.Inventory.Batch("test/own-picture/inventory")
-	if err != nil {
-		t.Fatal(err)
-	}
-	batch.Manifests = append(batch.Manifests, source.Manifests...)
-	batch.Contents = append(batch.Contents, facts...)
-	if _, err := store.Commit(t.Context(), batch); err != nil {
-		t.Fatal(err)
-	}
-	program, err := modelrecipe.CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
-	execution := modelrecipetest.CandidateExecution(t, store, program)
+	service := pictureServing(t, directory, "own-picture")
 	for _, picture := range own.Pictures {
-		raw, err := json.Marshal(latentimage.Request{Prompt: picture.Prompt, Width: own.Width, Height: own.Height, Steps: own.Steps, Seed: picture.Seed})
-		if err != nil {
-			t.Fatal(err)
-		}
-		output, err := capability.Execute(t.Context(), store, directory, execution, string(raw))
-		if err != nil {
-			t.Fatal(err)
-		}
-		served, ok := capabilityruntime.Unwrap(output).(latentimage.EncodedImage)
-		if !ok {
-			t.Fatalf("a served picture is %T", capabilityruntime.Unwrap(output))
-		}
-		decoded, err := png.Decode(bytes.NewReader(served.Data))
-		if err != nil {
-			t.Fatal(err)
-		}
-		means := squareMeans(decoded, own.Square)
-		if bounds := decoded.Bounds(); bounds.Dx() != own.Width || bounds.Dy() != own.Height || len(means) != len(picture.Means) {
-			t.Fatalf("%s: served %v, %d square means; the model's own is %dx%d, %d", picture.Name, bounds, len(means), own.Width, own.Height, len(picture.Means))
-		}
-		var squared float64
-		for index, mean := range means {
-			apart := mean - float64(picture.Means[index])
-			squared += apart * apart
-		}
-		agreement := 20 * math.Log10(math.MaxUint8/math.Sqrt(squared/float64(len(means))))
+		agreement := service.agreement(t, latentimage.Request{Prompt: picture.Prompt, Width: own.Width, Height: own.Height, Steps: own.Steps, Seed: picture.Seed},
+			own.Width, own.Height, own.Square, picture.Means)
 		t.Logf("%s, seed %d: the served picture against the model's own pipeline's, its text encoder in %s, %.2f dB over %d-pixel squares",
 			picture.Name, picture.Seed, own.TextEncoder, agreement, own.Square)
 		if agreement < ownPictureFloor {

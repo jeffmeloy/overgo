@@ -158,6 +158,20 @@
       "package": "internal/adaptiveparity",
       "test": "TestServedPictureMatchesTheModelsOwnPipeline",
       "holds": "the picture a served request returns for a prompt, a seed, a size and a number of steps, with no schedule named, to the picture the model's own pipeline, diffusers' Krea2Pipeline loaded from the model's directory, draws for the same: over 8-pixel squares, where a picture from another seed, one drawn at the wrong timestep shift and one whose prompt template is numbered past its padding each stand 16 dB or more further off; the reference's text encoder is run in float32, since in bfloat16 its own rounding moves its picture further than the served one stands from it. The row's reading is of 64 pictures the path so held drew at the model's own settings, 8 steps at 1024 by 1024; its first-output time is of the smaller request its verification serves, 512 by 512 in 4 steps"
+    },
+    {
+      "model": "SenseNova-U1-8B-MoT-Infographic-V3",
+      "task": "image-gen",
+      "package": "internal/adaptiveparity",
+      "test": "TestServedInfographicMatchesTheModelsOwnCode",
+      "holds": "the picture a served request returns for a prompt, a seed, a size, a number of steps, a guidance scale and a timestep shift to the picture the model's own code, the text-to-image example of the package shipped beside its weights, draws for the same: two pictures at 640 by 640 in 8 steps, over 8-pixel squares, where the model's own picture at another timestep shift, without guidance or from another seed stands 17 dB or more further off. The size is one where the model's own picture is steady. At its recommended 2048 by 2048 in 50 steps, which the row's reading is drawn at, moving one value in a thousand of the model's starting noise by one step moves its own picture to 24 dB from itself, and the served picture stands 21 dB from it: by eye the same poster with other lettering, which no comparison of squares can tell from the model's own"
+    },
+    {
+      "model": "SimpleDiffusion-TensorProductAttentionRope",
+      "task": "image-gen",
+      "package": "internal/adaptiveparity",
+      "test": "TestServedSampleMatchesTheUpstreamSampler",
+      "holds": "the picture a served request returns for a seed, a size and a number of steps to the picture the model's upstream sampler, the function sample() of the training script beside its weights, integrates the same starting noise to: at the size and steps of the model's accepted sample, 256 by 256 in 8 steps, over 8-pixel squares, where the upstream sampler's own picture in one step fewer stands 11 dB further off and from another seed's noise 30. The noise is overgo's own, given to the reference: the upstream sampler draws torch's, which a seed of overgo's does not name, so what is held is every step after the noise and the range the picture is written in. The model has no held-out reading; its accepted sample, pale and noisy, is what its upstream sampler draws from that noise, to 54 dB"
     }
   ]
 }

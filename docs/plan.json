@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "scorecard-uncompared-image-gen",
-      "title": "Compare the path an image-gen request takes with a reference output for each model it is scored on",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 600,
-        "reason": "The comparison of each served image generator's request path with the fixed-seed picture its reference kept, as the served edit path is compared; a step of the owner's double-check of the scorecard, named for the gap the scorecard files for it"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Hold each served image generator's request path to the picture its reference kept",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-image-gen",
-          "rationale": "LiveEdit's runtime agreed with the earlier implementation's latent and clip while the path a request takes around it read its source in the wrong range, wrote its frames in the wrong range, projected its prompt with the wrong weights and drew its clips in a palette the editor read as content. Krea-2-Turbo and SenseNova-U1 have comparisons of their runtimes; for neither is the path from a prompt to the served picture held to a reference. Their judged readings, 0.9301 and 0.5157 on 415 cases, do not excuse them: a judge asked which caption fits can pass a washed picture.\n\nFor each generator whose reference kept a fixed-seed picture and its settings, the step sends the same prompt, seed and settings as a served request and compares the picture with the kept one, square by square and in its dark and bright levels, as the edit test does, with a tolerance taken from the reference's own variation, and names the test in the scorecard's path comparisons. Where the reference kept none, it records the deferral and what would reopen it. A difference is a fault in the path: it is fixed and the generator is scored again. SimpleDiffusion has no held-out reading and so no gap here; its comparison with its upstream code, run twice for a tolerance, is done with these if its reference can be run.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the device tests, and the gap closing. Batch: device."
-        }
-      ]
-    },
-    {
       "id": "repeated-request",
       "title": "Serve a request that repeats an earlier one: never refuse it, never run it only to give back the old answer",
       "owner": "master-lead",

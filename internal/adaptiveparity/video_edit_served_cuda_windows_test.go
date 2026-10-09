@@ -46,19 +46,32 @@ const (
 	// over. A served clip is a GIF, dithered to a fixed palette, so single
 	// pixels differ by the dither; the mean of a square does not.
 	referenceEditBlock = 8
+	// The floors, in dB, a request that carries its source as frames is held
+	// to. The frames reach the editor at the byte they were written at: the
+	// reference's are whole bytes and come back exactly, and rounding to a byte
+	// alone leaves 59 dB, so a source below 55 was not carried as it was. The
+	// edit of them agrees with the reference clip at 40.1 dB, where the runtime
+	// given the recorded frames directly agrees at 41.
+	framesSourceFloor, framesAgreementFloor = 55, 38
+	// The floor a source carried as a GIF is held to: the clip format keeps it
+	// at 33 dB and the smoothing of its dither at 36.
+	gifSourceFloor = 35
 )
 
 // TestServedEditMatchesTheReferenceEdit holds the served edit path, the one
 // a request reaches, to the edit model's reference case. The runtime under
 // it is already held to the earlier implementation's latent and clip; this
-// is the path around the runtime: a source clip committed as a GIF, a
+// is the path around the runtime: a source clip committed to the store, a
 // request naming a prompt, a seed and that clip, the text context from the
 // base model's text encoder through the edit checkpoint's projection, and
 // the edited clip as it is served. Each thing that path does is held to
 // what the earlier run recorded: the source frames it resolves, the text
 // context it resolves, and the clip it serves, which must agree with the
 // clip the earlier implementation drew for the same frames, instruction and
-// seed, square by square, and hold its dark and bright levels.
+// seed, square by square, and hold its dark and bright levels. The source is
+// carried both ways a request can carry one: as its frames, which reach the
+// editor as they are, and as the GIF a video model returns, which reaches it
+// in 256 colours a frame and smoothed.
 func TestServedEditMatchesTheReferenceEdit(t *testing.T) {
 	cudatest.Require(t)
 	edit := modeltest.Directory(t, "LiveEdit")
@@ -131,6 +144,19 @@ func TestServedEditMatchesTheReferenceEdit(t *testing.T) {
 	if _, err := io.ReadFull(recorded, raw); err != nil {
 		t.Fatal(err)
 	}
+	recordedSource := latentvideo.SourceVideo{
+		Pixels: make([]float32, media.RGBChannels*referenceEditFrames*plane), Channels: media.RGBChannels,
+		Frames: referenceEditFrames, Height: referenceEditHeight, Width: referenceEditWidth,
+	}
+	for index := range recordedSource.Pixels {
+		recordedSource.Pixels[index] = math.Float32frombits(binary.LittleEndian.Uint32(raw[index*binary.Size(float32(0)):]))
+	}
+	// The two forms a request carries its source in: the frames as they are,
+	// and the clip a video model returns, a GIF.
+	frames, err := latentvideo.SourceFramesContent(recordedSource)
+	if err != nil {
+		t.Fatal(err)
+	}
 	encoder, err := latentvideo.NewClipEncoder(referenceEditFPS, latentvideo.UnitPixels)
 	if err != nil {
 		t.Fatal(err)
@@ -138,10 +164,7 @@ func TestServedEditMatchesTheReferenceEdit(t *testing.T) {
 	for frame := range referenceEditFrames {
 		values := make([]float32, media.RGBChannels*plane)
 		for channel := range media.RGBChannels {
-			from := (channel*referenceEditFrames + frame) * plane
-			for index := range plane {
-				values[channel*plane+index] = math.Float32frombits(binary.LittleEndian.Uint32(raw[(from+index)*binary.Size(float32(0)):]))
-			}
+			copy(values[channel*plane:][:plane], recordedSource.Pixels[(channel*referenceEditFrames+frame)*plane:][:plane])
 		}
 		if err := encoder.Add(frame, values, referenceEditHeight, referenceEditWidth); err != nil {
 			t.Fatal(err)
@@ -155,93 +178,115 @@ func TestServedEditMatchesTheReferenceEdit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(t.Context(), artifact.Batch{
-		Key: "test/video-edit-reference", Contents: []artifact.Content{profileContent, clip},
-	}); err != nil {
-		t.Fatal(err)
+	// The frames of this clip are 36 MiB, and the store bounds a batch as it is
+	// written, a third larger: they are committed alone.
+	for key, contents := range map[string][]artifact.Content{
+		"test/video-edit-reference": {profileContent, clip}, "test/video-edit-reference-frames": {frames},
+	} {
+		if _, err := store.Commit(t.Context(), artifact.Batch{Key: key, Contents: contents}); err != nil {
+			t.Fatal(err)
+		}
 	}
-	form := latentvideo.ReferenceEditRequest{Prompt: referenceEditInstruction, Seed: referenceEditSeed, SourceArtifact: clip.Descriptor.ID}
-	request, err := json.Marshal(form)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// What the request resolves to, held to what the earlier run recorded: the
-	// source frames it fed and the text context it conditioned on. A source
-	// read from -1 to 1 misses the first by the whole range, and a context
-	// projected by the base model's projection misses the second by a quarter.
-	resolved, err := latentvideo.ResolveClipRequest(t.Context(), store, edit, form)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var sourceError float64
-	for index, value := range resolved.Source.Pixels {
-		want := math.Float32frombits(binary.LittleEndian.Uint32(raw[index*binary.Size(float32(0)):]))
-		sourceError += float64(value-want) * float64(value-want)
-	}
-	sourceRatio := -10 * math.Log10(sourceError/float64(len(resolved.Source.Pixels)))
 	recordedContext, err := os.ReadFile(filepath.Join(filepath.Dir(sourcePixels), "text_context.f32le"))
-	if err != nil || len(recordedContext) != len(resolved.Condition.TextContext)*binary.Size(float32(0)) {
-		t.Fatalf("the recorded text context holds %d bytes for %d values (%v)", len(recordedContext), len(resolved.Condition.TextContext), err)
-	}
-	var dot, servedNorm, recordedNorm float64
-	for index, value := range resolved.Condition.TextContext {
-		want := float64(math.Float32frombits(binary.LittleEndian.Uint32(recordedContext[index*binary.Size(float32(0)):])))
-		dot, servedNorm, recordedNorm = dot+float64(value)*want, servedNorm+float64(value)*float64(value), recordedNorm+want*want
-	}
-	contextCosine := dot / math.Sqrt(servedNorm*recordedNorm)
-	t.Logf("resolved request against the earlier run: source frames %.2f dB, text context cosine %.6f", sourceRatio, contextCosine)
-	// The clip format keeps the source at 33 dB and the smoothing of its dither
-	// at 36 dB; the context differs by rounding alone.
-	const sourceFloor, contextFloor = 35, 0.999
-	if len(resolved.Source.Pixels) != len(raw)/binary.Size(float32(0)) || sourceRatio < sourceFloor || contextCosine < contextFloor {
-		t.Fatalf("the request resolves to source frames at %.2f dB and a text context at cosine %.6f of the earlier run's", sourceRatio, contextCosine)
-	}
-	output, err := mediacapability.Catalog[recipe.TaskVideoGen].Execute(t.Context(), store, edit, modelrecipetest.CandidateExecution(t, store, program), string(request))
-	if err != nil {
-		t.Fatal(err)
-	}
-	video, ok := capabilityruntime.Unwrap(output).(latentvideo.EncodedVideo)
-	if !ok || video.Frames != referenceEditFrames || video.Height != referenceEditHeight || video.Width != referenceEditWidth {
-		t.Fatalf("served edit = %T of %d frames at %dx%d", output, video.Frames, video.Width, video.Height)
-	}
-	animation, err := gif.DecodeAll(bytes.NewReader(video.Data))
 	if err != nil {
 		t.Fatal(err)
 	}
 	reference, err := media.DecodeVideoFileAt(t.Context(), referenceClip, ffmpeg, referenceEditFPS, referenceEditFrames, referenceEditWidth, referenceEditHeight)
-	if err != nil || len(reference) != referenceEditFrames || len(animation.Image) != referenceEditFrames {
-		t.Fatalf("the reference clip gave %d frames and the served clip %d (%v), want %d of each", len(reference), len(animation.Image), err, referenceEditFrames)
+	if err != nil || len(reference) != referenceEditFrames {
+		t.Fatalf("the reference clip gave %d frames (%v), want %d", len(reference), err, referenceEditFrames)
 	}
 
-	bounds := image.Rect(0, 0, referenceEditWidth, referenceEditHeight)
-	canvas := image.NewRGBA(bounds)
-	var squared, servedDark, servedBright, wantDark, wantBright float64
-	blocks := 0
-	for frame, paletted := range animation.Image {
-		draw.Draw(canvas, paletted.Bounds(), paletted, paletted.Bounds().Min, draw.Over)
-		served, want := squareMeans(canvas), squareMeans(reference[frame])
-		for index := range served {
-			squared += (served[index] - want[index]) * (served[index] - want[index])
+	// The runtime alone, given the recorded frames, agrees with the reference
+	// clip at 41 dB over the squares. A request that carries the frames reaches
+	// the runtime with them at the byte they are written at, and its edit is
+	// served and held to the reference. One that carries a GIF keeps its source
+	// at 33 dB, and the smoothing of the GIF's dither at 36: its edit agrees at
+	// 28 dB, and unsmoothed, with the editor reading the dither as content, at
+	// 17. The GIF is held at what it resolves to, which a source left unsmoothed
+	// or read in another range fails, and its edit is not served a second time.
+	for _, carried := range []struct {
+		name        string
+		source      artifact.ID
+		sourceFloor float64
+		served      bool
+	}{
+		{"a GIF", clip.Descriptor.ID, gifSourceFloor, false},
+		{"frames", frames.Descriptor.ID, framesSourceFloor, true},
+	} {
+		form := latentvideo.ReferenceEditRequest{Prompt: referenceEditInstruction, Seed: referenceEditSeed, SourceArtifact: carried.source}
+		request, err := json.Marshal(form)
+		if err != nil {
+			t.Fatal(err)
 		}
-		blocks += len(served)
-		dark, bright := squareExtremes(served)
-		servedDark, servedBright = servedDark+dark/referenceEditFrames, servedBright+bright/referenceEditFrames
-		dark, bright = squareExtremes(want)
-		wantDark, wantBright = wantDark+dark/referenceEditFrames, wantBright+bright/referenceEditFrames
-	}
-	const full = math.MaxUint8
-	agreement := 20 * math.Log10(full/math.Sqrt(squared/float64(blocks)))
-	t.Logf("served edit against the earlier implementation's clip: %.2f dB over %d-pixel squares; darkest squares %.1f against %.1f, brightest %.1f against %.1f of %d",
-		agreement, referenceEditBlock, servedDark, wantDark, servedBright, wantBright, full)
-	// The runtime alone, given the recorded frames, agrees with this clip at 41
-	// dB over the squares. Given the frames through the clip format, smoothed,
-	// it agrees at 27 dB; unsmoothed, the editor reads the dither as content and
-	// agrees at 17 dB; and an output read in the wrong range lifts the darkest
-	// squares by a third of the range.
-	const agreementFloor, levelSlack = 23, 16
-	if agreement < agreementFloor || math.Abs(servedDark-wantDark) > levelSlack || math.Abs(servedBright-wantBright) > levelSlack {
-		t.Fatalf("the served edit agrees with the reference at %.2f dB, with dark squares at %.1f for %.1f and bright ones at %.1f for %.1f", agreement, servedDark, wantDark, servedBright, wantBright)
+		// What the request resolves to, held to what the earlier run recorded: the
+		// source frames it fed and the text context it conditioned on. A source
+		// read from -1 to 1 misses the first by the whole range, and a context
+		// projected by the base model's projection misses the second by a quarter.
+		resolved, err := latentvideo.ResolveClipRequest(t.Context(), store, edit, form)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(resolved.Source.Pixels) != len(recordedSource.Pixels) || len(recordedContext) != len(resolved.Condition.TextContext)*binary.Size(float32(0)) {
+			t.Fatalf("source as %s: the request resolves to %d source values and %d of context, the earlier run to %d and %d bytes",
+				carried.name, len(resolved.Source.Pixels), len(resolved.Condition.TextContext), len(recordedSource.Pixels), len(recordedContext))
+		}
+		var sourceError float64
+		for index, value := range resolved.Source.Pixels {
+			sourceError += float64(value-recordedSource.Pixels[index]) * float64(value-recordedSource.Pixels[index])
+		}
+		sourceRatio := -10 * math.Log10(sourceError/float64(len(resolved.Source.Pixels)))
+		var dot, servedNorm, recordedNorm float64
+		for index, value := range resolved.Condition.TextContext {
+			want := float64(math.Float32frombits(binary.LittleEndian.Uint32(recordedContext[index*binary.Size(float32(0)):])))
+			dot, servedNorm, recordedNorm = dot+float64(value)*want, servedNorm+float64(value)*float64(value), recordedNorm+want*want
+		}
+		contextCosine := dot / math.Sqrt(servedNorm*recordedNorm)
+		t.Logf("source as %s, resolved request against the earlier run: source frames %.2f dB, text context cosine %.6f", carried.name, sourceRatio, contextCosine)
+		// The context differs by rounding alone.
+		const contextFloor = 0.999
+		if sourceRatio < carried.sourceFloor || contextCosine < contextFloor {
+			t.Fatalf("source as %s: the request resolves to source frames at %.2f dB and a text context at cosine %.6f of the earlier run's", carried.name, sourceRatio, contextCosine)
+		}
+		if !carried.served {
+			continue
+		}
+		output, err := mediacapability.Catalog[recipe.TaskVideoGen].Execute(t.Context(), store, edit, modelrecipetest.CandidateExecution(t, store, program), string(request))
+		if err != nil {
+			t.Fatal(err)
+		}
+		video, ok := capabilityruntime.Unwrap(output).(latentvideo.EncodedVideo)
+		if !ok || video.Frames != referenceEditFrames || video.Height != referenceEditHeight || video.Width != referenceEditWidth {
+			t.Fatalf("source as %s: served edit = %T of %d frames at %dx%d", carried.name, output, video.Frames, video.Width, video.Height)
+		}
+		animation, err := gif.DecodeAll(bytes.NewReader(video.Data))
+		if err != nil || len(animation.Image) != referenceEditFrames {
+			t.Fatalf("source as %s: the served clip gave %d frames (%v), want %d", carried.name, len(animation.Image), err, referenceEditFrames)
+		}
+		canvas := image.NewRGBA(image.Rect(0, 0, referenceEditWidth, referenceEditHeight))
+		var squared, servedDark, servedBright, wantDark, wantBright float64
+		blocks := 0
+		for frame, paletted := range animation.Image {
+			draw.Draw(canvas, paletted.Bounds(), paletted, paletted.Bounds().Min, draw.Over)
+			served, want := squareMeans(canvas), squareMeans(reference[frame])
+			for index := range served {
+				squared += (served[index] - want[index]) * (served[index] - want[index])
+			}
+			blocks += len(served)
+			dark, bright := squareExtremes(served)
+			servedDark, servedBright = servedDark+dark/referenceEditFrames, servedBright+bright/referenceEditFrames
+			dark, bright = squareExtremes(want)
+			wantDark, wantBright = wantDark+dark/referenceEditFrames, wantBright+bright/referenceEditFrames
+		}
+		const full = math.MaxUint8
+		agreement := 20 * math.Log10(full/math.Sqrt(squared/float64(blocks)))
+		t.Logf("source as %s, served edit against the earlier implementation's clip: %.2f dB over %d-pixel squares; darkest squares %.1f against %.1f, brightest %.1f against %.1f of %d",
+			carried.name, agreement, referenceEditBlock, servedDark, wantDark, servedBright, wantBright, full)
+		// An output read in the wrong range lifts the darkest squares by a third of the range.
+		const levelSlack = 16
+		if agreement < framesAgreementFloor || math.Abs(servedDark-wantDark) > levelSlack || math.Abs(servedBright-wantBright) > levelSlack {
+			t.Fatalf("source as %s: the served edit agrees with the reference at %.2f dB, with dark squares at %.1f for %.1f and bright ones at %.1f for %.1f",
+				carried.name, agreement, servedDark, wantDark, servedBright, wantBright)
+		}
 	}
 }
 

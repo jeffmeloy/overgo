@@ -108,6 +108,113 @@ func TestReferenceEditRequestFormAdmitsClipOrTensors(t *testing.T) {
 	}
 }
 
+// TestSourceFramesKeepEveryPixel holds the form a source clip is carried in
+// without loss: a clip of values a palette could not hold, a different one at
+// every pixel, comes back as it went, to the byte it was written at, with no
+// column taking any of its neighbour's as a GIF's smoothing gives it. The same
+// clip through a GIF comes back changed, which is what the form is for. A clip
+// that is not three colours a pixel, holds a value that is no number, or is
+// not the size it says is refused, and so are bytes that are no frames, frames
+// of two sizes, and a clip of a form the editor does not read.
+func TestSourceFramesKeepEveryPixel(t *testing.T) {
+	const frames, height, width = 3, 4, 6
+	plane := height * width
+	clip := SourceVideo{Pixels: make([]float32, media.RGBChannels*frames*plane), Channels: media.RGBChannels, Frames: frames, Height: height, Width: width}
+	for index := range clip.Pixels {
+		// A value at every pixel that is its neighbour's by a different step in each channel and frame.
+		clip.Pixels[index] = media.U8ToUnitF32(uint8((index*37 + index/plane*11) % 256))
+	}
+	content, err := SourceFramesContent(clip)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if content.Descriptor.MediaType != media.PNGFramesMediaType || content.Descriptor.ID.Kind() != artifact.KindFile {
+		t.Fatalf("source frames are published as %s %s", content.Descriptor.ID.Kind(), content.Descriptor.MediaType)
+	}
+	read, err := sourceVideoFromContent(content)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if read.Channels != media.RGBChannels || read.Frames != frames || read.Height != height || read.Width != width || len(read.Pixels) != len(clip.Pixels) {
+		t.Fatalf("source shape = %dx%dx%dx%d pixels=%d", read.Channels, read.Frames, read.Height, read.Width, len(read.Pixels))
+	}
+	for index, want := range clip.Pixels {
+		if read.Pixels[index] != want {
+			t.Fatalf("pixel %d = %g, sent as %g", index, read.Pixels[index], want)
+		}
+	}
+
+	// The same clip as a GIF: the form the frames replace does not keep it.
+	encoder, err := NewClipEncoder(16, UnitPixels)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for frame := range frames {
+		values := make([]float32, media.RGBChannels*plane)
+		for channel := range media.RGBChannels {
+			copy(values[channel*plane:][:plane], clip.Pixels[(channel*frames+frame)*plane:][:plane])
+		}
+		if err := encoder.Add(frame, values, height, width); err != nil {
+			t.Fatal(err)
+		}
+	}
+	video, err := encoder.Finish()
+	if err != nil {
+		t.Fatal(err)
+	}
+	gifContent, err := GIFContent(video)
+	if err != nil {
+		t.Fatal(err)
+	}
+	smoothed, err := sourceVideoFromContent(gifContent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var moved int
+	for index, want := range clip.Pixels {
+		if smoothed.Pixels[index] != want {
+			moved++
+		}
+	}
+	if moved == 0 {
+		t.Fatal("a GIF kept every pixel of a clip no palette holds: the test's clip tells nothing")
+	}
+
+	refused := map[string]SourceVideo{
+		"one colour a pixel": {Pixels: make([]float32, frames*plane), Channels: 1, Frames: frames, Height: height, Width: width},
+		"a short clip":       {Pixels: clip.Pixels[1:], Channels: media.RGBChannels, Frames: frames, Height: height, Width: width},
+		"no frames":          {Channels: media.RGBChannels, Height: height, Width: width},
+	}
+	unnumbered := SourceVideo{Pixels: append([]float32(nil), clip.Pixels...), Channels: media.RGBChannels, Frames: frames, Height: height, Width: width}
+	unnumbered.Pixels[plane] = float32(math.NaN())
+	refused["a value that is no number"] = unnumbered
+	for name, source := range refused {
+		if _, err := SourceFramesContent(source); err == nil {
+			t.Errorf("%s: published as source frames", name)
+		}
+	}
+
+	small, err := SourceFramesContent(SourceVideo{Pixels: make([]float32, media.RGBChannels), Channels: media.RGBChannels, Frames: 1, Height: 1, Width: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, data := range map[string][]byte{
+		"no bytes":            nil,
+		"bytes of no picture": []byte("not a frame"),
+		"a frame cut short":   content.Data[:len(content.Data)-1],
+		"frames of two sizes": append(append([]byte(nil), content.Data...), small.Data...),
+	} {
+		if _, err := sourceVideoFromFrames(data); err == nil {
+			t.Errorf("%s: read as a source clip", name)
+		}
+	}
+	other := content
+	other.Descriptor.MediaType = media.MP4MediaType
+	if _, err := sourceVideoFromContent(other); err == nil || !strings.Contains(err.Error(), media.MP4MediaType) {
+		t.Fatalf("a clip of a form the editor does not read: %v", err)
+	}
+}
+
 // TestSourceVideoFromGIFRoundTrips encodes a planar clip of values from 0 to
 // 1 through the production GIF encoder and decodes it back within the byte
 // quantization, in the planar channel-major layout and the range the edit

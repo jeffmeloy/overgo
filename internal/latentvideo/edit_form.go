@@ -9,6 +9,7 @@ import (
 	"image"
 	"image/draw"
 	"image/gif"
+	"image/png"
 	"os"
 	"path/filepath"
 
@@ -198,11 +199,104 @@ func smoothDither(values, scratch []float32, height, width int) {
 	}
 }
 
+// sourceFramesContract is a source clip that keeps every pixel: its frames,
+// each a PNG, one after another.
+var sourceFramesContract = artifact.DocumentContract{
+	Kind: artifact.KindFile, MediaType: media.PNGFramesMediaType, Schema: "overgo.source-clip.png-frames.v1",
+}
+
+// SourceFramesContent is a clip an editor is to change, as an artifact that
+// keeps every pixel of it at eight bits a colour: each frame a PNG, one after
+// another. A GIF keeps 256 colours a frame, and a source that arrives as one
+// is smoothed over its dither's reach (smoothDither), which takes with the
+// grain detail the editor would have kept. A sender that holds the frames
+// sends them this way, and the editor reads them as they are. The clip's
+// values run from 0 to 1, in the planar layout the edit consumes.
+func SourceFramesContent(source SourceVideo) (artifact.Content, error) {
+	if !checked.Equal(source.Channels, media.RGBChannels) {
+		return artifact.Content{}, errors.New("latent video: a source clip holds three colours a pixel")
+	}
+	if err := media.ValidatePlanarVideo(source.Pixels, source.Channels, source.Frames, source.Height, source.Width); err != nil {
+		return artifact.Content{}, err
+	}
+	plane := source.Height * source.Width
+	picture := image.NewRGBA(image.Rect(0, 0, source.Width, source.Height))
+	draw.Draw(picture, picture.Bounds(), image.Opaque, image.Point{}, draw.Src)
+	var written bytes.Buffer
+	for frame := range source.Frames {
+		for index := range plane {
+			offset := picture.PixOffset(index%source.Width, index/source.Width)
+			for channel := range media.RGBChannels {
+				value := source.Pixels[(channel*source.Frames+frame)*plane+index]
+				if !checked.Finite32(value) {
+					return artifact.Content{}, errors.New("latent video: a source clip's value is not finite")
+				}
+				picture.Pix[offset+channel] = media.UnitF32ToU8(value)
+			}
+		}
+		if err := png.Encode(&written, picture); err != nil {
+			return artifact.Content{}, err
+		}
+	}
+	return sourceFramesContract.OwnedContentBytes(written.Bytes())
+}
+
+// sourceVideoFromFrames decodes a clip carried as PNG frames, one after
+// another, into the planar source video the reference edit consumes, its
+// values from 0 to 1 as sourceVideoFromGIF gives them. Nothing is smoothed:
+// the frames hold no dither. Every frame is the size of the first.
+func sourceVideoFromFrames(data []byte) (SourceVideo, error) {
+	reader := bytes.NewReader(data)
+	var frames []image.Image
+	for reader.Len() > 0 {
+		frame, err := png.Decode(reader)
+		if err != nil {
+			return SourceVideo{}, fmt.Errorf("latent video: source frame %d: %w", len(frames), err)
+		}
+		frames = append(frames, frame)
+	}
+	first, ok := checked.First(frames)
+	if !ok {
+		return SourceVideo{}, errors.New("latent video: the source clip carries no frames")
+	}
+	height, width := first.Bounds().Dy(), first.Bounds().Dx()
+	plane := height * width
+	pixels := make([]float32, media.RGBChannels*len(frames)*plane)
+	canvas := image.NewRGBA(image.Rect(0, 0, width, height))
+	for frame, picture := range frames {
+		if picture.Bounds().Dy() != height || picture.Bounds().Dx() != width {
+			return SourceVideo{}, fmt.Errorf("latent video: source frame %d is %dx%d where the first is %dx%d",
+				frame, picture.Bounds().Dx(), picture.Bounds().Dy(), width, height)
+		}
+		draw.Draw(canvas, canvas.Bounds(), picture, picture.Bounds().Min, draw.Src)
+		for index := range plane {
+			offset := canvas.PixOffset(index%width, index/width)
+			for channel := range media.RGBChannels {
+				pixels[(channel*len(frames)+frame)*plane+index] = media.U8ToUnitF32(canvas.Pix[offset+channel])
+			}
+		}
+	}
+	return SourceVideo{Pixels: pixels, Channels: media.RGBChannels, Frames: len(frames), Height: height, Width: width}, nil
+}
+
+// sourceVideoFromContent decodes a source clip by the form it arrives in: PNG
+// frames as they are, or a GIF smoothed over its dither.
+func sourceVideoFromContent(content artifact.Content) (SourceVideo, error) {
+	switch content.Descriptor.MediaType {
+	case media.PNGFramesMediaType:
+		return sourceVideoFromFrames(content.Data)
+	case media.GIFMediaType:
+		return sourceVideoFromGIF(content.Data)
+	}
+	return SourceVideo{}, fmt.Errorf("latent video: source clip %s is %s, neither a GIF nor PNG frames", content.Descriptor.ID, content.Descriptor.MediaType)
+}
+
 // ResolveClipRequest completes a clip-form request against the model
-// directory and the store: the source clip decodes from its GIF artifact,
-// the text context comes from the base model's text pipeline over the
-// prompt, and the condition follows the declared edit policy with sigmas
-// compiled for its timesteps and the request's seed.
+// directory and the store: the source clip decodes from its artifact, PNG
+// frames as they are or a GIF smoothed over its dither, the text context
+// comes from the base model's text pipeline over the prompt, and the
+// condition follows the declared edit policy with sigmas compiled for its
+// timesteps and the request's seed.
 func ResolveClipRequest(ctx context.Context, reader artifact.Reader, modelDirectory string, request ReferenceEditRequest) (ReferenceEditRequest, error) {
 	if !request.ClipForm() {
 		return ReferenceEditRequest{}, errors.New("latent video: request is not a clip form")
@@ -217,10 +311,7 @@ func ResolveClipRequest(ctx context.Context, reader artifact.Reader, modelDirect
 	if !found {
 		return ReferenceEditRequest{}, fmt.Errorf("latent video: source clip %s is absent", request.SourceArtifact)
 	}
-	if content.Descriptor.MediaType != media.GIFMediaType {
-		return ReferenceEditRequest{}, fmt.Errorf("latent video: source clip %s is %s, not a GIF", request.SourceArtifact, content.Descriptor.MediaType)
-	}
-	source, err := sourceVideoFromGIF(content.Data)
+	source, err := sourceVideoFromContent(content)
 	if err != nil {
 		return ReferenceEditRequest{}, err
 	}

@@ -341,9 +341,10 @@ const (
 )
 
 // publishEditSources cuts each item's clip to the frames an editor takes, at the size the
-// editor at model works at, encodes them as the clip a video model returns, and publishes
-// that to the store, where the editor's request names it. It returns each clip's artifact
-// by its identity.
+// editor at model works at, and publishes them to the store as frames, every pixel as it
+// was cut, where the editor's request names them. A clip published as the GIF a video
+// model returns reaches the editor in 256 colours a frame and smoothed. It returns each
+// clip's artifact by its identity.
 func publishEditSources(ctx context.Context, repository, clips, model string, items []evaluation.VideoEditItem) (map[string]artifact.ID, error) {
 	width, height, err := latentvideo.EditSourceSize(model)
 	if err != nil {
@@ -362,28 +363,20 @@ func publishEditSources(ctx context.Context, repository, clips, model string, it
 		if err != nil || len(frames) != editSourceFrames {
 			return nil, fmt.Errorf("evaluate: %s gave %d of the %d frames an edit takes: %v", clip, len(frames), editSourceFrames, err)
 		}
-		encoder, err := latentvideo.NewClipEncoder(editSourceFPS, latentvideo.UnitPixels)
-		if err != nil {
-			return nil, err
+		source := latentvideo.SourceVideo{
+			Pixels: make([]float32, media.RGBChannels*editSourceFrames*plane), Channels: media.RGBChannels,
+			Frames: editSourceFrames, Height: height, Width: width,
 		}
 		for index, frame := range frames {
 			origin := frame.Bounds().Min
-			pixels := make([]float32, media.RGBChannels*plane)
 			for at := range plane {
 				red, green, blue, _ := frame.At(origin.X+at%width, origin.Y+at/width).RGBA()
 				for channel, value := range []uint32{red, green, blue} {
-					pixels[channel*plane+at] = float32(value) / colorFull
+					source.Pixels[(channel*editSourceFrames+index)*plane+at] = float32(value) / colorFull
 				}
 			}
-			if err := encoder.Add(index, pixels, height, width); err != nil {
-				return nil, err
-			}
 		}
-		video, err := encoder.Finish()
-		if err != nil {
-			return nil, err
-		}
-		content, err := latentvideo.GIFContent(video)
+		content, err := latentvideo.SourceFramesContent(source)
 		if err != nil {
 			return nil, err
 		}

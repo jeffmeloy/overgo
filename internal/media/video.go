@@ -29,6 +29,10 @@ const (
 	GIFMediaType = "image/gif"
 	// MP4MediaType identifies MPEG-4 video content.
 	MP4MediaType = "video/mp4"
+	// PNGFramesMediaType identifies a clip carried as its frames, each a PNG,
+	// one after another: every pixel as it was, where a GIF keeps 256 colours
+	// a frame. It is what FFmpeg writes when it pipes a clip's frames.
+	PNGFramesMediaType = "application/vnd.overgo.png-frames"
 	// PDFMediaType identifies a PDF document a file part carries.
 	PDFMediaType = "application/pdf"
 )

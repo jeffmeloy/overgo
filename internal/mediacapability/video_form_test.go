@@ -3,6 +3,7 @@ package mediacapability
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
@@ -15,10 +16,11 @@ import (
 )
 
 // TestClipFormRunRetainsItsRequest runs a clip-form LiveEdit request through
-// the form resolver. The session director receives the resolved request,
-// whose condition and pixels a run keeps only as a digest, and the run
-// keeps the clip form as its request instead: a verification of it then
-// holds a request recipe measure can replay, which resolves to the same edit.
+// the form resolver. The session director is handed the resolved request as
+// the value it is, never as text, and the run keeps the clip form as its
+// request: a verification of it then holds a request recipe measure can
+// replay, which resolves to the same edit. A request that arrives resolved
+// passes on as the text it arrived as.
 func TestClipFormRunRetainsItsRequest(t *testing.T) {
 	t.Parallel()
 	const directory = "C:/models/LiveEdit"
@@ -43,29 +45,37 @@ func TestClipFormRunRetainsItsRequest(t *testing.T) {
 		}
 		return resolved, nil
 	}
-	// The director's envelope around the resolved request, which it keeps
-	// only as its digest: the production clip resolves to 11 MB.
-	director := func(_ context.Context, _ artifact.Repository, _ string, _ modelrecipe.CapabilityEvidenceSelection, input string) (any, error) {
-		var request latentvideo.ReferenceEditRequest
-		if err := json.Unmarshal([]byte(input), &request); err != nil || !reflect.DeepEqual(request, resolved) {
-			return nil, fmt.Errorf("the director received %.80s, not the resolved request (%v)", input, err)
-		}
-		digest, err := artifact.JSONContent(artifact.JSONContract(artifact.KindFile, "overgo.video-gen-input-digest.v1"),
-			map[string]int{"request_bytes": len(input)})
-		return capabilityruntime.Measured{Output: "edited clip", Input: digest}, err
+	var passed string
+	text := func(_ context.Context, _ artifact.Repository, _ string, _ modelrecipe.CapabilityEvidenceSelection, input string) (any, error) {
+		passed = input
+		return "edited from text", nil
 	}
-	output, err := resolveEditForm(resolve, director)(t.Context(), nil, directory, modelrecipe.CapabilityEvidenceSelection{}, string(raw))
+	value := func(_ context.Context, _ artifact.Repository, _ string, _ modelrecipe.CapabilityEvidenceSelection, request latentvideo.ReferenceEditRequest, kept artifact.Content) (any, error) {
+		if !reflect.DeepEqual(request, resolved) {
+			return nil, errors.New("the director was handed another request than the resolved one")
+		}
+		return capabilityruntime.Measured{Output: "edited clip", Input: kept}, nil
+	}
+	serve := resolveEditForm(resolve, text, value)
+	output, err := serve(t.Context(), nil, directory, modelrecipe.CapabilityEvidenceSelection{}, string(raw))
 	if err != nil {
 		t.Fatal(err)
 	}
 	measured, ok := output.(capabilityruntime.Measured)
-	if !ok || measured.Output != "edited clip" {
-		t.Fatalf("output = %#v, want the director's measured edit", output)
+	if !ok || measured.Output != "edited clip" || passed != "" {
+		t.Fatalf("output = %#v with %q passed on as text, want the director's measured edit of the value", output, passed)
 	}
 	request, retained := capabilityruntime.RetainedRequest(measured.Input)
 	var kept latentvideo.ReferenceEditRequest
 	if !retained || json.Unmarshal([]byte(request), &kept) != nil || !reflect.DeepEqual(kept, clip) {
 		t.Fatalf("the run keeps %.120q (retained %t, schema %q), want the clip form %s",
 			request, retained, measured.Input.Descriptor.Schema, raw)
+	}
+	whole, err := json.Marshal(resolved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if output, err := serve(t.Context(), nil, directory, modelrecipe.CapabilityEvidenceSelection{}, string(whole)); err != nil || output != "edited from text" || passed != string(whole) {
+		t.Fatalf("a resolved request gave %v (%v), want it passed on as its text", output, err)
 	}
 }

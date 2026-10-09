@@ -30,36 +30,7 @@ func videoCapability() Capability {
 	)
 	wan := sessionExecutor(wanDirector, wanErr)
 
-	editDirector, editErr := capabilityruntime.NewMappedModelSessionDirector[latentvideo.ReferenceEditRequest, *latentvideo.LiveEditRuntime, latentvideo.EncodedVideo](
-		"video-gen", imageDevice, imageSessionCapacity,
-		latentvideo.ValidateReferenceEditRequest,
-		func(ctx context.Context, store artifact.Repository, path string, program recipe.Program, request latentvideo.ReferenceEditRequest) (*latentvideo.LiveEditRuntime, error) {
-			return latentvideo.LoadLiveEditRuntime(ctx, store, path, program, request)
-		},
-		func(ctx context.Context, runtime *latentvideo.LiveEditRuntime, request latentvideo.ReferenceEditRequest) error {
-			return runtime.Reset(ctx, request)
-		},
-		latentvideo.RegisterLiveEditRuntime,
-		func(request latentvideo.ReferenceEditRequest) (map[recipe.PortName]capabilityruntime.MappedInput, error) {
-			// The conditioning's text context and the source clip's decoded
-			// pixels are bulk: each is recorded by its digest once it is
-			// over the inline bound, so a clip of any size the device holds
-			// is one the workflow can record.
-			condition, err := capabilityruntime.InputContent("overgo.liveedit-conditioning.v1", request.Condition)
-			if err != nil {
-				return nil, err
-			}
-			source, err := capabilityruntime.InputContent("overgo.source-video.v1", request.Source)
-			if err != nil {
-				return nil, err
-			}
-			return map[recipe.PortName]capabilityruntime.MappedInput{
-				"condition": {Value: request.Condition, Content: condition},
-				"source":    {Value: request.Source, Content: source},
-			}, nil
-		},
-	)
-	edit := resolveEditForm(latentvideo.ResolveClipRequest, sessionExecutor(editDirector, editErr))
+	edit := editExecutor(editSessions())
 	oscillator := capabilityruntime.JSONScalar[oscillatorimage.VideoRequest, *oscillatorimage.Model, oscillatorimage.EncodedVideo](
 		"video-gen", oscillatorimage.ValidateVideoRequest,
 		func(_ context.Context, _ artifact.Repository, path string, _ recipe.Program, _ oscillatorimage.VideoRequest) (*oscillatorimage.Model, error) {
@@ -75,6 +46,57 @@ func videoCapability() Capability {
 			modelrecipe.ModuleOscillatorVideoPrepare: oscillator,
 		}.Execute,
 	}
+}
+
+// editDirector directs sessions of a LiveEdit model.
+type editDirector = capabilityruntime.ModelSessionDirector[latentvideo.ReferenceEditRequest, *latentvideo.LiveEditRuntime, latentvideo.EncodedVideo]
+
+// editSessions makes a director of LiveEdit sessions. A session is compiled
+// for a clip's shape and an edit's schedule, and serves any instruction and
+// seed (latentvideo ReferenceEditRequest.SessionKey).
+func editSessions() (*editDirector, error) {
+	return capabilityruntime.NewMappedModelSessionDirector[latentvideo.ReferenceEditRequest, *latentvideo.LiveEditRuntime, latentvideo.EncodedVideo](
+		"video-gen", imageDevice, imageSessionCapacity,
+		latentvideo.ValidateReferenceEditRequest,
+		func(ctx context.Context, store artifact.Repository, path string, program recipe.Program, request latentvideo.ReferenceEditRequest) (*latentvideo.LiveEditRuntime, error) {
+			return latentvideo.LoadLiveEditRuntime(ctx, store, path, program, request)
+		},
+		func(ctx context.Context, runtime *latentvideo.LiveEditRuntime, request latentvideo.ReferenceEditRequest) error {
+			return runtime.Reset(ctx, request)
+		},
+		latentvideo.RegisterLiveEditRuntime,
+		func(request latentvideo.ReferenceEditRequest) (map[recipe.PortName]capabilityruntime.MappedInput, error) {
+			// The conditioning's text context and the source clip's decoded
+			// pixels are bulk: each is recorded as its settings and the digest
+			// of its tensors' bytes, so a clip of any size the device holds is
+			// one the workflow records, and records without writing it out.
+			condition, err := capabilityruntime.InputContent("overgo.liveedit-conditioning-record.v1", request.Condition.Record())
+			if err != nil {
+				return nil, err
+			}
+			source, err := capabilityruntime.InputContent("overgo.source-video-record.v1", request.Source.Record())
+			if err != nil {
+				return nil, err
+			}
+			return map[recipe.PortName]capabilityruntime.MappedInput{
+				"condition": {Value: request.Condition, Content: condition},
+				"source":    {Value: request.Source, Content: source},
+			}, nil
+		},
+	)
+}
+
+// editExecutor serves LiveEdit requests through a director: a clip-form
+// request resolved and handed over as the value it is, a resolved one as the
+// text it arrived as.
+func editExecutor(director *editDirector, err error) capabilityruntime.Executor {
+	return resolveEditForm(latentvideo.ResolveClipRequest, sessionExecutor(director, err),
+		func(ctx context.Context, store artifact.Repository, path string, selection modelrecipe.CapabilityEvidenceSelection, request latentvideo.ReferenceEditRequest, kept artifact.Content) (any, error) {
+			if err != nil {
+				return nil, err
+			}
+			return director.ExecuteInput(ctx, store, path, selection, request, kept)
+		})
 }
 
 func resolveVideoSource(path string) (Source, error) {

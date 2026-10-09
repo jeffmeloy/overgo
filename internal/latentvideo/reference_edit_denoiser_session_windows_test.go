@@ -54,7 +54,10 @@ func TestLiveEditRetainedDenoiser(t *testing.T) {
 	}
 	context := readRetainedDenoiserF32(t, testutil.FixturePath(t, "wan", "raw", "g1_cond_context.f32le"), base.TextLen*base.Dim)
 	started := time.Now()
-	session, err := newReferenceEditDenoiserCUDASession(t.Context(), checkpoint, geometry, 2, 1, 1, 2, 0, context)
+	session, err := newReferenceEditDenoiserCUDASession(t.Context(), checkpoint, geometry, 2, 1, 1, 2, 0)
+	if err == nil {
+		err = session.projectContext(context)
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +118,10 @@ func TestLiveEditRetainedDenoiser(t *testing.T) {
 		t.Fatal(err)
 	}
 	session = nil
-	fresh, err := newReferenceEditDenoiserCUDASession(t.Context(), checkpoint, geometry, 2, 1, 1, 2, 0, context)
+	fresh, err := newReferenceEditDenoiserCUDASession(t.Context(), checkpoint, geometry, 2, 1, 1, 2, 0)
+	if err == nil {
+		err = fresh.projectContext(context)
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +175,10 @@ func TestLiveEditRetainedDenoiserReplaysExactly(t *testing.T) {
 	}
 	layers := 2
 	context := readRetainedDenoiserF32(t, testutil.FixturePath(t, "wan", "raw", "g1_cond_context.f32le"), base.TextLen*base.Dim)
-	session, err := newReferenceEditDenoiserCUDASession(t.Context(), checkpoint, geometry, layers, 3, 21, 21, 0, context)
+	session, err := newReferenceEditDenoiserCUDASession(t.Context(), checkpoint, geometry, layers, 3, 21, 21, 0)
+	if err == nil {
+		err = session.projectContext(context)
+	}
 	if err != nil {
 		t.Fatal(err)
 	}

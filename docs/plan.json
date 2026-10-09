@@ -14,13 +14,6 @@
       },
       "steps": [
         {
-          "id": "handoff",
-          "title": "Hand a resolved edit to its session as it stands, and keep the session across instructions and seeds",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/mediacapability -count=1 -run '^TestServedEditKeepsItsSession$'",
-          "rationale": "Finding 71cd0c71. Two parts of a served edit are cost the request's own handling adds, and the model's own code has neither (internal/mediacapability TestServedEditStageTimes names both).\n\nThe resolved request is written and read as text. The capability resolves a clip-form request, a prompt and a clip's artifact, into the condition and the clip's decoded pixels, then writes that as JSON for the session director, which reads it back and writes each input again to take its digest: 25 million pixel values as decimal text, 0.8 seconds to write, 5.0 to read and 2.7 to identify, 8.5 seconds of a 41-second request. The run already keeps the clip form as its request, since the resolved one is over the bound a run retains whole.\n\nThe session is loaded again for every request. ReferenceEditRequest.SessionKey takes the text context, the seed and the schedule into the key that names a resident session, and the runtime is built with the context inside it, so an edit with another instruction, or the same instruction and another seed, finds no session and loads the edit checkpoint, the autoencoder and the denoiser again: 4.4 seconds each time, and the session the last request used is evicted for it. The model's own code loads once and edits any instruction.\n\nThe step hands the resolved request to its session as the values it is, with the identity a run records taken from the clip's artifact and the condition and not from text of the pixels, and makes the instruction's context and the seed things a request gives a resident session and not things a session is made of. What a run records must still name the request exactly: an identical request is answered from the store, and a different one never is. Its test serves three edits, another instruction and then another seed, and holds that the second and third loaded nothing (their measured load is zero) and that each edit is the edit a fresh session makes of the same request, byte for byte.\n\nServes: generate. Disappears: thirteen seconds of every edit that are neither the model nor the clip. Evidence: the parts' times before and after. Batch: device."
-        },
-        {
           "id": "prompt",
           "title": "Encode a prompt in the time its tokens take, and a prompt already encoded not at all",
           "status": "open",

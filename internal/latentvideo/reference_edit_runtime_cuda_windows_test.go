@@ -20,7 +20,9 @@ const (
 	liveEditDeviceFrameOracle  = "19b2104b562a8fc93848aecf65737b58e9b50e0534dc96f85ffb1beb780061b1"
 )
 
-func newLiveEditRuntimeFixture(t *testing.T) (*referenceEditRuntime, []float32, []float32) {
+// newLiveEditRuntimeFixture gives a runtime, and the text context, source
+// clip and initial noise its tests run it on.
+func newLiveEditRuntimeFixture(t *testing.T) (*referenceEditRuntime, []float32, []float32, []float32) {
 	t.Helper()
 	sourceShape := SourceVideoShape{Channels: 3, Frames: 5, Height: 16, Width: 32}
 	source := loadRealSourceCrops(t, sourceShape)
@@ -47,7 +49,7 @@ func newLiveEditRuntimeFixture(t *testing.T) (*referenceEditRuntime, []float32, 
 		Source:         sourceShape,
 		FramesPerChunk: 1, LocalAttentionFrames: 1,
 		Timesteps: []int64{900}, Sigmas: sigmas, ContextTimestep: 0,
-		Layers: base.NumLayers, DeviceOrdinal: 0, TextContext: context,
+		Layers: base.NumLayers, DeviceOrdinal: 0,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -58,18 +60,18 @@ func newLiveEditRuntimeFixture(t *testing.T) (*referenceEditRuntime, []float32, 
 		}
 	})
 	initial := loadRetainedDenoiserCurrent(t)
-	return runtime, source, initial
+	return runtime, context, source, initial
 }
 
 func TestLiveEditDeviceRuntime(t *testing.T) {
 	cudatest.Require(t)
 	// Exact outputs and owned counters need shared correctness admission only.
-	runtime, source, initial := newLiveEditRuntimeFixture(t)
+	runtime, text, source, initial := newLiveEditRuntimeFixture(t)
 	var priorFrameHash string
 	for run := range 2 {
 		var frames [][]float32
 		started := time.Now()
-		result, err := runtime.Run(t.Context(), source, initial, func(_ int, frame []float32, height, width int) error {
+		result, err := runtime.Run(t.Context(), text, 0, source, initial, func(_ int, frame []float32, height, width int) error {
 			if height != 16 || width != 32 {
 				t.Fatalf("decoded frame shape=%dx%d", height, width)
 			}

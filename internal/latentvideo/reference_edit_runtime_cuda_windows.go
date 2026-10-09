@@ -18,6 +18,7 @@ import (
 )
 
 // ReferenceEditRuntimeConfig binds one real LiveEdit artifact and geometry.
+// Nothing of a request's instruction or seed is in it: Run is given those.
 type ReferenceEditRuntimeConfig struct {
 	WanDirectory, EditCheckpoint string
 	Policy                       DenoiserPolicy
@@ -29,8 +30,6 @@ type ReferenceEditRuntimeConfig struct {
 	Sigmas                       []float32
 	ContextTimestep              int64
 	Layers, DeviceOrdinal        int
-	Seed                         int64
-	TextContext                  []float32
 }
 
 type referenceEditRuntimeResult struct {
@@ -49,21 +48,24 @@ type referenceEditRuntimeResult struct {
 type referenceEditRuntime struct {
 	mu sync.Mutex
 
-	config            ReferenceEditRuntimeConfig
-	base              DenoiserConfig
-	checkpoint        referenceEditCheckpoint
-	sourcePlan        sourceCodecPlan
-	editPlan          editPlan
-	encoder           *vaeEncoderCUDASession
-	denoiser          *referenceEditDenoiserCUDASession
-	decoder           *vaeDecoderCUDASession
-	sourceFingerprint [sha256.Size]byte
-	sourceLatent      []float32
-	sourceStats       sourceEncodeStats
+	config     ReferenceEditRuntimeConfig
+	base       DenoiserConfig
+	checkpoint referenceEditCheckpoint
+	sourcePlan sourceCodecPlan
+	editPlan   editPlan
+	encoder    *vaeEncoderCUDASession
+	denoiser   *referenceEditDenoiserCUDASession
+	decoder    *vaeDecoderCUDASession
+	// contextFingerprint names the text context the denoiser holds the keys
+	// and values of; none before the first run.
+	contextFingerprint [sha256.Size]byte
+	sourceFingerprint  [sha256.Size]byte
+	sourceLatent       []float32
+	sourceStats        sourceEncodeStats
 }
 
 func NewReferenceEditRuntime(config ReferenceEditRuntimeConfig) (runtime *referenceEditRuntime, err error) {
-	if config.WanDirectory == "" || config.EditCheckpoint == "" || len(config.TextContext) == 0 || len(config.Timesteps) == 0 || len(config.Sigmas) != len(config.Timesteps) {
+	if config.WanDirectory == "" || config.EditCheckpoint == "" || len(config.Timesteps) == 0 || len(config.Sigmas) != len(config.Timesteps) {
 		return nil, errors.New("reference edit runtime: incomplete config")
 	}
 	base, err := LoadDenoiserConfig(config.WanDirectory, config.Policy)
@@ -135,7 +137,7 @@ func NewReferenceEditRuntime(config ReferenceEditRuntimeConfig) (runtime *refere
 	if err == nil {
 		runtime.denoiser, err = newReferenceEditDenoiserCUDASession(
 			context.Background(), checkpoint, chunkGeometry, config.Layers,
-			config.FramesPerChunk, config.LocalAttentionFrames, latent.LatentFrames, config.DeviceOrdinal, config.TextContext,
+			config.FramesPerChunk, config.LocalAttentionFrames, latent.LatentFrames, config.DeviceOrdinal,
 		)
 	}
 	if err != nil {
@@ -149,7 +151,12 @@ func NewReferenceEditRuntime(config ReferenceEditRuntimeConfig) (runtime *refere
 	return runtime, err
 }
 
-func (r *referenceEditRuntime) Run(ctx context.Context, source, initialNoise []float32, sink VideoFrameSink) (result referenceEditRuntimeResult, err error) {
+// Run edits a source clip under one request's condition: the text context of
+// its instruction and the seed its noise is drawn from. The denoiser keeps the
+// keys and values of the context it was last given and projects another only
+// when a request's differs, as the encoder keeps the latent of the source it
+// was last given.
+func (r *referenceEditRuntime) Run(ctx context.Context, textContext []float32, seed int64, source, initialNoise []float32, sink VideoFrameSink) (result referenceEditRuntimeResult, err error) {
 	if r == nil {
 		return result, errors.New("reference edit runtime: closed")
 	}
@@ -167,7 +174,16 @@ func (r *referenceEditRuntime) Run(ctx context.Context, source, initialNoise []f
 	if err := r.denoiser.ResetHistory(); err != nil {
 		return result, err
 	}
-	noise, err := newEditNoiseStream(r.config.Seed, r.config.DeviceOrdinal)
+	if given := sha256.Sum256(driver.Bytes(textContext)); given != r.contextFingerprint {
+		projected := processmeasure.Stage(ctx, "text context projected")
+		err := r.denoiser.projectContext(textContext)
+		projected()
+		if err != nil {
+			return result, err
+		}
+		r.contextFingerprint = given
+	}
+	noise, err := newEditNoiseStream(seed, r.config.DeviceOrdinal)
 	if err != nil {
 		return result, err
 	}

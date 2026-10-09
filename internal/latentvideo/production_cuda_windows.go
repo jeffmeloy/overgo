@@ -201,7 +201,7 @@ func LoadLiveEditRuntime(ctx context.Context, store artifact.Reader, path string
 		Source:         SourceVideoShape{Channels: source.Channels, Frames: source.Frames, Height: source.Height, Width: source.Width},
 		FramesPerChunk: condition.FramesPerChunk, LocalAttentionFrames: condition.LocalAttention,
 		Timesteps: condition.Timesteps, Sigmas: condition.Sigmas, ContextTimestep: condition.ContextTimestep,
-		Layers: base.NumLayers, DeviceOrdinal: device.DefaultOrdinal(), Seed: condition.Seed, TextContext: condition.TextContext,
+		Layers: base.NumLayers, DeviceOrdinal: device.DefaultOrdinal(),
 	})
 	if err != nil {
 		return nil, err
@@ -225,7 +225,8 @@ func (r *LiveEditRuntime) Generate(ctx context.Context, request ReferenceEditReq
 	if err != nil {
 		return EncodedVideo{}, err
 	}
-	if _, err := r.runtime.Run(ctx, request.Source.Pixels, request.Condition.InitialNoise, sink.timed(ctx)); err != nil {
+	condition := request.Condition
+	if _, err := r.runtime.Run(ctx, condition.TextContext, condition.Seed, request.Source.Pixels, condition.InitialNoise, sink.timed(ctx)); err != nil {
 		return EncodedVideo{}, err
 	}
 	written := processmeasure.Stage(ctx, "clip written")

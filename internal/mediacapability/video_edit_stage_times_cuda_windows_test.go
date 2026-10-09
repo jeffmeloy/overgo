@@ -3,23 +3,14 @@
 package mediacapability
 
 import (
-	"encoding/json"
-	"os"
 	"strings"
 	"testing"
 	"time"
 
-	"overgo/internal/artifact"
-	"overgo/internal/capabilityruntime"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/latentvideo"
-	"overgo/internal/media"
-	"overgo/internal/modelrecipe"
-	"overgo/internal/modelrecipetest"
 	"overgo/internal/modeltest"
-	"overgo/internal/overgodb"
 	"overgo/internal/processmeasure"
-	"overgo/internal/testutil"
 )
 
 // unnamedShare is the part of a served edit's time that may lie outside every
@@ -27,12 +18,13 @@ import (
 const unnamedShare = 0.05
 
 // servedEditCeiling is the time a served edit of 21 frames may take. It took
-// 75 seconds while the text encoder ran a prompt's padding with the prompt,
-// 41 without, and takes 30 with the autoencoder's convolutions computed in
-// tiles; the ceiling stands under what it took before that, so either cost
+// 75 seconds while the text encoder ran a prompt's padding with the prompt, 41
+// without, 30 with the autoencoder's convolutions computed in tiles, and takes
+// 20 handed to its session as it stands, 12.6 from a session already loaded;
+// the ceiling stands under what it took before that, so any of those costs
 // coming back fails here. The model's own code takes four seconds over the
 // same clip on this device, and each part mended brings the ceiling down.
-const servedEditCeiling = 40 * time.Second
+const servedEditCeiling = 24 * time.Second
 
 // TestServedEditStageTimes says where a served edit's time goes. It serves the
 // edit of one clip of 21 frames at the size the editor was trained at, the
@@ -46,85 +38,30 @@ const servedEditCeiling = 40 * time.Second
 // encoding 0.7 to 1.0, its denoising 2.1 to 2.2 and its decoding 1.25.
 func TestServedEditStageTimes(t *testing.T) {
 	cudatest.Require(t)
-	edit := modeltest.Directory(t, "LiveEdit")
-	wan, checkpoint := latentvideo.LiveEditArtifacts(edit)
-	for _, required := range []string{checkpoint, latentvideo.WanTextConditioningSpec(wan, 1).EncoderCheckpoint} {
-		if _, err := os.Stat(required); err != nil {
-			t.Skipf("UNAVAILABLE: %v", err)
-		}
-	}
-	width, height, err := latentvideo.EditSourceSize(edit)
+	width, height, err := latentvideo.EditSourceSize(modeltest.Directory(t, "LiveEdit"))
 	if err != nil {
-		t.Fatal(err)
+		t.Skipf("UNAVAILABLE: %v", err)
 	}
-	profile, err := latentvideo.ResolveProfile(wan)
-	if err != nil {
-		t.Fatal(err)
-	}
-	profileContent, err := profile.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
-	modelID := testutil.ArtifactID(t, artifact.KindModel, "liveedit-stage-times")
-	definition, err := modelrecipe.ReferenceVideoEditDefinition(modelID, profile.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	program, err := modelrecipe.CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
-	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	publishArtifactExtent(t, store, modelID, edit)
 	const frames = 21
-	plane := height * width
-	source := latentvideo.SourceVideo{
-		Pixels: make([]float32, media.RGBChannels*frames*plane), Channels: media.RGBChannels, Frames: frames, Height: height, Width: width,
-	}
-	for channel := range media.RGBChannels {
-		for frame := range frames {
-			for at := range plane {
-				x, y := at%width, at/width
-				source.Pixels[(channel*frames+frame)*plane+at] = float32((x+2*y+7*frame+40*channel)%width) / float32(width)
-			}
-		}
-	}
-	clip, err := latentvideo.SourceFramesContent(source)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := store.Commit(t.Context(), artifact.Batch{
-		Key: "test/video-edit-stage-times", Contents: []artifact.Content{profileContent, clip},
-	}); err != nil {
-		t.Fatal(err)
-	}
-	capability := videoCapability()
-	execution := modelrecipetest.CandidateExecution(t, store, program)
+	edits := serveEdits(t, "liveedit-stage-times", stripedClip(frames, height, width))
+	service := editService(t)
 	for _, request := range []struct {
-		name string
-		form latentvideo.ReferenceEditRequest
+		name, prompt string
+		seed         int64
 	}{
-		{"nothing loaded", latentvideo.ReferenceEditRequest{Prompt: "turn the stripes green", Seed: 3, SourceArtifact: clip.Descriptor.ID}},
-		{"another instruction", latentvideo.ReferenceEditRequest{Prompt: "turn the stripes into falling snow", Seed: 3, SourceArtifact: clip.Descriptor.ID}},
-		{"another seed", latentvideo.ReferenceEditRequest{Prompt: "turn the stripes into falling snow", Seed: 4, SourceArtifact: clip.Descriptor.ID}},
+		{"nothing loaded", "turn the stripes green", 3},
+		{"another instruction", "turn the stripes into falling snow", 3},
+		{"another seed", "turn the stripes into falling snow", 4},
 	} {
-		raw, err := json.Marshal(request.form)
+		ctx, stages := processmeasure.WithStages(t.Context())
+		clock := processmeasure.NewStopwatch()
+		_, video := edits.serve(ctx, t, service, request.prompt, request.seed)
+		elapsed, err := clock.Elapsed()
 		if err != nil {
 			t.Fatal(err)
 		}
-		ctx, stages := processmeasure.WithStages(t.Context())
-		clock := processmeasure.NewStopwatch()
-		output, err := capability.Execute(ctx, store, edit, execution, string(raw))
-		elapsed, clockErr := clock.Elapsed()
-		if err != nil || clockErr != nil {
-			t.Fatal(err, clockErr)
-		}
-		if video, ok := capabilityruntime.Unwrap(output).(latentvideo.EncodedVideo); !ok || video.Frames != frames || video.Width != width || video.Height != height {
-			t.Fatalf("%s: a served edit is %T %+v", request.name, output, video)
+		if video.Frames != frames || video.Width != width || video.Height != height {
+			t.Fatalf("%s: a served edit is %d frames of %d by %d", request.name, video.Frames, video.Width, video.Height)
 		}
 		wall := time.Duration(elapsed)
 		var report strings.Builder

@@ -45,13 +45,13 @@ type referenceEditDenoiserCUDASession struct {
 	stats                  referenceEditDenoiserStats
 }
 
-// newReferenceEditDenoiserCUDASession compiles each bounded prefix shape.
+// newReferenceEditDenoiserCUDASession compiles each bounded prefix shape. The
+// session it gives has no text context yet: projectContext gives it one.
 func newReferenceEditDenoiserCUDASession(
 	ctx context.Context,
 	checkpoint referenceEditCheckpoint,
 	geometry LatentGeometry,
 	layers, framesPerChunk, localAttentionFrames, totalFrames, ordinal int,
-	textContext []float32,
 ) (session *referenceEditDenoiserCUDASession, err error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -134,9 +134,6 @@ func newReferenceEditDenoiserCUDASession(
 		return session, err
 	}
 	if err = session.prepareHistoryCache(totalFrames); err != nil {
-		return session, err
-	}
-	if err = session.projectContext(textContext); err != nil {
 		return session, err
 	}
 	cold.weights = nil
@@ -291,18 +288,28 @@ func (s *referenceEditDenoiserCUDASession) uploadWeights(weights *DenoiserWeight
 	return nil
 }
 
-func (s *referenceEditDenoiserCUDASession) projectContext(textContext []float32) error {
+// projectContext gives the session the text context its chunks attend to:
+// each layer's keys and values of it, kept on the device and bound to every
+// step graph. A session that had a context lets that one's go once the new
+// one is bound, so a resident session edits under one instruction after
+// another.
+func (s *referenceEditDenoiserCUDASession) projectContext(textContext []float32) (err error) {
 	value, err := feedValue(s.cold.contextInput, textContext, "reference edit context")
 	if err != nil {
 		return err
 	}
+	previous := s.contextRetained
 	s.contextRetained, err = s.cuda.ExecuteRetainedCompiled(
 		s.ctx, s.contextExecution.Graph,
 		map[*tensor.Tensor]reference.Value{s.cold.contextInput: value},
 		s.contextExecution.Inputs, nil, nil,
 	)
 	if err != nil {
+		s.contextRetained = previous
 		return err
+	}
+	if previous != nil {
+		defer func() { err = errors.Join(err, previous.Release(context.WithoutCancel(s.ctx))) }()
 	}
 	targets := []struct {
 		program   *DenoiserProgram
@@ -341,6 +348,9 @@ func (s *referenceEditDenoiserCUDASession) RunChunk(ctx context.Context, patchTo
 	}
 	if s == nil || s.cuda == nil {
 		return nil, errors.New("reference edit denoiser: closed")
+	}
+	if s.contextRetained == nil {
+		return nil, errors.New("reference edit denoiser: no text context is projected")
 	}
 	program, execution := s.cold, s.coldExecution
 	if checked.Nonzero(startFrame) {

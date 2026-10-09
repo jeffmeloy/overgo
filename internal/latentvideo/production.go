@@ -3,7 +3,9 @@ package latentvideo
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	_ "embed"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,6 +19,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
+	"overgo/internal/cuda/driver"
 	"overgo/internal/media"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/processmeasure"
@@ -398,26 +401,78 @@ func ValidateReferenceEditRequest(request ReferenceEditRequest) error {
 	return nil
 }
 
-// SessionKey identifies reusable resident state for the request.
+// SessionKey identifies reusable resident state for the request: the clip's
+// shape and the edit's schedule, which a resident runtime is compiled for. The
+// instruction's context and the seed are not in it. A request gives them to a
+// resident runtime (referenceEditRuntime.Run), so an edit with another
+// instruction or another seed loads nothing.
 func (request ReferenceEditRequest) SessionKey() (string, error) {
-	content, err := artifact.JSONContent(artifact.JSONContract(artifact.KindFile, "overgo.liveedit-session-policy.v1"), struct {
-		Context  []float32 `json:"context"`
+	content, err := artifact.JSONContent(artifact.JSONContract(artifact.KindFile, "overgo.liveedit-session-policy.v2"), struct {
 		Shape    [4]int    `json:"shape"`
 		Chunk    [2]int    `json:"chunk"`
 		Steps    []int64   `json:"steps"`
 		Sigmas   []float32 `json:"sigmas"`
 		Timestep int64     `json:"context_timestep"`
-		Seed     int64     `json:"seed"`
 	}{
-		Context: request.Condition.TextContext,
-		Shape:   [4]int{request.Source.Channels, request.Source.Frames, request.Source.Height, request.Source.Width},
-		Chunk:   [2]int{request.Condition.FramesPerChunk, request.Condition.LocalAttention}, Steps: request.Condition.Timesteps,
-		Sigmas: request.Condition.Sigmas, Timestep: request.Condition.ContextTimestep, Seed: request.Condition.Seed,
+		Shape: [4]int{request.Source.Channels, request.Source.Frames, request.Source.Height, request.Source.Width},
+		Chunk: [2]int{request.Condition.FramesPerChunk, request.Condition.LocalAttention}, Steps: request.Condition.Timesteps,
+		Sigmas: request.Condition.Sigmas, Timestep: request.Condition.ContextTimestep,
 	})
 	if err != nil {
 		return "", err
 	}
 	return "liveedit:" + content.Descriptor.ID.String(), nil
+}
+
+// editConditionRecord and sourceVideoRecord are what a run records of an
+// edit's condition and of its source clip in place of their tensors: the
+// settings whole, and each tensor as its length and the digest of its values'
+// bytes.
+type editConditionRecord struct {
+	TextContext     tensorRecord `json:"text_context"`
+	InitialNoise    tensorRecord `json:"initial_noise"`
+	FramesPerChunk  int          `json:"frames_per_chunk"`
+	LocalAttention  int          `json:"local_attention_frames"`
+	Timesteps       []int64      `json:"timesteps"`
+	Sigmas          []float32    `json:"sigmas"`
+	ContextTimestep int64        `json:"context_timestep"`
+	Seed            int64        `json:"seed"`
+}
+
+type sourceVideoRecord struct {
+	Pixels   tensorRecord `json:"pixels"`
+	Channels int          `json:"channels"`
+	Frames   int          `json:"frames"`
+	Height   int          `json:"height"`
+	Width    int          `json:"width"`
+}
+
+type tensorRecord struct {
+	Elements int    `json:"elements"`
+	SHA256   string `json:"sha256"`
+}
+
+func recordTensor(values []float32) tensorRecord {
+	digest := sha256.Sum256(driver.Bytes(values))
+	return tensorRecord{Elements: len(values), SHA256: hex.EncodeToString(digest[:])}
+}
+
+// Record names a condition exactly without holding its tensors. A clip's
+// pixels at the size an editor is trained at are 25 million values, and a
+// document of them took longer to write and read back than the edit took to
+// denoise; a digest of their bytes names them as exactly in a tenth of a
+// second.
+func (c ReferenceEditCondition) Record() editConditionRecord {
+	return editConditionRecord{
+		TextContext: recordTensor(c.TextContext), InitialNoise: recordTensor(c.InitialNoise),
+		FramesPerChunk: c.FramesPerChunk, LocalAttention: c.LocalAttention,
+		Timesteps: c.Timesteps, Sigmas: c.Sigmas, ContextTimestep: c.ContextTimestep, Seed: c.Seed,
+	}
+}
+
+// Record names a source clip exactly without holding its pixels.
+func (s SourceVideo) Record() sourceVideoRecord {
+	return sourceVideoRecord{Pixels: recordTensor(s.Pixels), Channels: s.Channels, Frames: s.Frames, Height: s.Height, Width: s.Width}
 }
 
 type wanPlan struct{ request WanRequest }

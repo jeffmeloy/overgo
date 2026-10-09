@@ -71,7 +71,7 @@ func TestVideoGenerationLeadership(t *testing.T) {
 		Source:         latentvideo.SourceVideoShape{Channels: 3, Frames: 81, Height: 480, Width: 832},
 		FramesPerChunk: 3, LocalAttentionFrames: 21,
 		Timesteps: []int64{1000, 750, 500, 250}, Sigmas: sigmas,
-		Layers: 30, DeviceOrdinal: 0, Seed: 42, TextContext: context,
+		Layers: 30, DeviceOrdinal: 0,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -88,7 +88,7 @@ func TestVideoGenerationLeadership(t *testing.T) {
 			t.Fatal(err)
 		}
 		started := time.Now()
-		result, err := runtime.Run(t.Context(), source, nil, encoder.Add)
+		result, err := runtime.Run(t.Context(), context, 42, source, nil, encoder.Add)
 		wall := time.Since(started)
 		if err != nil {
 			_ = encoder.Close()

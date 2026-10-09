@@ -480,13 +480,56 @@ func (c *ModelSessionDirector[Input, Model, Output]) execute(
 		return zero, err
 	}
 	program := execution.Program
-	modelID := program.Definition().Model
 	read := processmeasure.Stage(ctx, "request read")
-	input, content, err := decodeJSONInput(c.name, c.validate, modelID, program, raw)
+	input, content, err := decodeJSONInput(c.name, c.validate, program.Definition().Model, program, raw)
 	read()
 	if err != nil {
 		return zero, err
 	}
+	return c.serve(ctx, store, path, execution, input, content)
+}
+
+// ExecuteInput serves a request its caller holds as a value, and records
+// content as the request the run was given. A request resolved from another
+// form is handed over as it stands: one that carries a clip's pixels is
+// hundreds of megabytes as text, and writing and reading that took longer
+// than the model. The content names the request exactly, since an identical
+// one is answered from the store by it.
+func (c *ModelSessionDirector[Input, Model, Output]) ExecuteInput(
+	ctx context.Context,
+	store artifact.Repository,
+	path string,
+	execution modelrecipe.CapabilityEvidenceSelection,
+	input Input,
+	content artifact.Content,
+) (any, error) {
+	var zero Output
+	if c == nil {
+		return zero, ErrSessionUnavailable
+	}
+	execution, err := c.refreshExecution(ctx, store, execution)
+	if err != nil {
+		return zero, err
+	}
+	if err := errors.Join(c.validate(input), content.Validate()); err != nil {
+		return zero, err
+	}
+	return c.serve(ctx, store, path, execution, input, content)
+}
+
+// serve runs a decoded, valid request under an execution whose authority is
+// current.
+func (c *ModelSessionDirector[Input, Model, Output]) serve(
+	ctx context.Context,
+	store artifact.Repository,
+	path string,
+	execution modelrecipe.CapabilityEvidenceSelection,
+	input Input,
+	content artifact.Content,
+) (any, error) {
+	var zero Output
+	program := execution.Program
+	modelID := program.Definition().Model
 	definition, resources := program.Definition(), execution.Resources
 	identified := processmeasure.Stage(ctx, "request inputs identified")
 	inputs, err := c.inputs(input, content, definition)

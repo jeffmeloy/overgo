@@ -15,7 +15,7 @@ import (
 func TestLiveEditCancellationRecovery(t *testing.T) {
 	cudatest.Require(t)
 	// Assertions use owned allocations and exact outputs; shared admission suffices.
-	runtime, source, initial := newLiveEditRuntimeFixture(t)
+	runtime, text, source, initial := newLiveEditRuntimeFixture(t)
 	workers := []*device.Worker{runtime.encoder.codec.worker, runtime.denoiser.worker, runtime.decoder.worker}
 	libraries := make([]*driver.Library, len(workers))
 	for index, worker := range workers {
@@ -26,7 +26,7 @@ func TestLiveEditCancellationRecovery(t *testing.T) {
 	generate := func(t testing.TB) {
 		t.Helper()
 		var frames [][]float32
-		result, err := runtime.Run(t.Context(), source, initial, func(_ int, frame []float32, _, _ int) error {
+		result, err := runtime.Run(t.Context(), text, 0, source, initial, func(_ int, frame []float32, _, _ int) error {
 			frames = append(frames, append([]float32(nil), frame...))
 			return nil
 		})
@@ -52,7 +52,7 @@ func TestLiveEditCancellationRecovery(t *testing.T) {
 			ctx, cancel := cudatest.CancelAfterDeviceWork(t.Context(), libraries[index])
 			defer cancel(context.Canceled)
 			frames := 0
-			_, err := runtime.Run(ctx, source, initial, func(_ int, _ []float32, _, _ int) error { frames++; return nil })
+			_, err := runtime.Run(ctx, text, 0, source, initial, func(_ int, _ []float32, _, _ int) error { frames++; return nil })
 			if !errors.Is(err, context.Canceled) || frames != 0 {
 				t.Fatalf("%s cancellation err=%v published_frames=%d", phase, err, frames)
 			}
@@ -72,7 +72,7 @@ func TestLiveEditCancellationRecovery(t *testing.T) {
 		ctx, cancel := context.WithCancelCause(t.Context())
 		defer cancel(context.Canceled)
 		frames := 0
-		_, err := runtime.Run(ctx, source, initial, func(_ int, _ []float32, _, _ int) error { frames++; cancel(context.Canceled); return nil })
+		_, err := runtime.Run(ctx, text, 0, source, initial, func(_ int, _ []float32, _, _ int) error { frames++; cancel(context.Canceled); return nil })
 		if !errors.Is(err, context.Canceled) || frames != 1 {
 			t.Fatalf("frame publication cancellation err=%v frames=%d", err, frames)
 		}

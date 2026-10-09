@@ -239,11 +239,13 @@ func (r *LiveEditRuntime) Generate(ctx context.Context, request ReferenceEditReq
 	return video, err
 }
 
-// timed is the encoder's Add with the drawing of each frame timed as a part
-// of the request the context carries a ledger for.
+// timed is the encoder's Add with the taking of each frame timed as a part
+// of the request the context carries a ledger for. The frames are drawn by
+// workers beside the decoding, and what is left of the drawing when the last
+// frame is in is waited for under the clip's writing.
 func (s *gifEncoder) timed(ctx context.Context) VideoFrameSink {
 	return func(index int, frame []float32, height, width int) error {
-		defer processmeasure.Stage(ctx, "clip frame drawn")()
+		defer processmeasure.Stage(ctx, "clip frame taken")()
 		return s.Add(index, frame, height, width)
 	}
 }

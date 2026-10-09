@@ -1,24 +1,183 @@
 {
-  "campaign": "Integrated validation, phase 2: bounded capability gains and evidence-gated simplification",
-  "doctrine": "overgo improves models, and itself, through its own inference and training, unattended. Every row closes or speeds up the improvement loop (measure, find the gap, train or change, judge on held-out data, promote or revert), or directly serves inference or training; otherwise it is not filed. The milestone is the loop itself (improvement-loop): from there, the scorecard's gaps generate the work. Progress is counted in promotions, not landings: a cycle that measured, trained or changed, judged on held-out data and moved main. While main trails the landings since its last promotion, rows that close the cycle rank above rows that only harden or slim it, and a cycle that cannot finish (killed, withheld) outranks every other row.\n\nFinish partly landed rows before opening new ones. A consolidation reuses an existing owner and deletes the implementations it replaces in the same landing. A new shared component is allowed only when no existing owner can serve several real consumers, and it must remove more than it adds.\n\nOne meaningful run serves every obligation whose identity and contract match: it is written once, as one record with many readers. A run never judges what it produced, and a run leaves its evidence complete by its own contract (every protocol a suite's acceptance asks for), never half-written for a later landing to trip on.\n\nThe landing gate judges the commit; the improvement cycle judges the models. The gate's verdict depends only on the tree: unit, golden, hermetic-fixture and small-device checks. Suites that load real models, read the live store's evidence or sweep the device belong to the cycle, declared by build tag, and promotion of main requires them on the commit it promotes; a store write never changes a landing's verdict. A change's landing cost is read from its diff as three independent effects: the lanes it reaches, whether it expires the inference-surface guards, and whether it needs a pinned-media reconciliation. Lanes are the main cost, so false lane reach is cut. A surface move also expires every evaluation bound to the surface, so the re-evaluation it forces counts in its cost: surface changes are batched and land before an evaluation run, never between its runs, and the guards are re-acquired once after the last of them. A batch is one coherent change, normally one to three related rows, closed before it delays a user-facing result that is ready: an operating limit, not a gate. Dependency work is verified twice, separately: its build and test closure, and the guard surface, which stops at overgodb and runrecord. A saving is the net recurring cost removed, after the replacement tests and their maintenance. A check retires only when its replacement covers the check's actual acceptance contract, whether it moves to the cycle or is deleted; the landing scorecard reports and never refuses, so it replaces no check. The gate writes all numbers; messages name causes, effects and what disappears.\n\nA step's verify fails before the change and passes after; a verify that already passes proves nothing, so a boundary is proved by the table row that fails today. Before a landing, what the gate refuses cheaply is run locally first: the claims check after any hand edit, the invariant tables, the rules' budget and exports, and the step's verify. A refusal found after the lanes costs an hour, and a retried landing rebuilds an identical gate binary.\n\nEach row's rationale carries four plain lines: Serves (the loop stage, or the model or capability it runs or trains), Disappears (the owner reused, the implementations deleted, the tests retired or kept), Evidence (the run and record it reads or produces, and who else reads that record), Batch (the lanes its diff reaches, whether it expires the guards, and whether it needs a media reconciliation: three independent effects, each checked against the diff).\n\nLanding speed is protected by observing it, not by a rule. Each structural boundary (a changed path's lanes, a package kept off the inference surface, a suite kept to the cycle) is pinned as an invariant row in one table per kind, never as a new test function or a snapshot of today's lists. At each periodic review the gate's measured lines in git log are read: the share of landings that reached no lane, lane minutes per landing, and executed versus cached package counts. A rise means a misplaced check or a new false reach, fixed by moving it and adding a table row. There are no time budgets or timeouts, no ratchet baselines, and no separate tracking subsystem.\n\nTraining research is measured at the lowest cost that answers the question, reusing what exists. Optimizer math stays on the device: host Muon on the tied embedding cost about 98 s a step, and moving it took a 540-step run from about 21 hours to 6 minutes. During training only scalars cross to the host (losses, norms, brake decisions), never weights or gradients per step. Reuse comes before acquiring: cached base losses keyed by the exact window plan, existing checkpoints, held-out sets and the verdict code, before any new dataset, pass or tool. An evaluation beats a training run, a norm beats a decomposition, and a one-time computation beats a per-step one. For a training rate question the order is: post-hoc tests on existing checkpoints, then the held-out brake from the training forward against cached base losses, then a per-layer relative step size, and per-direction spectral scaling last.\n\nUser-journey performance (owner, 2026-10-05). Optimize complete journeys, measured as action to usable result: submit to first visible answer, cold model selection to usable response, cancel to actual resource release, interrupted cycle to useful progress, with loading, admission wait, execution, publication and rendering kept apart. Start from the existing native benchmarks, allocation counts and CPU profiles of repeated reads, model loads, allocations and evidence reconstruction, and keep added instrumentation only when it explains a real elapsed-time gain. In the development loop one valid gate execution is shared by every compatible plan step and obligation, and validation and reuse are scoped by the actual dependencies (kernels, generated and embedded data, models, recipes, environment, subprocess effects); an unknown dependency keeps the broader coverage. A gain is judged against total maintenance cost (production code, tests, fixtures, instrumentation, gate work and upkeep): remove repeated processing through existing owners, and decline small gains that need disproportionate machinery. Prove with behavioral regression tests and comparable benchmarks, never a new performance ratchet, selector or framework.",
+  "campaign": "Reduce the surface of execution, evidence and development while capability and pace grow",
+  "doctrine": "overgo improves models, and itself, through its own inference and training, unattended. Every row closes or speeds up the improvement loop (measure, find the gap, train or change, judge on held-out data, promote or revert), or directly serves inference or training; otherwise it is not filed. The milestone is the loop itself (improvement-loop): from there, the scorecard's gaps generate the work. Progress is counted in promotions, not landings: a cycle that measured, trained or changed, judged on held-out data and moved main. While main trails the landings since its last promotion, rows that close the cycle rank above rows that only harden or slim it, and a cycle that cannot finish (killed, withheld) outranks every other row.\n\nFinish partly landed rows before opening new ones. A consolidation reuses an existing owner and deletes the implementations it replaces in the same landing. A new shared component is allowed only when no existing owner can serve several real consumers, and it must remove more than it adds.\n\nOne meaningful run serves every obligation whose identity and contract match: it is written once, as one record with many readers. A run never judges what it produced, and a run leaves its evidence complete by its own contract (every protocol a suite's acceptance asks for), never half-written for a later landing to trip on.\n\nThe landing gate judges the commit; the improvement cycle judges the models. The gate's verdict depends only on the tree: unit, golden, hermetic-fixture and small-device checks. Suites that load real models, read the live store's evidence or sweep the device belong to the cycle, declared by build tag, and promotion of main requires them on the commit it promotes; a store write never changes a landing's verdict. A change's landing cost is read from its diff as three independent effects: the lanes it reaches, whether it expires the inference-surface guards, and whether it needs a pinned-media reconciliation. Lanes are the main cost, so false lane reach is cut. A surface move also expires every evaluation bound to the surface, so the re-evaluation it forces counts in its cost: surface changes are batched and land before an evaluation run, never between its runs, and the guards are re-acquired once after the last of them. A batch is one coherent change, normally one to three related rows, closed before it delays a user-facing result that is ready: an operating limit, not a gate. Dependency work is verified twice, separately: its build and test closure, and the guard surface, which stops at overgodb and runrecord. A saving is the net recurring cost removed, after the replacement tests and their maintenance. A check retires only when its replacement covers the check's actual acceptance contract, whether it moves to the cycle or is deleted; the landing scorecard reports and never refuses, so it replaces no check. The gate writes all numbers; messages name causes, effects and what disappears.\n\nA step's verify fails before the change and passes after; a verify that already passes proves nothing, so a boundary is proved by the table row that fails today. Before a landing, what the gate refuses cheaply is run locally first: the claims check after any hand edit, the invariant tables, the rules' budget and exports, and the step's verify. A refusal found after the lanes costs an hour, and a retried landing rebuilds an identical gate binary.\n\nEach row's rationale carries four plain lines: Serves (the loop stage, or the model or capability it runs or trains), Disappears (the owner reused, the implementations deleted, the tests retired or kept), Evidence (the run and record it reads or produces, and who else reads that record), Batch (the lanes its diff reaches, whether it expires the guards, and whether it needs a media reconciliation: three independent effects, each checked against the diff).\n\nLanding speed is protected by observing it, not by a rule. Each structural boundary (a changed path's lanes, a package kept off the inference surface, a suite kept to the cycle) is pinned as an invariant row in one table per kind, never as a new test function or a snapshot of today's lists. At each periodic review the gate's measured lines in git log are read: the share of landings that reached no lane, lane minutes per landing, and executed versus cached package counts. A rise means a misplaced check or a new false reach, fixed by moving it and adding a table row. There are no time budgets or timeouts, no ratchet baselines, and no separate tracking subsystem.\n\nTraining research is measured at the lowest cost that answers the question, reusing what exists. Optimizer math stays on the device: host Muon on the tied embedding cost about 98 s a step, and moving it took a 540-step run from about 21 hours to 6 minutes. During training only scalars cross to the host (losses, norms, brake decisions), never weights or gradients per step. Reuse comes before acquiring: cached base losses keyed by the exact window plan, existing checkpoints, held-out sets and the verdict code, before any new dataset, pass or tool. An evaluation beats a training run, a norm beats a decomposition, and a one-time computation beats a per-step one. For a training rate question the order is: post-hoc tests on existing checkpoints, then the held-out brake from the training forward against cached base losses, then a per-layer relative step size, and per-direction spectral scaling last.\n\nUser-journey performance (owner, 2026-10-05). Optimize complete journeys, measured as action to usable result: submit to first visible answer, cold model selection to usable response, cancel to actual resource release, interrupted cycle to useful progress, with loading, admission wait, execution, publication and rendering kept apart. Start from the existing native benchmarks, allocation counts and CPU profiles of repeated reads, model loads, allocations and evidence reconstruction, and keep added instrumentation only when it explains a real elapsed-time gain. In the development loop one valid gate execution is shared by every compatible plan step and obligation, and validation and reuse are scoped by the actual dependencies (kernels, generated and embedded data, models, recipes, environment, subprocess effects); an unknown dependency keeps the broader coverage. A gain is judged against total maintenance cost (production code, tests, fixtures, instrumentation, gate work and upkeep): remove repeated processing through existing owners, and decline small gains that need disproportionate machinery. Prove with behavioral regression tests and comparable benchmarks, never a new performance ratchet, selector or framework.\n\nCampaign of 2026-10-09 (owner): reduce the surface of execution, evidence and development while capability and pace grow. Its rows are in this plan before campaign-closeout, tightened by the lead the same day at the owner's word, for the same effect at a faster pace. Steps that change one mechanism land together: the gate's terms with its bound on growth, a session's snapshot with the review mode, a capability's identity with the stored answers keyed by it, a template's limits with its fuzz target, the codec's comparison with its adoption. A measurement already taken retires the step that would take it: of the 55 refusals the checkout records, one was a row's verify (tests 22, rules 20, lanes 8, quarantine 4) and the preflight already runs a verify before a landing is tried, so verify is not moved before the lanes. Work that only waits is filed early: the record of a landing's waits goes with the gate's terms, so its week runs while the rows between are built. The baseline improvement run (go run ./cmd/loop -improve) starts when the row in flight, video-request-speed, closes, so the record every later reading is compared with holds the whole of it; it measures in the cycle's own checkout, and the host rows land while it does. Rows that move a measured surface stand side by side after it, the picture session, capability identity and the template's bounds, and land before the evaluations of evaluation-chain, not between them.\n\nThis campaign keeps Go, CUDA and HTML/JS, and extends an existing owner before it adds one. Each row begins with a measurement and fixes its acceptance before its code is written; a measurement already taken is reused when it is enough. A row deletes the implementation it replaces in the same landing; a reader that records already in the store need stays until those records are migrated. A pilot that is not accepted is taken out of the served path, and its measurements and the reason it was refused are kept.\n\nThe production growth refusal stays. A row with no allowance adds no net production code, which is this campaign's default: a migration deletes at least what it adds. A row that adds a mechanism before it deletes one carries a count, set with the row before its code and read from the commit the change builds on. An item's count is for all its landings together: each landing's growth is charged to it and what is left is what the next may add. Each count here is a ceiling, the present size of the owner the row extends, for the lead to lower when the row's first step reports. Test code, fixtures, record schemas and CUDA source are reported with each landing and not refused; a test is retired only when its replacement catches the same seeded failure.\n\nThe gate judges the candidate tree by hermetic and small-device checks; real-model quality and speed are measured by the cycle. A stored result is reused only under an unchanged identity of the code, model, recipe, data, settings and request it depends on. A request for a fresh measurement always runs, and a dependency that cannot be named keeps the wider scope. Resident resources, compiled execution and a request have separate identities, built by one mechanism into separate keys for sessions, outputs and scores. Eligibility is kept apart from selection, observations from scores, and the records that choose a candidate from the records that confirm it.\n\nThe web client and the store's log are outside this campaign.",
   "lane": "master-lead",
   "items": [
     {
-      "id": "video-request-speed",
-      "title": "Serve a video request in the time the model's own code takes, beginning with where the time goes",
+      "id": "recipe-eligibility",
+      "title": "Keep whether a recipe may be used apart from which recipe is selected",
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 3000,
-        "reason": "A device test that times a served edit by stage, and the mending of the largest stage: by the code as read, keeping the video models' text encoder resident and run on the device where each request now streams it from disk through the host, and a kept context for a prompt already encoded. Found by the owner's double-check of the scorecard, when the edit model's own code was run beside overgo's"
+        "nodes": 373,
+        "reason": "A ceiling, not a target: the present size of internal/trainingworkflow session_authority.go, the admission code the row corrects, counted 2026-10-09 as the gate counts production nodes. It adds one recorded decision and deletes the predicate that stood in for it. The lead lowers it when the first step reports."
       },
       "steps": [
         {
-          "id": "frames",
-          "title": "Draw a clip's frames at once",
+          "id": "do",
+          "title": "Hold a retired recipe ineligible whatever is selected after it",
           "status": "open",
-          "verify": "go test ./internal/latentvideo -count=1 -run '^TestClipFramesDrawnTogetherAreTheSameClip$'",
-          "rationale": "Finding 71cd0c71. A served clip is written as a GIF whose every frame is drawn in a palette cut from that frame and dithered to it (internal/latentvideo NewClipEncoder). Drawing the 21 frames of an 832 by 480 clip takes 3.3 seconds, one frame after another on one worker as the decoder hands each over, inside the decoder's own time on the device (internal/mediacapability TestServedEditStageTimes: clip frame drawn). The frames do not depend on one another: only the count of pixels that changed since the last frame reads two of them, and it reads their bytes, not their palettes.\n\nThe step draws the frames on as many workers as there are frames to draw, and the clip is the same clip byte for byte, which its test holds against the frames drawn one at a time. A clip of 81 frames, the model's own protocol's length, is then 81 frames drawn at once and not thirteen seconds of drawing.\n\nServes: generate. Disappears: three seconds of every clip spent drawing frames one at a time. Evidence: the part's time before and after. Batch: device."
+          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestSelectionNeverRestoresEligibility$'",
+          "rationale": "SQA-099, P1. A recipe retired on failed proof is recorded as superseded and keeps the active alias (internal/modelrecipe lifecycle.go: RetireActiveCapability). When another recipe is activated the alias moves, and supersededBySibling then admits the retired one to training (internal/trainingworkflow session_authority.go); Observer.Verify reads the same exception (session_observation.go). The predicate was added on 2026-10-05 (a44a526d1) for a real case: runs of different objectives, reply, prompts and averaged fine-tunes, alternate on one model and each activates its own recipe. That case stays admitted, and internal/server TestSFTWorkspaceFineTunesTheServedModel keeps passing.\n\nThe rule the step makes true: changing which recipe is selected cannot change whether another recipe is eligible. Eligibility is a recorded decision of its own, and the alias answers only which recipe is selected. Its test generates sequences of fail, retry, select, retire, cancel, restart and replay and compares the store with a small reference model. One sequence is fixed: A is retired, B is selected, A is asked for, and A is refused until a decision makes it eligible. The test is first shown to fail on the present predicate.\n\nServes: train. Disappears: supersededBySibling and its use in Observer.Verify. Evidence: the sequence test, failing before and passing after. Batch: host."
+        },
+        {
+          "id": "lifecycle",
+          "title": "Retire the lifecycle tests whose failures the sequence test catches",
+          "status": "open",
+          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestEveryRetiredLifecycleFailureIsStillCaught$'",
+          "rationale": "The repository holds about 4,900 test functions in 304,417 lines, and the test lines grew by about 29,000 in nine days. recipe-eligibility/do adds one test that generates lifecycle sequences and compares the store with a reference model. The step counts the fixtures and assertions of the recipe lifecycle that it repeats, seeds the failure each of those tests exists to catch, and retires a test only when the sequence test fails on that seed. Tests of one named regression and comparisons with an independent reference stay. A second contract follows only if this one leaves less test code than it found.\n\nServes: change. Disappears: the lifecycle fixtures and assertions whose failures the sequence test catches. Evidence: each seeded failure caught, and the test lines before and after. Batch: host.",
+          "depends_on": [
+            "recipe-eligibility/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "landing-terms",
+      "title": "Judge a change by terms it cannot set, bound what an item may add, and record where a landing waits",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 862,
+        "reason": "A ceiling, not a target: one check the size of admits, four counters the size of productionNodes (internal/landing rules.go) and five more of that size for the five waits a landing records, counted 2026-10-09 as the gate counts production nodes. The lead lowers it when the first step reports."
+      },
+      "steps": [
+        {
+          "id": "terms",
+          "title": "Read a row's budget and verify command from the commit a change builds on, and charge an item's growth across its landings",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^(TestChangeIsJudgedByTheTermsItStartedWith|TestItemsGrowthIsChargedAcrossItsLandings)$'",
+          "rationale": "The gate reads a row's budget and its verify command from the change it is checking (internal/landing landing.go: row reads the candidate's plan), so a change can raise the allowance or replace the check it is judged by. A reason with no count admits any growth (internal/landing rules.go: admits), and evidence-conditioning's budget is such a one. A count is granted whole to every landing of its item (landing.go: row adds the item's nodes for each landing), so an item of four steps may add its count four times. Production Go grew from 351,117 lines on 2026-10-01 to 374,022 on 2026-10-09, and test Go from 275,233 to 304,417, which the rule does not read (rules.go: productionNodes skips test files).\n\nThe step reads a row's budget and verify from the commit the change builds on. A row filed with an earlier landing, as the plan is refactored after each task, is already there; only a row added and closed by one change needs a commit of its own first, which lands on its verify alone. A reason then explains a count and does not replace it, and each open row that has none is given one. A landing charges its growth to its item: the plan it advances carries what is left of the count, so the next landing reads the remainder from the commit it builds on. The gate writes four more figures into each landing's message: test code, CUDA source and kernel entry points, record schemas, and fixtures with their generators; generated output is not counted as written code. Those four are reported and not refused: a change still ships the test that would have caught its failure. Its tests hold that a change that edits its own budget and verify is still held to the earlier ones, and land two steps of one item and hold that the second is refused the growth the first used.\n\nFiled as two steps and tightened to one landing: both change what row reads and what admits allows, and the remainder is read from the commit the gate is first made to read.\n\nServes: change, and judge. Disappears: a change that sets its own terms, and growth without a bound. Evidence: the two tests, and the figures in each landing's message. Batch: host."
+        },
+        {
+          "id": "waits",
+          "title": "Measure where a session's time between landings goes",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestLandingRecordsItsWaitsByCause$'",
+          "rationale": "The gate averaged 4.9 minutes a landing over the last 300, 24.4 hours in nine days, which does not show what limits the pace. Time blocked from editing, time waiting for a turn, time recovering from a conflict, host checks and time waiting for the device are not told apart. The step has a landing record each.\n\nIt is filed here and not with commit-queue, whose other step waits on the owner: the record takes a week of landings to say anything, and the week runs while the rows between are built. A queue still commits one change at a time and is bounded by the gate's own time, so it helps only if editing, and not committing, is what waits; if the record shows otherwise commit-queue is retired. Keeping sessions' files apart does not wait on this measurement: session-isolation/worktrees does that whatever the waits are.\n\nServes: change. Disappears: nothing. Evidence: the waits by cause over a week of landings. Batch: host."
+        }
+      ]
+    },
+    {
+      "id": "session-isolation",
+      "title": "Charge each session with its own work and no other's",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 125,
+        "reason": "A ceiling, not a target: the three functions of the stop gate the item changes, hasTurnCreatedDirt, turnCreatedDirt and turnBaseFile (cmd/loophook main.go), counted 2026-10-09 as the gate counts production nodes. The item keys a snapshot by its session, adds one test of a session's mode and one lock at session start. The lead lowers it when the first step reports."
+      },
+      "steps": [
+        {
+          "id": "sessions",
+          "title": "Keep each session's turn snapshot under its own session, and give a review session a mode in which it edits nothing and is held to no row",
+          "status": "open",
+          "verify": "go test ./cmd/loophook -count=1 -run '^(TestOverlappingSessionsKeepTheirOwnTurnSnapshots|TestReviewSessionIsNotHeldAndAnyOtherRoleIs)$'",
+          "rationale": "The stop gate charges a turn with every file that became dirty after the turn began (cmd/loophook main.go: hasTurnCreatedDirt compares the tree with the turn's first snapshot). The snapshot is one file for the checkout (main.go: turnBaseFile names no session), so when two sessions overlap, each prompt overwrites the other's snapshot and a turn is judged against a baseline it did not take. The step names the file by the session the hook is called for.\n\nWith its own snapshot a session is still charged with the files another session edits during its turn. On 2026-10-09 a review-only session was told to land or revert the lane's uncommitted files at the end of most of its turns, and to continue the lane's dispatched row at the end of the others. The exemption is for review alone and is declared, at session start, as a mode that owns no row. A session of the plan's lane, of another implementing role, or of no role (which is treated as the lane's, internal/plan plan.go) stays held, since each of those can write code and an exemption would hide its unfinished edits. The guard refuses a review session's edits to tracked files, so it has nothing to leave behind, and the session-start text says which kind of session it is. Its tests begin two turns in two sessions and hold that each is judged against its own snapshot, and hold a review session free and each other kind held.\n\nFiled as two steps and tightened to one landing: both key the stop gate's judgment by the session the hook is called for.\n\nServes: change. Disappears: a turn judged against another session's baseline, and a review session's turns spent answering the gate for work it may not touch. Evidence: the two tests' sessions. Batch: host."
+        },
+        {
+          "id": "worktrees",
+          "title": "Hold one implementing session to a worktree, by a lock taken when it starts",
+          "status": "open",
+          "verify": "go test ./cmd/loophook -count=1 -run '^TestSecondImplementingSessionIsSentToAWorktreeOfItsOwn$'",
+          "rationale": "A landing takes the checkout's whole dirty tree as its candidate (internal/landing landing.go: shipSet), so a file a second session leaves in the checkout joins the first session's commit, and neither session's files can be told from the other's. Separate checkouts end both whatever limits the pace, so this step waits on no measurement and on no queue. An implementing session takes its worktree's lock when it starts, as the unattended driver already takes one for a worktree; a second implementing session there is refused and told to open a worktree of its own, and a review session takes none. Whether a second worktree may commit to master is commit-queue's question and the owner's decision; this step only keeps one session's files out of another's commit.\n\nServes: change. Disappears: files of two sessions in one candidate. Evidence: the test's second session, refused in the first one's worktree and admitted in its own. Batch: host.",
+          "depends_on": [
+            "session-isolation/sessions"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "capability-identity",
+      "title": "Reuse a stored result while the code that can change it is unchanged",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 1862,
+        "reason": "A ceiling, not a target: the present size of internal/inferencesurface, the owner the item extends, counted 2026-10-09 as the gate counts production nodes. The steps after the first delete codeScope and the sampled replay. The lead lowers it when the first step reports."
+      },
+      "steps": [
+        {
+          "id": "second-kind",
+          "title": "Keep a second kind of model's session across requests that change only what a request gives",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/mediacapability -count=1 -run '^TestServedPictureKeepsItsSession$'",
+          "rationale": "Commit 527df96d9 took the instruction's context and the seed out of a video session's key (video-request-speed/handoff). Before the split of resident resources, compiled execution and request becomes the rule for every kind, it is measured on one more: picture generation, served through the same session director (internal/mediacapability image_cuda_windows.go). Its test serves three pictures, another prompt and then another seed, and holds that the second and third loaded nothing, that each picture is the picture a fresh session makes, and that a cancelled request releases what it held.\n\nServes: generate. Disappears: a reload for each new prompt or seed, where the measurement finds one. Evidence: the load each request measures. Batch: device."
+        },
+        {
+          "id": "identities",
+          "title": "Give every capability the identity of the code its result depends on, recorded in the executable, and answer a repeated request from the store while it holds",
+          "status": "open",
+          "verify": "go test ./internal/inferencesurface -count=1 -run '^TestCapabilityIdentityMovesOnlyWithItsOwnSources$' \u0026\u0026 go test ./internal/capabilityruntime -count=1 -run '^TestStoredResultIsReusedOnlyUnderItsOwnIdentity$'",
+          "rationale": "internal/inferencesurface already digests the sources text inference depends on (surface.go: surfaceRoots), and the scorecard and the long-form records read it. Stored answers do not: an answer is scoped to the commit, or to the process when the tree is changed (internal/capabilityruntime run_key.go: codeScope). Measured 2026-10-09 over the last 300 commits with today's dependency lists, the store and run records left out as the surface leaves them out: the sources of text, video, picture and speech execution changed on 14 to 16 commits in 100, of evaluation on 33, of the training workflow on 42, of the server command on 55. The commit changed on every one. The figures leave embedded files out and say how often a result would be measured again, not the time that saves.\n\nThe step extends the one digest to an identity for each capability's entry package, with the kernel sources, generated and embedded files, build tags and settings, and loaded libraries its result depends on. A model's files join it where its inventory does not hold them: a video model reads its text encoder's checkpoint and its tokenizer, and neither is in the inventory its identity is made of (internal/mediacapability video_cuda_windows.go: resolveVideoSource), so a changed encoder would answer from the store today. How the identity reaches the executable is the step's first question, since go run and a plain go build record none: the repository's build command counts it from the files it compiles and sets it at link time, and a binary built any other way keeps the scope of its own process, as now. The improvement run starts its measurements with a plain go run in a checkout of the measured commit (cmd/loop improve.go: validateTo), so that launch counts the identities from that checkout and sets them too; without it the run that measures would reuse nothing. A setting read from the environment that changes a result joins the key, and one that is not declared keeps the wider scope: a wrong identity would serve a stale answer and say nothing. Separate keys are built from shared parts: a resident session's key leaves the prompt and the seed out, and a stored output's key holds them.\n\nA stored output is keyed by its capability's execution identity and the exact request and inputs. A stored score is keyed by its observations, its scorer and its protocol. A timing is keyed by its execution identity, its environment and the attempt that measured it. Its first test changes a source outside an identity and holds the identity, then changes a source, an embedded file, a library and a setting inside it and holds that each moves it, and holds that an unstamped build reuses nothing older. Its second holds four cases: after a change outside the identity the request is answered from the store and nothing is scored again; after a change to a scorer alone the scores are computed again and no case is executed; after a change to a model, a kernel or the preprocessing the affected outputs are computed again; and a request for a fresh measurement always runs.\n\nFiled as two steps and tightened to one landing: an identity nothing reads is an export without a consumer, which the gate refuses, and the answers are its first reader.\n\nServes: measure, generate, and judge. Disappears: the commit and process scopes of codeScope for a stamped build. Evidence: the share of recent commits each identity moves on, beside the commit's, and the count of executions and of scorings in each of the four cases. Batch: host and device."
+        },
+        {
+          "id": "carry",
+          "title": "Carry an evaluation while its execution identity is unchanged, and measure it again when it is not",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestMeasurementRunsNoCaseAgainAfterAnUnrelatedCommit$'",
+          "rationale": "A full result is carried today after 32 sampled cases reproduce (internal/evaluation replay.go: replayCases), which shows agreement on those cases and not on the suite; SQA-078 holds that risk. Under an unchanged identity the result is the result, with no replay. Under a changed one the suite is measured again. Its test goes through the improvement run's own launch, in separate processes: it measures, commits a change outside every identity, measures again and holds that no case was executed the second time, then commits a change inside one identity and holds that only that capability's cases were. A result already in the store is re-keyed only when its record names every build and runtime input the identity is made of; the commit alone does not name them all, and any other result is measured once more. The step states how many suites that is and what they cost before it lands. The sampled replay is deleted only when every consumer of a carried result reads the identity; the reader of replay receipts already in the store stays.\n\nServes: judge on held-out data. Disappears: the sampled replay. Evidence: the cases executed by each of the test's three measurements, and the count of suites measured once more for the change of key. Batch: host.",
+          "depends_on": [
+            "capability-identity/identities"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "template-bounds",
+      "title": "Bound what a chat template from a model file may do, and fuzz the engine inside those bounds",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 256,
+        "reason": "A ceiling, not a target: the three global functions a template may call, range, namespace and dict (internal/jinja builtins.go), counted 2026-10-09 as the gate counts production nodes. The step adds a count of work and of bytes, charged where those functions and the loops grow them. The lead lowers it when the step reports."
+      },
+      "steps": [
+        {
+          "id": "limits",
+          "title": "Bound the work and the memory a chat template may take, and fuzz the engine from the templates the served models ship",
+          "status": "open",
+          "verify": "go test ./internal/jinja -count=1 -run '^(TestTemplatePastItsLimitsIsRefused|FuzzTemplate)$'",
+          "rationale": "A chat template arrives inside a model file, so it is input overgo did not write. The engine has no limit on what one may do: its environment holds globals and filters and nothing else (internal/jinja eval.go: Env), and range appends one value for every step it is asked for (builtins.go: rangeGlobal), so one line of a template can take all the memory there is. The step has the engine count its work in steps and its output and intermediate values in bytes, charge both in its loops and its global functions, and return an error past limits the caller declares; the limits are named constants with their reasons, and no clock is read.\n\nNine fuzz targets exist, in seven packages, the GGUF reader and the tokenizer among them. internal/jinja has none. Its 3,836 production lines are held by one test that renders the cases of testdata/semantics.json as Python's Jinja renders them, which covers the templates someone thought to write down. The step adds one target seeded with every served model's template and with malformed, cut-short and boundary templates. The property it holds: a template never panics, and it ends inside the limits or with their error. One bounded run is recorded and each failure it finds is kept as a seed, so the verify replays them. The golden renders stay: a seed shows that a template does not break the engine, and only a render compared with Python's shows that the prompt is the right one. Its tests render a template past each limit and hold the error, render every served model's template inside them, and replay the seeds.\n\nFiled as two steps and tightened to one landing: the fuzz property is the limits, and internal/jinja is in the inference surface, so one landing expires the inference guards once.\n\nServes: generate. Disappears: nothing. Evidence: the refusals at each limit, the steps and bytes each served model's template takes, and the failures the run found, each kept as a seed. Batch: host; the landing expires the inference guards."
+        }
+      ]
+    },
+    {
+      "id": "evaluation-chain",
+      "title": "Judge a trained change on data large enough to see it and never used to choose it",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 1229,
+        "reason": "A ceiling, not a target: the present size of internal/runrecord budget.go, the split and budget records the row gives their first consumers outside the controller, counted 2026-10-09 as the gate counts production nodes. The row was filed with no count, under which its first step, which adds a pool, an acceptance record and a charge and deletes nothing, could not land; observations deletes the copies it replaces. The lead lowers it when the first step reports."
+      },
+      "steps": [
+        {
+          "id": "pool",
+          "title": "Build a held-out pool for one training family, sized from the gain to detect and split by document into the four parts a split already has",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestHeldOutPoolIsSizedForItsDeclaredGain$'",
+          "rationale": "The three training rows that carry a held-out comparison gain about what their uncertainty is: Qwen2.5-0.5B 0.5082 against 0.5001 on 24 cases, tabfm 0.7286 against 0.7238 on 7, the bridge 18.49 against 18.08 on 76 (validate -scorecard, 2026-10-09). Splitting sets this small would weaken them further.\n\nThe split has an owner already. internal/runrecord budget.go binds a dataset to four distinct parts, development, selection, promotion and audit, blinds the last two from the proposer, and grants each a budget of queries that committed charges consume (SplitPartition, Budget, BudgetCharge, ValidateBlinding); the controller's promotion reads it and the change proposer does not. The step builds, for Qwen2.5-0.5B's text objective, a pool split by document into those four parts, from sources its training data does not hold, with duplicates removed, and publishes it as that record. It also writes the acceptance record a confirmation is judged by, before any confirmation is read: the gain, the two error rates, the base, the measure, the decision rule, and the number of confirmations the promotion part may answer, which follows from the error rates under the sequential rule the record names. The 24 fine-tunes on record are development data and confirm nothing; they give what the pool is sized from. The gain to detect is the lead's to state, from the gains those runs show, and the two error rates the verdict accepts, a gain reported that is not there and a gain missed, are named constants with their reasons. The size follows from the three and from the variance measured on the present records, counted in documents and not tokens, since adjacent tokens are not independent. The measure is the paired per-token likelihood of base and candidate on the same records; the task's own measure stays for what likelihood does not show. A verdict is one of three: a gain, a loss, or not enough evidence. The pool is built first from data already on this machine; if that cannot reach the size, the step names the dataset it needs and asks the owner before any download. The 24 present records stay as a regression check.\n\nServes: judge on held-out data. Disappears: nothing; it adds a consumer to the split and budget records and no second partition scheme. Evidence: the pool's size, the gain, error rates and variance it was sized from, the smallest gain it can show, and the budget it grants. Batch: host; the readings of real models belong to the cycle."
+        },
+        {
+          "id": "confirmation",
+          "title": "Confirm a proposed change on records no choice was made from, and charge every confirmation to a budget",
+          "status": "open",
+          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestConfirmationIsChargedAndEntersNoChoice$'",
+          "rationale": "SQA-110. ProposeChange fits its direction to gains measured on the held-out records and judges the candidates on the same records (internal/trainingworkflow change_proposal.go). The step fits on the development part, ranks on the selection part and judges on the promotion part, and only for a candidate and an acceptance record named by identity before the reading; without both it is refused.\n\nOne reading for a proposal does not protect the part across proposals: a loop that reads a verdict, learns from it and proposes again turns the promotion part into selection data one verdict at a time. Every confirmation is therefore a committed charge against the promotion part's budget, the proposer is given the verdict and nothing else of the reading, and when the budget is spent a confirmation is refused until a fresh partition is published; the audit part is read once, at the campaign's end. Its test holds four things: changing promotion labels moves no candidate's weights or rank, and changing selection labels does; a run of proposals is refused at the first confirmation past the budget; a process started again reads the same balance, since it is counted from committed charges; and a candidate changed after its acceptance was fixed is refused.\n\nevidence-conditioning/conditioning reads the same proposer and waits on this step.\n\nServes: judge on held-out data. Disappears: a verdict given on the records that chose the candidate, and confirmations without a count. Evidence: the proposal's verdict on promotion records and the budget's balance after it. Batch: host and device.",
+          "depends_on": [
+            "evaluation-chain/pool"
+          ]
+        },
+        {
+          "id": "observations",
+          "title": "Write each case's observation and each score once, and have every record that needs them refer to them",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestScoringFixRunsNoCaseAgain$'",
+          "rationale": "EvaluationEvidence copies phases and metrics that other records own, and its reader checks that the copies agree (internal/evaluation evidence.go). One evaluator, built from a dataset, a protocol, an execution and a scorer from a short list, writes per-case observations and then scores; each keeps its typed content under one shared envelope, and evidence and acceptance refer to them by identity. The quality floor, memory ceiling, speed target, base and decision rule are fixed in a record before confirmation is read. Its test changes a scorer and holds that no case is executed again, that the same observations are read, and that the decision against the named base is the expected one. Readers of evidence already in the store stay until it is migrated.\n\nServes: judge on held-out data. Disappears: for this family, the copied measurements, the checks that they agree, and the evaluation files the one evaluator replaces. Evidence: the family's scores before and after, equal, and the count of record schemas before and after. Batch: host.",
+          "depends_on": [
+            "capability-identity/identities"
+          ]
         }
       ]
     },
@@ -40,7 +199,69 @@
           "rationale": "Three arms with the same proposer and the same budget: no evidence, the store's current retrieval, and the cut-off reader of the step before. The exact bytes each arm read are recorded. Judged by the held-out objective of the proposer's row; no benefit is a valid outcome and closes the step. A learned encoder of experiment paths is not planned unless the plain reader measurably falls short.\n\nServes: judge on held-out data. Disappears: nothing. Evidence: the held-out score of each arm. Batch: device.",
           "depends_on": [
             "experiment-evidence/retrieval",
-            "latent-change-proposer/proposal"
+            "latent-change-proposer/proposal",
+            "evaluation-chain/confirmation"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "codec-precision",
+      "title": "Hold the video codec to its own code at its own precision, and serve it by the fastest path that does",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 3385,
+        "reason": "A ceiling, not a target: the present size of internal/cuda/cublas, the library binding a cuDNN binding is modelled on, counted 2026-10-09 as the gate counts production nodes. The second step deletes the convolution kernels the adopted path replaces. The lead lowers it when the first step reports."
+      },
+      "steps": [
+        {
+          "id": "adopt",
+          "title": "Time the library's convolution against the codec's kernels at the precision its own code uses, and serve the path that wins",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -count=1 -run '^TestAdoptedCodecPathAgreesWithItsOwnCodeOnASmallClip$'",
+          "rationale": "Commit c1d38123f brought the codec to 3.4 seconds encoding and 3.4 decoding a clip of 21 frames, where its own code takes 0.7 to 1.0 and 1.25, and names what is left: double-precision steps kept to hold the device to its host reference value for value, and float32 sums where its own code runs half precision (finding 24548fb2).\n\nTwo of the three paths the comparison was filed with are measured already, and the step reuses them. The kernels as they are, by kernel, each launch waited for: decoding, convolution 1.7 seconds, normalisation with its SiLU 0.70, attention 0.34, the temporal caches 0.34, the upsampling convolution 0.2; encoding, convolution 1.1, the stride-2 convolution 1.02, normalisation 0.44, attention 0.35, the temporal downsample 0.22, the caches 0.17. The same kernels under the precision the model's own code uses: their arithmetic already runs at the device's full float rate, 0.9 seconds of the decode's 1.7, and half precision reaches the tensor units only through a library, so what that precision buys these kernels is the double-precision steps and no more, about 0.7 seconds of a decode and 1.7 of an encode. The third is the one to time: cuDNN's convolution, loaded as cuBLAS is, from the search path or CUDA_PATH (internal/cuda/cublas cublas_windows.go).\n\nWritten down before the run. The reference is the autoencoder's own code, in float32 on the host for its values and as its repository runs it on the device for its time (scripts/python_golden_references/wan_vae_round_trip.py, liveedit_own_edit.py). The clips are 21 frames and 81 at 832 by 480 and 5 at 32 by 16. The tolerance is the one the served reconstruction is held to today: no value more than two of 255 levels from its own code's, its error within four parts in a hundred of the reference's (internal/mediacapability TestVideoAutoencoderRoundTripMatchesItsOwnCode); the served edit and the generated clip keep their floors against their models' own code (internal/adaptiveparity), and the reconstruction row's held-out reading does not fall by more than its uncertainty. The memory ceiling is the codec's present peak on the device. The speed to reach is its own code's, and a path is adopted only when every bound holds and the whole request is faster over three repetitions a clip, with setup, a plan used again, layout conversion and workspace counted. The record says what a user must install for the library and whether setup-steps holds. The timings are a measurement of real models: they are taken on the device outside the gate and published as a record under docs/verification with the landing, and no landing waits on a clock for them.\n\nOtherwise the present path stays and the record is the result. If the owner keeps only overgo's kernels, the step is the double-precision steps moved to float32 under the tolerance above, where production-precision allows it, or it closes with the record. The step's verify is a small numerical test: the adopted path, through the library binding where it is the library's, agrees with the model's own code on a small clip within the declared tolerance. It holds no time. Float64 references stay for small operation and gradient checks. The library's version and the execution policy join the execution identity. Where a time test stays in the gate, as TestClipCodecKeepsToItsOwnCodesTime is, its ceiling is set with headroom between the time before and the time after, as c1d38123f set it, and not at one run's result. It waits on two owner decisions.\n\nFiled as a comparison and an adoption and tightened to one landing: the comparison's record lands with what it decides, and the host test that read the record back is not written.\n\nServes: generate. Disappears: the convolution kernels the adopted path replaces. Evidence: each path's time, memory and distance from the model's own clip over the written repetitions, the setup each needs, and first-output of both video rows, the reconstruction's held-out quality and setup-steps, before and after. Batch: device; it expires the video guards and needs a media reconciliation.",
+          "depends_on": [
+            "capability-identity/identities"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "shared-numerical-program",
+      "title": "Run and train one dense block from one definition",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "dense-block",
+          "title": "Train an adapter on a dense block through the tensor program, its backward pass built from the operations' own rules",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/densecausal -count=1 -run '^TestDenseBlockTrainsFromItsOneDefinition$'",
+          "rationale": "A model's forward pass on the host, its forward pass on the device and its backward pass are written apart. Eighteen packages define backward functions, hostmath and devicemath among them, and a training program is bound to forward, backward and update functions its trainer supplies (internal/trainingprogram execution.go: BindObjective). tensor.Program is already one graph for both backends, and its planner already tracks lifetimes and aliases (internal/tensor program.go, planner).\n\nThe step first lists the operations the block uses that have no derivative rule and what replacing the block and its adapter trainer costs, and fixes its scope there. It then adds a rule for each of those operations, builds the backward graph in Go, and schedules activations, gradients and Muon's state through the planner. Attention, convolution, normalization and matrix products stay whole operations. The rules and the builder live in a package serving does not import: internal/tensor is in the inference surface and internal/densecausal is not, so the serving records do not expire for a training pilot. It is accepted when the block agrees with the model's own reference; its gradients agree with float64 directional derivatives on small cases; an adapter learns a controlled task and resumes from a checkpoint to the same values; device memory and time are no worse than the paths it replaces; and production code is smaller after the new rules are counted, which is why the row carries no allowance. The code it replaces is in densecausal (3,100 lines), densecausaltrain (407) and loratrain (536), the LoRA trainer on the dense model. If it is not accepted it is taken out of the served path and its measurements are kept. A second family, chosen by how much it deletes and how many rules it shares, is filed only on that result.\n\nServes: train. Disappears: the block's separate host, device and backward code, and the LoRA trainer's. Evidence: the five comparisons above. Batch: device; it reruns the training proofs of the trainers it touches and expires no inference guard."
+        }
+      ]
+    },
+    {
+      "id": "commit-queue",
+      "title": "Let several sessions work at once and one queue commit",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 3336,
+        "reason": "A ceiling, not a target: the present size of internal/landing landing.go, the landing the queue serializes, counted 2026-10-09 as the gate counts production nodes. The queue reuses the landing; it does not write a second one. The lead lowers it when the first step reports."
+      },
+      "steps": [
+        {
+          "id": "queue",
+          "title": "Commit the candidates of several worktrees through one queue",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestTwoWorktreesLandThroughOneQueue$'",
+          "rationale": "With one implementing session to a worktree, each submits a fixed candidate with its base commit and its row. The queue integrates it onto master, checks the tree that results, advances master and removes the row, so sessions do not conflict in docs/plan.json. The terms a candidate is judged by are those of the master commit it is integrated onto, not those of the commit it was written against: a row's terms change only by a commit of their own, which the lead makes, and a candidate that no longer meets them is refused and says which term moved. Its test starts two sessions from one base and holds that neither is charged with the other's files, that the second is checked on the tree the first left and by the terms that tree holds, and that a queue stopped and started again loses no candidate and removes no row twice. The device and the outputs sessions share stay under their present locks: worktrees do not add a second device. It waits on the owner's decision.\n\nServes: change. Disappears: the rule that one session commits for a checkout. Evidence: two sessions' landings on one day, neither touching the other's files, and the waits before and after. Batch: host, device and webui.",
+          "depends_on": [
+            "landing-terms/waits",
+            "session-isolation/worktrees",
+            "landing-terms/terms"
           ]
         }
       ]
@@ -361,6 +582,45 @@
       ],
       "asked": "2026-10-07",
       "answer": "Five measured rows on master, each lane file ported with its first caller, optional branches unplanned until a proposer is kept"
+    },
+    {
+      "id": "cudnn-dependency",
+      "question": "Load NVIDIA's cuDNN library for the video codec's convolutions, the way cuBLAS is loaded? It is a new native dependency and a further install for a user, and its results are not guaranteed bit for bit across versions and devices.",
+      "options": [
+        "Load it for the codec comparison",
+        "Keep only overgo's own kernels"
+      ],
+      "recommendation": "Load it for the codec comparison",
+      "blocks": [
+        "codec-precision"
+      ],
+      "asked": "2026-10-09"
+    },
+    {
+      "id": "production-precision",
+      "question": "May a served value differ from the double-precision host reference, within a tolerance written down before the change, when it is held to the model's own code at the precision that code uses?",
+      "options": [
+        "Allow it under a tolerance declared first",
+        "Keep value-for-value agreement with the host reference"
+      ],
+      "recommendation": "Allow it under a tolerance declared first",
+      "blocks": [
+        "codec-precision"
+      ],
+      "asked": "2026-10-09"
+    },
+    {
+      "id": "second-committer",
+      "question": "May more than one session commit, each from its own worktree, through one queue?",
+      "options": [
+        "Yes, through one queue",
+        "Keep one committing session"
+      ],
+      "recommendation": "Yes, through one queue",
+      "blocks": [
+        "commit-queue"
+      ],
+      "asked": "2026-10-09"
     }
   ]
 }

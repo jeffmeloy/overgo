@@ -16,6 +16,7 @@ import (
 	"image/gif"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
@@ -192,12 +193,47 @@ type gifEncoder struct {
 	pixels PixelRange
 	// cut draws each frame in a palette cut from it; unset, every frame is
 	// drawn in one fixed palette.
-	cut       bool
-	animation gif.GIF
-	prior     []uint8
-	changed   int
-	height    int
-	width     int
+	cut bool
+	// frames are the clip's frames in order and delays the time each is
+	// shown. A frame is drawn by a worker of its own from the bytes Add took
+	// of it: its palette and its dither read its own pixels and no other
+	// frame's, so the frames are drawn as they arrive, beside the decoding of
+	// the ones after them, where one worker drawing 21 of them in turn took
+	// three seconds of a request. drawing is the workers still at it.
+	frames  []*drawnFrame
+	delays  []int
+	drawing sync.WaitGroup
+	prior   []uint8
+	changed int
+	height  int
+	width   int
+}
+
+// drawnFrame is one frame of a clip, set by the worker that draws it.
+type drawnFrame struct {
+	picture *image.Paletted
+}
+
+// drawFrame draws a frame's bytes, three a pixel, in a palette: one cut from
+// the frame, or the fixed one.
+func drawFrame(raw []uint8, height, width int, cut bool) *image.Paletted {
+	rgba := image.NewRGBA(image.Rectangle{Max: image.Pt(width, height)})
+	for index := range height * width {
+		base := index * media.RGBChannels
+		rgba.SetRGBA(index%width, index/width, color.RGBA{
+			R: raw[base+tensor.FirstOffset],
+			G: raw[base+tensor.SingletonExtent],
+			B: raw[base+tensor.PairedExtent],
+			A: ^uint8(tensor.FirstOffset),
+		})
+	}
+	colours := palette.Plan9
+	if cut {
+		colours = media.AdaptivePalette(rgba, gifPaletteColors)
+	}
+	paletted := image.NewPaletted(rgba.Bounds(), colours)
+	draw.FloydSteinberg.Draw(paletted, rgba.Bounds(), rgba, image.Point{})
+	return paletted
 }
 
 // NewGIFEncoder writes a clip whose every frame is drawn in one fixed
@@ -209,7 +245,7 @@ func NewGIFEncoder(fps int, pixels PixelRange) (*gifEncoder, error) {
 		return nil, errors.New("latent video: invalid GIF encoding policy")
 	}
 	encoder := &gifEncoder{fps: fps, pixels: pixels}
-	if _, err := media.GIFFrameDelay(fps, len(encoder.animation.Image)); err != nil {
+	if _, err := media.GIFFrameDelay(fps, len(encoder.frames)); err != nil {
 		return nil, err
 	}
 	return encoder, nil
@@ -229,8 +265,11 @@ func NewClipEncoder(fps int, pixels PixelRange) (*gifEncoder, error) {
 	return encoder, nil
 }
 
+// Add takes the next frame of the clip. It keeps the frame's bytes, counts
+// the pixels that changed since the frame before, and hands the drawing to a
+// worker; the frame it was given is the caller's again when it returns.
 func (s *gifEncoder) Add(index int, frame []float32, height, width int) error {
-	if index != len(s.animation.Image) {
+	if index != len(s.frames) {
 		return errors.New("latent video: frame index is out of order")
 	}
 	delay, err := media.GIFFrameDelay(s.fps, index)
@@ -243,7 +282,7 @@ func (s *gifEncoder) Add(index int, frame []float32, height, width int) error {
 	}); err != nil {
 		return err
 	}
-	if len(s.animation.Image) > 0 {
+	if len(s.frames) > 0 {
 		if !checked.Equal(height, s.height) {
 			return errors.New("latent video: frame geometry changed")
 		}
@@ -252,29 +291,18 @@ func (s *gifEncoder) Add(index int, frame []float32, height, width int) error {
 		}
 	}
 	s.height, s.width = height, width
-	rgba := image.NewRGBA(image.Rectangle{Max: image.Pt(width, height)})
-	plane := height * width
-	for index := range plane {
-		base := index * media.RGBChannels
-		if s.prior != nil && !bytes.Equal(raw[base:base+media.RGBChannels], s.prior[base:base+media.RGBChannels]) {
-			s.changed++
+	if s.prior != nil {
+		for base := 0; base < len(raw); base += media.RGBChannels {
+			if !bytes.Equal(raw[base:base+media.RGBChannels], s.prior[base:base+media.RGBChannels]) {
+				s.changed++
+			}
 		}
-		rgba.SetRGBA(index%width, index/width, color.RGBA{
-			R: raw[base+tensor.FirstOffset],
-			G: raw[base+tensor.SingletonExtent],
-			B: raw[base+tensor.PairedExtent],
-			A: ^uint8(tensor.FirstOffset),
-		})
 	}
 	s.prior = raw
-	colours := palette.Plan9
-	if s.cut {
-		colours = media.AdaptivePalette(rgba, gifPaletteColors)
-	}
-	paletted := image.NewPaletted(rgba.Bounds(), colours)
-	draw.FloydSteinberg.Draw(paletted, rgba.Bounds(), rgba, image.Point{})
-	s.animation.Image = append(s.animation.Image, paletted)
-	s.animation.Delay = append(s.animation.Delay, delay)
+	drawn := &drawnFrame{}
+	s.frames, s.delays = append(s.frames, drawn), append(s.delays, delay)
+	cut := s.cut
+	s.drawing.Go(func() { drawn.picture = drawFrame(raw, height, width, cut) })
 	return nil
 }
 
@@ -287,16 +315,22 @@ func encodeVideoByte(value float32, pixels PixelRange) byte {
 	return media.UnitF32ToU8(value)
 }
 
+// Finish waits for the frames still being drawn and writes the clip.
 func (s *gifEncoder) Finish() (EncodedVideo, error) {
-	if !checked.NonemptyAll(s.animation.Image) {
+	s.drawing.Wait()
+	if !checked.NonemptyAll(s.frames) {
 		return EncodedVideo{}, errors.New("latent video: no frames emitted")
 	}
+	animation := gif.GIF{Delay: s.delays}
+	for _, frame := range s.frames {
+		animation.Image = append(animation.Image, frame.picture)
+	}
 	var encoded bytes.Buffer
-	if err := gif.EncodeAll(&encoded, &s.animation); err != nil {
+	if err := gif.EncodeAll(&encoded, &animation); err != nil {
 		return EncodedVideo{}, err
 	}
 	return EncodedVideo{
-		Data: encoded.Bytes(), MediaType: media.GIFMediaType, Frames: len(s.animation.Image), Channels: media.RGBChannels,
+		Data: encoded.Bytes(), MediaType: media.GIFMediaType, Frames: len(s.frames), Channels: media.RGBChannels,
 		Height: s.height, Width: s.width, FPS: s.fps, ChangedPixels: s.changed,
 	}, nil
 }

@@ -70,6 +70,9 @@ func assembleNativeBBH(cases []storeCase) (any, int, error) {
 		if !found {
 			return nil, 0, fmt.Errorf("evaluation: undeclared native BBH task %q", entry.subset)
 		}
+		if entry.undrawn {
+			continue
+		}
 		input, err := caseString(entry.fields, "input")
 		if err != nil {
 			return nil, 0, err

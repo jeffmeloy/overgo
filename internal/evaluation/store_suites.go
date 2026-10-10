@@ -2,6 +2,7 @@ package evaluation
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,13 +27,66 @@ const (
 
 // storeCase is one benchmark record joined with the catalog entry it
 // came from: the entry name carries family/subset/split, the fields
-// carry the case.
+// carry the case. undrawn marks a case left out of the part of its family
+// a measurement run scores (drawShare): its family's assembler still reads
+// it for what the family's cases share, the answers a task's cases choose
+// among, and scores it only when the whole family is asked for.
 type storeCase struct {
 	entry      string
 	subset     string
 	ordinal    int
 	fields     map[string]json.RawMessage
 	parameters map[string]ifevalParameterBinding
+	undrawn    bool
+}
+
+const (
+	// suiteShare is the part of a large family a measurement run scores: one
+	// case in ten. An evaluation is sized by the decision it serves, and the
+	// decisions taken here on MMLU-Pro's 12,032 questions, BBH's 5,761 and
+	// IFEval's 541 prompts need about a tenth of them (owner, 2026-10-10):
+	// read whole, the three took about 16 hours of a measurement run. A tenth
+	// reads within 0.014, 0.02 and 0.05 of the whole family's reading.
+	suiteShare = 10
+	// suiteDraw names the draw. A case's place in it is the digest of this
+	// and the case's name, so the part drawn is the same on every machine and
+	// moves only when this does.
+	suiteDraw = "overgo/evaluation/suite-share/v1/"
+	// WholeFamily is the ending of a family's name that asks for every case of
+	// a family a measurement run scores a part of: "mmlu-pro/whole".
+	WholeFamily = "/whole"
+)
+
+// suiteShares are the families a measurement run scores a part of, each
+// with the field of its records that names a case's group, and none where
+// the group is the catalog entry's subset. Every other family is scored
+// whole.
+var suiteShares = map[string]string{"mmlu-pro": "category", "bbh": "", "ifeval": ""}
+
+// drawShare marks the cases of a family left out of the part a measurement
+// run scores. Of each group it keeps the cases whose places in the draw come
+// first, one in suiteShare of them rounded up, so every group keeps its
+// share of the family and a group of few cases keeps one. field names the
+// records' field a group is the value of.
+func drawShare(cases []storeCase, field string) {
+	groups := map[string][]int{}
+	for index, entry := range cases {
+		group := entry.subset
+		if value, err := caseString(entry.fields, field); field != "" && err == nil {
+			group = value
+		}
+		groups[group] = append(groups[group], index)
+	}
+	place := func(index int) string {
+		digest := sha256.Sum256(fmt.Appendf(nil, "%s%s/%d", suiteDraw, cases[index].entry, cases[index].ordinal))
+		return string(digest[:])
+	}
+	for _, members := range groups {
+		slices.SortFunc(members, func(left, right int) int { return strings.Compare(place(left), place(right)) })
+		for _, index := range members[(len(members)+suiteShare-1)/suiteShare:] {
+			cases[index].undrawn = true
+		}
+	}
 }
 
 // DeriveStoreSuites compiles evaluation suites from the store's active
@@ -53,7 +107,9 @@ func DeriveStoreSuites(
 // DeriveStoreSuiteFamily compiles one family's suite alone: the records
 // of every other family are neither read nor compiled, so a worker asked
 // for a hundred-case family does not spend minutes assembling the whole
-// catalog first. An empty family derives every suite.
+// catalog first. An empty family derives every suite. A family a
+// measurement run scores a part of (suiteShares) is compiled as that part,
+// and whole when its name ends in WholeFamily.
 func DeriveStoreSuiteFamily(
 	ctx context.Context,
 	reader artifact.Reader,
@@ -69,6 +125,7 @@ func deriveStoreSuites(
 	authorities ExactAuthorities,
 	wanted string,
 ) ([]CompiledSuite, map[string]int, error) {
+	wanted, whole := strings.CutSuffix(wanted, WholeFamily)
 	id, bound, err := artifact.ResolveAlias(ctx, reader, benchmarkCatalogAlias)
 	if err != nil || !bound {
 		return nil, nil, errors.Join(err, errors.New("evaluation: active benchmark catalog is absent"))
@@ -140,6 +197,9 @@ func deriveStoreSuites(
 	skipped := map[string]int{}
 	for _, name := range names {
 		assemble := assemblers[name]
+		if field, sized := suiteShares[name]; sized && !whole {
+			drawShare(families[name], field)
+		}
 		source, dropped, err := assemble(families[name])
 		if err != nil {
 			return nil, nil, fmt.Errorf("evaluation: assemble %s suite: %w", name, err)
@@ -234,6 +294,9 @@ func assembleMMLUProSuite(cases []storeCase) (any, int, error) {
 		Labels: choiceLetters, Normalization: sequencescore.NormalizationSum,
 	}
 	for _, entry := range cases {
+		if entry.undrawn {
+			continue
+		}
 		question, err := caseString(entry.fields, "question")
 		if err != nil {
 			return nil, 0, err
@@ -299,6 +362,9 @@ func assembleChoiceGroups(family, schema string, cases []storeCase) (any, int, e
 		Normalization: sequencescore.NormalizationMean,
 	}
 	for _, entry := range cases {
+		if entry.undrawn {
+			continue
+		}
 		input, err := caseString(entry.fields, "input")
 		if err != nil {
 			return nil, 0, err
@@ -484,6 +550,9 @@ func assembleIFEvalSuite(cases []storeCase) (any, int, error) {
 	}
 	dropped := 0
 	for _, entry := range cases {
+		if entry.undrawn {
+			continue
+		}
 		prompt, err := caseString(entry.fields, "prompt")
 		if err != nil {
 			return nil, 0, err

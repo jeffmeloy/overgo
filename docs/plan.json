@@ -28,25 +28,6 @@
       ]
     },
     {
-      "id": "evaluation-size",
-      "title": "Size each evaluation by the decision it serves: a tenth of MMLU-Pro, BBH and IFEval",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 300,
-        "reason": "The step's preflight counted 276 production nodes on 2026-10-10: the draw of a tenth of a family by group, 150; the three families' assemblers leaving an undrawn case unscored while still reading it for the answers its task offers, and the whole family by name, the rest. 24 are left for what the remaining rules ask."
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Size each evaluation by the decision it serves: a tenth of MMLU-Pro, BBH and IFEval",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestEvaluationSuitesAreSizedForTheirDecisions$'",
-          "rationale": "The owner, 2026-10-10: evaluations are larger than the questions asked of them; MMLU-Pro is 12,032 questions a model, read to 0.0045, and most decisions here need about a tenth of that, for validation. The measurement run that ended that morning shows what the sizes cost. MMLU-Pro, 12,032 questions, eight models, 7 to 56 minutes a model and about two hours for the 27 GB one: about 4.7 hours. BBH, 5,761 questions, seven models, 24 to 65 minutes each: about 4.8 hours, read to 0.0065. IFEval, 541 prompts, five models, 32 minutes to 1 hour 46 each: about 6.3 hours, read to 0.017; it is long because each answer is a long generation, not for its count. About 16 hours of a run, and a commit's device tests wait behind them: the codec's commit took 2 hours 38 minutes of tests that take a quarter of an hour on a quiet device.\n\nAs built on 2026-10-10. The step draws a tenth of each of the three families, the same tenth on every machine: of each group of a family's cases, the cases whose names' digests come first, one in ten rounded up, so each MMLU-Pro category and each BBH task keeps its share. On this machine's store that is 1,209 of MMLU-Pro's 12,032 questions, 577 of BBH's 5,761 and 55 of IFEval's 541 prompts, read to 0.014, 0.02 and 0.05. IFEval was first to keep a quarter, for a reading to 0.035; it keeps a tenth, as the owner asked, because a run's readings are compared with the run before exactly, so the precision of the reading decides nothing a run decides, and a quarter cost an hour more a run. A case the draw leaves out is not scored and is still read for what its task's cases share: a BBH task's scored cases choose among the answers of the whole task. A measurement run scores the part. The whole family is derived when its name ends in /whole (evaluate -all -family mmlu-pro/whole), for a full reading when one is asked for. The part is a suite of its own, by the identity of its cases, so its readings begin a comparison of their own and are not compared with the whole suites' readings; the scorecard's cell says how many cases it read.\n\nWhat a run's evaluations take at these sizes, from the time a case took each model in the run that ended that morning: MMLU-Pro about 29 minutes for the eight models where it took 4.7 hours, BBH about 29 minutes for seven where it took 4.8 hours, IFEval about 39 minutes for five where it took 6.3 hours; about an hour and three quarters where it was about sixteen. An evaluation refuses to run from a changed checkout, so the figure cannot be measured before the step lands: the first measurement run after it measures it, and its figure is written beside this one. The other suites are left as they are: MMLU's 100 questions, the video and picture suites of 64 to 128 cases and the speech round trip of 64 texts are already the size of a tenth.\n\nServes: measure and find the gap. Disappears: about nine tenths of a run's evaluation time. Evidence: the time of a run's evaluations before and after, and each suite's standard error. Batch: device."
-        }
-      ]
-    },
-    {
       "id": "codec-record-quiet",
       "title": "Write the codec's record again from a quiet device's figures, and correct what the path's comment says it saves",
       "owner": "master-lead",

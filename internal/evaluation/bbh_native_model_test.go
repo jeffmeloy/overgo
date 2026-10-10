@@ -204,7 +204,8 @@ func TestBBHNativeProtocolAcceptance(t *testing.T) {
 	authorities := ExactAuthorities{ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"), Environment: planID(t, artifact.KindEvidence, "environment"), CodeCommit: planTestCommit, Execution: ExecutionPolicy{Lifecycle: LifecycleResident}}
 	for _, prompting := range []prompting{PromptingRawCompletion, PromptingChatTemplate} {
 		authorities.Execution.Prompting = prompting
-		derived, dropped, err := DeriveStoreSuiteFamily(t.Context(), store, authorities, "bbh")
+		// The retained identities are the whole family's; a measurement run scores a part of it.
+		derived, dropped, err := DeriveStoreSuiteFamily(t.Context(), store, authorities, "bbh"+WholeFamily)
 		if err != nil || len(derived) != 1 || len(dropped) != 0 || derived[0].Descriptor().Cases != 5761 {
 			t.Fatalf("BBH protocol dispatch failed: %v drops=%v", err, dropped)
 		}

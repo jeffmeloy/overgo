@@ -304,7 +304,8 @@ func campaignDerivedSuites(ctx context.Context, campaign *evaluation.Campaign, s
 	selected := 0
 	for _, suite := range suites {
 		descriptor := suite.Descriptor()
-		if family != "" && !strings.HasSuffix(descriptor.Source, "/"+family) {
+		// A family asked for whole is the family: its suite is named as the part's is.
+		if family != "" && !strings.HasSuffix(descriptor.Source, "/"+strings.TrimSuffix(family, evaluation.WholeFamily)) {
 			continue
 		}
 		if admit != nil {

@@ -4,6 +4,38 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "evaluation-chain",
+      "title": "Judge a trained change on data large enough to see it and never used to choose it",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 2520,
+        "reason": "The second step's measured figure, 2,473 production nodes as the gate's preflight counts the built change, and a margin of 47: a confirmation on a pool, charged before it reads, with the pool as a proposer loads it, a candidate's selection reading and the confirmation's record (1,572); the proposal fitted on the development part and ranked on the selection part, and the confirmation of one of its candidates (600); the training command's flags for both (219); and the reader of a budget's committed charges, moved out of the driver's decision so both use one (82). The first step measured 2,354 and left 22. The row was filed at 1,229 for all three steps before any was designed; the third deletes"
+      },
+      "steps": [
+        {
+          "id": "confirmation",
+          "title": "Confirm a proposed change on records no choice was made from, and charge every confirmation to a budget",
+          "status": "open",
+          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestConfirmationIsChargedAndEntersNoChoice$'",
+          "rationale": "SQA-110. ProposeChange fits its direction to gains measured on the held-out records and judges the candidates on the same records (internal/trainingworkflow change_proposal.go). The step fits on the development part, ranks on the selection part and judges on the promotion part, and only for a candidate and an acceptance record named by identity before the reading; without both it is refused.\n\nOne reading for a proposal does not protect the part across proposals: a loop that reads a verdict, learns from it and proposes again turns the promotion part into selection data one verdict at a time. Every confirmation is therefore a committed charge against the promotion part's budget, the proposer is given the verdict and nothing else of the reading, and when the budget is spent a confirmation is refused until a fresh partition is published; the audit part is read once, at the campaign's end. Its test holds four things: changing promotion labels moves no candidate's weights or rank, and changing selection labels does; a run of proposals is refused at the first confirmation past the budget; a process started again reads the same balance, since it is counted from committed charges; and a candidate changed after its acceptance was fixed is refused.\n\nevidence-conditioning/conditioning reads the same proposer and waits on this step.\n\nServes: judge on held-out data. Disappears: a verdict given on the records that chose the candidate, and confirmations without a count. Evidence: the proposal's verdict on promotion records and the budget's balance after it. Batch: host and device.",
+          "depends_on": [
+            "evaluation-chain/pool"
+          ]
+        },
+        {
+          "id": "observations",
+          "title": "Write each case's observation and each score once, and have every record that needs them refer to them",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestScoringFixRunsNoCaseAgain$'",
+          "rationale": "EvaluationEvidence copies phases and metrics that other records own, and its reader checks that the copies agree (internal/evaluation evidence.go). One evaluator, built from a dataset, a protocol, an execution and a scorer from a short list, writes per-case observations and then scores; each keeps its typed content under one shared envelope, and evidence and acceptance refer to them by identity. The quality floor, memory ceiling, speed target, base and decision rule are fixed in a record before confirmation is read. Its test changes a scorer and holds that no case is executed again, that the same observations are read, and that the decision against the named base is the expected one. Readers of evidence already in the store stay until it is migrated.\n\nServes: judge on held-out data. Disappears: for this family, the copied measurements, the checks that they agree, and the evaluation files the one evaluator replaces. Evidence: the family's scores before and after, equal, and the count of record schemas before and after. Batch: host.",
+          "depends_on": [
+            "capability-identity/identities"
+          ]
+        }
+      ]
+    },
+    {
       "id": "capability-identity",
       "title": "Reuse a stored result while the code that can change it is unchanged",
       "owner": "master-lead",
@@ -34,38 +66,6 @@
           "status": "open",
           "verify": "go test ./cmd/loop -count=1 -run '^TestMeasurementRunsNoCaseAgainAfterAnUnrelatedCommit$'",
           "rationale": "A full result is carried today after 32 sampled cases reproduce (internal/evaluation replay.go: replayCases), which shows agreement on those cases and not on the suite; SQA-078 holds that risk. Under an unchanged identity the result is the result, with no replay. Under a changed one the suite is measured again. Its test goes through the improvement run's own launch, in separate processes: it measures, commits a change outside every identity, measures again and holds that no case was executed the second time, then commits a change inside one identity and holds that only that capability's cases were. A result already in the store is re-keyed only when its record names every build and runtime input the identity is made of; the commit alone does not name them all, and any other result is measured once more. The step states how many suites that is and what they cost before it lands. The sampled replay is deleted only when every consumer of a carried result reads the identity; the reader of replay receipts already in the store stays.\n\nServes: judge on held-out data. Disappears: the sampled replay. Evidence: the cases executed by each of the test's three measurements, and the count of suites measured once more for the change of key. Batch: host.\n\nMoved out of capability-identity on 2026-10-09 so that row's last step is not held by the decision this one waits on. What the step asked to be stated before it lands, measured that day on the store: 46 of the 87 newest evaluation results stand on a result a sampled replay carried forward, 30 of them carried 19 or 20 times since the run that scored every case, and those runs took 13 hours 55 minutes in all, the longest 1 hour 44 minutes. The code an evaluation's result depends on, the closure of cmd/evaluate, changed on 112 of the last 300 commits, and the text surface alone on 34; the two newest scorecards lie several hundred commits apart. So an identity is certain to have moved between one cycle and the next at this pace, and with the sampled replay deleted every cycle scores those 46 again, about 14 hours on top of a cycle's three to five. The replay's weakness is that its sample never changes (internal/evaluation replay.go: replaySelection, the 8 longest cases and 24 at even length ranks): a change that misses those 32 is not seen however often the result is carried. The row has no count: it is sized when the decision says what it builds."
-        }
-      ]
-    },
-    {
-      "id": "evaluation-chain",
-      "title": "Judge a trained change on data large enough to see it and never used to choose it",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 22,
-        "reason": "The first step's measured figure, 2,354 production nodes as the gate counts them, and a margin of 26: the held-out pool, its acceptance record, the reading of the gains on record and the command that publishes them. Filed at 1,229, the size of internal/runrecord budget.go, before any step was designed. The second step's figure is added when it is built and measured, in the plan of the commit before it; the third deletes"
-      },
-      "steps": [
-        {
-          "id": "confirmation",
-          "title": "Confirm a proposed change on records no choice was made from, and charge every confirmation to a budget",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestConfirmationIsChargedAndEntersNoChoice$'",
-          "rationale": "SQA-110. ProposeChange fits its direction to gains measured on the held-out records and judges the candidates on the same records (internal/trainingworkflow change_proposal.go). The step fits on the development part, ranks on the selection part and judges on the promotion part, and only for a candidate and an acceptance record named by identity before the reading; without both it is refused.\n\nOne reading for a proposal does not protect the part across proposals: a loop that reads a verdict, learns from it and proposes again turns the promotion part into selection data one verdict at a time. Every confirmation is therefore a committed charge against the promotion part's budget, the proposer is given the verdict and nothing else of the reading, and when the budget is spent a confirmation is refused until a fresh partition is published; the audit part is read once, at the campaign's end. Its test holds four things: changing promotion labels moves no candidate's weights or rank, and changing selection labels does; a run of proposals is refused at the first confirmation past the budget; a process started again reads the same balance, since it is counted from committed charges; and a candidate changed after its acceptance was fixed is refused.\n\nevidence-conditioning/conditioning reads the same proposer and waits on this step.\n\nServes: judge on held-out data. Disappears: a verdict given on the records that chose the candidate, and confirmations without a count. Evidence: the proposal's verdict on promotion records and the budget's balance after it. Batch: host and device.",
-          "depends_on": [
-            "evaluation-chain/pool"
-          ]
-        },
-        {
-          "id": "observations",
-          "title": "Write each case's observation and each score once, and have every record that needs them refer to them",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestScoringFixRunsNoCaseAgain$'",
-          "rationale": "EvaluationEvidence copies phases and metrics that other records own, and its reader checks that the copies agree (internal/evaluation evidence.go). One evaluator, built from a dataset, a protocol, an execution and a scorer from a short list, writes per-case observations and then scores; each keeps its typed content under one shared envelope, and evidence and acceptance refer to them by identity. The quality floor, memory ceiling, speed target, base and decision rule are fixed in a record before confirmation is read. Its test changes a scorer and holds that no case is executed again, that the same observations are read, and that the decision against the named base is the expected one. Readers of evidence already in the store stay until it is migrated.\n\nServes: judge on held-out data. Disappears: for this family, the copied measurements, the checks that they agree, and the evaluation files the one evaluator replaces. Evidence: the family's scores before and after, equal, and the count of record schemas before and after. Batch: host.",
-          "depends_on": [
-            "capability-identity/identities"
-          ]
         }
       ]
     },
@@ -248,7 +248,8 @@
             "count-capability-identity/do",
             "count-session-isolation/do",
             "count-second-kind/do",
-            "count-template-bounds/do"
+            "count-template-bounds/do",
+            "count-confirmation/do"
           ]
         }
       ]

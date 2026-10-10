@@ -4,7 +4,6 @@ package latentimage
 
 import (
 	"context"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -36,6 +35,8 @@ type Generator struct {
 	request    Request
 	profile    Profile
 	spec       *Spec
+	modelDir   string
+	tokenizer  *hfbpe.Tokenizer
 	pipeline   *ResidentImagePipeline
 	embed      []float32
 	schedule   FlowSchedule
@@ -94,35 +95,8 @@ func LoadGenerator(ctx context.Context, modelDir string, profile Profile, reques
 	if err != nil {
 		return nil, err
 	}
-	text, err := renderTextInput(tokenizer, request.Prompt, profile.Prompt)
-	if err != nil {
-		return nil, err
-	}
-	embed, err := safetensors.ReadTensorRowsF32(
-		filepath.Join(modelDir, "text_encoder"), textEncoderPrefix+"embed_tokens.weight", spec.TextEncoder.Hidden, text.IDs,
-	)
-	if err != nil {
-		return nil, err
-	}
-	encoder, err := CompileEncoderProgramMasked(
-		spec.TextEncoder, float32(spec.TextEncoder.RMSNormEps), len(text.IDs), dtype.BF16, text.Mask,
-	)
-	if err != nil {
-		return nil, err
-	}
-	textMask, err := checked.SuffixExact(text.Mask, text.PromptRows)
-	if err != nil {
-		return nil, fmt.Errorf("latent image: prompt mask: %w", err)
-	}
-	fusion, err := CompileFusionProgram(
-		spec.Transformer, float32(spec.Transformer.NormEps), textMask, dtype.BF16,
-	)
-	if err != nil {
-		return nil, err
-	}
-	denoiser, err := CompileDenoiserProgram(
-		spec.Transformer, float32(spec.Transformer.NormEps), textMask, gridH, gridW, dtype.BF16,
-	)
+	generator := &Generator{request: request, profile: profile, spec: spec, modelDir: modelDir, tokenizer: tokenizer, shape: shape}
+	prompt, err := generator.compilePrompt(request.Prompt, gridH, gridW)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +112,7 @@ func LoadGenerator(ctx context.Context, modelDir string, profile Profile, reques
 		Dimensions: spec.Transformer.TimestepEmbed, FrequencyBase: profile.Sampling.TimestepFrequencyBase,
 		InputScale: float64(request.NumTrainTimesteps),
 	}
-	pipeline, err := NewResidentImagePipeline(ctx, encoder, fusion, denoiser, vae, timestepEncoding, modelDir, tensor.FirstOffset)
+	pipeline, err := NewResidentImagePipeline(ctx, prompt.encoder, prompt.fusion, prompt.denoiser, vae, timestepEncoding, modelDir, tensor.FirstOffset)
 	if err != nil {
 		return nil, err
 	}
@@ -147,10 +121,55 @@ func LoadGenerator(ctx context.Context, modelDir string, profile Profile, reques
 		_ = pipeline.Close(ctx)
 		return nil, err
 	}
-	return &Generator{
-		request: request, profile: profile, spec: spec, pipeline: pipeline, embed: embed,
-		schedule: schedule, shape: shape,
-	}, nil
+	generator.pipeline, generator.embed, generator.schedule = pipeline, prompt.embed, schedule
+	return generator, nil
+}
+
+// promptPrograms is what a prompt gives a session: the rows of its tokens'
+// embeddings, and the text encoder, fusion and denoiser compiled under its
+// padding mask. Every prompt is padded to one length, so the three are of one
+// shape whatever the prompt, and differ in what the mask leaves unattended.
+type promptPrograms struct {
+	embed    []float32
+	encoder  *EncoderProgram
+	fusion   *FusionProgram
+	denoiser *DenoiserProgram
+}
+
+// compilePrompt renders a prompt as the model's text template has it and
+// compiles the programs that read its mask, for a picture of gridH by gridW
+// patches.
+func (g *Generator) compilePrompt(prompt string, gridH, gridW int) (promptPrograms, error) {
+	text, err := renderTextInput(g.tokenizer, prompt, g.profile.Prompt)
+	if err != nil {
+		return promptPrograms{}, err
+	}
+	embed, err := safetensors.ReadTensorRowsF32(
+		filepath.Join(g.modelDir, "text_encoder"), textEncoderPrefix+"embed_tokens.weight", g.spec.TextEncoder.Hidden, text.IDs,
+	)
+	if err != nil {
+		return promptPrograms{}, err
+	}
+	encoder, err := CompileEncoderProgramMasked(
+		g.spec.TextEncoder, float32(g.spec.TextEncoder.RMSNormEps), len(text.IDs), dtype.BF16, text.Mask,
+	)
+	if err != nil {
+		return promptPrograms{}, err
+	}
+	textMask, err := checked.SuffixExact(text.Mask, text.PromptRows)
+	if err != nil {
+		return promptPrograms{}, fmt.Errorf("latent image: prompt mask: %w", err)
+	}
+	fusion, err := CompileFusionProgram(
+		g.spec.Transformer, float32(g.spec.Transformer.NormEps), textMask, dtype.BF16,
+	)
+	if err != nil {
+		return promptPrograms{}, err
+	}
+	denoiser, err := CompileDenoiserProgram(
+		g.spec.Transformer, float32(g.spec.Transformer.NormEps), textMask, gridH, gridW, dtype.BF16,
+	)
+	return promptPrograms{embed: embed, encoder: encoder, fusion: fusion, denoiser: denoiser}, err
 }
 
 // withPolicy fills what a request leaves unnamed from the sampling policy: the
@@ -169,13 +188,18 @@ func (r Request) withPolicy(policy samplingPolicy, imageSequence int, distilled 
 	return r
 }
 
-// SessionKey identifies reusable resident state for the request.
+// SessionKey identifies reusable resident state for the request: the
+// picture's extent, which the denoiser and the decoder are compiled for. A
+// prompt and a seed are what a request gives a session, not what one is made
+// of: the weights a session holds are the same under every prompt.
 func (r Request) SessionKey() (string, error) {
-	prompt := sha256.Sum256([]byte(r.Prompt))
-	return fmt.Sprintf("%dx%d/prompt:%x", r.Width, r.Height, prompt), nil
+	return fmt.Sprintf("%dx%d", r.Width, r.Height), nil
 }
 
-// Reset reuses resident graphs for compatible request-local sampling state.
+// Reset gives a resident session its next request: the sampling state of any
+// request of its extent, and, for another prompt, that prompt's conditioning,
+// made by the text encoder placed on the device again beside the denoiser the
+// session keeps.
 func (g *Generator) Reset(ctx context.Context, request Request) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -186,9 +210,20 @@ func (g *Generator) Reset(ctx context.Context, request Request) error {
 	if err := ValidateRequest(request); err != nil {
 		return err
 	}
-	request = request.withPolicy(g.profile.Sampling, g.pipeline.Denoiser.GH*g.pipeline.Denoiser.GW, g.spec.Distilled)
-	if request.Prompt != g.request.Prompt || request.Width != g.request.Width || request.Height != g.request.Height {
+	gridH, gridW := g.pipeline.Denoiser.GH, g.pipeline.Denoiser.GW
+	request = request.withPolicy(g.profile.Sampling, gridH*gridW, g.spec.Distilled)
+	if request.Width != g.request.Width || request.Height != g.request.Height {
 		return errors.New("latent image: request requires another resident session")
+	}
+	if request.Prompt != g.request.Prompt {
+		prompt, err := g.compilePrompt(request.Prompt, gridH, gridW)
+		if err != nil {
+			return err
+		}
+		if err := g.pipeline.Recondition(ctx, prompt.encoder, prompt.fusion, prompt.denoiser, prompt.embed); err != nil {
+			return err
+		}
+		g.embed = prompt.embed
 	}
 	schedule, err := CompileFlowSchedule(request.Steps, request.NumTrainTimesteps, request.DynamicShiftMu)
 	if err != nil {

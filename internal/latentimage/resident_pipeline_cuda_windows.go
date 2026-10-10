@@ -93,13 +93,6 @@ func NewResidentImagePipeline(
 			_ = pipeline.Close(ctx)
 		}
 	}()
-	pipeline.encoder, err = compileResidentWeights(
-		ctx, runtime, "resident image encoder", filepath.Join(modelDir, "text_encoder"),
-		encoder.weightInputs, nil, encoder.Selected...,
-	)
-	if err != nil {
-		return nil, err
-	}
 	bridgeInputs, bridgeOutput, err := selectedHiddenBridge(encoder, fusion.TextSeq)
 	if err != nil {
 		return nil, err
@@ -112,22 +105,54 @@ func NewResidentImagePipeline(
 		return nil, err
 	}
 	pipeline.bridgePointers = make([]driver.DevicePtr, len(bridgeInputs))
-	pipeline.fusion, err = compileResidentWeights(
-		ctx, runtime, "resident image fusion", filepath.Join(modelDir, "transformer"),
-		fusion.weightInputs, []*tensor.Tensor{fusion.InEncoder}, fusion.Fused,
-	)
-	if err != nil {
+	if err := pipeline.loadText(ctx); err != nil {
 		return nil, err
-	}
-	if fusion.keyBias != nil {
-		if err := runtime.BindF32(
-			ctx, pipeline.fusion, "static:resident image fusion", fusion.keyBias, fusion.keyData,
-		); err != nil {
-			return nil, err
-		}
 	}
 	pipeline.residentBytes = runtime.StaticBytes()
 	return pipeline, nil
+}
+
+// loadText places the text encoder and the fusion of the pipeline's prompt on
+// the device. They are there while a prompt's conditioning is made and retired
+// after it, so a session holds the denoiser and not the encoder beside it.
+func (p *ResidentImagePipeline) loadText(ctx context.Context) (err error) {
+	p.encoder, err = compileResidentWeights(
+		ctx, p.runtime, "resident image encoder", filepath.Join(p.modelDir, "text_encoder"),
+		p.Encoder.weightInputs, nil, p.Encoder.Selected...,
+	)
+	if err != nil {
+		return err
+	}
+	p.fusion, err = compileResidentWeights(
+		ctx, p.runtime, "resident image fusion", filepath.Join(p.modelDir, "transformer"),
+		p.Fusion.weightInputs, []*tensor.Tensor{p.Fusion.InEncoder}, p.Fusion.Fused,
+	)
+	if err != nil || p.Fusion.keyBias == nil {
+		return err
+	}
+	return p.runtime.BindF32(ctx, p.fusion, "static:resident image fusion", p.Fusion.keyBias, p.Fusion.keyData)
+}
+
+// bindDenoiser binds the pipeline's denoiser program to the transformer's
+// weights, which the session shares by name: a program compiled for another
+// prompt's mask takes the weights the program it replaces holds, and loads
+// none. The replaced program is released before the new mask is bound, since
+// the two masks have one name and a bound input is shared by its name.
+func (p *ResidentImagePipeline) bindDenoiser(ctx context.Context, replaced *graphruntime.ResidentProgram) (*graphruntime.ResidentProgram, error) {
+	denoiser := p.Denoiser
+	program, err := compileResidentWeights(
+		ctx, p.runtime, "resident image denoiser", filepath.Join(p.modelDir, "transformer"),
+		denoiser.weightInputs,
+		[]*tensor.Tensor{denoiser.InLatent, denoiser.InText, denoiser.InTemb, denoiser.InTembMod},
+		denoiser.NextLatent,
+	)
+	if err == nil {
+		err = p.runtime.Release(ctx, replaced)
+	}
+	if err != nil || denoiser.keyBias == nil {
+		return program, err
+	}
+	return program, p.runtime.BindF32(ctx, program, "static:resident image denoiser", denoiser.keyBias, denoiser.keyData)
 }
 
 func (p *ResidentImagePipeline) prepareGeneration(ctx context.Context) (err error) {
@@ -144,21 +169,8 @@ func (p *ResidentImagePipeline) prepareGeneration(ctx context.Context) (err erro
 	if err != nil {
 		return err
 	}
-	p.denoiser, err = compileResidentWeights(
-		ctx, p.runtime, "resident image denoiser", filepath.Join(modelDir, "transformer"),
-		denoiser.weightInputs,
-		[]*tensor.Tensor{denoiser.InLatent, denoiser.InText, denoiser.InTemb, denoiser.InTembMod},
-		denoiser.NextLatent,
-	)
-	if err != nil {
+	if p.denoiser, err = p.bindDenoiser(ctx, nil); err != nil {
 		return err
-	}
-	if denoiser.keyBias != nil {
-		if err := p.runtime.BindF32(
-			ctx, p.denoiser, "static:resident image denoiser", denoiser.keyBias, denoiser.keyData,
-		); err != nil {
-			return err
-		}
 	}
 	p.uploadInput, p.uploadOutput, err = latentUploadGraph(denoiser)
 	if err != nil {
@@ -194,7 +206,8 @@ func (p *ResidentImagePipeline) prepareGeneration(ctx context.Context) (err erro
 	for index := range vae.feeds {
 		vae.feeds[index].data = nil
 	}
-	p.runtime.Seal()
+	// The session keeps the names its weights are shared by: the denoiser of
+	// another prompt binds the same weights by them.
 	p.residentBytes = p.runtime.StaticBytes()
 	return nil
 }
@@ -299,6 +312,79 @@ func (p *ResidentImagePipeline) Condition(
 	if p.conditioning != nil {
 		return nil, errors.New("resident image pipeline: conditioning is already retained")
 	}
+	conditioning, err := p.fuse(ctx, embedRows)
+	if err != nil {
+		return nil, err
+	}
+	if err := p.prepareGeneration(ctx); err != nil {
+		_ = conditioning.outputs.Release(ctx)
+		return nil, fmt.Errorf("resident image pipeline: prepare generation: %w", err)
+	}
+	return conditioning, p.retain(ctx, conditioning)
+}
+
+// retain retires the fusion once a prompt's conditioning is made and what it
+// conditions is bound, and keeps the conditioning as the pipeline's.
+func (p *ResidentImagePipeline) retain(ctx context.Context, conditioning *ResidentConditioning) error {
+	if err := p.runtime.Release(ctx, p.fusion); err != nil {
+		_ = conditioning.outputs.Release(ctx)
+		return fmt.Errorf("resident image pipeline: retire fusion graph: %w", err)
+	}
+	p.fusion = nil
+	p.residentBytes = p.runtime.StaticBytes()
+	p.conditioning = conditioning
+	return nil
+}
+
+// Recondition gives a session that has made a picture another prompt: the
+// rows of its tokens and the three programs compiled under its mask. The
+// text encoder and the fusion are placed on the device again, the prompt's
+// conditioning replaces the one before it, and they are retired; the denoiser
+// compiled for the prompt takes the weights the session holds, so none of
+// them is loaded again. An error leaves the pipeline to be closed.
+func (p *ResidentImagePipeline) Recondition(
+	ctx context.Context,
+	encoder *EncoderProgram,
+	fusion *FusionProgram,
+	denoiser *DenoiserProgram,
+	embedRows []float32,
+) error {
+	if p == nil || encoder == nil || fusion == nil || denoiser == nil {
+		return errors.New("resident image pipeline: unavailable")
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.runtime == nil || p.conditioning == nil || p.denoiser == nil || p.latent != nil {
+		return errors.New("resident image pipeline: no finished generation to give another prompt")
+	}
+	if encoder.Seq != p.Encoder.Seq || fusion.TextSeq != p.Fusion.TextSeq || denoiser.TextSeq != p.Denoiser.TextSeq ||
+		denoiser.GH != p.Denoiser.GH || denoiser.GW != p.Denoiser.GW {
+		return errors.New("resident image pipeline: the prompt's programs are of another shape than the session's")
+	}
+	if err := p.conditioning.outputs.Release(ctx); err != nil {
+		return fmt.Errorf("resident image pipeline: release conditioning: %w", err)
+	}
+	p.conditioning.outputs, p.conditioning.pipeline, p.conditioning = nil, nil, nil
+	p.Encoder, p.Fusion, p.Denoiser = encoder, fusion, denoiser
+	if err := p.loadText(ctx); err != nil {
+		return err
+	}
+	conditioning, err := p.fuse(ctx, embedRows)
+	if err != nil {
+		return err
+	}
+	if p.denoiser, err = p.bindDenoiser(ctx, p.denoiser); err != nil {
+		_ = conditioning.outputs.Release(ctx)
+		return fmt.Errorf("resident image pipeline: another prompt's denoiser: %w", err)
+	}
+	return p.retain(ctx, conditioning)
+}
+
+// fuse runs the pipeline's prompt through the text encoder and the fusion,
+// which loadText placed, and returns its conditioning retained on the device.
+// The text encoder is retired when its hidden states are fused; the caller
+// retires the fusion.
+func (p *ResidentImagePipeline) fuse(ctx context.Context, embedRows []float32) (*ResidentConditioning, error) {
 	embedValue, err := reference.BorrowedValue(p.Encoder.Embed.Shape, embedRows)
 	if err != nil {
 		return nil, fmt.Errorf("resident image pipeline: embed rows: %w", err)
@@ -357,19 +443,7 @@ func (p *ResidentImagePipeline) Condition(
 	}
 	p.encoder = nil
 	p.residentBytes = p.runtime.StaticBytes()
-	if err := p.prepareGeneration(ctx); err != nil {
-		_ = fused.Release(ctx)
-		return nil, fmt.Errorf("resident image pipeline: prepare generation: %w", err)
-	}
-	if err := p.runtime.Release(ctx, p.fusion); err != nil {
-		_ = fused.Release(ctx)
-		return nil, fmt.Errorf("resident image pipeline: retire fusion graph: %w", err)
-	}
-	p.fusion = nil
-	p.residentBytes = p.runtime.StaticBytes()
-	conditioning := &ResidentConditioning{pipeline: p, outputs: fused, value: fusedValue}
-	p.conditioning = conditioning
-	return conditioning, nil
+	return &ResidentConditioning{pipeline: p, outputs: fused, value: fusedValue}, nil
 }
 
 func (p *ResidentImagePipeline) Begin(ctx context.Context, latentPatches []float32) error {

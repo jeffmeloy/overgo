@@ -26,25 +26,6 @@
       ]
     },
     {
-      "id": "capability-identity",
-      "title": "Reuse a stored result while the code that can change it is unchanged",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 790,
-        "reason": "The picture session step's measured figure, 748 production nodes as the gate's preflight counts the built change, and a margin of 42: a picture session's conditioning made again for another prompt beside the denoiser it keeps, the denoiser bound again by the names of the weights the session holds, and a director that serves a request by a session loaded for it when the resident one refuses it. The row's first step measured 2,097 of 2,160 and left 63; its carry step is a row of its own, identity-carry"
-      },
-      "steps": [
-        {
-          "id": "second-kind",
-          "title": "Keep a second kind of model's session across requests that change only what a request gives",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/mediacapability -count=1 -run '^TestServedPictureKeepsItsSession$'",
-          "rationale": "Commit 527df96d9 took the instruction's context and the seed out of a video session's key (video-request-speed/handoff). Before the split of resident resources, compiled execution and request becomes the rule for every kind, it is measured on one more: picture generation, served through the same session director (internal/mediacapability image_cuda_windows.go). Its test serves three pictures, another prompt and then another seed, and holds that the second and third loaded nothing, that each picture is the picture a fresh session makes, and that a cancelled request releases what it held.\n\nServes: generate. Disappears: a reload for each new prompt or seed, where the measurement finds one. Evidence: the load each request measures. Batch: device."
-        }
-      ]
-    },
-    {
       "id": "identity-carry",
       "title": "Carry an evaluation while its execution identity is unchanged, and measure it again when it is not",
       "owner": "master-lead",

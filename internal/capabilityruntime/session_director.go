@@ -558,17 +558,35 @@ func (c *ModelSessionDirector[Input, Model, Output]) serve(
 
 	// A session leased resident loaded nothing for this run: its load is zero.
 	leased := processmeasure.Stage(ctx, "model session leased")
-	entry, fresh, loaded, err := c.lease(ctx, store, path, key, execution, input)
+	var entry *sessionEntry[Model]
+	var loaded time.Duration
+	for attempt := 0; ; attempt++ {
+		var fresh bool
+		entry, fresh, loaded, err = c.lease(ctx, store, path, key, execution, input)
+		if err != nil || fresh {
+			break
+		}
+		resetErr := c.reset(ctx, entry.model, input)
+		if resetErr == nil {
+			break
+		}
+		// A resident session that cannot take the request is retired, and the
+		// request is served by a session loaded for it, as it would have been
+		// with none resident: what a session needs beside what it holds, to
+		// take another request, may not fit where a session alone does. A
+		// request that was cancelled ends there, and so does one that a second
+		// session refuses.
+		err = c.retire(ctx, key, entry, resetErr)
+		c.release(entry)
+		if ctx.Err() != nil || attempt != 0 {
+			break
+		}
+	}
 	leased()
 	if err != nil {
 		return zero, err
 	}
 	defer c.release(entry)
-	if !fresh {
-		if err := c.reset(ctx, entry.model, input); err != nil {
-			return zero, c.retire(ctx, key, entry, err)
-		}
-	}
 	recorded := processmeasure.Stage(ctx, "run recorded")
 	output, result, executeErr := ExecuteMeasured[Output](
 		ctx, store, modelID, program, runKey, inputs,

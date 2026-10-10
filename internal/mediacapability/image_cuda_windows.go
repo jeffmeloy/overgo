@@ -21,20 +21,14 @@ const (
 	imageSessionCapacity = 1
 )
 
-func imageCapability() Capability {
-	routedDirector, routedErr := capabilityruntime.NewModelSessionDirector[sensenovarecipe.GenerationRequest, *sensenovarecipe.Generator, latentimage.EncodedImage](
-		"image-gen", imageDevice, imageSessionCapacity,
-		sensenovarecipe.ValidateGenerationRequest,
-		func(ctx context.Context, store artifact.Repository, path string, program recipe.Program, _ sensenovarecipe.GenerationRequest) (*sensenovarecipe.Generator, error) {
-			return sensenovarecipe.LoadGenerator(ctx, store, path, program.Definition())
-		},
-		func(ctx context.Context, generator *sensenovarecipe.Generator, request sensenovarecipe.GenerationRequest) error {
-			return generator.Reset(ctx, request)
-		},
-		sensenovarecipe.RegisterRuntime,
-	)
-	routed := sessionExecutor(routedDirector, routedErr)
-	latentDirector, err := capabilityruntime.NewModelSessionDirector[latentimage.Request, *latentimage.Generator, latentimage.EncodedImage](
+// pictureDirector directs sessions of a latent picture model.
+type pictureDirector = capabilityruntime.ModelSessionDirector[latentimage.Request, *latentimage.Generator, latentimage.EncodedImage]
+
+// pictureSessions makes a director of latent picture sessions. A session is
+// compiled for a picture's extent, and serves any prompt and seed
+// (latentimage Request.SessionKey).
+func pictureSessions() (*pictureDirector, error) {
+	return capabilityruntime.NewModelSessionDirector[latentimage.Request, *latentimage.Generator, latentimage.EncodedImage](
 		"image-gen", imageDevice, imageSessionCapacity,
 		latentimage.ValidateRequest,
 		func(ctx context.Context, store artifact.Repository, path string, program recipe.Program, request latentimage.Request) (*latentimage.Generator, error) {
@@ -53,7 +47,22 @@ func imageCapability() Capability {
 		},
 		latentimage.RegisterRuntime,
 	)
-	latent := sessionExecutor(latentDirector, err)
+}
+
+func imageCapability() Capability {
+	routedDirector, routedErr := capabilityruntime.NewModelSessionDirector[sensenovarecipe.GenerationRequest, *sensenovarecipe.Generator, latentimage.EncodedImage](
+		"image-gen", imageDevice, imageSessionCapacity,
+		sensenovarecipe.ValidateGenerationRequest,
+		func(ctx context.Context, store artifact.Repository, path string, program recipe.Program, _ sensenovarecipe.GenerationRequest) (*sensenovarecipe.Generator, error) {
+			return sensenovarecipe.LoadGenerator(ctx, store, path, program.Definition())
+		},
+		func(ctx context.Context, generator *sensenovarecipe.Generator, request sensenovarecipe.GenerationRequest) error {
+			return generator.Reset(ctx, request)
+		},
+		sensenovarecipe.RegisterRuntime,
+	)
+	routed := sessionExecutor(routedDirector, routedErr)
+	latent := sessionExecutor(pictureSessions())
 	oscillator := capabilityruntime.JSONScalar[oscillatorimage.Request, *oscillatorimage.Model, latentimage.EncodedImage](
 		"image-gen", oscillatorimage.ValidateRequest,
 		capabilityruntime.IgnoreInput[oscillatorimage.Request](oscillatorimage.Load), oscillatorimage.RegisterRuntime,

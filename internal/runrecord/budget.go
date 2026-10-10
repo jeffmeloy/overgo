@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 
 	"overgo/internal/artifact"
 )
@@ -155,6 +157,48 @@ func (value Budget) Batch(key string) (artifact.Batch, error) {
 
 func (value BudgetCharge) Batch(key string) (artifact.Batch, error) {
 	return budgetChargeCodec.Batch(key, value, value.Lineage(), nil)
+}
+
+// BudgetCharges loads one committed budget grant and the charges the store
+// holds against it: the budget charges among the records that depend on the
+// grant, in the order of their identities. Nothing else counts what a budget
+// has spent, so any process reads the same charges.
+func BudgetCharges(ctx context.Context, reader artifact.Reader, grant artifact.ID) (Budget, []BudgetCharge, error) {
+	budget, err := requireBudget(ctx, reader, grant)
+	if err != nil {
+		return Budget{}, nil, err
+	}
+	edges, err := reader.Children(ctx, grant)
+	if err != nil {
+		return Budget{}, nil, err
+	}
+	chargeSet := make(map[artifact.ID]struct{})
+	for _, edge := range edges {
+		if edge.Parent != grant || edge.Relation != artifact.RelationDependsOn {
+			continue
+		}
+		descriptor, found, err := reader.Artifact(ctx, edge.Child)
+		if err != nil {
+			return Budget{}, nil, err
+		}
+		if !found {
+			return Budget{}, nil, errors.New("run record: budget child is absent")
+		}
+		if descriptor.MediaType == BudgetChargeMediaType && descriptor.Schema == BudgetChargeSchema {
+			chargeSet[edge.Child] = struct{}{}
+		}
+	}
+	chargeIDs := slices.Collect(maps.Keys(chargeSet))
+	if err := canonicalIDs(chargeIDs); err != nil {
+		return Budget{}, nil, errors.Join(errors.New("run record: invalid budget charges"), err)
+	}
+	charges := make([]BudgetCharge, len(chargeIDs))
+	for index, id := range chargeIDs {
+		if charges[index], err = budgetChargeCodec.Require(ctx, reader, id); err != nil {
+			return Budget{}, nil, err
+		}
+	}
+	return budget, charges, nil
 }
 
 // BudgetBalance derives the remaining grant from committed charges. Charges

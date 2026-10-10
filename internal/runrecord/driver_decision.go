@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"slices"
 
 	"overgo/internal/artifact"
@@ -295,40 +294,13 @@ func deriveDriverBudgetState(
 	if ctx == nil || reader == nil || reference.Grant.Kind() != artifact.KindEvidence {
 		return driverBudgetState{}, errors.New("run record: driver budget authority is absent")
 	}
-	budget, err := requireBudget(ctx, reader, reference.Grant)
+	budget, charges, err := BudgetCharges(ctx, reader, reference.Grant)
 	if err != nil {
 		return driverBudgetState{}, err
 	}
-	edges, err := reader.Children(ctx, reference.Grant)
-	if err != nil {
-		return driverBudgetState{}, err
-	}
-	chargeSet := make(map[artifact.ID]struct{})
-	for _, edge := range edges {
-		if edge.Parent != reference.Grant || edge.Relation != artifact.RelationDependsOn {
-			continue
-		}
-		descriptor, found, err := reader.Artifact(ctx, edge.Child)
-		if err != nil {
-			return driverBudgetState{}, err
-		}
-		if !found {
-			return driverBudgetState{}, errors.New("run record: driver budget child is absent")
-		}
-		if descriptor.MediaType == BudgetChargeMediaType && descriptor.Schema == BudgetChargeSchema {
-			chargeSet[edge.Child] = struct{}{}
-		}
-	}
-	chargeIDs := slices.Collect(maps.Keys(chargeSet))
-	if err := canonicalIDs(chargeIDs); err != nil {
-		return driverBudgetState{}, errors.Join(errors.New("run record: invalid driver budget charges"), err)
-	}
-	charges := make([]BudgetCharge, len(chargeIDs))
-	for index, id := range chargeIDs {
-		charges[index], err = budgetChargeCodec.Require(ctx, reader, id)
-		if err != nil {
-			return driverBudgetState{}, err
-		}
+	chargeIDs := make([]artifact.ID, len(charges))
+	for index, charge := range charges {
+		chargeIDs[index] = charge.ID
 	}
 	remaining, err := BudgetBalance(budget, charges)
 	if err != nil {

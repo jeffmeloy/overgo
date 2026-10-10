@@ -15,8 +15,8 @@ import (
 	"overgo/internal/densecausal"
 	"overgo/internal/evaluation"
 	"overgo/internal/overgodb"
-	"overgo/internal/runrecord"
 	"overgo/internal/tensor"
+	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensorstats"
 	"overgo/internal/trainingprogram"
 )
@@ -53,8 +53,11 @@ const (
 
 // ChangeCandidate is one candidate change of a corpus's base model: the base
 // plus a weighted sum of the corpus's changes, the weights in the corpus's own
-// order, with the report that scored it on the corpus's held-out inputs and
-// the metric it read.
+// order, with the reading that scored it on the selection part of its pool
+// (evaluation.SelectionReading) and the mean it read there, of its documents'
+// token log-likelihoods. A judgment recorded before proposals were made on a
+// pool names instead the report that scored the candidate on the held-out
+// records its corpus's runs were judged on, and the corpus's metric.
 type ChangeCandidate struct {
 	Name    string      `json:"name"`
 	Weights []float64   `json:"weights"`
@@ -69,9 +72,12 @@ type ChangeCandidate struct {
 // the direction that code says gain rises in, as far as a typical run sits
 // from the mean. The controls are the best single run, the mean of all runs,
 // the mean of the runs that improved, and the mean moved the same distance in
-// a random direction. Every candidate is scored on the corpus's held-out
-// inputs, and the proposal is kept only when its score exceeds the best
-// control's across the middle of the redrawn held-out records.
+// a random direction. The gains the code is fitted to are read on the
+// development part of a held-out pool; every candidate is scored on the pool's
+// selection part, and the proposal is kept only when its score exceeds the
+// best control's across the middle of the redrawn selection documents. Kept
+// ranks the proposal among its controls. Whether a candidate is a gain over
+// the base is for the pool's promotion part to say (ConfirmChange).
 type ChangeJudgment struct {
 	ID         artifact.ID `json:"-"`
 	Version    uint16      `json:"version"`
@@ -83,8 +89,8 @@ type ChangeJudgment struct {
 	Rank      int     `json:"rank"`
 	Explained float64 `json:"explained"`
 	// GainSpread is the standard deviation of the runs' gains, and GainNoise
-	// the standard error of one run's gain over the held-out records: a
-	// spread no larger than the noise leaves no gain difference to explain.
+	// the standard error of one run's gain over the documents it was read on:
+	// a spread no larger than the noise leaves no gain difference to explain.
 	GainSpread float64 `json:"gain_spread"`
 	GainNoise  float64 `json:"gain_noise"`
 	// Base is the base model's score, read again beside the candidates.
@@ -318,11 +324,13 @@ func changeCandidates(gram, gains []float64, code changeCode, seedHigh, seedLow 
 }
 
 // ChangeProposalRequest asks for a change to be proposed from a corpus and
-// judged: the corpus, its base model's directory, the directory its runs
+// ranked: the corpus, the acceptance of the held-out pool it is fitted and
+// ranked on, the corpus's base model's directory, the directory its runs
 // published under, where the candidates are written, and the sequence length
-// its runs were judged at.
+// the pool's documents are read at.
 type ChangeProposalRequest struct {
 	Corpus          artifact.ID
+	Acceptance      artifact.ID
 	ModelDirectory  string
 	RunsDirectory   string
 	OutputDirectory string
@@ -331,82 +339,129 @@ type ChangeProposalRequest struct {
 	Progress io.Writer
 }
 
-// ProposeChange proposes a change from a corpus and judges it against its
-// controls. It reads the runs' changes from their checkpoints and fits the
-// linear code to their gains; writes the proposal and each control that is
-// not one run as a model directory under the output directory; scores every
-// candidate, and the base again, on the corpus's held-out inputs under the
-// corpus's own target plan; and publishes the judgment with the reports and
-// the resampling plan it rests on. A sequence length other than the runs'
-// compiles another plan and is refused.
+// ProposeChange proposes a change from a corpus and ranks it against its
+// controls on a held-out pool, none of whose documents the corpus's verdicts
+// read. It reads every run on the pool's development part and fits the linear
+// code to the gains it finds there; writes the proposal and each control that
+// is not one run as a model directory under the output directory; scores
+// every candidate, and the base, on the pool's selection part; and publishes
+// the judgment with each candidate's reading and the resampling plan it rests
+// on. Neither step reads the promotion part: ConfirmChange has it answer, for
+// one candidate at a time. A proposal that names no pool is refused, and so is
+// a pool fixed for another objective or base than the corpus's.
 func ProposeChange(ctx context.Context, store *overgodb.Store, request ChangeProposalRequest) (ChangeJudgment, error) {
 	corpus, err := changeCorpusCodec.Require(ctx, store, request.Corpus)
 	if err != nil {
 		return ChangeJudgment{}, err
 	}
+	pool, err := evaluation.RequireHeldoutPool(ctx, store, request.Acceptance)
+	if err != nil {
+		return ChangeJudgment{}, fmt.Errorf("training workflow: a change is fitted and ranked on a held-out pool, named by its acceptance: %w", err)
+	}
+	if pool.Acceptance.Objective != corpus.Objective || pool.Acceptance.Base != corpus.Model {
+		return ChangeJudgment{}, fmt.Errorf("training workflow: pool %s was fixed for objective %s and base %s, and the corpus's runs trained base %s under objective %s",
+			pool.Acceptance.ID, pool.Acceptance.Objective, pool.Acceptance.Base, corpus.Model, corpus.Objective)
+	}
+	base, examples, err := poolExamples(ctx, store, corpus.Objective, request.ModelDirectory, request.MaximumSequence)
+	if err != nil {
+		return ChangeJudgment{}, err
+	}
+	return proposeOnPool(ctx, store, request, corpus, pool, base, examples)
+}
+
+// poolExamples loads a pool's base model and reads its objective's documents
+// as that model's tokens, each as far as the sequence length: what the pool's
+// measure is taken on.
+func poolExamples(ctx context.Context, store *overgodb.Store, objectiveID artifact.ID, directory string, maximumSequence int) (*densecausal.Model, map[string]HeldoutExample, error) {
+	objective, err := trainingprogram.LoadObjective(ctx, store, objectiveID)
+	if err != nil {
+		return nil, nil, err
+	}
+	base, err := loadTrainableModel(directory)
+	if err != nil {
+		return nil, nil, err
+	}
+	tokenizer, err := loadTrainableTokenizer(directory)
+	if err != nil {
+		return nil, nil, err
+	}
+	sequence := base.Dims.ContextLength
+	if maximumSequence > 0 {
+		sequence = min(sequence, maximumSequence)
+	}
+	data, _, err := textObjectiveData(ctx, store, objective, tokenizer, sequence, false)
+	return base, data.Examples, err
+}
+
+// documentLikelihoods is a pool's measure of one model, before the base is
+// taken from it: for each document, the mean log-likelihood of its tokens,
+// each predicted from the ones before it.
+func documentLikelihoods(model *densecausal.Model, examples map[string]HeldoutExample, documents []string) ([]evaluation.RecordScore, error) {
+	scores := make([]evaluation.RecordScore, len(documents))
+	for index, document := range documents {
+		example, found := examples[document]
+		if !found {
+			return nil, fmt.Errorf("training workflow: the pool's document %q has no example", document)
+		}
+		loss, _, err := model.Loss(dtype.ConvertSlice[int](example.Input))
+		if err != nil {
+			return nil, fmt.Errorf("training workflow: the pool's document %q: %w", document, err)
+		}
+		scores[index] = evaluation.RecordScore{Record: document, Value: -loss}
+	}
+	return scores, nil
+}
+
+// runDirectory is where the run of an order seed published, under the
+// directory its corpus was collected in.
+func runDirectory(runsDirectory string, order uint64) string {
+	return filepath.Join(runsDirectory, fmt.Sprintf("order-%04d", order))
+}
+
+// candidateDirectory is where a candidate's model sits. One that is a single
+// run is that run's checkpoint; the others are written under the output
+// directory, each by its name.
+func candidateDirectory(corpus ChangeCorpus, runsDirectory, outputDirectory string, candidate ChangeCandidate) string {
+	if candidate.Name == changeBestRun {
+		return runDirectory(runsDirectory, corpus.Changes[slices.Index(candidate.Weights, 1)].Order)
+	}
+	return filepath.Join(outputDirectory, candidate.Name)
+}
+
+// proposeOnPool is ProposeChange once the pool, its base and its documents
+// are loaded. examples is all a proposal reads of the documents: the gains
+// the code is fitted to come from the development part's and the candidates'
+// scores from the selection part's, so nothing of another part's can move a
+// candidate's weights or its rank.
+func proposeOnPool(ctx context.Context, store *overgodb.Store, request ChangeProposalRequest, corpus ChangeCorpus, pool evaluation.CommittedPool, base *densecausal.Model, examples map[string]HeldoutExample) (ChangeJudgment, error) {
 	say := func(format string, values ...any) {
 		if request.Progress != nil {
 			fmt.Fprintf(request.Progress, format+"\n", values...)
 		}
 	}
-	var sign float64 = 1
-	if corpus.Direction == runrecord.DirectionMinimize {
-		sign = -1
+	baseDevelopment, err := documentLikelihoods(base, examples, pool.Development)
+	if err != nil {
+		return ChangeJudgment{}, err
 	}
 	runs := make([]string, len(corpus.Changes))
 	gains := make([]float64, len(corpus.Changes))
 	var noise float64
 	for index, change := range corpus.Changes {
-		runs[index] = filepath.Join(request.RunsDirectory, fmt.Sprintf("order-%04d", change.Order))
+		runs[index] = runDirectory(request.RunsDirectory, change.Order)
 		checkpoint, err := trainingprogram.LoadCheckpoint(runs[index])
 		if err != nil || checkpoint.ID() != change.Trained {
 			return ChangeJudgment{}, errors.Join(fmt.Errorf("training workflow: %s does not hold the checkpoint of the corpus's change of order %d", runs[index], change.Order), err)
 		}
-		gains[index] = sign * (change.Changed - change.Base)
-		facts, err := evaluation.ReadHeldoutVerdict(ctx, store, change.Verdict)
+		model, err := loadTrainableModel(runs[index])
 		if err != nil {
 			return ChangeJudgment{}, err
 		}
-		noise += standardError(pairedDifferences(facts.CandidateScores, facts.BaselineScores)) / float64(len(corpus.Changes))
-	}
-	objective, err := trainingprogram.LoadObjective(ctx, store, corpus.Objective)
-	if err != nil {
-		return ChangeJudgment{}, err
-	}
-	base, err := loadTrainableModel(request.ModelDirectory)
-	if err != nil {
-		return ChangeJudgment{}, err
-	}
-	tokenizer, err := loadTrainableTokenizer(request.ModelDirectory)
-	if err != nil {
-		return ChangeJudgment{}, err
-	}
-	sequence := base.Dims.ContextLength
-	if request.MaximumSequence > 0 {
-		sequence = min(sequence, request.MaximumSequence)
-	}
-	data, _, err := textObjectiveData(ctx, store, objective, tokenizer, sequence, false)
-	if err != nil {
-		return ChangeJudgment{}, err
-	}
-	training, heldout, err := objectiveMemberships(ctx, store, objective)
-	if err != nil {
-		return ChangeJudgment{}, err
-	}
-	view, err := evaluation.CompileSFTEvaluationView(objective, training, heldout)
-	if err != nil {
-		return ChangeJudgment{}, err
-	}
-	var cases []evaluation.HeldoutCase
-	for _, record := range view.Records {
-		cases = append(cases, evaluation.HeldoutCase{Record: record.ID, Values: data.Examples[record.ID].Target})
-	}
-	plan, err := evaluation.CompileHeldoutPlan(objective, view, cases)
-	if err != nil {
-		return ChangeJudgment{}, err
-	}
-	if plan.ID() != corpus.Plan || data.Heldout != corpus.Inputs {
-		return ChangeJudgment{}, errors.New("training workflow: the corpus's runs were judged on other held-out inputs than this sequence length reads; judge the proposal at the runs' sequence length")
+		read, err := documentLikelihoods(model, examples, pool.Development)
+		if err != nil {
+			return ChangeJudgment{}, err
+		}
+		gains[index] = scoreMean(read) - scoreMean(baseDevelopment)
+		noise += standardError(pairedDifferences(read, baseDevelopment)) / float64(len(corpus.Changes))
 	}
 
 	tensors, err := openChangeTensors(request.ModelDirectory, runs)
@@ -414,7 +469,7 @@ func ProposeChange(ctx context.Context, store *overgodb.Store, request ChangePro
 		return ChangeJudgment{}, err
 	}
 	defer tensors.Close()
-	say("reading the changes of %d runs", len(runs))
+	say("reading the changes of %d runs, their gains read on the %d documents of the pool's development part", len(runs), len(pool.Development))
 	gram, err := changeGram(ctx, tensors)
 	if err != nil {
 		return ChangeJudgment{}, err
@@ -432,39 +487,23 @@ func ProposeChange(ctx context.Context, store *overgodb.Store, request ChangePro
 	var written []string
 	var weights [][]float64
 	for index, candidate := range candidates {
-		if candidate.Name == changeBestRun {
-			directories[index] = runs[slices.Index(candidate.Weights, 1)]
-			continue
+		directories[index] = candidateDirectory(corpus, request.RunsDirectory, request.OutputDirectory, candidate)
+		if candidate.Name != changeBestRun {
+			written, weights = append(written, directories[index]), append(weights, candidate.Weights)
 		}
-		directories[index] = filepath.Join(request.OutputDirectory, candidate.Name)
-		written, weights = append(written, directories[index]), append(weights, candidate.Weights)
 	}
 	if err := materializeChanges(ctx, tensors, request.ModelDirectory, written, weights); err != nil {
 		return ChangeJudgment{}, err
 	}
 
-	batch := artifact.Batch{Key: "training/change-judgment/" + corpus.ID.String()}
-	score := func(model *densecausal.Model) (evaluation.HeldoutReport, error) {
-		observations := make([]evaluation.HeldoutObservation, 0, len(cases))
-		for _, target := range cases {
-			prediction, err := nextTokens(model, data.Examples[target.Record], nil)
-			if err != nil {
-				return evaluation.HeldoutReport{}, fmt.Errorf("training workflow: held-out record %q: %w", target.Record, err)
-			}
-			observations = append(observations, evaluation.HeldoutObservation{Record: target.Record, Values: prediction.Values})
-		}
-		return plan.Score(observations)
-	}
-	baseReport, err := score(base)
+	baseSelection, err := documentLikelihoods(base, examples, pool.Selection)
 	if err != nil {
 		return ChangeJudgment{}, err
 	}
+	batch := artifact.Batch{Key: "training/change-judgment/" + corpus.ID.String()}
 	judgment := ChangeJudgment{
 		Corpus: corpus.ID, Rank: code.rank, Explained: code.explained,
-		GainSpread: standardDeviation(gains), GainNoise: noise, Base: reportMean(baseReport), Candidates: candidates,
-	}
-	if judgment.Base != corpus.Changes[0].Base {
-		return ChangeJudgment{}, fmt.Errorf("training workflow: the base model reads %v here and read %v under the corpus's runs", judgment.Base, corpus.Changes[0].Base)
+		GainSpread: standardDeviation(gains), GainNoise: noise, Base: scoreMean(baseSelection), Candidates: candidates,
 	}
 	scores := make([][]evaluation.RecordScore, len(candidates))
 	parents := []artifact.ID{corpus.ID}
@@ -473,29 +512,32 @@ func ProposeChange(ctx context.Context, store *overgodb.Store, request ChangePro
 		if err != nil {
 			return ChangeJudgment{}, err
 		}
-		report, err := score(model)
+		// The reading names the weights it scored, which is what a confirmation later holds the directory to.
+		identity, err := identifyModel(directories[index])
 		if err != nil {
 			return ChangeJudgment{}, err
 		}
-		part, err := report.Batch(batch.Key)
+		if scores[index], err = documentLikelihoods(model, examples, pool.Selection); err != nil {
+			return ChangeJudgment{}, err
+		}
+		reading, part, err := evaluation.NewSelectionReading(batch.Key, pool.Acceptance.ID, identity, scores[index])
 		if err != nil {
 			return ChangeJudgment{}, err
 		}
 		mergeBatch(&batch, part)
-		scores[index] = report.RecordScores()
-		judgment.Candidates[index].Report, judgment.Candidates[index].Score = report.ID(), reportMean(report)
-		parents = append(parents, report.ID())
-		say("%s: %s %.4f (base %.4f)", candidates[index].Name, corpus.Metric, judgment.Candidates[index].Score, judgment.Base)
+		judgment.Candidates[index].Report, judgment.Candidates[index].Score = reading.ID, scoreMean(scores[index])
+		parents = append(parents, reading.ID)
+		say("%s: %.4f on the %d documents of the selection part (base %.4f)", candidates[index].Name, judgment.Candidates[index].Score, len(pool.Selection), judgment.Base)
 	}
 
 	// The control to beat is the one that scored best; the proposal is index zero.
 	control := 0
 	for index := range candidates {
-		if index > 0 && (control == 0 || sign*judgment.Candidates[index].Score > sign*judgment.Candidates[control].Score) {
+		if index > 0 && (control == 0 || judgment.Candidates[index].Score > judgment.Candidates[control].Score) {
 			control = index
 		}
 	}
-	resampling, differences, err := resampledDifferences(ctx, corpus, scores[0], scores[control], sign, seedHigh, seedLow)
+	resampling, differences, err := resampledDifferences(ctx, pool.Partition.Selection, corpus.ID, scores[0], scores[control], seedHigh, seedLow)
 	if err != nil {
 		return ChangeJudgment{}, err
 	}
@@ -513,12 +555,12 @@ func ProposeChange(ctx context.Context, store *overgodb.Store, request ChangePro
 	}
 	mergeBatch(&batch, planBatch)
 	judgment.Resampling, judgment.Control = resampling.ID, candidates[control].Name
-	judgment.Difference = sign * (judgment.Candidates[0].Score - judgment.Candidates[control].Score)
+	judgment.Difference = judgment.Candidates[0].Score - judgment.Candidates[control].Score
 	judgment.Lower, judgment.Upper = tensorstats.Quantile(differences, changeLowerQuantile), tensorstats.Quantile(differences, changeUpperQuantile)
 	if judgment, err = changeJudgmentCodec.NewInitial(judgment); err != nil {
 		return ChangeJudgment{}, err
 	}
-	// A corpus judged again is judged the same: the judgment is already there.
+	// A corpus judged again on the same pool is judged the same: the judgment is already there.
 	if held, err := store.HasContent(ctx, judgment.ID); err != nil || held {
 		return judgment, err
 	}
@@ -532,6 +574,83 @@ func ProposeChange(ctx context.Context, store *overgodb.Store, request ChangePro
 		return ChangeJudgment{}, err
 	}
 	return judgment, nil
+}
+
+// ChangeConfirmationRequest asks for one candidate of a judgment to be
+// confirmed: the judgment, the candidate by the name the judgment gives it,
+// and the directories and the sequence length its proposal was made with.
+type ChangeConfirmationRequest struct {
+	Judgment        artifact.ID
+	Candidate       string
+	ModelDirectory  string
+	RunsDirectory   string
+	OutputDirectory string
+	MaximumSequence int
+}
+
+// ConfirmChange has the promotion part of a judgment's pool answer for one of
+// the judgment's candidates: whether, on documents no run was fitted to and
+// no candidate was ranked by, the candidate is a gain over the pool's base.
+// The candidate's selection reading names its weights and the pool's
+// acceptance by identity, so both were fixed before this reads anything. A
+// directory that no longer holds those weights is refused, and so is a base
+// other than the pool's, before anything is charged. A judgment that scored
+// its candidates on the records its corpus's runs were judged on names no
+// pool, and is refused.
+//
+// Every confirmation is charged to the promotion part's budget
+// (evaluation.ConfirmOnPool). What returns is the recorded confirmation,
+// whose verdict is all it tells of the reading, and what the budget has left.
+func ConfirmChange(ctx context.Context, store *overgodb.Store, request ChangeConfirmationRequest) (evaluation.PoolConfirmation, uint64, error) {
+	judgment, err := changeJudgmentCodec.Require(ctx, store, request.Judgment)
+	if err != nil {
+		return evaluation.PoolConfirmation{}, 0, err
+	}
+	at := slices.IndexFunc(judgment.Candidates, func(candidate ChangeCandidate) bool { return candidate.Name == request.Candidate })
+	if at < 0 {
+		return evaluation.PoolConfirmation{}, 0, fmt.Errorf("training workflow: judgment %s scores no candidate named %q", judgment.ID, request.Candidate)
+	}
+	reading, err := evaluation.RequireSelectionReading(ctx, store, judgment.Candidates[at].Report)
+	if err != nil {
+		return evaluation.PoolConfirmation{}, 0, fmt.Errorf("training workflow: judgment %s scored %s on no held-out pool, so none kept a part from its choice to confirm it on: %w", judgment.ID, request.Candidate, err)
+	}
+	pool, err := evaluation.RequireHeldoutPool(ctx, store, reading.Acceptance)
+	if err != nil {
+		return evaluation.PoolConfirmation{}, 0, err
+	}
+	corpus, err := changeCorpusCodec.Require(ctx, store, judgment.Corpus)
+	if err != nil {
+		return evaluation.PoolConfirmation{}, 0, err
+	}
+	directory := candidateDirectory(corpus, request.RunsDirectory, request.OutputDirectory, judgment.Candidates[at])
+	for _, named := range []struct {
+		directory, role string
+		identity        artifact.ID
+	}{{directory, "the candidate its judgment ranked", reading.Model}, {request.ModelDirectory, "the pool's base", pool.Acceptance.Base}} {
+		held, err := identifyModel(named.directory)
+		if err != nil || held != named.identity {
+			return evaluation.PoolConfirmation{}, 0, errors.Join(fmt.Errorf("training workflow: %s holds %s, which is not %s, %s; nothing was charged", named.directory, held, named.role, named.identity), err)
+		}
+	}
+	base, examples, err := poolExamples(ctx, store, pool.Acceptance.Objective, request.ModelDirectory, request.MaximumSequence)
+	if err != nil {
+		return evaluation.PoolConfirmation{}, 0, err
+	}
+	model, err := loadTrainableModel(directory)
+	if err != nil {
+		return evaluation.PoolConfirmation{}, 0, err
+	}
+	return evaluation.ConfirmOnPool(ctx, store, reading.Acceptance, reading.Model, func(documents []string) ([]float64, error) {
+		candidate, err := documentLikelihoods(model, examples, documents)
+		if err != nil {
+			return nil, err
+		}
+		baseline, err := documentLikelihoods(base, examples, documents)
+		if err != nil {
+			return nil, err
+		}
+		return pairedDifferences(candidate, baseline), nil
+	})
 }
 
 // mergeBatch adds one part of a publication to it. Two candidates that answer
@@ -555,11 +674,11 @@ func mergeBatch(batch *artifact.Batch, part artifact.Batch) {
 	}
 }
 
-// resampledDifferences redraws the held-out records, whole and with
+// resampledDifferences redraws the documents of a population, whole and with
 // replacement, under a plan it returns, and gives the mean of the proposal's
-// score less the control's over each draw, ascending and signed so that
-// larger favours the proposal.
-func resampledDifferences(ctx context.Context, corpus ChangeCorpus, proposed, control []evaluation.RecordScore, sign float64, seedHigh, seedLow uint64) (tensorstats.ResamplingPlan, []float64, error) {
+// score less the control's over each draw, ascending: larger favours the
+// proposal. evidence is the corpus the two were proposed from.
+func resampledDifferences(ctx context.Context, population, evidence artifact.ID, proposed, control []evaluation.RecordScore, seedHigh, seedLow uint64) (tensorstats.ResamplingPlan, []float64, error) {
 	paired := pairedDifferences(proposed, control)
 	if len(paired) == 0 || len(paired) != len(proposed) {
 		return tensorstats.ResamplingPlan{}, nil, errors.New("training workflow: the proposal and its control were not scored on the same held-out records")
@@ -583,10 +702,10 @@ func resampledDifferences(ctx context.Context, corpus ChangeCorpus, proposed, co
 			return tensorstats.ResamplingPlan{}, nil, err
 		}
 		units[index] = tensorstats.SamplingUnit{ID: unit, Stratum: stratum, Members: []artifact.ID{unit}}
-		difference[unit] = sign * paired[index]
+		difference[unit] = paired[index]
 	}
 	plan, err := tensorstats.NewResamplingPlan(tensorstats.ResamplingPlan{
-		Population: corpus.Inputs, Assumption: assumption, Evidence: corpus.ID, Method: tensorstats.BlockBootstrap,
+		Population: population, Assumption: assumption, Evidence: evidence, Method: tensorstats.BlockBootstrap,
 		SeedHigh: seedHigh, SeedLow: seedLow, Draws: changeResamplingDraws, Units: units,
 	})
 	if err != nil {
@@ -631,14 +750,12 @@ func pairedDifferences(left, right []evaluation.RecordScore) []float64 {
 	return differences
 }
 
-// reportMean is the mean of a report's record scores, the metric it reads.
-func reportMean(report evaluation.HeldoutReport) float64 {
+// scoreMean is the mean of a model's scores over the documents it was read on.
+func scoreMean(scores []evaluation.RecordScore) float64 {
 	var sum float64
-	scores := report.RecordScores()
 	for _, score := range scores {
 		sum += score.Value
 	}
-	// Summed, then divided, as the report's own metric is.
 	return sum / float64(len(scores))
 }
 

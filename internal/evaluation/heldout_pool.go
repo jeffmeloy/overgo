@@ -243,7 +243,7 @@ func BuildHeldoutPool(ctx context.Context, reader artifact.Reader, request Heldo
 	}); err != nil {
 		return HeldoutPool{}, err
 	}
-	key := "training/heldout-pool/" + pool.Acceptance.ID.String()
+	key := poolKey + pool.Acceptance.ID.String()
 	if pool.Batch, err = plan.PublicationBatch(key, nil); err != nil {
 		return HeldoutPool{}, err
 	}

@@ -123,7 +123,7 @@ func CollectChangeCorpus(ctx context.Context, store *overgodb.Store, request Tex
 	for index := range runs {
 		order := first + uint64(index)
 		run := request
-		run.Order, run.OutputDirectory = order, filepath.Join(request.OutputDirectory, fmt.Sprintf("order-%04d", order))
+		run.Order, run.OutputDirectory = order, runDirectory(request.OutputDirectory, order)
 		record := filepath.Join(run.OutputDirectory, changeRunFile)
 		if err := jsonfile.DecodeStrict(record, &runs[index]); err == nil && runs[index].Order == order {
 			if request.Progress != nil {

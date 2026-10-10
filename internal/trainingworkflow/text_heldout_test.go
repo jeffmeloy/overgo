@@ -462,8 +462,17 @@ type registeredText struct {
 // registerTextObjective writes a tiny dense model that declares token zero
 // its end of sequence, registers the documents as a dataset, one file per
 // record, split in halves by record, and registers a token-prediction
-// objective over it judged by metric.
+// objective over it judged by metric, whose verdicts score every held-out
+// record.
 func registerTextObjective(t *testing.T, documents []string, metric trainingprogram.EvaluationMetric) registeredText {
+	t.Helper()
+	return registerScoredTextObjective(t, documents, metric, 0)
+}
+
+// registerScoredTextObjective is registerTextObjective for an objective
+// whose verdicts score the first scored of its held-out records, all of them
+// at zero, and leave the rest unread.
+func registerScoredTextObjective(t *testing.T, documents []string, metric trainingprogram.EvaluationMetric, scored uint32) registeredText {
 	t.Helper()
 	ctx := t.Context()
 	root := t.TempDir()
@@ -524,7 +533,7 @@ func registerTextObjective(t *testing.T, documents []string, metric trainingprog
 		Name: "texts", Kind: trainingprogram.ObjectiveTokenPrediction, Signature: textSignature,
 		Dataset: registered.Dataset, Split: training, Processors: []artifact.ID{derived(artifact.KindProfile, "processor")},
 		Loss: derived(artifact.KindProfile, "loss"), Evaluation: derived(artifact.KindProfile, "evaluation"),
-		Metric: metric, Evidence: []artifact.ID{derived(artifact.KindEvidence, "note")},
+		Metric: metric, HeldoutRecords: scored, Evidence: []artifact.ID{derived(artifact.KindEvidence, "note")},
 		Authority: trainingprogram.ObjectiveDeclared,
 	})
 	if err != nil {

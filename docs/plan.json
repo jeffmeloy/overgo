@@ -9,20 +9,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 2520,
+        "nodes": 47,
         "reason": "The second step's measured figure, 2,473 production nodes as the gate's preflight counts the built change, and a margin of 47: a confirmation on a pool, charged before it reads, with the pool as a proposer loads it, a candidate's selection reading and the confirmation's record (1,572); the proposal fitted on the development part and ranked on the selection part, and the confirmation of one of its candidates (600); the training command's flags for both (219); and the reader of a budget's committed charges, moved out of the driver's decision so both use one (82). The first step measured 2,354 and left 22. The row was filed at 1,229 for all three steps before any was designed; the third deletes"
       },
       "steps": [
-        {
-          "id": "confirmation",
-          "title": "Confirm a proposed change on records no choice was made from, and charge every confirmation to a budget",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestConfirmationIsChargedAndEntersNoChoice$'",
-          "rationale": "SQA-110. ProposeChange fits its direction to gains measured on the held-out records and judges the candidates on the same records (internal/trainingworkflow change_proposal.go). The step fits on the development part, ranks on the selection part and judges on the promotion part, and only for a candidate and an acceptance record named by identity before the reading; without both it is refused.\n\nOne reading for a proposal does not protect the part across proposals: a loop that reads a verdict, learns from it and proposes again turns the promotion part into selection data one verdict at a time. Every confirmation is therefore a committed charge against the promotion part's budget, the proposer is given the verdict and nothing else of the reading, and when the budget is spent a confirmation is refused until a fresh partition is published; the audit part is read once, at the campaign's end. Its test holds four things: changing promotion labels moves no candidate's weights or rank, and changing selection labels does; a run of proposals is refused at the first confirmation past the budget; a process started again reads the same balance, since it is counted from committed charges; and a candidate changed after its acceptance was fixed is refused.\n\nevidence-conditioning/conditioning reads the same proposer and waits on this step.\n\nServes: judge on held-out data. Disappears: a verdict given on the records that chose the candidate, and confirmations without a count. Evidence: the proposal's verdict on promotion records and the budget's balance after it. Batch: host and device.",
-          "depends_on": [
-            "evaluation-chain/pool"
-          ]
-        },
         {
           "id": "observations",
           "title": "Write each case's observation and each score once, and have every record that needs them refer to them",

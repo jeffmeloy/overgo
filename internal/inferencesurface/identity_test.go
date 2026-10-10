@@ -138,26 +138,35 @@ func TestCapabilityIdentityMovesOnlyWithItsOwnSources(t *testing.T) {
 	}
 	settings := map[string]string{"PATH": directory, "CUDA_PATH": `C:\toolkit\v1`}
 	lookup := func(name string) string { return settings[name] }
-	executable := filepath.Join(t.TempDir(), "server.exe")
-	first := environment(lookup, executable)
-	if again := environment(lookup, executable); again != first || !strings.Contains(first, library) {
+	executable, beside := filepath.Join(t.TempDir(), "server.exe"), t.TempDir()
+	first := environment(lookup, executable, beside)
+	if again := environment(lookup, executable, beside); again != first || !strings.Contains(first, library) {
 		t.Fatalf("the environment reads %q then %q: want the same twice, naming the library on the search path", first, again)
 	}
 	if err := os.WriteFile(library, []byte("driver 2 is longer"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	updated := environment(lookup, executable)
+	updated := environment(lookup, executable, beside)
 	if updated == first {
 		t.Error("a changed library left the environment where it was")
 	}
 	settings["CUDA_PATH"] = `C:\toolkit\v2`
-	if environment(lookup, executable) == updated {
+	if environment(lookup, executable, beside) == updated {
 		t.Error("a changed result setting left the environment where it was")
 	}
+	// A library the machine holds beside overgo's data and on no search path is one a result can depend on.
+	placed := filepath.Join(beside, libraries[len(libraries)-1])
+	unplaced := environment(lookup, executable, beside)
+	if err := os.WriteFile(placed, []byte("part"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if after := environment(lookup, executable, beside); after == unplaced || !strings.Contains(after, placed) {
+		t.Error("a library placed beside overgo's data left the environment where it was")
+	}
 	settings["OVERGO_LEDGER_TRACE"] = "1"
-	withTrace := environment(lookup, executable)
+	withTrace := environment(lookup, executable, beside)
 	delete(settings, "OVERGO_LEDGER_TRACE")
-	if environment(lookup, executable) != withTrace {
+	if environment(lookup, executable, beside) != withTrace {
 		t.Error("a name that changes no result moved the environment")
 	}
 

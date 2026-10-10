@@ -14,7 +14,14 @@ import (
 )
 
 // ErrAbsent is what Open returns on a machine that has no cuDNN to load.
-var ErrAbsent = errors.New("cudnn: no cuDNN library is on the search path or under CUDA_PATH")
+var ErrAbsent = errors.New("cudnn: no cuDNN library is on the search path, under CUDA_PATH or beside overgo's data")
+
+// Files are the files of cuDNN a convolution loads: the one a process asks
+// for, and the parts of it that one loads when it first needs them.
+var Files = []string{
+	"cudnn64_9.dll", "cudnn_graph64_9.dll", "cudnn_ops64_9.dll", "cudnn_cnn64_9.dll",
+	"cudnn_engines_precompiled64_9.dll", "cudnn_heuristic64_9.dll", "cudnn_engines_runtime_compiled64_9.dll",
+}
 
 // DataType is the element type of a tensor or a filter, or the type a
 // convolution's sums are kept in, by cuDNN's own values of cudnnDataType_t.

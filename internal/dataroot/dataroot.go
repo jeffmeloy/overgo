@@ -102,6 +102,13 @@ func (r Roots) References() string {
 	return filepath.Join(filepath.Dir(r.Store), "references")
 }
 
+// Libraries is the directory beside the store that holds a native library
+// overgo loads when it is there and serves without when it is not, and that
+// the machine has on no search path: cuDNN (internal/cuda/cudnn).
+func (r Roots) Libraries() string {
+	return filepath.Join(filepath.Dir(r.Store), "libraries")
+}
+
 // ResolveCurrent returns roots for the process working directory.
 func ResolveCurrent() (Roots, error) {
 	working, err := os.Getwd()

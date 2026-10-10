@@ -17,6 +17,8 @@ import (
 	"strings"
 	"sync"
 
+	"overgo/internal/cuda/cudnn"
+	"overgo/internal/dataroot"
 	"overgo/internal/processcontrol"
 )
 
@@ -76,12 +78,15 @@ var resultSettings = []string{"CUDA_PATH", "CUDA_VISIBLE_DEVICES", "ProgramFiles
 // neutralReads are the other reads of the environment in the code of an
 // identity, each as its argument is spelled, none of which changes what a
 // capability computes: four print a diagnostic, and two pass a campaign's
-// session and its resource bounds to a child process. A read that is neither
-// here nor a result setting leaves every identity that reaches it uncounted,
-// since nothing says whether an answer depends on it.
+// session and its resource bounds to a child process. Two more say where
+// overgo's data is (internal/dataroot), which is where cuDNN is looked for
+// when no search path holds it: what that changes is the library found, and
+// the place and the files found there are counted with the libraries below.
+// A read that is neither here nor a result setting leaves every identity that
+// reaches it uncounted, since nothing says whether an answer depends on it.
 var neutralReads = []string{
 	`"OVERGO_LEDGER_TRACE"`, `"OVERGO_MEMORY_PLAN"`, `"OVERGO_OP_COUNTS"`, `"OVERGO_VAE_PROFILE"`,
-	"CampaignEnvironment", "inheritedResourcesEnvironment",
+	"CampaignEnvironment", "inheritedResourcesEnvironment", "Env", "boundEnvironment",
 }
 
 // readers are the functions a setting is read from the environment with.
@@ -93,11 +98,7 @@ var readers = []string{"Getenv", "LookupEnv"}
 // (internal/cuda/driver, internal/cuda/cublas, internal/cuda/cudnn). cuDNN is
 // one a machine may be without: a clip convolved through it and one convolved
 // by the kernels differ, and so do the identities they are kept under.
-var libraries = []string{
-	"nvcuda.dll", "cublas64_12.dll", "cublasLt64_12.dll",
-	"cudnn64_9.dll", "cudnn_graph64_9.dll", "cudnn_ops64_9.dll", "cudnn_cnn64_9.dll",
-	"cudnn_engines_precompiled64_9.dll", "cudnn_heuristic64_9.dll", "cudnn_engines_runtime_compiled64_9.dll",
-}
+var libraries = append([]string{"nvcuda.dll", "cublas64_12.dll", "cublasLt64_12.dll"}, cudnn.Files...)
 
 // LinkFlag counts the execution identities of the tree at root and returns
 // the linker flag that records them in an executable built from it. The
@@ -140,21 +141,23 @@ func Execution(pkg string) (identity string, held bool) {
 // process has loaded stays the one it computes with.
 var processEnvironment = sync.OnceValue(func() string {
 	executable, _ := os.Executable()
-	return environment(os.Getenv, executable)
+	roots, _ := dataroot.ResolveCurrent()
+	return environment(os.Getenv, executable, roots.Libraries())
 })
 
 // environment describes what a result depends on that no build can count, as
 // lookup and the disk give it: the value of each result setting, and each
 // library as a change to it shows, its place, size and time, at every place a
 // loader may take it from: beside the executable, the system directory, the
-// search path and CUDA_PATH's bin.
-func environment(lookup func(string) string, executable string) string {
+// search path, CUDA_PATH's bin, and beside, the directory of libraries beside
+// overgo's data.
+func environment(lookup func(string) string, executable, beside string) string {
 	var facts strings.Builder
 	for _, name := range resultSettings {
 		fmt.Fprintf(&facts, "setting %s=%s\n", name, lookup(name))
 	}
 	directories := append([]string{filepath.Dir(executable), filepath.Join(lookup("SystemRoot"), "System32")}, filepath.SplitList(lookup("PATH"))...)
-	directories = append(directories, filepath.Join(lookup("CUDA_PATH"), "bin"))
+	directories = append(directories, filepath.Join(lookup("CUDA_PATH"), "bin"), beside)
 	for _, library := range libraries {
 		for _, directory := range directories {
 			path := filepath.Join(directory, library)

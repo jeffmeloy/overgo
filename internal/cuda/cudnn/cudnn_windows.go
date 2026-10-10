@@ -4,17 +4,62 @@ package cudnn
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"runtime"
 	"syscall"
 	"unsafe"
 
 	"overgo/internal/cuda/cublas"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/dataroot"
 )
 
-// libraryName is the cuDNN library a process loads; the library loads its own
-// parts from beside it.
-const libraryName = "cudnn64_9.dll"
+// load finds the library and resolves bindings in it. On a search path the
+// library finds its own parts. In a directory no search path holds it is
+// loaded whole (loadWhole): under CUDA_PATH, then in the directory of
+// libraries beside overgo's data (dataroot Roots.Libraries). A machine that
+// holds it in none of these returns ErrAbsent with each place's failure.
+func load(bindings []cublas.Binding) (*syscall.DLL, error) {
+	if searched, err := syscall.LoadDLL(Files[0]); err == nil {
+		dll, err := cublas.Load(Files[0], bindings)
+		return dll, errors.Join(err, searched.Release())
+	}
+	directories := []string{filepath.Join(os.Getenv("CUDA_PATH"), "bin")}
+	if roots, err := dataroot.ResolveCurrent(); err == nil {
+		directories = append(directories, roots.Libraries())
+	}
+	failed := ErrAbsent
+	for _, directory := range directories {
+		dll, err := loadWhole(directory, bindings)
+		if err == nil {
+			return dll, nil
+		}
+		failed = errors.Join(failed, err)
+	}
+	return nil, failed
+}
+
+// loadWhole loads the library from a directory that holds all its files, each
+// by its full path, the parts first and the file a process asks for last.
+// The library asks for a part by a bare name when it first needs it, and
+// stops the process when no search path holds it; a part already loaded is
+// the one it is given. So a directory with a file missing is refused before
+// anything is loaded from it. The parts stay loaded for the life of the
+// process, as the library keeps them.
+func loadWhole(directory string, bindings []cublas.Binding) (*syscall.DLL, error) {
+	for _, file := range Files {
+		if _, err := os.Stat(filepath.Join(directory, file)); err != nil {
+			return nil, err
+		}
+	}
+	for _, part := range Files[1:] {
+		if _, err := syscall.LoadDLL(filepath.Join(directory, part)); err != nil {
+			return nil, err
+		}
+	}
+	return cublas.Load(filepath.Join(directory, Files[0]), bindings)
+}
 
 // Library is the dynamically loaded cuDNN library and one context of it.
 type Library struct {
@@ -38,12 +83,13 @@ type Library struct {
 	forward            *syscall.Proc
 }
 
-// Open loads cuDNN from the search path or CUDA_PATH and makes a context in
-// the calling thread's device context, which computes on stream. On a machine
-// that has no cuDNN it returns ErrAbsent with the loader's error.
+// Open loads cuDNN where it is found (load) and makes a context in the
+// calling thread's device context, which computes on stream. On a machine
+// that has no cuDNN, or has a part of it only, it returns ErrAbsent with the
+// loader's errors.
 func Open(stream driver.Stream) (lib *Library, err error) {
 	lib = &Library{}
-	dll, err := cublas.Load(libraryName, []cublas.Binding{
+	bindings := []cublas.Binding{
 		{Name: "cudnnCreate", Proc: &lib.create},
 		{Name: "cudnnDestroy", Proc: &lib.destroy},
 		{Name: "cudnnSetStream", Proc: &lib.setStream},
@@ -59,11 +105,10 @@ func Open(stream driver.Stream) (lib *Library, err error) {
 		{Name: "cudnnDestroyConvolutionDescriptor", Proc: &lib.destroyConvolution},
 		{Name: "cudnnGetConvolutionForwardWorkspaceSize", Proc: &lib.workspaceSize},
 		{Name: "cudnnConvolutionForward", Proc: &lib.forward},
-	})
-	if err != nil {
-		return nil, errors.Join(ErrAbsent, err)
 	}
-	lib.dll = dll
+	if lib.dll, err = load(bindings); err != nil {
+		return nil, err
+	}
 	var pinned runtime.Pinner
 	pinned.Pin(lib)
 	defer pinned.Unpin()

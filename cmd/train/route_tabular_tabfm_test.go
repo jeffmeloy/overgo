@@ -18,6 +18,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
+	"overgo/internal/runrecord"
 	"overgo/internal/tabularicl"
 	"overgo/internal/testskip"
 	"overgo/internal/trainingprogram"
@@ -73,9 +74,16 @@ func TestTabFMObjectiveApprovesOnHeldOutRows(t *testing.T) {
 	}
 	defer store.Close()
 	registerTableSplit(t, ctx, store, root, tables, groups, trainingprogram.MetricTableAccuracy)
-	result, err := trainTableObjective(ctx, store, tableObjectiveAlias, model, filepath.Join(root, "trained"), tabfmSteps)
+	result, err := trainTableObjective(ctx, store, tableObjectiveAlias, model, filepath.Join(root, "trained"), tabfmSteps, artifact.ID{}, false)
 	if err != nil {
 		t.Fatal(err)
+	}
+	// The session records how long the head, the requests and the trainer took to load.
+	session, err := runrecord.RequireServingObservation(ctx, store, result.Observation)
+	if err != nil || !slices.ContainsFunc(session.Phases, func(phase runrecord.PhaseMetric) bool {
+		return phase.Phase == runrecord.PhaseLoad && phase.DurationNS != 0
+	}) {
+		t.Fatalf("the training session records phases %+v (%v), want a load phase", session.Phases, err)
 	}
 	var verdict struct {
 		BaselineValue  float64 `json:"baseline_value"`

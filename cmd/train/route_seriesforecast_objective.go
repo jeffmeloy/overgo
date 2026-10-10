@@ -43,6 +43,8 @@ func runObjective(ctx context.Context, storeRoot, alias, modelDir, out string, s
 		return err
 	}
 	modelDir = roots.ResolveModelPath(modelDir)
+	// The session records, as its load, the time from here to the first update: the model, the series and the trainer.
+	loadStarted := time.Now()
 	model, err := seriesforecast.Load(modelDir)
 	if err != nil {
 		return err
@@ -68,7 +70,7 @@ func runObjective(ctx context.Context, storeRoot, alias, modelDir, out string, s
 		// optimizer.NewStepper runs Muon on the CUDA device on Windows
 		// (stepper_windows.go) and on the host elsewhere; the observation
 		// records which.
-		Alias: alias, ModelPath: weights, Data: data, Host: runtime.GOOS != "windows",
+		Alias: alias, ModelPath: weights, Data: data, Host: runtime.GOOS != "windows", Load: time.Since(loadStarted),
 		Train: func(ctx context.Context, recipeID artifact.ID, shown []trainingworkflow.HeldoutExample) (trainingprogram.Checkpoint, error) {
 			if err := trainForecast(ctx, trainer, shown, plan.Updates()); err != nil {
 				return trainingprogram.Checkpoint{}, err

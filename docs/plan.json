@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "scorecard-unmeasured-training",
-      "title": "Measure training's unmeasured cells",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 260,
-        "reason": "The built change's measured figure, 249 production nodes as the gate's preflight counts it, and a margin of 11: the tabular route's proof run and recipe and the load time it and the forecast route pass to their sessions (158), and the measurement plan's binding of a table objective's proof to the tabular route (91). The loop files a scorecard row with no count; this one's cell needed a producer to report a time it never reported and a command the measurement run did not have"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Measure training's unmeasured cells",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-training",
-          "rationale": "- tabfm-1.0.0-pytorch load-time: no benchmark load time and no recorded load phase\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261009T224309Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
       "id": "evaluation-chain",
       "title": "Judge a trained change on data large enough to see it and never used to choose it",
       "owner": "master-lead",

@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
@@ -42,20 +43,32 @@ func trainTabular(ctx context.Context, flags *flag.FlagSet, args []string) error
 	steps := clioptions.IntOverride(flags, "steps", "required decoder update steps")
 	storePath := flags.String("store", "overgodb-store", "OvergoDB holding the objective, and receiving the session observation, verdict and checkpoint record")
 	out := flags.String("out", "", "directory the trained decoder's checkpoint publishes to")
+	recipeText := flags.String("recipe", "", "training recipe artifact ID to train under; omitted trains under the objective's own")
+	proof := flags.Bool("proof", false, "re-verify the recipe by the training run alone, judging no head and publishing no held-out verdict")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if *model == "" || *objectiveAlias == "" || *out == "" || *steps <= 0 {
 		return fmt.Errorf("%s: model, objective, out, and positive steps required", flags.Name())
 	}
+	var recipeID artifact.ID
+	if *recipeText != "" {
+		var err error
+		if recipeID, err = artifact.ParseID(*recipeText); err != nil {
+			return fmt.Errorf("training recipe: %w", err)
+		}
+	}
 	store, err := overgodb.Open(*storePath)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
-	result, err := trainTableObjective(ctx, store, *objectiveAlias, *model, *out, *steps)
+	result, err := trainTableObjective(ctx, store, *objectiveAlias, *model, *out, *steps, recipeID, *proof)
 	if err != nil {
 		return err
+	}
+	if *proof {
+		return reportProof(os.Stdout, result)
 	}
 	return reportVerdict(os.Stdout, result)
 }
@@ -65,8 +78,12 @@ func trainTabular(ctx context.Context, flags *flag.FlagSet, args []string) error
 // verdict and the trained decoder's checkpoint at out: each record of the
 // objective's registered dataset is one request file, the head trains only
 // on the training membership's requests, and the base and trained heads are
-// judged on the held-out requests' query rows.
-func trainTableObjective(ctx context.Context, store *overgodb.Store, alias, model, out string, steps int) (_ trainingworkflow.HeldoutResult, err error) {
+// judged on the held-out requests' query rows. It trains under recipeID, or
+// under the objective's own recipe when that is zero, and a proof run trains
+// and judges nothing. The session records, as its load, the time from here to
+// the first update: the head, the requests and the trainer.
+func trainTableObjective(ctx context.Context, store *overgodb.Store, alias, model, out string, steps int, recipeID artifact.ID, proof bool) (_ trainingworkflow.HeldoutResult, err error) {
+	loadStarted := time.Now()
 	objective, err := trainingworkflow.LoadObjectiveAlias(ctx, store, alias)
 	if err != nil {
 		return trainingworkflow.HeldoutResult{}, err
@@ -104,7 +121,8 @@ func trainTableObjective(ctx context.Context, store *overgodb.Store, alias, mode
 		// optimizer.NewStepper runs Muon on the CUDA device on Windows
 		// (stepper_windows.go) and on the host elsewhere; the observation
 		// records which.
-		Alias: alias, ModelPath: weights, Data: data, Host: runtime.GOOS != "windows",
+		Alias: alias, ModelPath: weights, Recipe: recipeID, Data: data, Host: runtime.GOOS != "windows",
+		Load: time.Since(loadStarted), Proof: proof,
 		Train: func(ctx context.Context, recipeID artifact.ID, shown []trainingworkflow.HeldoutExample) (trainingprogram.Checkpoint, error) {
 			if err := trainTable(ctx, trainer, requests, shown, plan.Updates()); err != nil {
 				return trainingprogram.Checkpoint{}, err

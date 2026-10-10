@@ -22,9 +22,10 @@ import (
 // one a run of the route reaches and re-verifies at the commit it executed.
 // An objective registered over store data is proved under the selected
 // recipe, whose objective must equal the alias's immutable target. A proof
-// run of train -objective re-verifies that recipe, publishing no held-out verdict to
-// supersede the one the recipe's quality reads. Each run keeps the bounds the
-// training lane recorded for its route.
+// run, of train -objective for text and of its route for a table, re-verifies
+// that recipe, publishing no held-out verdict to supersede the one the
+// recipe's quality reads. Each run keeps the bounds the training lane recorded
+// for its route.
 const (
 	trainingProof = "training-proof"
 	routeSteps    = "3"
@@ -71,6 +72,17 @@ var trainingRoutes = []trainingRoute{
 // workflow's run is bounded.
 var objectiveProof = []string{"-proof", "-steps", denseSteps, "-seq", denseSequence, "-max-wall", "10m", "-freeze-lexical"}
 
+// tabularRoute is the cmd/train route that trains a table-prediction
+// objective, and objectiveRoutes names, by the kind of objective, the route
+// that trains an objective registered over store data which train -objective,
+// training text, does not: its proof run is the route's, under the objective's
+// alias and the cell's recipe, bounded as the routes' runs are.
+const tabularRoute = "tabular"
+
+var objectiveRoutes = map[trainingprogram.ObjectiveKind]string{
+	trainingprogram.ObjectiveTablePrediction: tabularRoute,
+}
+
 // groundTraining gives each training cell, in place, the committed data its
 // recipe's objective reads when a route grounds its recipe on it, else the
 // alias, the first by name, that registers its token-prediction objective,
@@ -105,15 +117,16 @@ func groundTraining(ctx context.Context, root string, store *overgodb.Store, cel
 				return err
 			}
 			cells[index].Grounding = grounded[objective.Dataset]
-			// train -objective trains text; a table or forecast objective
-			// trains through its route.
-			if cells[index].Grounding == "" && objective.Kind == trainingprogram.ObjectiveTokenPrediction {
+			// train -objective trains text; an objective of another kind
+			// trains through the route that kind names, where one does.
+			route, routed := objectiveRoutes[objective.Kind]
+			if cells[index].Grounding == "" && (routed || objective.Kind == trainingprogram.ObjectiveTokenPrediction) {
 				if registered == nil {
 					if registered, err = aliasNames(ctx, store); err != nil {
 						return err
 					}
 				}
-				cells[index].Objective = registered[id]
+				cells[index].Objective, cells[index].Route = registered[id], route
 			}
 		}
 		if cells[index].Grounding == ditGrounding && filepath.Base(cell.Location) == ditWeights {
@@ -151,7 +164,8 @@ func aliasNames(ctx context.Context, store *overgodb.Store) (map[artifact.ID]str
 // is the verification the run records, not the checkpoint. A route trains a
 // directory's weights, a GGUF or a raw DiT checkpoint as its own flags name
 // them, the dense workflow the recipe the cell names, and an objective's
-// proof run the model directory under the objective's alias. It says why
+// proof run the model directory under the objective's alias: through train
+// -objective for text, and through its route for a table. It says why
 // when no route grounds the cell's recipe and no alias registers its
 // objective, or the route lacks an input.
 func trainingRun(cell ModelValidation, store string) (args, environment []string, err error) {
@@ -159,6 +173,8 @@ func trainingRun(cell ModelValidation, store string) (args, environment []string
 	route := trainingRoute{arguments: append([]string{"-objective", cell.Objective}, objectiveProof...)}
 	if at >= 0 {
 		route = trainingRoutes[at]
+	} else if cell.Route != "" {
+		route.arguments = []string{"-route", cell.Route, "-objective", cell.Objective, "-proof", "-steps", routeSteps}
 	}
 	inputs := []string{"-model", filepath.Dir(cell.Location)}
 	switch {
@@ -166,6 +182,11 @@ func trainingRun(cell ModelValidation, store string) (args, environment []string
 		return nil, nil, errors.New("no cmd/train route grounds its recipe's objective, and no alias registers it for train -objective")
 	case cell.Location == "":
 		return nil, nil, errors.New("a training run needs the model's weights")
+	case at < 0 && cell.Route == tabularRoute:
+		// The catalog finds a table model by one head's weights, in the head's
+		// own directory; the route takes the model's, and trains the head the
+		// objective's metric names.
+		inputs = []string{"-model", filepath.Dir(filepath.Dir(cell.Location)), "-recipe", cell.Recipe.String()}
 	case at < 0:
 		inputs = append(inputs, "-recipe", cell.Recipe.String())
 	case cell.Grounding == motGrounding:

@@ -34,7 +34,9 @@ const fixtureCommit = "0123456789abcdef0123456789abcdef01234567"
 // the dense workflow trains the recipe it is named. A recipe whose objective
 // no committed data grounds but an alias registers is re-verified by a proof
 // run of train -objective under that alias, bounded as the dense workflow's
-// run; one over data nothing grounds or registers binds nothing. Each
+// run, or, when it is a table objective, by the tabular route's proof run on
+// the model directory above the head the catalog names; one over data nothing
+// grounds or registers, or of a kind no route is bound for, binds nothing. Each
 // projection recipe passed a verification
 // the reader names from its gate alone: an exact verification whose plan ran
 // the committed suite re-runs it through recipe verify -reverify against the
@@ -60,7 +62,7 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 		}
 		return content.Descriptor.ID
 	}
-	training := func(name, weights, grounding, alias string) ModelValidation {
+	trained := func(name, weights, grounding, alias string, kind trainingprogram.ObjectiveKind, metric trainingprogram.EvaluationMetric, modality recipecontract.Modality) ModelValidation {
 		data := []byte("data no route grounds")
 		if grounding != "" {
 			if data, err = os.ReadFile(filepath.Join(root, filepath.FromSlash(grounding))); err != nil {
@@ -69,10 +71,10 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 		}
 		profile := testutil.ArtifactID(t, artifact.KindProfile, name)
 		objective, err := trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
-			Name: name, Kind: trainingprogram.ObjectiveTokenPrediction,
-			Signature: recipecontract.ModalitySignature{Inputs: []recipecontract.Modality{recipecontract.ModalityText}, Outputs: []recipecontract.Modality{recipecontract.ModalityText}},
+			Name: name, Kind: kind,
+			Signature: recipecontract.ModalitySignature{Inputs: []recipecontract.Modality{modality}, Outputs: []recipecontract.Modality{modality}},
 			Dataset:   testutil.ArtifactBytesID(t, artifact.KindDataset, data), Split: testutil.ArtifactID(t, artifact.KindDatasetShard, name),
-			Processors: []artifact.ID{profile}, Loss: profile, Evaluation: profile, Metric: trainingprogram.MetricTokenAccuracy,
+			Processors: []artifact.ID{profile}, Loss: profile, Evaluation: profile, Metric: metric,
 			Evidence: []artifact.ID{testutil.ArtifactID(t, artifact.KindEvidence, name)}, Authority: trainingprogram.ObjectiveApproved,
 		})
 		if err != nil {
@@ -96,12 +98,22 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 			Kind: recipe.TaskTraining, Validation: trainingProof, Recipe: publish(definition.ArtifactContent()),
 		}
 	}
+	training := func(name, weights, grounding, alias string) ModelValidation {
+		return trained(name, weights, grounding, alias, trainingprogram.ObjectiveTokenPrediction, trainingprogram.MetricTokenAccuracy, recipecontract.ModalityText)
+	}
 	stack, edit := training("Wan", ditWeights, ditGrounding, ""), training("LiveEdit", "edit.pt", ditGrounding, "")
 	mot := training("RxBrain", "model-00001-of-00003.safetensors", "docs/verification/rxbrain-mot-training-stimulus.txt", "")
 	hybrid := training("Qwen35", "qwen35.gguf", "fixtures/qwen35_4b_serving_golden.json", "")
 	dense, ungrounded := training("Qwen25", "model.safetensors", denseGrounding, ""), training("Unrouted", "model.safetensors", "", "")
 	const registered = "objective.registered.text-text"
 	objective := training("Qwen05", "model.safetensors", "", registered)
+	// A table objective an alias registers trains through the tabular route. A
+	// forecast objective is registered too, and no route is bound for its kind.
+	const tabled, forecasted = "objective.registered.table-table", "objective.registered.time-series-time-series"
+	table := trained("TabFM", filepath.Join("classification", "model.safetensors"), "", tabled,
+		trainingprogram.ObjectiveTablePrediction, trainingprogram.MetricTableAccuracy, recipecontract.ModalityTable)
+	forecast := trained("TimesFM", "model.safetensors", "", forecasted,
+		trainingprogram.ObjectiveForecast, trainingprogram.MetricForecastMAE, recipecontract.ModalityTimeSeries)
 
 	projectorPaths := map[string]string{}
 	projection := func(name, evidence string) ModelValidation {
@@ -206,7 +218,7 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 	suite.Cases[0].Text += " but another answer"
 	otherSuite := projection("OtherSuite", exactRan(suite))
 
-	cells := []ModelValidation{stack, edit, mot, hybrid, dense, ungrounded, objective, exact, protocol, otherSuite}
+	cells := []ModelValidation{stack, edit, mot, hybrid, dense, ungrounded, objective, table, forecast, exact, protocol, otherSuite}
 	for _, task := range []recipe.Task{
 		recipe.TaskImageGen, recipe.TaskVideoGen, recipe.TaskSpeech, recipe.TaskTranscription,
 		recipe.TaskVQA, recipe.TaskSeq2Seq, recipe.TaskForecast, recipe.TaskTabular, recipe.TaskImageEmbedding, recipe.TaskReconstruction,
@@ -230,7 +242,10 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 		t.Fatalf("promotion waits on %d of %d proofs: background=%+v", len(plan.Run), len(cells), plan.Background)
 	}
 
-	refusals := map[string]string{ungrounded.ModelName: "no cmd/train route grounds", otherSuite.ModelName: "no committed exact suite or oracle grounds"}
+	refusals := map[string]string{
+		ungrounded.ModelName: "no cmd/train route grounds", forecast.ModelName: "no cmd/train route grounds",
+		otherSuite.ModelName: "no committed exact suite or oracle grounds",
+	}
 	commands, environments := map[string][]string{}, map[string][]string{}
 	for _, sel := range plan.Run {
 		_, environments[sel.ModelName], _ = trainingRun(sel.ModelValidation, selected)
@@ -274,6 +289,10 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 			"-route": "", "-recipe": objective.Recipe.String(), "-dataset": "", "-objective": registered, "-model": filepath.Dir(objective.Location),
 			"-steps": denseSteps, "-seq": denseSequence,
 		},
+		table.ModelName: {
+			"-route": tabularRoute, "-recipe": table.Recipe.String(), "-objective": tabled, "-model": filepath.Dir(filepath.Dir(table.Location)),
+			"-steps": routeSteps, "-seq": "", "-dataset": "",
+		},
 	} {
 		for name, value := range want {
 			if got := flag(model, name); got != value {
@@ -288,6 +307,10 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 	// held-out verdict its quality reads, frozen as the dense workflow's run.
 	if proof := commands[objective.ModelName]; !slices.Contains(proof, "-proof") || !slices.Contains(proof, "-freeze-lexical") {
 		t.Errorf("%s runs %v, want a lexically frozen -objective proof run", objective.ModelName, proof)
+	}
+	// A table objective's is the tabular route's proof run, which has no text to freeze.
+	if proof := commands[table.ModelName]; !slices.Contains(proof, "-proof") || slices.Contains(proof, "-freeze-lexical") {
+		t.Errorf("%s runs %v, want the tabular route's proof run", table.ModelName, proof)
 	}
 	verify := commands[exact.ModelName]
 	for name, value := range map[string]string{

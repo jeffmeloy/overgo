@@ -35,11 +35,13 @@ type ModelValidation struct {
 	// which names the route whose run verifies it again, or the committed
 	// exact suite or oracle a projection recipe's verification ran;
 	// Objective is the alias that registers a training recipe's objective
-	// no committed data grounds, which train -objective trains under;
+	// no committed data grounds, which train -objective trains under, or,
+	// for an objective that is not text, the route Route names;
 	// Conditioning is the video stack directory a raw DiT checkpoint trains
 	// against, and Projector the projector an exact projection suite runs on.
 	Grounding    string `json:"grounding,omitzero"`
 	Objective    string `json:"objective,omitzero"`
+	Route        string `json:"route,omitzero"`
 	Conditioning string `json:"conditioning,omitzero"`
 	Projector    string `json:"projector,omitzero"`
 	// Replay is the record a benchmark's run replays first: its newest

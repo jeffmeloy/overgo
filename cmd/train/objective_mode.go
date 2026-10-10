@@ -122,8 +122,7 @@ func runObjectiveMode(ctx context.Context, store *overgodb.Store, run objectiveR
 		return err
 	}
 	if run.Proof {
-		_, err = fmt.Fprintf(output, "training proof observation=%s trained=%s; no held-out verdict published\n", result.Observation, result.Trained)
-		return err
+		return reportProof(output, result)
 	}
 	if run.LoRA != nil {
 		if _, err := fmt.Fprintf(output, "LoRA adapter written to %s as a PEFT directory\n", filepath.Join(run.Out, trainingworkflow.LoRAAdapterDirectory)); err != nil {
@@ -217,6 +216,13 @@ func confirmChange(ctx context.Context, store *overgodb.Store, judgment, candida
 	}
 	_, err = fmt.Fprintf(output, "confirmation %s of %s, candidate %s, on the promotion part of pool %s: %s; the part answers %d more\n",
 		confirmation.ID, candidate, confirmation.Candidate, confirmation.Acceptance, confirmation.Verdict, left)
+	return err
+}
+
+// reportProof writes what a proof run published: its session and the model it
+// trained, and no verdict.
+func reportProof(output io.Writer, result trainingworkflow.HeldoutResult) error {
+	_, err := fmt.Fprintf(output, "training proof observation=%s trained=%s; no held-out verdict published\n", result.Observation, result.Trained)
 	return err
 }
 

@@ -9,8 +9,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 47,
-        "reason": "The second step's measured figure, 2,473 production nodes as the gate's preflight counts the built change, and a margin of 47: a confirmation on a pool, charged before it reads, with the pool as a proposer loads it, a candidate's selection reading and the confirmation's record (1,572); the proposal fitted on the development part and ranked on the selection part, and the confirmation of one of its candidates (600); the training command's flags for both (219); and the reader of a budget's committed charges, moved out of the driver's decision so both use one (82). The first step measured 2,354 and left 22. The row was filed at 1,229 for all three steps before any was designed; the third deletes"
+        "nodes": 1150,
+        "reason": "The third step's measured figure, 1,103 production nodes as the gate's preflight counts the built change, and a margin of 47: the record of a run of answers and the reading and writing of it (1,040), the choice kinds' loop, which reads an answer and then scores it (374), the instruction rules kind moved onto the record (181), evidence that names its run and its evaluation record without copying them (115), less the instruction kind's own record a case, deleted (607). The step was expected to delete more than it adds. It does not: the exact-generation kind's record a case stays, since its stored reports and their evidence are read through it, and so do the answers a report carries beside its scores, which the sampled replay of a carried result compares. The second step measured 2,473 of 2,520. The fourth step, acceptance, is counted when it is built"
       },
       "steps": [
         {
@@ -21,6 +21,16 @@
           "rationale": "EvaluationEvidence copies phases and metrics that other records own, and its reader checks that the copies agree (internal/evaluation evidence.go). One evaluator, built from a dataset, a protocol, an execution and a scorer from a short list, writes per-case observations and then scores; each keeps its typed content under one shared envelope, and evidence and acceptance refer to them by identity. The quality floor, memory ceiling, speed target, base and decision rule are fixed in a record before confirmation is read. Its test changes a scorer and holds that no case is executed again, that the same observations are read, and that the decision against the named base is the expected one. Readers of evidence already in the store stay until it is migrated.\n\nServes: judge on held-out data. Disappears: for this family, the copied measurements, the checks that they agree, and the evaluation files the one evaluator replaces. Evidence: the family's scores before and after, equal, and the count of record schemas before and after. Batch: host.",
           "depends_on": [
             "capability-identity/identities"
+          ]
+        },
+        {
+          "id": "acceptance",
+          "title": "Fix a candidate's memory ceiling and speed target with its quality floor, base and rule, before its confirmation is read",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestConfirmationHoldsACandidateToItsCeilingAndTarget$'",
+          "rationale": "Split from observations, whose first wording asked for it in one sentence: the quality floor, memory ceiling, speed target, base and decision rule are fixed in a record before confirmation is read. A pool's acceptance (internal/evaluation heldout_pool.go PoolAcceptance) fixes the base, the measure, the rule and the statistic a confirmation must pass, and nothing of memory or speed. A candidate that is other weights of the base's shape has the base's memory and speed, which is every candidate the proposer makes today; one of another precision, codec or recipe has neither, and a gain in quality bought with either would be confirmed.\n\nThe step adds to the acceptance, each optional and each relative to the base, the most device memory a candidate may take and the least speed it may serve at, and has a confirmation of a candidate whose acceptance states either refuse one for which no committed comparison of resource fitness against the base (internal/runrecord resource_fitness_comparison.go) is within them, before anything is charged. Its test holds that a candidate within both is confirmed as before, that one past its ceiling or below its target is refused at no charge, that one with no comparison is refused when either is stated, and that an acceptance that states neither reads none.\n\nServes: judge on held-out data. Disappears: a confirmation that reads quality alone for a candidate whose cost changed. Evidence: the confirmation's refusal and the comparison it names. Batch: host.",
+          "depends_on": [
+            "evaluation-chain/observations"
           ]
         }
       ]
@@ -239,7 +249,8 @@
             "count-session-isolation/do",
             "count-second-kind/do",
             "count-template-bounds/do",
-            "count-confirmation/do"
+            "count-confirmation/do",
+            "count-observations/do"
           ]
         }
       ]

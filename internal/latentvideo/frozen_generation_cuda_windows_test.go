@@ -59,21 +59,25 @@ func TestFrozenLatentVideoGeneration(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			fixture := newFrozenVideoFixture(t, edit)
+			// The accepted clips, with their runs and reviews: docs/verification/image-video-coverage.json.
+			// They are the clips the served path draws since commit b02a618d0 drew each frame in its own
+			// palette; the third, of 81 frames, is decoded through cuDNN where a machine holds it.
 			cases := []struct {
 				inputs []string
 				output string
 			}{
-				{[]string{"548efce9b4a867734a22f75d4fdb1c00faa9582945fd355f853fdeb71de5ecc9"}, "31ee8f128572912a720e68296c646f3dc0e3e0e413ef48392872e713e6152240"},
-				{[]string{"ddb180564d8a0a1fdacff9ce2f3276a3282a00b96af71957eda687646d7b8680"}, "c733846c0bcf7d0cfa24a43d06665f609f2ac399fe384e1cfe0ced8bb5c41b99"},
-				{[]string{"364be3ce53202ce6b5be13d1265ff1e909f6c232b1796f06c73d451fad326a72"}, "d5c72f13e0bf07a1fb8268917b4da15f53e1343bfcdb3093a309591bb08f8ff9"},
+				{[]string{"548efce9b4a867734a22f75d4fdb1c00faa9582945fd355f853fdeb71de5ecc9"}, "96f0c149df823f70ccdc5812f66c1b009ecf736afda5f5d17e29ae6e310dfad7"},
+				{[]string{"ddb180564d8a0a1fdacff9ce2f3276a3282a00b96af71957eda687646d7b8680"}, "f8c3138beedbe58a280de842400455693361d6b9eec5a03351bbff716a23f277"},
+				{[]string{"364be3ce53202ce6b5be13d1265ff1e909f6c232b1796f06c73d451fad326a72"}, "3b432042d91519f91dca9acd9b9b5ca497d9b4c202cd23364ae5bb3b03cc9c9d"},
 			}
 			if edit {
+				// The editor's request decodes to values below zero, which are written as black.
 				cases = []struct {
 					inputs []string
 					output string
 				}{
-					{[]string{"13d22d58fe9d17432757def7ec1cdcb170f07358c6ccaf0a5d4dcfdeec1e95ca", "e14e51433c7ccd5111ee3e176a4da64342f7d24412979eb1faa406836ff39e91"}, "a7b319f0c798b2ed42bbd68e4376c81c6dec00d33f9f78a7051704ded8c7fa21"},
-					{[]string{"35121e6f6d23f5d51b5438029d637dd3fb43d9efa3d59adc5f12bd7c0059bf78", "e14e51433c7ccd5111ee3e176a4da64342f7d24412979eb1faa406836ff39e91"}, "a7b319f0c798b2ed42bbd68e4376c81c6dec00d33f9f78a7051704ded8c7fa21"},
+					{[]string{"13d22d58fe9d17432757def7ec1cdcb170f07358c6ccaf0a5d4dcfdeec1e95ca", "e14e51433c7ccd5111ee3e176a4da64342f7d24412979eb1faa406836ff39e91"}, "c87e2cd04098645263b865920835b6c6af8fdef3efe07c7c04c159818633b8ec"},
+					{[]string{"35121e6f6d23f5d51b5438029d637dd3fb43d9efa3d59adc5f12bd7c0059bf78", "e14e51433c7ccd5111ee3e176a4da64342f7d24412979eb1faa406836ff39e91"}, "c87e2cd04098645263b865920835b6c6af8fdef3efe07c7c04c159818633b8ec"},
 				}
 			}
 			var wan *WanRuntime

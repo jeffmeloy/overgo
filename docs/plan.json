@@ -28,21 +28,6 @@
       ]
     },
     {
-      "id": "frozen-video-clips",
-      "title": "Accept the frozen video clips again, as the served path draws them since 2026-10-07",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Accept the frozen video clips again, as the served path draws them since 2026-10-07",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_WAN_FULL=1 OVERGO_WAN_MODEL=C:/Users/jeffm/adaptive_new/models/Wan2.1-T2V-1.3B go test ./internal/latentvideo -tags=integration -run '^TestFrozenLatentVideoGeneration$' -count=1 -timeout=40m",
-          "rationale": "internal/latentvideo TestFrozenLatentVideoGeneration holds five accepted clips byte for byte, three of the video generator and two of the editor, and fails for all five at commit 43ea9b823. It runs only with a build tag and a setting of its own, so no commit's checks run it. Probed commit by commit on 2026-10-10 with its two cases that take seconds: both pass at 7a962ad0f and fail at the commit after it, b02a618d0, 'Serve LiveEdit's edits as the earlier implementation draws them', of 2026-10-07. That commit changed the clips on purpose. Every served clip's frame is drawn in a palette cut from that frame where it was drawn in a fixed palette whose dither the editor read as content; the editor's source is read from 0 to 1, as its checkpoint was trained, and its frames written in that range; and its text context is projected by the checkpoint's own projection. Its message says the editor's two cases should be acquired again and files that as a finding. Nothing acquired them, and the generator's three moved with them unremarked.\n\nThe step draws the five requests again on the store, as the served path draws them now, looks at each clip, and moves the test and the accepted record to them, as the picture model's frozen sample was accepted again in 46e0d8729: the run, the output and a review for each case in docs/verification/image-video-coverage.json, with the digests it pins. The clip of 81 frames at 832 by 480 is large enough to be convolved through cuDNN on this machine since codec-library-here, so it is accepted as the library draws it, and the record says a machine without the library draws other bytes for it; the four small clips are the kernels' on any machine. The clips these replace stay in docs/media_samples for the records of their acquisition. The step also says, and files, what would have caught this on the day: the test's quick cases run in no commit's checks.\n\nServes: generate. Disappears: five accepted clips the served path no longer draws. Evidence: the five runs, outputs and reviews, and the test passing. Batch: device; it needs a media reconciliation."
-        }
-      ]
-    },
-    {
       "id": "codec-library-rest",
       "title": "Convolve the video codec's remaining convolutions through the library",
       "owner": "master-lead",

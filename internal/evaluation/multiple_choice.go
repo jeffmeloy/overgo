@@ -306,6 +306,7 @@ func scoreMultipleChoice(
 	observations := make([]choiceObservation, len(suite.Cases))
 	correct := 0
 	progress := trackProgress(ctx, suite.Source, len(suite.Cases))
+	held.said(progress, len(suite.Cases))
 	chat, generative := scorer.(chatChoiceRuntime)
 	var probe chatProbe
 	for index, testCase := range suite.Cases {

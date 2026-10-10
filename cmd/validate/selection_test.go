@@ -321,13 +321,12 @@ func TestEveryComparedContractHasACell(t *testing.T) {
 // cycle, whatever it last recorded. A guard whose record measured today's
 // digest, a serving cell with a measured attempt, a DNA model's smoke run and
 // a benchmark whose record succeeded run as one that recorded nothing does,
-// and a benchmark that has a record names -replay of it, whatever made it
+// and no benchmark's command names a record to replay, whatever made it
 // run; operator-owned, registered-inactive and inapplicable cells are
 // accounted for; and every bucket is ordered cheapest first.
 func TestSelectValidation(t *testing.T) {
 	t.Parallel()
 	const store = "C:/stores/selected"
-	previous := testutil.ArtifactID(t, artifact.KindEvaluation, "previous")
 	cell := func(name, validation string, cost int64) ModelValidation {
 		return ModelValidation{
 			Model: testutil.ArtifactID(t, artifact.KindModel, name), ModelName: name, Location: "C:/models/" + name + ".gguf",
@@ -339,7 +338,7 @@ func TestSelectValidation(t *testing.T) {
 	dna := cell("dna", guardValidation, 3)
 	dna.Modality = dnaModality
 	succeeded, stale, unrecorded := cell("succeeded", "mmlu-pro", 1200), cell("stale", "mmlu-pro", 30), cell("unrecorded", "mmlu-pro", 40)
-	succeeded.Replay, stale.Replay, stale.Stale = previous, previous, "its recipe was replaced"
+	stale.Stale = "its recipe was replaced"
 	excluded := cell("excluded", "mmlu-pro", 1)
 	excluded.Inapplicable = "it declares dna"
 	operated := cell("operated", "mmlu-pro-full", 0)
@@ -378,9 +377,8 @@ func TestSelectValidation(t *testing.T) {
 	}
 	for _, sel := range slices.Concat(plan.Run, plan.Background) {
 		_, args, err := reacquireCommand(sel.ModelValidation, store)
-		at := slices.Index(args, "-replay")
-		if err != nil || (at >= 0) != sel.Replay.Valid() || at >= 0 && args[at+1] != previous.String() {
-			t.Errorf("%s re-runs as %v, %v, want -replay %s exactly when it has a record", sel.ModelName, args, err, previous)
+		if err != nil || slices.Contains(args, "-replay") {
+			t.Errorf("%s re-runs as %v, %v, want a command that names no record to replay", sel.ModelName, args, err)
 		}
 	}
 }

@@ -63,9 +63,13 @@ var caseAnswersCodec = artifact.JSONDocumentCodec(
 
 // observed names what a plan's execution is asked: everything a case's answer
 // depends on, and nothing its score does. That is the plan's model, recipe,
-// environment, commit and execution policy, and asked, what each case gives
-// the model, in the cases' order. Two plans that differ in their scorer, or in
-// what their cases' answers are scored against, name the same answers.
+// environment and execution policy, the code that answers, and asked, what
+// each case gives the model, in the cases' order. The code is named by the
+// identity its build counted for it where the plan was bound with one, so the
+// answers outlive every commit that leaves that identity where it was and no
+// other; a plan bound with none names its commit, and its answers last as
+// long as the commit. Two plans that differ in their scorer, or in what
+// their cases' answers are scored against, name the same answers.
 func (p Plan) observed(asked any) (artifact.ID, error) {
 	return artifact.JSONID(artifact.KindProfile, struct {
 		ModelDefinition artifact.ID `json:"model_definition"`
@@ -74,7 +78,7 @@ func (p Plan) observed(asked any) (artifact.ID, error) {
 		CodeCommit      string      `json:"code_commit"`
 		Environment     artifact.ID `json:"environment"`
 		Asked           any         `json:"asked"`
-	}{p.body.ModelDefinition, p.body.RuntimeRecipe, p.body.Execution, p.body.CodeCommit, p.body.Environment, asked})
+	}{p.body.ModelDefinition, p.body.RuntimeRecipe, p.body.Execution, cmp.Or(p.answered, p.body.CodeCommit), p.body.Environment, asked})
 }
 
 // answers is what one execution has answered of the cases it is asked, in
@@ -138,6 +142,14 @@ func loadAnswers[T any](ctx context.Context, repository artifact.Repository, pla
 	}
 	held.written = len(held.values)
 	return held, nil
+}
+
+// said tells the operator how many of an evaluation's total cases the store
+// held an answer to when it began: those are read, and not put to the model.
+func (held *answers[T]) said(progress *progressTracker, total int) {
+	if held.written > 0 {
+		progress.sample(fmt.Sprintf("%d of %d cases were answered before by this code and are not put to the model again", min(held.written, total), total))
+	}
 }
 
 // answer is the answer to the case at index, which is one already answered or

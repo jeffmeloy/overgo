@@ -120,6 +120,8 @@ func openEvaluationSession(ctx context.Context, value manifest, request modelReq
 		return fail(err)
 	}
 	campaign.WithPrompting(prompting)
+	// The runner answers every case here, so its answers are kept under its code's identity where this build counted one.
+	evaluation.AnsweredBy[inference.Runner](campaign)
 	return &nativeSession{store: store, runner: runner, campaign: campaign, model: identity.Model, commit: value.CodeCommit}, nil
 }
 

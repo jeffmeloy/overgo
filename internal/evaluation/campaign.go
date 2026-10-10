@@ -3,8 +3,10 @@ package evaluation
 import (
 	"context"
 	"errors"
+	"reflect"
 
 	"overgo/internal/artifact"
+	"overgo/internal/inferencesurface"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/processmeasure"
@@ -20,6 +22,28 @@ type Campaign struct {
 	commit      string
 	lifecycle   lifecycle
 	prompting   prompting
+	// answered names the code the campaign's answers are kept under (AnsweredBy).
+	answered string
+}
+
+// AnsweredBy keeps the answers of every plan the campaign compiles under the
+// identity of the code that gives them, where the cases are answered by a
+// model of type Model and the build counted an identity for that type's
+// package: a later commit that leaves the identity where it was puts no case
+// to the model again, and one that moves it puts every case. A build that
+// counted none, or a campaign whose environment the store cannot reproduce,
+// as a hosted model's is, keeps its answers under its commit as before.
+func AnsweredBy[Model any](campaign *Campaign) *Campaign {
+	return campaign.answeredBy(reflect.TypeFor[Model]().PkgPath(), inferencesurface.Evaluation)
+}
+
+// answeredBy is AnsweredBy for a model of the package pkg, with what the
+// build counted read through counted; a test stands a build's count in.
+func (campaign *Campaign) answeredBy(pkg string, counted func(string) (string, bool)) *Campaign {
+	if identity, held := counted(pkg); held && campaign != nil && campaign.environment.Reproducible() {
+		campaign.answered = "identity/" + identity
+	}
+	return campaign
 }
 
 // WithPrompting binds the prompt-shaping protocol every plan this
@@ -39,7 +63,6 @@ type CampaignResult struct {
 	Evidence   artifact.ID               `json:"evidence"`
 	Metrics    []runrecord.Metric        `json:"metrics"`
 	Resources  runrecord.ResourceFitness `json:"resources"`
-	Carried    artifact.ID               `json:"carried,omitzero"` // the record a replay carried forward; Report is its receipt
 }
 
 func NewCampaign(
@@ -99,20 +122,19 @@ func (campaign *Campaign) Authorities() ExactAuthorities {
 	return ExactAuthorities{
 		ModelDefinition: campaign.identity.Definition, RuntimeRecipe: campaign.identity.Recipe,
 		CodeCommit: campaign.commit, Environment: campaign.environment.ID,
-		Execution: ExecutionPolicy{Lifecycle: campaign.lifecycle, Prompting: campaign.prompting},
+		Execution:   ExecutionPolicy{Lifecycle: campaign.lifecycle, Prompting: campaign.prompting},
+		AnswerScope: campaign.answered,
 	}
 }
 
+// Evaluate puts to the campaign's model each case of suite the store holds no
+// answer to, scores every case's answer and publishes the run at the
+// campaign's commit. Its attempt includes its environment's publication.
 func (campaign *Campaign) Evaluate(ctx context.Context, suite CompiledSuite) (CampaignResult, error) {
-	return campaign.evaluate(ctx, suite, processmeasure.NewStopwatch(), nil)
-}
-
-// evaluate keeps one attempt clock across replay and full fallback. Ordinary
-// evaluation includes its environment publication in the same attempt.
-func (campaign *Campaign) evaluate(ctx context.Context, suite CompiledSuite, stopwatch processmeasure.Stopwatch, replay *ReplayReceipt) (CampaignResult, error) {
 	if campaign == nil || ctx == nil {
 		return CampaignResult{}, errors.New("evaluation: campaign is absent")
 	}
+	stopwatch := processmeasure.NewStopwatch()
 	if ctx.Err() != nil {
 		measured, err := stopwatch.Elapsed()
 		if err != nil {
@@ -124,11 +146,6 @@ func (campaign *Campaign) evaluate(ctx context.Context, suite CompiledSuite, sto
 		return CampaignResult{}, err
 	}
 	result, evaluateErr := executeSuite(ctx, campaign.repository, campaign.runtime, suite)
-	if evaluateErr == nil && replay != nil {
-		receipt := *replay
-		receipt.Report = result.Report
-		result.Report, evaluateErr = campaign.publishReplayReceipt(ctx, suite, receipt)
-	}
 	measured, err := stopwatch.Elapsed()
 	if err != nil {
 		return CampaignResult{}, errors.Join(evaluateErr, err)
@@ -136,8 +153,7 @@ func (campaign *Campaign) evaluate(ctx context.Context, suite CompiledSuite, sto
 	return campaign.finishEvaluation(ctx, suite, result, evaluateErr, measured)
 }
 
-// finishEvaluation owns successful and terminal publication, including a
-// cancelled replay whose spent work must not disappear into a new attempt.
+// finishEvaluation owns successful and terminal publication.
 func (campaign *Campaign) finishEvaluation(ctx context.Context, suite CompiledSuite, result suiteResult, evaluateErr error, measured uint64) (CampaignResult, error) {
 	if measured == 0 {
 		return CampaignResult{}, errors.Join(evaluateErr, errors.New("evaluation: wall measurement is not positive"))
@@ -158,7 +174,7 @@ func (campaign *Campaign) finishEvaluation(ctx context.Context, suite CompiledSu
 	return campaign.publishSuccess(ctx, suite, result, measured)
 }
 
-// publishPlan retains a plan before a terminal or replay receipt references it.
+// publishPlan retains a plan before a terminal run references it.
 // A completed execution already published its authority batch with its dataset.
 func (campaign *Campaign) publishPlan(ctx context.Context, suite CompiledSuite) error {
 	if _, found, err := campaign.repository.Artifact(ctx, suite.plan.Identity()); err != nil || found {

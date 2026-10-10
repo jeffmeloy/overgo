@@ -352,7 +352,7 @@ func readCycleState(path, key string) cycleState {
 // leaves to the background, the root its inventory was registered from and the
 // committed data its training and projection runs read (grounding, objective,
 // conditioning, projector), and why it is scheduled so, without what a run
-// itself changes (the cost it measured, the record it replays).
+// itself changes (the cost it measured).
 func obligationsDigest(plan []byte) (string, error) {
 	var decoded struct {
 		Run        []map[string]any `json:"run"`

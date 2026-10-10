@@ -19,24 +19,6 @@
       ]
     },
     {
-      "id": "identity-carry",
-      "title": "Carry an evaluation while its execution identity is unchanged, and measure it again when it is not",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Carry an evaluation while its execution identity is unchanged, and measure it again when it is not",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestMeasurementRunsNoCaseAgainAfterAnUnrelatedCommit$'",
-          "rationale": "A full result is carried today after 32 sampled cases reproduce (internal/evaluation replay.go: replayCases), which shows agreement on those cases and not on the suite; SQA-078 holds that risk. Under an unchanged identity the result is the result, with no replay. Under a changed one the suite is measured again. Its test goes through the improvement run's own launch, in separate processes: it measures, commits a change outside every identity, measures again and holds that no case was executed the second time, then commits a change inside one identity and holds that only that capability's cases were. A result already in the store is re-keyed only when its record names every build and runtime input the identity is made of; the commit alone does not name them all, and any other result is measured once more. The step states how many suites that is and what they cost before it lands. The sampled replay is deleted only when every consumer of a carried result reads the identity; the reader of replay receipts already in the store stays.\n\nServes: judge on held-out data. Disappears: the sampled replay. Evidence: the cases executed by each of the test's three measurements, and the count of suites measured once more for the change of key. Batch: host.\n\nMoved out of capability-identity on 2026-10-09 so that row's last step is not held by the decision this one waits on. What the step asked to be stated before it lands, measured that day on the store: 46 of the 87 newest evaluation results stand on a result a sampled replay carried forward, 30 of them carried 19 or 20 times since the run that scored every case, and those runs took 13 hours 55 minutes in all, the longest 1 hour 44 minutes. The code an evaluation's result depends on, the closure of cmd/evaluate, changed on 112 of the last 300 commits, and the text surface alone on 34; the two newest scorecards lie several hundred commits apart. So an identity is certain to have moved between one cycle and the next at this pace, and with the sampled replay deleted every cycle scores those 46 again, about 14 hours on top of a cycle's three to five. The replay's weakness is that its sample never changes (internal/evaluation replay.go: replaySelection, the 8 longest cases and 24 at even length ranks): a change that misses those 32 is not seen however often the result is carried. The row has no count: it is sized when the decision says what it builds.\n\nAnswered 2026-10-10. The owner told the lead to take its recommendation, and in the same hour told it that the suites are ten times the size their decisions need (the row evaluation-size). At a tenth, scoring every carried result in full is about 1.4 hours a run and not 14, so the cost that argued for keeping a replay is gone and the lead's recommendation is the plainer one: carry a result only while its execution identity is unchanged, score it in full when it is not, and delete the sampled replay, with no second replay to take its place. The step is as it was first written. It follows evaluation-size, whose smaller suites are what make it affordable.",
-          "depends_on": [
-            "evaluation-size/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "shared-numerical-program",
       "title": "Run and train one dense block from one definition",
       "owner": "master-lead",

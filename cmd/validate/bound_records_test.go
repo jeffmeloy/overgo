@@ -1,24 +1,48 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
 	"slices"
 	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
+	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/sequencescore"
 	"overgo/internal/testutil"
+	"overgo/internal/tokenizer"
 )
+
+// benchmarkFixtureRuntime scores each candidate from its case's prompt alone
+// and counts the cases it scores.
+type benchmarkFixtureRuntime struct{ scored *int }
+
+func (benchmarkFixtureRuntime) Generate(context.Context, string, inference.GenerateOptions) ([]tokenizer.TokenID, string, error) {
+	return nil, "", errors.New("the benchmark fixture scores likelihoods only")
+}
+
+func (runtime benchmarkFixtureRuntime) ScoreContinuations(_ context.Context, prompt string, candidates []string) ([]sequencescore.Score, error) {
+	*runtime.scored++
+	scores := make([]sequencescore.Score, len(candidates))
+	for index := range candidates {
+		scores[index] = sequencescore.Score{LogProbability: -float64(len(prompt)%(index+3)+1) / 3, Tokens: 1}
+	}
+	return scores, nil
+}
 
 // TestBenchmarkDoesNotReuseUnknownExecution makes missing execution authority
 // bind a fresh measurement, while a complete real campaign is the record its
-// re-run replays: the cell takes that record's protocol, cost and identity,
-// and its command names the identity after -replay. A benchmark its model's
-// declared domains exclude is inapplicable and binds no record.
+// re-run takes its protocol and cost from. Its command names no record: what
+// a run asks its model again is decided where the answers are kept, by the
+// code that gives them. A benchmark its model's declared domains exclude is
+// inapplicable.
 func TestBenchmarkDoesNotReuseUnknownExecution(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
@@ -27,7 +51,14 @@ func TestBenchmarkDoesNotReuseUnknownExecution(t *testing.T) {
 	}
 	defer store.Close()
 	authorities := evaluation.ListingAuthorities()
-	data, _ := replayFixtureSuite(t, 1)
+	data, err := json.Marshal(evaluation.MultipleChoiceSuite{
+		Kind: evaluation.MultipleChoiceKind, Schema: "fixture/benchmark", Source: "store/mmlu",
+		Normalization: sequencescore.NormalizationSum, Aggregation: evaluation.AggregationAccuracy,
+		Cases: []evaluation.MultipleChoiceCase{{Name: "case-000", Prompt: "Question 0: word\nAnswer:", Candidates: []string{" A", " B", " C", " D"}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	suite, err := evaluation.CompileSuite(data, authorities)
 	if err != nil {
 		t.Fatal(err)
@@ -76,15 +107,15 @@ func TestBenchmarkDoesNotReuseUnknownExecution(t *testing.T) {
 		return value
 	}
 	raw := evaluation.PromptingRawCompletion.Label()
-	if value := read(cell); value.Replay.Valid() || value.Cost != int64(benchmarkBudget) || value.Protocol != raw {
-		t.Errorf("unknown execution was replayed: %+v, want a fresh raw measurement without replay", value)
+	if value := read(cell); value.Cost != int64(benchmarkBudget) || value.Protocol != raw {
+		t.Errorf("unknown execution was bound: %+v, want a fresh raw measurement at the budget's cost", value)
 	}
 	platform, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "host", Driver: "fixture"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	scored := 0
-	campaign, err := evaluation.NewIsolatedCampaign(store, replayFixtureRuntime{scored: &scored}, modelrecipe.ProgramIdentity{
+	campaign, err := evaluation.NewIsolatedCampaign(store, benchmarkFixtureRuntime{scored: &scored}, modelrecipe.ProgramIdentity{
 		Model: model, Definition: authorities.ModelDefinition, Recipe: authorities.RuntimeRecipe,
 	}, platform, strings.Repeat("a", 40))
 	if err != nil {
@@ -103,18 +134,18 @@ func TestBenchmarkDoesNotReuseUnknownExecution(t *testing.T) {
 		t.Fatal(err)
 	}
 	bound := read(cell)
-	if bound.Replay != fresh.Evaluation || bound.Cost != int64(run.MeasuredNS) || bound.Protocol != raw || scored != 1 {
+	if bound.Cost != int64(run.MeasuredNS) || bound.Protocol != raw || scored != 1 {
 		t.Fatalf("known real execution was not retained: %+v, scored=%d", bound, scored)
 	}
 	_, args, err := reacquireCommand(bound, "C:/stores/selected")
-	if at := slices.Index(args, "-replay"); err != nil || at < 0 || args[at+1] != fresh.Evaluation.String() {
-		t.Fatalf("a benchmark with a succeeded record bound %v, %v, want -replay %s", args, err, fresh.Evaluation)
+	if err != nil || slices.Contains(args, "-replay") || !slices.Contains(args, "./cmd/evaluate") {
+		t.Fatalf("a benchmark with a succeeded record runs as %v, %v; want an evaluate worker that names no record to replay", args, err)
 	}
 
 	// A DNA model's declaration admits no text suite: its cell is inapplicable
-	// whatever its recipe recorded, and binds no replay.
+	// whatever its recipe recorded.
 	cell.Modality = dnaModality
-	if value := read(cell); value.Inapplicable == "" || value.Replay.Valid() {
+	if value := read(cell); value.Inapplicable == "" {
 		t.Errorf("a benchmark the model's declaration excludes was bound: %+v", value)
 	}
 }

@@ -32,12 +32,29 @@ import (
 const (
 	capabilityCatalog  = "internal/mediacapability"
 	capabilityExecutor = "internal/capabilityruntime"
+	// textRunner is the package of the runner a text model is evaluated
+	// through. No capability of the catalog is a type of it, so it is counted
+	// beside the catalog's imports where a tree holds it.
+	textRunner = "internal/inference"
+	// evaluationCount names, in a count, the sources that put an evaluation's
+	// cases to a model (evaluationBinders).
+	evaluationCount = "evaluation"
 	// kernelPackage embeds the compiled kernels. An identity that reaches it
 	// holds the kernel sources they are built from as well.
 	kernelPackage = "internal/cuda/kernel"
 	// countPackage is this package, whose stamp a build's count is linked into.
 	countPackage = "internal/inferencesurface"
 )
+
+// evaluationBinders are the packages that put an evaluation's cases to a
+// model: the command that opens the model and shapes what it is asked, the
+// package that asks each case and keeps its answer, and the opener of a text
+// model. Their own sources join the identity an evaluation's answers are kept
+// under, as the catalog's own sources join a capability's. They are not
+// descended into: what they reach beneath them is the answering model's
+// closure, which its own identity holds, or another model's, or code that
+// scores and records an answer and gives none.
+var evaluationBinders = []string{"cmd/evaluate", "internal/evaluation", "internal/modelcli"}
 
 // stamp is what the build counted: import/path=identity for each package,
 // separated by commas. The linker sets it from the flag LinkFlag returns. A
@@ -72,8 +89,8 @@ var buildSettings = []string{"GOOS", "GOARCH", "GOAMD64", "GOARM64", "CGO_ENABLE
 // CUDA_PATH places the cuBLAS libraries when the search path does not hold
 // them, CUDA_VISIBLE_DEVICES decides which device the driver gives first, and
 // ProgramFiles places the FFmpeg a clip is decoded with when nothing else
-// names one.
-var resultSettings = []string{"CUDA_PATH", "CUDA_VISIBLE_DEVICES", "ProgramFiles"}
+// names one, and OVERGO_FFMPEG names one.
+var resultSettings = []string{"CUDA_PATH", "CUDA_VISIBLE_DEVICES", "ProgramFiles", "OVERGO_FFMPEG"}
 
 // neutralReads are the other reads of the environment in the code of an
 // identity, each as its argument is spelled, none of which changes what a
@@ -137,6 +154,21 @@ func Execution(pkg string) (identity string, held bool) {
 	return "", false
 }
 
+// Evaluation is the identity this process keeps the answers of an evaluation
+// under, for cases a model of a type of pkg answers: the package's execution
+// identity with the count of the sources that put a case to the model
+// (evaluationBinders). held is false when the build counted either of them
+// not, and the caller then keeps the answers no longer than it would have.
+func Evaluation(pkg string) (identity string, held bool) {
+	model, counted := Execution(pkg)
+	binders, bound := Execution(evaluationCount)
+	if !counted || !bound {
+		return "", false
+	}
+	sum := sha256.Sum256([]byte(model + "\n" + binders))
+	return hex.EncodeToString(sum[:]), true
+}
+
 // processEnvironment reads this process's environment once: a library a
 // process has loaded stays the one it computes with.
 var processEnvironment = sync.OnceValue(func() string {
@@ -180,7 +212,15 @@ func identities(ctx context.Context, root string) (counted map[string]string, re
 	if root, err = filepath.Abs(root); err != nil {
 		return nil, nil, err
 	}
-	listed, module, err := list(ctx, root, "./"+capabilityCatalog, "./"+capabilityExecutor)
+	// A tree holds the text runner and an evaluation's binders or it does not,
+	// and one without them counts nothing for them.
+	roots := []string{"./" + capabilityCatalog, "./" + capabilityExecutor}
+	for _, held := range append([]string{textRunner}, evaluationBinders...) {
+		if _, err := os.Stat(filepath.Join(root, held)); err == nil {
+			roots = append(roots, "./"+held)
+		}
+	}
+	listed, module, err := list(ctx, root, roots...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -201,7 +241,7 @@ func identities(ctx context.Context, root string) (counted map[string]string, re
 	}
 	read := sources{}
 	counted, refused = map[string]string{}, map[string][]string{}
-	for _, entry := range append(slices.Clone(catalog.Imports), catalog.ImportPath) {
+	for _, entry := range append(slices.Clone(catalog.Imports), catalog.ImportPath, module+"/"+textRunner) {
 		if pkg, found := listed[entry]; !found || pkg.Module.Path != module {
 			continue
 		}
@@ -232,6 +272,27 @@ func identities(ctx context.Context, root string) (counted map[string]string, re
 		} else {
 			counted[entry] = identity
 		}
+	}
+	var binders []string
+	for _, binder := range evaluationBinders {
+		pkg, found := listed[module+"/"+binder]
+		if !found {
+			return counted, refused, nil
+		}
+		own, err := packageFiles(pkg)
+		if err != nil {
+			return nil, nil, err
+		}
+		binders = append(binders, own...)
+	}
+	identity, undeclared, err := read.digest(root, binders, nil, "")
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(undeclared) != 0 {
+		refused[evaluationCount] = undeclared
+	} else {
+		counted[evaluationCount] = identity
 	}
 	return counted, refused, nil
 }

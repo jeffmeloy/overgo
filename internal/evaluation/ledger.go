@@ -296,8 +296,8 @@ func publishCampaignDocument[T any](
 
 // bindCampaignOnce is the binding that makes target the campaign of plan, or none when the plan
 // already has another's: a plan's campaign is the first evaluation that completed it, and an evaluation
-// at the same plan after that (a cycle rerun at an unchanged commit replays its newest record,
-// which is the first run's, so its receipt is another document) leaves the campaign where it is.
+// at the same plan after that (a cycle rerun at an unchanged commit, whose report is another
+// document where its scoring gave another) leaves the campaign where it is.
 func bindCampaignOnce(ctx context.Context, repository artifact.Repository, plan, target artifact.ID) ([]artifact.AliasBinding, error) {
 	alias := campaignAlias(plan)
 	current, bound, err := artifact.ResolveAlias(ctx, repository, alias)

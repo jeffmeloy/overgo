@@ -12,7 +12,7 @@ import (
 // TestCellCreditSurvivesAKilledRun holds the credit a cycle keeps to what a killed run needs of
 // it: a cell a run acquired is credited to the next run of the same commit and store, which is
 // a new process reading the file; a cell is the same cell whatever a run changed of it (its
-// cost, the record it replays) and another cell when a recipe, a protocol or any committed
+// cost) and another cell when a recipe, a protocol or any committed
 // input it reads differs; another commit or store, or no file, credits nothing.
 func TestCellCreditSurvivesAKilledRun(t *testing.T) {
 	t.Parallel()
@@ -33,9 +33,9 @@ func TestCellCreditSurvivesAKilledRun(t *testing.T) {
 		t.Fatal("a cell a killed run acquired is not credited to the run that continues it")
 	}
 	measured := cell
-	measured.Cost, measured.Replay = 9e9, testutil.ArtifactID(t, artifact.KindEvaluation, "replay")
+	measured.Cost = 9e9
 	if !second.has(measured) {
-		t.Error("what a run changes of a cell (its cost, the record it replays) made it another cell")
+		t.Error("what a run changes of a cell (its cost) made it another cell")
 	}
 	for name, other := range map[string]ModelValidation{
 		"recipe":       withRecipe(cell, testutil.ArtifactID(t, artifact.KindRecipe, "other")),

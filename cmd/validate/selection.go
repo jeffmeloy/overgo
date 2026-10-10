@@ -44,10 +44,6 @@ type ModelValidation struct {
 	Route        string `json:"route,omitzero"`
 	Conditioning string `json:"conditioning,omitzero"`
 	Projector    string `json:"projector,omitzero"`
-	// Replay is the record a benchmark's run replays first: its newest
-	// evaluation, which evaluate carries forward only when the replay
-	// reproduces it.
-	Replay artifact.ID `json:"replay,omitzero"`
 }
 
 // Selected pairs an obligation with the reason it landed in its plan bucket
@@ -105,9 +101,9 @@ func cycleSuites() []SelectedSuite {
 // pure: no store, git, filesystem or device access, so the whole decision is
 // unit-tested. A cell is inapplicable when its model's own declaration
 // excludes it. Every other activated cell runs, every cycle: nothing here
-// asks whether its evidence still holds, and a benchmark that runs replays its
-// newest record first, which evaluate carries forward only when the replay
-// reproduces it. Everything else is operator-owned, registered-inactive, or
+// asks whether its evidence still holds. A benchmark that runs puts to its
+// model only the cases the store holds no answer to by the code that answers
+// now, which evaluate decides. Everything else is operator-owned, registered-inactive, or
 // inappropriate to its kind. A cell that runs is scheduled by what the scorecard
 // compares. Every bucket is ordered cheapest first so a broken run surfaces
 // on a small model in seconds.

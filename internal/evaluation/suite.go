@@ -124,7 +124,6 @@ type CompiledSuite struct {
 	acceptance AcceptancePolicy
 	evaluator  Evaluator
 	execute    func(context.Context, artifact.Repository, Runtime) (suiteResult, error)
-	source     []byte // the suite document, which a replay samples
 }
 
 func (suite CompiledSuite) Descriptor() SuiteDescriptor { return suite.descriptor }
@@ -136,7 +135,6 @@ func CompileSuite(data []byte, authorities ExactAuthorities) (CompiledSuite, err
 	if err != nil {
 		return CompiledSuite{}, err
 	}
-	suite.source = data
 	suite.descriptor.Chance = choiceChance(data)
 	return suite, nil
 }

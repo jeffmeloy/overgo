@@ -26,7 +26,7 @@ func TestRepositoryCountsEveryCapabilityPackage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, entry := range []string{"overgo/internal/mediacapability", "overgo/internal/latentvideo", "overgo/internal/speechsynth", "overgo/internal/vqaserve"} {
+	for _, entry := range []string{"overgo/internal/mediacapability", "overgo/internal/latentvideo", "overgo/internal/speechsynth", "overgo/internal/vqaserve", "overgo/" + textRunner, evaluationCount} {
 		if identity := counted[entry]; identity == "" || !strings.Contains(flag, entry+"="+identity) {
 			t.Errorf("%s is counted %q, and the linker flag does not name it so", entry, identity)
 		}
@@ -188,5 +188,112 @@ func TestCapabilityIdentityMovesOnlyWithItsOwnSources(t *testing.T) {
 	stamp = picture + "=" + strings.Repeat("0", len(before[picture]))
 	if moved, _ := Execution(picture); moved == one {
 		t.Error("another count gave the same identity")
+	}
+}
+
+// TestEvaluationIdentityIsItsModelsWithTheSourcesThatAskIt counts a tree that
+// holds a text runner and the three packages that put an evaluation's cases
+// to a model. The runner has an identity though the catalog imports no such
+// package. A source of a binder moves the count of the binders and no
+// package's identity; a source a binder reaches that is no model's moves
+// neither; a source of the runner moves the runner's identity and not the
+// binders' count. In a process, an evaluation's identity is held when the
+// build counted both the model's package and the binders, and moves with
+// either; a tree without one of the binders counts none, and its build keeps
+// an evaluation's answers no longer than it did.
+func TestEvaluationIdentityIsItsModelsWithTheSourcesThatAskIt(t *testing.T) {
+	root := t.TempDir()
+	write := func(name, content string) {
+		t.Helper()
+		path := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("go.mod", "module fixture\n\ngo 1.26\n")
+	write("internal/mediacapability/catalog.go", "package mediacapability\n\nimport (\n\t_ \"fixture/internal/capabilityruntime\"\n\t_ \"fixture/internal/speech\"\n)\n")
+	write("internal/capabilityruntime/runtime.go", "package capabilityruntime\n")
+	write("internal/speech/speech.go", "package speech\n")
+	write("internal/inference/runner.go", "package inference\n")
+	write("internal/scoring/scoring.go", "package scoring\n")
+	write("internal/evaluation/ask.go", "package evaluation\n\nimport (\n\t_ \"fixture/internal/inference\"\n\t_ \"fixture/internal/scoring\"\n\t_ \"fixture/internal/speech\"\n)\n")
+	write("internal/modelcli/open.go", "package modelcli\n\nimport _ \"fixture/internal/inference\"\n")
+	write("cmd/evaluate/main.go", "package main\n\nimport (\n\t_ \"fixture/internal/evaluation\"\n\t_ \"fixture/internal/modelcli\"\n)\n\nfunc main() {}\n")
+	write("kernels/manifest.json", "{}")
+	write("kernels/cuda/ops.cu", "")
+	ctx := t.Context()
+	const runner, speech = "fixture/" + textRunner, "fixture/internal/speech"
+	count := func() map[string]string {
+		t.Helper()
+		counted, refused, err := identities(ctx, root)
+		if err != nil || len(refused) != 0 {
+			t.Fatalf("the tree counts with %v, refusing %v", err, refused)
+		}
+		return counted
+	}
+	before := count()
+	if before[runner] == "" || before[speech] == "" || before[evaluationCount] == "" {
+		t.Fatalf("the tree counts %v: want an identity for the runner, one for the capability, and a count of the binders", before)
+	}
+	for _, change := range []struct {
+		what, file, content string
+		moves               []string
+	}{
+		{"the command that opens the model", "cmd/evaluate/main.go", "package main\n\nimport (\n\t_ \"fixture/internal/evaluation\"\n\t_ \"fixture/internal/modelcli\"\n)\n\nfunc main() {} // changed\n", []string{evaluationCount}},
+		{"the package that asks each case", "internal/evaluation/ask.go", "package evaluation\n\nimport (\n\t_ \"fixture/internal/inference\"\n\t_ \"fixture/internal/scoring\"\n\t_ \"fixture/internal/speech\"\n) // changed\n", []string{evaluationCount}},
+		{"the opener of a text model", "internal/modelcli/open.go", "package modelcli\n\nimport _ \"fixture/internal/inference\" // changed\n", []string{evaluationCount}},
+		{"a source a binder reaches that is no model's", "internal/scoring/scoring.go", "package scoring // changed\n", nil},
+		{"a source of the runner", "internal/inference/runner.go", "package inference // changed\n", []string{runner}},
+		{"a source of another model", "internal/speech/speech.go", "package speech // changed\n", []string{speech}},
+	} {
+		write(change.file, change.content)
+		after := count()
+		var moved []string
+		for _, entry := range []string{evaluationCount, runner, speech} {
+			if after[entry] != before[entry] {
+				moved = append(moved, entry)
+			}
+		}
+		if !slices.Equal(moved, change.moves) {
+			t.Errorf("%s moved %v; want %v", change.what, moved, change.moves)
+		}
+		before = after
+	}
+
+	held := stamp
+	defer func() { stamp = held }()
+	link := func(entries ...string) {
+		var parts []string
+		for _, entry := range entries {
+			parts = append(parts, entry+"="+before[entry])
+		}
+		stamp = strings.Join(parts, ",")
+	}
+	link(runner, speech, evaluationCount)
+	text, heldText := Evaluation(runner)
+	spoken, heldSpoken := Evaluation(speech)
+	served, _ := Execution(runner)
+	if _, heldNone := Evaluation("fixture/internal/scoring"); !heldText || !heldSpoken || heldNone || text == spoken || text == served {
+		t.Fatalf("a counted build holds the evaluation identities %q (%t) and %q (%t), one for an uncounted package: %t, and serves the runner under %q; want one for each counted package, each its own", text, heldText, spoken, heldSpoken, heldNone, served)
+	}
+	link(runner, speech)
+	if identity, held := Evaluation(runner); held || identity != "" {
+		t.Errorf("a build that counted no binders holds the evaluation identity %q", identity)
+	}
+	before[evaluationCount] = strings.Repeat("0", len(before[evaluationCount]))
+	link(runner, speech, evaluationCount)
+	if moved, _ := Evaluation(runner); moved == text {
+		t.Error("another count of the binders gave the same evaluation identity")
+	}
+
+	if err := os.RemoveAll(filepath.Join(root, "internal", "modelcli")); err != nil {
+		t.Fatal(err)
+	}
+	write("cmd/evaluate/main.go", "package main\n\nimport _ \"fixture/internal/evaluation\"\n\nfunc main() {}\n")
+	if partial := count(); partial[evaluationCount] != "" || partial[runner] == "" {
+		t.Errorf("a tree without one of the binders counts %v; want no count of the binders, and the runner's identity still", partial)
 	}
 }

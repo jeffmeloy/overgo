@@ -216,6 +216,7 @@ func evaluateInstructionRules(
 	}
 	strictPrompts, loosePrompts, strictRules, looseRules, rules := 0, 0, 0, 0, 0
 	progress := trackProgress(ctx, compiled.suite.Source, len(compiled.suite.Cases))
+	held.said(progress, len(compiled.suite.Cases))
 	for index, testCase := range compiled.suite.Cases {
 		result, err := held.answer(ctx, index, func() (ExactResult, error) {
 			written, err := recordInstruction(ctx, generator, testCase.Name, testCase.Prompt, testCase.MaxTokens)

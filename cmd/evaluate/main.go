@@ -19,7 +19,6 @@ import (
 	"strings"
 	"time"
 
-	"overgo/internal/artifact"
 	"overgo/internal/checked"
 	"overgo/internal/clioptions"
 	"overgo/internal/evaluation"
@@ -78,7 +77,6 @@ func run() error {
 	chatProtocol := flag.Bool("chat-protocol", false, "score multiple-choice suites through each model's declared chat template; the raw completion protocol stays the recorded anchor")
 	device := flag.Int("device", 0, "CUDA device ordinal for -all")
 	family := flag.String("family", "", "restrict -all and -list-derived-suites to one derived suite family (e.g. mmlu); only that family's records are read and compiled. A family a measurement run scores a part of, mmlu-pro, bbh and ifeval, is that part; append /whole for every case of it (mmlu-pro/whole)")
-	replay := flag.String("replay", "", "for an -all worker: an evaluation record of the family's suite to carry forward when a replay of a sample of its cases reproduces their outputs; the suite runs in full otherwise")
 	catalogLimit := flag.Int("catalog-limit", 256, "servable model listing bound for -all")
 	declareDomains := flag.String("declare-domain", "", "comma-separated eval domains to declare for the positional model path (e.g. dna)")
 	declareReferences := flag.String("declare-references", "", "JSON spec of published or externally measured reference scores per model location ({declarations:[{model, references:[{suite, metric, value, protocol, source}]}]})")
@@ -292,11 +290,7 @@ func run() error {
 			return errors.New("usage: evaluate -all [-repo <store>] [-device N] [-family name]")
 		}
 		if *worker {
-			previous, err := artifact.ParseID(*replay)
-			if *replay != "" && err != nil {
-				return err
-			}
-			return runAllWorker(context.Background(), *repository, *device, *family, *modelPath, *chatProtocol, *budget, previous)
+			return runAllWorker(context.Background(), *repository, *device, *family, *modelPath, *chatProtocol, *budget)
 		}
 		return runAllParent(context.Background(), *repository, *device, *family, *catalogLimit, *chatProtocol, *budget)
 	}

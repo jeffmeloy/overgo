@@ -171,7 +171,8 @@ func TestEvaluationSuitesAreSizedForTheirDecisions(t *testing.T) {
 			t.Fatalf("%s: derived %d suites, dropped %v (%v)", family, len(suites), dropped, err)
 		}
 		var suite instructionRulesSuite
-		if err := json.Unmarshal(suites[0].source, &suite); err != nil {
+		// The first authority a plan binds is its case profile, which for this kind is the suite's document.
+		if err := json.Unmarshal(suites[0].plan.authorities[0].Data, &suite); err != nil {
 			t.Fatal(err)
 		}
 		names := make([]string, len(suite.Cases))

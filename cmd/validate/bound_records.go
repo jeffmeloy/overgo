@@ -17,8 +17,8 @@ import (
 // A benchmark cell is re-acquired every cycle under the protocol of its
 // recipe's newest evaluation of its family's suite as the active catalog
 // compiles it now (a suite imported again since is another dataset, which no
-// older record measured), and replays that record first: evaluate decides
-// whether the replay reproduces it and carries it forward, else runs in full.
+// older record measured). Evaluate reads each case's answer from the store
+// where the code that answers now gave it before, and asks the model the rest.
 
 // benchmarkFamilies are the derived-suite families every inference activation
 // owes an accuracy benchmark on, besides the family the scorecard
@@ -53,7 +53,7 @@ func readBenchmarkEvidence(ctx context.Context, store *overgodb.Store) benchmark
 	return benchmarkEvidence{suites: suites, evidence: evaluation.LatestEvidence(ctx, store, names, 0)}
 }
 
-// bind gives a benchmark cell the protocol, cost and replay record of its
+// bind gives a benchmark cell the protocol and cost of its
 // recipe's newest evaluation of the family's suite, under the protocol the
 // cell names when the scorecard compares it, else under whichever
 // protocol ran last. A family no record measures yet takes the named protocol
@@ -76,7 +76,7 @@ func (benchmarks benchmarkEvidence) bind(ctx context.Context, store *overgodb.St
 			return cell, err
 		}
 		run, err := runrecord.RequireRun(ctx, store, evaluated.Run)
-		cell.Protocol, cell.Cost, cell.Replay = summary.Prompting, int64(run.MeasuredNS), summary.Record
+		cell.Protocol, cell.Cost = summary.Prompting, int64(run.MeasuredNS)
 		return cell, err
 	}
 	protocol := evaluation.PromptingRawCompletion.Label()
@@ -109,7 +109,7 @@ func proofCost(ctx context.Context, store *overgodb.Store, cell ModelValidation)
 }
 
 // bindCells gives each cell, in place, what its re-acquisition takes: a
-// benchmark the protocol, cost and replay record of its newest evaluation, or
+// benchmark the protocol and cost of its newest evaluation, or
 // its exclusion by its model's declared domains; a training or projection
 // proof the wall of the run its activation accepted, then the grounding the
 // training and projection routes take. A read that fails fails the command:

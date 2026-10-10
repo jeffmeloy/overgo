@@ -100,7 +100,7 @@ func (s *hostedSession) Evaluate(ctx context.Context, path string) error {
 // the generated-letter protocol scores); every other kind is named and
 // not taken. No prompt template is published and no long-form admission
 // runs: neither belongs to a model without local weights.
-func (s *hostedSession) EvaluateDerived(ctx context.Context, family string, replay artifact.ID) error {
+func (s *hostedSession) EvaluateDerived(ctx context.Context, family string) error {
 	suites, skipped, err := evaluation.DeriveStoreSuiteFamily(ctx, s.store, s.campaign.Authorities(), family)
 	if err != nil {
 		return err
@@ -119,7 +119,7 @@ func (s *hostedSession) EvaluateDerived(ctx context.Context, family string, repl
 			return "a hosted model scores multiple choice through the generated-letter protocol only"
 		}
 		return ""
-	}, replay)
+	})
 	if err != nil {
 		return err
 	}

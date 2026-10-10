@@ -46,7 +46,7 @@ func openCellCredit(path, commit, store string) *cellCredit {
 
 // cellKey names a cell by what a run of it consumes: its model, task, validation, protocol,
 // recipe, weights and the committed inputs its training and projection runs read, and not by
-// what a run changes (the cost it measured, the record it replays, why it is scheduled), so a
+// what a run changes (the cost it measured, why it is scheduled), so a
 // changed input is a different cell and a measured one is the same.
 func cellKey(cell ModelValidation) string {
 	consumed, err := json.Marshal([]any{

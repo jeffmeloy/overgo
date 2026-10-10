@@ -96,12 +96,19 @@ type ExactAuthorities struct {
 	CodeCommit      string
 	Environment     artifact.ID
 	Execution       ExecutionPolicy
+	// AnswerScope names the code a case's answer is kept under where the
+	// build counted an identity for it (AnsweredBy); empty keeps an answer
+	// under CodeCommit. It is no part of a plan's identity.
+	AnswerScope string
 }
 
 type Plan struct {
 	identity    artifact.ID
 	body        planBody
 	authorities []artifact.Content
+	// answered is the authorities' AnswerScope: what the plan's answers are
+	// kept under in place of its commit (observed).
+	answered string
 }
 
 type planBody struct {
@@ -259,6 +266,7 @@ func bindPlan[C, S any](
 	return Plan{
 		identity: identity, body: body,
 		authorities: []artifact.Content{caseContent, scorerContent, executionContent},
+		answered:    authorities.AnswerScope,
 	}, nil
 }
 
@@ -270,8 +278,9 @@ func (p Plan) Dataset() artifact.ID { return p.body.Dataset }
 func (p Plan) Execution() artifact.ID { return p.body.Execution }
 
 // comparisonIdentity binds acceptance and environment for comparisons across
-// producer/model changes. It does not authorize reuse, which checks the entire
-// plan including the model, recipe and source through EvaluateOrCarry.
+// producer/model changes. It does not authorize reuse: an answer is given
+// again only to what the plan's execution was asked, by the code that gave it
+// (observed).
 func (p Plan) comparisonIdentity() (artifact.ID, error) {
 	return artifact.JSONID(artifact.KindProfile, struct {
 		Version     uint16                      `json:"version"`

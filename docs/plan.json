@@ -29,16 +29,35 @@
     },
     {
       "id": "codec-library-here",
-      "title": "Find cuDNN beside overgo's data on this machine, and accept the frozen video clips again under it",
+      "title": "Find cuDNN beside overgo's data on this machine",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 340,
+        "reason": "The step's preflight counted 317 production nodes on 2026-10-10: loading the library's parts from beside its first file, and the first file from the directory of libraries beside overgo's data, 250; that directory among the places an execution identity counts a library at, the rest. 23 are left for what the remaining rules ask."
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "Find cuDNN beside overgo's data on this machine",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -count=1 -run '^TestLibraryCodecAgreesWithItsOwnCodeOnASmallClip$'",
+          "rationale": "The owner answered cudnn-search-path on 2026-10-10 by telling the lead to do what it recommended, which was to have cuDNN where overgo looks on this machine and to accept the frozen video clips again under it. A download needs the owner's word for the file, and a search path is a system setting the lead does not change, so the step does neither. The machine already holds cuDNN 9.1.0 for CUDA 12, the seven files a convolution loads, inside the owner's Python environment. The loader that finds cuBLAS and cuDNN on the search path and under CUDA_PATH (internal/cuda/cublas Load) is given one more place, a directory of overgo's own data, and the seven files are copied there from that environment, which is read and not changed. The place joins what an execution identity counts (internal/inferencesurface), with the setting that names it.\n\nAs built on 2026-10-10. The library asks for each of its six parts by a bare name when it first needs it, and stops the process when the search path does not hold one: loaded by its full path with its directory on no search path, it ended the test process at its first call. So the binding loads the parts itself, from beside the first file wherever that was found, before it calls the library; a part already loaded is the one the library is given, and a library with a part missing is refused as absent where it would have stopped the process. That holds for a library found under CUDA_PATH as well. The tests of the library's path, which say they cannot apply on a machine without it, then run in every commit's checks here.\n\nThe frozen video clips are not accepted again in this step, as it first said. Their test does not pass at the commit before this one, with the library or without: a commit of 2026-10-07 changed how every served clip is drawn, on purpose, and left their acceptance to a finding. That work is the row frozen-video-clips, which follows this one and accepts the clip of 81 frames as the library draws it.\n\nServes: generate. Disappears: nothing; the kernels stay for a picture, a small clip and a machine without the library. Evidence: the library's tests run and not skipped, the clips accepted again, and the two video rows' first-output and peak device memory before and after. Batch: device; it expires the video guards and needs a media reconciliation."
+        }
+      ]
+    },
+    {
+      "id": "frozen-video-clips",
+      "title": "Accept the frozen video clips again, as the served path draws them since 2026-10-07",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Find cuDNN beside overgo's data on this machine, and accept the frozen video clips again under it",
+          "title": "Accept the frozen video clips again, as the served path draws them since 2026-10-07",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -count=1 -run '^TestLibraryCodecAgreesWithItsOwnCodeOnASmallClip$'",
-          "rationale": "The owner answered cudnn-search-path on 2026-10-10 by telling the lead to do what it recommended, which was to have cuDNN where overgo looks on this machine and to accept the frozen video clips again under it. A download needs the owner's word for the file, and a search path is a system setting the lead does not change, so the step does neither. The machine already holds cuDNN 9.1.0 for CUDA 12, the seven files a convolution loads, inside the owner's Python environment. The loader that finds cuBLAS and cuDNN on the search path and under CUDA_PATH (internal/cuda/cublas Load) is given one more place, a directory of overgo's own data, and the seven files are copied there from that environment, which is read and not changed. The place joins what an execution identity counts (internal/inferencesurface), with the setting that names it.\n\nWith the library found, a served clip of about ten frames or more is convolved through it, and its bytes are no longer the kernels': the frozen video clips whose requests are that large are made again, looked at, and accepted under the library as a frozen sample is accepted, with their records. The tests of the library's path, which say they cannot apply on a machine without it, then run in every commit's checks here. The step states the clips it accepted again and the first-output and peak-device-memory of both video rows before and after.\n\nServes: generate. Disappears: nothing; the kernels stay for a picture, a small clip and a machine without the library. Evidence: the library's tests run and not skipped, the clips accepted again, and the two video rows' first-output and peak device memory before and after. Batch: device; it expires the video guards and needs a media reconciliation."
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_WAN_FULL=1 OVERGO_WAN_MODEL=C:/Users/jeffm/adaptive_new/models/Wan2.1-T2V-1.3B go test ./internal/latentvideo -tags=integration -run '^TestFrozenLatentVideoGeneration$' -count=1 -timeout=40m",
+          "rationale": "internal/latentvideo TestFrozenLatentVideoGeneration holds five accepted clips byte for byte, three of the video generator and two of the editor, and fails for all five at commit 43ea9b823. It runs only with a build tag and a setting of its own, so no commit's checks run it. Probed commit by commit on 2026-10-10 with its two cases that take seconds: both pass at 7a962ad0f and fail at the commit after it, b02a618d0, 'Serve LiveEdit's edits as the earlier implementation draws them', of 2026-10-07. That commit changed the clips on purpose. Every served clip's frame is drawn in a palette cut from that frame where it was drawn in a fixed palette whose dither the editor read as content; the editor's source is read from 0 to 1, as its checkpoint was trained, and its frames written in that range; and its text context is projected by the checkpoint's own projection. Its message says the editor's two cases should be acquired again and files that as a finding. Nothing acquired them, and the generator's three moved with them unremarked.\n\nThe step draws the five requests again on the store, as the served path draws them now, looks at each clip, and moves the test and the accepted record to them, as the picture model's frozen sample was accepted again in 46e0d8729: the run, the output and a review for each case in docs/verification/image-video-coverage.json, with the digests it pins. The clip of 81 frames at 832 by 480 is large enough to be convolved through cuDNN on this machine since codec-library-here, so it is accepted as the library draws it, and the record says a machine without the library draws other bytes for it; the four small clips are the kernels' on any machine. The clips these replace stay in docs/media_samples for the records of their acquisition. The step also says, and files, what would have caught this on the day: the test's quick cases run in no commit's checks.\n\nServes: generate. Disappears: five accepted clips the served path no longer draws. Evidence: the five runs, outputs and reviews, and the test passing. Batch: device; it needs a media reconciliation."
         }
       ]
     },
@@ -384,7 +403,9 @@
             "evaluation-size/do",
             "codec-library-here/do",
             "answers-2026-10-10/do",
-            "count-size/do"
+            "count-size/do",
+            "frozen-video-clips/do",
+            "count-here/do"
           ]
         }
       ]

@@ -4,21 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "frozen-video-81",
-      "title": "Accept the frozen clip of 81 frames again, as the library decodes it now",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Accept the frozen clip of 81 frames again, as the library decodes it now",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_WAN_FULL=1 OVERGO_WAN_MODEL=C:/Users/jeffm/adaptive_new/models/Wan2.1-T2V-1.3B go test ./internal/latentvideo -tags=integration -run '^TestFrozenLatentVideoGeneration$' -count=1 -timeout=40m",
-          "rationale": "internal/latentvideo TestFrozenLatentVideoGeneration holds five accepted clips byte for byte. The third of the generator's, 81 frames at 832 by 480, is large enough to be decoded through cuDNN on this machine and was accepted on 2026-10-10 as the library decoded it then (9d2af5bc4, output 3b432042). The same day codec-library-rest (61b87a5ac) put the decoder's convolution of each frame enlarged to twice its extents through the library too. That moves a decoded value by less than a level and the clip's bytes with it, as its message said it might. Drawn fresh on the store at 61b87a5ac, the request gives run da4b8093 and output 2ce1f2aa, 18,310,751 bytes, where the accepted clip is 18,308,826. The test needs a build tag and a setting of its own, so no commit's checks ran it (finding a57721de), and the accepted record has been stale since that commit.\n\nThe step looks at every frame of the new clip, beside the clip it replaces, publishes its review, and moves the test and the accepted record to it: the case's run, output and review in docs/verification/image-video-coverage.json with the digests it pins, the digest of that record cmd/validate holds, and a note in docs/image_video_validation.json. The clip it replaces is taken out of docs/media_samples, since nothing then reads it: the accepted sample of this case is 18 megabytes, and it will move again whenever the library's path does. The step says so, and says what the four small clips are: the kernels' on any machine, and not moved.\n\nServes: generate. Disappears: an accepted clip the served path no longer draws. Evidence: the run, the output and the review, and the test passing. Batch: device; it needs a media reconciliation."
-        }
-      ]
-    },
-    {
       "id": "video-text-encoder",
       "title": "Take the text encoder out of a video request's first output",
       "owner": "master-lead",

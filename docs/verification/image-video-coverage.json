@@ -1,6 +1,6 @@
 {
   "Version": 1,
-  "Scope": "Fifteen frozen generation cases accepted at their named producer commits. Exact output reproduction and native/lifecycle checks retain their own scopes. Historical visual reviews, resources and UI receipts retain original provenance; no broad quality, speedup or production composition-gain claim. Krea-2-Turbo's case names the picture its frozen request draws since commit 56a5820a7 mended two faults in the path to it, with that picture's own run and review: its proofs, at commit 51c87fce, are of the path as it stood then and of the picture this one replaces, and TestFrozenKreaGeneration holds the bytes of the new one. The five video cases, Wan2.1-T2V-1.3B's three and LiveEdit's two, name the clips their frozen requests draw since commit b02a618d0 drew every served clip's frames each in its own palette and wrote the editor's frames from 0 to 1, each with its own run and review: their proofs are of the path as it stood before and of the clips these replace, and TestFrozenLatentVideoGeneration holds the bytes of the new ones. The generator's clip of 81 frames is decoded through cuDNN on the machine that accepted it; the editor's two are black frames, which hold bytes and lineage and show no edit.",
+  "Scope": "Fifteen frozen generation cases accepted at their named producer commits. Exact output reproduction and native/lifecycle checks retain their own scopes. Historical visual reviews, resources and UI receipts retain original provenance; no broad quality, speedup or production composition-gain claim. Krea-2-Turbo's case names the picture its frozen request draws since commit 56a5820a7 mended two faults in the path to it, with that picture's own run and review: its proofs, at commit 51c87fce, are of the path as it stood then and of the picture this one replaces, and TestFrozenKreaGeneration holds the bytes of the new one. The five video cases, Wan2.1-T2V-1.3B's three and LiveEdit's two, name the clips their frozen requests draw since commit b02a618d0 drew every served clip's frames each in its own palette and wrote the editor's frames from 0 to 1, each with its own run and review: their proofs are of the path as it stood before and of the clips these replace, and TestFrozenLatentVideoGeneration holds the bytes of the new ones. The generator's clip of 81 frames is decoded through cuDNN on the machine that accepted it, every convolution of its decoding since commit 61b87a5ac, at which it was drawn and accepted again; the editor's two are black frames, which hold bytes and lineage and show no edit.",
   "Models": [
     {
       "Model": "model:sha256:03a237541f9d21f2c0fd477e5f29b56fecaf5dfa26a8cadc8da69aa5e3a42476",
@@ -177,10 +177,10 @@
     "docs/image_video_protocol.json": "def4f5e35c40adaa5b2c07bbd44c9e8ee8ca7c09e976195f4e2fc8cd1b73f932",
     "docs/image_video_resources.json": "efd505cc4aa3cfcd932fbad40caf5b48ceddb4d985bf9ace53b57550ad344654",
     "docs/image_video_routed_images.json": "70456dd2c5a3c7dbfd5800ed4f32b3b1bee1a78e65460569f0035c8043c0b7c7",
-    "docs/image_video_validation.json": "e649c1e426105fce9f859c21b858781ec8fbeb499e7ab04a1743132345a7393e",
+    "docs/image_video_validation.json": "f3dba7230c7963cdc6bdfd60fbf191cd4eb4b64d009b5352e612a5943dffa85c",
     "docs/image_video_wan.json": "559c811d0a7f10d6ca90c4088805250435d78eb57736a95175e7d86a0c68157a",
     "internal/diffusionimage/frozen_generation_cuda_windows_test.go": "82c6a387330ea00c8bbb64622730c9b815813125d1c12e3ace68423aa539d10b",
-    "internal/latentvideo/frozen_generation_cuda_windows_test.go": "38eafdf520714f7983ab6d16066ca2b09144c8f873c39262ef967e5e8e067edf",
+    "internal/latentvideo/frozen_generation_cuda_windows_test.go": "f063b31decba44e494582380bc3e7d5d4537f0fc19e8f90b032ee5bb0a681926",
     "internal/mediacapability/frozen_krea_cuda_windows_test.go": "7e03196f082e97c0726f9805310afaefec01beb12ed5a2d180bee4e323c3b1a4",
     "internal/oscillatorimage/frozen_modalities_test.go": "18b376a50a7a2eb9a612ec4d22e64d7f33895cefc946027f2efac74498343dd0",
     "internal/sensenovarecipe/frozen_generation_cuda_windows_test.go": "85f13920ad55a945c9dbdbc6eaae05e9e54bd16513b390d029f436b3cc188930"
@@ -266,9 +266,9 @@
     },
     {
       "Case": "Wan2.1-T2V-1.3B/video-gen/3",
-      "Run": "run:sha256:de211502c7134d7e884f7a2fc7a4ad2cd985629113f4e5163b3551d103217e2a",
-      "Output": "output:sha256:3b432042d91519f91dca9acd9b9b5ca497d9b4c202cd23364ae5bb3b03cc9c9d",
-      "Review": "evidence:sha256:24c0ba76768da02afd7ec3a77c18bf928579313060c87c3ac8aaf0f668c7fb74"
+      "Run": "run:sha256:da4b80938fd542067b07046a92f9e6ee66e189c3eb323efc5c2c35e25c805ef3",
+      "Output": "output:sha256:2ce1f2aaf69c6b607ddef496cd6bc50b60264746e304de3a3d0c820c5fe327e8",
+      "Review": "evidence:sha256:5d8b7706d9aca8b512f019e831689e6c79d3ddb3954781f89e76185a1d87f1f7"
     },
     {
       "Case": "Krea-2-Turbo/image-gen/1",

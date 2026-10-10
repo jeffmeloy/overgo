@@ -61,14 +61,15 @@ func TestFrozenLatentVideoGeneration(t *testing.T) {
 			fixture := newFrozenVideoFixture(t, edit)
 			// The accepted clips, with their runs and reviews: docs/verification/image-video-coverage.json.
 			// They are the clips the served path draws since commit b02a618d0 drew each frame in its own
-			// palette; the third, of 81 frames, is decoded through cuDNN where a machine holds it.
+			// palette; the third, of 81 frames, is decoded through cuDNN where a machine holds it, every
+			// convolution of its decoding since commit 61b87a5ac.
 			cases := []struct {
 				inputs []string
 				output string
 			}{
 				{[]string{"548efce9b4a867734a22f75d4fdb1c00faa9582945fd355f853fdeb71de5ecc9"}, "96f0c149df823f70ccdc5812f66c1b009ecf736afda5f5d17e29ae6e310dfad7"},
 				{[]string{"ddb180564d8a0a1fdacff9ce2f3276a3282a00b96af71957eda687646d7b8680"}, "f8c3138beedbe58a280de842400455693361d6b9eec5a03351bbff716a23f277"},
-				{[]string{"364be3ce53202ce6b5be13d1265ff1e909f6c232b1796f06c73d451fad326a72"}, "3b432042d91519f91dca9acd9b9b5ca497d9b4c202cd23364ae5bb3b03cc9c9d"},
+				{[]string{"364be3ce53202ce6b5be13d1265ff1e909f6c232b1796f06c73d451fad326a72"}, "2ce1f2aaf69c6b607ddef496cd6bc50b60264746e304de3a3d0c820c5fe327e8"},
 			}
 			if edit {
 				// The editor's request decodes to values below zero, which are written as black.

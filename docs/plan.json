@@ -4,17 +4,56 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "codec-library-rest",
-      "title": "Convolve the video codec's remaining convolutions through the library, and time both paths on a quiet device",
+      "id": "evidence-conditioning",
+      "title": "Measure whether past-experiment evidence improves the proposer's candidates",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 720,
+        "reason": "The step's preflight counted 689 production nodes on 2026-10-10: the proposer's fit of recorded gains beside the pool's, the proposal without them scored as a control and the bounds between the two, 480; cmd/train's -evidence, its cut-off and byte bound, and -proposal, 209. 31 are left for what the remaining rules ask. It was filed at 450 as an estimate for a runner of three arms. There is no separate runner: each arm is one proposal, and an arm shown verdicts scores the proposal without them beside its own, so the comparison is in the judgment the proposer already publishes."
+      },
+      "steps": [
+        {
+          "id": "conditioning",
+          "title": "Measure whether that evidence improves the proposer's candidates",
+          "status": "open",
+          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestEvidenceConditionedProposalIsCompared$'",
+          "rationale": "Three arms with the same proposer and the same budget: no evidence, the store's current retrieval, and the cut-off reader of the step before. The exact bytes each arm read are recorded. Judged by the held-out objective of the proposer's row; no benefit is a valid outcome and closes the step. A learned encoder of experiment paths is not planned unless the plain reader measurably falls short.\n\nServes: judge on held-out data. Disappears: nothing. Evidence: the held-out score of each arm. Batch: device.",
+          "depends_on": [
+            "experiment-evidence/retrieval",
+            "latent-change-proposer/proposal",
+            "evaluation-chain/confirmation"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "codec-record-quiet",
+      "title": "Write the codec's record again from a quiet device's figures, and correct what the path's comment says it saves",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Convolve the video codec's remaining convolutions through the library, and time both paths on a quiet device",
+          "title": "Write the codec's record again from a quiet device's figures, and correct what the path's comment says it saves",
+          "status": "open",
+          "verify": "go test ./internal/latentvideo -count=1 -run '^TestCodecPathRecordStatesTheRuleTheCodeApplies$'",
+          "rationale": "The record of the codec's two convolution paths, docs/verification/video-codec-convolution-paths.txt, says of itself that it was not taken on a quiet device: a text evaluation held about nine tenths of the device's time. The device fell free when that evaluation ended, and the same test (internal/latentvideo TestLibraryCodecKeepsWithinTheKernelsMemoryAndLevels, at commit 685397181) then gave, three repetitions each. 21 frames at 832 by 480: the kernels encoded in 3.33, 3.19 and 3.19 seconds and decoded in 3.44, 3.12 and 3.13; the library in 2.77, 2.58 and 2.59 and in 2.44, 2.11 and 2.11. 81 frames: the kernels in 12.26, 12.12 and 12.13 and in 12.38, 11.94 and 11.95; the library in 9.96, 9.78 and 9.79 and in 8.43, 8.00 and 7.99. 5 frames at 32 by 16, the round trip: 0.213, 0.208 and 0.208 by the kernels; 1.167, 0.117 and 0.114 through the library, first loaded in that process. The device held 16.06 GiB beyond the weights under the kernels and 10.85 under the library, so the 32.69 read for the kernels beside the evaluation was the evaluation's.\n\nSo the library takes a fifth off an encode and a third off a decode, as the record says. It saves 0.19 seconds on each million values of a round trip and not the 0.31 read under load, and it costs about a second once in a process, most of it loading: the large clip's 40 shapes, planned after the small clip had loaded it, added 0.06 seconds. The record is written again from these figures. The comment on libraryClipValues says three tenths of a second and that a clip of the threshold's size repays the setup within its own request; at 0.19 a clip of that size repays it in two requests and one of twice the size in its own, and the comment is corrected. The threshold stays where it is: the rule written down before the run was three repetitions with setup counted, which a clip of that size meets, and the clips a request carries are twice that size and more. The step's check holds the record to the rule the code applies. No value a request is served changes, and the row adds no production code.\n\nServes: measure and find the gap. Disappears: the record's figures taken under load. Evidence: the record. Batch: device; a comment in the codec's source expires the video guards."
+        }
+      ]
+    },
+    {
+      "id": "codec-library-rest",
+      "title": "Convolve the video codec's remaining convolutions through the library",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Convolve the video codec's remaining convolutions through the library",
           "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -count=1 -run '^TestLibraryConvolvesEveryConvolutionOfAClip$'",
-          "rationale": "codec-precision/adopt put the video codec's stride-one convolutions through cuDNN for a clip of about ten frames or more and left two kinds on the kernels on either path: the two-to-one downsampling convolution of an encode, which sums in double precision and was 1.02 seconds of an encode's 3.4, and the upsampling convolution of a decode, 0.2 seconds of 3.4. The downsampling pads a row and a column of zeros after a frame and none before it, which the library does not do, so the staging kernel writes them. The bounds are adopt's, written down before its run: no value more than two of 255 levels from the autoencoder's own code and the error within four parts in a hundred of the reference's, no more memory than the kernels hold, and a kind of convolution goes through the library only where the whole request is faster over three repetitions with its setup counted.\n\nThen both paths are timed on a quiet device, the 21 frames and the 81 at 832 by 480, and the device's own memory reading is taken, which moved with the evaluation running beside it when adopt was measured (16.06 GiB in two runs and 32.69 in three for the kernels, 10.85 every time for the library), and docs/verification/video-codec-convolution-paths.txt is written again from those figures.\n\nIt waits on cudnn-search-path: no check on this machine runs the library until cuDNN is where overgo looks for it, so the step would be verified by a test that says it cannot apply. Serves: generate. Evidence: each path's time, memory and distance from the model's own clip, before and after, and first-output of both video rows."
+          "rationale": "codec-precision/adopt put the video codec's stride-one convolutions through cuDNN for a clip of about ten frames or more and left two kinds on the kernels on either path: the two-to-one downsampling convolution of an encode, which sums in double precision and was 1.02 seconds of an encode's 3.4, and the upsampling convolution of a decode, 0.2 seconds of 3.4. The downsampling pads a row and a column of zeros after a frame and none before it, which the library does not do, so the staging kernel writes them. The bounds are adopt's, written down before its run: no value more than two of 255 levels from the autoencoder's own code and the error within four parts in a hundred of the reference's, no more memory than the kernels hold, and a kind of convolution goes through the library only where the whole request is faster over three repetitions with its setup counted.\n\nThe quiet device's figures for adopt's two paths were taken when the device fell free on 2026-10-10 and are the row codec-record-quiet's; this step times the two kinds it moves, quiet, and adds them to that record.\n\nIt waits on cudnn-search-path: no check on this machine runs the library until cuDNN is where overgo looks for it, so the step would be verified by a test that says it cannot apply. Serves: generate. Evidence: each path's time, memory and distance from the model's own clip, before and after, and first-output of both video rows."
         }
       ]
     },
@@ -52,30 +91,6 @@
           "status": "open",
           "verify": "go test ./cmd/loop -count=1 -run '^TestMeasurementRunsNoCaseAgainAfterAnUnrelatedCommit$'",
           "rationale": "A full result is carried today after 32 sampled cases reproduce (internal/evaluation replay.go: replayCases), which shows agreement on those cases and not on the suite; SQA-078 holds that risk. Under an unchanged identity the result is the result, with no replay. Under a changed one the suite is measured again. Its test goes through the improvement run's own launch, in separate processes: it measures, commits a change outside every identity, measures again and holds that no case was executed the second time, then commits a change inside one identity and holds that only that capability's cases were. A result already in the store is re-keyed only when its record names every build and runtime input the identity is made of; the commit alone does not name them all, and any other result is measured once more. The step states how many suites that is and what they cost before it lands. The sampled replay is deleted only when every consumer of a carried result reads the identity; the reader of replay receipts already in the store stays.\n\nServes: judge on held-out data. Disappears: the sampled replay. Evidence: the cases executed by each of the test's three measurements, and the count of suites measured once more for the change of key. Batch: host.\n\nMoved out of capability-identity on 2026-10-09 so that row's last step is not held by the decision this one waits on. What the step asked to be stated before it lands, measured that day on the store: 46 of the 87 newest evaluation results stand on a result a sampled replay carried forward, 30 of them carried 19 or 20 times since the run that scored every case, and those runs took 13 hours 55 minutes in all, the longest 1 hour 44 minutes. The code an evaluation's result depends on, the closure of cmd/evaluate, changed on 112 of the last 300 commits, and the text surface alone on 34; the two newest scorecards lie several hundred commits apart. So an identity is certain to have moved between one cycle and the next at this pace, and with the sampled replay deleted every cycle scores those 46 again, about 14 hours on top of a cycle's three to five. The replay's weakness is that its sample never changes (internal/evaluation replay.go: replaySelection, the 8 longest cases and 24 at even length ranks): a change that misses those 32 is not seen however often the result is carried. The row has no count: it is sized when the decision says what it builds."
-        }
-      ]
-    },
-    {
-      "id": "evidence-conditioning",
-      "title": "Measure whether past-experiment evidence improves the proposer's candidates",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 450,
-        "reason": "The comparison of a proposer with and without the past experiments the reader of experiment-evidence returns; split from that row so the owner's double-check of the scorecard's readings runs before it, the comparison not having started. The count is an estimate, a third of what evaluation-chain's three steps were given, for a runner of three arms that reuses the proposer and the reader it compares"
-      },
-      "steps": [
-        {
-          "id": "conditioning",
-          "title": "Measure whether that evidence improves the proposer's candidates",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestEvidenceConditionedProposalIsCompared$'",
-          "rationale": "Three arms with the same proposer and the same budget: no evidence, the store's current retrieval, and the cut-off reader of the step before. The exact bytes each arm read are recorded. Judged by the held-out objective of the proposer's row; no benefit is a valid outcome and closes the step. A learned encoder of experiment paths is not planned unless the plain reader measurably falls short.\n\nServes: judge on held-out data. Disappears: nothing. Evidence: the held-out score of each arm. Batch: device.",
-          "depends_on": [
-            "experiment-evidence/retrieval",
-            "latent-change-proposer/proposal",
-            "evaluation-chain/confirmation"
-          ]
         }
       ]
     },
@@ -217,7 +232,9 @@
             "count-observations/do",
             "count-unmeasured-training/do",
             "codec-library-rest/do",
-            "count-codec-adopt/do"
+            "count-codec-adopt/do",
+            "codec-record-quiet/do",
+            "count-evidence/do"
           ]
         }
       ]

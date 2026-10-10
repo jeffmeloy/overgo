@@ -4,6 +4,20 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "accepted-video-lineage",
+      "title": "Name, for the five accepted video clips, runs that can be traced from the protocol's inputs to the clip",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Name, for the five accepted video clips, runs that can be traced from the protocol's inputs to the clip",
+          "status": "open",
+          "verify": "go test ./cmd/validate -tags=modeltest,integration -count=1 -run '^(TestAcceptedImageVideoEvidence|TestAcceptedProtocolCoverageProjection|TestStructuredMediaReportProjection)$'"
+        }
+      ]
+    },
+    {
       "id": "video-text-encoder",
       "title": "Take the text encoder out of the video generator's first output",
       "owner": "master-lead",
@@ -481,7 +495,9 @@
             "reward-training/weighted-step",
             "reward-training/producer",
             "reward-training/first-run",
-            "merge-reward-campaign/do"
+            "merge-reward-campaign/do",
+            "accepted-video-lineage/do",
+            "plan-lineage-row/do"
           ]
         }
       ]

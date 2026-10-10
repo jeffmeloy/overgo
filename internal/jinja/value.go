@@ -250,7 +250,15 @@ func length(v any) int {
 }
 
 // stringify mirrors gonja Value.String().
-func stringify(v any) string {
+func stringify(v any) string { return stringifyAt(v, 0) }
+
+// stringifyAt is stringify at a depth inside the value it began with. A value
+// that nests past maxNesting, as one that holds itself does without end, is
+// written there as Python writes a container that holds itself.
+func stringifyAt(v any, depth int) string {
+	if depth > maxNesting {
+		return "..."
+	}
 	switch n := v.(type) {
 	case nil:
 		return ""
@@ -276,10 +284,10 @@ func stringify(v any) string {
 			}
 			if isString(item) {
 				b.WriteByte('\'')
-				b.WriteString(stringify(item))
+				b.WriteString(stringifyAt(item, depth+1))
 				b.WriteByte('\'')
 			} else {
-				b.WriteString(stringify(item))
+				b.WriteString(stringifyAt(item, depth+1))
 			}
 		}
 		b.WriteByte(']')
@@ -287,14 +295,14 @@ func stringify(v any) string {
 	case map[string]any:
 		pairs := make([]string, 0, len(n))
 		for k, val := range n {
-			pairs = append(pairs, mapPairRepr(k, val))
+			pairs = append(pairs, mapPairRepr(k, val, depth+1))
 		}
 		slices.Sort(pairs)
 		return "{" + strings.Join(pairs, ", ") + "}"
 	case *Dict:
 		pairs := make([]string, 0, len(n.order))
 		for _, k := range n.order {
-			pairs = append(pairs, mapPairRepr(k, n.vals[k]))
+			pairs = append(pairs, mapPairRepr(k, n.vals[k], depth+1))
 		}
 		return "{" + strings.Join(pairs, ", ") + "}"
 	}
@@ -304,13 +312,13 @@ func stringify(v any) string {
 	return ""
 }
 
-func mapPairRepr(key string, val any) string {
+func mapPairRepr(key string, val any, depth int) string {
 	k := "'" + key + "'"
 	var vs string
 	if isString(val) {
-		vs = "'" + stringify(val) + "'"
+		vs = "'" + stringifyAt(val, depth) + "'"
 	} else {
-		vs = stringify(val)
+		vs = stringifyAt(val, depth)
 	}
 	return k + ": " + vs
 }
@@ -349,7 +357,14 @@ const (
 )
 
 // equal mirrors gonja Value.EqualValueTo().
-func equal(a, b any) bool {
+func equal(a, b any) bool { return equalAt(a, b, 0) }
+
+// equalAt is equal at a depth inside the values it began with: two values
+// that nest past maxNesting are followed no further and are not equal.
+func equalAt(a, b any, depth int) bool {
+	if depth > maxNesting {
+		return false
+	}
 	if isNumber(a) && isNumber(b) {
 		if isInteger(a) && isInteger(b) {
 			return toInt(a) == toInt(b)
@@ -371,7 +386,7 @@ func equal(a, b any) bool {
 				return false
 			}
 			for i := range la {
-				if !equal(la[i], lb[i]) {
+				if !equalAt(la[i], lb[i], depth+1) {
 					return false
 				}
 			}
@@ -389,7 +404,7 @@ func equal(a, b any) bool {
 			for _, k := range ka {
 				va, oka := da.lookup(k)
 				vb, okb := db.lookup(k)
-				if !oka || !okb || !equal(va, vb) {
+				if !oka || !okb || !equalAt(va, vb, depth+1) {
 					return false
 				}
 			}

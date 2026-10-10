@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "template-bounds",
-      "title": "Bound what a chat template from a model file may do, and fuzz the engine inside those bounds",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 1600,
-        "reason": "The step's measured figure, 1,547 production nodes as the gate's preflight counts the built change, and a margin of 53: the limits and what is left of them (630), the charges at each place the engine runs a statement, evaluates an expression, builds a value or reads one through (495 in the evaluator, 163 in the functions and methods), the nesting bound in the parser (122) and in the walks over a value (98), and the caller's declared limits (39). Filed at 256 and estimated at 450 before the step was designed"
-      },
-      "steps": [
-        {
-          "id": "limits",
-          "title": "Bound the work and the memory a chat template may take, and fuzz the engine from the templates the served models ship",
-          "status": "open",
-          "verify": "go test ./internal/jinja -count=1 -run '^(TestTemplatePastItsLimitsIsRefused|FuzzTemplate)$'",
-          "rationale": "A chat template arrives inside a model file, so it is input overgo did not write. The engine has no limit on what one may do: its environment holds globals and filters and nothing else (internal/jinja eval.go: Env), and range appends one value for every step it is asked for (builtins.go: rangeGlobal), so one line of a template can take all the memory there is. The step has the engine count its work in steps and its output and intermediate values in bytes, charge both in its loops and its global functions, and return an error past limits the caller declares; the limits are named constants with their reasons, and no clock is read.\n\nNine fuzz targets exist, in seven packages, the GGUF reader and the tokenizer among them. internal/jinja has none. Its 3,836 production lines are held by one test that renders the cases of testdata/semantics.json as Python's Jinja renders them, which covers the templates someone thought to write down. The step adds one target seeded with every served model's template and with malformed, cut-short and boundary templates. The property it holds: a template never panics, and it ends inside the limits or with their error. One bounded run is recorded and each failure it finds is kept as a seed, so the verify replays them. The golden renders stay: a seed shows that a template does not break the engine, and only a render compared with Python's shows that the prompt is the right one. Its tests render a template past each limit and hold the error, render every served model's template inside them, and replay the seeds.\n\nFiled as two steps and tightened to one landing: the fuzz property is the limits, and internal/jinja is in the inference surface, so one landing expires the inference guards once.\n\nServes: generate. Disappears: nothing. Evidence: the refusals at each limit, the steps and bytes each served model's template takes, and the failures the run found, each kept as a seed. Batch: host; the landing expires the inference guards."
-        }
-      ]
-    },
-    {
       "id": "capability-identity",
       "title": "Reuse a stored result while the code that can change it is unchanged",
       "owner": "master-lead",

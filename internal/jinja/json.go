@@ -153,8 +153,12 @@ func filterToJSON(in any, args []any, kwargs map[string]any) (any, error) {
 	return out.String(), nil
 }
 
-// writeJSON writes one value as json.dumps writes it.
+// writeJSON writes one value as json.dumps writes it, and refuses, as it
+// does, a value that holds itself: one that nests past maxNesting.
 func writeJSON(out *strings.Builder, value any, style jsonStyle, depth int) error {
+	if depth > maxNesting {
+		return fmt.Errorf("%w: tojson of a value that nests deeper than %d, or holds itself", errLimit, maxNesting)
+	}
 	line := func(level int) {
 		if style.indented {
 			out.WriteByte('\n')

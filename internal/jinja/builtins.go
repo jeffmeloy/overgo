@@ -1,15 +1,20 @@
 package jinja
 
 import (
+	"errors"
 	"fmt"
 	"maps"
+	"math"
 	"slices"
 	"strings"
 )
 
 // ---- global functions ----
 
-func rangeGlobal(args []any, _ map[string]any) (any, error) {
+// rangeGlobal is range as a render calls it: the items it makes are counted
+// from its arguments and charged, as work and as memory, before one is made,
+// so a range of any size costs the render its limits and nothing more.
+func (r *renderer) rangeGlobal(args []any, _ map[string]any) (any, error) {
 	start, stop, step := 0, 0, 1
 	switch len(args) {
 	case 1:
@@ -23,6 +28,19 @@ func rangeGlobal(args []any, _ map[string]any) (any, error) {
 	}
 	if step == 0 {
 		return nil, fmt.Errorf("jinja: range step cannot be 0")
+	}
+	// The count is taken in floating point, which a span of any two integers
+	// and a step of any size fit without wrapping; a count too large to be an
+	// integer is one no limit pays for.
+	count := math.Ceil((float64(stop) - float64(start)) / float64(step))
+	if count > 0 {
+		items := math.MaxInt
+		if count < math.MaxInt {
+			items = int(count)
+		}
+		if err := errors.Join(r.work(items), r.hold(scaled(items, wordBytes))); err != nil {
+			return nil, err
+		}
 	}
 	var out []any
 	if step > 0 {
@@ -63,11 +81,28 @@ func dictGlobal(_ []any, kwargs map[string]any) (any, error) {
 
 func (r *renderer) dispatchMethod(obj any, name string, n callNode, sc *scope) (any, error) {
 	args, kwargs, err := r.evalArgs(n, sc)
+	if err == nil {
+		// A method reads its arguments through: a mapping's turns the key it is
+		// asked for into text.
+		err = r.read(args...)
+	}
 	if err != nil {
 		return nil, err
 	}
 	switch o := obj.(type) {
 	case string:
+		// A string's method reads the string through as well.
+		if err := r.read(o); err != nil {
+			return nil, err
+		}
+		if name == "replace" && len(args) >= replaceOperands {
+			// Each occurrence replaced by a longer string grows the result by
+			// the difference; the growth is charged before the result is built.
+			old, replacement := stringify(args[0]), stringify(args[1])
+			if err := r.hold(scaled(strings.Count(o, old), max(len(replacement)-len(old), 0))); err != nil {
+				return nil, err
+			}
+		}
 		return strMethod(o, name, args)
 	case map[string]any:
 		return dictMethod(o, name, args, kwargs)

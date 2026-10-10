@@ -1,6 +1,7 @@
 package jinja
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"math"
@@ -21,7 +22,11 @@ type GlobalFunc func(args []any, kwargs map[string]any) (any, error)
 type Env struct {
 	globals map[string]any
 	filters map[string]Filter
+	limits  Limits
 }
+
+// SetLimits declares what one render of this environment may take.
+func (e *Env) SetLimits(limits Limits) { e.limits = limits }
 
 // New returns an environment preloaded with the built-in globals (range,
 // namespace, dict) and filters.
@@ -30,7 +35,6 @@ func New() *Env {
 		globals: map[string]any{},
 		filters: map[string]Filter{},
 	}
-	e.globals["range"] = callable{name: "range", call: rangeGlobal}
 	e.globals["namespace"] = callable{name: "namespace", call: namespaceGlobal}
 	e.globals["dict"] = callable{name: "dict", call: dictGlobal}
 	registerBuiltinFilters(e)
@@ -45,21 +49,30 @@ func (e *Env) SetGlobal(name string, fn GlobalFunc) {
 // SetFilter registers (or replaces) a filter.
 func (e *Env) SetFilter(name string, f Filter) { e.filters[name] = f }
 
-// Render parses and executes src with the given context variables.
+// Render parses and executes src with the given context variables, inside the
+// environment's limits.
 func (e *Env) Render(src string, ctx map[string]any) (string, error) {
+	text, _, err := e.render(src, ctx)
+	return text, err
+}
+
+// render is Render, with what the render left of its limits.
+func (e *Env) render(src string, ctx map[string]any) (string, budget, error) {
 	body, err := parseTemplate(src)
 	if err != nil {
-		return "", err
+		return "", budget{}, err
 	}
 	root := newScope(nil)
+	r := &renderer{env: e, root: root, budget: newBudget(e.limits)}
 	maps.Copy(root.vars, e.globals)
+	// A render's range charges the render for the items it makes.
+	root.vars["range"] = callable{name: "range", call: r.rangeGlobal}
 	maps.Copy(root.vars, ctx)
-	r := &renderer{env: e, root: root}
 	var out strings.Builder
 	if err := r.execAll(body, root, &out); err != nil {
-		return "", err
+		return "", r.budget, err
 	}
-	return out.String(), nil
+	return out.String(), r.budget, nil
 }
 
 // ---- scope ----
@@ -89,6 +102,23 @@ func (s *scope) set(name string, v any) { s.vars[name] = v }
 type renderer struct {
 	env  *Env
 	root *scope
+	budget
+}
+
+// filtersInOneStep are the filters that look at their input without reading
+// through it: its length, whether it is there. A template asks a whole
+// conversation for its length once a message, and is not charged the
+// conversation each time.
+var filtersInOneStep = []string{"length", "count", "default", "d", "safe"}
+
+// write puts a value into the output, charged for all it holds before it is
+// made into text.
+func (r *renderer) write(out *strings.Builder, value any) error {
+	if err := r.read(value); err != nil {
+		return err
+	}
+	out.WriteString(stringify(value))
+	return nil
 }
 
 // jinjaError is returned by raise_exception and propagates as a render error.
@@ -106,8 +136,14 @@ func (r *renderer) execAll(body []stmt, sc *scope, out *strings.Builder) error {
 }
 
 func (r *renderer) exec(s stmt, sc *scope, out *strings.Builder) error {
+	if err := r.work(1); err != nil {
+		return err
+	}
 	switch n := s.(type) {
 	case textStmt:
+		if err := r.hold(len(n.text)); err != nil {
+			return err
+		}
 		out.WriteString(n.text)
 		return nil
 	case outputStmt:
@@ -135,15 +171,14 @@ func (r *renderer) execOutput(n outputStmt, sc *scope, out *strings.Builder) err
 			if err != nil {
 				return err
 			}
-			out.WriteString(stringify(v))
-			return nil
+			return r.write(out, v)
 		}
 		if n.alt != nil {
 			v, err := r.eval(n.alt, sc)
 			if err != nil {
 				return err
 			}
-			out.WriteString(stringify(v))
+			return r.write(out, v)
 		}
 		return nil
 	}
@@ -151,8 +186,7 @@ func (r *renderer) execOutput(n outputStmt, sc *scope, out *strings.Builder) err
 	if err != nil {
 		return err
 	}
-	out.WriteString(stringify(v))
-	return nil
+	return r.write(out, v)
 }
 
 func (r *renderer) execIf(n ifStmt, sc *scope, out *strings.Builder) error {
@@ -182,6 +216,18 @@ func (r *renderer) execFor(n forStmt, sc *scope, out *strings.Builder) error {
 		return err
 	}
 	entries := iterate(iterVal)
+	// A loop is charged each item it walks, and the place it keeps it in until
+	// it ends. A list its own expression built for it, a range or a slice, is
+	// held by nothing but the loop, and is given back with it.
+	walked := scaled(len(entries), wordBytes)
+	if err := errors.Join(r.work(len(entries)), r.hold(walked)); err != nil {
+		return err
+	}
+	switch n.iter.(type) {
+	case listNode, tupleNode, sliceNode, binNode, filterNode, callNode:
+		walked += size(iterVal)
+	}
+	defer r.free(walked)
 	// Materialize applying for-if and destructuring.
 	type binding struct {
 		keyVal any
@@ -313,6 +359,9 @@ func (r *renderer) assign(target expr, val any, sc *scope) error {
 			return err
 		}
 		key, err := r.eval(t.arg, sc)
+		if err == nil {
+			err = r.read(key)
+		}
 		if err != nil {
 			return err
 		}
@@ -383,7 +432,26 @@ func (r *renderer) execMacro(n macroStmt, sc *scope) error {
 
 // ---- expression evaluation ----
 
+// eval evaluates one expression: a step of the render's work, one level
+// deeper than the expression it stands in, and charged for the value it builds
+// where it builds one.
 func (r *renderer) eval(e expr, sc *scope) (any, error) {
+	if err := r.enter(); err != nil {
+		return nil, err
+	}
+	defer r.leave()
+	value, err := r.evalNode(e, sc)
+	if err != nil {
+		return nil, err
+	}
+	switch e.(type) {
+	case listNode, tupleNode, dictNode, sliceNode, binNode, filterNode, callNode:
+		err = r.made(value)
+	}
+	return value, err
+}
+
+func (r *renderer) evalNode(e expr, sc *scope) (any, error) {
 	switch n := e.(type) {
 	case litNode:
 		return n.val, nil
@@ -414,6 +482,9 @@ func (r *renderer) eval(e expr, sc *scope) (any, error) {
 		d := NewDict()
 		for _, p := range n.pairs {
 			k, err := r.eval(p.key, sc)
+			if err == nil {
+				err = r.read(k)
+			}
 			if err != nil {
 				return nil, err
 			}
@@ -521,6 +592,13 @@ func (r *renderer) evalBin(n binNode, sc *scope) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Arithmetic on two numbers reads nothing; every other operator reads
+	// through its operands, to join them, compare them or search them.
+	if !isNumber(l) || !isNumber(rt) {
+		if err := r.read(l, rt); err != nil {
+			return nil, err
+		}
+	}
 	switch n.op {
 	case "+":
 		if isList(l) {
@@ -546,7 +624,13 @@ func (r *renderer) evalBin(n binNode, sc *scope) (any, error) {
 			return toFloat(l) * toFloat(rt), nil
 		}
 		if isString(l) {
-			return strings.Repeat(stringify(l), toInt(rt)), nil
+			// Python repeats a string no times for a count below one. The
+			// whole of the repeated string is charged before it is built.
+			text, count := stringify(l), max(toInt(rt), 0)
+			if err := r.hold(scaled(len(text), count)); err != nil {
+				return nil, err
+			}
+			return strings.Repeat(text, count), nil
 		}
 		return toInt(l) * toInt(rt), nil
 	case "/":
@@ -554,10 +638,17 @@ func (r *renderer) evalBin(n binNode, sc *scope) (any, error) {
 	case "//":
 		return int(toFloat(l) / toFloat(rt)), nil
 	case "%":
+		if toInt(rt) == 0 {
+			return nil, fmt.Errorf("jinja: modulo by zero")
+		}
 		return toInt(l) % toInt(rt), nil
 	case "**":
 		if isInteger(l) && isInteger(rt) && toInt(rt) >= 0 {
-			// A whole number to a whole power is a whole number, as in Python.
+			// A whole number to a whole power is a whole number, as in Python,
+			// reached one multiplication at a time, each a step.
+			if err := r.work(toInt(rt)); err != nil {
+				return nil, err
+			}
 			power := 1
 			for range toInt(rt) {
 				power *= toInt(l)
@@ -666,12 +757,18 @@ func (r *renderer) evalTest(n testNode, sc *scope) (any, error) {
 			break
 		}
 		arg, err := r.eval(n.arg, sc)
+		if err == nil {
+			err = r.read(arg, v)
+		}
 		if err != nil {
 			return nil, err
 		}
 		res = contains(arg, v)
 	case "eq", "equalto", "==":
 		arg, err := r.eval(n.arg, sc)
+		if err == nil {
+			err = r.read(arg, v)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -871,6 +968,9 @@ func (r *renderer) evalFilter(n filterNode, sc *scope) (any, error) {
 	kwargs := map[string]any{}
 	for _, kw := range n.kwargs {
 		v, err := r.eval(kw.val, sc)
+		if err == nil {
+			err = r.read(v)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -879,6 +979,13 @@ func (r *renderer) evalFilter(n filterNode, sc *scope) (any, error) {
 	f, ok := r.env.filters[n.name]
 	if !ok {
 		return nil, fmt.Errorf("jinja: unknown filter %q", n.name)
+	}
+	// A filter reads through what it is given, to turn it into text or to
+	// walk it, unless it is one that only looks at it.
+	if !slices.Contains(filtersInOneStep, n.name) {
+		if err := r.read(append(args, in)...); err != nil {
+			return nil, err
+		}
 	}
 	return f(in, args, kwargs)
 }

@@ -83,6 +83,7 @@ func applyTrim(chunks []chunk) {
 type docParser struct {
 	chunks []chunk
 	pos    int
+	depth  int
 }
 
 // parseUntil parses statements until one of the terminator block names is
@@ -156,6 +157,12 @@ func parseOutputChunk(c chunk) (stmt, error) {
 }
 
 func (dp *docParser) parseBlock(c chunk) (stmt, error) {
+	// A block inside a block is parsed, and later run, one level deeper on
+	// the stack.
+	if dp.depth++; dp.depth > maxNesting {
+		return nil, fmt.Errorf("%w: its blocks nest deeper than %d", errLimit, maxNesting)
+	}
+	defer func() { dp.depth-- }()
 	switch c.name {
 	case "if":
 		return dp.parseIf(c)
@@ -376,8 +383,9 @@ func parseSingleExpr(toks []etok) (expr, error) {
 // ---- expression parser ----
 
 type eparser struct {
-	toks []etok
-	pos  int
+	toks  []etok
+	pos   int
+	depth int
 }
 
 func (p *eparser) cur() *etok {
@@ -418,11 +426,25 @@ func (p *eparser) matchName(s string) bool {
 var compareSyms = map[string]bool{"==": true, "!=": true, ">": true, ">=": true, "<": true, "<=": true}
 
 func (p *eparser) parseExpr() (expr, error) {
+	if err := p.nest(); err != nil {
+		return nil, err
+	}
+	defer func() { p.depth-- }()
 	e, err := p.parseOr()
 	if err != nil {
 		return nil, err
 	}
 	return p.parseFilters(e)
+}
+
+// nest goes one level deeper into an expression, a bracket inside a bracket
+// or a conditional after another's else, and refuses one that nests past
+// maxNesting: each level is parsed on the stack.
+func (p *eparser) nest() error {
+	if p.depth++; p.depth > maxNesting {
+		return fmt.Errorf("%w: an expression nests deeper than %d", errLimit, maxNesting)
+	}
+	return nil
 }
 
 // parseCondExpr parses a complete expression including the inline
@@ -441,6 +463,10 @@ func (p *eparser) parseCondExpr() (expr, error) {
 	}
 	node := condNode{value: e, cond: cond}
 	if p.matchName("else") {
+		if err := p.nest(); err != nil {
+			return nil, err
+		}
+		defer func() { p.depth-- }()
 		alt, err := p.parseCondExpr()
 		if err != nil {
 			return nil, err

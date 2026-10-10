@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"overgo/internal/artifact"
 	"overgo/internal/checked"
 	"overgo/internal/processmeasure"
 	"overgo/internal/representation"
@@ -31,6 +32,13 @@ type TextConditioningSpec struct {
 	SequenceLength      int    // fixed context rows (text_len)
 	RelativeMaxDistance int
 	NormEps             float64
+	// Common is a prompt every request of a model carries, and Kept the store
+	// its encoder rows are kept in from one process to the next, under
+	// KeptUnder, the identity of the code that computes them. With no store
+	// or no identity the rows are kept by the process alone, as any prompt's.
+	Common    string
+	Kept      artifact.Repository
+	KeptUnder string
 }
 
 // textConditioningResult: the projected SequenceLength x Dim context.

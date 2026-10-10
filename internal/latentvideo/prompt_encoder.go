@@ -2,6 +2,8 @@ package latentvideo
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"overgo/internal/artifact"
+	"overgo/internal/binaryschema"
 	"overgo/internal/checked"
 	"overgo/internal/processmeasure"
 	"overgo/internal/pytorchzip"
@@ -27,6 +31,7 @@ const keptPrompts = 64
 // by a process and not once a request.
 type promptEncoder struct {
 	mu        sync.Mutex
+	key       promptEncoderKey
 	tokenizer *fixedUnigramTokenizer
 	plan      encoderPlan
 	rows      map[string][]float32
@@ -103,7 +108,7 @@ func promptEncoderFor(spec TextConditioningSpec) (*promptEncoder, error) {
 	if !plan.OK {
 		return nil, fmt.Errorf("text conditioning encoder contract: missing=%v unexpected=%v dtype=%v shape=%v", plan.Missing, plan.Unexpected, plan.DTypeMismatches, plan.ShapeMismatches)
 	}
-	encoder := &promptEncoder{tokenizer: table, plan: plan, rows: map[string][]float32{}}
+	encoder := &promptEncoder{key: key, tokenizer: table, plan: plan, rows: map[string][]float32{}}
 	promptEncoders.byKey[key] = encoder
 	return encoder, nil
 }
@@ -123,11 +128,24 @@ func encodePrompts(ctx context.Context, spec TextConditioningSpec, prompts ...st
 	if err != nil {
 		return nil, 0, stats, err
 	}
+	// A request whose prompts are being encoded beside its model's loading waits here for that pass.
+	awaited := processmeasure.Stage(ctx, "prompt rows awaited")
 	encoder.mu.Lock()
+	awaited()
 	defer encoder.mu.Unlock()
+	shared := spec.Kept != nil && spec.KeptUnder != ""
 	var missing []string
 	var sequences []encoderSequence
 	for _, prompt := range prompts {
+		if _, kept := encoder.rows[prompt]; !kept && shared && prompt == spec.Common {
+			rows, err := encoder.keptCommon(ctx, spec)
+			if err != nil {
+				return nil, 0, stats, err
+			}
+			if rows != nil {
+				encoder.rows[prompt] = rows
+			}
+		}
 		if _, kept := encoder.rows[prompt]; kept || slices.Contains(missing, prompt) {
 			continue
 		}
@@ -148,6 +166,11 @@ func encodePrompts(ctx context.Context, spec TextConditioningSpec, prompts ...st
 		encoder.passes++
 		for index, prompt := range missing {
 			encoder.rows[prompt] = encoded[index]
+			if shared && prompt == spec.Common {
+				if err := encoder.keepCommon(ctx, spec, encoded[index]); err != nil {
+					return nil, 0, passed, err
+				}
+			}
 		}
 	}
 	rows := make([][]float32, len(prompts))
@@ -161,4 +184,61 @@ func encodePrompts(ctx context.Context, spec TextConditioningSpec, prompts ...st
 		encoder.recent = encoder.recent[1:]
 	}
 	return rows, encoder.plan.Config.Dim, stats, nil
+}
+
+// commonRowsContract is the encoder's rows of a prompt as a store keeps them:
+// each value's four bytes, the low byte first.
+var commonRowsContract = artifact.DocumentContract{
+	Kind: artifact.KindOutput, MediaType: "application/vnd.overgo.prompt-rows", Schema: "overgo/prompt-rows/v1",
+}
+
+// commonRowsName names the kept rows of a spec's common prompt by everything
+// they depend on: the code that computes them, the encoder's files as they
+// stand, the policy its checkpoint does not carry, and the prompt.
+func (e *promptEncoder) commonRowsName(spec TextConditioningSpec) string {
+	named := sha256.New()
+	for _, file := range [...]fileState{e.key.tokenizer, e.key.checkpoint} {
+		fmt.Fprintln(named, file.path, file.bytes, file.modified.UnixNano())
+	}
+	fmt.Fprintln(named, e.key.sequenceLength, e.key.maxDistance, e.key.normEps)
+	fmt.Fprint(named, spec.Common)
+	return "latentvideo/prompt-rows/" + spec.KeptUnder + "/" + hex.EncodeToString(named.Sum(nil))
+}
+
+// keptCommon reads the common prompt's rows from the spec's store, and gives
+// none when the store holds none under their name.
+func (e *promptEncoder) keptCommon(ctx context.Context, spec TextConditioningSpec) ([]float32, error) {
+	defer processmeasure.Stage(ctx, "common prompt rows read")()
+	id, bound, err := artifact.ResolveAlias(ctx, spec.Kept, e.commonRowsName(spec))
+	if err != nil || !bound {
+		return nil, err
+	}
+	content, found, err := artifact.ReadContent(ctx, spec.Kept, id)
+	if err != nil || !found {
+		return nil, err
+	}
+	if len(content.Data) == 0 || len(content.Data)%(binaryschema.Uint32Bytes*e.plan.Config.Dim) != 0 {
+		return nil, fmt.Errorf("text conditioning: the store keeps %d bytes as the common prompt's rows, which are no rows of %d values", len(content.Data), e.plan.Config.Dim)
+	}
+	rows := make([]float32, len(content.Data)/binaryschema.Uint32Bytes)
+	for index := range rows {
+		rows[index] = binaryschema.LittleEndian.Float32(content.Data[index*binaryschema.Uint32Bytes:])
+	}
+	return rows, nil
+}
+
+// keepCommon writes the common prompt's rows to the spec's store under their
+// name. It is not stopped by a cancellation: the rows are computed, and the
+// next process reads them.
+func (e *promptEncoder) keepCommon(ctx context.Context, spec TextConditioningSpec, rows []float32) error {
+	content, err := commonRowsContract.OwnedContentBytes(binaryschema.LittleEndian.Float32s(rows))
+	if err != nil {
+		return err
+	}
+	name := e.commonRowsName(spec)
+	_, err = artifact.Publish(context.WithoutCancel(ctx), spec.Kept, artifact.Batch{
+		Key: name, Contents: []artifact.Content{content},
+		Aliases: []artifact.AliasBinding{{Name: name, Target: content.Descriptor.ID}},
+	})
+	return err
 }

@@ -5,11 +5,13 @@ package latentvideo
 import (
 	"context"
 	"errors"
+	"reflect"
 
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/inferencesurface"
 	"overgo/internal/media"
 	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
@@ -37,12 +39,31 @@ type wanConditioning struct {
 	cond, uncond     []float32
 }
 
-func LoadWanRuntime(ctx context.Context, store artifact.Reader, path string, program recipe.Program, request WanRequest) (*WanRuntime, error) {
+// LoadWanRuntime loads the generator a request is served by. A request that
+// names a prompt has its prompts encoded on the host while the generator
+// loads on the device, since neither waits on the other: the encoder keeps
+// their rows, and the request finds them when it resolves. The rows of the
+// negative prompt every such request carries are kept in the store, under
+// the identity of this package's code where the build counted one, so that a
+// process encodes that prompt only when no process before it has.
+func LoadWanRuntime(ctx context.Context, store artifact.Repository, path string, program recipe.Program, request WanRequest) (*WanRuntime, error) {
 	profile, err := readProgramProfile(ctx, store, program)
 	if err != nil {
 		return nil, err
 	}
 	request = request.withGeneration(profile.Generation)
+	config, err := LoadDenoiserConfig(path, profile.Policy)
+	if err != nil {
+		return nil, err
+	}
+	text := WanTextConditioningSpec(path, config.TextLen)
+	if identity, counted := inferencesurface.Execution(reflect.TypeFor[WanRuntime]().PkgPath()); counted {
+		text.Common, text.Kept, text.KeptUnder = referenceNegativePrompt, store, identity
+	}
+	if request.PromptForm() {
+		// What the pass finds wrong, the request finds again when it resolves, and says.
+		go encodePrompts(processmeasure.Unstaged(ctx), text, request.Prompt, request.NegativePrompt)
+	}
 	storage := dtype.BF16
 	if !checked.Equal(profile.Precision.MatmulWeights, dtype.BF16.String()) {
 		return nil, errors.New("latent video: unsupported production precision")
@@ -58,17 +79,13 @@ func LoadWanRuntime(ctx context.Context, store artifact.Reader, path string, pro
 	if err != nil {
 		return nil, err
 	}
-	config, err := LoadDenoiserConfig(path, profile.Policy)
-	if err != nil {
-		return nil, errors.Join(err, generator.Close())
-	}
 	occupancy, err := newEditNoiseStream(0, ordinal)
 	if err != nil {
 		return nil, errors.Join(err, generator.Close())
 	}
 	return &WanRuntime{
 		generator: generator, profile: profile,
-		text: WanTextConditioningSpec(path, config.TextLen), occupancy: occupancy,
+		text: text, occupancy: occupancy,
 	}, nil
 }
 

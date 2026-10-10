@@ -42,6 +42,13 @@ func WithStages(ctx context.Context) (context.Context, *Stages) {
 	return context.WithValue(ctx, stagesKey{}, stages), stages
 }
 
+// Unstaged gives work done beside a request a context that times nothing into
+// the request's ledger: a ledger's parts nest in one line of work, and a part
+// begun beside them would end outside the part it began in.
+func Unstaged(ctx context.Context) context.Context {
+	return context.WithValue(ctx, stagesKey{}, (*Stages)(nil))
+}
+
 // Stage begins one named part of the request whose ledger the context
 // carries, and the function it returns ends it. Under a context that carries
 // no ledger it times nothing. Parts nest: one begun inside another ends

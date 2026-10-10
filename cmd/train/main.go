@@ -76,7 +76,14 @@ func run() error {
 	pool := flag.String("pool", "", "with -propose: the acceptance of the objective's held-out pool, as training-objective -pool wrote it")
 	confirm := flag.String("confirm", "", "change judgment artifact ID: have the promotion part of the judgment's pool say whether -candidate is a gain over the base, at -seq; charges one confirmation to the pool's budget and writes the verdict and what is left; needs -model and -out as -propose had them")
 	candidate := flag.String("candidate", "proposed", "with -confirm: the candidate to confirm, by the name its judgment gives it")
+	proposal := flag.String("proposal", proposalDirectory, "with -propose and -confirm: the directory under -out the candidates are written in, and read from")
+	evidence := flag.Bool("evidence", false, "with -propose: show the proposer the held-out verdicts the store holds of what was tried before it; it fits the gains they recorded for its corpus's runs beside the gains it reads on the pool, and scores the proposal it would have made without them beside its own")
+	evidenceThrough := flag.Uint64("evidence-to-sequence", 0, "with -evidence: read the store as it stood at this journal sequence and not as it stands, as overgodb query -verdicts -to-sequence lists it")
+	evidenceBytes := flag.Uint64("evidence-max-bytes", 0, "with -evidence: refuse a listing whose verdict documents exceed this many bytes (0 for no bound)")
 	flag.Parse()
+	if (*evidence || *evidenceThrough != 0 || *evidenceBytes != 0) && (*propose == "" || !*evidence) {
+		return fmt.Errorf("train: -evidence shows a proposer what was tried before it, and -evidence-to-sequence and -evidence-max-bytes bound what it is shown; they need -propose and -evidence")
+	}
 	if *proof && *objective == "" {
 		return fmt.Errorf("train: -proof re-verifies an -objective recipe; it needs -objective")
 	}
@@ -106,9 +113,9 @@ func run() error {
 			return fmt.Errorf("train: -propose reads a corpus and -confirm a judgment, each of which names its own objective; one of them at a time, with -model and -out and no -objective")
 		}
 		if *confirm != "" {
-			return confirmChange(ctx, store, *confirm, *candidate, *model, *output, *maximumSequence, os.Stdout)
+			return confirmChange(ctx, store, *confirm, *candidate, *model, *output, *proposal, *maximumSequence, os.Stdout)
 		}
-		return proposeChange(ctx, store, *propose, *pool, *model, *output, *maximumSequence, os.Stdout)
+		return proposeChange(ctx, store, *propose, *pool, *model, *output, *proposal, shownEvidence{shown: *evidence, through: *evidenceThrough, bytes: *evidenceBytes}, *maximumSequence, os.Stdout)
 	}
 	if *objective != "" {
 		set := map[string]bool{}

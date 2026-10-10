@@ -15,6 +15,7 @@ import (
 	"overgo/internal/densecausal"
 	"overgo/internal/evaluation"
 	"overgo/internal/overgodb"
+	"overgo/internal/runrecord"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensorstats"
@@ -32,6 +33,9 @@ const (
 	changeMean         = "mean"
 	changeMeanImproved = "mean-of-improved"
 	changeRandom       = "random-direction"
+	// changeUnconditioned is the proposal the same code makes of the gains read
+	// on the pool alone: the control a proposer shown past verdicts is held to.
+	changeUnconditioned = "without-evidence"
 
 	// changeResamplingDraws is how many times the held-out records are
 	// redrawn to bound the difference between two candidates' scores: enough
@@ -104,6 +108,20 @@ type ChangeJudgment struct {
 	Lower      float64 `json:"lower"`
 	Upper      float64 `json:"upper"`
 	Kept       bool    `json:"kept"`
+	// Shown names the past held-out verdicts the proposer was shown of what
+	// was tried before it, and Used how many of the corpus's runs they judged.
+	// When they judged enough to fit, the code was fitted to those runs'
+	// recorded gains beside the gains read on the pool (conditionedGains); the
+	// proposal the code makes of the pool's gains alone is scored among the
+	// candidates as without-evidence; and EvidenceDifference is the proposal's
+	// score less that one's, with EvidenceLower and EvidenceUpper bounding the
+	// middle of it over the redrawn documents. A proposer shown nothing
+	// records none of these.
+	Shown              []artifact.ID `json:"shown,omitempty"`
+	Used               int           `json:"used,omitzero"`
+	EvidenceDifference float64       `json:"evidence_difference,omitzero"`
+	EvidenceLower      float64       `json:"evidence_lower,omitzero"`
+	EvidenceUpper      float64       `json:"evidence_upper,omitzero"`
 }
 
 var changeJudgmentCodec = artifact.JSONDocumentCodec(
@@ -112,6 +130,7 @@ var changeJudgmentCodec = artifact.JSONDocumentCodec(
 	func(value ChangeJudgment) artifact.ID { return value.ID },
 	func(value *ChangeJudgment, id artifact.ID) { value.ID = id },
 	func(value ChangeJudgment) ChangeJudgment {
+		value.Shown = slices.Clone(value.Shown)
 		value.Candidates = slices.Clone(value.Candidates)
 		for index := range value.Candidates {
 			value.Candidates[index].Weights = slices.Clone(value.Candidates[index].Weights)
@@ -323,6 +342,55 @@ func changeCandidates(gram, gains []float64, code changeCode, seedHigh, seedLow 
 	return candidates
 }
 
+// conditionedGains is what a proposer shown past verdicts fits its code to.
+// For each run a shown verdict judged, the gain that verdict recorded, in its
+// metric's own direction, is put beside the gain the run read on the pool's
+// development part: each kind is taken about its mean in units of its spread
+// over the runs it covers, and the two are added. A run no shown verdict
+// judged adds nothing to its pool gain, which is what a run of the mean
+// evidence would add. It returns how many runs the verdicts judged, and the
+// pool's gains as they were with none when either kind does not differ from
+// run to run: there is then nothing in the evidence to fit.
+func conditionedGains(corpus ChangeCorpus, gains []float64, shown []artifact.ID) ([]float64, int) {
+	var recorded []float64
+	var judged []int
+	for run, change := range corpus.Changes {
+		if slices.Contains(shown, change.Verdict) {
+			gain := change.Changed - change.Base
+			if corpus.Direction == runrecord.DirectionMinimize {
+				gain = -gain
+			}
+			recorded, judged = append(recorded, gain), append(judged, run)
+		}
+	}
+	fitted, evidence := standardized(gains), standardized(recorded)
+	if fitted == nil || evidence == nil {
+		return gains, 0
+	}
+	for at, run := range judged {
+		fitted[run] += evidence[at]
+	}
+	return fitted, len(judged)
+}
+
+// standardized is values about their mean in units of their standard
+// deviation, and nil when they do not differ.
+func standardized(values []float64) []float64 {
+	spread := standardDeviation(values)
+	if !(spread > 0) {
+		return nil
+	}
+	var mean float64
+	for _, value := range values {
+		mean += value / float64(len(values))
+	}
+	units := make([]float64, len(values))
+	for index, value := range values {
+		units[index] = (value - mean) / spread
+	}
+	return units
+}
+
 // ChangeProposalRequest asks for a change to be proposed from a corpus and
 // ranked: the corpus, the acceptance of the held-out pool it is fitted and
 // ranked on, the corpus's base model's directory, the directory its runs
@@ -335,6 +403,12 @@ type ChangeProposalRequest struct {
 	RunsDirectory   string
 	OutputDirectory string
 	MaximumSequence int
+	// Shown names the held-out verdicts the proposer is shown of what was
+	// tried before it (evaluation.PastHeldoutVerdicts). It fits the gains
+	// those of them that judged its corpus's runs recorded beside the gains it
+	// reads on the pool, and reads no other; shown none, it fits the pool's
+	// gains alone.
+	Shown []artifact.ID
 	// Progress, when set, receives a line a stage.
 	Progress io.Writer
 }
@@ -361,6 +435,11 @@ func ProposeChange(ctx context.Context, store *overgodb.Store, request ChangePro
 	if pool.Acceptance.Objective != corpus.Objective || pool.Acceptance.Base != corpus.Model {
 		return ChangeJudgment{}, fmt.Errorf("training workflow: pool %s was fixed for objective %s and base %s, and the corpus's runs trained base %s under objective %s",
 			pool.Acceptance.ID, pool.Acceptance.Objective, pool.Acceptance.Base, corpus.Model, corpus.Objective)
+	}
+	for _, shown := range request.Shown {
+		if descriptor, held, err := store.Artifact(ctx, shown); err != nil || !held || !evaluation.IsHeldoutVerdict(descriptor) {
+			return ChangeJudgment{}, errors.Join(fmt.Errorf("training workflow: a proposer is shown held-out verdicts the store holds, and %s is not one", shown), err)
+		}
 	}
 	base, examples, err := poolExamples(ctx, store, corpus.Objective, request.ModelDirectory, request.MaximumSequence)
 	if err != nil {
@@ -474,12 +553,22 @@ func proposeOnPool(ctx context.Context, store *overgodb.Store, request ChangePro
 	if err != nil {
 		return ChangeJudgment{}, err
 	}
-	code, err := linearChangeCode(gram, gains)
+	fitted, used := conditionedGains(corpus, gains, request.Shown)
+	code, err := linearChangeCode(gram, fitted)
 	if err != nil {
 		return ChangeJudgment{}, err
 	}
 	seedHigh, seedLow := corpusSeeds(corpus.ID)
 	candidates := changeCandidates(gram, gains, code, seedHigh, seedLow)
+	if used > 0 {
+		// The proposal of the pool's gains alone stands last among the candidates.
+		plain, err := linearChangeCode(gram, gains)
+		if err != nil {
+			return ChangeJudgment{}, err
+		}
+		candidates = append(candidates, ChangeCandidate{Name: changeUnconditioned, Weights: changeCandidates(gram, gains, plain, seedHigh, seedLow)[0].Weights})
+		say("shown %d past verdicts, which judged %d of the runs; their gains are fitted beside the pool's", len(request.Shown), used)
+	}
 	say("code of rank %d explains %.3f of the gain of a run left out; runs sit %.4g from the mean change", code.rank, code.explained, code.spread)
 
 	// A candidate that is one run is that run's checkpoint; the others are written.
@@ -504,9 +593,10 @@ func proposeOnPool(ctx context.Context, store *overgodb.Store, request ChangePro
 	judgment := ChangeJudgment{
 		Corpus: corpus.ID, Rank: code.rank, Explained: code.explained,
 		GainSpread: standardDeviation(gains), GainNoise: noise, Base: scoreMean(baseSelection), Candidates: candidates,
+		Shown: request.Shown, Used: used,
 	}
 	scores := make([][]evaluation.RecordScore, len(candidates))
-	parents := []artifact.ID{corpus.ID}
+	parents := append([]artifact.ID{corpus.ID}, request.Shown...)
 	for index := range candidates {
 		model, err := loadTrainableModel(directories[index])
 		if err != nil {
@@ -557,6 +647,16 @@ func proposeOnPool(ctx context.Context, store *overgodb.Store, request ChangePro
 	judgment.Resampling, judgment.Control = resampling.ID, candidates[control].Name
 	judgment.Difference = judgment.Candidates[0].Score - judgment.Candidates[control].Score
 	judgment.Lower, judgment.Upper = tensorstats.Quantile(differences, changeLowerQuantile), tensorstats.Quantile(differences, changeUpperQuantile)
+	if used > 0 {
+		// The same documents, redrawn the same way, bound what the evidence moved.
+		last := len(candidates) - tensor.SingletonExtent
+		_, apart, err := resampledDifferences(ctx, pool.Partition.Selection, corpus.ID, scores[0], scores[last], seedHigh, seedLow)
+		if err != nil {
+			return ChangeJudgment{}, err
+		}
+		judgment.EvidenceDifference = judgment.Candidates[0].Score - judgment.Candidates[last].Score
+		judgment.EvidenceLower, judgment.EvidenceUpper = tensorstats.Quantile(apart, changeLowerQuantile), tensorstats.Quantile(apart, changeUpperQuantile)
+	}
 	if judgment, err = changeJudgmentCodec.NewInitial(judgment); err != nil {
 		return ChangeJudgment{}, err
 	}

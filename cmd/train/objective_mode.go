@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/evaluation"
 	"overgo/internal/overgodb"
 	"overgo/internal/trainingworkflow"
 )
@@ -167,14 +168,26 @@ func runChangeCorpus(ctx context.Context, store *overgodb.Store, run objectiveRu
 }
 
 // proposalDirectory is where a proposal's candidates are written, under the
-// directory its corpus was collected in.
+// directory its corpus was collected in, when -proposal names no other.
 const proposalDirectory = "proposal"
+
+// shownEvidence is what -evidence shows a proposer of what was tried before
+// it: whether it is shown the store's held-out verdicts at all, the journal
+// sequence the store is read through, zero for the store as it stands, and
+// the most bytes of verdict documents the listing may hold, zero for no bound.
+type shownEvidence struct {
+	shown          bool
+	through, bytes uint64
+}
 
 // proposeChange has a change proposed from the corpus whose runs sit under
 // out, fitted and ranked against its controls on the held-out pool an
 // acceptance names, and writes the judgment: a line for each candidate, then
-// whether the proposal is kept and by what margin.
-func proposeChange(ctx context.Context, store *overgodb.Store, corpus, pool, model, out string, sequence int, output io.Writer) error {
+// whether the proposal is kept and by what margin. Its candidates are written
+// in proposal, under out. A proposer shown evidence is listed the verdicts it
+// was shown, and the judgment's last line says how far the proposal stands
+// from the one the same code makes without them.
+func proposeChange(ctx context.Context, store *overgodb.Store, corpus, pool, model, out, proposal string, evidence shownEvidence, sequence int, output io.Writer) error {
 	corpusID, err := artifact.ParseID(corpus)
 	if err != nil {
 		return fmt.Errorf("change corpus: %w", err)
@@ -183,9 +196,19 @@ func proposeChange(ctx context.Context, store *overgodb.Store, corpus, pool, mod
 	if err != nil {
 		return fmt.Errorf("train: -propose fits and ranks on a held-out pool; -pool names its acceptance: %w", err)
 	}
-	judgment, err := trainingworkflow.ProposeChange(ctx, store, trainingworkflow.ChangeProposalRequest{
-		Corpus: corpusID, Acceptance: acceptance, ModelDirectory: model, RunsDirectory: out, OutputDirectory: filepath.Join(out, proposalDirectory), MaximumSequence: sequence, Progress: output,
-	})
+	request := trainingworkflow.ChangeProposalRequest{
+		Corpus: corpusID, Acceptance: acceptance, ModelDirectory: model, RunsDirectory: out, OutputDirectory: filepath.Join(out, proposal), MaximumSequence: sequence, Progress: output,
+	}
+	if evidence.shown {
+		var read uint64
+		if request.Shown, read, err = evaluation.PastHeldoutVerdicts(ctx, store, evidence.through, evidence.bytes); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(output, "shown %d held-out verdicts in %d bytes of verdict documents, the store read through sequence %d (0: as it stands)\n", len(request.Shown), read, evidence.through); err != nil {
+			return err
+		}
+	}
+	judgment, err := trainingworkflow.ProposeChange(ctx, store, request)
 	if err != nil {
 		return err
 	}
@@ -195,21 +218,26 @@ func proposeChange(ctx context.Context, store *overgodb.Store, corpus, pool, mod
 			return err
 		}
 	}
-	_, err = fmt.Fprintf(output, "change judgment %s: kept=%t; proposed less %s is %.6f, between %.6f and %.6f over the redrawn documents of the pool's selection part; a code of rank %d explains %.3f of a left-out run's gain; the runs' gains spread %.6f against a noise of %.6f\n",
-		judgment.ID, judgment.Kept, judgment.Control, judgment.Difference, judgment.Lower, judgment.Upper, judgment.Rank, judgment.Explained, judgment.GainSpread, judgment.GainNoise)
+	if _, err = fmt.Fprintf(output, "change judgment %s: kept=%t; proposed less %s is %.6f, between %.6f and %.6f over the redrawn documents of the pool's selection part; a code of rank %d explains %.3f of a left-out run's gain; the runs' gains spread %.6f against a noise of %.6f\n",
+		judgment.ID, judgment.Kept, judgment.Control, judgment.Difference, judgment.Lower, judgment.Upper, judgment.Rank, judgment.Explained, judgment.GainSpread, judgment.GainNoise); err != nil || !evidence.shown {
+		return err
+	}
+	_, err = fmt.Fprintf(output, "evidence: the verdicts shown judged %d of the corpus's runs; proposed less the proposal without them is %.6f, between %.6f and %.6f over the same redrawn documents\n",
+		judgment.Used, judgment.EvidenceDifference, judgment.EvidenceLower, judgment.EvidenceUpper)
 	return err
 }
 
 // confirmChange has the promotion part of a judgment's pool answer for one of
-// the judgment's candidates, whose model sits where proposeChange wrote it
-// under out, and writes the verdict and what the pool's budget has left.
-func confirmChange(ctx context.Context, store *overgodb.Store, judgment, candidate, model, out string, sequence int, output io.Writer) error {
+// the judgment's candidates, whose model sits where proposeChange wrote it,
+// in proposal under out, and writes the verdict and what the pool's budget
+// has left.
+func confirmChange(ctx context.Context, store *overgodb.Store, judgment, candidate, model, out, proposal string, sequence int, output io.Writer) error {
 	judgmentID, err := artifact.ParseID(judgment)
 	if err != nil {
 		return fmt.Errorf("change judgment: %w", err)
 	}
 	confirmation, left, err := trainingworkflow.ConfirmChange(ctx, store, trainingworkflow.ChangeConfirmationRequest{
-		Judgment: judgmentID, Candidate: candidate, ModelDirectory: model, RunsDirectory: out, OutputDirectory: filepath.Join(out, proposalDirectory), MaximumSequence: sequence,
+		Judgment: judgmentID, Candidate: candidate, ModelDirectory: model, RunsDirectory: out, OutputDirectory: filepath.Join(out, proposal), MaximumSequence: sequence,
 	})
 	if err != nil {
 		return err

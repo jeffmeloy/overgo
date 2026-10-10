@@ -4,30 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "evidence-conditioning",
-      "title": "Measure whether past-experiment evidence improves the proposer's candidates",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 720,
-        "reason": "The step's preflight counted 689 production nodes on 2026-10-10: the proposer's fit of recorded gains beside the pool's, the proposal without them scored as a control and the bounds between the two, 480; cmd/train's -evidence, its cut-off and byte bound, and -proposal, 209. 31 are left for what the remaining rules ask. It was filed at 450 as an estimate for a runner of three arms. There is no separate runner: each arm is one proposal, and an arm shown verdicts scores the proposal without them beside its own, so the comparison is in the judgment the proposer already publishes."
-      },
-      "steps": [
-        {
-          "id": "conditioning",
-          "title": "Measure whether that evidence improves the proposer's candidates",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestEvidenceConditionedProposalIsCompared$'",
-          "rationale": "Three arms with the same proposer and the same budget: no evidence, the store's current retrieval, and the cut-off reader of the step before. The exact bytes each arm read are recorded. Judged by the held-out objective of the proposer's row; no benefit is a valid outcome and closes the step. A learned encoder of experiment paths is not planned unless the plain reader measurably falls short.\n\nServes: judge on held-out data. Disappears: nothing. Evidence: the held-out score of each arm. Batch: device.",
-          "depends_on": [
-            "experiment-evidence/retrieval",
-            "latent-change-proposer/proposal",
-            "evaluation-chain/confirmation"
-          ]
-        }
-      ]
-    },
-    {
       "id": "codec-library-rest",
       "title": "Convolve the video codec's remaining convolutions through the library",
       "owner": "master-lead",

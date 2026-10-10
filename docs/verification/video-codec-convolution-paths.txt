@@ -1,31 +1,36 @@
 overgo video codec: the Wan2.1 autoencoder's convolutions by overgo's kernels and through cuDNN, and which a request takes
-tool: internal/latentvideo TestLibraryCodecKeepsWithinTheKernelsMemoryAndLevels for the large clips, TestAdoptedCodecPathAgreesWithItsOwnCodeOnASmallClip and TestLibraryCodecAgreesWithItsOwnCodeOnASmallClip for the small one, on the tree commit 87337cbb7 was changed into
+tool: internal/latentvideo TestLibraryCodecKeepsWithinTheKernelsMemoryAndLevels for the large clips, TestAdoptedCodecPathAgreesWithItsOwnCodeOnASmallClip and TestLibraryCodecAgreesWithItsOwnCodeOnASmallClip for the small one, at commit 685397181
 model: Wan2.1-T2V-1.3B, Wan2.1_VAE.pth
 device: NVIDIA GeForce RTX 4090 D, 49140 MiB, driver 616.64, CUDA toolkit 12.9
 library: cuDNN 9.1.0 (cudnnGetVersion 90100), loaded for these runs from a copy already on the machine, its directory put last on the search path of the test process alone
-quiet: no. A text evaluation ran on the device throughout, at about 90 of 100 of its time. Each pair of paths was timed in one process, one after the other, under that same load, so the paths compare; neither's seconds are a quiet device's. The kernels alone, quiet, encode the 21 frames in 3.4 seconds and decode them in 3.4 (commit c1d38123f).
+quiet: yes. Nothing else held the device: the figures below were taken on 2026-10-10 in the minutes after the measurement run's last evaluation ended. The record this one replaces was taken beside that evaluation and said so; its seconds were four to six tenths longer on both paths, and its comparison of the paths was the same.
+threshold: 4194304 values of one channel, frames by rows by columns, is the smallest clip a served autoencoder convolves through the library (internal/latentvideo libraryClipValues)
 
 the two paths
   kernels: overgo's own (kernels/cuda/ops_f32.cu vae_causal_conv3d_f32), single precision operands and sums. Held to the host reference value for value, at 1e-5.
   library: cuDNN's forward convolution through internal/cuda/cudnn, for the stride-one convolutions, which are all but the two-to-one downsampling and the upsampling ones. Operands are handed to it in half precision and its sums kept in single, on the device's tensor units (CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM, half precision tensors, single precision compute type). A chunk is staged behind the frames before it in half precision, convolved with no padding in time, and widened to single with the bias added. The frames the next chunk reads are the last of what was staged, kept as staged: in half precision, once.
   also asked of the library and not taken: half precision sums, which it refuses for these shapes (status 3000), and single precision operands, which it convolves slower than the kernels do.
 
-time, seconds, three repetitions each, the first with whatever a path sets up once in it (the library: loading, a plan for each of 40 shapes, each filter packed to half precision, its workspace)
+time, seconds, three repetitions each, the first with whatever a path sets up once in it
   21 frames at 832 by 480
-    kernels  encode 5.12 4.57 4.66   decode 5.65 5.01 4.94   three round trips 29.95
-    library  encode 4.55 3.82 3.70   decode 4.06 3.26 3.24   three round trips 22.63
+    kernels  encode 3.33 3.19 3.19   decode 3.44 3.12 3.13   three round trips 19.40
+    library  encode 2.77 2.58 2.59   decode 2.44 2.11 2.11   three round trips 14.60
   81 frames at 832 by 480
-    kernels  encode 17.86 17.48 17.44   decode 19.47 18.80 18.99   three round trips 110.04
-    library  encode 14.97 14.15 14.23   decode 12.99 12.27 12.18   three round trips 80.79
+    kernels  encode 12.26 12.12 12.13   decode 12.38 11.94 11.95   three round trips 72.78
+    library  encode 9.96 9.78 9.79   decode 8.43 8.00 7.99   three round trips 53.95
   5 frames at 32 by 16, the round trip
-    kernels  0.45 0.35 0.35
-    library  0.72 0.29 0.18 with the library's files lately read, and 1.59 0.30 0.28 and 1.81 0.29 0.25 without
-  once set up the library takes about a fifth off an encode and a third off a decode. Setting it up costs between half a second and a second and a half more than the kernels' own first run, by whether the system still holds its files. It saves 0.31 seconds on each million values, frames by rows by columns, of a round trip.
+    kernels  0.213 0.208 0.208
+    library  1.167 0.117 0.114, the first the library's first use in the process
+  once set up the library takes a fifth off an encode and a third off a decode: 3.19 to 2.59 and 3.12 to 2.11 seconds for 21 frames, 12.12 to 9.78 and 11.94 to 8.00 for 81. That is 0.19 seconds on each million values, frames by rows by columns, of a round trip, at both sizes, and 0.12 of a decode alone.
+  setting the library up costs about a second, once in a process: the small clip's first round trip took 1.05 seconds more than its later ones. Most of that is loading it. The large clip's 40 shapes, planned after the small clip had loaded the library, made its first round trip 0.06 seconds longer than the kernels' own first run was over theirs.
 
-memory, the most of its own allocations a half held, the same for 21 frames and for 81
-  kernels  encoder 6.74 GiB   decoder 9.62 GiB
-  library  encoder 5.17 GiB   decoder 6.04 GiB
-  the library's workspace, its staged input and its half precision output are in those figures; what cuDNN allocates for itself is not. What the device reported held by both halves beyond their weights was 10.85 GiB under the library every time; under the kernels it was 16.06 GiB in two runs and 32.69 in three later ones, while the evaluation beside them changed its model. A quiet device has to say what the kernels hold.
+memory, the same for 21 frames and for 81
+  the most of its own allocations a half held:
+    kernels  encoder 6.74 GiB   decoder 9.62 GiB
+    library  encoder 5.17 GiB   decoder 6.04 GiB
+  what the device reported held by both halves beyond their weights, which counts what cuDNN allocates for itself:
+    kernels  16.06 GiB
+    library  10.85 GiB
 
 values
   5 frames at 32 by 16 against the autoencoder's own code in float32 on the host (fixtures/wan/vae_clip_round_trip.json, written by scripts/python_golden_references/wan_vae_clip_round_trip.py):
@@ -35,8 +40,9 @@ values
   the bound is two levels and four parts in 100, the one a served reconstruction is held to (internal/mediacapability TestVideoAutoencoderRoundTripMatchesItsOwnCode).
 
 what a request takes
-  a served autoencoder convolves a clip of at least 4,194,304 values of one channel through the library, on a machine that has it, and any smaller clip by the kernels (internal/latentvideo libraryClipValues). 21 frames at 832 by 480 are 8,386,560 and take it. A picture at 832 by 480 is 399,360 and does not, and a process that serves only pictures never loads the library: over three pictures the library would lose its setup and win back a third of it. At that count a clip repays the setup within its own request.
-  written down before the run: a path is adopted only when every bound holds and the whole request is faster over three repetitions of each clip, with setup counted. By that rule the library is taken for the clips of 21 and of 81 frames and not for the clip of 5 frames at 32 by 16.
+  a served autoencoder convolves a clip of at least the threshold above through the library, on a machine that has it, and any smaller clip by the kernels. 21 frames at 832 by 480 are 8,386,560 values and take it. A picture at 832 by 480 is 399,360 and does not, and a process that serves only pictures never loads the library.
+  written down before the run: a path is adopted only when every bound holds and the whole request is faster over three repetitions of each clip, with setup counted. By that rule the library is taken for the clips of 21 and of 81 frames, 14.60 seconds against 19.40 and 53.95 against 72.78, and not for the clip of 5 frames at 32 by 16, 1.40 against 0.63.
+  at the threshold a round trip saves 0.81 seconds, so the setup's second is repaid in two requests, and over the rule's three repetitions the library is ahead by 1.4 seconds; a clip of twice the threshold, which the 21 frames are, repays it within its own request. A picture saves 0.08 seconds a round trip and would need about fourteen to repay it.
   the codec's own code encodes the 21 frames in 0.7 to 1.0 seconds and decodes them in 1.25 on this device. Neither path reaches that. What is left outside the library is the two-to-one downsampling convolution and the upsampling one, the normalisation, the attention and the copying of temporal caches.
 
 what a user installs

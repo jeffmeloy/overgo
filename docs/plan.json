@@ -28,21 +28,6 @@
       ]
     },
     {
-      "id": "codec-record-quiet",
-      "title": "Write the codec's record again from a quiet device's figures, and correct what the path's comment says it saves",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Write the codec's record again from a quiet device's figures, and correct what the path's comment says it saves",
-          "status": "open",
-          "verify": "go test ./internal/latentvideo -count=1 -run '^TestCodecPathRecordStatesTheRuleTheCodeApplies$'",
-          "rationale": "The record of the codec's two convolution paths, docs/verification/video-codec-convolution-paths.txt, says of itself that it was not taken on a quiet device: a text evaluation held about nine tenths of the device's time. The device fell free when that evaluation ended, and the same test (internal/latentvideo TestLibraryCodecKeepsWithinTheKernelsMemoryAndLevels, at commit 685397181) then gave, three repetitions each. 21 frames at 832 by 480: the kernels encoded in 3.33, 3.19 and 3.19 seconds and decoded in 3.44, 3.12 and 3.13; the library in 2.77, 2.58 and 2.59 and in 2.44, 2.11 and 2.11. 81 frames: the kernels in 12.26, 12.12 and 12.13 and in 12.38, 11.94 and 11.95; the library in 9.96, 9.78 and 9.79 and in 8.43, 8.00 and 7.99. 5 frames at 32 by 16, the round trip: 0.213, 0.208 and 0.208 by the kernels; 1.167, 0.117 and 0.114 through the library, first loaded in that process. The device held 16.06 GiB beyond the weights under the kernels and 10.85 under the library, so the 32.69 read for the kernels beside the evaluation was the evaluation's.\n\nSo the library takes a fifth off an encode and a third off a decode, as the record says. It saves 0.19 seconds on each million values of a round trip and not the 0.31 read under load, and it costs about a second once in a process, most of it loading: the large clip's 40 shapes, planned after the small clip had loaded it, added 0.06 seconds. The record is written again from these figures. The comment on libraryClipValues says three tenths of a second and that a clip of the threshold's size repays the setup within its own request; at 0.19 a clip of that size repays it in two requests and one of twice the size in its own, and the comment is corrected. The threshold stays where it is: the rule written down before the run was three repetitions with setup counted, which a clip of that size meets, and the clips a request carries are twice that size and more. The step's check holds the record to the rule the code applies. No value a request is served changes, and the row adds no production code.\n\nServes: measure and find the gap. Disappears: the record's figures taken under load. Evidence: the record. Batch: device; a comment in the codec's source expires the video guards."
-        }
-      ]
-    },
-    {
       "id": "codec-library-here",
       "title": "Find cuDNN beside overgo's data on this machine, and accept the frozen video clips again under it",
       "owner": "master-lead",

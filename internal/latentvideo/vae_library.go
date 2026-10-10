@@ -56,12 +56,12 @@ type vaeLibrary struct {
 
 // libraryClipValues is the fewest values of one channel, frames by rows by
 // columns, a request's clip holds for it to convolve through the library.
-// The library is loaded, and each shape a clip's size gives is planned and
-// first run, in about a second, once for a size; it then saves about three
-// tenths of a second on each million values a round trip carries. A clip of
-// this many repays that within its own request. A picture or a smaller clip
-// is sooner done by the kernels, and loads nothing
-// (docs/verification/video-codec-convolution-paths.txt).
+// Setting the library up costs about a second, once in a process; it then
+// saves about two tenths of a second on each million values of a round trip.
+// A clip of this many repays that in two requests and is ahead over three,
+// the rule the library was adopted by; a served clip of 21 frames is twice
+// this and repays it in its own. A picture or a smaller clip is sooner done
+// by the kernels, and loads nothing (docs/verification/video-codec-convolution-paths.txt).
 const libraryClipValues = 1 << 22
 
 // libraryRoute is what a session was told of the library's path and what it

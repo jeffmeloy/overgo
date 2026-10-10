@@ -7795,6 +7795,38 @@ extern "C" __global__ void vae_tail_frames_f16(
     out[index] = staged[(ch * frames + frames - out_frames) * spatial + rem];
 }
 
+// vae_spatial_stage_f16: the input of a convolution over a frame's rows and
+// columns as a convolution library takes it, where a kernel reads it in
+// place. Each frame of in_h by in_w is written in half precision as a frame
+// of out_h by out_w: a value to each scale by scale of its positions, and
+// zero beyond the frame. At scale two, out twice in, it is the frame enlarged
+// to its nearest value, which vae_upsample2d_f32 reads as it convolves. At
+// scale one, out one more than in, it is the frame with the row of zeros
+// below it and the column to its right that vae_downsample2d_f32 reads past
+// its edge.
+extern "C" __global__ void vae_spatial_stage_f16(
+        unsigned short * out,
+        const float * x,
+        int in_h,
+        int in_w,
+        int out_h,
+        int out_w,
+        int scale,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    const int plane = out_h * out_w;
+    const int frame = (int) index / plane;
+    const int rem = (int) index - frame * plane;
+    const int row = rem / out_w / scale;
+    const int column = rem % out_w / scale;
+    out[index] = row < in_h && column < in_w
+        ? __half_as_ushort(__float2half_rn(x[(frame * in_h + row) * in_w + column]))
+        : 0;
+}
+
 // vae_widen_bias_f32: what a convolution library wrote in half precision, in
 // single precision with its channel's bias added: each of a channel's plane
 // values takes the channel's bias, which stays single precision.

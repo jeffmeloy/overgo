@@ -113,6 +113,7 @@ func TestConvolutionIsTheSumItIsDefinedAs(t *testing.T) {
 	for name, shape := range map[string]Shape{
 		"three in every extent, padded in rows and columns": {In: 5, Out: 7, Frames: 4, Height: 6, Width: 9, Kernel: [extents]int{3, 3, 3}, Stride: [extents]int{1, 1, 1}, Pad: [extents]int{0, 1, 1}},
 		"three in rows and columns, at stride two":          {In: 6, Out: 4, Frames: 3, Height: 9, Width: 11, Kernel: [extents]int{1, 3, 3}, Stride: [extents]int{1, 2, 2}},
+		"three in frames, at stride two":                    {In: 6, Out: 6, Frames: 5, Height: 4, Width: 7, Kernel: [extents]int{3, 1, 1}, Stride: [extents]int{2, 1, 1}},
 	} {
 		frames, height, width := shape.output()
 		input := values(shape.In * shape.Frames * shape.Height * shape.Width)

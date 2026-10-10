@@ -209,6 +209,33 @@ func TestLibraryCodecAgreesWithItsOwnCodeOnASmallClip(t *testing.T) {
 	}
 }
 
+// TestLibraryConvolvesEveryConvolutionOfAClip holds that a clip which takes
+// the library is convolved by nothing else. Over the clip of five frames,
+// with the library given to both halves for a clip of any size, each half's
+// last request did every convolution through the library and none by a
+// kernel: the convolutions at stride one, the encoder's convolution of each
+// frame to half its extents and of each two frames to one, and the decoder's
+// convolution of each frame enlarged to twice its extents. The library
+// refused no shape, and the clip that came back is held to the autoencoder's
+// own code as the library's path is. Given no library, each half does every
+// convolution by a kernel, as many as the library did.
+func TestLibraryConvolvesEveryConvolutionOfAClip(t *testing.T) {
+	cudatest.Require(t)
+	reference, clip, want := ownCodeClip(t)
+	_, byLibrary := holdToOwnCode(t, reference, clip, want, func(half *vaeDecoderCUDASession) { half.adoptLibrary(0) })
+	_, byKernels := holdToOwnCode(t, reference, clip, want, func(half *vaeDecoderCUDASession) { half.route = libraryRoute{} })
+	for name, half := range byLibrary {
+		kernels := byKernels[name].route
+		t.Logf("the %s convolved %d times through the library and %d by a kernel, over %d shapes; given no library, %d by a kernel", name, half.route.byLibrary, half.route.byKernels, len(half.library.plans), kernels.byKernels)
+		if !half.route.taken || half.route.byLibrary == 0 || half.route.byKernels != 0 || len(half.library.refused) != 0 {
+			t.Errorf("the %s convolved %d times through the library and %d by a kernel, and the library refused %d shapes; want every convolution through the library", name, half.route.byLibrary, half.route.byKernels, len(half.library.refused))
+		}
+		if kernels.byLibrary != 0 || kernels.byKernels != half.route.byLibrary {
+			t.Errorf("given no library the %s convolved %d times by a kernel and %d through a library, where the library's path convolved %d times", name, kernels.byKernels, kernels.byLibrary, half.route.byLibrary)
+		}
+	}
+}
+
 // codecRun is what one path took over a clip: each repetition's time to encode
 // and to decode, the clip it decoded, the most of its own allocations each
 // half held, and the device memory both halves held at the end beyond their
@@ -230,11 +257,16 @@ type codecRun struct {
 // kernels, and the library is refused no shape. Each half is given the library
 // as a served one is, so the first repetition loads it, plans its shapes and
 // packs its filters, and its time has all of that in it. The test logs each
-// repetition's time and the device memory the halves held; the figures of a
-// quiet device are in the record.
+// repetition's time and the device memory the halves held, on a device it
+// holds alone; the record holds the figures of one such run.
 func TestLibraryCodecKeepsWithinTheKernelsMemoryAndLevels(t *testing.T) {
 	cudatest.Require(t)
 	directory := wanModelDir(t)
+	// The times it logs are of a device it holds alone: it runs in a process of
+	// its own that waits for the device's other users and keeps them waiting.
+	if cudatest.MeasurementProcess(t, device.DefaultOrdinal()) {
+		return
+	}
 	checkpoint := AutoencoderWeights(directory)
 	catalog, err := pytorchzip.ReadCatalog(checkpoint)
 	if err != nil {

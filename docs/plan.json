@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "codec-library-rest",
-      "title": "Convolve the video codec's remaining convolutions through the library",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 860,
-        "reason": "The step's preflight counted 834 production nodes on 2026-10-10: one path that every convolution through the library takes, which the stride-one convolution now calls; the two resampling kinds and the encoder's convolution of two frames to one staged for it; each kernel's path handing a request to the library first and counting what it convolves itself; and the generated binding of one new staging kernel. 26 are left for what the remaining rules and the quiet timing ask."
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Convolve the video codec's remaining convolutions through the library",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -count=1 -run '^TestLibraryConvolvesEveryConvolutionOfAClip$'",
-          "rationale": "codec-precision/adopt put the video codec's stride-one convolutions through cuDNN for a clip of about ten frames or more and left two kinds on the kernels on either path: the two-to-one downsampling convolution of an encode, which sums in double precision and was 1.02 seconds of an encode's 3.4, and the upsampling convolution of a decode, 0.2 seconds of 3.4. The downsampling pads a row and a column of zeros after a frame and none before it, which the library does not do, so the staging kernel writes them. The bounds are adopt's, written down before its run: no value more than two of 255 levels from the autoencoder's own code and the error within four parts in a hundred of the reference's, no more memory than the kernels hold, and a kind of convolution goes through the library only where the whole request is faster over three repetitions with its setup counted.\n\nThe quiet device's figures for adopt's two paths were taken when the device fell free on 2026-10-10 and are the row codec-record-quiet's; this step times the two kinds it moves, quiet, and adds them to that record.\n\nIt waits on cudnn-search-path: no check on this machine runs the library until cuDNN is where overgo looks for it, so the step would be verified by a test that says it cannot apply. As built on 2026-10-10, before its quiet timings. Three kinds were on the kernels, not two: the encoder also convolves each two frames to one, a convolution over three frames at stride two, which this row did not name. All three go through the library by the path the stride-one convolutions take. The downsampling is staged with the row and the column of zeros the kernel reads past a frame's edge and convolved at stride two. The upsampling is staged enlarged to its nearest value and convolved at stride one. The two frames to one are staged behind the frame before them, by the kernel that stages a causal convolution, and convolved at stride two over frames. One new staging kernel serves the first two. A frame of an odd extent and a chunk of an odd count are left to the kernels.\n\nOn the clip of five frames each half then convolves through the library alone, 62 times encoding and 76 decoding, and its clip stands 0.19 of a level from the autoencoder's own code. On 21 and 81 frames at 832 by 480 the library's halves hold 5.18 and 6.33 GiB of their own allocations against the kernels' 6.74 and 9.62, and its clip stands 0.71 and 0.90 of a level from the kernels'. The times of that run were read beside a measurement run's evaluations and are not the record's: a 21-frame encode took about 2.0 seconds, where the quiet record has 2.6 for the path before this step. The quiet figures, with the encoder's two kinds timed apart so that each is held to the rule that a kind goes through the library only where the request is faster, are taken when the device is free, and go into the record with the step.\n\nServes: generate. Evidence: each path's time, memory and distance from the model's own clip, before and after, and first-output of both video rows."
-        }
-      ]
-    },
-    {
       "id": "codec-library-threshold",
       "title": "Decide by measurement which clips and pictures take cuDNN, now that it is faster at every size timed",
       "owner": "master-lead",

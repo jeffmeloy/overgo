@@ -9,7 +9,7 @@ const (
 	BundleVAEConvTile    = 96
 	VectorAddSHA256      = "f0c6eedbbae221be3342bbbb8f782e5413c84515f362cca533905f7f9510c974"
 	TorchCUDARandnSHA256 = "e0a682f3821e61e9be8aa13192986c38010b60d588c027887a07e2681118df59"
-	OpsF32SHA256         = "6f6c005fc8bca856c18ff243020f8f342d88776e43ec7493eeb787bf4718f659"
+	OpsF32SHA256         = "4df38253458d22987a6641d91864787cd6cfca1d0b81a5f2f94aa0327563ea76"
 )
 
 var bundleAssets = [...]bundleAsset{

@@ -197,6 +197,7 @@ const (
 	kernelVaeChannelRmsNormF32
 	kernelVaeDownsample2dF32
 	kernelVaeSpatialAttentionF32
+	kernelVaeSpatialStageF16
 	kernelVaeTailFramesF16
 	kernelVaeTemporalDownsampleF32
 	kernelVaeTemporalCacheUpdateF32
@@ -406,6 +407,7 @@ var kernelFunctionNames = [...]string{
 	"vae_channel_rms_norm_f32",
 	"vae_downsample2d_f32",
 	"vae_spatial_attention_f32",
+	"vae_spatial_stage_f16",
 	"vae_tail_frames_f16",
 	"vae_temporal_downsample_f32",
 	"vae_temporal_cache_update_f32",
@@ -614,6 +616,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	6,
 	10,
 	6,
+	8,
 	6,
 	11,
 	10,

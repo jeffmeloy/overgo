@@ -64,7 +64,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "cd86b9c59dbb168ce113fccd00ce52c9c44418b2dae1613a836d7aa1856b746e",
+      "sourceSha256": "aa743a082a71634a90db8765ff13225e37c1358e55d21c1db6387e3308b2d65f",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -72,7 +72,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "6f6c005fc8bca856c18ff243020f8f342d88776e43ec7493eeb787bf4718f659",
+      "assetSha256": "4df38253458d22987a6641d91864787cd6cfca1d0b81a5f2f94aa0327563ea76",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -264,6 +264,7 @@
         "vae_channel_rms_norm_f32",
         "vae_downsample2d_f32",
         "vae_spatial_attention_f32",
+        "vae_spatial_stage_f16",
         "vae_tail_frames_f16",
         "vae_temporal_downsample_f32",
         "vae_temporal_cache_update_f32",
@@ -907,7 +908,8 @@
           ],
           "functions": [
             "group_slice_f32",
-            "strided_row_copy_f32"
+            "strided_row_copy_f32",
+            "vae_spatial_stage_f16"
           ]
         },
         {

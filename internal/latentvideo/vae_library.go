@@ -15,15 +15,17 @@ import (
 )
 
 // The kernels a session's library convolutions run beside the library: one
-// stages a chunk behind the frames before it in half precision, one keeps the
-// last of the staged frames for the next chunk, one writes what the library
-// convolved in single precision with the bias added, and one packs a filter
-// to half precision once.
+// stages a chunk behind the frames before it in half precision, one stages
+// each frame enlarged or with zeros past its edge, one keeps the last of the
+// staged frames for the next chunk, one writes what the library convolved in
+// single precision with the bias added, and one packs a filter to half
+// precision once.
 const (
-	libraryStageKernel = "vae_causal_stage_f16"
-	libraryTailKernel  = "vae_tail_frames_f16"
-	libraryWidenKernel = "vae_widen_bias_f32"
-	libraryPackKernel  = "f32_to_f16"
+	libraryStageKernel   = "vae_causal_stage_f16"
+	librarySpatialKernel = "vae_spatial_stage_f16"
+	libraryTailKernel    = "vae_tail_frames_f16"
+	libraryWidenKernel   = "vae_widen_bias_f32"
+	libraryPackKernel    = "f32_to_f16"
 )
 
 // The slots of a session's program workspace the library's convolutions use:
@@ -47,27 +49,28 @@ const halfBytes = binaryschema.Uint32Bytes / tensor.PairedExtent
 // precision operands, so a convolution's input and filter are handed to it in
 // half precision and its sums are kept in single precision.
 type vaeLibrary struct {
-	library                  *cudnn.Library
-	stage, tail, widen, pack driver.Function
-	plans                    map[cudnn.Shape]cudnn.Convolution
-	refused                  map[cudnn.Shape]bool
-	filters                  map[driver.DevicePtr]driver.DevicePtr
+	library                           *cudnn.Library
+	stage, spatial, tail, widen, pack driver.Function
+	plans                             map[cudnn.Shape]cudnn.Convolution
+	refused                           map[cudnn.Shape]bool
+	filters                           map[driver.DevicePtr]driver.DevicePtr
 }
 
 // libraryClipValues is the fewest values of one channel, frames by rows by
 // columns, a request's clip holds for it to convolve through the library.
-// Setting the library up costs about a second, once in a process; it then
-// saves about two tenths of a second on each million values of a round trip.
-// A clip of this many repays that in two requests and is ahead over three,
-// the rule the library was adopted by; a served clip of 21 frames is twice
-// this and repays it in its own. A picture or a smaller clip is sooner done
-// by the kernels, and loads nothing (docs/verification/video-codec-convolution-paths.txt).
+// It was set when the library saved two tenths of a second on each million
+// values of a round trip and cost a second to set up, so that a clip of this
+// many repaid it in two requests. It now saves nearly twice that, and a clip
+// of this many repays it in its own request. Whether a smaller clip or a
+// picture should take it too is not decided here: they keep the kernels and
+// load nothing (docs/verification/video-codec-convolution-paths.txt).
 const libraryClipValues = 1 << 22
 
 // libraryRoute is what a session was told of the library's path and what it
 // found of it: whether it was given the path, the fewest values of a clip
-// that takes it, whether this machine turned out to have no library, and
-// whether the request in hand takes it.
+// that takes it, whether this machine turned out to have no library, whether
+// the request in hand takes it, and how many of that request's convolutions
+// each path has done.
 //
 // The two paths do not give the same values. The kernels sum single precision
 // operands and are held to the host reference value for value; the library
@@ -76,6 +79,7 @@ const libraryClipValues = 1 << 22
 type libraryRoute struct {
 	adopted, absent, taken bool
 	from                   int
+	byKernels, byLibrary   int
 }
 
 // adoptLibrary gives the session the library's path for a clip of at least
@@ -89,7 +93,7 @@ func (s *vaeDecoderCUDASession) adoptLibrary(values int) {
 // machine without the library keeps the kernels, which is no failure: the
 // library is not a thing a user must install.
 func (s *vaeDecoderCUDASession) routeClip(ctx context.Context, values int) error {
-	s.route.taken = false
+	s.route.taken, s.route.byKernels, s.route.byLibrary = false, 0, 0
 	if !s.route.adopted || s.route.absent || values < s.route.from {
 		return nil
 	}
@@ -121,7 +125,7 @@ func (s *vaeDecoderCUDASession) useLibrary(ctx context.Context) error {
 		for _, entry := range []struct {
 			name     string
 			function *driver.Function
-		}{{libraryStageKernel, &held.stage}, {libraryTailKernel, &held.tail}, {libraryWidenKernel, &held.widen}, {libraryPackKernel, &held.pack}} {
+		}{{libraryStageKernel, &held.stage}, {librarySpatialKernel, &held.spatial}, {libraryTailKernel, &held.tail}, {libraryWidenKernel, &held.widen}, {libraryPackKernel, &held.pack}} {
 			if *entry.function, err = state.Driver.ModuleFunction(s.module, entry.name); err != nil {
 				return errors.Join(fmt.Errorf("vae cuda session kernel %s: %w", entry.name, err), library.Close())
 			}
@@ -155,63 +159,74 @@ func (s *vaeDecoderCUDASession) halves(state *device.State, key media.CodecWorks
 	return s.buffer(state, key, (values+tensor.SingletonExtent)/tensor.PairedExtent)
 }
 
-// libraryConv3d is conv3d through the library, and reports false, having
-// done nothing, for a shape the library does not convolve, which the caller's
-// kernel then does. The chunk is staged behind the frames before it, zero
-// where the cache holds fewer than the kernel reaches back, as the kernel
-// reads them; the library convolves the staged frames with no padding in
-// time, so it writes one frame a frame of the chunk; and its output is
-// widened with the bias added in single precision, where the kernel begins
-// each sum from the bias. It returns the staged frames, which stand until the
-// session's next convolution, and how many they are.
-func (s *vaeDecoderCUDASession) libraryConv3d(state *device.State, out, x driver.DevicePtr, cache vaeDeviceCache, weight, bias driver.DevicePtr, cIn, cOut, frames, h, w, kt, kh, kw int) (bool, driver.DevicePtr, int, error) {
-	held, spatial, staged := s.library, h*w, frames+kt-tensor.SingletonExtent
-	shape := cudnn.Shape{
-		In: cIn, Out: cOut, Frames: staged, Height: h, Width: w,
-		Kernel: [tensor.TripleExtent]int{kt, kh, kw},
-		Stride: [tensor.TripleExtent]int{tensor.SingletonExtent, tensor.SingletonExtent, tensor.SingletonExtent},
-		Pad:    [tensor.TripleExtent]int{tensor.FirstOffset, kh / tensor.PairedExtent, kw / tensor.PairedExtent},
-	}
+// libraryConvolve convolves through the library what stage writes as the
+// input of shape, and writes the result to out in single precision with the
+// bias added, where a kernel begins each sum from the bias: plane is how many
+// values of one channel the convolution writes. It reports false, having done
+// nothing, for a shape the library does not convolve, which the caller's
+// kernel then does. It returns what was staged, which stands until the
+// session's next convolution.
+func (s *vaeDecoderCUDASession) libraryConvolve(state *device.State, out driver.DevicePtr, shape cudnn.Shape, plane int, weight, bias driver.DevicePtr, stage func(input driver.DevicePtr, values int) error) (bool, driver.DevicePtr, error) {
+	held := s.library
 	if held.refused[shape] {
-		return false, 0, 0, nil
+		return false, 0, nil
 	}
 	plan, planned := held.plans[shape]
 	if !planned {
 		var err error
 		if plan, err = held.library.Plan(shape, cudnn.DataF16, cudnn.DataF32); err != nil {
 			held.refused[shape] = true
-			return false, 0, 0, nil
+			return false, 0, nil
 		}
 		held.plans[shape] = plan
 	}
 	filter, packed := held.filters[weight]
 	if !packed {
-		values := cOut * cIn * kt * kh * kw
+		values := shape.Out * shape.In
+		for _, extent := range shape.Kernel {
+			values *= extent
+		}
 		var err error
 		if filter, err = state.Driver.MemAlloc(uint64(values) * halfBytes); err != nil {
-			return true, 0, 0, err
+			return true, 0, err
 		}
 		held.filters[weight] = filter
 		count := uint32(values)
 		if err := launchVAEKernel(state, held.pack, kernel.ElementwiseGrid(values), kernel.DefaultBlock1D(), kernel.NoSharedMemoryBytes(), &weight, &filter, &count); err != nil {
-			return true, 0, 0, err
+			return true, 0, err
 		}
 	}
-	stagedValues, convolvedValues := cIn*staged*spatial, cOut*frames*spatial
+	stagedValues, convolvedValues := shape.In*shape.Frames*shape.Height*shape.Width, shape.Out*plane
 	input, err := s.halves(state, media.ProgramCodecWorkspace(media.CodecWorkspaceScratch, libraryStageSlot), stagedValues)
 	if err != nil {
-		return true, 0, 0, err
+		return true, 0, err
 	}
 	convolved, err := s.halves(state, media.ProgramCodecWorkspace(media.CodecWorkspaceScratch, libraryConvolvedSlot), convolvedValues)
 	if err != nil {
-		return true, 0, 0, err
+		return true, 0, err
 	}
 	var workspace driver.DevicePtr
 	if plan.Workspace != 0 {
 		if workspace, err = s.buffer(state, media.ProgramCodecWorkspace(media.CodecWorkspaceScratch, libraryWorkspaceSlot), int(plan.Workspace/binaryschema.Uint32Bytes)+tensor.SingletonExtent); err != nil {
-			return true, 0, 0, err
+			return true, 0, err
 		}
 	}
+	if err := stage(input, stagedValues); err != nil {
+		return true, 0, err
+	}
+	if err := held.library.Forward(plan, input, filter, workspace, convolved); err != nil {
+		return true, 0, err
+	}
+	s.route.byLibrary++
+	channelPlane, count := uint32(plane), uint32(convolvedValues)
+	return true, input, launchVAEKernel(state, held.widen, kernel.ElementwiseGrid(convolvedValues), kernel.DefaultBlock1D(), kernel.NoSharedMemoryBytes(),
+		&out, &convolved, &bias, &channelPlane, &count)
+}
+
+// stageCausal writes a chunk behind the frames before it as the library's
+// input, staged frames in all: the cache's, and zero where it holds fewer than
+// the chunk is staged behind, as a kernel reads them.
+func (s *vaeDecoderCUDASession) stageCausal(state *device.State, input, x driver.DevicePtr, cache vaeDeviceCache, frames, staged, spatial, values int) error {
 	// A chunk with no frames before it has no cache to read, and the kernel reads none.
 	before, kept, half := cache.ptr, uint32(cache.frames), uint32(tensor.FirstOffset)
 	if cache.frames == 0 {
@@ -220,17 +235,79 @@ func (s *vaeDecoderCUDASession) libraryConv3d(state *device.State, out, x driver
 	if cache.half {
 		half = uint32(tensor.SingletonExtent)
 	}
-	chunk, total, plane, stagedCount := uint32(frames), uint32(staged), uint32(spatial), uint32(stagedValues)
-	if err := launchVAEKernel(state, held.stage, kernel.ElementwiseGrid(stagedValues), kernel.DefaultBlock1D(), kernel.NoSharedMemoryBytes(),
-		&input, &x, &before, &chunk, &kept, &half, &total, &plane, &stagedCount); err != nil {
-		return true, 0, 0, err
+	chunk, total, plane, count := uint32(frames), uint32(staged), uint32(spatial), uint32(values)
+	return launchVAEKernel(state, s.library.stage, kernel.ElementwiseGrid(values), kernel.DefaultBlock1D(), kernel.NoSharedMemoryBytes(),
+		&input, &x, &before, &chunk, &kept, &half, &total, &plane, &count)
+}
+
+// libraryConv3d is conv3d through the library. The chunk is staged behind the
+// frames before it and the library convolves the staged frames with no
+// padding in time, so it writes one frame a frame of the chunk. It returns the
+// staged frames and how many they are.
+func (s *vaeDecoderCUDASession) libraryConv3d(state *device.State, out, x driver.DevicePtr, cache vaeDeviceCache, weight, bias driver.DevicePtr, cIn, cOut, frames, h, w, kt, kh, kw int) (bool, driver.DevicePtr, int, error) {
+	spatial, staged := h*w, frames+kt-tensor.SingletonExtent
+	convolved, input, err := s.libraryConvolve(state, out, cudnn.Shape{
+		In: cIn, Out: cOut, Frames: staged, Height: h, Width: w,
+		Kernel: [tensor.TripleExtent]int{kt, kh, kw},
+		Stride: [tensor.TripleExtent]int{tensor.SingletonExtent, tensor.SingletonExtent, tensor.SingletonExtent},
+		Pad:    [tensor.TripleExtent]int{tensor.FirstOffset, kh / tensor.PairedExtent, kw / tensor.PairedExtent},
+	}, frames*spatial, weight, bias, func(input driver.DevicePtr, values int) error {
+		return s.stageCausal(state, input, x, cache, frames, staged, spatial, values)
+	})
+	return convolved, input, staged, err
+}
+
+// libraryResample is a convolution of three by three over each frame's rows
+// and columns through the library, of the two kinds a kernel resamples as it
+// convolves. Enlarging, the frame is staged at twice its extents, each value
+// at four positions, and convolved at stride one with a position of zeros
+// around it (upsample2D). Otherwise it is staged with a row of zeros below it
+// and a column to its right and convolved at stride two with none around it,
+// which writes a frame of half its extents (downsample2D); a frame of an odd
+// extent has no such half, and is left to the kernel.
+func (s *vaeDecoderCUDASession) libraryResample(state *device.State, out, x, weight, bias driver.DevicePtr, cIn, cOut, frames, h, w int, enlarge bool) (bool, error) {
+	scale := media.CodecUpsampleSpatial.SpatialScale()
+	if !enlarge && (h%scale != 0 || w%scale != 0) {
+		return false, nil
 	}
-	if err := held.library.Forward(plan, input, filter, workspace, convolved); err != nil {
-		return true, 0, 0, err
+	shape := cudnn.Shape{
+		In: cIn, Out: cOut, Frames: frames, Height: h + tensor.SingletonExtent, Width: w + tensor.SingletonExtent,
+		Kernel: [tensor.TripleExtent]int{tensor.SingletonExtent, tensor.TripleExtent, tensor.TripleExtent},
+		Stride: [tensor.TripleExtent]int{tensor.SingletonExtent, scale, scale},
 	}
-	channelPlane, count := uint32(frames*spatial), uint32(convolvedValues)
-	return true, input, staged, launchVAEKernel(state, held.widen, kernel.ElementwiseGrid(convolvedValues), kernel.DefaultBlock1D(), kernel.NoSharedMemoryBytes(),
-		&out, &convolved, &bias, &channelPlane, &count)
+	plane, each := frames*(h/scale)*(w/scale), tensor.SingletonExtent
+	if enlarge {
+		shape.Height, shape.Width, each = scale*h, scale*w, scale
+		shape.Stride = [tensor.TripleExtent]int{tensor.SingletonExtent, tensor.SingletonExtent, tensor.SingletonExtent}
+		shape.Pad = [tensor.TripleExtent]int{tensor.FirstOffset, tensor.SingletonExtent, tensor.SingletonExtent}
+		plane = frames * shape.Height * shape.Width
+	}
+	convolved, _, err := s.libraryConvolve(state, out, shape, plane, weight, bias, func(input driver.DevicePtr, values int) error {
+		inH, inW, outH, outW, every, count := uint32(h), uint32(w), uint32(shape.Height), uint32(shape.Width), uint32(each), uint32(values)
+		return launchVAEKernel(state, s.library.spatial, kernel.ElementwiseGrid(values), kernel.DefaultBlock1D(), kernel.NoSharedMemoryBytes(),
+			&input, &x, &inH, &inW, &outH, &outW, &every, &count)
+	})
+	return convolved, err
+}
+
+// libraryTemporalDownsample is temporalDownsample through the library: the
+// chunk staged behind the frame before it and convolved over three frames at
+// stride two, which writes a frame for every two of an even chunk. A chunk of
+// an odd count ends on a window the kernel reads short, and is left to it.
+func (s *vaeDecoderCUDASession) libraryTemporalDownsample(state *device.State, out, x driver.DevicePtr, prior vaeDeviceCache, weight, bias driver.DevicePtr, channels, frames, h, w int) (bool, error) {
+	scale := media.CodecDownsampleSpatiotemporal.TemporalScale()
+	if frames%scale != 0 {
+		return false, nil
+	}
+	spatial, staged := h*w, frames+tensor.SingletonExtent
+	convolved, _, err := s.libraryConvolve(state, out, cudnn.Shape{
+		In: channels, Out: channels, Frames: staged, Height: h, Width: w,
+		Kernel: [tensor.TripleExtent]int{tensor.TripleExtent, tensor.SingletonExtent, tensor.SingletonExtent},
+		Stride: [tensor.TripleExtent]int{scale, tensor.SingletonExtent, tensor.SingletonExtent},
+	}, frames/scale*spatial, weight, bias, func(input driver.DevicePtr, values int) error {
+		return s.stageCausal(state, input, x, prior, frames, staged, spatial, values)
+	})
+	return convolved, err
 }
 
 // libraryCachedConv convolves input through the library and keeps the frames

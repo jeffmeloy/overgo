@@ -257,6 +257,7 @@ func (s *vaeDecoderCUDASession) kernelConv3d(state *device.State, out, x, cache 
 	inT, inH, inW := uint32(frames), uint32(h), uint32(w)
 	ktArg, khArg, kwArg := uint32(kt), uint32(kh), uint32(kw)
 	cacheTArg := uint32(cacheT)
+	s.route.byKernels++
 	return launchVAEKernel(state, s.kernels[media.CodecKernelConvolution],
 		convGrid(cOut, frames*h*w), kernel.DefaultBlock1D(), kernel.NoSharedMemoryBytes(),
 		&out, &x, &cache, &weight, &bias,
@@ -489,7 +490,7 @@ func (s *vaeDecoderCUDASession) runOp(state *device.State, opIndex, chunkIndex i
 		if err != nil {
 			return 0, 0, 0, 0, err
 		}
-		if err := s.temporalDownsample(state, out, spatialOut, prior.ptr, values.WeightTemporal, values.BiasTemporal, op.OutputChannels, frames, prior.frames, spatial, outFrames); err != nil {
+		if err := s.temporalDownsample(state, out, spatialOut, prior, values.WeightTemporal, values.BiasTemporal, op.OutputChannels, frames, outH, outW, outFrames); err != nil {
 			return 0, 0, 0, 0, err
 		}
 		return out, outFrames, outH, outW, nil
@@ -576,32 +577,59 @@ func (s *vaeDecoderCUDASession) runOp(state *device.State, opIndex, chunkIndex i
 	return 0, 0, 0, 0, fmt.Errorf("vae cuda decode: unsupported op %d", op.Operator)
 }
 
+// upsample2D enlarges each frame to twice its extents and convolves it:
+// through the library where the request takes it and it convolves the shape,
+// and by the kernel that does both at once otherwise.
 func (s *vaeDecoderCUDASession) upsample2D(state *device.State, out, x, weight, bias driver.DevicePtr, cIn, cOut, frames, h, w int) error {
+	if s.route.taken {
+		if convolved, err := s.libraryResample(state, out, x, weight, bias, cIn, cOut, frames, h, w, true); convolved || err != nil {
+			return err
+		}
+	}
 	scale := media.CodecUpsampleSpatial.SpatialScale()
 	outH, outW := scale*h, scale*w
 	cInArg, cOutArg, framesArg := uint32(cIn), uint32(cOut), uint32(frames)
 	outHArg, outWArg := uint32(outH), uint32(outW)
+	s.route.byKernels++
 	return launchVAEKernel(state, s.kernels[media.CodecKernelUpsample], convGrid(cOut, frames*outH*outW), kernel.DefaultBlock1D(), kernel.NoSharedMemoryBytes(),
 		&out, &x, &weight, &bias,
 		&cInArg, &cOutArg, &framesArg, &outHArg, &outWArg)
 }
 
+// downsample2D convolves each frame to half its extents, by the library or
+// the kernel as upsample2D is.
 func (s *vaeDecoderCUDASession) downsample2D(state *device.State, out, x, weight, bias driver.DevicePtr, channels, frames, h, w int) error {
+	if s.route.taken {
+		if convolved, err := s.libraryResample(state, out, x, weight, bias, channels, channels, frames, h, w, false); convolved || err != nil {
+			return err
+		}
+	}
 	scale := media.CodecDownsampleSpatial.SpatialScale()
 	outH, outW := h/scale, w/scale
 	channelsArg, framesArg := uint32(channels), uint32(frames)
 	heightArg, widthArg := uint32(h), uint32(w)
 	outHArg, outWArg := uint32(outH), uint32(outW)
+	s.route.byKernels++
 	return launchVAEKernel(state, s.kernels[media.CodecKernelDownsample], convGrid(channels, frames*outH*outW), kernel.DefaultBlock1D(), kernel.NoSharedMemoryBytes(),
 		&out, &x, &weight, &bias, &channelsArg, &framesArg, &heightArg, &widthArg, &outHArg, &outWArg)
 }
 
-func (s *vaeDecoderCUDASession) temporalDownsample(state *device.State, out, x, prior, weight, bias driver.DevicePtr, channels, frames, priorFrames, spatial, outFrames int) error {
+// temporalDownsample convolves a chunk of frames of h by w, behind the last
+// frame before it, to a frame for every two, by the library or the kernel as
+// upsample2D is.
+func (s *vaeDecoderCUDASession) temporalDownsample(state *device.State, out, x driver.DevicePtr, prior vaeDeviceCache, weight, bias driver.DevicePtr, channels, frames, h, w, outFrames int) error {
+	if s.route.taken {
+		if convolved, err := s.libraryTemporalDownsample(state, out, x, prior, weight, bias, channels, frames, h, w); convolved || err != nil {
+			return err
+		}
+	}
+	spatial := h * w
 	elements := channels * outFrames * spatial
-	channelsArg, framesArg, priorFramesArg := uint32(channels), uint32(frames), uint32(priorFrames)
+	channelsArg, framesArg, priorFramesArg := uint32(channels), uint32(frames), uint32(prior.frames)
 	spatialArg, outFramesArg, count := uint32(spatial), uint32(outFrames), uint32(elements)
+	s.route.byKernels++
 	return launchVAEKernel(state, s.kernels[media.CodecKernelTemporalDownsample], kernel.ElementwiseGrid(elements), kernel.DefaultBlock1D(), kernel.NoSharedMemoryBytes(),
-		&out, &x, &prior, &weight, &bias, &channelsArg, &framesArg, &priorFramesArg, &spatialArg, &outFramesArg, &count)
+		&out, &x, &prior.ptr, &weight, &bias, &channelsArg, &framesArg, &priorFramesArg, &spatialArg, &outFramesArg, &count)
 }
 
 // Decode streams the plan over the latent volume on CUDA: host denorm

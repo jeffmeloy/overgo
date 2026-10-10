@@ -4,6 +4,43 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "codec-library-rest",
+      "title": "Convolve the video codec's remaining convolutions through the library, and time both paths on a quiet device",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Convolve the video codec's remaining convolutions through the library, and time both paths on a quiet device",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -count=1 -run '^TestLibraryConvolvesEveryConvolutionOfAClip$'",
+          "rationale": "codec-precision/adopt put the video codec's stride-one convolutions through cuDNN for a clip of about ten frames or more and left two kinds on the kernels on either path: the two-to-one downsampling convolution of an encode, which sums in double precision and was 1.02 seconds of an encode's 3.4, and the upsampling convolution of a decode, 0.2 seconds of 3.4. The downsampling pads a row and a column of zeros after a frame and none before it, which the library does not do, so the staging kernel writes them. The bounds are adopt's, written down before its run: no value more than two of 255 levels from the autoencoder's own code and the error within four parts in a hundred of the reference's, no more memory than the kernels hold, and a kind of convolution goes through the library only where the whole request is faster over three repetitions with its setup counted.\n\nThen both paths are timed on a quiet device, the 21 frames and the 81 at 832 by 480, and the device's own memory reading is taken, which moved with the evaluation running beside it when adopt was measured (16.06 GiB in two runs and 32.69 in three for the kernels, 10.85 every time for the library), and docs/verification/video-codec-convolution-paths.txt is written again from those figures.\n\nIt waits on cudnn-search-path: no check on this machine runs the library until cuDNN is where overgo looks for it, so the step would be verified by a test that says it cannot apply. Serves: generate. Evidence: each path's time, memory and distance from the model's own clip, before and after, and first-output of both video rows."
+        }
+      ]
+    },
+    {
+      "id": "codec-precision",
+      "title": "Hold the video codec to its own code at its own precision, and serve it by the fastest path that does",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 3700,
+        "reason": "The step's preflight counted 3623 production nodes on 2026-10-10: the cuDNN binding 1819, the codec's path through it and the rule for which request takes it about 1780, the generated kernel bindings and the identity's library list the rest; 77 are left for what the remaining rules ask. The count was first set at 3385, the size of the cuBLAS binding, against a second step that deleted the convolution kernels. That step is not coming: a machine without the library, a picture and a small clip all still run those kernels, so nothing pays for the binding."
+      },
+      "steps": [
+        {
+          "id": "adopt",
+          "title": "Time the library's convolution against the codec's kernels at the precision its own code uses, and serve the path that wins",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -count=1 -run '^TestAdoptedCodecPathAgreesWithItsOwnCodeOnASmallClip$'",
+          "rationale": "Commit c1d38123f brought the codec to 3.4 seconds encoding and 3.4 decoding a clip of 21 frames, where its own code takes 0.7 to 1.0 and 1.25, and names what is left: double-precision steps kept to hold the device to its host reference value for value, and float32 sums where its own code runs half precision (finding 24548fb2).\n\nTwo of the three paths the comparison was filed with are measured already, and the step reuses them. The kernels as they are, by kernel, each launch waited for: decoding, convolution 1.7 seconds, normalisation with its SiLU 0.70, attention 0.34, the temporal caches 0.34, the upsampling convolution 0.2; encoding, convolution 1.1, the stride-2 convolution 1.02, normalisation 0.44, attention 0.35, the temporal downsample 0.22, the caches 0.17. The same kernels under the precision the model's own code uses: their arithmetic already runs at the device's full float rate, 0.9 seconds of the decode's 1.7, and half precision reaches the tensor units only through a library, so what that precision buys these kernels is the double-precision steps and no more, about 0.7 seconds of a decode and 1.7 of an encode. The third is the one to time: cuDNN's convolution, loaded as cuBLAS is, from the search path or CUDA_PATH (internal/cuda/cublas cublas_windows.go).\n\nWritten down before the run. The reference is the autoencoder's own code, in float32 on the host for its values and as its repository runs it on the device for its time (scripts/python_golden_references/wan_vae_round_trip.py, liveedit_own_edit.py). The clips are 21 frames and 81 at 832 by 480 and 5 at 32 by 16. The tolerance is the one the served reconstruction is held to today: no value more than two of 255 levels from its own code's, its error within four parts in a hundred of the reference's (internal/mediacapability TestVideoAutoencoderRoundTripMatchesItsOwnCode); the served edit and the generated clip keep their floors against their models' own code (internal/adaptiveparity), and the reconstruction row's held-out reading does not fall by more than its uncertainty. The memory ceiling is the codec's present peak on the device. The speed to reach is its own code's, and a path is adopted only when every bound holds and the whole request is faster over three repetitions a clip, with setup, a plan used again, layout conversion and workspace counted. The record says what a user must install for the library and whether setup-steps holds. The timings are a measurement of real models: they are taken on the device outside the gate and published as a record under docs/verification with the landing, and no landing waits on a clock for them.\n\nOtherwise the present path stays and the record is the result. If the owner keeps only overgo's kernels, the step is the double-precision steps moved to float32 under the tolerance above, where production-precision allows it, or it closes with the record. The step's verify is a small numerical test: the adopted path, through the library binding where it is the library's, agrees with the model's own code on a small clip within the declared tolerance. It holds no time. Float64 references stay for small operation and gradient checks. The library's version and the execution policy join the execution identity. Where a time test stays in the gate, as TestClipCodecKeepsToItsOwnCodesTime is, its ceiling is set with headroom between the time before and the time after, as c1d38123f set it, and not at one run's result. It waits on two owner decisions.\n\nFiled as a comparison and an adoption and tightened to one landing: the comparison's record lands with what it decides, and the host test that read the record back is not written.\n\nServes: generate. Disappears: the convolution kernels the adopted path replaces. Evidence: each path's time, memory and distance from the model's own clip over the written repetitions, the setup each needs, and first-output of both video rows, the reconstruction's held-out quality and setup-steps, before and after. Batch: device; it expires the video guards and needs a media reconciliation.",
+          "depends_on": [
+            "capability-identity/identities"
+          ]
+        }
+      ]
+    },
+    {
       "id": "evaluation-chain",
       "title": "Judge a trained change on data large enough to see it and never used to choose it",
       "owner": "master-lead",
@@ -60,28 +97,6 @@
             "experiment-evidence/retrieval",
             "latent-change-proposer/proposal",
             "evaluation-chain/confirmation"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "codec-precision",
-      "title": "Hold the video codec to its own code at its own precision, and serve it by the fastest path that does",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 3385,
-        "reason": "A ceiling, not a target: the present size of internal/cuda/cublas, the library binding a cuDNN binding is modelled on, counted 2026-10-09 as the gate counts production nodes. The second step deletes the convolution kernels the adopted path replaces. The lead lowers it when the first step reports."
-      },
-      "steps": [
-        {
-          "id": "adopt",
-          "title": "Time the library's convolution against the codec's kernels at the precision its own code uses, and serve the path that wins",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -count=1 -run '^TestAdoptedCodecPathAgreesWithItsOwnCodeOnASmallClip$'",
-          "rationale": "Commit c1d38123f brought the codec to 3.4 seconds encoding and 3.4 decoding a clip of 21 frames, where its own code takes 0.7 to 1.0 and 1.25, and names what is left: double-precision steps kept to hold the device to its host reference value for value, and float32 sums where its own code runs half precision (finding 24548fb2).\n\nTwo of the three paths the comparison was filed with are measured already, and the step reuses them. The kernels as they are, by kernel, each launch waited for: decoding, convolution 1.7 seconds, normalisation with its SiLU 0.70, attention 0.34, the temporal caches 0.34, the upsampling convolution 0.2; encoding, convolution 1.1, the stride-2 convolution 1.02, normalisation 0.44, attention 0.35, the temporal downsample 0.22, the caches 0.17. The same kernels under the precision the model's own code uses: their arithmetic already runs at the device's full float rate, 0.9 seconds of the decode's 1.7, and half precision reaches the tensor units only through a library, so what that precision buys these kernels is the double-precision steps and no more, about 0.7 seconds of a decode and 1.7 of an encode. The third is the one to time: cuDNN's convolution, loaded as cuBLAS is, from the search path or CUDA_PATH (internal/cuda/cublas cublas_windows.go).\n\nWritten down before the run. The reference is the autoencoder's own code, in float32 on the host for its values and as its repository runs it on the device for its time (scripts/python_golden_references/wan_vae_round_trip.py, liveedit_own_edit.py). The clips are 21 frames and 81 at 832 by 480 and 5 at 32 by 16. The tolerance is the one the served reconstruction is held to today: no value more than two of 255 levels from its own code's, its error within four parts in a hundred of the reference's (internal/mediacapability TestVideoAutoencoderRoundTripMatchesItsOwnCode); the served edit and the generated clip keep their floors against their models' own code (internal/adaptiveparity), and the reconstruction row's held-out reading does not fall by more than its uncertainty. The memory ceiling is the codec's present peak on the device. The speed to reach is its own code's, and a path is adopted only when every bound holds and the whole request is faster over three repetitions a clip, with setup, a plan used again, layout conversion and workspace counted. The record says what a user must install for the library and whether setup-steps holds. The timings are a measurement of real models: they are taken on the device outside the gate and published as a record under docs/verification with the landing, and no landing waits on a clock for them.\n\nOtherwise the present path stays and the record is the result. If the owner keeps only overgo's kernels, the step is the double-precision steps moved to float32 under the tolerance above, where production-precision allows it, or it closes with the record. The step's verify is a small numerical test: the adopted path, through the library binding where it is the library's, agrees with the model's own code on a small clip within the declared tolerance. It holds no time. Float64 references stay for small operation and gradient checks. The library's version and the execution policy join the execution identity. Where a time test stays in the gate, as TestClipCodecKeepsToItsOwnCodesTime is, its ceiling is set with headroom between the time before and the time after, as c1d38123f set it, and not at one run's result. It waits on two owner decisions.\n\nFiled as a comparison and an adoption and tightened to one landing: the comparison's record lands with what it decides, and the host test that read the record back is not written.\n\nServes: generate. Disappears: the convolution kernels the adopted path replaces. Evidence: each path's time, memory and distance from the model's own clip over the written repetitions, the setup each needs, and first-output of both video rows, the reconstruction's held-out quality and setup-steps, before and after. Batch: device; it expires the video guards and needs a media reconciliation.",
-          "depends_on": [
-            "capability-identity/identities"
           ]
         }
       ]
@@ -222,7 +237,9 @@
             "count-template-bounds/do",
             "count-confirmation/do",
             "count-observations/do",
-            "count-unmeasured-training/do"
+            "count-unmeasured-training/do",
+            "codec-library-rest/do",
+            "count-codec-adopt/do"
           ]
         }
       ]
@@ -559,6 +576,20 @@
       "recommendation": "When the first candidate whose memory or speed differs from its base's is proposed",
       "blocks": [
         "evaluation-chain"
+      ],
+      "asked": "2026-10-10"
+    },
+    {
+      "id": "cudnn-search-path",
+      "question": "The video codec can now convolve a clip of about ten frames or more through NVIDIA's cuDNN. Measured beside another job on the device: a decode about a third faster, an encode about a fifth, the decoder holding 6.0 GiB where it held 9.6, and every value within one of 255 levels of what overgo's own kernels give. It does so only on a machine where cuDNN is on the search path or in the bin directory CUDA_PATH names. This machine's only copy is inside a Python environment, so it still serves by the kernels and the automated checks skip the library's tests. Installing it is yours to do: cuDNN 9 for CUDA 12, about 800 MB, from NVIDIA under NVIDIA's license. The frozen video clips are the kernels' bytes, and I would accept them again under the library afterwards. Install it here?",
+      "options": [
+        "Install cuDNN 9 here; the lead accepts the frozen video clips again under it",
+        "Keep this machine on the kernels; the library stays for machines that have it",
+        "Take the library's path back out"
+      ],
+      "recommendation": "Install cuDNN 9 here; the lead accepts the frozen video clips again under it",
+      "blocks": [
+        "codec-library-rest"
       ],
       "asked": "2026-10-10"
     }

@@ -28,6 +28,21 @@
       ]
     },
     {
+      "id": "evaluation-size",
+      "title": "Size each evaluation by the decision it serves: a tenth of MMLU-Pro and BBH and a quarter of IFEval",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Size each evaluation by the decision it serves: a tenth of MMLU-Pro and BBH and a quarter of IFEval",
+          "status": "open",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestEvaluationSuitesAreSizedForTheirDecisions$'",
+          "rationale": "The owner, 2026-10-10: evaluations are larger than the questions asked of them; MMLU-Pro is 12,032 questions a model, read to 0.0045, and most decisions here need about a tenth of that, for validation. The measurement run that ended that morning shows what the sizes cost. MMLU-Pro, 12,032 questions, eight models, 7 to 56 minutes a model and about two hours for the 27 GB one: about 4.7 hours. BBH, 5,761 questions, seven models, 24 to 65 minutes each: about 4.8 hours, read to 0.0065. IFEval, 541 prompts, five models, 32 minutes to 1 hour 46 each: about 6.3 hours, read to 0.017; it is long because each answer is a long generation, not for its count. About 16 hours of a run, and a commit's device tests wait behind them: the codec's commit took 2 hours 38 minutes of tests that take a quarter of an hour on a quiet device.\n\nThe step draws, once and by a recorded seed, a fixed part of each suite: about a tenth of MMLU-Pro and of BBH, by category, so that each subject and each task keeps its share, about 1,200 and 580 questions, read to 0.014 and 0.02; and about a quarter of IFEval, 135 prompts, read to 0.035, since a tenth of it would read to 0.05. A measurement run scores those, and the full suites stay for a full reading when one is asked for. A smaller suite is another suite: its readings begin a comparison of their own and are not compared with the full suites' readings, and the scorecard says which a cell is. The step states, before it lands, what a run's evaluations take at the new sizes, measured, and what difference between two readings each size can still show. The other evaluations, the video and picture suites of 64 to 128 cases among them, are listed with their sizes and times and left as they are where a tenth would show nothing.\n\nServes: measure and find the gap. Disappears: about nine tenths of a run's evaluation time. Evidence: the time of a run's evaluations before and after, and each suite's standard error. Batch: device."
+        }
+      ]
+    },
+    {
       "id": "codec-record-quiet",
       "title": "Write the codec's record again from a quiet device's figures, and correct what the path's comment says it saves",
       "owner": "master-lead",
@@ -39,6 +54,21 @@
           "status": "open",
           "verify": "go test ./internal/latentvideo -count=1 -run '^TestCodecPathRecordStatesTheRuleTheCodeApplies$'",
           "rationale": "The record of the codec's two convolution paths, docs/verification/video-codec-convolution-paths.txt, says of itself that it was not taken on a quiet device: a text evaluation held about nine tenths of the device's time. The device fell free when that evaluation ended, and the same test (internal/latentvideo TestLibraryCodecKeepsWithinTheKernelsMemoryAndLevels, at commit 685397181) then gave, three repetitions each. 21 frames at 832 by 480: the kernels encoded in 3.33, 3.19 and 3.19 seconds and decoded in 3.44, 3.12 and 3.13; the library in 2.77, 2.58 and 2.59 and in 2.44, 2.11 and 2.11. 81 frames: the kernels in 12.26, 12.12 and 12.13 and in 12.38, 11.94 and 11.95; the library in 9.96, 9.78 and 9.79 and in 8.43, 8.00 and 7.99. 5 frames at 32 by 16, the round trip: 0.213, 0.208 and 0.208 by the kernels; 1.167, 0.117 and 0.114 through the library, first loaded in that process. The device held 16.06 GiB beyond the weights under the kernels and 10.85 under the library, so the 32.69 read for the kernels beside the evaluation was the evaluation's.\n\nSo the library takes a fifth off an encode and a third off a decode, as the record says. It saves 0.19 seconds on each million values of a round trip and not the 0.31 read under load, and it costs about a second once in a process, most of it loading: the large clip's 40 shapes, planned after the small clip had loaded it, added 0.06 seconds. The record is written again from these figures. The comment on libraryClipValues says three tenths of a second and that a clip of the threshold's size repays the setup within its own request; at 0.19 a clip of that size repays it in two requests and one of twice the size in its own, and the comment is corrected. The threshold stays where it is: the rule written down before the run was three repetitions with setup counted, which a clip of that size meets, and the clips a request carries are twice that size and more. The step's check holds the record to the rule the code applies. No value a request is served changes, and the row adds no production code.\n\nServes: measure and find the gap. Disappears: the record's figures taken under load. Evidence: the record. Batch: device; a comment in the codec's source expires the video guards."
+        }
+      ]
+    },
+    {
+      "id": "codec-library-here",
+      "title": "Find cuDNN beside overgo's data on this machine, and accept the frozen video clips again under it",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Find cuDNN beside overgo's data on this machine, and accept the frozen video clips again under it",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -count=1 -run '^TestLibraryCodecAgreesWithItsOwnCodeOnASmallClip$'",
+          "rationale": "The owner answered cudnn-search-path on 2026-10-10 by telling the lead to do what it recommended, which was to have cuDNN where overgo looks on this machine and to accept the frozen video clips again under it. A download needs the owner's word for the file, and a search path is a system setting the lead does not change, so the step does neither. The machine already holds cuDNN 9.1.0 for CUDA 12, the seven files a convolution loads, inside the owner's Python environment. The loader that finds cuBLAS and cuDNN on the search path and under CUDA_PATH (internal/cuda/cublas Load) is given one more place, a directory of overgo's own data, and the seven files are copied there from that environment, which is read and not changed. The place joins what an execution identity counts (internal/inferencesurface), with the setting that names it.\n\nWith the library found, a served clip of about ten frames or more is convolved through it, and its bytes are no longer the kernels': the frozen video clips whose requests are that large are made again, looked at, and accepted under the library as a frozen sample is accepted, with their records. The tests of the library's path, which say they cannot apply on a machine without it, then run in every commit's checks here. The step states the clips it accepted again and the first-output and peak-device-memory of both video rows before and after.\n\nServes: generate. Disappears: nothing; the kernels stay for a picture, a small clip and a machine without the library. Evidence: the library's tests run and not skipped, the clips accepted again, and the two video rows' first-output and peak device memory before and after. Batch: device; it expires the video guards and needs a media reconciliation."
         }
       ]
     },
@@ -58,28 +88,6 @@
       ]
     },
     {
-      "id": "evaluation-chain",
-      "title": "Judge a trained change on data large enough to see it and never used to choose it",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 47,
-        "reason": "The third step's measured figure, 1,103 production nodes as the gate's preflight counts the built change, and a margin of 47: the record of a run of answers and the reading and writing of it (1,040), the choice kinds' loop, which reads an answer and then scores it (374), the instruction rules kind moved onto the record (181), evidence that names its run and its evaluation record without copying them (115), less the instruction kind's own record a case, deleted (607). The step was expected to delete more than it adds. It does not: the exact-generation kind's record a case stays, since its stored reports and their evidence are read through it, and so do the answers a report carries beside its scores, which the sampled replay of a carried result compares. The second step measured 2,473 of 2,520. The fourth step, acceptance, is counted when it is built"
-      },
-      "steps": [
-        {
-          "id": "acceptance",
-          "title": "Fix a candidate's memory ceiling and speed target with its quality floor, base and rule, before its confirmation is read",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestConfirmationHoldsACandidateToItsCeilingAndTarget$'",
-          "rationale": "Split from observations, whose first wording asked for it in one sentence: the quality floor, memory ceiling, speed target, base and decision rule are fixed in a record before confirmation is read. A pool's acceptance (internal/evaluation heldout_pool.go PoolAcceptance) fixes the base, the measure, the rule and the statistic a confirmation must pass, and nothing of memory or speed. A candidate that is other weights of the base's shape has the base's memory and speed, which is every candidate the proposer makes today; one of another precision, codec or recipe has neither, and a gain in quality bought with either would be confirmed.\n\nThe step adds to the acceptance, each optional and each relative to the base, the most device memory a candidate may take and the least speed it may serve at, and has a confirmation of a candidate whose acceptance states either refuse one for which no committed comparison of resource fitness against the base (internal/runrecord resource_fitness_comparison.go) is within them, before anything is charged. Its test holds that a candidate within both is confirmed as before, that one past its ceiling or below its target is refused at no charge, that one with no comparison is refused when either is stated, and that an acceptance that states neither reads none.\n\nServes: judge on held-out data. Disappears: a confirmation that reads quality alone for a candidate whose cost changed. Evidence: the confirmation's refusal and the comparison it names. Batch: host.",
-          "depends_on": [
-            "evaluation-chain/observations"
-          ]
-        }
-      ]
-    },
-    {
       "id": "identity-carry",
       "title": "Carry an evaluation while its execution identity is unchanged, and measure it again when it is not",
       "owner": "master-lead",
@@ -90,7 +98,10 @@
           "title": "Carry an evaluation while its execution identity is unchanged, and measure it again when it is not",
           "status": "open",
           "verify": "go test ./cmd/loop -count=1 -run '^TestMeasurementRunsNoCaseAgainAfterAnUnrelatedCommit$'",
-          "rationale": "A full result is carried today after 32 sampled cases reproduce (internal/evaluation replay.go: replayCases), which shows agreement on those cases and not on the suite; SQA-078 holds that risk. Under an unchanged identity the result is the result, with no replay. Under a changed one the suite is measured again. Its test goes through the improvement run's own launch, in separate processes: it measures, commits a change outside every identity, measures again and holds that no case was executed the second time, then commits a change inside one identity and holds that only that capability's cases were. A result already in the store is re-keyed only when its record names every build and runtime input the identity is made of; the commit alone does not name them all, and any other result is measured once more. The step states how many suites that is and what they cost before it lands. The sampled replay is deleted only when every consumer of a carried result reads the identity; the reader of replay receipts already in the store stays.\n\nServes: judge on held-out data. Disappears: the sampled replay. Evidence: the cases executed by each of the test's three measurements, and the count of suites measured once more for the change of key. Batch: host.\n\nMoved out of capability-identity on 2026-10-09 so that row's last step is not held by the decision this one waits on. What the step asked to be stated before it lands, measured that day on the store: 46 of the 87 newest evaluation results stand on a result a sampled replay carried forward, 30 of them carried 19 or 20 times since the run that scored every case, and those runs took 13 hours 55 minutes in all, the longest 1 hour 44 minutes. The code an evaluation's result depends on, the closure of cmd/evaluate, changed on 112 of the last 300 commits, and the text surface alone on 34; the two newest scorecards lie several hundred commits apart. So an identity is certain to have moved between one cycle and the next at this pace, and with the sampled replay deleted every cycle scores those 46 again, about 14 hours on top of a cycle's three to five. The replay's weakness is that its sample never changes (internal/evaluation replay.go: replaySelection, the 8 longest cases and 24 at even length ranks): a change that misses those 32 is not seen however often the result is carried. The row has no count: it is sized when the decision says what it builds."
+          "rationale": "A full result is carried today after 32 sampled cases reproduce (internal/evaluation replay.go: replayCases), which shows agreement on those cases and not on the suite; SQA-078 holds that risk. Under an unchanged identity the result is the result, with no replay. Under a changed one the suite is measured again. Its test goes through the improvement run's own launch, in separate processes: it measures, commits a change outside every identity, measures again and holds that no case was executed the second time, then commits a change inside one identity and holds that only that capability's cases were. A result already in the store is re-keyed only when its record names every build and runtime input the identity is made of; the commit alone does not name them all, and any other result is measured once more. The step states how many suites that is and what they cost before it lands. The sampled replay is deleted only when every consumer of a carried result reads the identity; the reader of replay receipts already in the store stays.\n\nServes: judge on held-out data. Disappears: the sampled replay. Evidence: the cases executed by each of the test's three measurements, and the count of suites measured once more for the change of key. Batch: host.\n\nMoved out of capability-identity on 2026-10-09 so that row's last step is not held by the decision this one waits on. What the step asked to be stated before it lands, measured that day on the store: 46 of the 87 newest evaluation results stand on a result a sampled replay carried forward, 30 of them carried 19 or 20 times since the run that scored every case, and those runs took 13 hours 55 minutes in all, the longest 1 hour 44 minutes. The code an evaluation's result depends on, the closure of cmd/evaluate, changed on 112 of the last 300 commits, and the text surface alone on 34; the two newest scorecards lie several hundred commits apart. So an identity is certain to have moved between one cycle and the next at this pace, and with the sampled replay deleted every cycle scores those 46 again, about 14 hours on top of a cycle's three to five. The replay's weakness is that its sample never changes (internal/evaluation replay.go: replaySelection, the 8 longest cases and 24 at even length ranks): a change that misses those 32 is not seen however often the result is carried. The row has no count: it is sized when the decision says what it builds.\n\nAnswered 2026-10-10. The owner told the lead to take its recommendation, and in the same hour told it that the suites are ten times the size their decisions need (the row evaluation-size). At a tenth, scoring every carried result in full is about 1.4 hours a run and not 14, so the cost that argued for keeping a replay is gone and the lead's recommendation is the plainer one: carry a result only while its execution identity is unchanged, score it in full when it is not, and delete the sampled replay, with no second replay to take its place. The step is as it was first written. It follows evaluation-size, whose smaller suites are what make it affordable.",
+          "depends_on": [
+            "evaluation-size/do"
+          ]
         }
       ]
     },
@@ -130,6 +141,171 @@
             "session-isolation/worktrees",
             "landing-terms/terms"
           ]
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-45ceeaafaa2be823",
+      "title": "Restore Hy-Embodied-RxBrain-1.0 vqa throughput to 173.41692 tok/s",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Hy-Embodied-RxBrain-1.0 vqa throughput to 173.41692 tok/s",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-45ceeaafaa2be823 -target 173.41692028891256",
+          "rationale": "- Hy-Embodied-RxBrain-1.0 throughput, {Metric:output tokens over decode time Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:24f6d5c81c752c600bf32907c8ca4b34379bf0e1910dd30f7d3014091e1fbcbb}: 173.41692 to 141.508266 (-31.9086544, -18.4%; serving output tokens over decode time, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261009T224309Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-b22137c6b1f9b2cc",
+      "title": "Restore pocket-tts speech held-out-quality to 0.0504009164 ",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore pocket-tts speech held-out-quality to 0.0504009164 ",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-b22137c6b1f9b2cc -target 0.050400916380297825",
+          "rationale": "- pocket-tts held-out-quality, {Metric:word_error_rate Origin:evaluation Suite:dataset:sha256:fd1ccc539452b1a79d5413eb87917b79f82330f5160047299fc807fab9c94422 Protocol:raw-completion Comparison:profile:sha256:003a74fb6d22635a51867f837c55f10b1b543a9ea3a12048047d250cb20f55fa Scope:}: 0.0504009164 to 0.0515463918 (+0.00114547537, +2.3%; word_error_rate, dataset:sha256:fd1ccc539452b1a79d5413eb87917b79f82330f5160047299fc807fab9c94422 (raw-completion))\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261009T224309Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "gui-wait-deadline",
+      "title": "Bound every browser-leg wait by a named deadline that fails with what the page showed",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Give Browser.Eventually a deadline constant with the page state it already reports in its failure, and a per-leg override for training legs; add a leg whose predicate cannot hold and assert it fails inside the bound",
+          "status": "open",
+          "verify": "go test ./internal/webuilane -count=1 \u0026\u0026 go run ./cmd/webui-lane -run WaitDeadline",
+          "rationale": "Recommended by the GUI lane and not landed when its worktree was removed on 2026-10-09 (docs/gui_update_plan.json, which stays out of the repository); ranked into this plan by the owner's answer to gui-recommendations on 2026-10-10. Bound every browser-leg wait by a named deadline that fails with what the page showed: Browser.Eventually (internal/webuilane/browser.go) re-asks its predicate on every frame with only the test's context as its bound, so a leg whose predicate can never hold ran seven minutes with no failure until killed, and a bounded run exited 124 with no assertion message; a leg that trains holds a longer declared bound. Why the lane recommended it: A hung leg is a defect, not a process to kill (owner, 2026-10-05). Found when a cold start at a view's address landed on Chat and the leg waited forever. Robustness outranks features. The lane's note: master's plan names browser-waits-fail-fast as owning the browser-leg deadline: check it before starting, and close this against it if it has landed. Finding evidence:sha256:ef91162fa1a85e2cd21c21c9958764eda0e725db9f0defa41a0f31e1ddc25527.\n\nThe lane's rule for a change to the pages holds: plain HTML, JavaScript and Go, reviewed in a browser at desktop and phone widths in both colour schemes, and accepted by a browser leg or a Go test that fails without it. The row has no count: it is sized by a preflight when it is dispatched.\n\nServes: failure-rate. Batch: browser."
+        }
+      ]
+    },
+    {
+      "id": "gui-top-p-setting",
+      "title": "Add a top-p control to Settings beside temperature and max tokens",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Settings shows a top-p field, the chat request carries it only when set, and the server's default stands when it is empty; a browser leg sets it and reads it on the posted body",
+          "status": "open",
+          "verify": "test -f internal/server/webui_browser_top_p_test.go \u0026\u0026 go run ./cmd/webui-lane -run TopP",
+          "rationale": "Recommended by the GUI lane and not landed when its worktree was removed on 2026-10-09 (docs/gui_update_plan.json, which stays out of the repository); ranked into this plan by the owner's answer to gui-recommendations on 2026-10-10. Add a top-p control to Settings beside temperature and max tokens: Settings holds only the system prompt, temperature and max tokens, while the server already accepts top_p and LlamaFactory's chat offers it; remembered like the other settings. Why the lane recommended it: \n\nThe lane's rule for a change to the pages holds: plain HTML, JavaScript and Go, reviewed in a browser at desktop and phone widths in both colour schemes, and accepted by a browser leg or a Go test that fails without it. The row has no count: it is sized by a preflight when it is dispatched.\n\nServes: setup-steps. Batch: browser."
+        }
+      ]
+    },
+    {
+      "id": "gui-export-size-preview",
+      "title": "Show the output size before an export or merge runs (Unsloth Studio's export size preview)",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The server answers the size an export would write from the source model's tensors and the chosen quantization, through the workflow command route the form already reads; the form shows it and refreshes on each choice; a Go test holds the answer to the bytes a real tiny export writes, and a browser leg reads it",
+          "status": "open",
+          "verify": "test -f internal/server/export_size_preview_test.go \u0026\u0026 go test ./internal/server -run '^TestExportSizePreview' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run ExportSize",
+          "rationale": "Recommended by the GUI lane and not landed when its worktree was removed on 2026-10-09 (docs/gui_update_plan.json, which stays out of the repository); ranked into this plan by the owner's answer to gui-recommendations on 2026-10-10. Show the output size before an export or merge runs (Unsloth Studio's export size preview): the person picks merged, adapter or a quantization and reads the bytes it will write before pressing Run; it extends gui-model-merge's form and adds no tab. Why the lane recommended it: \n\nThe lane's rule for a change to the pages holds: plain HTML, JavaScript and Go, reviewed in a browser at desktop and phone widths in both colour schemes, and accepted by a browser leg or a Go test that fails without it. The row has no count: it is sized by a preflight when it is dispatched.\n\nServes: setup-steps. Batch: browser."
+        }
+      ]
+    },
+    {
+      "id": "gui-live-samples",
+      "title": "Show the Train tab's sample strip while the run goes, not when it ends",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Once a running operation can carry a bounded text result, renderSamples (webui/mod/training.js) fills the strip as each round finishes; a browser leg reads the first sample while the run is still going",
+          "status": "open",
+          "verify": "test -f internal/server/webui_browser_live_samples_test.go \u0026\u0026 go run ./cmd/webui-lane -run LiveSamples",
+          "rationale": "Recommended by the GUI lane and not landed when its worktree was removed on 2026-10-09 (docs/gui_update_plan.json, which stays out of the repository); ranked into this plan by the owner's answer to gui-recommendations on 2026-10-10. Show the Train tab's sample strip while the run goes, not when it ends: samples are generated every N updates but appear only at the end, because an operation reports numbers and no text. Why the lane recommended it: \n\nThe lane's rule for a change to the pages holds: plain HTML, JavaScript and Go, reviewed in a browser at desktop and phone widths in both colour schemes, and accepted by a browser leg or a Go test that fails without it. The row has no count: it is sized by a preflight when it is dispatched.\n\nServes: setup-steps. Batch: browser."
+        }
+      ]
+    },
+    {
+      "id": "gui-train-adapter-variants",
+      "title": "Offer rsLoRA and LoRA+ in the Train tab for an adapter run",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Two controls on the adapter capability's declared controls, default off, with the sweep's finding named in the control's note; a server test and a browser leg that submits one",
+          "status": "open",
+          "verify": "test -f internal/server/webui_browser_adapter_variants_test.go \u0026\u0026 go run ./cmd/webui-lane -run AdapterVariants",
+          "rationale": "Recommended by the GUI lane and not landed when its worktree was removed on 2026-10-09 (docs/gui_update_plan.json, which stays out of the repository); ranked into this plan by the owner's answer to gui-recommendations on 2026-10-10. Offer rsLoRA and LoRA+ in the Train tab for an adapter run: both are in cmd/train only, and neither is a default because both beat plain LoRA on the tiny test model (held-out accuracy 0.73 plain, 0.83 rsLoRA, 0.90 LoRA+) which may only be a larger effective step. Why the lane recommended it: \n\nThe lane's rule for a change to the pages holds: plain HTML, JavaScript and Go, reviewed in a browser at desktop and phone widths in both colour schemes, and accepted by a browser leg or a Go test that fails without it. The row has no count: it is sized by a preflight when it is dispatched.\n\nServes: held-out-quality. Batch: browser."
+        }
+      ]
+    },
+    {
+      "id": "gui-demo-datasets",
+      "title": "Ship a few tiny demo datasets (an instruction set, an identity set, a preference set) so a person can try Train without finding data (LlamaFactory ships alpaca, identity and DPO demos)",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A demo set registers as a dataset in one action from the Datasets tab and trains on the tiny test model end to end in a Go test",
+          "status": "open",
+          "verify": "test -f internal/server/demo_datasets_test.go \u0026\u0026 go test ./internal/server -run '^TestDemoDatasets' -count=1",
+          "rationale": "Recommended by the GUI lane and not landed when its worktree was removed on 2026-10-09 (docs/gui_update_plan.json, which stays out of the repository); ranked into this plan by the owner's answer to gui-recommendations on 2026-10-10. Ship a few tiny demo datasets (an instruction set, an identity set, a preference set) so a person can try Train without finding data (LlamaFactory ships alpaca, identity and DPO demos). Why the lane recommended it: \n\nThe lane's rule for a change to the pages holds: plain HTML, JavaScript and Go, reviewed in a browser at desktop and phone widths in both colour schemes, and accepted by a browser leg or a Go test that fails without it. The row has no count: it is sized by a preflight when it is dispatched.\n\nServes: setup-steps. Batch: browser."
+        }
+      ]
+    },
+    {
+      "id": "gui-document-to-dataset",
+      "title": "Turn documents into a conversation dataset with the served model (Unsloth Studio's data recipes)",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "One Datasets action that drafts pairs from pasted or admitted text with the served model under a named template and registers the dataset; a Go test with a fake generator, and a browser leg",
+          "status": "open",
+          "verify": "test -f internal/server/dataset_drafting_test.go \u0026\u0026 go test ./internal/server -run '^TestDatasetDrafting' -count=1",
+          "rationale": "Recommended by the GUI lane and not landed when its worktree was removed on 2026-10-09 (docs/gui_update_plan.json, which stays out of the repository); ranked into this plan by the owner's answer to gui-recommendations on 2026-10-10. Turn documents into a conversation dataset with the served model (Unsloth Studio's data recipes): chunk a PDF or CSV, have the served model draft question and answer pairs from a few templates (grounded Q\u0026A, text to SQL), and register the result as a dataset; take the templates and the one action, not the node-graph editor. Why the lane recommended it: \n\nThe lane's rule for a change to the pages holds: plain HTML, JavaScript and Go, reviewed in a browser at desktop and phone widths in both colour schemes, and accepted by a browser leg or a Go test that fails without it. The row has no count: it is sized by a preflight when it is dispatched.\n\nServes: setup-steps. Batch: browser."
+        }
+      ]
+    },
+    {
+      "id": "gui-resident-model-fit",
+      "title": "Keep the resident model only when it fits beside a device training run (Unsloth Studio's rule",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Adopt the fit rule where a device run is admitted, with the measured memory records overgo already keeps in place of a static table",
+          "status": "open",
+          "verify": "test -f internal/server/resident_fit_test.go \u0026\u0026 go test ./internal/server -run '^TestResidentFit' -count=1",
+          "rationale": "Recommended by the GUI lane and not landed when its worktree was removed on 2026-10-09 (docs/gui_update_plan.json, which stays out of the repository); ranked into this plan by the owner's answer to gui-recommendations on 2026-10-10. Keep the resident model only when it fits beside a device training run (Unsloth Studio's rule: usable memory at least required times 1.15 plus 4 GB, and evict speech before chat); not needed while Train-tab runs are host-only. Why the lane recommended it: \n\nThe lane's rule for a change to the pages holds: plain HTML, JavaScript and Go, reviewed in a browser at desktop and phone widths in both colour schemes, and accepted by a browser leg or a Go test that fails without it. The row has no count: it is sized by a preflight when it is dispatched.\n\nServes: peak-device-memory. Batch: browser."
+        }
+      ]
+    },
+    {
+      "id": "gui-chat-turn-number",
+      "title": "Decide whether a chat turn needs the request number a workflow run now carries",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Count the unconfirmed turns a session shows; adopt api.submit for the composer only if a person is asked more than rarely, and say so in the row when not",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane -run SubmitNumber",
+          "rationale": "Recommended by the GUI lane and not landed when its worktree was removed on 2026-10-09 (docs/gui_update_plan.json, which stays out of the repository); ranked into this plan by the owner's answer to gui-recommendations on 2026-10-10. Decide whether a chat turn needs the request number a workflow run now carries: a Run keeps its number through a lost response, but the composer starts a turn with api.post and marks a lost response operationUnconfirmed, which asks the person; measure how often that asks before building. Why the lane recommended it: \n\nThe lane's rule for a change to the pages holds: plain HTML, JavaScript and Go, reviewed in a browser at desktop and phone widths in both colour schemes, and accepted by a browser leg or a Go test that fails without it. The row has no count: it is sized by a preflight when it is dispatched.\n\nServes: failure-rate. Batch: browser."
         }
       ]
     },
@@ -234,38 +410,11 @@
             "codec-library-rest/do",
             "count-codec-adopt/do",
             "codec-record-quiet/do",
-            "count-evidence/do"
+            "count-evidence/do",
+            "evaluation-size/do",
+            "codec-library-here/do",
+            "answers-2026-10-10/do"
           ]
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-45ceeaafaa2be823",
-      "title": "Restore Hy-Embodied-RxBrain-1.0 vqa throughput to 173.41692 tok/s",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Hy-Embodied-RxBrain-1.0 vqa throughput to 173.41692 tok/s",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-45ceeaafaa2be823 -target 173.41692028891256",
-          "rationale": "- Hy-Embodied-RxBrain-1.0 throughput, {Metric:output tokens over decode time Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:24f6d5c81c752c600bf32907c8ca4b34379bf0e1910dd30f7d3014091e1fbcbb}: 173.41692 to 141.508266 (-31.9086544, -18.4%; serving output tokens over decode time, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261009T224309Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-b22137c6b1f9b2cc",
-      "title": "Restore pocket-tts speech held-out-quality to 0.0504009164 ",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore pocket-tts speech held-out-quality to 0.0504009164 ",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-b22137c6b1f9b2cc -target 0.050400916380297825",
-          "rationale": "- pocket-tts held-out-quality, {Metric:word_error_rate Origin:evaluation Suite:dataset:sha256:fd1ccc539452b1a79d5413eb87917b79f82330f5160047299fc807fab9c94422 Protocol:raw-completion Comparison:profile:sha256:003a74fb6d22635a51867f837c55f10b1b543a9ea3a12048047d250cb20f55fa Scope:}: 0.0504009164 to 0.0515463918 (+0.00114547537, +2.3%; word_error_rate, dataset:sha256:fd1ccc539452b1a79d5413eb87917b79f82330f5160047299fc807fab9c94422 (raw-completion))\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261009T224309Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
         }
       ]
     }
@@ -533,7 +682,8 @@
       "blocks": [
         "commit-queue"
       ],
-      "asked": "2026-10-09"
+      "asked": "2026-10-09",
+      "answer": "Yes, through one queue"
     },
     {
       "id": "gui-recommendations",
@@ -544,7 +694,8 @@
         "Leave them recorded and unranked"
       ],
       "recommendation": "Rank them into this plan after the rows that move a measured result",
-      "asked": "2026-10-09"
+      "asked": "2026-10-09",
+      "answer": "Rank them into this plan after the rows that move a measured result"
     },
     {
       "id": "carry-cost",
@@ -558,7 +709,8 @@
       "blocks": [
         "identity-carry"
       ],
-      "asked": "2026-10-09"
+      "asked": "2026-10-09",
+      "answer": "Carry only under an unchanged identity and score the rest in full every cycle"
     },
     {
       "id": "acceptance-cost",
@@ -572,7 +724,8 @@
       "blocks": [
         "evaluation-chain"
       ],
-      "asked": "2026-10-10"
+      "asked": "2026-10-10",
+      "answer": "When the first candidate whose memory or speed differs from its base's is proposed"
     },
     {
       "id": "cudnn-search-path",
@@ -586,7 +739,8 @@
       "blocks": [
         "codec-library-rest"
       ],
-      "asked": "2026-10-10"
+      "asked": "2026-10-10",
+      "answer": "Install cuDNN 9 here; the lead accepts the frozen video clips again under it"
     }
   ]
 }

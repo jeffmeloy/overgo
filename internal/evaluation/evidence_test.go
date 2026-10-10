@@ -3,6 +3,7 @@ package evaluation
 import (
 	"bytes"
 	"encoding/json"
+	"slices"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -66,7 +67,8 @@ func TestEvaluationEvidenceBindsPlanShardsAndAuthorities(t *testing.T) {
 		t.Fatal(err)
 	}
 	verified, err := RequireEvaluationEvidence(ctx, store, evidence.ID)
-	if err != nil || verified.ID != evidence.ID {
+	// The document names its run and its evaluation record, and is read with their phases and metrics.
+	if err != nil || verified.ID != evidence.ID || !slices.Equal(verified.Phases, run.Phases) || !slices.Equal(verified.Metrics, record.Metrics) {
 		t.Fatalf("verified evidence = %+v err=%v", verified, err)
 	}
 	forged := cloneEvaluationEvidence(evidence)
@@ -93,7 +95,7 @@ func TestEvaluationEvidenceBindsPlanShardsAndAuthorities(t *testing.T) {
 	if err != nil || !found || stored.Plan != plan.identity || stored.Acceptance != policy.ID ||
 		stored.Report != report || stored.Run != run.ID || stored.Evaluation != record.ID ||
 		stored.Split != plan.body.Split || len(stored.Shards) != len(exact.suite.Cases) ||
-		len(stored.Phases) != 1 || len(stored.Metrics) != 1 {
+		len(stored.Phases) != 0 || len(stored.Metrics) != 0 {
 		t.Fatalf("stored=%+v found=%v err=%v", stored, found, err)
 	}
 	parents, err := store.Parents(ctx, evidence.ID)

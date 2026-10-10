@@ -144,7 +144,7 @@ func TestChatTemplateScoringGeneratesTheLetter(t *testing.T) {
 	// The opener precedes every answer: a reasoning model's " **B**." and a
 	// thinking model's " (A) option" both carry the letter first.
 	fixture := &chatFixture{answers: []string{" **B**.", " (B) option", " no idea"}}
-	observations, accuracy, err := scoreMultipleChoice(t.Context(), fixture, suite)
+	observations, accuracy, err := scoreChoicesAlone(t, t.Context(), fixture, suite)
 	if err != nil {
 		t.Fatal(err)
 	}

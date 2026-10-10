@@ -45,10 +45,15 @@ type groupedChoicePlan struct {
 }
 
 type GroupedChoiceReport struct {
-	ID           artifact.ID         `json:"-"`
-	Version      uint16              `json:"version"`
-	Plan         artifact.ID         `json:"plan"`
-	Dataset      artifact.ID         `json:"dataset"`
+	ID      artifact.ID `json:"-"`
+	Version uint16      `json:"version"`
+	Plan    artifact.ID `json:"plan"`
+	Dataset artifact.ID `json:"dataset"`
+	// Answers names what the plan's execution was asked (Plan.observed): the
+	// store holds, under it, each case's answer as the model gave it, which
+	// the observations here were scored from. A report written before answers
+	// were kept apart from their scores names none.
+	Answers      artifact.ID         `json:"answers,omitzero"`
 	Observations []choiceObservation `json:"observations"`
 	Groups       []accuracyGroup     `json:"groups"`
 	Accuracy     float64             `json:"accuracy"`
@@ -111,12 +116,12 @@ func EvaluateGroupedChoice(
 	if err := publishPlanAuthorities(ctx, repository, plan, contents); err != nil {
 		return GroupedChoiceReport{}, err
 	}
-	observations, groups, accuracy, err := scoreChoiceGroups(ctx, scorer, compiled.choice.suite, compiled.groups)
+	observations, groups, answers, accuracy, err := scoreChoiceGroups(ctx, repository, plan, scorer, compiled.choice.suite, compiled.groups)
 	if err != nil {
 		return GroupedChoiceReport{}, err
 	}
 	report := GroupedChoiceReport{
-		Version: artifact.InitialDocumentVersion, Plan: plan.identity, Dataset: compiled.choice.dataset,
+		Version: artifact.InitialDocumentVersion, Plan: plan.identity, Dataset: compiled.choice.dataset, Answers: answers,
 		Observations: observations, Groups: groups, Accuracy: accuracy,
 	}
 	id, err := artifact.JSONID(artifact.KindEvaluation, report)
@@ -124,7 +129,7 @@ func EvaluateGroupedChoice(
 		return GroupedChoiceReport{}, err
 	}
 	report.ID = id
-	if err := publishCampaignDocument(ctx, repository, report.Plan, report.Dataset, report.ID, groupedChoiceReportContract, report); err != nil {
+	if err := publishCampaignDocument(ctx, repository, report.Plan, report.Dataset, report.ID, groupedChoiceReportContract, report, answers); err != nil {
 		return GroupedChoiceReport{}, err
 	}
 	return report, nil

@@ -67,7 +67,7 @@ type ExactResult struct {
 	PromptTokens    int    `json:"prompt_tokens"`
 	GeneratedTokens int    `json:"generated_tokens"`
 	Text            string `json:"text"`
-	WallNS          uint64 `json:"wall_ns"`
+	WallNS          uint64 `json:"wall_ns,omitzero"`
 }
 
 type Generator interface {

@@ -2,7 +2,9 @@ package evaluation
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -70,6 +72,10 @@ func TestInstructionResumeCounterexample(t *testing.T) {
 	}
 }
 
+// instructionCommitFixture stands between an evaluation and its store at the
+// commits that write answers down: before the first of them it runs
+// beforeCommit, once, and it fails each of them with commitErr when that is
+// set. Every other commit goes through.
 type instructionCommitFixture struct {
 	artifact.Repository
 	beforeCommit func()
@@ -77,6 +83,9 @@ type instructionCommitFixture struct {
 }
 
 func (f *instructionCommitFixture) Commit(ctx context.Context, batch artifact.Batch) (artifact.CommitID, error) {
+	if !strings.HasPrefix(batch.Key, observedKey) {
+		return f.Repository.Commit(ctx, batch)
+	}
 	if f.beforeCommit != nil {
 		before := f.beforeCommit
 		f.beforeCommit = nil
@@ -179,12 +188,12 @@ func TestInstructionResumePublicationFailure(t *testing.T) {
 	store, compiled, plan := instructionResumeFixture(t)
 	failure := errors.New("fixture storage failure")
 	repository := &instructionCommitFixture{Repository: store, commitErr: failure}
-	_, err := recordInstructionCase(t.Context(), repository, &instructionChatFixture{answer: "OK"}, plan, compiled.suite.Cases[0])
+	_, err := evaluateInstructionRules(t.Context(), repository, &instructionChatFixture{answer: "OK"}, compiled, plan)
 	if !errors.Is(err, failure) {
 		t.Fatalf("publication error = %v", err)
 	}
 	resumed := &instructionChatFixture{answer: "OK"}
-	if _, err := recordInstructionCase(t.Context(), store, resumed, plan, compiled.suite.Cases[0]); err != nil {
+	if _, err := evaluateInstructionRules(t.Context(), store, resumed, compiled, plan); err != nil {
 		t.Fatal(err)
 	}
 	if len(resumed.prompts) != 1 {
@@ -197,28 +206,28 @@ func TestInstructionResumeConcurrentPublication(t *testing.T) {
 	for _, same := range []bool{true, false} {
 		t.Run(map[bool]string{true: "same", false: "different"}[same], func(t *testing.T) {
 			store, compiled, plan := instructionResumeFixture(t)
-			testCase := compiled.suite.Cases[0]
 			winner := &instructionChatFixture{answer: "OK"}
 			answer := winner.answer
 			if !same {
 				answer = "DIFFERENT"
 			}
+			// Another evaluation of the plan writes its answer down after this one's model has answered and before this one writes.
 			repository := &instructionCommitFixture{Repository: store, beforeCommit: func() {
-				if _, err := recordInstructionCase(t.Context(), store, winner, plan, testCase); err != nil {
+				if _, err := evaluateInstructionRules(t.Context(), store, winner, compiled, plan); err != nil {
 					t.Fatal(err)
 				}
 			}}
-			_, err := recordInstructionCase(t.Context(), repository, &instructionChatFixture{answer: answer}, plan, testCase)
+			_, err := evaluateInstructionRules(t.Context(), repository, &instructionChatFixture{answer: answer}, compiled, plan)
 			if same && err != nil || !same && err == nil {
 				t.Fatalf("same=%v error=%v", same, err)
 			}
 			replay := &instructionChatFixture{answer: "REPLACEMENT"}
-			result, err := recordInstructionCase(t.Context(), store, replay, plan, testCase)
+			report, err := evaluateInstructionRules(t.Context(), store, replay, compiled, plan)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if result.Text != winner.answer || len(replay.prompts) != 0 {
-				t.Fatalf("winner replaced: %+v", result)
+			if report.Observations[0].Raw != winner.answer || len(replay.prompts) != 0 {
+				t.Fatalf("winner replaced: %+v", report.Observations[0])
 			}
 		})
 	}
@@ -282,22 +291,29 @@ func TestInstructionResumeRejectsMisboundRecord(t *testing.T) {
 	t.Parallel()
 	store, compiled, plan := instructionResumeFixture(t)
 	testCase := compiled.suite.Cases[0]
-	caseID, err := artifact.JSONID(artifact.KindDatasetShard, testCase)
+	// What the plan's execution is asked, named as the evaluation names it.
+	observed, err := plan.observed([]struct {
+		Name      string `json:"name"`
+		Prompt    string `json:"prompt"`
+		MaxTokens int    `json:"max_tokens"`
+	}{{testCase.Name, testCase.Prompt, testCase.MaxTokens}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	saved, err := instructionGenerationCodec.New(instructionGeneration{
-		Plan: planID(t, artifact.KindProfile, "wrong-plan"), Case: caseID,
-		Result: ExactResult{Name: testCase.Name, PromptTokens: 1, GeneratedTokens: 1, Text: "OK"},
-	})
+	// A record that says it answers something else is filed under it.
+	answer, err := json.Marshal(ExactResult{Name: testCase.Name, PromptTokens: 1, GeneratedTokens: 1, Text: "OK"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	alias := "evaluation/instruction-generations/" + plan.identity.String() + "/" + caseID.String()
-	batch, err := instructionGenerationCodec.Batch(alias, saved, nil, []artifact.AliasBinding{{Name: alias, Target: saved.ID}})
+	misbound, err := caseAnswersCodec.NewInitial(caseAnswers{Observed: planID(t, artifact.KindProfile, "asked-of-another"), Cases: []json.RawMessage{answer}})
 	if err != nil {
 		t.Fatal(err)
 	}
+	batch, err := caseAnswersCodec.Batch("misbound-answers", misbound, artifact.DependencyLineage(misbound.ID, observed), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: observed})
 	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 		t.Fatal(err)
 	}

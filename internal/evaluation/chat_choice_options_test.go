@@ -38,9 +38,12 @@ func TestChatChoicePromptListsTextCandidatesAsLetteredOptions(t *testing.T) {
 		t.Fatalf("letter case prompt = %q letters = %q err = %v", prompt, letters, err)
 	}
 	fixture := &chatFixture{answers: []string{"A"}}
-	observation, err := answerChoiceByGeneration(t.Context(), fixture, textCase)
-	if err != nil || observation.Selected != 0 || !strings.Contains(fixture.shaped[0], "A. False") {
-		t.Fatalf("observation = %+v err = %v shaped = %q", observation, err, fixture.shaped)
+	written, err := answerChoiceByGeneration(t.Context(), fixture, textCase)
+	if err != nil || !strings.Contains(fixture.shaped[0], "A. False") {
+		t.Fatalf("written = %+v err = %v shaped = %q", written, err, fixture.shaped)
+	}
+	if observation, err := scoreChoice(textCase, choiceAnswer{Written: &written}, sequencescore.NormalizationMean); err != nil || observation.Selected != 0 || observation.Raw != "A" {
+		t.Fatalf("observation = %+v err = %v", observation, err)
 	}
 	wide := MultipleChoiceCase{Name: "wide", Prompt: "Q", Candidates: make([]string, chatOptionLetters+1)}
 	for index := range wide.Candidates {
@@ -71,7 +74,7 @@ func TestChatProtocolRefusesUnscorableSuites(t *testing.T) {
 		Cases: textCases(chatProbeCases + 4),
 	}
 	unmatched := &chatFixture{answers: []string{"True"}}
-	_, _, err := scoreMultipleChoice(t.Context(), unmatched, suite)
+	_, _, err := scoreChoicesAlone(t, t.Context(), unmatched, suite)
 	if err == nil || !strings.Contains(err.Error(), "protocol refused") || !strings.Contains(err.Error(), `"True"`) {
 		t.Fatalf("all-unmatched run was not refused: %v", err)
 	}
@@ -80,11 +83,11 @@ func TestChatProtocolRefusesUnscorableSuites(t *testing.T) {
 	}
 	short := suite
 	short.Cases = textCases(3)
-	if _, _, err := scoreMultipleChoice(t.Context(), &chatFixture{answers: []string{"nope"}}, short); err == nil {
+	if _, _, err := scoreChoicesAlone(t, t.Context(), &chatFixture{answers: []string{"nope"}}, short); err == nil {
 		t.Fatal("a short all-unmatched suite was not refused at its end")
 	}
 	mixed := &chatFixture{answers: []string{"nope", "nope", "B"}}
-	observations, _, err := scoreMultipleChoice(t.Context(), mixed, suite)
+	observations, _, err := scoreChoicesAlone(t, t.Context(), mixed, suite)
 	if err != nil || len(observations) != chatProbeCases+4 {
 		t.Fatalf("a suite with matches was refused: %v", err)
 	}
@@ -94,7 +97,7 @@ func TestChatProtocolRefusesUnscorableSuites(t *testing.T) {
 			sampled = append(sampled, value.Sample)
 		}
 	})
-	if _, _, err := scoreMultipleChoice(ctx, &chatFixture{answers: []string{"B"}}, short); err != nil {
+	if _, _, err := scoreChoicesAlone(t, ctx, &chatFixture{answers: []string{"B"}}, short); err != nil {
 		t.Fatal(err)
 	}
 	if len(sampled) != 1 || !strings.Contains(sampled[0], `"B"`) || !strings.Contains(sampled[0], `" A" " B"`) {

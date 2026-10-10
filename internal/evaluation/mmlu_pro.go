@@ -80,10 +80,15 @@ type mmluProPlan struct {
 }
 
 type mmluProReport struct {
-	ID           artifact.ID         `json:"-"`
-	Version      uint16              `json:"version"`
-	Plan         artifact.ID         `json:"plan"`
-	Dataset      artifact.ID         `json:"dataset"`
+	ID      artifact.ID `json:"-"`
+	Version uint16      `json:"version"`
+	Plan    artifact.ID `json:"plan"`
+	Dataset artifact.ID `json:"dataset"`
+	// Answers names what the plan's execution was asked (Plan.observed): the
+	// store holds, under it, each case's answer as the model gave it, which
+	// the observations here were scored from. A report written before answers
+	// were kept apart from their scores names none.
+	Answers      artifact.ID         `json:"answers,omitzero"`
 	Observations []choiceObservation `json:"observations"`
 	Categories   []accuracyGroup     `json:"categories"`
 	Accuracy     float64             `json:"accuracy"`
@@ -166,12 +171,12 @@ func evaluateMMLUPro(
 	if err := publishPlanAuthorities(ctx, repository, plan, contents); err != nil {
 		return mmluProReport{}, err
 	}
-	observations, categories, accuracy, err := scoreChoiceGroups(ctx, scorer, compiled.choice.delimited(), compiled.categories)
+	observations, categories, answers, accuracy, err := scoreChoiceGroups(ctx, repository, plan, scorer, compiled.choice.delimited(), compiled.categories)
 	if err != nil {
 		return mmluProReport{}, err
 	}
 	report := mmluProReport{
-		Version: artifact.InitialDocumentVersion, Plan: plan.identity, Dataset: compiled.choice.dataset,
+		Version: artifact.InitialDocumentVersion, Plan: plan.identity, Dataset: compiled.choice.dataset, Answers: answers,
 		Observations: observations, Categories: categories, Accuracy: accuracy,
 	}
 	id, err := artifact.JSONID(artifact.KindEvaluation, report)
@@ -179,7 +184,7 @@ func evaluateMMLUPro(
 		return mmluProReport{}, err
 	}
 	report.ID = id
-	if err := publishCampaignDocument(ctx, repository, report.Plan, report.Dataset, report.ID, mmluProReportContract, report); err != nil {
+	if err := publishCampaignDocument(ctx, repository, report.Plan, report.Dataset, report.ID, mmluProReportContract, report, answers); err != nil {
 		return mmluProReport{}, err
 	}
 	return report, nil

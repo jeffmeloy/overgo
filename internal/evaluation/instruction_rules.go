@@ -105,10 +105,15 @@ type instructionRulesObservation struct {
 }
 
 type InstructionRulesReport struct {
-	ID                artifact.ID                   `json:"-"`
-	Version           uint16                        `json:"version"`
-	Plan              artifact.ID                   `json:"plan"`
-	Dataset           artifact.ID                   `json:"dataset"`
+	ID      artifact.ID `json:"-"`
+	Version uint16      `json:"version"`
+	Plan    artifact.ID `json:"plan"`
+	Dataset artifact.ID `json:"dataset"`
+	// Answers names what the plan's execution was asked (Plan.observed): the
+	// store holds, under it, each case's answer as the model gave it, which
+	// the observations here were scored from. A report written before answers
+	// were kept apart from their scores names none.
+	Answers           artifact.ID                   `json:"answers,omitzero"`
 	Observations      []instructionRulesObservation `json:"observations"`
 	PromptStrict      float64                       `json:"prompt_strict"`
 	InstructionStrict float64                       `json:"instruction_strict"`
@@ -193,16 +198,37 @@ func evaluateInstructionRules(
 		Version: artifact.InitialDocumentVersion, Plan: plan.identity, Dataset: compiled.dataset,
 		Observations: make([]instructionRulesObservation, len(compiled.suite.Cases)),
 	}
+	// What a case gives the model is its name, prompt and token bound, and not the rules its answer is
+	// held to: an answer the model has written is kept and read again whichever rules judge it
+	// (loadAnswers), and survives an interruption or a rule that fails.
+	type askedInstruction struct {
+		Name      string `json:"name"`
+		Prompt    string `json:"prompt"`
+		MaxTokens int    `json:"max_tokens"`
+	}
+	asked := make([]askedInstruction, len(compiled.suite.Cases))
+	for index, testCase := range compiled.suite.Cases {
+		asked[index] = askedInstruction{Name: testCase.Name, Prompt: testCase.Prompt, MaxTokens: testCase.MaxTokens}
+	}
+	held, err := loadAnswers[ExactResult](ctx, repository, plan, asked)
+	if err != nil {
+		return InstructionRulesReport{}, err
+	}
 	strictPrompts, loosePrompts, strictRules, looseRules, rules := 0, 0, 0, 0, 0
 	progress := trackProgress(ctx, compiled.suite.Source, len(compiled.suite.Cases))
 	for index, testCase := range compiled.suite.Cases {
-		result, err := recordInstructionCase(ctx, repository, generator, plan, testCase)
+		result, err := held.answer(ctx, index, func() (ExactResult, error) {
+			written, err := recordInstruction(ctx, generator, testCase.Name, testCase.Prompt, testCase.MaxTokens)
+			// Two runs of one case do not take the same time, and what is kept is what they share.
+			written.WallNS = 0
+			return written, err
+		})
 		if err != nil {
 			return InstructionRulesReport{}, err
 		}
 		strict, loose, err := evaluateInstructionViews(result.Text, compiled.rules[index])
 		if err != nil {
-			return InstructionRulesReport{}, fmt.Errorf("evaluation: case %s: %w", testCase.Name, err)
+			return InstructionRulesReport{}, errors.Join(fmt.Errorf("evaluation: case %s: %w", testCase.Name, err), held.write(ctx))
 		}
 		progress.hit(allTrue(strict))
 		if allTrue(strict) {
@@ -219,6 +245,10 @@ func evaluateInstructionRules(
 			Prompt: result.PromptTokens, Generated: result.GeneratedTokens,
 		}
 	}
+	if err := held.write(ctx); err != nil {
+		return InstructionRulesReport{}, err
+	}
+	report.Answers = held.observed
 	report.PromptStrict = float64(strictPrompts) / float64(len(report.Observations))
 	report.PromptLoose = float64(loosePrompts) / float64(len(report.Observations))
 	report.InstructionStrict = float64(strictRules) / float64(rules)
@@ -228,7 +258,7 @@ func evaluateInstructionRules(
 		return InstructionRulesReport{}, err
 	}
 	report.ID = id
-	if err := publishCampaignDocument(ctx, repository, report.Plan, report.Dataset, report.ID, instructionRulesReportContract, report); err != nil {
+	if err := publishCampaignDocument(ctx, repository, report.Plan, report.Dataset, report.ID, instructionRulesReportContract, report, report.Answers); err != nil {
 		return InstructionRulesReport{}, err
 	}
 	return report, nil

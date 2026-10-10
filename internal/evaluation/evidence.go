@@ -25,23 +25,27 @@ const (
 )
 
 type EvaluationEvidence struct {
-	ID              artifact.ID             `json:"-"`
-	Version         uint16                  `json:"version"`
-	Plan            artifact.ID             `json:"plan"`
-	Acceptance      artifact.ID             `json:"acceptance"`
-	Evaluator       artifact.ID             `json:"evaluator"`
-	Report          artifact.ID             `json:"report"`
-	Run             artifact.ID             `json:"run"`
-	Evaluation      artifact.ID             `json:"evaluation"`
-	ModelDefinition artifact.ID             `json:"model_definition"`
-	Recipe          artifact.ID             `json:"recipe"`
-	Dataset         artifact.ID             `json:"dataset"`
-	Split           artifact.ID             `json:"split"`
-	Shards          []artifact.ID           `json:"shards,omitempty"`
-	Environment     artifact.ID             `json:"environment"`
-	CodeCommit      string                  `json:"code_commit"`
-	Phases          []runrecord.PhaseMetric `json:"phases"`
-	Metrics         []runrecord.Metric      `json:"metrics"`
+	ID              artifact.ID   `json:"-"`
+	Version         uint16        `json:"version"`
+	Plan            artifact.ID   `json:"plan"`
+	Acceptance      artifact.ID   `json:"acceptance"`
+	Evaluator       artifact.ID   `json:"evaluator"`
+	Report          artifact.ID   `json:"report"`
+	Run             artifact.ID   `json:"run"`
+	Evaluation      artifact.ID   `json:"evaluation"`
+	ModelDefinition artifact.ID   `json:"model_definition"`
+	Recipe          artifact.ID   `json:"recipe"`
+	Dataset         artifact.ID   `json:"dataset"`
+	Split           artifact.ID   `json:"split"`
+	Shards          []artifact.ID `json:"shards,omitempty"`
+	Environment     artifact.ID   `json:"environment"`
+	CodeCommit      string        `json:"code_commit"`
+	// Phases are the run's and Metrics the evaluation record's. A document
+	// names both records and holds neither's measurements, and
+	// RequireEvaluationEvidence returns it with theirs. One written before
+	// that holds a copy of each, which its reader holds to the records.
+	Phases  []runrecord.PhaseMetric `json:"phases,omitempty"`
+	Metrics []runrecord.Metric      `json:"metrics,omitempty"`
 	// ResourceObservation names the exact raw-chunk summary published in the
 	// same semantic batch as an isolated run. Resources preserves measured
 	// zero versus missing dimensions without forcing high-volume samples into
@@ -71,7 +75,15 @@ func RequireEvaluationEvidence(
 	reader artifact.Reader,
 	id artifact.ID,
 ) (EvaluationEvidence, error) {
-	return evaluationEvidenceCodec.RequireVerified(ctx, reader, id, ValidateEvaluationEvidence)
+	var phases []runrecord.PhaseMetric
+	var metrics []runrecord.Metric
+	evidence, err := evaluationEvidenceCodec.RequireVerified(ctx, reader, id, func(ctx context.Context, reader artifact.Reader, value EvaluationEvidence) error {
+		var err error
+		phases, metrics, err = verifyEvaluationEvidence(ctx, reader, value)
+		return err
+	})
+	evidence.Phases, evidence.Metrics = phases, metrics
+	return evidence, err
 }
 
 // Content returns the native OvergoDB evidence document.
@@ -93,60 +105,64 @@ func (value EvaluationEvidence) Lineage() []artifact.Lineage {
 	return artifact.DependencyLineage(value.ID, uniqueArtifactIDs(parents)...)
 }
 
-func ValidateEvaluationEvidence(ctx context.Context, reader artifact.Reader, value EvaluationEvidence) error {
+// verifyEvaluationEvidence holds a stored evidence document to the records it
+// names, and returns the phases of its run and the metrics of its evaluation
+// record, which are the document's. A document that holds a copy of either,
+// as one written before it stopped copying them does, must hold the record's.
+func verifyEvaluationEvidence(ctx context.Context, reader artifact.Reader, value EvaluationEvidence) ([]runrecord.PhaseMetric, []runrecord.Metric, error) {
 	if ctx == nil || reader == nil || evaluationEvidenceCodec.ValidateIdentity(value) != nil {
-		return errors.New("evaluation: invalid stored evidence")
+		return nil, nil, errors.New("evaluation: invalid stored evidence")
 	}
 	plan, err := loadEvidencePlan(ctx, reader, value.Plan)
 	if err != nil || plan.body.ModelDefinition != value.ModelDefinition || plan.body.RuntimeRecipe != value.Recipe ||
 		plan.body.Dataset != value.Dataset || plan.body.Split != value.Split || plan.body.Environment != value.Environment ||
 		plan.body.CodeCommit != value.CodeCommit {
-		return errors.Join(err, errors.New("evaluation: stored plan differs from evidence"))
+		return nil, nil, errors.Join(err, errors.New("evaluation: stored plan differs from evidence"))
 	}
 	policy, found, err := acceptancePolicyCodec.Read(ctx, reader, value.Acceptance)
 	if err != nil || !found {
-		return errors.Join(err, errors.New("evaluation: stored acceptance policy is absent"))
+		return nil, nil, errors.Join(err, errors.New("evaluation: stored acceptance policy is absent"))
 	}
 	evaluator, found, err := evaluatorCodec.Read(ctx, reader, value.Evaluator)
 	if err != nil || !found || evaluator.Plan != value.Plan || evaluator.Acceptance != value.Acceptance ||
 		!slices.Equal(evaluator.Metrics, policy.Metrics) {
-		return errors.Join(err, errors.New("evaluation: stored evaluator differs"))
+		return nil, nil, errors.Join(err, errors.New("evaluation: stored evaluator differs"))
 	}
 	run, err := runrecord.RequireRun(ctx, reader, value.Run)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	record, err := runrecord.RequireEvaluation(ctx, reader, value.Evaluation)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	if run.Outcome != runrecord.OutcomeSucceeded || run.Recipe != value.Recipe || run.Environment != value.Environment ||
 		run.CodeCommit != value.CodeCommit || !slices.Contains(run.Inputs, value.Plan) || !slices.Contains(run.Outputs, value.Report) ||
 		record.Recipe != value.Recipe || record.Run != value.Run || record.Dataset != value.Dataset || !policy.admits(record.Metrics) ||
-		!slices.Equal(run.Phases, value.Phases) || !slices.Equal(record.Metrics, value.Metrics) {
-		return errors.New("evaluation: stored run or metrics differ from evidence")
+		len(value.Phases) != 0 && !slices.Equal(run.Phases, value.Phases) || len(value.Metrics) != 0 && !slices.Equal(record.Metrics, value.Metrics) {
+		return nil, nil, errors.New("evaluation: stored run or metrics differ from evidence")
 	}
 	if value.ResourceObservation.Valid() {
 		observation, err := runrecord.RequireObservationChunkSummary(ctx, reader, value.ResourceObservation)
 		if err != nil || !reflect.DeepEqual(observation.Aggregate, *value.Resources) {
-			return errors.Join(err, errors.New("evaluation: stored resource observation differs from evidence"))
+			return nil, nil, errors.Join(err, errors.New("evaluation: stored resource observation differs from evidence"))
 		}
 		if err := validateIsolatedResources(ctx, reader, plan, run, *value.Resources); err != nil {
-			return err
+			return nil, nil, err
 		}
 	}
 	reportContent, found, err := artifact.ReadContent(ctx, reader, value.Report)
 	if err != nil || !found {
-		return errors.Join(err, errors.New("evaluation: stored report is absent"))
+		return nil, nil, errors.Join(err, errors.New("evaluation: stored report is absent"))
 	}
 	if err := reportContent.Validate(); err != nil {
-		return err
+		return nil, nil, err
 	}
 	shards, err := evaluationReportShards(ctx, reader, value.Report, value.Split)
 	if err != nil || !slices.Equal(shards, value.Shards) {
-		return errors.Join(err, errors.New("evaluation: stored shard lineage differs from evidence"))
+		return nil, nil, errors.Join(err, errors.New("evaluation: stored shard lineage differs from evidence"))
 	}
-	return nil
+	return run.Phases, record.Metrics, nil
 }
 
 func PublishEvaluationEvidence(
@@ -216,7 +232,6 @@ func newEvaluationEvidence(
 		ModelDefinition: plan.body.ModelDefinition, Recipe: plan.body.RuntimeRecipe,
 		Dataset: plan.body.Dataset, Split: plan.body.Split, Shards: shards,
 		Environment: plan.body.Environment, CodeCommit: plan.body.CodeCommit,
-		Phases: slices.Clone(run.Phases), Metrics: slices.Clone(record.Metrics),
 		Causal: causalBinding,
 	}
 	if observation != nil {
@@ -391,7 +406,7 @@ func canonicalizeEvaluationEvidence(value *EvaluationEvidence) error {
 		value.ModelDefinition.Kind() != artifact.KindModelDefinition || value.Recipe.Kind() != artifact.KindRecipe ||
 		value.Dataset.Kind() != artifact.KindDataset || value.Split.Kind() != artifact.KindDatasetShard ||
 		value.Environment.Kind() != artifact.KindEvidence || !validCommit(value.CodeCommit) ||
-		len(value.Phases) == 0 || len(value.Metrics) == 0 {
+		(len(value.Phases) == 0) != (len(value.Metrics) == 0) {
 		return errors.New("evaluation: invalid evidence bundle")
 	}
 	if value.ResourceObservation.Valid() != (value.Resources != nil) ||

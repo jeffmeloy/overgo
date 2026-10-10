@@ -9,20 +9,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1150,
+        "nodes": 47,
         "reason": "The third step's measured figure, 1,103 production nodes as the gate's preflight counts the built change, and a margin of 47: the record of a run of answers and the reading and writing of it (1,040), the choice kinds' loop, which reads an answer and then scores it (374), the instruction rules kind moved onto the record (181), evidence that names its run and its evaluation record without copying them (115), less the instruction kind's own record a case, deleted (607). The step was expected to delete more than it adds. It does not: the exact-generation kind's record a case stays, since its stored reports and their evidence are read through it, and so do the answers a report carries beside its scores, which the sampled replay of a carried result compares. The second step measured 2,473 of 2,520. The fourth step, acceptance, is counted when it is built"
       },
       "steps": [
-        {
-          "id": "observations",
-          "title": "Write each case's observation and each score once, and have every record that needs them refer to them",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestScoringFixRunsNoCaseAgain$'",
-          "rationale": "EvaluationEvidence copies phases and metrics that other records own, and its reader checks that the copies agree (internal/evaluation evidence.go). One evaluator, built from a dataset, a protocol, an execution and a scorer from a short list, writes per-case observations and then scores; each keeps its typed content under one shared envelope, and evidence and acceptance refer to them by identity. The quality floor, memory ceiling, speed target, base and decision rule are fixed in a record before confirmation is read. Its test changes a scorer and holds that no case is executed again, that the same observations are read, and that the decision against the named base is the expected one. Readers of evidence already in the store stay until it is migrated.\n\nServes: judge on held-out data. Disappears: for this family, the copied measurements, the checks that they agree, and the evaluation files the one evaluator replaces. Evidence: the family's scores before and after, equal, and the count of record schemas before and after. Batch: host.",
-          "depends_on": [
-            "capability-identity/identities"
-          ]
-        },
         {
           "id": "acceptance",
           "title": "Fix a candidate's memory ceiling and speed target with its quality floor, base and rule, before its confirmation is read",

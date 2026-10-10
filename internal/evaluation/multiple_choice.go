@@ -110,10 +110,15 @@ type choiceObservation struct {
 }
 
 type MultipleChoiceReport struct {
-	ID           artifact.ID         `json:"-"`
-	Version      uint16              `json:"version"`
-	Plan         artifact.ID         `json:"plan"`
-	Dataset      artifact.ID         `json:"dataset"`
+	ID      artifact.ID `json:"-"`
+	Version uint16      `json:"version"`
+	Plan    artifact.ID `json:"plan"`
+	Dataset artifact.ID `json:"dataset"`
+	// Answers names what the plan's execution was asked (Plan.observed): the
+	// store holds, under it, each case's answer as the model gave it, which
+	// the observations here were scored from. A report written before answers
+	// were kept apart from their scores names none.
+	Answers      artifact.ID         `json:"answers,omitzero"`
 	Observations []choiceObservation `json:"observations"`
 	Accuracy     float64             `json:"accuracy"`
 }
@@ -244,7 +249,7 @@ func evaluateMultipleChoice(
 	report := MultipleChoiceReport{
 		Version: artifact.InitialDocumentVersion, Plan: plan.identity, Dataset: compiled.dataset,
 	}
-	report.Observations, report.Accuracy, err = scoreMultipleChoice(ctx, scorer, compiled.suite)
+	report.Observations, report.Answers, report.Accuracy, err = scoreMultipleChoice(ctx, repository, plan, scorer, compiled.suite)
 	if err != nil {
 		return MultipleChoiceReport{}, err
 	}
@@ -254,59 +259,81 @@ func evaluateMultipleChoice(
 	}
 	report.ID = id
 	if err := publishCampaignDocument(
-		ctx, repository, report.Plan, report.Dataset, report.ID, multipleChoiceReportContract, report,
+		ctx, repository, report.Plan, report.Dataset, report.ID, multipleChoiceReportContract, report, report.Answers,
 	); err != nil {
 		return MultipleChoiceReport{}, err
 	}
 	return report, nil
 }
 
+// choiceAnswer is what a model gave one case of a choice suite, before it is
+// scored: under a protocol that generates, what it wrote, and under one that
+// scores continuations, the score it gave each candidate.
+type choiceAnswer struct {
+	Written *ExactResult          `json:"written,omitempty"`
+	Scores  []sequencescore.Score `json:"scores,omitempty"`
+}
+
+// askedChoice is what one case of a choice suite gives the model: its name,
+// its prompt and its candidates, and not the answer it is scored against.
+type askedChoice struct {
+	Name       string   `json:"name"`
+	Prompt     string   `json:"prompt"`
+	Candidates []string `json:"candidates"`
+}
+
+// scoreMultipleChoice answers each case of a suite and scores the answers. A
+// case's answer is the one the store holds for what the plan's execution is
+// asked, or the model's now, which is written down as it is given
+// (loadAnswers): a suite scored again, under another normalization or
+// tie-break or against corrected answers, puts no case to the model, and one
+// that stopped part way resumes after the cases it answered.
 func scoreMultipleChoice(
 	ctx context.Context,
+	repository artifact.Repository,
+	plan Plan,
 	scorer continuationScorer,
 	suite MultipleChoiceSuite,
-) ([]choiceObservation, float64, error) {
+) ([]choiceObservation, artifact.ID, float64, error) {
+	asked := make([]askedChoice, len(suite.Cases))
+	for index, testCase := range suite.Cases {
+		asked[index] = askedChoice{Name: testCase.Name, Prompt: testCase.Prompt, Candidates: testCase.Candidates}
+	}
+	held, err := loadAnswers[choiceAnswer](ctx, repository, plan, asked)
+	if err != nil {
+		return nil, artifact.ID{}, 0, err
+	}
 	observations := make([]choiceObservation, len(suite.Cases))
 	correct := 0
 	progress := trackProgress(ctx, suite.Source, len(suite.Cases))
 	chat, generative := scorer.(chatChoiceRuntime)
 	var probe chatProbe
 	for index, testCase := range suite.Cases {
-		if generative {
-			observation, err := answerChoiceByGeneration(ctx, chat, testCase)
-			if err != nil {
-				return nil, 0, err
+		answer, err := held.answer(ctx, index, func() (choiceAnswer, error) {
+			if generative {
+				written, err := answerChoiceByGeneration(ctx, chat, testCase)
+				return choiceAnswer{Written: &written}, err
 			}
+			scores, err := scorer.ScoreContinuations(ctx, testCase.Prompt, testCase.Candidates)
+			if err == nil && len(scores) != len(testCase.Candidates) {
+				err = errors.New("evaluation: candidate score extent differs")
+			}
+			return choiceAnswer{Scores: scores}, err
+		})
+		if err != nil {
+			return nil, artifact.ID{}, 0, err
+		}
+		if observations[index], err = scoreChoice(testCase, answer, suite.Normalization); err != nil {
+			return nil, artifact.ID{}, 0, errors.Join(err, held.write(ctx))
+		}
+		if answer.Written != nil {
 			letters := chatChoiceLetters(testCase)
 			if index == 0 {
 				progress.sample(fmt.Sprintf("first generated answer %s: %q against candidates %q",
-					observation.Name, observation.Raw, letters))
+					observations[index].Name, observations[index].Raw, letters))
 			}
-			if err := probe.judge(observation, letters, index == len(suite.Cases)-1); err != nil {
-				return nil, 0, err
-			}
-			observations[index] = observation
-		} else {
-			scores, err := scorer.ScoreContinuations(ctx, testCase.Prompt, testCase.Candidates)
-			if err != nil {
-				return nil, 0, err
-			}
-			if len(scores) != len(testCase.Candidates) {
-				return nil, 0, errors.New("evaluation: candidate score extent differs")
-			}
-			scores = slices.Clone(scores)
-			if suite.Normalization == sequencescore.NormalizationCharacters {
-				for index := range scores {
-					scores[index].Characters = testCase.CandidateCharacters[index]
-				}
-			}
-			selection, err := sequencescore.Select(scores, suite.Normalization)
-			if err != nil {
-				return nil, 0, err
-			}
-			observations[index] = choiceObservation{
-				Name: testCase.Name, Values: selection.Values, Scores: scores, Selected: selection.Index,
-				Answer: testCase.Answer, Tied: selection.Tied,
+			if err := probe.judge(observations[index], letters, index == len(suite.Cases)-1); err != nil {
+				return nil, artifact.ID{}, 0, errors.Join(err, held.write(ctx))
 			}
 		}
 		hit := choiceCorrect(observations[index], suite.TieBreak)
@@ -315,11 +342,44 @@ func scoreMultipleChoice(
 		}
 		progress.hit(hit)
 	}
+	if err := held.write(ctx); err != nil {
+		return nil, artifact.ID{}, 0, err
+	}
 	accuracy := float64(correct) / float64(len(observations))
 	if math.IsNaN(accuracy) || math.IsInf(accuracy, 0) {
-		return nil, 0, errors.New("evaluation: multiple-choice accuracy is not finite")
+		return nil, artifact.ID{}, 0, errors.New("evaluation: multiple-choice accuracy is not finite")
 	}
-	return observations, accuracy, nil
+	return observations, held.observed, accuracy, nil
+}
+
+// scoreChoice reads one case's score from the answer the model gave it. What
+// a model wrote selects the first candidate letter standing alone in it, or
+// nothing; the scores it gave the candidates select the one the suite's
+// normalization finds likeliest.
+func scoreChoice(testCase MultipleChoiceCase, answer choiceAnswer, normalization sequencescore.Normalization) (choiceObservation, error) {
+	observation := choiceObservation{Name: testCase.Name, Answer: testCase.Answer}
+	if answer.Written != nil {
+		observation.Raw, observation.Selected = answer.Written.Text, unmatchedChoice
+		if index, matched := matchChoiceLetter(answer.Written.Text, chatChoiceLetters(testCase)); matched {
+			observation.Selected = index
+		}
+		return observation, nil
+	}
+	if len(answer.Scores) != len(testCase.Candidates) {
+		return choiceObservation{}, fmt.Errorf("evaluation: case %s was answered with %d scores for its %d candidates", testCase.Name, len(answer.Scores), len(testCase.Candidates))
+	}
+	scores := slices.Clone(answer.Scores)
+	if normalization == sequencescore.NormalizationCharacters {
+		for index := range scores {
+			scores[index].Characters = testCase.CandidateCharacters[index]
+		}
+	}
+	selection, err := sequencescore.Select(scores, normalization)
+	if err != nil {
+		return choiceObservation{}, err
+	}
+	observation.Values, observation.Scores, observation.Selected, observation.Tied = selection.Values, scores, selection.Index, selection.Tied
+	return observation, nil
 }
 
 func choiceCorrect(observation choiceObservation, tieBreak string) bool {
@@ -364,16 +424,18 @@ func aggregateAccuracy(groups []string, correct []bool) ([]accuracyGroup, error)
 
 func scoreChoiceGroups(
 	ctx context.Context,
+	repository artifact.Repository,
+	plan Plan,
 	scorer continuationScorer,
 	suite MultipleChoiceSuite,
 	groups []string,
-) ([]choiceObservation, []accuracyGroup, float64, error) {
-	observations, accuracy, err := scoreMultipleChoice(ctx, scorer, suite)
+) ([]choiceObservation, []accuracyGroup, artifact.ID, float64, error) {
+	observations, answers, accuracy, err := scoreMultipleChoice(ctx, repository, plan, scorer, suite)
 	if err != nil {
-		return nil, nil, 0, err
+		return nil, nil, artifact.ID{}, 0, err
 	}
 	metrics, err := aggregateChoiceAccuracy(groups, observations, suite.TieBreak)
-	return observations, metrics, accuracy, err
+	return observations, metrics, answers, accuracy, err
 }
 
 func (p multipleChoicePlan) contents() ([]artifact.Content, error) {

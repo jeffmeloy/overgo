@@ -258,12 +258,16 @@ func publishCampaignReport(
 	return err
 }
 
+// publishCampaignDocument publishes a plan's report, which stands on the plan,
+// its dataset and whatever else it names: for a report scored from answers
+// the store keeps, what those answers were asked of.
 func publishCampaignDocument[T any](
 	ctx context.Context,
 	repository artifact.Repository,
 	plan, dataset, id artifact.ID,
 	contract artifact.DocumentContract,
 	value T,
+	named ...artifact.ID,
 ) error {
 	content, err := contract.ContentJSON(id, value)
 	if err != nil {
@@ -280,7 +284,7 @@ func publishCampaignDocument[T any](
 	}
 	batch, err := artifact.NewDocumentBatch(
 		key, []artifact.Content{content},
-		artifact.DependencyLineage(id, plan, dataset),
+		artifact.DependencyLineage(id, append([]artifact.ID{plan, dataset}, named...)...),
 		bindings,
 	)
 	if err != nil {

@@ -98,29 +98,21 @@ func matchChoiceLetter(text string, candidates []string) (int, bool) {
 	return 0, false
 }
 
-// answerChoiceByGeneration scores one case through the template: the
-// observation records the generated text and whether a letter matched;
-// an unmatched answer selects nothing and counts as incorrect.
+// answerChoiceByGeneration puts one case to the model through its template
+// and returns what it wrote, less the time it took, which two runs of one
+// case do not share. scoreChoice reads a letter from it.
 func answerChoiceByGeneration(
 	ctx context.Context,
 	runtime chatChoiceRuntime,
 	testCase MultipleChoiceCase,
-) (choiceObservation, error) {
+) (ExactResult, error) {
 	prompt, err := ChatChoicePrompt(runtime, testCase)
 	if err != nil {
-		return choiceObservation{}, err
+		return ExactResult{}, err
 	}
-	result, err := Record(ctx, runtime, testCase.Name, prompt, chatAnswerTokens)
-	if err != nil {
-		return choiceObservation{}, err
-	}
-	observation := choiceObservation{
-		Name: testCase.Name, Answer: testCase.Answer, Raw: result.Text, Selected: unmatchedChoice,
-	}
-	if index, matched := matchChoiceLetter(result.Text, chatChoiceLetters(testCase)); matched {
-		observation.Selected = index
-	}
-	return observation, nil
+	written, err := Record(ctx, runtime, testCase.Name, prompt, chatAnswerTokens)
+	written.WallNS = 0
+	return written, err
 }
 
 // ChatShaper renders one user message through a model's declared chat

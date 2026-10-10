@@ -30,6 +30,9 @@ type ReferenceEditRuntimeConfig struct {
 	Sigmas                       []float32
 	ContextTimestep              int64
 	Layers, DeviceOrdinal        int
+	// CodecLibrary has the autoencoder convolve a clip large enough to repay
+	// it through cuDNN, on a machine that has it (libraryRoute).
+	CodecLibrary bool
 }
 
 type referenceEditRuntimeResult struct {
@@ -147,7 +150,10 @@ func NewReferenceEditRuntime(config ReferenceEditRuntimeConfig) (runtime *refere
 	if err != nil {
 		return runtime, err
 	}
-	runtime.decoder, err = NewVAEDecoderCUDASession(vaeCheckpoint, decoderPlan, config.DeviceOrdinal)
+	if runtime.decoder, err = NewVAEDecoderCUDASession(vaeCheckpoint, decoderPlan, config.DeviceOrdinal); err == nil && config.CodecLibrary {
+		runtime.encoder.codec.adoptLibrary(libraryClipValues)
+		runtime.decoder.adoptLibrary(libraryClipValues)
+	}
 	return runtime, err
 }
 

@@ -30,11 +30,13 @@ import (
 
 type vaeDeviceWeights = media.CodecBindings[driver.DevicePtr]
 
-// vaeDeviceCache: device-resident temporal cache (reference feat_cache).
+// vaeDeviceCache: device-resident temporal cache (reference feat_cache). It
+// is single precision, or half when the library's convolution keeps it
+// (libraryCachedConv).
 type vaeDeviceCache struct {
-	ptr              driver.DevicePtr
-	frames, slot     int
-	initialized, rep bool
+	ptr                    driver.DevicePtr
+	frames, slot           int
+	initialized, rep, half bool
 }
 
 type vaeDeviceOpState struct {
@@ -57,6 +59,11 @@ type vaeDecoderCUDASession struct {
 	kernels [media.CodecKernelABICount]driver.Function
 	weights []vaeDeviceWeights
 	buffers map[media.CodecWorkspaceKey]vaeDeviceBuffer
+	// route says which requests convolve through cuDNN and which by the
+	// kernels (adoptLibrary), and library is the context those that do
+	// convolve through, made at the first of them.
+	route   libraryRoute
+	library *vaeLibrary
 
 	// profile: per-op accumulated synchronized wall, enabled by
 	// OVERGO_VAE_PROFILE=1 (measurement apparatus; nil in production).
@@ -230,7 +237,19 @@ func convGrid(cOut, positions int) driver.Dim3 {
 	return kernel.Grid1D(((cOut + tile - 1) / tile) * ((positions + threads - 1) / threads))
 }
 
+// conv3d convolves a chunk causally, reading the frames before it from a
+// single-precision cache: through the library where the request takes it and
+// it convolves the shape, and by the kernel otherwise.
 func (s *vaeDecoderCUDASession) conv3d(state *device.State, out, x, cache driver.DevicePtr, cacheT int, weight, bias driver.DevicePtr, cIn, cOut, frames, h, w, kt, kh, kw int) error {
+	if s.route.taken {
+		if convolved, _, _, err := s.libraryConv3d(state, out, x, vaeDeviceCache{ptr: cache, frames: cacheT}, weight, bias, cIn, cOut, frames, h, w, kt, kh, kw); convolved || err != nil {
+			return err
+		}
+	}
+	return s.kernelConv3d(state, out, x, cache, cacheT, weight, bias, cIn, cOut, frames, h, w, kt, kh, kw)
+}
+
+func (s *vaeDecoderCUDASession) kernelConv3d(state *device.State, out, x, cache driver.DevicePtr, cacheT int, weight, bias driver.DevicePtr, cIn, cOut, frames, h, w, kt, kh, kw int) error {
 	if !slices.Contains(convKernels[:], convExtents{kt, kh, kw}) {
 		return fmt.Errorf("vae cuda convolution: no kernel of %dx%dx%d", kt, kh, kw)
 	}
@@ -296,12 +315,22 @@ func (s *vaeDecoderCUDASession) updateCache(state *device.State, owner media.Cod
 func (s *vaeDecoderCUDASession) runOp(state *device.State, opIndex, chunkIndex int, op media.CodecOperation[pytorchzip.TensorBinding], values vaeDeviceWeights, opState *vaeDeviceOpState, x driver.DevicePtr, activation media.CodecWorkspaceKey, frames, h, w int) (driver.DevicePtr, int, int, int, error) {
 	spatial := h * w
 	c := op.InputChannels
-	cachedConv := func(out, input driver.DevicePtr, cache *vaeDeviceCache, weight, bias driver.DevicePtr, cOut, kt, kh, kw int) error {
-		if err := s.conv3d(state, out, input, cache.ptr, cache.frames, weight, bias, c, cOut, frames, h, w, kt, kh, kw); err != nil {
+	// cachedConv convolves input causally and keeps, under role, the frames the
+	// next chunk's convolution reads before its own: through the library where
+	// the request takes it and it convolves the shape, and by the kernels otherwise.
+	cachedConv := func(out, input driver.DevicePtr, cache *vaeDeviceCache, role media.CodecWorkspaceRole, weight, bias driver.DevicePtr, cIn, cOut, kt, kh, kw int) error {
+		owner := media.OperationCodecWorkspace(role, opIndex, tensor.FirstOffset)
+		if convolved, err := s.libraryCachedConv(state, out, input, cache, owner, weight, bias, cIn, cOut, frames, h, w, kt, kh, kw); convolved || err != nil {
+			return err
+		}
+		if cache.half {
+			return fmt.Errorf("vae cuda convolution: operation %d kept its frames for the library, which does not convolve this chunk", opIndex)
+		}
+		if err := s.kernelConv3d(state, out, input, cache.ptr, cache.frames, weight, bias, cIn, cOut, frames, h, w, kt, kh, kw); err != nil {
 			return err
 		}
 		if checked.Nonzero(kt / tensor.PairedExtent) {
-			next, err := s.updateCache(state, media.OperationCodecWorkspace(media.CodecWorkspaceCacheInput, opIndex, tensor.FirstOffset), *cache, input, c, frames, spatial, false)
+			next, err := s.updateCache(state, owner, *cache, input, cIn, frames, spatial, false)
 			if err != nil {
 				return err
 			}
@@ -317,7 +346,7 @@ func (s *vaeDecoderCUDASession) runOp(state *device.State, opIndex, chunkIndex i
 		if err != nil {
 			return 0, 0, 0, 0, err
 		}
-		if err := cachedConv(out, x, &opState.cache0, weight, bias, op.OutputChannels, kernel[0], kernel[1], kernel[2]); err != nil {
+		if err := cachedConv(out, x, &opState.cache0, media.CodecWorkspaceCacheInput, weight, bias, c, op.OutputChannels, kernel[0], kernel[1], kernel[2]); err != nil {
 			return 0, 0, 0, 0, err
 		}
 		return out, frames, h, w, nil
@@ -336,7 +365,7 @@ func (s *vaeDecoderCUDASession) runOp(state *device.State, opIndex, chunkIndex i
 			return 0, 0, 0, 0, err
 		}
 		kernel := op.Convolution.Kernel
-		if err := cachedConv(h0, n0, &opState.cache0, w0, b0, op.OutputChannels, kernel[0], kernel[1], kernel[2]); err != nil {
+		if err := cachedConv(h0, n0, &opState.cache0, media.CodecWorkspaceCacheInput, w0, b0, c, op.OutputChannels, kernel[0], kernel[1], kernel[2]); err != nil {
 			return 0, 0, 0, 0, err
 		}
 		n1, err := s.buffer(state, media.ProgramCodecWorkspace(media.CodecWorkspaceScratch, tensor.FirstOffset), op.OutputChannels*frames*spatial)
@@ -350,14 +379,9 @@ func (s *vaeDecoderCUDASession) runOp(state *device.State, opIndex, chunkIndex i
 		if err != nil {
 			return 0, 0, 0, 0, err
 		}
-		if err := s.conv3d(state, out, n1, opState.cache1.ptr, opState.cache1.frames, w1, b1, op.OutputChannels, op.OutputChannels, frames, h, w, kernel[0], kernel[1], kernel[2]); err != nil {
+		if err := cachedConv(out, n1, &opState.cache1, media.CodecWorkspaceCacheOutput, w1, b1, op.OutputChannels, op.OutputChannels, kernel[0], kernel[1], kernel[2]); err != nil {
 			return 0, 0, 0, 0, err
 		}
-		nextCache1, err := s.updateCache(state, media.OperationCodecWorkspace(media.CodecWorkspaceCacheOutput, opIndex, tensor.FirstOffset), opState.cache1, n1, op.OutputChannels, frames, spatial, false)
-		if err != nil {
-			return 0, 0, 0, 0, err
-		}
-		opState.cache1 = nextCache1
 		if !op.RequiresProjection() {
 			if err := s.addInPlace(state, out, out, x, op.OutputChannels*frames*spatial); err != nil {
 				return 0, 0, 0, 0, err
@@ -544,7 +568,7 @@ func (s *vaeDecoderCUDASession) runOp(state *device.State, opIndex, chunkIndex i
 			return 0, 0, 0, 0, err
 		}
 		kernel := op.Convolution.Kernel
-		if err := cachedConv(out, norm, &opState.cache0, weight, bias, op.OutputChannels, kernel[0], kernel[1], kernel[2]); err != nil {
+		if err := cachedConv(out, norm, &opState.cache0, media.CodecWorkspaceCacheInput, weight, bias, c, op.OutputChannels, kernel[0], kernel[1], kernel[2]); err != nil {
 			return 0, 0, 0, 0, err
 		}
 		return out, frames, h, w, nil
@@ -599,6 +623,9 @@ func (s *vaeDecoderCUDASession) DecodeContext(ctx context.Context, stats VAELate
 	}
 	spatial := geometry.spatial
 	started := time.Now()
+	if err := s.routeClip(ctx, geometry.frames*geometry.height*geometry.width); err != nil {
+		return decodeStats, err
+	}
 	stream, err := media.NewCodecChunkStream[pytorchzip.TensorBinding, vaeDeviceOpState](plan.CodecProgram)
 	if err != nil {
 		return decodeStats, err
@@ -716,7 +743,7 @@ func (s *vaeDecoderCUDASession) Close() error {
 	if s.worker != nil {
 		errs = append(errs, s.worker.Do(context.WithoutCancel(s.ctx), func(state *device.State) error {
 			var innerErrs []error
-			innerErrs = append(innerErrs, state.Driver.StreamSynchronize(state.Stream))
+			innerErrs = append(innerErrs, state.Driver.StreamSynchronize(state.Stream), s.closeLibrary(state))
 			for index, weights := range s.weights {
 				operation := s.Plan.Operations[index]
 				for _, pointer := range media.CodecBindingValues(operation.Operator, operation.RequiresProjection(), weights) {

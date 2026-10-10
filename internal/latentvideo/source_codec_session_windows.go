@@ -58,6 +58,9 @@ func (s *vaeEncoderCUDASession) Encode(ctx context.Context, plan sourceCodecPlan
 	}
 	started := time.Now()
 	s.codec.ctx = ctx
+	if err := s.codec.routeClip(ctx, plan.Source.Frames*plan.Source.Height*plan.Source.Width); err != nil {
+		return nil, stats, err
+	}
 	stream, err := media.NewCodecChunkStream[pytorchzip.TensorBinding, vaeDeviceOpState](s.Plan.CodecProgram)
 	if err != nil {
 		return nil, stats, err

@@ -42,8 +42,8 @@ type ltProcs struct {
 	heuristic, matmul                                           *syscall.Proc
 }
 
-func (p *ltProcs) bindings() []procBinding {
-	return []procBinding{
+func (p *ltProcs) bindings() []Binding {
+	return []Binding{
 		{"cublasLtCreate", &p.create},
 		{"cublasLtDestroy", &p.destroy},
 		{"cublasLtMatmulDescCreate", &p.descCreate},

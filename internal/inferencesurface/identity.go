@@ -88,9 +88,16 @@ var neutralReads = []string{
 var readers = []string{"Getenv", "LookupEnv"}
 
 // libraries are the files a process loads from outside its executable that a
-// device result can depend on: the CUDA driver and the cuBLAS libraries
-// (internal/cuda/driver, internal/cuda/cublas).
-var libraries = []string{"nvcuda.dll", "cublas64_12.dll", "cublasLt64_12.dll"}
+// device result can depend on: the CUDA driver, the cuBLAS libraries, and
+// cuDNN with the parts of it a convolution loads from beside it
+// (internal/cuda/driver, internal/cuda/cublas, internal/cuda/cudnn). cuDNN is
+// one a machine may be without: a clip convolved through it and one convolved
+// by the kernels differ, and so do the identities they are kept under.
+var libraries = []string{
+	"nvcuda.dll", "cublas64_12.dll", "cublasLt64_12.dll",
+	"cudnn64_9.dll", "cudnn_graph64_9.dll", "cudnn_ops64_9.dll", "cudnn_cnn64_9.dll",
+	"cudnn_engines_precompiled64_9.dll", "cudnn_heuristic64_9.dll", "cudnn_engines_runtime_compiled64_9.dll",
+}
 
 // LinkFlag counts the execution identities of the tree at root and returns
 // the linker flag that records them in an executable built from it. The

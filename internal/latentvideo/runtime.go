@@ -24,6 +24,9 @@ type GeneratorConfig struct {
 	Height         int
 	Precision      DenoiserPrecision
 	DeviceOrdinal  int
+	// CodecLibrary has the autoencoder convolve a clip large enough to repay
+	// it through cuDNN, on a machine that has it (libraryRoute).
+	CodecLibrary bool
 }
 
 // GenerateRequest: one conditioned trajectory and streamed clip publication.
@@ -107,7 +110,9 @@ func NewGenerator(config GeneratorConfig) (generator *Generator, err error) {
 	if err != nil {
 		return generator, err
 	}
-	generator.decoder, err = NewVAEDecoderCUDASession(checkpoint, plan, config.DeviceOrdinal)
+	if generator.decoder, err = NewVAEDecoderCUDASession(checkpoint, plan, config.DeviceOrdinal); err == nil && config.CodecLibrary {
+		generator.decoder.adoptLibrary(libraryClipValues)
+	}
 	return generator, err
 }
 

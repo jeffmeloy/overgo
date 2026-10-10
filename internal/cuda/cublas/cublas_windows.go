@@ -30,14 +30,15 @@ type Library struct {
 	lt                ltProcs
 }
 
-type procBinding struct {
-	name string
-	dst  **syscall.Proc
+// Binding is one entry point of a toolkit library and where its address goes.
+type Binding struct {
+	Name string
+	Proc **syscall.Proc
 }
 
 func Open() (*Library, error) {
 	lib := &Library{}
-	dll, err := loadLibrary("cublas64_12.dll", []procBinding{
+	dll, err := Load("cublas64_12.dll", []Binding{
 		{"cublasCreate_v2", &lib.create},
 		{"cublasDestroy_v2", &lib.destroy},
 		{"cublasSetStream_v2", &lib.setStream},
@@ -50,16 +51,16 @@ func Open() (*Library, error) {
 		return nil, err
 	}
 	lib.dll = dll
-	if lib.ltDLL, err = loadLibrary("cublasLt64_12.dll", lib.lt.bindings()); err != nil {
+	if lib.ltDLL, err = Load("cublasLt64_12.dll", lib.lt.bindings()); err != nil {
 		_ = dll.Release()
 		return nil, err
 	}
 	return lib, nil
 }
 
-// loadLibrary loads a CUDA toolkit DLL from the search path or
+// Load loads a CUDA toolkit DLL from the search path or
 // CUDA_PATH and resolves every binding.
-func loadLibrary(name string, bindings []procBinding) (*syscall.DLL, error) {
+func Load(name string, bindings []Binding) (*syscall.DLL, error) {
 	candidates := []string{name}
 	if cudaPath := os.Getenv("CUDA_PATH"); cudaPath != "" {
 		candidates = append(candidates, filepath.Join(cudaPath, "bin", name))
@@ -76,12 +77,12 @@ func loadLibrary(name string, bindings []procBinding) (*syscall.DLL, error) {
 		return nil, errors.New("load " + name + ": " + loadErr.Error())
 	}
 	for _, item := range bindings {
-		proc, err := dll.FindProc(item.name)
+		proc, err := dll.FindProc(item.Name)
 		if err != nil {
 			_ = dll.Release()
-			return nil, errors.New("resolve " + item.name + ": " + err.Error())
+			return nil, errors.New("resolve " + item.Name + ": " + err.Error())
 		}
-		*item.dst = proc
+		*item.Proc = proc
 	}
 	return dll, nil
 }

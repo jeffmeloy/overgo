@@ -7732,6 +7732,85 @@ extern "C" __global__ void vae_temporal_cache_update_f32(
     out[index] = current[(ch * current_frames + src) * spatial + pos];
 }
 
+// vae_causal_stage_f16: the input of a causal convolution as a convolution
+// library takes it. A convolution over time reads the frames before its
+// chunk, which vae_conv_tile reads from the cache beside the chunk and a
+// library takes only as part of its input. Here the chunk stands behind them
+// in one tensor of out_frames frames, in half precision: the frames before
+// the chunk are the cache's, and zero where the cache holds fewer than
+// out_frames - frames. With out_frames equal to frames it is the chunk in
+// half precision. The cache is single precision, as vae_temporal_cache_update_f32
+// keeps one, or half precision when cache_half is set, as vae_tail_frames_f16
+// keeps one: a frame kept in half precision is the half this would write of it.
+extern "C" __global__ void vae_causal_stage_f16(
+        unsigned short * out,
+        const float * x,
+        const void * cache,
+        int frames,
+        int cache_frames,
+        int cache_half,
+        int out_frames,
+        int spatial,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    const int ch = (int) index / (out_frames * spatial);
+    const int rem = (int) index - ch * out_frames * spatial;
+    const int ti = rem / spatial;
+    const int pos = rem - ti * spatial;
+    const int lead = out_frames - frames;
+    if (ti >= lead) {
+        out[index] = __half_as_ushort(__float2half_rn(x[(ch * frames + ti - lead) * spatial + pos]));
+        return;
+    }
+    if (ti < lead - cache_frames) {
+        out[index] = 0;
+        return;
+    }
+    const int kept = (ch * cache_frames + ti - (lead - cache_frames)) * spatial + pos;
+    out[index] = cache_half
+        ? ((const unsigned short *) cache)[kept]
+        : __half_as_ushort(__float2half_rn(((const float *) cache)[kept]));
+}
+
+// vae_tail_frames_f16: the last out_frames frames of each channel of a staged
+// tensor of frames frames, which are the frames the next chunk's convolution
+// reads before its own: the cache vae_temporal_cache_update_f32 keeps of a
+// convolution's input, read from what vae_causal_stage_f16 staged of it.
+extern "C" __global__ void vae_tail_frames_f16(
+        unsigned short * out,
+        const unsigned short * staged,
+        int frames,
+        int out_frames,
+        int spatial,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    const int ch = (int) index / (out_frames * spatial);
+    const int rem = (int) index - ch * out_frames * spatial;
+    out[index] = staged[(ch * frames + frames - out_frames) * spatial + rem];
+}
+
+// vae_widen_bias_f32: what a convolution library wrote in half precision, in
+// single precision with its channel's bias added: each of a channel's plane
+// values takes the channel's bias, which stays single precision.
+extern "C" __global__ void vae_widen_bias_f32(
+        float * out,
+        const unsigned short * convolved,
+        const float * bias,
+        int plane,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    out[index] = __half2float(__ushort_as_half(convolved[index])) + bias[(int) index / plane];
+}
+
 __device__ __forceinline__ unsigned int mad_value_rank(
         const float * row,
         unsigned int width,

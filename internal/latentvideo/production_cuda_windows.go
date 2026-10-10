@@ -53,7 +53,7 @@ func LoadWanRuntime(ctx context.Context, store artifact.Reader, path string, pro
 		Frames: request.Frames, Width: request.Width, Height: request.Height,
 		Precision: DenoiserPrecision{
 			MatmulWeights: storage, RoundAttentionStorage: profile.Precision.RoundAttentionStorage,
-		}, DeviceOrdinal: ordinal,
+		}, DeviceOrdinal: ordinal, CodecLibrary: true,
 	})
 	if err != nil {
 		return nil, err
@@ -201,7 +201,7 @@ func LoadLiveEditRuntime(ctx context.Context, store artifact.Reader, path string
 		Source:         SourceVideoShape{Channels: source.Channels, Frames: source.Frames, Height: source.Height, Width: source.Width},
 		FramesPerChunk: condition.FramesPerChunk, LocalAttentionFrames: condition.LocalAttention,
 		Timesteps: condition.Timesteps, Sigmas: condition.Sigmas, ContextTimestep: condition.ContextTimestep,
-		Layers: base.NumLayers, DeviceOrdinal: device.DefaultOrdinal(),
+		Layers: base.NumLayers, DeviceOrdinal: device.DefaultOrdinal(), CodecLibrary: true,
 	})
 	if err != nil {
 		return nil, err

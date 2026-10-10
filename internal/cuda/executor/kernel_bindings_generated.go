@@ -193,13 +193,16 @@ const (
 	kernelTopKPartialsF32
 	kernelTranspose2dF32
 	kernelVaeCausalConv3dF32
+	kernelVaeCausalStageF16
 	kernelVaeChannelRmsNormF32
 	kernelVaeDownsample2dF32
 	kernelVaeSpatialAttentionF32
+	kernelVaeTailFramesF16
 	kernelVaeTemporalDownsampleF32
 	kernelVaeTemporalCacheUpdateF32
 	kernelVaeTimeInterleaveF32
 	kernelVaeUpsample2dF32
+	kernelVaeWidenBiasF32
 	kernelWeightedRmsGateF32
 	kernelWeightedRmsGateQ80F32
 	kernelWeightedRmsNormAddF32
@@ -399,13 +402,16 @@ var kernelFunctionNames = [...]string{
 	"top_k_partials_f32",
 	"transpose_2d_f32",
 	"vae_causal_conv3d_f32",
+	"vae_causal_stage_f16",
 	"vae_channel_rms_norm_f32",
 	"vae_downsample2d_f32",
 	"vae_spatial_attention_f32",
+	"vae_tail_frames_f16",
 	"vae_temporal_downsample_f32",
 	"vae_temporal_cache_update_f32",
 	"vae_time_interleave_f32",
 	"vae_upsample2d_f32",
+	"vae_widen_bias_f32",
 	"weighted_rms_gate_f32",
 	"weighted_rms_gate_q8_0_f32",
 	"weighted_rms_norm_add_f32",
@@ -604,13 +610,16 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	7,
 	5,
 	14,
+	9,
 	6,
 	10,
+	6,
 	6,
 	11,
 	10,
 	6,
 	9,
+	5,
 	10,
 	11,
 	7,

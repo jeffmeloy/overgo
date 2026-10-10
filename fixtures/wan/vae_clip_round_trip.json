@@ -1,0 +1,31 @@
+{
+  "source": "Wan2.1 wan/modules/vae.py WanVAE decode(encode(x)), torch 2.12.0+cu126, float32 on the CPU; scripts/python_golden_references/wan_vae_clip_round_trip.py",
+  "weights": "Wan2.1_VAE.pth",
+  "latent_shape": [
+    16,
+    2,
+    2,
+    4
+  ],
+  "mean_squared_error": 0.0015631431788771285,
+  "clip": {
+    "file": "raw/vae_clip_source.f32le",
+    "shape": [
+      3,
+      5,
+      16,
+      32
+    ],
+    "sha256": "5fefc16778f6431ac4bf6259bca07c371a75bf5dab46159650cfe20852918165"
+  },
+  "image": {
+    "file": "raw/vae_clip_image.f32le",
+    "shape": [
+      3,
+      5,
+      16,
+      32
+    ],
+    "sha256": "faa5e28affbb2df3999b2f5164f544c9b0d42b3af9104ebbef26d50b6c32b6f9"
+  }
+}

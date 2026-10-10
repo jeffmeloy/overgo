@@ -27,7 +27,9 @@ type AutoencoderRuntime struct {
 }
 
 // LoadAutoencoderRuntime compiles both halves from the checkpoint in a Wan
-// directory and loads them on the default device.
+// directory and loads them on the default device. A clip large enough to
+// repay it is convolved through cuDNN on a machine that has it; a picture is
+// not (libraryRoute).
 func LoadAutoencoderRuntime(directory string) (runtime *AutoencoderRuntime, err error) {
 	checkpoint := AutoencoderWeights(directory)
 	catalog, err := pytorchzip.ReadCatalog(checkpoint)
@@ -56,7 +58,10 @@ func LoadAutoencoderRuntime(directory string) (runtime *AutoencoderRuntime, err 
 	if runtime.encoder, err = newVAEEncoderCUDASession(checkpoint, graph, device.DefaultOrdinal()); err != nil {
 		return runtime, err
 	}
-	runtime.decoder, err = NewVAEDecoderCUDASession(checkpoint, decoderPlan, device.DefaultOrdinal())
+	if runtime.decoder, err = NewVAEDecoderCUDASession(checkpoint, decoderPlan, device.DefaultOrdinal()); err == nil {
+		runtime.encoder.codec.adoptLibrary(libraryClipValues)
+		runtime.decoder.adoptLibrary(libraryClipValues)
+	}
 	return runtime, err
 }
 

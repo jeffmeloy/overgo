@@ -9,8 +9,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 63,
-        "reason": "The first step's measured figure, 2,097 production nodes as the gate's preflight counts the built change, and a margin of 63 for what the later stages of the checks may still ask of it: the count of an identity for each capability package, the reads of the environment it declares, the libraries and settings of the process, the linker flag and the two launches that pass it, the key of a stored answer, and the files a model reads beside its inventory. Filed at 1,862, the size of internal/inferencesurface, before the step was designed. The second step deletes the code scope and the sampled replay; the third step's figure is added when it is built and measured, in the plan of the commit before it"
+        "nodes": 790,
+        "reason": "The picture session step's measured figure, 748 production nodes as the gate's preflight counts the built change, and a margin of 42: a picture session's conditioning made again for another prompt beside the denoiser it keeps, the denoiser bound again by the names of the weights the session holds, and a director that serves a request by a session loaded for it when the resident one refuses it. The row's first step measured 2,097 of 2,160 and left 63; its carry step is a row of its own, identity-carry"
       },
       "steps": [
         {
@@ -265,7 +265,8 @@
             "baseline-resume/do",
             "count-evaluation-chain/do",
             "count-capability-identity/do",
-            "count-session-isolation/do"
+            "count-session-isolation/do",
+            "count-second-kind/do"
           ]
         }
       ]

@@ -4,6 +4,36 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "frozen-video-81",
+      "title": "Accept the frozen clip of 81 frames again, as the library decodes it now",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Accept the frozen clip of 81 frames again, as the library decodes it now",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_WAN_FULL=1 OVERGO_WAN_MODEL=C:/Users/jeffm/adaptive_new/models/Wan2.1-T2V-1.3B go test ./internal/latentvideo -tags=integration -run '^TestFrozenLatentVideoGeneration$' -count=1 -timeout=40m",
+          "rationale": "internal/latentvideo TestFrozenLatentVideoGeneration holds five accepted clips byte for byte. The third of the generator's, 81 frames at 832 by 480, is large enough to be decoded through cuDNN on this machine and was accepted on 2026-10-10 as the library decoded it then (9d2af5bc4, output 3b432042). The same day codec-library-rest (61b87a5ac) put the decoder's convolution of each frame enlarged to twice its extents through the library too. That moves a decoded value by less than a level and the clip's bytes with it, as its message said it might. Drawn fresh on the store at 61b87a5ac, the request gives run da4b8093 and output 2ce1f2aa, 18,310,751 bytes, where the accepted clip is 18,308,826. The test needs a build tag and a setting of its own, so no commit's checks ran it (finding a57721de), and the accepted record has been stale since that commit.\n\nThe step looks at every frame of the new clip, beside the clip it replaces, publishes its review, and moves the test and the accepted record to it: the case's run, output and review in docs/verification/image-video-coverage.json with the digests it pins, the digest of that record cmd/validate holds, and a note in docs/image_video_validation.json. The clip it replaces is taken out of docs/media_samples, since nothing then reads it: the accepted sample of this case is 18 megabytes, and it will move again whenever the library's path does. The step says so, and says what the four small clips are: the kernels' on any machine, and not moved.\n\nServes: generate. Disappears: an accepted clip the served path no longer draws. Evidence: the run, the output and the review, and the test passing. Batch: device; it needs a media reconciliation."
+        }
+      ]
+    },
+    {
+      "id": "video-text-encoder",
+      "title": "Take the text encoder out of a video request's first output",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Take the text encoder out of a video request's first output",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -count=1 -run '^TestPromptRowsOfTheServedEncoderStandWithinTheirBound$'",
+          "rationale": "The scorecard's first output of the two video rows is mostly the text encoder, and none of the work on the autoencoder's convolutions reaches it. The measurement run of 2026-10-10 at faa589c33 printed where each row's timed request spent its time (cmd/recipe measure, the request the model's verification ran, a clip of 21 frames at 32 by 16). The generator, 16.47 seconds: text encoder run 10.12, text encoder weights read 0.90, model session leased 4.32, prompt tokenized and projected 0.31, clip denoised 0.47, clip decoded 0.25. The editor, 10.99 seconds: text encoder weights read 3.06, text encoder run 1.94, model session leased 4.47, source clip encoded 0.40, ten denoising passes 0.10, clip decoded 0.24. The clip is far below the size that takes cuDNN, and its decoding is 1.5 parts in a hundred of the request, so the commits that moved the convolutions to the library (685397181, 61b87a5ac) change neither row, whatever their messages predicted: 61b87a5ac said first output of both rows would fall, and it will not. What they made faster is a request of the size a user asks for, 21 or 81 frames at 832 by 480, which no row times.\n\nThe encoder is run on the host, a block at a time, each block's weights read from an 11 gigabyte checkpoint as the pass reaches it (internal/latentvideo encoder.go: encodeSequencesStreamed, engine host_streamed), once for every request that carries a prompt its process has not encoded. A process keeps the rows of the prompts it encoded, so a second request with the same prompt pays nothing; the first pays all of it, and the first is what first-output times.\n\nThe step measures before it builds, and fixes its scope there: how many tokens each prompt of the two requests is, and how a pass divides between reading a block and multiplying by it, for one prompt and for two. It then takes the way that removes the most of the ten seconds for what it adds. The candidates, in the order they will be tried: running the blocks on the device, where the model's other weights already are, a block uploaded as it is read; and keeping in the store, under the encoder's execution identity, the rows of a prompt every request of a model shares, the generator's negative prompt, so that no process encodes it again. A device path's rows will not be the host's value for value; it is held to the host's rows within a stated bound and to the model's own clip as the served paths are, and a frozen clip it moves is accepted again. It is accepted when first-output of both rows falls by at least half the encoder's share, measured by the scorecard's own cell, with peak-device-memory stated before and after.\n\nServes: generate. Disappears: ten seconds of host arithmetic in front of every first video. Evidence: the stage report of each row's timed request before and after, and the rows' distance from the host's. Batch: device. It has no count: its first measurement sizes it."
+        }
+      ]
+    },
+    {
       "id": "codec-library-threshold",
       "title": "Decide by measurement which clips and pictures take cuDNN, now that it is faster at every size timed",
       "owner": "master-lead",
@@ -332,7 +362,10 @@
             "count-here/do",
             "count-rest/do",
             "codec-library-threshold/do",
-            "row-threshold/do"
+            "row-threshold/do",
+            "video-text-encoder/do",
+            "frozen-video-81/do",
+            "rows-video/do"
           ]
         }
       ]

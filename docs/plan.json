@@ -4,6 +4,25 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "scorecard-unmeasured-training",
+      "title": "Measure training's unmeasured cells",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 260,
+        "reason": "The built change's measured figure, 249 production nodes as the gate's preflight counts it, and a margin of 11: the tabular route's proof run and recipe and the load time it and the forecast route pass to their sessions (158), and the measurement plan's binding of a table objective's proof to the tabular route (91). The loop files a scorecard row with no count; this one's cell needed a producer to report a time it never reported and a command the measurement run did not have"
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure training's unmeasured cells",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-training",
+          "rationale": "- tabfm-1.0.0-pytorch load-time: no benchmark load time and no recorded load phase\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261009T224309Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
       "id": "evaluation-chain",
       "title": "Judge a trained change on data large enough to see it and never used to choose it",
       "owner": "master-lead",
@@ -240,7 +259,8 @@
             "count-second-kind/do",
             "count-template-bounds/do",
             "count-confirmation/do",
-            "count-observations/do"
+            "count-observations/do",
+            "count-unmeasured-training/do"
           ]
         }
       ]
@@ -272,21 +292,6 @@
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-b22137c6b1f9b2cc -target 0.050400916380297825",
           "rationale": "- pocket-tts held-out-quality, {Metric:word_error_rate Origin:evaluation Suite:dataset:sha256:fd1ccc539452b1a79d5413eb87917b79f82330f5160047299fc807fab9c94422 Protocol:raw-completion Comparison:profile:sha256:003a74fb6d22635a51867f837c55f10b1b543a9ea3a12048047d250cb20f55fa Scope:}: 0.0504009164 to 0.0515463918 (+0.00114547537, +2.3%; word_error_rate, dataset:sha256:fd1ccc539452b1a79d5413eb87917b79f82330f5160047299fc807fab9c94422 (raw-completion))\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261009T224309Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-unmeasured-training",
-      "title": "Measure training's unmeasured cells",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Measure training's unmeasured cells",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-training",
-          "rationale": "- tabfm-1.0.0-pytorch load-time: no benchmark load time and no recorded load phase\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261009T224309Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
         }
       ]
     }
@@ -580,6 +585,20 @@
         "identity-carry"
       ],
       "asked": "2026-10-09"
+    },
+    {
+      "id": "acceptance-cost",
+      "question": "evaluation-chain's last step, acceptance, adds a memory ceiling and a speed target to a held-out pool's acceptance and has a confirmation refuse a candidate with no resource comparison against the base within them. Every candidate the proposer makes today is other weights of the base's shape, so it has the base's memory and speed, and no row in the plan makes another kind of candidate; a served recipe's memory and speed are already read by the scorecard and by the routing decision. When should the step be built?",
+      "options": [
+        "When the first candidate whose memory or speed differs from its base's is proposed",
+        "Now, ahead of such a candidate",
+        "Not at all: leave memory and speed to the scorecard and the routing decision"
+      ],
+      "recommendation": "When the first candidate whose memory or speed differs from its base's is proposed",
+      "blocks": [
+        "evaluation-chain"
+      ],
+      "asked": "2026-10-10"
     }
   ]
 }

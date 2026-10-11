@@ -1,0 +1,65 @@
+overgo dense block program on the device: a step of the block adapter beside the trainers it would replace
+tool: OVERGO_CUDA_TEST=1 go test ./internal/densecausal -count=1 -v -run '^TestDenseBlockAdapterTrainsOnTheDevice$', on the change that follows commit 8c36c36e3
+machine: one NVIDIA GeForce RTX 4090 D with nothing else on it, measured in a process of its own; host arithmetic on 32 workers
+block: Qwen2.5-0.5B's shape (hidden 896, 14 heads of 64 over 2 shared, intermediate 4864) with seeded random weights, a sequence of 128 tokens, an adapter of rank 8 on all seven projections
+read by: TestDenseBlockDeviceRecordIsWhole (internal/densecausal), which holds every figure to being here and every finding below to its figures
+
+outcome: the block's forward graph and the backward graph derived from it run on the device as they
+are, and train there as on the host: over ten updates of an adapter on a small block with grouped
+attention every loss is the same to a part in a hundred thousand, and the loss falls. Beside the
+trainers the program would replace the measurement is mixed, and where the comparison is like for
+like it is against the program.
+
+Against the LoRA trainer, which is the only adapter trainer and runs on the host: a step of the
+program on the device takes 10.3 ms where the LoRA trainer's share for a block is 163 ms, a sixteenth.
+That sets a device against a host. On the host itself, through the reference executor, the program's
+step takes 343 ms, about twice the LoRA trainer's.
+
+Against the resident trainer, which trains every weight on the device with a forward and backward
+written by hand: the program's forward and backward take 4.6 ms and the resident trainer's share for
+a block 2.2 ms, so the derived passes take about twice as long, though they differentiate by less (the
+factors, not the weights). The rest of the program's step, 5.7 ms, is nearly all Muon's update of the
+fourteen factors on the host, the update the LoRA trainer takes; the whole step is about as long as
+the resident trainer's share for a block, 10.7 ms, most of which is its update of every weight on the
+device. The program peaks at 118 MB of device memory (101 MB in another run: the graph's order is not
+fixed), of which 60 MB are the block's weights and the rest a step's activations and gradients, among
+them a transposed copy of each weight; the resident trainer peaks at 305 MB on a model of one block
+and adds 192 MB a block. It holds every weight's gradient and Muon's state on the device, which an
+adapter's training does not, so the two memories are not one comparison.
+
+Where the time goes. A step's graph is 666 operations, of which 517 are launched (the rest are inputs
+and reshapes); the forward alone launches 46. The attention's backward, composed a query head at a
+time from two-dimensional products, is 26 launched operations a head, 364 of the 517 at fourteen
+heads. The passes are bound by that number, about nine microseconds an operation: replaying the
+launches as one captured graph (the executor's retained execution) was tried and left the passes
+between 4.2 and 4.8 ms, where launching them one by one took 4.4 to 4.9. What would bring the derived
+passes to the written ones is an attention backward over all heads at once, which the operations
+composed here do not give.
+
+How each figure was taken. Times are the mean of 64 steps on the device and 3 on the host, after one
+step that is not timed. The LoRA trainer and the resident trainer train whole models, so each was run
+on models of one and of five such blocks, and a block's share is a quarter of the difference; the
+resident trainer was run once to load its kernels before the run measured, and its forward and
+backward are its own synchronized measurement. Memory is the device's peak for the process's one
+worker. Times are in microseconds and memory in bytes.
+
+program-device-step-microseconds: 10313
+program-device-passes-microseconds: 4592
+program-device-peak-bytes: 118297600
+program-device-weights-bytes: 59710464
+program-host-step-microseconds: 343420
+lora-host-step-1-blocks-microseconds: 158329
+lora-host-step-5-blocks-microseconds: 811356
+resident-passes-1-blocks-microseconds: 3826
+resident-step-1-blocks-microseconds: 13083
+resident-peak-1-blocks-bytes: 305496956
+resident-passes-5-blocks-microseconds: 12682
+resident-step-5-blocks-microseconds: 56035
+resident-peak-5-blocks-bytes: 1074451324
+
+The findings, the program's figure beside the trainer's:
+
+device-step-against-lora-block: shorter
+host-step-against-lora-block: longer
+device-passes-against-resident-block: longer
+device-peak-against-resident-one-block: less

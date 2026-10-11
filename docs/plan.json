@@ -9,20 +9,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 4437,
+        "nodes": 3982,
         "reason": "A loan, not growth the row keeps: the row is accepted only if its last step removes more than its steps added. Measured on 2026-10-11. The first step, committed: the derivative rules and the builder of a backward graph, and the block adapter that trains through them on the host, 3,982 nodes. The device step, by the automated checks' own figure on its built change: 455 nodes, the adapter's programs run through an executor it is handed and their binding to the device through the graph runtime's resident session."
       },
       "steps": [
-        {
-          "id": "device-block",
-          "title": "Train the adapter on the dense block through the program on the device",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/densecausal -count=1 -run '^TestDenseBlockAdapterTrainsOnTheDevice$'",
-          "rationale": "The third step of shared-numerical-program/dense-block. The same forward and backward graphs are compiled for the device executor, the weights, the factors, their gradients and Muon's state bound as buffers the trainer owns. Its losses agree with the host's, and its device memory and time are measured beside the LoRA trainer's and the resident trainer's on the same block and sequence, which decides the last step.\n\nServes: train. Disappears: nothing yet. Evidence: agreement with the host, and memory and time beside the paths it would replace. Batch: device. Count: none yet; it is set from the built change before the step is committed.",
-          "depends_on": [
-            "shared-numerical-program/rules"
-          ]
-        },
         {
           "id": "dense-block",
           "title": "Train an adapter on a dense block through the tensor program, its backward pass built from the operations' own rules",

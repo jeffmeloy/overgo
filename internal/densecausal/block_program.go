@@ -39,14 +39,21 @@ const (
 type blockAdapter struct {
 	state, target *tensor.Tensor
 	output, miss  *tensor.Tensor
-	fixed         map[*tensor.Tensor][]float32
-	factors       map[string][]float32
-	nodes         map[string]*tensor.Tensor
-	gradients     map[string]*tensor.Tensor
-	forward, both *reference.Program
-	pack          *optimizer.TensorPack
-	optimizer     *optimizer.Optimizer
-	config        optimizer.Config
+	// fixed are the model's weights, which both programs read; constants
+	// are the backward graph's, which only a step reads. An executor that
+	// holds them itself empties both.
+	fixed, constants map[*tensor.Tensor][]float32
+	factors          map[string][]float32
+	nodes            map[string]*tensor.Tensor
+	gradients        map[string]*tensor.Tensor
+	// outputs are the block's output, then what a step reads beside it;
+	// execute runs the first of them alone or all of them, on the host
+	// until the adapter is put on a device.
+	outputs   []*tensor.Tensor
+	execute   func(outputs []*tensor.Tensor, feeds map[*tensor.Tensor]reference.Value) (map[*tensor.Tensor]reference.Value, error)
+	pack      *optimizer.TensorPack
+	optimizer *optimizer.Optimizer
+	config    optimizer.Config
 }
 
 // newBlockAdapter builds the program of layer index of a model over a
@@ -60,7 +67,7 @@ func newBlockAdapter(m *Model, index, seq, rank int, alpha float64, adapted []st
 	}
 	d, names := m.Dims, m.layers[index].names
 	b := tensor.NewBuilder()
-	adapter := &blockAdapter{fixed: map[*tensor.Tensor][]float32{}, factors: map[string][]float32{}, nodes: map[string]*tensor.Tensor{}, gradients: map[string]*tensor.Tensor{}}
+	adapter := &blockAdapter{fixed: map[*tensor.Tensor][]float32{}, constants: map[*tensor.Tensor][]float32{}, factors: map[string][]float32{}, nodes: map[string]*tensor.Tensor{}, gradients: map[string]*tensor.Tensor{}}
 	input := func(name string, dimensions ...uint64) *tensor.Tensor {
 		shape, err := tensor.NewShape(dimensions...)
 		if err != nil {
@@ -130,19 +137,34 @@ func newBlockAdapter(m *Model, index, seq, rank int, alpha float64, adapted []st
 	if err != nil {
 		return nil, err
 	}
-	outputs := []*tensor.Tensor{adapter.output, adapter.miss}
+	adapter.outputs = []*tensor.Tensor{adapter.output, adapter.miss}
 	for at, name := range order {
 		adapter.gradients[name] = derived[at]
-		outputs = append(outputs, derived[at])
+		adapter.outputs = append(adapter.outputs, derived[at])
 	}
 	for _, constant := range constants {
-		adapter.fixed[constant.Tensor] = constant.Data
+		adapter.constants[constant.Tensor] = constant.Data
 	}
-	if adapter.forward, err = reference.Compile(adapter.output); err != nil {
+	forward, err := reference.Compile(adapter.output)
+	if err != nil {
 		return nil, err
 	}
-	if adapter.both, err = reference.Compile(outputs...); err != nil {
+	both, err := reference.Compile(adapter.outputs...)
+	if err != nil {
 		return nil, err
+	}
+	adapter.execute = func(outputs []*tensor.Tensor, feeds map[*tensor.Tensor]reference.Value) (map[*tensor.Tensor]reference.Value, error) {
+		program := both
+		if len(outputs) == 1 {
+			program = forward
+		}
+		inputs := program.NewInputs()
+		for node, value := range feeds {
+			if err := inputs.Set(node, value); err != nil {
+				return nil, err
+			}
+		}
+		return program.Execute(inputs, program.NewWorkspace())
 	}
 	adapter.pack, err = optimizer.NewTensorPack(adapter.factors, func(name string, length int) (int, int, error) {
 		if strings.HasSuffix(name, blockDown) {
@@ -153,25 +175,26 @@ func newBlockAdapter(m *Model, index, seq, rank int, alpha float64, adapted []st
 	return adapter, err
 }
 
-// run executes one of the adapter's programs on a state, and a target where
-// the program reads one, with the model's weights and the factors as they
-// stand.
-func (adapter *blockAdapter) run(program *reference.Program, feeds map[*tensor.Tensor][]float32) (map[*tensor.Tensor]reference.Value, error) {
-	inputs := program.NewInputs()
+// run executes the block's output alone, or everything a step reads, on a
+// state, and a target where a step reads one, with the factors as they stand
+// and what the adapter's executor is not holding of the weights and constants.
+func (adapter *blockAdapter) run(outputs []*tensor.Tensor, feeds map[*tensor.Tensor][]float32) (map[*tensor.Tensor]reference.Value, error) {
 	for name, node := range adapter.nodes {
 		feeds[node] = adapter.factors[name]
 	}
 	maps.Copy(feeds, adapter.fixed)
+	if len(outputs) > 1 {
+		maps.Copy(feeds, adapter.constants)
+	}
+	read := make(map[*tensor.Tensor]reference.Value, len(feeds))
 	for node, data := range feeds {
 		value, err := reference.BorrowedValue(node.Shape, data)
 		if err != nil {
 			return nil, fmt.Errorf("densecausal: block input %q: %w", node.Name, err)
 		}
-		if err := inputs.Set(node, value); err != nil && program == adapter.both {
-			return nil, err
-		}
+		read[node] = value
 	}
-	return program.Execute(inputs, program.NewWorkspace())
+	return adapter.execute(outputs, read)
 }
 
 // kept is what a later adapter over the same block resumes from: the factors
@@ -207,7 +230,7 @@ func (adapter *blockAdapter) resume(factors map[string][]float32, state optimize
 // outputOf is the adapted block's output for a state: a sequence's rows of
 // the model's width.
 func (adapter *blockAdapter) outputOf(state []float32) ([]float32, error) {
-	values, err := adapter.run(adapter.forward, map[*tensor.Tensor][]float32{adapter.state: state})
+	values, err := adapter.run(adapter.outputs[:1], map[*tensor.Tensor][]float32{adapter.state: state})
 	if err != nil {
 		return nil, err
 	}
@@ -228,7 +251,7 @@ func (adapter *blockAdapter) step(state, target []float32, learningRate, momentu
 	} else if config != adapter.config {
 		return 0, errors.New("densecausal: a block adapter's learning rate and momentum are fixed by its first update")
 	}
-	values, err := adapter.run(adapter.both, map[*tensor.Tensor][]float32{adapter.state: state, adapter.target: target})
+	values, err := adapter.run(adapter.outputs, map[*tensor.Tensor][]float32{adapter.state: state, adapter.target: target})
 	if err != nil {
 		return 0, err
 	}

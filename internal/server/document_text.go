@@ -5,14 +5,17 @@ import (
 	"compress/zlib"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"regexp"
 	"strconv"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"overgo/internal/binaryschema"
+	"overgo/internal/media"
 )
 
 // PDF documents attach to a conversation as text (professional GUI
@@ -24,6 +27,25 @@ import (
 // than rendered as noise.
 
 var pdfStreamDictionary = regexp.MustCompile(`(?s)<<(.*)>>\s*stream\r?\n`)
+
+// documentText is a document as the text a model reads: a PDF's drawn text, or a textual type's own bytes. A file
+// part and a dataset draft share it.
+func documentText(mediaType string, data []byte) (string, error) {
+	if mediaType == media.PDFMediaType {
+		text, err := pdfText(data)
+		if err != nil {
+			return "", fmt.Errorf("pdf: %w", err)
+		}
+		return text, nil
+	}
+	if !supportedResponseTextType(mediaType) {
+		return "", fmt.Errorf("media type %q is not textual", mediaType)
+	}
+	if !utf8.Valid(data) || bytes.IndexByte(data, 0) >= 0 {
+		return "", errors.New("content must be UTF-8 text without NUL bytes")
+	}
+	return string(data), nil
+}
 
 // pdfText extracts the drawn text of every content stream in the document.
 func pdfText(data []byte) (string, error) {

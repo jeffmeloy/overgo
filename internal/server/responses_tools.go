@@ -1,7 +1,6 @@
 package server
 
 import (
-	"bytes"
 	"cmp"
 	"context"
 	"encoding/base64"
@@ -11,10 +10,8 @@ import (
 	"net/url"
 	"path"
 	"strings"
-	"unicode/utf8"
 
 	"overgo/internal/inference"
-	"overgo/internal/media"
 	"overgo/internal/strictjson"
 )
 
@@ -491,20 +488,11 @@ func (h *Handler) parseResponsesFile(ctx context.Context, raw json.RawMessage, l
 	if err != nil {
 		return "", fmt.Errorf("%s filename: %w", label, err)
 	}
-	if file.MediaType == media.PDFMediaType {
-		text, err := pdfText(file.Data)
-		if err != nil {
-			return "", fmt.Errorf("%s pdf: %w", label, err)
-		}
-		file.Data, file.MediaType = []byte(text), "text/plain"
+	text, err := documentText(file.MediaType, file.Data)
+	if err != nil {
+		return "", fmt.Errorf("%s %w", label, err)
 	}
-	if !supportedResponseTextType(file.MediaType) {
-		return "", fmt.Errorf("%s media type %q is not textual", label, file.MediaType)
-	}
-	if !utf8.Valid(file.Data) || bytes.IndexByte(file.Data, 0) >= 0 {
-		return "", fmt.Errorf("%s content must be UTF-8 text without NUL bytes", label)
-	}
-	return "[file name=" + fmt.Sprintf("%q", filename) + "]\n" + string(file.Data) + "\n[/file]", nil
+	return "[file name=" + fmt.Sprintf("%q", filename) + "]\n" + text + "\n[/file]", nil
 }
 
 func (h *Handler) resolveResponseFile(id string) (responseFile, bool) {

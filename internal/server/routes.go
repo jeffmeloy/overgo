@@ -78,6 +78,7 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/analyze/tensors/similar", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).analyzeTensorsSimilar},
 	{Path: "/datasets", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).browseDatasets},
 	{Path: "/datasets/preview", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).previewDataset},
+	{Path: "/datasets/draft", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).draftDataset, Inventory: true},
 	{Path: "/runs", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).browseRuns},
 	{Path: "/store/deltas", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).storeDeltas},
 	{Path: "/interactions/replay", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).interactionReplay},

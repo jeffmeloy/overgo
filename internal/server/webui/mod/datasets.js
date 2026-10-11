@@ -5,7 +5,10 @@
     id: "datasets",
     async mount(panel, overgo) {
       const { el } = overgo;
-      const load = overgo.read(panel, async (signal) => {
+      // The registry reads into a host of its own: a refresh renders the read's host again, and would wipe the
+      // drafting section below it, with what a person typed there, if both lived in the panel.
+      const registry = el("div");
+      const load = overgo.read(registry, async (signal) => {
         try {
           return await overgo.api.get("/datasets", { signal });
         } catch (err) {
@@ -29,7 +32,7 @@
       function render(data) {
         // No catalog yet: say so, and open the Library's import, where a chat dataset file comes in.
         if (!data) {
-          panel.replaceChildren(el("div", { class: "section-title", text: "Datasets" }),
+          registry.replaceChildren(el("div", { class: "section-title", text: "Datasets" }),
             el("p", { class: "note", text: "No datasets are catalogued yet. Import a chat dataset file (alpaca, ShareGPT or OpenAI messages) and its conversations list here." }),
             el("button", { class: "btn alt", text: "Import a chat dataset", onclick: () => overgo.openLibrary("input[aria-label='Chat dataset file on disk']") }),
             demoRow([]));
@@ -38,7 +41,7 @@
         const search = el("input", { "aria-label": "Filter datasets", class: "text mw-440 my-s2", type: "search", placeholder: "filter by name / source / modality / format…", });
         const host = el("div");
         const preview = el("div");
-        panel.replaceChildren(
+        registry.replaceChildren(
           el("div", { class: "section-title", text: "Dataset registry" }),
           el("div", { class: "lens-summary" },
             el("span", { class: "note", text: data.count + " datasets" }),
@@ -82,6 +85,48 @@
         search.addEventListener("input", renderRows);
         renderRows();
       }
+
+      // draftTemplates: the server's drafting templates, by the id a request names and the words a person picks one by.
+      // The page never types an instruction: the server holds each template's.
+      const draftTemplates = [["grounded-qa", "Questions and answers from the text"], ["text-to-sql", "Questions and SQL queries from a table"]];
+      // draftSection: the served model drafts one question and answer from each passage of pasted text, or of a chosen
+      // document, and the pairs register as a conversation dataset. A chosen document is stored through the artifact
+      // intake and named to the server by its id; it is drafted from in place of the pasted text until it is removed.
+      // The server says when its datasets changed, and the registry above reads them again.
+      function draftSection() {
+        const template = el("select", { class: "text w-auto", "aria-label": "Drafting template" }, ...draftTemplates.map(([id, text]) => el("option", { value: id, text })));
+        const name = el("input", { class: "text", "aria-label": "Drafted dataset name", placeholder: "dataset name" });
+        const text = el("textarea", { class: "text my-s2", "aria-label": "Text to draft from", rows: "6", placeholder: "Paste the text to draft questions and answers from, or choose a document." });
+        const picker = el("input", { type: "file", hidden: true, accept: "text/plain,text/markdown,text/csv,application/json,application/pdf,.txt,.md,.csv,.json,.pdf" });
+        const source = el("span", { class: "note", role: "status" });
+        const picked = () => { const file = picker.files[0]; source.textContent = file ? "Drafting from " + file.name + "." : ""; remove.hidden = !file; text.disabled = !!file; };
+        const remove = el("button", { class: "link-button", text: "Remove the document", hidden: true, onclick: () => { picker.value = ""; picked(); } });
+        picker.addEventListener("change", picked);
+        const result = el("div", { class: "artifact-links", role: "status", "aria-label": "drafting result" });
+        const run = el("button", { class: "btn", text: "Draft dataset" });
+        const cancel = el("button", { class: "btn alt", text: "Cancel", hidden: true });
+        // A refusal keeps what was typed: its recovery is the same request sent again, not a reload of the tab.
+        const draft = overgo.runner(run, cancel, {
+          onCancel: () => result.replaceChildren(el("span", { class: "note", text: "Drafting stopped; no dataset was made." })),
+          onError: (err) => result.replaceChildren(overgo.failure(err, el("button", { class: "link-button", text: "Draft again", onclick: () => run.click() }))),
+        });
+        run.addEventListener("click", () => draft(async (signal) => {
+          result.replaceChildren(el("span", { class: "note", text: "Drafting with the served model…" }));
+          const request = { name: name.value.trim(), template: template.value };
+          const file = picker.files[0];
+          if (file) request.document = (await overgo.api.upload("/artifacts/intake", file, { signal })).id;
+          else request.text = text.value;
+          const answer = await overgo.api.post("/datasets/draft", request, { signal });
+          let said = "Drafted " + answer.files + (answer.files === 1 ? " conversation" : " conversations") + " into " + answer.name;
+          if (answer.skipped) said += "; passages that gave no pair and were left out: " + answer.skipped;
+          result.replaceChildren(el("span", { class: "note", text: said + ". " }), overgo.artifactLink(answer.dataset, "Stored dataset"));
+        }));
+        return el("div", {}, el("div", { class: "section-title", text: "Draft a dataset from a document" }),
+          el("p", { class: "note", text: "The served model writes one question and its answer from each passage of the text, and the pairs become a conversation dataset." }),
+          el("div", { class: "row" }, template, name), text,
+          el("div", { class: "row" }, el("button", { class: "btn alt", text: "Choose a document", onclick: () => picker.click() }), picker, source, remove, run, cancel), result);
+      }
+      panel.replaceChildren(registry, draftSection());
       await load();
     },
   });

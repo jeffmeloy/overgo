@@ -44,6 +44,7 @@ var workspaceFileAllowances = map[string][]string{
 	"artifact_gallery.go":            {"workbench"},
 	"prompt_enhance.go":              {"serving", "workbench"},
 	"capability_bundles.go":          {"operator"},
+	"dataset_drafting.go":            {"serving"},
 	"evaluation_workspace.go":        {"operator"},
 	"generation_workspace.go":        {"operator"},
 	"hub_workspace.go":               {"hub", "workbench"},

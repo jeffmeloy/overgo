@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "gui-document-to-dataset",
-      "title": "Turn documents into a conversation dataset with the served model (Unsloth Studio's data recipes)",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 1126,
-        "reason": "What the row may still add. Set on 2026-10-11 to the 1126 nodes its built route was counted at: the route that drafts pairs with the served model and registers them, the shared reading of a stored document's text, and the route's entry. The page half adds none."
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "One Datasets action that drafts pairs from pasted or admitted text with the served model under a named template and registers the dataset; a Go test with a fake generator, and a browser leg",
-          "status": "open",
-          "verify": "test -f internal/server/dataset_drafting_test.go \u0026\u0026 go test ./internal/server -run '^TestDatasetDrafting' -count=1",
-          "rationale": "Recommended by the GUI lane and not landed when its worktree was removed on 2026-10-09 (docs/gui_update_plan.json, which stays out of the repository); ranked into this plan by the owner's answer to gui-recommendations on 2026-10-10. Turn documents into a conversation dataset with the served model (Unsloth Studio's data recipes): chunk a PDF or CSV, have the served model draft question and answer pairs from a few templates (grounded Q\u0026A, text to SQL), and register the result as a dataset; take the templates and the one action, not the node-graph editor. Why the lane recommended it: \n\nThe lane's rule for a change to the pages holds: plain HTML, JavaScript and Go, reviewed in a browser at desktop and phone widths in both colour schemes, and accepted by a browser leg or a Go test that fails without it. The row has no count: it is sized by a preflight when it is dispatched.\n\nServes: setup-steps. Batch: browser."
-        }
-      ]
-    },
-    {
       "id": "reward-host-retire",
       "title": "Retire the host's reward trainer once the workbench trains rewards on the device or stops offering them",
       "owner": "master-lead",

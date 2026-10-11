@@ -17,7 +17,8 @@ import (
 // kinds every served model accepts beside the media its projectors take,
 // with the reason a missing kind is refused; a text document and a PDF
 // travel as the Responses API's own file parts and reach the model as
-// extracted text; a binary file is refused; and the composer imports by
+// extracted text; a binary file is refused, and a text file that is not
+// text is refused in words that name its part; and the composer imports by
 // attach, drop and paste, refuses from the document's bounds before
 // upload, and previews each kind.
 func TestFrontPageImport(t *testing.T) {
@@ -83,6 +84,12 @@ func TestFrontPageImport(t *testing.T) {
 		`{"input":[{"role":"user","content":[{"type":"input_file","filename":"x.bin","file_data":"`+encode("application/octet-stream", []byte("raw"))+`"}]}],"max_output_tokens":1}`)
 	if refused.Code != http.StatusBadRequest {
 		t.Fatalf("binary document status = %d body=%s", refused.Code, refused.Body.String())
+	}
+	// A text file that is not text is refused in words that name its part.
+	unreadable := serveTestRequest(handler, http.MethodPost, "/v1/responses",
+		`{"input":[{"role":"user","content":[{"type":"input_file","filename":"x.txt","file_data":"`+encode("text/plain", []byte("\xff\xfe"))+`"}]}],"max_output_tokens":1}`)
+	if unreadable.Code != http.StatusBadRequest || !strings.Contains(unreadable.Body.String(), "content part 0 content must be UTF-8 text without NUL bytes") {
+		t.Fatalf("unreadable text document status = %d body=%s", unreadable.Code, unreadable.Body.String())
 	}
 }
 

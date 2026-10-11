@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -178,7 +179,7 @@ func TestSFTWorkspaceFineTunesTheServedModel(t *testing.T) {
 	for _, control := range adapterCapability.Controls {
 		adapterControls = append(adapterControls, control.Name)
 	}
-	if adapterCapability.Name != "served, LoRA adapter on conversations" || strings.Join(adapterControls, ",") != "dataset,steps,rank,quantized_base,train_on_prompts,average_weights,sample_every,save_every,resume,output" || adapterCapability.Recipe == capability.Recipe ||
+	if adapterCapability.Name != "served, LoRA adapter on conversations" || strings.Join(adapterControls, ",") != "dataset,steps,rank,quantized_base,rslora,lora_plus,train_on_prompts,average_weights,sample_every,save_every,resume,output" || adapterCapability.Recipe == capability.Recipe ||
 		adapterCapability.Controls[2].Bounds == nil || adapterCapability.Controls[2].Bounds.Default != sftLoRADefaultRank || !strings.Contains(adapterCapability.Note, "PEFT adapter") {
 		t.Fatalf("LoRA capability = %+v with controls %v, want its own recipe, a rank of default %d and a note naming the PEFT adapter", adapterCapability, adapterControls, sftLoRADefaultRank)
 	}
@@ -335,5 +336,88 @@ func TestSFTWorkspaceFineTunesTheServedModel(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(fixture.roots.Checkpoints, "..", "escape")); err == nil {
 		t.Fatal("an escaping output wrote outside the checkpoints root")
+	}
+}
+
+// inputWith is the input of a run of adapterSteps updates with the fields given
+// beside its dataset and output: a rank and an adapter's scaling, as the page
+// submits the controls a person set.
+func (fixture sftFixture) inputWith(output, fields string) json.RawMessage {
+	return json.RawMessage(fmt.Sprintf(`{"dataset":%q,"steps":%d,%s,"output":%q}`, fixture.conversations.String(), adapterSteps, fields, output))
+}
+
+// TestSFTWorkspaceOffersAdapterVariants: the LoRA capability declares
+// rank-stabilized scaling and a LoRA+ rate after the quantized base, each
+// optional and with no default in its declaration, and its note names both and
+// what one run of each measured; the route admits a submission that sets them
+// on the adapter and refuses one on the whole model; a run that sets either, or
+// both, earns a verdict and saves an adapter that says how it was scaled; the
+// trainer refuses a rate below one, and fine-tuning the whole model refuses
+// either option rather than ignore it.
+func TestSFTWorkspaceOffersAdapterVariants(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	fixture := newSFTFixture(t)
+	workspace := fixture.workspace
+	capabilities, err := workspace.WorkflowCapabilities(ctx, WorkflowTraining)
+	if err != nil || len(capabilities) != 2 {
+		t.Fatalf("training capabilities = %+v, %v, want fine-tuning the whole model and a LoRA adapter", capabilities, err)
+	}
+	whole, adapterCapability := capabilities[0], capabilities[1]
+	scaling := func(control workflowControl) bool { return control.Name == "rslora" || control.Name == "lora_plus" }
+	after := slices.IndexFunc(adapterCapability.Controls, func(control workflowControl) bool { return control.Name == "quantized_base" }) + 1
+	want := []workflowControl{{Name: "rslora", Type: workflowControlBoolean}, {Name: "lora_plus", Type: workflowControlNumber}}
+	if offered := adapterCapability.Controls[after:]; len(offered) < len(want) || !reflect.DeepEqual(offered[:len(want)], want) {
+		t.Errorf("after the quantized base the LoRA capability declares %+v, want %+v first", offered, want)
+	}
+	if slices.ContainsFunc(whole.Controls, scaling) || strings.Contains(whole.Note, "rslora") {
+		t.Errorf("fine-tuning the whole model offers an adapter's scaling: controls %+v, note %q", whole.Controls, whole.Note)
+	}
+	for _, words := range []string{"PEFT adapter", "rslora: true", "lora plus: 4", "both are off unless set", "one run each", "0.73 plain, 0.83 with rslora and 0.90 with lora plus at 4", "neither is a default"} {
+		if !strings.Contains(adapterCapability.Note, words) {
+			t.Errorf("the LoRA capability's note does not say %q: %q", words, adapterCapability.Note)
+		}
+	}
+
+	// The route checks a submission against the declared controls before any run.
+	if err := validateWorkflowInput(adapterCapability.Controls, fixture.inputWith("admitted", `"rank":2,"rslora":true,"lora_plus":4`)); err != nil {
+		t.Errorf("the route refuses a LoRA submission that sets both options: %v", err)
+	}
+	if err := validateWorkflowInput(whole.Controls, fixture.inputWith("refused", `"rslora":true`)); err == nil || !strings.Contains(err.Error(), `"rslora" is undeclared`) {
+		t.Errorf("the route's answer to rslora on the whole model: err = %v, want it undeclared", err)
+	}
+
+	// Rank 2 is alpha 4; rslora keeps the alpha and records itself, and a rate of 4 is folded into the alpha.
+	for _, variant := range []struct {
+		output, fields string
+		rslora         bool
+		alpha          float64
+	}{
+		{"rs", `"rank":2,"rslora":true`, true, 4},
+		{"plus", `"rank":2,"lora_plus":4`, false, 16},
+		{"both", `"rank":2,"rslora":true,"lora_plus":4`, true, 16},
+	} {
+		completion, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, adapterCapability, fixture.inputWith(variant.output, variant.fields), testReporter{})
+		if err != nil || len(completion.Outputs) != 2 {
+			t.Errorf("a LoRA run with %s = (%+v, %v), want the trained model and its verdict", variant.fields, completion, err)
+			continue
+		}
+		adapter, err := peft.Load(filepath.Join(fixture.roots.Checkpoints, variant.output, trainingworkflow.LoRAAdapterDirectory))
+		if err != nil || adapter.Config.Rank != 2 || adapter.Config.RSLoRA != variant.rslora || adapter.Config.Alpha != variant.alpha {
+			t.Errorf("a LoRA run with %s saved the adapter %+v (%v), want rslora=%t at rank 2 and alpha %v", variant.fields, adapter.Config, err, variant.rslora, variant.alpha)
+		}
+	}
+
+	for name, scenario := range map[string]struct {
+		capability           WorkflowCapability
+		output, fields, want string
+	}{
+		"a rate below one":                {adapterCapability, "slow", `"rank":2,"lora_plus":0.5`, "below one"},
+		"rslora on the whole model":       {whole, "rs-on-model", `"rslora":true`, "rslora and a lora plus rate belong to the LoRA adapter"},
+		"a LoRA+ rate on the whole model": {whole, "plus-on-model", `"lora_plus":4`, "rslora and a lora plus rate belong to the LoRA adapter"},
+	} {
+		if _, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, scenario.capability, fixture.inputWith(scenario.output, scenario.fields), testReporter{}); err == nil || !strings.Contains(err.Error(), scenario.want) {
+			t.Errorf("%s: err = %v, want it to say %q", name, err, scenario.want)
+		}
 	}
 }

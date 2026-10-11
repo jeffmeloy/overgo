@@ -44,7 +44,7 @@ const (
 	sftDatasetFormat = "json"
 	// sftNote and sftLoRANote tell the page how a run learns from its dataset.
 	sftNote     = "Learns the replies of each conversation as the model's chat template renders them, and only reads the user's turns and the template's own markers; train on prompts: true learns every token, and average weights: true publishes a moving average of the weights."
-	sftLoRANote = "Trains a low-rank adapter over the frozen model rather than the model, and saves it as a Hugging Face PEFT adapter in the output's adapter directory. Like full fine-tuning it learns the replies of each conversation and only reads the rest; train on prompts: true learns every token, and average weights: true publishes a moving average of the adapter's factors. Quantized base: true keeps the adapted projections as the GGUF stores them and dequantizes each as its layer reads it, so the run needs far less memory; the model it publishes is then the base as stored, with the adapter in its adapter directory."
+	sftLoRANote = "Trains a low-rank adapter over the frozen model rather than the model, and saves it as a Hugging Face PEFT adapter in the output's adapter directory. Like full fine-tuning it learns the replies of each conversation and only reads the rest; train on prompts: true learns every token, and average weights: true publishes a moving average of the adapter's factors. Quantized base: true keeps the adapted projections as the GGUF stores them and dequantizes each as its layer reads it, so the run needs far less memory; the model it publishes is then the base as stored, with the adapter in its adapter directory. rslora: true scales the adapter by alpha over the root of its rank rather than over its rank, and lora plus: 4 has the up factor learn four times as fast as the down factor (a rate of 1 or more); both are off unless set. On a tiny test model, one run each, held-out accuracy was 0.73 plain, 0.83 with rslora and 0.90 with lora plus at 4, which may be no more than a larger effective step, so neither is a default."
 )
 
 // sftMethod is one way the workspace fine-tunes the served model on
@@ -97,8 +97,11 @@ func (workspace *SFTWorkspace) WorkflowCapabilities(_ context.Context, kind Work
 			{Name: "steps", Type: workflowControlInteger, Required: true},
 		}
 		if method.lora {
-			controls = append(controls, workflowControl{Name: "rank", Type: workflowControlInteger, Required: true, Bounds: &workflowControlBounds{Default: sftLoRADefaultRank, Step: 1}})
-			controls = append(controls, workflowControl{Name: "quantized_base", Type: workflowControlBoolean})
+			controls = append(controls,
+				workflowControl{Name: "rank", Type: workflowControlInteger, Required: true, Bounds: &workflowControlBounds{Default: sftLoRADefaultRank, Step: 1}},
+				workflowControl{Name: "quantized_base", Type: workflowControlBoolean},
+				workflowControl{Name: "rslora", Type: workflowControlBoolean},
+				workflowControl{Name: "lora_plus", Type: workflowControlNumber})
 		}
 		controls = append(controls,
 			workflowControl{Name: "train_on_prompts", Type: workflowControlBoolean},
@@ -144,6 +147,10 @@ type sftInput struct {
 	// QuantizedBase holds the adapted projections of the served GGUF as stored, dequantized as each
 	// layer reads them, so a LoRA run needs far less memory.
 	QuantizedBase bool `json:"quantized_base"`
+	// RSLoRA scales a LoRA adapter by alpha over the root of its rank, and LoRAPlus, when set, is
+	// how many times faster the adapter's up factor learns than its down factor.
+	RSLoRA   bool    `json:"rslora"`
+	LoRAPlus float64 `json:"lora_plus"`
 	// AverageWeights publishes a moving average of the weights as the trained model.
 	AverageWeights bool `json:"average_weights"`
 	// SampleEvery, when positive, has the run generate after the prompts of held-out
@@ -182,10 +189,10 @@ func (workspace *SFTWorkspace) ExecuteWorkflow(ctx context.Context, kind Workflo
 	switch {
 	case method.lora && input.Rank <= 0:
 		return operation.Completion{}, errors.New("sft workspace: a LoRA adapter needs a positive rank")
-	case !method.lora && (input.Rank != 0 || input.QuantizedBase):
-		return operation.Completion{}, errors.New("sft workspace: a rank and a quantized base belong to the LoRA adapter, not to fine-tuning the whole model")
+	case !method.lora && (input.Rank != 0 || input.QuantizedBase || input.RSLoRA || input.LoRAPlus != 0):
+		return operation.Completion{}, errors.New("sft workspace: a rank, a quantized base, rslora and a lora plus rate belong to the LoRA adapter, not to fine-tuning the whole model")
 	case method.lora:
-		lora = &trainingworkflow.LoRA{Rank: input.Rank, Alpha: float64(input.Rank * trainingworkflow.LoRAAlphaPerRank), Quantized: input.QuantizedBase}
+		lora = &trainingworkflow.LoRA{Rank: input.Rank, Alpha: float64(input.Rank * trainingworkflow.LoRAAlphaPerRank), Quantized: input.QuantizedBase, RSLoRA: input.RSLoRA, UpRate: input.LoRAPlus}
 	}
 	output, err := outputDirectory(workspace.roots.Checkpoints, input.Output)
 	var resume string

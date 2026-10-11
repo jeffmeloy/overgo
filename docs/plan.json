@@ -23,25 +23,6 @@
       ]
     },
     {
-      "id": "gui-train-adapter-variants",
-      "title": "Offer rsLoRA and LoRA+ in the Train tab for an adapter run",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 42,
-        "reason": "What the row may still add. Set on 2026-10-11 to the 42 nodes its built server half was counted at: the two adapter variants the trainer already takes, offered by the Train tab's adapter capability. The page half adds none."
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Two controls on the adapter capability's declared controls, default off, with the sweep's finding named in the control's note; a server test and a browser leg that submits one",
-          "status": "open",
-          "verify": "test -f internal/server/webui_browser_adapter_variants_test.go \u0026\u0026 go run ./cmd/webui-lane -run AdapterVariants",
-          "rationale": "Recommended by the GUI lane and not landed when its worktree was removed on 2026-10-09 (docs/gui_update_plan.json, which stays out of the repository); ranked into this plan by the owner's answer to gui-recommendations on 2026-10-10. Offer rsLoRA and LoRA+ in the Train tab for an adapter run: both are in cmd/train only, and neither is a default because both beat plain LoRA on the tiny test model (held-out accuracy 0.73 plain, 0.83 rsLoRA, 0.90 LoRA+) which may only be a larger effective step. Why the lane recommended it: \n\nThe lane's rule for a change to the pages holds: plain HTML, JavaScript and Go, reviewed in a browser at desktop and phone widths in both colour schemes, and accepted by a browser leg or a Go test that fails without it. The row has no count: it is sized by a preflight when it is dispatched.\n\nServes: held-out-quality. Batch: browser."
-        }
-      ]
-    },
-    {
       "id": "gui-demo-datasets",
       "title": "Ship a few tiny demo datasets (an instruction set, an identity set, a preference set) so a person can try Train without finding data (LlamaFactory ships alpaca, identity and DPO demos)",
       "owner": "master-lead",

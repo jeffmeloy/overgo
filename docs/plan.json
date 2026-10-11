@@ -4,28 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "commit-queue",
-      "title": "Let several sessions work at once and one queue commit",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 898,
-        "reason": "A ceiling, not a target: the present size of internal/landing landing.go, the landing the queue serializes, counted 2026-10-09 as the gate counts production nodes. The queue reuses the landing; it does not write a second one. The lead lowers it when the first step reports."
-      },
-      "steps": [
-        {
-          "id": "sessions",
-          "title": "Tell a second session how it commits, and record two sessions' commits on one day",
-          "status": "open",
-          "verify": "go test ./cmd/loophook -count=1 -run '^TestSecondImplementingSessionIsSentToAWorktreeOfItsOwn$'",
-          "rationale": "The last step. The session doctrine and the notice a second implementing session is given say that a session in a worktree of its own commits through the queue onto the trunk, what it needs there that git does not carry (the data roots, by environment, as the measurement run's checkout binds them), and that the plan's rows are removed by the commit and not by hand. The row's evidence is then taken on this repository: two commits on one day from two worktrees, neither touching the other's files, with the waits each recorded before and after. The lead lowers the row's count to what the steps measured.\n\nServes: change. Disappears: the rule that one session commits for a checkout. Evidence: the two commits and their recorded waits. Batch: host.",
-          "depends_on": [
-            "commit-queue/follow"
-          ]
-        }
-      ]
-    },
-    {
       "id": "served-path-repairs",
       "title": "Repair the reviewer's confirmed defects on the paths that serve a request",
       "owner": "master-lead",

@@ -258,7 +258,8 @@ func releaseWorktree(session string) {
 func heldNotice(holder string) string {
 	return "OVERGO WORKTREE HELD. Session " + holder + " holds this worktree. A commit takes the checkout's whole tree, so two implementing sessions here would commit each other's files. " +
 		"This session lands nothing here and edits no file the repository tracks (the guard refuses both); it is dispatched no row, held to none, and asked again at its next message. " +
-		"Work in a worktree of its own: git worktree add <directory> -b <branch> master, and open the session there. " +
+		"Work in a worktree of its own: git worktree add --detach <directory> master, and open the session there with the data roots in its environment, which a worktree does not carry. " +
+		"Its commits take the same command and land on the trunk through the repository's one queue: each waits its turn, is brought up to the trunk and is checked on it. " +
 		"If that session is gone and its work here is this one's to continue, begin a message with \"" + takeoverDeclaration + "\"."
 }
 

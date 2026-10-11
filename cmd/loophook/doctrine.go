@@ -81,4 +81,10 @@ implementing session holds its worktree from its first message until a turn
 of its ends with the plan stopped or complete and nothing left uncommitted. A
 second implementing session in that worktree is told so and treated as a
 review session is, until it works in a worktree of its own (git worktree
-add) or begins a message with "take over this worktree".`
+add) or begins a message with "take over this worktree". A session in a
+worktree of its own commits with the same command as any: its commit waits
+its turn among the repository's worktrees, is brought up to the trunk, is
+checked on it by the terms its plan then holds, and lands on the trunk,
+whose own checkout follows. The plan's row is removed by that commit, in
+every checkout, never by hand. Such a worktree has only what git carries: its
+data roots are given by environment.`

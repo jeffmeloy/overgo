@@ -16,7 +16,7 @@ import (
 // measurement on the device, beside the trainers it would replace, and holds
 // it to being whole. Every figure the device test logs is there, a count
 // above nothing, the program's weights within its peak and its forward and
-// backward within its step. And each finding the record states, of the
+// backward within its step, for all seven projections and for two. And each finding the record states, of the
 // program's figure beside a trainer's, is what the record's own figures say:
 // a trainer that trains whole models is read on one block and on five, and a
 // block's share is a quarter of the difference.
@@ -50,9 +50,10 @@ func TestDenseBlockDeviceRecordIsWhole(t *testing.T) {
 		return block
 	}
 	step, passes := figure("program-device-step-microseconds"), figure("program-device-passes-microseconds")
+	narrowStep, narrowPasses := figure("program-device-step-query-value-microseconds"), figure("program-device-passes-query-value-microseconds")
 	peak, weights := figure("program-device-peak-bytes"), figure("program-device-weights-bytes")
-	if passes > step || weights > peak {
-		t.Fatalf("the program's forward and backward take %d of a step's %d, and its weights are %d of a peak of %d: want each a part of the other", passes, step, weights, peak)
+	if passes > step || narrowPasses > narrowStep || weights > peak {
+		t.Fatalf("the program's forward and backward take %d of a step's %d, and %d of %d on two projections, and its weights are %d of a peak of %d: want each a part of the other", passes, step, narrowPasses, narrowStep, weights, peak)
 	}
 	for _, finding := range []struct {
 		name         string
@@ -62,6 +63,8 @@ func TestDenseBlockDeviceRecordIsWhole(t *testing.T) {
 		{"device-step-against-lora-block", step, share("lora-host-step", "microseconds"), "shorter", "longer"},
 		{"host-step-against-lora-block", figure("program-host-step-microseconds"), share("lora-host-step", "microseconds"), "shorter", "longer"},
 		{"device-passes-against-resident-block", passes, share("resident-passes", "microseconds"), "shorter", "longer"},
+		{"device-passes-query-value-against-resident-block", narrowPasses, share("resident-passes", "microseconds"), "shorter", "longer"},
+		{"device-step-against-resident-block", step, share("resident-step", "microseconds"), "shorter", "longer"},
 		{"device-peak-against-resident-one-block", peak, figure("resident-peak-" + strconv.Itoa(one) + "-blocks-bytes"), "less", "more"},
 	} {
 		says := finding.over

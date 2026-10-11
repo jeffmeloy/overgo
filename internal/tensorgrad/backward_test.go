@@ -1,6 +1,7 @@
 package tensorgrad
 
 import (
+	"fmt"
 	"math"
 	"math/rand/v2"
 	"slices"
@@ -95,8 +96,9 @@ func directional(t *testing.T, name string, random *rand.Rand, gradients []*tens
 // program's 32-bit arithmetic and not the rules'.
 //
 // So do a softmax over a projection, the head a loss's gradient is taken
-// through; grouped causal attention, four query heads over two heads of keys
-// and values, whose backward graph names the one causal mask it reads; and a
+// through; causal attention, four query heads over two heads of keys and
+// values and over four, whose backward graph names the one causal mask it
+// reads, the query heads of a key head taken together; and a
 // whole dense block, a weighted normalization, attention over rotated
 // queries and keys with its four projections, the residual and the
 // feed-forward half with its own, by its input and all seven weights at
@@ -242,51 +244,55 @@ func TestBackwardGraphAgreesWithDirectionalDerivatives(t *testing.T) {
 		}
 	}
 
-	// Causal attention, grouped: four query heads over two heads of keys and
-	// values, differentiated by all three at once. The mask its backward graph
-	// reads is a constant it names, fed with what it says.
-	const queryHeads, sharedHeads, keyWidth, valueWidth, scale = 4, 2, 6, 5, 0.4
-	queries, keys, held := drawn("queries", keyWidth, queryHeads, rows), drawn("keys", keyWidth, sharedHeads, rows), drawn("values", valueWidth, sharedHeads, rows)
-	onto := drawn("onto", valueWidth, queryHeads, rows)
-	attention := b.AttentionWithOptions(queries.node, keys.node, held.node, tensor.AttentionOptions{Scale: scale, Causal: true})
-	attended, constants, err := Backward(b, attention, onto.node, queries.node, keys.node, held.node)
-	if err != nil || len(constants) != 1 {
-		t.Fatalf("the attention's backward graph names %d constants (%v), want its one causal mask", len(constants), err)
-	}
-	fixed := []feed{onto}
-	for _, constant := range constants {
-		values := make([]float64, len(constant.Data))
-		for index, value := range constant.Data {
-			values[index] = float64(value)
+	// Causal attention, grouped and not: four query heads over two heads of
+	// keys and values, and over four, differentiated by all three at once. The
+	// mask its backward graph reads is a constant it names, fed with what it
+	// says.
+	const queryHeads, keyWidth, valueWidth, scale = 4, 6, 5, 0.4
+	for _, sharedHeads := range []int{2, queryHeads} {
+		named := func(name string) string { return fmt.Sprintf("%s over %d", name, sharedHeads) }
+		queries, onto := drawn(named("queries"), keyWidth, queryHeads, rows), drawn(named("onto"), valueWidth, queryHeads, rows)
+		keys, held := drawn(named("keys"), keyWidth, uint64(sharedHeads), rows), drawn(named("values"), valueWidth, uint64(sharedHeads), rows)
+		attention := b.AttentionWithOptions(queries.node, keys.node, held.node, tensor.AttentionOptions{Scale: scale, Causal: true})
+		attended, constants, err := Backward(b, attention, onto.node, queries.node, keys.node, held.node)
+		if err != nil || len(constants) != 1 {
+			t.Fatalf("the attention's backward graph names %d constants (%v), want its one causal mask", len(constants), err)
 		}
-		fixed = append(fixed, feed{node: constant.Tensor, values: values})
-	}
-	directional(t, "grouped causal attention", random, attended, []feed{queries, keys, held}, fixed, func() float64 {
-		total := 0.0
-		for query := range rows {
-			for head := range queryHeads {
-				group := head / (queryHeads / sharedHeads)
-				scores, most, sum := make([]float64, query+1), math.Inf(-1), 0.0
-				for key := range scores {
-					for channel := range keyWidth {
-						scores[key] += queries.values[(query*queryHeads+head)*keyWidth+channel] * keys.values[(key*sharedHeads+group)*keyWidth+channel]
+		fixed := []feed{onto}
+		for _, constant := range constants {
+			values := make([]float64, len(constant.Data))
+			for index, value := range constant.Data {
+				values[index] = float64(value)
+			}
+			fixed = append(fixed, feed{node: constant.Tensor, values: values})
+		}
+		directional(t, named("causal attention, four query heads"), random, attended, []feed{queries, keys, held}, fixed, func() float64 {
+			total := 0.0
+			for query := range rows {
+				for head := range queryHeads {
+					group := head / (queryHeads / sharedHeads)
+					scores, most, sum := make([]float64, query+1), math.Inf(-1), 0.0
+					for key := range scores {
+						for channel := range keyWidth {
+							scores[key] += queries.values[(query*queryHeads+head)*keyWidth+channel] * keys.values[(key*sharedHeads+group)*keyWidth+channel]
+						}
+						scores[key] *= scale
+						most = max(most, scores[key])
 					}
-					scores[key] *= scale
-					most = max(most, scores[key])
-				}
-				for _, score := range scores {
-					sum += math.Exp(score - most)
-				}
-				for key, score := range scores {
-					share := math.Exp(score-most) / sum
-					for channel := range valueWidth {
-						total += onto.values[(query*queryHeads+head)*valueWidth+channel] * share * held.values[(key*sharedHeads+group)*valueWidth+channel]
+					for _, score := range scores {
+						sum += math.Exp(score - most)
+					}
+					for key, score := range scores {
+						share := math.Exp(score-most) / sum
+						for channel := range valueWidth {
+							total += onto.values[(query*queryHeads+head)*valueWidth+channel] * share * held.values[(key*sharedHeads+group)*valueWidth+channel]
+						}
 					}
 				}
 			}
-		}
-		return total
-	}, 1e-4)
+			return total
+		}, 1e-4)
+	}
 
 	// A whole dense block: a weighted normalization, grouped causal attention
 	// over rotated queries and keys with its four projections, the residual,

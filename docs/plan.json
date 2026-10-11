@@ -9,17 +9,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 14,
+        "nodes": 0,
         "reason": "What the row may still add, not what it has added: a commit takes what it adds from this figure, and what a commit removes comes back to it. Set on 2026-10-11 to the 14 nodes the attention step is counted at by the automated checks on its built change: the rule's slices of several heads and its mask for them, less the sum over a group's heads it no longer makes. The row has added 4,437 so far, a loan and not growth it keeps, 3,982 for the derivative rules and the block adapter on the host and 455 for the adapter's device binding; it is accepted only if its last step removes more than its steps added. An earlier change to the plan wrote that running total here, which left the row 3,982 it had not been given; this takes them back."
       },
       "steps": [
-        {
-          "id": "group-attention",
-          "title": "Differentiate attention a key head at a time, and measure the block's passes on the device again",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/tensorgrad ./internal/densecausal -count=1 -run '^(TestBackwardGraphAgreesWithDirectionalDerivatives|TestDenseBlockAdapterLearnsThroughTheProgram|TestDenseBlockAdapterTrainsOnTheDevice|TestDenseBlockDeviceRecordIsWhole)$'",
-          "rationale": "Added on 2026-10-11 from the device step's result (docs/verification/dense-block-program-device.txt). The derived forward and backward of a block take about twice the resident trainer's hand-written ones on the device, and the record says why: a step launches 517 operations, 364 of them the attention's backward, which the rule composes a query head at a time, and the passes are bound by that number. Query heads that share a key and value head need not be taken apart: laid side by side their queries are more columns of one matrix, so the scores, their softmax, the shares' gradient and the three products are each one two-dimensional operation a key head, the keys' and values' sums over their query heads coming from the products themselves. On a block of fourteen heads over two that is two passes of the rule where there were fourteen, about 205 launched operations where there were 517, with the operations that exist and none added.\n\nThe step rewrites the attention's rule that way and its causal mask for several heads at once, keeps the rule held to float64 directional derivatives grouped and not, and measures the block on the device again, replacing the record's figures and findings. It adds no code on balance: the rule loses its sum over a group's heads.\n\nServes: train. Disappears: the per-head pass of the attention's rule. Evidence: the directional derivatives, the host adapter's task and resume, the device's agreement with the host, and the record measured again. Batch: device. Count: none; the row has none left and the rule is to come out no larger.\n\nMeasured on its built change, 2026-10-11: the rule comes out 14 nodes larger, not smaller as this step first said; the row's count is set to that."
-        },
         {
           "id": "dense-block",
           "title": "Train an adapter on a dense block through the tensor program, its backward pass built from the operations' own rules",

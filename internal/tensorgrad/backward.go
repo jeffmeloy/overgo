@@ -48,14 +48,15 @@ func Backward(b *tensor.Builder, output, seed *tensor.Tensor, wanted ...*tensor.
 		return nil, nil, fmt.Errorf("tensorgrad: a backward graph starts from an output and a gradient of its shape")
 	}
 	var constants []Constant
-	masks := map[uint64]*tensor.Tensor{}
-	// mask is the causal mask of a sequence of so many tokens, one a length.
-	mask := func(tokens uint64) *tensor.Tensor {
-		if masks[tokens] == nil {
-			constant := causalMask(b, tokens)
-			masks[tokens], constants = constant.Tensor, append(constants, constant)
+	masks := map[string]*tensor.Tensor{}
+	// mask is the causal mask of so many tokens for so many query heads at once, one a name.
+	mask := func(tokens, heads uint64) *tensor.Tensor {
+		name := fmt.Sprintf("tensorgrad.causal_mask.%d.%d", tokens, heads)
+		if masks[name] == nil {
+			constant := causalMask(b, name, tokens, heads)
+			masks[name], constants = constant.Tensor, append(constants, constant)
 		}
-		return masks[tokens]
+		return masks[name]
 	}
 	var order []*tensor.Tensor
 	seen := map[*tensor.Tensor]bool{}
@@ -131,33 +132,36 @@ type Constant struct {
 // far enough below any score that the key's share is nothing.
 const masked = -1e30
 
-// causalMask is the mask a causal attention over tokens tokens adds to its
-// scores, a row a query and an entry a key: nothing for a key at or before
-// its query, and masked for one after.
-func causalMask(b *tensor.Builder, tokens uint64) Constant {
-	shape, err := tensor.NewShape(tokens, tokens)
+// causalMask is the mask a causal attention over tokens tokens adds to the
+// scores of heads query heads that share their keys, a row a query of one of
+// the heads and an entry a key: nothing for a key at or before its query, and
+// masked for one after. The rows go a token at a time, its heads together.
+func causalMask(b *tensor.Builder, name string, tokens, heads uint64) Constant {
+	shape, err := tensor.NewShape(tokens, tokens*heads)
 	if err != nil {
 		return Constant{}
 	}
-	data := make([]float32, tokens*tokens)
-	for query := range tokens {
-		for key := query + 1; key < tokens; key++ {
-			data[query*tokens+key] = masked
+	data := make([]float32, tokens*tokens*heads)
+	for row := range tokens * heads {
+		for key := row/heads + 1; key < tokens; key++ {
+			data[row*tokens+key] = masked
 		}
 	}
-	return Constant{Tensor: b.Input(fmt.Sprintf("tensorgrad.causal_mask.%d", tokens), dtype.F32, shape), Data: data}
+	return Constant{Tensor: b.Input(name, dtype.F32, shape), Data: data}
 }
 
 // attended is the rule of plain causal attention over one sequence, grouped
 // or not: queries, keys and values of [width, heads, tokens], a query head
-// attending the key and value head of its group. It is built a query head at
-// a time from what the forward operation computes: the scores, a product of
-// the head's keys and queries, scaled and masked; their softmax, the shares;
-// the shares' gradient, a product of the values and the output's gradient,
-// taken through the softmax's own rule; and from that the three gradients,
-// each a product, a group's keys and values summing over its query heads. An
-// attention with a window, a bias, a cap or a cache is refused.
-func attended(b *tensor.Builder, node, gradient *tensor.Tensor, mask func(tokens uint64) *tensor.Tensor) ([]*tensor.Tensor, error) {
+// attending the key and value head of its group. It is built a key head at a
+// time from what the forward operation computes, the query heads of a group
+// laid side by side as columns, a column a token's head: the scores, a
+// product of the group's keys and those queries, scaled and masked; their
+// softmax, the shares; the shares' gradient, a product of the values and the
+// output's gradient, taken through the softmax's own rule; and from that the
+// three gradients, each a product, the keys' and the values' summing over
+// the group's query heads in the product itself. An attention with a window,
+// a bias, a cap or a cache is refused.
+func attended(b *tensor.Builder, node, gradient *tensor.Tensor, mask func(tokens, heads uint64) *tensor.Tensor) ([]*tensor.Tensor, error) {
 	attributes, held := node.Attrs.(tensor.AttentionAttributes)
 	if !held || len(node.Inputs) != attentionInputs {
 		return nil, fmt.Errorf("an attention with a bias, sinks or a mask of its own")
@@ -169,39 +173,36 @@ func attended(b *tensor.Builder, node, gradient *tensor.Tensor, mask func(tokens
 	}
 	width, heads, tokens := query.Shape.Dims[0], query.Shape.Dims[1], query.Shape.Dims[attentionInputs-1]
 	valueWidth, groups := value.Shape.Dims[0], key.Shape.Dims[1]
-	// head is one head's rows, [width, tokens], of a tensor laid a token, then a head, then a width.
-	head := func(whole *tensor.Tensor, index, width uint64) *tensor.Tensor {
+	side := heads / groups
+	// together are count adjacent heads' rows, from the head first, of a tensor laid a token, then a head, then a width: [width, count*tokens], a column a token's head.
+	together := func(whole *tensor.Tensor, first, count, width uint64) *tensor.Tensor {
 		flat := b.Reshape(whole, width*whole.Shape.Dims[1], tokens)
-		return b.Reshape(b.GroupSlice(flat, index*width, width, 1, width), width, tokens)
+		return b.Reshape(b.GroupSlice(flat, first*width, count*width, 1, count*width), width, count*tokens)
 	}
-	joined := func(parts []*tensor.Tensor, width uint64) *tensor.Tensor {
+	joined := func(parts []*tensor.Tensor, heads, width uint64) *tensor.Tensor {
 		whole := parts[0]
 		for _, part := range parts[1:] {
 			whole = b.Concat(whole, part, 0)
 		}
-		return b.Reshape(whole, width, uint64(len(parts)), tokens)
+		return b.Reshape(whole, width, heads, tokens)
 	}
 	product := func(left, right *tensor.Tensor) *tensor.Tensor {
 		return b.MulMatWithCompute(left, right, tensor.MulMatComputeExact)
 	}
-	queries, keys, values := make([]*tensor.Tensor, heads), make([]*tensor.Tensor, groups), make([]*tensor.Tensor, groups)
-	for index := range heads {
-		group := index / (heads / groups)
-		ownQuery, ownKey, ownValue, ownGradient := head(query, index, width), head(key, group, width), head(value, group, valueWidth), head(gradient, index, valueWidth)
-		shares := b.Softmax(b.Add(b.Scale(product(ownKey, ownQuery), attributes.Scale), mask(tokens)))
+	queries, keys, values := make([]*tensor.Tensor, groups), make([]*tensor.Tensor, groups), make([]*tensor.Tensor, groups)
+	for group := range groups {
+		ownQuery, ownGradient := together(query, group*side, side, width), together(gradient, group*side, side, valueWidth)
+		ownKey, ownValue := together(key, group, 1, width), together(value, group, 1, valueWidth)
+		shares := b.Softmax(b.Add(b.Scale(product(ownKey, ownQuery), attributes.Scale), mask(tokens, side)))
 		through, err := shared(b, shares, product(ownValue, ownGradient))
 		if err != nil {
 			return nil, err
 		}
 		scores := b.Scale(through[0], attributes.Scale)
-		queries[index] = product(b.Transpose2D(ownKey), scores)
-		toKey, toValue := product(b.Transpose2D(ownQuery), b.Transpose2D(scores)), product(b.Transpose2D(ownGradient), b.Transpose2D(shares))
-		if keys[group] != nil {
-			toKey, toValue = b.Add(keys[group], toKey), b.Add(values[group], toValue)
-		}
-		keys[group], values[group] = toKey, toValue
+		queries[group] = b.Reshape(product(b.Transpose2D(ownKey), scores), side*width, tokens)
+		keys[group], values[group] = product(b.Transpose2D(ownQuery), b.Transpose2D(scores)), product(b.Transpose2D(ownGradient), b.Transpose2D(shares))
 	}
-	return []*tensor.Tensor{joined(queries, width), joined(keys, width), joined(values, valueWidth)}, nil
+	return []*tensor.Tensor{joined(queries, heads, width), joined(keys, groups, width), joined(values, groups, valueWidth)}, nil
 }
 
 // attentionInputs is how many inputs a plain attention has, its queries, keys

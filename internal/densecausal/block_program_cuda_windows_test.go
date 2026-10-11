@@ -27,7 +27,8 @@ import (
 // Measurement, on one block of Qwen2.5-0.5B's shape over a sequence of 128
 // tokens, an adapter of rank eight on all seven projections. The block
 // program's step is timed on the device and on the host, with the device
-// memory it peaks at. The LoRA trainer, which runs on the host, and the
+// memory it peaks at, and on the device again with only the query's and the
+// value's projections adapted. The LoRA trainer, which runs on the host, and the
 // resident trainer, which trains every weight on the device, train whole
 // models, so each is run on models of one and of five such blocks and a
 // block's share is a quarter of the difference. The figures are logged as the
@@ -147,34 +148,44 @@ func TestDenseBlockAdapterTrainsOnTheDevice(t *testing.T) {
 		state.Driver.ResetPeakBytes()
 		return nil
 	}
-	placed, err := densecausal.NewBlockAdapter(single, 0, seq, rank, alpha, every(0), 7)
-	if err != nil {
-		t.Fatal(err)
-	}
-	session, err := placed.OnDevice(ctx, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	programStep, onDevice := stepped(placed, steps)
-	started := time.Now()
-	for range steps {
-		if err := placed.Passes(state, target); err != nil {
+	// onto is an adapter of the projections named on the device: its step's and its passes' mean times, its first timed loss, and the device memory it peaked at and holds fixed.
+	onto := func(adapted []string) (step, passes time.Duration, opening float64, peak, fixed uint64) {
+		t.Helper()
+		placed, err := densecausal.NewBlockAdapter(single, 0, seq, rank, alpha, adapted, 7)
+		if err != nil {
 			t.Fatal(err)
 		}
+		session, err := placed.OnDevice(ctx, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		step, opening = stepped(placed, steps)
+		started := time.Now()
+		for range steps {
+			if err := placed.Passes(state, target); err != nil {
+				t.Fatal(err)
+			}
+		}
+		passes = time.Since(started) / steps
+		stats, err := session.Stats(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := session.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		return step, passes, opening, stats.Device.PeakBytes, stats.StaticBytes
 	}
-	programPasses := time.Since(started) / steps
-	stats, err := session.Stats(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := session.Close(ctx); err != nil {
-		t.Fatal(err)
-	}
-	programPeak := stats.Device.PeakBytes
+	programStep, programPasses, onDevice, programPeak, programFixed := onto(every(0))
 	measured("program-device-step-microseconds", programStep.Microseconds())
 	measured("program-device-passes-microseconds", programPasses.Microseconds())
 	measured("program-device-peak-bytes", int64(programPeak))
-	measured("program-device-weights-bytes", int64(stats.StaticBytes))
+	measured("program-device-weights-bytes", int64(programFixed))
+	// The same on the two projections an adapter most often has, the query's and the value's.
+	names := densecausal.DenseLayerTensorNames(0)
+	narrowStep, narrowPasses, _, _, _ := onto([]string{names.Q, names.V})
+	measured("program-device-step-query-value-microseconds", narrowStep.Microseconds())
+	measured("program-device-passes-query-value-microseconds", narrowPasses.Microseconds())
 	hosted, err := densecausal.NewBlockAdapter(single, 0, seq, rank, alpha, every(0), 7)
 	if err != nil {
 		t.Fatal(err)

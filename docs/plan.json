@@ -4,28 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "exposure-one-decision",
-      "title": "Make a held-out confirmation's reading of its exposure and its charge one decision",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 536,
-        "reason": "What the row may still add. Set on 2026-10-11 to the 536 nodes the automated checks count its second step at on its built change: the naming of held-out parts published before parts named what they hold, by a pool's recorded contents or an instruction acceptance's cases, the refusal of a charged part nothing names, its two callers where held-out material is admitted, and the comments that say why. Its first step, 174, is committed."
-      },
-      "steps": [
-        {
-          "id": "unnamed-exposure",
-          "title": "Say, and hold, how material charged before parts carried content names is admitted when it is imported again",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestMaterialChargedUnnamedIsNotFreshWhenImportedAgain$'",
-          "rationale": "The other half of what SQA-110 leaves open, which 7d8708db4 said of itself: a registration that names its content cannot find the charges of older parts that carried no names. Refusing another confirmation on the old part does not keep that exposure when the same material is imported again as a new, named part, which then reads as fresh. Closure, as the reviewer wrote it: state how material charged while unnamed is admitted on reimport, and show the exposure kept, or the import refused, before anything is read; refusing the original unnamed acceptance is not coverage of a newly registered copy; no new ledger and no recurring census. Whether this store holds any charged unnamed part is read first, and the disposition is made for what is there. The step first writes the test that fails for the finding's own counterexample, then repairs, as the reviewer's closure asks; a finding that does not reproduce is said so and closed with what was tried. The register stays the reviewer's and is not edited here. The row has no count: each step is sized by a preflight when it is built.\n\nServes: evaluate. Evidence: the test, on the host. Batch: host.",
-          "depends_on": [
-            "exposure-one-decision/conditional-charge"
-          ]
-        }
-      ]
-    },
-    {
       "id": "served-path-repairs",
       "title": "Repair the reviewer's confirmed defects on the paths that serve a request",
       "owner": "master-lead",

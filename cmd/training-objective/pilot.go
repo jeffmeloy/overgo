@@ -82,6 +82,10 @@ func fixPilot(repository string, request pilotRequest, output io.Writer) error {
 	if err != nil {
 		return err
 	}
+	// What was charged before a part named what it holds is found from the split fixed here only once those parts are named.
+	if _, err := evaluation.NameEarlierParts(ctx, store); err != nil {
+		return err
+	}
 	outcome, err := trainingworkflow.FixInstructionPilot(ctx, store, trainingworkflow.InstructionPilot{
 		Model: request.model, Template: pilotTemplate, Window: request.window, MaxTokens: request.tokens, Seed: request.seed, Code: code, Weights: weights, Gain: request.gain,
 		Training: trainingworkflow.InstructionTraining{Draws: request.draws, Passes: request.passes, DeviceBytes: request.memory * gibibyte},

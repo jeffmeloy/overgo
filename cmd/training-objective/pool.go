@@ -46,6 +46,10 @@ func buildPool(repository, alias string, gain float64, sequence uint64, weightsT
 	if recorded, request.Base, request.Basis, err = evaluation.RecordedGains(ctx, store, request.Objective); err != nil {
 		return err
 	}
+	// What was charged before a part named what it holds is found from this pool only once those parts are named.
+	if _, err := evaluation.NameEarlierParts(ctx, store); err != nil {
+		return err
+	}
 	pool, err := evaluation.BuildHeldoutPool(ctx, store, request)
 	if err != nil {
 		return err

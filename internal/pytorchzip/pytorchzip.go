@@ -9,7 +9,9 @@ package pytorchzip
 
 import (
 	"archive/zip"
+	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -67,6 +69,26 @@ func ReadCatalog(filename string) (Catalog, error) {
 		}
 	}
 	return Catalog{}, fmt.Errorf("pytorchzip: data.pkl not found in %s", filename)
+}
+
+// Record names what a checkpoint's archive records of its contents, every
+// entry's name, length and CRC-32, as one digest. It reads the archive's
+// directory and no entry, so a checkpoint of gigabytes is named in the time
+// one of bytes is, and a checkpoint written again with other bytes has
+// another record under the same place, size and time. Bytes changed in place
+// under an unchanged directory keep the record: nothing short of reading
+// every entry would see them, and the reader here does not.
+func Record(filename string) (string, error) {
+	archive, err := zip.OpenReader(filename)
+	if err != nil {
+		return "", err
+	}
+	defer archive.Close()
+	recorded := sha256.New()
+	for _, entry := range archive.File {
+		fmt.Fprintf(recorded, "%q %d %d\n", entry.Name, entry.UncompressedSize64, entry.CRC32)
+	}
+	return hex.EncodeToString(recorded.Sum(nil)), nil
 }
 
 const (

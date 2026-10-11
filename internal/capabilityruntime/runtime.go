@@ -9,7 +9,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"os"
+	"io/fs"
 	"time"
 
 	"overgo/internal/artifact"
@@ -50,25 +50,44 @@ func (catalog ExecutorCatalog) Execute(
 // inventory to the key its run is kept under.
 type besideContextKey struct{}
 
-// Reading returns an executor whose answers are kept under the files its
-// model reads beside its inventory as well: a text encoder, a tokenizer, an
-// image processor, which files names from the model's path. A model's
+// Reading returns an executor whose answers are kept under what its model
+// reads beside its inventory as well: a text encoder, a tokenizer, an image
+// processor, whose bytes beside names from the model's path. A model's
 // identity is its inventory's, so a file outside it can change with no
-// identity moving, and the answer it shaped would be given again. Each file is
-// taken as a change to it shows, its place, size and time, since a checkpoint
-// of gigabytes cannot be digested for every request; one that is absent is
-// recorded so.
-func Reading(execute Executor, files func(path string) []string) Executor {
+// identity moving, and the answer it shaped would be given again. What beside
+// cannot name authorizes no reuse: the request is executed, and its answer
+// answers no other (FreshRun).
+func Reading(execute Executor, beside func(path string) (string, error)) Executor {
 	return func(ctx context.Context, store artifact.Repository, path string, execution modelrecipe.CapabilityEvidenceSelection, raw string) (any, error) {
-		state := sha256.New()
-		for _, file := range files(path) {
-			if info, err := os.Stat(file); err == nil {
-				fmt.Fprintf(state, "%s %d %d\n", file, info.Size(), info.ModTime().UnixNano())
-			} else {
-				fmt.Fprintf(state, "%s absent\n", file)
-			}
+		naming := processmeasure.Stage(ctx, "files beside the model named")
+		named, err := beside(path)
+		naming()
+		if err != nil {
+			return execute(FreshRun(ctx), store, path, execution, raw)
 		}
-		return execute(context.WithValue(ctx, besideContextKey{}, hex.EncodeToString(state.Sum(nil))), store, path, execution, raw)
+		return execute(context.WithValue(ctx, besideContextKey{}, named), store, path, execution, raw)
+	}
+}
+
+// Contents names files by their bytes, each read whole, for Reading: the
+// files a model reads beside its inventory that are small enough to read for
+// every request. One that is absent is named so; one that cannot be read is
+// not named.
+func Contents(files func(path string) []string) func(path string) (string, error) {
+	return func(path string) (string, error) {
+		named := sha256.New()
+		for _, file := range files(path) {
+			id, err := artifact.IdentifyFile(artifact.KindFile, file)
+			if errors.Is(err, fs.ErrNotExist) {
+				fmt.Fprintln(named, "absent")
+				continue
+			}
+			if err != nil {
+				return "", err
+			}
+			fmt.Fprintln(named, id)
+		}
+		return hex.EncodeToString(named.Sum(nil)), nil
 	}
 }
 

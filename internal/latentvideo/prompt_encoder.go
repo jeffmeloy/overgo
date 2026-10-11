@@ -4,12 +4,12 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
-	"os"
+	"io/fs"
 	"path/filepath"
 	"slices"
 	"sync"
-	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/binaryschema"
@@ -41,27 +41,44 @@ type promptEncoder struct {
 	passes int
 }
 
-// promptEncoderKey names a text encoder by what a prompt's rows depend on: its
-// files as they stand on disk, and the policy the checkpoint does not carry.
+// promptEncoderKey names a text encoder by what a prompt's rows depend on:
+// the bytes they are made from, and the policy the checkpoint does not carry.
 type promptEncoderKey struct {
-	tokenizer, checkpoint       fileState
+	content                     string
 	sequenceLength, maxDistance int
 	normEps                     float64
 }
 
-// fileState is a file as a change to it shows: its place, size and time.
-type fileState struct {
-	path     string
-	bytes    int64
-	modified time.Time
-}
-
-func stateOf(path string) (fileState, error) {
-	info, err := os.Stat(path)
-	if err != nil {
-		return fileState{}, err
+// content names the bytes a prompt's rows are made from, so that whatever
+// keeps rows, or an answer drawn from them, keeps them under those bytes and
+// not under a place, a size and a time, which other bytes can have. The
+// tokenizer's table and its special tokens are read whole. The encoder
+// checkpoint, eleven gigabytes that cannot be read for every request, is
+// named by what its archive records of its entries (pytorchzip.Record). On
+// the model's own files the three take nine milliseconds. A file that is not
+// there is named as absent where that is admitted, for a model served without
+// its text pipeline, and is refused where rows are to be made.
+func (spec TextConditioningSpec) content(admitAbsent bool) (string, error) {
+	whole := func(name string) func() (string, error) {
+		return func() (string, error) {
+			id, err := artifact.IdentifyFile(artifact.KindFile, filepath.Join(spec.TokenizerDir, name))
+			return id.String(), err
+		}
 	}
-	return fileState{path: path, bytes: info.Size(), modified: info.ModTime()}, nil
+	named := sha256.New()
+	for _, part := range [...]func() (string, error){
+		func() (string, error) { return pytorchzip.Record(spec.EncoderCheckpoint) }, whole(tokenizerTable), whole(tokenizerRoles),
+	} {
+		content, err := part()
+		if admitAbsent && errors.Is(err, fs.ErrNotExist) {
+			content, err = "absent", nil
+		}
+		if err != nil {
+			return "", err
+		}
+		fmt.Fprintln(named, content)
+	}
+	return hex.EncodeToString(named.Sum(nil)), nil
 }
 
 var promptEncoders = struct {
@@ -76,16 +93,12 @@ func promptEncoderFor(spec TextConditioningSpec) (*promptEncoder, error) {
 	if !checked.PositiveInts(spec.SequenceLength) {
 		return nil, fmt.Errorf("text conditioning: positive sequence length required")
 	}
-	tokenizer, err := stateOf(filepath.Join(spec.TokenizerDir, tokenizerTable))
-	if err != nil {
-		return nil, err
-	}
-	checkpoint, err := stateOf(spec.EncoderCheckpoint)
+	content, err := spec.content(false)
 	if err != nil {
 		return nil, err
 	}
 	key := promptEncoderKey{
-		tokenizer: tokenizer, checkpoint: checkpoint,
+		content:        content,
 		sequenceLength: spec.SequenceLength, maxDistance: spec.RelativeMaxDistance, normEps: spec.NormEps,
 	}
 	promptEncoders.Lock()
@@ -193,14 +206,11 @@ var commonRowsContract = artifact.DocumentContract{
 }
 
 // commonRowsName names the kept rows of a spec's common prompt by everything
-// they depend on: the code that computes them, the encoder's files as they
-// stand, the policy its checkpoint does not carry, and the prompt.
+// they depend on: the code that computes them, the bytes they are made from,
+// the policy the encoder's checkpoint does not carry, and the prompt.
 func (e *promptEncoder) commonRowsName(spec TextConditioningSpec) string {
 	named := sha256.New()
-	for _, file := range [...]fileState{e.key.tokenizer, e.key.checkpoint} {
-		fmt.Fprintln(named, file.path, file.bytes, file.modified.UnixNano())
-	}
-	fmt.Fprintln(named, e.key.sequenceLength, e.key.maxDistance, e.key.normEps)
+	fmt.Fprintln(named, e.key.content, e.key.sequenceLength, e.key.maxDistance, e.key.normEps)
 	fmt.Fprint(named, spec.Common)
 	return "latentvideo/prompt-rows/" + spec.KeptUnder + "/" + hex.EncodeToString(named.Sum(nil))
 }

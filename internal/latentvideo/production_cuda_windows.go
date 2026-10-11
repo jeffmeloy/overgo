@@ -33,13 +33,6 @@ type WanRuntime struct {
 	runs      int
 }
 
-// wanConditioning memoizes the contexts of one prompt pair, so a replayed
-// or repeated request does not stream the encoder again.
-type wanConditioning struct {
-	prompt, negative string
-	cond, uncond     []float32
-}
-
 // LoadWanRuntime loads the generator a request is served by. A request that
 // names a prompt has its prompts encoded on the host while the generator
 // loads on the device, since neither waits on the other: the encoder keeps
@@ -114,14 +107,10 @@ func (r *WanRuntime) resolve(ctx context.Context, request WanRequest) (WanReques
 	if err := pass.taken(ctx); err != nil {
 		return WanRequest{}, err
 	}
-	if r.memo.cond == nil || r.memo.prompt != request.Prompt || r.memo.negative != request.NegativePrompt {
-		cond, uncond, err := promptContexts(ctx, r.text, request)
-		if err != nil {
-			return WanRequest{}, err
-		}
-		r.memo = wanConditioning{prompt: request.Prompt, negative: request.NegativePrompt, cond: cond, uncond: uncond}
+	var err error
+	if request.CondContext, request.UncondContext, err = r.memo.contexts(ctx, r.text, request); err != nil {
+		return WanRequest{}, err
 	}
-	request.CondContext, request.UncondContext = r.memo.cond, r.memo.uncond
 	plan, _, err := sampling.CompileCounterNoisePlan(
 		request.Seed, 0, r.generator.Geometry().Elements(), r.occupancy.smCount, r.occupancy.threadsPerSM,
 	)

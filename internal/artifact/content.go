@@ -10,6 +10,19 @@ import (
 
 const MaxContentBytes = 64 << 20
 
+// IdentifyFile gives the identity of the bytes of the file at path, read
+// whole: what names a file by its content where its place, size and time,
+// which other bytes can have, would not.
+func IdentifyFile(kind Kind, path string) (ID, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return ID{}, err
+	}
+	defer file.Close()
+	id, _, err := Identify(kind, file)
+	return id, err
+}
+
 // ReadContentFile reads a nonempty regular file within the inline content bound.
 // The publisher still owns content identity and schema validation.
 func ReadContentFile(path string) ([]byte, error) {

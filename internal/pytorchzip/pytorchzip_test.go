@@ -4,7 +4,9 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -168,6 +170,84 @@ func TestSyntheticCheckpointRoundTrip(t *testing.T) {
 		if _, err := ParseCatalog(pickle[:cut]); err == nil {
 			t.Fatalf("truncated pickle at %d parsed without error", cut)
 		}
+	}
+}
+
+// TestRecordNamesWhatAnArchiveRecords holds the name a checkpoint is given by
+// what its archive records of its entries. A checkpoint written again with
+// the same values has the same record, and one written with another value has
+// another, at the same length: what a size and a time would not show. A file
+// that is no archive has no record, and one that is not there is refused as
+// not there.
+//
+// The record's limit is held too, so that it is stated and not hoped away: a
+// value changed in place, with the archive's directory left as it was, keeps
+// the record, and the reader gives the changed value.
+func TestRecordNamesWhatAnArchiveRecords(t *testing.T) {
+	values := []float32{-2.5, 0, 1.25, 255, -0.375, 8}
+	record := func(path string) string {
+		t.Helper()
+		recorded, err := Record(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return recorded
+	}
+	first, _ := syntheticCheckpoint(t, values)
+	again, _ := syntheticCheckpoint(t, values)
+	other, _ := syntheticCheckpoint(t, []float32{-2.5, 0, 1.25, 255, -0.375, 4})
+	raw, err := os.ReadFile(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info, err := os.Stat(other); err != nil || info.Size() != int64(len(raw)) {
+		t.Fatalf("the checkpoint of another value is not the length of the first: %v", err)
+	}
+	if record(again) != record(first) || record(other) == record(first) {
+		t.Fatalf("the same values written again have the first's record: %t; another value has it too: %t", record(again) == record(first), record(other) == record(first))
+	}
+
+	// The last value, 8, where it lies in the file, made 4 with the directory untouched.
+	stored := make([]byte, 2)
+	binary.LittleEndian.PutUint16(stored, dtype.Float32ToBF16(8))
+	at := bytes.Index(raw, stored)
+	if at < 0 || bytes.Count(raw, stored) != 1 {
+		t.Fatalf("the stored value lies %d times in the file, want once", bytes.Count(raw, stored))
+	}
+	binary.LittleEndian.PutUint16(raw[at:], dtype.Float32ToBF16(4))
+	if err := os.WriteFile(first, raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	catalog, err := ReadCatalog(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bindings, err := CompileBindings(catalog.Tensors, []string{"w"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader, err := Open(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	got, err := reader.ReadBinding(bindings[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if record(first) != record(again) || got[len(got)-1] != 4 {
+		t.Fatalf("a value changed in place: the record moved: %t, and the reader gives %g; the limit as stated is the record kept and 4 read", record(first) != record(again), got[len(got)-1])
+	}
+
+	plain := filepath.Join(t.TempDir(), "plain.pth")
+	if err := os.WriteFile(plain, []byte("no archive"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if recorded, err := Record(plain); err == nil {
+		t.Fatalf("a file that is no archive has the record %q", recorded)
+	}
+	if _, err := Record(filepath.Join(t.TempDir(), "absent.pth")); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("a checkpoint that is not there = %v, want it refused as not there", err)
 	}
 }
 

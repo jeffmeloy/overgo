@@ -2,6 +2,7 @@ package capabilityruntime
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -37,7 +38,10 @@ type scoreRequest struct {
 // scores again and executes nothing. A change to a kernel of the model
 // executes again, and scores nothing while the answer is the one already
 // scored; a change to a file the model reads beside its inventory executes
-// again; a mended model executes again and its new answer is scored. A
+// again, and so do other bytes in that file under the size and the time it
+// had; a mended model executes again and its new answer is scored. While that
+// file cannot be read nothing kept is given and every request executes, and
+// when it is read again the answer kept under its bytes is given. A
 // request for a fresh measurement executes every time, under an identity that
 // holds an answer. And a build that counted no identity gives again nothing a
 // process before it answered.
@@ -58,6 +62,7 @@ func TestStoredResultIsReusedOnlyUnderItsOwnIdentity(t *testing.T) {
 	if err := os.WriteFile(preprocessor, []byte("vocabulary"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	unreadable := false
 	executed, scored, gain := 0, 0, 2
 	contract := artifact.JSONContract(artifact.KindOutput, "test.reuse-output.v1")
 	model := Reading(JSONScalar[scalarRequest, reusedModel, int](
@@ -71,7 +76,12 @@ func TestStoredResultIsReusedOnlyUnderItsOwnIdentity(t *testing.T) {
 				return request.Value * gain, nil
 			})
 		},
-	), func(string) []string { return []string{preprocessor} })
+	), func(path string) (string, error) {
+		if unreadable {
+			return "", errors.New("the file beside the model cannot be read")
+		}
+		return Contents(func(string) []string { return []string{preprocessor} })(path)
+	})
 	scorer := JSONScalar[scoreRequest, *strings.Builder, int](
 		"scalar", func(scoreRequest) error { return nil },
 		func(context.Context, artifact.Repository, string, recipe.Program, scoreRequest) (*strings.Builder, error) {
@@ -123,16 +133,34 @@ func TestStoredResultIsReusedOnlyUnderItsOwnIdentity(t *testing.T) {
 				t.Fatal(err)
 			}
 		}, 3, 2, 8},
-		{"a mended model", func() { identities[modelPackage], gain = "model-3", 3 }, 4, 3, 12},
-		{"the same build again", func() {}, 4, 3, 12},
-		{"a request for a fresh measurement", func() { fresh = true }, 5, 3, 12},
-		{"a second request for a fresh measurement", func() {}, 6, 3, 12},
-		{"the answer kept before the measurements", func() { fresh = false }, 6, 3, 12},
+		{"other bytes in that file, under the size and the time it had", func() {
+			before, err := os.Stat(preprocessor)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(preprocessor, []byte("a longer dictionary"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Chtimes(preprocessor, before.ModTime(), before.ModTime()); err != nil {
+				t.Fatal(err)
+			}
+			if after, err := os.Stat(preprocessor); err != nil || after.Size() != before.Size() || !after.ModTime().Equal(before.ModTime()) {
+				t.Fatalf("the file's size and time moved with its bytes: %v", err)
+			}
+		}, 4, 2, 8},
+		{"a mended model", func() { identities[modelPackage], gain = "model-3", 3 }, 5, 3, 12},
+		{"the same build again", func() {}, 5, 3, 12},
+		{"that file unreadable", func() { unreadable = true }, 6, 3, 12},
+		{"that file still unreadable", func() {}, 7, 3, 12},
+		{"that file read again", func() { unreadable = false }, 7, 3, 12},
+		{"a request for a fresh measurement", func() { fresh = true }, 8, 3, 12},
+		{"a second request for a fresh measurement", func() {}, 9, 3, 12},
+		{"the answer kept before the measurements", func() { fresh = false }, 9, 3, 12},
 		{"a build that counted no identity", func() {
 			clear(identities)
 			codeScope = func() string { return "process/one" }
-		}, 7, 4, 12},
-		{"a second process of such a build", func() { codeScope = func() string { return "process/two" } }, 8, 5, 12},
+		}, 10, 4, 12},
+		{"a second process of such a build", func() { codeScope = func() string { return "process/two" } }, 11, 5, 12},
 	} {
 		build.change()
 		answer, score := measure()

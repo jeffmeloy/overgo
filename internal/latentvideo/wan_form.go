@@ -6,6 +6,7 @@ import (
 	"math"
 	"path/filepath"
 
+	"overgo/internal/processmeasure"
 	"overgo/internal/sampling"
 )
 
@@ -33,22 +34,19 @@ const (
 	tokenizerRoles = "special_tokens_map.json"
 )
 
-// TextPipelineFiles names the files a video model's text pipeline reads that
-// the model's inventory does not hold: the umT5 encoder checkpoint and the
-// tokenizer's two files, in the Wan directory the model conditions through,
-// which is its own or, for a LiveEdit model, the base beside it. A stored
-// answer is kept under them as well as under the model
-// (capabilityruntime.Reading), so a changed encoder or tokenizer asks again.
-func TextPipelineFiles(modelDirectory string) []string {
+// TextPipelineIdentity names the bytes of the files a video model's text
+// pipeline reads that the model's inventory does not hold: the umT5 encoder
+// checkpoint and the tokenizer's two files, in the Wan directory the model
+// conditions through, which is its own or, for a LiveEdit model, the base
+// beside it (TextConditioningSpec.content). A stored answer is kept under it
+// as well as under the model (capabilityruntime.Reading), so a changed
+// encoder or tokenizer asks again. A file that is not there is named so,
+// since a request that brings its own contexts is served without it.
+func TextPipelineIdentity(modelDirectory string) (string, error) {
 	if IsLiveEdit(modelDirectory) {
 		modelDirectory, _ = LiveEditArtifacts(modelDirectory)
 	}
-	tokenizer := filepath.Join(modelDirectory, filepath.FromSlash(wanTokenizerDir))
-	return []string{
-		filepath.Join(modelDirectory, wanEncoderCheckpoint),
-		filepath.Join(tokenizer, tokenizerTable),
-		filepath.Join(tokenizer, tokenizerRoles),
-	}
+	return WanTextConditioningSpec(modelDirectory, 1).content(true)
 }
 
 // WanTextConditioningSpec locates the text pipeline inside a Wan model
@@ -127,6 +125,34 @@ func (request WanRequest) withGeneration(policy generationPolicy) WanRequest {
 		request.NegativePrompt = referenceNegativePrompt
 	}
 	return request
+}
+
+// wanConditioning memoizes the contexts of one prompt pair under the bytes
+// they were made from, so a replayed or repeated request does not stream the
+// encoder again, and one that follows a changed encoder or tokenizer does.
+type wanConditioning struct {
+	prompt, negative, content string
+	cond, uncond              []float32
+}
+
+// contexts gives a prompt-form request's contexts: the memo's when the
+// prompts and the pipeline's bytes are the ones it was made from, and
+// otherwise the pipeline's own, which the memo then holds.
+func (memo *wanConditioning) contexts(ctx context.Context, spec TextConditioningSpec, request WanRequest) (cond, uncond []float32, err error) {
+	naming := processmeasure.Stage(ctx, "text pipeline named")
+	content, err := spec.content(false)
+	naming()
+	if err != nil {
+		return nil, nil, err
+	}
+	if memo.cond == nil || memo.prompt != request.Prompt || memo.negative != request.NegativePrompt || memo.content != content {
+		cond, uncond, err := promptContexts(ctx, spec, request)
+		if err != nil {
+			return nil, nil, err
+		}
+		*memo = wanConditioning{prompt: request.Prompt, negative: request.NegativePrompt, content: content, cond: cond, uncond: uncond}
+	}
+	return memo.cond, memo.uncond, nil
 }
 
 // promptContexts derives the conditional and unconditional contexts of a

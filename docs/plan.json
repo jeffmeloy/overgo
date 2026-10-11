@@ -8,6 +8,10 @@
       "title": "Show the Train tab's sample strip while the run goes, not when it ends",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 198,
+        "reason": "What the row may still add. Set on 2026-10-11 to the 198 nodes its built Go half was counted at: a bounded text an operation in flight can carry, and the training run reporting its samples through it. The page half adds none."
+      },
       "steps": [
         {
           "id": "do",
@@ -43,8 +47,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 143,
-        "reason": "What the row may still add. Set on 2026-10-11 to the 143 nodes its built server half was counted at: two small demonstration datasets kept in the server and registered in one action. The page half adds none."
+        "nodes": 186,
+        "reason": "What the row may still add. Set on 2026-10-11 to the 186 nodes its built server half was counted at: two small demonstration datasets kept in the server and registered in one action, and a demo whose directory is already on disk registered as it stands (43 of the 186, added after the row was first counted at 143). The page half adds none."
       },
       "steps": [
         {
@@ -61,6 +65,10 @@
       "title": "Turn documents into a conversation dataset with the served model (Unsloth Studio's data recipes)",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 1126,
+        "reason": "What the row may still add. Set on 2026-10-11 to the 1126 nodes its built route was counted at: the route that drafts pairs with the served model and registers them, the shared reading of a stored document's text, and the route's entry. The page half adds none."
+      },
       "steps": [
         {
           "id": "do",
@@ -76,6 +84,10 @@
       "title": "Keep the resident model only when it fits beside a device training run (Unsloth Studio's rule",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 440,
+        "reason": "What the row may still add. Set on 2026-10-11 to six above the 434 nodes its built change was counted at: its second reading asked for comment lines, which count, and that repair was still being made when this was filed."
+      },
       "steps": [
         {
           "id": "do",
@@ -83,6 +95,67 @@
           "status": "open",
           "verify": "test -f internal/server/resident_fit_test.go \u0026\u0026 go test ./internal/server -run '^TestResidentFit' -count=1",
           "rationale": "Recommended by the GUI lane and not landed when its worktree was removed on 2026-10-09 (docs/gui_update_plan.json, which stays out of the repository); ranked into this plan by the owner's answer to gui-recommendations on 2026-10-10. Keep the resident model only when it fits beside a device training run (Unsloth Studio's rule: usable memory at least required times 1.15 plus 4 GB, and evict speech before chat); not needed while Train-tab runs are host-only. Why the lane recommended it: \n\nThe lane's rule for a change to the pages holds: plain HTML, JavaScript and Go, reviewed in a browser at desktop and phone widths in both colour schemes, and accepted by a browser leg or a Go test that fails without it. The row has no count: it is sized by a preflight when it is dispatched.\n\nServes: peak-device-memory. Batch: browser."
+        }
+      ]
+    },
+    {
+      "id": "reviewer-repairs-second",
+      "title": "Repair seven more of the reviewer's confirmed findings that a test on the host holds",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 47,
+        "reason": "What the row may still add. Set on 2026-10-11 to what its one adding step, attempt-attribution, was counted at in its own checkout, by the count of syntax nodes the automated checks take. Four steps remove 10, 13, 14 and 86 and add none; two change tests alone."
+      },
+      "steps": [
+        {
+          "id": "attempt-attribution",
+          "title": "Record a served attempt under the run its executor made and under the environment that run is bound to",
+          "status": "open",
+          "verify": "go test ./internal/server -count=1 -run '^(TestGenerationAttemptCitesTheRunItsExecutorMade|TestAudioTranscriptionsAcceptance)$'",
+          "rationale": "Reviewer finding SQA-053, second severity, its two attribution legs, confirmed by reading (docs/sqa_findings.json, not in the repository). A served generation's attempt cited the workspace's own run and never the run its executor reported, so a failure cited a stand-in; and an attempt was recorded under the environment of whoever recorded it, where the run it cites may be bound to another. Closure: the attempt cites the executor's run where it reported one, and is recorded under the environment its run is bound to. A served transcription's attempts then stand under the host environment its runs name, so their comparison with a reference recorded before reads as unknown until a reference is published after. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader and then by the lead, in a checkout of the step's own, before this row was filed. The register stays the reviewer's and is not edited here.\n\nServes: failure-rate, and every serving cell's attribution. Evidence: the tests. Batch: browser; the commit runs the browser tests, since the server package is under them."
+        },
+        {
+          "id": "decline-by-reference-spread",
+          "title": "Judge a serving cell's decline by its reference's spread and environment, so its own spread neither hides nor restores it",
+          "status": "open",
+          "verify": "go test ./internal/scorecard -count=1 -run '^(TestACellsOwnSpreadNeitherHidesItsDeclineNorRestoresIt|TestServingEnvironmentChangeIsUnknown|TestServingCountsWhatUsersHit)$'",
+          "rationale": "Reviewer finding SQA-102, second severity, its first step, with the comparison leg of SQA-053, confirmed by reading (docs/sqa_findings.json, not in the repository). A comparison's allowance was widened by the larger of the two cells' spreads, and a serving cell's spread counts the attempt the cell reads, so a cell's own step excused itself; a filed decline was judged restored with the live cell's own spread; and a serving cell was compared with a reference that names no environment as if they shared one. Closure: a decline is judged by the reference's spread alone, a filed decline is restored only within the column's allowance, and an environment only one side names compares with nothing. Measured on the store's 27 published records, the newest against its reference: one more decline is filed, a load time its own spread had hidden, and no comparison becomes unknown. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader and then by the lead, in a checkout of the step's own, before this row was filed. The register stays the reviewer's and is not edited here.\n\nServes: every scorecard cell's comparison. Evidence: the tests and that measurement. Batch: host."
+        },
+        {
+          "id": "unread-answer-count",
+          "title": "Count an answer of no text among the generated answers that named no option",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^(TestAnAnswerOfNoTextIsCountedAsNamingNoOption|TestCountUnreadCountsGeneratedAnswersThatNamedNoOption)$'",
+          "rationale": "Reviewer finding SQA-122, third severity, confirmed by reading (docs/sqa_findings.json, not in the repository). The scorecard states, beside a chat-template reading, how many generated answers named no option, and the count left out an answer of no text, which a report writes with a selection of none and no text. Closure: every answer whose selection is none is counted; a case scored by likelihood, which always selects, is not. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader and then by the lead, in a checkout of the step's own, before this row was filed. The register stays the reviewer's and is not edited here.\n\nServes: held-out-quality. Evidence: the tests. Batch: host; the commit runs the device tests, since evaluation is under them."
+        },
+        {
+          "id": "thinking-stream-copy",
+          "title": "Parse a streamed Anthropic thinking turn from the pump's own output, where the route kept a second copy of it",
+          "status": "open",
+          "verify": "go test ./internal/server -count=1 -run '^TestStreamedThinking'",
+          "rationale": "Reviewer finding SQA-121, third severity, confirmed by reading (docs/sqa_findings.json, not in the repository). A streamed thinking turn on the Anthropic route collected every piece into a buffer of its own beside the generation pump's, so it held its output twice until it parsed. Closure: the route parses the pump's text; a streamed turn has allocated no more than a whole one when its output reaches the parser, and it stops and flushes as a whole one does. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader and then by the lead, in a checkout of the step's own, before this row was filed. The register stays the reviewer's and is not edited here.\n\nServes: serve. Evidence: the tests. Batch: browser; the commit runs the browser tests, since the server package is under them."
+        },
+        {
+          "id": "comparison-not-a-number",
+          "title": "Fail an element comparison handed a value that is not a number, and delete four local copies of what an owner already does",
+          "status": "open",
+          "verify": "go test ./internal/testutil -count=1 -run '^(TestEveryComparisonRefusesAValueThatIsNotANumber|TestElementComparisonStillPassesWhatIsWithinItsBound)$'",
+          "rationale": "Reviewer finding SQA-088, second severity, its host slice, confirmed by reading (docs/sqa_findings.json, not in the repository). RequireElementsWithin asked only whether a difference exceeded its bound, which is false of a value that is not a number, so such a value passed every golden check that used it. Closure: it fails on a value that is not a number on either side, as its siblings do; and four local copies of what an owner already does are deleted: the audio frontend's second walk for a value the resampler already refuses, the template engine's second key lister, and two test helpers. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader and then by the lead, in a checkout of the step's own, before this row was filed. The register stays the reviewer's and is not edited here.\n\nServes: evaluate, train: the golden checks. Evidence: the tests. Batch: host; the commit runs the device tests, since the comparison helper is under them."
+        },
+        {
+          "id": "resource-wait-tests",
+          "title": "Make the release test fail when a holder's release wakes no waiter, and give the resource-wait tests a name of their own run",
+          "status": "open",
+          "verify": "go test ./internal/processcontrol -count=1 -run '^TestResourceAdmission'",
+          "rationale": "Reviewer finding SQA-087, third severity, the half of it in internal/processcontrol, confirmed by reading (docs/sqa_findings.json, not in the repository). TestResourceAdmissionWaitsForRelease asserted only that the wait returned, with nothing ordering the release against the waiter, and both resource-wait tests named their resource by the test's name alone, so every process on the machine that ran them met on one event and one lock file. Closure: the release test fails when a release wakes no waiter, and each run names a resource of its own. A change to tests alone; no production defect is claimed. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader and then by the lead, in a checkout of the step's own, before this row was filed. The register stays the reviewer's and is not edited here.\n\nServes: failure-rate of the checks. Evidence: the tests. Batch: host."
+        },
+        {
+          "id": "retirement-test-order",
+          "title": "Give back each lease before reading the next in the retirement test, and force both orders of admission",
+          "status": "open",
+          "verify": "go test ./internal/capabilityruntime -count=1 -run '^TestBlockedCloseHoldsCapacityOnEveryRetirementPath$'",
+          "rationale": "Reviewer finding SQA-128, second severity, confirmed by reading (docs/sqa_findings.json, not in the repository). In the test's idle-eviction row, at capacity one, the request that evicted a model and a request parked behind it contend for the place its Close frees, and either may take it; the test read the evicting request's lease first, so when the other won it waited for ever. Closure: each lease is given back before the next is read, and both orders of admission are forced. A change to tests alone. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader and then by the lead, in a checkout of the step's own, before this row was filed. The register stays the reviewer's and is not edited here.\n\nServes: failure-rate of the checks. Evidence: the test. Batch: host."
         }
       ]
     },

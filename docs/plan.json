@@ -9,20 +9,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 2938,
+        "nodes": 2314,
         "reason": "A ceiling, not a target: the present size of internal/landing landing.go, the landing the queue serializes, counted 2026-10-09 as the gate counts production nodes. The queue reuses the landing; it does not write a second one. The lead lowers it when the first step reports."
       },
       "steps": [
-        {
-          "id": "integrate",
-          "title": "Bring the trunk into a worktree's candidate before it is checked, and publish it onto the trunk",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestWorktreeCandidateIsIntegratedOntoTheTrunk$'",
-          "rationale": "The second step of the design the first states. A commit from a worktree that is not on the trunk's tip integrates first: its working tree becomes the three-way merge of the tip, the commit it was written on and its own changes, its HEAD the tip, and a file both changed otherwise refuses the commit naming it, with the working tree as it was. The commit then runs on that tree: its changed paths, its count and its check are read against the tip, so it is charged with its own files and not with what landed between, and by the terms the tip's plan holds. It publishes onto the trunk by compare-and-set and moves its own HEAD after, and the trunk's checkout follows, its index and files read forward from the old tip to the new; that reading is tried dry before the trunk moves, and a commit the trunk's checkout cannot follow, because the lead has uncommitted changes to a file it changes, is refused naming the file. The plan a commit publishes is the tip's with its row removed, never the worktree's older copy. Every read of HEAD by name in the stages becomes the commit built on. Its test lands from two worktrees begun at one base, with a change to the plan committed on the trunk between, and holds the tree, the plan, the charge, the terms and both checkouts after each.\n\nServes: change. Evidence: the test. Batch: host; the commit code's own tests run with every commit.",
-          "depends_on": [
-            "commit-queue/turn"
-          ]
-        },
         {
           "id": "queue",
           "title": "Commit the candidates of several worktrees through one queue",

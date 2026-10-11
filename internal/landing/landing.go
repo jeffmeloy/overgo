@@ -13,7 +13,11 @@
 // the gate measured, and the slice's trailer carries it for the next landing
 // to compare against. A run that may commit holds the repository's one turn
 // from its start to its end, so the commits begun in a repository's worktrees
-// run one at a time (holdTurn). A refusal names the stage that refused it; the loop
+// run one at a time (holdTurn). A worktree that is not the trunk's own
+// checkout is first brought up to the trunk's tip, its change merged onto
+// what landed since it was written (integrate); its commit is then checked on
+// that tree by the tip's terms and published onto the trunk, whose checkout
+// follows. A refusal names the stage that refused it; the loop
 // classes it, an antivirus quarantine as an external prerequisite, and
 // records its class in the checkout's process state, where a recurrence shows.
 package landing
@@ -78,6 +82,10 @@ type landing struct {
 	// trailers are the scorecard slices' commit trailers, one per slice
 	// that measured or failed.
 	trailers []string
+	// trunk is the directory of the repository's main worktree and branch the
+	// branch it has checked out; onto is that branch when this checkout is
+	// not the one that has it, and the commit publishes onto it.
+	trunk, branch, onto string
 	// candidate is the tree the checks validate and the commit publishes.
 	candidate string
 	// planned is the plan the candidate holds and advanced is it with the
@@ -127,6 +135,10 @@ func Run(ctx context.Context, options Options) (landed string, err error) {
 			return "", err
 		}
 		defer func() { _ = release() }()
+		// Under the turn the trunk stands still: a worktree that is behind it is brought up to it.
+		if err := l.integrate(ctx); err != nil {
+			return "", err
+		}
 	}
 	if options.Quiet {
 		release, err := l.holdQuiet(ctx, quietMachine)
@@ -253,6 +265,11 @@ func (l *landing) parents(ctx context.Context) error {
 	return nil
 }
 
+// builtOn names the commit a change is read against: the one the landing
+// found and publishes onto, which a worktree that was brought up to the trunk
+// has as its HEAD, or HEAD itself for a stage run before it is read.
+func (l *landing) builtOn() string { return cmp.Or(l.head, "HEAD") }
+
 // shipSet takes the dirty tree as the candidate, then reads the paths it
 // changes; a path that changes after the capture is one more path the
 // checks read and the commit refuses. An untracked top-level entry HEAD does
@@ -276,7 +293,7 @@ func (l *landing) shipSet(ctx context.Context) error {
 	if err := l.row(ctx); err != nil {
 		return err
 	}
-	tracked, err := gitauthority.Query(ctx, l.Repo, "ls-tree", "--name-only", "HEAD")
+	tracked, err := gitauthority.Query(ctx, l.Repo, "ls-tree", "--name-only", l.builtOn())
 	if err != nil {
 		return err
 	}
@@ -648,8 +665,32 @@ func (l *landing) commit(ctx context.Context) (landed string, err error) {
 		return "", err
 	}
 	landed = strings.TrimSpace(commit)
+	// From a worktree that is not the trunk's own checkout the trunk moves
+	// first, and only if its checkout can follow: its index and files are read
+	// forward from the old tip to the new, which uncommitted changes of the
+	// lead's to a file this commit changes refuse.
+	follow := func(trial ...string) error {
+		_, err := l.git(ctx, slices.Concat([]string{"-C", l.trunk, "read-tree"}, trial, []string{"-m", "-u", l.head, landed})...)
+		return err
+	}
+	if l.onto != "" {
+		// A file written and put back is as git holds it, which only a refreshed index knows; a file that differs stays so, and the refresh says nothing of it here.
+		_, _ = l.git(ctx, "-C", l.trunk, "update-index", "-q", "--refresh")
+		if err := follow("-n"); err != nil {
+			return "", fmt.Errorf("land: the trunk's checkout %s cannot follow %s, having uncommitted changes of its own to what it changes; they are committed or put aside there first: %w", l.trunk, l.Ref, err)
+		}
+		if _, err := l.git(ctx, "update-ref", "-m", "land "+l.Ref, l.onto, landed, l.head); err != nil {
+			return "", fmt.Errorf("land: publish %s onto the trunk %s at %.12s: %w", l.Ref, l.onto, l.head, err)
+		}
+	}
 	if _, err := l.git(ctx, "update-ref", "-m", "land "+l.Ref, "HEAD", landed, l.head); err != nil {
 		return "", fmt.Errorf("land: publish %s onto %.12s: %w", l.Ref, l.head, err)
+	}
+	var followed error
+	if l.onto != "" {
+		if followed = follow(); followed != nil {
+			followed = fmt.Errorf("land: %s landed as %.12s, but the trunk's checkout %s did not follow it and holds the files of %.12s: %w", l.Ref, landed, l.trunk, l.head, followed)
+		}
 	}
 	planPath := filepath.Join(l.Repo, filepath.FromSlash(plan.Path))
 	held, err := os.ReadFile(planPath)
@@ -662,7 +703,7 @@ func (l *landing) commit(ctx context.Context) (landed string, err error) {
 	}
 	// The checkout's index follows the commit, and a merge it concluded ends.
 	_, synced := l.git(ctx, "reset", "-q")
-	return landed, errors.Join(err, synced)
+	return landed, errors.Join(err, followed, synced)
 }
 
 // message is the authored message, what the gate measured, and the trailers:

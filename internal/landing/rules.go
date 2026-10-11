@@ -137,7 +137,7 @@ func (l *landing) outsideGo(ctx context.Context) string {
 		if !kernel && !strings.Contains("/"+entry.Path, "/testdata/") {
 			continue
 		}
-		before, absent := gitauthority.Query(ctx, l.Repo, "show", "HEAD:"+cmp.Or(entry.OriginalPath, entry.Path))
+		before, absent := gitauthority.Query(ctx, l.Repo, "show", l.builtOn()+":"+cmp.Or(entry.OriginalPath, entry.Path))
 		after, gone := os.ReadFile(filepath.Join(l.Repo, filepath.FromSlash(entry.Path)))
 		if kernel {
 			lines += bytes.Count(after, []byte("\n")) - bytes.Count(before, []byte("\n"))
@@ -168,7 +168,7 @@ func (l *landing) changedSource(ctx context.Context) (gosyntax.Snapshot, gosynta
 		directories[path.Dir(entry.Path)] = true
 		// A renamed file's base is what HEAD held at its old path; a file
 		// HEAD lacks is absent from the base.
-		data, err := gitauthority.Query(ctx, l.Repo, "show", "HEAD:"+cmp.Or(entry.OriginalPath, entry.Path))
+		data, err := gitauthority.Query(ctx, l.Repo, "show", l.builtOn()+":"+cmp.Or(entry.OriginalPath, entry.Path))
 		if err != nil {
 			data = nil
 		}

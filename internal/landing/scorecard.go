@@ -159,7 +159,7 @@ func (l *landing) sliceBaseline(ctx context.Context, identity string) (metric.Re
 		return metric.Record{}, "", nil
 	}
 	log, err := gitauthority.Query(ctx, l.Repo, "log", "--first-parent", "--grep=^"+sliceTrailer+": ",
-		"--format=%h %(trailers:key="+sliceTrailer+",valueonly,separator=%x1f)")
+		"--format=%h %(trailers:key="+sliceTrailer+",valueonly,separator=%x1f)", l.builtOn())
 	if err != nil {
 		return metric.Record{}, "", err
 	}

@@ -4,28 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "reward-pilot-acceptance",
-      "title": "Fix the instruction pilot's acceptance from the store's cases and real readings",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "Measured, not estimated: the quick checks counted 2,478 production nodes in the built command on 2026-10-11, and the row was filed with no count. Where they are, comments counted with code: the pilot itself, which reads the base on the development and selection groups, publishes the training specification and fixes or refuses the acceptance, 1,063; the command's mode, its eight flags and what it writes of the outcome, 729; a prompt drawn by one function for a reward session and for a reading, with the runtime rendering a chat turn and a reading opening the model's own file, 223 net of what left the session; and in the evaluation, the store's instruction family listed as cases, the groups named before any reading, and the acceptance sized from the base read twice, 463. Nothing was built beside an owner: the cases are the catalog's, grouped and divided by the acceptance's own code, the answers are drawn, kept and scored as a reward session's, and the acceptance, its split and its budget are published as they were. The growth buys the pilot's acceptance, which no command reached."
-      },
-      "steps": [
-        {
-          "id": "record",
-          "title": "Fix the pilot's acceptance on Qwen2.5-0.5B and retain what it was fixed from",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestInstructionPilotRecordIsTheAcceptanceItNames$'",
-          "rationale": "The command binds the answers it draws to the commit it was built at, and refuses a tree with uncommitted source, so the real model is read after the command is committed and not with it. Run training-objective -pilot on Qwen2.5-0.5B over the store's instruction cases with the lead's numbers, which the owner may change by fixing another acceptance before the run: a gain of 0.20, seed 20261011, the groups divided two, one, four and one, a window of 2,048 tokens and the suite's own output limit of 1,280, eight draws a prompt and one pass in training, and 24 GiB of device memory. A dry run of the built command on a copy of the store, under another code identity, gave 541 prompts in 181 groups, 43 for development, 29 for selection, 90 for promotion and 19 for audit; the base passed two and one of the 43 development groups in its two readings, which differed on one group; and the acceptance was sized, a gain of 0.20 shown with chance 0.916 at 0.323 of pairs discordant. An earlier reading of four draws a group under other seeds had the base pass four to six of the 72 development and selection groups. Retain the command's output under docs/verification, and hold it by a test to the documents it names: the acceptance and the training specification canonicalize to the identities beside them, the acceptance's groups, gain, comparisons and protocol are the pilot's, and its discordance and power follow from the development reading the record states. If the acceptance is refused as not enough evidence, the record is of the refusal, and the first run's step is completed as inconclusive with it.\n\nServes: select and confirm instruction-following improvements.\nDisappears: a pilot sized from no reading.\nEvidence: the published acceptance or its refusal, and the base's readings on the development and selection groups, retained and held to the store's documents.\nBatch: the record's reader in the gate; the reading itself is taken once, by hand, on the idle device.",
-          "depends_on": [
-            "reward-pilot-acceptance/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "reward-training",
       "title": "Train from registered scorer rewards through one weighted device step",
       "owner": "master-lead",

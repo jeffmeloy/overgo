@@ -9,18 +9,28 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "What the row may still add. Set on 2026-10-11 to the 10 nodes the automated checks count its third step at on its built change: one more condition on the request a picture session takes, and the comment that says why. Its first two steps, 37 and 68, are committed. Each later step is sized by its own preflight when it is built."
+        "nodes": 179,
+        "reason": "What the row may still add. Set on 2026-10-11 to the 179 nodes the automated checks count its fourth step at on its built change: a clip's frames handed over through one call that waits for the workers on every way out, the bound on the frames being drawn at once, and the comments that say why. Its first three steps, 37, 68 and 10, are committed. Each later step is sized by its own preflight when it is built."
       },
       "steps": [
         {
           "id": "video-joins",
-          "title": "Join a clip's background work on every way out of loading and generating",
+          "title": "Wait for a clip's drawing workers on every way out of a generation, and bound them",
           "status": "open",
           "verify": "go test ./internal/latentvideo -count=1 -run '^TestVideoWorkIsJoinedOnEveryExit$'",
           "rationale": "Reviewer finding SQA-130, second severity, confirmed by reading (docs/sqa_findings.json, not in the repository). The GIF encoder starts a worker a frame and joins them only in its finish, which a generation error passes by; and loading a video runtime starts the prompt encoding before it validates, then returns on a load failure without cancelling or joining it, so the encoder can go on computing and may persist rows after the load failed. Closure: with the encoder held, a failed load and a separate cancellation each return only when the admitted work has ended, with the first error kept; a held draw worker and a failed or cancelled decode wait for the admitted draws, publish no partial clip and allow a retry; queued and running draws are bounded. The step first writes the test that fails for the finding's own counterexample, then repairs, as the reviewer's closure asks; a finding that does not reproduce is said so and closed with what was tried. The register stays the reviewer's and is not edited here. The row has no count: each step is sized by a preflight when it is dispatched.\n\nServes: serve. Evidence: the test. Batch: host and device.",
           "depends_on": [
             "served-path-repairs/picture-timestep"
+          ]
+        },
+        {
+          "id": "video-prompt-pass",
+          "title": "Stop and wait for the prompt encoding a video runtime starts when its load fails",
+          "status": "open",
+          "verify": "go test ./internal/latentvideo -count=1 -run '^TestFailedLoadEndsItsPromptPass$'",
+          "rationale": "The other half of reviewer finding SQA-130, second severity, parted from the step before on 2026-10-11 because the two share no code: that step is the clip's drawing workers, on the host; this one is the load. Loading a video runtime starts the request's prompts encoding on the host beside the generator's load on the device, discards what the pass returns, and on a load that then fails, for an unsupported precision or a generator that will not load, returns with the pass still running: it goes on reading and computing and may keep rows in the store for a session that was never loaded. And a pass that failed is run again, silently, when the request resolves. Closure, as the reviewer wrote it: with the encoder held, a load that fails with the caller's context still live, and one cancelled, each return only when the pass has ended, with the first error kept; a load that succeeds uses the one pass's result, and a failed pass is not run a second time without saying so; loading and encoding still overlap, and what is drawn is what it was. The step first writes the test that fails for the finding's own counterexample, then repairs; a finding that does not reproduce is said so and closed with what was tried. The register stays the reviewer's.\n\nServes: serve. Evidence: the test. Batch: host and device.",
+          "depends_on": [
+            "served-path-repairs/video-joins"
           ]
         },
         {
@@ -30,7 +40,7 @@
           "verify": "go test ./internal/latentvideo -count=1 -run '^TestPromptAlreadyEncodedIsNotEncodedAgain$'",
           "rationale": "Reviewer finding SQA-129, second severity, confirmed by reading (docs/sqa_findings.json, not in the repository). The stored reading and the resident prompt encoder's key qualify the tokenizer and checkpoint files by path, size and time, the resident key leaves out the special tokens' file, and the rows kept for the next process carry the same incomplete qualification. Changed bytes under the same path, size and time, or a change to the special tokens alone, need not invalidate stored rows. Closure: on the private fixtures, bytes changed with path, size and time kept give what a cold load gives from the stored answer, the kept rows, the warm memo and a new session; unchanged inputs are still reused. The step first writes the test that fails for the finding's own counterexample, then repairs, as the reviewer's closure asks; a finding that does not reproduce is said so and closed with what was tried. The register stays the reviewer's and is not edited here. The row has no count: each step is sized by a preflight when it is dispatched.\n\nServes: serve. Evidence: the test. Batch: host.",
           "depends_on": [
-            "served-path-repairs/video-joins"
+            "served-path-repairs/video-prompt-pass"
           ]
         },
         {
@@ -353,7 +363,8 @@
             "queue-follow-step/do",
             "ledger-count/do",
             "served-count/do",
-            "picture-count/do"
+            "picture-count/do",
+            "video-split/do"
           ]
         }
       ]

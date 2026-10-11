@@ -4,6 +4,31 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "exposure-one-decision",
+      "title": "Make a held-out confirmation's reading of its exposure and its charge one decision",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "conditional-charge",
+          "title": "Charge a confirmation only against the store its exposure was read from",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestConfirmationChargeIsRefusedWhenAnotherLandsBetween$'",
+          "rationale": "Reviewer finding SQA-110, first severity, as the reviewer restated it on 2026-10-11 after 7d8708db4, whose repairs across datasets and of benchmark content it credits. A confirmation reads its own grant's charges, then reads the exposure of everything its part shares content with, then publishes its charge with no condition on the store those were read from. The reviewer's counterexample, with one grant and one slot left: A reads its balance as one remaining; B charges another candidate; A then reads the exposure, sees B's charge, leaves its own grant's earlier charges out of the count, and publishes the next numbered key. Both judgings can run, and the balance shows the overrun only afterwards. The existing test interposes only at the commit, after every read, and misses this. The reviewer ran nothing and claims no bad promotion observed. Closure, as the reviewer wrote it: with one slot remaining, another candidate's charge injected after the first read of the grant's own charges and before the exposure is read lets at most one new judging run, the loser refused or evaluated again against the current balance; the cases at the commit boundary, of overlapping datasets and of an exact retry hold as they do; a registration that changes during the authority reads cannot pass admission. The reviewer's suggested means: take the repository's head before the authority reads and publish the charge with that head expected, then remove what numbering and discovery of scope the condition makes redundant; the original identities of charge and verdict and the exact retry stay. The step first writes the test that fails for the finding's own counterexample, then repairs, as the reviewer's closure asks; a finding that does not reproduce is said so and closed with what was tried. The register stays the reviewer's and is not edited here. The row has no count: each step is sized by a preflight when it is built.\n\nServes: evaluate. Evidence: the test, on the host. Batch: host."
+        },
+        {
+          "id": "unnamed-exposure",
+          "title": "Say, and hold, how material charged before parts carried content names is admitted when it is imported again",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestMaterialChargedUnnamedIsNotFreshWhenImportedAgain$'",
+          "rationale": "The other half of what SQA-110 leaves open, which 7d8708db4 said of itself: a registration that names its content cannot find the charges of older parts that carried no names. Refusing another confirmation on the old part does not keep that exposure when the same material is imported again as a new, named part, which then reads as fresh. Closure, as the reviewer wrote it: state how material charged while unnamed is admitted on reimport, and show the exposure kept, or the import refused, before anything is read; refusing the original unnamed acceptance is not coverage of a newly registered copy; no new ledger and no recurring census. Whether this store holds any charged unnamed part is read first, and the disposition is made for what is there. The step first writes the test that fails for the finding's own counterexample, then repairs, as the reviewer's closure asks; a finding that does not reproduce is said so and closed with what was tried. The register stays the reviewer's and is not edited here. The row has no count: each step is sized by a preflight when it is built.\n\nServes: evaluate. Evidence: the test, on the host. Batch: host.",
+          "depends_on": [
+            "exposure-one-decision/conditional-charge"
+          ]
+        }
+      ]
+    },
+    {
       "id": "served-path-repairs",
       "title": "Repair the reviewer's confirmed defects on the paths that serve a request",
       "owner": "master-lead",
@@ -336,7 +361,8 @@
             "picture-count/do",
             "video-split/do",
             "prompt-pass-count/do",
-            "input-identity-count/do"
+            "input-identity-count/do",
+            "exposure-decision-row/do"
           ]
         }
       ]

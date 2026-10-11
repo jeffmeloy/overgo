@@ -150,25 +150,6 @@
       ]
     },
     {
-      "id": "failed-load-reason",
-      "title": "Name the browser's reason when the page's shell fails to load a script, where a wait said only that the shell failed",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 166,
-        "reason": "What the row may still add. Set on 2026-10-11 to the 166 nodes its built change was counted at, by the count of syntax nodes the automated checks take: the browser's log of failed loads kept on the lane's socket, bounded, and added to a failed shell's report."
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "A wait that ends on a failed shell carries the browser's own account of each load that failed; a host test holds what is kept and a browser test holds two ways a load fails",
-          "status": "open",
-          "verify": "go test ./internal/webuilane -count=1 -run '^TestFailedLoadsKeepTheNewestFew$' \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowserFailedShellNamesItsFailedLoads$'",
-          "rationale": "Found on 2026-10-11. Four commits in one day were refused by a browser test that ended with \"the page's shell failed to start ... failed to load /mod/\u003ca module\u003e.js\": four different tests, three different modules, each time on a change that did not touch the page. The page is told only that a script's load failed; the server serves these scripts from files built into it and cannot fail one; so the reason is the browser's, and nothing recorded it. The lead's rule is that a failure that comes and goes is met by capturing what was missing, not by running again.\n\nClosure: the lane's browser asks the browser for its log, keeps the newest few loads it reports as failed, each with its address and the browser's words, and a wait that ends on a failed shell carries them. A host test holds what is kept and its bound; a browser test serves one script whose connection is cut and one answered 404 and holds the wait to naming each with its reason. The change and its tests are built, and were run with their mutation checks, in a checkout of their own before this row was filed. The next refusal of this kind then names its cause, which decides the repair.\n\nServes: failure-rate of the checks. Evidence: the two tests. Batch: browser."
-        }
-      ]
-    },
-    {
       "id": "campaign-closeout",
       "title": "Close the campaign once every branch is accounted for",
       "owner": "master-lead",

@@ -10,12 +10,12 @@ import (
 	"overgo/internal/testskip"
 )
 
-// TestWaitEndsWhenTheShellFailed holds a wait to the page's own terminal
+// TestWebUIBrowserWaitEndsWhenTheShellFailed holds a wait to the page's own terminal
 // state: a shell that failed to start offers only a page reload, so a
 // predicate that cannot hold ends at once with what the page shows, instead
 // of waiting until the lane's timeout with no page state at all. A page that
 // is merely slow keeps waiting until its predicate holds.
-func TestWaitEndsWhenTheShellFailed(t *testing.T) {
+func TestWebUIBrowserWaitEndsWhenTheShellFailed(t *testing.T) {
 	t.Parallel()
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
 		testskip.NotApplicable(t, "the shell-failure wait runs Chromium through cmd/webui-lane")

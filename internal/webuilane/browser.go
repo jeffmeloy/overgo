@@ -164,8 +164,9 @@ func Open(ctx context.Context, executable, pageURL string) (*Browser, error) {
 	}
 	browser.socket.budget = budget
 	// Inspector reports the renderer's crash or the target's detach, and Page
-	// a JavaScript dialog, each of which ends every wait on the page.
-	for _, domain := range []string{"Runtime.enable", "Inspector.enable", "Page.enable"} {
+	// a JavaScript dialog, each of which ends every wait on the page; Log
+	// reports each load that failed, with the browser's reason for it.
+	for _, domain := range []string{"Runtime.enable", "Inspector.enable", "Page.enable", "Log.enable"} {
 		if err := browser.Call(ctx, domain, nil, nil); err != nil {
 			return nil, errors.Join(err, browser.Close())
 		}
@@ -260,7 +261,7 @@ func (browser *Browser) Eventually(ctx context.Context, expression string) error
 		}
 		var shown string
 		if err == nil && json.Unmarshal(answer, &shown) == nil {
-			return fmt.Errorf("webui lane: the page's shell failed to start, so the predicate cannot hold: %s", shown)
+			return fmt.Errorf("webui lane: the page's shell failed to start, so the predicate cannot hold: %s%s", shown, browser.loadsFailed())
 		}
 		switch cause := context.Cause(ctx); {
 		case cause != nil:
@@ -272,6 +273,17 @@ func (browser *Browser) Eventually(ctx context.Context, expression string) error
 		}
 		return browser.withPageState(err)
 	}
+}
+
+// loadsFailed is the browser's account of the page's loads that failed, to
+// stand after what a failed shell shows; nothing when none did.
+func (browser *Browser) loadsFailed() string {
+	browser.socket.mu.Lock()
+	defer browser.socket.mu.Unlock()
+	if len(browser.socket.failedLoads) == 0 {
+		return ""
+	}
+	return "; the browser reported each failed load: " + strings.Join(browser.socket.failedLoads, "; ")
 }
 
 // withPageState adds to a wait's failure what the page last reported.
@@ -477,6 +489,10 @@ type webSocket struct {
 	events []cdpEvent
 	// pageState is what the page last reported it showed.
 	pageState string
+	// failedLoads is what the browser said of the page's loads that failed,
+	// the newest last and no more than failedLoadsKept: the address and the
+	// browser's reason, which the page itself is never told.
+	failedLoads []string
 	// budget bounds each wait for the page's answer; zero waits as long as
 	// the caller does.
 	budget time.Duration
@@ -637,15 +653,27 @@ func (socket *webSocket) cancelReads(ctx context.Context) (context.Context, func
 	}
 }
 
-// retainEvent keeps an event the waits observe later, and the state the
-// page last reported through its binding.
+// failedLoadsKept is how many failed loads a socket keeps: a shell loads its
+// scripts together, so the one that failed and what failed beside it fit in
+// a few, and a page that fails every request does not grow the list.
+const failedLoadsKept = 8
+
+// retainEvent keeps an event the waits observe later, the state the page
+// last reported through its binding, and each load the browser logged as
+// failed.
 func (socket *webSocket) retainEvent(event cdpEvent) {
 	var called struct{ Payload string }
+	var logged struct {
+		Entry struct{ Source, Level, Text, URL string }
+	}
 	switch {
 	case strings.HasPrefix(event.Method, retainedEventPrefix):
 		socket.events = append(socket.events, event)
 	case event.Method == "Runtime.bindingCalled" && json.Unmarshal(event.Params, &called) == nil:
 		socket.pageState = called.Payload
+	case event.Method == "Log.entryAdded" && json.Unmarshal(event.Params, &logged) == nil && logged.Entry.Source == "network" && logged.Entry.Level == "error":
+		kept := append(socket.failedLoads, logged.Entry.URL+": "+logged.Entry.Text)
+		socket.failedLoads = kept[max(len(kept)-failedLoadsKept, 0):]
 	}
 }
 

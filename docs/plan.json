@@ -9,15 +9,15 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "What the row may still add. Set on 2026-10-11 to the 105 nodes the automated checks count its first two steps at, both built and neither yet committed: 37 for the ledger forgetting only finished submissions, and 68 for a shutdown that goes on from where a cancelled one stopped and ends beside another as that one ends, each with the comment that says why. Each later step is sized by its own preflight when it is built."
+        "nodes": 10,
+        "reason": "What the row may still add. Set on 2026-10-11 to the 10 nodes the automated checks count its third step at on its built change: one more condition on the request a picture session takes, and the comment that says why. Its first two steps, 37 and 68, are committed. Each later step is sized by its own preflight when it is built."
       },
       "steps": [
         {
           "id": "picture-timestep",
           "title": "Honour a changed timestep scale when a picture session is reused",
           "status": "open",
-          "verify": "go test ./internal/latentimage -count=1 -run '^TestTimestepProgramMatchesHostReference$'",
+          "verify": "go test ./internal/latentimage -count=1 -run '^TestSessionRefusesAnotherTimestepScale$'",
           "rationale": "Reviewer finding SQA-134, second severity, confirmed by reading (docs/sqa_findings.json, not in the repository). A picture generator fixes its timestep input scale from the training timesteps when it loads; a reset rebuilds the schedule and leaves that plan as it was. A session loaded at 500 and reset to 1000 sends the denoiser other inputs than a fresh one at 1000. Closure: on the small numerical and pipeline fixtures, 500 then 1000 either refuses before changing anything, so the existing fallback loads afresh, or gives what a fresh 1000 gives; an omitted default and its explicit equal stay reusable. The step first writes the test that fails for the finding's own counterexample, then repairs, as the reviewer's closure asks; a finding that does not reproduce is said so and closed with what was tried. The register stays the reviewer's and is not edited here. The row has no count: each step is sized by a preflight when it is dispatched.\n\nServes: serve. Evidence: the test. Batch: host and device.",
           "depends_on": [
             "served-path-repairs/director-close"
@@ -362,7 +362,8 @@
             "queue-steps/do",
             "queue-follow-step/do",
             "ledger-count/do",
-            "served-count/do"
+            "served-count/do",
+            "picture-count/do"
           ]
         }
       ]

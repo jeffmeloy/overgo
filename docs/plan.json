@@ -4,21 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "gui-top-p-setting",
-      "title": "Add a top-p control to Settings beside temperature and max tokens",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Settings shows a top-p field, the chat request carries it only when set, and the server's default stands when it is empty; a browser leg sets it and reads it on the posted body",
-          "status": "open",
-          "verify": "test -f internal/server/webui_browser_top_p_test.go \u0026\u0026 go run ./cmd/webui-lane -run TopP",
-          "rationale": "Recommended by the GUI lane and not landed when its worktree was removed on 2026-10-09 (docs/gui_update_plan.json, which stays out of the repository); ranked into this plan by the owner's answer to gui-recommendations on 2026-10-10. Add a top-p control to Settings beside temperature and max tokens: Settings holds only the system prompt, temperature and max tokens, while the server already accepts top_p and LlamaFactory's chat offers it; remembered like the other settings. Why the lane recommended it: \n\nThe lane's rule for a change to the pages holds: plain HTML, JavaScript and Go, reviewed in a browser at desktop and phone widths in both colour schemes, and accepted by a browser leg or a Go test that fails without it. The row has no count: it is sized by a preflight when it is dispatched.\n\nServes: setup-steps. Batch: browser."
-        }
-      ]
-    },
-    {
       "id": "gui-export-size-preview",
       "title": "Show the output size before an export or merge runs (Unsloth Studio's export size preview)",
       "owner": "master-lead",

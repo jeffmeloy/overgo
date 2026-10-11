@@ -155,10 +155,13 @@
       const facts = el("div", { class: "statgrid", role: "group", "aria-label": "Context meter" });
       const temperature = el("input", { class: "keyfield w-80", type: "number", min: 0, step: "any", value: params.temperature, "aria-label": "temperature", "data-draft-setting": "temperature" });
       const maxTokens = el("input", { class: "keyfield w-90", type: "number", min: 1, step: 1, value: chatTokens, max: tokenLimit, "aria-label": "max tokens", "data-draft-setting": "tokens" });
+      // Top-p starts empty: an empty field sends none and leaves the server's default, which the placeholder shows, standing.
+      const topP = el("input", { class: "keyfield w-80", type: "number", min: 0, max: 1, step: "any", placeholder: params.top_p, "aria-label": "top-p", "data-draft-setting": "topP" });
       system.dataset.draftSetting = "system";
       system.value = typeof draft.system === "string" ? draft.system : "";
       if (draft.temperature !== "" && Number.isFinite(Math.fround(Number(draft.temperature))) && Number(draft.temperature) >= 0) temperature.value = draft.temperature;
       if (draft.tokens !== "" && Number.isFinite(Number(draft.tokens)) && Number(draft.tokens) >= 1) maxTokens.value = Math.min(Math.floor(Number(draft.tokens)), tokenLimit);
+      if (draft.topP && Number(draft.topP) >= 0 && Number(draft.topP) <= 1) topP.value = draft.topP;
       // Speculation is offered only when the served model declares a draft head; its drafts verify greedily.
       const speculative = capabilities.speculative ? el("input", { type: "checkbox", "aria-label": "speculative decoding", "data-draft-setting": "speculative" }) : null;
       if (speculative) speculative.checked = draft.speculative === true;
@@ -177,7 +180,7 @@
       const focusedSetting = settings.contains(document.activeElement) && document.activeElement.dataset.draftSetting;
       settings.replaceChildren(el("section", { class: "settings-section" }, el("h3", { text: "Conversation" }),
         el("label", { class: "setting-field" }, "System prompt", system),
-        el("div", { class: "settings-fields" }, el("label", { class: "setting-field" }, "Temperature", temperature), el("label", { class: "setting-field" }, "Maximum output tokens", maxTokens)),
+        el("div", { class: "settings-fields" }, el("label", { class: "setting-field" }, "Temperature", temperature), el("label", { class: "setting-field" }, "Top-p", topP), el("label", { class: "setting-field" }, "Maximum output tokens", maxTokens)),
         reasoning ? el("label", { class: "setting-field" }, "Reasoning level", reasoning) : null,
         speculative ? el("label", { class: "setting-check" }, speculative, "Speculative decoding: draft " + capabilities.speculative.draft_tokens + " tokens a step from the model's draft head, decoding greedily (temperature 0)") : null,
         el("details", {}, el("summary", { text: "Last response usage" }), facts)));
@@ -532,17 +535,17 @@
         drafts.set(key, value);
         try { sessionStorage.setItem(key, JSON.stringify(value)); storageUnavailable = false; }
         catch (_) { storageUnavailable = true; }
-        draftNotice.hidden = !storageUnavailable || !(value.text || value.system || value.attachments.length || value.temperature !== String(params.temperature) || value.tokens !== String(chatTokens));
+        draftNotice.hidden = !storageUnavailable || !(value.text || value.system || value.attachments.length || value.temperature !== String(params.temperature) || value.tokens !== String(chatTokens) || value.topP);
         draftNotice.textContent = "Couldn't save draft. Copy it before reloading.";
       }
       saveDraft = () => {
         if (overgo.signal.aborted) return;
-        persistDraft(draftKey(), { text: composer.input.value, system: system.value, temperature: temperature.value, tokens: maxTokens.value, speculative: speculative ? speculative.checked : undefined, reasoning: reasoning ? reasoning.value : undefined, mode: composer.mode(),
+        persistDraft(draftKey(), { text: composer.input.value, system: system.value, temperature: temperature.value, tokens: maxTokens.value, topP: topP.value, speculative: speculative ? speculative.checked : undefined, reasoning: reasoning ? reasoning.value : undefined, mode: composer.mode(),
           uncertainPrevious: uncertainPrevious === null ? undefined : uncertainPrevious, uncertainText: uncertainPrevious === null ? undefined : uncertainText, uncertainKind: uncertainPrevious === null ? undefined : uncertainKind,
           attachments: composer.attachments.map(item => ({ name: item.name, mime: item.mime, size: item.size, sourceArtifact: item.sourceArtifact, sourceRun: item.sourceRun, document: item.document === true, textApplied: item.textApplied === true })) });
       };
       saveChat = saveDraft;
-      for (const field of [system, temperature, maxTokens, speculative, reasoning].filter(Boolean)) { field.addEventListener("input", saveDraft); field.addEventListener("change", saveDraft); }
+      for (const field of [system, temperature, maxTokens, topP, speculative, reasoning].filter(Boolean)) { field.addEventListener("input", saveDraft); field.addEventListener("change", saveDraft); }
       updateSwitch = () => { modelNotice.hidden = !overgo.modelSwitching(); updateBusy(); };
       overgo.listen(document, "overgo-model-switch", updateSwitch);
       updateSwitch();
@@ -779,11 +782,19 @@
         return [{ role: "user", content: parts.length ? content : text }];
       }
 
-      // turnSettings: the settings' instructions, temperature and output limit on a Responses request.
+      // turnSampling: the settings' temperature, top-p and output limit on a request, each only when its field holds a value,
+      // for a turn sent and for a turn continued alike: a continuation asked under other sampling than its turn's is refused.
+      function turnSampling(request) {
+        if (temperature.value !== "") request.temperature = Number(temperature.value);
+        if (topP.value !== "") request.top_p = Number(topP.value);
+        if (maxTokens.value !== "") request.max_output_tokens = Number(maxTokens.value);
+        return request;
+      }
+
+      // turnSettings: the settings' instructions, sampling and output limit on a Responses request.
       function turnSettings(request) {
         if (system.value.trim()) request.instructions = system.value.trim();
-        if (temperature.value !== "") request.temperature = Number(temperature.value);
-        if (maxTokens.value !== "") request.max_output_tokens = Number(maxTokens.value);
+        turnSampling(request);
         if (reasoning && reasoning.value) request.reasoning = { effort: reasoning.value === "off" ? "none" : reasoning.value };
         if (speculative && speculative.checked) Object.assign(request, { speculative: true, temperature: 0 });
         return request;
@@ -884,7 +895,7 @@
 
       // continueTurn resumes a stopped turn from its stored token context: the stored partial first, with
       // any text the stop held back, then the continuation streamed into the same assistant message. A
-      // refusal (another model, another temperature) stays beside the note with its reason.
+      // refusal (another model, another temperature or top-p) stays beside the note with its reason.
       async function continueTurn(stoppedID, assistant, note) {
         if (actionsBlocked()) return;
         const sent = performance.now();
@@ -892,9 +903,7 @@
         updateBusy();
         const users = thread.messages.filter(message => message.role === "user" && message.response === stoppedID);
         try {
-          const request = { model: modelID, previous_response_id: stoppedID, continue: true, stream: true, store: true };
-          if (temperature.value !== "") request.temperature = Number(temperature.value);
-          if (maxTokens.value !== "") request.max_output_tokens = Number(maxTokens.value);
+          const request = turnSampling({ model: modelID, previous_response_id: stoppedID, continue: true, stream: true, store: true });
           const stored = await overgo.api.get("/interactions/messages?response=" + encodeURIComponent(stoppedID), { signal: controller.signal });
           const partial = (stored.messages || []).findLast(message => message.role === "assistant");
           const response = await streamTurn("/v1/responses", request, "POST");
@@ -910,7 +919,7 @@
       }
 
       function validateSettings() {
-        const invalid = [temperature, maxTokens].find(field => !field.checkValidity());
+        const invalid = [temperature, maxTokens, topP].find(field => !field.checkValidity());
         if (!invalid) return true;
         if (!document.getElementById('settings-dialog').open) document.getElementById('settings-toggle').click();
         invalid.focus(); invalid.reportValidity(); return false;

@@ -57,3 +57,62 @@ func TestWebUIBrowserSubmitKeepsItsNumberThroughAGatewayAnswer(t *testing.T) {
 })()`)
 	webuilane.Leg(t, "submit number leg", "a submission answered by a 408, 502, 503 or 504 went again under the same number, and one answered by a 400 or a success took a new number")
 }
+
+// TestWebUIBrowserSubmitNumberCarriesAComposerRun holds a run started from
+// the composer to the request number a Run button's submission carries. The
+// server here serves speech alone, so a send is a run of /generation/run. The
+// first answer is lost after the server has the request: the page says the
+// outcome is unknown and blocks sending. Sent again once the person allows
+// it, the same request goes under the same number, the server answers with
+// the run it already started, and the model is asked once. Before the
+// composer numbered its run, the second send was a second run.
+func TestWebUIBrowserSubmitNumberCarriesAComposerRun(t *testing.T) {
+	t.Parallel()
+	requireWebUILane(t, "the composer number leg uses Chromium through cmd/webui-lane")
+	shell, generator := coldStartSpeechFixture(t)
+	server := httptest.NewServer(shell)
+	defer server.Close()
+	ctx, browser, check, settle := openBrowserLeg(t, server.URL)
+	defer browser.Close()
+	settle(`!!document.querySelector('.mode-controls select[aria-label="voice"]')`)
+	check(`(()=>{document.querySelector('.mode-controls select[aria-label="voice"]').focus();return true;})()`)
+	pressKey(t, ctx, browser, "ArrowDown", 40)
+	settle(`document.querySelector('.mode-controls select[aria-label="voice"]').value === 'alba'`)
+
+	// The first answer is lost after the server has the request; the page records what it posted.
+	check(`(() => {
+  window.posted = [];
+  let lost = true;
+  const real = window.fetch.bind(window);
+  window.fetch = async (url, options) => {
+    if (String(url).endsWith('/generation/run') && options && options.method === 'POST') {
+      window.posted.push(JSON.parse(options.body));
+      const response = await real(url, options);
+      if (lost) { lost = false; throw new TypeError('the response was lost'); }
+      return response;
+    }
+    return real(url, options);
+  };
+  return true;
+})()`)
+	const prompt = "Read this aloud once."
+	say(t, ctx, browser, prompt)
+	settle(`window.posted.length === 1 && /outcome is unknown/.test(document.querySelector('.composer-extras').textContent) && document.querySelector('.composer .send-button').disabled`)
+
+	// Allowed again, the same request goes under the same number and starts no second run.
+	check(`(() => { [...document.querySelectorAll('.composer-extras button')].find((button) => button.textContent === 'Allow sending again').click(); return true; })()`)
+	say(t, ctx, browser, prompt)
+	settle(`window.posted.length === 2 && [...document.querySelectorAll('.msg.error')].some((row) => row.textContent.includes('speech fixture stopped before synthesis'))`)
+	check(`(() => {
+  const [first, second] = window.posted;
+  if (typeof first.request !== 'string' || first.request.length < 16) throw new Error('the composer run carried no request number: ' + JSON.stringify(first));
+  if (second.request !== first.request) throw new Error('the run sent again took another number: ' + first.request + ' then ' + second.request);
+  return true;
+})()`)
+	generator.mu.Lock()
+	defer generator.mu.Unlock()
+	if generator.executions != 1 {
+		t.Fatalf("the model was asked %d times for one request sent twice, want once", generator.executions)
+	}
+	webuilane.Leg(t, "composer number leg", "a composer run whose first answer was lost went again under the same request number and was answered with the run already started, the model asked once")
+}

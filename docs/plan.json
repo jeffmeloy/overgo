@@ -105,21 +105,6 @@
       ]
     },
     {
-      "id": "gui-chat-turn-number",
-      "title": "Decide whether a chat turn needs the request number a workflow run now carries",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Count the unconfirmed turns a session shows; adopt api.submit for the composer only if a person is asked more than rarely, and say so in the row when not",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run SubmitNumber",
-          "rationale": "Recommended by the GUI lane and not landed when its worktree was removed on 2026-10-09 (docs/gui_update_plan.json, which stays out of the repository); ranked into this plan by the owner's answer to gui-recommendations on 2026-10-10. Decide whether a chat turn needs the request number a workflow run now carries: a Run keeps its number through a lost response, but the composer starts a turn with api.post and marks a lost response operationUnconfirmed, which asks the person; measure how often that asks before building. Why the lane recommended it: \n\nThe lane's rule for a change to the pages holds: plain HTML, JavaScript and Go, reviewed in a browser at desktop and phone widths in both colour schemes, and accepted by a browser leg or a Go test that fails without it. The row has no count: it is sized by a preflight when it is dispatched.\n\nServes: failure-rate. Batch: browser."
-        }
-      ]
-    },
-    {
       "id": "speech-document-admission",
       "title": "Admit or retire the GUI lane's document speech program",
       "owner": "professional_overgo_gui",

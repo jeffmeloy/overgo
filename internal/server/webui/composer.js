@@ -31,10 +31,12 @@
   }
 
   // run: one request of a declared capability through the generic run route, answered as the
-  // operation's outputs (artifact URLs) once it completes, or thrown as its failure.
+  // operation's outputs (artifact URLs) once it completes, or thrown as its failure. It goes under a
+  // request number, as a Run button's does: the same request sent again after an answer was lost is
+  // answered with the run the server already started, where it was a second run.
   async function run(capability, input, signal, sources, lifecycle) {
     let accepted;
-    try { accepted = await overgo.api.post("/generation/run", { task: capability.task, recipe: capability.recipe, input, sources: sources || [] }, { signal }); }
+    try { accepted = await overgo.api.submit("/generation/run", { task: capability.task, recipe: capability.recipe, input, sources: sources || [] }, { signal }); }
     catch (err) { err.operationUnconfirmed = !err.status && err.name !== 'AbortError'; throw err; }
     if (!accepted || typeof accepted.operation !== 'string' || !accepted.operation) { const err = new Error('The operation was submitted without a receipt. Check Activity before trying again.'); err.operationUnconfirmed = true; throw err; }
     if (lifecycle && lifecycle.accepted) await lifecycle.accepted(accepted.operation);

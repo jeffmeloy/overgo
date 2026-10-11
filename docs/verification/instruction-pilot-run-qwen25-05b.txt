@@ -1,0 +1,44 @@
+overgo first reward run: the instruction pilot on Qwen2.5-0.5B, judged by the acceptance fixed before it
+tool: cmd/train -pilot (trainingworkflow.RunInstructionPilot), built at commit 8fa1a81dc
+store: the installed store, overgo_data/overgodb-store
+flags: -pilot evidence:sha256:ae3e2224d2697026b02e8731d0ccdbcf6015ef6742ce58227eab0df5acfdd482 -model Qwen2.5-0.5B-f16.gguf -out overgo_data/experiments/instruction-pilot/run
+fixed: docs/verification/instruction-pilot-qwen25-05b.txt, the acceptance and the training specification this run is of
+
+outcome: the reward arm is not adopted and the base is kept. Neither comparison shows a gain or a loss on
+the 90 promotion groups: both are not enough evidence, at a false-gain rate of 0.05 over the two.
+The run took about 1 hour 50 minutes on one RTX 4090 D. Each arm answered the 43 development groups' prompts
+once, eight answers a prompt. The reward arm stepped on 35 groups and passed 8 whose answers all stood
+together; the control stepped on the 8 groups that had an answer passing every rule and passed 35.
+On the 29 selection groups the base passed 3, and no checkpoint of either arm passed more: the reward
+arm's passed 0 to 3 and the control's 1 to 3, a spread the base's own readings have (it passed 1 and 1
+when the acceptance was fixed, and 3 here). A checkpoint is frozen by that reading alone, the earliest of the
+best, which is why the reward arm's is its second.
+
+not read: the audit part, which is read once at a campaign's end and judges an adoption that was not
+made; and the whole suite as a secondary reading, which describes an arm and decides nothing, and was
+not taken for arms that are not adopted. Nothing was activated: the fourteen checkpoints are published
+as inactive candidates and stay under the run's directory.
+What follows is the command's output, from its first line.
+
+instruction pilot run, built at commit 8fa1a81dcd5616d558c938f5dbc612198d49c6c4
+acceptance: evidence:sha256:ae3e2224d2697026b02e8731d0ccdbcf6015ef6742ce58227eab0df5acfdd482
+base: passed 3 of 29 selection groups
+reward after 1 groups: passed 2 of 29 selection groups; its session sampled 1 groups, stepped on 1 and passed 0, sampled 4886 tokens and trained on 4886, 2 answers at the output limit, 52 s sampling, 0 s scoring, 12 s stepping, shift -0.0039
+reward after 2 groups: passed 3 of 29 selection groups; its session sampled 1 groups, stepped on 1 and passed 0, sampled 1865 tokens and trained on 1865, 1 answers at the output limit, 33 s sampling, 0 s scoring, 14 s stepping, shift -0.0924
+reward after 4 groups: passed 1 of 29 selection groups; its session sampled 2 groups, stepped on 2 and passed 0, sampled 8455 tokens and trained on 8455, 3 answers at the output limit, 102 s sampling, 0 s scoring, 25 s stepping, shift 0.0570
+reward after 8 groups: passed 0 of 29 selection groups; its session sampled 4 groups, stepped on 4 and passed 0, sampled 17207 tokens and trained on 17207, 6 answers at the output limit, 199 s sampling, 0 s scoring, 42 s stepping, shift -0.0642
+reward after 16 groups: passed 2 of 29 selection groups; its session sampled 8 groups, stepped on 5 and passed 3, sampled 26854 tokens and trained on 18122, 5 answers at the output limit, 258 s sampling, 0 s scoring, 64 s stepping, shift 0.1178
+reward after 32 groups: passed 1 of 29 selection groups; its session sampled 16 groups, stepped on 11 and passed 5, sampled 66983 tokens and trained on 44915, 22 answers at the output limit, 626 s sampling, 0 s scoring, 133 s stepping, shift -0.2377
+reward after 43 groups: passed 2 of 29 selection groups; its session sampled 11 groups, stepped on 11 and passed 0, sampled 57011 tokens and trained on 57011, 30 answers at the output limit, 627 s sampling, 0 s scoring, 129 s stepping, shift -0.1334
+reward: frozen after 2 groups, C:\Users\jeffm\overgo_data\experiments\instruction-pilot\run\reward\groups-002
+control after 1 groups: passed 2 of 29 selection groups; its session sampled 1 groups, stepped on 0 and passed 1, sampled 4886 tokens and trained on 0, 2 answers at the output limit, 4 s sampling, 0 s scoring, 3 s stepping, shift 0.0000
+control after 2 groups: passed 2 of 29 selection groups; its session sampled 1 groups, stepped on 0 and passed 1, sampled 2673 tokens and trained on 0, 0 answers at the output limit, 14 s sampling, 0 s scoring, 4 s stepping, shift 0.0000
+control after 4 groups: passed 2 of 29 selection groups; its session sampled 2 groups, stepped on 0 and passed 2, sampled 10342 tokens and trained on 0, 5 answers at the output limit, 43 s sampling, 0 s scoring, 6 s stepping, shift 0.0000
+control after 8 groups: passed 1 of 29 selection groups; its session sampled 4 groups, stepped on 1 and passed 3, sampled 15994 tokens and trained on 2903, 4 answers at the output limit, 102 s sampling, 0 s scoring, 19 s stepping, shift 0.0837
+control after 16 groups: passed 2 of 29 selection groups; its session sampled 8 groups, stepped on 1 and passed 7, sampled 36049 tokens and trained on 6140, 15 answers at the output limit, 225 s sampling, 0 s scoring, 33 s stepping, shift 0.0253
+control after 32 groups: passed 2 of 29 selection groups; its session sampled 16 groups, stepped on 5 and passed 11, sampled 70873 tokens and trained on 22244, 27 answers at the output limit, 504 s sampling, 0 s scoring, 92 s stepping, shift 0.1775
+control after 43 groups: passed 3 of 29 selection groups; its session sampled 11 groups, stepped on 1 and passed 10, sampled 41808 tokens and trained on 3033, 13 answers at the output limit, 240 s sampling, 0 s scoring, 42 s stepping, shift 0.0014
+control: frozen after 43 groups, C:\Users\jeffm\overgo_data\experiments\instruction-pilot\run\control\groups-043
+comparison "reward over base": not enough evidence; confirmation evaluation:sha256:1fb44ac49e31081c50936c70df452a7ba50368862ff15481d26ec50977f980d1, charge evidence:sha256:bd325c075e8bc9e10711e5e77fb62d88324f8581b9603a8fcf6afb382ed9437f, 1 left
+comparison "reward over control": not enough evidence; confirmation evaluation:sha256:e026293f2c2e0964b093060b7169e3b42c9ecaf6df20c40c52604d033c66cb53, charge evidence:sha256:0f3d590348430ec3e1b7d8525292528ad9281e21b6de6ba94850dc8a404c56ae, 0 left
+adopted: false comparison "reward over base" answered not enough evidence

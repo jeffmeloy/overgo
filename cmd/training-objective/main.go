@@ -62,8 +62,21 @@ func run(args []string, output io.Writer) error {
 	poolSequence := flags.Uint64("pool-seq", 0, "the tokens each document of the pool is read as far as, by every ranking and confirmation on it; a longer document is read to there and no further")
 	poolGain := flags.Float64("pool-gain", 0, "the gain the pool is sized to show, in standard deviations of the paired per-document difference, stated from the gains the objective's verdicts show")
 	poolWeights := flags.String("pool-weights", "", "weights dividing the held-out documents no verdict has read: development=<w>,selection=<w>,promotion=<w>,audit=<w>")
+	var pilot pilotRequest
+	flags.StringVar(&pilot.model, "pilot", "", "the GGUF of the base model to fix the instruction pilot's acceptance over, from the store's instruction cases and the base's answers on the development groups (with every -pilot flag and -pool-weights)")
+	flags.Float64Var(&pilot.gain, "pilot-gain", 0, "the least gain in the share of groups passed that the pilot is to confirm")
+	flags.Int64Var(&pilot.seed, "pilot-seed", 0, "the seed that draws each group's prompt, divides the groups and draws every answer")
+	flags.Uint64Var(&pilot.window, "pilot-window", 0, "the tokens a prompt and its answer may fill together")
+	flags.Uint64Var(&pilot.tokens, "pilot-tokens", 0, "the tokens an answer may run to")
+	flags.IntVar(&pilot.draws, "pilot-draws", 0, "the answers an arm draws to a prompt in training")
+	flags.IntVar(&pilot.passes, "pilot-passes", 0, "the passes an arm makes over the development groups' prompts")
+	flags.Uint64Var(&pilot.memory, "pilot-memory", 0, "the most device memory a training run of the pilot may hold, in GiB")
 	if err := flags.Parse(args); err != nil {
 		return err
+	}
+	if strings.TrimSpace(pilot.model) != "" {
+		pilot.weights = *poolWeights
+		return fixPilot(*repository, pilot, output)
 	}
 	if strings.TrimSpace(*pool) != "" {
 		return buildPool(*repository, *pool, *poolGain, *poolSequence, *poolWeights, output)

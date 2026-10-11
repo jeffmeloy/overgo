@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
-	"overgo/internal/dataset"
 	"overgo/internal/densecausal"
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
@@ -26,6 +25,10 @@ const rewardSampling = "unmodified"
 
 // rewardDraws is the fewest answers a group is drawn: one answer has no order.
 const rewardDraws = 2
+
+// rewardPlain names the template under which a prompt is asked as it is
+// written. Under any other name it is asked as a user's turn of a chat.
+const rewardPlain = "none"
 
 // RewardSampling is what a reward session that samples its own answers is
 // fixed by: the protocol its answers are made and scored under, which is its
@@ -43,6 +46,20 @@ type RewardSampling struct {
 	Draws    int
 	Code     string
 	Render   ConversationRenderer
+}
+
+// tokenizer loads the tokenizer the answers are drawn with from a model, and
+// refuses what no reward session and no reading of an arm is drawn under: a
+// cut or sharpened distribution, another scorer, fewer than two answers a
+// prompt, no training specification, no store to keep the draws in, or a
+// model that declares no end token. A prompt asked as a chat turn carries the
+// template's control tokens, which are then read as tokens.
+func (rewards RewardSampling) tokenizer(input string, observations artifact.Repository) (trainableTokenizer, error) {
+	tokens, err := loadTrainableTokenizerFor(input, rewards.Render != nil || rewards.Protocol.Template != rewardPlain)
+	if protocol := rewards.Protocol; err == nil && (protocol.Sampling != rewardSampling || protocol.Scorer != evaluation.InstructionScorer || rewards.Draws < rewardDraws || !rewards.Training.Valid() || !tokens.ended || observations == nil) {
+		err = fmt.Errorf("training workflow: a reward session draws at least two answers a prompt from the model's %s distribution, scores them by %s, names its training specification and the store its draws are kept in, and trains a model that declares its end token; it was asked for %d draws under sampling %q and scorer %q", rewardSampling, evaluation.InstructionScorer, rewards.Draws, protocol.Sampling, protocol.Scorer)
+	}
+	return tokens, err
 }
 
 // RewardTrace is what a reward session that samples its own answers did:
@@ -136,9 +153,8 @@ func (sampler modelSampler) Generate(ctx context.Context, _ string, options infe
 // interrupted session keeps is its draws and its last checkpoint, and nothing
 // it lost is a draw or a step it could count twice.
 func (session denseSession) produceRewards(prepared densePrepared, resume *densecausal.RLState) (_ Result, _ densecausal.TrainState, err error) {
-	rewards := session.request.Rewards
-	// A rendered prompt carries the template's control tokens, which are read as tokens.
-	tokens, err := loadTrainableTokenizerFor(session.inputDirectory, rewards.Render != nil)
+	rewards := *session.request.Rewards
+	tokens, err := rewards.tokenizer(session.inputDirectory, session.request.Observations)
 	if err != nil {
 		return Result{}, densecausal.TrainState{}, err
 	}
@@ -149,11 +165,8 @@ func (session denseSession) produceRewards(prepared densePrepared, resume *dense
 		base = session.resumed.Model
 	}
 	evaluator, evaluatorErr := prepared.prompts.Evaluator()
-	switch protocol := rewards.Protocol; {
-	case err != nil || evaluatorErr != nil:
+	if err != nil || evaluatorErr != nil {
 		return Result{}, densecausal.TrainState{}, errors.Join(err, evaluatorErr)
-	case protocol.Sampling != rewardSampling || protocol.Scorer != evaluation.InstructionScorer || rewards.Draws < rewardDraws || !rewards.Training.Valid() || !tokens.ended || session.request.Observations == nil:
-		return Result{}, densecausal.TrainState{}, fmt.Errorf("training workflow: a reward session draws at least two answers a prompt from the model's %s distribution, scores them by %s, names its training specification and the store its draws are kept in, and trains a model that declares its end token; it was asked for %d draws under sampling %q and scorer %q", rewardSampling, evaluation.InstructionScorer, rewards.Draws, protocol.Sampling, protocol.Scorer)
 	}
 	state := densecausal.RLState{}
 	if resume != nil {
@@ -164,41 +177,14 @@ func (session denseSession) produceRewards(prepared densePrepared, resume *dense
 		result.Backend = "cuda"
 	}
 	trace := &result.Rewards
-	ends := make([]tokenizer.TokenID, len(tokens.ends))
-	for index, id := range tokens.ends {
-		ends[index] = tokenizer.TokenID(id)
-	}
 	for _, produced := range prepared.cases {
 		prompt, limit, _ := prepared.prompts.Asked(produced.name)
-		var err error
-		if rewards.Render != nil {
-			prompt, err = rewards.Render([]dataset.ChatMessage{{Role: "user", Content: prompt}}, true)
-		}
-		var encoded []int
-		if err == nil {
-			encoded, err = tokens.encode(prompt)
-		}
-		if err != nil {
-			return Result{}, densecausal.TrainState{}, fmt.Errorf("training workflow: prompt %q: %w", produced.name, err)
-		}
 		weights, err := evaluation.UpdatedWeights(base, rewards.Training, uint64(state.Optimizer.Step))
 		if err != nil {
 			return Result{}, densecausal.TrainState{}, err
 		}
-		group := evaluation.SampledGroup{
-			Group: produced.name, Code: rewards.Code, Weights: weights, Tokenizer: base, Template: rewards.Protocol.Template,
-			Ends: ends, Temperature: 1, Seed: rewards.Seed,
-			MaxTokens: min(int(rewards.Protocol.MaxTokens), limit, session.model.Dims.ContextLength-len(encoded)),
-		}
-		for _, id := range encoded {
-			group.Prompt = append(group.Prompt, tokenizer.TokenID(id))
-		}
 		began := time.Now()
-		generator, err := sampler.generator()
-		if err != nil {
-			return Result{}, densecausal.TrainState{}, err
-		}
-		answers, err := evaluation.SampleGroup(session.ctx, session.request.Observations, generator, group, rewards.Draws)
+		group, answers, err := sampler.draw(rewards, produced.name, prompt, limit, base, weights)
 		if err != nil {
 			return Result{}, densecausal.TrainState{}, err
 		}

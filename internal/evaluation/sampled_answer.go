@@ -78,12 +78,18 @@ func UpdatedWeights(checkpoint, training artifact.ID, updates uint64) (artifact.
 	}{checkpoint, training, updates})
 }
 
+// Identity names a group's draws: what the store keeps them under, and what
+// a record sized from them names as its basis.
+func (group SampledGroup) Identity() (artifact.ID, error) {
+	return artifact.JSONID(artifact.KindProfile, group)
+}
+
 // loadSampled reads the draws the store holds of a group, in the records an
 // evaluation's answers are kept in (answers): a draw is an answer to the
 // group at its index. A group that leaves its weights, its tokenizer, its
 // prompt, its ending ids or its output limit unnamed names no draws.
 func loadSampled(ctx context.Context, repository artifact.Repository, group SampledGroup) (*answers[SampledAnswer], error) {
-	observed, err := artifact.JSONID(artifact.KindProfile, group)
+	observed, err := group.Identity()
 	if err != nil || !group.Weights.Valid() || !group.Tokenizer.Valid() || len(group.Prompt) == 0 || len(group.Ends) == 0 || group.MaxTokens <= 0 {
 		return nil, errors.Join(errors.New("evaluation: a sampled group names its weights, tokenizer, prompt ids, ending ids and output limit before it is drawn from"), err)
 	}

@@ -4,9 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"slices"
-	"strconv"
-	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
@@ -25,15 +22,9 @@ import (
 // smallest gain it can show at that count.
 func buildPool(repository, alias string, gain float64, sequence uint64, weightsText string, output io.Writer) error {
 	request := evaluation.HeldoutPoolRequest{Gain: gain, Sequence: sequence}
-	for field := range strings.SplitSeq(weightsText, ",") {
-		name, value, _ := strings.Cut(strings.TrimSpace(field), "=")
-		weight, err := strconv.Atoi(value)
-		if at := slices.Index(evaluation.PoolParts[:], name); err == nil && at >= 0 && weight > 0 {
-			request.Weights[at] = uint64(weight)
-		}
-	}
-	if slices.Contains(request.Weights[:], 0) {
-		return fmt.Errorf("training-objective: -pool-weights %q: want a positive weight for each of %s", weightsText, strings.Join(evaluation.PoolParts[:], ", "))
+	var err error
+	if request.Weights, err = poolWeights(weightsText); err != nil {
+		return err
 	}
 	if gain <= 0 || sequence == 0 {
 		return fmt.Errorf("training-objective: -pool-gain and -pool-seq are required: the gain the pool is sized to show, in standard deviations of the paired per-document difference, and the tokens each document is read as far as")

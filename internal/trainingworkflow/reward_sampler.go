@@ -2,9 +2,12 @@ package trainingworkflow
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
+	"overgo/internal/artifact"
+	"overgo/internal/dataset"
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
 	"overgo/internal/modelintake"
@@ -44,15 +47,19 @@ func (sampler *rewardSampler) generator() (evaluation.Generator, error) {
 	if sampler.runner != nil {
 		return sampler.runner, nil
 	}
-	directory, err := os.MkdirTemp(filepath.Dir(session.request.OutputDirectory), "reward-weights-")
-	if err != nil {
-		return nil, err
+	// A session's weights are written to be opened; a reading opens the file its weights are.
+	path := session.inputDirectory
+	if session.model != nil {
+		directory, err := os.MkdirTemp(filepath.Dir(session.request.OutputDirectory), "reward-weights-")
+		if err != nil {
+			return nil, err
+		}
+		sampler.directory = directory
+		if err := WriteTrainedModel(session.ctx, session.request.Repository, path, directory, len(session.model.Weights), trainedGGUFTensors(session.model)); err != nil {
+			return nil, err
+		}
+		path = filepath.Join(directory, trainingprogram.CheckpointModel)
 	}
-	sampler.directory = directory
-	if err := WriteTrainedModel(session.ctx, session.request.Repository, session.inputDirectory, directory, len(session.model.Weights), trainedGGUFTensors(session.model)); err != nil {
-		return nil, err
-	}
-	path := filepath.Join(directory, trainingprogram.CheckpointModel)
 	candidate, err := modelintake.PrepareInferenceCandidate(session.ctx, session.request.Repository, path, modelintake.SessionOverride{}, recipe.ResidencyHybridNative)
 	if err != nil {
 		return nil, err
@@ -73,6 +80,55 @@ func (sampler *rewardSampler) generator() (evaluation.Generator, error) {
 		return nil, errors.Join(err, loaded.Close())
 	}
 	return sampler.runner, nil
+}
+
+// draw is the first draws of one prompt under a reward session's protocol,
+// from the weights named. The prompt is asked as the protocol's template asks
+// it: as it is written under rewardPlain, and otherwise as a user's turn with
+// the reply invited, rendered by the session's renderer or, where it has
+// none, by the runtime the weights are opened in. The group of its draws is
+// named from the code, the weights, the base's tokenizer, the template, the
+// prompt's ids, the vocabulary's ending ids, the seed and the output limit,
+// which is the least of the protocol's, the prompt's own, and what the
+// protocol's window and the model's context leave after the prompt. The draws
+// the store holds of the group are read back and the rest sampled and kept
+// (evaluation.SampleGroup).
+func (sampler *rewardSampler) draw(rewards RewardSampling, name, prompt string, limit int, base, weights artifact.ID) (evaluation.SampledGroup, []evaluation.SampledAnswer, error) {
+	session := sampler.session
+	generator, err := sampler.generator()
+	if err != nil {
+		return evaluation.SampledGroup{}, nil, err
+	}
+	switch plain := rewards.Protocol.Template == rewardPlain; {
+	case rewards.Render != nil:
+		prompt, err = rewards.Render([]dataset.ChatMessage{{Role: string(inference.ChatRoleUser), Content: prompt}}, true)
+	case !plain && sampler.runner != nil:
+		prompt, err = sampler.runner.FormatChatWithOptions([]inference.ChatMessage{{Role: inference.ChatRoleUser, Content: prompt}}, inference.ChatFormatOptions{AddGenerationPrompt: true})
+	case !plain:
+		err = fmt.Errorf("template %q has no renderer: a model that is not a GGUF is given one", rewards.Protocol.Template)
+	}
+	var encoded []int
+	if err == nil {
+		encoded, err = sampler.tokens.encode(prompt)
+	}
+	if err != nil {
+		return evaluation.SampledGroup{}, nil, fmt.Errorf("training workflow: prompt %q: %w", name, err)
+	}
+	group := evaluation.SampledGroup{
+		Group: name, Code: rewards.Code, Weights: weights, Tokenizer: base, Template: rewards.Protocol.Template, Temperature: 1, Seed: rewards.Seed,
+		MaxTokens: min(int(rewards.Protocol.MaxTokens), limit, int(rewards.Protocol.Window)-len(encoded)),
+	}
+	if session.model != nil {
+		group.MaxTokens = min(group.MaxTokens, session.model.Dims.ContextLength-len(encoded))
+	}
+	for _, id := range encoded {
+		group.Prompt = append(group.Prompt, tokenizer.TokenID(id))
+	}
+	for _, id := range sampler.tokens.ends {
+		group.Ends = append(group.Ends, tokenizer.TokenID(id))
+	}
+	answers, err := evaluation.SampleGroup(session.ctx, session.request.Observations, generator, group, rewards.Draws)
+	return group, answers, err
 }
 
 // standing is the logarithm of the probability the weights as they stand give

@@ -126,57 +126,9 @@ func deriveStoreSuites(
 	wanted string,
 ) ([]CompiledSuite, map[string]int, error) {
 	wanted, whole := strings.CutSuffix(wanted, WholeFamily)
-	id, bound, err := artifact.ResolveAlias(ctx, reader, benchmarkCatalogAlias)
-	if err != nil || !bound {
-		return nil, nil, errors.Join(err, errors.New("evaluation: active benchmark catalog is absent"))
-	}
-	catalog, found, err := benchmarkCatalogCodec.Read(ctx, reader, id)
-	if err != nil || !found {
-		return nil, nil, errors.Join(err, errors.New("evaluation: active benchmark catalog is unreadable"))
-	}
-	families := map[string][]storeCase{}
-	for _, entry := range catalog.Entries {
-		imported, found, err := dataset.ReadBenchmarkImport(ctx, reader, entry.Dataset)
-		if err != nil || !found {
-			return nil, nil, errors.Join(err, fmt.Errorf("evaluation: benchmark import %s is unreadable", entry.Name))
-		}
-		family, recognized := familyForConversion(imported.Spec.Conversion)
-		if !recognized || wanted != "" && family.family != wanted {
-			continue
-		}
-		subset := entry.Name
-		if parts := strings.Split(entry.Name, "/"); len(parts) >= 2 {
-			subset = parts[1]
-			if family.family == "musr" {
-				subset = imported.Spec.Split
-			}
-		}
-		var parameters map[artifact.ID]map[string]ifevalParameterBinding
-		if entry.Parameters.Kind() != artifact.KindInvalid {
-			parameters, err = readIFEvalParameters(ctx, reader, imported, entry.Parameters)
-			if err != nil {
-				return nil, nil, err
-			}
-		}
-		for ordinal, recordID := range imported.Records {
-			record, found, err := dataset.ReadBenchmarkRecord(ctx, reader, recordID)
-			if err != nil || !found {
-				return nil, nil, errors.Join(err, fmt.Errorf("evaluation: benchmark record %d of %s is unreadable", ordinal, entry.Name))
-			}
-			fields := make(map[string]json.RawMessage, len(record.Fields))
-			for _, field := range record.Fields {
-				fields[field.Name] = field.Value
-			}
-			families[family.family] = append(families[family.family], storeCase{
-				entry: entry.Name, subset: subset, ordinal: ordinal, fields: fields, parameters: parameters[recordID],
-			})
-		}
-	}
-	if len(families) == 0 {
-		if wanted != "" {
-			return nil, nil, fmt.Errorf("evaluation: the catalog holds no %s family", wanted)
-		}
-		return nil, nil, errors.New("evaluation: the catalog holds no recognized benchmark families")
+	families, _, err := storeFamilies(ctx, reader, wanted)
+	if err != nil {
+		return nil, nil, err
 	}
 	assemblers := map[string]func([]storeCase) (any, int, error){
 		"mmlu":     assembleMMLUSuite,
@@ -218,6 +170,86 @@ func deriveStoreSuites(
 		suites = append(suites, compiled)
 	}
 	return suites, skipped, nil
+}
+
+// storeFamilies reads the cases of the store's active benchmark catalog by
+// the family each import was ported to, every family or the one wanted, and
+// names the datasets each family's cases are records of.
+func storeFamilies(ctx context.Context, reader artifact.Reader, wanted string) (map[string][]storeCase, map[string][]artifact.ID, error) {
+	id, bound, err := artifact.ResolveAlias(ctx, reader, benchmarkCatalogAlias)
+	if err != nil || !bound {
+		return nil, nil, errors.Join(err, errors.New("evaluation: active benchmark catalog is absent"))
+	}
+	catalog, found, err := benchmarkCatalogCodec.Read(ctx, reader, id)
+	if err != nil || !found {
+		return nil, nil, errors.Join(err, errors.New("evaluation: active benchmark catalog is unreadable"))
+	}
+	families, datasets := map[string][]storeCase{}, map[string][]artifact.ID{}
+	for _, entry := range catalog.Entries {
+		imported, found, err := dataset.ReadBenchmarkImport(ctx, reader, entry.Dataset)
+		if err != nil || !found {
+			return nil, nil, errors.Join(err, fmt.Errorf("evaluation: benchmark import %s is unreadable", entry.Name))
+		}
+		family, recognized := familyForConversion(imported.Spec.Conversion)
+		if !recognized || wanted != "" && family.family != wanted {
+			continue
+		}
+		subset := entry.Name
+		if parts := strings.Split(entry.Name, "/"); len(parts) >= 2 {
+			subset = parts[1]
+			if family.family == "musr" {
+				subset = imported.Spec.Split
+			}
+		}
+		var parameters map[artifact.ID]map[string]ifevalParameterBinding
+		if entry.Parameters.Kind() != artifact.KindInvalid {
+			parameters, err = readIFEvalParameters(ctx, reader, imported, entry.Parameters)
+			if err != nil {
+				return nil, nil, err
+			}
+		}
+		for ordinal, recordID := range imported.Records {
+			record, found, err := dataset.ReadBenchmarkRecord(ctx, reader, recordID)
+			if err != nil || !found {
+				return nil, nil, errors.Join(err, fmt.Errorf("evaluation: benchmark record %d of %s is unreadable", ordinal, entry.Name))
+			}
+			fields := make(map[string]json.RawMessage, len(record.Fields))
+			for _, field := range record.Fields {
+				fields[field.Name] = field.Value
+			}
+			families[family.family] = append(families[family.family], storeCase{
+				entry: entry.Name, subset: subset, ordinal: ordinal, fields: fields, parameters: parameters[recordID],
+			})
+		}
+		datasets[family.family] = append(datasets[family.family], entry.Dataset)
+	}
+	if len(families) == 0 {
+		if wanted != "" {
+			return nil, nil, fmt.Errorf("evaluation: the catalog holds no %s family", wanted)
+		}
+		return nil, nil, errors.New("evaluation: the catalog holds no recognized benchmark families")
+	}
+	return families, datasets, nil
+}
+
+// StoreInstructionPrompts is the whole instruction family of the store's
+// active benchmark catalog as prompts with their rules, none left out as a
+// measurement run leaves some, and the dataset their cases are records of. A
+// catalog whose instruction cases are of more than one dataset names no one
+// dataset to divide, and one with a case outside the rule vocabulary names
+// cases that cannot be scored: both are refused.
+func StoreInstructionPrompts(ctx context.Context, reader artifact.Reader) (InstructionPrompts, artifact.ID, error) {
+	const family = "ifeval"
+	families, datasets, err := storeFamilies(ctx, reader, family)
+	if err != nil {
+		return InstructionPrompts{}, artifact.ID{}, err
+	}
+	source, dropped, err := assembleIFEvalSuite(families[family])
+	if err != nil || dropped != 0 || len(datasets[family]) != 1 {
+		return InstructionPrompts{}, artifact.ID{}, errors.Join(fmt.Errorf("evaluation: the catalog's instruction cases are of %d datasets, with %d outside the rule vocabulary; the pilot divides the cases of one, all scored", len(datasets[family]), dropped), err)
+	}
+	plan, err := compileInstructionRules(source.(instructionRulesSuite))
+	return InstructionPrompts{plan: plan}, datasets[family][0], err
 }
 
 func caseString(fields map[string]json.RawMessage, name string) (string, error) {

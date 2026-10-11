@@ -35,6 +35,19 @@ func (prompts InstructionPrompts) Names() []string {
 	return names
 }
 
+// Cases lists the prompts as the cases an instruction acceptance is fixed
+// from: each prompt's name as its record, and the names of its rules.
+func (prompts InstructionPrompts) Cases() []InstructionCase {
+	cases := make([]InstructionCase, len(prompts.plan.suite.Cases))
+	for index, asked := range prompts.plan.suite.Cases {
+		cases[index].Record = asked.Name
+		for _, rule := range asked.Rules {
+			cases[index].Rules = append(cases[index].Rules, rule.Name)
+		}
+	}
+	return cases
+}
+
 // Evaluator names the scorer the prompts' answers are scored by, as a reward
 // group names who gave its rewards.
 func (prompts InstructionPrompts) Evaluator() (artifact.ID, error) {

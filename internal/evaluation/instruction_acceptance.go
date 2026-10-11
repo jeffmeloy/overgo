@@ -28,6 +28,11 @@ const (
 	instructionEven = 0.5
 )
 
+// ErrInstructionEvidence refuses an acceptance whose promotion groups cannot
+// show the gain at the stated rates: the pilot is then inconclusive before a
+// training run is spent, and the refusal is its record.
+var ErrInstructionEvidence = errors.New("evaluation: not enough evidence can be had")
+
 // InstructionProtocol is how a prompt of the instruction pilot is asked and
 // its answer scored: every setting an outcome depends on beside the weights.
 // The tokenizer is the base model's, which the acceptance names.
@@ -63,11 +68,19 @@ type InstructionComparison struct {
 // confirming, FalseGain the rate at which the whole family of Comparisons may
 // report a gain that is not there, divided equally among them, and MissedGain
 // the rate at which one may miss a gain of that size. Discordance is the
-// largest share of pairs the arms may differ on that the development readings
-// in Basis allow, and Power the exact chance a comparison at that share shows
-// a gain of Gain. Training names the specification the arms are trained under.
-// That one rule combination is one independent unit is an assumption: groups
-// a generator links are to be merged by whoever lists the cases.
+// largest share of pairs that arms a gain apart may differ on that the
+// development readings in Basis allow, and Power the exact chance a comparison
+// at that share shows a gain of Gain. No arm is trained when an acceptance is
+// fixed, so what is read is the base, twice on each development group from
+// its own distribution: two answers of one arm differ on a share of groups,
+// whose upper bound at the false-gain rate is where arms of equal worth
+// differ, and an arm that passes the gain more of the groups and loses none
+// differs on at most the gain more. That an arm loses nowhere is an
+// assumption: one that gains on some groups and loses on others differs on
+// more, and its gain is shown with less chance than Power. So is it that one
+// rule combination is one independent unit: groups a generator links are to
+// be merged by whoever lists the cases. Training names the specification the
+// arms are trained under.
 type InstructionAcceptance struct {
 	ID          artifact.ID             `json:"-"`
 	Version     uint16                  `json:"version"`
@@ -116,8 +129,9 @@ type InstructionCase struct {
 // from: the dataset and its eligible cases, the base model, the training
 // specification, the protocol, the seed that draws each group's prompt and
 // divides the groups by Weights, the gain worth confirming, the comparisons,
-// and the development readings: Pairs independent pairs read on development
-// groups, Discordant of them pairs the arms differed on, recorded in Basis.
+// and the development readings: Pairs development groups whose prompt the
+// base answered twice, Discordant of them groups whose two answers differ in
+// passing every rule, recorded in Basis.
 type InstructionAcceptanceRequest struct {
 	Dataset, Base, Training artifact.ID
 	Cases                   []InstructionCase
@@ -148,16 +162,11 @@ func instructionPower(groups uint64, discordance, gain, level float64) (power fl
 	return power
 }
 
-// buildInstructionAcceptance fixes an instruction acceptance and the batch
-// that publishes it with its partition and the budget its promotion part
-// grants, one confirmation a comparison. Each combination of rules is a
-// group, a repeated rule counted once; the prompt that stands for a group is
-// the one a digest of the seed and its record puts first, which no outcome
-// enters. A request that leaves a gain, a rate's basis, a protocol setting or
-// the training specification unnamed is refused, and so is one whose promotion
-// groups cannot show the gain at the stated rates: the acceptance is not made
-// larger than its independent groups to pass.
-func buildInstructionAcceptance(request InstructionAcceptanceRequest) (InstructionAcceptance, artifact.Batch, error) {
+// divideInstructionGroups groups a request's cases and divides the groups
+// among the four parts. Each combination of rules is a group, a repeated rule
+// counted once; the prompt that stands for a group is the one a digest of the
+// seed and its record puts first, which no outcome enters.
+func divideInstructionGroups(request InstructionAcceptanceRequest) (dataset.SplitPlan, error) {
 	stands := map[string]string{}
 	for _, eligible := range request.Cases {
 		rules := make([]string, len(eligible.Rules))
@@ -184,7 +193,39 @@ func buildInstructionAcceptance(request InstructionAcceptanceRequest) (Instructi
 	}
 	plan, err := dataset.BuildGroupSplit(request.Dataset, records, request.Seed, weights)
 	if err != nil {
-		return InstructionAcceptance{}, artifact.Batch{}, fmt.Errorf("evaluation: the pilot's %d groups of %d cases: %w", len(records), len(request.Cases), err)
+		return dataset.SplitPlan{}, fmt.Errorf("evaluation: the pilot's %d groups of %d cases: %w", len(records), len(request.Cases), err)
+	}
+	return plan, nil
+}
+
+// InstructionGroups names, for each part of the split a request's acceptance
+// would fix, the prompts that stand for the part's groups, in order. It reads
+// no answer and needs no development reading, so the development part's
+// prompts can be read before the acceptance is fixed from what they answer.
+func InstructionGroups(request InstructionAcceptanceRequest) ([poolPartCount][]string, error) {
+	var parts [poolPartCount][]string
+	plan, err := divideInstructionGroups(request)
+	for _, membership := range plan.Memberships {
+		at := slices.Index(PoolParts[:], membership.Partition)
+		for _, record := range membership.Records {
+			parts[at] = append(parts[at], record.ID)
+		}
+		slices.Sort(parts[at])
+	}
+	return parts, err
+}
+
+// BuildInstructionAcceptance fixes an instruction acceptance and the batch
+// that publishes it with its partition and the budget its promotion part
+// grants, one confirmation a comparison. Its groups are divided as
+// InstructionGroups names them. A request that leaves a gain, a rate's basis,
+// a protocol setting or the training specification unnamed is refused, and so
+// is one whose promotion groups cannot show the gain at the stated rates: the
+// acceptance is not made larger than its independent groups to pass.
+func BuildInstructionAcceptance(request InstructionAcceptanceRequest) (InstructionAcceptance, artifact.Batch, error) {
+	plan, err := divideInstructionGroups(request)
+	if err != nil {
+		return InstructionAcceptance{}, artifact.Batch{}, err
 	}
 	var shards [poolPartCount]artifact.ID
 	var groups uint64
@@ -202,20 +243,22 @@ func buildInstructionAcceptance(request InstructionAcceptanceRequest) (Instructi
 	if err != nil {
 		return InstructionAcceptance{}, artifact.Batch{}, err
 	}
-	_, discordance := tensorstats.ExactShareBounds(request.Discordant, request.Pairs, falseGain)
+	// Arms a gain apart differ where two readings of the base do and, at most, on the gain more.
+	_, repeated := tensorstats.ExactShareBounds(request.Discordant, request.Pairs, falseGain)
+	discordance := min(repeated+request.Gain, 1)
 	acceptance := InstructionAcceptance{
 		Split: partition.ID, Base: request.Base, Training: request.Training, Protocol: request.Protocol, Seed: request.Seed, Groups: groups,
 		Gain: request.Gain, FalseGain: falseGain, MissedGain: missedGain, Discordance: discordance,
 		Comparisons: slices.Clone(request.Comparisons), Basis: slices.Clone(request.Basis),
 	}
-	if request.Pairs == 0 || len(request.Comparisons) == 0 || request.Gain <= 0 || request.Gain >= discordance {
-		return InstructionAcceptance{}, artifact.Batch{}, fmt.Errorf("evaluation: an instruction acceptance is sized from its comparisons, a gain worth confirming and development pairs; %d comparisons, a gain of %.3f and %d of %d pairs discordant, at most %.3f of them, size nothing",
-			len(request.Comparisons), request.Gain, request.Discordant, request.Pairs, discordance)
+	if request.Pairs == 0 || len(request.Comparisons) == 0 || request.Gain <= 0 || request.Gain >= 1 {
+		return InstructionAcceptance{}, artifact.Batch{}, fmt.Errorf("evaluation: an instruction acceptance is sized from its comparisons, a gain worth confirming and development pairs; %d comparisons, a gain of %.3f and %d of %d groups read twice differing, at most %.3f of them, size nothing",
+			len(request.Comparisons), request.Gain, request.Discordant, request.Pairs, repeated)
 	}
 	acceptance.Power = instructionPower(groups, discordance, request.Gain, falseGain/float64(len(request.Comparisons)))
 	if acceptance.Power < 1-missedGain {
-		return InstructionAcceptance{}, artifact.Batch{}, fmt.Errorf("evaluation: not enough evidence can be had: %d independent groups in the promotion part show a gain of %.3f with chance %.3f where %.2f is wanted, at %.3f of pairs discordant and %d comparisons; more groups, not more prompts of these, would show it",
-			groups, request.Gain, acceptance.Power, 1-missedGain, discordance, len(request.Comparisons))
+		return InstructionAcceptance{}, artifact.Batch{}, fmt.Errorf("%w: %d independent groups in the promotion part show a gain of %.3f with chance %.3f where %.2f is wanted, at %.3f of pairs discordant and %d comparisons; more groups, not more prompts of these, would show it",
+			ErrInstructionEvidence, groups, request.Gain, acceptance.Power, 1-missedGain, discordance, len(request.Comparisons))
 	}
 	if acceptance, err = instructionAcceptanceCodec.NewInitial(acceptance); err != nil {
 		return InstructionAcceptance{}, artifact.Batch{}, err

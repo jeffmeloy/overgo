@@ -1,6 +1,7 @@
 package evaluation
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -11,6 +12,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/runrecord"
+	"overgo/internal/tensorstats"
 	"overgo/internal/testutil"
 )
 
@@ -51,11 +53,15 @@ func exactInstructionPower(groups int64, discordance, win, level *big.Rat) *big.
 // asked twice counted once; one prompt stands for each, the same whatever
 // order the cases are listed in and another under another seed; every group
 // is wholly in one part; and the promotion part's groups are the acceptance's
-// count of independent pairs. Its power is the exact chance of a gain's being
-// shown over those groups, held to an enumeration in rational arithmetic, and
-// an acceptance whose groups cannot show the gain is refused as not enough
-// evidence, as is one that leaves a gain, a development reading, a comparison,
-// a protocol setting or the training specification unnamed.
+// count of independent pairs; and the prompts of each part are named before
+// any reading, the same the acceptance then holds. Its power is the exact
+// chance of a gain's being shown over those groups, held to an enumeration in
+// rational arithmetic, where arms differ on at most the upper bound of the
+// share of development groups the base differs on read twice, and the gain
+// more. An acceptance whose groups cannot show the gain is refused as not
+// enough evidence, and for that reason alone; one that leaves a gain, a
+// development reading, a comparison, a protocol setting or the training
+// specification unnamed is refused otherwise.
 //
 // A confirmation. It is refused, with nothing charged and nothing read, for a
 // comparison the acceptance did not name, for answers made under another
@@ -93,7 +99,7 @@ func TestInstructionAcceptanceBindsProtocolGroupsAndComparisons(t *testing.T) {
 		Dataset: objective.Dataset, Base: model("base"), Training: testutil.ArtifactID(t, artifact.KindProfile, "instruction fixture training"),
 		Cases: cases, Protocol: protocol, Seed: 7, Weights: [poolPartCount]uint64{1, 1, 4, 1}, Gain: 0.2,
 		Comparisons: []InstructionComparison{{Name: "reward over base", Candidate: "reward", Baseline: "base"}, {Name: "reward over control", Candidate: "reward", Baseline: "control"}},
-		Pairs:       200, Discordant: 40, Basis: []artifact.ID{testutil.ArtifactID(t, artifact.KindEvaluation, "instruction fixture development reading")},
+		Pairs:       200, Discordant: 10, Basis: []artifact.ID{testutil.ArtifactID(t, artifact.KindEvaluation, "instruction fixture development reading")},
 	}
 	// The training specification is committed before an acceptance names it.
 	if _, err := artifact.Publish(ctx, store, artifact.Batch{Key: "instruction-fixture/training", Artifacts: []artifact.Descriptor{{ID: request.Training}}}); err != nil {
@@ -101,7 +107,7 @@ func TestInstructionAcceptanceBindsProtocolGroupsAndComparisons(t *testing.T) {
 	}
 	publish := func(request InstructionAcceptanceRequest) (InstructionAcceptance, runrecord.SplitPartition) {
 		t.Helper()
-		acceptance, batch, err := buildInstructionAcceptance(request)
+		acceptance, batch, err := BuildInstructionAcceptance(request)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -147,18 +153,23 @@ func TestInstructionAcceptanceBindsProtocolGroupsAndComparisons(t *testing.T) {
 	reversed := request
 	reversed.Cases = slices.Clone(cases)
 	slices.Reverse(reversed.Cases)
-	if again, _, err := buildInstructionAcceptance(reversed); err != nil || again.ID != acceptance.ID {
+	if again, _, err := BuildInstructionAcceptance(reversed); err != nil || again.ID != acceptance.ID {
 		t.Fatalf("the same cases listed in another order fix acceptance %s (%v), want %s", again.ID, err, acceptance.ID)
 	}
 	reseeded := request
 	reseeded.Seed = 8
-	if other, _, err := buildInstructionAcceptance(reseeded); err != nil || other.Split == acceptance.Split {
+	if other, _, err := BuildInstructionAcceptance(reseeded); err != nil || other.Split == acceptance.Split {
 		t.Fatalf("another seed draws split %s (%v), want another than %s", other.Split, err, acceptance.Split)
 	}
 
 	// Power: the acceptance's own, and the function against an enumeration.
-	if acceptance.Power < 1-missedGain || acceptance.Discordance <= float64(request.Discordant)/float64(request.Pairs) || acceptance.FalseGain != falseGain {
-		t.Fatalf("the acceptance states power %.3f at %.3f of pairs discordant, want at least %.2f at more than the %d of %d seen", acceptance.Power, acceptance.Discordance, 1-missedGain, request.Discordant, request.Pairs)
+	_, repeated := tensorstats.ExactShareBounds(request.Discordant, request.Pairs, falseGain)
+	if acceptance.Power < 1-missedGain || repeated <= float64(request.Discordant)/float64(request.Pairs) || acceptance.Discordance != repeated+request.Gain || acceptance.FalseGain != falseGain {
+		t.Fatalf("the acceptance states power %.3f at %.3f of pairs discordant, want at least %.2f at the gain more than the upper bound %.3f of the %d of %d groups seen to differ read twice", acceptance.Power, acceptance.Discordance, 1-missedGain, repeated, request.Discordant, request.Pairs)
+	}
+	named, err := InstructionGroups(request)
+	if err != nil || !slices.Equal(named[poolPromotion], slices.Sorted(slices.Values(promotion))) || !slices.Contains(named[poolDevelopment], developed.ID) {
+		t.Fatalf("the groups named before the acceptance is fixed = (%d promotion prompts, %v), want the %d its promotion part holds", len(named[poolPromotion]), err, len(promotion))
 	}
 	want, _ := exactInstructionPower(9, big.NewRat(1, 2), big.NewRat(4, 5), big.NewRat(1, 20)).Float64()
 	if got := instructionPower(9, 0.5, 0.3, 0.05); math.Abs(got-want) > 1e-12 {
@@ -174,8 +185,8 @@ func TestInstructionAcceptanceBindsProtocolGroupsAndComparisons(t *testing.T) {
 	} {
 		refused := request
 		changed(&refused)
-		_, _, err := buildInstructionAcceptance(refused)
-		if err == nil || name == "too few groups" && !strings.Contains(err.Error(), "not enough evidence") {
+		_, _, err := BuildInstructionAcceptance(refused)
+		if err == nil || (name == "too few groups") != errors.Is(err, ErrInstructionEvidence) {
 			t.Errorf("an acceptance with %s = %v, want it refused", name, err)
 		}
 	}

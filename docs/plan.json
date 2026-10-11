@@ -4,6 +4,31 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "pilot-authority",
+      "title": "Bind a pilot's inputs, checkpoints and confirmations to the acceptance they are run under",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "inputs",
+          "title": "Refuse a pilot whose prompts, rules or checkpoints are not the ones its acceptance fixed",
+          "status": "open",
+          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestPilotRefusesChangedInputsAndForeignCheckpoints$'",
+          "rationale": "Reviewer finding SQA-137, first severity, confirmed by reading (docs/sqa_findings.json, not in the repository). The pilot command resolves its prompts and rules by name from the catalog that is active when it runs and drops the dataset it found them in, so a catalog replaced under the same names changes what is trained and judged under a frozen acceptance. And any checkpoint that loads at an arm's directory is credited without being compared with the request: a directory reused after the base, the data, the arm, the groups, the seed, the draws, the code or the control changed is taken as this run's. A resume does not compare the reward sampling's settings either, and thinking and stop are neither enforced nor refused. The run recorded on 2026-10-11 met none of this; the command that stays in the tree does. Closure, as the reviewer wrote it: a rebound catalog is refused before training, scoring or charging, or the frozen input is used; an unchanged one is reused; a completed directory reused after any of those changes refuses without overwriting what is there; identical reuse trains nothing and keeps its weights, momentum, cursor and verdict; unsupported thinking, stop or rendering is refused before a draw; and a failure after a kept draw and before a checkpoint is published retries without counting twice. The step first writes the test that fails for the finding's own counterexample, then repairs, as the reviewer's closure asks; a finding that does not reproduce is said so and closed with what was tried. The register stays the reviewer's and is not edited here. The row has no count: each step is sized by a preflight when it is dispatched.\n\nServes: train, evaluate. Evidence: the test, on the host. Batch: host; the device test of the pilot run stays as it is."
+        },
+        {
+          "id": "exposure",
+          "title": "Keep a held-out part's exposure across two datasets charged at once and across a reimport",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestConfirmationProtocolAndExposureSurviveReplacement$'",
+          "rationale": "Reviewer finding SQA-110, first severity, what is left of it after b3d29720b repaired the ordinary replacements. Three things that commit said it did not do. Two confirmations on two datasets that hold the same content read the same remaining exposure and then charge under different keys, so each can publish its last permitted charge before seeing the other's. A benchmark import has no record of its contents, so the same prompts imported again are not followed. And parts published before the repair have no content names to be found by. Closure, as the reviewer wrote it: a controlled interleaving of two datasets over one content cannot exceed what remains; an exact retry returns its first verdict; fresh material stays usable; and a reimport or an older part either keeps its exposure or is refused before anything is read. The lead states the scope that is supported. The step first writes the test that fails for the finding's own counterexample, then repairs, as the reviewer's closure asks; a finding that does not reproduce is said so and closed with what was tried. The register stays the reviewer's and is not edited here. The row has no count: each step is sized by a preflight when it is dispatched.\n\nServes: evaluate. Evidence: the existing test, extended. Batch: host.",
+          "depends_on": [
+            "pilot-authority/inputs"
+          ]
+        }
+      ]
+    },
+    {
       "id": "commit-queue",
       "title": "Let several sessions work at once and one queue commit",
       "owner": "master-lead",
@@ -23,6 +48,71 @@
             "landing-terms/waits",
             "session-isolation/worktrees",
             "landing-terms/terms"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "served-path-repairs",
+      "title": "Repair the reviewer's confirmed defects on the paths that serve a request",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "request-owner",
+          "title": "Keep an unfinished submission the owner of its request id",
+          "status": "open",
+          "verify": "go test ./internal/server -count=1 -run '^TestRunLedgerForgetsAFailureAndTheOldest$'",
+          "rationale": "Reviewer finding SQA-098, second severity, confirmed by reading (docs/sqa_findings.json, not in the repository). The run ledger drops its oldest key once it holds more than 256, even while that key's submission is unfinished, and its test expects the unfinished one to own its id again after 256 later submissions: a retry can then run twice before the first completes. Closure: a blocked submission stays the one owner and waiter after 256 completed others; once it completes, completed results are still dropped within the bound; a failure, a panic, another fingerprint and a waiter's cancellation end as they do now. The step first writes the test that fails for the finding's own counterexample, then repairs, as the reviewer's closure asks; a finding that does not reproduce is said so and closed with what was tried. The register stays the reviewer's and is not edited here. The row has no count: each step is sized by a preflight when it is dispatched.\n\nServes: serve. Evidence: the test. Batch: host."
+        },
+        {
+          "id": "director-close",
+          "title": "Close the model when a cancelled shutdown is tried again",
+          "status": "open",
+          "verify": "go test ./internal/capabilityruntime -count=1 -run '^TestBoundedSessionAdmission$'",
+          "rationale": "Reviewer finding SQA-109, second severity, confirmed by reading (docs/sqa_findings.json, not in the repository). A director's close marks admission closed, and a cancelled wait can return before the resident model is torn down; a later close returns nothing wrong because the mark is set, and releasing the lease only lowers a count. So cancel, release and retry can report success with the model never closed. Closure: with a model that counts its closes, hold a lease, cancel the close, release the lease and close again under a live context: the model closes once and new leases stay refused; repeated and concurrent closes wait for the teardown and keep its error. The step first writes the test that fails for the finding's own counterexample, then repairs, as the reviewer's closure asks; a finding that does not reproduce is said so and closed with what was tried. The register stays the reviewer's and is not edited here. The row has no count: each step is sized by a preflight when it is dispatched.\n\nServes: serve. Evidence: the test. Batch: host.",
+          "depends_on": [
+            "served-path-repairs/request-owner"
+          ]
+        },
+        {
+          "id": "picture-timestep",
+          "title": "Honour a changed timestep scale when a picture session is reused",
+          "status": "open",
+          "verify": "go test ./internal/latentimage -count=1 -run '^TestTimestepProgramMatchesHostReference$'",
+          "rationale": "Reviewer finding SQA-134, second severity, confirmed by reading (docs/sqa_findings.json, not in the repository). A picture generator fixes its timestep input scale from the training timesteps when it loads; a reset rebuilds the schedule and leaves that plan as it was. A session loaded at 500 and reset to 1000 sends the denoiser other inputs than a fresh one at 1000. Closure: on the small numerical and pipeline fixtures, 500 then 1000 either refuses before changing anything, so the existing fallback loads afresh, or gives what a fresh 1000 gives; an omitted default and its explicit equal stay reusable. The step first writes the test that fails for the finding's own counterexample, then repairs, as the reviewer's closure asks; a finding that does not reproduce is said so and closed with what was tried. The register stays the reviewer's and is not edited here. The row has no count: each step is sized by a preflight when it is dispatched.\n\nServes: serve. Evidence: the test. Batch: host and device.",
+          "depends_on": [
+            "served-path-repairs/director-close"
+          ]
+        },
+        {
+          "id": "video-joins",
+          "title": "Join a clip's background work on every way out of loading and generating",
+          "status": "open",
+          "verify": "go test ./internal/latentvideo -count=1 -run '^TestVideoWorkIsJoinedOnEveryExit$'",
+          "rationale": "Reviewer finding SQA-130, second severity, confirmed by reading (docs/sqa_findings.json, not in the repository). The GIF encoder starts a worker a frame and joins them only in its finish, which a generation error passes by; and loading a video runtime starts the prompt encoding before it validates, then returns on a load failure without cancelling or joining it, so the encoder can go on computing and may persist rows after the load failed. Closure: with the encoder held, a failed load and a separate cancellation each return only when the admitted work has ended, with the first error kept; a held draw worker and a failed or cancelled decode wait for the admitted draws, publish no partial clip and allow a retry; queued and running draws are bounded. The step first writes the test that fails for the finding's own counterexample, then repairs, as the reviewer's closure asks; a finding that does not reproduce is said so and closed with what was tried. The register stays the reviewer's and is not edited here. The row has no count: each step is sized by a preflight when it is dispatched.\n\nServes: serve. Evidence: the test. Batch: host and device.",
+          "depends_on": [
+            "served-path-repairs/picture-timestep"
+          ]
+        },
+        {
+          "id": "video-input-identity",
+          "title": "Qualify every cache of a clip's prompt rows by the bytes it was made from",
+          "status": "open",
+          "verify": "go test ./internal/latentvideo -count=1 -run '^TestPromptAlreadyEncodedIsNotEncodedAgain$'",
+          "rationale": "Reviewer finding SQA-129, second severity, confirmed by reading (docs/sqa_findings.json, not in the repository). The stored reading and the resident prompt encoder's key qualify the tokenizer and checkpoint files by path, size and time, the resident key leaves out the special tokens' file, and the rows kept for the next process carry the same incomplete qualification. Changed bytes under the same path, size and time, or a change to the special tokens alone, need not invalidate stored rows. Closure: on the private fixtures, bytes changed with path, size and time kept give what a cold load gives from the stored answer, the kept rows, the warm memo and a new session; unchanged inputs are still reused. The step first writes the test that fails for the finding's own counterexample, then repairs, as the reviewer's closure asks; a finding that does not reproduce is said so and closed with what was tried. The register stays the reviewer's and is not edited here. The row has no count: each step is sized by a preflight when it is dispatched.\n\nServes: serve. Evidence: the test. Batch: host.",
+          "depends_on": [
+            "served-path-repairs/video-joins"
+          ]
+        },
+        {
+          "id": "first-token-boundary",
+          "title": "Time the first token from one boundary for Submit and for Continue",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane -run ShowsTheFirstTokenTime",
+          "rationale": "Reviewer finding SQA-100, second severity, confirmed by reading (docs/sqa_findings.json, not in the repository). Submit starts its first-token clock after the token count and Continue starts its own after the stored turn is fetched and the stream's headers have arrived, so the two times are not of one action, and neither is the time to paint. Closure: with the token count, the stored fetch and Continue's headers each delayed in the existing browser test, each delay is inside the chosen start or the label says it is left out; the output, a stopped continuation and scrolling hold. The step first writes the test that fails for the finding's own counterexample, then repairs, as the reviewer's closure asks; a finding that does not reproduce is said so and closed with what was tried. The register stays the reviewer's and is not edited here. The row has no count: each step is sized by a preflight when it is dispatched.\n\nServes: serve. Evidence: the test. Batch: browser.",
+          "depends_on": [
+            "served-path-repairs/video-input-identity"
           ]
         }
       ]
@@ -327,7 +417,8 @@
             "dense-device-count/do",
             "dense-group-step/do",
             "dense-count-fix/do",
-            "dense-decide/do"
+            "dense-decide/do",
+            "sqa-rows/do"
           ]
         }
       ]

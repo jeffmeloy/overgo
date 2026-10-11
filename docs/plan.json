@@ -9,8 +9,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "What the row may still add. Set on 2026-10-11 to the 174 nodes the automated checks count its first step at on its built change: a confirmation's readings and its charge made one decision, the charge committed against the head taken before the first reading, the reading again when the store has moved, and the comments that say why. The second step is sized by its own preflight when it is built."
+        "nodes": 536,
+        "reason": "What the row may still add. Set on 2026-10-11 to the 536 nodes the automated checks count its second step at on its built change: the naming of held-out parts published before parts named what they hold, by a pool's recorded contents or an instruction acceptance's cases, the refusal of a charged part nothing names, its two callers where held-out material is admitted, and the comments that say why. Its first step, 174, is committed."
       },
       "steps": [
         {
@@ -360,7 +360,8 @@
             "prompt-pass-count/do",
             "input-identity-count/do",
             "exposure-decision-row/do",
-            "conditional-charge-count/do"
+            "conditional-charge-count/do",
+            "unnamed-exposure-count/do"
           ]
         }
       ]

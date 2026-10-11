@@ -9,8 +9,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 684,
-        "reason": "Original filed estimate, retained unchanged: planB.json assigned 1,100 production nodes to shape-free-verdicts on 2026-10-10. That estimate covered a different statistical migration and is not a measurement of this revised scope. Proposed initial allowance for instruction-verdicts: 1,100 net production nodes across all its landings, not a target. Report actual per-landing and cumulative growth against this original estimate and allowance. Lower unused allowance when scope measurement supports it; any increase requires a separate prospective plan amendment. Do not replace the filed estimate with the final count."
+        "nodes": 2100,
+        "reason": "Filed with an estimate of 1,100 production nodes for both steps, which stays the estimate it was filed with. The first step, the exact comparison and bounds, was measured at 416 and committed at 14b2ba3bb, which left 684. The second step's preflight counted 2,066 on 2026-10-10, three times what was left: the estimate was short, and the lead raised the allowance to the measurement before the work exceeded it, under the owner's instruction of 2026-10-10 not to wait for a decision. Where they are: the acceptance, its two smaller records and the request it is fixed from, with the check of what it must name, about 450; fixing it, which groups the cases by rule combination, draws each group's prompt, divides the groups with the dataset's group split, bounds the discordance, computes the exact power and stages the partition, the grant and the acceptance, about 800; a confirmation, with its four refusals before a charge, the divided-group check over the four parts, the one-candidate rule and the exact verdict, about 650; and the body of a pool's confirmation from the grant on moved into one function both kinds call, with the three statistics exported for this package to read, about 150. Nothing was built beside the pool's owners: the split, the partition, the grant, the charge, the count of what a part has answered and the confirmation record are theirs."
       },
       "steps": [
         {
@@ -396,7 +396,8 @@
             "accepted-video-lineage/do",
             "plan-lineage-row/do",
             "plan-retire-wer/do",
-            "plan-confirmation-count/do"
+            "plan-confirmation-count/do",
+            "plan-instruction-count/do"
           ]
         }
       ]

@@ -1,0 +1,24 @@
+{"instruction":"Name the opposite of the word.","input":"hot","output":"The opposite of hot is cold."}
+{"instruction":"Add the two numbers.","input":"4 and 7","output":"4 plus 7 is 11."}
+{"instruction":"Write the word in capital letters.","input":"river","output":"RIVER"}
+{"instruction":"Name the color you get when you mix blue and yellow.","output":"Blue and yellow mix to make green."}
+{"instruction":"Count the words in the sentence.","input":"The kettle is on.","output":"The sentence has 4 words."}
+{"instruction":"Put the words in alphabetical order.","input":"pear, apple, fig","output":"apple, fig, pear"}
+{"instruction":"Say how many days are in a week.","output":"A week has 7 days."}
+{"instruction":"Turn the statement into a question.","input":"The door is open.","output":"Is the door open?"}
+{"instruction":"Give the plural of the word.","input":"leaf","output":"The plural of leaf is leaves."}
+{"instruction":"Subtract the second number from the first.","input":"15 and 6","output":"15 minus 6 is 9."}
+{"instruction":"Name the season that comes after winter.","output":"Spring comes after winter."}
+{"instruction":"Write the sentence in the past tense.","input":"I walk to the shop.","output":"I walked to the shop."}
+{"instruction":"Say which number is larger.","input":"12 or 21","output":"21 is larger than 12."}
+{"instruction":"Give one word that rhymes with the word.","input":"light","output":"Night rhymes with light."}
+{"instruction":"Shorten the sentence.","input":"The very old wooden bridge crosses the wide river.","output":"The old bridge crosses the river."}
+{"instruction":"Name the shape that has three sides.","output":"A triangle has three sides."}
+{"instruction":"Spell the word backwards.","input":"stone","output":"enots"}
+{"instruction":"Multiply the two numbers.","input":"3 and 5","output":"3 times 5 is 15."}
+{"instruction":"Say what you use to tell the time.","output":"You use a clock to tell the time."}
+{"instruction":"Replace the word big with a word that means the same.","input":"They live in a big house.","output":"They live in a large house."}
+{"instruction":"List three things you find in a kitchen.","output":"A kettle, a pan and a spoon."}
+{"instruction":"Say whether the number is odd or even.","input":"8","output":"8 is an even number."}
+{"instruction":"Finish the sentence.","input":"The sun rises in the","output":"The sun rises in the east."}
+{"instruction":"Name the first month of the year.","output":"January is the first month of the year."}

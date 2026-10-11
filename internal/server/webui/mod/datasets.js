@@ -16,12 +16,23 @@
         }
       }, render, { loading: "Loading datasets…" });
 
+      // demoSets: the small demonstration sets the server carries, by the name each registers under. One press registers
+      // one, so a person with no data of their own yet can try Train; a set the catalog already holds is not offered again.
+      const demoSets = [["demo-instruction", "Add the demo instruction set"], ["demo-identity", "Add the demo identity set"]];
+      function demoRow(present) {
+        const status = el("div", { class: "note", role: "status", "aria-label": "demo dataset status" });
+        // The Library's change event refreshes no read of /datasets, so the tab reads its own catalog again.
+        return el("div", { class: "row" }, ...demoSets.filter(([name]) => !present.includes(name)).map(([name, text]) =>
+          el("button", { class: "btn alt", text, onclick: () => overgo.act(status, async (signal) => { await overgo.api.post("/library/register", { kind: "dataset", demo: name }, { signal }); await load(); }) })), status);
+      }
+
       function render(data) {
         // No catalog yet: say so, and open the Library's import, where a chat dataset file comes in.
         if (!data) {
           panel.replaceChildren(el("div", { class: "section-title", text: "Datasets" }),
             el("p", { class: "note", text: "No datasets are catalogued yet. Import a chat dataset file (alpaca, ShareGPT or OpenAI messages) and its conversations list here." }),
-            el("button", { class: "btn alt", text: "Import a chat dataset", onclick: () => overgo.openLibrary("input[aria-label='Chat dataset file on disk']") }));
+            el("button", { class: "btn alt", text: "Import a chat dataset", onclick: () => overgo.openLibrary("input[aria-label='Chat dataset file on disk']") }),
+            demoRow([]));
           return;
         }
         const search = el("input", { "aria-label": "Filter datasets", class: "text mw-440 my-s2", type: "search", placeholder: "filter by name / source / modality / format…", });
@@ -32,7 +43,7 @@
           el("div", { class: "lens-summary" },
             el("span", { class: "note", text: data.count + " datasets" }),
             el("span", { class: "note mono", title: data.catalog, text: overgo.fmt.shortID(data.catalog) })),
-          search, host, preview);
+          demoRow((data.datasets || []).map((d) => d.name)), search, host, preview);
 
         // previewText: a record in the OpenAI messages form reads as its conversation, any other text as written.
         function previewText(text) {

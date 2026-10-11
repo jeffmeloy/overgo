@@ -23,25 +23,6 @@
       ]
     },
     {
-      "id": "gui-demo-datasets",
-      "title": "Ship a few tiny demo datasets (an instruction set, an identity set, a preference set) so a person can try Train without finding data (LlamaFactory ships alpaca, identity and DPO demos)",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 186,
-        "reason": "What the row may still add. Set on 2026-10-11 to the 186 nodes its built server half was counted at: two small demonstration datasets kept in the server and registered in one action, and a demo whose directory is already on disk registered as it stands (43 of the 186, added after the row was first counted at 143). The page half adds none."
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "A demo set registers as a dataset in one action from the Datasets tab and trains on the tiny test model end to end in a Go test",
-          "status": "open",
-          "verify": "test -f internal/server/demo_datasets_test.go \u0026\u0026 go test ./internal/server -run '^TestDemoDatasets' -count=1",
-          "rationale": "Recommended by the GUI lane and not landed when its worktree was removed on 2026-10-09 (docs/gui_update_plan.json, which stays out of the repository); ranked into this plan by the owner's answer to gui-recommendations on 2026-10-10. Ship a few tiny demo datasets (an instruction set, an identity set, a preference set) so a person can try Train without finding data (LlamaFactory ships alpaca, identity and DPO demos). Why the lane recommended it: \n\nThe lane's rule for a change to the pages holds: plain HTML, JavaScript and Go, reviewed in a browser at desktop and phone widths in both colour schemes, and accepted by a browser leg or a Go test that fails without it. The row has no count: it is sized by a preflight when it is dispatched.\n\nServes: setup-steps. Batch: browser."
-        }
-      ]
-    },
-    {
       "id": "gui-document-to-dataset",
       "title": "Turn documents into a conversation dataset with the served model (Unsloth Studio's data recipes)",
       "owner": "master-lead",

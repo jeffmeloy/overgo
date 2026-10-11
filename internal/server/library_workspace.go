@@ -2,8 +2,12 @@ package server
 
 import (
 	"context"
+	"embed"
 	"errors"
+	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"overgo/internal/apimanifest"
@@ -111,6 +115,8 @@ type libraryRegisterRequest struct {
 	Directory string `json:"directory,omitzero"`
 	Name      string `json:"name,omitzero"`
 	Modality  string `json:"modality,omitzero"`
+	// Demo names a demo dataset the server carries, in place of a path.
+	Demo string `json:"demo,omitzero"`
 	// A provider declaration: the endpoint, the key's variable, the
 	// model ids and the declared context length.
 	Endpoint       string   `json:"endpoint,omitzero"`
@@ -186,14 +192,35 @@ func libraryRegisterRoute(response http.ResponseWriter, request *http.Request, r
 		receipt["kind"] = body.Kind
 		writeJSON(response, http.StatusOK, receipt)
 	case "dataset":
-		// A file path imports a common chat format; a directory registers as it stands.
+		// A demo's name imports the set the server carries under that name; a file path
+		// imports a common chat format; a directory registers as it stands.
 		var registered dataset.RegisteredDataset
 		var formats []string
 		var err error
-		switch source := strings.TrimSpace(body.Path); {
-		case source != "" && intake.DatasetRoot == "":
+		switch source, demo := strings.TrimSpace(body.Path), strings.TrimSpace(body.Demo); {
+		case source+demo != "" && intake.DatasetRoot == "":
 			writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "dataset import needs the data root's datasets directory")
 			return
+		case demo != "":
+			// The importer reads a path, so a demo's records pass through a temporary
+			// file, removed when the request ends; a file that was never made has no
+			// name, and removing that removes nothing.
+			body.Name = demo
+			source, err = demoDatasetFile(demo)
+			defer os.Remove(source)
+			if err != nil {
+				break
+			}
+			// A demo added before left its directory on disk, and the importer refuses
+			// a directory that exists: a store that lists the demo no longer (one put
+			// back from a backup) could never add it again. What is there registers as
+			// it stands, so asking for a demo ends with it listed.
+			held := filepath.Join(intake.DatasetRoot, demo)
+			if _, absent := os.Stat(held); absent == nil {
+				registered, err = dataset.RegisterDirectoryDatasetAs(request.Context(), repository, demo, held, dataset.ModalityStructured)
+				break
+			}
+			fallthrough
 		case source != "":
 			registered, formats, err = dataset.ImportCommonFormat(request.Context(), repository, body.Name, source, intake.DatasetRoot)
 		default:
@@ -224,6 +251,28 @@ func libraryRegisterRoute(response http.ResponseWriter, request *http.Request, r
 	default:
 		writeInvalidRequest(response, errors.New("library: kind must be model, dataset or provider"))
 	}
+}
+
+// demoDatasets holds the demo datasets the server carries, each a file of
+// alpaca records written for this repository and named as it registers.
+//
+//go:embed demo
+var demoDatasets embed.FS
+
+// demoDatasetFile writes the records of the demo dataset called name to a
+// temporary file and returns its path, which the caller removes; the path is
+// returned with a failed write too, so that what was written goes with it.
+func demoDatasetFile(name string) (string, error) {
+	records, err := demoDatasets.ReadFile("demo/" + name + ".jsonl")
+	if err != nil {
+		return "", fmt.Errorf("library: no demo dataset is named %q", name)
+	}
+	file, err := os.CreateTemp("", "overgo-demo-*")
+	if err != nil {
+		return "", err
+	}
+	_, err = file.Write(records)
+	return file.Name(), errors.Join(err, file.Close())
 }
 
 // libraryProviderModels answers GET /library/providers/models: the

@@ -8,6 +8,10 @@
       "title": "Bound every browser-leg wait by a named deadline that fails with what the page showed",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 179,
+        "reason": "What the row may still add. Set on 2026-10-11 to the 179 nodes the automated checks count its step at on its built change: a budget for each answer from the page, applied where every wait on the page blocks, read from the lane's declaration when a browser opens, the lane's flag and its default with the default's derivation, and the comments that say why."
+      },
       "steps": [
         {
           "id": "do",
@@ -317,7 +321,8 @@
             "input-identity-count/do",
             "exposure-decision-row/do",
             "conditional-charge-count/do",
-            "unnamed-exposure-count/do"
+            "unnamed-exposure-count/do",
+            "wait-deadline-count/do"
           ]
         }
       ]

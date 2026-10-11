@@ -9,21 +9,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 3983,
+        "nodes": 1,
         "reason": "A loan, not growth the row keeps: the row is accepted only if its last step removes more than its steps added. Measured on 2026-10-11 (tmp/count_nodes.go) on the built change of the first step: the derivative rules and the builder of a backward graph, 2,142 nodes, of which the attention's rule is about a third; and the block adapter that trains through them on the host, 1,841. The device step's count is set from its built change before it is committed."
       },
       "steps": [
-        {
-          "id": "rules",
-          "title": "Derive a dense block's backward graph from rules for its operations, and train an adapter on a block through it on the host",
-          "status": "open",
-          "verify": "go test ./internal/tensorgrad ./internal/densecausal -count=1 -run '^(TestBackwardGraphAgreesWithDirectionalDerivatives|TestDenseBlockAdapterLearnsThroughTheProgram)$'",
-          "rationale": "The first step of shared-numerical-program/dense-block, whose reason states the scope. A package the inference surface does not import holds a rule for each operation a dense block uses and builds, from a forward graph and the inputs to differentiate by, the graph of their gradients, of existing operations alone. It is held on the host: each rule and the whole block's graph agree with directional derivatives taken in float64 from a block written in the test.\n\nServes: train. Disappears: nothing yet; it is what the block's hand-written backward passes are replaced by. Evidence: the directional derivatives. Batch: host. Count: none yet; it is set from the built change before the step is committed.\n\nJoined with the step after it on 2026-10-11: the rules' entry is exported for the block adapter to call, and an export is committed with its consumer, so the two are one commit. What that step was: The second step of shared-numerical-program/dense-block. One dense block's forward is the model's own definition as a program, an adapter's factors are inputs it is differentiated by, and a step is the forward and backward graphs executed by the reference executor with Muon's update of the factors. It agrees with the model's own reference going forward, learns a controlled task, and resumes from a checkpoint to the same values. It reuses the weighted step's boundary: masks, signed weights, normalization, the optimizer's state and the resume contract.\n\nServes: train. Disappears: nothing yet. Evidence: agreement with the reference, the task learnt, the resume exact. Batch: host. Count: none yet; it is set from the built change before the step is committed.",
-          "depends_on": [
-            "reward-training/weighted-step",
-            "reward-training/first-run"
-          ]
-        },
         {
           "id": "device-block",
           "title": "Train the adapter on the dense block through the program on the device",

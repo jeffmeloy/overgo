@@ -365,8 +365,8 @@ const (
 // supports. A Sequence of Split nodes keys on the newline-joined regexes:
 // llama3-family tokenizers (MiniCPM5) isolate 1-3 digit runs first, then
 // split with the main regex — composition equals llama.cpp's llama-bpe.
+// A ByteLevel that splits by its own expression counts as one more Split.
 const (
-	gpt2SplitRegex   = `'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+`
 	qwen2SplitRegex  = `(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+`
 	qwen35SplitRegex = `(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?[\p{L}\p{M}]+|\p{N}| ?[^\s\p{L}\p{M}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+`
 	digitSplitRegex  = `\p{N}{1,3}`
@@ -379,7 +379,7 @@ const (
 )
 
 var splitRegexPre = map[string]string{
-	gpt2SplitRegex:                            "gpt-2",
+	tokenizer.BPEPatternGPT2:                  "gpt-2",
 	qwen2SplitRegex:                           "qwen2",
 	qwen35SplitRegex:                          "qwen35",
 	tokenizer.BPEPatternKimi:                  "kimi",
@@ -431,6 +431,10 @@ func validateKimiRankDeclaration(file tokenizerFile) error {
 	return nil
 }
 
+// preTokenizerName names a runtime rule only for a declaration of the shape the
+// rules cut: Splits that keep what they match and the rest, then one ByteLevel
+// that adds no space. Anything else is refused: the model's own tokenizer may
+// cut it otherwise, and a wrong name encodes text to IDs the model never saw.
 func preTokenizerName(raw json.RawMessage) (string, error) {
 	if !strictjson.HasValue(raw) {
 		return "gpt-2", nil
@@ -439,25 +443,29 @@ func preTokenizerName(raw json.RawMessage) (string, error) {
 	if err := json.Unmarshal(raw, &root); err != nil {
 		return "", fmt.Errorf("HF converter: parse pre-tokenizer: %w", err)
 	}
+	nodes := root.Pretokenizers
+	if root.Type != "Sequence" {
+		nodes = []preTokenizerNode{root}
+	}
 	var regexes []string
-	collectSplitRegexes(root, &regexes)
-	if len(regexes) == 0 {
-		return "gpt-2", nil
+	for index, node := range nodes {
+		last := index == len(nodes)-1
+		switch {
+		case !last && node.Type == "Split" && node.Behavior == "Isolated" && node.Invert != nil && !*node.Invert:
+			regexes = append(regexes, node.Pattern.Regex)
+		case last && node.Type == "ByteLevel" && node.AddPrefixSpace != nil && !*node.AddPrefixSpace:
+			if node.UseRegex == nil || *node.UseRegex {
+				regexes = append(regexes, tokenizer.BPEPatternGPT2)
+			}
+		default:
+			return "", fmt.Errorf("HF converter: pre-tokenizer step %d (%s) is not supported: each step before the last must be a Split that declares behavior Isolated and invert false, and the last a ByteLevel that declares add_prefix_space false", index, node.Type)
+		}
 	}
 	pre, ok := splitRegexPre[strings.Join(regexes, "\n")]
 	if !ok {
 		return "", fmt.Errorf("HF converter: unsupported pre-tokenizer split sequence %q", regexes)
 	}
 	return pre, nil
-}
-
-func collectSplitRegexes(node preTokenizerNode, out *[]string) {
-	if node.Type == "Split" && node.Pattern.Regex != "" {
-		*out = append(*out, node.Pattern.Regex)
-	}
-	for _, child := range node.Pretokenizers {
-		collectSplitRegexes(child, out)
-	}
 }
 
 type postProcessorNode struct {

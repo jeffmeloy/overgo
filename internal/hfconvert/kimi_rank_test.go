@@ -75,28 +75,37 @@ func TestKimiDeclaredRankConversion(t *testing.T) {
 			t.Errorf("converted Kimi Encode(%q) = %v, %v; want %v", sample.Input, got, err, want)
 		}
 	}
+	// A declaration whose splitting is not the Kimi rule's is refused before it
+	// is given the Kimi name, so that refusal speaks of the pre-tokenizer; the
+	// others are refused as Kimi files. The naming does not ask for
+	// trim_offsets, so that variant alone reaches what the Kimi check asks of
+	// the Split and the ByteLevel.
 	for _, variant := range []struct {
-		name   string
-		change func(map[string]any)
+		name    string
+		refusal string
+		change  func(map[string]any)
 	}{
-		{"model_type", func(source map[string]any) { source["model"].(map[string]any)["type"] = "Unigram" }},
-		{"ignore_merges_false", func(source map[string]any) { source["model"].(map[string]any)["ignore_merges"] = false }},
-		{"merges_absent", func(source map[string]any) { delete(source["model"].(map[string]any), "merges") }},
-		{"merges_present", func(source map[string]any) { source["model"].(map[string]any)["merges"] = []string{"a b"} }},
-		{"split_behavior", func(source map[string]any) {
+		{"model_type", "Kimi", func(source map[string]any) { source["model"].(map[string]any)["type"] = "Unigram" }},
+		{"ignore_merges_false", "Kimi", func(source map[string]any) { source["model"].(map[string]any)["ignore_merges"] = false }},
+		{"merges_absent", "Kimi", func(source map[string]any) { delete(source["model"].(map[string]any), "merges") }},
+		{"merges_present", "Kimi", func(source map[string]any) { source["model"].(map[string]any)["merges"] = []string{"a b"} }},
+		{"split_behavior", "pre-tokenizer", func(source map[string]any) {
 			source["pre_tokenizer"].(map[string]any)["pretokenizers"].([]any)[0].(map[string]any)["behavior"] = "MergedWithPrevious"
 		}},
-		{"byte_prefix", func(source map[string]any) {
+		{"byte_prefix", "pre-tokenizer", func(source map[string]any) {
 			source["pre_tokenizer"].(map[string]any)["pretokenizers"].([]any)[1].(map[string]any)["add_prefix_space"] = true
 		}},
-		{"normalizer", func(source map[string]any) { source["normalizer"] = map[string]string{"type": "NFC"} }},
-		{"decoder", func(source map[string]any) { source["decoder"] = map[string]string{"type": "Metaspace"} }},
+		{"trim_offsets", "Kimi", func(source map[string]any) {
+			source["pre_tokenizer"].(map[string]any)["pretokenizers"].([]any)[1].(map[string]any)["trim_offsets"] = false
+		}},
+		{"normalizer", "Kimi", func(source map[string]any) { source["normalizer"] = map[string]string{"type": "NFC"} }},
+		{"decoder", "Kimi", func(source map[string]any) { source["decoder"] = map[string]string{"type": "Metaspace"} }},
 	} {
 		t.Run(variant.name, func(t *testing.T) {
 			source := makeSource()
 			variant.change(source)
-			if _, err := convert(source); err == nil || !strings.Contains(err.Error(), "Kimi") {
-				t.Fatalf("unsupported Kimi declaration was accepted: %v", err)
+			if _, err := convert(source); err == nil || !strings.Contains(err.Error(), variant.refusal) {
+				t.Fatalf("unsupported Kimi declaration was accepted, or refused for another reason than %q: %v", variant.refusal, err)
 			}
 		})
 	}

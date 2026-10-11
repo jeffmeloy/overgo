@@ -98,11 +98,6 @@ func (p *Frontend) prepare(ctx context.Context, chunks [][]float32, sampleRate i
 		if err := ctx.Err(); err != nil {
 			return chunkSource{}, 0, err
 		}
-		for _, value := range w.resampled {
-			if !checked.Finite32(value) {
-				return chunkSource{}, 0, errors.New("audio frontend: non-finite resampled input")
-			}
-		}
 		w.resampledChunks[0] = w.resampled
 		source = chunkSource{chunks: w.resampledChunks[:], count: len(w.resampled)}
 	}

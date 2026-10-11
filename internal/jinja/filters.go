@@ -108,7 +108,7 @@ func filterDictsort(in any, _ []any, _ map[string]any) (any, error) {
 		v any
 	}
 	var pairs []kv
-	for _, k := range dictAllKeys(in) {
+	for _, k := range dl.keys() {
 		v, _ := dl.lookup(k)
 		pairs = append(pairs, kv{k, v})
 	}
@@ -120,22 +120,6 @@ func filterDictsort(in any, _ []any, _ map[string]any) (any, error) {
 		out[i] = []any{p.k, p.v}
 	}
 	return out, nil
-}
-
-// dictAllKeys returns keys in a stable, unsorted-source order (Go-map keys are
-// deduplicated); dictsort re-sorts them anyway.
-func dictAllKeys(in any) []string {
-	switch d := in.(type) {
-	case map[string]any:
-		keys := make([]string, 0, len(d))
-		for k := range d {
-			keys = append(keys, k)
-		}
-		return keys
-	case *Dict:
-		return append([]string(nil), d.order...)
-	}
-	return nil
 }
 
 func filterItems(in any, _ []any, _ map[string]any) (any, error) {

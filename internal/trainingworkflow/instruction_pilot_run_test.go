@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
+	"overgo/internal/testutil"
 )
 
 // TestRewardAdoptionRequiresDeclaredComparisons holds the pilot's adoption to
@@ -16,19 +17,12 @@ import (
 // leave the base in place and are named as the reason; and an acceptance that
 // names no comparison adopts nothing.
 func TestRewardAdoptionRequiresDeclaredComparisons(t *testing.T) {
-	id := func(kind artifact.Kind, name string) artifact.ID {
-		named, err := artifact.IdentifyBytes(kind, []byte(name))
-		if err != nil {
-			t.Fatal(err)
-		}
-		return named
-	}
-	acceptance := evaluation.InstructionAcceptance{ID: id(artifact.KindEvidence, "pilot acceptance"), Comparisons: pilotComparisons}
+	acceptance := evaluation.InstructionAcceptance{ID: testutil.ArtifactID(t, artifact.KindEvidence, "pilot acceptance"), Comparisons: pilotComparisons}
 	answered := func(verdicts ...string) []PilotComparison {
 		comparisons := make([]PilotComparison, len(verdicts))
 		for index, verdict := range verdicts {
 			comparisons[index] = PilotComparison{Name: pilotComparisons[index].Name, Confirmation: evaluation.PoolConfirmation{
-				Acceptance: acceptance.ID, Charge: id(artifact.KindEvidence, "charge "+pilotComparisons[index].Name), Verdict: verdict,
+				Acceptance: acceptance.ID, Charge: testutil.ArtifactID(t, artifact.KindEvidence, "charge "+pilotComparisons[index].Name), Verdict: verdict,
 			}}
 		}
 		return comparisons
@@ -37,7 +31,7 @@ func TestRewardAdoptionRequiresDeclaredComparisons(t *testing.T) {
 		t.Fatalf("two charged gains = adopted %t (%s), want the reward arm adopted", adopted, reason)
 	}
 	uncharged, elsewhere := answered("gain", "gain"), answered("gain", "gain")
-	uncharged[1].Confirmation.Charge, elsewhere[0].Confirmation.Acceptance = artifact.ID{}, id(artifact.KindEvidence, "another acceptance")
+	uncharged[1].Confirmation.Charge, elsewhere[0].Confirmation.Acceptance = artifact.ID{}, testutil.ArtifactID(t, artifact.KindEvidence, "another acceptance")
 	for name, seeded := range map[string]struct {
 		comparisons []PilotComparison
 		reason      string

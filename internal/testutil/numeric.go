@@ -86,15 +86,15 @@ func RequireWithin[L, R Float](t testing.TB, name string, got []L, want []R, tol
 	}
 }
 
-// RequireElementsWithin fails at the first element whose difference
-// exceeds tol, naming the index for golden triage.
+// RequireElementsWithin fails at the first element that differs by more than
+// tol or is not a number, naming the index for golden triage.
 func RequireElementsWithin[L, R Float](t testing.TB, name string, got []L, want []R, tol float64) {
 	t.Helper()
 	if len(got) != len(want) {
 		t.Fatalf("%s: len %d, want %d", name, len(got), len(want))
 	}
 	for i := range got {
-		if d := math.Abs(float64(got[i]) - float64(want[i])); d > tol {
+		if d := MaxAbsDiff(got[i:i+1], want[i:i+1]); d > tol {
 			t.Fatalf("%s[%d]: |%g - %g| = %g > %g", name, i, got[i], want[i], d, tol)
 		}
 	}

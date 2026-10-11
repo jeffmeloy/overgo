@@ -14,6 +14,7 @@ import (
 
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testutil"
 )
 
 const (
@@ -47,18 +48,6 @@ func product(module Module, scale float64) []float64 {
 	return result
 }
 
-func near(t *testing.T, got []float32, want []float64, tolerance float64, what string) {
-	t.Helper()
-	if len(got) != len(want) {
-		t.Fatalf("%s has %d values, want %d", what, len(got), len(want))
-	}
-	for index := range got {
-		if math.Abs(float64(got[index])-want[index]) > tolerance {
-			t.Fatalf("%s[%d] = %v, want %v", what, index, got[index], want[index])
-		}
-	}
-}
-
 // TestDeltaIsTheScaledProduct: a module's update is alpha over its rank times
 // Up·Down, and alpha over the root of its rank when the adapter is rank-stabilized.
 func TestDeltaIsTheScaledProduct(t *testing.T) {
@@ -68,13 +57,13 @@ func TestDeltaIsTheScaledProduct(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	near(t, delta, product(module, 4.0/2), 1e-6, "delta")
+	testutil.RequireElementsWithin(t, "delta", delta, product(module, 4.0/2), 1e-6)
 	adapter.Config.RSLoRA = true
 	delta, err = adapter.Delta(queryModule)
 	if err != nil {
 		t.Fatal(err)
 	}
-	near(t, delta, product(module, 4/math.Sqrt(2)), 1e-6, "rank-stabilized delta")
+	testutil.RequireElementsWithin(t, "rank-stabilized delta", delta, product(module, 4/math.Sqrt(2)), 1e-6)
 	if _, err := adapter.Delta("model.layers.9.self_attn.q_proj"); err == nil {
 		t.Fatal("a module the adapter lacks gave an update")
 	}
@@ -414,7 +403,7 @@ func TestMergeAddsTheUpdateAndKeepsTheCheckpoint(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			near(t, got, want, 1e-5, storage+" merged "+module)
+			testutil.RequireElementsWithin(t, storage+" merged "+module, got, want, 1e-5)
 		}
 		for _, name := range []string{"model.layers.0.input_layernorm.weight", "model.layers.0.self_attn.k_proj.weight"} {
 			before, after := make([]byte, original.Tensors[name].Size()), make([]byte, source.Tensors[name].Size())

@@ -9,8 +9,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 37,
-        "reason": "What the row may still add. Set on 2026-10-11 to the 37 nodes the automated checks count its first step at on its built change: the ledger forgetting the oldest finished submissions and keeping an unfinished one, with the comment that says why. Each later step is sized by its own preflight when it is built."
+        "nodes": 105,
+        "reason": "What the row may still add. Set on 2026-10-11 to the 105 nodes the automated checks count its first two steps at, both built and neither yet committed: 37 for the ledger forgetting only finished submissions, and 68 for a shutdown that goes on from where a cancelled one stopped and ends beside another as that one ends, each with the comment that says why. Each later step is sized by its own preflight when it is built."
       },
       "steps": [
         {
@@ -378,7 +378,8 @@
             "exposure-count/do",
             "queue-steps/do",
             "queue-follow-step/do",
-            "ledger-count/do"
+            "ledger-count/do",
+            "served-count/do"
           ]
         }
       ]

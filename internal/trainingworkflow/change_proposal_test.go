@@ -1,17 +1,25 @@
 package trainingworkflow
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"math/rand/v2"
+	"os"
 	"path/filepath"
 	"slices"
+	"strings"
+	"sync/atomic"
 	"testing"
 
 	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
 	"overgo/internal/safetensors"
 	"overgo/internal/testutil"
+	"overgo/internal/trainingprogram"
 )
 
 // TestLinearChangeCodeFindsTheDirectionGainRisesIn holds the proposer's code
@@ -239,6 +247,278 @@ func TestProposedChangeIsJudgedAgainstItsControls(t *testing.T) {
 	if err != nil || repeated.ID != judgment.ID {
 		t.Fatalf("judged again = (%s, %v), want the same judgment %s", repeated.ID, err, judgment.ID)
 	}
+}
+
+// stopAtCheck is a context cancelled at a chosen one of its error checks. A
+// pass that checks once a tensor is stopped by it after a known tensor, and no
+// clock decides which.
+type stopAtCheck struct {
+	context.Context
+	cancel context.CancelFunc
+	left   atomic.Int64
+}
+
+// Err cancels the context at the chosen check and answers as the context does.
+func (stop *stopAtCheck) Err() error {
+	if stop.left.Add(-1) == 0 {
+		stop.cancel()
+	}
+	return stop.Context.Err()
+}
+
+// TestInterruptedProposalIsFinishedByTheSameRequest holds a proposal asked
+// again where it wrote before to finish what it finds there and to replace
+// nothing that is complete. The same request is asked after it finished,
+// after a stop that left one tensor sealed in every candidate's stage, and
+// after a stop that left one candidate's weights published with no
+// configuration beside them: each time it returns the judgment of the
+// proposal nothing interrupted, over candidates that hold the same bytes and
+// load as the base does, and a candidate published before the stop is still
+// the directory it was.
+//
+// What another change left is never taken for the request's own. A stage of
+// other coefficients over the same shapes is refused, not finished into a
+// model of two changes, and the change that began it still finishes it. A
+// directory published from other coefficients, from another base of the same
+// shapes or for another corpus is refused and left byte for byte as it was,
+// and so is one whose weights do not read as a model.
+func TestInterruptedProposalIsFinishedByTheSameRequest(t *testing.T) {
+	ctx := t.Context()
+	text, corpus, _, request := pooledCorpus(t)
+	want, err := ProposeChange(ctx, text.store, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A proposal writes every candidate but the best run, which is its own checkpoint.
+	var names []string
+	var weights, zeros [][]float64
+	for _, candidate := range want.Candidates {
+		if candidate.Name != changeBestRun {
+			names, weights = append(names, candidate.Name), append(weights, candidate.Weights)
+			// No candidate has these weights, since each one's sum to one: they make the base itself.
+			zeros = append(zeros, make([]float64, len(corpus.Changes)))
+		}
+	}
+	runs := make([]string, len(corpus.Changes))
+	for index, change := range corpus.Changes {
+		runs[index] = runDirectory(request.RunsDirectory, change.Order)
+	}
+	tensors, err := openChangeTensors(text.model, runs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tensors.Close()
+
+	under := func(output string) []string {
+		directories := make([]string, len(names))
+		for index, name := range names {
+			directories[index] = filepath.Join(text.root, output, name)
+		}
+		return directories
+	}
+	read := func(t *testing.T, path ...string) []byte {
+		t.Helper()
+		data, err := os.ReadFile(filepath.Join(path...))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return data
+	}
+	absent := func(t *testing.T, directories []string, why string) {
+		t.Helper()
+		for _, directory := range directories {
+			if _, err := os.Stat(directory); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("%s published %s (%v)", why, directory, err)
+			}
+		}
+	}
+	// A file of the test's own in a published directory: a directory that is replaced loses it, whatever its weights are afterwards.
+	const marker = "left-by-the-test"
+	mark := func(t *testing.T, directories []string) {
+		t.Helper()
+		for _, directory := range directories {
+			if err := os.WriteFile(filepath.Join(directory, marker), nil, 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	unreplaced := func(t *testing.T, directories []string) {
+		t.Helper()
+		for _, directory := range directories {
+			if _, err := os.Stat(filepath.Join(directory, marker)); err != nil {
+				t.Fatalf("%s was complete and was replaced: %v", directory, err)
+			}
+		}
+	}
+	published := make([][]byte, len(names))
+	for index, directory := range under("candidates") {
+		published[index] = read(t, directory, trainingprogram.CheckpointWeights)
+	}
+	asked := func(output string) (ChangeJudgment, error) {
+		again := request
+		again.OutputDirectory = filepath.Join(text.root, output)
+		return ProposeChange(ctx, text.store, again)
+	}
+	// finished asks the request at an output directory and holds it to the proposal nothing interrupted.
+	finished := func(t *testing.T, output string) {
+		t.Helper()
+		got, err := asked(output)
+		if err != nil || got.ID != want.ID {
+			t.Fatalf("asked again at %s = (%s, %v), want the judgment %s of the proposal nothing interrupted", output, got.ID, err, want.ID)
+		}
+		for index, directory := range under(output) {
+			if !bytes.Equal(read(t, directory, trainingprogram.CheckpointWeights), published[index]) {
+				t.Fatalf("%s holds other weights than the proposal nothing interrupted wrote for %s", directory, names[index])
+			}
+			if _, err := loadTrainableTokenizer(directory); err != nil {
+				t.Fatalf("%s does not load as its base does: %v", directory, err)
+			}
+		}
+	}
+	// stopped writes coefficients under an output directory and is cancelled at its second tensor.
+	stopped := func(t *testing.T, output string, coefficients [][]float64) {
+		t.Helper()
+		inner, cancel := context.WithCancel(ctx)
+		defer cancel()
+		stop := &stopAtCheck{Context: inner, cancel: cancel}
+		stop.left.Store(2)
+		if err := materializeChanges(stop, tensors, corpus.ID, text.model, under(output), coefficients); !errors.Is(err, context.Canceled) {
+			t.Fatalf("a pass stopped at its second tensor = %v, want it cancelled", err)
+		}
+		absent(t, under(output), "a stopped pass")
+		// The stage's own record says what the stop left: were it nothing, asking again would resume nothing.
+		for _, directory := range under(output) {
+			var stage struct{ Completed []string }
+			if err := json.Unmarshal(read(t, directory+".partial", "resume.json"), &stage); err != nil || !slices.Equal(stage.Completed, tensors.names[:1]) {
+				t.Fatalf("the stage of %s holds %v complete (%v), want the first tensor alone, %v", directory, stage.Completed, err, tensors.names[:1])
+			}
+		}
+	}
+
+	t.Run("asked again after it finished", func(t *testing.T) {
+		mark(t, under("candidates"))
+		finished(t, "candidates")
+		unreplaced(t, under("candidates"))
+	})
+	t.Run("stopped with a tensor sealed", func(t *testing.T) {
+		stopped(t, "candidates-sealed", weights)
+		finished(t, "candidates-sealed")
+	})
+	t.Run("stopped with a candidate published and no configuration beside it", func(t *testing.T) {
+		first := under("candidates-published")[:1]
+		if err := materializeChanges(ctx, tensors, corpus.ID, text.model, first, weights[:1]); err != nil {
+			t.Fatal(err)
+		}
+		for _, file := range changeModelFiles {
+			if err := os.Remove(filepath.Join(first[0], file)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		mark(t, first)
+		finished(t, "candidates-published")
+		unreplaced(t, first)
+		for _, file := range changeModelFiles {
+			if !bytes.Equal(read(t, first[0], file), read(t, text.model, file)) {
+				t.Fatalf("%s of %s is not its base's", file, first[0])
+			}
+		}
+	})
+	t.Run("a stage of another change is neither finished nor destroyed", func(t *testing.T) {
+		directories := under("candidates-other")
+		stopped(t, "candidates-other", zeros)
+		if got, err := asked("candidates-other"); err == nil {
+			t.Fatalf("the request finished a stage of other coefficients as judgment %s", got.ID)
+		}
+		absent(t, directories, "a request refused the stage it found")
+		if err := materializeChanges(ctx, tensors, corpus.ID, text.model, directories, zeros); err != nil {
+			t.Fatalf("the change that began the stage did not finish it: %v", err)
+		}
+		// Zero coefficients make the base: a tensor the refused request wrote would differ from it.
+		for _, directory := range directories {
+			written, err := safetensors.OpenSource(directory)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, name := range tensors.names {
+				base, err := safetensors.ReadF32(tensors.base.Tensors[name])
+				if err != nil {
+					t.Fatal(err)
+				}
+				if held, err := safetensors.ReadF32(written.Tensors[name]); err != nil || !slices.Equal(held, base) {
+					t.Fatalf("%s holds another %s than its base (%v)", directory, name, err)
+				}
+			}
+			if err := written.Close(); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+	t.Run("a directory that is not the request's is refused and left as it is", func(t *testing.T) {
+		// Another base of the same shapes: the request's own, with one value of each tensor moved.
+		elsewhere := filepath.Join(text.root, "another-base")
+		moved := map[string][]float32{}
+		for _, name := range tensors.names {
+			values, err := safetensors.ReadF32(tensors.base.Tensors[name])
+			if err != nil {
+				t.Fatal(err)
+			}
+			values[0]++
+			moved[name] = values
+		}
+		shapes, err := tensors.base.IntShapes()
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeModel(t, elsewhere, moved, shapes)
+		others, err := openChangeTensors(elsewhere, runs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer others.Close()
+		// What the refusal of a directory that reads as a model has to say: it holds another change.
+		const another = "left as it is"
+		for _, found := range []struct {
+			output, says string
+			write        func(directories []string) error
+		}{
+			{"candidates-of-other-coefficients", another, func(directories []string) error {
+				return materializeChanges(ctx, tensors, corpus.ID, text.model, directories, zeros)
+			}},
+			{"candidates-of-another-base", another, func(directories []string) error {
+				return materializeChanges(ctx, others, corpus.ID, elsewhere, directories, weights)
+			}},
+			// The mean of a corpus's runs has the same coefficients for every corpus of as many runs.
+			{"candidates-of-another-corpus", another, func(directories []string) error {
+				return materializeChanges(ctx, tensors, testutil.ArtifactID(t, artifact.KindEvidence, "another corpus"), text.model, directories, weights)
+			}},
+			// Weights too short to read as a model are nobody's change, and are not written over either.
+			{"candidates-of-no-model", "", func(directories []string) error {
+				for _, directory := range directories {
+					if err := errors.Join(os.MkdirAll(directory, 0o755), os.WriteFile(filepath.Join(directory, trainingprogram.CheckpointWeights), []byte("torn"), 0o600)); err != nil {
+						return err
+					}
+				}
+				return nil
+			}},
+		} {
+			directories := under(found.output)
+			if err := found.write(directories); err != nil {
+				t.Fatal(err)
+			}
+			before := make([][]byte, len(directories))
+			for index, directory := range directories {
+				before[index] = read(t, directory, trainingprogram.CheckpointWeights)
+			}
+			if got, err := asked(found.output); err == nil || !strings.Contains(err.Error(), found.says) {
+				t.Fatalf("the request asked at %s = (%s, %v), want it refused, saying %q", found.output, got.ID, err, found.says)
+			}
+			for index, directory := range directories {
+				if !bytes.Equal(read(t, directory, trainingprogram.CheckpointWeights), before[index]) {
+					t.Fatalf("a refused request changed the weights of %s", directory)
+				}
+			}
+		}
+	})
 }
 
 // TestResampledDifferencesBoundAProposalAgainstItsControl holds the paired

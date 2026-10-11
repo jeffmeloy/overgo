@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"sync"
 
+	"overgo/internal/artifact"
 	"overgo/internal/binaryschema"
 	"overgo/internal/checked"
 	"overgo/internal/safetensors"
@@ -26,6 +27,12 @@ const (
 	// changeDirectoryMode is the mode of the directory materialized changes
 	// are written under.
 	changeDirectoryMode = 0o755
+	// changeBinding names the plan entry that binds a materialized change to
+	// its corpus, its base's weights and its coefficients. Another change of
+	// the same shapes has another plan, so its stage is refused, never
+	// finished into a model of two changes, and a published directory says
+	// which change it holds.
+	changeBinding = "overgo_change"
 )
 
 // changeModelFiles are the files beside a model's weights that a materialized
@@ -172,8 +179,15 @@ func changeGram(ctx context.Context, tensors *changeTensors) ([]float64, error) 
 // the base plus that weighted sum of the runs' changes, as a directory that
 // loads as the base does: its weights in one file and the base's
 // configuration and tokenizer beside them. The directories are written
-// together in one pass over the tensors.
-func materializeChanges(ctx context.Context, tensors *changeTensors, baseDirectory string, directories []string, coefficients [][]float64) error {
+// together in one pass over the tensors. Asked again, it finishes what it
+// left: a published directory is kept, a stage goes on from the tensors it
+// sealed, and the configuration is copied again. A directory or a stage made
+// of another corpus, base or coefficients is refused and left as it is.
+func materializeChanges(ctx context.Context, tensors *changeTensors, corpus artifact.ID, baseDirectory string, directories []string, coefficients [][]float64) error {
+	model, err := identifyModel(baseDirectory)
+	if err != nil {
+		return err
+	}
 	plan := safetensors.StreamingPlan{Shards: []safetensors.StreamingShardSpec{{Name: trainingprogram.CheckpointWeights}}}
 	for _, name := range tensors.names {
 		plan.Shards[0].Tensors = append(plan.Shards[0].Tensors, safetensors.StreamingTensorSpec{
@@ -185,10 +199,23 @@ func materializeChanges(ctx context.Context, tensors *changeTensors, baseDirecto
 		if len(coefficients[index]) != len(tensors.runs) {
 			return fmt.Errorf("training workflow: %d coefficients for %d runs", len(coefficients[index]), len(tensors.runs))
 		}
+		bound := fmt.Sprintf("%s %s %v", corpus, model, coefficients[index])
+		if held, err := safetensors.OpenSource(directory); err == nil {
+			// Published before: it is kept, with no writer, when it is this change.
+			was := held.Metadata[trainingprogram.CheckpointWeights][changeBinding]
+			if err := held.Close(); err != nil {
+				return err
+			}
+			if was != bound {
+				return fmt.Errorf("training workflow: %s holds another change than the one asked for, and is left as it is", directory)
+			}
+			continue
+		}
+		// What does not open as a model is the writer's to begin, to go on with or to refuse.
 		if err := os.MkdirAll(filepath.Dir(directory), changeDirectoryMode); err != nil {
 			return err
 		}
-		var err error
+		plan.Metadata = map[string]string{changeBinding: bound}
 		if writers[index], err = safetensors.NewStreamingWriter(directory, plan); err != nil {
 			return err
 		}
@@ -202,6 +229,9 @@ func materializeChanges(ctx context.Context, tensors *changeTensors, baseDirecto
 			return err
 		}
 		for index, writer := range writers {
+			if writer == nil || writer.Completed(name) {
+				continue
+			}
 			payload := make([]byte, 0, len(base)*binaryschema.Uint32Bytes)
 			for at, value := range base {
 				sum := float64(value)
@@ -219,8 +249,10 @@ func materializeChanges(ctx context.Context, tensors *changeTensors, baseDirecto
 		}
 	}
 	for index, writer := range writers {
-		if err := writer.Finalize(); err != nil {
-			return err
+		if writer != nil {
+			if err := writer.Finalize(); err != nil {
+				return err
+			}
 		}
 		for _, file := range changeModelFiles {
 			if err := copyModelFile(filepath.Join(baseDirectory, file), filepath.Join(directories[index], file)); err != nil {

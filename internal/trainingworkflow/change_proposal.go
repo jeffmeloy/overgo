@@ -580,7 +580,7 @@ func proposeOnPool(ctx context.Context, store *overgodb.Store, request ChangePro
 			written, weights = append(written, directories[index]), append(weights, candidate.Weights)
 		}
 	}
-	if err := materializeChanges(ctx, tensors, request.ModelDirectory, written, weights); err != nil {
+	if err := materializeChanges(ctx, tensors, corpus.ID, request.ModelDirectory, written, weights); err != nil {
 		return ChangeJudgment{}, err
 	}
 

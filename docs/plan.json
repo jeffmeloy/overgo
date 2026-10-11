@@ -9,7 +9,7 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 331,
+        "nodes": 211,
         "reason": "What the row may still add. Set on 2026-10-11 to the sum of what its steps were counted at in their own checkouts, by the same count of syntax nodes the automated checks take: 22, 60, 159, 44, 120, 124 and 5, and one step that removes 136 and adds none."
       },
       "steps": [
@@ -26,13 +26,6 @@
           "status": "open",
           "verify": "go test ./internal/hfconvert -count=1 -run '^TestConverterRefusesADeclarationItsRuleDoesNotCut$'",
           "rationale": "Reviewer finding SQA-124, second severity, confirmed by reading (docs/sqa_findings.json, not in the repository). The converter names a runtime splitting rule from a declaration's split patterns alone, so a declaration that removes what it matches, or declares a step the rule does not make, converts with no error and tokenizes wrongly from then on. Closure: the kind and options of every declared step are checked before a rule is named, and the rest is refused; the declarations it knows keep their rule. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader, in a checkout of the step's own, before this row was filed; the commit is the lead's. The register stays the reviewer's and is not edited here.\n\nServes: serve. Evidence: the test. Batch: host; the commit runs the device tests, since the inference tests convert a tokenizer."
-        },
-        {
-          "id": "proposal-resume",
-          "title": "Finish an interrupted change proposal when the same request is asked again",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestInterruptedProposalIsFinishedByTheSameRequest$'",
-          "rationale": "Reviewer finding SQA-116, second severity, confirmed by reading (docs/sqa_findings.json, not in the repository). A change proposal asked again at the same destination is refused in every state an interrupted one can be left in: a sealed tensor, a published candidate, a missing configuration, a complete one. Closure: the same request finishes what it left, and what another change left there is refused. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader, in a checkout of the step's own, before this row was filed; the commit is the lead's. The register stays the reviewer's and is not edited here.\n\nServes: train. Evidence: the test. Batch: host."
         },
         {
           "id": "capability-device",

@@ -14,6 +14,7 @@ import (
 	"overgo/internal/densecausal"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingdata"
+	"overgo/internal/trainingprogram"
 )
 
 // answered is a prompt of five tokens and one answer to it, the answer's
@@ -37,6 +38,105 @@ func apart(left, right *densecausal.Model) (furthest float64) {
 	return furthest
 }
 
+// rewardGroup is a reward group at a position in its stream: of three answers
+// of unequal lengths to the one prompt, the first as many as there are
+// rewards, each with its reward.
+func rewardGroup(t *testing.T, position uint64, rewards ...float64) trainingdata.RolloutGroup {
+	t.Helper()
+	evaluator := testutil.ArtifactID(t, artifact.KindEvidence, "weighted step evaluator")
+	stream := testutil.ArtifactID(t, artifact.KindProfile, "weighted step stream")
+	answers := []trainingdata.PreferenceSequence{answered(2, 11, 4), answered(6, 13), answered(8, 2, 14)}
+	members := make([]trainingdata.Rollout, len(rewards))
+	for index, reward := range rewards {
+		members[index] = trainingdata.Rollout{ID: string(rune('a' + index)), Sequence: answers[index], Reward: reward}
+	}
+	group, err := trainingdata.NewRolloutGroup("group", evaluator, trainingdata.StreamState{Identity: stream, Position: position}, members)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return group
+}
+
+// orderedRewardGroups is three groups whose rewards put their answers in an
+// order: all apart, two together above the third, and one between the others.
+func orderedRewardGroups(t *testing.T) []trainingdata.RolloutGroup {
+	t.Helper()
+	return []trainingdata.RolloutGroup{rewardGroup(t, 1, 2, 0, 1), rewardGroup(t, 2, -1, 3, 3), rewardGroup(t, 3, 0, 5, -2)}
+}
+
+// weightedGradient is the host's gradient of the weights' sum of the answers'
+// completion losses, and loss that sum. The masked loss is a mean over an
+// answer's completion, so an answer's part is its weight times the count of
+// its completion's tokens, read from its mask, times that mean and its
+// gradients.
+func weightedGradient(t *testing.T, model *densecausal.Model, answers []trainingdata.PreferenceSequence, weights []float64) (densecausal.Grads, float64) {
+	t.Helper()
+	total, loss := densecausal.Grads{}, 0.0
+	for index, answer := range answers {
+		mean, gradients, err := model.MaskedLossAndGrads(answer.Tokens, answer.Completion)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// The first token is predicted by nothing, so it is no token of the completion.
+		completion := 0.0
+		for _, own := range answer.Completion[1:] {
+			if own {
+				completion++
+			}
+		}
+		loss += weights[index] * completion * mean
+		for name, values := range gradients {
+			if total[name] == nil {
+				total[name] = make([]float32, len(values))
+			}
+			for at, value := range values {
+				total[name][at] += float32(weights[index] * completion * float64(value))
+			}
+		}
+	}
+	return total, loss
+}
+
+// rewardReference steps a model on the host once for each reward group, as
+// the reward objective says a group is to be stepped, and returns each
+// step's loss. It is this file's own calculation, the one the device's
+// reward steps are held to: an answer's weight is what the order of the
+// group's rewards gives (trainingprogram.OrderGradients) with its sign
+// turned, since that is a gradient by an answer's log probability and a
+// weight multiplies its loss, and the step is the masked loss's gradients
+// under those weights (weightedGradient). It reads neither the sequences the
+// device is handed nor the host's reward trainer.
+func rewardReference(t *testing.T, model *densecausal.Model, groups []trainingdata.RolloutGroup, momentum float64) []float64 {
+	t.Helper()
+	update, err := model.NewDenseUpdate(derivedTestLearningRate(t, model), momentum, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	losses := make([]float64, len(groups))
+	for step, group := range groups {
+		rewards := make([]float64, len(group.Rollouts))
+		answers := make([]trainingdata.PreferenceSequence, len(group.Rollouts))
+		for index, rollout := range group.Rollouts {
+			rewards[index], answers[index] = rollout.Reward, rollout.Sequence
+		}
+		weights, err := trainingprogram.OrderGradients(rewards)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for index := range weights {
+			weights[index] = 0 - weights[index]
+		}
+		gradient, loss := weightedGradient(t, model, answers, weights)
+		if err := update.Pack.GatherGradients(gradient); err != nil {
+			t.Fatal(err)
+		}
+		update.Step()
+		update.Pack.Scatter()
+		losses[step] = loss
+	}
+	return losses
+}
+
 // TestOneWeightedStepServesFineTuningAndRewards holds the resident step to
 // its three uses, each against the host's own calculation, and to moving
 // nothing when it is given nothing.
@@ -48,8 +148,10 @@ func apart(left, right *densecausal.Model) (furthest float64) {
 // taken on this device before and after.
 //
 // Rewards. Groups of answers of unequal lengths, weighed by the order of
-// their rewards, are stepped on the device and by the host's reward trainer:
-// the losses and the weights agree within the trainer's bounds, a shorter
+// their rewards, are stepped on the device, by the host's reward trainer,
+// and by this file's own reference on the host (rewardReference), which
+// reads neither that trainer nor what the device is handed: the device's
+// losses and weights agree with each within the trainer's bounds, a shorter
 // answer padded with tokens of no weight.
 //
 // The control. The answers that pass are weighed alike and the rest not at
@@ -114,22 +216,7 @@ func TestOneWeightedStepServesFineTuningAndRewards(t *testing.T) {
 		t.Fatalf("fine-tuning with its mean written out as weights: weights the same %t, momentum the same %t, losses %v against %v", same(plain, written), slices.Equal(before.State.Momentum, after.State.Momentum), after.Losses, before.Losses)
 	}
 
-	// Rewards: the device's step against the host's reward trainer.
-	evaluator := testutil.ArtifactID(t, artifact.KindEvidence, "weighted step evaluator")
-	stream := testutil.ArtifactID(t, artifact.KindProfile, "weighted step stream")
-	rollouts := func(position uint64, rewards ...float64) trainingdata.RolloutGroup {
-		t.Helper()
-		answers := []trainingdata.PreferenceSequence{answered(2, 11, 4), answered(6, 13), answered(8, 2, 14)}
-		members := make([]trainingdata.Rollout, len(rewards))
-		for index, reward := range rewards {
-			members[index] = trainingdata.Rollout{ID: string(rune('a' + index)), Sequence: answers[index], Reward: reward}
-		}
-		group, err := trainingdata.NewRolloutGroup("group", evaluator, trainingdata.StreamState{Identity: stream, Position: position}, members)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return group
-	}
+	// Rewards: the device's step against the host's reward trainer and against the reference.
 	weighted := func(group trainingdata.RolloutGroup) []densecausal.WeightedSequence {
 		t.Helper()
 		sequences, err := densecausal.RewardSequences(group)
@@ -138,20 +225,24 @@ func TestOneWeightedStepServesFineTuningAndRewards(t *testing.T) {
 		}
 		return sequences
 	}
-	ordered := []trainingdata.RolloutGroup{rollouts(1, 2, 0, 1), rollouts(2, -1, 3, 3), rollouts(3, 0, 5, -2)}
-	host, resident := tinyMuonModel(t), tinyMuonModel(t)
+	ordered := orderedRewardGroups(t)
+	host, resident, expected := tinyMuonModel(t), tinyMuonModel(t), tinyMuonModel(t)
 	observed, _, err := host.TrainGRPOGroupsResume(ordered, derivedTestLearningRate(t, host), momentum, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
+	expectedLosses := rewardReference(t, expected, ordered, momentum)
 	rewarded := train(resident, nil, weighted(ordered[0]), weighted(ordered[1]), weighted(ordered[2]))
+	if len(rewarded.Losses) != len(observed) || len(rewarded.Losses) != len(expectedLosses) {
+		t.Fatalf("%d reward groups gave %d losses on the device, %d by the host's trainer and %d by the reference", len(ordered), len(rewarded.Losses), len(observed), len(expectedLosses))
+	}
 	for step, observation := range observed {
-		if math.Abs(observation.Loss-rewarded.Losses[step]) > lossLimit {
-			t.Errorf("reward group %d: the device's loss %.6f, the host's %.6f", step, rewarded.Losses[step], observation.Loss)
+		if math.Abs(observation.Loss-rewarded.Losses[step]) > lossLimit || math.Abs(expectedLosses[step]-rewarded.Losses[step]) > lossLimit {
+			t.Errorf("reward group %d: the device's loss %.6f, the host trainer's %.6f, the reference's %.6f", step, rewarded.Losses[step], observation.Loss, expectedLosses[step])
 		}
 	}
-	if furthest := apart(host, resident); furthest > weightLimit || len(rewarded.Losses) != len(observed) || same(resident, tinyMuonModel(t)) {
-		t.Fatalf("after %d reward groups the device's weights stand %.2e from the host's, with %d losses; want them within %.1e and moved", len(observed), furthest, len(rewarded.Losses), weightLimit)
+	if furthest := max(apart(host, resident), apart(expected, resident)); furthest > weightLimit || same(resident, tinyMuonModel(t)) {
+		t.Fatalf("after %d reward groups the device's weights stand %.2e from the host trainer's and %.2e from the reference's; want them within %.1e and moved", len(observed), apart(host, resident), apart(expected, resident), weightLimit)
 	}
 
 	// The control: passing answers weighed alike, against a host step built from the masked loss.
@@ -160,28 +251,6 @@ func TestOneWeightedStepServesFineTuningAndRewards(t *testing.T) {
 	share := 1 / float64(len(passing))
 	control := []densecausal.WeightedSequence{{Tokens: failed.Tokens, Weights: make([]float32, len(failed.Tokens)-1)}}
 	reference, controlled := tinyMuonModel(t), tinyMuonModel(t)
-	// gradient is the host's gradient of the weights' sum of the completions' losses, and loss that sum.
-	gradient := func(model *densecausal.Model, weights []float64) (densecausal.Grads, float64) {
-		t.Helper()
-		total, loss := densecausal.Grads{}, 0.0
-		for index, answer := range passing {
-			mean, gradients, err := model.MaskedLossAndGrads(answer.Tokens, answer.Completion)
-			if err != nil {
-				t.Fatal(err)
-			}
-			completion := float64(len(answer.Tokens) - 5)
-			loss += weights[index] * completion * mean
-			for name, values := range gradients {
-				if total[name] == nil {
-					total[name] = make([]float32, len(values))
-				}
-				for at, value := range values {
-					total[name][at] += float32(weights[index] * completion * float64(value))
-				}
-			}
-		}
-		return total, loss
-	}
 	for _, answer := range passing {
 		weights := make([]float32, len(answer.Tokens)-1)
 		for token := range weights {
@@ -191,7 +260,7 @@ func TestOneWeightedStepServesFineTuningAndRewards(t *testing.T) {
 		}
 		control = append(control, densecausal.WeightedSequence{Tokens: answer.Tokens, Weights: weights})
 	}
-	wanted, wantedLoss := gradient(reference, []float64{share, share})
+	wanted, wantedLoss := weightedGradient(t, reference, passing, []float64{share, share})
 	update, err := reference.NewDenseUpdate(derivedTestLearningRate(t, reference), momentum, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -207,7 +276,7 @@ func TestOneWeightedStepServesFineTuningAndRewards(t *testing.T) {
 
 	// The host gradient the device is held to, against its own loss, for weights of both signs.
 	signed := []float64{0.75, -0.5}
-	analytic, _ := gradient(tinyMuonModel(t), signed)
+	analytic, _ := weightedGradient(t, tinyMuonModel(t), passing, signed)
 	// The direction is the gradient's own, of unit length, so that what it gives
 	// along it is its length; the weights are moved a hundredth of that either way.
 	var along float64
@@ -226,14 +295,14 @@ func TestOneWeightedStepServesFineTuningAndRewards(t *testing.T) {
 				moved.Weights[name][index] += float32(direction * float64(value) / along)
 			}
 		}
-		_, sides[side] = gradient(moved, signed)
+		_, sides[side] = weightedGradient(t, moved, passing, signed)
 	}
 	if measured := (sides[0] - sides[1]) / (2 * nudge); math.Abs(measured-along) > 0.05*along || !(along > 0) {
 		t.Fatalf("the host's gradient for signed weights has length %.5f, and the loss a little either side along it rises by %.5f a unit", along, measured)
 	}
 
 	// Nothing to learn: no step, and a resume past it as if it had not been there.
-	tied, nothing := weighted(rollouts(2, 1, 1, 1)), []densecausal.WeightedSequence{{Tokens: failed.Tokens, Weights: make([]float32, len(failed.Tokens)-1)}}
+	tied, nothing := weighted(rewardGroup(t, 2, 1, 1, 1)), []densecausal.WeightedSequence{{Tokens: failed.Tokens, Weights: make([]float32, len(failed.Tokens)-1)}}
 	once, idle := tinyMuonModel(t), tinyMuonModel(t)
 	first := train(once, nil, weighted(ordered[0]))
 	passed := train(idle, nil, weighted(ordered[0]), tied, nothing)

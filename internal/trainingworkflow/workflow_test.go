@@ -375,24 +375,8 @@ func testDPOResume(t *testing.T) {
 }
 
 func testGRPOResume(t *testing.T) {
-	weights, shapes := testutil.DenseCausalWeights(t, testutil.DenseCausalSpec{
-		Vocab: 8, Hidden: 8, Heads: 2, HeadDim: 4, KVHeads: 1, Intermediate: 16, Layers: 1, Seed: 11,
-	})
-	root := t.TempDir()
-	model := filepath.Join(root, "model")
-	writeModel(t, model, weights, shapes)
-	evaluator := testutil.ArtifactID(t, artifact.KindEvidence, "resume reward evaluator")
-	dataset := filepath.Join(root, "rollouts.jsonl")
-	rows := `{"id":"candidate-a","group":"prompt-a","prompt":"ab","completion":"c","reward":1,"evaluator":"` + evaluator.String() + `"}` + "\n" +
-		`{"id":"candidate-b","group":"prompt-a","prompt":"ab","completion":"d","reward":-1,"evaluator":"` + evaluator.String() + `"}` + "\n"
-	if err := os.WriteFile(dataset, []byte(rows), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	store, recipeID := trainingAuthority(t, model, "", dataset, trainingprogram.ObjectiveGRPO)
-	verifyWorkflowResume(t, root, Request{
-		Repository: store, Recipe: recipeID, ModelDirectory: model, DatasetPath: dataset,
-		Host: true,
-	})
+	root, request := orderedRewardFixture(t, "c", "d")
+	verifyWorkflowResume(t, root, request)
 }
 
 // TestRewardSessionPassesATiedGroupAcrossACheckpoint holds a reward session
@@ -503,7 +487,10 @@ func TestRewardSessionPassesATiedGroupAcrossACheckpoint(t *testing.T) {
 	}
 }
 
-func verifyWorkflowResume(t *testing.T, root string, request Request, prepareResume ...func(*testing.T, string, trainingprogram.Checkpoint) trainingprogram.Checkpoint) {
+// verifyWorkflowResume holds a session stopped at its checkpoint and resumed
+// to ending where one uninterrupted session of as many steps ends, and
+// returns what the uninterrupted session did.
+func verifyWorkflowResume(t *testing.T, root string, request Request, prepareResume ...func(*testing.T, string, trainingprogram.Checkpoint) trainingprogram.Checkpoint) Result {
 	t.Helper()
 	request.Steps = 2
 	request.OutputDirectory = filepath.Join(root, "uninterrupted")
@@ -550,8 +537,13 @@ func verifyWorkflowResume(t *testing.T, root string, request Request, prepareRes
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want.Backend != "host" || got.Backend != "host" || want.Objective != got.Objective {
-		t.Fatalf("execution authority differs: uninterrupted=(%s,%s) resumed=(%s,%s)", want.Backend, want.Objective, got.Backend, got.Objective)
+	// A session trains where its request says: on the host, or off it by the device trainer it carries.
+	backend := "cuda"
+	if request.Host {
+		backend = "host"
+	}
+	if want.Backend != backend || got.Backend != backend || want.Objective != got.Objective {
+		t.Fatalf("execution authority differs: uninterrupted=(%s,%s) resumed=(%s,%s), want both on %s", want.Backend, want.Objective, got.Backend, got.Objective, backend)
 	}
 	if first.StreamPosition >= got.StreamPosition || want.StreamPosition != got.StreamPosition {
 		t.Fatalf("stream position differs: uninterrupted=%d split=%d+%d", want.StreamPosition, first.StreamPosition, got.StreamPosition)
@@ -594,6 +586,7 @@ func verifyWorkflowResume(t *testing.T, root string, request Request, prepareRes
 		!reflect.DeepEqual(want.GRPO, append(append([]trainingprogram.GRPOObservation(nil), first.GRPO...), got.GRPO...)) {
 		t.Fatalf("training observations differ: losses=%d/%d dpo=%d/%d grpo=%d/%d", len(want.Losses), len(first.Losses)+len(got.Losses), len(want.DPO), len(first.DPO)+len(got.DPO), len(want.GRPO), len(first.GRPO)+len(got.GRPO))
 	}
+	return want
 }
 
 func hasLineage(lineage []trainingprogram.LineageParent, parent artifact.ID, relation artifact.Relation) bool {

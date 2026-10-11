@@ -32,21 +32,6 @@
       ]
     },
     {
-      "id": "reward-device-route-coverage",
-      "title": "Hold the device route of a reward session on the host, through a stand-in that takes a real weighted step, and give the device test a reference of its own",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A reward session not held to the host resumes, trains and raises the better answer's margin through a host stand-in that takes a real weighted step; the device test's reference no longer rests on the trainer to be retired",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestRewardDeviceRouteTakesARealStepOnTheHost$'",
-          "rationale": "Part of retiring the host reward trainer (reward-host-retire). Today the tests of a reward session's device route step on no gradient, and the device test is held to the host trainer that is to be deleted. Closure, in test code alone: a stand-in device trainer that takes a real weighted step on the host; a test that a prepared-groups session and a sampling session, not held to the host, resume through it, that one step raises the better answer's margin, and that its losses and weights agree with the host trainer's while that trainer exists; and a host reference for the device test built from the ordering gradients, shown on the host to agree with the host trainer. A trial edit that turns the sign of the weight must fail it, and the commit's message says so.\n\nServes: train. Evidence: the test. Batch: device; the commit runs the device tests, since the device test file changes."
-        }
-      ]
-    },
-    {
       "id": "stage-observer-retire",
       "title": "Remove the stage observer once the document speech graph it was built for is gone",
       "owner": "master-lead",

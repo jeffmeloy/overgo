@@ -140,6 +140,12 @@ type workflowPreviewAPI interface {
 	PreviewWorkflow(ctx context.Context, kind WorkflowKind, task recipe.Task, recipeID artifact.ID, raw json.RawMessage, position, limit int) (any, error)
 }
 
+// workflowSizeAPI is a workflow workspace that answers the bytes a run of an
+// admitted submission would write, before any run; 0 is no answer.
+type workflowSizeAPI interface {
+	workflowBytes(ctx context.Context, capability WorkflowCapability, raw json.RawMessage) (uint64, error)
+}
+
 type WorkflowWorkspaceSet []WorkflowWorkspaceAPI
 
 // PreviewWorkflow asks the workspace that admits the task and recipe.
@@ -384,7 +390,9 @@ type workflowCommand struct {
 // workflowCommands answers the commands that reproduce an admitted
 // submission without running it: a generation recipe also runs from
 // cmd/recipe on the same executor catalog and store, and every submission
-// runs again by posting it to this server.
+// runs again by posting it to this server. Where the workspace that listed the
+// capability can size the run's file, the answer has its bytes, or its writer's
+// refusal of the type or the models' headers; the output name is not checked.
 func (h *Handler) workflowCommands(response http.ResponseWriter, request *http.Request, kind WorkflowKind) {
 	body, capability, admitted := h.admitWorkflow(response, request, kind)
 	if !admitted {
@@ -409,7 +417,18 @@ func (h *Handler) workflowCommands(response http.ResponseWriter, request *http.R
 	}
 	commands = append(commands, workflowCommand{Kind: "http", Text: "curl -X POST " + shellQuote(scheme+"://"+request.Host+"/"+string(kind)+"/run") +
 		" -H 'Content-Type: application/json'" + authorization + " -d " + shellQuote(string(submission))})
-	writeJSON(response, http.StatusOK, map[string]any{"commands": commands})
+	answer := map[string]any{"commands": commands}
+	if sized, ok := cmp.Or(capability.workspace, h.config.Workflows).(workflowSizeAPI); ok {
+		size, err := sized.workflowBytes(request.Context(), capability, body.Input)
+		if err != nil {
+			writeInvalidRequest(response, err)
+			return
+		}
+		if size != 0 {
+			answer["bytes"] = size
+		}
+	}
+	writeJSON(response, http.StatusOK, answer)
 }
 
 // shellQuote quotes a word for a POSIX shell.

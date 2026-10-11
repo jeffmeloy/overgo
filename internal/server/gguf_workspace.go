@@ -27,10 +27,14 @@ import (
 // source quantized to a type (one of Types) with an Ollama Modelfile, and
 // Merge writes base + sum(scale * (fine-tuned - base)); each writes into a
 // new directory named by the output under root and returns the written file.
+// ExportSize and MergeSize answer the bytes of the model file Export and Merge
+// would write, and write nothing; without one, no size is answered.
 type GGUFWriters struct {
-	Types  []string
-	Export func(ctx context.Context, source, root, output, typeName string) (string, error)
-	Merge  func(ctx context.Context, base string, tuned []string, scales []float32, root, output string) (string, error)
+	Types      []string
+	Export     func(ctx context.Context, source, root, output, typeName string) (string, error)
+	Merge      func(ctx context.Context, base string, tuned []string, scales []float32, root, output string) (string, error)
+	ExportSize func(source, typeName string) (uint64, error)
+	MergeSize  func(base string, tuned []string, scales []float32) (uint64, error)
 }
 
 // GGUFWorkspace offers every catalogued GGUF model to the launcher's GGUF
@@ -219,6 +223,30 @@ func (workspace *GGUFWorkspace) ExecuteWorkflow(ctx context.Context, kind Workfl
 	total := uint64(1)
 	reporter.Progress(total, &total)
 	return completion, nil
+}
+
+// workflowBytes is the bytes of the model file a run of the capability with
+// this input would write, or a refusal: an input the run cannot read, its
+// type, or a model it names. A refused capability or no size function is 0.
+func (workspace *GGUFWorkspace) workflowBytes(ctx context.Context, capability WorkflowCapability, raw json.RawMessage) (uint64, error) {
+	if capability.Refusal != "" {
+		return 0, nil
+	}
+	var input ggufWriteInput
+	if err := strictjson.DecodeBytes(raw, &input); err != nil {
+		return 0, err
+	}
+	switch {
+	case capability.Task == recipe.TaskExport && workspace.writers.ExportSize != nil:
+		return workspace.writers.ExportSize(capability.Location, input.Type)
+	case capability.Task == recipe.TaskMerge && workspace.writers.MergeSize != nil:
+		tuned, err := workspace.fineTuned(ctx, input.FineTuned)
+		if err != nil {
+			return 0, err
+		}
+		return workspace.writers.MergeSize(capability.Location, []string{tuned.Location}, []float32{input.Scale})
+	}
+	return 0, nil
 }
 
 // modelNames names each catalogued GGUF as a person tells it apart, as the page

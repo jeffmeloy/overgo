@@ -343,6 +343,8 @@
         const evidence = el("div");
         // previewHost: the run's input as the workflow reads it, when the tab declares a preview.
         const previewHost = el("div");
+        // sizeHost: the bytes the run would write, when the tab's server sizes a submission before it runs (definition.sized).
+        const sizeHost = el("div");
         const run = el("button", { class: "btn", text: "Run" });
         const cancel = el("button", { class: "btn alt", text: "Cancel", hidden: true });
         // command: the commands that reproduce this submission outside the page; a changed entry clears them.
@@ -351,7 +353,7 @@
         // The task first, then its inputs, then the action that runs them.
         panel.append(
           el("div", { class: "section-title", text: overgo.title }),
-          el("div", { class: "workflow-task" }, el("label", { class: "control" }, el("span", { text: "Task and model" }), capabilitySelect), placement), controls, previewHost,
+          el("div", { class: "workflow-task" }, el("label", { class: "control" }, el("span", { text: "Task and model" }), capabilitySelect), placement), controls, previewHost, sizeHost,
           el("div", { class: "row" }, run, cancel, command), commands, status,
           el("div", { class: "row" }, progress, remaining), trends, metrics, evidence);
 
@@ -381,6 +383,18 @@
         capabilitySelect.addEventListener("change", renderControls);
         renderControls();
         if (definition.preview) definition.preview(previewHost, () => ({ task: selected().task, recipe: selected().recipe, input: overgo.controlValues(fields).input }), overgo);
+        // The size is asked of the command route, which sizes what it admits: it shows once every required entry is in, is
+        // asked again on each change, and a submission the writer would refuse shows its refusal here, before any run.
+        if (definition.sized) {
+          const sized = overgo.read(sizeHost, async (signal) => {
+            const capability = selected();
+            const { input, missing } = overgo.controlValues(fields);
+            if (!capability || missing.size) return {};
+            return api.post("/" + definition.scope + "/command", { task: capability.task, recipe: capability.recipe, input }, { signal });
+          }, (answer) => sizeHost.replaceChildren(...(answer.bytes ? [el("div", { class: "note", role: "status", "aria-label": "output size", text: "Writes " + fmt.bytes(answer.bytes) + " (" + fmt.grouped(answer.bytes) + " bytes)" })] : [])), { loading: "" });
+          for (const [source, events] of [[controls, ["input", "change"]], [capabilitySelect, ["change"]]]) for (const name of events) source.addEventListener(name, () => sized());
+          sized();
+        }
 
         let operation = null;
         cancel.addEventListener("click", async () => {

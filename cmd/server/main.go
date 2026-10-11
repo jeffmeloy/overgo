@@ -338,7 +338,8 @@ func run() error {
 				sourceCommit = ""
 			}
 			workflowWorkspaces = append(workflowWorkspaces, llamaserver.NewGGUFWorkspace(workspaceStore, roots.Models, generationCatalogLimit,
-				llamaserver.GGUFWriters{Types: export.GGUFTypes(), Export: export.GGUF, Merge: export.MergeGGUF}, sourceCommit))
+				llamaserver.GGUFWriters{Types: export.GGUFTypes(), Export: export.GGUF, Merge: export.MergeGGUF,
+					ExportSize: export.GGUFSize, MergeSize: export.MergeGGUFSize}, sourceCommit))
 		}
 	}
 	var workflows llamaserver.WorkflowWorkspaceAPI

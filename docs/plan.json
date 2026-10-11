@@ -23,25 +23,6 @@
       ]
     },
     {
-      "id": "gui-export-size-preview",
-      "title": "Show the output size before an export or merge runs (Unsloth Studio's export size preview)",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 575,
-        "reason": "What the row may still add. Set on 2026-10-11 to the 575 nodes its built Go half was counted at, by the count of syntax nodes the automated checks take: the size of what an export or a merge would write, counted from the models' headers by the writers themselves, the workspace's answer for a submission, the command route carrying it, and the launcher's wiring. The page half adds none."
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "The server answers the size an export would write from the source model's tensors and the chosen quantization, through the workflow command route the form already reads; the form shows it and refreshes on each choice; a Go test holds the answer to the bytes a real tiny export writes, and a browser leg reads it",
-          "status": "open",
-          "verify": "test -f internal/server/export_size_preview_test.go \u0026\u0026 go test ./internal/server -run '^TestExportSizePreview' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run ExportSize",
-          "rationale": "Recommended by the GUI lane and not landed when its worktree was removed on 2026-10-09 (docs/gui_update_plan.json, which stays out of the repository); ranked into this plan by the owner's answer to gui-recommendations on 2026-10-10. Show the output size before an export or merge runs (Unsloth Studio's export size preview): the person picks merged, adapter or a quantization and reads the bytes it will write before pressing Run; it extends gui-model-merge's form and adds no tab. Why the lane recommended it: \n\nThe lane's rule for a change to the pages holds: plain HTML, JavaScript and Go, reviewed in a browser at desktop and phone widths in both colour schemes, and accepted by a browser leg or a Go test that fails without it. The row has no count: it is sized by a preflight when it is dispatched.\n\nServes: setup-steps. Batch: browser."
-        }
-      ]
-    },
-    {
       "id": "gui-live-samples",
       "title": "Show the Train tab's sample strip while the run goes, not when it ends",
       "owner": "master-lead",

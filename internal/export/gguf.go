@@ -35,12 +35,12 @@ func GGUFTypes() []string {
 // so the Modelfile names the file alone. An existing directory is refused;
 // a failed export leaves no directory.
 func GGUF(ctx context.Context, source, root, name, typeName string) (string, error) {
-	target, ok := quant.ParseType(typeName)
-	if !ok || !quant.CanQuantize(target) || quant.RequiresImportance(target) {
-		return "", fmt.Errorf("export: %q is not a type an export writes without an importance matrix", typeName)
+	write, err := quantized(source, typeName)
+	if err != nil {
+		return "", err
 	}
 	return writeInto(ctx, root, name, source, strings.ToLower(typeName), func(file string) error {
-		if err := quantizeGGUF(ctx, source, file, target); err != nil {
+		if err := writeFile(ctx, file, write); err != nil {
 			return err
 		}
 		modelfile := "FROM ./" + filepath.Base(file) + "\n"
@@ -48,27 +48,108 @@ func GGUF(ctx context.Context, source, root, name, typeName string) (string, err
 	})
 }
 
+// GGUFSize is the size in bytes of the model file GGUF would write for source
+// and typeName, from the source's header alone: nothing is written and no
+// tensor is read. The Modelfile beside the model is not counted.
+func GGUFSize(source, typeName string) (uint64, error) {
+	return sizeOf(quantized(source, typeName))
+}
+
 // MergeGGUF writes base + sum(scale * (fine-tuned - base)) of GGUF models
 // sharing the base's tensor inventory, as an F32 GGUF, into a new directory
 // named name under root, and returns the written file.
 func MergeGGUF(ctx context.Context, base string, tuned []string, scales []float32, root, name string) (string, error) {
+	write, err := merged(base, tuned, scales)
+	if err != nil {
+		return "", err
+	}
+	return writeInto(ctx, root, name, base, "merged", func(file string) error { return writeFile(ctx, file, write) })
+}
+
+// MergeGGUFSize is the size in bytes of the file MergeGGUF would write, from
+// the models' headers alone: a merge refused on those headers is refused
+// here, nothing is written and no tensor is read.
+func MergeGGUFSize(base string, tuned []string, scales []float32) (uint64, error) {
+	return sizeOf(merged(base, tuned, scales))
+}
+
+// quantized is the writer of the GGUF at source quantized to typeName, or the
+// refusal of a type an export does not write.
+func quantized(source, typeName string) (func(io.Writer) error, error) {
+	target, ok := quant.ParseType(typeName)
+	if !ok || !quant.CanQuantize(target) || quant.RequiresImportance(target) {
+		return nil, fmt.Errorf("export: %q is not a type an export writes without an importance matrix", typeName)
+	}
+	return func(destination io.Writer) error {
+		input, err := gguf.Open(source)
+		if err != nil {
+			return err
+		}
+		defer input.Close()
+		_, err = input.QuantizeTo(destination, target, gguf.QuantizeOptions{})
+		return err
+	}, nil
+}
+
+// merged is the writer of the merge of the fine-tuned models into base, or
+// the refusal of a fine-tuned model without its scale.
+func merged(base string, tuned []string, scales []float32) (func(io.Writer) error, error) {
 	if len(tuned) != len(scales) {
-		return "", errors.New("export: every fine-tuned model needs its scale")
+		return nil, errors.New("export: every fine-tuned model needs its scale")
 	}
 	tasks := make([]modelmerge.GGUFTask, len(tuned))
 	for index := range tuned {
 		tasks[index] = modelmerge.GGUFTask{Path: tuned[index], Scale: scales[index]}
 	}
-	return writeInto(ctx, root, name, base, "merged", func(file string) error {
-		destination, err := os.OpenFile(file, os.O_WRONLY|os.O_CREATE|os.O_EXCL, clioptions.OutputFileMode)
-		if err != nil {
-			return err
-		}
-		if err := modelmerge.MergeGGUF(base, tasks, contextWriter{ctx: ctx, writer: destination}); err != nil {
-			return errors.Join(err, destination.Close())
-		}
-		return errors.Join(destination.Sync(), destination.Close())
-	})
+	return func(destination io.Writer) error { return modelmerge.MergeGGUF(base, tasks, destination) }, nil
+}
+
+// writeFile creates file, which must not exist, writes it through write
+// under ctx, and syncs it.
+func writeFile(ctx context.Context, file string, write func(io.Writer) error) error {
+	destination, err := os.OpenFile(file, os.O_WRONLY|os.O_CREATE|os.O_EXCL, clioptions.OutputFileMode)
+	if err != nil {
+		return err
+	}
+	if err := write(contextWriter{ctx: ctx, writer: destination}); err != nil {
+		return errors.Join(err, destination.Close())
+	}
+	return errors.Join(destination.Sync(), destination.Close())
+}
+
+// sizeOf is the bytes write writes, counted and kept nowhere; the refusal
+// that came in place of a writer is passed on.
+func sizeOf(write func(io.Writer) error, err error) (uint64, error) {
+	if err != nil {
+		return 0, err
+	}
+	var count sizer
+	err = write(&count)
+	return uint64(count), err
+}
+
+// sizer is a destination that counts what a GGUF writer gives it. The writer
+// copies each tensor with io.CopyN, which hands a destination that reads for
+// itself the tensor's reader bounded to the tensor's size, so a tensor is
+// counted from that bound and never read.
+type sizer uint64
+
+// Write counts the header and the padding.
+func (count *sizer) Write(data []byte) (int, error) {
+	*count += sizer(len(data))
+	return len(data), nil
+}
+
+// ReadFrom counts a bounded source by its bound, unread, and any other by
+// reading it to its end.
+func (count *sizer) ReadFrom(source io.Reader) (read int64, err error) {
+	if bounded, ok := source.(*io.LimitedReader); ok {
+		read = bounded.N
+	} else {
+		read, err = io.Copy(io.Discard, source)
+	}
+	*count += sizer(read)
+	return read, err
 }
 
 // writeInto makes the new directory name under root, writes the file named
@@ -107,21 +188,4 @@ func (w contextWriter) Write(data []byte) (int, error) {
 		return 0, err
 	}
 	return w.writer.Write(data)
-}
-
-// quantizeGGUF writes source quantized to target at file.
-func quantizeGGUF(ctx context.Context, source, file string, target gguf.DType) error {
-	input, err := gguf.Open(source)
-	if err != nil {
-		return err
-	}
-	defer input.Close()
-	destination, err := os.OpenFile(file, os.O_WRONLY|os.O_CREATE|os.O_EXCL, clioptions.OutputFileMode)
-	if err != nil {
-		return err
-	}
-	if _, err := input.QuantizeTo(contextWriter{ctx: ctx, writer: destination}, target, gguf.QuantizeOptions{}); err != nil {
-		return errors.Join(err, destination.Close())
-	}
-	return errors.Join(destination.Sync(), destination.Close())
 }

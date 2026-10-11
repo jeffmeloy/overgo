@@ -1,6 +1,7 @@
 package evaluation
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -38,7 +39,10 @@ func (prompts InstructionPrompts) Names() []string {
 }
 
 // Cases lists the prompts as the cases an instruction acceptance is fixed
-// from: each prompt's name as its record, and the names of its rules.
+// from: each prompt's name as its record, the names of its rules, and a
+// digest of what it asks, its prompt, its output limit and its rules with
+// their arguments, which is the same wherever the case is registered and
+// under whatever name.
 func (prompts InstructionPrompts) Cases() []InstructionCase {
 	cases := make([]InstructionCase, len(prompts.plan.suite.Cases))
 	for index, asked := range prompts.plan.suite.Cases {
@@ -46,6 +50,10 @@ func (prompts InstructionPrompts) Cases() []InstructionCase {
 		for _, rule := range asked.Rules {
 			cases[index].Rules = append(cases[index].Rules, rule.Name)
 		}
+		asked.Name = ""
+		// A case that was read marshals.
+		content, _ := json.Marshal(asked)
+		cases[index].Content = fmt.Sprintf("%x", sha256.Sum256(content))
 	}
 	return cases
 }

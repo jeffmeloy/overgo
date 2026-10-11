@@ -54,7 +54,16 @@ func (store *chargedBetween) Commit(ctx context.Context, batch artifact.Batch) (
 // two parts that share documents are charged one at a time: when a second
 // confirmation is charged between one's reading of what is left and its own
 // charge, the store refuses the one that comes second, which reads nothing,
-// and asked again it is charged as the next on those documents.
+// and asked again it is charged as the next on those documents. That holds
+// when the two parts are of two datasets the same bytes are registered under,
+// which share no record and no partition: their charges are numbered
+// together, so the second is refused there too, is charged as the next when
+// asked again, returns its verdict unread when asked a third time, and leaves
+// neither part a further confirmation.
+//
+// A part published without the names of what it holds, as parts were before
+// contents were named, cannot be found from another registration of its
+// documents: it is refused a confirmation, with nothing charged or read.
 //
 // The reading, which is where models and documents are prepared, runs once
 // for a confirmation the budget pays for and has not read, and not at all for
@@ -199,12 +208,12 @@ func TestConfirmationProtocolAndExposureSurviveReplacement(t *testing.T) {
 	if holds(moved, copied) {
 		owed++
 	}
-	if answered, _, err := exposure(ctx, store, original.Partition, artifact.ID{}, []dataset.Record{{ID: copied, Group: copied}}); err != nil || answered != owed {
+	if answered, _, _, err := exposure(ctx, store, original.Partition, artifact.ID{}, dataset.Membership{Records: []dataset.Record{{ID: copied, Group: copied}}}); err != nil || answered != owed {
 		t.Fatalf("a part holding a copy of a charged document has answered %d confirmations (%v), want the %d its content has", answered, err, owed)
 	}
-	answered, all, err := exposure(ctx, store, original.Partition, artifact.ID{}, []dataset.Record{{ID: fresh, Group: fresh}})
-	if err != nil || answered != 0 || all != spent+1 {
-		t.Fatalf("a part of a document no charged part holds has answered %d confirmations of the dataset's %d (%v), want none of %d", answered, all, err, spent+1)
+	answered, all, scope, err := exposure(ctx, store, original.Partition, artifact.ID{}, dataset.Membership{Records: []dataset.Record{{ID: fresh, Group: fresh}}})
+	if err != nil || answered != 0 || all != spent+1 || scope != objective.Dataset {
+		t.Fatalf("a part of a document no charged part holds has answered %d confirmations of the %d numbered under %s (%v), want none of the dataset's own %d", answered, all, scope, err, spent+1)
 	}
 
 	// The same bytes registered again as another dataset, with a document more:
@@ -245,6 +254,78 @@ func TestConfirmationProtocolAndExposureSurviveReplacement(t *testing.T) {
 	}
 	if _, _, err := ConfirmOnPool(ctx, raced, lost.Acceptance.ID, candidate("nine"), reading); err == nil || !strings.Contains(err.Error(), "fresh partition") || prepared != 2 {
 		t.Fatalf("a further confirmation on documents that have answered twice = %v with %d readings; want it refused", err, prepared)
+	}
+
+	// The two together: the same bytes under two datasets, a part of each
+	// charged at once. No record and no partition is shared, so only the
+	// contents say the parts are one material; the charges are numbered across
+	// both datasets, and the store refuses the one that comes second.
+	twice, under, _, _ := poolObjective(t)
+	beside, _, _ := poolObjectiveOver(t, twice, "pool-corpus-again", poolFixtureDocuments+1)
+	here, there := first, first
+	here.Objective, there.Objective = under, beside
+	behind, ahead := publishedPool(t, twice, here, 2), publishedPool(t, twice, there, 2)
+	// contentsOf are the contents a pool's promotion part holds.
+	contentsOf := func(pool HeldoutPool) map[string]bool {
+		t.Helper()
+		named, err := recordContents(ctx, twice, pool.Partition.Dataset)
+		if err != nil {
+			t.Fatal(err)
+		}
+		documents, err := partDocuments(ctx, twice, pool.Partition.Promotion)
+		if err != nil {
+			t.Fatal(err)
+		}
+		held := map[string]bool{}
+		for _, document := range documents {
+			held[named[document]] = true
+		}
+		return held
+	}
+	mine, theirs := contentsOf(behind), contentsOf(ahead)
+	if behind.Partition.Dataset == ahead.Partition.Dataset || !slices.ContainsFunc(slices.Collect(maps.Keys(mine)), func(content string) bool { return theirs[content] }) {
+		t.Fatal("the two registrations are one dataset, or their promotion parts share no content; the test needs two datasets whose parts do")
+	}
+	prepared = 0
+	crossing := &chargedBetween{Repository: twice}
+	crossing.before = func() {
+		if _, _, err := ConfirmOnPool(ctx, twice, ahead.Acceptance.ID, candidate("ten"), reading); err != nil {
+			t.Errorf("the confirmation under the other dataset that was charged first: %v", err)
+		}
+	}
+	if _, _, err := ConfirmOnPool(ctx, crossing, behind.Acceptance.ID, candidate("ten"), reading); err == nil || !strings.Contains(err.Error(), "was not charged") || prepared != 1 {
+		t.Fatalf("of two confirmations on parts of two datasets that share contents, charged at once, the second = %v with %d readings in all; want it refused uncharged and one reading", err, prepared)
+	}
+	late, remaining, err := ConfirmOnPool(ctx, twice, behind.Acceptance.ID, candidate("ten"), reading)
+	if err != nil || remaining != 0 || prepared != 2 {
+		t.Fatalf("asked again, the confirmation that lost across datasets = %d left after %d readings (%v); want it charged as the second on those contents, which leaves none of its two", remaining, prepared, err)
+	}
+	if retried, _, err := ConfirmOnPool(ctx, twice, behind.Acceptance.ID, candidate("ten"), reading); err != nil || retried.ID != late.ID || prepared != 2 {
+		t.Fatalf("asked a third time it is %s after %d readings (%v), want the recorded %s unread", retried.ID, prepared, err, late.ID)
+	}
+	for name, pool := range map[string]HeldoutPool{"the first dataset's": behind, "the second dataset's": ahead} {
+		if _, _, err := ConfirmOnPool(ctx, twice, pool.Acceptance.ID, candidate("eleven"), reading); err == nil || !strings.Contains(err.Error(), "fresh partition") || prepared != 2 {
+			t.Fatalf("a further confirmation on %s part, whose contents have answered twice = %v with %d readings; want it refused", name, err, prepared)
+		}
+	}
+
+	// A part published without the names of what it holds, as parts were before
+	// contents were named, takes no confirmation: nothing is charged or read.
+	bare, unnamed, _, _ := poolObjective(t)
+	old := first
+	old.Objective = unnamed
+	nameless := sizedPool(t, bare, old, 2)
+	nameless.Batch.Lineage = slices.DeleteFunc(nameless.Batch.Lineage, func(edge artifact.Lineage) bool { return edge.Relation == artifact.RelationContains })
+	if _, err := artifact.Publish(ctx, bare, nameless.Batch); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := ConfirmOnPool(ctx, bare, nameless.Acceptance.ID, candidate("twelve"), reading); err == nil || !strings.Contains(err.Error(), "published without the names") || prepared != 2 {
+		t.Fatalf("a confirmation on a part published without its contents' names = %v with %d readings; want it refused unread", err, prepared)
+	}
+	if granted, err := runrecord.NewBudget(poolUnit, nameless.Partition.Promotion, nameless.Acceptance.Confirmations, nameless.Acceptance.ID); err != nil {
+		t.Fatal(err)
+	} else if _, charges, err := runrecord.BudgetCharges(ctx, bare, granted.ID); err != nil || len(charges) != 0 {
+		t.Fatalf("the refused confirmation left %d charges (%v), want none", len(charges), err)
 	}
 
 	// Each charge is still the grant's it was made against.

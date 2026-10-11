@@ -119,10 +119,15 @@ var instructionAcceptanceCodec = artifact.JSONDocumentCodec(
 )
 
 // InstructionCase is one prompt eligible for the pilot: its record in the
-// dataset and the names of the rules it asks for.
+// dataset, the names of the rules it asks for, and Content, a digest of what
+// it asks that is the same wherever the case is registered. A part of an
+// acceptance is published as holding its cases' contents, so that what a
+// prompt has answered is found when the same benchmark is imported again as
+// another dataset.
 type InstructionCase struct {
-	Record string
-	Rules  []string
+	Record  string
+	Rules   []string
+	Content string
 }
 
 // InstructionAcceptanceRequest states what an instruction acceptance is fixed
@@ -269,6 +274,17 @@ func BuildInstructionAcceptance(request InstructionAcceptanceRequest) (Instructi
 		return InstructionAcceptance{}, artifact.Batch{}, err
 	}
 	batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: proposer})
+	// The held-out parts are published as holding what their cases ask, so a
+	// case listed without it leaves a part that cannot be followed.
+	contents := map[string]string{}
+	for _, eligible := range request.Cases {
+		if contents[eligible.Record] = eligible.Content; eligible.Content == "" {
+			return InstructionAcceptance{}, artifact.Batch{}, fmt.Errorf("evaluation: case %q is listed without the content it asks; an instruction acceptance names it, so that what a prompt has answered is found wherever the case is registered", eligible.Record)
+		}
+	}
+	if err := containContents(&batch, plan.Memberships, contents); err != nil {
+		return InstructionAcceptance{}, artifact.Batch{}, err
+	}
 	granted, err := runrecord.NewBudget(poolUnit, partition.Promotion, uint64(len(acceptance.Comparisons)), acceptance.ID)
 	if err != nil {
 		return InstructionAcceptance{}, artifact.Batch{}, err

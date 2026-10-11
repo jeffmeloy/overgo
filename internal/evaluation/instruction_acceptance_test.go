@@ -76,8 +76,12 @@ func exactInstructionPower(groups int64, discordance, win, level *big.Rat) *big.
 //
 // A replacement acceptance over the same prompts starts with what they have
 // answered spent, and so does one over other prompts of the same groups: the
-// group is what answered, whichever prompt stood for it. A likelihood pool's acceptance is still read as what it is:
-// neither kind confirms under the other's rule.
+// group is what answered, whichever prompt stood for it. So does one over the
+// same cases imported again as another dataset, which shares no record, group
+// or partition with the first: a part is published as holding what its cases
+// ask, and what they ask has answered. A case listed without what it asks is
+// refused an acceptance. A likelihood pool's acceptance is still read as what
+// it is: neither kind confirms under the other's rule.
 func TestInstructionAcceptanceBindsProtocolGroupsAndComparisons(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
@@ -90,7 +94,7 @@ func TestInstructionAcceptanceBindsProtocolGroupsAndComparisons(t *testing.T) {
 			// The same combination, one rule asked a second time.
 			rules = append(rules, rules[0]+"/2")
 		}
-		cases = append(cases, InstructionCase{Record: record.ID, Rules: rules})
+		cases = append(cases, InstructionCase{Record: record.ID, Rules: rules, Content: fmt.Sprintf("instruction fixture case %d", index)})
 	}
 	model := func(name string) artifact.ID {
 		return testutil.ArtifactID(t, artifact.KindModel, "instruction fixture "+name)
@@ -353,9 +357,33 @@ func TestInstructionAcceptanceBindsProtocolGroupsAndComparisons(t *testing.T) {
 	}
 
 	// By the group alone: a record no part holds, of a group that answered, and one of a group no part holds.
-	answered, _, err := exposure(ctx, store, apart, artifact.ID{}, []dataset.Record{{ID: "a prompt no part holds", Group: promoted.Group}})
-	if fresh, _, freshErr := exposure(ctx, store, apart, artifact.ID{}, []dataset.Record{{ID: "a prompt no part holds", Group: "a group no part holds"}}); err != nil || freshErr != nil || answered != 3 || fresh != 0 {
+	answered, _, _, err := exposure(ctx, store, apart, artifact.ID{}, dataset.Membership{Records: []dataset.Record{{ID: "a prompt no part holds", Group: promoted.Group}}})
+	if fresh, _, _, freshErr := exposure(ctx, store, apart, artifact.ID{}, dataset.Membership{Records: []dataset.Record{{ID: "a prompt no part holds", Group: "a group no part holds"}}}); err != nil || freshErr != nil || answered != 3 || fresh != 0 {
 		t.Fatalf("a new prompt of a group that answered three comparisons has answered %d, and one of a new group %d (%v, %v); want three and none", answered, fresh, err, freshErr)
+	}
+
+	// The same cases imported again as another dataset: other records, of
+	// another dataset, that ask what the first asked. No record, group or
+	// partition of it is the first's, and what its cases ask has answered three
+	// comparisons, so an acceptance over it starts with them spent.
+	again, more, rest := poolObjectiveOver(t, store, "instruction-cases-again", poolFixtureDocuments+1)
+	reimported := request
+	reimported.Dataset, reimported.Cases = again.Dataset, nil
+	for index, record := range slices.Concat(more.Records, rest.Records)[:len(cases)] {
+		reimported.Cases = append(reimported.Cases, InstructionCase{Record: record.ID, Rules: cases[index].Rules, Content: cases[index].Content})
+	}
+	fourth, elsewhere := publish(reimported)
+	if elsewhere.Dataset == partition.Dataset || elsewhere.Promotion == partition.Promotion {
+		t.Fatalf("the cases imported again are dataset %s, part %s: want another dataset and another part", elsewhere.Dataset, elsewhere.Promotion)
+	}
+	if _, _, err := ConfirmInstruction(ctx, store, fourth.ID, protocol, "reward over base", reward, request.Base, reading(wins)); err == nil || !strings.Contains(err.Error(), "fresh partition") || readings != 3 {
+		t.Fatalf("a comparison on the cases imported again as another dataset = %v with %d readings, want it refused unread: what they ask has answered", err, readings)
+	}
+	unlisted := request
+	unlisted.Cases = slices.Clone(cases)
+	unlisted.Cases[0].Content = ""
+	if _, _, err := BuildInstructionAcceptance(unlisted); err == nil || !strings.Contains(err.Error(), "without the content it asks") {
+		t.Fatalf("an acceptance over a case listed without its content = %v, want it refused", err)
 	}
 
 	// A likelihood pool is still what it was, and neither kind confirms under the other's rule.

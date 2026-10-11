@@ -1,6 +1,7 @@
 package evaluation
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -237,7 +238,7 @@ func confirmOnPart(ctx context.Context, store artifact.Repository, partition run
 		return PoolConfirmation{}, 0, err
 	}
 	// What other grants have charged for on these documents is spent here too.
-	earlier, charged, err := exposure(ctx, store, partition, budget.ID, membership.Records)
+	earlier, charged, scope, err := exposure(ctx, store, partition, budget.ID, membership)
 	if err != nil {
 		return PoolConfirmation{}, 0, err
 	}
@@ -257,12 +258,20 @@ func confirmOnPart(ctx context.Context, store artifact.Repository, partition run
 			return PoolConfirmation{}, 0, fmt.Errorf("evaluation: the promotion part of pool %s has answered the %d confirmations its %d documents allow, %d of them under other acceptances; a further one needs a fresh partition",
 				acceptance, issued, documents, earlier)
 		}
-		// The key counts the charge among all on the dataset's parts, under
-		// whichever partition and acceptance. The store holds one content under
-		// a key, so of two confirmations that would each be the next, on one
-		// part or on two that share documents, one is charged and the other is
-		// refused by the store and reads nothing.
-		batch, err := charge.Batch(fmt.Sprintf("%s%s/confirmation/%d", poolKey, partition.Dataset, charged+1))
+		// A part published before its contents were named cannot be found from
+		// another registration of its documents, so it is charged nothing more.
+		if published, err := partContents(ctx, store, partition.Promotion); err != nil {
+			return PoolConfirmation{}, 0, err
+		} else if len(published) == 0 {
+			return PoolConfirmation{}, 0, fmt.Errorf("evaluation: the promotion part of pool %s was published without the names of what it holds, so what its documents answer could not be found where they are registered again; nothing was charged or read, and a fresh acceptance names them", acceptance)
+		}
+		// The key counts the charge among all on the parts of the datasets
+		// that share documents with this one, under whichever partition and
+		// acceptance. The store holds one content under a key, so of two
+		// confirmations that would each be the next, on one part or on two
+		// that share documents, of one dataset or of two, one is charged and
+		// the other is refused by the store and reads nothing.
+		batch, err := charge.Batch(fmt.Sprintf("%s%s/confirmation/%d", poolKey, scope, charged+1))
 		if err != nil {
 			return PoolConfirmation{}, 0, err
 		}
@@ -309,106 +318,147 @@ func confirmOnPart(ctx context.Context, store artifact.Repository, partition run
 // holds its record, a record of its group, which is the unit a part is
 // divided by, or a record of its content. A part of any dataset holds one
 // when both were published as containing its content (containContents), so
-// bytes registered again as another dataset are found. charged is every
-// confirmation charged on a promotion or audit part of the dataset's
-// partitions, this grant's among them: it numbers the next charge.
-func exposure(ctx context.Context, reader artifact.Reader, partition runrecord.SplitPartition, own artifact.ID, promotion []dataset.Record) (earlier, charged uint64, err error) {
+// bytes registered again as another dataset are found. A dataset that records
+// no content for its records, as a benchmark's import does not, is followed
+// by what the part itself was published as containing.
+//
+// Datasets whose held-out parts share a content are numbered together: scope
+// names them, the least of the datasets reached from this one through shared
+// contents, and charged is every confirmation charged on a promotion or audit
+// part of any of them, this grant's among them. Both are the same from
+// whichever of those datasets they are read, so two confirmations that would
+// each be the next on parts that share documents, under one dataset or under
+// two, ask the store for one key.
+func exposure(ctx context.Context, reader artifact.Reader, partition runrecord.SplitPartition, own artifact.ID, promotion dataset.Membership) (earlier, charged uint64, scope artifact.ID, err error) {
 	contents, err := recordContents(ctx, reader, partition.Dataset)
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, scope, err
 	}
-	held := map[string]bool{}
-	for _, record := range promotion {
+	// held are the documents by record, group and content; names are their contents as every dataset names them.
+	held, names := map[string]bool{}, map[artifact.ID]bool{}
+	for _, record := range promotion.Records {
 		held[record.ID], held[record.Group], held[contents[record.ID]] = true, true, true
-	}
-	delete(held, "")
-	partitions, err := reader.Children(ctx, partition.Dataset)
-	if err != nil {
-		return 0, 0, err
-	}
-	// local are the parts read for their charges, each with whether it is of
-	// the dataset's own partitions; overlapping are those that hold a document
-	// of this part.
-	local, overlapping := map[artifact.ID]bool{}, map[artifact.ID]bool{}
-	for _, edge := range partitions {
-		if descriptor, _, err := reader.Artifact(ctx, edge.Child); err != nil {
-			return 0, 0, err
-		} else if descriptor.MediaType != runrecord.SplitPartitionMediaType {
-			continue
-		}
-		content, _, err := artifact.ReadContent(ctx, reader, edge.Child)
-		if err != nil {
-			return 0, 0, err
-		}
-		other, err := runrecord.ParseSplitPartition(content.Data)
-		if err != nil {
-			return 0, 0, err
-		}
-		for _, shard := range []artifact.ID{other.Promotion, other.Audit} {
-			membership, found, err := dataset.LoadMembership(ctx, reader, shard)
-			if err != nil || !found {
-				return 0, 0, errors.Join(fmt.Errorf("evaluation: the pool's part %s is not committed", shard), err)
-			}
-			local[shard] = true
-			if slices.ContainsFunc(membership.Records, func(record dataset.Record) bool {
-				return held[record.ID] || held[record.Group] || held[contents[record.ID]]
-			}) {
-				overlapping[shard] = true
-			}
-		}
-	}
-	for _, record := range promotion {
 		if contents[record.ID] == "" {
 			continue
 		}
 		named, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte(poolContent+contents[record.ID]))
 		if err != nil {
-			return 0, 0, err
+			return 0, 0, scope, err
 		}
-		holders, err := reader.Parents(ctx, named)
+		names[named] = true
+	}
+	delete(held, "")
+	if promotion.ID.Valid() {
+		published, err := partContents(ctx, reader, promotion.ID)
 		if err != nil {
-			return 0, 0, err
+			return 0, 0, scope, err
 		}
-		for _, holder := range holders {
-			if holder.Relation != artifact.RelationContains {
+		for _, named := range published {
+			names[named] = true
+		}
+	}
+	// numbered are the parts whose charges number the next one, and
+	// overlapping those of them that hold a document of this part.
+	datasets, numbered, overlapping := []artifact.ID{partition.Dataset}, map[artifact.ID]bool{}, map[artifact.ID]bool{}
+	for at := 0; at < len(datasets); at++ {
+		partitions, err := reader.Children(ctx, datasets[at])
+		if err != nil {
+			return 0, 0, scope, err
+		}
+		for _, edge := range partitions {
+			if descriptor, _, err := reader.Artifact(ctx, edge.Child); err != nil {
+				return 0, 0, scope, err
+			} else if descriptor.MediaType != runrecord.SplitPartitionMediaType {
 				continue
 			}
-			overlapping[holder.Parent] = true
-			// A part of another dataset is read for what it has answered, and numbers no charge here.
-			if !local[holder.Parent] {
-				local[holder.Parent] = false
+			content, _, err := artifact.ReadContent(ctx, reader, edge.Child)
+			if err != nil {
+				return 0, 0, scope, err
+			}
+			other, err := runrecord.ParseSplitPartition(content.Data)
+			if err != nil {
+				return 0, 0, scope, err
+			}
+			for _, shard := range []artifact.ID{other.Promotion, other.Audit} {
+				membership, found, err := dataset.LoadMembership(ctx, reader, shard)
+				if err != nil || !found {
+					return 0, 0, scope, errors.Join(fmt.Errorf("evaluation: the pool's part %s is not committed", shard), err)
+				}
+				numbered[shard] = true
+				if datasets[at] == partition.Dataset && slices.ContainsFunc(membership.Records, func(record dataset.Record) bool {
+					return held[record.ID] || held[record.Group] || held[contents[record.ID]]
+				}) {
+					overlapping[shard] = true
+				}
+				published, err := partContents(ctx, reader, shard)
+				if err != nil {
+					return 0, 0, scope, err
+				}
+				for _, named := range published {
+					if names[named] {
+						overlapping[shard] = true
+					}
+					// Whoever else holds the content brings its dataset into the count.
+					holders, err := reader.Parents(ctx, named)
+					if err != nil {
+						return 0, 0, scope, err
+					}
+					for _, holder := range holders {
+						if holder.Relation != artifact.RelationContains || numbered[holder.Parent] {
+							continue
+						}
+						part, found, err := dataset.LoadMembership(ctx, reader, holder.Parent)
+						if err != nil || !found {
+							return 0, 0, scope, errors.Join(fmt.Errorf("evaluation: the part %s that holds a document of the pool is not committed", holder.Parent), err)
+						}
+						if !slices.Contains(datasets, part.Source) {
+							datasets = append(datasets, part.Source)
+						}
+					}
+				}
 			}
 		}
 	}
-	for shard, ofDataset := range local {
+	for shard := range numbered {
 		grants, err := reader.Children(ctx, shard)
 		if err != nil {
-			return 0, 0, err
+			return 0, 0, scope, err
 		}
 		for _, grant := range grants {
 			if descriptor, _, err := reader.Artifact(ctx, grant.Child); err != nil {
-				return 0, 0, err
+				return 0, 0, scope, err
 			} else if descriptor.MediaType != runrecord.BudgetMediaType {
 				continue
 			}
 			budget, charges, err := runrecord.BudgetCharges(ctx, reader, grant.Child)
 			if err != nil {
-				return 0, 0, err
+				return 0, 0, scope, err
 			}
 			for _, charge := range charges {
 				if budget.Unit != poolUnit {
 					continue
 				}
-				if ofDataset {
-					charged += charge.Amount
-				}
+				charged += charge.Amount
 				if overlapping[shard] && grant.Child != own {
 					earlier += charge.Amount
 				}
 			}
 		}
 	}
-	return earlier, charged, nil
+	return earlier, charged, slices.MinFunc(datasets, func(left, right artifact.ID) int { return cmp.Compare(left.String(), right.String()) }), nil
+}
+
+// partContents are the names a part was published as containing: its
+// documents' contents, as every dataset names them.
+func partContents(ctx context.Context, reader artifact.Reader, shard artifact.ID) ([]artifact.ID, error) {
+	edges, err := reader.Children(ctx, shard)
+	var names []artifact.ID
+	for _, edge := range edges {
+		if edge.Relation == artifact.RelationContains {
+			names = append(names, edge.Child)
+		}
+	}
+	return names, err
 }
 
 // poolVerdict reads a confirmation from the measure's paired differences, one

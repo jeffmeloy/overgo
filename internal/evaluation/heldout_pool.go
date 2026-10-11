@@ -261,19 +261,8 @@ func BuildHeldoutPool(ctx context.Context, reader artifact.Reader, request Heldo
 		return HeldoutPool{}, err
 	}
 	pool.Batch.Artifacts = append(pool.Batch.Artifacts, artifact.Descriptor{ID: proposer})
-	for _, membership := range plan.Memberships {
-		if at := slices.Index(PoolParts[:], membership.Partition); at != poolPromotion && at != poolAudit {
-			continue
-		}
-		var held []string
-		for _, record := range membership.Records {
-			if content := contents[record.ID]; content != "" {
-				held = append(held, content)
-			}
-		}
-		if err := containContents(&pool.Batch, membership.ID, held); err != nil {
-			return HeldoutPool{}, err
-		}
+	if err := containContents(&pool.Batch, plan.Memberships, contents); err != nil {
+		return HeldoutPool{}, err
 	}
 	stages := []func(string) (artifact.Batch, error){pool.Partition.Batch, func(key string) (artifact.Batch, error) {
 		return poolAcceptanceCodec.Batch(key, pool.Acceptance, artifact.DependencyLineage(pool.Acceptance.ID, pool.Partition.ID, objective.ID), nil)
@@ -301,20 +290,29 @@ func BuildHeldoutPool(ctx context.Context, reader artifact.Reader, request Heldo
 	return pool, nil
 }
 
-// containContents says, in the batch that publishes a part, what the part
-// holds by content: for each content, a name every dataset gives it alike,
-// which the part is published as containing. A part of another partition, or
-// of another dataset the same bytes were registered under, that holds one of
-// them contains the same name, and is found from it (exposure): what a
-// content has answered is spent wherever it is held.
-func containContents(batch *artifact.Batch, shard artifact.ID, contents []string) error {
-	for _, content := range contents {
-		named, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte(poolContent+content))
-		if err != nil {
-			return err
+// containContents says, in the batch that publishes a split's parts, what
+// its promotion and audit parts hold by content, contents naming a record's:
+// for each content, a name every dataset gives it alike, which the part is
+// published as containing. A part of another partition, or of another dataset
+// the same bytes were registered under, that holds one of them contains the
+// same name, and is found from it (exposure): what a content has answered is
+// spent wherever it is held.
+func containContents(batch *artifact.Batch, memberships []dataset.Membership, contents map[string]string) error {
+	for _, membership := range memberships {
+		if at := slices.Index(PoolParts[:], membership.Partition); at != poolPromotion && at != poolAudit {
+			continue
 		}
-		batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: named})
-		batch.Lineage = append(batch.Lineage, artifact.Lineage{Child: named, Parent: shard, Relation: artifact.RelationContains})
+		for _, record := range membership.Records {
+			if contents[record.ID] == "" {
+				continue
+			}
+			named, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte(poolContent+contents[record.ID]))
+			if err != nil {
+				return err
+			}
+			batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: named})
+			batch.Lineage = append(batch.Lineage, artifact.Lineage{Child: named, Parent: membership.ID, Relation: artifact.RelationContains})
+		}
 	}
 	return nil
 }

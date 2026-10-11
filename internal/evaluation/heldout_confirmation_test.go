@@ -19,6 +19,17 @@ import (
 // between the one that count needs and the one the next would.
 func publishedPool(t *testing.T, store *overgodb.Store, request HeldoutPoolRequest, confirmations uint64) HeldoutPool {
 	t.Helper()
+	pool := sizedPool(t, store, request, confirmations)
+	if _, err := artifact.Publish(t.Context(), store, pool.Batch); err != nil {
+		t.Fatal(err)
+	}
+	return pool
+}
+
+// sizedPool is a pool built to answer so many confirmations, not yet
+// published: publishedPool's, for a test that publishes it otherwise.
+func sizedPool(t *testing.T, store *overgodb.Store, request HeldoutPoolRequest, confirmations uint64) HeldoutPool {
+	t.Helper()
 	ctx := t.Context()
 	request.Gain = 1
 	sized, err := BuildHeldoutPool(ctx, store, request)
@@ -30,9 +41,6 @@ func publishedPool(t *testing.T, store *overgodb.Store, request HeldoutPoolReque
 	pool, err := BuildHeldoutPool(ctx, store, request)
 	if err != nil || pool.Acceptance.Confirmations != confirmations {
 		t.Fatalf("a pool sized for %d confirmations answers %d (%v)", confirmations, pool.Acceptance.Confirmations, err)
-	}
-	if _, err := artifact.Publish(ctx, store, pool.Batch); err != nil {
-		t.Fatal(err)
 	}
 	return pool
 }

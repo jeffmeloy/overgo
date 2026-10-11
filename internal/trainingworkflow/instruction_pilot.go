@@ -170,7 +170,7 @@ func FixInstructionPilot(ctx context.Context, store artifact.Repository, pilot I
 	}
 
 	reading.Training = request.Training
-	tokens, err := reading.tokenizer(path, store)
+	tokens, err := reading.tokenizer(path, store, rewardDraws)
 	if err != nil {
 		return PilotOutcome{}, err
 	}

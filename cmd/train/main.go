@@ -80,6 +80,7 @@ func run() error {
 	evidence := flag.Bool("evidence", false, "with -propose: show the proposer the held-out verdicts the store holds of what was tried before it; it fits the gains they recorded for its corpus's runs beside the gains it reads on the pool, and scores the proposal it would have made without them beside its own")
 	evidenceThrough := flag.Uint64("evidence-to-sequence", 0, "with -evidence: read the store as it stood at this journal sequence and not as it stands, as overgodb query -verdicts -to-sequence lists it")
 	evidenceBytes := flag.Uint64("evidence-max-bytes", 0, "with -evidence: refuse a listing whose verdict documents exceed this many bytes (0 for no bound)")
+	pilot := flag.String("pilot", "", "instruction acceptance artifact ID, as training-objective -pilot wrote it: train the pilot's reward arm and its control from -model under -out to each checkpoint its training specification names, freeze one checkpoint an arm on the selection groups, charge and read each comparison the acceptance named on the promotion groups, and say whether the reward arm is adopted")
 	flag.Parse()
 	if (*evidence || *evidenceThrough != 0 || *evidenceBytes != 0) && (*propose == "" || !*evidence) {
 		return fmt.Errorf("train: -evidence shows a proposer what was tried before it, and -evidence-to-sequence and -evidence-max-bytes bound what it is shown; they need -propose and -evidence")
@@ -108,6 +109,9 @@ func run() error {
 		return err
 	}
 	defer store.Close()
+	if *pilot != "" {
+		return runPilot(ctx, store, *pilot, *model, *output, *host, os.Stdout)
+	}
 	if *propose != "" || *confirm != "" {
 		if *objective != "" || *model == "" || *output == "" || *propose != "" && *confirm != "" || *maximumSequence != 0 {
 			return fmt.Errorf("train: -propose reads a corpus and -confirm a judgment, each of which names its own objective; one of them at a time, with -model and -out, no -objective, and no -seq: the pool's acceptance fixed how far each document is read")

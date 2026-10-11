@@ -9,25 +9,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 2627,
+        "nodes": 1,
         "reason": "Original filed estimate, retained unchanged: planB.json assigned 5,600 production nodes to reward-training on 2026-10-10, estimated from the pool (2,358), confirmation (2,473) and answer-record (1,103) rows less displaced reward code. These are source-proposal figures, not measurements of the revised implementation. Proposed initial allowance remains 5,600 net production nodes across all landings. Report actual per-landing and cumulative growth, including the new machinery's cost and deletions, against the filed estimate and allowance. Any increase requires a separate prospective plan amendment; final size never overwrites the forecast. The first run's step was left 816 nodes of that allowance, and its built command was measured at 2,627 on 2026-10-11 (tmp/count_nodes.go over the changed production files before and after): the lead raised the allowance to the measurement, under the owner's instruction of 2026-10-10 not to wait for a decision. Where they are: the pilot's run, which trains both arms to each checkpoint, reads each on the selection groups, freezes one an arm, charges and reads each comparison and applies the adoption rule, about 1,250; the train command's mode and what it writes, about 420; a training recipe for a reward session published outside a test, which nothing did, about 330; the control arm's weighting through the weighted step, about 300; and in the evaluation, a published acceptance read back with its parts, a suite of named prompts, and the confirmation exported, about 330. The step filed for the run did not count a recipe, a control arm or a command, since the campaign took a reward route to exist in the train command, and none did."
       },
       "steps": [
-        {
-          "id": "pilot-run",
-          "title": "Give the pilot a command that trains its arms, freezes them on selection and judges them under its acceptance",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/trainingworkflow -count=1 -run '^(TestPilotRunTrainsFreezesAndJudgesItsArms|TestRewardAdoptionRequiresDeclaredComparisons|TestControlSessionStepsOnPassedAnswersAlone|TestBootstrappedRewardRecipeRunsARewardSession|TestDeviceSamplerDrawsWhatTheHostSamplerDraws)$'",
-          "rationale": "The first reward run needs what no command did: a training recipe for a reward session, which only a test assembled; the control arm, which fine-tunes on the answers that passed every rule; each arm trained to the checkpoints the training specification names and read on the selection groups; one checkpoint an arm frozen without a promotion outcome; each comparison the acceptance named charged and read on the promotion groups; and the adoption rule, that the reward arm is adopted only when every named comparison was charged and answered a gain. The command binds the answers it draws to the commit it is built at and refuses a tree with uncommitted source, so the real run is the next step and not this one.\n\nServes: demonstrate or reject a measurable autonomous training improvement.\nDisappears: a reward experiment no command can run.\nEvidence: a whole pilot on the fixture model on the device, both arms trained, frozen and judged, run again without retraining; the adoption rule held against a missing, uncharged, lost and inconclusive comparison.\nBatch: host contracts and a small device pilot in the gate.",
-          "depends_on": [
-            "reward-training/producer",
-            "instruction-verdicts/acceptance",
-            "reward-device-sampling/do",
-            "reward-pilot-acceptance/do",
-            "reward-pilot-acceptance/record",
-            "exposure-across-identities/do"
-          ]
-        },
         {
           "id": "first-run",
           "title": "Complete and judge one frozen reward-versus-control experiment",

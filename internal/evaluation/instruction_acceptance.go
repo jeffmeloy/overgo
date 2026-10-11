@@ -285,7 +285,36 @@ func BuildInstructionAcceptance(request InstructionAcceptanceRequest) (Instructi
 	return acceptance, batch, nil
 }
 
-// confirmInstruction has the promotion part of an instruction acceptance
+// RequireInstructionAcceptance reads a published instruction acceptance and
+// the prompts that stand for the groups of each part of its split, in order.
+func RequireInstructionAcceptance(ctx context.Context, reader artifact.Reader, id artifact.ID) (InstructionAcceptance, [poolPartCount][]string, error) {
+	var parts [poolPartCount][]string
+	acceptance, err := instructionAcceptanceCodec.Require(ctx, reader, id)
+	if err != nil {
+		return InstructionAcceptance{}, parts, err
+	}
+	content, found, err := artifact.ReadContent(ctx, reader, acceptance.Split)
+	if err != nil || !found {
+		return InstructionAcceptance{}, parts, errors.Join(fmt.Errorf("evaluation: the partition of acceptance %s is not committed", acceptance.ID), err)
+	}
+	partition, err := runrecord.ParseSplitPartition(content.Data)
+	if err != nil {
+		return InstructionAcceptance{}, parts, err
+	}
+	for index, shard := range []artifact.ID{partition.Development, partition.Selection, partition.Promotion, partition.Audit} {
+		if parts[index], err = partDocuments(ctx, reader, shard); err != nil {
+			return InstructionAcceptance{}, parts, err
+		}
+		slices.Sort(parts[index])
+	}
+	return acceptance, parts, nil
+}
+
+// Gained says whether a confirmation's verdict is a gain: the one verdict a
+// comparison is adopted on. A loss and not enough evidence are both no gain.
+func (confirmation PoolConfirmation) Gained() bool { return confirmation.Verdict == poolGain }
+
+// ConfirmInstruction has the promotion part of an instruction acceptance
 // answer one comparison of its family. The comparison is one the acceptance
 // named, the protocol the answers were made under is the acceptance's and the
 // scorer this code's, and no group is in two parts of the split: otherwise it
@@ -297,7 +326,7 @@ func BuildInstructionAcceptance(request InstructionAcceptanceRequest) (Instructi
 // false-gain rate, and is all that is published of the reading. What the
 // part's prompts have answered under any acceptance is spent, as a pool's is
 // (confirmOnPart).
-func confirmInstruction(ctx context.Context, store artifact.Repository, acceptanceID artifact.ID, protocol InstructionProtocol, comparison string, candidate, baseline artifact.ID,
+func ConfirmInstruction(ctx context.Context, store artifact.Repository, acceptanceID artifact.ID, protocol InstructionProtocol, comparison string, candidate, baseline artifact.ID,
 	read func(prompts []string) (passed, base []bool, err error)) (PoolConfirmation, uint64, error) {
 	acceptance, err := instructionAcceptanceCodec.Require(ctx, store, acceptanceID)
 	if err != nil {

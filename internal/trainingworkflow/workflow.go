@@ -375,21 +375,21 @@ func recipeObjective(ctx context.Context, reader artifact.Reader, definition rec
 }
 
 // rewardsOnDevice trains the session's reward groups through the device's
-// weighted step, the one a fine-tuning batch takes: each answer's completion
-// weighed by the answer's standing among the group's rewards
-// (densecausal.RewardSequences), one step a group whose answers have an
-// order and none for a group whose answers all stand together. A stepped
+// weighted step, the one a fine-tuning batch takes, each group weighed as
+// weigh says: a reward session's by each answer's standing among the group's
+// rewards (densecausal.RewardSequences), one step a group whose answers have
+// an order and none for a group whose answers all stand together. A stepped
 // group is observed with its loss, its step and the step's rate; a device
 // step's gradient and update norms stay on the device and are reported as
 // none.
-func (session denseSession) rewardsOnDevice(groups []trainingdata.RolloutGroup, resume *densecausal.RLState) (Result, densecausal.TrainState, error) {
+func (session denseSession) rewardsOnDevice(groups []trainingdata.RolloutGroup, resume *densecausal.RLState, weigh func(trainingdata.RolloutGroup) ([]densecausal.WeightedSequence, error)) (Result, densecausal.TrainState, error) {
 	if session.request.Device == nil {
 		return Result{}, densecausal.TrainState{}, errors.New("training workflow: CUDA training needs the device trainer a training command supplies")
 	}
 	weighted := make([][]densecausal.WeightedSequence, len(groups))
 	for index, group := range groups {
 		var err error
-		if weighted[index], err = densecausal.RewardSequences(group); err != nil {
+		if weighted[index], err = weigh(group); err != nil {
 			return Result{}, densecausal.TrainState{}, err
 		}
 	}
@@ -432,7 +432,7 @@ func (session denseSession) execute(prepared densePrepared, plan trainingprogram
 			return session.produceRewards(prepared, resume)
 		}
 		if !session.request.Host {
-			return session.rewardsOnDevice(prepared.groups, resume)
+			return session.rewardsOnDevice(prepared.groups, resume, densecausal.RewardSequences)
 		}
 		observations, state, err := session.model.TrainGRPOGroupsResume(
 			prepared.groups, session.optimizerConfig.BaseLearningRate, session.optimizerConfig.Momentum,

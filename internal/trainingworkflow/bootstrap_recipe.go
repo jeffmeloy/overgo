@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/evaluation"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
@@ -85,7 +87,7 @@ func BootstrapScratchRecipe(ctx context.Context, store *overgodb.Store, construc
 // bootstrapObjective publishes the training recipe for a model under the
 // bootstrap objective contract declares over a dataset, its split and the
 // processor that reads it.
-func bootstrapObjective(ctx context.Context, store *overgodb.Store, modelID, datasetID, splitID, processorID artifact.ID, contract RecipeContract) (artifact.ID, error) {
+func bootstrapObjective(ctx context.Context, store *overgodb.Store, modelID, datasetID, splitID, processorID artifact.ID, contract RecipeContract, evaluators ...artifact.ID) (artifact.ID, error) {
 	profile := func(name string) (artifact.ID, error) {
 		return artifact.IdentifyBytes(artifact.KindProfile, []byte("overgo/training-bootstrap/"+name))
 	}
@@ -115,7 +117,34 @@ func bootstrapObjective(ctx context.Context, store *overgodb.Store, modelID, dat
 	if err != nil {
 		return artifact.ID{}, fmt.Errorf("training workflow: no bootstrap objective declares %s %v judged by %s: %w", contract.Kind, contract.Signature, contract.Metric, err)
 	}
-	return bootstrapRecipeForObjective(ctx, store, modelID, objective, profiles, evidenceID)
+	return bootstrapRecipeForObjective(ctx, store, modelID, objective, profiles, evidenceID, evaluators...)
+}
+
+// bootstrapRewardRecipe publishes, as BootstrapRecipe does, the training
+// recipe for a reward session over the model weights at modelPath and a suite
+// of instruction prompts, the bytes the session reads: its objective is the
+// reward objective over those prompts, read by the processor a reward session
+// reads them with, and its recipe scores a policy's answers by the prompts'
+// scorer, which it names as its evaluator.
+func bootstrapRewardRecipe(ctx context.Context, store *overgodb.Store, modelPath string, prompts []byte) (artifact.ID, error) {
+	suite, err := evaluation.ParseInstructionPrompts(prompts)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	evaluator, err := suite.Evaluator()
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	modelID, err := identifyAndRecordWeights(ctx, store, modelPath)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	authority, _, err := datasetAuthority(prompts, rewardProcessor)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	return bootstrapObjective(ctx, store, modelID, authority.Dataset, authority.Split, authority.Processor,
+		RecipeContract{Kind: trainingprogram.ObjectiveGRPO, Signature: textSignature, Metric: trainingprogram.MetricTokenAccuracy}, evaluator)
 }
 
 // BootstrapObjectiveRecipe publishes the training recipe for a model
@@ -206,6 +235,7 @@ func bootstrapRecipeForObjective(
 	objective trainingprogram.ObjectiveDocument,
 	profiles map[string]artifact.ID,
 	evidenceID artifact.ID,
+	evaluators ...artifact.ID,
 ) (artifact.ID, error) {
 	content, err := objective.Content()
 	if err != nil {
@@ -230,22 +260,41 @@ func bootstrapRecipeForObjective(
 		{Role: recipe.DependencyEvaluation, Artifact: objective.Evaluation},
 		{Role: recipe.DependencyPromotion, Artifact: profiles["promotion"]},
 	}
+	backward := recipe.Node{ID: "backward", Module: workflowrecipe.ModuleBackward, Placement: recipe.PlacementHost}
+	optimize := recipe.Node{ID: "optimize", Module: workflowrecipe.ModuleOptimize, Placement: recipe.PlacementHost}
 	nodes := []recipe.Node{
 		{ID: "batch", Module: workflowrecipe.ModuleBatchDataset, Placement: recipe.PlacementHost},
 		{ID: "forward", Module: workflowrecipe.ModuleTrainingForward, Placement: recipe.PlacementHost},
-		{ID: "backward", Module: workflowrecipe.ModuleBackward, Placement: recipe.PlacementHost},
-		{ID: "optimize", Module: workflowrecipe.ModuleOptimize, Placement: recipe.PlacementHost},
+		backward, optimize,
 	}
 	edge := func(fromNode recipe.NodeID, fromPort recipe.PortName, toNode recipe.NodeID, toPort recipe.PortName) recipe.Edge {
 		return recipe.Edge{From: recipe.Endpoint{Node: fromNode, Port: fromPort}, To: recipe.Endpoint{Node: toNode, Port: toPort}}
 	}
+	edges := []recipe.Edge{
+		edge("batch", "batch", "forward", "batch"),
+		edge("forward", "loss", "backward", "loss"),
+		edge("backward", "gradients", "optimize", "gradients"),
+	}
+	// A reward objective batches rollouts, scores them under the policy and
+	// weighs them by its evaluators' rewards, where a token objective takes
+	// one forward to its loss.
+	if objective.Kind == trainingprogram.ObjectiveGRPO {
+		nodes = []recipe.Node{
+			{ID: "batch", Module: workflowrecipe.ModuleBatchRollout, Placement: recipe.PlacementHost},
+			{ID: "policy", Module: workflowrecipe.ModuleScorePolicy, Placement: recipe.PlacementHost},
+			{ID: "objective", Module: workflowrecipe.ModuleGRPOObjective, Placement: recipe.PlacementHost},
+			backward, optimize,
+		}
+		edges = []recipe.Edge{
+			edge("batch", "batch", "policy", "batch"), edge("policy", "scores", "objective", "policy"),
+			edge("objective", "loss", "backward", "loss"), edge("backward", "gradients", "optimize", "gradients"),
+		}
+		for slot, evaluator := range evaluators {
+			dependencies = append(dependencies, recipe.Dependency{Role: recipe.DependencyEvaluator, Slot: uint32(slot), Artifact: evaluator})
+		}
+	}
 	definition, err := recipe.NewDefinitionWithDependencies(
-		recipe.TaskTraining, dependencies, nodes,
-		[]recipe.Edge{
-			edge("batch", "batch", "forward", "batch"),
-			edge("forward", "loss", "backward", "loss"),
-			edge("backward", "gradients", "optimize", "gradients"),
-		}, nil,
+		recipe.TaskTraining, dependencies, nodes, edges, nil,
 		[]recipe.Output{{Name: "checkpoint", Data: recipe.DataCheckpoint, Source: recipe.Endpoint{Node: "optimize", Port: "checkpoint"}}},
 	)
 	if err != nil {
@@ -266,7 +315,7 @@ func bootstrapRecipeForObjective(
 		authority.Contents = []artifact.Content{content}
 	}
 	candidates := []artifact.ID{modelID, evidenceID, objective.Dataset, objective.Split, objective.Loss, objective.Evaluation}
-	candidates = append(candidates, objective.Processors...)
+	candidates = append(slices.Concat(candidates, objective.Processors), evaluators...)
 	for _, id := range profiles {
 		candidates = append(candidates, id)
 	}

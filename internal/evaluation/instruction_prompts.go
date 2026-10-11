@@ -1,7 +1,9 @@
 package evaluation
 
 import (
+	"encoding/json"
 	"fmt"
+	"slices"
 
 	"overgo/internal/artifact"
 	"overgo/internal/strictjson"
@@ -46,6 +48,23 @@ func (prompts InstructionPrompts) Cases() []InstructionCase {
 		}
 	}
 	return cases
+}
+
+// Suite writes the prompts named, in the order named, as a suite of their
+// own: the cases a session over those prompts alone reads, which
+// ParseInstructionPrompts reads back. A name the prompts do not hold is
+// refused.
+func (prompts InstructionPrompts) Suite(names []string) ([]byte, error) {
+	suite := prompts.plan.suite
+	suite.Cases = make([]instructionRulesCase, len(names))
+	for index, name := range names {
+		at := slices.IndexFunc(prompts.plan.suite.Cases, func(asked instructionRulesCase) bool { return asked.Name == name })
+		if at < 0 {
+			return nil, fmt.Errorf("evaluation: no instruction prompt is named %q", name)
+		}
+		suite.Cases[index] = prompts.plan.suite.Cases[at]
+	}
+	return json.Marshal(suite)
 }
 
 // Evaluator names the scorer the prompts' answers are scored by, as a reward

@@ -46,17 +46,21 @@ type RewardSampling struct {
 	Draws    int
 	Code     string
 	Render   ConversationRenderer
+	// Control makes the session the control of a reward experiment: it steps
+	// on the answers that passed every rule alone, as fine-tuning does, and
+	// not on every answer by its standing.
+	Control bool
 }
 
 // tokenizer loads the tokenizer the answers are drawn with from a model, and
 // refuses what no reward session and no reading of an arm is drawn under: a
-// cut or sharpened distribution, another scorer, fewer than two answers a
+// cut or sharpened distribution, another scorer, fewer than least answers a
 // prompt, no training specification, no store to keep the draws in, or a
 // model that declares no end token. A prompt asked as a chat turn carries the
 // template's control tokens, which are then read as tokens.
-func (rewards RewardSampling) tokenizer(input string, observations artifact.Repository) (trainableTokenizer, error) {
+func (rewards RewardSampling) tokenizer(input string, observations artifact.Repository, least int) (trainableTokenizer, error) {
 	tokens, err := loadTrainableTokenizerFor(input, rewards.Render != nil || rewards.Protocol.Template != rewardPlain)
-	if protocol := rewards.Protocol; err == nil && (protocol.Sampling != rewardSampling || protocol.Scorer != evaluation.InstructionScorer || rewards.Draws < rewardDraws || !rewards.Training.Valid() || !tokens.ended || observations == nil) {
+	if protocol := rewards.Protocol; err == nil && (protocol.Sampling != rewardSampling || protocol.Scorer != evaluation.InstructionScorer || rewards.Draws < least || !rewards.Training.Valid() || !tokens.ended || observations == nil) {
 		err = fmt.Errorf("training workflow: a reward session draws at least two answers a prompt from the model's %s distribution, scores them by %s, names its training specification and the store its draws are kept in, and trains a model that declares its end token; it was asked for %d draws under sampling %q and scorer %q", rewardSampling, evaluation.InstructionScorer, rewards.Draws, protocol.Sampling, protocol.Scorer)
 	}
 	return tokens, err
@@ -154,7 +158,7 @@ func (sampler modelSampler) Generate(ctx context.Context, _ string, options infe
 // it lost is a draw or a step it could count twice.
 func (session denseSession) produceRewards(prepared densePrepared, resume *densecausal.RLState) (_ Result, _ densecausal.TrainState, err error) {
 	rewards := *session.request.Rewards
-	tokens, err := rewards.tokenizer(session.inputDirectory, session.request.Observations)
+	tokens, err := rewards.tokenizer(session.inputDirectory, session.request.Observations, rewardDraws)
 	if err != nil {
 		return Result{}, densecausal.TrainState{}, err
 	}
@@ -190,7 +194,7 @@ func (session denseSession) produceRewards(prepared densePrepared, resume *dense
 		}
 		trace.Generation += time.Since(began)
 		began = time.Now()
-		rollouts := make([]trainingdata.Rollout, len(answers))
+		rollouts, passes := make([]trainingdata.Rollout, len(answers)), make([]bool, len(answers))
 		sampled := make([]float64, len(answers))
 		for index, answer := range answers {
 			passed, rules, err := prepared.prompts.Passed(produced.name, answer.Text)
@@ -202,7 +206,7 @@ func (session denseSession) produceRewards(prepared densePrepared, resume *dense
 			for at, id := range ids {
 				sequence.Tokens[at] = int(id)
 			}
-			rollouts[index] = trainingdata.Rollout{ID: fmt.Sprintf("draw-%d", answer.Draw), Sequence: sequence, Reward: trainingprogram.InstructionOrder(passed, rules, uint64(len(answer.Completion)))}
+			rollouts[index], passes[index] = trainingdata.Rollout{ID: fmt.Sprintf("draw-%d", answer.Draw), Sequence: sequence, Reward: trainingprogram.InstructionOrder(passed, rules, uint64(len(answer.Completion)))}, passed == rules
 			for _, logarithm := range answer.LogProbabilities {
 				sampled[index] += logarithm
 			}
@@ -218,7 +222,7 @@ func (session denseSession) produceRewards(prepared densePrepared, resume *dense
 			return Result{}, densecausal.TrainState{}, err
 		}
 		began = time.Now()
-		observations, stepped, err := session.stepRewards(rollout, state)
+		observations, stepped, err := session.stepRewards(rollout, passes, state)
 		if err != nil {
 			return Result{}, densecausal.TrainState{}, err
 		}
@@ -263,17 +267,52 @@ func (session denseSession) produceRewards(prepared densePrepared, resume *dense
 // stepRewards takes at most one step on one reward group from a state, by
 // the trainer the session trains with, and returns what was observed of the
 // step, nothing when the group's answers all stand together, and the state
-// after it.
-func (session denseSession) stepRewards(group trainingdata.RolloutGroup, state densecausal.RLState) ([]trainingprogram.GRPOObservation, densecausal.RLState, error) {
+// after it. passes says which answers passed every rule. A control session
+// steps on those alone, each weighed over its own tokens as a fine-tuning
+// step weighs them, and passes a group none of whose answers passed; it
+// trains through the weighted step, which is the device's.
+func (session denseSession) stepRewards(group trainingdata.RolloutGroup, passes []bool, state densecausal.RLState) ([]trainingprogram.GRPOObservation, densecausal.RLState, error) {
 	resume := &state
 	if !state.Stream.Identity.Valid() {
 		resume = nil
 	}
-	if session.request.Host {
+	weigh := densecausal.RewardSequences
+	if session.request.Rewards.Control {
+		weigh = func(group trainingdata.RolloutGroup) ([]densecausal.WeightedSequence, error) {
+			return passedSequences(group, passes), nil
+		}
+	} else if session.request.Host {
 		return session.model.TrainGRPOGroupsResume([]trainingdata.RolloutGroup{group}, session.optimizerConfig.BaseLearningRate, session.optimizerConfig.Momentum, resume, nil)
+	}
+	if session.request.Host {
+		return nil, state, errors.New("training workflow: a control session trains through the weighted step, which the device takes; it has no host trainer")
 	}
 	// The step's observation is returned to whoever asked for the step, who observes it.
 	session.request.ObserveGRPO = nil
-	stepped, optimizer, err := session.rewardsOnDevice([]trainingdata.RolloutGroup{group}, resume)
+	stepped, optimizer, err := session.rewardsOnDevice([]trainingdata.RolloutGroup{group}, resume, weigh)
 	return stepped.GRPO, densecausal.RLState{Optimizer: optimizer, Stream: group.State, Skipped: state.Skipped + stepped.Skipped}, err
+}
+
+// passedSequences is a group as a control session trains on it: each answer
+// that passed every rule is one sequence whose own tokens share a weight of
+// one, the mean a fine-tuning step takes over an answer, and an answer that
+// did not pass, like every prompt token, weighs nothing.
+func passedSequences(group trainingdata.RolloutGroup, passes []bool) []densecausal.WeightedSequence {
+	sequences := make([]densecausal.WeightedSequence, len(group.Rollouts))
+	for index, rollout := range group.Rollouts {
+		weights := make([]float32, len(rollout.Sequence.Tokens)-1)
+		answer := 0
+		for _, own := range rollout.Sequence.Completion {
+			if own {
+				answer++
+			}
+		}
+		for token := range weights {
+			if passes[index] && rollout.Sequence.Completion[token+1] {
+				weights[token] = 1 / float32(answer)
+			}
+		}
+		sequences[index] = densecausal.WeightedSequence{Tokens: rollout.Sequence.Tokens, Weights: weights}
+	}
+	return sequences
 }

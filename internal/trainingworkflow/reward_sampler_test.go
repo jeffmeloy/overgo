@@ -13,6 +13,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/overgodb"
 	"overgo/internal/sampling"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
@@ -311,5 +312,50 @@ func rewardSessionOverGGUF(t *testing.T, request Request) {
 		if left, err := filepath.Glob(filepath.Join(directory, "reward-weights-*")); err != nil || len(left) != 0 {
 			t.Fatalf("a finished session left %v behind (%v)", left, err)
 		}
+	}
+}
+
+// TestBootstrappedRewardRecipeRunsARewardSession holds the recipe a training
+// command publishes for a reward session to being one a reward session runs
+// under: published for a model and a suite of prompts, it is the same recipe
+// published again, and a session over that model and those prompts under it
+// samples its groups and steps, as one under an authority a test assembles
+// does. A suite that is not instruction prompts publishes none.
+func TestBootstrappedRewardRecipeRunsARewardSession(t *testing.T) {
+	ctx := t.Context()
+	model := writeTrainingGGUF(t)
+	root := filepath.Dir(model)
+	prompts := filepath.Join(root, "prompts.json")
+	if err := os.WriteFile(prompts, []byte(rewardPrompts), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	store, err := overgodb.Open(filepath.Join(root, "store"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
+		t.Fatal(err)
+	}
+	recipeID, err := bootstrapRewardRecipe(ctx, store, model, []byte(rewardPrompts))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again, err := bootstrapRewardRecipe(ctx, store, model, []byte(rewardPrompts)); err != nil || again != recipeID {
+		t.Fatalf("published again the recipe is %s (%v), want %s", again, err, recipeID)
+	}
+	if _, err := bootstrapRewardRecipe(ctx, store, model, []byte("a b c d")); err == nil {
+		t.Fatal("text that is no suite of prompts published a reward recipe")
+	}
+	const groups = 3
+	result, err := Execute(ctx, Request{
+		Repository: store, Observations: store, Recipe: recipeID, ModelDirectory: model, DatasetPath: prompts, OutputDirectory: filepath.Join(root, "out"), Steps: groups, Host: true,
+		Rewards: &RewardSampling{
+			Protocol: evaluation.InstructionProtocol{Scorer: evaluation.InstructionScorer, Template: rewardPlain, Thinking: "off", Sampling: rewardSampling, Stop: "end token", Window: 16, MaxTokens: 4},
+			Training: testutil.ArtifactID(t, artifact.KindProfile, "bootstrapped reward training"), Seed: 5, Draws: 4, Code: "bootstrapped reward code",
+		},
+	})
+	if err != nil || result.Objective != trainingprogram.ObjectiveGRPO || result.Rewards.Sampled != groups || result.Rewards.Updated+result.Rewards.Skipped != groups {
+		t.Fatalf("a session under the published recipe = %s with %+v (%v), want a reward session of %d groups", result.Objective, result.Rewards, err, groups)
 	}
 }

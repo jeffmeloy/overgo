@@ -285,20 +285,20 @@ func TestInstructionAcceptanceBindsProtocolGroupsAndComparisons(t *testing.T) {
 		"a split with one group in two parts":      {leaked.ID, protocol, "reward over base", "wholly in one"},
 		"a comparison with no name":                {acceptance.ID, protocol, "", "not one of them"},
 	} {
-		if _, _, err := confirmInstruction(ctx, store, asked.acceptance, asked.protocol, asked.comparison, reward, request.Base, reading(len(promotion))); err == nil || !strings.Contains(err.Error(), asked.want) || readings != 0 || charged(acceptance, partition) != 0 {
+		if _, _, err := ConfirmInstruction(ctx, store, asked.acceptance, asked.protocol, asked.comparison, reward, request.Base, reading(len(promotion))); err == nil || !strings.Contains(err.Error(), asked.want) || readings != 0 || charged(acceptance, partition) != 0 {
 			t.Fatalf("%s = %v with %d readings and %d charges, want it refused with nothing read or charged", name, err, readings, charged(acceptance, partition))
 		}
 	}
 
 	const wins = 30
-	gain, left, err := confirmInstruction(ctx, store, acceptance.ID, protocol, "reward over base", reward, request.Base, reading(wins))
+	gain, left, err := ConfirmInstruction(ctx, store, acceptance.ID, protocol, "reward over base", reward, request.Base, reading(wins))
 	if err != nil || gain.Verdict != poolGain || left != 1 || readings != 1 || gain.Candidate != reward || gain.Acceptance != acceptance.ID {
 		t.Fatalf("a candidate that passes %d groups the baseline fails and loses none = (%+v, %d left, %v) after %d readings, want a gain, one comparison left and one reading", wins, gain, left, err, readings)
 	}
-	if recorded, left, err := confirmInstruction(ctx, store, acceptance.ID, protocol, "reward over base", reward, request.Base, reading(0)); err != nil || recorded.ID != gain.ID || left != 1 || readings != 1 {
+	if recorded, left, err := ConfirmInstruction(ctx, store, acceptance.ID, protocol, "reward over base", reward, request.Base, reading(0)); err != nil || recorded.ID != gain.ID || left != 1 || readings != 1 {
 		t.Fatalf("the comparison asked again = (%s, %d left, %v) after %d readings, want its recorded verdict %s unread", recorded.ID, left, err, readings, gain.ID)
 	}
-	if _, _, err := confirmInstruction(ctx, store, acceptance.ID, protocol, "reward over base", model("another checkpoint"), request.Base, reading(wins)); err == nil || !strings.Contains(err.Error(), "another candidate") || readings != 1 {
+	if _, _, err := ConfirmInstruction(ctx, store, acceptance.ID, protocol, "reward over base", model("another checkpoint"), request.Base, reading(wins)); err == nil || !strings.Contains(err.Error(), "another candidate") || readings != 1 {
 		t.Fatalf("the comparison asked for another candidate = %v after %d readings, want it refused", err, readings)
 	}
 	// Over every prompt the arm would be far better: each group's other prompts
@@ -311,7 +311,7 @@ func TestInstructionAcceptanceBindsProtocolGroupsAndComparisons(t *testing.T) {
 		}
 		return passed, base, nil
 	}
-	undecided, left, err := confirmInstruction(ctx, store, acceptance.ID, protocol, "reward over control", reward, control, few)
+	undecided, left, err := ConfirmInstruction(ctx, store, acceptance.ID, protocol, "reward over control", reward, control, few)
 	if err != nil || undecided.Verdict != poolUndecided || left != 0 || readings != 2 {
 		t.Fatalf("three wins and a loss among %d groups = (%q, %d left, %v), want not enough evidence and nothing left", len(promotion), undecided.Verdict, left, err)
 	}
@@ -323,10 +323,10 @@ func TestInstructionAcceptanceBindsProtocolGroupsAndComparisons(t *testing.T) {
 	if same.Promotion != partition.Promotion || second.ID == acceptance.ID {
 		t.Fatalf("the replacement is acceptance %s over part %s, want another acceptance over the first's part", second.ID, same.Promotion)
 	}
-	if _, left, err := confirmInstruction(ctx, store, second.ID, protocol, "control over base", control, request.Base, reading(wins)); err != nil || left != 0 || readings != 3 {
+	if _, left, err := ConfirmInstruction(ctx, store, second.ID, protocol, "control over base", control, request.Base, reading(wins)); err != nil || left != 0 || readings != 3 {
 		t.Fatalf("the replacement's first comparison leaves %d (%v), want none: its prompts answered two before it", left, err)
 	}
-	if _, _, err := confirmInstruction(ctx, store, second.ID, protocol, "reward over base", reward, request.Base, reading(wins)); err == nil || !strings.Contains(err.Error(), "fresh partition") || readings != 3 {
+	if _, _, err := ConfirmInstruction(ctx, store, second.ID, protocol, "reward over base", reward, request.Base, reading(wins)); err == nil || !strings.Contains(err.Error(), "fresh partition") || readings != 3 {
 		t.Fatalf("a further comparison under the replacement = %v, want it refused: the prompts have answered what they allow", err)
 	}
 
@@ -348,7 +348,7 @@ func TestInstructionAcceptanceBindsProtocolGroupsAndComparisons(t *testing.T) {
 	if apart.Promotion == partition.Promotion || third.Groups != acceptance.Groups {
 		t.Fatalf("the acceptance over each group's other prompts holds part %s of %d groups, want another part of the same %d groups", apart.Promotion, third.Groups, acceptance.Groups)
 	}
-	if _, _, err := confirmInstruction(ctx, store, third.ID, protocol, "reward over base", reward, request.Base, reading(wins)); err == nil || !strings.Contains(err.Error(), "fresh partition") || readings != 3 {
+	if _, _, err := ConfirmInstruction(ctx, store, third.ID, protocol, "reward over base", reward, request.Base, reading(wins)); err == nil || !strings.Contains(err.Error(), "fresh partition") || readings != 3 {
 		t.Fatalf("a comparison on other prompts of groups that have answered = %v with %d readings, want it refused unread", err, readings)
 	}
 
@@ -370,7 +370,7 @@ func TestInstructionAcceptanceBindsProtocolGroupsAndComparisons(t *testing.T) {
 		readings++
 		return nil, nil
 	}
-	if _, _, err := confirmInstruction(ctx, store, pool.Acceptance.ID, protocol, "reward over base", reward, request.Base, reading(wins)); err == nil || readings != 3 {
+	if _, _, err := ConfirmInstruction(ctx, store, pool.Acceptance.ID, protocol, "reward over base", reward, request.Base, reading(wins)); err == nil || readings != 3 {
 		t.Fatalf("a likelihood pool asked for the pilot's verdict = %v, want it refused unread", err)
 	}
 	if _, _, err := ConfirmOnPool(ctx, store, acceptance.ID, reward, unread); err == nil || readings != 3 {

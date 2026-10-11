@@ -17,6 +17,10 @@ type producedCase struct {
 	state trainingdata.StreamState
 }
 
+// rewardProcessor names the processor that reads a suite of instruction
+// prompts as a reward session's dataset, one record a prompt.
+const rewardProcessor = "reward-prompts"
+
 // rewardCasesResume reads the prompts of a reward session that samples its
 // own answers, and orders the ones this session consumes. The dataset is the
 // suite of prompts, one record a prompt, and the stream's position is the
@@ -30,7 +34,7 @@ func rewardCasesResume(ctx context.Context, raw []byte, steps int, resume *train
 	if err != nil {
 		return failed(err)
 	}
-	authority, processor, err := datasetAuthority(raw, "reward-prompts")
+	authority, processor, err := datasetAuthority(raw, rewardProcessor)
 	if err != nil {
 		return failed(err)
 	}

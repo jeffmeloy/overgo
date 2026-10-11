@@ -15,6 +15,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
+	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
 )
 
@@ -247,5 +248,40 @@ func TestRewardRunSamplesAndScoresItsOwnGroups(t *testing.T) {
 	}
 	if onDevice := run(device, "device", prompts); onDevice.Backend != "cuda" || calls != prompts || onDevice.Rewards.Sampled != prompts || onDevice.Rewards.Updated+onDevice.Rewards.Skipped != prompts || len(onDevice.GRPO) != onDevice.Rewards.Updated {
 		t.Fatalf("the session off the host = backend %q, %d device calls, %+v, %d observations; want each of %d groups one call", onDevice.Backend, calls, onDevice.Rewards, len(onDevice.GRPO), prompts)
+	}
+}
+
+// TestControlSessionStepsOnPassedAnswersAlone holds the control of a reward
+// experiment to what it trains on. An answer that passed every rule is one
+// sequence whose own tokens share a weight of one, and nothing of its prompt
+// weighs; an answer that did not pass weighs nothing, so a group none of whose
+// answers passed is all zeros, which the weighted step passes without an
+// update. And a control session asked to train on the host is refused: it
+// trains through the weighted step, which is the device's.
+func TestControlSessionStepsOnPassedAnswersAlone(t *testing.T) {
+	sequence := func(prompt, answer int) trainingdata.PreferenceSequence {
+		made := trainingdata.PreferenceSequence{Tokens: make([]int, prompt+answer), Completion: make([]bool, prompt+answer)}
+		for index := prompt; index < prompt+answer; index++ {
+			made.Completion[index] = true
+		}
+		return made
+	}
+	group := trainingdata.RolloutGroup{Rollouts: []trainingdata.Rollout{{Sequence: sequence(2, 3)}, {Sequence: sequence(2, 1)}, {Sequence: sequence(1, 2)}}}
+	weighed := passedSequences(group, []bool{true, false, true})
+	third := float32(1) / 3
+	if len(weighed) != 3 || !slices.Equal(weighed[0].Weights, []float32{0, third, third, third}) || !slices.Equal(weighed[1].Weights, []float32{0, 0}) || !slices.Equal(weighed[2].Weights, []float32{0.5, 0.5}) {
+		t.Fatalf("the passed answers are weighed %v, %v and %v", weighed[0].Weights, weighed[1].Weights, weighed[2].Weights)
+	}
+	for _, unpassed := range passedSequences(group, make([]bool, len(group.Rollouts))) {
+		if slices.ContainsFunc(unpassed.Weights, func(weight float32) bool { return weight != 0 }) {
+			t.Fatalf("a group none of whose answers passed weighs %v", unpassed.Weights)
+		}
+	}
+	root, request := rewardFixture(t)
+	control := *request.Rewards
+	control.Control = true
+	request.Rewards, request.Steps, request.OutputDirectory = &control, 1, filepath.Join(root, "control")
+	if _, err := Execute(t.Context(), request); err == nil || !strings.Contains(err.Error(), "weighted step") {
+		t.Fatalf("a control session on the host = %v, want it refused", err)
 	}
 }

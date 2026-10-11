@@ -232,7 +232,6 @@ func (h *Handler) streamAnthropicMessages(
 	}
 	textStarted := false
 	textStopped := false
-	var buffered strings.Builder
 	toolStream, streamErr := newToolDeltaStream(h.generator, tools)
 	if streamErr != nil {
 		_ = emitNamedGenerationError(writeEvent, "error", streamErr)
@@ -351,7 +350,6 @@ func (h *Handler) streamAnthropicMessages(
 				return err
 			}
 			if thinkingEnabled {
-				buffered.WriteString(piece)
 				return request.Context().Err()
 			}
 			if len(tools) != 0 {
@@ -374,7 +372,7 @@ func (h *Handler) streamAnthropicMessages(
 	// finished: the parsed turn, whose tool calls end it as calls.
 	var finished inference.ChatMessage
 	if thinkingEnabled {
-		message, parseErr := parser.ParseChatOutput(buffered.String(), nil)
+		message, parseErr := parser.ParseChatOutput(pump.text(), nil)
 		if parseErr != nil || message.ReasoningContent == "" {
 			if parseErr == nil {
 				parseErr = errors.New("model output omitted required thinking content")

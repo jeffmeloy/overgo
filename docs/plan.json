@@ -70,25 +70,6 @@
       ]
     },
     {
-      "id": "reward-phase-clock",
-      "title": "Time a reward session's phases by the high-resolution counter, where a clock that steps by the system's tick read a short phase as no time",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 15,
-        "reason": "What the row may still add. Set on 2026-10-11 to the 15 nodes its built change was counted at, by the count of syntax nodes the automated checks take: one function that reads the counter, with its comment."
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "A reward session's sampling, scoring and stepping times come from the counter the serving measurements use; a test reads the clock around a span shorter than a tick",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestRewardPhaseClockReadsAPhaseShorterThanATick$'",
-          "rationale": "Found on 2026-10-11 when a commit that did not touch training was refused by TestRewardRunSamplesAndScoresItsOwnGroups, which wants a session's sampling time above zero and read it as none. The session timed its phases with time.Now and time.Since, which on this machine step by about half a millisecond (measured), and a draw on the test's small model is shorter; a session in which no draw crossed a step read its whole sampling as no time. The time a real session records was rounded the same way. Closure: the phases are timed by the high-resolution counter. The change and its test are built, the test seen to fail 20 times of 20 against the old way of reading time and pass 40 of 40 on the change, in a checkout of its own before this row was filed.\n\nServes: failure-rate of the checks; a finer record of a reward session's phases. Evidence: the test. Batch: device; the commit runs the device tests, since the training workflow is under them."
-        }
-      ]
-    },
-    {
       "id": "reward-device-route-coverage",
       "title": "Hold the device route of a reward session on the host, through a stand-in that takes a real weighted step, and give the device test a reference of its own",
       "owner": "master-lead",

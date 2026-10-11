@@ -13,10 +13,21 @@ import (
 	"overgo/internal/densecausal"
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
+	"overgo/internal/processmeasure"
 	"overgo/internal/tokenizer"
 	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
 )
+
+// phaseClock is the time a reward session subtracts to time a phase, from the
+// high-resolution counter. time.Now steps by the system's tick, half a
+// millisecond or more on Windows, and a phase on a small model is shorter, so
+// a session's sampling read as no time whenever no draw crossed a tick. A
+// counter that cannot be read reads as no time, as that clock did.
+func phaseClock() time.Duration {
+	now, _ := processmeasure.Counter()
+	return now
+}
 
 // rewardSampling names the one way a reward session draws its answers: from
 // the model's own distribution, no top-p or top-k cut and no temperature but
@@ -261,13 +272,13 @@ func (session denseSession) produceRewards(prepared densePrepared, resume *dense
 		if err != nil {
 			return Result{}, densecausal.TrainState{}, err
 		}
-		began := time.Now()
+		began := phaseClock()
 		group, answers, err := sampler.draw(rewards, produced.name, prompt, limit, base, weights)
 		if err != nil {
 			return Result{}, densecausal.TrainState{}, err
 		}
-		trace.Generation += time.Since(began)
-		began = time.Now()
+		trace.Generation += phaseClock() - began
+		began = phaseClock()
 		rollouts, passes := make([]trainingdata.Rollout, len(answers)), make([]bool, len(answers))
 		sampled := make([]float64, len(answers))
 		for index, answer := range answers {
@@ -289,18 +300,18 @@ func (session denseSession) produceRewards(prepared densePrepared, resume *dense
 				trace.Truncated++
 			}
 		}
-		trace.Scoring += time.Since(began)
+		trace.Scoring += phaseClock() - began
 		trace.Sampled++
 		rollout, err := trainingdata.NewRolloutGroup(produced.name, evaluator, produced.state, rollouts)
 		if err != nil {
 			return Result{}, densecausal.TrainState{}, err
 		}
-		began = time.Now()
+		began = phaseClock()
 		observations, stepped, err := session.stepRewards(rollout, passes, state)
 		if err != nil {
 			return Result{}, densecausal.TrainState{}, err
 		}
-		trace.Update += time.Since(began)
+		trace.Update += phaseClock() - began
 		state = stepped
 		if len(observations) == 0 {
 			trace.Skipped++
@@ -315,12 +326,12 @@ func (session denseSession) produceRewards(prepared densePrepared, resume *dense
 		trace.TrainedTokens += observation.CompletionTokens
 		// How the sampled answers stand under the weights after the step, a token: a description of the step.
 		// Opening those weights and reading the answers under them is the sampler's time.
-		began = time.Now()
+		began = phaseClock()
 		after, err := sampler.standing(group.Prompt, answers, rollouts)
 		if err != nil {
 			return Result{}, densecausal.TrainState{}, err
 		}
-		trace.Generation += time.Since(began)
+		trace.Generation += phaseClock() - began
 		for index, standing := range after {
 			trace.Shift += (standing - sampled[index]) / float64(observation.CompletionTokens)
 		}

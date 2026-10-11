@@ -89,11 +89,59 @@ type jsonStyle struct {
 	// sortKeys writes a mapping's keys in sorted order and not its own.
 	sortKeys bool
 	// indent, when indented, opens a line for each member, set in by indent
-	// once for each level it is nested.
+	// width times for each level it is nested. An indent given as a count is
+	// one space that many times: it is not built until a line is written, so
+	// a value with no members costs nothing for it.
 	indented bool
 	indent   string
+	width    int
 	// item and key part two members, and a key from its value.
 	item, key string
+}
+
+// jsonOut is where tojson writes. With text it writes; without, it counts
+// the bytes the text would be, in bytes either way, which stops at the most
+// an integer holds and never wraps. tojson is counted before it is written,
+// because what it writes is not bounded by what it is given: an indent
+// repeats for every line and level, and an escape is six bytes for one.
+type jsonOut struct {
+	text  *strings.Builder
+	bytes int
+}
+
+// jsonPadBytes bounds the run of an indent that is built to be written: a
+// long indent is written as that run over and over, so writing it allocates
+// no more than the run beside the text.
+const jsonPadBytes = 4096
+
+// repeat writes unit count times.
+func (out *jsonOut) repeat(unit string, count int) {
+	if grown := scaled(count, len(unit)); grown > math.MaxInt-out.bytes {
+		out.bytes = math.MaxInt
+	} else {
+		out.bytes += grown
+	}
+	if out.text == nil || unit == "" {
+		return
+	}
+	units := min(count, max(jsonPadBytes/len(unit), 1))
+	for run := strings.Repeat(unit, units); count > 0; count -= units {
+		out.text.WriteString(run[:min(count, units)*len(unit)])
+	}
+}
+
+func (out *jsonOut) write(text string) { out.repeat(text, 1) }
+
+func (out *jsonOut) writeByte(char byte) { out.writeRune(rune(char)) }
+
+// writeRune writes one character as itself.
+func (out *jsonOut) writeRune(char rune) {
+	if out.bytes < math.MaxInt-utf8.UTFMax {
+		out.bytes += utf8.RuneLen(char)
+	}
+	if out.text != nil {
+		out.text.WriteRune(char)
+	}
 }
 
 // The arguments transformers' tojson takes after the value, in its order, and
@@ -117,6 +165,42 @@ const (
 // written as themselves, nothing is escaped for HTML, and a mapping's keys
 // keep their order.
 func filterToJSON(in any, args []any, kwargs map[string]any) (any, error) {
+	_, write, err := planJSON(in, args, kwargs)
+	if err != nil {
+		return nil, err
+	}
+	return write(), nil
+}
+
+// planJSON is tojson in two parts: how many bytes it will write for a value,
+// counted without writing any of them, and what writes them, into text of
+// exactly that size. A render holds the bytes before it has them written. A
+// count past what an integer holds is past any limit, and is refused here,
+// since a render with no limit would otherwise go on to try to build it; and
+// a value that cannot be written is refused by the count, so the writing
+// that follows it has nothing left to refuse.
+func planJSON(in any, args []any, kwargs map[string]any) (int, func() any, error) {
+	style, err := jsonStyleOf(args, kwargs)
+	if err != nil {
+		return 0, nil, err
+	}
+	var counted jsonOut
+	if err := writeJSON(&counted, in, style, 0); err != nil {
+		return 0, nil, err
+	}
+	if counted.bytes == math.MaxInt {
+		return 0, nil, fmt.Errorf("%w: tojson of more bytes than can be counted", errLimit)
+	}
+	return counted.bytes, func() any {
+		var text strings.Builder
+		text.Grow(counted.bytes)
+		_ = writeJSON(&jsonOut{text: &text}, in, style, 0)
+		return text.String()
+	}, nil
+}
+
+// jsonStyleOf reads tojson's arguments after the value.
+func jsonStyleOf(args []any, kwargs map[string]any) (jsonStyle, error) {
 	given := map[string]any{}
 	for index, name := range []string{jsonEnsureASCII, jsonIndent, jsonSeparators, jsonSortKeys} {
 		if index < len(args) {
@@ -125,7 +209,7 @@ func filterToJSON(in any, args []any, kwargs map[string]any) (any, error) {
 	}
 	for name, value := range kwargs {
 		if !slices.Contains([]string{jsonEnsureASCII, jsonIndent, jsonSeparators, jsonSortKeys}, name) {
-			return nil, fmt.Errorf("jinja: tojson takes no argument %q", name)
+			return jsonStyle{}, fmt.Errorf("jinja: tojson takes no argument %q", name)
 		}
 		given[name] = value
 	}
@@ -133,68 +217,64 @@ func filterToJSON(in any, args []any, kwargs map[string]any) (any, error) {
 	switch indent := given[jsonIndent]; {
 	case indent == nil || isNone(indent):
 	case isString(indent):
-		style.indented, style.indent, style.item = true, indent.(string), jsonLineSeparator
+		style.indented, style.indent, style.width, style.item = true, indent.(string), 1, jsonLineSeparator
 	case isInteger(indent):
-		style.indented, style.indent, style.item = true, strings.Repeat(" ", max(toInt(indent), 0)), jsonLineSeparator
+		style.indented, style.indent, style.width, style.item = true, " ", max(toInt(indent), 0), jsonLineSeparator
 	default:
-		return nil, errors.New("jinja: tojson indent is neither a count nor a string")
+		return jsonStyle{}, errors.New("jinja: tojson indent is neither a count nor a string")
 	}
 	if separators := given[jsonSeparators]; separators != nil && !isNone(separators) {
 		pair, isList := separators.([]any)
 		if !isList || len(pair) != jsonSeparatorCount || !isString(pair[0]) || !isString(pair[1]) {
-			return nil, errors.New("jinja: tojson separators are not a pair of strings")
+			return jsonStyle{}, errors.New("jinja: tojson separators are not a pair of strings")
 		}
 		style.item, style.key = pair[0].(string), pair[1].(string)
 	}
-	var out strings.Builder
-	if err := writeJSON(&out, in, style, 0); err != nil {
-		return nil, err
-	}
-	return out.String(), nil
+	return style, nil
 }
 
 // writeJSON writes one value as json.dumps writes it, and refuses, as it
 // does, a value that holds itself: one that nests past maxNesting.
-func writeJSON(out *strings.Builder, value any, style jsonStyle, depth int) error {
+func writeJSON(out *jsonOut, value any, style jsonStyle, depth int) error {
 	if depth > maxNesting {
 		return fmt.Errorf("%w: tojson of a value that nests deeper than %d, or holds itself", errLimit, maxNesting)
 	}
 	line := func(level int) {
 		if style.indented {
-			out.WriteByte('\n')
-			out.WriteString(strings.Repeat(style.indent, level))
+			out.writeByte('\n')
+			out.repeat(style.indent, scaled(level, style.width))
 		}
 	}
 	switch typed := value.(type) {
 	case nil:
 		return errors.New("jinja: tojson of a value that is not defined")
 	case noneType:
-		out.WriteString("null")
+		out.write("null")
 	case bool:
-		out.WriteString(strconv.FormatBool(typed))
+		out.write(strconv.FormatBool(typed))
 	case string:
 		writeJSONString(out, typed, style.ascii)
 	case float32, float64:
 		number := toFloat(typed)
 		switch {
 		case math.IsNaN(number):
-			out.WriteString("NaN")
+			out.write("NaN")
 		case math.IsInf(number, 1):
-			out.WriteString("Infinity")
+			out.write("Infinity")
 		case math.IsInf(number, -1):
-			out.WriteString("-Infinity")
+			out.write("-Infinity")
 		default:
-			out.WriteString(formatFloat(number))
+			out.write(formatFloat(number))
 		}
 	case []any:
 		if len(typed) == 0 {
-			out.WriteString("[]")
+			out.write("[]")
 			return nil
 		}
-		out.WriteByte('[')
+		out.writeByte('[')
 		for index, item := range typed {
 			if index != 0 {
-				out.WriteString(style.item)
+				out.write(style.item)
 			}
 			line(depth + 1)
 			if err := writeJSON(out, item, style, depth+1); err != nil {
@@ -202,7 +282,7 @@ func writeJSON(out *strings.Builder, value any, style jsonStyle, depth int) erro
 			}
 		}
 		line(depth)
-		out.WriteByte(']')
+		out.writeByte(']')
 	case []string:
 		items := make([]any, len(typed))
 		for index, item := range typed {
@@ -213,7 +293,7 @@ func writeJSON(out *strings.Builder, value any, style jsonStyle, depth int) erro
 		mapping, isMapping := asDictLike(value)
 		if !isMapping {
 			if isInteger(value) {
-				out.WriteString(strconv.Itoa(toInt(value)))
+				out.write(strconv.Itoa(toInt(value)))
 				return nil
 			}
 			return fmt.Errorf("jinja: tojson cannot write a %T", value)
@@ -224,24 +304,24 @@ func writeJSON(out *strings.Builder, value any, style jsonStyle, depth int) erro
 			slices.Sort(keys)
 		}
 		if len(keys) == 0 {
-			out.WriteString("{}")
+			out.write("{}")
 			return nil
 		}
-		out.WriteByte('{')
+		out.writeByte('{')
 		for index, key := range keys {
 			if index != 0 {
-				out.WriteString(style.item)
+				out.write(style.item)
 			}
 			line(depth + 1)
 			writeJSONString(out, key, style.ascii)
-			out.WriteString(style.key)
+			out.write(style.key)
 			member, _ := mapping.lookup(key)
 			if err := writeJSON(out, member, style, depth+1); err != nil {
 				return err
 			}
 		}
 		line(depth)
-		out.WriteByte('}')
+		out.writeByte('}')
 	}
 	return nil
 }
@@ -260,30 +340,30 @@ const (
 // writeJSONString writes a string as json.dumps does: quoted, with the quote,
 // the backslash and the control characters escaped, and every character past
 // ASCII as itself, or as an escape of its UTF-16 units when ascii is set.
-func writeJSONString(out *strings.Builder, text string, ascii bool) {
+func writeJSONString(out *jsonOut, text string, ascii bool) {
 	escape := func(unit rune) {
-		out.WriteString(`\u`)
+		out.write(`\u`)
 		for digit := hexDigits - 1; digit >= 0; digit-- {
-			out.WriteByte(jsonHex[(unit>>(digit*hexDigitBits))&hexDigitMask])
+			out.writeByte(jsonHex[(unit>>(digit*hexDigitBits))&hexDigitMask])
 		}
 	}
-	out.WriteByte('"')
+	out.writeByte('"')
 	for _, char := range text {
 		switch char {
 		case '"':
-			out.WriteString(`\"`)
+			out.write(`\"`)
 		case '\\':
-			out.WriteString(`\\`)
+			out.write(`\\`)
 		case '\n':
-			out.WriteString(`\n`)
+			out.write(`\n`)
 		case '\r':
-			out.WriteString(`\r`)
+			out.write(`\r`)
 		case '\t':
-			out.WriteString(`\t`)
+			out.write(`\t`)
 		case '\b':
-			out.WriteString(`\b`)
+			out.write(`\b`)
 		case '\f':
-			out.WriteString(`\f`)
+			out.write(`\f`)
 		default:
 			switch {
 			case char < jsonControlBelow:
@@ -296,9 +376,9 @@ func writeJSONString(out *strings.Builder, text string, ascii bool) {
 					escape(char)
 				}
 			default:
-				out.WriteRune(char)
+				out.writeRune(char)
 			}
 		}
 	}
-	out.WriteByte('"')
+	out.writeByte('"')
 }

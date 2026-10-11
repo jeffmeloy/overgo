@@ -21,7 +21,7 @@ func registerBuiltinFilters(e *Env) {
 	e.filters["items"] = filterItems
 	e.filters["min"] = filterMin
 	e.filters["max"] = filterMax
-	e.filters["map"] = e.filterMap
+	e.filters[mapFilter] = filterMap
 	e.filters["tojson"] = filterToJSON
 }
 
@@ -189,32 +189,14 @@ func minMax(in any, wantMin bool) any {
 	return best
 }
 
-func (e *Env) filterMap(in any, args []any, kwargs map[string]any) (any, error) {
+// filterMap is map with no filter named: each item's attribute, or the item.
+// Given a filter's name the render runs that filter on each item itself
+// (renderer.mapNamed), where what the filter builds is charged.
+func filterMap(in any, _ []any, kwargs map[string]any) (any, error) {
 	if in == nil {
 		return []any{}, nil
 	}
 	entries := iterate(in)
-	if len(args) > 0 {
-		name, ok := args[0].(string)
-		if !ok {
-			return nil, fmt.Errorf("jinja: map filter name must be a string")
-		}
-		f, ok := e.filters[name]
-		if !ok {
-			return nil, fmt.Errorf("jinja: unknown filter %q in map", name)
-		}
-		fargs := args[1:]
-		out := make([]any, 0, len(entries))
-		for _, en := range entries {
-			v, err := f(en.key, fargs, kwargs)
-			if err != nil {
-				return nil, err
-			}
-			out = append(out, v)
-		}
-		return out, nil
-	}
-	// attribute mode
 	attr, _ := kwargs["attribute"]
 	out := make([]any, 0, len(entries))
 	for _, en := range entries {

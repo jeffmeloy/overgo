@@ -987,7 +987,64 @@ func (r *renderer) evalFilter(n filterNode, sc *scope) (any, error) {
 			return nil, err
 		}
 	}
-	return f(in, args, kwargs)
+	if n.name == mapFilter && len(args) > 0 && in != nil {
+		return r.mapNamed(in, args, kwargs)
+	}
+	value, held, err := r.build(n.name, f, in, args, kwargs)
+	// What the filter built is charged as the value of its expression (eval).
+	r.free(held)
+	return value, err
+}
+
+// mapFilter names the filter that runs another on each item.
+const mapFilter = "map"
+
+// planned are the filters that say how many bytes they will build before
+// they build them, because it can be far more than they are given: each
+// returns the count and what builds the value.
+var planned = map[string]func(in any, args []any, kwargs map[string]any) (int, func() any, error){"tojson": planJSON}
+
+// build runs a filter, and for one that plans what it builds (planned) holds
+// the bytes first: a result the render cannot pay for is refused before any
+// of it is allocated. It returns the bytes it held.
+func (r *renderer) build(name string, f Filter, in any, args []any, kwargs map[string]any) (any, int, error) {
+	plan, counted := planned[name]
+	if !counted {
+		value, err := f(in, args, kwargs)
+		return value, 0, err
+	}
+	held, build, err := plan(in, args, kwargs)
+	if err == nil {
+		err = r.hold(held)
+	}
+	if err != nil {
+		return nil, 0, err
+	}
+	return build(), held, nil
+}
+
+// mapNamed is map given a filter's name: that filter run on each item, with
+// the arguments after the name. Each item is built as the filter alone builds
+// it, and what was held for it stays held, by the list that keeps it.
+func (r *renderer) mapNamed(in any, args []any, kwargs map[string]any) (any, error) {
+	name, ok := args[0].(string)
+	if !ok {
+		return nil, fmt.Errorf("jinja: map filter name must be a string")
+	}
+	f, ok := r.env.filters[name]
+	if !ok {
+		return nil, fmt.Errorf("jinja: unknown filter %q in map", name)
+	}
+	entries := iterate(in)
+	out := make([]any, 0, len(entries))
+	for _, en := range entries {
+		v, _, err := r.build(name, f, en.key, args[1:], kwargs)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+	return out, nil
 }
 
 func (r *renderer) evalCall(n callNode, sc *scope) (any, error) {

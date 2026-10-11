@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -175,6 +176,78 @@ func TestTemplatePastItsLimitsIsRefused(t *testing.T) {
 	}
 }
 
+// TestJSONIsChargedBeforeItIsBuilt holds tojson to the render's memory limit
+// before it allocates, and not after: what it writes can be far larger than
+// what it is given, by an indent, by the nesting an indent is repeated for,
+// and by the escapes of characters past ASCII.
+//
+// An indent is written only where a line opens, so a value with no members
+// costs its own few bytes at any indent, and renders. A value with members at
+// an indent the render cannot pay for, at an indent no integer's worth of
+// bytes holds, nested so that a modest indent is repeated past the limit,
+// escaped to six times its length, or written item by item through map, is
+// refused as past its limits, and the render allocates nothing of that size on
+// the way to refusing: every case here allocates less than twice the limit,
+// where the first of them once took a thousand million bytes of spaces to
+// write one digit. With no limit set, the indent no integer holds is still
+// refused and not attempted.
+//
+// What is written is unchanged: the same text as before for an indent given
+// as a count or as a string, at each depth, with members and without.
+func TestJSONIsChargedBeforeItIsBuilt(t *testing.T) {
+	env := chatEnvironment(testLimits)
+	allocated := func(template string) (string, error, uint64) {
+		t.Helper()
+		var before, after runtime.MemStats
+		runtime.ReadMemStats(&before)
+		text, err := env.Render(template, nil)
+		runtime.ReadMemStats(&after)
+		return text, err, after.TotalAlloc - before.TotalAlloc
+	}
+	most := 2 * uint64(testLimits.Bytes)
+	for template, want := range map[string]string{
+		"{{ 1|tojson(indent=1000000000) }}":                            "1",
+		"{{ 'a'|tojson(indent=1000000000) }}":                          `"a"`,
+		"{{ []|tojson(indent=1000000000) }}|{{ {}|tojson(indent=1) }}": "[]|{}",
+		"{{ [1, [2]]|tojson(indent=2) }}":                              "[\n  1,\n  [\n    2\n  ]\n]",
+		"{{ {'a': [1]}|tojson(indent='--') }}":                         "{\n--\"a\": [\n----1\n--]\n}",
+		"{{ [1]|tojson(indent=0) }}|{{ [1]|tojson(indent=-3) }}":       "[\n1\n]|[\n1\n]",
+		"{{ [[1]]|map('tojson', indent=1)|list|length }}":              "1",
+	} {
+		if text, err, bytes := allocated(template); err != nil || text != want || bytes > most {
+			t.Errorf("%s rendered %q, %v, allocating %d bytes; want %q within %d", template, text, err, bytes, want, most)
+		}
+	}
+	for name, template := range map[string]string{
+		"an indent past the limit":         "{{ [1]|tojson(indent=1000000000) }}",
+		"an indent no integer holds":       "{{ [1]|tojson(indent=9223372036854775807) }}",
+		"a string indent repeated":         "{% set pad = ' ' * 100000 %}{{ [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]|tojson(indent=pad) }}",
+		"a modest indent nested":           "{{ [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]|tojson(indent=100000) }}",
+		"escapes six times the characters": "{% set text = '\\u0001' * 500000 %}{{ text|tojson }}",
+		"escapes of characters past ASCII": "{% set text = 'é' * 400000 %}{{ text|tojson(ensure_ascii=true) }}",
+		"an indent through map":            "{{ [[1]]|map('tojson', indent=1000000000)|list }}",
+		"many items through map":           "{% for i in range(40) %}{{ [[1, 2, 3, 4, 5, 6, 7, 8]]|map('tojson', indent=30000)|list|length }}{% endfor %}",
+	} {
+		if text, err, bytes := allocated(template); !errors.Is(err, errLimit) || text != "" || bytes > most {
+			t.Errorf("%s rendered %d bytes and ended with %v, allocating %d bytes; want it refused past its limits within %d", name, len(text), err, bytes, most)
+		}
+	}
+	if text, err := chatEnvironment(Limits{}).Render("{{ [1]|tojson(indent=9223372036854775807) }}", nil); !errors.Is(err, errLimit) || text != "" {
+		t.Errorf("with no limit, an indent no integer holds rendered %d bytes and ended with %v; want it refused", len(text), err)
+	}
+	// What is held is what is written, to the byte, however it is written.
+	value := map[string]any{"kéy": []any{"a\"b\\c\n\x01", "\U0001F600", 1.5, true, None, []any{}, map[string]any{}, []any{[]any{2}}}}
+	for _, kwargs := range []map[string]any{{}, {"indent": 3}, {"indent": "\t"}, {"ensure_ascii": true, "indent": 1}, {"sort_keys": true, "separators": []any{";", "="}}} {
+		bytes, write, err := planJSON(value, nil, kwargs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if text := write().(string); len(text) != bytes || bytes == 0 {
+			t.Errorf("tojson with %v counted %d bytes and wrote %d: %s", kwargs, bytes, len(text), text)
+		}
+	}
+}
+
 // FuzzTemplate holds the engine to one property under any template: it never
 // faults, and a render ends inside the limits it was given or with an error.
 // It is seeded with every served model's template, with templates that are
@@ -195,6 +268,7 @@ func FuzzTemplate(f *testing.F) {
 		"{% set ns = namespace(a=1) %}{% set ns.a = ns %}{{ ns.a.a.a.a }}", "{% macro m(a, b=a) %}{{ a }}{{ b }}{% endmacro %}{{ m(1) }}{{ m() }}",
 		"{% for a, b in messages %}{{ a }}{% endfor %}", "{% for m in messages if m %}{{ loop.previtem }}{{ loop.nextitem }}{% else %}none{% endfor %}",
 		"{%- if messages -%} x {%+ endif +%}", "{# comment #}{{ '{{' }}{{ '%}' }}", "{{ \"\\u0000\\ud800\" }}", "{{ messages|dictsort }}", "{{ none|items }}",
+		"{{ 1|tojson(indent=1000000000) }}", "{{ messages|tojson(indent=1000000) }}", "{{ messages|tojson(ensure_ascii=true, indent='\\u0001') }}", "{{ messages|map('tojson', indent=100000)|list }}",
 	} {
 		f.Add(seed)
 	}

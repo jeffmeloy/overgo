@@ -394,15 +394,14 @@ func standardized(values []float64) []float64 {
 // ChangeProposalRequest asks for a change to be proposed from a corpus and
 // ranked: the corpus, the acceptance of the held-out pool it is fitted and
 // ranked on, the corpus's base model's directory, the directory its runs
-// published under, where the candidates are written, and the sequence length
-// the pool's documents are read at.
+// published under, and where the candidates are written. The pool's documents
+// are read as far as its acceptance fixed.
 type ChangeProposalRequest struct {
 	Corpus          artifact.ID
 	Acceptance      artifact.ID
 	ModelDirectory  string
 	RunsDirectory   string
 	OutputDirectory string
-	MaximumSequence int
 	// Shown names the held-out verdicts the proposer is shown of what was
 	// tried before it (evaluation.PastHeldoutVerdicts). It fits the gains
 	// those of them that judged its corpus's runs recorded beside the gains it
@@ -441,7 +440,7 @@ func ProposeChange(ctx context.Context, store *overgodb.Store, request ChangePro
 			return ChangeJudgment{}, errors.Join(fmt.Errorf("training workflow: a proposer is shown held-out verdicts the store holds, and %s is not one", shown), err)
 		}
 	}
-	base, examples, err := poolExamples(ctx, store, corpus.Objective, request.ModelDirectory, request.MaximumSequence)
+	base, examples, err := poolExamples(ctx, store, pool.Acceptance, request.ModelDirectory)
 	if err != nil {
 		return ChangeJudgment{}, err
 	}
@@ -449,10 +448,14 @@ func ProposeChange(ctx context.Context, store *overgodb.Store, request ChangePro
 }
 
 // poolExamples loads a pool's base model and reads its objective's documents
-// as that model's tokens, each as far as the sequence length: what the pool's
-// measure is taken on.
-func poolExamples(ctx context.Context, store *overgodb.Store, objectiveID artifact.ID, directory string, maximumSequence int) (*densecausal.Model, map[string]HeldoutExample, error) {
-	objective, err := trainingprogram.LoadObjective(ctx, store, objectiveID)
+// as that model's tokens, each as far as the pool's acceptance fixed: what
+// the pool's measure is taken on. An acceptance that fixed no window is one
+// published before the window was part of it, and nothing is read for it.
+func poolExamples(ctx context.Context, store *overgodb.Store, acceptance evaluation.PoolAcceptance, directory string) (*densecausal.Model, map[string]HeldoutExample, error) {
+	if acceptance.Sequence == 0 {
+		return nil, nil, fmt.Errorf("training workflow: pool %s fixed no tokens to read each document as far as; build a pool that does", acceptance.ID)
+	}
+	objective, err := trainingprogram.LoadObjective(ctx, store, acceptance.Objective)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -464,11 +467,7 @@ func poolExamples(ctx context.Context, store *overgodb.Store, objectiveID artifa
 	if err != nil {
 		return nil, nil, err
 	}
-	sequence := base.Dims.ContextLength
-	if maximumSequence > 0 {
-		sequence = min(sequence, maximumSequence)
-	}
-	data, _, err := textObjectiveData(ctx, store, objective, tokenizer, sequence, false)
+	data, _, err := textObjectiveData(ctx, store, objective, tokenizer, min(base.Dims.ContextLength, int(acceptance.Sequence)), false)
 	return base, data.Examples, err
 }
 
@@ -678,14 +677,13 @@ func proposeOnPool(ctx context.Context, store *overgodb.Store, request ChangePro
 
 // ChangeConfirmationRequest asks for one candidate of a judgment to be
 // confirmed: the judgment, the candidate by the name the judgment gives it,
-// and the directories and the sequence length its proposal was made with.
+// and the directories its proposal was made with.
 type ChangeConfirmationRequest struct {
 	Judgment        artifact.ID
 	Candidate       string
 	ModelDirectory  string
 	RunsDirectory   string
 	OutputDirectory string
-	MaximumSequence int
 }
 
 // ConfirmChange has the promotion part of a judgment's pool answer for one of
@@ -732,15 +730,17 @@ func ConfirmChange(ctx context.Context, store *overgodb.Store, request ChangeCon
 			return evaluation.PoolConfirmation{}, 0, errors.Join(fmt.Errorf("training workflow: %s holds %s, which is not %s, %s; nothing was charged", named.directory, held, named.role, named.identity), err)
 		}
 	}
-	base, examples, err := poolExamples(ctx, store, pool.Acceptance.Objective, request.ModelDirectory, request.MaximumSequence)
-	if err != nil {
-		return evaluation.PoolConfirmation{}, 0, err
-	}
-	model, err := loadTrainableModel(directory)
-	if err != nil {
-		return evaluation.PoolConfirmation{}, 0, err
-	}
+	// The models and the documents are prepared by the reading alone, which a
+	// confirmation recorded before, or one the budget cannot pay for, never runs.
 	return evaluation.ConfirmOnPool(ctx, store, reading.Acceptance, reading.Model, func(documents []string) ([]float64, error) {
+		base, examples, err := poolExamples(ctx, store, pool.Acceptance, request.ModelDirectory)
+		if err != nil {
+			return nil, err
+		}
+		model, err := loadTrainableModel(directory)
+		if err != nil {
+			return nil, err
+		}
 		candidate, err := documentLikelihoods(model, examples, documents)
 		if err != nil {
 			return nil, err

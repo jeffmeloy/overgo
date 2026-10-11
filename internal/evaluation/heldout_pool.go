@@ -66,7 +66,8 @@ var PoolParts = [poolPartCount]string{poolDevelopment: "development", poolSelect
 // compared with, the measure and the rule, the gain the pool is sized to
 // show, in standard deviations of the measure's paired difference, the two
 // error rates, how many confirmations the promotion part may answer and the
-// statistic each must pass, and the verdicts the gain was stated from.
+// statistic each must pass, the verdicts the gain was stated from, and the
+// tokens each document is read as far as by whoever ranks or confirms on it.
 type PoolAcceptance struct {
 	ID            artifact.ID   `json:"-"`
 	Version       uint16        `json:"version"`
@@ -82,6 +83,9 @@ type PoolAcceptance struct {
 	Confirmations uint64        `json:"confirmations"`
 	Critical      float64       `json:"critical"`
 	Basis         []artifact.ID `json:"basis"`
+	// Sequence is omitted at zero: an acceptance published before the window
+	// was fixed here names none, and nothing is ranked or confirmed on it.
+	Sequence uint64 `json:"sequence,omitzero"`
 }
 
 var poolAcceptanceCodec = artifact.JSONDocumentCodec(
@@ -141,13 +145,15 @@ func poolConfirmations(documents uint64, gain float64) (confirmations uint64) {
 // HeldoutPoolRequest states what a pool is built for: the objective whose
 // held-out documents it divides, the base model its candidates are compared
 // with, the gain it is sized to show, the verdicts that gain was stated from,
-// and the weights that divide the documents no verdict has read among
-// development, selection, promotion and audit.
+// the tokens each document is read as far as, and the weights that divide the
+// documents no verdict has read among development, selection, promotion and
+// audit.
 type HeldoutPoolRequest struct {
 	Objective trainingprogram.ObjectiveDocument
 	Base      artifact.ID
 	Gain      float64
 	Basis     []artifact.ID
+	Sequence  uint64
 	Weights   [poolPartCount]uint64
 }
 
@@ -180,6 +186,9 @@ func changeProposer(objective artifact.ID) (artifact.ID, error) {
 // gain once is refused with the number of documents each would need.
 func BuildHeldoutPool(ctx context.Context, reader artifact.Reader, request HeldoutPoolRequest) (HeldoutPool, error) {
 	objective := request.Objective
+	if request.Sequence == 0 {
+		return HeldoutPool{}, errors.New("evaluation: a pool fixes the tokens each document is read as far as before any document is read")
+	}
 	training, found, err := dataset.LoadMembership(ctx, reader, objective.Split)
 	if err != nil || !found {
 		return HeldoutPool{}, errors.Join(errors.New("evaluation: the objective's training membership is not committed"), err)
@@ -240,6 +249,7 @@ func BuildHeldoutPool(ctx context.Context, reader artifact.Reader, request Heldo
 		Split: pool.Partition.ID, Objective: objective.ID, Base: request.Base, Measure: poolMeasure, Rule: poolRule,
 		Gain: request.Gain, FalseGain: falseGain, MissedGain: missedGain,
 		Documents: promotion, Confirmations: confirmations, Critical: poolCritical(confirmations), Basis: slices.Clone(request.Basis),
+		Sequence: request.Sequence,
 	}); err != nil {
 		return HeldoutPool{}, err
 	}

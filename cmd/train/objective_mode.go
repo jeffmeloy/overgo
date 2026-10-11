@@ -187,7 +187,7 @@ type shownEvidence struct {
 // in proposal, under out. A proposer shown evidence is listed the verdicts it
 // was shown, and the judgment's last line says how far the proposal stands
 // from the one the same code makes without them.
-func proposeChange(ctx context.Context, store *overgodb.Store, corpus, pool, model, out, proposal string, evidence shownEvidence, sequence int, output io.Writer) error {
+func proposeChange(ctx context.Context, store *overgodb.Store, corpus, pool, model, out, proposal string, evidence shownEvidence, output io.Writer) error {
 	corpusID, err := artifact.ParseID(corpus)
 	if err != nil {
 		return fmt.Errorf("change corpus: %w", err)
@@ -197,7 +197,7 @@ func proposeChange(ctx context.Context, store *overgodb.Store, corpus, pool, mod
 		return fmt.Errorf("train: -propose fits and ranks on a held-out pool; -pool names its acceptance: %w", err)
 	}
 	request := trainingworkflow.ChangeProposalRequest{
-		Corpus: corpusID, Acceptance: acceptance, ModelDirectory: model, RunsDirectory: out, OutputDirectory: filepath.Join(out, proposal), MaximumSequence: sequence, Progress: output,
+		Corpus: corpusID, Acceptance: acceptance, ModelDirectory: model, RunsDirectory: out, OutputDirectory: filepath.Join(out, proposal), Progress: output,
 	}
 	if evidence.shown {
 		var read uint64
@@ -231,13 +231,13 @@ func proposeChange(ctx context.Context, store *overgodb.Store, corpus, pool, mod
 // the judgment's candidates, whose model sits where proposeChange wrote it,
 // in proposal under out, and writes the verdict and what the pool's budget
 // has left.
-func confirmChange(ctx context.Context, store *overgodb.Store, judgment, candidate, model, out, proposal string, sequence int, output io.Writer) error {
+func confirmChange(ctx context.Context, store *overgodb.Store, judgment, candidate, model, out, proposal string, output io.Writer) error {
 	judgmentID, err := artifact.ParseID(judgment)
 	if err != nil {
 		return fmt.Errorf("change judgment: %w", err)
 	}
 	confirmation, left, err := trainingworkflow.ConfirmChange(ctx, store, trainingworkflow.ChangeConfirmationRequest{
-		Judgment: judgmentID, Candidate: candidate, ModelDirectory: model, RunsDirectory: out, OutputDirectory: filepath.Join(out, proposal), MaximumSequence: sequence,
+		Judgment: judgmentID, Candidate: candidate, ModelDirectory: model, RunsDirectory: out, OutputDirectory: filepath.Join(out, proposal),
 	})
 	if err != nil {
 		return err

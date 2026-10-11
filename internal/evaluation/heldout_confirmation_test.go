@@ -51,7 +51,7 @@ func TestConfirmationIsChargedBeforeThePromotionPartIsRead(t *testing.T) {
 	ctx := t.Context()
 	store, objective, _, _ := poolObjective(t)
 	request := HeldoutPoolRequest{
-		Objective: objective, Base: testutil.ArtifactID(t, artifact.KindModel, "pool fixture base"),
+		Objective: objective, Base: testutil.ArtifactID(t, artifact.KindModel, "pool fixture base"), Sequence: 8,
 		Basis: []artifact.ID{testutil.ArtifactID(t, artifact.KindEvaluation, "pool fixture verdict")}, Weights: [poolPartCount]uint64{1, 2, 4, 4},
 	}
 	const issued = 2

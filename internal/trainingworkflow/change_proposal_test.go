@@ -203,7 +203,7 @@ func TestProposedChangeIsJudgedAgainstItsControls(t *testing.T) {
 		t.Fatalf("the proposal and the random control sit %v from the mean change, want one distance", distances)
 	}
 	// The best run is one run, the one that gained most on the development part, and the base reads on the selection part what it reads there.
-	base, examples, err := poolExamples(ctx, text.store, corpus.Objective, text.model, request.MaximumSequence)
+	base, examples, err := poolExamples(ctx, text.store, pool.Acceptance, text.model)
 	if err != nil {
 		t.Fatal(err)
 	}

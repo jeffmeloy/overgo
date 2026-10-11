@@ -61,7 +61,7 @@ func pooledCorpus(t *testing.T) (registeredText, ChangeCorpus, evaluation.Heldou
 		basis[index] = change.Verdict
 	}
 	pool, err := evaluation.BuildHeldoutPool(ctx, text.store, evaluation.HeldoutPoolRequest{
-		Objective: objective, Base: corpus.Model, Gain: pooledGain, Basis: basis, Weights: [len(evaluation.PoolParts)]uint64{2, 2, 2, 3},
+		Objective: objective, Base: corpus.Model, Gain: pooledGain, Basis: basis, Sequence: pooledWindow, Weights: [len(evaluation.PoolParts)]uint64{2, 2, 2, 3},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -72,7 +72,7 @@ func pooledCorpus(t *testing.T) (registeredText, ChangeCorpus, evaluation.Heldou
 	t.Logf("pool of %v documents in %v answers %d confirmations", pool.Documents, evaluation.PoolParts, pool.Acceptance.Confirmations)
 	return text, corpus, pool, ChangeProposalRequest{
 		Corpus: corpus.ID, Acceptance: pool.Acceptance.ID, ModelDirectory: text.model, RunsDirectory: runs,
-		OutputDirectory: filepath.Join(text.root, "candidates"), MaximumSequence: pooledWindow,
+		OutputDirectory: filepath.Join(text.root, "candidates"),
 	}
 }
 
@@ -91,10 +91,14 @@ func pooledCorpus(t *testing.T) (registeredText, ChangeCorpus, evaluation.Heldou
 // of the candidate against the base, and the first past the budget is
 // refused. What is left is counted from the charges the store holds, so a
 // second handle on the store, as a process started again has, reads the same
-// balance and the same recorded verdict and charges nothing. A candidate
+// balance and the same recorded verdict and charges nothing. Neither that
+// verdict nor the refusal past the budget prepares a model or a document:
+// both are answered with the documents' files taken away. A candidate
 // whose directory holds other weights than its judgment ranked is refused,
 // and costs nothing; so is a proposal that names no pool, and a confirmation
-// that names no candidate.
+// that names no candidate. The documents are read as far as the pool's
+// acceptance fixed, by the proposal and by the confirmation alike: neither
+// request names a window of its own.
 func TestConfirmationIsChargedAndEntersNoChoice(t *testing.T) {
 	ctx := t.Context()
 	text, corpus, built, request := pooledCorpus(t)
@@ -102,7 +106,7 @@ func TestConfirmationIsChargedAndEntersNoChoice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	base, examples, err := poolExamples(ctx, text.store, corpus.Objective, text.model, request.MaximumSequence)
+	base, examples, err := poolExamples(ctx, text.store, pool.Acceptance, text.model)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,7 +193,7 @@ func TestConfirmationIsChargedAndEntersNoChoice(t *testing.T) {
 	confirm := func(store *overgodb.Store, candidate string) (evaluation.PoolConfirmation, uint64, error) {
 		return ConfirmChange(ctx, store, ChangeConfirmationRequest{
 			Judgment: judgment.ID, Candidate: candidate, ModelDirectory: request.ModelDirectory, RunsDirectory: request.RunsDirectory,
-			OutputDirectory: request.OutputDirectory, MaximumSequence: request.MaximumSequence,
+			OutputDirectory: request.OutputDirectory,
 		})
 	}
 	// said is what the promotion documents say of a candidate, read here apart from any confirmation.
@@ -257,6 +261,17 @@ func TestConfirmationIsChargedAndEntersNoChoice(t *testing.T) {
 	}
 	if _, _, err := confirm(text.store, past.Name); err == nil || !strings.Contains(err.Error(), "fresh partition") {
 		t.Fatalf("the confirmation past the budget, of %s = %v, want it refused until a fresh partition is published", past.Name, err)
+	}
+
+	// With the documents' files gone nothing can be prepared, and nothing needs
+	// to be: the models and the documents are prepared by a reading alone, and
+	// a confirmation recorded before, or one the budget cannot pay for, is
+	// answered below without one.
+	if err := os.Rename(filepath.Join(text.root, "corpus"), filepath.Join(text.root, "corpus-away")); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := poolExamples(ctx, text.store, pool.Acceptance, text.model); err == nil {
+		t.Fatal("the pool's documents were prepared with their files gone, so their absence holds nothing")
 	}
 
 	// A second handle replays the store's log, as a process started again does.

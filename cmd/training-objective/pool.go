@@ -23,8 +23,8 @@ import (
 // record show, which the output lists beside it with the pool's sizes, the
 // error rates, the confirmations the promotion part may answer and the
 // smallest gain it can show at that count.
-func buildPool(repository, alias string, gain float64, weightsText string, output io.Writer) error {
-	request := evaluation.HeldoutPoolRequest{Gain: gain}
+func buildPool(repository, alias string, gain float64, sequence uint64, weightsText string, output io.Writer) error {
+	request := evaluation.HeldoutPoolRequest{Gain: gain, Sequence: sequence}
 	for field := range strings.SplitSeq(weightsText, ",") {
 		name, value, _ := strings.Cut(strings.TrimSpace(field), "=")
 		weight, err := strconv.Atoi(value)
@@ -35,8 +35,8 @@ func buildPool(repository, alias string, gain float64, weightsText string, outpu
 	if slices.Contains(request.Weights[:], 0) {
 		return fmt.Errorf("training-objective: -pool-weights %q: want a positive weight for each of %s", weightsText, strings.Join(evaluation.PoolParts[:], ", "))
 	}
-	if gain <= 0 {
-		return fmt.Errorf("training-objective: -pool-gain is required: the gain the pool is sized to show, in standard deviations of the paired per-document difference")
+	if gain <= 0 || sequence == 0 {
+		return fmt.Errorf("training-objective: -pool-gain and -pool-seq are required: the gain the pool is sized to show, in standard deviations of the paired per-document difference, and the tokens each document is read as far as")
 	}
 	root, err := dataroot.StoreRoot(repository)
 	if err != nil {
@@ -64,12 +64,12 @@ func buildPool(repository, alias string, gain float64, weightsText string, outpu
 	}
 	acceptance := pool.Acceptance
 	_, err = fmt.Fprintf(output, "pool of objective %s over base %s\n"+
-		"%v documents in %v\n"+
+		"%v documents in %v, each read as far as %d tokens\n"+
 		"sized to show a gain of %.2f standard deviations of the paired difference; the verdicts on record show %.2f\n"+
 		"a gain that is not there is reported at most %.2f of the time over every confirmation, and a gain of that size is missed at most %.2f\n"+
 		"the promotion part answers %d confirmations, each passing a statistic of %.3f; the smallest gain it shows at that count is %.2f standard deviations; the audit part is read once\n"+
 		"split %s\nacceptance %s\n",
-		request.Objective.ID, request.Base, pool.Documents, evaluation.PoolParts, acceptance.Gain, recorded,
+		request.Objective.ID, request.Base, pool.Documents, evaluation.PoolParts, acceptance.Sequence, acceptance.Gain, recorded,
 		acceptance.FalseGain, acceptance.MissedGain, acceptance.Confirmations, acceptance.Critical, acceptance.SmallestGain(),
 		pool.Partition.ID, acceptance.ID)
 	return err

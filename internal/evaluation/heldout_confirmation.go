@@ -182,6 +182,9 @@ func ConfirmOnPool(ctx context.Context, store artifact.Repository, acceptanceID,
 		return PoolConfirmation{}, 0, errors.Join(errors.New("evaluation: a confirmation names its candidate and the acceptance it is judged by before it reads anything"), err)
 	}
 	acceptance := pool.Acceptance
+	if acceptance.Sequence == 0 {
+		return PoolConfirmation{}, 0, fmt.Errorf("evaluation: pool %s fixed no tokens to read each document as far as, so nothing is confirmed on it; build a pool that does", acceptance.ID)
+	}
 	promotion, err := partDocuments(ctx, store, pool.Partition.Promotion)
 	if err != nil || uint64(len(promotion)) != acceptance.Documents {
 		return PoolConfirmation{}, 0, errors.Join(fmt.Errorf("evaluation: the promotion part of pool %s holds %d documents and its acceptance was fixed for %d", acceptance.ID, len(promotion), acceptance.Documents), err)
@@ -210,6 +213,12 @@ func ConfirmOnPool(ctx context.Context, store artifact.Repository, acceptanceID,
 	if err != nil {
 		return PoolConfirmation{}, 0, err
 	}
+	// What other grants have charged for on these documents is spent here too.
+	earlier, err := exposure(ctx, store, pool.Partition, budget.ID, promotion)
+	if err != nil {
+		return PoolConfirmation{}, 0, err
+	}
+	remaining -= min(remaining, earlier)
 	if slices.ContainsFunc(charges, func(committed runrecord.BudgetCharge) bool { return committed.ID == charge.ID }) {
 		verdicts, err := store.Children(ctx, charge.ID)
 		if err != nil {
@@ -222,13 +231,13 @@ func ConfirmOnPool(ctx context.Context, store artifact.Repository, acceptanceID,
 		}
 	} else {
 		if remaining == 0 {
-			return PoolConfirmation{}, 0, fmt.Errorf("evaluation: the promotion part of pool %s has answered the %d confirmations its %d documents allow; a further one needs a fresh partition",
-				acceptance.ID, acceptance.Confirmations, acceptance.Documents)
+			return PoolConfirmation{}, 0, fmt.Errorf("evaluation: the promotion part of pool %s has answered the %d confirmations its %d documents allow, %d of them under other acceptances; a further one needs a fresh partition",
+				acceptance.ID, acceptance.Confirmations, acceptance.Documents, earlier)
 		}
-		// The key counts the charge. The store holds one content under a key,
-		// so of two confirmations that would each be the next, one is charged
-		// and the other is refused by the store.
-		batch, err := charge.Batch(fmt.Sprintf("%s%s/confirmation/%d", poolKey, acceptance.ID, len(charges)+1))
+		// The key counts the charge on the part, under whichever acceptance. The
+		// store holds one content under a key, so of two confirmations that would
+		// each be the next, one is charged and the other is refused by the store.
+		batch, err := charge.Batch(fmt.Sprintf("%s%s/confirmation/%d", poolKey, pool.Partition.Promotion, uint64(len(charges))+earlier+1))
 		if err != nil {
 			return PoolConfirmation{}, 0, err
 		}
@@ -261,6 +270,79 @@ func ConfirmOnPool(ctx context.Context, store artifact.Repository, acceptanceID,
 		return PoolConfirmation{}, 0, err
 	}
 	return confirmation, remaining, nil
+}
+
+// exposure counts the confirmations other grants have charged for on the
+// documents of a pool's promotion part. Such a grant is another acceptance's
+// on the part itself, or one on the promotion or audit part of another
+// partition of the pool's dataset, that
+// holds one of the part's documents by record or by content. So an acceptance
+// replaced, in its gain, its basis, its window, its base or its partition, is
+// charged what its documents have answered, and only documents no grant has
+// charged for start a budget whole. A charge stays with the grant it was made
+// against.
+func exposure(ctx context.Context, reader artifact.Reader, partition runrecord.SplitPartition, own artifact.ID, promotion []string) (uint64, error) {
+	contents, err := recordContents(ctx, reader, partition.Dataset)
+	if err != nil {
+		return 0, err
+	}
+	held := map[string]bool{}
+	for _, record := range promotion {
+		held[record], held[contents[record]] = true, true
+	}
+	delete(held, "")
+	partitions, err := reader.Children(ctx, partition.Dataset)
+	if err != nil {
+		return 0, err
+	}
+	var spent uint64
+	counted := map[artifact.ID]bool{own: true}
+	for _, edge := range partitions {
+		if descriptor, _, err := reader.Artifact(ctx, edge.Child); err != nil {
+			return 0, err
+		} else if descriptor.MediaType != runrecord.SplitPartitionMediaType {
+			continue
+		}
+		content, _, err := artifact.ReadContent(ctx, reader, edge.Child)
+		if err != nil {
+			return 0, err
+		}
+		other, err := runrecord.ParseSplitPartition(content.Data)
+		if err != nil {
+			return 0, err
+		}
+		for _, shard := range []artifact.ID{other.Promotion, other.Audit} {
+			documents, err := partDocuments(ctx, reader, shard)
+			if err != nil {
+				return 0, err
+			}
+			if !slices.ContainsFunc(documents, func(record string) bool { return held[record] || held[contents[record]] }) {
+				continue
+			}
+			grants, err := reader.Children(ctx, shard)
+			if err != nil {
+				return 0, err
+			}
+			for _, grant := range grants {
+				if descriptor, _, err := reader.Artifact(ctx, grant.Child); err != nil {
+					return 0, err
+				} else if descriptor.MediaType != runrecord.BudgetMediaType || counted[grant.Child] {
+					continue
+				}
+				counted[grant.Child] = true
+				budget, charges, err := runrecord.BudgetCharges(ctx, reader, grant.Child)
+				if err != nil {
+					return 0, err
+				}
+				for _, charge := range charges {
+					if budget.Unit == poolUnit {
+						spent += charge.Amount
+					}
+				}
+			}
+		}
+	}
+	return spent, nil
 }
 
 // poolVerdict reads a confirmation from the measure's paired differences, one

@@ -115,7 +115,7 @@ func TestHeldOutPoolIsSizedForItsDeclaredGain(t *testing.T) {
 	ctx := t.Context()
 	store, objective, training, heldout := poolObjective(t)
 	request := HeldoutPoolRequest{
-		Objective: objective, Base: testutil.ArtifactID(t, artifact.KindModel, "pool fixture base"), Gain: 0.5,
+		Objective: objective, Base: testutil.ArtifactID(t, artifact.KindModel, "pool fixture base"), Gain: 0.5, Sequence: 8,
 		Basis: []artifact.ID{testutil.ArtifactID(t, artifact.KindEvaluation, "pool fixture verdict")}, Weights: [poolPartCount]uint64{1, 2, 6, 2},
 	}
 	pool, err := BuildHeldoutPool(ctx, store, request)

@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "confirmation-integrity",
-      "title": "Bind confirmation to its protocol and preserve cumulative exposure",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 470,
-        "reason": "Filed with no allowance: the repair was to be absorbed by the existing acceptance, confirmation, budget and content-group owners, its net change measured before it was allowed any, and a separate allowance obtained if they could not absorb it. The step's preflight counted 454 production nodes on 2026-10-10, with the two requests' own sequence lengths already deleted. About 300 are one function in internal/evaluation, the count of what a promotion part's documents have answered under other grants: the partitions of the pool's dataset, each one's promotion and audit part compared with the part by record and by content, the grants on a part that shares a document, and their charges. The rest are the window in the acceptance and in the pool request with its refusals in the builder, in the confirmation and in the proposal's reading; the charge's key counted over the part; and the two commands' flag and refusal. The preparation moved into the reading added nothing. No owner was added, and none had nodes to give back: the accounting across grants did not exist. The allowance is the lead's recommendation, taken under the owner's instruction of 2026-10-10 not to wait for a decision."
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Repair SQA-110 before any replacement acceptance is published",
-          "status": "open",
-          "verify": "go test ./internal/evaluation ./internal/trainingworkflow -count=1 -run '^TestConfirmation(ProtocolAndExposureSurviveReplacement|IsChargedAndEntersNoChoice|IsChargedBeforeThePromotionPartIsRead)$'",
-          "rationale": "First reproduce the existing SQA-110 counterexamples using the current pool and confirmation fixtures: change effective sequence/window or tokenization settings; then change Gain, Basis or acceptance version while retaining the same promotion content. Record the current callback counts and exposure behavior. This is a repair in the existing acceptance, confirmation, budget and content-group owners, not a new accounting subsystem.\n\nBind the effective objective, outcome/scorer version, tokenizer and template identities, sequence/window policy, generation settings and output limits into acceptance and its selection/confirmation identities. Confirmation derives these settings from acceptance or rejects a mismatch before preparing or reading a model. Distinguish candidate weights and the comparison's baseline in the comparison identity so a verdict against one baseline cannot satisfy a claim against another.\n\nPreserve cumulative exposure and applicable charges when an acceptance is replaced or versioned, including reused documents, identical content under new ids and declared related-case groups. Never obtain a fresh budget merely by changing Gain, Basis, partition naming or record version. Existing charges remain attributable to their original protocol and comparison; any incompatible exposure is treated conservatively rather than erased. Keep historical readers and verdict provenance.\n\nPlace model and document preparation inside the existing funded, unread confirmation callback. An exact retry returns its stored verdict without preparation; an exhausted request prepares nothing; an interrupted charged read resumes the same obligation. Seed failures for each reset and mismatch, including reopen and crash/retry, and prove the existing lifecycle owner catches them.\n\nAccepted when protocol mismatches are refused, replacement acceptances cannot replenish consumed exposure, each named comparison is charged before its first read, and callback counts show zero preparation for completed or exhausted requests and one for a funded unread comparison. No growth allowance is assigned to this repair; measure its net change before implementation and obtain a separate allowance if the existing owners cannot absorb it.\n\nServes: judge and activate from valid evidence.\nDisappears: independent confirmation settings, acceptance-local exposure reset, and model preparation before funding checks.\nEvidence: SQA-110 counterexamples, replacement/reopen lifecycle cases, comparison identities and callback counts.\nBatch: host; no real-model run is required to prove the repair. Confirm affected lanes and inference-surface reach from the diff."
-        }
-      ]
-    },
-    {
       "id": "instruction-verdicts",
       "title": "Confirm instruction-following gains under a frozen binary-outcome contract",
       "owner": "master-lead",

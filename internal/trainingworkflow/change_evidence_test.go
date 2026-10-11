@@ -154,7 +154,7 @@ func TestEvidenceConditionedProposalIsCompared(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	base, examples, err := poolExamples(ctx, text.store, corpus.Objective, text.model, request.MaximumSequence)
+	base, examples, err := poolExamples(ctx, text.store, pool.Acceptance, text.model)
 	if err != nil {
 		t.Fatal(err)
 	}

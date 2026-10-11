@@ -90,8 +90,14 @@ func RecordWholeOutput(ctx context.Context, store artifact.Repository, attempt W
 // failure rate counts, and parks a failed one as an open finding that cites
 // it and its recipe: a failure a user met becomes the loop's work beside the
 // scorecard's gaps. It returns the published observation even when the
-// finding could not be parked.
+// finding could not be parked. An attempt whose run is bound to an
+// environment is recorded under that one, where the work was done, and not
+// the recorder's own, where it was only watched from; an attempt with no
+// run, or a run that names none, keeps the recorder's.
 func Record(ctx context.Context, store artifact.Repository, observation runrecord.ServingObservation) (runrecord.ServingObservation, error) {
+	if run, err := runrecord.RequireRun(ctx, store, observation.Run); err == nil && run.Environment.Valid() {
+		observation.Environment = run.Environment
+	}
 	published, err := runrecord.PublishServingObservation(ctx, store, observation)
 	if err != nil || published.Outcome != runrecord.OutcomeFailed {
 		return published, err

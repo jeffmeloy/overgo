@@ -227,6 +227,11 @@ func testAudioTranscriptionsNative(t *testing.T) {
 		if err != nil || observation.Operation != status.ID || observation.Model != fixture.workspace.program.Definition().Model || observation.Recipe != run.Recipe || observation.Run != run.ID {
 			t.Fatalf("wrong serving model/run: %+v err=%v", observation, err)
 		}
+		// The handler was opened with no environment of its own, so it observes under the process's; the run is
+		// bound to the host's, and the attempt is recorded under the one that made it.
+		if observation.Environment != run.Environment {
+			t.Fatalf("the attempt is under environment %s, want %s, the one its run is bound to", observation.Environment, run.Environment)
+		}
 	}
 	if snapshot := fixture.workspace.sessions.Snapshot(); snapshot.Loads != 1 || snapshot.Active != 0 {
 		t.Fatalf("resident model not reused or lease leaked: %+v", snapshot)

@@ -363,7 +363,7 @@
      "contains": "func TestAudioTranscriptionsAcceptance(",
      "path": "internal/server/audio_transcriptions_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:dc6f35e40cda698fd1a93b837cc23a2240e9a2b7b19d90876091781a8b06608e"
+     "identity": "evidence:sha256:f90608062d519293c03346f2d91983b4adf9158b3e389d044bcc52596c758bc7"
     }
    ],
    "id": "openai-audio-transcriptions",

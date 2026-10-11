@@ -104,17 +104,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 47,
+        "nodes": 0,
         "reason": "What the row may still add. Set on 2026-10-11 to what its one adding step, attempt-attribution, was counted at in its own checkout, by the count of syntax nodes the automated checks take. Four steps remove 10, 13, 14 and 86 and add none; two change tests alone."
       },
       "steps": [
-        {
-          "id": "attempt-attribution",
-          "title": "Record a served attempt under the run its executor made and under the environment that run is bound to",
-          "status": "open",
-          "verify": "go test ./internal/server -count=1 -run '^(TestGenerationAttemptCitesTheRunItsExecutorMade|TestAudioTranscriptionsAcceptance)$'",
-          "rationale": "Reviewer finding SQA-053, second severity, its two attribution legs, confirmed by reading (docs/sqa_findings.json, not in the repository). A served generation's attempt cited the workspace's own run and never the run its executor reported, so a failure cited a stand-in; and an attempt was recorded under the environment of whoever recorded it, where the run it cites may be bound to another. Closure: the attempt cites the executor's run where it reported one, and is recorded under the environment its run is bound to. A served transcription's attempts then stand under the host environment its runs name, so their comparison with a reference recorded before reads as unknown until a reference is published after. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader and then by the lead, in a checkout of the step's own, before this row was filed. The register stays the reviewer's and is not edited here.\n\nServes: failure-rate, and every serving cell's attribution. Evidence: the tests. Batch: browser; the commit runs the browser tests, since the server package is under them."
-        },
         {
           "id": "decline-by-reference-spread",
           "title": "Judge a serving cell's decline by its reference's spread and environment, so its own spread neither hides nor restores it",

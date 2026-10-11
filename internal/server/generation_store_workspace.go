@@ -254,6 +254,10 @@ const generationFailure = "generation_failed"
 // counts. The output is already made or refused, so a record the store
 // refuses fails nothing.
 func (workspace *storeGenerationWorkspace) observe(ctx context.Context, model, recipeID, run artifact.ID, task recipe.Task, started time.Time, wall time.Duration, measured capabilityruntime.Measured, cause error) {
+	// The run the executor recorded is the one that made the attempt; the workspace's stands in where it reported none.
+	if measured.Run.Valid() {
+		run = measured.Run
+	}
 	_ = servingattempt.RecordWholeOutput(context.WithoutCancel(ctx), workspace.store, servingattempt.WholeOutput{
 		Model: model, Recipe: recipeID, Run: run, Task: task, Started: started, Wall: wall,
 		Load: measured.Load, Decode: measured.Decode, OutputTokens: measured.OutputTokens,

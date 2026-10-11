@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testutil"
 )
 
 // TestGenerationRunPublishesServingObservation runs one image generation
@@ -87,6 +89,120 @@ func TestGenerationRunPublishesServingObservation(t *testing.T) {
 	}
 	if outcomes[runrecord.OutcomeSucceeded] != 1 || outcomes[runrecord.OutcomeFailed] != 1 || len(outcomes) != 2 {
 		t.Fatalf("observed outcomes %v, want one success and one failure", outcomes)
+	}
+}
+
+// TestGenerationAttemptCitesTheRunItsExecutorMade runs three image
+// generations through the store generation workspace: one whose executor
+// reports a run bound to a device environment, one whose executor reports no
+// run, and one whose executor fails having recorded its own failed run. It
+// holds each attempt to the run and the environment that made it: the
+// executor's run under that run's environment where one was reported, the
+// workspace's own run under this process's environment where none was, and
+// the executor's failed run for the failure. The operation's receipt stays
+// the workspace's run each time, since that is the run that cites what the
+// page published.
+func TestGenerationAttemptCitesTheRunItsExecutorMade(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	modelID := activatedImageModel(t, store)
+	activation, found, err := modelrecipe.ActiveRecord(ctx, store, modelID, recipe.TaskImageGen)
+	if err != nil || !found {
+		t.Fatalf("activation = (%v, %v)", found, err)
+	}
+	recipeID := activation.Definition.ID
+	// The executor's run is bound to an environment that is not this
+	// process's, so an attempt recorded under the observer's own environment
+	// cannot pass for one recorded under its run's.
+	device := testutil.ArtifactID(t, artifact.KindEvidence, "executor-environment")
+	made := testutil.ArtifactID(t, artifact.KindOutput, "executor-output")
+	if _, err := store.Commit(ctx, artifact.Batch{Key: "fixture/executor/facts", Artifacts: []artifact.Descriptor{{ID: device}, {ID: made}}}); err != nil {
+		t.Fatal(err)
+	}
+	inner, err := runrecord.NewBoundRun(recipeID, runrecord.OutcomeSucceeded, nil, []artifact.ID{made}, "", strings.Repeat("ab", 20), device, 1, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The executor's failure code is not the workspace's, so the two failed
+	// runs are different records.
+	refused, err := runrecord.NewRun(recipeID, runrecord.OutcomeFailed, nil, nil, "executor_refused")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, run := range map[string]runrecord.Run{"fixture/executor/run": inner, "fixture/executor/refused": refused} {
+		batch, err := run.Batch(key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := store.Commit(ctx, batch); err != nil {
+			t.Fatal(err)
+		}
+	}
+	process, err := runrecord.CurrentEnvironment("process", "go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog := map[recipe.Task]mediacapability.Capability{recipe.TaskImageGen: {
+		Execute: func(_ context.Context, _ artifact.Repository, _ string, _ modelrecipe.CapabilityEvidenceSelection, raw string) (any, error) {
+			switch raw {
+			case `{"class":1}`:
+				return capabilityruntime.Measured{Output: tinyPNG(t), Run: inner.ID}, nil
+			case `{"class":2}`:
+				return capabilityruntime.Measured{Output: tinyPNG(t)}, nil
+			}
+			return capabilityruntime.Measured{Run: refused.ID}, errors.New("the model refused the class")
+		},
+	}}
+	workspace := NewStoreGenerationWorkspace(store, BindGenerationCatalog(catalog, mediacapability.Controls, mediacapability.OutputContent), 16)
+	capabilities, err := workspace.WorkflowCapabilities(ctx, workflowGeneration)
+	if err != nil || len(capabilities) != 1 {
+		t.Fatalf("capabilities = %+v, %v", capabilities, err)
+	}
+	// attempt runs one request and returns its receipt beside the one
+	// attempt it added to the store.
+	attempts := 0
+	attempt := func(raw string, wantErr bool) (artifact.ID, runrecord.ServingObservation) {
+		t.Helper()
+		completion, err := workspace.ExecuteWorkflow(ctx, workflowGeneration, capabilities[0], json.RawMessage(raw), &recordingReporter{})
+		if (err != nil) != wantErr || completion.Run.Kind() != artifact.KindRun {
+			t.Fatalf("request %s completed as %+v with error %v", raw, completion, err)
+		}
+		attempts++
+		observed := storedServingObservations(t, store)
+		if len(observed) != attempts {
+			t.Fatalf("request %s left %d attempts in the store, want %d", raw, len(observed), attempts)
+		}
+		return completion.Run, observed[attempts-1]
+	}
+
+	// Each check reports and the test goes on, so one run shows every part
+	// of the attribution that is wrong.
+	receipt, observed := attempt(`{"class":1}`, false)
+	if observed.Run != inner.ID || receipt == inner.ID {
+		t.Errorf("the attempt cites run %s beside the receipt %s, want the executor's run %s and the workspace's own receipt", observed.Run, receipt, inner.ID)
+	}
+	if observed.Environment != device {
+		t.Errorf("the attempt is under environment %s, want %s, the one its run is bound to", observed.Environment, device)
+	}
+
+	receipt, observed = attempt(`{"class":2}`, false)
+	if observed.Run != receipt || observed.Environment != process.ID {
+		t.Errorf("an executor that reported no run left an attempt citing %s under %s, want the workspace's run %s under this process's environment %s",
+			observed.Run, observed.Environment, receipt, process.ID)
+	}
+
+	receipt, observed = attempt(`{"class":3}`, true)
+	if observed.Outcome != runrecord.OutcomeFailed || observed.Run != refused.ID || receipt == refused.ID {
+		t.Errorf("the failed attempt is %s citing run %s beside the receipt %s, want a failure citing the executor's failed run %s and the workspace's own receipt",
+			observed.Outcome, observed.Run, receipt, refused.ID)
+	}
+	if observed.Environment != process.ID {
+		t.Errorf("the failed attempt is under environment %s, want this process's %s: its run names none", observed.Environment, process.ID)
 	}
 }
 

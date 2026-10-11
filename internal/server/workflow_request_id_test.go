@@ -123,8 +123,14 @@ func mustJSON(t *testing.T, value any) string {
 }
 
 // TestRunLedgerForgetsAFailureAndTheOldest checks a submission that failed may be
-// numbered again, and that the ledger holds a bounded number of submissions, the
-// newest.
+// numbered again, and that the ledger holds a bounded number of finished
+// submissions, the newest, and every unfinished one.
+//
+// A submission that is still being submitted keeps its key however many
+// others finish after it: a repeat of it waits on the same entry and starts
+// none of its own, and its key under another fingerprint is still another
+// submission's. Once it has finished it is forgotten in its turn, the oldest
+// of the finished, and the ledger is back within its capacity.
 func TestRunLedgerForgetsAFailureAndTheOldest(t *testing.T) {
 	t.Parallel()
 	var ledger runLedger
@@ -138,15 +144,28 @@ func TestRunLedgerForgetsAFailureAndTheOldest(t *testing.T) {
 		t.Fatalf("second claim = (owner %t, same entry %t, %v), want to wait on the first", owner, waiting == entry, err)
 	}
 	ledger.finish("a", entry, artifact.ID{}, errors.New("refused"))
-	if _, owner, err := ledger.begin("a", fingerprint); err != nil || !owner {
+	unfinished, owner, err := ledger.begin("a", fingerprint)
+	if err != nil || !owner {
 		t.Fatalf("after a failed submission, a claim = (owner %t, %v), want to own it again", owner, err)
 	}
-	for index := range ledgerCapacity {
-		other, _, _ := ledger.begin(fmt.Sprintf("n%d", index), fingerprint)
-		ledger.finish(fmt.Sprintf("n%d", index), other, artifact.ID{}, nil)
+	// finished submits and finishes so many others, each under its own key.
+	finished := func(prefix string, count int) {
+		for index := range count {
+			other, _, _ := ledger.begin(fmt.Sprintf("%s%d", prefix, index), fingerprint)
+			ledger.finish(fmt.Sprintf("%s%d", prefix, index), other, artifact.ID{}, nil)
+		}
 	}
-	if _, owner, _ := ledger.begin("a", fingerprint); !owner {
-		t.Fatal("the oldest submission is still held after the ledger's capacity was exceeded")
+	finished("n", ledgerCapacity)
+	if repeated, owner, err := ledger.begin("a", fingerprint); err != nil || owner || repeated != unfinished {
+		t.Fatalf("a repeat of a submission still being submitted, after %d others finished = (owner %t, same entry %t, %v); want it to wait on the first and start none of its own", ledgerCapacity, owner, repeated == unfinished, err)
+	}
+	if _, _, err := ledger.begin("a", [32]byte{2}); !errors.Is(err, errRequestIDReused) {
+		t.Fatalf("the unfinished submission's key under another fingerprint = %v, want it refused as another submission's", err)
+	}
+	ledger.finish("a", unfinished, artifact.ID{}, nil)
+	finished("m", ledgerCapacity)
+	if _, owner, _ := ledger.begin("a", fingerprint); !owner || len(ledger.entries) > ledgerCapacity+1 || len(ledger.order) != len(ledger.entries) {
+		t.Fatalf("once finished, the oldest submission is owned again %t with %d entries in an order of %d; want it forgotten in its turn and the ledger within its capacity of %d and the one being claimed", owner, len(ledger.entries), len(ledger.order), ledgerCapacity)
 	}
 }
 

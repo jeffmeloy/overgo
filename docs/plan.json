@@ -9,17 +9,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 37,
+        "nodes": 0,
         "reason": "What the row may still add. Set on 2026-10-11 to the 105 nodes the automated checks count its first two steps at, both built and neither yet committed: 37 for the ledger forgetting only finished submissions, and 68 for a shutdown that goes on from where a cancelled one stopped and ends beside another as that one ends, each with the comment that says why. Each later step is sized by its own preflight when it is built."
       },
       "steps": [
-        {
-          "id": "request-owner",
-          "title": "Keep an unfinished submission the owner of its request id",
-          "status": "open",
-          "verify": "go test ./internal/server -count=1 -run '^TestRunLedgerForgetsAFailureAndTheOldest$'",
-          "rationale": "Reviewer finding SQA-098, second severity, confirmed by reading (docs/sqa_findings.json, not in the repository). The run ledger drops its oldest key once it holds more than 256, even while that key's submission is unfinished, and its test expects the unfinished one to own its id again after 256 later submissions: a retry can then run twice before the first completes. Closure: a blocked submission stays the one owner and waiter after 256 completed others; once it completes, completed results are still dropped within the bound; a failure, a panic, another fingerprint and a waiter's cancellation end as they do now. The step first writes the test that fails for the finding's own counterexample, then repairs, as the reviewer's closure asks; a finding that does not reproduce is said so and closed with what was tried. The register stays the reviewer's and is not edited here. The row has no count: each step is sized by a preflight when it is dispatched.\n\nServes: serve. Evidence: the test. Batch: host."
-        },
         {
           "id": "picture-timestep",
           "title": "Honour a changed timestep scale when a picture session is reused",

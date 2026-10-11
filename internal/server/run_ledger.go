@@ -13,9 +13,10 @@ import (
 )
 
 const (
-	// ledgerCapacity is how many numbered submissions the server remembers: a
-	// retry comes seconds after the request it repeats, so the recent ones are
-	// the ones asked for.
+	// ledgerCapacity is how many finished numbered submissions the server
+	// remembers: a retry comes seconds after the request it repeats, so the
+	// recent ones are the ones asked for. A submission that has not finished
+	// is remembered until it has.
 	ledgerCapacity = 256
 	// maxRequestIDLength bounds the id a client numbers a submission with.
 	maxRequestIDLength = 64
@@ -95,9 +96,20 @@ func (ledger *runLedger) begin(key string, fingerprint [sha256.Size]byte) (entry
 	entry = &ledgerEntry{fingerprint: fingerprint, done: make(chan struct{})}
 	ledger.entries[key] = entry
 	ledger.order = append(ledger.order, key)
-	if len(ledger.order) > ledgerCapacity {
-		delete(ledger.entries, ledger.order[0])
-		ledger.order = ledger.order[1:]
+	// Over its capacity the ledger forgets the oldest submissions that have
+	// finished. One still being submitted keeps its key however old it is: a
+	// repeat of it must find it and wait, where a forgotten key would start
+	// the submission a second time beside the first. Unfinished submissions
+	// are as many as are in flight, so the ledger is over its capacity by no
+	// more than those.
+	for at := 0; len(ledger.order) > ledgerCapacity && at < len(ledger.order); {
+		select {
+		case <-ledger.entries[ledger.order[at]].done:
+			delete(ledger.entries, ledger.order[at])
+			ledger.order = slices.Delete(ledger.order, at, at+1)
+		default:
+			at++
+		}
 	}
 	return entry, true, nil
 }

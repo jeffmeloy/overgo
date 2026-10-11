@@ -402,7 +402,11 @@ func testGRPOResume(t *testing.T) {
 // stream past both; and the same two units as one session, its checkpoint,
 // and a second session resumed from it end at the same weights, the same
 // optimizer step and the same place in the stream, however the stream
-// orders the two. A request that names an objective scale is refused.
+// orders the two. A request that names an objective scale is refused. A
+// session not held to the host goes to the device trainer the request
+// carries, the step fine-tuning takes: each answer's completion weighed by
+// its standing, the tied group at zero, the stepped group observed and the
+// other counted; and with no device trainer it is refused.
 func TestRewardSessionPassesATiedGroupAcrossACheckpoint(t *testing.T) {
 	weights, shapes := testutil.DenseCausalWeights(t, testutil.DenseCausalSpec{
 		Vocab: 8, Hidden: 8, Heads: 2, HeadDim: 4, KVHeads: 1, Intermediate: 16, Layers: 1, Seed: 13,
@@ -440,6 +444,63 @@ func TestRewardSessionPassesATiedGroupAcrossACheckpoint(t *testing.T) {
 			len(result.GRPO), result.Checkpoint.Optimizer.Step, result.Skipped, result.StreamPosition)
 	}
 	verifyWorkflowResume(t, root, request)
+
+	// Not on the host, the same session goes to the device's weighted step:
+	// each answer one sequence, its completion weighed by its standing, the
+	// better answer's loss positively and the worse negatively, and the tied
+	// group all zeros. The device here is a stand-in that steps the optimizer
+	// once for a group it is to learn from and says what it passed.
+	var handed [][]densecausal.WeightedSequence
+	device := func(model *densecausal.Model, groups [][]densecausal.WeightedSequence, learningRate, momentum float64, _ bool, resume *densecausal.TrainState, _ densecausal.TrainObserver) ([]float64, int, densecausal.TrainState, error) {
+		handed = groups
+		update, err := model.NewDenseUpdate(learningRate, momentum, resume)
+		if err != nil {
+			return nil, 0, densecausal.TrainState{}, err
+		}
+		var losses []float64
+		skipped := 0
+		for _, group := range groups {
+			if !slices.ContainsFunc(group, func(sequence densecausal.WeightedSequence) bool {
+				return slices.ContainsFunc(sequence.Weights, func(weight float32) bool { return weight != 0 })
+			}) {
+				skipped++
+				continue
+			}
+			update.Step()
+			losses = append(losses, 0.25)
+		}
+		return losses, skipped, update.Snapshot(), nil
+	}
+	resident := request
+	resident.Host, resident.Device, resident.Steps, resident.OutputDirectory = false, device, 2, filepath.Join(root, "device")
+	onDevice, err := Execute(t.Context(), resident)
+	if err != nil {
+		t.Fatal(err)
+	}
+	signs := map[bool]int{}
+	for _, group := range handed {
+		for _, sequence := range group {
+			last := sequence.Weights[len(sequence.Weights)-1]
+			if len(sequence.Weights) != len(sequence.Tokens)-1 || slices.ContainsFunc(sequence.Weights[:len(sequence.Weights)-1], func(weight float32) bool { return weight != 0 }) {
+				t.Fatalf("a reward answer reached the device as %d tokens with weights %v, want a weight on its completion alone", len(sequence.Tokens), sequence.Weights)
+			}
+			if last != 0 {
+				signs[last > 0]++
+			}
+		}
+	}
+	if len(handed) != 2 || signs[true] != 1 || signs[false] != 1 {
+		t.Fatalf("the device was handed %d groups with %d answers weighed up and %d down, want two groups, one answer each way and the tied group at zero", len(handed), signs[true], signs[false])
+	}
+	if observed := onDevice.GRPO; onDevice.Backend != "cuda" || onDevice.Skipped != 1 || onDevice.StreamPosition != 2 || onDevice.Checkpoint.Optimizer.Step != 1 || len(observed) != 1 ||
+		observed[0].Step != 1 || observed[0].Loss != 0.25 || !(observed[0].LearningRate > 0) || observed[0].GroupSize != 2 || observed[0].CompletionTokens != 2 || observed[0].RewardDispersion != 1 || !observed[0].Valid() {
+		t.Fatalf("the reward session on the device = backend %q, %d skipped, position %d, step %d, observations %+v; want one group stepped and observed with its step, rate and rewards, and one skipped",
+			onDevice.Backend, onDevice.Skipped, onDevice.StreamPosition, onDevice.Checkpoint.Optimizer.Step, observed)
+	}
+	resident.Device, resident.OutputDirectory = nil, filepath.Join(root, "no-device")
+	if _, err := Execute(t.Context(), resident); err == nil || !strings.Contains(err.Error(), "device trainer") {
+		t.Fatalf("a reward session off the host with no device trainer = %v, want it refused", err)
+	}
 }
 
 func verifyWorkflowResume(t *testing.T, root string, request Request, prepareResume ...func(*testing.T, string, trainingprogram.Checkpoint) trainingprogram.Checkpoint) {

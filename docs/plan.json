@@ -9,20 +9,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 4724,
+        "nodes": 3252,
         "reason": "Original filed estimate, retained unchanged: planB.json assigned 5,600 production nodes to reward-training on 2026-10-10, estimated from the pool (2,358), confirmation (2,473) and answer-record (1,103) rows less displaced reward code. These are source-proposal figures, not measurements of the revised implementation. Proposed initial allowance remains 5,600 net production nodes across all landings. Report actual per-landing and cumulative growth, including the new machinery's cost and deletions, against the filed estimate and allowance. Any increase requires a separate prospective plan amendment; final size never overwrites the forecast."
       },
       "steps": [
-        {
-          "id": "weighted-step",
-          "title": "Share one resident weighted token-prediction gradient step",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/densecausaltrain -count=1 -run '^TestOneWeightedStepServesFineTuningAndRewards$'",
-          "rationale": "First measure the resident fine-tuning step and the host reward step on the same controlled cases: gradients, optimizer state, memory, transfers and elapsed time. Extend the existing trainer now; do not wait for or build the general backward graph in this row.\n\nThe device step accepts per-sequence signed weights and explicit token masks. Preserve existing fine-tuning exactly when weights, masks and normalization match its current contract. Ranked weights train from rewards. Passing-answer weights with the declared normalization provide the self-fine-tuning control. Specify token-sum versus token-mean reduction, sequence normalization, descent sign and treatment of empty, truncated and zero-weight answers so no hidden length weighting enters.\n\nKeep optimizer arithmetic and persistent state on the device; only scalar observations cross during training. Test the three uses against the existing host/reference calculations within the trainer's declared tolerance, include a small float64 directional gradient check for signed weights, and require the existing all-one fine-tuning route to retain its prior bytes under the same execution contract. Pin true no-op behavior for fully tied or otherwise all-zero groups.\n\nProve resume from the same objective/protocol gives the uninterrupted result. Reject incompatible old momentum under the new objective identity. Delete the displaced production host reward step and migrate its callers in this landing; retain only reference fixtures needed for verification and historical record readers. Count new machinery, tests and deletions separately.\n\nServes: fine-tune and train from rewards through one numerical owner.\nDisappears: the separate production host reward update and duplicated caller wiring.\nEvidence: signed-gradient checks, three-way parity, unchanged fine-tuning, device state/transfer costs and resume equivalence.\nBatch: small device and affected training proofs; no real-model sweep in the landing gate.",
-          "depends_on": [
-            "reward-training/ranked-loss"
-          ]
-        },
         {
           "id": "producer",
           "title": "Sample, score and update reproducible groups under current weights",

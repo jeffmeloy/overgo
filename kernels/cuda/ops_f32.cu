@@ -713,6 +713,41 @@ extern "C" __global__ void softmax_ce_grad_rows_f32(
 	values[target] -= scale;
 }
 
+// softmax_ce_grad_scaled_rows_f32: softmax_ce_grad_rows_f32 with a scale for
+// each row in place of one for all. A row's loss and its dLogits are those of
+// the next-token CE times the row's scale, which may be negative or zero: a
+// row scaled by zero contributes nothing, and rows that share a scale give the
+// arithmetic softmax_ce_grad_rows_f32 gives at that scale.
+extern "C" __global__ void softmax_ce_grad_scaled_rows_f32(
+		float * logits,
+		const unsigned int * targets,
+		const float * scales,
+		float * losses,
+		unsigned int rows,
+		unsigned int columns) {
+	const unsigned int row = blockIdx.x * blockDim.x + threadIdx.x;
+	if (row >= rows) {
+		return;
+	}
+	const float scale = scales[row];
+	float * values = logits + (size_t) row * columns;
+	float maximum = -3.402823466e+38F;
+	for (unsigned int column = 0; column < columns; ++column) {
+		maximum = fmaxf(maximum, values[column]);
+	}
+	float sum = 0.0F;
+	for (unsigned int column = 0; column < columns; ++column) {
+		sum += expf(values[column] - maximum);
+	}
+	const unsigned int target = targets[row];
+	losses[row] = (logf(sum) + maximum - values[target]) * scale;
+	const float inverse = scale / sum;
+	for (unsigned int column = 0; column < columns; ++column) {
+		values[column] = expf(values[column] - maximum) * inverse;
+	}
+	values[target] -= scale;
+}
+
 // softmax_backward_f32: VJP of a row-wise softmax. Given the softmax output p
 // and its cotangent dp, ds_i = p_i*(dp_i - sum_j p_j*dp_j). One thread per row.
 extern "C" __global__ void softmax_backward_f32(

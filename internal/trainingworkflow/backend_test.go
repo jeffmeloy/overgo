@@ -19,9 +19,18 @@ import (
 func TestTextRunOnTheDeviceReachesTheDeviceTrainer(t *testing.T) {
 	text := registerTextObjective(t, averageDocuments(), trainingprogram.MetricTokenAccuracy)
 	reached := 0
-	device := func(model *densecausal.Model, batches [][]int, learningRate, momentum float64, _ bool, resume *densecausal.TrainState, observe densecausal.TrainObserver) ([]float64, densecausal.TrainState, error) {
+	device := func(model *densecausal.Model, groups [][]densecausal.WeightedSequence, learningRate, momentum float64, _ bool, resume *densecausal.TrainState, observe densecausal.TrainObserver) ([]float64, int, densecausal.TrainState, error) {
 		reached++
-		return model.TrainWith(batches, learningRate, momentum, resume, observe, densecausal.TrainOptions{})
+		// A text run hands the device each batch as a group of one sequence weighed by its mean.
+		batches := make([][]int, len(groups))
+		for index, group := range groups {
+			if len(group) != 1 || group[0].Weights != nil {
+				t.Errorf("batch %d reached the device as %d sequences with weights %v", index, len(group), group[0].Weights)
+			}
+			batches[index] = group[0].Tokens
+		}
+		losses, state, err := model.TrainWith(batches, learningRate, momentum, resume, observe, densecausal.TrainOptions{})
+		return losses, 0, state, err
 	}
 	result, err := RunTextHeldout(t.Context(), text.store, TextHeldoutRequest{
 		Alias: text.alias, ModelDirectory: text.model, OutputDirectory: filepath.Join(text.root, "device"), Steps: 4, Device: device,
@@ -38,8 +47,8 @@ func TestTextRunOnTheDeviceReachesTheDeviceTrainer(t *testing.T) {
 // text run passes) trains on the device as it did.
 func TestDeviceRunRefusesWhatOnlyTheHostTrains(t *testing.T) {
 	t.Parallel()
-	device := func(*densecausal.Model, [][]int, float64, float64, bool, *densecausal.TrainState, densecausal.TrainObserver) ([]float64, densecausal.TrainState, error) {
-		return []float64{1}, densecausal.TrainState{}, nil
+	device := func(*densecausal.Model, [][]densecausal.WeightedSequence, float64, float64, bool, *densecausal.TrainState, densecausal.TrainObserver) ([]float64, int, densecausal.TrainState, error) {
+		return []float64{1}, 0, densecausal.TrainState{}, nil
 	}
 	callback := func(int, densecausal.TrainState, *optimizer.Average) error { return nil }
 	average, err := optimizer.NewAverage([]float32{1, 2}, 0.9)

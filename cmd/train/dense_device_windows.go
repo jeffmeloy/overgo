@@ -13,19 +13,19 @@ import (
 func init() { denseDevice = trainDenseResident }
 
 // trainDenseResident trains the workflow's dense-causal model resident on
-// the first device, refusing a model the resident backend cannot serve
-// before it opens the device.
-func trainDenseResident(model *densecausal.Model, batches [][]int, learningRate, momentum float64, freezeLexical bool, resume *densecausal.TrainState, observe densecausal.TrainObserver) ([]float64, densecausal.TrainState, error) {
+// the first device, one step a group of weighted sequences, refusing a model
+// the resident backend cannot serve before it opens the device.
+func trainDenseResident(model *densecausal.Model, groups [][]densecausal.WeightedSequence, learningRate, momentum float64, freezeLexical bool, resume *densecausal.TrainState, observe densecausal.TrainObserver) ([]float64, int, densecausal.TrainState, error) {
 	if ok, reason := densecausal.DeviceTrainingSupported(model.Dims); !ok {
-		return nil, densecausal.TrainState{}, fmt.Errorf("CUDA training unsupported: %s", reason)
+		return nil, 0, densecausal.TrainState{}, fmt.Errorf("CUDA training unsupported: %s", reason)
 	}
 	worker, err := device.New(0)
 	if err != nil {
-		return nil, densecausal.TrainState{}, fmt.Errorf("CUDA training unavailable: %w", err)
+		return nil, 0, densecausal.TrainState{}, fmt.Errorf("CUDA training unavailable: %w", err)
 	}
 	defer worker.Close()
-	result, err := densecausaltrain.TrainDeviceResident(model, worker, batches, learningRate, momentum, densecausaltrain.Options{
+	result, err := densecausaltrain.TrainDeviceResidentWeighted(model, worker, groups, learningRate, momentum, densecausaltrain.Options{
 		FrozenLexical: freezeLexical, Resume: resume, Observe: observe,
 	})
-	return result.Losses, result.State, err
+	return result.Losses, result.Skipped, result.State, err
 }

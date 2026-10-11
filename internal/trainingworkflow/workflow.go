@@ -357,11 +357,62 @@ func recipeObjective(ctx context.Context, reader artifact.Reader, definition rec
 	return objective, &membership, nil
 }
 
+// rewardsOnDevice trains the session's reward groups through the device's
+// weighted step, the one a fine-tuning batch takes: each answer's completion
+// weighed by the answer's standing among the group's rewards
+// (densecausal.RewardSequences), one step a group whose answers have an
+// order and none for a group whose answers all stand together. A stepped
+// group is observed with its loss, its step and the step's rate; a device
+// step's gradient and update norms stay on the device and are reported as
+// none.
+func (session denseSession) rewardsOnDevice(groups []trainingdata.RolloutGroup, resume *densecausal.RLState) (Result, densecausal.TrainState, error) {
+	if session.request.Device == nil {
+		return Result{}, densecausal.TrainState{}, errors.New("training workflow: CUDA training needs the device trainer a training command supplies")
+	}
+	weighted := make([][]densecausal.WeightedSequence, len(groups))
+	for index, group := range groups {
+		var err error
+		if weighted[index], err = densecausal.RewardSequences(group); err != nil {
+			return Result{}, densecausal.TrainState{}, err
+		}
+	}
+	var optimizer *densecausal.TrainState
+	if resume != nil {
+		optimizer = &resume.Optimizer
+	}
+	losses, skipped, state, err := session.request.Device(session.model, weighted, session.optimizerConfig.BaseLearningRate, session.optimizerConfig.Momentum, false, optimizer, nil)
+	if err != nil {
+		return Result{}, densecausal.TrainState{}, err
+	}
+	result := Result{Backend: "cuda", Objective: session.objective, StreamPosition: groups[len(groups)-1].State.Position, Skipped: uint64(skipped)}
+	step, stepped := state.Step-len(losses), 0
+	for index, group := range groups {
+		if !slices.ContainsFunc(weighted[index], func(sequence densecausal.WeightedSequence) bool {
+			return slices.ContainsFunc(sequence.Weights, func(weight float32) bool { return weight != 0 })
+		}) {
+			continue
+		}
+		step++
+		observation := densecausal.RewardObservation(group)
+		observation.Step, observation.Loss, observation.LearningRate = uint64(step), losses[stepped], state.Config.LearningRate(step)
+		stepped++
+		if session.request.ObserveGRPO != nil {
+			session.request.ObserveGRPO(observation)
+		} else {
+			result.GRPO = append(result.GRPO, observation)
+		}
+	}
+	return result, state, nil
+}
+
 func (session denseSession) execute(prepared densePrepared, plan trainingprogram.TrainingSessionPlan) (Result, densecausal.TrainState, error) {
 	if session.objective == trainingprogram.ObjectiveGRPO {
 		var resume *densecausal.RLState
 		if session.resumed.ID().Valid() {
 			resume = &densecausal.RLState{Optimizer: session.resumed.Optimizer, Stream: *session.resumeStream}
+		}
+		if !session.request.Host {
+			return session.rewardsOnDevice(prepared.groups, resume)
 		}
 		observations, state, err := session.model.TrainGRPOGroupsResume(
 			prepared.groups, session.optimizerConfig.BaseLearningRate, session.optimizerConfig.Momentum,

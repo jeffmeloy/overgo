@@ -54,22 +54,42 @@ func (m *Model) TrainGRPOGroupsResume(
 	return observations, run.state(), nil
 }
 
+// RewardObservation is what a reward group shows before it is stepped: its
+// size, its evaluator, the tokens of its answers' completions, and the mean
+// and the dispersion of its rewards as they were given. The loss reads the
+// rewards' order and not their sizes; these describe the group to whoever
+// watches the run.
+func RewardObservation(group trainingdata.RolloutGroup) trainingprogram.GRPOObservation {
+	observation := trainingprogram.GRPOObservation{GroupSize: uint64(len(group.Rollouts)), Evaluator: group.Evaluator}
+	count := float64(len(group.Rollouts))
+	for _, rollout := range group.Rollouts {
+		observation.MeanReward += rollout.Reward / count
+		for _, completed := range rollout.Sequence.Completion {
+			if completed {
+				observation.CompletionTokens++
+			}
+		}
+	}
+	for _, rollout := range group.Rollouts {
+		observation.RewardDispersion += (rollout.Reward - observation.MeanReward) * (rollout.Reward - observation.MeanReward) / count
+	}
+	observation.RewardDispersion = math.Sqrt(observation.RewardDispersion)
+	return observation
+}
+
 // grpoLossAndGrads is a reward group's loss and its gradients, or no
 // gradients at all for a group whose answers all stand together, which is
-// found from the rewards before any answer is scored. The mean and the
-// dispersion of the rewards are reported as they were given; the loss reads
-// their order and not their sizes.
+// found from the rewards before any answer is scored.
 func (m *Model) grpoLossAndGrads(group trainingdata.RolloutGroup) (trainingprogram.GRPOObservation, Grads, error) {
 	rewards := make([]float64, len(group.Rollouts))
-	observation := trainingprogram.GRPOObservation{GroupSize: uint64(len(group.Rollouts)), Evaluator: group.Evaluator}
 	for index, rollout := range group.Rollouts {
 		rewards[index] = rollout.Reward
-		observation.MeanReward += rollout.Reward / float64(len(rewards))
 	}
 	gradients, err := trainingprogram.OrderGradients(rewards)
 	if err != nil || !slices.ContainsFunc(gradients, func(gradient float64) bool { return gradient != 0 }) {
 		return trainingprogram.GRPOObservation{}, nil, err
 	}
+	observation := RewardObservation(group)
 	traces := make([]preferenceTrace, len(group.Rollouts))
 	for index, rollout := range group.Rollouts {
 		trace, err := m.sequenceTrace(rollout.Sequence)
@@ -77,11 +97,8 @@ func (m *Model) grpoLossAndGrads(group trainingdata.RolloutGroup) (trainingprogr
 			return trainingprogram.GRPOObservation{}, nil, err
 		}
 		traces[index] = trace
-		observation.CompletionTokens += trace.score.Tokens
 		observation.Loss += gradients[index] * trace.score.LogProbability
-		observation.RewardDispersion += (rollout.Reward - observation.MeanReward) * (rollout.Reward - observation.MeanReward) / float64(len(rewards))
 	}
-	observation.RewardDispersion = math.Sqrt(observation.RewardDispersion)
 	grads, err := m.sequenceGradientSum(traces, gradients)
 	return observation, grads, err
 }

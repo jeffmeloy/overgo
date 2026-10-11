@@ -180,6 +180,7 @@ const (
 	kernelSiluF32
 	kernelSoftmaxBackwardF32
 	kernelSoftmaxCeGradRowsF32
+	kernelSoftmaxCeGradScaledRowsF32
 	kernelSoftmaxF32
 	kernelSoftplusF32
 	kernelSparseAttentionF32
@@ -390,6 +391,7 @@ var kernelFunctionNames = [...]string{
 	"silu_f32",
 	"softmax_backward_f32",
 	"softmax_ce_grad_rows_f32",
+	"softmax_ce_grad_scaled_rows_f32",
 	"softmax_f32",
 	"softplus_f32",
 	"sparse_attention_f32",
@@ -598,6 +600,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	4,
 	3,
 	5,
+	6,
 	6,
 	4,
 	3,

@@ -39,12 +39,15 @@ func (l CausalLexical) valid() bool {
 // causal training step that runs wholly on the device: the token lookup, the
 // layer stack forward and backward, and the lexical tail.
 type CausalTrainingSession struct {
-	worker             *device.Worker
-	cuda               *cudaBLAS
-	ops                *layerOps
-	dW, dG             driver.DevicePtr
-	lexical            CausalLexical
-	idPtr, embeds      driver.DevicePtr
+	worker        *device.Worker
+	cuda          *cudaBLAS
+	ops           *layerOps
+	dW, dG        driver.DevicePtr
+	lexical       CausalLexical
+	idPtr, embeds driver.DevicePtr
+	// scales holds one scale for each predicted row; mean says they are the mean's.
+	scales             driver.DevicePtr
+	mean               bool
 	offsets            []LayerTensorOffsets
 	seq, vocab, hidden int
 	rmsEps             float64
@@ -86,6 +89,9 @@ func NewCausalTrainingSession(
 		if result.idPtr, err = session.alloc(seq); err != nil {
 			return err
 		}
+		if result.scales, err = session.alloc(seq - 1); err != nil {
+			return err
+		}
 		result.embeds, err = session.alloc(seq * hidden)
 		return err
 	})
@@ -100,11 +106,15 @@ func NewCausalTrainingSession(
 	return result, nil
 }
 
-// Run takes one step's forward and backward over tokens. It returns the
-// mean next-token loss and the layer vector gradients; the matrix, final
-// norm and (for a trained table) lexical gradients stay resident.
-func (s *CausalTrainingSession) Run(tokens []int, vectorWeights []LayerTrainVectors) (float64, []LayerTrainVectors, error) {
-	if s == nil || s.closed || len(tokens) != s.seq || len(vectorWeights) != len(s.offsets) {
+// Run takes one sequence's forward and backward over tokens. Each row's
+// next-token loss and its gradient are weighed by that row's scale, which
+// may be negative or zero: scales holds one for each of the predictions, and
+// none given is the mean, every row one over their count, as a fine-tuning
+// step is. It returns the scaled loss summed over the rows and the layer
+// vector gradients; the matrix, final norm and (for a trained table) lexical
+// gradients stay resident, written over whatever the run before left there.
+func (s *CausalTrainingSession) Run(tokens []int, scales []float32, vectorWeights []LayerTrainVectors) (float64, []LayerTrainVectors, error) {
+	if s == nil || s.closed || len(tokens) != s.seq || len(vectorWeights) != len(s.offsets) || scales != nil && len(scales) != s.seq-1 {
 		return 0, nil, fmt.Errorf("resident causal session: invalid run input")
 	}
 	ids := make([]uint32, s.seq)
@@ -133,6 +143,20 @@ func (s *CausalTrainingSession) Run(tokens []int, vectorWeights []LayerTrainVect
 		if err := s.cuda.state.Driver.MemcpyHtoD(s.idPtr, driver.Bytes(ids)); err != nil {
 			return err
 		}
+		// The mean's scales are put on the device once and stay until a run brings its own.
+		if scales != nil || !s.mean {
+			rows := scales
+			if rows == nil {
+				rows = make([]float32, s.seq-1)
+				for index := range rows {
+					rows[index] = float32(1) / float32(s.seq-1)
+				}
+			}
+			if err := s.cuda.state.Driver.MemcpyHtoD(s.scales, driver.Bytes(rows)); err != nil {
+				return err
+			}
+			s.mean = scales == nil
+		}
 		gather, err := s.cuda.function("embedding_gather_rows_f32")
 		if err != nil {
 			return err
@@ -147,7 +171,7 @@ func (s *CausalTrainingSession) Run(tokens []int, vectorWeights []LayerTrainVect
 		embeddingInput, err := s.ops.runStackDevice(s.embeds, weights, gradients, func(final driver.DevicePtr) (driver.DevicePtr, error) {
 			var dNormed driver.DevicePtr
 			var tailErr error
-			lossPtr, dNormed, tailErr = causalTail(s.cuda, final, s.idPtr, s.lexical, s.seq, s.vocab, s.hidden, s.rmsEps)
+			lossPtr, dNormed, tailErr = causalTail(s.cuda, final, s.idPtr, s.scales, s.lexical, s.seq, s.vocab, s.hidden, s.rmsEps)
 			if tailErr != nil {
 				return 0, tailErr
 			}
@@ -205,6 +229,49 @@ func (s *CausalTrainingSession) scatterEmbeddingGradient(embeddingInput driver.D
 	return s.cuda.launch1D(scatter, rowsU*widthU,
 		unsafe.Pointer(&embeddingInput), unsafe.Pointer(&s.idPtr), unsafe.Pointer(&s.lexical.EmbeddingGrad),
 		unsafe.Pointer(&rowsU), unsafe.Pointer(&widthU))
+}
+
+// Gather sums the gradients of several runs, which each write over the
+// last's: with the total cleared before the first run, every run but the last
+// is added into it, and after the last the total is added into the gradients,
+// which then hold the sum for one step. Each pair is a resident gradient
+// buffer and a total of the same count of values; clear zeroes the totals,
+// and last adds them into the gradients where it otherwise adds the gradients
+// into them.
+func (s *CausalTrainingSession) Gather(clear, last bool, pairs ...ResidentTotal) error {
+	if s == nil || s.closed {
+		return fmt.Errorf("resident causal session: closed")
+	}
+	return s.worker.Do(context.Background(), func(_ *device.State) error {
+		add, err := s.cuda.function("add_f32")
+		if err != nil {
+			return err
+		}
+		for _, pair := range pairs {
+			count := uint32(pair.Count)
+			if clear {
+				if err := s.cuda.state.Driver.MemsetD32Async(pair.Total, 0, uint64(pair.Count), s.cuda.state.Stream); err != nil {
+					return err
+				}
+				continue
+			}
+			into := pair.Total
+			if last {
+				into = pair.Gradient
+			}
+			if err := s.cuda.launch1D(add, count, unsafe.Pointer(&pair.Total), unsafe.Pointer(&pair.Gradient), unsafe.Pointer(&into), unsafe.Pointer(&count)); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// ResidentTotal is one resident gradient buffer and the buffer its runs are
+// summed in, of Count values each.
+type ResidentTotal struct {
+	Gradient, Total driver.DevicePtr
+	Count           int
 }
 
 // Close releases the session's modules and buffers.
@@ -290,7 +357,7 @@ func (s *cudaBLAS) causalTailBuffers(seq, vocab, hidden int) (*causalTailBuffers
 // cross-entropy on the final hidden states, and their backward to the
 // normed states. A trained table's head gradient is written here; the
 // final-norm gradient is cleared for the hidden-state backward to fill.
-func causalTail(session *cudaBLAS, final, ids driver.DevicePtr, lexical CausalLexical, seq, vocab, hidden int, eps float64) (driver.DevicePtr, driver.DevicePtr, error) {
+func causalTail(session *cudaBLAS, final, ids, scales driver.DevicePtr, lexical CausalLexical, seq, vocab, hidden int, eps float64) (driver.DevicePtr, driver.DevicePtr, error) {
 	buffers, err := session.causalTailBuffers(seq, vocab, hidden)
 	if err != nil {
 		return 0, 0, err
@@ -313,15 +380,15 @@ func causalTail(session *cudaBLAS, final, ids driver.DevicePtr, lexical CausalLe
 		return 0, 0, err
 	}
 	losses := buffers.losses
-	ce, err := session.function("softmax_ce_grad_rows_f32")
+	ce, err := session.function("softmax_ce_grad_scaled_rows_f32")
 	if err != nil {
 		return 0, 0, err
 	}
 	targets := ids + driver.DevicePtr(4)
-	predU, vocabU, scale := uint32(predictions), uint32(vocab), float32(1)/float32(predictions)
+	predU, vocabU := uint32(predictions), uint32(vocab)
 	if err := session.launch1D(ce, predU,
-		unsafe.Pointer(&logits), unsafe.Pointer(&targets), unsafe.Pointer(&losses),
-		unsafe.Pointer(&predU), unsafe.Pointer(&vocabU), unsafe.Pointer(&scale)); err != nil {
+		unsafe.Pointer(&logits), unsafe.Pointer(&targets), unsafe.Pointer(&scales), unsafe.Pointer(&losses),
+		unsafe.Pointer(&predU), unsafe.Pointer(&vocabU)); err != nil {
 		return 0, 0, err
 	}
 	dNormed := buffers.dNormed

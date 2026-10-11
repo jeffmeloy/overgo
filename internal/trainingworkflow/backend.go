@@ -7,10 +7,13 @@ import (
 )
 
 // DeviceTrainer trains a dense-causal model resident on the device, one
-// Muon step per batch, from the resume state and under the step observer.
-// The training command supplies it, so the serving packages that run the
-// workflow on the host never link the device backend.
-type DeviceTrainer func(model *densecausal.Model, batches [][]int, learningRate, momentum float64, freezeLexical bool, resume *densecausal.TrainState, observe densecausal.TrainObserver) ([]float64, densecausal.TrainState, error)
+// Muon step per group of weighted sequences, from the resume state and under
+// the step observer: the one step a fine-tuning batch, a group of one
+// sequence weighed by its mean, and a reward group share. It returns each
+// stepped group's loss and how many groups, every weight of theirs zero, it
+// passed without a step. The training command supplies it, so the serving
+// packages that run the workflow on the host never link the device backend.
+type DeviceTrainer func(model *densecausal.Model, groups [][]densecausal.WeightedSequence, learningRate, momentum float64, freezeLexical bool, resume *densecausal.TrainState, observe densecausal.TrainObserver) ([]float64, int, densecausal.TrainState, error)
 
 // runTrainingState trains the model on the batches. The options, which only
 // the host trainer takes, say which tokens each batch learns, whether the
@@ -28,6 +31,10 @@ func runTrainingState(model *densecausal.Model, batches [][]int, options denseca
 	if device == nil {
 		return nil, "", densecausal.TrainState{}, errors.New("training workflow: CUDA training needs the device trainer a training command supplies")
 	}
-	losses, state, err := device(model, batches, learningRate, momentum, freezeLexical, resume, observe)
+	groups := make([][]densecausal.WeightedSequence, len(batches))
+	for index, batch := range batches {
+		groups[index] = []densecausal.WeightedSequence{{Tokens: batch}}
+	}
+	losses, _, state, err := device(model, groups, learningRate, momentum, freezeLexical, resume, observe)
 	return losses, "cuda", state, err
 }

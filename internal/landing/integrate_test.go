@@ -137,7 +137,7 @@ func TestWorktreeCandidateIsIntegratedOntoTheTrunk(t *testing.T) {
 	// The lead has a change of its own, uncommitted, to a file the commit changes.
 	fixture.write("a.txt", "the lead's\n")
 	one.write("a.txt", "the first worktree's\n")
-	if _, _, err := land(one, "third/do"); err == nil || !strings.Contains(err.Error(), "cannot follow") {
+	if _, _, err := land(one, "third/do"); err == nil || !strings.Contains(err.Error(), "uncommitted changes of its own to files third/do also changes: a.txt") {
 		t.Fatalf("a commit the trunk's checkout cannot follow = %v, want it refused for the lead's uncommitted change", err)
 	}
 	if fixture.git("rev-parse", "refs/heads/trunk") != second || holds(fixture, "a.txt") != "the lead's\n" || holds(one, "a.txt") != "the first worktree's\n" || one.git("rev-parse", "HEAD") != second {

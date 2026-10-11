@@ -681,31 +681,25 @@ func (l *landing) commit(ctx context.Context) (landed string, err error) {
 	}
 	landed = strings.TrimSpace(commit)
 	// From a worktree that is not the trunk's own checkout the trunk moves
-	// first, and only if its checkout can follow: its index and files are read
-	// forward from the old tip to the new, which uncommitted changes of the
-	// lead's to a file this commit changes refuse.
-	follow := func(trial ...string) error {
-		_, err := l.git(ctx, slices.Concat([]string{"-C", l.trunk, "read-tree"}, trial, []string{"-m", "-u", l.head, landed})...)
-		return err
-	}
+	// first, and only if its checkout can follow with what the lead has
+	// uncommitted there kept (trunkFollows); the checkout follows next, and
+	// the worktree's own HEAD moves last, so a commit stopped anywhere after
+	// the trunk moved is found on it when begun again.
+	var followed error
 	if l.onto != "" {
-		// A file written and put back is as git holds it, which only a refreshed index knows; a file that differs stays so, and the refresh says nothing of it here.
-		_, _ = l.git(ctx, "-C", l.trunk, "update-index", "-q", "--refresh")
-		if err := follow("-n"); err != nil {
-			return "", fmt.Errorf("land: the trunk's checkout %s cannot follow %s, having uncommitted changes of its own to what it changes; they are committed or put aside there first: %w", l.trunk, l.Ref, err)
+		follow, err := l.trunkFollows(ctx, landed)
+		if err != nil {
+			return "", err
 		}
 		if _, err := l.git(ctx, "update-ref", "-m", "land "+l.Ref, l.onto, landed, l.head); err != nil {
-			return "", fmt.Errorf("land: publish %s onto the trunk %s at %.12s: %w", l.Ref, l.onto, l.head, err)
+			return "", errors.Join(fmt.Errorf("land: publish %s onto the trunk %s at %.12s: %w", l.Ref, l.onto, l.head, err), follow(false))
+		}
+		if followed = follow(true); followed != nil {
+			followed = fmt.Errorf("land: %s landed as %.12s, but the trunk's checkout %s did not follow it and holds the files of %.12s: %w", l.Ref, landed, l.trunk, l.head, followed)
 		}
 	}
 	if _, err := l.git(ctx, "update-ref", "-m", "land "+l.Ref, "HEAD", landed, l.head); err != nil {
-		return "", fmt.Errorf("land: publish %s onto %.12s: %w", l.Ref, l.head, err)
-	}
-	var followed error
-	if l.onto != "" {
-		if followed = follow(); followed != nil {
-			followed = fmt.Errorf("land: %s landed as %.12s, but the trunk's checkout %s did not follow it and holds the files of %.12s: %w", l.Ref, landed, l.trunk, l.head, followed)
-		}
+		return "", errors.Join(fmt.Errorf("land: publish %s onto %.12s: %w", l.Ref, l.head, err), followed)
 	}
 	planPath := filepath.Join(l.Repo, filepath.FromSlash(plan.Path))
 	held, err := os.ReadFile(planPath)

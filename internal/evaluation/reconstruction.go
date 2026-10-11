@@ -27,7 +27,7 @@ const (
 	reconstructionSplitMedia   = "application/vnd.overgo.reconstruction-split+json"
 	reconstructionSplitSchema  = "overgo/reconstruction-split/v1"
 	reconstructionReportMedia  = "application/vnd.overgo.reconstruction-report+json"
-	reconstructionReportSchema = "overgo/reconstruction-report/v1"
+	reconstructionReportSchema = "overgo/reconstruction-report/v2"
 	// clipReconstructionSource and clipReconstructionSchema name the suites of held-out VidGen
 	// clips, each cut to the same number of frames at the same size; a suite's source ends in
 	// its cut, frames by height by width.
@@ -112,8 +112,8 @@ type reconstructionPlan struct {
 }
 
 type reconstructionObservation struct {
-	Name string  `json:"name"`
-	PSNR float64 `json:"psnr_db"`
+	Name       string  `json:"name"`
+	LevelError float64 `json:"mean_squared_level_error"`
 }
 
 type reconstructionReport struct {
@@ -122,7 +122,7 @@ type reconstructionReport struct {
 	Plan         artifact.ID                 `json:"plan"`
 	Dataset      artifact.ID                 `json:"dataset"`
 	Observations []reconstructionObservation `json:"observations"`
-	PSNR         float64                     `json:"psnr_db"`
+	LevelError   float64                     `json:"mean_squared_level_error"`
 	LatentShare  float64                     `json:"latent_share"`
 }
 
@@ -165,10 +165,9 @@ func bindReconstruction(compiled reconstructionPlan, authorities ExactAuthoritie
 	return bindKindPlan(compiled.dataset, compiled.split, compiled.identity, compiled.suite, reconstructionKind, authorities)
 }
 
-// PeakSignalToNoise is the peak signal-to-noise ratio, in decibels, of what came back
-// against what went in, both read as the eight-bit pixels a viewer is shown. A round trip
-// that changes nothing has no ratio and is refused: nothing was lost for it to measure.
-func PeakSignalToNoise(source, output []float32) (float64, error) {
+// levelError sums, over every value, the squared difference of what came back against what
+// went in, both read as the eight-bit pixels a viewer is shown: zero when none changed.
+func levelError(source, output []float32) (float64, error) {
 	if len(source) == 0 || len(source) != len(output) {
 		return 0, fmt.Errorf("evaluation: %d values went in and %d came back", len(source), len(output))
 	}
@@ -181,6 +180,17 @@ func PeakSignalToNoise(source, output []float32) (float64, error) {
 		difference := float64(media.SignedUnitF32ToU8(value)) - float64(media.SignedUnitF32ToU8(back))
 		squared += difference * difference
 	}
+	return squared, nil
+}
+
+// PeakSignalToNoise is the peak signal-to-noise ratio, in decibels, of what came back
+// against what went in, both read as the eight-bit pixels a viewer is shown. A round trip
+// that changes nothing has no ratio and is refused: nothing was lost for it to measure.
+func PeakSignalToNoise(source, output []float32) (float64, error) {
+	squared, err := levelError(source, output)
+	if err != nil {
+		return 0, err
+	}
 	if squared == 0 {
 		return 0, errors.New("evaluation: what came back is what went in, so the round trip lost nothing to measure")
 	}
@@ -188,8 +198,9 @@ func PeakSignalToNoise(source, output []float32) (float64, error) {
 }
 
 // evaluateReconstruction passes every clip through the autoencoder and publishes, through
-// the campaign ledger, the mean over the clips of the peak signal-to-noise ratio of what
-// came back, and the latents' values as a share of the clips' values.
+// the campaign ledger, the mean over the clips of each clip's mean squared level error, and
+// the latents' values as a share of the clips' values. A clip that came back as it went in
+// is scored zero and written so, where a ratio in decibels has no value to give it.
 func evaluateReconstruction(
 	ctx context.Context,
 	repository artifact.Repository,
@@ -210,7 +221,7 @@ func evaluateReconstruction(
 	if err := publishPlanAuthorities(ctx, repository, plan, contents); err != nil {
 		return reconstructionReport{}, err
 	}
-	report := reconstructionReport{Version: artifact.InitialDocumentVersion, Plan: plan.identity, Dataset: compiled.dataset}
+	report := reconstructionReport{Version: artifact.SecondDocumentVersion, Plan: plan.identity, Dataset: compiled.dataset}
 	var total, sourceValues, latentValues float64
 	progress := trackProgress(ctx, compiled.suite.Source, len(compiled.suite.Cases))
 	for _, testCase := range compiled.suite.Cases {
@@ -218,17 +229,18 @@ func evaluateReconstruction(
 		if err != nil {
 			return reconstructionReport{}, fmt.Errorf("evaluation: reconstruction case %q: %w", testCase.Name, err)
 		}
-		ratio, err := PeakSignalToNoise(trip.Source, trip.Output)
+		squared, err := levelError(trip.Source, trip.Output)
 		if err != nil || trip.LatentValues <= 0 {
 			return reconstructionReport{}, fmt.Errorf("evaluation: reconstruction case %q: a latent of %d values: %w", testCase.Name, trip.LatentValues, err)
 		}
-		report.Observations = append(report.Observations, reconstructionObservation{Name: testCase.Name, PSNR: ratio})
-		total += ratio
-		sourceValues += float64(len(trip.Source))
+		values := float64(len(trip.Source))
+		report.Observations = append(report.Observations, reconstructionObservation{Name: testCase.Name, LevelError: squared / values})
+		total += squared / values
+		sourceValues += values
 		latentValues += float64(trip.LatentValues)
 		progress.advance()
 	}
-	report.PSNR = total / float64(len(report.Observations))
+	report.LevelError = total / float64(len(report.Observations))
 	report.LatentShare = latentValues / sourceValues
 	id, err := artifact.JSONID(artifact.KindEvaluation, report)
 	if err != nil {
@@ -243,11 +255,11 @@ func evaluateReconstruction(
 	return report, nil
 }
 
-// reconstructionMetrics reports the mean peak signal-to-noise ratio: higher is better. The
-// latent's share of the input's values is the price the ratio was bought at and has no
-// better direction of its own, so it stays in the report beside the ratio and is no metric.
-func reconstructionMetrics(ratio float64) []runrecord.Metric {
-	return []runrecord.Metric{{Name: "psnr_db", Value: ratio, Direction: runrecord.DirectionMaximize}}
+// reconstructionMetrics reports the mean squared level error: lower is better. The
+// latent's share of the input's values is the price the error was bought at and has no
+// better direction of its own, so it stays in the report beside the error and is no metric.
+func reconstructionMetrics(meanError float64) []runrecord.Metric {
+	return []runrecord.Metric{{Name: "mean_squared_level_error", Value: meanError, Direction: runrecord.DirectionMinimize}}
 }
 
 // BuildClipReconstruction builds the suite of count clips of a directory, picked by seed

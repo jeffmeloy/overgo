@@ -9,7 +9,7 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 534,
+        "nodes": 490,
         "reason": "What the row may still add. Set on 2026-10-11 to the sum of what its steps were counted at in their own checkouts, by the same count of syntax nodes the automated checks take: 22, 60, 159, 44, 120, 124 and 5, and one step that removes 136 and adds none."
       },
       "steps": [
@@ -33,13 +33,6 @@
           "status": "open",
           "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestChangeCorpusCreditsOnlyRunsOfItsRequest$'",
           "rationale": "Reviewer finding SQA-115, second severity, confirmed by reading (docs/sqa_findings.json, not in the repository). A change corpus credits any finished run whose record reads and carries the right place in the order, so a corpus asked again with other steps, another window, base or recipe returns the old corpus with no error, or mixes budgets. Closure: a run is credited only to the request that asked for it, and a run of another request is refused before anything trains there. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader, in a checkout of the step's own, before this row was filed; the commit is the lead's. The register stays the reviewer's and is not edited here.\n\nServes: train. Evidence: the test. Batch: host."
-        },
-        {
-          "id": "reconstruction-zero-error",
-          "title": "Score a clip that came back as it went in, where the reconstruction suite failed whole",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestReconstructionScoresAClipThatCameBackAsItWentIn$'",
-          "rationale": "Reviewer finding SQA-112, second severity, the half that is the reconstruction suite, confirmed by reading (docs/sqa_findings.json, not in the repository). The suite scores each clip by a ratio that has no value for a clip that came back exact, so one exact clip fails the whole suite and drops what every other clip measured. Closure, as the reviewer wrote it: suites of exact and inexact clips, and of exact clips alone, publish every clip under a stated error measure, with the report's version saying which measure it is; contracts of different measures stay not comparable. The finding's other half, a held-out record answered equal to its target, is the owner's choice of what to report and stays open. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader, in a checkout of the step's own, before this row was filed; the commit is the lead's. The register stays the reviewer's and is not edited here.\n\nServes: evaluate. Evidence: the test. Batch: host."
         },
         {
           "id": "proposal-resume",

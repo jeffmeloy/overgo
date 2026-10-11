@@ -209,7 +209,7 @@ func compileSuite(data []byte, authorities ExactAuthorities) (CompiledSuite, err
 		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err, reconstructionMetrics(0),
 			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (suiteResult, error) {
 				report, err := evaluateReconstruction(ctx, repository, runtime, compiled, plan)
-				return suiteResult{Report: report.ID, Metrics: reconstructionMetrics(report.PSNR)}, err
+				return suiteResult{Report: report.ID, Metrics: reconstructionMetrics(report.LevelError)}, err
 			})
 	case speechRoundTripKind:
 		var source SpeechRoundTripSuite

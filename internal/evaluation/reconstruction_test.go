@@ -15,15 +15,20 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/inference"
 	"overgo/internal/media"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/runrecord"
 	"overgo/internal/sequencescore"
 	"overgo/internal/tokenizer"
 )
 
 // levelShift is an autoencoder that gives back every value moved by a fixed number of
-// eight-bit levels, through a latent a twelfth the size of what it took.
+// eight-bit levels, through a latent a twelfth the size of what it took. Its nudge is
+// added to every value that comes back: one too small to cross a level leaves the floats
+// unequal and the pixels shown the same.
 type levelShift struct {
 	levels map[string]uint8
+	nudge  float32
 	asked  []ClipCut
 }
 
@@ -33,7 +38,7 @@ func (r *levelShift) Reconstruct(_ context.Context, clip ReconstructionCase, cut
 	trip := RoundTrip{Source: make([]float32, values), Output: make([]float32, values), LatentValues: values / 12}
 	for index := range trip.Source {
 		trip.Source[index] = media.U8ToSignedUnitF32(100)
-		trip.Output[index] = media.U8ToSignedUnitF32(100 + r.levels[clip.Clip])
+		trip.Output[index] = media.U8ToSignedUnitF32(100+r.levels[clip.Clip]) + r.nudge
 	}
 	return trip, nil
 }
@@ -58,11 +63,11 @@ func reconstructionFixture() ReconstructionSuite {
 	}
 }
 
-// TestReconstructionScoresTheMeanSignalToNoiseOfEveryClip holds the report to the peak
-// signal-to-noise ratio of each clip as its eight-bit pixels came back, their mean over
+// TestReconstructionScoresTheMeanLevelErrorOfEveryClip holds the report to the mean
+// squared level error of each clip as its eight-bit pixels came back, their mean over
 // the clips, and the latent's share of the values that went in; to giving every clip at
 // the suite's cut; and to refusing a runtime that cannot reconstruct.
-func TestReconstructionScoresTheMeanSignalToNoiseOfEveryClip(t *testing.T) {
+func TestReconstructionScoresTheMeanLevelErrorOfEveryClip(t *testing.T) {
 	t.Parallel()
 	suite := reconstructionFixture()
 	compiled, err := compileReconstruction(suite)
@@ -88,23 +93,22 @@ func TestReconstructionScoresTheMeanSignalToNoiseOfEveryClip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Every value off by one level is a mean squared error of 1, and by ten of 100: the
-	// peak of 255 squared over each, in decibels.
-	one, ten := 10*math.Log10(255*255), 10*math.Log10(255*255/100.0)
-	if len(report.Observations) != 2 || math.Abs(report.Observations[0].PSNR-one) > 1e-9 || math.Abs(report.Observations[1].PSNR-ten) > 1e-9 ||
-		math.Abs(report.PSNR-(one+ten)/2) > 1e-9 || math.Abs(report.LatentShare-1.0/12) > 1e-12 {
-		t.Fatalf("report = %+v, want %.4f and %.4f dB and a latent share of a twelfth", report, one, ten)
+	// Every value off by one level is a mean squared error of 1, and by ten of 100. Sums of
+	// whole squares are exact, so the errors are held to their values and not to a tolerance.
+	if len(report.Observations) != 2 || report.Observations[0].LevelError != 1 || report.Observations[1].LevelError != 100 ||
+		report.LevelError != 50.5 || math.Abs(report.LatentShare-1.0/12) > 1e-12 {
+		t.Fatalf("report = %+v, want level errors of 1 and 100, their mean 50.5, and a latent share of a twelfth", report)
 	}
 	if len(autoencoder.asked) != 2 || autoencoder.asked[0] != suite.Cut || autoencoder.asked[1] != suite.Cut {
 		t.Fatalf("the clips were given at %+v, want the suite's cut %+v twice", autoencoder.asked, suite.Cut)
 	}
-	metrics := reconstructionMetrics(report.PSNR)
+	metrics := reconstructionMetrics(report.LevelError)
 	values := map[string]float64{}
 	for _, metric := range metrics {
 		values[metric.Name] = metric.Value
 	}
-	if name, value, ok := HeadlineMetric(values); !ok || name != "psnr_db" || value != report.PSNR {
-		t.Fatalf("the headline of %v is %s = %v, want the signal-to-noise ratio", values, name, value)
+	if name, value, ok := HeadlineMetric(values); !ok || name != "mean_squared_level_error" || value != report.LevelError {
+		t.Fatalf("the headline of %v is %s = %v, want the mean squared level error", values, name, value)
 	}
 	if _, err := evaluateReconstruction(t.Context(), store, textOnlyRuntime{}, compiled, plan); err == nil {
 		t.Fatal("a runtime that cannot reconstruct was evaluated")
@@ -120,6 +124,148 @@ func TestReconstructionScoresTheMeanSignalToNoiseOfEveryClip(t *testing.T) {
 		Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
 	}); err != nil {
 		t.Fatalf("the suite file does not compile: %v", err)
+	}
+}
+
+// TestReconstructionScoresAClipThatCameBackAsItWentIn holds a campaign to publishing a
+// reconstruction suite when a clip's pixels came back as they went in: that clip is
+// scored a level error of zero beside what the others lost, the zero is written in the
+// report the store holds, and the suite's one metric is their mean, where lower is
+// better. The suite once failed whole at such a clip, for want of a ratio to give it.
+func TestReconstructionScoresAClipThatCameBackAsItWentIn(t *testing.T) {
+	t.Parallel()
+	source, err := json.Marshal(reconstructionFixture())
+	if err != nil {
+		t.Fatal(err)
+	}
+	identity := modelrecipe.ProgramIdentity{
+		Model:      planID(t, artifact.KindModel, "autoencoder"),
+		Definition: planID(t, artifact.KindModelDefinition, "autoencoder definition"),
+		Recipe:     planID(t, artifact.KindRecipe, "autoencoder recipe"),
+	}
+	environment, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, test := range map[string]struct {
+		autoencoder *levelShift
+		clips       [2]float64
+	}{
+		"one clip exact beside one a level off": {&levelShift{levels: map[string]uint8{"ten.mp4": 1}}, [2]float64{0, 1}},
+		"every clip exact":                      {&levelShift{}, [2]float64{}},
+		// A ten-thousandth is far less than the half level that would show another pixel.
+		"floats shown as the same bytes": {&levelShift{nudge: 1e-4}, [2]float64{}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			store, err := overgodb.Open(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer store.Close()
+			if _, err := store.Commit(t.Context(), artifact.Batch{Key: "fixture/autoencoder", Artifacts: []artifact.Descriptor{{ID: identity.Model}, {ID: identity.Definition}, {ID: identity.Recipe}}}); err != nil {
+				t.Fatal(err)
+			}
+			campaign, err := NewCampaign(store, test.autoencoder, identity, environment, planTestCommit)
+			if err != nil {
+				t.Fatal(err)
+			}
+			suite, err := CompileSuite(source, campaign.Authorities())
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := campaign.Evaluate(t.Context(), suite)
+			if err != nil {
+				t.Fatalf("the suite was not published: %v", err)
+			}
+			want := runrecord.Metric{Name: "mean_squared_level_error", Value: (test.clips[0] + test.clips[1]) / 2, Direction: runrecord.DirectionMinimize}
+			if !result.Evaluation.Valid() || len(result.Metrics) != 1 || result.Metrics[0] != want {
+				t.Fatalf("the campaign published evaluation %s with metrics %+v, want one evaluation with %+v", result.Evaluation, result.Metrics, want)
+			}
+			content, found, err := artifact.ReadContent(t.Context(), store, result.Report)
+			if err != nil || !found {
+				t.Fatalf("the report is not in the store: found %t, %v", found, err)
+			}
+			// An error is read through a pointer, so one left out of the report for being
+			// zero reads apart from one written as zero.
+			var stored struct {
+				Version      uint16 `json:"version"`
+				Observations []struct {
+					LevelError *float64 `json:"mean_squared_level_error"`
+				} `json:"observations"`
+				LevelError  *float64 `json:"mean_squared_level_error"`
+				LatentShare float64  `json:"latent_share"`
+			}
+			if err := json.Unmarshal(content.Data, &stored); err != nil {
+				t.Fatal(err)
+			}
+			if content.Descriptor.Schema != "overgo/reconstruction-report/v2" || stored.Version != artifact.SecondDocumentVersion ||
+				len(stored.Observations) != len(test.clips) || stored.LevelError == nil || *stored.LevelError != want.Value ||
+				math.Abs(stored.LatentShare-1.0/12) > 1e-12 {
+				t.Fatalf("the stored report is %s under schema %q, want version two of the report with the suite's error written", content.Data, content.Descriptor.Schema)
+			}
+			for clip, observation := range stored.Observations {
+				if observation.LevelError == nil || *observation.LevelError != test.clips[clip] {
+					t.Errorf("clip %d is stored as %s, want a level error of %v written", clip, content.Data, test.clips[clip])
+				}
+			}
+		})
+	}
+}
+
+// oneTrip is an autoencoder that gives every clip the one round trip it holds, or fails.
+type oneTrip struct {
+	levelShift
+	trip RoundTrip
+	err  error
+}
+
+func (r *oneTrip) Reconstruct(context.Context, ReconstructionCase, ClipCut) (RoundTrip, error) {
+	return r.trip, r.err
+}
+
+// TestReconstructionRefusesAClipItCouldNotMeasure holds the suite to failing, as it did
+// before a clip that came back as it went in was scored, at a clip the autoencoder could
+// not take through, at a latent that holds no values, and at a clip of no values or one
+// that came back at another length or as no number, each of those three for its own
+// reason: a clip of no values has no mean, and is not left to fail as a number that
+// cannot be written.
+func TestReconstructionRefusesAClipItCouldNotMeasure(t *testing.T) {
+	t.Parallel()
+	compiled, err := compileReconstruction(reconstructionFixture())
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := bindReconstruction(compiled, ExactAuthorities{
+		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"),
+		CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"),
+		Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	failed := errors.New("the autoencoder failed")
+	went := []float32{0, 0.5}
+	for name, test := range map[string]struct {
+		autoencoder oneTrip
+		says        string
+	}{
+		"a clip the autoencoder failed at":           {autoencoder: oneTrip{err: failed}},
+		"a latent that holds no values":              {autoencoder: oneTrip{trip: RoundTrip{Source: went, Output: []float32{0, 0}}}},
+		"an exact clip whose latent holds no values": {autoencoder: oneTrip{trip: RoundTrip{Source: went, Output: went}}},
+		"what came back at another length":           {oneTrip{trip: RoundTrip{Source: went, Output: went[:1], LatentValues: 1}}, "2 values went in and 1 came back"},
+		"what came back as no number":                {oneTrip{trip: RoundTrip{Source: went, Output: []float32{0, float32(math.NaN())}, LatentValues: 1}}, "not finite"},
+		"a clip of no values":                        {oneTrip{trip: RoundTrip{LatentValues: 1}}, "0 values went in and 0 came back"},
+	} {
+		store, err := overgodb.Open(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { store.Close() })
+		publishPlanFixtureAuthorities(t, store, plan)
+		report, err := evaluateReconstruction(t.Context(), store, &test.autoencoder, compiled, plan)
+		if err == nil || !strings.Contains(err.Error(), test.says) || test.autoencoder.err != nil && !errors.Is(err, failed) {
+			t.Errorf("%s: report = %+v, %v, want the clip refused for its own reason %q", name, report, err, test.says)
+		}
 	}
 }
 
@@ -145,6 +291,16 @@ func TestSignalToNoiseRefusesWhatIsNoRoundTrip(t *testing.T) {
 	levels := float64(media.SignedUnitF32ToU8(0.5)) - float64(media.SignedUnitF32ToU8(0))
 	if want := 10 * math.Log10(255*255*4/(levels*levels)); err != nil || math.Abs(ratio-want) > 1e-9 {
 		t.Fatalf("ratio = %v, %v, want %v", ratio, err, want)
+	}
+}
+
+// TestSignalToNoiseSaysWhyItRefusedARoundTrip holds the ratio, which takes its sum from
+// the level error, to passing on that error's own refusal: what came back at another
+// length is told so, and is not told that it lost nothing.
+func TestSignalToNoiseSaysWhyItRefusedARoundTrip(t *testing.T) {
+	t.Parallel()
+	if _, err := PeakSignalToNoise([]float32{0, 0.5}, []float32{0}); err == nil || !strings.Contains(err.Error(), "2 values went in and 1 came back") {
+		t.Fatalf("a round trip of another length was refused with %v, want the two lengths named", err)
 	}
 }
 

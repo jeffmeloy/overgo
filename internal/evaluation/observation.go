@@ -104,6 +104,12 @@ func loadAnswers[T any](ctx context.Context, repository artifact.Repository, pla
 	if err != nil {
 		return nil, err
 	}
+	return loadObserved[T](ctx, repository, observed)
+}
+
+// loadObserved reads the answers the store holds under the identity of what
+// was asked, whoever named it: a plan's execution, or a group's draws.
+func loadObserved[T any](ctx context.Context, repository artifact.Repository, observed artifact.ID) (*answers[T], error) {
 	edges, err := repository.Children(ctx, observed)
 	if err != nil {
 		return nil, err

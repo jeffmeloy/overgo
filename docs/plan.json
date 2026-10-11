@@ -9,20 +9,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 5600,
+        "nodes": 4784,
         "reason": "Original filed estimate, retained unchanged: planB.json assigned 5,600 production nodes to reward-training on 2026-10-10, estimated from the pool (2,358), confirmation (2,473) and answer-record (1,103) rows less displaced reward code. These are source-proposal figures, not measurements of the revised implementation. Proposed initial allowance remains 5,600 net production nodes across all landings. Report actual per-landing and cumulative growth, including the new machinery's cost and deletions, against the filed estimate and allowance. Any increase requires a separate prospective plan amendment; final size never overwrites the forecast."
       },
       "steps": [
-        {
-          "id": "sampled-answers",
-          "title": "Retain exact sampled tokens, probabilities and draw authority in answer records",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestSampledAnswerKeepsItsTokensAndProbabilities$'",
-          "rationale": "First measure the existing case-answer and rollout record paths and reproduce an answer whose rendered text tokenizes differently from the sampled ids. Extend the existing answer owner rather than adding a rollout store. Keep historical rollout readers; new sampled training reads exact ids and never reconstructs them from text.\n\nA sampled answer retains prompt ids, completion ids, per-token sampling log probabilities, draw identity/index and seed, immutable sampling-weight/update identity, tokenizer/template and protocol identities, completion mask, and EOS/stop/truncation reason. Bind all draws to the logical group and current weights. An exact retry returns the same record; a conflicting second write under the same draw identity is refused. Define how a changed arm, checkpoint or protocol gets a distinct identity.\n\nTest the retokenization counterexample, probability/id alignment, truncation and stop accounting, conflicting writes and replay of an already published draw. Measure record/storage overhead and avoid rehashing the entire weight set for every draw by using the existing immutable checkpoint/update authority.\n\nServes: train on what inference actually sampled and reuse observations for scoring.\nDisappears: retokenization of newly sampled rollouts and a separate new rollout-record mechanism.\nEvidence: sampled-versus-retokenized ids, provenance, record costs and replay/conflict cases.\nBatch: host and small device as the sampling boundary requires; real-model generation remains in the cycle.",
-          "depends_on": [
-            "instruction-verdicts/acceptance"
-          ]
-        },
         {
           "id": "ranked-loss",
           "title": "Use one reward ordering and truly skip fully tied groups",

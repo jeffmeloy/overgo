@@ -742,6 +742,9 @@ func decodePlainIntegers(data []byte, count int64, budget *parquetBudget) ([]str
 	values := make([]string, count)
 	for index := range values {
 		values[index] = strconv.FormatInt(int64(binary.LittleEndian.Uint64(data[index*width:])), decimalBase)
+		if err := budget.take(int64(len(values[index])), 1); err != nil {
+			return nil, err
+		}
 	}
 	return values, nil
 }

@@ -9,17 +9,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 27,
+        "nodes": 5,
         "reason": "What the row may still add. Set on 2026-10-11 to the sum of what its steps were counted at in their own checkouts, by the same count of syntax nodes the automated checks take: 22, 60, 159, 44, 120, 124 and 5, and one step that removes 136 and adds none."
       },
       "steps": [
-        {
-          "id": "parquet-integer-budget",
-          "title": "Charge an integer dictionary's decimal text to the parquet reader's budget",
-          "status": "open",
-          "verify": "go test ./internal/dataset -count=1 -run '^TestIntegerDictionaryChargesItsDecimalText$'",
-          "rationale": "Reviewer finding SQA-108, second severity, confirmed by reading (docs/sqa_findings.json, not in the repository). The parquet reader's budget counts the storage a row group asks for, and an integer dictionary's values are written out as decimal text that is never charged: up to 20 bytes a distinct value beside the 16 that are. Closure: a budget short by the text refuses, and an exact one is spent to nothing; no failure was observed. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader, in a checkout of the step's own, before this row was filed; the commit is the lead's. The register stays the reviewer's and is not edited here.\n\nServes: evaluate, train. Evidence: the test. Batch: host; the commit runs the device tests, since the dataset reader is under them."
-        },
         {
           "id": "source-clip-disposal",
           "title": "Read a GIF source clip through the compositor that video prompts use",

@@ -3,6 +3,8 @@ package dataset
 import (
 	"bytes"
 	"encoding/binary"
+	"slices"
+	"strconv"
 	"testing"
 )
 
@@ -148,5 +150,38 @@ func TestPlainStringsAndColumnSelection(t *testing.T) {
 	metadata.schema[2].name = "id"
 	if _, _, err := stringColumnLeaf(metadata, "id"); err == nil {
 		t.Fatal("ambiguous byte-array leaf resolved")
+	}
+}
+
+// TestIntegerDictionaryChargesItsDecimalText holds that an integer dictionary
+// read under a workspace budget pays for the decimal text it writes as well as
+// for the string headers. A budget that covers the headers alone is refused,
+// one a single byte short of headers and text is refused, and the exact sum is
+// admitted and spent to nothing. The budget one byte short is refused only when
+// the charges come to at least the whole text, whatever the values' order: a
+// charge left out of any value leaves room for the rest. The exact sum being
+// admitted shows they come to no more.
+func TestIntegerDictionaryChargesItsDecimalText(t *testing.T) {
+	want := []string{"-9223372036854775808", "9223372036854775807", "-7", "1099511627776"}
+	var integers []byte
+	var text int64
+	for _, decimal := range want {
+		value, err := strconv.ParseInt(decimal, 10, 64)
+		if err != nil {
+			t.Fatal(err)
+		}
+		integers = binary.LittleEndian.AppendUint64(integers, uint64(value))
+		text += int64(len(decimal))
+	}
+	count := int64(len(want))
+	headers := count * parquetStringBytes
+	for _, short := range []int64{headers, headers + text - 1} {
+		if _, err := decodePlainIntegers(integers, count, &parquetBudget{remaining: short}); err == nil {
+			t.Fatalf("a budget of %d admitted %d bytes of headers and %d of decimal text", short, headers, text)
+		}
+	}
+	budget := &parquetBudget{remaining: headers + text}
+	if values, err := decodePlainIntegers(integers, count, budget); err != nil || !slices.Equal(values, want) || budget.remaining != 0 {
+		t.Fatalf("integers = %v, %v, with %d bytes left of an exact budget", values, err, budget.remaining)
 	}
 }

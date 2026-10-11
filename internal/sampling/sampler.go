@@ -619,6 +619,13 @@ func (s *Sampler) recordGreedyProbability(token int) {
 	}
 }
 
+// recordCandidateProbabilities keeps the selected candidate's probability and
+// the most probable candidates asked for, in their order: probability
+// falling, and id rising among equals. Asked for a few of many, it reads the
+// candidates once and keeps the few in order as they pass, since sorting a
+// vocabulary of 150 thousand to keep one of it cost ten times the model's own
+// step for the token; asked for so many that keeping them in order as they
+// pass would cost more than a sort, it sorts.
 func (s *Sampler) recordCandidateProbabilities(
 	candidates []candidate,
 	total float64,
@@ -627,20 +634,34 @@ func (s *Sampler) recordCandidateProbabilities(
 	if s.probabilityLimit <= 0 {
 		return
 	}
-	slices.SortStableFunc(candidates, compareCandidateProbability)
 	result := SampleProbabilityResult{Token: selected}
+	few := s.probabilityLimit < len(candidates)/s.probabilityLimit
+	if !few {
+		slices.SortStableFunc(candidates, compareCandidateProbability)
+	}
+	top := make([]candidate, 0, min(s.probabilityLimit, len(candidates)))
 	for _, item := range candidates {
 		probability := item.probability / total
 		if item.id == selected {
 			result.SelectedProbability = probability
 		}
-		if probability <= 0 || len(result.Top) >= s.probabilityLimit {
+		if probability <= 0 {
 			continue
 		}
-		result.Top = append(result.Top, TokenProbability{
-			ID:          item.id,
-			Probability: probability,
-		})
+		at := len(top)
+		if few {
+			at, _ = slices.BinarySearchFunc(top, item, compareCandidateProbability)
+		}
+		if at >= s.probabilityLimit {
+			continue
+		}
+		if len(top) == s.probabilityLimit {
+			top = top[:len(top)-1]
+		}
+		top = slices.Insert(top, at, item)
+	}
+	for _, item := range top {
+		result.Top = append(result.Top, TokenProbability{ID: item.id, Probability: item.probability / total})
 	}
 	s.lastProbability = result
 }

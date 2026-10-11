@@ -2,6 +2,7 @@ package sampling
 
 import (
 	"math"
+	"slices"
 	"testing"
 )
 
@@ -1079,6 +1080,68 @@ func TestTokenGrammarAndGBNFAreMutuallyExclusive(t *testing.T) {
 	}
 	if _, err := New(Config{Grammar: tokenGrammar, GBNF: gbnf}); err == nil {
 		t.Fatal("sampler accepted token grammar and GBNF together")
+	}
+}
+
+// TestAFewProbabilitiesAreTheFirstOfAll holds the most probable candidates a
+// sampler reports, asked for a few, to those it reports asked for all.
+//
+// Over a vocabulary where many ids share a logit, so that ids break ties, and
+// every seventh id cannot be drawn, the candidates reported for a limit are
+// the first so many of those reported for the whole vocabulary, to the bit,
+// with the same token drawn at the same probability from the same seed. A few
+// are kept in order as the candidates are read once, and many are sorted: the
+// limits here stand either side of where the one gives way to the other, and
+// the two are one answer. All of them are in order, probability falling and
+// id rising among equals, they sum to one, and a candidate of no probability
+// is never among them.
+func TestAFewProbabilitiesAreTheFirstOfAll(t *testing.T) {
+	const vocabulary, undrawable = 4096, 7
+	logits := make([]float32, vocabulary)
+	drawable := 0
+	for id := range logits {
+		if id%undrawable == 0 {
+			logits[id] = float32(math.Inf(-1))
+			continue
+		}
+		logits[id] = float32((id*7919)%251) / 50
+		drawable++
+	}
+	sample := func(limit int) SampleProbabilityResult {
+		t.Helper()
+		sampler, err := New(Config{Temperature: 1, Seed: 11})
+		if err != nil {
+			t.Fatal(err)
+		}
+		result, err := sampler.SampleWithHistoryProbabilities(slices.Clone(logits), nil, limit)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result
+	}
+	all := sample(vocabulary)
+	sum := 0.0
+	for index, item := range all.Top {
+		sum += item.Probability
+		if item.Probability <= 0 || item.ID%undrawable == 0 {
+			t.Fatalf("candidate %d of all is %+v, which cannot be drawn", index, item)
+		}
+		if previous := all.Top[max(index, 1)-1]; index > 0 && (previous.Probability < item.Probability || previous.Probability == item.Probability && previous.ID >= item.ID) {
+			t.Fatalf("candidates %d and %d of all, %+v and %+v, are out of order", index-1, index, previous, item)
+		}
+		if item.ID == all.Token && item.Probability != all.SelectedProbability {
+			t.Fatalf("token %d was drawn at %v and is reported at %v", all.Token, all.SelectedProbability, item.Probability)
+		}
+	}
+	if len(all.Top) != drawable || math.Abs(sum-1) > 1e-9 {
+		t.Fatalf("all is %d candidates summing to %v, want the %d that can be drawn, summing to one", len(all.Top), sum, drawable)
+	}
+	for _, limit := range []int{1, 2, 3, 20, 63, 64, 65, 1000} {
+		few := sample(limit)
+		if few.Token != all.Token || few.SelectedProbability != all.SelectedProbability || !slices.Equal(few.Top, all.Top[:limit]) {
+			t.Fatalf("asked for %d: token %d at %v with %v, want token %d at %v with the first %d of all, %v",
+				limit, few.Token, few.SelectedProbability, few.Top, all.Token, all.SelectedProbability, limit, all.Top[:limit])
+		}
 	}
 }
 

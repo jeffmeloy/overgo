@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "reward-device-sampling",
-      "title": "Sample a real model's answers from the weights a resident training run holds",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 853,
-        "reason": "Measured, not estimated: the quick checks counted 853 production nodes in the built change on 2026-10-11, and the row was filed with no count. Roughly where they are, comments counted with code: the sampler that writes a session's weights, opens them in the inference runtime on the host or the device, reads a stepped group under the weights after its step and closes what it opened, about 550; the sampler's most probable few kept in order as the candidates are read once where they were sorted out of the whole vocabulary, about 130; a vocabulary's ending ids listed and the producer's use of them, of the sampler and of the rendered prompt's control tokens, about 170. Nothing was built beside an owner: the weights are written by the owner a checkpoint is published by and opened by the route the library validates a model by, and generation and scoring are the runtime's own. The growth buys a capability, a reward run on a real model, and its time: about 31 seconds a group where the host sampler would have taken hours."
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Sample a real model's answers from the weights a resident training run holds",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/trainingworkflow ./internal/sampling -count=1 -run '^(TestRewardSamplerDrawsARealModelsCurrentWeights|TestDeviceSamplerDrawsWhatTheHostSamplerDraws|TestAFewProbabilitiesAreTheFirstOfAll)$'",
-          "rationale": "The first reward run trains Qwen2.5-0.5B from answers its own weights sample. The producer (reward-training/producer, 1296b1f4c) samples from a model in training on the host alone: each token is one whole forward of the host model over the tokens so far, which serves a fixture and a small model and would take days for a run of the pilot's size. Nothing samples a real model from the weights a resident training run holds: the inference runtime serves a model loaded from files, and the resident trainer has no generation.\n\nGive the reward session a sampler for a real model's current weights, through an existing owner: the resident trainer's device buffers read by the generation the inference runtime already has, or the weights handed to that runtime between groups, whichever measures cheaper on Qwen2.5-0.5B; no second forward implementation. It honours the same boundary the host sampler does (evaluation.Generator: the request's sampler, the prompt's own ids, each drawn id with its probability, the end token, the limit), so a group's draws are recorded as they are now. Hold it to the host sampler on a small model: the same ids from the same seeds where the two arithmetics agree, and probabilities within the trainer's own device-against-host difference. Measure the time and device memory a group of the pilot's size costs.\n\nServes: train from rewards on a real model.\nDisappears: the host model's whole forward for every sampled token in a reward run.\nEvidence: parity with the host sampler on a small model, and the measured cost of one group on Qwen2.5-0.5B.\nBatch: small device in the gate; the real model's figures in the cycle."
-        }
-      ]
-    },
-    {
       "id": "reward-pilot-acceptance",
       "title": "Fix the instruction pilot's acceptance from the store's cases and real readings",
       "owner": "master-lead",

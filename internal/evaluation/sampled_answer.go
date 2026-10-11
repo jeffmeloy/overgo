@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/inference"
@@ -107,8 +108,10 @@ func (group SampledGroup) Tokens(answer SampledAnswer) (ids []tokenizer.TokenID,
 // group and its weights; each id is kept as it is sampled with the logarithm
 // of the probability the sampler reports for it; and the draw is refused if
 // the ids the generator returns are not the prompt's followed by those, or a
-// sampled id came with no probability. It ended at an ending id, at the
-// output limit, or at a stop text, in that order of asking.
+// sampled id came with no probability. Its text is the sampled ids' own
+// pieces as the generator gives them, and never the text the generator
+// returns, which the inference runtime begins with the prompt's. It ended at
+// an ending id, at the output limit, or at a stop text, in that order of asking.
 func (group SampledGroup) sample(ctx context.Context, generator Generator, held *answers[SampledAnswer], index int) (SampledAnswer, error) {
 	return held.answer(ctx, index, func() (SampledAnswer, error) {
 		digest := sha256.Sum256(fmt.Appendf(nil, "%s/%d", held.observed, index))
@@ -117,11 +120,13 @@ func (group SampledGroup) sample(ctx context.Context, generator Generator, held 
 		if err != nil {
 			return SampledAnswer{}, err
 		}
-		ids, text, err := generator.Generate(ctx, "", inference.GenerateOptions{
+		var text strings.Builder
+		ids, _, err := generator.Generate(ctx, "", inference.GenerateOptions{
 			MaxNewTokens: group.MaxTokens, Sampler: sampler, PromptTokenIDs: group.Prompt, StopSequences: group.Stops, PostSamplingProbabilities: 1,
 			OnToken: func(event inference.TokenEvent) error {
 				answer.Completion = append(answer.Completion, event.ID)
 				answer.LogProbabilities = append(answer.LogProbabilities, math.Log(event.SelectedProbability))
+				text.WriteString(event.Piece)
 				return nil
 			},
 		})
@@ -134,7 +139,7 @@ func (group SampledGroup) sample(ctx context.Context, generator Generator, held 
 		}) {
 			return SampledAnswer{}, fmt.Errorf("evaluation: draw %d of group %q returned %d ids for a prompt of %d and %d sampled, or a sampled id without its probability", index, group.Group, len(ids), len(group.Prompt), drawn)
 		}
-		switch answer.Text = text; {
+		switch answer.Text = text.String(); {
 		case drawn > 0 && slices.Contains(group.Ends, answer.Completion[drawn-1]):
 			answer.End = sampledEndOfSequence
 		case drawn >= group.MaxTokens:

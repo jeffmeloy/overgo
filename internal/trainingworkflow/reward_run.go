@@ -49,9 +49,11 @@ type RewardSampling struct {
 // the groups it sampled, of which those it stepped on and those, their
 // answers all standing together, it passed; the tokens it sampled and the
 // tokens it trained on; the answers that ran to the output limit; the time
-// it spent sampling, scoring and stepping; and how far, on the tokens it
-// sampled, the stepped groups' answers moved in log-probability a token under
-// the weights after each step, which describes the run and bounds nothing.
+// it spent sampling, which is the sampler's whole time, opening the weights
+// and reading answers under them with it, scoring and stepping; and how far,
+// on the tokens it sampled, the stepped groups' answers moved in
+// log-probability a token under the weights after each step, which describes
+// the run and bounds nothing.
 // Stopped, when set, says why the session ended before its prompts did.
 type RewardTrace struct {
 	Sampled, Updated, Skipped    int
@@ -64,8 +66,10 @@ type RewardTrace struct {
 
 // modelSampler samples from a model in training on the host: each token is
 // drawn by the request's sampler from the model's logits for the tokens so
-// far, with the probability it was drawn at, until the model's end token, a
-// stop text, the limit, or the model's context is reached.
+// far, with the probability it was drawn at, until an ending token, a stop
+// text, the limit, or the model's context is reached. It is how a model
+// trained over a safetensors directory is sampled; a GGUF's weights are
+// opened in the inference runtime (rewardSampler).
 type modelSampler struct {
 	model  *densecausal.Model
 	tokens trainableTokenizer
@@ -92,13 +96,17 @@ func (sampler modelSampler) Generate(ctx context.Context, _ string, options infe
 		if err != nil {
 			return nil, "", err
 		}
-		piece := sampler.tokens.piece(drawn.Token)
+		// An ending token is no text of the answer, as the inference runtime gives it none.
+		ending, piece := slices.Contains(sampler.tokens.ends, drawn.Token), ""
+		if !ending {
+			piece = sampler.tokens.piece(drawn.Token)
+		}
 		if err := options.OnToken(inference.TokenEvent{ID: tokenizer.TokenID(drawn.Token), Piece: piece, Index: index, SelectedProbability: drawn.SelectedProbability}); err != nil {
 			return nil, "", err
 		}
 		ids = append(ids, drawn.Token)
 		text.WriteString(piece)
-		if sampler.tokens.ended && drawn.Token == sampler.tokens.end || slices.ContainsFunc(options.StopSequences, func(stop string) bool { return strings.HasSuffix(text.String(), stop) }) {
+		if ending || slices.ContainsFunc(options.StopSequences, func(stop string) bool { return strings.HasSuffix(text.String(), stop) }) {
 			break
 		}
 	}
@@ -117,7 +125,9 @@ func (sampler modelSampler) Generate(ctx context.Context, _ string, options infe
 // instruction objective's one order; and takes at most one step on the group,
 // on the host or the device as the session trains. A group is drawn whole
 // from one set of weights before its step, and the next from the weights
-// after it.
+// after it, by the sampler that serves the model's representation
+// (rewardSampler), which also reads how a stepped group's answers stand
+// under the weights after the step.
 //
 // A session that is run again from the same checkpoint reaches the same
 // weights and so names the same groups: the draws it recorded are read back
@@ -125,12 +135,15 @@ func (sampler modelSampler) Generate(ctx context.Context, _ string, options infe
 // same weights by the same seeds, and each step is taken once. So what an
 // interrupted session keeps is its draws and its last checkpoint, and nothing
 // it lost is a draw or a step it could count twice.
-func (session denseSession) produceRewards(prepared densePrepared, resume *densecausal.RLState) (Result, densecausal.TrainState, error) {
+func (session denseSession) produceRewards(prepared densePrepared, resume *densecausal.RLState) (_ Result, _ densecausal.TrainState, err error) {
 	rewards := session.request.Rewards
-	tokens, err := loadTrainableTokenizer(session.inputDirectory)
+	// A rendered prompt carries the template's control tokens, which are read as tokens.
+	tokens, err := loadTrainableTokenizerFor(session.inputDirectory, rewards.Render != nil)
 	if err != nil {
 		return Result{}, densecausal.TrainState{}, err
 	}
+	sampler := &rewardSampler{session: session, tokens: tokens}
+	defer func() { err = errors.Join(err, sampler.release()) }()
 	base, err := identifyModel(session.inputDirectory)
 	if session.resumed.ID().Valid() {
 		base = session.resumed.Model
@@ -151,7 +164,10 @@ func (session denseSession) produceRewards(prepared densePrepared, resume *dense
 		result.Backend = "cuda"
 	}
 	trace := &result.Rewards
-	sampler := modelSampler{model: session.model, tokens: tokens}
+	ends := make([]tokenizer.TokenID, len(tokens.ends))
+	for index, id := range tokens.ends {
+		ends[index] = tokenizer.TokenID(id)
+	}
 	for _, produced := range prepared.cases {
 		prompt, limit, _ := prepared.prompts.Asked(produced.name)
 		var err error
@@ -171,14 +187,18 @@ func (session denseSession) produceRewards(prepared densePrepared, resume *dense
 		}
 		group := evaluation.SampledGroup{
 			Group: produced.name, Code: rewards.Code, Weights: weights, Tokenizer: base, Template: rewards.Protocol.Template,
-			Ends: []tokenizer.TokenID{tokenizer.TokenID(tokens.end)}, Temperature: 1, Seed: rewards.Seed,
+			Ends: ends, Temperature: 1, Seed: rewards.Seed,
 			MaxTokens: min(int(rewards.Protocol.MaxTokens), limit, session.model.Dims.ContextLength-len(encoded)),
 		}
 		for _, id := range encoded {
 			group.Prompt = append(group.Prompt, tokenizer.TokenID(id))
 		}
 		began := time.Now()
-		answers, err := evaluation.SampleGroup(session.ctx, session.request.Observations, sampler, group, rewards.Draws)
+		generator, err := sampler.generator()
+		if err != nil {
+			return Result{}, densecausal.TrainState{}, err
+		}
+		answers, err := evaluation.SampleGroup(session.ctx, session.request.Observations, generator, group, rewards.Draws)
 		if err != nil {
 			return Result{}, densecausal.TrainState{}, err
 		}
@@ -223,15 +243,22 @@ func (session denseSession) produceRewards(prepared densePrepared, resume *dense
 			continue
 		}
 		trace.Updated++
+		// The step moved the weights: what was opened of them is no longer the model.
+		if err := sampler.release(); err != nil {
+			return Result{}, densecausal.TrainState{}, err
+		}
 		observation := observations[0]
 		trace.TrainedTokens += observation.CompletionTokens
 		// How the sampled answers stand under the weights after the step, a token: a description of the step.
-		for index, sequence := range rollouts {
-			score, err := session.model.SequenceLogProb(sequence.Sequence)
-			if err != nil {
-				return Result{}, densecausal.TrainState{}, err
-			}
-			trace.Shift += (score.LogProbability - sampled[index]) / float64(observation.CompletionTokens)
+		// Opening those weights and reading the answers under them is the sampler's time.
+		began = time.Now()
+		after, err := sampler.standing(group.Prompt, answers, rollouts)
+		if err != nil {
+			return Result{}, densecausal.TrainState{}, err
+		}
+		trace.Generation += time.Since(began)
+		for index, standing := range after {
+			trace.Shift += (standing - sampled[index]) / float64(observation.CompletionTokens)
 		}
 		if math.IsNaN(observation.Loss) || math.IsInf(observation.Loss, 0) || math.IsNaN(trace.Shift) || math.IsInf(trace.Shift, 0) {
 			trace.Stopped = fmt.Sprintf("the step on prompt %q gave a loss of %v and a shift of %v", produced.name, observation.Loss, trace.Shift)

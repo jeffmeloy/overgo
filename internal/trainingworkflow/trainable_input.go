@@ -75,6 +75,9 @@ type trainableTokenizer struct {
 	piece  func(int) string
 	end    int
 	ended  bool
+	// ends lists the tokens that end a generation: the declared end token,
+	// and for a GGUF vocabulary every token it marks as ending one.
+	ends []int
 }
 
 // loadTrainableEncoder resolves the text encoder beside the weights.
@@ -107,7 +110,11 @@ func loadTrainableTokenizerFor(input string, chat bool) (trainableTokenizer, err
 		if err != nil {
 			return trainableTokenizer{}, err
 		}
-		return trainableTokenizer{encode: loaded.Encode, piece: func(id int) string { return loaded.Decode([]int{id}) }, end: end, ended: ended}, nil
+		tokens := trainableTokenizer{encode: loaded.Encode, piece: func(id int) string { return loaded.Decode([]int{id}) }, end: end, ended: ended}
+		if ended {
+			tokens.ends = []int{end}
+		}
+		return tokens, nil
 	}
 	file, err := gguf.Open(input)
 	if err != nil {
@@ -131,11 +138,18 @@ func loadTrainableTokenizerFor(input string, chat bool) (trainableTokenizer, err
 			return tokens, nil
 		}
 	}
+	var ends []int
+	for id := range vocabulary.Len() {
+		if vocabulary.IsEOG(tokenizer.TokenID(id)) {
+			ends = append(ends, id)
+		}
+	}
 	return trainableTokenizer{
 		encode: encodeWith(tokenizer.EncodeOptions{AddSpecial: chat, ParseSpecial: chat}),
 		// A piece the vocabulary cannot decode shows empty; the id stays beside it.
 		piece: func(id int) string { piece, _ := vocabulary.DecodePiece(tokenizer.TokenID(id), true); return piece },
 		end:   int(vocabulary.EOS), ended: vocabulary.EOS != tokenizer.NullToken,
+		ends: ends,
 	}, nil
 }
 

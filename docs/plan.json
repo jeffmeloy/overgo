@@ -4,6 +4,40 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "template-json-budget",
+      "title": "Charge a template's JSON against its render's memory before it is built",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 604,
+        "reason": "Measured, not estimated: the built change counts 604 production nodes (tmp/count_nodes.go over internal/jinja json.go, eval.go and filters.go before and after, 2026-10-11). The writer that counts or writes, the count made before the text and the text grown once to it, 391; the render holding the bytes before the filter builds, and map's named filter run in the render, 309; and 96 fewer in the map filter, whose named branch left it."
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "Charge a template's JSON against its render's memory before it is built",
+          "status": "open",
+          "verify": "go test ./internal/jinja ./internal/inference -count=1 -run '^(TestJSONIsChargedBeforeItIsBuilt|TestTemplatePastItsLimitsIsRefused|TestChatTemplatesRenderAsTransformersDoes)$'",
+          "rationale": "A chat template arrives inside a model file, and its render is bounded by a count of bytes (jinja.Limits). tojson was charged for what it built after it had built it, and what it builds is not bounded by what it is given: an indent repeats for every line and level, and an escape is six bytes for one. Reproduced on 2026-10-11 by a test written before the repair: {{ 1|tojson(indent=1000000000) }} allocated a thousand million bytes of spaces to write one digit; a list at that indent was refused only after two thousand million bytes were allocated; and an indent of the largest integer ended the process, a panic in strings.Repeat. The first is the reviewer's SQA-133, raised by the owner; the panic was found reproducing it.\n\nCount what tojson will write before any of it is written, hold those bytes from the render's budget, and write into text grown once to that size. Keep an indent as a unit and a count, so a value with no members costs nothing for it. Run map's named filter in the render, so each item is charged as the filter alone is charged; a mapped item was charged nothing. What tojson writes does not change, to the byte: the Python tables and the served templates' renders hold it.\n\nServes: serving a model whose template nobody here wrote.\nDisappears: an allocation past the render's limit, and a crash, that a template could cause.\nEvidence: the reproducing cases refused or rendered within twice the limit of allocation, the count equal to the bytes written, and the existing byte-exact tables.\nBatch: host."
+        }
+      ]
+    },
+    {
+      "id": "exposure-across-identities",
+      "title": "Keep a confirmation's exposure spent across dataset identities, group representatives and overlapping charges",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Keep a confirmation's exposure spent across dataset identities, group representatives and overlapping charges",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestConfirmationProtocolAndExposureSurviveReplacement$'",
+          "rationale": "A confirmation is charged against what a promotion part has left, which counts earlier charges on promotion and audit parts of the same dataset that share a document by record or content (confirmation-integrity, 54ea9b986). The reviewer's SQA-110 names what that leaves, and the lead filed the first of them while building it (finding f7cc9c4f). The same content registered as another dataset is not charged. Another prompt of a group whose representative was read is not charged, though the group is the unit a pilot confirms on. And two partitions that share documents can each read the old balance and publish under different keys. The first reward run charges its comparisons on a promotion part, so the repair comes before it, and that run's step awaits this row.\n\nExtend the owners that exist, the exposure count and the charge's publication: exposure follows content and declared group across dataset identities, and overlapping charges are admitted atomically, each still attributed to its own acceptance and comparison. No ledger and no new framework. It is done when, as the reviewer states it: after a charged read and a reopening, identical bytes rebound to another dataset and another representative of a read group are both still spent, while content that is fresh stays usable; partitions that overlap, charged at once under control, admit no more reads than the budget; and an exact retry keeps its verdict and prepares no model.\n\nServes: select and confirm improvements.\nDisappears: fresh confirmation capacity through rebinding, through another representative, or through a race.\nEvidence: TestConfirmationProtocolAndExposureSurviveReplacement extended with another dataset, a second representative and overlapping charges; the confirmation and instruction acceptance contracts unchanged.\nBatch: host. Count: none yet; it is set from the built change before the row is committed."
+        }
+      ]
+    },
+    {
       "id": "reward-training",
       "title": "Train from registered scorer rewards through one weighted device step",
       "owner": "master-lead",
@@ -24,7 +58,8 @@
             "instruction-verdicts/acceptance",
             "reward-device-sampling/do",
             "reward-pilot-acceptance/do",
-            "reward-pilot-acceptance/record"
+            "reward-pilot-acceptance/record",
+            "exposure-across-identities/do"
           ]
         }
       ]
@@ -357,7 +392,10 @@
             "reward-pilot-acceptance/do",
             "plan-first-run-prerequisites/do",
             "device-sampling-count/do",
-            "pilot-acceptance-count/do"
+            "pilot-acceptance-count/do",
+            "exposure-across-identities/do",
+            "template-json-budget/do",
+            "sqa-rows/do"
           ]
         }
       ]

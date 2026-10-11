@@ -9,20 +9,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1100,
+        "nodes": 684,
         "reason": "Original filed estimate, retained unchanged: planB.json assigned 1,100 production nodes to shape-free-verdicts on 2026-10-10. That estimate covered a different statistical migration and is not a measurement of this revised scope. Proposed initial allowance for instruction-verdicts: 1,100 net production nodes across all its landings, not a target. Report actual per-landing and cumulative growth against this original estimate and allowance. Lower unused allowance when scope measurement supports it; any increase requires a separate prospective plan amendment. Do not replace the filed estimate with the final count."
       },
       "steps": [
-        {
-          "id": "exact",
-          "title": "Add exact paired binary comparison and exact share bounds",
-          "status": "open",
-          "verify": "go test ./internal/tensorstats -count=1 -run '^TestExactPairedBinaryVerdictAndBounds$'",
-          "rationale": "First enumerate small paired binary tables and compare expected one-sided binomial tails and interval coverage with independently derived exact counts. Define the null as equal win/loss probability among discordant independent pairs. Cover zero discordances, all wins, all losses, ties and numerical extremes. Simulation can characterize additional cases with its own uncertainty; it is not required to make an older method fail.\n\nAdd the exact paired binary comparison and exact bounds for a share to internal/tensorstats, using existing numerical helpers where possible. The unit is the independent binary pair declared by acceptance. Do not use prompt counts as independent sample counts when several prompts share an admitted group. State the assumptions and denominators in the result.\n\nDo not delete normalQuantile, change the existing likelihood verdict, or move unrelated scorecard statistics for this pilot. The accepted implementation must give the enumerated exact results and stable large-count behavior. Any comparison with the old rule is descriptive and retained whether it favors the old rule or the new one.\n\nServes: judge binary instruction-following outcomes.\nDisappears: the need for a task-specific significance calculation in the reward pilot; existing likelihood behavior remains until separately decided.\nEvidence: enumerated tails, interval coverage, discordance and tie cases, and declared assumptions.\nBatch: host; keep generic statistics off inference dependencies where existing package boundaries permit.",
-          "depends_on": [
-            "confirmation-integrity/do"
-          ]
-        },
         {
           "id": "acceptance",
           "title": "Freeze the pilot's scorer, independent units, protocol, power and comparison family",

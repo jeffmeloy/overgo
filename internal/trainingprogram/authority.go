@@ -202,7 +202,15 @@ func CompileTrainingProgram(spec ProgramSpec) (TrainingProgram, error) {
 		Parameters  []ParameterSpec   `json:"parameters"`
 		OptimizerID string            `json:"optimizer_id"`
 		Preference  *PreferencePolicy `json:"preference,omitempty"`
+		// RewardRule is the reward objective's alone. A program compiled before
+		// the objective named its rule has none, so a checkpoint trained under
+		// the scaled, centred rewards that preceded it is another program's, and
+		// its momentum is not continued by this one.
+		RewardRule string `json:"reward_rule,omitempty"`
 	}{Objective: spec.Objective, Operators: operators, Parameters: parameters, OptimizerID: spec.Optimizer.Identity(), Preference: preference}
+	if spec.Objective == ObjectiveGRPO {
+		body.RewardRule = rewardRule
+	}
 	id, err := artifact.JSONID(artifact.KindRecipe, body)
 	if err != nil {
 		return TrainingProgram{}, err

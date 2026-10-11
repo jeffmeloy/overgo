@@ -43,7 +43,7 @@ func run() error {
 	output := flag.String("out", "", "output directory for the trained checkpoint")
 	resume := flag.String("resume", "", "resume checkpoint directory")
 	reference := flag.String("reference", "", "frozen reference model directory for DPO")
-	scale := clioptions.Float64Override(flag.CommandLine, "objective-scale", "RL objective scale")
+	scale := clioptions.Float64Override(flag.CommandLine, "objective-scale", "preference objective scale (DPO and its modes); the reward objective weighs a group by the order of its answers and takes none")
 	preferenceMode := flag.String("preference-mode", "", "DPO objective loss mode: empty for DPO's own, the reference-free simpo or orpo, or kto over unpaired completions (JSONL of id, group, prompt, completion and a boolean label, true for desirable)")
 	preferenceMargin := clioptions.Float64Override(flag.CommandLine, "preference-margin", "SimPO target reward margin")
 	steps := clioptions.IntOverride(flag.CommandLine, "steps", "Muon update steps; omitted derives from dataset units")

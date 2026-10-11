@@ -1,6 +1,7 @@
 package trainingworkflow
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -296,7 +297,7 @@ func TestGRPOUsesSharedRecipeTrainingRuntime(t *testing.T) {
 	result, err := Execute(t.Context(), Request{
 		Repository: store, Recipe: recipeID, ModelDirectory: model, DatasetPath: dataset,
 		OutputDirectory: filepath.Join(root, "output"), Steps: 1, Host: true,
-		ObjectiveScale: 1, ObserveGRPO: func(value trainingprogram.GRPOObservation) { observed = append(observed, value) },
+		ObserveGRPO: func(value trainingprogram.GRPOObservation) { observed = append(observed, value) },
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -390,8 +391,55 @@ func testGRPOResume(t *testing.T) {
 	store, recipeID := trainingAuthority(t, model, "", dataset, trainingprogram.ObjectiveGRPO)
 	verifyWorkflowResume(t, root, Request{
 		Repository: store, Recipe: recipeID, ModelDirectory: model, DatasetPath: dataset,
-		ObjectiveScale: 1, Host: true,
+		Host: true,
 	})
+}
+
+// TestRewardSessionPassesATiedGroupAcrossACheckpoint holds a reward session
+// to taking no update for a group whose answers all stand together, through
+// the checkpoint a session ends in. Of two groups, one with an order and one
+// tied, a session of both takes one update and counts one skipped, with the
+// stream past both; and the same two units as one session, its checkpoint,
+// and a second session resumed from it end at the same weights, the same
+// optimizer step and the same place in the stream, however the stream
+// orders the two. A request that names an objective scale is refused.
+func TestRewardSessionPassesATiedGroupAcrossACheckpoint(t *testing.T) {
+	weights, shapes := testutil.DenseCausalWeights(t, testutil.DenseCausalSpec{
+		Vocab: 8, Hidden: 8, Heads: 2, HeadDim: 4, KVHeads: 1, Intermediate: 16, Layers: 1, Seed: 13,
+	})
+	root := t.TempDir()
+	model := filepath.Join(root, "model")
+	writeModel(t, model, weights, shapes)
+	evaluator := testutil.ArtifactID(t, artifact.KindEvidence, "tied reward evaluator").String()
+	dataset := filepath.Join(root, "rollouts.jsonl")
+	var rows strings.Builder
+	for _, row := range []struct {
+		id, group, completion string
+		reward                int
+	}{{"a", "ordered", "c", 1}, {"b", "ordered", "d", -1}, {"c", "tied", "c", 1}, {"d", "tied", "d", 1}} {
+		fmt.Fprintf(&rows, `{"id":"candidate-%s","group":"prompt-%s","prompt":"ab","completion":"%s","reward":%d,"evaluator":"%s"}`+"\n", row.id, row.group, row.completion, row.reward, evaluator)
+	}
+	if err := os.WriteFile(dataset, []byte(rows.String()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	store, recipeID := trainingAuthority(t, model, "", dataset, trainingprogram.ObjectiveGRPO)
+	request := Request{Repository: store, Recipe: recipeID, ModelDirectory: model, DatasetPath: dataset, Host: true}
+	scaled := request
+	scaled.Steps, scaled.ObjectiveScale, scaled.OutputDirectory = 2, 1, filepath.Join(root, "scaled")
+	if _, err := Execute(t.Context(), scaled); err == nil || !strings.Contains(err.Error(), "no objective scale") {
+		t.Fatalf("a reward session with an objective scale = %v, want it refused", err)
+	}
+	both := request
+	both.Steps, both.OutputDirectory = 2, filepath.Join(root, "both")
+	result, err := Execute(t.Context(), both)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.GRPO) != 1 || result.Skipped != 1 || result.StreamPosition != 2 || result.Checkpoint.Optimizer.Step != 1 {
+		t.Fatalf("a session of an ordered group and a tied one took %d updates to step %d, skipped %d and stands at %d in its stream; want one update, one skipped, and past both",
+			len(result.GRPO), result.Checkpoint.Optimizer.Step, result.Skipped, result.StreamPosition)
+	}
+	verifyWorkflowResume(t, root, request)
 }
 
 func verifyWorkflowResume(t *testing.T, root string, request Request, prepareResume ...func(*testing.T, string, trainingprogram.Checkpoint) trainingprogram.Checkpoint) {

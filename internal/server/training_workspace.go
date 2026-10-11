@@ -53,15 +53,17 @@ func (workspace *trainingWorkspace) WorkflowCapabilities(_ context.Context, kind
 		{Name: "resume", Type: workflowControlCheckpoint},
 		{Name: "output", Type: workflowControlOutput, Required: true},
 		{Name: "steps", Type: workflowControlInteger, Required: true},
-		{Name: "objective_scale", Type: workflowControlNumber, Required: true},
 	}
-	// DPO's loss modes: unset trains DPO's own; the margin is SimPO's.
+	// The scale is the preference objective's, as are DPO's loss modes: unset
+	// trains DPO's own; the margin is SimPO's. The reward objective weighs a
+	// group by the order of its answers and takes no scale.
 	if workspace.objective == trainingprogram.ObjectiveDPO {
 		choices := make([]string, len(workspacePreferenceModes))
 		for index, mode := range workspacePreferenceModes {
 			choices[index] = string(mode)
 		}
 		controls = append(controls,
+			workflowControl{Name: "objective_scale", Type: workflowControlNumber, Required: true},
 			workflowControl{Name: "preference_mode", Type: workflowControlText, Choices: choices},
 			workflowControl{Name: "preference_margin", Type: workflowControlNumber},
 		)

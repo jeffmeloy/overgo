@@ -9,20 +9,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 4784,
+        "nodes": 4724,
         "reason": "Original filed estimate, retained unchanged: planB.json assigned 5,600 production nodes to reward-training on 2026-10-10, estimated from the pool (2,358), confirmation (2,473) and answer-record (1,103) rows less displaced reward code. These are source-proposal figures, not measurements of the revised implementation. Proposed initial allowance remains 5,600 net production nodes across all landings. Report actual per-landing and cumulative growth, including the new machinery's cost and deletions, against the filed estimate and allowance. Any increase requires a separate prospective plan amendment; final size never overwrites the forecast."
       },
       "steps": [
-        {
-          "id": "ranked-loss",
-          "title": "Use one reward ordering and truly skip fully tied groups",
-          "status": "open",
-          "verify": "go test ./internal/trainingprogram ./internal/densecausal -count=1 -run '^(TestGroupIsWeightedByOrderAlone|TestTiedGroupPreservesWeightsMomentumAndStep)$'",
-          "rationale": "First reproduce the current defect after a nonzero update: a zero-gradient group can still move weights through stored momentum and advance the optimizer step. Measure the existing GRPOLoss and host reward path before replacing them.\n\nFor answers to the same prompt, rank by the number of strict rules satisfied. Only fully passing answers use shorter generated-token length to break ties. Partial failures with equal rule counts tie; stopping early gives no length advantage. The scorer supplies the rule outcomes and the training objective supplies this one declared ordering, used identically by loss, producer and first-run.\n\nUse each answer's share of other group members beaten minus its share of other members that beat it, with ties contributing zero and group size at least two. Fix the sign converting reward ascent to the trainer's descent gradient and the normalization in the training protocol. Verify invariance under strictly increasing transformations of the ordering scores, negative and positive weights, and unchanged ordering for tied failures.\n\nA fully tied group invokes no optimizer update. Preserve weights, momentum and optimizer-step count exactly while committing the consumed-case cursor and skipped-group counter once. Test this after nonzero momentum, across checkpoint/reopen and after injected publication failures; an all-zero initial optimizer is not sufficient coverage.\n\nDelete the reward objective's scale setting and centered/RMS reward calculation as their callers migrate. A positive constant scale cancels only under compatible momentum history in the idealized normalization; relative group magnitudes still matter. Version the new rank objective and refuse silent resume of old scaled-objective momentum. Keep old artifacts readable and test a clear incompatibility result. Do not remove a shared scale field still required by another objective.\n\nServes: train from ordered scorer outcomes without false tied-group updates.\nDisappears: this reward path's reward centering/RMS normalization, scale setting and no-signal optimizer updates.\nEvidence: ordering tables, direction checks, transform invariance, and seeded momentum/resume failures.\nBatch: host; the weighted-step contract repeats the skip behavior on the resident device route.",
-          "depends_on": [
-            "reward-training/sampled-answers"
-          ]
-        },
         {
           "id": "weighted-step",
           "title": "Share one resident weighted token-prediction gradient step",

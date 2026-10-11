@@ -70,7 +70,10 @@ type Result struct {
 	KTO            []trainingprogram.KTOObservation
 	GRPO           []trainingprogram.GRPOObservation
 	StreamPosition uint64
-	Checkpoint     trainingprogram.Checkpoint
+	// Skipped counts the reward groups the session consumed and took no
+	// update for, their answers all standing together.
+	Skipped    uint64
+	Checkpoint trainingprogram.Checkpoint
 	// Observation: committed session evidence.
 	Observation               artifact.ID
 	RouterObservations        []artifact.ID
@@ -164,8 +167,8 @@ func admittedRun(ctx context.Context, request Request, observer *Observer, input
 			return Result{}, errors.New("training workflow: DPO inputs differ from recipe")
 		}
 	case trainingprogram.ObjectiveGRPO:
-		if request.ReferenceDirectory != "" || request.ObjectiveScale <= 0 || request.FreezeLexical {
-			return Result{}, errors.New("training workflow: GRPO inputs differ from recipe")
+		if request.ReferenceDirectory != "" || request.ObjectiveScale != 0 || request.FreezeLexical {
+			return Result{}, errors.New("training workflow: GRPO inputs differ from recipe: the reward objective takes no reference, no objective scale and no frozen lexicon")
 		}
 	default:
 		if request.ReferenceDirectory != "" || request.ObjectiveScale != 0 {
@@ -362,10 +365,10 @@ func (session denseSession) execute(prepared densePrepared, plan trainingprogram
 		}
 		observations, state, err := session.model.TrainGRPOGroupsResume(
 			prepared.groups, session.optimizerConfig.BaseLearningRate, session.optimizerConfig.Momentum,
-			session.request.ObjectiveScale, resume, session.request.ObserveGRPO,
+			resume, session.request.ObserveGRPO,
 		)
 		return Result{Backend: "host", Objective: session.objective, GRPO: observations,
-			StreamPosition: state.Stream.Position}, state.Optimizer, err
+			StreamPosition: state.Stream.Position, Skipped: state.Skipped}, state.Optimizer, err
 	}
 	if session.objective == trainingprogram.ObjectiveDPO {
 		var resume *densecausal.RLState

@@ -15,6 +15,10 @@ import (
 type RLState struct {
 	Optimizer TrainState
 	Stream    trainingdata.StreamState
+	// Skipped counts the units the run consumed and took no update for: reward
+	// groups whose answers all stand together. The stream's position passes
+	// them and the optimizer's step does not.
+	Skipped uint64
 }
 
 func (m *Model) TrainDPOBatchesResume(
@@ -65,6 +69,7 @@ type rlRun struct {
 	DenseUpdate
 	objective string
 	stream    trainingdata.StreamState
+	skipped   uint64
 }
 
 // newRLRun opens the dense update at the resumed optimizer state and stream
@@ -76,7 +81,7 @@ func (m *Model) newRLRun(objective string, baseLR, momentum float64, resume *RLS
 		if !resume.Stream.Identity.Valid() {
 			return rlRun{}, fmt.Errorf("densecausal: %s resume stream authority absent", objective)
 		}
-		run.stream, state = resume.Stream, &resume.Optimizer
+		run.stream, run.skipped, state = resume.Stream, resume.Skipped, &resume.Optimizer
 	}
 	var err error
 	run.DenseUpdate, err = m.NewDenseUpdate(baseLR, momentum, state)
@@ -101,8 +106,11 @@ func (run rlRun) stepObserved(grads Grads) (uint64, float64, float64, float64, e
 	return uint64(step.Step), step.LearningRate, step.GradientL2, step.UpdateL2, err
 }
 
-// state is the optimizer state and stream position the run reached.
-func (run rlRun) state() RLState { return RLState{Optimizer: run.Snapshot(), Stream: run.stream} }
+// state is the optimizer state and stream position the run reached, and the
+// units it passed without an update.
+func (run rlRun) state() RLState {
+	return RLState{Optimizer: run.Snapshot(), Stream: run.stream, Skipped: run.skipped}
+}
 
 func (m *Model) dpoLossAndGrads(reference *Model, pair trainingdata.PreferencePair, preference trainingprogram.PreferencePolicy) (trainingprogram.DPOObservation, Grads, error) {
 	policyChosen, err := m.sequenceTrace(pair.Chosen)

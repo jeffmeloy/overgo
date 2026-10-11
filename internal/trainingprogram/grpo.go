@@ -2,23 +2,15 @@ package trainingprogram
 
 import (
 	"errors"
-	"math"
 
 	"overgo/internal/artifact"
-	"overgo/internal/sequencescore"
 )
 
-type GroupedScore struct {
-	Score  sequencescore.Score
-	Reward float64
-}
-
-type GRPOResult struct {
-	Loss             float64
-	ScoreGradients   []float64
-	MeanReward       float64
-	RewardDispersion float64
-}
+// rewardRule names the rule the reward objective weighs a group's answers by,
+// and its version: by their order alone, each answer by the share of the
+// others it beats less the share that beat it. A session plan for the
+// objective carries it, so a change to the rule is another plan.
+const rewardRule = "order/1"
 
 type GRPOObservation struct {
 	Step             uint64      `json:"step"`
@@ -49,34 +41,48 @@ func (observation GRPOObservation) Valid() bool {
 	return true
 }
 
-// GRPOLoss: centered, RMS-normalized group reward objective.
-func GRPOLoss(group []GroupedScore, scale float64) (GRPOResult, error) {
-	if len(group) < 2 || scale <= 0 || !finite(scale) {
-		return GRPOResult{}, errors.New("training program: invalid GRPO group or scale")
+// instructionOrder is the one ordering of the answers to a prompt that the
+// instruction objective trains by, as a reward: the more of the prompt's
+// rules an answer passes the higher, and among answers that pass every rule
+// the fewer tokens it generated the higher. Answers that fail the same
+// number of rules stand together whatever their length: stopping early earns
+// nothing short of passing. Only the order of its values means anything.
+func instructionOrder(passed, rules, tokens uint64) float64 {
+	if passed < rules {
+		return float64(passed)
 	}
-	var mean float64
-	for _, item := range group {
-		if !item.Score.Valid() || !finite(item.Reward) {
-			return GRPOResult{}, errors.New("training program: invalid GRPO score or reward")
+	return float64(rules) + 1/float64(tokens+1)
+}
+
+// OrderGradients weighs the answers of one group by the order of their
+// rewards alone. An answer's weight is the share of the group's other answers
+// it beats less the share that beat it, an equal reward counting for neither,
+// so the weights sum to nothing, and any rewards in the same order give the
+// same weights. What returns is, for each answer, the gradient of the group's
+// loss with respect to the logarithm of the answer's probability: the weight
+// with its sign turned, since the trainer descends and a reward is climbed,
+// over the group's size. A group whose answers all stand together returns all
+// zeros: it has nothing to teach, and is to move nothing.
+func OrderGradients(rewards []float64) ([]float64, error) {
+	if len(rewards) < 2 {
+		return nil, errors.New("training program: a reward group holds at least two answers")
+	}
+	gradients := make([]float64, len(rewards))
+	for index, reward := range rewards {
+		if !finite(reward) {
+			return nil, errors.New("training program: a reward is not a finite number")
 		}
-		mean += item.Reward
+		// Counted with the sign already turned: a loss to another answer adds, a win takes away.
+		var standing float64
+		for _, other := range rewards {
+			switch {
+			case reward < other:
+				standing++
+			case reward > other:
+				standing--
+			}
+		}
+		gradients[index] = standing / float64(len(rewards)-1) / float64(len(rewards))
 	}
-	mean /= float64(len(group))
-	var squareSum float64
-	for _, item := range group {
-		centered := item.Reward - mean
-		squareSum += centered * centered
-	}
-	dispersion := math.Sqrt(squareSum / float64(len(group)))
-	result := GRPOResult{ScoreGradients: make([]float64, len(group)), MeanReward: mean, RewardDispersion: dispersion}
-	if dispersion == 0 {
-		return result, nil
-	}
-	denominator := dispersion * float64(len(group))
-	for index, item := range group {
-		gradient := -scale * (item.Reward - mean) / denominator
-		result.ScoreGradients[index] = gradient
-		result.Loss += gradient * item.Score.LogProbability
-	}
-	return result, nil
+	return gradients, nil
 }

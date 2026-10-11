@@ -2,14 +2,22 @@ package densecausal
 
 import (
 	"errors"
+	"math"
+	"slices"
 
 	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
 )
 
+// TrainGRPOGroupsResume trains on reward groups, one update a group whose
+// answers' rewards put them in some order (trainingprogram.OrderGradients).
+// A group whose answers all stand together takes no update: the weights, the
+// momentum and the optimizer's step stay exactly what they were, the stream's
+// position passes the group, and the state returned counts it as skipped. It
+// is observed by nothing, since nothing happened to observe.
 func (m *Model) TrainGRPOGroupsResume(
 	groups []trainingdata.RolloutGroup,
-	baseLR, momentum, scale float64,
+	baseLR, momentum float64,
 	resume *RLState,
 	observe func(trainingprogram.GRPOObservation),
 ) ([]trainingprogram.GRPOObservation, RLState, error) {
@@ -25,9 +33,13 @@ func (m *Model) TrainGRPOGroupsResume(
 		if err := run.admit(group.State); err != nil {
 			return nil, RLState{}, err
 		}
-		observation, grads, err := m.grpoLossAndGrads(group, scale)
+		observation, grads, err := m.grpoLossAndGrads(group)
 		if err != nil {
 			return nil, RLState{}, err
+		}
+		if grads == nil {
+			run.skipped++
+			continue
 		}
 		observation.Step, observation.LearningRate, observation.GradientL2, observation.UpdateL2, err = run.stepObserved(grads)
 		if err != nil {
@@ -42,29 +54,34 @@ func (m *Model) TrainGRPOGroupsResume(
 	return observations, run.state(), nil
 }
 
-func (m *Model) grpoLossAndGrads(group trainingdata.RolloutGroup, scale float64) (trainingprogram.GRPOObservation, Grads, error) {
+// grpoLossAndGrads is a reward group's loss and its gradients, or no
+// gradients at all for a group whose answers all stand together, which is
+// found from the rewards before any answer is scored. The mean and the
+// dispersion of the rewards are reported as they were given; the loss reads
+// their order and not their sizes.
+func (m *Model) grpoLossAndGrads(group trainingdata.RolloutGroup) (trainingprogram.GRPOObservation, Grads, error) {
+	rewards := make([]float64, len(group.Rollouts))
+	observation := trainingprogram.GRPOObservation{GroupSize: uint64(len(group.Rollouts)), Evaluator: group.Evaluator}
+	for index, rollout := range group.Rollouts {
+		rewards[index] = rollout.Reward
+		observation.MeanReward += rollout.Reward / float64(len(rewards))
+	}
+	gradients, err := trainingprogram.OrderGradients(rewards)
+	if err != nil || !slices.ContainsFunc(gradients, func(gradient float64) bool { return gradient != 0 }) {
+		return trainingprogram.GRPOObservation{}, nil, err
+	}
 	traces := make([]preferenceTrace, len(group.Rollouts))
-	scores := make([]trainingprogram.GroupedScore, len(group.Rollouts))
-	var completionTokens uint64
 	for index, rollout := range group.Rollouts {
 		trace, err := m.sequenceTrace(rollout.Sequence)
 		if err != nil {
 			return trainingprogram.GRPOObservation{}, nil, err
 		}
 		traces[index] = trace
-		scores[index] = trainingprogram.GroupedScore{Score: trace.score, Reward: rollout.Reward}
-		completionTokens += trace.score.Tokens
+		observation.CompletionTokens += trace.score.Tokens
+		observation.Loss += gradients[index] * trace.score.LogProbability
+		observation.RewardDispersion += (rollout.Reward - observation.MeanReward) * (rollout.Reward - observation.MeanReward) / float64(len(rewards))
 	}
-	objective, err := trainingprogram.GRPOLoss(scores, scale)
-	if err != nil {
-		return trainingprogram.GRPOObservation{}, nil, err
-	}
-	grads, err := m.sequenceGradientSum(traces, objective.ScoreGradients)
-	if err != nil {
-		return trainingprogram.GRPOObservation{}, nil, err
-	}
-	return trainingprogram.GRPOObservation{
-		Loss: objective.Loss, MeanReward: objective.MeanReward, RewardDispersion: objective.RewardDispersion,
-		GroupSize: uint64(len(group.Rollouts)), CompletionTokens: completionTokens, Evaluator: group.Evaluator,
-	}, grads, nil
+	observation.RewardDispersion = math.Sqrt(observation.RewardDispersion)
+	grads, err := m.sequenceGradientSum(traces, gradients)
+	return observation, grads, err
 }

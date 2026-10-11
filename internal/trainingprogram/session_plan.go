@@ -56,12 +56,19 @@ func CompileTrainingSessionPlan(spec SessionSpec) (TrainingSessionPlan, error) {
 		spec.MaximumSequence < 0 || spec.MaxProjectedWall < 0 {
 		return TrainingSessionPlan{}, errors.New("training program: invalid session facts")
 	}
-	if spec.Objective == ObjectiveDPO || spec.Objective == ObjectiveGRPO {
+	switch spec.Objective {
+	case ObjectiveDPO:
 		if spec.ObjectiveScale <= 0 || !finite(spec.ObjectiveScale) {
-			return TrainingSessionPlan{}, errors.New("training program: RL session requires finite positive objective scale")
+			return TrainingSessionPlan{}, errors.New("training program: a preference session requires finite positive objective scale")
 		}
-	} else if spec.ObjectiveScale != 0 {
-		return TrainingSessionPlan{}, errors.New("training program: non-RL session rejects objective scale")
+	case ObjectiveGRPO:
+		if spec.ObjectiveScale != 0 {
+			return TrainingSessionPlan{}, errors.New("training program: the reward objective weighs a group by the order of its answers alone and takes no objective scale; a run trained under a scale is another program's and is not continued by this one")
+		}
+	default:
+		if spec.ObjectiveScale != 0 {
+			return TrainingSessionPlan{}, errors.New("training program: non-RL session rejects objective scale")
+		}
 	}
 	if err := spec.Optimizer.Validate(); err != nil {
 		return TrainingSessionPlan{}, err

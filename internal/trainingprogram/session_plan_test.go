@@ -35,7 +35,7 @@ func TestTrainingSessionPlanDerivesUpdatesAndSealsPolicy(t *testing.T) {
 
 func TestTrainingSessionPlanValidatesRunControls(t *testing.T) {
 	base := SessionSpec{
-		Objective: ObjectiveGRPO, DatasetUnits: 1, MaximumSequence: 128, ObjectiveScale: 1,
+		Objective: ObjectiveDPO, DatasetUnits: 1, MaximumSequence: 128, ObjectiveScale: 1,
 		Optimizer: hostoptimizer.Config{BaseLearningRate: 0.01, Momentum: 0.9, Schedule: hostoptimizer.ScheduleConstant},
 	}
 	cases := []struct {

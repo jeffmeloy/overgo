@@ -48,29 +48,123 @@
       "status": "open",
       "steps": [
         {
+          "id": "workbench",
+          "title": "A reward run from the workbench trains on the device in the training command's own process, weighed beside the served model",
+          "status": "open",
+          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestRewardRunHandsItsStepsToItsStarter$' \u0026\u0026 go test ./cmd/train -count=1 -run '^TestTrainingCommandRunsAWorkbenchRewardRun$' \u0026\u0026 go test ./internal/server -count=1 -run '^TestTrainingWorkspaceTrainsRewardsInTheTrainingCommand$' \u0026\u0026 go test ./internal/server -count=1 -run '^TestRewardRunIsWeighedBesideTheServedModel$' \u0026\u0026 go test ./cmd/server -count=1 -run '^TestRewardTrainerIsFoundOrRefused$'",
+          "rationale": "The first way the row names, designed on 2026-10-11 by reading. A trainer inside the server cannot be the route: one import of the device trainer by the server or its tests breaks two rows of TestReachInvariants (an edit to the device trainer must reach no serving test run), and a device session inside the server records the whole process's device memory, the served model's with the trainer's, so the fit rule would then ask for the model's bytes a second time. So a reward run from the workbench executes in the training command, as a child process the server starts: the server links no trainer, and the child's device memory is the trainer's alone, which is what the fit rule of gui-resident-model-fit then weighs. The child hands its reward steps back in a file; the server reads them and the checkpoint. A server started without the training command lists the capability as refused, with the reason and where the command comes from; the launcher builds it. The training command waits for the store's writer lock where it failed at once. Decided on 2026-10-11 by the lead, under the owner's instruction not to wait for a decision; the owner may overrule, and every change here is one git can put back. What a person then meets, stated for the owner: a reward run shows no step until it ends; cancel ends the child's process; the run needs the second executable; and beside a large served model the measured need may never fit, so in practice it may serve small models only. The count is set, in a change to the plan alone, once this step is built and measured.\n\nServes: train from rewards through one numerical owner. Evidence: the five host tests, and a device test that holds the recorded peak below an allocation the test itself holds. Batch: browser and device; the commit runs both.",
+          "depends_on": [
+            "reward-device-route-coverage/do"
+          ]
+        },
+        {
           "id": "do",
           "title": "Retire the host's reward trainer once the workbench trains rewards on the device or stops offering them",
           "status": "open",
           "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestRewardSessionsTrainThroughTheWeightedStepAlone$'",
           "rationale": "The reward-training campaign's weighted-step asked for the production host reward trainer, densecausal TrainGRPOGroupsResume, to be deleted in its own landing, with only reference fixtures and historical readers kept. That landing, 591a84b04, gave the device one weighted step for fine-tuning and rewards and sent every reward session not held to the host to it, and kept the host trainer for a session that is held to the host. The reason is the workbench: the server trains on the host alone (internal/server trainsOnHost), its training workspace admits the reward objective, and with the host trainer gone a reward run from the workbench would be refused with nothing in its place. Deleting a served capability was not the lead's to do inside a numerical step.\n\nWhat retires it. Either the workbench trains rewards through the device's weighted step, which the row gui-resident-model-fit prepares for by deciding what stays resident beside a device training run, or the owner decides the workbench does not train rewards and the server stops admitting the objective. Then the workflow's host branch for the reward objective and TrainGRPOGroupsResume are deleted, the host calculation staying only as the reference the device test is held to (internal/densecausaltrain TestOneWeightedStepServesFineTuningAndRewards), and a reward session held to the host is refused with the reason.\n\nUntil then there are two production routes for a reward session, the device's and the host's, which give the same losses to a millionth and weights as close as fine-tuning's two routes are; the campaign's experiment runs on the device.\n\nServes: train from rewards through one numerical owner.\nDisappears: the production host reward update and the workflow's branch to it.\nEvidence: a reward session held to the host refused, the workbench's reward run on the device or the objective no longer admitted there, and the device test still held to the host's calculation.\nBatch: host, and the workbench's own tests.\n\nDecided on 2026-10-11, when the row was reached, under the owner's instruction not to wait for a decision: the lead takes the first way. The workbench keeps the reward objective and comes to train it on the device, so this row awaits gui-resident-model-fit and stands after it. The first reward run (17e04d771) showed no gain on the pilot, which is a finding about one experiment on one base and no reason to withdraw a capability the workbench offers; the owner may still choose the second way, and the row is then free of what it awaits.",
           "depends_on": [
-            "gui-resident-model-fit/do"
+            "reward-host-retire/workbench"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "reward-phase-clock",
+      "title": "Time a reward session's phases by the high-resolution counter, where a clock that steps by the system's tick read a short phase as no time",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 15,
+        "reason": "What the row may still add. Set on 2026-10-11 to the 15 nodes its built change was counted at, by the count of syntax nodes the automated checks take: one function that reads the counter, with its comment."
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "A reward session's sampling, scoring and stepping times come from the counter the serving measurements use; a test reads the clock around a span shorter than a tick",
+          "status": "open",
+          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestRewardPhaseClockReadsAPhaseShorterThanATick$'",
+          "rationale": "Found on 2026-10-11 when a commit that did not touch training was refused by TestRewardRunSamplesAndScoresItsOwnGroups, which wants a session's sampling time above zero and read it as none. The session timed its phases with time.Now and time.Since, which on this machine step by about half a millisecond (measured), and a draw on the test's small model is shorter; a session in which no draw crossed a step read its whole sampling as no time. The time a real session records was rounded the same way. Closure: the phases are timed by the high-resolution counter. The change and its test are built, the test seen to fail 20 times of 20 against the old way of reading time and pass 40 of 40 on the change, in a checkout of its own before this row was filed.\n\nServes: failure-rate of the checks; a finer record of a reward session's phases. Evidence: the test. Batch: device; the commit runs the device tests, since the training workflow is under them."
+        }
+      ]
+    },
+    {
+      "id": "reward-device-route-coverage",
+      "title": "Hold the device route of a reward session on the host, through a stand-in that takes a real weighted step, and give the device test a reference of its own",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A reward session not held to the host resumes, trains and raises the better answer's margin through a host stand-in that takes a real weighted step; the device test's reference no longer rests on the trainer to be retired",
+          "status": "open",
+          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestRewardDeviceRouteTakesARealStepOnTheHost$'",
+          "rationale": "Part of retiring the host reward trainer (reward-host-retire). Today the tests of a reward session's device route step on no gradient, and the device test is held to the host trainer that is to be deleted. Closure, in test code alone: a stand-in device trainer that takes a real weighted step on the host; a test that a prepared-groups session and a sampling session, not held to the host, resume through it, that one step raises the better answer's margin, and that its losses and weights agree with the host trainer's while that trainer exists; and a host reference for the device test built from the ordering gradients, shown on the host to agree with the host trainer. A trial edit that turns the sign of the weight must fail it, and the commit's message says so.\n\nServes: train. Evidence: the test. Batch: device; the commit runs the device tests, since the device test file changes."
+        }
+      ]
+    },
+    {
+      "id": "stage-observer-retire",
+      "title": "Remove the stage observer once the document speech graph it was built for is gone",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The workflow runtime has no stage observer; the one test that used it as its signal that a receipt is durable takes that signal from the store's commit",
+          "status": "open",
+          "verify": "go test ./internal/workflowruntime -count=1 -run '^TestRuntimeHasNoStageObserver$'",
+          "rationale": "Runtime.ObserveStages was added for the document speech graph and has no production caller; once the graph is retired its only caller is one test of the workflow runtime, which uses it as a signal. Closure: the method and what it carries are removed, and that test takes its signal from a wrapping repository's commit, as the recovery test does. The row has no count: it removes code.\n\nServes: fewer components. Disappears: the stage observer. Evidence: the test of absence. Batch: host.",
+          "depends_on": [
+            "speech-document-admission/retire"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "speech-page-limit",
+      "title": "Stop sending a remembered frame limit from the page's Speech mode, so a text is read whole",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 0,
+        "reason": "The row adds no counted code: the change is to the page's JavaScript and browser tests."
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "Speech mode builds no frame-limit control and sends none; a browser leg seeds a remembered limit, sends, and reads the posted input",
+          "status": "open",
+          "verify": "test -f internal/server/webui_browser_speech_limit_test.go \u0026\u0026 go run ./cmd/webui-lane -run SpeechSendsNoFrameLimit",
+          "rationale": "Once a speech request with no frame limit is read whole (speech-document-admission), a browser that has used Speech mode still sends the limit it remembers and keeps getting the cut preview. Closure: Speech mode builds no frame-limit control, so no limit is sent; the two browser tests that type into that control are changed with it. A plan row's page change: plain JavaScript, reviewed in a browser at desktop and phone widths in both colour schemes.\n\nServes: setup-steps for a long text. Evidence: the browser leg. Batch: browser.",
+          "depends_on": [
+            "speech-document-admission/do"
           ]
         }
       ]
     },
     {
       "id": "speech-document-admission",
-      "title": "Admit or retire the GUI lane's document speech program",
-      "owner": "professional_overgo_gui",
+      "title": "Read a whole text aloud on the served speech route, and retire the document speech graph that only tests reach",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
-          "id": "do",
-          "title": "Admit or retire the GUI lane's document speech program",
+          "id": "retire",
+          "title": "Retire the document speech graph, with a test of the whole-text routine over several segments carrying the coverage its test gave",
           "status": "open",
-          "verify": "test -f internal/speechsynth/document_admission_test.go \u0026\u0026 go test ./internal/speechsynth -run '^TestDocumentProgramAdmission$' -count=1",
-          "rationale": "Owned by professional_overgo_gui/gui-text-to-speech. Master adds no second executor and does not retire that lane's foundation; it stays open until lane work proves admission or a retirement decision lands."
+          "verify": "go test ./internal/modelrecipe -run '^TestSpeechDocumentGraphRetired$' -count=1",
+          "rationale": "The row was filed to admit the GUI lane's document speech program as a served capability or to retire its entry points. The lane's worktree was removed on 2026-10-09 and none of its closing recommendations asks for the work to be finished; since the row was filed, master gained a whole-text routine of its own, Synthesizer.Speak, which cmd/evaluate uses. Three ways now turn text into audio: the served preview, cut at its frame limit; Speak; and the lane's graph (DocumentProgram, RegisterDocumentRuntime, DocumentWAV and the model.speech-assemble catalog module), which only tests call. Decided on 2026-10-11 by the lead, under the owner's instruction not to wait for a decision; the owner may overrule, and every change here is one git can put back. The capability a person wants, a long text read whole from the page's Speech mode, is to be served through the one routine that already reads a whole text, and the graph, which repeats it with a mechanism of its own, is retired. What goes with the graph and is not carried: completed segments kept across a stop, and a reading resumed without generating again; no person can reach either today.\n\nThis step, one commit because of the pinned bytes: the graph's file and its two test files are deleted, with the catalog module and the two plan fields only the graph read; a test of Speak over a text of several distinct segments, and a test of the published WAV's bytes, take over what the deleted tests held; the pinned input line of the graph's test leaves docs/verification/specialized-coverage.json and the document's digest in cmd/validate moves with it. The accepted speech proof keeps its text, which names a test that then no longer exists, and acceptance is not recorded again: the proof is bound to the commit and the stored evidence it was made on. The row keeps a count of zero: this step removes code, and what it removes is what the next may add.\n\nServes: serve; one owner for whole-text speech. Disappears: the document speech graph and its catalog module. Evidence: the test of absence, and the carried tests in the commit. Batch: host, with the real speech model on the processor; the commit runs the device tests, since the training command imports the package."
+        },
+        {
+          "id": "do",
+          "title": "A speech request with no frame limit is read whole through the whole-text routine, stored and replayed as its WAV; a whole reading that was cut is refused",
+          "status": "open",
+          "verify": "go test ./internal/mediacapability -run '^TestSpeechReplaysWholeTextBeforeLoad$' -count=1 \u0026\u0026 go test ./internal/mediacapability -run '^TestSpeechRoutesByFrameLimit$' -count=1 \u0026\u0026 go test ./internal/speechsynth -run '^TestWholeTextBinding$' -count=1 \u0026\u0026 go test ./internal/speechsynth -run '^TestWholeTextStagesReadAsSpeak$' -count=1",
+          "rationale": "The served speech executor refuses a request with no frame limit and cuts every other at its limit, publishing the cut recording unmarked. Closure: a request with no limit, or a limit of zero, goes to a second binding of the same three stages that reads the whole text through Synthesizer.Speak and stores its last output as the published WAV, so a repeated request is still answered from the store before a model loads; a positive limit is the bounded preview, unchanged. A whole reading in which a segment did not end by itself is refused, as the retired graph refused it, with words that tell the person to change the seed or the temperature. /v1/audio/speech gains whole-text reading the same way. Known and accepted: a long text shows only that it is running, a stopped reading starts again from the beginning, a text budgeted past about 23 minutes is refused, and one long reading can read as a decline of the speech cell against bounded previews. The page still sends a remembered limit until the row speech-page-limit lands.\n\nServes: serve; setup-steps for a long text. Evidence: the four tests, and a tagged real-model test the measurement run runs. Batch: host, with the real speech model on the processor; the commit runs the browser and device tests.",
+          "depends_on": [
+            "speech-document-admission/retire"
+          ]
         }
       ]
     },

@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/clioptions"
 	"overgo/internal/gitauthority"
+	"overgo/internal/plan"
 	"overgo/internal/processlock"
 )
 
@@ -110,6 +111,7 @@ func (l *landing) integrate(ctx context.Context) error {
 	if _, err := read("merge-base", "--is-ancestor", head, tip); err != nil {
 		return fmt.Errorf("land: this worktree is on %.12s, which the trunk %s at %.12s does not descend from; a worktree commits a change written on a commit of the trunk", head, l.onto, tip)
 	}
+	l.moved = l.termsMoved(ctx, head, tip)
 	if _, err := l.staged(ctx, "read-tree", head); err != nil {
 		return err
 	}
@@ -141,4 +143,68 @@ func (l *landing) integrate(ctx context.Context) error {
 	fmt.Fprintf(l.Log, "land: brought the trunk %s, at %.12s, into this worktree, which was on %.12s\n", l.onto, tip, head)
 	_, err = l.git(ctx, "reset", "-q")
 	return err
+}
+
+// termsMoved says what the plan at the trunk's tip gives the commit's rows
+// that the plan at base, the commit the change was written on, did not:
+// another check, another count, or the row no longer. A change is judged by
+// the tip's terms, and one refused under terms that moved since it was
+// written is told which moved and what they were.
+func (l *landing) termsMoved(ctx context.Context, base, tip string) string {
+	type term struct {
+		check string
+		count int
+		held  bool
+	}
+	read := func(commit string) map[ref]term {
+		terms := map[ref]term{}
+		data, err := gitauthority.Query(ctx, l.Repo, "cat-file", "blob", commit+":"+plan.Path)
+		document, parseErr := plan.Parse(data)
+		if err != nil || parseErr != nil {
+			return terms
+		}
+		for _, item := range document.Items {
+			for _, step := range item.Steps {
+				terms[ref{item.ID, step.ID}] = term{step.Verify, item.Budget.Nodes, true}
+			}
+		}
+		return terms
+	}
+	before, after := read(base), read(tip)
+	named, _ := rows(l.Ref)
+	var moved []string
+	for _, row := range named {
+		switch was, is := before[row], after[row]; {
+		case was.held && !is.held:
+			moved = append(moved, fmt.Sprintf("%s is no longer a step of it", row))
+		case was.held && was != is:
+			moved = append(moved, fmt.Sprintf("%s was checked by %q and could add %d, and is checked by %q and may add %d", row, was.check, was.count, is.check, is.count))
+		}
+	}
+	return strings.Join(moved, "; ")
+}
+
+// landedAs is the commit the trunk already holds as the landing of the rows
+// named, when the worktree has nothing left to commit. A commit stopped after
+// the trunk moved and before the worktree's own HEAD did has its change on
+// the trunk and still in its working tree; begun again it is brought up to
+// the trunk, finds nothing of its own left and its rows gone from the plan,
+// and is that commit's: no second one is made and no row is removed twice.
+func (l *landing) landedAs(ctx context.Context) string {
+	named, err := rows(l.Ref)
+	if err != nil || len(l.paths) != 0 {
+		return ""
+	}
+	arguments := []string{"log", "-1", "--format=%H%n%B", "--fixed-strings", "--all-match"}
+	for _, row := range named {
+		arguments = append(arguments, "--grep="+plan.LandedRowTrailer+": "+row.String())
+	}
+	found, err := gitauthority.Query(ctx, l.Repo, append(arguments, l.builtOn())...)
+	commit, body, _ := strings.Cut(string(found), "\n")
+	for _, row := range named {
+		if err != nil || !strings.Contains(body, "\n"+plan.LandedRowTrailer+": "+row.String()+"\n") {
+			return ""
+		}
+	}
+	return commit
 }

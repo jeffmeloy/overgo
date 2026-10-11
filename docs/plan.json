@@ -9,20 +9,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 2314,
+        "nodes": 1739,
         "reason": "A ceiling, not a target: the present size of internal/landing landing.go, the landing the queue serializes, counted 2026-10-09 as the gate counts production nodes. The queue reuses the landing; it does not write a second one. The lead lowers it when the first step reports."
       },
       "steps": [
-        {
-          "id": "queue",
-          "title": "Commit the candidates of several worktrees through one queue",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestTwoWorktreesLandThroughOneQueue$'",
-          "rationale": "With one implementing session to a worktree, each submits a fixed candidate with its base commit and its row. The queue integrates it onto master, checks the tree that results, advances master and removes the row, so sessions do not conflict in docs/plan.json. The terms a candidate is judged by are those of the master commit it is integrated onto, not those of the commit it was written against: a row's terms change only by a commit of their own, which the lead makes, and a candidate that no longer meets them is refused and says which term moved. Its test starts two sessions from one base and holds that neither is charged with the other's files, that the second is checked on the tree the first left and by the terms that tree holds, and that a queue stopped and started again loses no candidate and removes no row twice. The device and the outputs sessions share stay under their present locks: worktrees do not add a second device. It waits on the owner's decision.\n\nServes: change. Disappears: the rule that one session commits for a checkout. Evidence: two sessions' landings on one day, neither touching the other's files, and the waits before and after. Batch: host, device and webui.\n\nAs the third step (2026-10-11): what is left for this test after the turn and the integration are a commit stopped and started again, and a refusal after the terms moved. The trunk is moved before the worktree's own HEAD, so a commit stopped between has its change on the trunk and its working tree still holding it: started again it integrates, finds nothing of its own left and its row gone from the tip's plan under its own trailer, and ends as landed by that commit, removing no row twice and losing nothing. And a candidate refused on a tip whose plan gives its row another check or count than its base's did says which term moved and what it was.",
-          "depends_on": [
-            "commit-queue/integrate"
-          ]
-        },
         {
           "id": "sessions",
           "title": "Tell a second session how it commits, and record two sessions' commits on one day",

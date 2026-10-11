@@ -86,6 +86,9 @@ type landing struct {
 	// branch it has checked out; onto is that branch when this checkout is
 	// not the one that has it, and the commit publishes onto it.
 	trunk, branch, onto string
+	// moved says what the trunk's plan changed of the rows' terms between
+	// the commit the change was written on and the tip it was brought up to.
+	moved string
 	// candidate is the tree the checks validate and the commit publishes.
 	candidate string
 	// planned is the plan the candidate holds and advanced is it with the
@@ -150,8 +153,20 @@ func Run(ctx context.Context, options Options) (landed string, err error) {
 	if err := l.parents(ctx); err != nil {
 		return "", err
 	}
+	// refused adds, to the refusal of a change brought up to a trunk whose plan moved its rows' terms, what moved.
+	refused := func(err error) error {
+		if l.moved == "" {
+			return err
+		}
+		return fmt.Errorf("%w\nland: since this change was written the trunk's plan moved its terms: %s", err, l.moved)
+	}
 	if err := l.shipSet(ctx); err != nil {
-		return "", err
+		if landed := l.landedAs(ctx); landed != "" {
+			fmt.Fprintf(options.Log, "land: %s had landed as %.12s, and nothing of it is left here to commit\n", options.Ref, landed)
+			l.spent.Outcome = outcomeLanded
+			return landed, nil
+		}
+		return "", refused(err)
 	}
 	checks := l.checks()
 	if options.Preflight {
@@ -169,7 +184,7 @@ func Run(ctx context.Context, options Options) (landed string, err error) {
 		err := check.run(ctx)
 		wall := time.Since(started).Round(time.Millisecond)
 		if l.spent.Stages[check.name] = wall; err != nil {
-			return "", fmt.Errorf("%s%s: %w", stagePrefix, check.name, err)
+			return "", refused(fmt.Errorf("%s%s: %w", stagePrefix, check.name, err))
 		}
 		entry := check.name + " " + wall.String()
 		if detail := l.details[check.name]; detail != "" {

@@ -80,13 +80,18 @@ func landRow(world rowWorld, reference, messageFile string) (landOutcome, error)
 // standard input when the worker gave it on the landing's.
 type execRowWorld struct {
 	message []byte
+	// reported is the commit the gate said the row landed as.
+	reported string
 }
+
+// landedAs opens the commit in the gate's line that says a row landed.
+const landedAs = " landed as "
 
 // tool runs one repository tool, echoing its standard output -- a tool's
 // verdict; its progress is standard error -- and returns a failed run's
 // refusal: the final error the tool wrote to its error file, or the tail of
 // its standard error when it wrote none, as a build that never ran it.
-func (w execRowWorld) tool(echo io.Writer, arguments ...string) (string, error) {
+func (w *execRowWorld) tool(echo io.Writer, arguments ...string) (string, error) {
 	errorFile := filepath.Join(os.TempDir(), fmt.Sprintf("overgo-loop-%d.error", os.Getpid()))
 	_ = os.Remove(errorFile)
 	progress := clioptions.NewTailWriter(clioptions.DiagnosticTailBytes)
@@ -105,7 +110,7 @@ func (w execRowWorld) tool(echo io.Writer, arguments ...string) (string, error) 
 // into a directory of its own: a fixed path collided with the previous
 // landing's gate while Windows still released its executable, and the build
 // refused the half-released file.
-func (w execRowWorld) Gate(reference, messageFile string) (string, error) {
+func (w *execRowWorld) Gate(reference, messageFile string) (string, error) {
 	directory, err := os.MkdirTemp("", "overgo-gate-*")
 	if err != nil {
 		return "", err
@@ -114,22 +119,33 @@ func (w execRowWorld) Gate(reference, messageFile string) (string, error) {
 	gate := filepath.Join(directory, "gate.exe")
 	refusal, err := w.tool(io.Discard, "go", "build", "-o", gate, "./cmd/gate")
 	if err == nil {
-		refusal, _ = w.tool(os.Stderr, gate, "-plan", reference, "-message-file", messageFile)
+		var said bytes.Buffer
+		refusal, _ = w.tool(io.MultiWriter(os.Stderr, &said), gate, "-plan", reference, "-message-file", messageFile)
+		if _, commit, found := strings.Cut(said.String(), landedAs); found {
+			w.reported, _, _ = strings.Cut(commit, "\n")
+		}
 	}
 	return refusal, nil
 }
 
-// Landed confirms from git that HEAD is the landing of reference.
-func (w execRowWorld) Landed(reference string) (string, error) {
-	message, err := gitauthority.Query(context.Background(), loopWorktree, "log", "-1", "--format=%H%n%B")
+// Landed confirms from git that the commit the gate reported, or HEAD when it
+// reported none, is the landing of reference and that HEAD holds it. It is
+// HEAD itself for a commit just made; for one the trunk already held, which a
+// worktree brought up to the trunk finds, it is a commit HEAD descends from.
+func (w *execRowWorld) Landed(reference string) (string, error) {
+	named := cmp.Or(strings.TrimSpace(w.reported), "HEAD")
+	message, err := gitauthority.Query(context.Background(), loopWorktree, "log", "-1", "--format=%H%n%B", named)
 	if err != nil {
 		return "", err
 	}
 	commit, body, _ := strings.Cut(string(message), "\n")
 	for row := range strings.SplitSeq(reference, ",") {
 		if !strings.Contains(body, "\n"+plan.LandedRowTrailer+": "+strings.TrimSpace(row)+"\n") {
-			return "", fmt.Errorf("loop: the gate reported success but HEAD %.12s is not the landing of %s", commit, row)
+			return "", fmt.Errorf("loop: the gate reported success but %.12s is not the landing of %s", commit, row)
 		}
+	}
+	if _, err := gitauthority.Query(context.Background(), loopWorktree, "merge-base", "--is-ancestor", commit, "HEAD"); err != nil {
+		return "", fmt.Errorf("loop: the gate reported %.12s as the landing of %s, and HEAD does not hold it", commit, reference)
 	}
 	return commit, nil
 }
@@ -153,7 +169,7 @@ func landCommand(reference, messageFile string, input io.Reader, output io.Write
 			return err
 		}
 	}
-	outcome, err := landRow(execRowWorld{message: message}, reference, messageFile)
+	outcome, err := landRow(&execRowWorld{message: message}, reference, messageFile)
 	if outcome.Detail != "" {
 		refusal, recordErr := landing.RecordRefusal(loopWorktree, landing.Classify(reference, outcome.Detail))
 		outcome.Refusal, err = &refusal, errors.Join(err, recordErr)

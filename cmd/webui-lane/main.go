@@ -20,6 +20,7 @@ import (
 	"slices"
 	"strings"
 	"syscall"
+	"time"
 
 	"overgo/internal/clioptions"
 	"overgo/internal/processcontrol"
@@ -28,6 +29,14 @@ import (
 	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
+
+// waitBudget is how long a page acceptance may wait for one answer from its
+// page before the wait fails with what the page showed. It is a little over
+// twice the longest the whole page lane has taken on record, 1 m 42 s beside
+// the device tests on 2026-10-11: no wait of a healthy leg outlasts the lane
+// it runs in, and a leg hung on a live page was otherwise found only when
+// someone killed the run. It is the lane's declaration, which -wait replaces.
+const waitBudget = 4 * time.Minute
 
 func main() {
 	clioptions.MainNamed("webui lane", run)
@@ -41,10 +50,11 @@ func run() error {
 	screens := flags.String("screens", "", "write the captures (every tab and the picker, desktop and phone) as PNGs into this directory")
 	pageURL := flags.String("url", "", "capture and audit a running server's page at this address instead of running the tests")
 	design := flags.Bool("design", false, "derive "+webuilane.DesignDocumentPath+" from "+webuilane.StylesheetPath+" and write it, instead of running the tests")
+	wait := flags.Duration("wait", waitBudget, "how long a page acceptance may wait for one answer from the page before the wait fails with what the page showed")
 	var required []string
 	flags.Func("leg", "a leg a passing test must record (repeatable), named as the test's webuilane.Leg call names it", func(leg string) error { required = append(required, leg); return nil })
 	if err := flags.Parse(os.Args[1:]); err != nil || flags.NArg() != 0 {
-		return errors.New("usage: webui-lane [-run <pattern>] [-leg <name>]... [-screens <dir>] [-url <address>] | -design")
+		return errors.New("usage: webui-lane [-run <pattern>] [-leg <name>]... [-wait <duration>] [-screens <dir>] [-url <address>] | -design")
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -62,6 +72,9 @@ func run() error {
 		// A journey runs the recorded models and stores it names, so it
 		// opts into the store acceptances its fixtures are held behind.
 		extra = append(extra, webuilane.ModelJourneyEnvironment+"=1", testskip.StoreAcceptanceEnv+"=1")
+	} else {
+		// A journey builds, serves or hashes a model inside one wait, so only the page acceptances are bounded.
+		extra = append(extra, webuilane.WaitBudgetEnvironment+"="+wait.String())
 	}
 	if *screens != "" {
 		absolute, err := filepath.Abs(*screens)
@@ -156,9 +169,9 @@ func runLane(ctx context.Context, stdout io.Writer, run string, extra, required 
 	env := append(os.Environ(), "OVERGO_WEBUI_LANE=1", "OVERGO_BROWSER="+browser, webuilane.LegRecordsEnvironment+"="+legs)
 	env = append(env, extra...)
 	args := append([]string{"test"}, packages...)
-	// No go test timeout, as the gate's other lanes run: a limit here had no derivation (the retained
-	// runs took about a minute), and a stalled browser test is diagnosed from the retained page state
-	// and its predicate, with the lane's own cancellation and process cleanup, not cut off by a clock.
+	// No go test timeout, as the gate's other lanes run: a limit on the whole run had no derivation.
+	// What is bounded is each wait for the page's answer (waitBudget), in the wait's owner, where the
+	// failure can say what the page showed; a clock on the run could only kill it.
 	args = append(args, "-run", run, "-count=1", "-timeout=0", "-json")
 	report, runErr := testevidence.RunGoTestCommand(ctx, processcontrol.Command{Path: "go", Args: args, Env: env}, testevidence.GoTestOptions{
 		DiagnosticBytes: clioptions.DiagnosticTailBytes,

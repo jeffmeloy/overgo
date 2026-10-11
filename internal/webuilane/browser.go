@@ -103,6 +103,14 @@ func Open(ctx context.Context, executable, pageURL string) (*Browser, error) {
 	if ctx == nil || executable == "" || pageURL == "" {
 		return nil, errors.New("webui lane: browser, URL, and context are required")
 	}
+	// The budget the lane declared is read before anything is launched: one it cannot read starts no browser.
+	var budget time.Duration
+	if declared := os.Getenv(WaitBudgetEnvironment); declared != "" {
+		var err error
+		if budget, err = time.ParseDuration(declared); err != nil || budget <= 0 {
+			return nil, errors.Join(fmt.Errorf("webui lane: %s is %q, want how long a wait for the page's answer may take", WaitBudgetEnvironment, declared), err)
+		}
+	}
 	profile, err := os.MkdirTemp("", "overgo-webui-lane-")
 	if err != nil {
 		return nil, err
@@ -154,6 +162,7 @@ func Open(ctx context.Context, executable, pageURL string) (*Browser, error) {
 	if err != nil {
 		return nil, errors.Join(err, browser.Close())
 	}
+	browser.socket.budget = budget
 	// Inspector reports the renderer's crash or the target's detach, and Page
 	// a JavaScript dialog, each of which ends every wait on the page.
 	for _, domain := range []string{"Runtime.enable", "Inspector.enable", "Page.enable"} {
@@ -238,7 +247,9 @@ func (browser *Browser) Evaluate(ctx context.Context, expression string, result 
 // the page's clock under the caller's context; a check a navigation
 // interrupts is asked again of the new document. A wait that ends without
 // its predicate carries what the page last reported: its ready state, its
-// panels' text and the last error the workspace recorded.
+// panels' text and the last error the workspace recorded. Under a budget the
+// lane declared (WaitBudgetEnvironment) a predicate the page has not made
+// true within it ends the wait so, with the caller's context still alive.
 func (browser *Browser) Eventually(ctx context.Context, expression string) error {
 	for {
 		var answer json.RawMessage
@@ -466,6 +477,9 @@ type webSocket struct {
 	events []cdpEvent
 	// pageState is what the page last reported it showed.
 	pageState string
+	// budget bounds each wait for the page's answer; zero waits as long as
+	// the caller does.
+	budget time.Duration
 }
 
 // cdpEvent is one unsolicited DevTools message.
@@ -553,7 +567,7 @@ func (socket *webSocket) call(ctx context.Context, method string, parameters any
 	if err != nil {
 		return err
 	}
-	release := socket.cancelReads(ctx)
+	ctx, release := socket.cancelReads(ctx)
 	defer release()
 	if err := socket.writeText(payload); err != nil {
 		return err
@@ -592,9 +606,18 @@ func (socket *webSocket) call(ctx context.Context, method string, parameters any
 	}
 }
 
-// cancelReads ends a blocked read when the context ends, and clears the
-// connection's deadline again once the call is over.
-func (socket *webSocket) cancelReads(ctx context.Context) func() {
+// cancelReads ends a blocked read when the context ends, or when the page has
+// not answered within the budget the lane declared, and clears the
+// connection's deadline again once the call is over. It gives the context the
+// read runs under, whose cause says which of the two ended it. A page that
+// is alive and never answers, or never makes a predicate true, otherwise
+// holds its test until someone kills the run, and nothing the page showed is
+// printed.
+func (socket *webSocket) cancelReads(ctx context.Context) (context.Context, func()) {
+	stop := context.CancelFunc(func() {})
+	if socket.budget > 0 {
+		ctx, stop = context.WithTimeoutCause(ctx, socket.budget, fmt.Errorf("webui lane: the page did not answer within the %s the lane declared: %w", socket.budget, context.DeadlineExceeded))
+	}
 	_ = socket.connection.SetDeadline(time.Time{})
 	done := make(chan struct{})
 	finished := make(chan struct{})
@@ -606,9 +629,10 @@ func (socket *webSocket) cancelReads(ctx context.Context) func() {
 		case <-done:
 		}
 	}()
-	return func() {
+	return ctx, func() {
 		close(done)
 		<-finished
+		stop()
 		_ = socket.connection.SetDeadline(time.Time{})
 	}
 }
@@ -637,7 +661,7 @@ func (socket *webSocket) awaitEvent(ctx context.Context, observe func(method str
 			return nil
 		}
 	}
-	release := socket.cancelReads(ctx)
+	ctx, release := socket.cancelReads(ctx)
 	defer release()
 	for {
 		message, err := socket.readText()

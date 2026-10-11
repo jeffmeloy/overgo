@@ -17,6 +17,12 @@ import (
 // records in; outside a lane run a leg only logs.
 const LegRecordsEnvironment = "OVERGO_WEBUI_LANE_LEGS"
 
+// WaitBudgetEnvironment names how long a browser a leg opens may wait for
+// one answer from its page, as time.ParseDuration reads it. The lane declares
+// it for the page acceptances; with none declared a wait is bounded by its
+// caller alone.
+const WaitBudgetEnvironment = "OVERGO_WEBUI_LANE_WAIT"
+
 // LegRecord is one browser leg's typed outcome: the package and test that
 // ran it, the leg's name (its identity, which row checks name) and what it
 // proved.

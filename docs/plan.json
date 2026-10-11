@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "gui-wait-deadline",
-      "title": "Bound every browser-leg wait by a named deadline that fails with what the page showed",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 179,
-        "reason": "What the row may still add. Set on 2026-10-11 to the 179 nodes the automated checks count its step at on its built change: a budget for each answer from the page, applied where every wait on the page blocks, read from the lane's declaration when a browser opens, the lane's flag and its default with the default's derivation, and the comments that say why."
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Give Browser.Eventually a deadline constant with the page state it already reports in its failure, and a per-leg override for training legs; add a leg whose predicate cannot hold and assert it fails inside the bound",
-          "status": "open",
-          "verify": "go test ./internal/webuilane -count=1 \u0026\u0026 go run ./cmd/webui-lane -run WaitDeadline",
-          "rationale": "Recommended by the GUI lane and not landed when its worktree was removed on 2026-10-09 (docs/gui_update_plan.json, which stays out of the repository); ranked into this plan by the owner's answer to gui-recommendations on 2026-10-10. Bound every browser-leg wait by a named deadline that fails with what the page showed: Browser.Eventually (internal/webuilane/browser.go) re-asks its predicate on every frame with only the test's context as its bound, so a leg whose predicate can never hold ran seven minutes with no failure until killed, and a bounded run exited 124 with no assertion message; a leg that trains holds a longer declared bound. Why the lane recommended it: A hung leg is a defect, not a process to kill (owner, 2026-10-05). Found when a cold start at a view's address landed on Chat and the leg waited forever. Robustness outranks features. The lane's note: master's plan names browser-waits-fail-fast as owning the browser-leg deadline: check it before starting, and close this against it if it has landed. Finding evidence:sha256:ef91162fa1a85e2cd21c21c9958764eda0e725db9f0defa41a0f31e1ddc25527.\n\nThe lane's rule for a change to the pages holds: plain HTML, JavaScript and Go, reviewed in a browser at desktop and phone widths in both colour schemes, and accepted by a browser leg or a Go test that fails without it. The row has no count: it is sized by a preflight when it is dispatched.\n\nServes: failure-rate. Batch: browser."
-        }
-      ]
-    },
-    {
       "id": "gui-top-p-setting",
       "title": "Add a top-p control to Settings beside temperature and max tokens",
       "owner": "master-lead",

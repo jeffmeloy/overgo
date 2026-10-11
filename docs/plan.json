@@ -42,25 +42,6 @@
       ]
     },
     {
-      "id": "attachment-waits-for-models",
-      "title": "Hold a file chosen while a task's models load until they are in, where the chat page judged it by the chat model's rule",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "The row adds no counted code: the change is to the page's JavaScript and a browser test."
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "A file chosen while a task's models are loading waits for them and goes to the task's input; a browser leg holds the server's answer back and reads the page",
-          "status": "open",
-          "verify": "test -f internal/server/webui_browser_audio_loading_test.go \u0026\u0026 go run ./cmd/webui-lane -run AudioWhileModelsLoad -leg \"audio while models load leg\"",
-          "rationale": "Found on 2026-10-11 when the browser tests refused a commit that did not touch the page: TestWebUIBrowserAudioInput waited out its whole budget, and the page's last state, which the wait budget now reports, was the recording refused with 'the served model has no audio projector loaded'. Cause, by reading and then by a test that reproduces it every time: the chat page learns a task's inputs from /generation/capabilities, and until that answer arrives it has no input to give a file, so it falls back on the chat model's rule. On a server that serves transcription alone that rule refuses audio, and the file stays refused after the models arrive. A person who opens the page and attaches a recording at once meets the same refusal; a busy machine makes the window wide enough for the test to fall into it.\n\nClosure: a file chosen while the task's models load says that it waits, cannot be sent, and is placed by the inputs the models declare once they are in; a leg that holds the server's answer back fails on the page as committed and passes on the change. The change and its leg are built and were run with the whole browser run in a checkout of their own before this row was filed.\n\nServes: failure-rate. Evidence: the browser leg. Batch: browser."
-        }
-      ]
-    },
-    {
       "id": "gui-live-samples",
       "title": "Show the Train tab's sample strip while the run goes, not when it ends",
       "owner": "master-lead",

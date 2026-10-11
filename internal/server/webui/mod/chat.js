@@ -476,6 +476,9 @@
           const slots = [...generation.fields.values()].filter(field => field.control.type === "artifact");
           return slots.length ? (capabilities.media.intake_accept || []).filter(mime => slots.some(field => !field.control.media || mime.startsWith(field.control.media + "/"))) : capabilities.media.accept || [];
         },
+        // While a task's models load, its inputs are not known and intake has only the chat model's rule to fall
+        // back on: a file chosen then waits for them (renderMode says when they are in).
+        intakeLoading: () => !!generation.loading,
         intake: (file, { signal }) => {
           if (composer.mode() === 'speech' && !(file.type === 'text/plain' || !file.type && /\.txt$/i.test(file.name)) && !artifactField(file)) throw new Error('Choose a text file.');
           if (composer.mode() === 'speech' && (file.type === 'text/plain' || !file.type && /\.txt$/i.test(file.name))) {
@@ -597,7 +600,13 @@
         if (field) field.focus();
       }
       const galleryLimit = 12; // the newest outputs a mode's gallery rail lists
+      // renderMode: the mode's controls, loaded; the files that waited for its inputs are then prepared. One prepared
+      // while a later choice of mode is still loading waits again, for that one.
       async function renderMode(mode) {
+        try { await loadMode(mode); }
+        finally { composer.intakeReady(); }
+      }
+      async function loadMode(mode) {
         welcomeInput.hidden = mode === 'transcription';
         welcomeInput.textContent = mode === 'speech' ? 'Enter text' : 'Ask a question';
         welcomeTitle.textContent = mode === 'transcription' ? 'Transcribe audio' : mode === 'speech' ? 'Read text aloud' : 'What would you like to work on?';

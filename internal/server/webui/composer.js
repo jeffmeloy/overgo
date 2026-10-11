@@ -435,7 +435,7 @@
       return null;
     }
     function stage(item, phase, reason = '') {
-      item.phase = phase; item.pending = ['reading', 'validating', 'fetching'].includes(phase); item.storing = phase === 'uploading'; item.refusal = reason;
+      item.phase = phase; item.pending = ['reading', 'validating', 'fetching', 'waiting'].includes(phase); item.storing = phase === 'uploading'; item.refusal = reason;
     }
     function pausePreview(item) { for (const player of item.preview?.querySelectorAll('audio, video') || []) player.pause(); }
     function invalidate(item) {
@@ -605,6 +605,7 @@
         else if (item.storing) status = 'Uploading…';
         else if (item.phase === 'fetching') status = 'Loading stored file…';
         else if (item.phase === 'validating') status = 'Checking image…';
+        else if (item.phase === 'waiting') status = 'Waiting for the models to load…';
         else if (item.pending) { status = 'Reading…'; if (item.loaded != null) status += ' ' + overgo.fmt.bytes(item.loaded) + ' of ' + overgo.fmt.bytes(item.size); }
         else if (item.transcribing) status = 'Transcribing…';
         else if (item.transcriptNote) status = item.transcriptNote;
@@ -676,6 +677,9 @@
       if (disposed || readOnly || paused || !attachments.includes(item)) return;
       invalidate(item);
       releaseFile(item);
+      // The page cannot say yet where a file goes (options.intakeLoading: the mode's models are still loading), and the
+      // served model's own rule is not that mode's: the file waits, and intakeReady prepares it.
+      if (options.intakeLoading && options.intakeLoading()) { item.cancel = null; stage(item, 'waiting'); renderAttachments(); return; }
       const attempt = Symbol(), controller = new AbortController();
       item.attempt = attempt; item.loaded = null;
       const current = () => !disposed && attachments.includes(item) && item.attempt === attempt;
@@ -777,6 +781,8 @@
         }
         renderAttachments();
       },
+      // intakeReady: the page can say where a file goes again; each file that waited for that is prepared.
+      intakeReady() { for (const item of [...attachments]) if (item.phase === 'waiting') prepareFile(item); },
       openPicker,
       clearInput() { input.value = ""; },
       mode: selectedMode,

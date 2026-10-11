@@ -751,7 +751,7 @@
 
       function renderFacts(inputTokens, usage, timings, firstToken) {
         const cards = [];
-        // The time from sending the turn to its first visible token: the one measure that spans the proxy, admission, prefill and paint.
+        // The time from the turn's send, the entry of submit or the Continue click, to its first token's arrival: it takes in the token count or the stored turn, the request, admission, the stream's headers and prefill. The token's drawing is not in it.
         if (firstToken != null) cards.push(overgo.stat("First token", Math.round(firstToken), "ms"));
         if (inputTokens == null && usage && usage.prompt_tokens) inputTokens = usage.prompt_tokens; // a hosted turn: the provider's count, the count route having refused
         if (inputTokens != null) { cards.push(overgo.stat("Input", fmt.grouped(inputTokens), "tokens")); if (contextLength != null) cards.push(overgo.stat("Available", fmt.grouped(Number(contextLength) - Number(inputTokens)), "tokens"), overgo.stat("Context ratio", inputTokens + " / " + contextLength)); }
@@ -887,6 +887,7 @@
       // refusal (another model, another temperature) stays beside the note with its reason.
       async function continueTurn(stoppedID, assistant, note) {
         if (actionsBlocked()) return;
+        const sent = performance.now();
         controller = new AbortController();
         updateBusy();
         const users = thread.messages.filter(message => message.role === "user" && message.response === stoppedID);
@@ -899,7 +900,7 @@
           const response = await streamTurn("/v1/responses", request, "POST");
           note.remove();
           if (partial) { assistant.content = partial.content; thread.renderMessage(assistant, true); }
-          activeTurn = { response: "", model: modelID, previous: stoppedID, assistant, users, prompt: null, submitted: performance.now() };
+          activeTurn = { response: "", model: modelID, previous: stoppedID, assistant, users, prompt: null, submitted: sent };
           await consumeTurn(response, assistant, null);
         } catch (err) {
           if (overgo.signal.aborted) return;
@@ -916,6 +917,7 @@
       }
       async function submit(text, attachments, mode, branch) {
         if (actionsBlocked() || ((!mode || mode === 'chat' || mode === 'agent') && !validateSettings())) return;
+        const sent = performance.now();
         if (mode && !['chat', 'agent', 'embeddings', 'rerank'].includes(mode)) {
           if (!generation.capability) { thread.errorRow('Choose a model for this mode before sending.'); return; }
           const invalid = [...generation.fields.values()].find(field => !field.input.checkValidity());
@@ -977,7 +979,7 @@
           turnSettings(request);
           const count = await overgo.api.post("/v1/responses/input_tokens", request, { signal: controller.signal }).catch(() => null) /* reviewed: a hosted model's provider tokenizes, the count route refuses, and the meter stays empty by design */;
           controller.signal.throwIfAborted();
-          activeTurn = { response: "", model: modelID, previous: lastResponseID, assistant, users, branch, prompt: { text, attachments }, submitted: performance.now() };
+          activeTurn = { response: "", model: modelID, previous: lastResponseID, assistant, users, branch, prompt: { text, attachments }, submitted: sent };
           renderFacts(count ? count.input_tokens : null, null, null);
           await consumeTurn(await streamTurn("/v1/responses", request, "POST"), assistant, count ? count.input_tokens : null);
         } catch (err) {

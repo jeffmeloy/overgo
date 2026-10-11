@@ -4,21 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "scorecard-regressed-b22137c6b1f9b2cc",
-      "title": "Restore pocket-tts speech held-out-quality to 0.0504009164 ",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore pocket-tts speech held-out-quality to 0.0504009164 ",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-b22137c6b1f9b2cc -target 0.050400916380297825",
-          "rationale": "- pocket-tts held-out-quality, {Metric:word_error_rate Origin:evaluation Suite:dataset:sha256:fd1ccc539452b1a79d5413eb87917b79f82330f5160047299fc807fab9c94422 Protocol:raw-completion Comparison:profile:sha256:003a74fb6d22635a51867f837c55f10b1b543a9ea3a12048047d250cb20f55fa Scope:}: 0.0504009164 to 0.0515463918 (+0.00114547537, +2.3%; word_error_rate, dataset:sha256:fd1ccc539452b1a79d5413eb87917b79f82330f5160047299fc807fab9c94422 (raw-completion))\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261009T224309Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
       "id": "confirmation-integrity",
       "title": "Bind confirmation to its protocol and preserve cumulative exposure",
       "owner": "master-lead",
@@ -434,7 +419,8 @@
             "reward-training/first-run",
             "merge-reward-campaign/do",
             "accepted-video-lineage/do",
-            "plan-lineage-row/do"
+            "plan-lineage-row/do",
+            "plan-retire-wer/do"
           ]
         }
       ]

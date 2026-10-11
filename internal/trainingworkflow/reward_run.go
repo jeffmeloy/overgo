@@ -54,16 +54,90 @@ type RewardSampling struct {
 
 // tokenizer loads the tokenizer the answers are drawn with from a model, and
 // refuses what no reward session and no reading of an arm is drawn under: a
-// cut or sharpened distribution, another scorer, fewer than least answers a
+// cut or sharpened distribution, another scorer, thinking asked for, a stop
+// other than the vocabulary's end of generation, fewer than least answers a
 // prompt, no training specification, no store to keep the draws in, or a
-// model that declares no end token. A prompt asked as a chat turn carries the
-// template's control tokens, which are then read as tokens.
+// model that declares no end token. The sampler does one thing with thinking
+// and one with stopping, so a protocol that names another is refused here,
+// before a draw, and not answered as if it had been honoured. A prompt asked
+// as a chat turn carries the template's control tokens, which are then read
+// as tokens.
 func (rewards RewardSampling) tokenizer(input string, observations artifact.Repository, least int) (trainableTokenizer, error) {
 	tokens, err := loadTrainableTokenizerFor(input, rewards.Render != nil || rewards.Protocol.Template != rewardPlain)
-	if protocol := rewards.Protocol; err == nil && (protocol.Sampling != rewardSampling || protocol.Scorer != evaluation.InstructionScorer || rewards.Draws < least || !rewards.Training.Valid() || !tokens.ended || observations == nil) {
-		err = fmt.Errorf("training workflow: a reward session draws at least two answers a prompt from the model's %s distribution, scores them by %s, names its training specification and the store its draws are kept in, and trains a model that declares its end token; it was asked for %d draws under sampling %q and scorer %q", rewardSampling, evaluation.InstructionScorer, rewards.Draws, protocol.Sampling, protocol.Scorer)
+	if protocol := rewards.Protocol; err == nil && (protocol.Sampling != rewardSampling || protocol.Scorer != evaluation.InstructionScorer || protocol.Thinking != pilotThinking || protocol.Stop != pilotStop ||
+		rewards.Draws < least || !rewards.Training.Valid() || !tokens.ended || observations == nil) {
+		err = fmt.Errorf("training workflow: a reward session draws at least two answers a prompt from the model's %s distribution with thinking %s, to the %s, scores them by %s, names its training specification and the store its draws are kept in, and trains a model that declares its end token; it was asked for %d draws under sampling %q, thinking %q, stop %q and scorer %q",
+			rewardSampling, pilotThinking, pilotStop, evaluation.InstructionScorer, rewards.Draws, protocol.Sampling, protocol.Thinking, protocol.Stop, protocol.Scorer)
 	}
 	return tokens, err
+}
+
+// sampledAs names everything a session's sampling is fixed by, its renderer
+// by whether it has one: the identity a checkpoint of the session is bound to.
+func (rewards RewardSampling) sampledAs() (artifact.ID, error) {
+	return artifact.JSONID(artifact.KindProfile, struct {
+		Protocol evaluation.InstructionProtocol `json:"protocol"`
+		Training artifact.ID                    `json:"training"`
+		Seed     int64                          `json:"seed"`
+		Draws    int                            `json:"draws"`
+		Code     string                         `json:"code"`
+		Rendered bool                           `json:"rendered"`
+		Control  bool                           `json:"control"`
+	}{rewards.Protocol, rewards.Training, rewards.Seed, rewards.Draws, rewards.Code, rewards.Render != nil, rewards.Control})
+}
+
+// published says whether a checkpoint found where a session of this sampling
+// would publish is that session's: trained from base, sampled as this
+// sampling samples, continuing the checkpoint before it where there is one
+// and none where there is not, and standing after so many groups. A
+// checkpoint that fails any of them was made by another run, and what it is
+// not is the error.
+func (rewards RewardSampling) published(found trainingprogram.Checkpoint, base artifact.ID, before trainingprogram.Checkpoint, groups int) error {
+	sampling, err := rewards.sampledAs()
+	if err != nil {
+		return err
+	}
+	continued := slices.IndexFunc(found.Lineage, func(parent trainingprogram.LineageParent) bool {
+		return parent.Relation == artifact.RelationDerivedFrom
+	})
+	switch {
+	case found.Model != base:
+		return fmt.Errorf("it was trained from model %s, and the base is %s", found.Model, base)
+	case !slices.Contains(found.Lineage, trainingprogram.LineageParent{Artifact: sampling, Relation: artifact.RelationDependsOn}):
+		return errors.New("it was not sampled by this protocol, training specification, seed, draws, code and control")
+	case before.ID().Valid() != (continued >= 0) || continued >= 0 && found.Lineage[continued].Artifact != before.ID():
+		return errors.New("it does not continue the checkpoint before it")
+	case found.Stream.Position != uint64(groups):
+		return fmt.Errorf("it stands after %d groups", found.Stream.Position)
+	}
+	return nil
+}
+
+// rewardSamplingKey opens the key a session's sampling identity is published under.
+const rewardSamplingKey = "overgo/reward-sampling/v1/"
+
+// bound adds the session's sampling to what its checkpoint descends from,
+// publishing its name in the store the draws are kept in, and refuses to
+// continue a checkpoint that was sampled otherwise: a resume compares the
+// model, the data and the optimizer, and none of those says by which
+// protocol, specification, seed, draws, code or control the answers it
+// trained on were made. A session with no store is refused before it draws
+// (tokenizer), and names nothing here.
+func (rewards RewardSampling) bound(ctx context.Context, store artifact.Repository, resumed trainingprogram.Checkpoint, lineage []trainingprogram.LineageParent) ([]trainingprogram.LineageParent, error) {
+	sampling, err := rewards.sampledAs()
+	if err != nil {
+		return nil, err
+	}
+	parent := trainingprogram.LineageParent{Artifact: sampling, Relation: artifact.RelationDependsOn}
+	if resumed.ID().Valid() && !slices.Contains(resumed.Lineage, parent) {
+		return nil, fmt.Errorf("training workflow: checkpoint %s was not sampled as this session samples, by its protocol, training specification, seed, draws, code and control: resume authority differs", resumed.ID())
+	}
+	if store != nil {
+		if _, err := artifact.Publish(ctx, store, artifact.Batch{Key: rewardSamplingKey + sampling.String(), Artifacts: []artifact.Descriptor{{ID: sampling}}}); err != nil {
+			return nil, err
+		}
+	}
+	return append(lineage, parent), nil
 }
 
 // RewardTrace is what a reward session that samples its own answers did:

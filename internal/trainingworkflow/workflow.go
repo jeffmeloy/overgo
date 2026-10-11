@@ -272,6 +272,11 @@ func (session denseSession) run() (Result, error) {
 	if err != nil {
 		return Result{}, fmt.Errorf("training workflow: compile authority: %w", err)
 	}
+	if rewards := session.request.Rewards; rewards != nil {
+		if authority.lineage, err = rewards.bound(session.ctx, session.request.Observations, session.resumed, authority.lineage); err != nil {
+			return Result{}, err
+		}
+	}
 	result, state, err := session.execute(prepared, plan)
 	if err != nil {
 		return Result{}, err

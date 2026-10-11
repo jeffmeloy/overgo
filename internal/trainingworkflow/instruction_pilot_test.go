@@ -28,16 +28,27 @@ import (
 // single kinds a second time, so six groups have two prompts to stand for them.
 func pilotFixture(t *testing.T) (*overgodb.Store, string) {
 	t.Helper()
-	ctx := t.Context()
-	root := t.TempDir()
-	store, err := overgodb.Open(filepath.Join(root, "store"))
+	store, err := overgodb.Open(filepath.Join(t.TempDir(), "store"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { store.Close() })
-	if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
+	if _, err := modelrecipe.PublishArchitectureProfileCatalog(t.Context(), store); err != nil {
 		t.Fatal(err)
 	}
+	catalogPilotCases(t, store, false)
+	return store, writeTrainingGGUF(t)
+}
+
+// catalogPilotCases imports the pilot fixture's benchmark into a store and
+// makes it the store's active catalog. Turned, every prompt is spelt with the
+// model's letters in the other order: the same cases under the same names,
+// asking for the same rules, with other bytes, as a catalog replaced under
+// its names is.
+func catalogPilotCases(t *testing.T, store *overgodb.Store, turned bool) {
+	t.Helper()
+	ctx := t.Context()
+	root := t.TempDir()
 	kinds := []struct {
 		id     string
 		kwargs map[string]any
@@ -61,7 +72,11 @@ func pilotFixture(t *testing.T) (*overgodb.Store, string) {
 		// A prompt of the model's own letters, so it is a few tokens of its vocabulary.
 		var prompt strings.Builder
 		for digits := combination; digits > 0; digits /= 4 {
-			prompt.WriteString(string(rune('a' + digits%4)))
+			letter := digits % 4
+			if turned {
+				letter = 3 - letter
+			}
+			prompt.WriteString(string(rune('a' + letter)))
 		}
 		line, err := json.Marshal(map[string]any{"prompt": prompt.String(), "instruction_id_list": ids, "kwargs": kwargs})
 		if err != nil {
@@ -80,8 +95,12 @@ func pilotFixture(t *testing.T) (*overgodb.Store, string) {
 		t.Fatal(err)
 	}
 	digest := sha256.Sum256(raw)
+	revision := "v1"
+	if turned {
+		revision = "v2"
+	}
 	imported, err := dataset.ImportBenchmark(ctx, store, source, dataset.BenchmarkImportSpec{
-		Source: "pilot-fixture", Revision: "v1", SHA256: hex.EncodeToString(digest[:]), Split: "train", Format: dataset.BenchmarkFormatJSONL, Conversion: "lm-eval/ifeval/v1",
+		Source: "pilot-fixture", Revision: revision, SHA256: hex.EncodeToString(digest[:]), Split: "train", Format: dataset.BenchmarkFormatJSONL, Conversion: "lm-eval/ifeval/v1",
 		Fields: []dataset.FieldBinding{{Source: "prompt", Target: "prompt"}, {Source: "instruction_id_list", Target: "instruction_id_list"}, {Source: "kwargs", Target: "kwargs"}},
 	})
 	if err != nil {
@@ -94,7 +113,6 @@ func pilotFixture(t *testing.T) (*overgodb.Store, string) {
 	if _, err := evaluation.CatalogLocalBenchmarks(ctx, store, manifest); err != nil {
 		t.Fatal(err)
 	}
-	return store, writeTrainingGGUF(t)
 }
 
 // TestPilotAcceptanceIsFixedFromTheStoresCases holds the instruction pilot's

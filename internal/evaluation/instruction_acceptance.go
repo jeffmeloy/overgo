@@ -286,8 +286,12 @@ func BuildInstructionAcceptance(request InstructionAcceptanceRequest) (Instructi
 }
 
 // RequireInstructionAcceptance reads a published instruction acceptance and
-// the prompts that stand for the groups of each part of its split, in order.
-func RequireInstructionAcceptance(ctx context.Context, reader artifact.Reader, id artifact.ID) (InstructionAcceptance, [poolPartCount][]string, error) {
+// the prompts that stand for the groups of each part of its split, in order,
+// for a caller whose instruction cases are the records of the dataset cases.
+// An acceptance whose split divides another dataset is refused: its groups
+// are named by record, and under the same names another dataset's prompts and
+// rules may be other ones.
+func RequireInstructionAcceptance(ctx context.Context, reader artifact.Reader, id, cases artifact.ID) (InstructionAcceptance, [poolPartCount][]string, error) {
 	var parts [poolPartCount][]string
 	acceptance, err := instructionAcceptanceCodec.Require(ctx, reader, id)
 	if err != nil {
@@ -300,6 +304,9 @@ func RequireInstructionAcceptance(ctx context.Context, reader artifact.Reader, i
 	partition, err := runrecord.ParseSplitPartition(content.Data)
 	if err != nil {
 		return InstructionAcceptance{}, parts, err
+	}
+	if partition.Dataset != cases {
+		return InstructionAcceptance{}, parts, fmt.Errorf("evaluation: acceptance %s divides the instruction cases of dataset %s, and the cases at hand are of dataset %s; an acceptance is run on the prompts and rules it was fixed over", acceptance.ID, partition.Dataset, cases)
 	}
 	for index, shard := range []artifact.ID{partition.Development, partition.Selection, partition.Promotion, partition.Audit} {
 		if parts[index], err = partDocuments(ctx, reader, shard); err != nil {

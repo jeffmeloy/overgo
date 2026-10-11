@@ -1,7 +1,10 @@
 package trainingworkflow
 
 import (
+	"errors"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"overgo/internal/cuda/device"
@@ -79,7 +82,9 @@ func residentTrainer(model *densecausal.Model, groups [][]densecausal.WeightedSe
 // left with one confirmation and then none, and the arm is adopted exactly
 // when the adoption rule says so of those answers. Run again over the same
 // directory, nothing is trained again, the same checkpoints are frozen, and
-// each comparison returns the verdict it recorded.
+// each comparison returns the verdict it recorded. And with the reward arm's
+// first checkpoint put where the control's belongs, the run is refused: a
+// checkpoint is credited to the arm it was sampled as.
 func TestPilotRunTrainsFreezesAndJudgesItsArms(t *testing.T) {
 	cudatest.Require(t)
 	ctx := t.Context()
@@ -141,5 +146,14 @@ func TestPilotRunTrainsFreezesAndJudgesItsArms(t *testing.T) {
 		if answered.Confirmation.ID != result.Comparisons[index].Confirmation.ID || again.Adopted != result.Adopted {
 			t.Fatalf("run again, comparison %s is %s, want the recorded %s", answered.Name, answered.Confirmation.ID, result.Comparisons[index].Confirmation.ID)
 		}
+	}
+	// The reward arm's first checkpoint where the control's belongs is another arm's.
+	const first = "groups-001"
+	control := filepath.Join(run.Out, pilotArms[1], first)
+	if err := errors.Join(os.Rename(control, control+".aside"), os.CopyFS(control, os.DirFS(filepath.Join(run.Out, pilotArms[0], first)))); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := RunInstructionPilot(ctx, store, run); err == nil || !strings.Contains(err.Error(), "holds a checkpoint that is not the "+pilotArms[1]+" arm's") {
+		t.Fatalf("with the reward arm's checkpoint in the control's place the run ended with %v, want it refused as not the control's", err)
 	}
 }

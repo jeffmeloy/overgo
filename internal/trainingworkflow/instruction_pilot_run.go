@@ -1,6 +1,7 @@
 package trainingworkflow
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -86,11 +87,29 @@ func pilotAdopted(acceptance evaluation.InstructionAcceptance, comparisons []Pil
 	return len(acceptance.Comparisons) != 0, ""
 }
 
+// armSpecification names the training specification an arm's sessions run
+// under: the acceptance's, for that arm, under that acceptance. The
+// acceptance is in the name, so a checkpoint of the same arm under another
+// acceptance, which may divide other cases or ask them otherwise, is not this
+// one's.
+func armSpecification(acceptance evaluation.InstructionAcceptance, arm string) (artifact.ID, error) {
+	return artifact.JSONID(artifact.KindProfile, struct {
+		Acceptance artifact.ID `json:"acceptance"`
+		Training   artifact.ID `json:"training"`
+		Arm        string      `json:"arm"`
+	}{acceptance.ID, acceptance.Training, arm})
+}
+
 // RunInstructionPilot trains the pilot's arms and judges them under its
-// acceptance. Each arm starts from the base's weights and answers the
+// acceptance. The acceptance is read for the instruction cases the store's
+// catalog holds now, and one fixed over other cases is refused before anything
+// is trained, read or charged. Each arm starts from the base's weights and answers the
 // development groups' prompts in one order, a reward session or its control,
 // to each of the training specification's checkpoints in turn; a checkpoint a
-// run before this one published is kept and continued from. Each checkpoint
+// run before this one published is kept and continued from once it is held
+// to be this arm's under this acceptance (RewardSampling.published), and one
+// that is not refuses the run and is left as it is, as are the development
+// prompts of another run. Each checkpoint
 // answers the selection groups' prompts once, and the one that passes most of
 // them, the earliest of equals, is frozen: no promotion outcome enters the
 // choice. Then each comparison the acceptance named is charged and read on
@@ -98,7 +117,12 @@ func pilotAdopted(acceptance evaluation.InstructionAcceptance, comparisons []Pil
 // adopted only if every one answered a gain (pilotAdopted). Every answer is
 // drawn and kept as a reward session's are, under the weights that gave it.
 func RunInstructionPilot(ctx context.Context, store *overgodb.Store, run PilotRun) (PilotResult, error) {
-	acceptance, parts, err := evaluation.RequireInstructionAcceptance(ctx, store, run.Acceptance)
+	prompts, cases, err := evaluation.StoreInstructionPrompts(ctx, store)
+	if err != nil {
+		return PilotResult{}, err
+	}
+	// The acceptance is read for the cases the catalog holds now: one fixed over other cases is refused before anything is trained, read or charged.
+	acceptance, parts, err := evaluation.RequireInstructionAcceptance(ctx, store, run.Acceptance, cases)
 	if err != nil {
 		return PilotResult{}, err
 	}
@@ -106,10 +130,6 @@ func RunInstructionPilot(ctx context.Context, store *overgodb.Store, run PilotRu
 	content, found, err := artifact.ReadContent(ctx, store, acceptance.Training)
 	if err != nil || !found || json.Unmarshal(content.Data, &training) != nil || len(training.Checkpoints) == 0 {
 		return PilotResult{}, errors.Join(fmt.Errorf("training workflow: acceptance %s names training specification %s, which is not a published pilot specification", acceptance.ID, acceptance.Training), err)
-	}
-	prompts, _, err := evaluation.StoreInstructionPrompts(ctx, store)
-	if err != nil {
-		return PilotResult{}, err
 	}
 	base, err := identifyModel(run.Model)
 	if err != nil || base != acceptance.Base {
@@ -120,9 +140,14 @@ func RunInstructionPilot(ctx context.Context, store *overgodb.Store, run PilotRu
 	if err != nil {
 		return PilotResult{}, err
 	}
+	// The development prompts a run trains on are written once: a directory that holds another run's is left as it is.
 	asked := filepath.Join(run.Out, "development.json")
-	if err := errors.Join(os.MkdirAll(run.Out, changeDirectoryMode), os.WriteFile(asked, suite, changeRunFileMode)); err != nil {
-		return PilotResult{}, err
+	if written, err := os.ReadFile(asked); err == nil && !bytes.Equal(written, suite) {
+		return PilotResult{}, fmt.Errorf("training workflow: %s holds the development prompts of another run, and is left as it is: a pilot is run again over its own directory, or begun in an empty one", asked)
+	} else if err != nil {
+		if err := errors.Join(os.MkdirAll(run.Out, changeDirectoryMode), os.WriteFile(asked, suite, changeRunFileMode)); err != nil {
+			return PilotResult{}, err
+		}
 	}
 	recipeID, err := bootstrapRewardRecipe(ctx, store, run.Model, suite)
 	if err != nil {
@@ -168,10 +193,7 @@ func RunInstructionPilot(ctx context.Context, store *overgodb.Store, run PilotRu
 	frozen := map[string]string{pilotBase: run.Model}
 	for _, name := range training.Arms {
 		arm := PilotArm{Name: name}
-		specification, err := artifact.JSONID(artifact.KindProfile, struct {
-			Training artifact.ID `json:"training"`
-			Arm      string      `json:"arm"`
-		}{acceptance.Training, name})
+		specification, err := armSpecification(acceptance, name)
 		if err != nil {
 			return PilotResult{}, err
 		}
@@ -182,13 +204,15 @@ func RunInstructionPilot(ctx context.Context, store *overgodb.Store, run PilotRu
 			return PilotResult{}, err
 		}
 		previous, reached := "", 0
+		var before trainingprogram.Checkpoint
 		for _, groups := range training.Checkpoints {
 			checkpoint := PilotCheckpoint{Groups: groups, Directory: filepath.Join(run.Out, name, fmt.Sprintf("groups-%03d", groups))}
-			if _, err := trainingprogram.LoadCheckpoint(checkpoint.Directory); err != nil {
+			sampling := RewardSampling{Protocol: acceptance.Protocol, Training: specification, Seed: int64(acceptance.Seed), Draws: training.Draws, Code: run.Code, Control: name != pilotArms[0]}
+			kept, err := trainingprogram.LoadCheckpoint(checkpoint.Directory)
+			if err != nil {
 				request := Request{
 					Repository: store, Observations: store, Recipe: recipeID, DatasetPath: asked, OutputDirectory: checkpoint.Directory,
-					ModelDirectory: run.Model, ResumeDirectory: previous, Steps: groups - reached, Host: run.Host, Device: run.Device,
-					Rewards: &RewardSampling{Protocol: acceptance.Protocol, Training: specification, Seed: int64(acceptance.Seed), Draws: training.Draws, Code: run.Code, Control: name != pilotArms[0]},
+					ModelDirectory: run.Model, ResumeDirectory: previous, Steps: groups - reached, Host: run.Host, Device: run.Device, Rewards: &sampling,
 				}
 				if previous != "" {
 					request.ModelDirectory = ""
@@ -197,8 +221,12 @@ func RunInstructionPilot(ctx context.Context, store *overgodb.Store, run PilotRu
 				if err != nil {
 					return PilotResult{}, fmt.Errorf("training workflow: the %s arm to %d groups: %w", name, groups, err)
 				}
-				checkpoint.Trace = session.Rewards
+				checkpoint.Trace, kept = session.Rewards, session.Checkpoint
+			} else if err := sampling.published(kept, base, before, groups); err != nil {
+				// A directory that holds another run's checkpoint is neither credited nor written over.
+				return PilotResult{}, fmt.Errorf("training workflow: %s holds a checkpoint that is not the %s arm's after %d groups under acceptance %s, and is left as it is: %w", checkpoint.Directory, name, groups, acceptance.ID, err)
 			}
+			before = kept
 			if _, checkpoint.Selected, err = read(checkpoint.Directory, selection); err != nil {
 				return PilotResult{}, err
 			}

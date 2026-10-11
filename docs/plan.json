@@ -4,21 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "scorecard-regressed-45ceeaafaa2be823",
-      "title": "Restore Hy-Embodied-RxBrain-1.0 vqa throughput to 173.41692 tok/s",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Hy-Embodied-RxBrain-1.0 vqa throughput to 173.41692 tok/s",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-45ceeaafaa2be823 -target 173.41692028891256",
-          "rationale": "- Hy-Embodied-RxBrain-1.0 throughput, {Metric:output tokens over decode time Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:24f6d5c81c752c600bf32907c8ca4b34379bf0e1910dd30f7d3014091e1fbcbb}: 173.41692 to 141.508266 (-31.9086544, -18.4%; serving output tokens over decode time, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261009T224309Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
       "id": "scorecard-regressed-b22137c6b1f9b2cc",
       "title": "Restore pocket-tts speech held-out-quality to 0.0504009164 ",
       "owner": "master-lead",

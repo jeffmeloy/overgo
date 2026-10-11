@@ -27,6 +27,10 @@
       "title": "Show the output size before an export or merge runs (Unsloth Studio's export size preview)",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 575,
+        "reason": "What the row may still add. Set on 2026-10-11 to the 575 nodes its built Go half was counted at, by the count of syntax nodes the automated checks take: the size of what an export or a merge would write, counted from the models' headers by the writers themselves, the workspace's answer for a submission, the command route carrying it, and the launcher's wiring. The page half adds none."
+      },
       "steps": [
         {
           "id": "do",
@@ -57,6 +61,10 @@
       "title": "Offer rsLoRA and LoRA+ in the Train tab for an adapter run",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 42,
+        "reason": "What the row may still add. Set on 2026-10-11 to the 42 nodes its built server half was counted at: the two adapter variants the trainer already takes, offered by the Train tab's adapter capability. The page half adds none."
+      },
       "steps": [
         {
           "id": "do",
@@ -72,6 +80,10 @@
       "title": "Ship a few tiny demo datasets (an instruction set, an identity set, a preference set) so a person can try Train without finding data (LlamaFactory ships alpaca, identity and DPO demos)",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 143,
+        "reason": "What the row may still add. Set on 2026-10-11 to the 143 nodes its built server half was counted at: two small demonstration datasets kept in the server and registered in one action. The page half adds none."
+      },
       "steps": [
         {
           "id": "do",
@@ -309,7 +321,8 @@
             "unnamed-exposure-count/do",
             "wait-deadline-count/do",
             "closeout-check/do",
-            "reviewer-repairs-row/do"
+            "reviewer-repairs-row/do",
+            "gui-counts/do"
           ]
         }
       ]

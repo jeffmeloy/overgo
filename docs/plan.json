@@ -9,8 +9,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "What the row may still add. Set on 2026-10-11 to the 179 nodes the automated checks count its fourth step at on its built change: a clip's frames handed over through one call that waits for the workers on every way out, the bound on the frames being drawn at once, and the comments that say why. Its first three steps, 37, 68 and 10, are committed. Each later step is sized by its own preflight when it is built."
+        "nodes": 381,
+        "reason": "What the row may still add. Set on 2026-10-11 to the 381 nodes the automated checks count its fifth step at on its built change: the prompt encoding begun beside a video load as one owned thing, stopped and waited for by a load that fails, taken once by the request that resolves, ended by a runtime that closes, and the comments that say why; 298 of them are the new file that holds it and 83 the loader and the runtime that use it. Its first four steps, 37, 68, 10 and 179, are committed. Each later step is sized by its own preflight when it is built."
       },
       "steps": [
         {
@@ -354,7 +354,8 @@
             "ledger-count/do",
             "served-count/do",
             "picture-count/do",
-            "video-split/do"
+            "video-split/do",
+            "prompt-pass-count/do"
           ]
         }
       ]

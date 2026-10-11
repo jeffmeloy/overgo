@@ -160,6 +160,14 @@ func TestEvaluationSuitesAreSizedForTheirDecisions(t *testing.T) {
 	if _, err := CatalogLocalBenchmarks(ctx, store, manifestPath); err != nil {
 		t.Fatal(err)
 	}
+	// A benchmark's import is a dataset a pilot's groups are divided from, and records no content for
+	// its cases: a confirmation on it counts exposure by record and group, and is not refused for it.
+	if contents, err := recordContents(ctx, store, imported.ID); err != nil || len(contents) != 0 {
+		t.Fatalf("a benchmark import's records have %d contents (%v), want none and no refusal", len(contents), err)
+	}
+	if _, err := recordContents(ctx, store, planID(t, artifact.KindDataset, "a dataset nobody committed")); err == nil {
+		t.Fatal("a dataset that is not committed has contents, want it refused")
+	}
 	authorities := ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"),
 		CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"), Execution: ExecutionPolicy{Lifecycle: LifecycleResident},

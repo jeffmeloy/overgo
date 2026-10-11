@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "exposure-across-identities",
-      "title": "Keep a confirmation's exposure spent across dataset identities, group representatives and overlapping charges",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 423,
-        "reason": "Measured, not estimated: the built change counts 423 production nodes (tmp/count_nodes.go over internal/evaluation heldout_confirmation.go and heldout_pool.go before and after, 2026-10-11). They are the exposure count reading parts by group and by the contents they are published as containing, and counting every charge on the dataset's parts to number the next; a part's contents named in the batch that publishes it; and a dataset that is no inventory of assets read as recording no contents, where it was refused."
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Keep a confirmation's exposure spent across dataset identities, group representatives and overlapping charges",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestConfirmationProtocolAndExposureSurviveReplacement$'",
-          "rationale": "A confirmation is charged against what a promotion part has left, which counts earlier charges on promotion and audit parts of the same dataset that share a document by record or content (confirmation-integrity, 54ea9b986). The reviewer's SQA-110 names what that leaves, and the lead filed the first of them while building it (finding f7cc9c4f). The same content registered as another dataset is not charged. Another prompt of a group whose representative was read is not charged, though the group is the unit a pilot confirms on. And two partitions that share documents can each read the old balance and publish under different keys. The first reward run charges its comparisons on a promotion part, so the repair comes before it, and that run's step awaits this row.\n\nExtend the owners that exist, the exposure count and the charge's publication: exposure follows content and declared group across dataset identities, and overlapping charges are admitted atomically, each still attributed to its own acceptance and comparison. No ledger and no new framework. It is done when, as the reviewer states it: after a charged read and a reopening, identical bytes rebound to another dataset and another representative of a read group are both still spent, while content that is fresh stays usable; partitions that overlap, charged at once under control, admit no more reads than the budget; and an exact retry keeps its verdict and prepares no model.\n\nServes: select and confirm improvements.\nDisappears: fresh confirmation capacity through rebinding, through another representative, or through a race.\nEvidence: TestConfirmationProtocolAndExposureSurviveReplacement extended with another dataset, a second representative and overlapping charges; the confirmation and instruction acceptance contracts unchanged.\nBatch: host. Count: none yet; it is set from the built change before the row is committed."
-        }
-      ]
-    },
-    {
       "id": "reward-training",
       "title": "Train from registered scorer rewards through one weighted device step",
       "owner": "master-lead",

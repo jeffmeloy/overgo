@@ -204,9 +204,13 @@ func ConfirmOnPool(ctx context.Context, store artifact.Repository, acceptanceID,
 // and returns the verdict, and is not called for a confirmation recorded
 // before or one the part's documents cannot pay for.
 func confirmOnPart(ctx context.Context, store artifact.Repository, partition runrecord.SplitPartition, acceptance, owner, candidate artifact.ID, documents, issued uint64, purpose string, judge func(promotion []string) (string, error)) (PoolConfirmation, uint64, error) {
-	promotion, err := partDocuments(ctx, store, partition.Promotion)
-	if err != nil || uint64(len(promotion)) != documents {
-		return PoolConfirmation{}, 0, errors.Join(fmt.Errorf("evaluation: the promotion part of pool %s holds %d documents and its acceptance was fixed for %d", acceptance, len(promotion), documents), err)
+	membership, found, err := dataset.LoadMembership(ctx, store, partition.Promotion)
+	if err != nil || !found || uint64(len(membership.Records)) != documents {
+		return PoolConfirmation{}, 0, errors.Join(fmt.Errorf("evaluation: the promotion part of pool %s holds %d documents, committed %t, and its acceptance was fixed for %d", acceptance, len(membership.Records), found, documents), err)
+	}
+	promotion := make([]string, len(membership.Records))
+	for index, record := range membership.Records {
+		promotion[index] = record.ID
 	}
 	// The grant is the one the acceptance published: named by what it grants, and loaded with its charges.
 	granted, err := runrecord.NewBudget(poolUnit, partition.Promotion, issued, acceptance)
@@ -233,7 +237,7 @@ func confirmOnPart(ctx context.Context, store artifact.Repository, partition run
 		return PoolConfirmation{}, 0, err
 	}
 	// What other grants have charged for on these documents is spent here too.
-	earlier, err := exposure(ctx, store, partition, budget.ID, promotion)
+	earlier, charged, err := exposure(ctx, store, partition, budget.ID, membership.Records)
 	if err != nil {
 		return PoolConfirmation{}, 0, err
 	}
@@ -253,10 +257,12 @@ func confirmOnPart(ctx context.Context, store artifact.Repository, partition run
 			return PoolConfirmation{}, 0, fmt.Errorf("evaluation: the promotion part of pool %s has answered the %d confirmations its %d documents allow, %d of them under other acceptances; a further one needs a fresh partition",
 				acceptance, issued, documents, earlier)
 		}
-		// The key counts the charge on the part, under whichever acceptance. The
-		// store holds one content under a key, so of two confirmations that would
-		// each be the next, one is charged and the other is refused by the store.
-		batch, err := charge.Batch(fmt.Sprintf("%s%s/confirmation/%d", poolKey, partition.Promotion, uint64(len(charges))+earlier+1))
+		// The key counts the charge among all on the dataset's parts, under
+		// whichever partition and acceptance. The store holds one content under
+		// a key, so of two confirmations that would each be the next, on one
+		// part or on two that share documents, one is charged and the other is
+		// refused by the store and reads nothing.
+		batch, err := charge.Batch(fmt.Sprintf("%s%s/confirmation/%d", poolKey, partition.Dataset, charged+1))
 		if err != nil {
 			return PoolConfirmation{}, 0, err
 		}
@@ -298,68 +304,111 @@ func confirmOnPart(ctx context.Context, store artifact.Repository, partition run
 // charged what its documents have answered, and only documents no grant has
 // charged for start a budget whole. A charge stays with the grant it was made
 // against.
-func exposure(ctx context.Context, reader artifact.Reader, partition runrecord.SplitPartition, own artifact.ID, promotion []string) (uint64, error) {
+//
+// A part of the dataset's own partitions holds one of the documents when it
+// holds its record, a record of its group, which is the unit a part is
+// divided by, or a record of its content. A part of any dataset holds one
+// when both were published as containing its content (containContents), so
+// bytes registered again as another dataset are found. charged is every
+// confirmation charged on a promotion or audit part of the dataset's
+// partitions, this grant's among them: it numbers the next charge.
+func exposure(ctx context.Context, reader artifact.Reader, partition runrecord.SplitPartition, own artifact.ID, promotion []dataset.Record) (earlier, charged uint64, err error) {
 	contents, err := recordContents(ctx, reader, partition.Dataset)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	held := map[string]bool{}
 	for _, record := range promotion {
-		held[record], held[contents[record]] = true, true
+		held[record.ID], held[record.Group], held[contents[record.ID]] = true, true, true
 	}
 	delete(held, "")
 	partitions, err := reader.Children(ctx, partition.Dataset)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-	var spent uint64
-	counted := map[artifact.ID]bool{own: true}
+	// local are the parts read for their charges, each with whether it is of
+	// the dataset's own partitions; overlapping are those that hold a document
+	// of this part.
+	local, overlapping := map[artifact.ID]bool{}, map[artifact.ID]bool{}
 	for _, edge := range partitions {
 		if descriptor, _, err := reader.Artifact(ctx, edge.Child); err != nil {
-			return 0, err
+			return 0, 0, err
 		} else if descriptor.MediaType != runrecord.SplitPartitionMediaType {
 			continue
 		}
 		content, _, err := artifact.ReadContent(ctx, reader, edge.Child)
 		if err != nil {
-			return 0, err
+			return 0, 0, err
 		}
 		other, err := runrecord.ParseSplitPartition(content.Data)
 		if err != nil {
-			return 0, err
+			return 0, 0, err
 		}
 		for _, shard := range []artifact.ID{other.Promotion, other.Audit} {
-			documents, err := partDocuments(ctx, reader, shard)
-			if err != nil {
-				return 0, err
+			membership, found, err := dataset.LoadMembership(ctx, reader, shard)
+			if err != nil || !found {
+				return 0, 0, errors.Join(fmt.Errorf("evaluation: the pool's part %s is not committed", shard), err)
 			}
-			if !slices.ContainsFunc(documents, func(record string) bool { return held[record] || held[contents[record]] }) {
+			local[shard] = true
+			if slices.ContainsFunc(membership.Records, func(record dataset.Record) bool {
+				return held[record.ID] || held[record.Group] || held[contents[record.ID]]
+			}) {
+				overlapping[shard] = true
+			}
+		}
+	}
+	for _, record := range promotion {
+		if contents[record.ID] == "" {
+			continue
+		}
+		named, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte(poolContent+contents[record.ID]))
+		if err != nil {
+			return 0, 0, err
+		}
+		holders, err := reader.Parents(ctx, named)
+		if err != nil {
+			return 0, 0, err
+		}
+		for _, holder := range holders {
+			if holder.Relation != artifact.RelationContains {
 				continue
 			}
-			grants, err := reader.Children(ctx, shard)
-			if err != nil {
-				return 0, err
+			overlapping[holder.Parent] = true
+			// A part of another dataset is read for what it has answered, and numbers no charge here.
+			if !local[holder.Parent] {
+				local[holder.Parent] = false
 			}
-			for _, grant := range grants {
-				if descriptor, _, err := reader.Artifact(ctx, grant.Child); err != nil {
-					return 0, err
-				} else if descriptor.MediaType != runrecord.BudgetMediaType || counted[grant.Child] {
+		}
+	}
+	for shard, ofDataset := range local {
+		grants, err := reader.Children(ctx, shard)
+		if err != nil {
+			return 0, 0, err
+		}
+		for _, grant := range grants {
+			if descriptor, _, err := reader.Artifact(ctx, grant.Child); err != nil {
+				return 0, 0, err
+			} else if descriptor.MediaType != runrecord.BudgetMediaType {
+				continue
+			}
+			budget, charges, err := runrecord.BudgetCharges(ctx, reader, grant.Child)
+			if err != nil {
+				return 0, 0, err
+			}
+			for _, charge := range charges {
+				if budget.Unit != poolUnit {
 					continue
 				}
-				counted[grant.Child] = true
-				budget, charges, err := runrecord.BudgetCharges(ctx, reader, grant.Child)
-				if err != nil {
-					return 0, err
+				if ofDataset {
+					charged += charge.Amount
 				}
-				for _, charge := range charges {
-					if budget.Unit == poolUnit {
-						spent += charge.Amount
-					}
+				if overlapping[shard] && grant.Child != own {
+					earlier += charge.Amount
 				}
 			}
 		}
 	}
-	return spent, nil
+	return earlier, charged, nil
 }
 
 // poolVerdict reads a confirmation from the measure's paired differences, one

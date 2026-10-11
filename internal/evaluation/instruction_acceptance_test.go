@@ -75,7 +75,8 @@ func exactInstructionPower(groups int64, discordance, win, level *big.Rat) *big.
 // another candidate it is refused.
 //
 // A replacement acceptance over the same prompts starts with what they have
-// answered spent. A likelihood pool's acceptance is still read as what it is:
+// answered spent, and so does one over other prompts of the same groups: the
+// group is what answered, whichever prompt stood for it. A likelihood pool's acceptance is still read as what it is:
 // neither kind confirms under the other's rule.
 func TestInstructionAcceptanceBindsProtocolGroupsAndComparisons(t *testing.T) {
 	t.Parallel()
@@ -327,6 +328,34 @@ func TestInstructionAcceptanceBindsProtocolGroupsAndComparisons(t *testing.T) {
 	}
 	if _, _, err := confirmInstruction(ctx, store, second.ID, protocol, "reward over base", reward, request.Base, reading(wins)); err == nil || !strings.Contains(err.Error(), "fresh partition") || readings != 3 {
 		t.Fatalf("a further comparison under the replacement = %v, want it refused: the prompts have answered what they allow", err)
+	}
+
+	// Another prompt of each group stands for it: the groups are the ones that
+	// answered, so an acceptance over the other prompts starts with them spent.
+	stood := map[string]bool{}
+	for _, shard := range []artifact.ID{partition.Development, partition.Selection, partition.Promotion, partition.Audit} {
+		membership, _, err := dataset.LoadMembership(ctx, store, shard)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, record := range membership.Records {
+			stood[record.ID] = true
+		}
+	}
+	others := request
+	others.Cases = slices.DeleteFunc(slices.Clone(cases), func(eligible InstructionCase) bool { return stood[eligible.Record] })
+	third, apart := publish(others)
+	if apart.Promotion == partition.Promotion || third.Groups != acceptance.Groups {
+		t.Fatalf("the acceptance over each group's other prompts holds part %s of %d groups, want another part of the same %d groups", apart.Promotion, third.Groups, acceptance.Groups)
+	}
+	if _, _, err := confirmInstruction(ctx, store, third.ID, protocol, "reward over base", reward, request.Base, reading(wins)); err == nil || !strings.Contains(err.Error(), "fresh partition") || readings != 3 {
+		t.Fatalf("a comparison on other prompts of groups that have answered = %v with %d readings, want it refused unread", err, readings)
+	}
+
+	// By the group alone: a record no part holds, of a group that answered, and one of a group no part holds.
+	answered, _, err := exposure(ctx, store, apart, artifact.ID{}, []dataset.Record{{ID: "a prompt no part holds", Group: promoted.Group}})
+	if fresh, _, freshErr := exposure(ctx, store, apart, artifact.ID{}, []dataset.Record{{ID: "a prompt no part holds", Group: "a group no part holds"}}); err != nil || freshErr != nil || answered != 3 || fresh != 0 {
+		t.Fatalf("a new prompt of a group that answered three comparisons has answered %d, and one of a new group %d (%v, %v); want three and none", answered, fresh, err, freshErr)
 	}
 
 	// A likelihood pool is still what it was, and neither kind confirms under the other's rule.

@@ -19,6 +19,9 @@ import (
 const (
 	poolAcceptanceMedia  = "application/vnd.overgo.heldout-acceptance+json"
 	poolAcceptanceSchema = "overgo/heldout-acceptance/v1"
+	// poolContent begins the name a content is given, whatever dataset holds
+	// it, in the parts that are published as containing it.
+	poolContent = "overgo/heldout-pool/content/"
 
 	// falseGain is the chance, over every confirmation a pool answers, that one
 	// reports a gain that is not there. One in twenty is the level a single
@@ -258,6 +261,20 @@ func BuildHeldoutPool(ctx context.Context, reader artifact.Reader, request Heldo
 		return HeldoutPool{}, err
 	}
 	pool.Batch.Artifacts = append(pool.Batch.Artifacts, artifact.Descriptor{ID: proposer})
+	for _, membership := range plan.Memberships {
+		if at := slices.Index(PoolParts[:], membership.Partition); at != poolPromotion && at != poolAudit {
+			continue
+		}
+		var held []string
+		for _, record := range membership.Records {
+			if content := contents[record.ID]; content != "" {
+				held = append(held, content)
+			}
+		}
+		if err := containContents(&pool.Batch, membership.ID, held); err != nil {
+			return HeldoutPool{}, err
+		}
+	}
 	stages := []func(string) (artifact.Batch, error){pool.Partition.Batch, func(key string) (artifact.Batch, error) {
 		return poolAcceptanceCodec.Batch(key, pool.Acceptance, artifact.DependencyLineage(pool.Acceptance.ID, pool.Partition.ID, objective.ID), nil)
 	}}
@@ -284,12 +301,35 @@ func BuildHeldoutPool(ctx context.Context, reader artifact.Reader, request Heldo
 	return pool, nil
 }
 
+// containContents says, in the batch that publishes a part, what the part
+// holds by content: for each content, a name every dataset gives it alike,
+// which the part is published as containing. A part of another partition, or
+// of another dataset the same bytes were registered under, that holds one of
+// them contains the same name, and is found from it (exposure): what a
+// content has answered is spent wherever it is held.
+func containContents(batch *artifact.Batch, shard artifact.ID, contents []string) error {
+	for _, content := range contents {
+		named, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte(poolContent+content))
+		if err != nil {
+			return err
+		}
+		batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: named})
+		batch.Lineage = append(batch.Lineage, artifact.Lineage{Child: named, Parent: shard, Relation: artifact.RelationContains})
+	}
+	return nil
+}
+
 // recordContents names the content of each record of a dataset whose assets
 // are inventories of files, by the digest registration recorded for the file;
 // a record of another kind of asset has none recorded and is named by nothing.
 func recordContents(ctx context.Context, reader artifact.Reader, id artifact.ID) (map[string]string, error) {
 	document, found, err := dataset.Load(ctx, reader, id)
 	if err != nil || !found {
+		// A dataset that is committed and is no inventory of assets, as a
+		// benchmark's import is not, records no content for its records.
+		if _, held, heldErr := reader.Artifact(ctx, id); heldErr == nil && held {
+			return map[string]string{}, nil
+		}
 		return nil, errors.Join(fmt.Errorf("evaluation: dataset %s is not committed", id), err)
 	}
 	contents := map[string]string{}

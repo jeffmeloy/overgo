@@ -33,20 +33,29 @@ const (
 // records. It returns the store, the objective and both memberships.
 func poolObjective(t *testing.T) (*overgodb.Store, trainingprogram.ObjectiveDocument, dataset.Membership, dataset.Membership) {
 	t.Helper()
-	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
+	objective, training, heldout := poolObjectiveOver(t, store, "pool-corpus", poolFixtureDocuments)
+	return store, objective, training, heldout
+}
+
+// poolObjectiveOver is poolObjective in a store given, over a corpus of the
+// first so many documents registered under a name: a corpus of more documents
+// is another dataset that holds the same bytes.
+func poolObjectiveOver(t *testing.T, store *overgodb.Store, name string, documents int) (trainingprogram.ObjectiveDocument, dataset.Membership, dataset.Membership) {
+	t.Helper()
+	ctx := t.Context()
 	corpus := t.TempDir()
-	for index := range poolFixtureDocuments {
+	for index := range documents {
 		text := fmt.Sprintf("document %d of the pool's corpus\n", index%(poolFixtureDocuments-poolFixtureCopies))
 		if err := os.WriteFile(filepath.Join(corpus, fmt.Sprintf("document-%03d.txt", index)), []byte(text), 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
-	registered, err := dataset.RegisterDirectoryDataset(ctx, store, "pool-corpus", corpus)
+	registered, err := dataset.RegisterDirectoryDataset(ctx, store, name, corpus)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +103,7 @@ func poolObjective(t *testing.T) (*overgodb.Store, trainingprogram.ObjectiveDocu
 	if _, err := artifact.Publish(ctx, store, batch); err != nil {
 		t.Fatal(err)
 	}
-	return store, objective, training, heldout
+	return objective, training, heldout
 }
 
 // TestHeldOutPoolIsSizedForItsDeclaredGain holds a held-out pool to what it

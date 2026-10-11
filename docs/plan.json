@@ -8,6 +8,10 @@
       "title": "Keep a confirmation's exposure spent across dataset identities, group representatives and overlapping charges",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 423,
+        "reason": "Measured, not estimated: the built change counts 423 production nodes (tmp/count_nodes.go over internal/evaluation heldout_confirmation.go and heldout_pool.go before and after, 2026-10-11). They are the exposure count reading parts by group and by the contents they are published as containing, and counting every charge on the dataset's parts to number the next; a part's contents named in the batch that publishes it; and a dataset that is no inventory of assets read as recording no contents, where it was refused."
+      },
       "steps": [
         {
           "id": "do",
@@ -376,7 +380,8 @@
             "pilot-acceptance-count/do",
             "exposure-across-identities/do",
             "template-json-budget/do",
-            "sqa-rows/do"
+            "sqa-rows/do",
+            "exposure-count/do"
           ]
         }
       ]

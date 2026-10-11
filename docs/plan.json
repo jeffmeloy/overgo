@@ -9,15 +9,15 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "What the row may still add. Set on 2026-10-11 to the 381 nodes the automated checks count its fifth step at on its built change: the prompt encoding begun beside a video load as one owned thing, stopped and waited for by a load that fails, taken once by the request that resolves, ended by a runtime that closes, and the comments that say why; 298 of them are the new file that holds it and 83 the loader and the runtime that use it. Its first four steps, 37, 68, 10 and 179, are committed. Each later step is sized by its own preflight when it is built."
+        "nodes": 342,
+        "reason": "What the row may still add. Set on 2026-10-11 to the 342 nodes the automated checks count its sixth step at on its built change: one name for the bytes of the three files a video model's text pipeline reads, the checkpoint archive's record of its entries, every keeper of a prompt's rows put under that name, a stored answer's key given what names the files beside a model, and the comments that say why. Its first five steps, 37, 68, 10, 179 and 381, are committed. The last step is sized by its own preflight when it is built."
       },
       "steps": [
         {
           "id": "video-input-identity",
           "title": "Qualify every cache of a clip's prompt rows by the bytes it was made from",
           "status": "open",
-          "verify": "go test ./internal/latentvideo -count=1 -run '^TestPromptAlreadyEncodedIsNotEncodedAgain$'",
+          "verify": "go test ./internal/latentvideo -count=1 -run '^TestPromptRowsFollowTheBytesTheyAreMadeFrom$'",
           "rationale": "Reviewer finding SQA-129, second severity, confirmed by reading (docs/sqa_findings.json, not in the repository). The stored reading and the resident prompt encoder's key qualify the tokenizer and checkpoint files by path, size and time, the resident key leaves out the special tokens' file, and the rows kept for the next process carry the same incomplete qualification. Changed bytes under the same path, size and time, or a change to the special tokens alone, need not invalidate stored rows. Closure: on the private fixtures, bytes changed with path, size and time kept give what a cold load gives from the stored answer, the kept rows, the warm memo and a new session; unchanged inputs are still reused. The step first writes the test that fails for the finding's own counterexample, then repairs, as the reviewer's closure asks; a finding that does not reproduce is said so and closed with what was tried. The register stays the reviewer's and is not edited here. The row has no count: each step is sized by a preflight when it is dispatched.\n\nServes: serve. Evidence: the test. Batch: host.",
           "depends_on": [
             "served-path-repairs/video-prompt-pass"
@@ -345,7 +345,8 @@
             "served-count/do",
             "picture-count/do",
             "video-split/do",
-            "prompt-pass-count/do"
+            "prompt-pass-count/do",
+            "input-identity-count/do"
           ]
         }
       ]

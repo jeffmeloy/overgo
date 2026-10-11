@@ -129,7 +129,7 @@ func encodePrompts(ctx context.Context, spec TextConditioningSpec, prompts ...st
 		return nil, 0, stats, err
 	}
 	// A request whose prompts are being encoded beside its model's loading waits here for that pass.
-	awaited := processmeasure.Stage(ctx, "prompt rows awaited")
+	awaited := processmeasure.Stage(ctx, promptRowsAwaited)
 	encoder.mu.Lock()
 	awaited()
 	defer encoder.mu.Unlock()

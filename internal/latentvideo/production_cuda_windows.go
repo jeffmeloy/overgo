@@ -13,7 +13,6 @@ import (
 	"overgo/internal/cuda/driver"
 	"overgo/internal/inferencesurface"
 	"overgo/internal/media"
-	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
 	"overgo/internal/tensor/dtype"
@@ -22,13 +21,15 @@ import (
 
 // WanRuntime retains one generator across compatible requests, the text
 // pipeline that resolves a prompt-form request, the device occupancy its
-// noise plans compile against, and the last prompt pair's contexts.
+// noise plans compile against, the last prompt pair's contexts, and, until a
+// request takes it, the encoding of prompts begun beside its load.
 type WanRuntime struct {
 	generator *Generator
 	profile   Profile
 	text      TextConditioningSpec
 	occupancy editNoiseStream
 	memo      wanConditioning
+	pass      *promptPass
 	runs      int
 }
 
@@ -42,7 +43,8 @@ type wanConditioning struct {
 // LoadWanRuntime loads the generator a request is served by. A request that
 // names a prompt has its prompts encoded on the host while the generator
 // loads on the device, since neither waits on the other: the encoder keeps
-// their rows, and the request finds them when it resolves. The rows of the
+// their rows, and the request finds them when it resolves, or is told what
+// the encoding failed with. A load that fails leaves none of it running. The rows of the
 // negative prompt every such request carries are kept in the store, under
 // the identity of this package's code where the build counted one, so that a
 // process encodes that prompt only when no process before it has.
@@ -56,37 +58,43 @@ func LoadWanRuntime(ctx context.Context, store artifact.Repository, path string,
 	if err != nil {
 		return nil, err
 	}
-	text := WanTextConditioningSpec(path, config.TextLen)
-	if identity, counted := inferencesurface.Execution(reflect.TypeFor[WanRuntime]().PkgPath()); counted {
-		text.Common, text.Kept, text.KeptUnder = referenceNegativePrompt, store, identity
-	}
-	if request.PromptForm() {
-		// What the pass finds wrong, the request finds again when it resolves, and says.
-		go encodePrompts(processmeasure.Unstaged(ctx), text, request.Prompt, request.NegativePrompt)
-	}
+	// What needs no loading to refuse is refused before the pass is begun.
 	storage := dtype.BF16
 	if !checked.Equal(profile.Precision.MatmulWeights, dtype.BF16.String()) {
 		return nil, errors.New("latent video: unsupported production precision")
 	}
-	ordinal := device.DefaultOrdinal()
-	generator, err := NewGenerator(GeneratorConfig{
-		ModelDirectory: path, Policy: profile.Policy, LatentStats: profile.LatentStats,
-		Frames: request.Frames, Width: request.Width, Height: request.Height,
-		Precision: DenoiserPrecision{
-			MatmulWeights: storage, RoundAttentionStorage: profile.Precision.RoundAttentionStorage,
-		}, DeviceOrdinal: ordinal, CodecLibrary: true,
+	text := WanTextConditioningSpec(path, config.TextLen)
+	if identity, counted := inferencesurface.Execution(reflect.TypeFor[WanRuntime]().PkgPath()); counted {
+		text.Common, text.Kept, text.KeptUnder = referenceNegativePrompt, store, identity
+	}
+	var pass *promptPass
+	if request.PromptForm() {
+		pass = beginPromptPass(ctx, func(ctx context.Context) error {
+			_, _, _, err := encodePrompts(ctx, text, request.Prompt, request.NegativePrompt)
+			return err
+		})
+	}
+	return loadedBeside(ctx, pass, func() (*WanRuntime, error) {
+		ordinal := device.DefaultOrdinal()
+		generator, err := NewGenerator(GeneratorConfig{
+			ModelDirectory: path, Policy: profile.Policy, LatentStats: profile.LatentStats,
+			Frames: request.Frames, Width: request.Width, Height: request.Height,
+			Precision: DenoiserPrecision{
+				MatmulWeights: storage, RoundAttentionStorage: profile.Precision.RoundAttentionStorage,
+			}, DeviceOrdinal: ordinal, CodecLibrary: true,
+		})
+		if err != nil {
+			return nil, err
+		}
+		occupancy, err := newEditNoiseStream(0, ordinal)
+		if err != nil {
+			return nil, errors.Join(err, generator.Close())
+		}
+		return &WanRuntime{
+			generator: generator, profile: profile,
+			text: text, occupancy: occupancy, pass: pass,
+		}, nil
 	})
-	if err != nil {
-		return nil, err
-	}
-	occupancy, err := newEditNoiseStream(0, ordinal)
-	if err != nil {
-		return nil, errors.Join(err, generator.Close())
-	}
-	return &WanRuntime{
-		generator: generator, profile: profile,
-		text: text, occupancy: occupancy,
-	}, nil
 }
 
 // resolve completes a request against the resident runtime: the profile's
@@ -100,6 +108,11 @@ func (r *WanRuntime) resolve(ctx context.Context, request WanRequest) (WanReques
 	request = request.withGeneration(r.profile.Generation)
 	if !request.PromptForm() {
 		return request, validateWanRequest(request)
+	}
+	pass := r.pass
+	r.pass = nil
+	if err := pass.taken(ctx); err != nil {
+		return WanRequest{}, err
 	}
 	if r.memo.cond == nil || r.memo.prompt != request.Prompt || r.memo.negative != request.NegativePrompt {
 		cond, uncond, err := promptContexts(ctx, r.text, request)
@@ -175,7 +188,11 @@ func (r *WanRuntime) PeakDeviceBytes() (uint64, error) {
 }
 
 func (r *WanRuntime) Close(context.Context) error {
-	if r == nil || r.generator == nil {
+	if r == nil {
+		return nil
+	}
+	r.pass.end()
+	if r.generator == nil {
 		return nil
 	}
 	err := r.generator.Close()

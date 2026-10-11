@@ -111,7 +111,7 @@ func TestParquetWorkspaceAndMalformedPages(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			b := &parquetBudget{remaining: int64(budget)}
-			if _, err := decodeDataPage(tc.payload, parquetCodecUncompressed, tc.header, 1, nil, b); err == nil {
+			if _, err := decodeDataPage(tc.payload, parquetCodecUncompressed, tc.header, 1, nil, decodePlainStrings, b); err == nil {
 				t.Fatal("malformed page decoded")
 			}
 		})

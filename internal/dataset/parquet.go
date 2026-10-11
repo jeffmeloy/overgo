@@ -417,6 +417,10 @@ func readColumnChunk(
 	if _, err := file.ReadAt(chunk, start); err != nil {
 		return err
 	}
+	plain := plainDecoder(decodePlainStrings)
+	if column.kind == parquetTypeInt64 {
+		plain = decodePlainIntegers
+	}
 	var dictionary []string
 	values := int64(0)
 	for offset := int64(0); offset < int64(len(chunk)); {
@@ -439,16 +443,11 @@ func readColumnChunk(
 			if dictionary != nil || values != 0 || header.encoding != parquetEncodingPlain {
 				return errors.New("dataset: invalid parquet dictionary page")
 			}
-			plain, err := decompressPage(payload, column.codec, header.uncompressedSize, budget)
+			page, err := decompressPage(payload, column.codec, header.uncompressedSize, budget)
 			if err != nil {
 				return err
 			}
-			if column.kind == parquetTypeInt64 {
-				dictionary, err = decodePlainIntegers(plain, header.numValues, budget)
-			} else {
-				dictionary, err = decodePlainStrings(plain, header.numValues, budget)
-			}
-			if err != nil {
+			if dictionary, err = plain(page, header.numValues, budget); err != nil {
 				return err
 			}
 		case parquetPageData, parquetPageDataV2:
@@ -458,7 +457,7 @@ func readColumnChunk(
 			if column.kind == parquetTypeInt64 && dictionary == nil {
 				return errors.New("dataset: parquet integer columns without a dictionary are outside the supported subset")
 			}
-			pageValues, err := decodeDataPage(payload, column.codec, header, maxDefinition, dictionary, budget)
+			pageValues, err := decodeDataPage(payload, column.codec, header, maxDefinition, dictionary, plain, budget)
 			if err != nil {
 				return err
 			}
@@ -589,6 +588,7 @@ func decodeDataPage(
 	header parquetPageHeader,
 	maxDefinition int,
 	dictionary []string,
+	plain plainDecoder,
 	budget *parquetBudget,
 ) ([]parquetValue, error) {
 	var levels, data []byte
@@ -651,7 +651,7 @@ func decodeDataPage(
 			rows[index].valid = true
 		}
 	}
-	values, err := decodePageStrings(data, header.encoding, present, dictionary, budget)
+	values, err := decodePageStrings(data, header.encoding, present, dictionary, plain, budget)
 	if err != nil {
 		return nil, err
 	}
@@ -665,10 +665,16 @@ func decodeDataPage(
 	return rows, nil
 }
 
-func decodePageStrings(data []byte, encoding int64, present int, dictionary []string, budget *parquetBudget) ([]string, error) {
+// plainDecoder decodes a page of values written plain, each as its text.
+// Which one a column takes follows its physical type, for its dictionary and
+// for a data page written plain alike: a writer falls back to plain pages
+// when a dictionary grows too large.
+type plainDecoder func(data []byte, count int64, budget *parquetBudget) ([]string, error)
+
+func decodePageStrings(data []byte, encoding int64, present int, dictionary []string, plain plainDecoder, budget *parquetBudget) ([]string, error) {
 	switch encoding {
 	case parquetEncodingPlain:
-		return decodePlainStrings(data, int64(present), budget)
+		return plain(data, int64(present), budget)
 	case parquetEncodingPlainDictionary, parquetEncodingRLEDictionary:
 		if dictionary == nil {
 			return nil, errors.New("dataset: parquet dictionary page is absent")
@@ -729,7 +735,7 @@ func decodePlainStrings(data []byte, count int64, budget *parquetBudget) ([]stri
 // decimalBase is the base an integer column's values are written in.
 const decimalBase = 10
 
-// decodePlainIntegers decodes a dictionary of 64-bit integers, each as its
+// decodePlainIntegers decodes 64-bit integers written plain, each as its
 // decimal text: a column's values are text whatever its physical type.
 func decodePlainIntegers(data []byte, count int64, budget *parquetBudget) ([]string, error) {
 	width := binary.Size(int64(0))

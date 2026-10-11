@@ -478,6 +478,14 @@ func (h *Handler) submitWorkflow(
 	if h.repository == nil {
 		return artifact.ID{}, errors.New("workflow workspace: durable repository required")
 	}
+	// Judged here, behind the request ledger: a repeat of a numbered run that
+	// started is answered from the ledger, not weighed against the memory its
+	// own run now holds.
+	if kind == WorkflowTraining && !capability.Host {
+		if err := h.admitDeviceRun(ctx, capability.Recipe); err != nil {
+			return artifact.ID{}, err
+		}
+	}
 	request := operation.Request{Task: capability.Task, Recipe: capability.Recipe}
 	intent, err := artifact.JSONID(artifact.KindEvidence, struct {
 		Version uint16          `json:"version"`

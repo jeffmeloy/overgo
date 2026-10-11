@@ -131,6 +131,11 @@ func writeGenerationError(response http.ResponseWriter, err error) {
 		writeError(response, http.StatusRequestTimeout, "request_cancelled", err.Error())
 		return
 	}
+	if errors.Is(err, errResidentFit) {
+		// A refusal, not a fault: the page keeps a 503's own words.
+		writeError(response, http.StatusServiceUnavailable, "insufficient_memory", err.Error())
+		return
+	}
 	writeError(response, http.StatusInternalServerError, "generation_error", err.Error())
 }
 

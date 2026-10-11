@@ -23,25 +23,6 @@
       ]
     },
     {
-      "id": "gui-resident-model-fit",
-      "title": "Keep the resident model only when it fits beside a device training run (Unsloth Studio's rule",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 440,
-        "reason": "What the row may still add. Set on 2026-10-11 to six above the 434 nodes its built change was counted at: its second reading asked for comment lines, which count, and that repair was still being made when this was filed."
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Adopt the fit rule where a device run is admitted, with the measured memory records overgo already keeps in place of a static table",
-          "status": "open",
-          "verify": "test -f internal/server/resident_fit_test.go \u0026\u0026 go test ./internal/server -run '^TestResidentFit' -count=1",
-          "rationale": "Recommended by the GUI lane and not landed when its worktree was removed on 2026-10-09 (docs/gui_update_plan.json, which stays out of the repository); ranked into this plan by the owner's answer to gui-recommendations on 2026-10-10. Keep the resident model only when it fits beside a device training run (Unsloth Studio's rule: usable memory at least required times 1.15 plus 4 GB, and evict speech before chat); not needed while Train-tab runs are host-only. Why the lane recommended it: \n\nThe lane's rule for a change to the pages holds: plain HTML, JavaScript and Go, reviewed in a browser at desktop and phone widths in both colour schemes, and accepted by a browser leg or a Go test that fails without it. The row has no count: it is sized by a preflight when it is dispatched.\n\nServes: peak-device-memory. Batch: browser."
-        }
-      ]
-    },
-    {
       "id": "reward-host-retire",
       "title": "Retire the host's reward trainer once the workbench trains rewards on the device or stops offering them",
       "owner": "master-lead",

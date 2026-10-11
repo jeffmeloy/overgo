@@ -9,20 +9,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 179,
+        "nodes": 0,
         "reason": "What the row may still add. Set on 2026-10-11 to the 179 nodes the automated checks count its fourth step at on its built change: a clip's frames handed over through one call that waits for the workers on every way out, the bound on the frames being drawn at once, and the comments that say why. Its first three steps, 37, 68 and 10, are committed. Each later step is sized by its own preflight when it is built."
       },
       "steps": [
-        {
-          "id": "video-joins",
-          "title": "Wait for a clip's drawing workers on every way out of a generation, and bound them",
-          "status": "open",
-          "verify": "go test ./internal/latentvideo -count=1 -run '^TestVideoWorkIsJoinedOnEveryExit$'",
-          "rationale": "Reviewer finding SQA-130, second severity, confirmed by reading (docs/sqa_findings.json, not in the repository). The GIF encoder starts a worker a frame and joins them only in its finish, which a generation error passes by; and loading a video runtime starts the prompt encoding before it validates, then returns on a load failure without cancelling or joining it, so the encoder can go on computing and may persist rows after the load failed. Closure: with the encoder held, a failed load and a separate cancellation each return only when the admitted work has ended, with the first error kept; a held draw worker and a failed or cancelled decode wait for the admitted draws, publish no partial clip and allow a retry; queued and running draws are bounded. The step first writes the test that fails for the finding's own counterexample, then repairs, as the reviewer's closure asks; a finding that does not reproduce is said so and closed with what was tried. The register stays the reviewer's and is not edited here. The row has no count: each step is sized by a preflight when it is dispatched.\n\nServes: serve. Evidence: the test. Batch: host and device.",
-          "depends_on": [
-            "served-path-repairs/picture-timestep"
-          ]
-        },
         {
           "id": "video-prompt-pass",
           "title": "Stop and wait for the prompt encoding a video runtime starts when its load fails",

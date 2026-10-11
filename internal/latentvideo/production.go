@@ -16,6 +16,7 @@ import (
 	"image/gif"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 
 	"overgo/internal/artifact"
@@ -203,6 +204,12 @@ type gifEncoder struct {
 	frames  []*drawnFrame
 	delays  []int
 	drawing sync.WaitGroup
+	// draw draws one frame, and slots bounds the frames being drawn at once,
+	// each of which holds the bytes Add took of it: a frame waits in Add for
+	// a worker to be free, which holds the decoding to the drawing's pace and
+	// the copies kept to the workers'.
+	draw    func(raw []uint8, height, width int, cut bool) *image.Paletted
+	slots   chan struct{}
 	prior   []uint8
 	changed int
 	height  int
@@ -244,7 +251,7 @@ func NewGIFEncoder(fps int, pixels PixelRange) (*gifEncoder, error) {
 	if !checked.PositiveInts(fps) || !pixels.valid() {
 		return nil, errors.New("latent video: invalid GIF encoding policy")
 	}
-	encoder := &gifEncoder{fps: fps, pixels: pixels}
+	encoder := &gifEncoder{fps: fps, pixels: pixels, draw: drawFrame, slots: make(chan struct{}, runtime.GOMAXPROCS(0))}
 	if _, err := media.GIFFrameDelay(fps, len(encoder.frames)); err != nil {
 		return nil, err
 	}
@@ -269,6 +276,12 @@ func NewClipEncoder(fps int, pixels PixelRange) (*gifEncoder, error) {
 // the pixels that changed since the frame before, and hands the drawing to a
 // worker; the frame it was given is the caller's again when it returns.
 func (s *gifEncoder) Add(index int, frame []float32, height, width int) error {
+	return s.add(context.Background(), index, frame, height, width)
+}
+
+// add is Add for a request: a frame that waits for a worker stops waiting
+// when the request is cancelled, and is not taken.
+func (s *gifEncoder) add(ctx context.Context, index int, frame []float32, height, width int) error {
 	if index != len(s.frames) {
 		return errors.New("latent video: frame index is out of order")
 	}
@@ -276,19 +289,20 @@ func (s *gifEncoder) Add(index int, frame []float32, height, width int) error {
 	if err != nil {
 		return err
 	}
+	if len(s.frames) > 0 && (!checked.Equal(height, s.height) || !checked.Equal(width, s.width)) {
+		return errors.New("latent video: frame geometry changed")
+	}
+	select {
+	case s.slots <- struct{}{}:
+	case <-ctx.Done():
+		return context.Cause(ctx)
+	}
 	raw := make([]uint8, len(frame))
 	if err := media.EncodePlanarRGB8Into(raw, frame, height, width, func(value float32) uint8 {
 		return encodeVideoByte(value, s.pixels)
 	}); err != nil {
+		<-s.slots
 		return err
-	}
-	if len(s.frames) > 0 {
-		if !checked.Equal(height, s.height) {
-			return errors.New("latent video: frame geometry changed")
-		}
-		if !checked.Equal(width, s.width) {
-			return errors.New("latent video: frame geometry changed")
-		}
 	}
 	s.height, s.width = height, width
 	if s.prior != nil {
@@ -302,8 +316,36 @@ func (s *gifEncoder) Add(index int, frame []float32, height, width int) error {
 	drawn := &drawnFrame{}
 	s.frames, s.delays = append(s.frames, drawn), append(s.delays, delay)
 	cut := s.cut
-	s.drawing.Go(func() { drawn.picture = drawFrame(raw, height, width, cut) })
+	s.drawing.Go(func() {
+		defer func() { <-s.slots }()
+		drawn.picture = s.draw(raw, height, width, cut)
+	})
 	return nil
+}
+
+// timed is the encoder's taking of a frame for a request, timed as a part of
+// the request the context carries a ledger for. The frames are drawn by
+// workers beside the decoding, and what is left of the drawing when the last
+// frame is in is waited for under the clip's writing.
+func (s *gifEncoder) timed(ctx context.Context) VideoFrameSink {
+	return func(index int, frame []float32, height, width int) error {
+		defer processmeasure.Stage(ctx, "clip frame taken")()
+		return s.add(ctx, index, frame, height, width)
+	}
+}
+
+// clip runs a generation that hands its frames to the encoder and returns
+// the clip, or what the generation failed with and no clip. Either way it
+// returns only when every frame the encoder took has been drawn: a
+// generation that fails or is cancelled leaves no worker drawing behind it,
+// and nothing of a clip.
+func (s *gifEncoder) clip(ctx context.Context, generate func(VideoFrameSink) error) (EncodedVideo, error) {
+	defer s.drawing.Wait()
+	if err := generate(s.timed(ctx)); err != nil {
+		return EncodedVideo{}, err
+	}
+	defer processmeasure.Stage(ctx, "clip written")()
+	return s.Finish()
 }
 
 func (p PixelRange) valid() bool { return p == SignedUnitPixels || p == UnitPixels }

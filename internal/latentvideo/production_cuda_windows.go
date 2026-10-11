@@ -146,21 +146,18 @@ func (r *WanRuntime) Generate(ctx context.Context, request WanRequest) (EncodedV
 	if err != nil {
 		return EncodedVideo{}, err
 	}
-	sink, err := NewClipEncoder(r.profile.SampleFPS, SignedUnitPixels)
+	encoder, err := NewClipEncoder(r.profile.SampleFPS, SignedUnitPixels)
 	if err != nil {
 		return EncodedVideo{}, err
 	}
-	_, err = r.generator.Generate(ctx, GenerateRequest{
-		Steps: request.Steps, Shift: request.Shift, GuideScale: request.GuideScale,
-		CondContext: request.CondContext, UncondContext: request.UncondContext,
-		InitialSample: request.InitialSample, Noise: request.Noise, Sink: sink.timed(ctx),
+	video, err := encoder.clip(ctx, func(sink VideoFrameSink) error {
+		_, err := r.generator.Generate(ctx, GenerateRequest{
+			Steps: request.Steps, Shift: request.Shift, GuideScale: request.GuideScale,
+			CondContext: request.CondContext, UncondContext: request.UncondContext,
+			InitialSample: request.InitialSample, Noise: request.Noise, Sink: sink,
+		})
+		return err
 	})
-	if err != nil {
-		return EncodedVideo{}, err
-	}
-	written := processmeasure.Stage(ctx, "clip written")
-	video, err := sink.Finish()
-	written()
 	if err == nil {
 		r.runs++
 		video.ResidentRun = r.runs
@@ -238,33 +235,20 @@ func (r *LiveEditRuntime) Reset(context.Context, ReferenceEditRequest) error {
 // so the frames it decodes are written as that range: read as -1 to 1 they
 // come out washed, every black lifted to grey.
 func (r *LiveEditRuntime) Generate(ctx context.Context, request ReferenceEditRequest) (EncodedVideo, error) {
-	sink, err := NewClipEncoder(r.profile.SampleFPS, UnitPixels)
+	encoder, err := NewClipEncoder(r.profile.SampleFPS, UnitPixels)
 	if err != nil {
 		return EncodedVideo{}, err
 	}
 	condition := request.Condition
-	if _, err := r.runtime.Run(ctx, condition.TextContext, condition.Seed, request.Source.Pixels, condition.InitialNoise, sink.timed(ctx)); err != nil {
-		return EncodedVideo{}, err
-	}
-	written := processmeasure.Stage(ctx, "clip written")
-	video, err := sink.Finish()
-	written()
+	video, err := encoder.clip(ctx, func(sink VideoFrameSink) error {
+		_, err := r.runtime.Run(ctx, condition.TextContext, condition.Seed, request.Source.Pixels, condition.InitialNoise, sink)
+		return err
+	})
 	if err == nil {
 		r.runs++
 		video.ResidentRun = r.runs
 	}
 	return video, err
-}
-
-// timed is the encoder's Add with the taking of each frame timed as a part
-// of the request the context carries a ledger for. The frames are drawn by
-// workers beside the decoding, and what is left of the drawing when the last
-// frame is in is waited for under the clip's writing.
-func (s *gifEncoder) timed(ctx context.Context) VideoFrameSink {
-	return func(index int, frame []float32, height, width int) error {
-		defer processmeasure.Stage(ctx, "clip frame taken")()
-		return s.Add(index, frame, height, width)
-	}
 }
 
 // PeakDeviceBytes reports the largest peak the resident device

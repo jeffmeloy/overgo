@@ -351,79 +351,81 @@ func (confirmation PoolConfirmation) Gained() bool { return confirmation.Verdict
 // (confirmOnPart).
 func ConfirmInstruction(ctx context.Context, store artifact.Repository, acceptanceID artifact.ID, protocol InstructionProtocol, comparison string, candidate, baseline artifact.ID,
 	read func(prompts []string) (passed, base []bool, err error)) (PoolConfirmation, uint64, error) {
-	acceptance, err := instructionAcceptanceCodec.Require(ctx, store, acceptanceID)
-	if err != nil {
-		return PoolConfirmation{}, 0, err
-	}
-	issued := uint64(len(acceptance.Comparisons))
-	named, purpose := "comparison "+comparison+": ", candidate.String()+" over "+baseline.String()
-	switch {
-	case !slices.ContainsFunc(acceptance.Comparisons, func(fixed InstructionComparison) bool { return fixed.Name == comparison }):
-		return PoolConfirmation{}, 0, fmt.Errorf("evaluation: acceptance %s named its %d comparisons before training, and %q is not one of them; a further comparison is a further acceptance", acceptance.ID, issued, comparison)
-	case protocol != acceptance.Protocol || protocol.Scorer != InstructionScorer:
-		return PoolConfirmation{}, 0, fmt.Errorf("evaluation: acceptance %s fixed the protocol %+v, and the answers were made under %+v and scored by %s; nothing was charged", acceptance.ID, acceptance.Protocol, protocol, InstructionScorer)
-	case !candidate.Valid() || !baseline.Valid():
-		return PoolConfirmation{}, 0, errors.New("evaluation: a comparison names its candidate and its baseline before it reads anything")
-	}
-	content, found, err := artifact.ReadContent(ctx, store, acceptance.Split)
-	if err != nil || !found {
-		return PoolConfirmation{}, 0, errors.Join(fmt.Errorf("evaluation: the partition of acceptance %s is not committed", acceptance.ID), err)
-	}
-	partition, err := runrecord.ParseSplitPartition(content.Data)
-	if err != nil {
-		return PoolConfirmation{}, 0, err
-	}
-	// A record or a group that two parts hold is a group divided between them.
-	held := map[string]int{}
-	for part, shard := range []artifact.ID{partition.Development, partition.Selection, partition.Promotion, partition.Audit} {
-		membership, found, err := dataset.LoadMembership(ctx, store, shard)
-		if err != nil || !found {
-			return PoolConfirmation{}, 0, errors.Join(fmt.Errorf("evaluation: the pool's part %s is not committed", shard), err)
+	return oneDecision(store, func(head artifact.CommitID) (PoolConfirmation, uint64, error) {
+		acceptance, err := instructionAcceptanceCodec.Require(ctx, store, acceptanceID)
+		if err != nil {
+			return PoolConfirmation{}, 0, err
 		}
-		for _, record := range membership.Records {
-			for _, name := range []string{record.ID, record.Group} {
-				if other, found := held[name]; found && other != part {
-					return PoolConfirmation{}, 0, fmt.Errorf("evaluation: %q is in the %s and the %s part of acceptance %s; a group is wholly in one, and nothing was charged", name, PoolParts[other], PoolParts[part], acceptance.ID)
-				}
-				held[name] = part
-			}
-		}
-	}
-	granted, err := runrecord.NewBudget(poolUnit, partition.Promotion, issued, acceptance.ID)
-	if err != nil {
-		return PoolConfirmation{}, 0, err
-	}
-	_, charges, err := runrecord.BudgetCharges(ctx, store, granted.ID)
-	if err != nil {
-		return PoolConfirmation{}, 0, err
-	}
-	if slices.ContainsFunc(charges, func(charge runrecord.BudgetCharge) bool {
-		return strings.HasPrefix(charge.Purpose, named) && charge.Purpose != named+purpose
-	}) {
-		return PoolConfirmation{}, 0, fmt.Errorf("evaluation: comparison %q of acceptance %s was charged for another candidate or baseline; one of each is fixed before the promotion part is opened", comparison, acceptance.ID)
-	}
-	level := acceptance.FalseGain / float64(issued)
-	return confirmOnPart(ctx, store, partition, acceptance.ID, acceptance.Training, candidate, acceptance.Groups, issued, named+purpose, func(prompts []string) (string, error) {
-		passed, base, err := read(prompts)
-		if err != nil || len(passed) != len(prompts) || len(base) != len(prompts) {
-			return "", errors.Join(fmt.Errorf("evaluation: the arms were read on %d and %d of the promotion part's %d groups; the comparison is charged and its verdict is owed", len(passed), len(base), len(prompts)), err)
-		}
-		var wins, losses uint64
-		for index := range prompts {
-			switch {
-			case passed[index] && !base[index]:
-				wins++
-			case base[index] && !passed[index]:
-				losses++
-			}
-		}
-		ties := uint64(len(prompts)) - wins - losses
+		issued := uint64(len(acceptance.Comparisons))
+		named, purpose := "comparison "+comparison+": ", candidate.String()+" over "+baseline.String()
 		switch {
-		case tensorstats.ExactPairedBinary(wins, losses, ties).Tail <= level:
-			return poolGain, nil
-		case tensorstats.ExactPairedBinary(losses, wins, ties).Tail <= level:
-			return poolLoss, nil
+		case !slices.ContainsFunc(acceptance.Comparisons, func(fixed InstructionComparison) bool { return fixed.Name == comparison }):
+			return PoolConfirmation{}, 0, fmt.Errorf("evaluation: acceptance %s named its %d comparisons before training, and %q is not one of them; a further comparison is a further acceptance", acceptance.ID, issued, comparison)
+		case protocol != acceptance.Protocol || protocol.Scorer != InstructionScorer:
+			return PoolConfirmation{}, 0, fmt.Errorf("evaluation: acceptance %s fixed the protocol %+v, and the answers were made under %+v and scored by %s; nothing was charged", acceptance.ID, acceptance.Protocol, protocol, InstructionScorer)
+		case !candidate.Valid() || !baseline.Valid():
+			return PoolConfirmation{}, 0, errors.New("evaluation: a comparison names its candidate and its baseline before it reads anything")
 		}
-		return poolUndecided, nil
+		content, found, err := artifact.ReadContent(ctx, store, acceptance.Split)
+		if err != nil || !found {
+			return PoolConfirmation{}, 0, errors.Join(fmt.Errorf("evaluation: the partition of acceptance %s is not committed", acceptance.ID), err)
+		}
+		partition, err := runrecord.ParseSplitPartition(content.Data)
+		if err != nil {
+			return PoolConfirmation{}, 0, err
+		}
+		// A record or a group that two parts hold is a group divided between them.
+		held := map[string]int{}
+		for part, shard := range []artifact.ID{partition.Development, partition.Selection, partition.Promotion, partition.Audit} {
+			membership, found, err := dataset.LoadMembership(ctx, store, shard)
+			if err != nil || !found {
+				return PoolConfirmation{}, 0, errors.Join(fmt.Errorf("evaluation: the pool's part %s is not committed", shard), err)
+			}
+			for _, record := range membership.Records {
+				for _, name := range []string{record.ID, record.Group} {
+					if other, found := held[name]; found && other != part {
+						return PoolConfirmation{}, 0, fmt.Errorf("evaluation: %q is in the %s and the %s part of acceptance %s; a group is wholly in one, and nothing was charged", name, PoolParts[other], PoolParts[part], acceptance.ID)
+					}
+					held[name] = part
+				}
+			}
+		}
+		granted, err := runrecord.NewBudget(poolUnit, partition.Promotion, issued, acceptance.ID)
+		if err != nil {
+			return PoolConfirmation{}, 0, err
+		}
+		_, charges, err := runrecord.BudgetCharges(ctx, store, granted.ID)
+		if err != nil {
+			return PoolConfirmation{}, 0, err
+		}
+		if slices.ContainsFunc(charges, func(charge runrecord.BudgetCharge) bool {
+			return strings.HasPrefix(charge.Purpose, named) && charge.Purpose != named+purpose
+		}) {
+			return PoolConfirmation{}, 0, fmt.Errorf("evaluation: comparison %q of acceptance %s was charged for another candidate or baseline; one of each is fixed before the promotion part is opened", comparison, acceptance.ID)
+		}
+		level := acceptance.FalseGain / float64(issued)
+		return confirmOnPart(ctx, store, head, partition, acceptance.ID, acceptance.Training, candidate, acceptance.Groups, issued, named+purpose, func(prompts []string) (string, error) {
+			passed, base, err := read(prompts)
+			if err != nil || len(passed) != len(prompts) || len(base) != len(prompts) {
+				return "", errors.Join(fmt.Errorf("evaluation: the arms were read on %d and %d of the promotion part's %d groups; the comparison is charged and its verdict is owed", len(passed), len(base), len(prompts)), err)
+			}
+			var wins, losses uint64
+			for index := range prompts {
+				switch {
+				case passed[index] && !base[index]:
+					wins++
+				case base[index] && !passed[index]:
+					losses++
+				}
+			}
+			ties := uint64(len(prompts)) - wins - losses
+			switch {
+			case tensorstats.ExactPairedBinary(wins, losses, ties).Tail <= level:
+				return poolGain, nil
+			case tensorstats.ExactPairedBinary(losses, wins, ties).Tail <= level:
+				return poolLoss, nil
+			}
+			return poolUndecided, nil
+		})
 	})
 }

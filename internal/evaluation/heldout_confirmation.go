@@ -178,22 +178,52 @@ var poolConfirmationCodec = artifact.JSONDocumentCodec(
 // not finish. When nothing is left a confirmation is refused, and the pool
 // answers again only as a fresh partition.
 func ConfirmOnPool(ctx context.Context, store artifact.Repository, acceptanceID, candidate artifact.ID, read func(documents []string) ([]float64, error)) (PoolConfirmation, uint64, error) {
-	pool, err := RequireHeldoutPool(ctx, store, acceptanceID)
-	if err != nil || !candidate.Valid() {
-		return PoolConfirmation{}, 0, errors.Join(errors.New("evaluation: a confirmation names its candidate and the acceptance it is judged by before it reads anything"), err)
+	return oneDecision(store, func(head artifact.CommitID) (PoolConfirmation, uint64, error) {
+		pool, err := RequireHeldoutPool(ctx, store, acceptanceID)
+		if err != nil || !candidate.Valid() {
+			return PoolConfirmation{}, 0, errors.Join(errors.New("evaluation: a confirmation names its candidate and the acceptance it is judged by before it reads anything"), err)
+		}
+		acceptance := pool.Acceptance
+		if acceptance.Sequence == 0 {
+			return PoolConfirmation{}, 0, fmt.Errorf("evaluation: pool %s fixed no tokens to read each document as far as, so nothing is confirmed on it; build a pool that does", acceptance.ID)
+		}
+		return confirmOnPart(ctx, store, head, pool.Partition, acceptance.ID, acceptance.Objective, candidate, acceptance.Documents, acceptance.Confirmations, poolChargePurpose+candidate.String(),
+			func(promotion []string) (string, error) {
+				differences, err := read(promotion)
+				if err != nil || len(differences) != len(promotion) {
+					return "", errors.Join(fmt.Errorf("evaluation: the candidate was read on %d of the promotion part's %d documents; its confirmation is charged and its verdict is owed", len(differences), len(promotion)), err)
+				}
+				return poolVerdict(differences, acceptance.Critical), nil
+			})
+	})
+}
+
+// chargeAttempts bounds how often a confirmation reads again because the
+// store moved under it.
+const chargeAttempts = 8
+
+// errStoreMoved says the store was committed to between a confirmation's
+// first reading and its charge: what it read no longer decides, and nothing
+// was charged.
+var errStoreMoved = errors.New("evaluation: the store moved under the confirmation")
+
+// oneDecision makes a confirmation's readings and its charge one decision.
+// confirm reads everything that says whether a charge is owed under the head
+// it is given, and its charge is committed only if that is still the store's
+// head (confirmOnPart). Whatever was committed in between, another
+// candidate's charge on the same grant or a part registered over the same
+// documents, was read in part or not at all; the confirmation then charges
+// nothing and reads again from the start, so what landed is counted before a
+// charge is made. A store that is still moving after chargeAttempts readings
+// refuses the confirmation, which has charged and read nothing.
+func oneDecision(store artifact.Repository, confirm func(head artifact.CommitID) (PoolConfirmation, uint64, error)) (PoolConfirmation, uint64, error) {
+	for range chargeAttempts {
+		head, _ := store.Head()
+		if confirmation, remaining, err := confirm(head); !errors.Is(err, errStoreMoved) {
+			return confirmation, remaining, err
+		}
 	}
-	acceptance := pool.Acceptance
-	if acceptance.Sequence == 0 {
-		return PoolConfirmation{}, 0, fmt.Errorf("evaluation: pool %s fixed no tokens to read each document as far as, so nothing is confirmed on it; build a pool that does", acceptance.ID)
-	}
-	return confirmOnPart(ctx, store, pool.Partition, acceptance.ID, acceptance.Objective, candidate, acceptance.Documents, acceptance.Confirmations, poolChargePurpose+candidate.String(),
-		func(promotion []string) (string, error) {
-			differences, err := read(promotion)
-			if err != nil || len(differences) != len(promotion) {
-				return "", errors.Join(fmt.Errorf("evaluation: the candidate was read on %d of the promotion part's %d documents; its confirmation is charged and its verdict is owed", len(differences), len(promotion)), err)
-			}
-			return poolVerdict(differences, acceptance.Critical), nil
-		})
+	return PoolConfirmation{}, 0, fmt.Errorf("%w during each of %d readings of what its documents have answered; nothing was charged or read, and it can be asked again", errStoreMoved, chargeAttempts)
 }
 
 // confirmOnPart charges one confirmation to the promotion part of a partition
@@ -203,8 +233,11 @@ func ConfirmOnPool(ctx context.Context, store artifact.Repository, acceptanceID,
 // confirmations they are, and purpose what this one is for, which names its
 // charge. judge is handed the part's documents once the charge is committed
 // and returns the verdict, and is not called for a confirmation recorded
-// before or one the part's documents cannot pay for.
-func confirmOnPart(ctx context.Context, store artifact.Repository, partition runrecord.SplitPartition, acceptance, owner, candidate artifact.ID, documents, issued uint64, purpose string, judge func(promotion []string) (string, error)) (PoolConfirmation, uint64, error) {
+// before or one the part's documents cannot pay for. head is the store's head
+// from before the caller's first reading: the charge is committed against it
+// and against no later one, and a store that has moved gives errStoreMoved
+// with nothing charged (oneDecision).
+func confirmOnPart(ctx context.Context, store artifact.Repository, head artifact.CommitID, partition runrecord.SplitPartition, acceptance, owner, candidate artifact.ID, documents, issued uint64, purpose string, judge func(promotion []string) (string, error)) (PoolConfirmation, uint64, error) {
 	membership, found, err := dataset.LoadMembership(ctx, store, partition.Promotion)
 	if err != nil || !found || uint64(len(membership.Records)) != documents {
 		return PoolConfirmation{}, 0, errors.Join(fmt.Errorf("evaluation: the promotion part of pool %s holds %d documents, committed %t, and its acceptance was fixed for %d", acceptance, len(membership.Records), found, documents), err)
@@ -280,7 +313,10 @@ func confirmOnPart(ctx context.Context, store artifact.Repository, partition run
 		} else if !held {
 			batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: confirmer})
 		}
-		if _, err := artifact.Publish(ctx, store, batch); err != nil {
+		batch.ExpectedHead = &head
+		if _, err := artifact.Publish(ctx, store, batch); errors.Is(err, artifact.ErrCommitPrecondition) {
+			return PoolConfirmation{}, 0, errStoreMoved
+		} else if err != nil {
 			return PoolConfirmation{}, 0, fmt.Errorf("evaluation: the confirmation was not charged, so nothing was read: %w", err)
 		}
 		remaining--

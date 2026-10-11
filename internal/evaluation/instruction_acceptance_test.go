@@ -295,9 +295,27 @@ func TestInstructionAcceptanceBindsProtocolGroupsAndComparisons(t *testing.T) {
 	}
 
 	const wins = 30
-	gain, left, err := ConfirmInstruction(ctx, store, acceptance.ID, protocol, "reward over base", reward, request.Base, reading(wins))
+	// The comparison's candidate is the one first charged for it, also when
+	// that charge lands while another candidate's asking has already read that
+	// the comparison is free: the other reads again and is refused, uncharged
+	// and unread (oneDecision).
+	var gain PoolConfirmation
+	var left uint64
+	issued, err := runrecord.NewBudget(poolUnit, partition.Promotion, uint64(len(acceptance.Comparisons)), acceptance.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	contested := &overtaken{Repository: store, grant: issued.ID}
+	contested.between = func() {
+		contested.between = nil
+		gain, left, err = ConfirmInstruction(ctx, store, acceptance.ID, protocol, "reward over base", reward, request.Base, reading(wins))
+	}
+	_, _, late := ConfirmInstruction(ctx, contested, acceptance.ID, protocol, "reward over base", model("another checkpoint"), request.Base, reading(wins))
 	if err != nil || gain.Verdict != poolGain || left != 1 || readings != 1 || gain.Candidate != reward || gain.Acceptance != acceptance.ID {
 		t.Fatalf("a candidate that passes %d groups the baseline fails and loses none = (%+v, %d left, %v) after %d readings, want a gain, one comparison left and one reading", wins, gain, left, err, readings)
+	}
+	if late == nil || !strings.Contains(late.Error(), "another candidate") || charged(acceptance, partition) != 1 {
+		t.Fatalf("the comparison asked for another candidate while its first was being charged = %v with %d charges, want it refused unread and the one charge", late, charged(acceptance, partition))
 	}
 	if recorded, left, err := ConfirmInstruction(ctx, store, acceptance.ID, protocol, "reward over base", reward, request.Base, reading(0)); err != nil || recorded.ID != gain.ID || left != 1 || readings != 1 {
 		t.Fatalf("the comparison asked again = (%s, %d left, %v) after %d readings, want its recorded verdict %s unread", recorded.ID, left, err, readings, gain.ID)
@@ -327,8 +345,23 @@ func TestInstructionAcceptanceBindsProtocolGroupsAndComparisons(t *testing.T) {
 	if same.Promotion != partition.Promotion || second.ID == acceptance.ID {
 		t.Fatalf("the replacement is acceptance %s over part %s, want another acceptance over the first's part", second.ID, same.Promotion)
 	}
-	if _, left, err := ConfirmInstruction(ctx, store, second.ID, protocol, "control over base", control, request.Base, reading(wins)); err != nil || left != 0 || readings != 3 {
-		t.Fatalf("the replacement's first comparison leaves %d (%v), want none: its prompts answered two before it", left, err)
+	// One comparison is left to it, and two are asked at once: the second is
+	// charged after the first has read the grant's charges and before it reads
+	// what else the prompts have answered. The first counted one left; it reads
+	// again, finds none, and is refused unread (oneDecision).
+	replacement, err := runrecord.NewBudget(poolUnit, same.Promotion, uint64(len(second.Comparisons)), second.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	skewed := &overtaken{Repository: store, grant: replacement.ID, skip: 1}
+	skewed.between = func() {
+		skewed.between = nil
+		if _, left, err := ConfirmInstruction(ctx, store, second.ID, protocol, "control over base", control, request.Base, reading(wins)); err != nil || left != 0 || readings != 3 {
+			t.Errorf("the replacement's first comparison leaves %d (%v), want none: its prompts answered two before it", left, err)
+		}
+	}
+	if _, _, err := ConfirmInstruction(ctx, skewed, second.ID, protocol, "reward over control", reward, control, reading(wins)); err == nil || !strings.Contains(err.Error(), "fresh partition") || readings != 3 || charged(second, same) != 1 {
+		t.Fatalf("a comparison overtaken by the one that took the last = %v after %d readings with %d charges on the replacement's grant, want it refused unread and the one charge", err, readings, charged(second, same))
 	}
 	if _, _, err := ConfirmInstruction(ctx, store, second.ID, protocol, "reward over base", reward, request.Base, reading(wins)); err == nil || !strings.Contains(err.Error(), "fresh partition") || readings != 3 {
 		t.Fatalf("a further comparison under the replacement = %v, want it refused: the prompts have answered what they allow", err)

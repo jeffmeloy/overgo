@@ -32,8 +32,7 @@ const (
 	ModuleSpeechTokenize recipe.ModuleID = "model.speech-tokenize"
 	ModuleSpeechGenerate recipe.ModuleID = "model.speech-generate"
 	ModuleSpeechDecode   recipe.ModuleID = "model.speech-decode"
-	// ModuleSpeechAssemble joins completed document segments in source order.
-	ModuleSpeechAssemble           recipe.ModuleID = "model.speech-assemble"
+
 	ModuleLatentImagePrepare       recipe.ModuleID = "model.latent-image-prepare"
 	ModuleLatentImageIntegrate     recipe.ModuleID = "model.latent-image-integrate"
 	ModuleLatentImageDecode        recipe.ModuleID = "model.latent-image-decode"
@@ -805,15 +804,6 @@ func mustCatalog() *recipe.Catalog {
 		},
 	)
 	modules = append(modules,
-		recipe.Module{
-			ID: ModuleSpeechAssemble, Tasks: []recipe.Task{recipe.TaskSpeech},
-			Placements: []recipe.Placement{recipe.PlacementHost},
-			Inputs: []recipe.Port{
-				{Name: "document", Data: recipe.DataText, Cardinality: recipe.CardinalityOne},
-				{Name: "segments", Data: recipe.DataAudio, Cardinality: recipe.CardinalityMany},
-			},
-			Outputs: []recipe.Port{{Name: "audio", Data: recipe.DataAudio, Cardinality: recipe.CardinalityOne}},
-		},
 		recipe.Module{
 			ID: ModuleVQAPrepare, Tasks: []recipe.Task{recipe.TaskVQA},
 			Placements: []recipe.Placement{recipe.PlacementHost},

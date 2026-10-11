@@ -194,7 +194,6 @@
     "internal/speechsynth/cancellation_test.go": "b9a7293ce114fe53df08a41c7a5725ca4f6ec9d740dbe0321c36da6797c39464",
     "internal/speechsynth/codec_golden_test.go": "9095b101f804d2201947c98f2ecde6f02a788d0eec2c946e749131fcfe242f30",
     "internal/speechsynth/completion_test.go": "a97ba8e5951dd09de5a17a1fa0a75a533c698ed201b5245e36eb9dff8e516855",
-    "internal/speechsynth/document_runtime_test.go": "a8174c141e444f9a0d782fdb9b2d359e66e15a44329160ab99c0db0a8c817971",
     "internal/speechsynth/document_test.go": "32f2d229d49b91c07d98ee3e80ab1a587e14cc44e1d227430dff5c8c2bc66912",
     "internal/speechsynth/generate_golden_test.go": "730e174610c86d1e8b0672cdd89bc537392e0e4c5adf673dcd61683816d1b93a",
     "internal/speechsynth/golden_test.go": "3777a45eea8a646c09b76659fc4dfa25638e7e308d20a25d53a03d8119e09d1b",

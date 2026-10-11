@@ -1,6 +1,7 @@
 package modelrecipe
 
 import (
+	"slices"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -386,6 +387,24 @@ func TestImagePolicyComesFromRecipeProfile(t *testing.T) {
 	}
 	if bound, ok := definition.PrimaryDependency(recipe.DependencyProfile); !ok || bound != profileID {
 		t.Fatalf("image profile dependency = (%s, %v)", bound, ok)
+	}
+}
+
+// TestSpeechDocumentGraphRetired holds that the catalog offers speech nothing
+// but the three stages a served request runs. The stage that joined a
+// document's spoken segments into one recording was reached only by tests, so
+// it went, with the graph built on it: a whole text is read aloud by
+// speechsynth's Speak. The stage's name is spelled out here because its
+// constant went with it.
+func TestSpeechDocumentGraphRetired(t *testing.T) {
+	if module, found := catalog.Module("model.speech-assemble"); found {
+		t.Fatalf("the catalog still holds the stage that joins a document's spoken segments: %+v", module)
+	}
+	served := []recipe.ModuleID{ModuleSpeechTokenize, ModuleSpeechGenerate, ModuleSpeechDecode}
+	for _, module := range catalog.Modules() {
+		if slices.Contains(module.Tasks, recipe.TaskSpeech) && !slices.Contains(served, module.ID) {
+			t.Errorf("the catalog offers speech the stage %q, which no served request runs", module.ID)
+		}
 	}
 }
 

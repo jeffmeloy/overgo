@@ -49,3 +49,7 @@ func (s *Synthesizer) speakFrom(ctx context.Context, request DocumentRequest, no
 	}
 	return spoken, nil
 }
+
+func documentSegmentRequest(plan DocumentPlan, part DocumentSegment) SynthesisRequest {
+	return SynthesisRequest{Text: plan.Request.Text[part.Start:part.End], Voice: plan.Request.Voice, Seed: plan.Request.Seed, Temperature: plan.Request.Temperature, MaxFrames: part.MaxFrames}
+}

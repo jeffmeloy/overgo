@@ -76,14 +76,11 @@
       "title": "Read a whole text aloud on the served speech route, and retire the document speech graph that only tests reach",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 1718,
+        "reason": ""
+      },
       "steps": [
-        {
-          "id": "retire",
-          "title": "Retire the document speech graph, with a test of the whole-text routine over several segments carrying the coverage its test gave",
-          "status": "open",
-          "verify": "go test ./internal/modelrecipe -run '^TestSpeechDocumentGraphRetired$' -count=1",
-          "rationale": "The row was filed to admit the GUI lane's document speech program as a served capability or to retire its entry points. The lane's worktree was removed on 2026-10-09 and none of its closing recommendations asks for the work to be finished; since the row was filed, master gained a whole-text routine of its own, Synthesizer.Speak, which cmd/evaluate uses. Three ways now turn text into audio: the served preview, cut at its frame limit; Speak; and the lane's graph (DocumentProgram, RegisterDocumentRuntime, DocumentWAV and the model.speech-assemble catalog module), which only tests call. Decided on 2026-10-11 by the lead, under the owner's instruction not to wait for a decision; the owner may overrule, and every change here is one git can put back. The capability a person wants, a long text read whole from the page's Speech mode, is to be served through the one routine that already reads a whole text, and the graph, which repeats it with a mechanism of its own, is retired. What goes with the graph and is not carried: completed segments kept across a stop, and a reading resumed without generating again; no person can reach either today.\n\nThis step, one commit because of the pinned bytes: the graph's file and its two test files are deleted, with the catalog module and the two plan fields only the graph read; a test of Speak over a text of several distinct segments, and a test of the published WAV's bytes, take over what the deleted tests held; the pinned input line of the graph's test leaves docs/verification/specialized-coverage.json and the document's digest in cmd/validate moves with it. The accepted speech proof keeps its text, which names a test that then no longer exists, and acceptance is not recorded again: the proof is bound to the commit and the stored evidence it was made on. The row keeps a count of zero: this step removes code, and what it removes is what the next may add.\n\nServes: serve; one owner for whole-text speech. Disappears: the document speech graph and its catalog module. Evidence: the test of absence, and the carried tests in the commit. Batch: host, with the real speech model on the processor; the commit runs the device tests, since the training command imports the package."
-        },
         {
           "id": "do",
           "title": "A speech request with no frame limit is read whole through the whole-text routine, stored and replayed as its WAV; a whole reading that was cut is refused",

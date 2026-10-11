@@ -24,19 +24,17 @@ type DocumentRequest struct {
 
 // DocumentSegment identifies an exact, contiguous UTF-8 source span.
 type DocumentSegment struct {
-	Start      int `json:"start"`
-	End        int `json:"end"`
-	Tokens     int `json:"tokens"`
-	MaxFrames  int `json:"max_frames"`
-	MaxSamples int `json:"max_samples"`
+	Start     int `json:"start"`
+	End       int `json:"end"`
+	Tokens    int `json:"tokens"`
+	MaxFrames int `json:"max_frames"`
 }
 
 // DocumentPlan binds source coverage and the reference generation policy before
 // execution. Every segment must subsequently reach the native EOS stop.
 type DocumentPlan struct {
-	Request    DocumentRequest   `json:"request"`
-	Segments   []DocumentSegment `json:"segments"`
-	SampleRate int               `json:"sample_rate"`
+	Request  DocumentRequest   `json:"request"`
+	Segments []DocumentSegment `json:"segments"`
 }
 
 // RIFF/WAVE PCM16 mono: RIFF + fmt + data headers, followed by two bytes
@@ -98,10 +96,9 @@ func (s *Synthesizer) PlanDocument(ctx context.Context, request DocumentRequest)
 			}
 			samples *= stride
 		}
-		segments[i].MaxSamples = samples
 		remaining -= samples
 	}
-	return DocumentPlan{Request: request, Segments: segments, SampleRate: s.model.Codec.SampleRate}, nil
+	return DocumentPlan{Request: request, Segments: segments}, nil
 }
 
 func splitDocument(ctx context.Context, tokenizer *Unigram, text string, limit int) ([]DocumentSegment, error) {

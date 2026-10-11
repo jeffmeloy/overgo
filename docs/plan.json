@@ -94,6 +94,25 @@
       ]
     },
     {
+      "id": "finetune-loss-curve",
+      "title": "Draw a conversation fine-tune's loss on the Train tab, where the curve was carried to the page and never drawn",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 0,
+        "reason": "The row adds no counted code: the change is to the page's JavaScript and a browser test."
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "The Train tab draws a series named loss as it draws one whose name ends in _loss; a browser leg runs a fine-tune of four updates and reads its curve",
+          "status": "open",
+          "verify": "test -f internal/server/webui_browser_finetune_loss_test.go \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowserFineTuneLossCurve$'",
+          "rationale": "Found on 2026-10-11 by the design of the live sample strip, by reading, and then shown by a test. A conversation fine-tune reports its loss after each update under the name loss; the Train tab draws only a series whose name ends in _loss, as a preference or reward run's does. So a fine-tune's loss reached the page on every event and no curve was drawn, while the run was going or after it. Closure: the tab draws a series named loss too. The change and its browser leg are built in a checkout of their own; the leg fails on the page as committed and passes on the change.\n\nServes: setup-steps for a person judging a fine-tune as it runs. Evidence: the browser leg. Batch: browser."
+        }
+      ]
+    },
+    {
       "id": "campaign-closeout",
       "title": "Close the campaign once every branch is accounted for",
       "owner": "master-lead",

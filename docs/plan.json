@@ -94,6 +94,25 @@
       ]
     },
     {
+      "id": "plain-integer-pages",
+      "title": "Read a plain integer page after a dictionary as its decimal text, where the parquet reader took it for strings",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 32,
+        "reason": "What the row may still add. Set on 2026-10-11 to the 32 nodes its built change was counted at, by the count of syntax nodes the automated checks take: the choice of a column's plain decoder by its physical type, carried to its data pages."
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "A 64-bit integer column's data page written plain, after a dictionary page, reads as the decimal text of its values; a test holds a required column and an optional one with a missing value",
+          "status": "open",
+          "verify": "go test ./internal/dataset -count=1 -run '^TestPlainIntegerPageAfterADictionaryReadsItsDecimalText$'",
+          "rationale": "Reviewer finding SQA-139, second severity, confirmed by reading and then by a test (docs/sqa_findings.json, not in the repository). The parquet reader admits a 64-bit integer column once a dictionary page has come, and then decoded any data page written plain as length-prefixed strings: the value 4 came back as four NUL bytes with no error, and other values as a string of a length the page does not hold. A writer falls back to plain pages when a dictionary grows too large, so a large integer column of a real file can hold such pages, and its values then reached dataset and evaluation readers as wrong text. Closure: a column's plain pages, its dictionary and its data pages alike, are decoded by its physical type through the integer decoder that already exists; an integer column with no dictionary is refused as before. The change and its test are built in a checkout of their own; the test fails on the committed reader with the NUL text and passes on the change, and the register stays the reviewer's.\n\nServes: evaluate, train: what a dataset's rows hold. Evidence: the test. Batch: host; the commit runs the device tests, since the dataset reader is under them."
+        }
+      ]
+    },
+    {
       "id": "campaign-closeout",
       "title": "Close the campaign once every branch is accounted for",
       "owner": "master-lead",

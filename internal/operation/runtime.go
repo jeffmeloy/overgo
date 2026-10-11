@@ -71,7 +71,17 @@ type Status struct {
 	Run      *artifact.ID          `json:"run,omitempty"`
 	Failure  string                `json:"failure,omitzero"`
 	Recovery *operatoraction.Block `json:"recovery,omitempty"`
+	// Text is what a running operation last reported to be read while it goes,
+	// such as a training run's samples so far; an ended operation carries none.
+	Text string `json:"text,omitzero"`
 }
+
+// textBytesMost bounds Status.Text, which rides in every event of its
+// operation. It is sized for the largest text reported, a training run's sample
+// strips: two conversations, each a prompt within a 512-token window and 21
+// stretches of at most 48 tokens, 3040 tokens, which at 16 bytes a token as
+// JSON is 48640 bytes; the test model's strip of three samples measured 235.
+const textBytesMost = 1 << 16
 
 type Request struct {
 	Task   recipe.Task
@@ -95,6 +105,7 @@ type Reporter interface {
 	Progress(uint64, *uint64)
 	Metric(Metric)
 	Attempt(artifact.ID)
+	Text(string)
 	Publishing()
 }
 
@@ -254,6 +265,9 @@ func (manager *Manager) run(ctx context.Context, current *entry) {
 	if current.status.State != StateBlocked {
 		current.execute = nil
 	}
+	// The text was for reading while the run went; every later snapshot of a
+	// retained operation would otherwise carry it.
+	current.status.Text = ""
 	close(current.done)
 	manager.publishLocked(current.status)
 	manager.trimLocked()
@@ -541,6 +555,20 @@ func (reporter operationReporter) Metric(metric Metric) {
 		if len(current.status.Metrics) > reporter.manager.limit {
 			current.status.Metrics = slices.Clone(current.status.Metrics[len(current.status.Metrics)-reporter.manager.limit:])
 		}
+		reporter.manager.publishLocked(current.status)
+	}
+}
+
+// Text replaces the running operation's text. One over the bound is refused
+// whole: a text is read as JSON, which a cut one no longer is.
+func (reporter operationReporter) Text(text string) {
+	if len(text) > textBytesMost {
+		return
+	}
+	reporter.manager.mu.Lock()
+	defer reporter.manager.mu.Unlock()
+	if current := reporter.entry; !terminal(current.status.State) {
+		current.status.Text = text
 		reporter.manager.publishLocked(current.status)
 	}
 }

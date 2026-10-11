@@ -184,16 +184,33 @@
 
   window.overgo.trainingPreview = trainingPreview;
   window.overgo.trainingEvidence = {
+    // renderLive: a running sampled run reports its strips so far as its text, and they stand on the page as each
+    // round ends. The same text arrives on more than one event and is drawn once: the section that was drawn
+    // remembers it, so a later run, which starts on an emptied host, is drawn afresh even when its first round
+    // reads the same. A text that does not parse is left out: a throw here would end the page's event stream.
+    renderLive(host, operation, overgo) {
+      const text = operation.text, drawn = host.querySelector('[aria-label="Training samples"]');
+      if (!text || (drawn && drawn.liveText === text)) return;
+      let strips = null;
+      try { strips = JSON.parse(text); } catch (_) { /* not strips: nothing to draw */ }
+      if (!Array.isArray(strips)) return;
+      host.replaceChildren();
+      renderSamples(overgo, host, { strips });
+      host.lastElementChild.liveText = text;
+    },
     async renderOperation(host, operation, overgo) {
       const outputs = operation.outputs || [];
       const checkpoint = outputs.find((id) => String(id).startsWith("checkpoint:"));
       const verdictID = outputs.find((id) => String(id).startsWith("evaluation:"));
       if (verdictID) {
+        // Both are read before the host is written, so the strip of the run that just ended stands until the
+        // verdict and the published samples replace it together.
         const verdict = await overgo.api.get(overgo.contentURL(verdictID));
-        if (verdict && typeof verdict.baseline_value === "number" && typeof verdict.candidate_value === "number") renderVerdict(overgo, host, verdict, verdictID, checkpoint, operation.run);
         // A sampled run also published what it generated as it trained, beside the verdict.
         const samplesID = outputs.find((id) => String(id).startsWith("evidence:"));
         const samples = samplesID ? await overgo.api.get(overgo.contentURL(samplesID)) : null;
+        if (verdict && typeof verdict.baseline_value === "number" && typeof verdict.candidate_value === "number") renderVerdict(overgo, host, verdict, verdictID, checkpoint, operation.run);
+        else host.replaceChildren();
         if (samples && Array.isArray(samples.strips)) renderSamples(overgo, host, samples);
         return;
       }

@@ -72,6 +72,10 @@ type TextHeldoutRequest struct {
 	// that many updates and at its end, and publish the generations as a
 	// document the result names (HeldoutResult.Samples).
 	SampleEvery int
+	// Sampled, when set, receives the strips so far as JSON each time the run
+	// has generated, between updates as Step does, so they can be shown while
+	// the run goes; a round a cancel ends is not handed out.
+	Sampled func(strips string)
 	// CheckpointEvery, when positive, saves a checkpoint beside the output directory
 	// (output-step-000040) after every that many updates but the last, and
 	// CheckpointKeep of the newest of those the run saved are kept, so a long host
@@ -261,6 +265,7 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 		if sampling, err = newSampler(model, tokenizer.piece, ids, records, sequence); err != nil {
 			return HeldoutResult{}, err
 		}
+		sampling.sampled = request.Sampled
 	}
 	// A run that starts at its first update knows every name it will save to now, before its
 	// baseline; one that resumes knows its first update only when it has read the checkpoint.

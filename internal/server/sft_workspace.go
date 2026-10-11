@@ -207,7 +207,7 @@ func (workspace *SFTWorkspace) ExecuteWorkflow(ctx context.Context, kind Workflo
 	result, err := trainingworkflow.RunConversationSFT(ctx, workspace.store, trainingworkflow.ConversationSFT{
 		Dataset: input.Dataset, Render: workspace.trainer.Render, ModelDirectory: workspace.trainer.File,
 		OutputDirectory: output, WorkDirectory: filepath.Join(workspace.roots.Datasets, "sft"),
-		Steps: input.Steps, LoRA: lora, Prompts: input.TrainOnPrompts, Average: input.AverageWeights, SampleEvery: input.SampleEvery,
+		Steps: input.Steps, LoRA: lora, Prompts: input.TrainOnPrompts, Average: input.AverageWeights, SampleEvery: input.SampleEvery, Sampled: reporter.Text,
 		CheckpointEvery: input.SaveEvery, CheckpointKeep: sftCheckpointsKept, Resume: resume,
 		Step: func(step, _ int, loss float64) {
 			reporter.Progress(uint64(step), &total)

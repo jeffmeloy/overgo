@@ -3,6 +3,7 @@ package operation
 import (
 	"context"
 	"slices"
+	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -79,6 +80,97 @@ func TestReporterMetricsRemainBounded(t *testing.T) {
 			t.Fatalf("trend value %d = %v, want report %d", index, value, uint64(index)*trend.Stride)
 		}
 	}
+}
+
+// TestReporterTextStaysBounded holds the one text a running operation carries.
+// A later report replaces the earlier one and reaches the observer on an event
+// of the running operation; a text of exactly the bound is taken and one a byte
+// past it is refused whole, changing nothing and publishing nothing, because a
+// cut text would no longer parse; and once the operation has finished, its
+// status and its terminal event carry no text, and a late report is ignored.
+func TestReporterTextStaysBounded(t *testing.T) {
+	manager := newTestManager(t)
+	var events []Event
+	manager.Notify(func(event Event) { events = append(events, event) })
+	// The observer appends under the manager's lock, so a read takes it too.
+	seen := func() []Event {
+		manager.mu.RLock()
+		defer manager.mu.RUnlock()
+		return slices.Clone(events)
+	}
+	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "bounded-text-recipe")
+	runID := testutil.ArtifactID(t, artifact.KindRun, "bounded-text-run")
+	atBound := strings.Repeat("s", textBytesMost)
+	started, release := make(chan struct{}), make(chan struct{})
+	var late Reporter
+	id, err := manager.Submit(t.Context(), Request{Task: recipe.TaskTraining, Recipe: recipeID},
+		func(ctx context.Context, reporter Reporter) (Completion, error) {
+			reporter.Text("first")
+			reporter.Text(atBound)
+			reporter.Text(atBound + "x")
+			late = reporter
+			close(started)
+			// A check that fails before the release ends the run through the
+			// manager's Close, which cancels it, not by waiting on it for ever.
+			select {
+			case <-release:
+			case <-ctx.Done():
+			}
+			return Completion{Run: runID}, nil
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-started
+	status, ok := manager.Status(id)
+	if !ok || status.State != StateRunning || status.Text != atBound {
+		t.Fatalf("running status holds a text of %d bytes in state %q (present=%t), want the second report, %d bytes, the one past the bound refused",
+			len(status.Text), status.State, ok, len(atBound))
+	}
+	// Each accepted report is one event of the running operation, in order, and
+	// the refused one is none: the last event is the second report's.
+	var texts []string
+	for _, event := range seen() {
+		if event.Status.Text == "" {
+			continue
+		}
+		if event.Status.State != StateRunning {
+			t.Fatalf("a text arrived on an event in state %q, want running", event.Status.State)
+		}
+		texts = append(texts, event.Status.Text)
+	}
+	if !slices.Equal(texts, []string{"first", atBound}) {
+		t.Fatalf("the observer saw %d events with a text, of %d bytes each in turn, want the first report then the second and no other", len(texts), lengths(texts))
+	}
+	running := len(seen())
+	close(release)
+	status, err = manager.Wait(t.Context(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.State != StateCompleted || status.Text != "" {
+		t.Fatalf("finished status is %q with a text of %d bytes, want completed and no text", status.State, len(status.Text))
+	}
+	after := seen()
+	if terminalEvent := after[len(after)-1]; len(after) != running+1 || terminalEvent.Status.State != StateCompleted || terminalEvent.Status.Text != "" {
+		t.Fatalf("the run ended with %d more events, the last %q with a text of %d bytes, want one terminal event without text",
+			len(after)-running, terminalEvent.Status.State, len(terminalEvent.Status.Text))
+	}
+	// A report for an attempt that has ended is ignored, as its other reports are.
+	late.Text("late")
+	if status, _ := manager.Status(id); status.Text != "" || len(seen()) != len(after) {
+		t.Fatalf("a report after the end left the text %q and %d more events, want it ignored", status.Text, len(seen())-len(after))
+	}
+}
+
+// lengths is each text's length, for a failure message that would otherwise
+// print a text as long as the bound.
+func lengths(texts []string) []int {
+	result := make([]int, len(texts))
+	for index, text := range texts {
+		result[index] = len(text)
+	}
+	return result
 }
 
 func TestServingAttemptEvidenceRemainsOrderedAndUnique(t *testing.T) {

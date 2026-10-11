@@ -20,6 +20,7 @@ func (reporter lifecycleTestReporter) OperationID() artifact.ID { return reporte
 func (reporter lifecycleTestReporter) Attempt(artifact.ID)      {}
 func (lifecycleTestReporter) Progress(uint64, *uint64)          {}
 func (lifecycleTestReporter) Metric(operation.Metric)           {}
+func (lifecycleTestReporter) Text(string)                       {}
 func (lifecycleTestReporter) Publishing()                       {}
 
 func TestTrainingAndEvaluationLifecycleReentry(t *testing.T) {

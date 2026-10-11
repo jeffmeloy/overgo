@@ -2,6 +2,7 @@ package trainingworkflow
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"slices"
@@ -25,13 +26,26 @@ const (
 // assistant's turn marker, and its reply, and the samples after that prompt,
 // the same prompt at each step, are at steps zero, ten, twenty, thirty and forty,
 // in order, the last taken on the trained model the run published, and the model
-// the strip ends with does not generate what it began with.
+// the strip ends with does not generate what it began with. The run also hands
+// each round to its caller as the round finishes, so a page can show the strips
+// while the run goes: five reports, the first before any update and each later
+// one after the update it was taken at, each the strips so far, and the last
+// what the document holds.
 func TestTrainingSamplesRunInStepOrder(t *testing.T) {
 	run := registerConversations(t, periodic(12))
 	ctx := t.Context()
+	// One order for both callbacks: each report is kept with how many updates
+	// the run had reported when it arrived.
+	var reports []string
+	var updatesBefore []int
+	updates := 0
 	result, err := RunConversationSFT(ctx, run.store, ConversationSFT{
 		Dataset: run.source, Render: letters, ModelDirectory: run.model, WorkDirectory: run.work,
 		OutputDirectory: filepath.Join(run.root, "sampled"), Steps: samplingSteps, SampleEvery: samplingEvery,
+		Step: func(int, int, float64) { updates++ },
+		Sampled: func(strips string) {
+			reports, updatesBefore = append(reports, strips), append(updatesBefore, updates)
+		},
 	})
 	if err != nil || !result.Samples.Valid() {
 		t.Fatalf("a sampled run = (%+v, %v), want the samples it published", result, err)
@@ -62,13 +76,31 @@ func TestTrainingSamplesRunInStepOrder(t *testing.T) {
 			t.Errorf("strip of %s generated %q before training and after it: the samples show no change", strip.Record, first)
 		}
 	}
-	// What a run does not sample it does not publish.
+	// Each round reached the caller once, when it had finished: before the first
+	// update, then after every tenth, the last after the fortieth.
+	if !slices.Equal(updatesBefore, []int{0, 10, 20, 30, 40}) {
+		t.Fatalf("the run handed out %d rounds, after %v updates, want one before training and one after each tenth update", len(reports), updatesBefore)
+	}
+	for round, report := range reports {
+		var strips []sampleStrip
+		if err := json.Unmarshal([]byte(report), &strips); err != nil || len(strips) != len(samples.Strips) {
+			t.Fatalf("round %d reported %q (%v), want the run's %d strips as JSON", round, report, err, len(samples.Strips))
+		}
+		for index, strip := range strips {
+			want := samples.Strips[index]
+			if strip.Record != want.Record || strip.Prompt != want.Prompt || strip.Expected != want.Expected || !slices.Equal(strip.Samples, want.Samples[:min(round+1, len(want.Samples))]) {
+				t.Errorf("round %d reported strip %+v, want the first %d samples of %+v", round, strip, round+1, want)
+			}
+		}
+	}
+	// What a run does not sample it neither publishes nor hands out.
+	handed := 0
 	plain, err := RunConversationSFT(ctx, run.store, ConversationSFT{
 		Dataset: run.source, Render: letters, ModelDirectory: run.model, WorkDirectory: run.work,
-		OutputDirectory: filepath.Join(run.root, "plain"), Steps: 2,
+		OutputDirectory: filepath.Join(run.root, "plain"), Steps: 2, Sampled: func(string) { handed++ },
 	})
-	if err != nil || plain.Samples.Valid() {
-		t.Fatalf("an unsampled run = (%+v, %v), want no samples", plain, err)
+	if err != nil || plain.Samples.Valid() || handed != 0 {
+		t.Fatalf("an unsampled run = (%+v, %v) and handed out %d rounds, want no samples", plain, err, handed)
 	}
 }
 
@@ -91,7 +123,8 @@ func TestTrainingSamplesRefuseWhatTheyCannotAnswer(t *testing.T) {
 // that would sample more often than a strip is read refuses before it loads anything and
 // names the interval that would do; a run that learns the prompts too, which leaves
 // no stretch to generate after, is refused; and a cancel ends a round between the
-// tokens it generates, not after its last.
+// tokens it generates, not after its last, and a round it ended is neither filed
+// nor handed to the run's caller, where a whole round is handed out once.
 func TestSampleStripCostIsBounded(t *testing.T) {
 	if got := sampleRounds(samplingSteps, samplingEvery); got != 5 {
 		t.Fatalf("sampleRounds(%d, %d) = %d, want the steps 0, 10, 20, 30 and 40", samplingSteps, samplingEvery, got)
@@ -124,10 +157,11 @@ func TestSampleStripCostIsBounded(t *testing.T) {
 	}
 	cancelled, cancel := context.WithCancel(ctx)
 	defer cancel()
-	pieces := 0
+	pieces, handed := 0, 0
 	prompts := []generationPrompt{{tokens: []int{1, 2}, length: sampleTokens}, {tokens: []int{2, 1}, length: sampleTokens}}
 	strips := &sampler{
 		model: model, prompts: prompts, strips: make([]sampleStrip, len(prompts)),
+		sampled: func(string) { handed++ },
 		piece: func(int) string {
 			if pieces++; pieces == 3 {
 				cancel()
@@ -138,8 +172,30 @@ func TestSampleStripCostIsBounded(t *testing.T) {
 	if err := strips.sample(cancelled, 7); !errors.Is(err, context.Canceled) || pieces != 3 {
 		t.Fatalf("a round cancelled at its third token = (%v) after %d tokens, want it stopped there of %d", err, pieces, len(prompts)*sampleTokens)
 	}
-	if len(strips.strips[0].Samples) != 0 || len(strips.strips[1].Samples) != 0 {
-		t.Error("a cancelled round filed a sample")
+	if len(strips.strips[0].Samples) != 0 || len(strips.strips[1].Samples) != 0 || handed != 0 {
+		t.Errorf("a cancelled round filed a sample or was handed out (%d times)", handed)
+	}
+	// A whole round is handed out once, when its last prompt is answered, as the
+	// strips it left: one report a round is what an operation's events can carry.
+	var whole []sampleStrip
+	strips.sampled = func(text string) {
+		handed++
+		if err := json.Unmarshal([]byte(text), &whole); err != nil {
+			t.Errorf("a round was handed out as %q: %v", text, err)
+		}
+	}
+	if err := strips.sample(ctx, 7); err != nil || handed != 1 || len(whole) != len(prompts) {
+		t.Fatalf("a whole round = (%v), handed out %d times with %d strips, want once with %d", err, handed, len(whole), len(prompts))
+	}
+	for _, strip := range whole {
+		if len(strip.Samples) != 1 || strip.Samples[0].Step != 7 || len(strip.Samples[0].Text) != sampleTokens {
+			t.Errorf("the round handed out strip %+v, want one sample of %d tokens at step 7", strip, sampleTokens)
+		}
+	}
+	// A run nobody watches samples as it did: its round is filed and handed to no one.
+	strips.sampled = nil
+	if err := strips.sample(ctx, 8); err != nil || len(strips.strips[0].Samples) != 2 || len(strips.strips[1].Samples) != 2 {
+		t.Fatalf("a round with no caller to hand it to = (%v) and left %+v, want it filed as the second of each strip", err, strips.strips)
 	}
 }
 

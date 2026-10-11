@@ -121,6 +121,7 @@ func (r *recordingReporter) OperationID() artifact.ID { return artifact.ID{} }
 func (r *recordingReporter) Progress(uint64, *uint64) {}
 func (r *recordingReporter) Metric(operation.Metric)  {}
 func (r *recordingReporter) Attempt(artifact.ID)      {}
+func (r *recordingReporter) Text(string)              {}
 func (r *recordingReporter) Publishing()              { r.published = true }
 
 // TestGenerationWorkspaceIdentityRefresh requires repeated listings to

@@ -2,6 +2,7 @@ package trainingworkflow
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"slices"
 	"strings"
@@ -94,6 +95,8 @@ type sampler struct {
 	piece   func(int) string
 	prompts []generationPrompt
 	strips  []sampleStrip
+	// sampled, when set, receives the strips so far as JSON after each round.
+	sampled func(string)
 }
 
 // newSampler fixes the prompts of the first held-out records that learn a reply:
@@ -146,8 +149,9 @@ func sampleRounds(updates, every int) int {
 }
 
 // sample generates after each prompt with the model as it now stands and files
-// the text under step. A round ends when ctx does, between the tokens it
-// generates, not after its last.
+// the text under step, then hands the strips so far to sampled. A round ends
+// when ctx does, between the tokens it generates, not after its last, and is
+// then not handed out.
 func (sampler *sampler) sample(ctx context.Context, step int) error {
 	for index, prompt := range sampler.prompts {
 		answer, err := generateAnswer(ctx, sampler.model, sampler.piece, prompt)
@@ -156,7 +160,15 @@ func (sampler *sampler) sample(ctx context.Context, step int) error {
 		}
 		sampler.strips[index].Samples = append(sampler.strips[index].Samples, sampleAt{Step: step, Text: answer.Text})
 	}
-	return nil
+	if sampler.sampled == nil {
+		return nil
+	}
+	// The strips alone: the document needs a trained checkpoint, which a run has only at its end.
+	strips, err := json.Marshal(sampler.strips)
+	if err == nil {
+		sampler.sampled(string(strips))
+	}
+	return err
 }
 
 // publish stores the samples as a document about the trained model.

@@ -83,6 +83,9 @@ type ConversationSFT struct {
 	// conversations before it trains, every that many updates and at its end, and publish the
 	// generations (HeldoutResult.Samples) for the page to show in step order.
 	SampleEvery int
+	// Sampled, when set, receives the strips so far each time the run has
+	// generated (TextHeldoutRequest.Sampled).
+	Sampled func(strips string)
 	// CheckpointEvery, when positive, saves a checkpoint beside OutputDirectory after every that
 	// many updates but the last, CheckpointKeep of the newest kept, and Resume names one to continue
 	// from (TextHeldoutRequest).
@@ -146,7 +149,7 @@ func RunConversationSFT(ctx context.Context, store *overgodb.Store, request Conv
 	result, err := RunTextHeldout(ctx, store, TextHeldoutRequest{
 		Alias: alias, ModelDirectory: request.ModelDirectory, OutputDirectory: request.OutputDirectory,
 		Steps: request.Steps, MaximumSequence: conversationWindow, Host: true,
-		Chat: true, Conversations: true, Step: request.Step, Progress: request.Progress, LoRA: request.LoRA, Average: decay, SampleEvery: request.SampleEvery,
+		Chat: true, Conversations: true, Step: request.Step, Progress: request.Progress, LoRA: request.LoRA, Average: decay, SampleEvery: request.SampleEvery, Sampled: request.Sampled,
 		CheckpointEvery: request.CheckpointEvery, CheckpointKeep: request.CheckpointKeep, Resume: request.Resume,
 	})
 	result.Skipped = skipped

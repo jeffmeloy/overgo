@@ -554,4 +554,5 @@ func (reporter testReporter) OperationID() artifact.ID { return reporter.id }
 func (testReporter) Attempt(artifact.ID)               {}
 func (testReporter) Progress(uint64, *uint64)          {}
 func (testReporter) Metric(operation.Metric)           {}
+func (testReporter) Text(string)                       {}
 func (testReporter) Publishing()                       {}

@@ -198,6 +198,9 @@ func (stageReporter) Metric(operation.Metric) {}
 // Attempt is not printed; the published gate evidence names it.
 func (stageReporter) Attempt(artifact.ID) {}
 
+// Text is not printed; the validation reports none.
+func (stageReporter) Text(string) {}
+
 // Publishing is not printed; the stage count already reaches it.
 func (stageReporter) Publishing() {}
 

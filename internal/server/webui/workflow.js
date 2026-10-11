@@ -420,6 +420,8 @@
             overgo.viz.signedSeries([{ label: series.name, values: series.values, color: "var(--accent)" }]))));
           const table = overgo.table(["measurement", "value"], (current.metrics || []).map((metric) => [metric.name, String(metric.value) + (metric.unit ? " " + metric.unit : "")]), "metric-grid");
           metrics.replaceChildren(...((current.metrics || []).length ? [table] : []));
+          // What a running operation reports to be read while it goes (definition.renderLive) stands where its evidence will.
+          if (definition.renderLive) definition.renderLive(evidence, current, overgo);
         }
         // follow: the operation's live state until it ends, then its evidence.
         async function follow(id) {

@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "gui-live-samples",
-      "title": "Show the Train tab's sample strip while the run goes, not when it ends",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 198,
-        "reason": "What the row may still add. Set on 2026-10-11 to the 198 nodes its built Go half was counted at: a bounded text an operation in flight can carry, and the training run reporting its samples through it. The page half adds none."
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Once a running operation can carry a bounded text result, renderSamples (webui/mod/training.js) fills the strip as each round finishes; a browser leg reads the first sample while the run is still going",
-          "status": "open",
-          "verify": "test -f internal/server/webui_browser_live_samples_test.go \u0026\u0026 go run ./cmd/webui-lane -run LiveSamples",
-          "rationale": "Recommended by the GUI lane and not landed when its worktree was removed on 2026-10-09 (docs/gui_update_plan.json, which stays out of the repository); ranked into this plan by the owner's answer to gui-recommendations on 2026-10-10. Show the Train tab's sample strip while the run goes, not when it ends: samples are generated every N updates but appear only at the end, because an operation reports numbers and no text. Why the lane recommended it: \n\nThe lane's rule for a change to the pages holds: plain HTML, JavaScript and Go, reviewed in a browser at desktop and phone widths in both colour schemes, and accepted by a browser leg or a Go test that fails without it. The row has no count: it is sized by a preflight when it is dispatched.\n\nServes: setup-steps. Batch: browser."
-        }
-      ]
-    },
-    {
       "id": "gui-document-to-dataset",
       "title": "Turn documents into a conversation dataset with the served model (Unsloth Studio's data recipes)",
       "owner": "master-lead",

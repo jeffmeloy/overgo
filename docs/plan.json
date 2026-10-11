@@ -9,8 +9,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1,
-        "reason": "A loan, not growth the row keeps: the row is accepted only if its last step removes more than its steps added. Measured on 2026-10-11 (tmp/count_nodes.go) on the built change of the first step: the derivative rules and the builder of a backward graph, 2,142 nodes, of which the attention's rule is about a third; and the block adapter that trains through them on the host, 1,841. The device step's count is set from its built change before it is committed."
+        "nodes": 4437,
+        "reason": "A loan, not growth the row keeps: the row is accepted only if its last step removes more than its steps added. Measured on 2026-10-11. The first step, committed: the derivative rules and the builder of a backward graph, and the block adapter that trains through them on the host, 3,982 nodes. The device step, by the automated checks' own figure on its built change: 455 nodes, the adapter's programs run through an executor it is handed and their binding to the device through the graph runtime's resident session."
       },
       "steps": [
         {
@@ -357,7 +357,8 @@
             "pilot-run-count/do",
             "host-retire-place/do",
             "dense-block-scope/do",
-            "dense-rules-count/do"
+            "dense-rules-count/do",
+            "dense-device-count/do"
           ]
         }
       ]

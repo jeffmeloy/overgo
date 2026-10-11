@@ -9,17 +9,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 3336,
+        "nodes": 2938,
         "reason": "A ceiling, not a target: the present size of internal/landing landing.go, the landing the queue serializes, counted 2026-10-09 as the gate counts production nodes. The queue reuses the landing; it does not write a second one. The lead lowers it when the first step reports."
       },
       "steps": [
-        {
-          "id": "turn",
-          "title": "Hold the repository's one turn for a commit's whole run, across its worktrees",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestCommitsOfTwoWorktreesTakeTurns$'",
-          "rationale": "The design, fixed on 2026-10-11 from a reading of the commit code (internal/landing, cmd/loop, cmd/loophook) and a probe of git 2.51 in a fixture repository with two linked worktrees. What was found. Nothing in the commit path names the trunk, and a commit from a linked worktree moves only that worktree's own HEAD. A commit's candidate is its checkout's whole working tree, so committed onto a trunk that moved since its base it would undo what landed between. Nothing excludes two worktrees' commits for their whole run: the commit lock is a checkout's own and is held only for the last moment, and the device tests' turn is taken only when a test run is reached. And when the trunk branch is moved from another worktree, the checkout that has it checked out shows the other's change as its own staged reversal. The queue is therefore a turn and an integration, with the commit that exists and no second one: a commit holds the repository's one turn for its whole run; in a linked worktree it first brings the trunk's tip into its working tree, a three-way merge of the tip, its base and its own changes, which git's merge-tree gives as a tree or refuses naming the files; the commit then runs as it does now, on the tip and by the tip's terms; it publishes onto the trunk by compare-and-set, and the trunk's own checkout follows by a two-way read of its index and files, tried dry before the trunk moves and refused when the lead's uncommitted files stand in the way. Sessions wait their turn; the wait is recorded with the others.\n\nThis step: a commit knows the repository's trunk, the branch the main worktree has checked out, and the main worktree's directory, from git's own list of worktrees; and its whole run, not a preflight's, holds one lock in that directory's process state, so a second commit begun in any worktree waits for the first to end. The wait is recorded in the run's record of where its time went. A repository with one worktree commits as it did. Its test starts two commits from two worktrees of one fixture and holds that the second's stages begin after the first ended, and that the wait is in its record.\n\nServes: change. Evidence: the test. Batch: host."
-        },
         {
           "id": "integrate",
           "title": "Bring the trunk into a worktree's candidate before it is checked, and publish it onto the trunk",

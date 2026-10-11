@@ -11,7 +11,9 @@
 // change carries, and the plan the commit publishes holds what the landing
 // left of the count. Git holds the record: the message says what
 // the gate measured, and the slice's trailer carries it for the next landing
-// to compare against. A refusal names the stage that refused it; the loop
+// to compare against. A run that may commit holds the repository's one turn
+// from its start to its end, so the commits begun in a repository's worktrees
+// run one at a time (holdTurn). A refusal names the stage that refused it; the loop
 // classes it, an antivirus quarantine as an external prerequisite, and
 // records its class in the checkout's process state, where a recurrence shows.
 package landing
@@ -118,6 +120,14 @@ func Run(ctx context.Context, options Options) (landed string, err error) {
 			fmt.Fprintf(options.Log, "land: where the run's time went was not recorded: %v\n", unrecorded)
 		}
 	}()
+	// A run that may commit takes the repository's one turn first, and holds it to its end.
+	if !options.Preflight {
+		release, err := l.holdTurn(ctx)
+		if err != nil {
+			return "", err
+		}
+		defer func() { _ = release() }()
+	}
 	if options.Quiet {
 		release, err := l.holdQuiet(ctx, quietMachine)
 		if err != nil {

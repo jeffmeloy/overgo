@@ -21,9 +21,11 @@ type spent struct {
 	// conflict for a refusal at the commit, where the tree or HEAD moved
 	// under the landing.
 	Outcome string `json:"outcome"`
-	// Measurement, Turn and Device are the waits within the run: for a timed
-	// measurement of the cycle to finish, for the host's lane turn, and for
-	// the device to admit a lane's steps.
+	// Queue, Measurement, Turn and Device are the waits within the run: for
+	// the commit running in another worktree of the repository to end, for a
+	// timed measurement of the cycle to finish, for the host's lane turn, and
+	// for the device to admit a lane's steps.
+	Queue       time.Duration `json:"queue_wait,omitzero"`
 	Measurement time.Duration `json:"measurement_wait,omitzero"`
 	Turn        time.Duration `json:"turn_wait,omitzero"`
 	Device      time.Duration `json:"device_wait,omitzero"`

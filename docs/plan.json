@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "reviewer-repairs-host",
-      "title": "Repair eight of the reviewer's confirmed defects that a test on the host holds",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "What the row may still add. Set on 2026-10-11 to the sum of what its steps were counted at in their own checkouts, by the same count of syntax nodes the automated checks take: 22, 60, 159, 44, 120, 124 and 5, and one step that removes 136 and adds none."
-      },
-      "steps": [
-        {
-          "id": "source-clip-disposal",
-          "title": "Read a GIF source clip through the compositor that video prompts use",
-          "status": "open",
-          "verify": "go test ./internal/latentvideo -count=1 -run '^TestSourceVideoFromGIFDisposesItsPartialFrames$'",
-          "rationale": "Reviewer finding SQA-118, second severity, confirmed by reading (docs/sqa_findings.json, not in the repository). A source clip given to an edit as a GIF is read frame by frame with no disposal and no background, so a GIF whose frames cover part of the picture conditions the edit on stale pixels. Closure: it is read through the one compositor, which clears and restores as each frame says; the step removes more code than it adds. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader, in a checkout of the step's own, before this row was filed; the commit is the lead's. The register stays the reviewer's and is not edited here.\n\nServes: serve. Evidence: the test. Batch: host; the commit runs the device tests of the video package."
-        }
-      ]
-    },
-    {
       "id": "gui-live-samples",
       "title": "Show the Train tab's sample strip while the run goes, not when it ends",
       "owner": "master-lead",

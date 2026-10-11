@@ -1,7 +1,11 @@
 package latentvideo
 
 import (
+	"bytes"
 	"encoding/json"
+	"image"
+	"image/color"
+	"image/gif"
 	"math"
 	"os"
 	"path/filepath"
@@ -271,5 +275,59 @@ func TestSourceVideoFromGIFRoundTrips(t *testing.T) {
 	}
 	if media.U8ToUnitF32(media.UnitF32ToU8(0.25)) < 0.24 || media.U8ToUnitF32(media.UnitF32ToU8(0.25)) > 0.26 {
 		t.Fatal("byte mapping does not invert")
+	}
+}
+
+// TestSourceVideoFromGIFDisposesItsPartialFrames holds a source clip that
+// arrives as a GIF whose frames each cover part of the picture, as a GIF from
+// anywhere but this program's own encoder may: every frame is read as the
+// frames say, the part a frame says to clear cleared and the part it
+// says to put back put back before the next is drawn, and no frame is left
+// out. The clip is two pixels wide and one high. Red fills it; green is drawn
+// on the left and cleared after; blue is drawn on the right and taken back
+// after; green is drawn on the left again. A reader that only draws each
+// frame over the last keeps the green in the third frame and the blue in the
+// fourth. The values wanted are those four pictures smoothed as a GIF source
+// is, each pixel three parts itself and one part its neighbour. Bytes that
+// are no GIF are refused.
+func TestSourceVideoFromGIFDisposesItsPartialFrames(t *testing.T) {
+	const frames, height, width = 4, 1, 2
+	palette := color.Palette{color.RGBA{}, color.RGBA{R: 255, A: 255}, color.RGBA{G: 255, A: 255}, color.RGBA{B: 255, A: 255}}
+	part := func(left, right int, colours ...uint8) *image.Paletted {
+		picture := image.NewPaletted(image.Rect(left, 0, right, height), palette)
+		copy(picture.Pix, colours)
+		return picture
+	}
+	var encoded bytes.Buffer
+	if err := gif.EncodeAll(&encoded, &gif.GIF{
+		Image:    []*image.Paletted{part(0, 2, 1, 1), part(0, 1, 2), part(1, 2, 3), part(0, 1, 2)},
+		Delay:    []int{1, 1, 1, 1},
+		Disposal: []byte{gif.DisposalNone, gif.DisposalBackground, gif.DisposalPrevious, gif.DisposalNone},
+		Config:   image.Config{ColorModel: palette, Width: width, Height: height},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	source, err := sourceVideoFromGIF(encoded.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Each row is a colour and each pair in it a frame: red and red, green and
+	// red, black and blue, green and red.
+	want := []float32{
+		1, 1, 0.25, 0.75, 0, 0, 0.25, 0.75,
+		0, 0, 0.75, 0.25, 0, 0, 0.75, 0.25,
+		0, 0, 0, 0, 0.25, 0.75, 0, 0,
+	}
+	if source.Channels != media.RGBChannels || source.Frames != frames || source.Height != height || source.Width != width || len(source.Pixels) != len(want) {
+		t.Fatalf("source shape = %dx%dx%dx%d pixels=%d", source.Channels, source.Frames, source.Height, source.Width, len(source.Pixels))
+	}
+	for index := range want {
+		if source.Pixels[index] != want[index] {
+			t.Fatalf("value %d (colour %d, frame %d, column %d) = %g, want %g\n got %v\nwant %v",
+				index, index/(frames*width), index/width%frames, index%width, source.Pixels[index], want[index], source.Pixels, want)
+		}
+	}
+	if refused, err := sourceVideoFromGIF([]byte("not a GIF")); err == nil {
+		t.Fatalf("bytes that are no GIF were read as a source clip of %d frames", refused.Frames)
 	}
 }

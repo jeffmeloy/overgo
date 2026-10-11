@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"image"
 	"image/draw"
-	"image/gif"
 	"image/png"
+	"math"
 	"os"
 	"path/filepath"
 
@@ -132,46 +132,30 @@ func validateReferenceEditRequestForm(request ReferenceEditRequest) error {
 }
 
 // sourceVideoFromGIF decodes an animated GIF into the planar source video
-// the reference edit consumes, compositing each frame over the logical
-// screen so a partial frame resolves against its predecessors. Its values
-// run from 0 to 1, not from -1 to 1 as an autoencoder's pictures otherwise
-// do: the edit checkpoint was trained on source clips read that way (the
-// reference reads its source without centering it), and a source centered
-// on zero is a clip it was never shown. Each plane is then smoothed over the
-// reach of a palette's dither (smoothDither).
+// the reference edit consumes, every frame of it composed as a video
+// prompt's is (media.DecodeGIF): a frame that covers part of the picture is
+// drawn over the ones before it, and what it says to clear or to put back is
+// cleared or put back before the next. Its values run from 0 to 1, not from
+// -1 to 1 as an autoencoder's pictures otherwise do: the edit checkpoint was
+// trained on source clips read that way (the reference reads its source
+// without centering it), and a source centered on zero is a clip it was
+// never shown. Each plane is then smoothed over the reach of a palette's
+// dither (smoothDither).
 func sourceVideoFromGIF(data []byte) (SourceVideo, error) {
-	animation, err := gif.DecodeAll(bytes.NewReader(data))
+	frames, err := media.DecodeGIF(bytes.NewReader(data), math.MaxInt)
 	if err != nil {
 		return SourceVideo{}, err
 	}
-	frames := len(animation.Image)
-	if frames == 0 {
-		return SourceVideo{}, errors.New("latent video: GIF carries no frames")
+	source, err := planarSource(frames)
+	if err != nil {
+		return SourceVideo{}, err
 	}
-	bounds := image.Rect(0, 0, animation.Config.Width, animation.Config.Height)
-	if bounds.Empty() {
-		bounds = animation.Image[0].Bounds()
-	}
-	height, width := bounds.Dy(), bounds.Dx()
-	canvas := image.NewRGBA(bounds)
-	plane := height * width
-	pixels := make([]float32, media.RGBChannels*frames*plane)
-	for frame, paletted := range animation.Image {
-		draw.Draw(canvas, paletted.Bounds(), paletted, paletted.Bounds().Min, draw.Over)
-		for y := range height {
-			for x := range width {
-				offset := canvas.PixOffset(bounds.Min.X+x, bounds.Min.Y+y)
-				for channel := range media.RGBChannels {
-					pixels[(channel*frames+frame)*plane+y*width+x] = media.U8ToUnitF32(canvas.Pix[offset+channel])
-				}
-			}
-		}
-	}
+	plane := source.Height * source.Width
 	scratch := make([]float32, plane)
-	for part := range media.RGBChannels * frames {
-		smoothDither(pixels[part*plane:][:plane], scratch, height, width)
+	for part := range media.RGBChannels * source.Frames {
+		smoothDither(source.Pixels[part*plane:][:plane], scratch, source.Height, source.Width)
 	}
-	return SourceVideo{Pixels: pixels, Channels: media.RGBChannels, Frames: frames, Height: height, Width: width}, nil
+	return source, nil
 }
 
 // smoothDither replaces each value of one plane by the mean of its three by
@@ -256,6 +240,13 @@ func sourceVideoFromFrames(data []byte) (SourceVideo, error) {
 		}
 		frames = append(frames, frame)
 	}
+	return planarSource(frames)
+}
+
+// planarSource lays a clip's pictures out as the planar source video the
+// reference edit consumes, its values from 0 to 1, and refuses a clip of no
+// pictures or of pictures that are not all the size of the first.
+func planarSource(frames []image.Image) (SourceVideo, error) {
 	first, ok := checked.First(frames)
 	if !ok {
 		return SourceVideo{}, errors.New("latent video: the source clip carries no frames")

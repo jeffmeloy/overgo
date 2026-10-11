@@ -4,6 +4,74 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "reviewer-repairs-host",
+      "title": "Repair eight of the reviewer's confirmed defects that a test on the host holds",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 534,
+        "reason": "What the row may still add. Set on 2026-10-11 to the sum of what its steps were counted at in their own checkouts, by the same count of syntax nodes the automated checks take: 22, 60, 159, 44, 120, 124 and 5, and one step that removes 136 and adds none."
+      },
+      "steps": [
+        {
+          "id": "parquet-integer-budget",
+          "title": "Charge an integer dictionary's decimal text to the parquet reader's budget",
+          "status": "open",
+          "verify": "go test ./internal/dataset -count=1 -run '^TestIntegerDictionaryChargesItsDecimalText$'",
+          "rationale": "Reviewer finding SQA-108, second severity, confirmed by reading (docs/sqa_findings.json, not in the repository). The parquet reader's budget counts the storage a row group asks for, and an integer dictionary's values are written out as decimal text that is never charged: up to 20 bytes a distinct value beside the 16 that are. Closure: a budget short by the text refuses, and an exact one is spent to nothing; no failure was observed. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader, in a checkout of the step's own, before this row was filed; the commit is the lead's. The register stays the reviewer's and is not edited here.\n\nServes: evaluate, train. Evidence: the test. Batch: host; the commit runs the device tests, since the dataset reader is under them."
+        },
+        {
+          "id": "pre-tokenizer-admission",
+          "title": "Name a tokenizer's splitting rule only after every step it declares is checked",
+          "status": "open",
+          "verify": "go test ./internal/hfconvert -count=1 -run '^TestConverterRefusesADeclarationItsRuleDoesNotCut$'",
+          "rationale": "Reviewer finding SQA-124, second severity, confirmed by reading (docs/sqa_findings.json, not in the repository). The converter names a runtime splitting rule from a declaration's split patterns alone, so a declaration that removes what it matches, or declares a step the rule does not make, converts with no error and tokenizes wrongly from then on. Closure: the kind and options of every declared step are checked before a rule is named, and the rest is refused; the declarations it knows keep their rule. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader, in a checkout of the step's own, before this row was filed; the commit is the lead's. The register stays the reviewer's and is not edited here.\n\nServes: serve. Evidence: the test. Batch: host; the commit runs the device tests, since the inference tests convert a tokenizer."
+        },
+        {
+          "id": "corpus-request",
+          "title": "Credit a finished corpus run only to the request that asked for it",
+          "status": "open",
+          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestChangeCorpusCreditsOnlyRunsOfItsRequest$'",
+          "rationale": "Reviewer finding SQA-115, second severity, confirmed by reading (docs/sqa_findings.json, not in the repository). A change corpus credits any finished run whose record reads and carries the right place in the order, so a corpus asked again with other steps, another window, base or recipe returns the old corpus with no error, or mixes budgets. Closure: a run is credited only to the request that asked for it, and a run of another request is refused before anything trains there. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader, in a checkout of the step's own, before this row was filed; the commit is the lead's. The register stays the reviewer's and is not edited here.\n\nServes: train. Evidence: the test. Batch: host."
+        },
+        {
+          "id": "reconstruction-zero-error",
+          "title": "Score a clip that came back as it went in, where the reconstruction suite failed whole",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestReconstructionScoresAClipThatCameBackAsItWentIn$'",
+          "rationale": "Reviewer finding SQA-112, second severity, the half that is the reconstruction suite, confirmed by reading (docs/sqa_findings.json, not in the repository). The suite scores each clip by a ratio that has no value for a clip that came back exact, so one exact clip fails the whole suite and drops what every other clip measured. Closure, as the reviewer wrote it: suites of exact and inexact clips, and of exact clips alone, publish every clip under a stated error measure, with the report's version saying which measure it is; contracts of different measures stay not comparable. The finding's other half, a held-out record answered equal to its target, is the owner's choice of what to report and stays open. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader, in a checkout of the step's own, before this row was filed; the commit is the lead's. The register stays the reviewer's and is not edited here.\n\nServes: evaluate. Evidence: the test. Batch: host."
+        },
+        {
+          "id": "proposal-resume",
+          "title": "Finish an interrupted change proposal when the same request is asked again",
+          "status": "open",
+          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestInterruptedProposalIsFinishedByTheSameRequest$'",
+          "rationale": "Reviewer finding SQA-116, second severity, confirmed by reading (docs/sqa_findings.json, not in the repository). A change proposal asked again at the same destination is refused in every state an interrupted one can be left in: a sealed tensor, a published candidate, a missing configuration, a complete one. Closure: the same request finishes what it left, and what another change left there is refused. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader, in a checkout of the step's own, before this row was filed; the commit is the lead's. The register stays the reviewer's and is not edited here.\n\nServes: train. Evidence: the test. Batch: host."
+        },
+        {
+          "id": "capability-device",
+          "title": "Name the card a capability evaluation runs on, and refuse one its loader cannot select",
+          "status": "open",
+          "verify": "go test ./cmd/evaluate -count=1 -run '^TestACapabilitySessionNamesTheDeviceItRunsOnAndRefusesOneItCannotSelect$'",
+          "rationale": "Reviewer finding SQA-106, second severity, the part a host test holds, confirmed by reading (docs/sqa_findings.json, not in the repository). Every capability session of the evaluation command is recorded as run on the host, so results from the card are filed beside host results, and a manifest that asks for another card runs on the first. Closure for this part: the session names the device it runs on and refuses a device its loader cannot select. Selecting a card other than the first is not built: this machine has one. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader, in a checkout of the step's own, before this row was filed; the commit is the lead's. The register stays the reviewer's and is not edited here.\n\nServes: evaluate. Evidence: the test. Batch: host."
+        },
+        {
+          "id": "source-clip-disposal",
+          "title": "Read a GIF source clip through the compositor that video prompts use",
+          "status": "open",
+          "verify": "go test ./internal/latentvideo -count=1 -run '^TestSourceVideoFromGIFDisposesItsPartialFrames$'",
+          "rationale": "Reviewer finding SQA-118, second severity, confirmed by reading (docs/sqa_findings.json, not in the repository). A source clip given to an edit as a GIF is read frame by frame with no disposal and no background, so a GIF whose frames cover part of the picture conditions the edit on stale pixels. Closure: it is read through the one compositor, which clears and restores as each frame says; the step removes more code than it adds. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader, in a checkout of the step's own, before this row was filed; the commit is the lead's. The register stays the reviewer's and is not edited here.\n\nServes: serve. Evidence: the test. Batch: host; the commit runs the device tests of the video package."
+        },
+        {
+          "id": "cycle-trigger",
+          "title": "Count a change to a file the measurement run's commands embed, and finish a run that was cut short",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1 -run '^(TestPublishedCycleCutShortIsStillWorthFinishing|TestCycleSurfaceNamesTheFilesItsCommandsEmbed)$'",
+          "rationale": "Reviewer finding SQA-101 and the trigger half of SQA-089, both second severity, confirmed by reading (docs/sqa_findings.json, not in the repository). The full measurement run's trigger drops every changed path that is not Go source, so a change to a file its commands embed starts no measurement; and a run that published its scorecard and was stopped before its end is taken as finished, so its remaining parts never run. Closure: an embedded file counts as moving what is measured, which means more measurement runs start, and a run cut short is worth finishing. The other half of SQA-089, what witnesses the inputs of a credited cell, needs a choice first and stays open. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader, in a checkout of the step's own, before this row was filed; the commit is the lead's. The register stays the reviewer's and is not edited here.\n\nServes: failure-rate. Evidence: the tests. Batch: host."
+        }
+      ]
+    },
+    {
       "id": "gui-export-size-preview",
       "title": "Show the output size before an export or merge runs (Unsloth Studio's export size preview)",
       "owner": "master-lead",
@@ -289,7 +357,8 @@
             "conditional-charge-count/do",
             "unnamed-exposure-count/do",
             "wait-deadline-count/do",
-            "closeout-check/do"
+            "closeout-check/do",
+            "reviewer-repairs-row/do"
           ]
         }
       ]

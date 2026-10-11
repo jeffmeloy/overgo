@@ -197,13 +197,12 @@ func unreadAnswers(ctx context.Context, store *overgodb.Store, bound runrecord.R
 	return countUnread(content.Data)
 }
 
-// countUnread counts the answers of a report's observations that were
-// generated and named no option.
+// countUnread counts the answers of a report's observations that named no
+// option, with text or without: only a generated answer selects none.
 func countUnread(report []byte) uint64 {
 	var answers struct {
 		Observations []struct {
-			Selected int    `json:"selected"`
-			Raw      string `json:"raw"`
+			Selected int `json:"selected"`
 		} `json:"observations"`
 	}
 	if json.Unmarshal(report, &answers) != nil {
@@ -211,7 +210,7 @@ func countUnread(report []byte) uint64 {
 	}
 	var unread uint64
 	for _, answer := range answers.Observations {
-		if answer.Raw != "" && answer.Selected == unmatchedChoice {
+		if answer.Selected == unmatchedChoice {
 			unread++
 		}
 	}

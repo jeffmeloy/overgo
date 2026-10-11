@@ -104,17 +104,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 14,
+        "nodes": 24,
         "reason": "What the row may still add. Set on 2026-10-11 to what its one adding step, attempt-attribution, was counted at in its own checkout, by the count of syntax nodes the automated checks take. Four steps remove 10, 13, 14 and 86 and add none; two change tests alone."
       },
       "steps": [
-        {
-          "id": "unread-answer-count",
-          "title": "Count an answer of no text among the generated answers that named no option",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^(TestAnAnswerOfNoTextIsCountedAsNamingNoOption|TestCountUnreadCountsGeneratedAnswersThatNamedNoOption)$'",
-          "rationale": "Reviewer finding SQA-122, third severity, confirmed by reading (docs/sqa_findings.json, not in the repository). The scorecard states, beside a chat-template reading, how many generated answers named no option, and the count left out an answer of no text, which a report writes with a selection of none and no text. Closure: every answer whose selection is none is counted; a case scored by likelihood, which always selects, is not. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader and then by the lead, in a checkout of the step's own, before this row was filed. The register stays the reviewer's and is not edited here.\n\nServes: held-out-quality. Evidence: the tests. Batch: host; the commit runs the device tests, since evaluation is under them."
-        },
         {
           "id": "thinking-stream-copy",
           "title": "Parse a streamed Anthropic thinking turn from the pump's own output, where the route kept a second copy of it",

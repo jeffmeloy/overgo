@@ -2,10 +2,15 @@ package evaluation
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
+	"overgo/internal/artifact"
 	"overgo/internal/inference"
+	"overgo/internal/modelrecipe"
+	"overgo/internal/overgodb"
+	"overgo/internal/runrecord"
 	"overgo/internal/sequencescore"
 	"overgo/internal/tokenizer"
 )
@@ -92,14 +97,15 @@ func TestChatChoicePromptIsTheTextTheEvaluationGeneratesFrom(t *testing.T) {
 
 // TestCountUnreadCountsGeneratedAnswersThatNamedNoOption holds the count the
 // scorecard states beside a generated-letter reading: the answers of a report
-// that were generated and in which no option was read. An answer that named
-// one, and a case scored by likelihood, which has no text, are not counted;
-// what is no report counts none.
+// in which no option was read, whether the answer has text or, as an answer of
+// no text is written, none. An answer that named an option, and a case scored
+// by likelihood, which always selects a candidate, are not counted; what is no
+// report counts none.
 func TestCountUnreadCountsGeneratedAnswersThatNamedNoOption(t *testing.T) {
 	t.Parallel()
 	report := `{"observations":[{"selected":1,"raw":" B"},{"selected":-1,"raw":" not given in the options"},{"selected":-1,"raw":" calculated as follows"},{"selected":-1},{"selected":0}]}`
-	if unread := countUnread([]byte(report)); unread != 2 {
-		t.Fatalf("%d answers are counted as naming no option, want the two that were generated and named none", unread)
+	if unread := countUnread([]byte(report)); unread != 3 {
+		t.Fatalf("%d answers are counted as naming no option, want the three that named none, the one of no text among them", unread)
 	}
 	for _, other := range []string{`{"observations":[]}`, `{"accuracy":0.5}`, `not a report`} {
 		if unread := countUnread([]byte(other)); unread != 0 {
@@ -130,9 +136,10 @@ func TestMatchChoiceLetterReadsTheFirstStandaloneLetter(t *testing.T) {
 	}
 }
 
-func TestChatTemplateScoringGeneratesTheLetter(t *testing.T) {
-	t.Parallel()
-	suite := MultipleChoiceSuite{
+// chatLetterSuite is three questions of two lettered options, the first
+// answered B and the others A.
+func chatLetterSuite() MultipleChoiceSuite {
+	return MultipleChoiceSuite{
 		Kind: MultipleChoiceKind, Schema: "test/mmlu/v1", Source: "store/mmlu",
 		Normalization: sequencescore.NormalizationSum, Aggregation: AggregationAccuracy,
 		Cases: []MultipleChoiceCase{
@@ -141,6 +148,108 @@ func TestChatTemplateScoringGeneratesTheLetter(t *testing.T) {
 			{Name: "three", Prompt: "Q3\nAnswer:", Candidates: []string{" A", " B"}, Answer: 0},
 		},
 	}
+}
+
+// indexedChatReading evaluates a choice suite under the chat-template protocol
+// in a store of its own, as a measurement run does, and returns what the
+// evidence index then reads of that one evaluation.
+func indexedChatReading(t *testing.T, runtime Runtime, suite MultipleChoiceSuite) EvalSummary {
+	t.Helper()
+	ctx := t.Context()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := store.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	identity := modelrecipe.ProgramIdentity{
+		Model:      planID(t, artifact.KindModel, "chat model"),
+		Definition: planID(t, artifact.KindModelDefinition, "chat definition"),
+		Recipe:     planID(t, artifact.KindRecipe, "chat recipe"),
+	}
+	if _, err := store.Commit(ctx, artifact.Batch{Key: "fixture/chat", Artifacts: []artifact.Descriptor{{ID: identity.Model}, {ID: identity.Definition}, {ID: identity.Recipe}}}); err != nil {
+		t.Fatal(err)
+	}
+	environment, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	campaign, err := newCampaign(store, runtime, identity, environment, planTestCommit, LifecycleIsolated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source, err := json.Marshal(suite)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compiled, err := CompileSuite(source, campaign.WithPrompting(PromptingChatTemplate).Authorities())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := campaign.Evaluate(ctx, compiled); err != nil {
+		t.Fatal(err)
+	}
+	summaries := LatestEvidence(ctx, store, map[artifact.ID]string{compiled.Descriptor().Dataset: suite.Source}, 0).EvaluationsByRecipe[identity.Recipe]
+	if len(summaries) != 1 {
+		t.Fatalf("the evidence index reads %+v; want the one evaluation", summaries)
+	}
+	return summaries[0]
+}
+
+// TestAnAnswerOfNoTextIsCountedAsNamingNoOption scores three questions by
+// generated letter twice: the model's last answer is words that name no
+// option, and then no text at all, as a model writes that ends its turn at
+// once. Each time a third is right, the last answer selects nothing, and the
+// count the scorecard states is one, both taken from the observations as a
+// report writes them and read by the evidence index from the stored report of
+// an evaluation under the chat-template protocol. The same questions scored
+// by likelihood, which always selects a candidate, count none.
+func TestAnAnswerOfNoTextIsCountedAsNamingNoOption(t *testing.T) {
+	t.Parallel()
+	suite := chatLetterSuite()
+	written := func(observations []choiceObservation) []byte {
+		t.Helper()
+		report, err := json.Marshal(struct {
+			Observations []choiceObservation `json:"observations"`
+		}{observations})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return report
+	}
+	for _, last := range []string{" no idea", ""} {
+		answers := []string{" **B**.", " (B) option", last}
+		observations, accuracy, err := scoreChoicesAlone(t, t.Context(), &chatFixture{answers: answers}, suite)
+		if err != nil {
+			t.Fatal(err)
+		}
+		report := written(observations)
+		if unread := countUnread(report); accuracy != 1.0/3 || len(observations) != 3 || observations[2].Selected != unmatchedChoice || observations[2].Raw != last || unread != 1 {
+			t.Errorf("a last answer of %q reads %v with %d answers counted as naming no option in %s; want a third right and the one answer counted", last, accuracy, unread, report)
+		}
+		if indexed := indexedChatReading(t, &chatFixture{answers: answers}, suite); indexed.Prompting != PromptingChatTemplate.Label() || indexed.Metrics["accuracy"] != 1.0/3 || indexed.Unread != 1 {
+			t.Errorf("a last answer of %q is read by the evidence index as %+v; want a chat-template reading of a third right with one answer counted as naming no option", last, indexed)
+		}
+	}
+	scores := map[string][]sequencescore.Score{}
+	for _, testCase := range suite.Cases {
+		scores[testCase.Prompt] = []sequencescore.Score{{LogProbability: -1, Tokens: 1}, {LogProbability: -2, Tokens: 1}}
+	}
+	observations, _, err := scoreChoicesAlone(t, t.Context(), &choiceTally{scores: scores}, suite)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report := written(observations); len(observations) != 3 || countUnread(report) != 0 {
+		t.Errorf("scored by likelihood, %d answers are counted as naming no option in %s; want none of three", countUnread(report), report)
+	}
+}
+
+func TestChatTemplateScoringGeneratesTheLetter(t *testing.T) {
+	t.Parallel()
+	suite := chatLetterSuite()
 	// The opener precedes every answer: a reasoning model's " **B**." and a
 	// thinking model's " (A) option" both carry the letter first.
 	fixture := &chatFixture{answers: []string{" **B**.", " (B) option", " no idea"}}

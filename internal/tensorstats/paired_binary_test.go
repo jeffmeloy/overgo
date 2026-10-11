@@ -61,7 +61,7 @@ func TestExactPairedBinaryVerdictAndBounds(t *testing.T) {
 	for wins := range uint64(13) {
 		for losses := range uint64(13) {
 			for _, ties := range []uint64{0, 5} {
-				got := exactPairedBinary(wins, losses, ties)
+				got := ExactPairedBinary(wins, losses, ties)
 				want := exactUpperTail(int64(wins+losses), int64(wins), even)
 				if got.Pairs != wins+losses+ties || got.Wins != wins || got.Losses != losses || got.Ties != ties || !near(got.Tail, want, parts) {
 					t.Fatalf("%d wins, %d losses and %d ties = %+v, want a tail of %s over its own counts", wins, losses, ties, got, want.FloatString(18))
@@ -78,7 +78,7 @@ func TestExactPairedBinaryVerdictAndBounds(t *testing.T) {
 		"all losses":         {0, 10, 0, 1},
 		"as many of each":    {1, 1, 0, 0.75},
 	} {
-		if got := exactPairedBinary(table.wins, table.losses, table.ties).Tail; got != table.want {
+		if got := ExactPairedBinary(table.wins, table.losses, table.ties).Tail; got != table.want {
 			t.Errorf("%s: a tail of %v, want %v", name, got, table.want)
 		}
 	}
@@ -86,7 +86,7 @@ func TestExactPairedBinaryVerdictAndBounds(t *testing.T) {
 		rate, _ := chance.Float64()
 		for trials := range int64(31) {
 			for successes := range trials + 2 {
-				if got, want := binomialUpperTail(uint64(trials), uint64(successes), rate), exactUpperTail(trials, successes, new(big.Rat).SetFloat64(rate)); !near(got, want, parts) {
+				if got, want := BinomialUpperTail(uint64(trials), uint64(successes), rate), exactUpperTail(trials, successes, new(big.Rat).SetFloat64(rate)); !near(got, want, parts) {
 					t.Fatalf("at least %d of %d at a chance of %s = %v, want %s", successes, trials, chance, got, want.FloatString(18))
 				}
 			}
@@ -98,7 +98,7 @@ func TestExactPairedBinaryVerdictAndBounds(t *testing.T) {
 	rational := func(value float64) *big.Rat { return new(big.Rat).SetFloat64(value) }
 	bounds := make([][2]float64, trials+1)
 	for successes := range int64(trials + 1) {
-		lower, upper := exactShareBounds(uint64(successes), trials, miss)
+		lower, upper := ExactShareBounds(uint64(successes), trials, miss)
 		bounds[successes] = [2]float64{lower, upper}
 		if lower < 0 || upper > 1 || lower > float64(successes)/trials || upper < float64(successes)/trials {
 			t.Fatalf("%d of %d is bounded by %v and %v, which do not hold the share seen", successes, trials, lower, upper)
@@ -138,33 +138,33 @@ func TestExactPairedBinaryVerdictAndBounds(t *testing.T) {
 	}
 	for _, count := range []uint64{trials, 1e9} {
 		edge := math.Pow(miss/2, 1/float64(count))
-		if lower, upper := exactShareBounds(count, count, miss); upper != 1 || math.Abs(lower-edge) > parts {
+		if lower, upper := ExactShareBounds(count, count, miss); upper != 1 || math.Abs(lower-edge) > parts {
 			t.Errorf("%d successes in %d are bounded by %v and %v, want %v and 1", count, count, lower, upper, edge)
 		}
-		if lower, upper := exactShareBounds(0, count, miss); lower != 0 || math.Abs(upper-(1-edge)) > parts {
+		if lower, upper := ExactShareBounds(0, count, miss); lower != 0 || math.Abs(upper-(1-edge)) > parts {
 			t.Errorf("no successes in %d are bounded by %v and %v, want 0 and %v", count, lower, upper, 1-edge)
 		}
 	}
-	if lower, upper := exactShareBounds(0, 0, miss); lower != 0 || upper != 1 {
+	if lower, upper := ExactShareBounds(0, 0, miss); lower != 0 || upper != 1 {
 		t.Errorf("no trials are bounded by %v and %v, want nothing bounded", lower, upper)
 	}
 
 	const pairs = 1_000_000
 	// The middle term of an even count, by Stirling's series to its second term.
 	middle := math.Sqrt(2/(math.Pi*pairs)) * (1 - 1.0/(4*pairs))
-	if got, want := exactPairedBinary(pairs/2, pairs/2, 0).Tail, 0.5+middle/2; math.Abs(got-want) > parts {
+	if got, want := ExactPairedBinary(pairs/2, pairs/2, 0).Tail, 0.5+middle/2; math.Abs(got-want) > parts {
 		t.Errorf("half of %d pairs won: a tail of %.15f, want %.15f", pairs, got, want)
 	}
 	for _, wins := range []uint64{1, pairs / 4, pairs/2 - 700, pairs / 2, pairs/2 + 700, pairs - 1} {
-		tail, mirror := binomialUpperTail(pairs, wins, half), binomialUpperTail(pairs, pairs-wins+1, half)
+		tail, mirror := BinomialUpperTail(pairs, wins, half), BinomialUpperTail(pairs, pairs-wins+1, half)
 		if math.Abs(tail+mirror-1) > parts || tail < 0 || tail > 1 {
 			t.Errorf("at least %d of %d and at least its mirror = %v and %v, which are not the whole", wins, pairs, tail, mirror)
 		}
 	}
-	if far := exactPairedBinary(pairs, 0, 0).Tail; far != 0 {
+	if far := ExactPairedBinary(pairs, 0, 0).Tail; far != 0 {
 		t.Errorf("a million wins and no loss: a tail of %v, want one below the smallest float64 read as 0", far)
 	}
-	lower, upper := exactShareBounds(pairs/2, pairs, miss)
+	lower, upper := ExactShareBounds(pairs/2, pairs, miss)
 	spread := normalHalfWidth * math.Sqrt(0.25/pairs)
 	if math.Abs(lower-(0.5-spread)) > 1e-5 || math.Abs(upper-(0.5+spread)) > 1e-5 || lower >= 0.5 || upper <= 0.5 {
 		t.Errorf("half of %d is bounded by %v and %v, want about %v either side of it", pairs, lower, upper, spread)

@@ -185,12 +185,31 @@ func ConfirmOnPool(ctx context.Context, store artifact.Repository, acceptanceID,
 	if acceptance.Sequence == 0 {
 		return PoolConfirmation{}, 0, fmt.Errorf("evaluation: pool %s fixed no tokens to read each document as far as, so nothing is confirmed on it; build a pool that does", acceptance.ID)
 	}
-	promotion, err := partDocuments(ctx, store, pool.Partition.Promotion)
-	if err != nil || uint64(len(promotion)) != acceptance.Documents {
-		return PoolConfirmation{}, 0, errors.Join(fmt.Errorf("evaluation: the promotion part of pool %s holds %d documents and its acceptance was fixed for %d", acceptance.ID, len(promotion), acceptance.Documents), err)
+	return confirmOnPart(ctx, store, pool.Partition, acceptance.ID, acceptance.Objective, candidate, acceptance.Documents, acceptance.Confirmations, poolChargePurpose+candidate.String(),
+		func(promotion []string) (string, error) {
+			differences, err := read(promotion)
+			if err != nil || len(differences) != len(promotion) {
+				return "", errors.Join(fmt.Errorf("evaluation: the candidate was read on %d of the promotion part's %d documents; its confirmation is charged and its verdict is owed", len(differences), len(promotion)), err)
+			}
+			return poolVerdict(differences, acceptance.Critical), nil
+		})
+}
+
+// confirmOnPart charges one confirmation to the promotion part of a partition
+// and publishes its verdict: the part of ConfirmOnPool that is the same for
+// every acceptance a part is confirmed under. The acceptance grants issued
+// confirmations on a part it fixed with documents documents; owner is whose
+// confirmations they are, and purpose what this one is for, which names its
+// charge. judge is handed the part's documents once the charge is committed
+// and returns the verdict, and is not called for a confirmation recorded
+// before or one the part's documents cannot pay for.
+func confirmOnPart(ctx context.Context, store artifact.Repository, partition runrecord.SplitPartition, acceptance, owner, candidate artifact.ID, documents, issued uint64, purpose string, judge func(promotion []string) (string, error)) (PoolConfirmation, uint64, error) {
+	promotion, err := partDocuments(ctx, store, partition.Promotion)
+	if err != nil || uint64(len(promotion)) != documents {
+		return PoolConfirmation{}, 0, errors.Join(fmt.Errorf("evaluation: the promotion part of pool %s holds %d documents and its acceptance was fixed for %d", acceptance, len(promotion), documents), err)
 	}
-	// The grant is the one the pool published: named by what it grants, and loaded with its charges.
-	granted, err := runrecord.NewBudget(poolUnit, pool.Partition.Promotion, acceptance.Confirmations, acceptance.ID)
+	// The grant is the one the acceptance published: named by what it grants, and loaded with its charges.
+	granted, err := runrecord.NewBudget(poolUnit, partition.Promotion, issued, acceptance)
 	if err != nil {
 		return PoolConfirmation{}, 0, err
 	}
@@ -198,23 +217,23 @@ func ConfirmOnPool(ctx context.Context, store artifact.Repository, acceptanceID,
 	if err != nil {
 		return PoolConfirmation{}, 0, err
 	}
-	confirmer, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte(poolConfirmer+acceptance.Objective.String()))
+	confirmer, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte(poolConfirmer+owner.String()))
 	if err != nil {
 		return PoolConfirmation{}, 0, err
 	}
-	charge, err := runrecord.NewBudgetCharge(budget.ID, 1, confirmer, poolChargePurpose+candidate.String())
+	charge, err := runrecord.NewBudgetCharge(budget.ID, 1, confirmer, purpose)
 	if err != nil {
 		return PoolConfirmation{}, 0, err
 	}
 	remaining, err := runrecord.BudgetBalance(budget, charges)
 	if err == nil {
-		err = runrecord.ValidateBlinding(pool.Partition, budget, charges)
+		err = runrecord.ValidateBlinding(partition, budget, charges)
 	}
 	if err != nil {
 		return PoolConfirmation{}, 0, err
 	}
 	// What other grants have charged for on these documents is spent here too.
-	earlier, err := exposure(ctx, store, pool.Partition, budget.ID, promotion)
+	earlier, err := exposure(ctx, store, partition, budget.ID, promotion)
 	if err != nil {
 		return PoolConfirmation{}, 0, err
 	}
@@ -232,12 +251,12 @@ func ConfirmOnPool(ctx context.Context, store artifact.Repository, acceptanceID,
 	} else {
 		if remaining == 0 {
 			return PoolConfirmation{}, 0, fmt.Errorf("evaluation: the promotion part of pool %s has answered the %d confirmations its %d documents allow, %d of them under other acceptances; a further one needs a fresh partition",
-				acceptance.ID, acceptance.Confirmations, acceptance.Documents, earlier)
+				acceptance, issued, documents, earlier)
 		}
 		// The key counts the charge on the part, under whichever acceptance. The
 		// store holds one content under a key, so of two confirmations that would
 		// each be the next, one is charged and the other is refused by the store.
-		batch, err := charge.Batch(fmt.Sprintf("%s%s/confirmation/%d", poolKey, pool.Partition.Promotion, uint64(len(charges))+earlier+1))
+		batch, err := charge.Batch(fmt.Sprintf("%s%s/confirmation/%d", poolKey, partition.Promotion, uint64(len(charges))+earlier+1))
 		if err != nil {
 			return PoolConfirmation{}, 0, err
 		}
@@ -251,18 +270,16 @@ func ConfirmOnPool(ctx context.Context, store artifact.Repository, acceptanceID,
 		}
 		remaining--
 	}
-	differences, err := read(promotion)
-	if err != nil || len(differences) != len(promotion) {
-		return PoolConfirmation{}, 0, errors.Join(fmt.Errorf("evaluation: the candidate was read on %d of the promotion part's %d documents; its confirmation is charged and its verdict is owed", len(differences), len(promotion)), err)
-	}
-	confirmation, err := poolConfirmationCodec.NewInitial(PoolConfirmation{
-		Acceptance: acceptance.ID, Candidate: candidate, Charge: charge.ID, Verdict: poolVerdict(differences, acceptance.Critical),
-	})
+	verdict, err := judge(promotion)
 	if err != nil {
 		return PoolConfirmation{}, 0, err
 	}
-	batch, err := poolConfirmationCodec.Batch(poolKey+acceptance.ID.String()+"/verdict/"+charge.ID.String(), confirmation,
-		artifact.DependencyLineage(confirmation.ID, acceptance.ID, charge.ID), nil)
+	confirmation, err := poolConfirmationCodec.NewInitial(PoolConfirmation{Acceptance: acceptance, Candidate: candidate, Charge: charge.ID, Verdict: verdict})
+	if err != nil {
+		return PoolConfirmation{}, 0, err
+	}
+	batch, err := poolConfirmationCodec.Batch(poolKey+acceptance.String()+"/verdict/"+charge.ID.String(), confirmation,
+		artifact.DependencyLineage(confirmation.ID, acceptance, charge.ID), nil)
 	if err != nil {
 		return PoolConfirmation{}, 0, err
 	}

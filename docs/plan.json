@@ -14,13 +14,20 @@
       },
       "steps": [
         {
+          "id": "follow",
+          "title": "Have the trunk's checkout follow a commit with the lead's uncommitted changes kept",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestTrunkCheckoutFollowsWithItsOwnChangesKept$'",
+          "rationale": "Added on 2026-10-11 while the last step was planned. As integrated, a commit from another worktree is refused when the trunk's checkout has an uncommitted change to a file it changes, and every commit changes one file: docs/plan.json, from which it removes its row. The lead edits the working plan in place, by the plan command, and commits the edit a little later; a second session's commit that reaches its end in between would be refused after its whole run of checks, which with a lead that works continuously is most of the time. So the trunk's checkout follows as a worktree is brought up: its own uncommitted changes are merged onto the new tip, three ways, a file both changed otherwise refusing the commit by name before the trunk moves, and nothing else. The plan is not merged as text, where a row removed beside a row edited would conflict: the commit's own change to it, the rows it removed and what it took from their counts, is applied again to the lead's working plan. The checkout's files are written under its own plan lock, so the plan command and the follow do not write the plan at once. Its test commits from a worktree while the trunk's checkout holds an edited plan and an edited file the commit does not touch, and holds that the commit lands, the checkout holds both edits on the new tip with the row gone, and an edit to a file the commit does change still refuses it.\n\nServes: change. Evidence: the test. Batch: host."
+        },
+        {
           "id": "sessions",
           "title": "Tell a second session how it commits, and record two sessions' commits on one day",
           "status": "open",
           "verify": "go test ./cmd/loophook -count=1 -run '^TestSecondImplementingSessionIsSentToAWorktreeOfItsOwn$'",
           "rationale": "The last step. The session doctrine and the notice a second implementing session is given say that a session in a worktree of its own commits through the queue onto the trunk, what it needs there that git does not carry (the data roots, by environment, as the measurement run's checkout binds them), and that the plan's rows are removed by the commit and not by hand. The row's evidence is then taken on this repository: two commits on one day from two worktrees, neither touching the other's files, with the waits each recorded before and after. The lead lowers the row's count to what the steps measured.\n\nServes: change. Disappears: the rule that one session commits for a checkout. Evidence: the two commits and their recorded waits. Batch: host.",
           "depends_on": [
-            "commit-queue/queue"
+            "commit-queue/follow"
           ]
         }
       ]
@@ -394,7 +401,8 @@
             "sqa-rows/do",
             "pilot-count/do",
             "exposure-count/do",
-            "queue-steps/do"
+            "queue-steps/do",
+            "queue-follow-step/do"
           ]
         }
       ]

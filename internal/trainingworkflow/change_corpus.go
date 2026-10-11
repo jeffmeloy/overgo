@@ -87,19 +87,36 @@ func canonicalizeChangeCorpus(value *ChangeCorpus) error {
 }
 
 // changeRun is one fine-tune a corpus collects: the order seed it read its
-// training records by and what its held-out run published, the session, the
-// checkpoint and the verdict.
+// training records by, what its held-out run published, the session, the
+// checkpoint and the verdict, and what the run was asked to train
+// (askedChange), which a record written before runs recorded it lacks.
 type changeRun struct {
 	Order       uint64      `json:"order"`
 	Observation artifact.ID `json:"observation"`
 	Trained     artifact.ID `json:"trained"`
 	Verdict     artifact.ID `json:"verdict"`
+	Asked       artifact.ID `json:"asked"`
+}
+
+// askedChange names what a corpus asks of each of its runs, whatever its
+// order seed: the recipe, which stands for the base model, the objective and
+// the optimizer policy, the update count, the window, and how the trainer
+// reads the records and what it trains. A finished run is credited only to a
+// request of the same name. The request's recipe is the resolved one.
+func askedChange(request TextHeldoutRequest) (artifact.ID, error) {
+	// Left out is what changes nothing a run trains: where it publishes, what
+	// it reports as it goes, the samples it generates and the wall it is
+	// held to. The device's trainer is a function and cannot be named.
+	return artifact.JSONID(artifact.KindProfile, []any{
+		request.Recipe, request.Steps, request.MaximumSequence, request.Host, request.FreezeLexical,
+		request.Chat, request.Conversations, request.Average, request.LoRA,
+	})
 }
 
 const (
 	// changeRunFile is the file a corpus run leaves in its output directory
-	// once its verdict is published: its order seed and what it published,
-	// so a corpus that stopped part way takes its finished runs as they are.
+	// once its verdict is published: its order seed, what it was asked and what
+	// it published, so a corpus that stopped part way takes its own finished runs.
 	changeRunFile = "change.json"
 	// changeRunFileMode keeps a run's record to its owner.
 	changeRunFileMode = 0o600
@@ -111,7 +128,10 @@ const (
 // counting up from first, and each publishing in a directory named after its
 // seed under the request's output directory. A run whose directory already
 // holds its finished record is not trained again, so a corpus that stopped
-// part way, or one asked to grow, trains only the runs it lacks.
+// part way, or one asked to grow, trains only the runs it lacks. The record
+// is the run's only when it is of that order and of what this request asks
+// (askedChange): at a directory holding any other finished record the
+// collection stops, training nothing there and changing nothing in it.
 func CollectChangeCorpus(ctx context.Context, store *overgodb.Store, request TextHeldoutRequest, first uint64, count int) (ChangeCorpus, error) {
 	if request.Proof || request.Resume != "" || request.CheckpointEvery > 0 || request.Order != 0 {
 		return ChangeCorpus{}, errors.New("training workflow: a change corpus trains whole runs under its own order seeds and judges each: it takes no proof run, resumed run, saved steps or order seed of the request's")
@@ -119,13 +139,32 @@ func CollectChangeCorpus(ctx context.Context, store *overgodb.Store, request Tex
 	if first == 0 || count <= 0 || request.OutputDirectory == "" {
 		return ChangeCorpus{}, errors.New("training workflow: a change corpus needs a first order seed that is not zero, a positive count of runs and an output directory")
 	}
+	weights, err := IdentifyModelWeights(request.ModelDirectory)
+	if err != nil {
+		return ChangeCorpus{}, err
+	}
+	_, _, session, err := resolveHeldoutAuthority(ctx, store, weights, request.Alias, request.Recipe)
+	if err != nil {
+		return ChangeCorpus{}, err
+	}
+	// Every run trains under the recipe resolved here, not the one its alias
+	// names when it starts: an alias moved part way would else put a run of
+	// another objective's recipe in the corpus as a run of this request.
+	request.Recipe = session.Program.Definition().ID
+	asked, err := askedChange(request)
+	if err != nil {
+		return ChangeCorpus{}, err
+	}
 	runs := make([]changeRun, count)
 	for index := range runs {
 		order := first + uint64(index)
 		run := request
 		run.Order, run.OutputDirectory = order, runDirectory(request.OutputDirectory, order)
 		record := filepath.Join(run.OutputDirectory, changeRunFile)
-		if err := jsonfile.DecodeStrict(record, &runs[index]); err == nil && runs[index].Order == order {
+		if err := jsonfile.DecodeStrict(record, &runs[index]); err == nil {
+			if runs[index].Order != order || runs[index].Asked != asked {
+				return ChangeCorpus{}, fmt.Errorf("training workflow: the directory of order %d holds a finished run that is not this request's run of that order: it was asked of another base model, objective or recipe, or with another update count, window or trainer setting, or is another order's, or was recorded before runs said what they were asked; it is left as it is, so collect this request in a directory of its own", order)
+			}
 			if request.Progress != nil {
 				fmt.Fprintf(request.Progress, "order %d: finished before, verdict %s\n", order, runs[index].Verdict)
 			}
@@ -135,7 +174,7 @@ func CollectChangeCorpus(ctx context.Context, store *overgodb.Store, request Tex
 		if err != nil {
 			return ChangeCorpus{}, fmt.Errorf("training workflow: the run of order %d: %w", order, err)
 		}
-		runs[index] = changeRun{Order: order, Observation: result.Observation, Trained: result.Trained, Verdict: result.Verdict}
+		runs[index] = changeRun{Order: order, Observation: result.Observation, Trained: result.Trained, Verdict: result.Verdict, Asked: asked}
 		if err := jsonfile.Write(record, runs[index], changeRunFileMode); err != nil {
 			return ChangeCorpus{}, err
 		}

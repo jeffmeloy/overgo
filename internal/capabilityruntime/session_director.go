@@ -64,6 +64,10 @@ type ModelSessionDirector[Input, Model, Output any] struct {
 	entries map[sessionKey]*sessionEntry[Model]
 	changed chan struct{}
 	closed  bool
+	// shutting says a Close is closing the models, shut that one has, and
+	// shutErr how it ended: closed alone says only that admission is.
+	shutting, shut bool
+	shutErr        error
 
 	admissions    chan int
 	admissionMu   sync.Mutex
@@ -778,15 +782,21 @@ func (c *ModelSessionDirector[Input, Model, Output]) parkLocked(ctx context.Cont
 	return err
 }
 
+// Close stops admission and closes every model the director holds, once. It
+// waits for the leases that are out and the entries being retired, and a wait
+// that is cancelled leaves admission closed and the models open: asked again,
+// Close goes on from there, so a shutdown that was cancelled, its lease
+// returned, closes on the next call what the first did not, where a call
+// that found admission closed once answered that all was done. While one call
+// is closing the models another waits for it, and it and every call after
+// end as that one ended.
 func (c *ModelSessionDirector[Input, Model, Output]) Close(ctx context.Context) error {
 	c.mu.Lock()
-	if c.closed {
-		c.mu.Unlock()
-		return nil
+	if !c.closed {
+		c.closed = true
+		c.notify()
 	}
-	c.closed = true
-	c.notify()
-	for c.residentUsers > 0 || c.retiring > 0 {
+	for c.residentUsers > 0 || c.retiring > 0 || c.shutting {
 		changed := c.changed
 		c.mu.Unlock()
 		select {
@@ -796,6 +806,11 @@ func (c *ModelSessionDirector[Input, Model, Output]) Close(ctx context.Context) 
 		}
 		c.mu.Lock()
 	}
+	if c.shut {
+		defer c.mu.Unlock()
+		return c.shutErr
+	}
+	c.shutting = true
 	entries := make([]*sessionEntry[Model], 0, len(c.entries))
 	for key, entry := range c.entries {
 		entry.dead = true
@@ -816,6 +831,10 @@ func (c *ModelSessionDirector[Input, Model, Output]) Close(ctx context.Context) 
 	if closeResident {
 		result = errors.Join(result, closeModel(context.WithoutCancel(ctx), resident))
 	}
+	c.mu.Lock()
+	c.shutting, c.shut, c.shutErr = false, true, result
+	c.notify()
+	c.mu.Unlock()
 	return result
 }
 

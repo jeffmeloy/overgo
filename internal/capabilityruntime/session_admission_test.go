@@ -116,6 +116,64 @@ func TestBoundedSessionAdmission(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+
+	// A shutdown whose wait for a lease is cancelled has closed admission and
+	// no model. Asked again once the lease is back, it closes the model, once,
+	// however often it is asked after, and admits no one.
+	t.Run("a cancelled shutdown is finished when asked again", func(t *testing.T) {
+		closes := 0
+		director, err := NewResidentModelSessionDirector("test", "host", 1, &lifecycleSessionModel{closes: &closes})
+		if err != nil {
+			t.Fatal(err)
+		}
+		held, ok := director.TryLease(-1)
+		if !ok {
+			t.Fatal("initial lease was not admitted")
+		}
+		cancelled, cancel := context.WithCancel(t.Context())
+		closed := make(chan error, 1)
+		go func() { closed <- director.Close(cancelled) }()
+		// The shutdown shows in the snapshot once it has closed admission; the scheduler paces the look.
+		for !director.Snapshot().Closed {
+			runtime.Gosched()
+		}
+		cancel()
+		if err := <-closed; !errors.Is(err, context.Canceled) || closes != 0 {
+			t.Fatalf("a shutdown cancelled while a lease is out = %v with the model closed %d times, want it cancelled and the model open", err, closes)
+		}
+		if err := held.Release(); err != nil {
+			t.Fatal(err)
+		}
+		for attempt := range 2 {
+			if err := director.Close(t.Context()); err != nil || closes != 1 {
+				t.Fatalf("asked again (%d), the shutdown = %v with the model closed %d times, want the model closed once", attempt, err, closes)
+			}
+		}
+		if _, err := director.Lease(t.Context(), -1); !errors.Is(err, ErrSessionUnavailable) {
+			t.Fatalf("a lease after the shutdown = %v, want it refused", err)
+		}
+	})
+
+	// A shutdown asked for while another is closing the model waits for that
+	// one and ends as it ended, and so does one asked for after.
+	t.Run("a shutdown beside another ends as it does", func(t *testing.T) {
+		closes, refused := 0, errors.New("the model's close failed")
+		model := &gatedSessionModel{closes: &closes, entered: make(chan struct{}), gate: make(chan struct{}), err: refused}
+		director, err := NewResidentModelSessionDirector("test", "host", 1, model)
+		if err != nil {
+			t.Fatal(err)
+		}
+		first, second := make(chan error, 1), make(chan error, 1)
+		go func() { first <- director.Close(t.Context()) }()
+		<-model.entered
+		go func() { second <- director.Close(t.Context()) }()
+		close(model.gate)
+		for name, ended := range map[string]error{"the shutdown that closed the model": <-first, "the one asked for beside it": <-second, "one asked for after": director.Close(t.Context())} {
+			if !errors.Is(ended, refused) || closes != 1 {
+				t.Fatalf("%s = %v with the model closed %d times, want the model's own error and one close", name, ended, closes)
+			}
+		}
+	})
 }
 
 type lifecycleSessionModel struct{ closes *int }
@@ -123,6 +181,21 @@ type lifecycleSessionModel struct{ closes *int }
 func (m *lifecycleSessionModel) Close(context.Context) error {
 	*m.closes++
 	return nil
+}
+
+// gatedSessionModel is a model whose close says it has begun, waits to be let
+// through, and ends with its error.
+type gatedSessionModel struct {
+	closes        *int
+	entered, gate chan struct{}
+	err           error
+}
+
+func (m *gatedSessionModel) Close(context.Context) error {
+	*m.closes++
+	close(m.entered)
+	<-m.gate
+	return m.err
 }
 
 func TestSessionDirectorBoundsComponentWaitingAndReportsLifecycle(t *testing.T) {

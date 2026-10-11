@@ -8,12 +8,16 @@
       "title": "Make a held-out confirmation's reading of its exposure and its charge one decision",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 174,
+        "reason": "What the row may still add. Set on 2026-10-11 to the 174 nodes the automated checks count its first step at on its built change: a confirmation's readings and its charge made one decision, the charge committed against the head taken before the first reading, the reading again when the store has moved, and the comments that say why. The second step is sized by its own preflight when it is built."
+      },
       "steps": [
         {
           "id": "conditional-charge",
           "title": "Charge a confirmation only against the store its exposure was read from",
           "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestConfirmationChargeIsRefusedWhenAnotherLandsBetween$'",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestConfirmationCountsAChargeThatLandsBetweenItsReadings$'",
           "rationale": "Reviewer finding SQA-110, first severity, as the reviewer restated it on 2026-10-11 after 7d8708db4, whose repairs across datasets and of benchmark content it credits. A confirmation reads its own grant's charges, then reads the exposure of everything its part shares content with, then publishes its charge with no condition on the store those were read from. The reviewer's counterexample, with one grant and one slot left: A reads its balance as one remaining; B charges another candidate; A then reads the exposure, sees B's charge, leaves its own grant's earlier charges out of the count, and publishes the next numbered key. Both judgings can run, and the balance shows the overrun only afterwards. The existing test interposes only at the commit, after every read, and misses this. The reviewer ran nothing and claims no bad promotion observed. Closure, as the reviewer wrote it: with one slot remaining, another candidate's charge injected after the first read of the grant's own charges and before the exposure is read lets at most one new judging run, the loser refused or evaluated again against the current balance; the cases at the commit boundary, of overlapping datasets and of an exact retry hold as they do; a registration that changes during the authority reads cannot pass admission. The reviewer's suggested means: take the repository's head before the authority reads and publish the charge with that head expected, then remove what numbering and discovery of scope the condition makes redundant; the original identities of charge and verdict and the exact retry stay. The step first writes the test that fails for the finding's own counterexample, then repairs, as the reviewer's closure asks; a finding that does not reproduce is said so and closed with what was tried. The register stays the reviewer's and is not edited here. The row has no count: each step is sized by a preflight when it is built.\n\nServes: evaluate. Evidence: the test, on the host. Batch: host."
         },
         {
@@ -362,7 +366,8 @@
             "video-split/do",
             "prompt-pass-count/do",
             "input-identity-count/do",
-            "exposure-decision-row/do"
+            "exposure-decision-row/do",
+            "conditional-charge-count/do"
           ]
         }
       ]

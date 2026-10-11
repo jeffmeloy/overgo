@@ -8,6 +8,10 @@
       "title": "Bind confirmation to its protocol and preserve cumulative exposure",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 470,
+        "reason": "Filed with no allowance: the repair was to be absorbed by the existing acceptance, confirmation, budget and content-group owners, its net change measured before it was allowed any, and a separate allowance obtained if they could not absorb it. The step's preflight counted 454 production nodes on 2026-10-10, with the two requests' own sequence lengths already deleted. About 300 are one function in internal/evaluation, the count of what a promotion part's documents have answered under other grants: the partitions of the pool's dataset, each one's promotion and audit part compared with the part by record and by content, the grants on a part that shares a document, and their charges. The rest are the window in the acceptance and in the pool request with its refusals in the builder, in the confirmation and in the proposal's reading; the charge's key counted over the part; and the two commands' flag and refusal. The preparation moved into the reading added nothing. No owner was added, and none had nodes to give back: the accounting across grants did not exist. The allowance is the lead's recommendation, taken under the owner's instruction of 2026-10-10 not to wait for a decision."
+      },
       "steps": [
         {
           "id": "do",
@@ -420,7 +424,8 @@
             "merge-reward-campaign/do",
             "accepted-video-lineage/do",
             "plan-lineage-row/do",
-            "plan-retire-wer/do"
+            "plan-retire-wer/do",
+            "plan-confirmation-count/do"
           ]
         }
       ]

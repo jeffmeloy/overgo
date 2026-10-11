@@ -212,7 +212,12 @@ func (g *Generator) Reset(ctx context.Context, request Request) error {
 	}
 	gridH, gridW := g.pipeline.Denoiser.GH, g.pipeline.Denoiser.GW
 	request = request.withPolicy(g.profile.Sampling, gridH*gridW, g.spec.Distilled)
-	if request.Width != g.request.Width || request.Height != g.request.Height {
+	// A session's programs are compiled for a picture's extent, and encode each
+	// step's timestep at the scale of the training timesteps it was loaded
+	// for: a request of another extent or another count would be drawn with a
+	// new schedule and the old encoding. It is refused here, before anything
+	// of the session changes, and whoever holds the session loads one for it.
+	if request.Width != g.request.Width || request.Height != g.request.Height || request.NumTrainTimesteps != g.request.NumTrainTimesteps {
 		return errors.New("latent image: request requires another resident session")
 	}
 	if request.Prompt != g.request.Prompt {

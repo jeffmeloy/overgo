@@ -1,0 +1,149 @@
+overgo dense block program: one dense block run and trained from one definition, on the host and on the device, measured beside the trainers it would replace, and not accepted
+code: commits 8c36c36e3 (the derivative rules and the block adapter on the host), 5b3c023a7 (its device binding and the first measurement) and a0d66409f (attention differentiated a key head at a time, and the measurement below). The commit this record was last changed in takes the program out; to run any of it, check out a0d66409f
+tool: at a0d66409f, OVERGO_CUDA_TEST=1 go test ./internal/tensorgrad ./internal/densecausal -count=1 -v -run '^(TestBackwardGraphAgreesWithDirectionalDerivatives|TestDenseBlockAdapterLearnsThroughTheProgram|TestDenseBlockAdapterTrainsOnTheDevice)$'
+machine: one NVIDIA GeForce RTX 4090 D with nothing else on it, measured in a process of its own; host arithmetic on 32 workers
+block: Qwen2.5-0.5B's shape (hidden 896, 14 heads of 64 over 2 shared, intermediate 4864) with seeded random weights, a sequence of 128 tokens, an adapter of rank 8 on all seven projections
+read by: TestDenseBlockRecordIsWhole (internal/densecausal), which holds every figure to being here, every finding and condition below to its figures, and the program to being out
+
+What was asked. A model's forward pass on the host, its forward pass on the device and its backward
+pass are written apart, and a backward pass is written by hand for every trainer. The plan's row
+shared-numerical-program asked whether one dense block could be run and trained from one
+definition, a graph of the tensor program's operations with its backward graph derived from the
+operations' own rules, and set five conditions for keeping it: the block agrees with the model's
+own; its gradients agree with float64 directional derivatives; an adapter learns a controlled task
+and resumes to the same values; device memory and time are no worse than the paths it replaces; and
+production code is smaller once the rules are counted. If it was not accepted it was to be taken
+out and its measurements kept.
+
+What was built. A package of derivative rules, tensorgrad, that builds the graph of a scalar's
+gradients from a forward graph out of the operations that exist, adding none: rules for a sum, a
+product, a multiple, a matrix product, a transpose, a reshape, SiLU, RMS normalization, a softmax, a
+rotary encoding in both layouts, and plain causal attention, grouped or not. A block adapter in the
+dense model's package that writes one block once as such a graph, each adapted projection its
+weight's product and the scaled product of two low-rank factors, derives the factors' gradients of
+half the squared error against a target, and takes Muon's update of the factors. And its binding to
+the device, where the same two graphs are compiled as they are and the weights are held.
+
+How the acceptance read. Three conditions hold and two do not, so the program is not accepted.
+
+condition-block-is-the-models-own: yes
+condition-gradients-agree-with-directional-derivatives: yes
+condition-adapter-learns-and-resumes: yes
+condition-time-and-memory-no-worse: no
+condition-production-code-smaller: no
+accepted: no
+taken-out: yes
+
+The three that hold, on the host. With its factors at their start the program's block stands 3e-8
+from the model's own layer forward, on a layer with grouped attention. Along a random direction
+over everything differentiated at once, the backward graphs give what a float64 reference's central
+difference gives: the feed-forward half 41.2819005 beside 41.2819439; a softmax over a projection
+0.676451061 beside 0.676451318; causal attention with four query heads over two key heads
+-1.27257174 beside -1.27257315, and over four 6.04152251 beside 6.04152457; and a whole block, by
+its input and all seven weights, 227.779095 beside 227.779138. A rotary encoding's gradient is held
+by its linearity. An adapter of rank two on the query and value projections, set a target the block
+reaches under weights moved by an update of that rank, takes the loss from 0.000169318 to
+0.00000876648 in sixty updates and the output from 0.053 of the target to 0.0095; an adapter that
+resumes from another's kept factors and optimizer state takes the same next updates, to the bit. On
+the device, over ten updates of an adapter on a small block with grouped attention, every loss is
+the host's to a part in a hundred thousand, and the loss falls.
+
+Time and memory, which does not hold. Beside the trainers the program would replace the measurement
+is mixed, and where it is like for like it is against the program.
+
+Against the LoRA trainer, which is the only adapter trainer and runs on the host: a step of the
+program on the device takes 8.7 ms where the LoRA trainer's share for a block is 165 ms, under an
+eighteenth. That sets a device against a host. On the host itself, through the reference executor,
+the program's step takes 337 ms, about twice the LoRA trainer's.
+
+Against the resident trainer, which trains every weight on the device with a forward and backward
+written by hand: with all seven projections adapted the program's forward and backward take 3.1 ms
+and the resident trainer's share for a block 2.2 ms, so the derived passes take nearly half as long
+again, though they differentiate by less (the factors, not the weights). With only the query's and
+the value's projections adapted, the adapter most often trained, they take 1.9 ms, about what the
+written ones take. The rest of a step is nearly all Muon's update of the factors on the host, the
+update the LoRA trainer takes: 5.6 ms for fourteen factors and 1.1 ms for four. The whole step with
+all seven adapted is shorter than the resident trainer's share for a block, 10.8 ms, most of which
+is its update of every weight on the device. The program peaks at 119 MB of device memory (101 MB in
+another run: the graph's order is not fixed), of which 60 MB are the block's weights and the rest a
+step's activations and gradients; the resident trainer peaks at 305 MB on a model of one block and
+adds 192 MB a block. It holds every weight's gradient and Muon's state on the device, which an
+adapter's training does not, so the two memories are not one comparison.
+
+Where the time goes. A step's graph is 260 operations, of which 205 are launched (the rest are
+inputs and reshapes); the forward alone launches 46. Among them a step copies each weight it sends a
+gradient through, transposed: about 56 MB a step, nearly all of it the output, gate, up and down
+projections' weights, since a matrix product contracts over its weight's stored width and a gradient
+through it contracts over the other. And a step moves the state, the target, the factors and their
+gradients between host and device in 32 copies.
+
+What was measured first, and changed. The attention's backward was first composed a query head at a
+time: a step launched 517 operations, 364 of them attention's, and its passes took 4.6 ms, about
+twice the written ones (commit 5b3c023a7 has that rule and that record). Replaying the launches as
+one captured graph was tried there and did not shorten them: they were bound by the number of
+operations, not by launching them. The rule then took the query heads of a key head together, their
+queries more columns of one matrix, so each of its products, its softmax and its mask is one
+operation a key head: two passes of the rule where there were fourteen, with the operations that
+exist.
+
+Size, which does not hold. The program is 4,451 production nodes, 2,158 the rules, 1,989 the block
+adapter and 304 its device binding, and it replaces nothing. The LoRA trainer is 2,813 and the
+resident trainer 2,736. To replace both, the program would need what is not built, the weights' own
+gradients, the optimizer on the device, the embedding, the head and the loss, on passes that are
+slower.
+
+What would change the reading. Two costs are the operations', not the rules': a matrix product that
+could contract over its weight's other width would end the transposed copies, and an attention
+backward over all heads in one operation would end the passes a key head. Both mean adding
+operations to the tensor program, which the model-serving code imports: its serving records expire
+and a full measurement run earns them again. The row ruled that out for a pilot. With them the
+derived passes could meet the written ones; the size condition would still need both trainers
+replaced whole.
+
+A fault in the code at that commit. The RMS normalization's rule takes a row's rate from the
+operation's own output, the row sum of output times output over the row sum of output times input.
+For a row of zeros that is nothing over nothing, where the true gradient is the gradient over the
+root of the epsilon (reviewer finding SQA-138, found by reading the rule and not by a run). The
+measurements here used random rows and do not meet it. Whoever brings the rules back takes the rate
+from the input and the epsilon.
+
+What it found beside its question. An adapter's step on the device is far shorter than the LoRA
+trainer's on the host, and adapters are trained on the host only. That does not need this program:
+the resident trainer's written passes, with the weights' gradients projected to the factors as the
+LoRA trainer projects them, would give it too. It is parked for the owner to rank, as finding
+evidence:sha256:5b483098e0f0a3be8a8c22e68454fb31bc0e4db78b0f7d18c650bd6782b0181b.
+
+How each figure was taken. Times are the mean of 64 steps on the device and 3 on the host, after one
+step that is not timed. The LoRA trainer and the resident trainer train whole models, so each was run
+on models of one and of five such blocks, and a block's share is a quarter of the difference; the
+resident trainer was run once to load its kernels before the run measured, and its forward and
+backward are its own synchronized measurement. Memory is the device's peak for the process's one
+worker. Times are in microseconds and memory in bytes; sizes are production syntax nodes as the
+automated checks count them.
+
+program-device-step-microseconds: 8720
+program-device-passes-microseconds: 3100
+program-device-peak-bytes: 119149568
+program-device-weights-bytes: 60103680
+program-device-step-query-value-microseconds: 2981
+program-device-passes-query-value-microseconds: 1883
+program-host-step-microseconds: 337273
+lora-host-step-1-blocks-microseconds: 158626
+lora-host-step-5-blocks-microseconds: 819233
+resident-passes-1-blocks-microseconds: 3752
+resident-step-1-blocks-microseconds: 13018
+resident-peak-1-blocks-bytes: 305496956
+resident-passes-5-blocks-microseconds: 12396
+resident-step-5-blocks-microseconds: 56067
+resident-peak-5-blocks-bytes: 1074451324
+program-production-nodes: 4451
+replaced-production-nodes: 0
+
+The findings, the program's figure beside the trainer's:
+
+device-step-against-lora-block: shorter
+host-step-against-lora-block: longer
+device-passes-against-resident-block: longer
+device-passes-query-value-against-resident-block: shorter
+device-step-against-resident-block: shorter
+device-peak-against-resident-one-block: less

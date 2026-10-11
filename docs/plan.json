@@ -116,13 +116,6 @@
           "rationale": "Reviewer finding SQA-121, third severity, confirmed by reading (docs/sqa_findings.json, not in the repository). A streamed thinking turn on the Anthropic route collected every piece into a buffer of its own beside the generation pump's, so it held its output twice until it parsed. Closure: the route parses the pump's text; a streamed turn has allocated no more than a whole one when its output reaches the parser, and it stops and flushes as a whole one does. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader and then by the lead, in a checkout of the step's own, before this row was filed. The register stays the reviewer's and is not edited here.\n\nServes: serve. Evidence: the tests. Batch: browser; the commit runs the browser tests, since the server package is under them."
         },
         {
-          "id": "resource-wait-tests",
-          "title": "Make the release test fail when a holder's release wakes no waiter, and give the resource-wait tests a name of their own run",
-          "status": "open",
-          "verify": "go test ./internal/processcontrol -count=1 -run '^TestResourceAdmission'",
-          "rationale": "Reviewer finding SQA-087, third severity, the half of it in internal/processcontrol, confirmed by reading (docs/sqa_findings.json, not in the repository). TestResourceAdmissionWaitsForRelease asserted only that the wait returned, with nothing ordering the release against the waiter, and both resource-wait tests named their resource by the test's name alone, so every process on the machine that ran them met on one event and one lock file. Closure: the release test fails when a release wakes no waiter, and each run names a resource of its own. A change to tests alone; no production defect is claimed. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader and then by the lead, in a checkout of the step's own, before this row was filed. The register stays the reviewer's and is not edited here.\n\nServes: failure-rate of the checks. Evidence: the tests. Batch: host."
-        },
-        {
           "id": "retirement-test-order",
           "title": "Give back each lease before reading the next in the retirement test, and force both orders of admission",
           "status": "open",

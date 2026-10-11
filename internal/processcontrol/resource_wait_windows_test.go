@@ -7,34 +7,68 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync/atomic"
 	"testing"
 )
 
-// TestResourceAdmissionWaitsForRelease holds the admission wait to the
-// resource's own signals: a claim refused for contention is made again when
-// a holder releases, and the release itself wakes the waiter.
+// TestResourceAdmissionWaitsForRelease holds the admission wait to its
+// holders' releases. Two other processes hold the resource shared. The
+// first releases after the waiter's armed claim was refused and before its
+// wait begins, the gap the arming is there for; the second still holds, so
+// that wait has a holder to wait on and ends only on the release's signal,
+// on cancellation or on the second holder's exit. The waiter claims again
+// and is refused, and the second holder then answers its own release: it
+// had not exited, so the signal ended the wait. The hold is granted at the
+// fourth claim exactly.
 func TestResourceAdmissionWaitsForRelease(t *testing.T) {
-	name := "overgo-test-await-" + t.Name()
-	var released atomic.Bool
+	name := sharedAdmissionName(t)
+	one := holdSharedAdmission(t, sharedAdmissionProbe{Name: name})
+	two := holdSharedAdmission(t, sharedAdmissionProbe{Name: name})
+	attempts := 0
+	armed, released, woken := make(chan struct{}), make(chan struct{}), make(chan struct{})
 	done := make(chan error, 1)
+	var held func() error
 	go func() {
 		done <- AwaitResource(t.Context(), func() error {
-			if !released.Load() {
-				return &ResourceBusyError{Name: name}
+			var err error
+			held, err = HoldResource(name)
+			switch attempts++; attempts {
+			case 2:
+				// Refused with the waiter armed: the wait does not begin
+				// until the first holder has released.
+				close(armed)
+				select {
+				case <-released:
+				case <-t.Context().Done():
+				}
+			case 3:
+				// Made only once that release has ended the wait.
+				close(woken)
 			}
-			return nil
+			return err
 		})
 	}()
-	hold, err := ShareResource(name)
-	if err != nil {
-		t.Fatal(err)
+	reached := func(gate chan struct{}) {
+		t.Helper()
+		select {
+		case <-gate:
+		case err := <-done:
+			t.Fatalf("the wait ended after %d claims: %v", attempts, err)
+		}
 	}
-	released.Store(true)
-	if err := hold(); err != nil {
-		t.Fatal(err)
+	reached(armed)
+	one.release(t)
+	close(released)
+	reached(woken)
+	// The second holder answers, so it was running when the wait ended: the
+	// first release ended that wait, not a holder's exit.
+	two.release(t)
+	// Four on every schedule: two claims arm the wait and each release
+	// prompts one. The count does not prove the waiter slept: one that
+	// polled would exceed it only if a poll landed before the second release.
+	if err := <-done; err != nil || attempts != 4 || held == nil {
+		t.Fatalf("the hold after %d claims, want 4 (two to arm the wait, one for each release): %v", attempts, err)
 	}
-	if err := <-done; err != nil {
+	if err := held(); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -70,11 +104,13 @@ func TestResourceAdmissionWakesOnHolderExit(t *testing.T) {
 	}
 }
 
-// TestResourceAdmissionCancellationAndFailure holds the wait's ends: the
-// caller's cancellation carries its cause beside the contention, a failure
-// other than contention returns at once, and a cancelled caller claims nothing.
+// TestResourceAdmissionCancellationAndFailure holds one end of the wait: a
+// caller that ends it with a cause of its own gets that cause beside the
+// contention. A failure other than contention returning at once, and a
+// cancelled caller claiming nothing, are held on every platform by
+// TestDeterministicCancellationContracts.
 func TestResourceAdmissionCancellationAndFailure(t *testing.T) {
-	name := "overgo-test-await-" + t.Name()
+	name := sharedAdmissionName(t)
 	ended := errors.New("the caller ended the wait")
 	ctx, cancel := context.WithCancelCause(t.Context())
 	err := AwaitResource(ctx, func() error {
@@ -83,18 +119,6 @@ func TestResourceAdmissionCancellationAndFailure(t *testing.T) {
 	})
 	if !errors.Is(err, ended) || !errors.Is(err, ErrResourceBusy) {
 		t.Fatalf("lost cause or contention: %v", err)
-	}
-	fatal := errors.New("device unavailable")
-	calls := 0
-	err = AwaitResource(t.Context(), func() error { calls++; return fatal })
-	if !errors.Is(err, fatal) || calls != 1 {
-		t.Fatalf("non-contention failure retried: calls=%d error=%v", calls, err)
-	}
-	canceled, stop := context.WithCancelCause(t.Context())
-	stop(context.Canceled)
-	err = AwaitResource(canceled, func() error { t.Error("claim after cancellation"); return nil })
-	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("cancellation lost: %v", err)
 	}
 }
 

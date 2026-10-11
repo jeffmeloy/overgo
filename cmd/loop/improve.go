@@ -93,8 +93,8 @@ func (w *improvement) CycleDue() (bool, string, error) {
 	return decision.Due, decision.Reason, nil
 }
 
-// CycleWorthRunning says whether a cycle an empty plan would start has anything to measure: it has
-// when no cycle has completed or something it measures has moved since the last that did.
+// CycleWorthRunning says whether a cycle an empty plan would start has anything to do: it has when no cycle
+// has completed, something it measures moved since the last that did, or the last to publish was cut short.
 func (w *improvement) CycleWorthRunning() (bool, string, error) {
 	if !w.watch {
 		return true, "the cycle is not gated on what moved", nil
@@ -103,8 +103,8 @@ func (w *improvement) CycleWorthRunning() (bool, string, error) {
 	if err != nil {
 		return false, "", err
 	}
-	if last == "" || moved > 0 {
-		return true, "what a cycle measures moved since the last cycle that completed", nil
+	if last == "" || moved > 0 || last == w.unfinished() {
+		return true, "what a cycle measures moved since the last cycle that completed, or the cycle that published last was cut short", nil
 	}
 	return false, decideCycle(last, moved, w.limit).Reason, nil
 }

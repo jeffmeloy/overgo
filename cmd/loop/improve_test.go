@@ -2,6 +2,7 @@ package main
 
 import (
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -435,5 +436,91 @@ func TestADeclineBecomesTheRowTheLoopWorks(t *testing.T) {
 	}
 	if all, err := scorecard.Records(records); err != nil || len(all) != len(scripted) {
 		t.Fatalf("records after the cycles = %d (%v), want all %d: a failed fill discards none", len(all), err, len(scripted))
+	}
+}
+
+// TestPublishedCycleCutShortIsStillWorthFinishing holds the trigger to a cycle that published its
+// scorecard and was cut short before its end. A run publishes at a commit, keeps a cell there as
+// validate -run does, and its process ends before the fill; nothing a cycle measures lands
+// afterwards. The loop that starts next with an empty plan finishes that cycle: it measures at
+// the same commit, fills, and removes what was kept, and the loop after that starts nothing. A
+// cycle that returned its failure has reached its end and is not started again, and cells kept
+// by a cycle that published nothing do not make the newest record's cycle look cut short.
+func TestPublishedCycleCutShortIsStillWorthFinishing(t *testing.T) {
+	t.Parallel()
+	repository, records := t.TempDir(), filepath.Join(t.TempDir(), "scorecards")
+	git := func(directory string, arguments ...string) string { return gitFixture(t, directory, arguments...) }
+	git(repository, "init", "-q", "-b", "master")
+	git(repository, "commit", "-q", "--allow-empty", "-m", "begun")
+	begun := git(repository, "rev-parse", "HEAD")
+	kept := filepath.Join(repository, processlock.StateDirectory, cycleCreditFile)
+	published := time.Date(2026, time.October, 11, 12, 0, 0, 0, time.UTC)
+	var ran []string
+	var failure error
+	publishes := true
+	world := &planWorld{improvement: improvement{watch: true, root: repository, plan: emptyPlan(t), records: records,
+		surface: func(context.Context, string) (map[string]bool, error) { return map[string]bool{}, nil },
+		fill: func(string) error {
+			ran = append(ran, "fill")
+			return nil
+		}}}
+	// A run publishes the commit's record and keeps a cell, as validate -run does; a run that
+	// finds the newest record is the commit's already stands for the credited publication.
+	world.measure = func(checkout string, _ func() error) error {
+		ran = append(ran, "measure")
+		at := git(checkout, "rev-parse", "HEAD")
+		if held, err := scorecard.Records(records); err != nil || len(held) > 0 && held[len(held)-1].Commit == at {
+			return err
+		}
+		if publishes {
+			published = published.Add(time.Hour)
+			if _, err := scorecard.Publish(records, published, scorecard.Record{Commit: at}); err != nil {
+				return err
+			}
+		}
+		credit := fmt.Sprintf(`{"commit": %q, "store": "store", "cells": ["a measured cell"]}`, at)
+		return errors.Join(failure, os.WriteFile(kept, []byte(credit), cycleStateMode))
+	}
+	// The run that is cut short: it publishes, and its process ends before the fill.
+	if record, _, err := world.Measure(); err != nil || record == nil || record.Commit != begun {
+		t.Fatalf("the run that is cut short published %+v, %v; want the record of %s", record, err, begun)
+	}
+	if worth, reason, err := world.CycleWorthRunning(); err != nil || !worth {
+		t.Fatalf("a cycle that published and was cut short is worth finishing = %t (%s, %v), want true", worth, reason, err)
+	}
+	// The loop that starts next finds the plan empty and finishes the cycle; the one after starts nothing.
+	budget := loop.Config{MaxAttemptsPerStep: 1, MaxInvocations: 1}
+	for _, start := range []string{"the loop that finishes the cycle", "the loop after the cycle finished"} {
+		if outcome, err := loop.Run(world, budget); err != nil || outcome.Reason != loop.ReasonPlanComplete {
+			t.Fatalf("%s: outcome=%+v err=%v", start, outcome, err)
+		}
+		if want := []string{"measure", "measure", "fill"}; !slices.Equal(ran, want) {
+			t.Fatalf("%s: ran %q, want %q", start, ran, want)
+		}
+		if _, err := os.Stat(kept); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("%s: the finished cycle left its cells kept (%v)", start, err)
+		}
+	}
+	// A cycle that returns its failure has reached its end and is not started again.
+	git(repository, "commit", "-q", "--allow-empty", "-m", "landed")
+	failure = errors.New("a lane failed")
+	if _, err := loop.Improve(world); !errors.Is(err, failure) {
+		t.Fatalf("the cycle whose lane failed ended with %v", err)
+	}
+	if worth, reason, err := world.CycleWorthRunning(); err != nil || worth {
+		t.Fatalf("a cycle that returned its failure is worth running again = %t (%s, %v), want false", worth, reason, err)
+	}
+	// Cells kept at another commit than the newest record's are a cycle that published nothing:
+	// what moved to start that one starts it again, and here nothing moved.
+	git(repository, "commit", "-q", "--allow-empty", "-m", "landed again")
+	publishes = false
+	if _, err := loop.Improve(world); !errors.Is(err, failure) {
+		t.Fatalf("the cycle that published nothing ended with %v", err)
+	}
+	if _, err := os.Stat(kept); err != nil {
+		t.Fatalf("the cycle that published nothing kept no cell: %v", err)
+	}
+	if worth, reason, err := world.CycleWorthRunning(); err != nil || worth {
+		t.Fatalf("cells kept by a cycle that published nothing make a cycle worth running = %t (%s, %v), want false", worth, reason, err)
 	}
 }

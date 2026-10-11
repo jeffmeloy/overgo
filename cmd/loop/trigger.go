@@ -12,9 +12,9 @@ import (
 	"overgo/internal/scorecard"
 )
 
-// A cycle measures what the commands its cells run execute, so a commit moves what it
-// measures only when it changes a Go package in the closure of one of them, or a file the
-// kernels live in. The closure is what go list reports, not a list kept by hand.
+// A cycle measures what the commands its cells run execute, so a commit moves what it measures
+// only when it changes a Go package in the closure of one of them, a file such a package embeds
+// by name, or a file the kernels live in. The closure is what go list reports, not a list kept by hand.
 var (
 	// surfaceCommands are the commands a cycle's cells run.
 	surfaceCommands = []string{"./cmd/evaluate", "./cmd/train", "./cmd/longform", "./cmd/recipe", "./cmd/server", "./cmd/validate"}
@@ -22,27 +22,27 @@ var (
 	surfacePrefixes = []string{"kernels/"}
 )
 
-// surfaceClosure is the repository's packages, as directories, a cycle's commands depend on.
+// surfaceClosure is the repository's packages a cycle's commands depend on, as directories, and the files those embed by name.
 func surfaceClosure(ctx context.Context, root string) (map[string]bool, error) {
 	var listed, diagnostics bytes.Buffer
-	command := append([]string{"go", "-C", root, "list", "-deps", "-f", "{{.ImportPath}}"}, surfaceCommands...)
+	command := append([]string{"go", "-C", root, "list", "-deps", "-f", "{{.ImportPath}}{{range .EmbedPatterns}} {{$.ImportPath}}/{{.}}{{end}}"}, surfaceCommands...)
 	if err := runToolEnv(loopEnvironment(), nil, &listed, &diagnostics, command...); err != nil {
 		return nil, fmt.Errorf("go list the cycle's commands: %w: %s", err, strings.TrimSpace(diagnostics.String()))
 	}
 	closure := map[string]bool{}
-	for line := range strings.SplitSeq(listed.String(), "\n") {
-		if directory, found := strings.CutPrefix(strings.TrimSpace(line), "overgo/"); found {
-			closure[directory] = true
+	for listing := range strings.FieldsSeq(listed.String()) {
+		if inside, found := strings.CutPrefix(listing, "overgo/"); found {
+			closure[inside] = true
 		}
 	}
 	return closure, nil
 }
 
 // touchesSurface reports whether a changed file moves what a cycle measures: a non-test Go file of a
-// package in the closure, or a path under a surface prefix.
+// package in the closure, a file the closure names as embedded, or a path under a surface prefix.
 func touchesSurface(file string, closure map[string]bool) bool {
 	switch {
-	case slices.ContainsFunc(surfacePrefixes, func(prefix string) bool { return strings.HasPrefix(file, prefix) }):
+	case closure[file], slices.ContainsFunc(surfacePrefixes, func(prefix string) bool { return strings.HasPrefix(file, prefix) }):
 		return true
 	case !strings.HasSuffix(file, ".go") || strings.HasSuffix(file, "_test.go") || strings.Contains(file, "/testdata/"):
 		return false

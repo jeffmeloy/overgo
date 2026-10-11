@@ -8,6 +8,10 @@
       "title": "Bind a pilot's inputs, checkpoints and confirmations to the acceptance they are run under",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 659,
+        "reason": "What the row may still add. Set on 2026-10-11 to the 659 nodes the automated checks count its first step at on its built change: a reward session's sampling identity and its binding to a checkpoint, the conditions a found checkpoint is held to, the acceptance read for the cases at hand, the refusal of a protocol the sampler does not honour and of another run's development prompts, and the comments that say why. Correctness that was missing, so growth the row keeps. The second step is sized by its own preflight when it is built."
+      },
       "steps": [
         {
           "id": "inputs",
@@ -418,7 +422,8 @@
             "dense-group-step/do",
             "dense-count-fix/do",
             "dense-decide/do",
-            "sqa-rows/do"
+            "sqa-rows/do",
+            "pilot-count/do"
           ]
         }
       ]

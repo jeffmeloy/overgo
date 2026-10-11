@@ -17,12 +17,12 @@ import (
 const (
 	instructionAcceptanceMedia  = "application/vnd.overgo.instruction-acceptance+json"
 	instructionAcceptanceSchema = "overgo/instruction-acceptance/v1"
-	// instructionScorer names the outcome the instruction pilot is judged by
+	// InstructionScorer names the outcome the instruction pilot is judged by
 	// and the version of the code that scores it: every rule of a prompt
 	// passed, strictly, as instruction_rules.go reads an answer. A change to
 	// what that code calls passed is another version, and an acceptance fixed
 	// for an earlier one confirms nothing.
-	instructionScorer = "instruction-rules/strict/1"
+	InstructionScorer = "instruction-rules/strict/1"
 	// instructionEven is the chance of a win on a pair the arms differ on when
 	// neither is better.
 	instructionEven = 0.5
@@ -265,8 +265,8 @@ func confirmInstruction(ctx context.Context, store artifact.Repository, acceptan
 	switch {
 	case !slices.ContainsFunc(acceptance.Comparisons, func(fixed InstructionComparison) bool { return fixed.Name == comparison }):
 		return PoolConfirmation{}, 0, fmt.Errorf("evaluation: acceptance %s named its %d comparisons before training, and %q is not one of them; a further comparison is a further acceptance", acceptance.ID, issued, comparison)
-	case protocol != acceptance.Protocol || protocol.Scorer != instructionScorer:
-		return PoolConfirmation{}, 0, fmt.Errorf("evaluation: acceptance %s fixed the protocol %+v, and the answers were made under %+v and scored by %s; nothing was charged", acceptance.ID, acceptance.Protocol, protocol, instructionScorer)
+	case protocol != acceptance.Protocol || protocol.Scorer != InstructionScorer:
+		return PoolConfirmation{}, 0, fmt.Errorf("evaluation: acceptance %s fixed the protocol %+v, and the answers were made under %+v and scored by %s; nothing was charged", acceptance.ID, acceptance.Protocol, protocol, InstructionScorer)
 	case !candidate.Valid() || !baseline.Valid():
 		return PoolConfirmation{}, 0, errors.New("evaluation: a comparison names its candidate and its baseline before it reads anything")
 	}

@@ -88,7 +88,7 @@ func TestInstructionAcceptanceBindsProtocolGroupsAndComparisons(t *testing.T) {
 	model := func(name string) artifact.ID {
 		return testutil.ArtifactID(t, artifact.KindModel, "instruction fixture "+name)
 	}
-	protocol := InstructionProtocol{Scorer: instructionScorer, Template: "chat-template", Thinking: "off", Sampling: "greedy", Stop: "end of turn", Window: 4096, MaxTokens: 1280}
+	protocol := InstructionProtocol{Scorer: InstructionScorer, Template: "chat-template", Thinking: "off", Sampling: "greedy", Stop: "end of turn", Window: 4096, MaxTokens: 1280}
 	request := InstructionAcceptanceRequest{
 		Dataset: objective.Dataset, Base: model("base"), Training: testutil.ArtifactID(t, artifact.KindProfile, "instruction fixture training"),
 		Cases: cases, Protocol: protocol, Seed: 7, Weights: [poolPartCount]uint64{1, 1, 4, 1}, Gain: 0.2,

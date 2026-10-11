@@ -661,6 +661,9 @@ func trainingAuthority(t *testing.T, policyDirectory, referenceDirectory, datase
 	var evaluators []artifact.ID
 	if objectiveKind == trainingprogram.ObjectiveDPO {
 		processorName = "preference-token-pair"
+	} else if found, prompts := rewardPromptEvaluators(raw); objectiveKind == trainingprogram.ObjectiveGRPO && prompts {
+		// A reward session that samples its own answers reads a suite of prompts.
+		processorName, evaluators = "reward-prompts", found
 	} else if objectiveKind == trainingprogram.ObjectiveGRPO {
 		processorName = "grouped-rollout"
 		tokenizer, loadErr := hfbpe.Load(policyDirectory)

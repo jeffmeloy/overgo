@@ -14,6 +14,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/densecausal"
+	"overgo/internal/evaluation"
 	artifactexport "overgo/internal/export"
 	"overgo/internal/hostoptimizer"
 	"overgo/internal/modelartifact"
@@ -44,6 +45,9 @@ type Request struct {
 	// Device trains the dense-causal model when Host is false.
 	Device        DeviceTrainer
 	FreezeLexical bool
+	// Rewards, when set, has a reward session sample and score its own
+	// answers: its dataset is then a suite of instruction prompts.
+	Rewards *RewardSampling
 	// PreferenceMode and PreferenceMargin select the DPO objective's loss
 	// mode and SimPO's target reward margin; other objectives refuse them.
 	// KTO's mode reads the dataset as unpaired completions.
@@ -72,7 +76,9 @@ type Result struct {
 	StreamPosition uint64
 	// Skipped counts the reward groups the session consumed and took no
 	// update for, their answers all standing together.
-	Skipped    uint64
+	Skipped uint64
+	// Rewards is what a session that sampled its own answers did.
+	Rewards    RewardTrace
 	Checkpoint trainingprogram.Checkpoint
 	// Observation: committed session evidence.
 	Observation               artifact.ID
@@ -238,6 +244,9 @@ type densePrepared struct {
 	unpaired   []trainingdata.UnpairedBatch
 	groups     []trainingdata.RolloutGroup
 	evaluators []artifact.ID
+	// prompts and cases are a reward session's that samples its own answers.
+	prompts evaluation.InstructionPrompts
+	cases   []producedCase
 }
 
 func (session denseSession) run() (Result, error) {
@@ -291,6 +300,14 @@ func (session denseSession) prepare() (densePrepared, error) {
 			session.encode, session.resumeStream,
 		)
 		return densePrepared{units: units, data: data, stream: stream, tokens: batches}, err
+	}
+	if session.objective == trainingprogram.ObjectiveGRPO && session.request.Rewards != nil {
+		prompts, cases, stream, data, err := rewardCasesResume(session.ctx, session.raw, session.request.Steps, session.resumeStream)
+		if err != nil {
+			return densePrepared{}, err
+		}
+		evaluator, err := prompts.Evaluator()
+		return densePrepared{units: len(prompts.Names()), data: data, stream: stream, prompts: prompts, cases: cases, evaluators: []artifact.ID{evaluator}}, err
 	}
 	if session.objective == trainingprogram.ObjectiveGRPO {
 		groups, units, stream, data, evaluators, err := groupedRolloutBatchesResume(
@@ -410,6 +427,9 @@ func (session denseSession) execute(prepared densePrepared, plan trainingprogram
 		var resume *densecausal.RLState
 		if session.resumed.ID().Valid() {
 			resume = &densecausal.RLState{Optimizer: session.resumed.Optimizer, Stream: *session.resumeStream}
+		}
+		if session.request.Rewards != nil {
+			return session.produceRewards(prepared, resume)
 		}
 		if !session.request.Host {
 			return session.rewardsOnDevice(prepared.groups, resume)

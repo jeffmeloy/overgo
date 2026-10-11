@@ -79,7 +79,7 @@ func TestGroupIsWeightedByOrderAlone(t *testing.T) {
 
 	// The instruction ordering: answers to a prompt of three rules, as rules passed and tokens generated.
 	const rules = 3
-	passes := func(passed, tokens uint64) float64 { return instructionOrder(passed, rules, tokens) }
+	passes := func(passed, tokens uint64) float64 { return InstructionOrder(passed, rules, tokens) }
 	for name, order := range map[string]struct{ higher, lower float64 }{
 		"every rule passed over two":          {passes(3, 900), passes(2, 10)},
 		"two rules passed over one":           {passes(2, 900), passes(1, 10)},

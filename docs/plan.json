@@ -9,22 +9,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 3252,
+        "nodes": 816,
         "reason": "Original filed estimate, retained unchanged: planB.json assigned 5,600 production nodes to reward-training on 2026-10-10, estimated from the pool (2,358), confirmation (2,473) and answer-record (1,103) rows less displaced reward code. These are source-proposal figures, not measurements of the revised implementation. Proposed initial allowance remains 5,600 net production nodes across all landings. Report actual per-landing and cumulative growth, including the new machinery's cost and deletions, against the filed estimate and allowance. Any increase requires a separate prospective plan amendment; final size never overwrites the forecast."
       },
       "steps": [
-        {
-          "id": "producer",
-          "title": "Sample, score and update reproducible groups under current weights",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestRewardRunSamplesAndScoresItsOwnGroups$'",
-          "rationale": "First measure the existing generation/scorer boundary with a controlled model and a frozen development-case sequence. Use the registered scorer for both training rewards and evaluation. Do not create a separate reward service, trainer or scheduler.\n\nFor each development case, once, sample the frozen logical number of answers from the current model's unmodified distribution. Reject protocol requests for top-p truncation or temperature sharpening in this pilot. A group belongs to one immutable weight/update identity; collect it completely before applying at most one update. Refuse stale or mixed-weight groups.\n\nUse the evaluation's already declared output limit, tokenizer, template, thinking and stop policy for the same cases. Physical microbatching, streaming or resumable resource waiting may adapt to available capacity; logical group membership, RNG draws and mathematical reduction must not change. Resource shortage never silently shrinks a group or changes the training protocol.\n\nPublish sampled answers through their existing owner. Bind weights, optimizer state, objective/protocol identity, case cursor, RNG/draw progress and group disposition into recoverable checkpoint progress. On interruption, reuse committed draws, finish an incomplete group against its original weights, and apply or recover a committed update exactly once. An unpublished draw may be deterministically replayed, but it may not become an additional training case or update.\n\nTest crash/retry boundaries before and after draw publication, update, checkpoint and cursor commitment. Test reduced physical batch capacity and resumed execution against uninterrupted execution under the declared numerical tolerance and fixed draws. Include a tied group after a nonzero update.\n\nTrace groups sampled, skipped and updated; case/group counts; sampled, truncated and trained tokens; generation/scoring/update time; resource wait, peak memory and total device cost. Record sampled-token log-probability change as a diagnostic, not a certified KL bound or stability guarantee. Nonfinite values, stale provenance, violated resource limits or the frozen stopping criterion produce an explicit stopped outcome.\n\nServes: close the sample-score-train loop.\nDisappears: the requirement for an externally prepared rollout file for new reward runs.\nEvidence: complete controlled run, changed physical capacity, crash/retry equivalence and per-stage cost trace.\nBatch: host fixture and affected small-device contracts; real-model work belongs to the cycle.",
-          "depends_on": [
-            "reward-training/sampled-answers",
-            "reward-training/weighted-step",
-            "instruction-verdicts/acceptance"
-          ]
-        },
         {
           "id": "first-run",
           "title": "Complete and judge one frozen reward-versus-control experiment",

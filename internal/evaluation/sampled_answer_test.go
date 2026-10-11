@@ -118,7 +118,7 @@ func TestSampledAnswerKeepsItsTokensAndProbabilities(t *testing.T) {
 	t.Cleanup(func() { _ = store.Close() })
 	checkpoint := testutil.ArtifactID(t, artifact.KindCheckpoint, "sampled fixture checkpoint")
 	training := testutil.ArtifactID(t, artifact.KindProfile, "sampled fixture training")
-	group := sampledGroup{
+	group := SampledGroup{
 		Group: "prompt 12 at update 0", Code: "inference surface 1", Weights: checkpoint, Tokenizer: testutil.ArtifactID(t, artifact.KindTokenizer, "sampled fixture tokenizer"),
 		Template: "chat-template", Prompt: []tokenizer.TokenID{1, 16}, Ends: []tokenizer.TokenID{2}, Temperature: 0.7, MaxTokens: 4, Seed: 3,
 	}
@@ -142,7 +142,7 @@ func TestSampledAnswerKeepsItsTokensAndProbabilities(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ids, completion := group.tokens(first); slices.Equal(again, apart[:2]) || !slices.Equal(ids, []tokenizer.TokenID{1, 16, 4, 5, 2}) || !slices.Equal(completion, []bool{false, false, true, true, true}) {
+	if ids, completion := group.Tokens(first); slices.Equal(again, apart[:2]) || !slices.Equal(ids, []tokenizer.TokenID{1, 16, 4, 5, 2}) || !slices.Equal(completion, []bool{false, false, true, true, true}) {
 		t.Fatalf("the text %q tokenizes to %v and the draw is read as %v with completion %v; want the text's ids other than the %v sampled, and the draw's the sampled ones after the prompt's", first.Text, again, ids, completion, apart[:2])
 	}
 
@@ -182,7 +182,7 @@ func TestSampledAnswerKeepsItsTokensAndProbabilities(t *testing.T) {
 	if err != nil || len(later.values) != 2 {
 		t.Fatalf("a handle opened later holds %d draws (%v), want the two recorded", len(later.values), err)
 	}
-	for _, handle := range []*answers[sampledAnswer]{held, later} {
+	for _, handle := range []*answers[SampledAnswer]{held, later} {
 		if replayed, err := group.sample(ctx, sampler, handle, 0); err != nil || !reflect.DeepEqual(replayed, first) || sampler.calls != calls {
 			t.Fatalf("the first draw asked again = %+v (%v) after %d more calls, want the record %+v and nothing sampled", replayed, err, sampler.calls-calls, first)
 		}
@@ -204,7 +204,7 @@ func TestSampledAnswerKeepsItsTokensAndProbabilities(t *testing.T) {
 	// Two writers of one draw: the same content changes nothing, other content is refused and the first stands.
 	racing := group
 	racing.Group = "prompt 13 at update 0"
-	writers := make([]*answers[sampledAnswer], 3)
+	writers := make([]*answers[SampledAnswer], 3)
 	for index := range writers {
 		if writers[index], err = loadSampled(ctx, store, racing); err != nil {
 			t.Fatal(err)
@@ -224,20 +224,20 @@ func TestSampledAnswerKeepsItsTokensAndProbabilities(t *testing.T) {
 	}
 
 	// Another arm's weights, another update, template, setting, code or prompt is another group.
-	once, err := updatedWeights(checkpoint, training, 1)
+	once, err := UpdatedWeights(checkpoint, training, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	twice, _ := updatedWeights(checkpoint, training, 2)
-	if start, err := updatedWeights(checkpoint, training, 0); err != nil || start != checkpoint || once == checkpoint || once == twice || !once.Valid() {
+	twice, _ := UpdatedWeights(checkpoint, training, 2)
+	if start, err := UpdatedWeights(checkpoint, training, 0); err != nil || start != checkpoint || once == checkpoint || once == twice || !once.Valid() {
 		t.Fatalf("the weights before the first update are %s (%v) and after one and two %s and %s, want the checkpoint and two identities of their own", start, err, once, twice)
 	}
-	for name, change := range map[string]func(*sampledGroup){
-		"other weights":    func(group *sampledGroup) { group.Weights = once },
-		"another template": func(group *sampledGroup) { group.Template = "raw" },
-		"another setting":  func(group *sampledGroup) { group.Temperature = 1 },
-		"other code":       func(group *sampledGroup) { group.Code = "inference surface 2" },
-		"another prompt":   func(group *sampledGroup) { group.Prompt = []tokenizer.TokenID{1, 15} },
+	for name, change := range map[string]func(*SampledGroup){
+		"other weights":    func(group *SampledGroup) { group.Weights = once },
+		"another template": func(group *SampledGroup) { group.Template = "raw" },
+		"another setting":  func(group *SampledGroup) { group.Temperature = 1 },
+		"other code":       func(group *SampledGroup) { group.Code = "inference surface 2" },
+		"another prompt":   func(group *SampledGroup) { group.Prompt = []tokenizer.TokenID{1, 15} },
 	} {
 		other := group
 		change(&other)
@@ -252,7 +252,7 @@ func TestSampledAnswerKeepsItsTokensAndProbabilities(t *testing.T) {
 	}
 
 	// The cost of keeping what was sampled, beside the text an answer kept before.
-	long := sampledAnswer{End: sampledOutputLimit, Text: strings.Repeat("word ", 256)}
+	long := SampledAnswer{End: sampledOutputLimit, Text: strings.Repeat("word ", 256)}
 	for index := range 256 {
 		long.Completion = append(long.Completion, tokenizer.TokenID(100000+index))
 		long.LogProbabilities = append(long.LogProbabilities, math.Log(0.5)/float64(index+1))

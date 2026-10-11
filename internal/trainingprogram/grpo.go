@@ -41,13 +41,13 @@ func (observation GRPOObservation) Valid() bool {
 	return true
 }
 
-// instructionOrder is the one ordering of the answers to a prompt that the
+// InstructionOrder is the one ordering of the answers to a prompt that the
 // instruction objective trains by, as a reward: the more of the prompt's
 // rules an answer passes the higher, and among answers that pass every rule
 // the fewer tokens it generated the higher. Answers that fail the same
 // number of rules stand together whatever their length: stopping early earns
 // nothing short of passing. Only the order of its values means anything.
-func instructionOrder(passed, rules, tokens uint64) float64 {
+func InstructionOrder(passed, rules, tokens uint64) float64 {
 	if passed < rules {
 		return float64(passed)
 	}

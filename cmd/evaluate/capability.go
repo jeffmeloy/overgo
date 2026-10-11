@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
+	"overgo/internal/cuda/device"
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
 	"overgo/internal/mediacapability"
@@ -126,13 +128,13 @@ func openCapabilitySession(
 		return nil, err
 	}
 	definition := activation.Definition
-	// A capability model has no language-model spec to define it: its
-	// definition binds the recipe it executes to its model and tensors.
-	modelDefinition, err := modelrecipe.PublishTaskModelDefinition(ctx, store, definition.ID)
+	environment, err := capabilityEnvironment(task, definition, value.Device)
 	if err != nil {
 		return nil, err
 	}
-	environment, err := runrecord.CurrentEnvironment("host", "go")
+	// A capability model has no language-model spec to define it: its
+	// definition binds the recipe it executes to its model and tensors.
+	modelDefinition, err := modelrecipe.PublishTaskModelDefinition(ctx, store, definition.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -149,6 +151,29 @@ func openCapabilitySession(
 	}
 	campaign.WithPrompting(evaluation.PromptingRawCompletion)
 	return &capabilitySession{store: store, release: release, campaign: campaign}, nil
+}
+
+// capabilityEnvironment names where a capability session of task does its
+// work, so its records are compared only with work done in the same place. An
+// image or video generator is answered for by a judge loaded on the card the
+// manifest names. Any other recipe placed wholly on the host runs there; one
+// with a node off the host is loaded on the default card and no other, so
+// another ordinal is refused rather than recorded over the default card's work.
+func capabilityEnvironment(task recipe.Task, definition recipe.Definition, ordinal int) (runrecord.Environment, error) {
+	if task != recipe.TaskImageGen && task != recipe.TaskVideoGen {
+		if !slices.ContainsFunc(definition.Nodes, func(node recipe.Node) bool { return node.Placement != recipe.PlacementHost }) {
+			return runrecord.CurrentEnvironment("host", "go")
+		}
+		if ordinal != device.DefaultOrdinal() {
+			return runrecord.Environment{}, fmt.Errorf("evaluate: a %s model is loaded on CUDA device %d only, and the manifest names device %d", task, device.DefaultOrdinal(), ordinal)
+		}
+	}
+	return cudaEnvironment(ordinal)
+}
+
+// cudaEnvironment is the environment of work done on the CUDA device ordinal.
+func cudaEnvironment(ordinal int) (runrecord.Environment, error) {
+	return runrecord.CurrentEnvironment(fmt.Sprintf("cuda:%d", ordinal), "cuda")
 }
 
 // capabilitySessions opens a model a manifest names by its task, under the

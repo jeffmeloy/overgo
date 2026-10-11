@@ -17,7 +17,6 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/remoteprovider"
-	"overgo/internal/runrecord"
 	"overgo/internal/sequencescore"
 	"overgo/internal/tokenizer"
 )
@@ -103,7 +102,7 @@ func openEvaluationSession(ctx context.Context, value manifest, request modelReq
 		return fail(err)
 	}
 	identity := description.Identity
-	environment, err := runrecord.CurrentEnvironment(fmt.Sprintf("cuda:%d", value.Device), "cuda")
+	environment, err := cudaEnvironment(value.Device)
 	if err != nil {
 		_ = runner.Close()
 		return fail(err)

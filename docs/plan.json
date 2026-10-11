@@ -9,7 +9,7 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 151,
+        "nodes": 27,
         "reason": "What the row may still add. Set on 2026-10-11 to the sum of what its steps were counted at in their own checkouts, by the same count of syntax nodes the automated checks take: 22, 60, 159, 44, 120, 124 and 5, and one step that removes 136 and adds none."
       },
       "steps": [
@@ -19,13 +19,6 @@
           "status": "open",
           "verify": "go test ./internal/dataset -count=1 -run '^TestIntegerDictionaryChargesItsDecimalText$'",
           "rationale": "Reviewer finding SQA-108, second severity, confirmed by reading (docs/sqa_findings.json, not in the repository). The parquet reader's budget counts the storage a row group asks for, and an integer dictionary's values are written out as decimal text that is never charged: up to 20 bytes a distinct value beside the 16 that are. Closure: a budget short by the text refuses, and an exact one is spent to nothing; no failure was observed. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader, in a checkout of the step's own, before this row was filed; the commit is the lead's. The register stays the reviewer's and is not edited here.\n\nServes: evaluate, train. Evidence: the test. Batch: host; the commit runs the device tests, since the dataset reader is under them."
-        },
-        {
-          "id": "capability-device",
-          "title": "Name the card a capability evaluation runs on, and refuse one its loader cannot select",
-          "status": "open",
-          "verify": "go test ./cmd/evaluate -count=1 -run '^TestACapabilitySessionNamesTheDeviceItRunsOnAndRefusesOneItCannotSelect$'",
-          "rationale": "Reviewer finding SQA-106, second severity, the part a host test holds, confirmed by reading (docs/sqa_findings.json, not in the repository). Every capability session of the evaluation command is recorded as run on the host, so results from the card are filed beside host results, and a manifest that asks for another card runs on the first. Closure for this part: the session names the device it runs on and refuses a device its loader cannot select. Selecting a card other than the first is not built: this machine has one. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader, in a checkout of the step's own, before this row was filed; the commit is the lead's. The register stays the reviewer's and is not edited here.\n\nServes: evaluate. Evidence: the test. Batch: host."
         },
         {
           "id": "source-clip-disposal",

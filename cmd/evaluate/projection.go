@@ -17,7 +17,6 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
-	"overgo/internal/runrecord"
 	"overgo/internal/sequencescore"
 	"overgo/internal/tokenizer"
 )
@@ -162,7 +161,7 @@ func openProjectionSession(ctx context.Context, store *overgodb.Store, value man
 		return fail(errors.Join(err, fmt.Errorf("evaluate: %s has no active projection recipe", request.Path)))
 	}
 	identity.Recipe, identity.RecipeVersion = activation.Definition.ID, activation.Definition.Version
-	environment, err := runrecord.CurrentEnvironment(fmt.Sprintf("cuda:%d", value.Device), "cuda")
+	environment, err := cudaEnvironment(value.Device)
 	if err != nil {
 		return fail(err)
 	}

@@ -39,6 +39,21 @@
       ]
     },
     {
+      "id": "reward-host-retire",
+      "title": "Retire the host's reward trainer once the workbench trains rewards on the device or stops offering them",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Retire the host's reward trainer once the workbench trains rewards on the device or stops offering them",
+          "status": "open",
+          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestRewardSessionsTrainThroughTheWeightedStepAlone$'",
+          "rationale": "The reward-training campaign's weighted-step asked for the production host reward trainer, densecausal TrainGRPOGroupsResume, to be deleted in its own landing, with only reference fixtures and historical readers kept. That landing, 591a84b04, gave the device one weighted step for fine-tuning and rewards and sent every reward session not held to the host to it, and kept the host trainer for a session that is held to the host. The reason is the workbench: the server trains on the host alone (internal/server trainsOnHost), its training workspace admits the reward objective, and with the host trainer gone a reward run from the workbench would be refused with nothing in its place. Deleting a served capability was not the lead's to do inside a numerical step.\n\nWhat retires it. Either the workbench trains rewards through the device's weighted step, which the row gui-resident-model-fit prepares for by deciding what stays resident beside a device training run, or the owner decides the workbench does not train rewards and the server stops admitting the objective. Then the workflow's host branch for the reward objective and TrainGRPOGroupsResume are deleted, the host calculation staying only as the reference the device test is held to (internal/densecausaltrain TestOneWeightedStepServesFineTuningAndRewards), and a reward session held to the host is refused with the reason.\n\nUntil then there are two production routes for a reward session, the device's and the host's, which give the same losses to a millionth and weights as close as fine-tuning's two routes are; the campaign's experiment runs on the device.\n\nServes: train from rewards through one numerical owner.\nDisappears: the production host reward update and the workflow's branch to it.\nEvidence: a reward session held to the host refused, the workbench's reward run on the device or the objective no longer admitted there, and the device test still held to the host's calculation.\nBatch: host, and the workbench's own tests."
+        }
+      ]
+    },
+    {
       "id": "shared-numerical-program",
       "title": "Run and train one dense block from one definition",
       "owner": "master-lead",
@@ -344,7 +359,9 @@
             "plan-lineage-row/do",
             "plan-retire-wer/do",
             "plan-confirmation-count/do",
-            "plan-instruction-count/do"
+            "plan-instruction-count/do",
+            "reward-host-retire/do",
+            "plan-reward-host-row/do"
           ]
         }
       ]

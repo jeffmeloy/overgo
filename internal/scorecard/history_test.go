@@ -2,6 +2,8 @@ package scorecard
 
 import (
 	"slices"
+	"strconv"
+	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -11,17 +13,13 @@ import (
 	"overgo/internal/testutil"
 )
 
-// TestMovesBetweenRecords compares two published records through the
-// promotion's comparison: a value that changed on one contract, a cell that
-// gained or lost its measure, a cell measured on another contract (Unknown,
-// never better or worse), a row that came and one that went; a rising
-// throughput improved and a rising cost did not, a held-out quality by its
-// own direction; and rows pair by model, so two sharing a name never trade
-// baselines.
 // TestServingEnvironmentChangeIsUnknown holds a serving value to the environment it was measured
 // in: a throughput measured on one recipe in one environment and again in another is Unknown, not
-// a change a user would read as a gain or a loss; the same environment still compares, and a
-// baseline published before environments were recorded (none) judges as it did.
+// a change a user would read as a gain or a loss, and so is one whose environment only one of the
+// two cells names. A baseline published before environments were recorded says nothing of where it
+// ran, so neither a gain nor a decline is read against it, and the reason shows the missing name as
+// empty. The same environment still compares, and so do two cells that both name none: a loss
+// between those is still a decline.
 func TestServingEnvironmentChangeIsUnknown(t *testing.T) {
 	t.Parallel()
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "served")
@@ -32,15 +30,19 @@ func TestServingEnvironmentChangeIsUnknown(t *testing.T) {
 	for name, test := range map[string]struct {
 		before, after Cell
 		verdict       Verdict
+		why           string
 	}{
-		"another environment":          {cell(40, process), cell(45, device), Unknown},
-		"the same environment":         {cell(40, device), cell(45, device), holding},
-		"a baseline with none":         {cell(40, artifact.ID{}), cell(45, device), holding},
-		"a record measured with none":  {cell(40, device), cell(45, artifact.ID{}), holding},
-		"another environment and loss": {cell(40, process), cell(30, device), Unknown},
+		"another environment":              {cell(40, process), cell(45, device), Unknown, "the reference under " + strconv.Quote(process.String())},
+		"the same environment":             {cell(40, device), cell(45, device), holding, ""},
+		"a baseline with none":             {cell(40, artifact.ID{}), cell(45, device), Unknown, `the reference under ""`},
+		"a loss from a baseline with none": {cell(40, artifact.ID{}), cell(30, device), Unknown, `the reference under ""`},
+		"a record measured with none":      {cell(40, device), cell(45, artifact.ID{}), Unknown, `measured under environment ""`},
+		"neither names one":                {cell(40, artifact.ID{}), cell(45, artifact.ID{}), holding, ""},
+		"a loss where neither names one":   {cell(40, artifact.ID{}), cell(30, artifact.ID{}), regressed, "-25.0%"},
+		"another environment and loss":     {cell(40, process), cell(30, device), Unknown, ""},
 	} {
-		if verdict, why := holds(metric.Throughput, test.before, test.after); verdict != test.verdict {
-			t.Errorf("%s: holds = %q (%s), want %q", name, verdict, why, test.verdict)
+		if verdict, why := holds(metric.Throughput, test.before, test.after); verdict != test.verdict || !strings.Contains(why, test.why) {
+			t.Errorf("%s: holds = %q (%s), want %q with a reason containing %q", name, verdict, why, test.verdict, test.why)
 		}
 	}
 	// Moves reports the environment change as Unknown too, where it reported a change.
@@ -60,6 +62,13 @@ func TestServingEnvironmentChangeIsUnknown(t *testing.T) {
 	}
 }
 
+// TestMovesBetweenRecords compares two published records through the
+// promotion's comparison: a value that changed on one contract, a cell that
+// gained or lost its measure, a cell measured on another contract (Unknown,
+// never better or worse), a row that came and one that went; a rising
+// throughput improved and a rising cost did not, a held-out quality by its
+// own direction; and rows pair by model, so two sharing a name never trade
+// baselines.
 func TestMovesBetweenRecords(t *testing.T) {
 	t.Parallel()
 	model := func(name string) artifact.ID { return testutil.ArtifactID(t, artifact.KindModel, name) }

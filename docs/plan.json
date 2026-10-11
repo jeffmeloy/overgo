@@ -104,17 +104,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
+        "nodes": 14,
         "reason": "What the row may still add. Set on 2026-10-11 to what its one adding step, attempt-attribution, was counted at in its own checkout, by the count of syntax nodes the automated checks take. Four steps remove 10, 13, 14 and 86 and add none; two change tests alone."
       },
       "steps": [
-        {
-          "id": "decline-by-reference-spread",
-          "title": "Judge a serving cell's decline by its reference's spread and environment, so its own spread neither hides nor restores it",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -count=1 -run '^(TestACellsOwnSpreadNeitherHidesItsDeclineNorRestoresIt|TestServingEnvironmentChangeIsUnknown|TestServingCountsWhatUsersHit)$'",
-          "rationale": "Reviewer finding SQA-102, second severity, its first step, with the comparison leg of SQA-053, confirmed by reading (docs/sqa_findings.json, not in the repository). A comparison's allowance was widened by the larger of the two cells' spreads, and a serving cell's spread counts the attempt the cell reads, so a cell's own step excused itself; a filed decline was judged restored with the live cell's own spread; and a serving cell was compared with a reference that names no environment as if they shared one. Closure: a decline is judged by the reference's spread alone, a filed decline is restored only within the column's allowance, and an environment only one side names compares with nothing. Measured on the store's 27 published records, the newest against its reference: one more decline is filed, a load time its own spread had hidden, and no comparison becomes unknown. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader and then by the lead, in a checkout of the step's own, before this row was filed. The register stays the reviewer's and is not edited here.\n\nServes: every scorecard cell's comparison. Evidence: the tests and that measurement. Batch: host."
-        },
         {
           "id": "unread-answer-count",
           "title": "Count an answer of no text among the generated answers that named no option",

@@ -228,11 +228,13 @@ func contractDifference(now, then Contract) string {
 
 // holds reports how now holds the reference's measured cell then of a column,
 // and why when it does not. It has regressed when now measured it on the same
-// contract and direction and it got worse by more than the column's noise
-// (see worse); a failed share regresses when more attempts failed than the
-// earlier share predicts for the attempts counted now, by more than one. It is
-// Unknown when now is not measured, measured only another contract, or then has
-// no contract.
+// contract and direction and it got worse by more than the column's noise or the
+// reference's spread allows (see worse); now's own spread counts the step being
+// judged and allows nothing. A failed share regresses when more attempts failed than
+// the earlier share predicts for the attempts counted now, by more than one. It is
+// Unknown when now is not measured, measured only another contract, then has no
+// contract, or a serving cell's environment is not its reference's, as when only one
+// of the two names any: two that both name none still compare.
 func holds(column metric.Name, then, now Cell) (Verdict, string) {
 	switch {
 	case !now.Measured():
@@ -243,14 +245,14 @@ func holds(column metric.Name, then, now Cell) (Verdict, string) {
 		return Unknown, then.Contract.Origin + " comparison authority is unknown"
 	case now.Contract != then.Contract:
 		return Unknown, contractDifference(now.Contract, then.Contract)
-	case then.Contract.Origin == originServing && then.Environment.Valid() && now.Environment.Valid() && now.Environment != then.Environment:
-		return Unknown, fmt.Sprintf("measured under environment %s, the reference under %s", now.Environment, then.Environment)
+	case then.Contract.Origin == originServing && now.Environment != then.Environment:
+		return Unknown, fmt.Sprintf("measured under environment %q, the reference under %q", now.Environment, then.Environment)
 	case now.Direction != then.Direction:
 		return Unknown, fmt.Sprintf("improves in direction %q, the reference in %q", now.Direction, then.Direction)
 	case column == metric.Failures && (then.Attempts == 0 || now.Attempts == 0):
 		return Unknown, "the failed share was published without the attempts it counts"
 	}
-	declined := worse(column, cmp.Or(now.Direction, columnDirections[column]), now.Value, then.Value, max(now.Spread, then.Spread))
+	declined := worse(column, cmp.Or(now.Direction, columnDirections[column]), now.Value, then.Value, then.Spread)
 	if column == metric.Failures {
 		declined = now.Value*float64(now.Attempts)-then.Value*float64(now.Attempts) > failureNoise
 	}
@@ -261,9 +263,9 @@ func holds(column metric.Name, then, now Cell) (Verdict, string) {
 }
 
 // worse reports whether value is worse than reference in the column's direction
-// by more than the column's noise allows, or than the spread the attempts a timing is
-// the median of differ by, whichever is more: a cell whose own repeats vary more than
-// the column's frozen allowance is judged by its own. A value with no direction never is.
+// by more than the column's noise allows, or than spread, whichever is more: the
+// spread of the reference's attempts, measured before the value judged existed, so
+// a value's own step never widens what it is allowed. A value with no direction never is.
 func worse(column metric.Name, direction runrecord.Direction, value, reference, spread float64) bool {
 	advantage, directed := direction.Advantage(value, reference)
 	return directed && -advantage > max(allowances[column], spread)*max(math.Abs(value), math.Abs(reference))
@@ -381,7 +383,7 @@ func Restored(rows []Row, key string, target float64) (restored, found bool) {
 		for _, column := range metric.Columns {
 			for _, cell := range row.Measured(column) {
 				if regressionKey(row, column, cell) == key {
-					return !worse(column, cmp.Or(cell.Direction, columnDirections[column]), cell.Value, target, cell.Spread), true
+					return !worse(column, cmp.Or(cell.Direction, columnDirections[column]), cell.Value, target, 0), true
 				}
 			}
 		}

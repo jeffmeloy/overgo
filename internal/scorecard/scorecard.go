@@ -55,9 +55,9 @@ type Cell struct {
 	// Attempts is the denominator of a failed share: the attempts it counts, so
 	// two shares compare as counts and not as rates over unlike samples.
 	Attempts int `json:"attempts,omitzero"`
-	// Spread is how far the attempts a serving timing is the median of differ, as a share of that
-	// median (their range over it): the cell's own repeat noise, which a comparison allows beside the
-	// column's. Zero where one attempt measured it.
+	// Spread is how far a serving timing's recent measured attempts differ, the one the cell reads
+	// among them, as a share of their mean (their range over it). A later record's cell is allowed
+	// it beside the column's noise; the cell itself never is. Zero where one attempt measured it.
 	Spread float64 `json:"spread,omitzero"`
 	// Cases is how many cases a held-out quality rests on: a suite's cases, a
 	// held-out verdict's records, a transcription report's utterances. Zero
@@ -451,8 +451,8 @@ type servingSummary struct {
 	decodeTokens, decodeNS               uint64
 	peakDeviceBytes                      uint64
 	latest, measured, recipe             artifact.ID
-	// environment is where the measured attempt ran: a serving value is read under it, and a baseline
-	// measured under another is Unknown, not a change.
+	// environment is where the measured attempt ran, or the latest while none has succeeded: a serving value
+	// is read under it, and a baseline measured under another, or naming none, is Unknown, not a change.
 	environment artifact.ID
 	// The spreads are how far the recent measured attempts' first outputs, loads and decode rates differ.
 	firstSpread, loadSpread, decodeSpread float64
@@ -537,7 +537,7 @@ func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.I
 		}
 		summary := summaries[observation.Recipe]
 		if summary == nil {
-			summary = &servingSummary{latest: observation.ID, recipe: observation.Recipe}
+			summary = &servingSummary{latest: observation.ID, recipe: observation.Recipe, environment: observation.Environment}
 			summaries[observation.Recipe] = summary
 		}
 		counted := !summary.succeeded

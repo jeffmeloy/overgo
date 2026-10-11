@@ -1,6 +1,7 @@
 package scorecard
 
 import (
+	"cmp"
 	"encoding/json"
 	"math"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/scorecard/metric"
 	"overgo/internal/testutil"
 )
 
@@ -22,7 +24,9 @@ import (
 // attempts back to it, the failure that success followed counted no longer,
 // a whole-output capability's time to its output, and the device memory
 // the success peaked at. Each keeps its origin and scope, the serving
-// attempts of its recipe, so it compares only with the same population.
+// attempts of its recipe, so it compares only with the same population. A
+// recipe that has only failed reads its failure cell under the environment
+// its attempts ran in, so its first success holds against that cell.
 func TestServingCountsWhatUsersHit(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
@@ -34,12 +38,13 @@ func TestServingCountsWhatUsersHit(t *testing.T) {
 	model := testutil.ArtifactID(t, artifact.KindModel, "served-model")
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "served-recipe")
 	environment := testutil.ArtifactID(t, artifact.KindEvidence, "served-environment")
-	if _, err := store.Commit(ctx, artifact.Batch{Key: "serving/authorities", Artifacts: []artifact.Descriptor{{ID: model}, {ID: recipeID}, {ID: environment}}}); err != nil {
+	never := testutil.ArtifactID(t, artifact.KindRecipe, "never-succeeded-recipe")
+	if _, err := store.Commit(ctx, artifact.Batch{Key: "serving/authorities", Artifacts: []artifact.Descriptor{{ID: model}, {ID: recipeID}, {ID: environment}, {ID: never}}}); err != nil {
 		t.Fatal(err)
 	}
 	observe := func(label string, attempt runrecord.ServingObservation) runrecord.ServingObservation {
 		t.Helper()
-		attempt.Model, attempt.Recipe, attempt.Environment, attempt.Task = model, recipeID, environment, recipe.TaskImageGen
+		attempt.Model, attempt.Recipe, attempt.Environment, attempt.Task = model, cmp.Or(attempt.Recipe, recipeID), environment, recipe.TaskImageGen
 		observation, err := runrecord.NewServingObservation(attempt)
 		if err != nil {
 			t.Fatal(err)
@@ -59,6 +64,7 @@ func TestServingCountsWhatUsersHit(t *testing.T) {
 		Resources: runrecord.ServingResources{PeakDeviceBytes: peak}})
 	interrupt := observe("interrupt", runrecord.ServingObservation{Outcome: runrecord.OutcomeFailed, Failure: "execution_failed", StartedUnixNS: 3, MeasuredNS: 1})
 	observe("user", runrecord.ServingObservation{Outcome: runrecord.OutcomeFailed, Failure: "execution_failed", StartedUnixNS: 4, MeasuredNS: 1})
+	observe("never", runrecord.ServingObservation{Recipe: never, Outcome: runrecord.OutcomeFailed, Failure: "execution_failed", StartedUnixNS: 1, MeasuredNS: 1})
 	gate, err := runrecord.NewGateRecord(recipeID, environment, "0123456789abcdef0123456789abcdef01234567", runrecord.OutcomeSucceeded, "", 1,
 		[]runrecord.GateStep{{Name: "interrupts", Phase: runrecord.PhaseTest, Outcome: runrecord.StepSucceeded, DurationNS: 1}})
 	if err != nil {
@@ -92,6 +98,19 @@ func TestServingCountsWhatUsersHit(t *testing.T) {
 	}
 	if cell := peakMemoryCell(none, false, summary); cell.Value != peak {
 		t.Fatalf("peak-memory cell = %+v, want %d bytes", cell, peak)
+	}
+	// A recipe that has only failed still says where it ran, so its first success is compared with
+	// that cell and reads as the failed share falling, not as Unknown for want of an environment.
+	failing := failureCell(summaries[never])
+	if failing.Value != 1 || failing.Environment != environment {
+		t.Errorf("failure cell of a recipe that has only failed = %+v, want every attempt failed under its attempts' environment %s", failing, environment)
+	}
+	observe("first-success", runrecord.ServingObservation{Recipe: never, Outcome: runrecord.OutcomeSucceeded, StartedUnixNS: 2, MeasuredNS: wholeOutputNS})
+	if summaries, err = servingByRecipe(ctx, store); err != nil {
+		t.Fatal(err)
+	}
+	if verdict, why := holds(metric.Failures, failing, failureCell(summaries[never])); verdict != holding {
+		t.Fatalf("the first success of a recipe that had only failed = %q (%s), want it to hold against the failure cell before it", verdict, why)
 	}
 }
 

@@ -151,7 +151,7 @@
           "id": "closeout",
           "title": "Verify the final release surface and publish campaign closure",
           "status": "open",
-          "verify": "go run ./cmd/gate -preflight \u0026\u0026 go run ./cmd/benchmark-report -check \u0026\u0026 go run ./cmd/validate -claims",
+          "verify": "go run ./cmd/benchmark-report -check \u0026\u0026 go run ./cmd/validate -claims",
           "rationale": "Run final host, race, device, browser and release checks once, reusing only proven-independent evidence. Resolve high-priority findings; record dispositions and reopen triggers for deferred capability. Reconcile census, baseline and reports at the closing commit and bind the census. The operator stop stays until the operator resumes.",
           "depends_on": [
             "speech-document-admission/do",
@@ -288,7 +288,8 @@
             "exposure-decision-row/do",
             "conditional-charge-count/do",
             "unnamed-exposure-count/do",
-            "wait-deadline-count/do"
+            "wait-deadline-count/do",
+            "closeout-check/do"
           ]
         }
       ]

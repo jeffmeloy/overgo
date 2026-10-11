@@ -3,8 +3,8 @@ tool: internal/latentvideo TestLibraryCodecKeepsWithinTheKernelsMemoryAndLevels 
 model: Wan2.1-T2V-1.3B, Wan2.1_VAE.pth
 device: NVIDIA GeForce RTX 4090 D, 49140 MiB, driver 616.64, CUDA toolkit 12.9
 library: cuDNN 9.1.0 (cudnnGetVersion 90100), loaded from the directory of libraries beside overgo's data (internal/dataroot Roots.Libraries), where a copy of it was put on 2026-10-10
-quiet: yes. The test that times the large clips takes the device alone (internal/cuda/testutil MeasurementProcess): it waits for the device's other users to finish and they wait for it. The figures below were taken so on 2026-10-10, between the evaluations of a measurement run, and the small clip's by a build of its tests that takes the device the same way. The kernels' seconds stand within 0.07 of the record this one replaces, which was taken on a device nothing else used.
-threshold: 4194304 values of one channel, frames by rows by columns, is the smallest clip a served autoencoder convolves through the library (internal/latentvideo libraryClipValues)
+quiet: yes. The test that times the large clips takes the device alone (internal/cuda/testutil MeasurementProcess): it waits for the device's other users to finish and they wait for it. The figures below were taken so on 2026-10-10, between the evaluations of a measurement run, and the small clip's by a build of its tests that takes the device the same way. The kernels' seconds stand within 0.07 of the record this one replaces, which was taken on a device nothing else used. The figures the threshold was set by, of a picture and of clips of 5, 9 and 13 frames, were taken the same way later that day by builds of the same test at those sizes, on a device nothing else used.
+threshold: 1536000 values of one channel, frames by rows by columns, 5 frames at 640 by 480, is the smallest clip a served autoencoder convolves through the library (internal/latentvideo libraryClipValues)
 
 the two paths
   kernels: overgo's own (kernels/cuda/ops_f32.cu vae_causal_conv3d_f32, vae_downsample2d_f32, vae_upsample2d_f32, vae_temporal_downsample_f32), single precision operands and sums, double precision sums where a frame or a pair of frames is convolved to half. Held to the host reference value for value, at 1e-5.
@@ -22,7 +22,7 @@ time, seconds, three repetitions each, the first with whatever a path sets up on
     kernels  0.227 0.211 0.210
     library  0.321 0.042 0.038, the first the library's first use in the process; two more processes read 0.382 0.040 0.041 and 0.274 0.040 0.040
   once set up the library takes more than half off an encode and a third off a decode: 3.22 to 1.38 and 3.20 to 2.03 seconds for 21 frames, 12.19 to 5.14 and 12.08 to 7.64 for 81. That is 0.36 seconds on each million values, frames by rows by columns, of a round trip, at both sizes: 0.22 of an encode and 0.14 of a decode.
-  the library's first use cost 0.23 to 0.34 seconds here, the small clip's first round trip over its later ones in three processes. The record before this one read 1.05, when the library was found through the search path in another directory; since 7a7a930c4 it is loaded by its full path from beside overgo's data, its parts first. Its seven files were in the system's file cache for every reading here; reading their 797 megabytes from disk on a machine just started is in a first use and was not timed.
+  the library's first use cost 0.23 to 0.34 seconds here, the small clip's first round trip over its later ones in three processes. The record before this one read 1.05, when the library was found through the search path in another directory; since 7a7a930c4 it is loaded by its full path from beside overgo's data, its parts first. Its seven files were in the system's file cache for every reading here; reading them from a disk that has not read them is timed below, with the smaller clips.
 
 the three kinds moved to the library with this record, timed apart by builds that leave them on the kernels: seconds of the third repetition, and of the first
   21 frames                                            encode        decode
@@ -34,6 +34,35 @@ the three kinds moved to the library with this record, timed apart by builds tha
     and the two kinds that resample a frame            6.02 (6.19)   7.63 (8.18)
     and the two frames to one: every convolution       5.14 (5.33)   7.64 (8.25)
   a frame convolved to half its extents saves 0.99 seconds of a 21-frame encode and 3.77 of an 81-frame one; two frames convolved to one, 0.22 and 0.88; a frame enlarged and convolved, 0.09 and 0.36 of a decode. Each is faster in its first repetition as well, so each passes the rule it was to be held to: a kind goes through the library only where the whole request is faster over three repetitions with its setup counted.
+
+smaller clips and a picture, timed to set the threshold: seconds, three repetitions each, the library adopted for every size
+  at 832 by 480                      encode                decode
+    1 frame, 399,360 values
+      kernels                        0.259 0.226 0.226     0.290 0.226 0.225
+      library                        0.365 0.123 0.123     0.286 0.159 0.158
+    5 frames, 1,996,800 values
+      kernels                        0.918 0.813 0.812     1.041 0.798 0.798
+      library                        0.576 0.372 0.372     0.856 0.527 0.528
+    9 frames, 3,594,240 values
+      kernels                        1.599 1.403 1.403     1.686 1.376 1.372
+      library                        0.806 0.620 0.625     1.231 0.900 0.903
+    13 frames, 5,191,680 values
+      kernels                        2.163 1.997 2.000     2.287 1.961 1.956
+      library                        1.061 0.872 0.875     1.661 1.275 1.275
+  5 frames at other extents
+    640 by 480, 1,536,000 values
+      kernels                        0.749 0.648 0.648     0.771 0.615 0.615
+      library                        0.564 0.270 0.271     0.678 0.394 0.394
+    480 by 448, 1,075,200 values
+      kernels                        0.519 0.443 0.445     0.548 0.430 0.430
+      library                        0.465 0.183 0.182     0.480 0.269 0.269
+    416 by 320, 665,600 values
+      kernels                        0.379 0.327 0.327     0.381 0.299 0.299
+      library                        0.342 0.115 0.114     0.331 0.171 0.171
+  the library's first use from a disk that has not read it: its seven files were copied with unbuffered writes, so that none of the copy was in the system's file cache, and loaded from the copy once, twice over with two copies. Loading them took 0.493 and 0.462 seconds, against 0.012 to 0.026 in five processes that found them in the file cache. So a machine that has not read the library since it started pays 0.44 to 0.48 seconds more in the first request that takes it. The first repetition after a cold load was no slower than after a warm one, 0.377 and 0.384 seconds encoding the picture against 0.365 and 0.308.
+  three decodes, which is what a generated clip costs the codec, the library's first use in them: the library takes less by 0.138 seconds for the picture, 0.306 for 5 frames at 416 by 320, 0.390 at 480 by 448, 0.535 at 640 by 480, 0.726 at 832 by 480, 1.400 for 9 frames and 1.993 for 13. Against 0.48 seconds of a cold first use the clip of 5 frames at 640 by 480 is the smallest timed that is still faster, by 0.05 to 0.10 seconds, and every larger one is by more. Three round trips, which an edit or a reconstruction costs, gain more at every size, 1.475 seconds at 640 by 480, and pass wherever three decodes do.
+  memory at these sizes: for the clips the library's halves hold less of their own allocations than the kernels' and the device less, 4.03 and 4.89 GiB against 4.42 and 6.08 and 8.57 against 10.18 for 5 frames at 640 by 480. For the picture the library's encoding half holds more, 2.01 GiB against 1.86, and the device 4.09 against 4.04: a picture through the library does not keep within the kernels' peak, the bound the library was adopted under.
+  a frame of 1280 by 720 was also asked for and not timed: the kernels' encoder refuses it at its attention block (cuLaunchKernel: invalid argument), which is a finding of its own and no part of this record.
 
 memory, the same for 21 frames and for 81
   the most of its own allocations a half held:
@@ -53,10 +82,10 @@ values
   on the clip of 5 frames each half convolves through the library alone: 62 convolutions encoding and 76 decoding, none by a kernel, and the library refuses no shape (TestLibraryConvolvesEveryConvolutionOfAClip). The clips of 21 and 81 frames are convolved in 54 shapes.
 
 what a request takes
-  a served autoencoder convolves a clip of at least the threshold above through the library, on a machine that has it, and any smaller clip by the kernels. 21 frames at 832 by 480 are 8,386,560 values and take it. A picture at 832 by 480 is 399,360 and does not, and a process that serves only pictures never loads the library.
+  a served autoencoder convolves a clip of at least the threshold above through the library, on a machine that has it, and any smaller clip by the kernels. 5 frames at 640 by 480 are 1,536,000 values and take it, as do 5 frames and 9 at 832 by 480, and 21, which are 8,386,560. A picture at 832 by 480 is 399,360 and does not, and a process that serves only pictures never loads the library. The clips accepted as the kernels draw them, 5 frames at 64 by 64 and at 32 by 16, 20,480 and 2,560 values, do not either, and stay the bytes they were accepted as.
   written down before the first run: a path is adopted only when every bound holds and the whole request is faster over three repetitions of each clip, with setup counted. By that rule the library is taken for the clips of 21 and of 81 frames, 10.96 seconds against 19.79 and 39.13 against 73.50.
-  the threshold was set when the library saved 0.19 seconds on each million values of a round trip and cost a second to set up, so that a clip at the threshold repaid it in two requests. It saves 0.36 now, and a clip at the threshold saves 1.5 seconds a round trip and repays the first use in its own request.
-  not decided here: whether a smaller clip or a picture should take the library too. The clip of 5 frames at 32 by 16 now passes the rule above, 0.40 seconds against 0.65 over three round trips with the library's first use in them, where it failed it before this record, 1.40 against 0.63: the kinds that were left on the kernels were most of a small clip's time. A served autoencoder still keeps such a clip on the kernels, by the threshold, which this change did not move. A picture was not timed, a first use from a cold disk was not timed, and the accepted pictures and small clips are the kernels' bytes on every machine, which moving the threshold would end. That is the row codec-library-threshold.
+  the threshold was first 4,194,304 values, set when the library saved 0.19 seconds on each million values of a round trip and cost a second to set up. With every convolution of a clip through it the library saves 0.36, and its first use costs 0.02 seconds from the file cache and half a second from a disk that has not read it. The size was set again by the rule above, read strictly: the smallest clip timed that is faster over three decodes, the least a request asks of the codec, with a cold first use in them. That is 5 frames at 640 by 480. Once the library is loaded such a clip saves 0.22 seconds a decode and 0.38 an encode, and 9 frames at 832 by 480, which the first threshold kept on the kernels, 0.47 and 0.78.
+  left on the kernels, and why: a clip of 5 frames at 480 by 448 or at 416 by 320 would save 0.16 and 0.13 seconds a decode once the library is loaded, and is not moved, because over a cold machine's first three decodes it is slower by 0.05 to 0.17 seconds, which is the rule; a later record may move it if the first use comes to be paid elsewhere, as a model loads. A picture is not moved on three counts: it saves 0.07 seconds a decode, less than a tenth of a second and less than anyone would see; over three decodes with a cold first use it is slower by 0.3 seconds; and its encoding half holds more through the library than by the kernels. The clip of 5 frames at 32 by 16 saves 0.17 seconds a round trip, 0.040 against 0.210, and is not moved either: no request is that size but the accepted samples, which would then be other bytes on a machine with the library and need accepting again, for a gain in tests alone. So no accepted sample moves with this threshold, a process that serves only pictures still loads no library, and what changes is the clips of 1,536,000 to 4,194,303 values, which a machine that has the library now convolves through it and which are, value for value, other clips there than the kernels' (below).
   the codec's own code encodes the 21 frames in 0.7 to 1.0 seconds and decodes them in 1.25 on this device; the library's path takes 1.38 and 2.03. What is left outside the library is the normalisation, the attention and the copying of temporal caches.
 
 what a user installs

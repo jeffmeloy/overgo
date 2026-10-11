@@ -4,21 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "codec-library-threshold",
-      "title": "Decide by measurement which clips and pictures take cuDNN, now that it is faster at every size timed",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Decide by measurement which clips and pictures take cuDNN, now that it is faster at every size timed",
-          "status": "open",
-          "verify": "go test ./internal/latentvideo -count=1 -run '^TestCodecPathRecordStatesTheRuleTheCodeApplies$'",
-          "rationale": "A served video autoencoder convolves a clip through cuDNN only from 4,194,304 values of one channel up (internal/latentvideo libraryClipValues), and keeps a smaller clip and a picture on the kernels. That size was set on 2026-10-10, when the library saved 0.19 seconds on each million values of a round trip and its first use in a process cost about a second, so that a clip of that size repaid it in two requests. Both figures moved the same day. With every convolution of a clip through the library (codec-library-rest) it saves 0.36 seconds on each million values. And its first use, timed on a device held alone, cost 0.23 to 0.34 seconds in three processes, not 1.05: since 7a7a930c4 the library is loaded by its full path from beside overgo's data, and its files were in the system's file cache. The clip of 5 frames at 32 by 16, which the library lost on before, now makes the round trip in 0.040 seconds through it against 0.210 by the kernels, and over three round trips with the first use counted, the rule the library was adopted by, 0.40 seconds against 0.65. So the threshold now keeps on the kernels requests the library would serve faster, by the rule that set it.\n\nWhat is not known, and the step measures first, on a device held alone (internal/cuda/testutil MeasurementProcess): a picture at 832 by 480, decoded and round-tripped, by both paths; clips of 5, 9 and 13 frames at 832 by 480, which lie between the small clip and the threshold; and the library's first use when its 797 megabytes are not in the file cache, read from a copy the system has not read. The step then sets the size where every clip at or above it is faster over three repetitions with the first use counted, cold, and writes the figures into docs/verification/video-codec-convolution-paths.txt, which a test holds to the code.\n\nWhat moving it costs, which the step states with its figures: a process that serves only pictures loads no library today and would load one; and the accepted pictures and small clips are the kernels' bytes on every machine, where a clip the library convolves is, value for value, another clip, kept under another execution identity. If the size goes below an accepted sample, that sample is drawn, looked at and accepted again as the library draws it, and its record says a machine without the library draws other bytes, as the 81-frame clip's does. If a picture or a small clip gains less than a tenth of a second, the size stays above it and the record says so: nothing is moved for a gain no one would see.\n\nServes: generate. Disappears: a threshold whose two reasons are no longer true. Evidence: each size's seconds by both paths with a cold first use, the size chosen, and first-output of the picture and video rows before and after. Batch: device; a moved size needs a media reconciliation of the samples below it."
-        }
-      ]
-    },
-    {
       "id": "scorecard-regressed-45ceeaafaa2be823",
       "title": "Restore Hy-Embodied-RxBrain-1.0 vqa throughput to 173.41692 tok/s",
       "owner": "master-lead",

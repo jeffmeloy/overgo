@@ -13,11 +13,17 @@ func assertColibriCampaign(t *testing.T, document Plan) {
 	if err := Validate(document); err != nil {
 		t.Fatal(err)
 	}
+	// A lane's plan may still hold its doctrine as one string; either form is searched.
+	var doctrine strings.Builder
+	doctrine.WriteString(document.DoctrineBefore)
+	for _, paragraph := range document.Doctrine {
+		doctrine.WriteString("\n" + paragraph.Text)
+	}
 	for _, decision := range []string{
 		"first-parent-target", "end-to-end", "held-out", "common components",
 		"caller-declared budgets", "no completion credit", "cmd/gate",
 	} {
-		if !strings.Contains(document.Doctrine, decision) {
+		if !strings.Contains(doctrine.String(), decision) {
 			t.Errorf("Colibri doctrine omits %q", decision)
 		}
 	}

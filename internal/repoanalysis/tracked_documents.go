@@ -3,6 +3,8 @@ package repoanalysis
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"go/ast"
@@ -285,7 +287,32 @@ func namesDocument(name, document string) bool {
 		return err == nil && matched
 	}
 	directory := strings.TrimSuffix(name, "/")
-	return directory != documentsRoot && strings.HasPrefix(document, directory+"/")
+	return directory != documentsRoot && strings.HasPrefix(document, directory+"/") && contentDigest(document) == ""
+}
+
+// hexDigits are the characters a digest written in a text continues through.
+const hexDigits = "0123456789abcdefABCDEF"
+
+// contentDigest returns the SHA-256 a document is named by, its file name
+// without the extension, or nothing when it is named otherwise. Such a file
+// is opened by a name computed from the store or written in a record, never
+// by a walk of its directory, so the directory reads none: one that its last
+// record stops naming is left unread, and refused.
+func contentDigest(document string) string {
+	name := strings.TrimSuffix(path.Base(document), path.Ext(document))
+	if _, err := hex.DecodeString(name); err != nil || len(name) != hex.EncodedLen(sha256.Size) {
+		return ""
+	}
+	return name
+}
+
+// carriesDigest reports whether text carries the digest whole, as an output
+// identity, a path or a file name does: one of its runs of hexadecimal digits
+// is the digest, and a longer run that holds it is another number. Only a
+// text that holds the digest at all is split into its runs.
+func carriesDigest(text, digest string) bool {
+	return strings.Contains(text, digest) &&
+		slices.Contains(strings.FieldsFunc(text, func(r rune) bool { return !strings.ContainsRune(hexDigits, r) }), digest)
 }
 
 // carriesPath reports whether text carries the path starting at a boundary: a
@@ -311,7 +338,9 @@ var textDocuments = []string{".json", ".jsonl", ".md", ".txt", ".svg"}
 // directory, as a link in a report is written. Source syntax cannot see this
 // channel -- a specification that lists its evidence files is read by a tool
 // that then opens every file it lists -- so a document is read when code names
-// it or when a document that is read names it.
+// it or when a document that is read names it. A document named by the digest
+// of its bytes is named by a text that carries the digest, however it writes
+// the rest: a record binds an output by its identity and never by a path.
 func DocumentReferences(census []TrackedDocument, read func(document string) ([]byte, error)) error {
 	for _, referrer := range census {
 		if !slices.Contains(textDocuments, path.Ext(referrer.Path)) {
@@ -328,7 +357,9 @@ func DocumentReferences(census []TrackedDocument, read func(document string) ([]
 				continue
 			}
 			relative, beneath := strings.CutPrefix(target, directory)
-			if carriesPath(text, target) || beneath && directory != "./" && carriesPath(text, relative) {
+			digest := contentDigest(target)
+			if digest != "" && carriesDigest(text, digest) ||
+				digest == "" && (carriesPath(text, target) || beneath && directory != "./" && carriesPath(text, relative)) {
 				census[index].ReferencedBy = append(census[index].ReferencedBy, referrer.Path)
 			}
 		}
@@ -336,10 +367,10 @@ func DocumentReferences(census []TrackedDocument, read func(document string) ([]
 	return nil
 }
 
-// liveDocuments returns the documents something reads: an entry document or a
+// LiveDocuments returns the documents something reads: an entry document or a
 // license notice a person opens, one a package names, embeds or writes, and --
 // to a fixed point -- one that a live document other than a work record names.
-func liveDocuments(census []TrackedDocument) map[string]bool {
+func LiveDocuments(census []TrackedDocument) map[string]bool {
 	live := map[string]bool{}
 	for grew := true; grew; {
 		grew = false
@@ -362,13 +393,32 @@ func liveDocuments(census []TrackedDocument) map[string]bool {
 // ValidateTrackedDocuments refuses every tracked document nothing reads.
 func ValidateTrackedDocuments(census []TrackedDocument) error {
 	var findings []error
-	live := liveDocuments(census)
+	live := LiveDocuments(census)
 	for _, document := range census {
 		if !live[document.Path] {
 			findings = append(findings, fmt.Errorf("tracked document %s has no reader: no package, test, embed or read document names it; give it a reader or delete it", document.Path))
 		}
 	}
 	return errors.Join(findings...)
+}
+
+// CheckoutDocuments measures the census of the checkout at root: every
+// document it tracks or would track if added, with the packages of its
+// source and the documents that name each. A commit's checks and a listing of
+// what the checkout holds read the same measure through it.
+func CheckoutDocuments(ctx context.Context, root string) ([]TrackedDocument, error) {
+	snapshot, err := gosyntax.DiscoverGo(root, "internal", "cmd")
+	documents, listErr := TrackedDocuments(ctx, root)
+	if err = errors.Join(err, listErr); err != nil {
+		return nil, err
+	}
+	census, err := TrackedDocumentCensus(snapshot, documents)
+	if err != nil {
+		return nil, err
+	}
+	return census, DocumentReferences(census, func(document string) ([]byte, error) {
+		return os.ReadFile(filepath.Join(root, filepath.FromSlash(document)))
+	})
 }
 
 // documentPathspecs select what the census covers: documents by their

@@ -92,10 +92,34 @@ type Item struct {
 	Steps  []Step `json:"steps"`
 }
 
+// Paragraph is one paragraph of the doctrine, stored with what it governs:
+// the campaign, the rows it names, or, standing, nothing that ends. A rule
+// then cannot outlive what it was written for without someone deciding so.
+type Paragraph struct {
+	Governs string   `json:"governs"`
+	Rows    []string `json:"rows,omitempty"`
+	Text    string   `json:"text"`
+}
+
+const (
+	// governsStanding marks a paragraph that no campaign or row ends.
+	governsStanding = "standing"
+	// governsCampaign marks a paragraph that ends when the campaign closes.
+	governsCampaign = "campaign"
+	// governsRow marks a paragraph that ends when the last of its rows has left the plan.
+	governsRow = "row"
+	// closeoutItem is the row whose last step closes the campaign.
+	closeoutItem = "campaign-closeout"
+)
+
 // Plan is the whole campaign surface.
 type Plan struct {
-	Campaign string `json:"campaign"`
-	Doctrine string `json:"doctrine"`
+	Campaign string      `json:"campaign"`
+	Doctrine []Paragraph `json:"paragraphs,omitempty"`
+	// DoctrineBefore is the doctrine as one string, the form an earlier commit
+	// or a lane's plan holds: it is read, so a landing can still judge a change
+	// by the plan it builds on, and it is never saved.
+	DoctrineBefore string `json:"doctrine,omitzero"`
 	// Lane names the worktree this plan dispatches for: under the unassigned
 	// role it is the role, so the lane's own rows come first, unowned rows
 	// after, and another lane's rows never.
@@ -167,6 +191,9 @@ func parsePlan(data []byte, validate func(Plan) error) (Plan, error) {
 
 // Save writes the plan back to path (Path when empty).
 func Save(path string, d Plan) error {
+	if d.DoctrineBefore != "" {
+		return errors.New("plan: the doctrine is still one string; store each paragraph with what it governs (standing, campaign, or row with its rows) before saving")
+	}
 	if err := Validate(d); err != nil {
 		return err
 	}
@@ -201,7 +228,52 @@ func Validate(d Plan) error {
 		}
 		seen[decision.ID] = true
 	}
+	if err := validateDoctrine(d); err != nil {
+		return err
+	}
 	return validateDependencies(d)
+}
+
+// validateDoctrine refuses a paragraph that names nothing it governs: one that
+// is neither standing, the campaign's, nor a row's with the ids of its rows,
+// each once. Its text is one paragraph, since a second one after a blank line
+// would be governed by the first one's name. A row it names may have left the
+// plan: only the close-out refuses a paragraph for what is closed.
+func validateDoctrine(d Plan) error {
+	if d.DoctrineBefore != "" && len(d.Doctrine) != 0 {
+		return errors.New("plan: the doctrine is stored both as one string and as paragraphs; keep the paragraphs")
+	}
+	for index, paragraph := range d.Doctrine {
+		rows := slices.Compact(slices.Sorted(slices.Values(paragraph.Rows)))
+		named := len(rows) == 0
+		switch paragraph.Governs {
+		case governsStanding, governsCampaign:
+		case governsRow:
+			named = !named && len(rows) == len(paragraph.Rows) && !slices.ContainsFunc(rows, func(row string) bool { return !worklease.ValidPlanID(row) })
+		default:
+			named = false
+		}
+		if !named || slices.ContainsFunc(strings.Split(paragraph.Text, "\n"), func(line string) bool { return strings.TrimSpace(line) == "" }) {
+			return fmt.Errorf("plan: doctrine paragraph %d names nothing it governs, or is not one paragraph: it governs %q with rows %q; store it as %s, as %s, or as %s with the ids of its rows, each once, and with text that holds no blank line",
+				index+1, paragraph.Governs, paragraph.Rows, governsStanding, governsCampaign, governsRow)
+		}
+	}
+	return nil
+}
+
+// outlivedDoctrine refuses a close-out that would leave a paragraph governing
+// what is closed: the campaign, or rows none of which the plan still holds.
+// Nothing removes a paragraph but a person, who drops it or stores it as
+// standing.
+func outlivedDoctrine(d Plan) error {
+	for index, paragraph := range d.Doctrine {
+		held := slices.ContainsFunc(d.Items, func(item Item) bool { return slices.Contains(paragraph.Rows, item.ID) })
+		if paragraph.Governs == governsCampaign || paragraph.Governs == governsRow && !held {
+			return fmt.Errorf("plan: the close-out would leave doctrine paragraph %d governing what is closed, %s %q; remove it or store it as %s first",
+				index+1, paragraph.Governs, paragraph.Rows, governsStanding)
+		}
+	}
+	return nil
 }
 
 func validatePlanGraph(d Plan) error {
@@ -410,11 +482,17 @@ func normalizedRole(role string) string {
 // Advance completes one step by REMOVING it: the plan holds only
 // future, blocked, and in-progress work, and completion history lives
 // in Git through the gate's structured trailers, not as retained rows.
-// An item whose last step completes leaves the plan with it.
+// An item whose last step completes leaves the plan with it, and the
+// close-out row leaves only when no doctrine paragraph governs what it closes.
 func Advance(d Plan, itemID, stepID string) (Plan, error) {
 	advanced, err := advancePlan(d, itemID, stepID, stepID == ".")
 	if err != nil {
 		return Plan{}, err
+	}
+	if _, open := exactPlanItem(advanced, itemID); itemID == closeoutItem && !open {
+		if err := outlivedDoctrine(advanced); err != nil {
+			return Plan{}, err
+		}
 	}
 	return advanced, Validate(advanced)
 }

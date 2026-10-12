@@ -12,7 +12,7 @@ import (
 // second stop leaves the first in place.
 func TestLoopViewAndStop(t *testing.T) {
 	t.Parallel()
-	document := Plan{Campaign: "loop", Doctrine: "fixture", Items: []Item{
+	document := Plan{Campaign: "loop", Items: []Item{
 		{ID: "next", Status: StatusOpen, Steps: []Step{{ID: "do", Title: "Do the next thing", Status: StatusOpen, Verify: "go test ./..."}}},
 	}}
 	repository := planRepository(t, document)

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -28,8 +29,12 @@ import (
 // emptied, holding ignored content, ahead of the trunk, held by a session and gone from disk; lane
 // worktrees, branches and a stash; experiment outputs that a committed record names, that a store
 // registration names and that nothing names; checkpoints, scratch, session folders, temporary build
-// folders, executables, and directories no line of the table names. The listing gives exactly those
-// verdicts, each with the rule that decided it. It measures bytes only where a line allows a delete
+// folders, executables, a media sample that a read record names by its digest and one that nothing
+// reads, a record of a run that names only what the tree has, one that names a command and a test
+// it no longer has and one that is a picture, and directories no line of the table names. The
+// listing gives exactly those verdicts, each with the rule that decided it: a sample is held by
+// what names it and finished when nothing reads it, and a record is kept, as history when it
+// names what the tree no longer has. It measures bytes only where a line allows a delete
 // or a report, reads a source that failed as unknown and never as nothing, on a line that deletes
 // calls nothing finished that holds a link a recursive delete could follow, calls no entry finished
 // for want of a committed line that names it when the search could not have found its name, prints
@@ -110,6 +115,8 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 	write("repo/.claude/tracked.fixture", "{}\n")
 	write("repo/build/held.dat", "declared\n")
 	write("repo/scripts/hook.txt", "run bin/named.exe\nrun bin\\slashed.exe\nrun bin/two words.exe\n")
+	// An invented digest: a media sample is named by the digest of its bytes.
+	sampled := strings.Repeat("ab", sha256.Size)
 	// A record names a path by whole elements: a longer name before it, after it or around it is another path.
 	// The last line, like the hook's, names an entry with a space in it, which the search reads as the end of a path.
 	write("repo/docs/verification/run-record.txt", strings.Join([]string{
@@ -119,13 +126,22 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 		"model: checkpoints/cited, kept",
 		"other: myexperiments/loose/out, experiments/orphan-old/out and experiments/coded.tar",
 		"whole: (experiments/whole)",
+		"sample: output:sha256:" + sampled,
 		"final: experiments/done/final run",
 		"",
 	}, "\n"))
+	// A record of a run whose command and test the tree no longer has: history, and kept as it was written.
+	write("repo/docs/verification/old-probe.txt", "command: go run ./cmd/gone\nheld by: TestGone\n")
+	// A record that is a picture, not text: bytes in it that spell a path name nothing.
+	write("repo/docs/verification/chart.dat", "\xff\xd8 cmd/drawn \x00\xfe\n")
+	// A record in a folder of its own is a record like any other.
+	write("repo/docs/verification/suite/inputs.txt", "made by: go run ./cmd/maker\n")
 	for _, record := range repoanalysis.WorkRecords {
 		write("repo/"+record, "experiments/planned/out bin/loose.exe\n")
 	}
-	write("repo/internal/x/x.go", "// Package x names experiments/coded/out.\npackage x\n")
+	// Source reads the record, and the record carries one sample's digest; nothing carries the other's name.
+	write("repo/internal/x/x.go", "// Package x names experiments/coded/out.\npackage x\n\nconst record = \"docs/verification/run-record.txt\"\n")
+	write("repo/docs/media_samples/"+sampled+".dat", "a sample its record names\n")
 	write("repo/docs/media_samples/sample.dat", "sample\n")
 	git(repo, "add", "-A")
 	git(repo, "commit", "-q", "-m", "base")
@@ -383,8 +399,12 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 			"python-place|repo/scripts/python_golden_references|never|kept",
 			"checkout-store|repo/overgodb-store|never|kept",
 			"docs-untracked|repo/docs/local.json|never|kept",
-			"media-samples|repo/docs/media_samples|report|unknown",
-			"verification|repo/docs/verification|report|unknown",
+			"media-samples|repo/docs/media_samples/" + sampled + ".dat|report|held",
+			"media-samples|repo/docs/media_samples/sample.dat|report|finished",
+			"verification|repo/docs/verification/run-record.txt|never|kept",
+			"verification|repo/docs/verification/old-probe.txt|never|kept",
+			"verification|repo/docs/verification/chart.dat|never|kept",
+			"verification|repo/docs/verification/suite/inputs.txt|never|kept",
 			"process-state|repo/.overgo-runtime|never|kept",
 			"undeclared|repo/.claude/other|report|undeclared",
 			"undeclared|repo/stray|report|undeclared",
@@ -450,6 +470,12 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 			{"store-backup", "backups/sealed", "sealed-backup"},
 			{"tmp", "repo/tmp/tool.exe", "an executable belongs in bin/"},
 			{"temporary-build", "temporary/go-build2", "this command's own executable"},
+			{"media-samples", "repo/docs/media_samples/" + sampled + ".dat", "named by docs/verification/run-record.txt"},
+			{"media-samples", "repo/docs/media_samples/sample.dat", "nothing reads it"},
+			{"verification", "repo/docs/verification/run-record.txt", "none: a record is kept"},
+			{"verification", "repo/docs/verification/old-probe.txt", "history: it names what the tree no longer has: TestGone, cmd/gone"},
+			{"verification", "repo/docs/verification/chart.dat", "none: a record is kept"},
+			{"verification", "repo/docs/verification/suite/inputs.txt", "history: it names what the tree no longer has: cmd/maker"},
 		} {
 			if entry := entryOf(t, found, named.place, named.slash); !strings.Contains(filepath.ToSlash(entry.rule), named.rule) {
 				t.Errorf("%s %s is %s by the rule %q, which does not name %q", named.place, named.slash, entry.state, entry.rule, named.rule)
@@ -692,7 +718,7 @@ func TestTmpEntryBelongsToAnOpenRowOrIsFinished(t *testing.T) {
 	// reasoning names a scratch folder, which holds nothing since the plan is a work record.
 	savePlan := func(checkout string, rows ...string) {
 		t.Helper()
-		document := plan.Plan{Campaign: "hygiene", Doctrine: "the plan of a fixture", Lane: "master-lead"}
+		document := plan.Plan{Campaign: "hygiene", Doctrine: []plan.Paragraph{{Governs: "standing", Text: "the plan of a fixture"}}, Lane: "master-lead"}
 		for _, row := range rows {
 			document.Items = append(document.Items, plan.Item{ID: row, Title: "a row of the fixture", Status: plan.StatusOpen, Steps: []plan.Step{{
 				ID: "do", Title: "its one step", Status: plan.StatusOpen, Verify: "go version", Rationale: "its probes lie under tmp/landed-row/x",

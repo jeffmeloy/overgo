@@ -9,7 +9,7 @@ import "testing"
 // none from its side.
 func TestAcceptedProgressReadsLandingsFromGit(t *testing.T) {
 	t.Parallel()
-	document := Plan{Campaign: "progress", Doctrine: "fixture", Items: []Item{
+	document := Plan{Campaign: "progress", Items: []Item{
 		{ID: "prereq", Status: StatusOpen, Steps: []Step{{ID: "do", Status: StatusOpen, Verify: "go test ./..."}}},
 		{ID: "row", Status: StatusOpen, Steps: []Step{
 			{ID: "first", Status: StatusOpen, Verify: "go test ./..."},

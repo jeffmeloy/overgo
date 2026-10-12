@@ -388,7 +388,7 @@ func (l *landing) row(ctx context.Context) error {
 			return fmt.Errorf("land: %s is not a step of the plan at %.12s, the commit this change builds on, and a change is judged by the count and the check its row had before it; land the plan's edit alone first", row, l.head)
 		}
 		if l.advanced, err = plan.Advance(l.advanced, row.item, row.step); err != nil {
-			return fmt.Errorf("land: %s is not an open step of the plan: %w", row, err)
+			return fmt.Errorf("land: %s cannot leave the plan: %w", row, err)
 		}
 	}
 	l.planned = data

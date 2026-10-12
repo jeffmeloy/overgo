@@ -35,7 +35,7 @@ func TestCampaignAcceptedProgress(t *testing.T) {
 		t.Fatal(err)
 	}
 	const verify = "go test ./..."
-	document := plan.Plan{Campaign: "progress fixture", Doctrine: "test", Items: []plan.Item{{ID: "grammar", Owner: "colibri", Status: plan.StatusOpen, Steps: []plan.Step{
+	document := plan.Plan{Campaign: "progress fixture", Items: []plan.Item{{ID: "grammar", Owner: "colibri", Status: plan.StatusOpen, Steps: []plan.Step{
 		{ID: "do", Status: plan.StatusOpen, Verify: verify, DependsOn: []string{"grammar/binding"}},
 		{ID: "binding", Status: plan.StatusOpen, Verify: verify},
 	}}}}

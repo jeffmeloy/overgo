@@ -47,7 +47,7 @@ func TestTwoWorktreesLandThroughOneQueue(t *testing.T) {
 		return plan.Item{ID: id, Title: id, Status: plan.StatusOpen, Budget: plan.Budget{Nodes: grown, Reason: "the fixture's growth"},
 			Steps: []plan.Step{{ID: "do", Title: id, Status: plan.StatusOpen, Verify: "true"}}}
 	}
-	fixture.commitPlan(plan.Plan{Campaign: "fixture", Doctrine: "fixture", Items: []plan.Item{row("first"), row("second"), row("third")}})
+	fixture.commitPlan(plan.Plan{Campaign: "fixture", Items: []plan.Item{row("first"), row("second"), row("third")}})
 	base := fixture.git("rev-parse", "HEAD")
 	outside := t.TempDir()
 	one, two := &sliceFixture{t: t, repo: filepath.Join(outside, "one")}, &sliceFixture{t: t, repo: filepath.Join(outside, "two")}

@@ -5,7 +5,7 @@ import (
 )
 
 func frontierTestPlan() Plan {
-	return Plan{Campaign: "frontier", Doctrine: "frontier doctrine", Items: []Item{
+	return Plan{Campaign: "frontier", Items: []Item{
 		{ID: "alpha", Title: "alpha", Status: StatusOpen, Steps: []Step{
 			{ID: "one", Title: "one", Status: StatusOpen, Verify: "go test ./internal/plan"},
 			{ID: "two", Title: "two", Status: StatusOpen, Verify: "go test ./internal/plan",

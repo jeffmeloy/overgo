@@ -51,7 +51,7 @@ func TestStructuralCampaignPolicy(t *testing.T) {
 	const pinnedDoctrine = "capability freeze enforced by structure; a check records UNAVAILABLE rather than a pass; a step's machine check is set with plan -setverify"
 	validCampaign := func() Plan {
 		return Plan{
-			Campaign: "Integrated validation", Doctrine: pinnedDoctrine,
+			Campaign: "Integrated validation", Doctrine: []Paragraph{{Governs: governsStanding, Text: pinnedDoctrine}},
 			Items: []Item{{ID: "row", Title: "Row", Status: StatusOpen, Steps: []Step{
 				{ID: "do", Title: "Do", Status: StatusOpen, Verify: "go test ./x -run '^TestX$'"},
 			}}},
@@ -61,7 +61,7 @@ func TestStructuralCampaignPolicy(t *testing.T) {
 		t.Fatalf("valid campaign reported violations: %v", v)
 	}
 	reworded := validCampaign()
-	reworded.Doctrine = "entirely different wording that keeps the same structural policy"
+	reworded.Doctrine[0].Text = "entirely different wording that keeps the same structural policy"
 	if v := campaignStructuralViolations(reworded); len(v) != 0 {
 		t.Fatalf("rewording the doctrine changed the policy verdict: %v", v)
 	}

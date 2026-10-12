@@ -46,7 +46,7 @@ func scoredRow(t *testing.T, source artifact.ID, name string, task recipe.Task, 
 func emptyPlan(t *testing.T) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "plan.json")
-	if err := plan.Save(path, plan.Plan{Campaign: "improvement", Doctrine: "the scorecard's gaps are the work", Lane: "master-lead"}); err != nil {
+	if err := plan.Save(path, plan.Plan{Campaign: "improvement", Lane: "master-lead"}); err != nil {
 		t.Fatal(err)
 	}
 	return path
@@ -186,7 +186,7 @@ func TestCycleRunsInItsOwnCheckout(t *testing.T) {
 	git := func(directory string, arguments ...string) string { return gitFixture(t, directory, arguments...) }
 	git(repository, "init", "-q", "-b", "master")
 	planPath := filepath.Join(repository, "plan.json")
-	if err := plan.Save(planPath, plan.Plan{Campaign: "improvement", Doctrine: "the scorecard's gaps are the work", Lane: "master-lead"}); err != nil {
+	if err := plan.Save(planPath, plan.Plan{Campaign: "improvement", Lane: "master-lead"}); err != nil {
 		t.Fatal(err)
 	}
 	git(repository, "add", "plan.json")
@@ -285,7 +285,7 @@ func TestUnfinishedCycleContinuesAtItsOwnCommit(t *testing.T) {
 	git := func(directory string, arguments ...string) string { return gitFixture(t, directory, arguments...) }
 	git(repository, "init", "-q", "-b", "master")
 	planPath := filepath.Join(repository, "plan.json")
-	if err := plan.Save(planPath, plan.Plan{Campaign: "improvement", Doctrine: "the scorecard's gaps are the work", Lane: "master-lead"}); err != nil {
+	if err := plan.Save(planPath, plan.Plan{Campaign: "improvement", Lane: "master-lead"}); err != nil {
 		t.Fatal(err)
 	}
 	git(repository, "add", "plan.json")

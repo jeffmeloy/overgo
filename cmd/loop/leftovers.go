@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
@@ -125,8 +126,8 @@ var leftoverPlaces = []place{
 	{"python-place", "checkout:scripts/python_golden_references/", "the scripts that produce golden references", "none: the one place for Python", actionNever, wholeDirectory},
 	{"checkout-store", "checkout:" + gitauthority.CanonicalOvergoDBDirectory + "/", "a store inside the checkout", "none: a store is never deleted", actionNever, wholeDirectory},
 	{"docs-untracked", "checkout:docs/", "files under docs that git does not track", "none: listed, never deleted", actionNever, untrackedUnder},
-	{"media-samples", "checkout:docs/media_samples/", "committed media samples", "none until a superseded sample is told from a current one", actionReport, wholeDirectory},
-	{"verification", "checkout:docs/verification/", "committed records of runs", "none until a dangling record is told from a current one", actionReport, wholeDirectory},
+	{"media-samples", "checkout:docs/media_samples/", "media samples, each named by the digest of its bytes", "nothing reads it: no test and no read document carries its digest", actionReport, samples},
+	{"verification", "checkout:docs/verification/", "committed records of runs", "none: a record is kept, and one that names what the tree no longer has is history", actionNever, records},
 	{"process-state", "checkout:" + processlock.StateDirectory + "/", "locks, markers and the cycle checkout", "none: the processes that write it own it", actionNever, wholeDirectory},
 	{"undeclared", "elsewhere:", "directories under the checkout or the data root that no line above names", "none: give it a line, or remove it by hand", actionReport, undeclared},
 }
@@ -635,6 +636,70 @@ func untrackedUnder(f *facts, line place) []leftover {
 	for _, path := range f.untracked {
 		if strings.HasPrefix(path, filepath.Base(f.directory(line))+"/") {
 			found = append(found, leftover{path: filepath.Join(f.checkout, path), state: stateKept, rule: line.finished})
+		}
+	}
+	return found
+}
+
+// samples lists the documents the checkout holds under a line's directory,
+// tracked or not yet ignored, by the census a commit's checks hold every
+// document to. One that something names is held. One that nothing reads is
+// finished, whether a later sample replaced it or an export wrote it and no
+// record names it yet: the listing cannot tell the two apart, and a commit's
+// checks refuse either.
+func samples(f *facts, line place) []leftover {
+	census, err := repoanalysis.CheckoutDocuments(context.Background(), f.checkout)
+	if err != nil {
+		return failed(f.directory(line), err)
+	}
+	live := repoanalysis.LiveDocuments(census)
+	_, beneath, _ := strings.Cut(line.at, ":")
+	var found []leftover
+	for _, document := range census {
+		if !strings.HasPrefix(document.Path, beneath) {
+			continue
+		}
+		entry := leftover{path: filepath.Join(f.checkout, document.Path), state: stateHeld, rule: "named by " + strings.Join(slices.Concat(document.Writers, document.Readers, document.ReferencedBy), ", ")}
+		if !live[document.Path] {
+			entry.state, entry.rule = stateFinished, line.finished
+		}
+		found = append(found, entry)
+	}
+	return found
+}
+
+// records lists the records of runs the checkout holds under a line's
+// directory, at any depth, each kept. One whose text names a path or a test
+// the tree no longer has is history: its rule says what it names, and the
+// record stays as it was written. A record that is no text, a picture, names
+// nothing.
+func records(f *facts, line place) []leftover {
+	documents, err := repoanalysis.TrackedDocuments(context.Background(), f.checkout)
+	if err != nil {
+		return failed(f.directory(line), err)
+	}
+	_, beneath, _ := strings.Cut(line.at, ":")
+	texts := map[string]string{}
+	var found []leftover
+	for _, document := range documents {
+		if !strings.HasPrefix(document, beneath) {
+			continue
+		}
+		path := filepath.Join(f.checkout, document)
+		if data, err := os.ReadFile(path); err == nil && utf8.Valid(data) {
+			texts[path] = string(data)
+		}
+		found = append(found, leftover{path: path, state: stateKept, rule: line.finished})
+	}
+	absent := map[string][]string{}
+	for _, dead := range repoanalysis.DeadReferences(f.checkout, texts) {
+		// A reference holds no colon, so the last one ends the record's path.
+		at := strings.LastIndex(dead, ": ")
+		absent[dead[:at]] = append(absent[dead[:at]], dead[at+len(": "):])
+	}
+	for index, entry := range found {
+		if names := absent[entry.path]; len(names) != 0 {
+			found[index].rule = "history: it names what the tree no longer has: " + strings.Join(names, ", ")
 		}
 	}
 	return found

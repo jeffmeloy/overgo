@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -167,7 +168,7 @@ func openStep(id string) plan.Step {
 func TestAddFilesEveryRowOfADocument(t *testing.T) {
 	t.Parallel()
 	held := plan.Plan{
-		Campaign: "held campaign", Doctrine: "held doctrine",
+		Campaign: "held campaign", Doctrine: []plan.Paragraph{{Governs: "standing", Text: "held doctrine"}},
 		Items: []plan.Item{
 			{ID: "earlier", Title: "Earlier", Status: plan.StatusOpen, Steps: []plan.Step{openStep("do")}},
 			{ID: "campaign-closeout", Title: "Close out", Status: plan.StatusOpen, Steps: []plan.Step{
@@ -177,7 +178,7 @@ func TestAddFilesEveryRowOfADocument(t *testing.T) {
 		Decisions: []plan.Decision{{ID: "held-question", Question: "Which?", Options: []string{"a", "b"}, Recommendation: "a", Asked: "2026-10-01"}},
 	}
 	filed := plan.Plan{
-		Campaign: "an amendment", Doctrine: "the amendment's own doctrine",
+		Campaign: "an amendment", Doctrine: []plan.Paragraph{{Governs: "standing", Text: "the amendment's own doctrine"}},
 		Items: []plan.Item{
 			{ID: "filed-first", Title: "First filed", Owner: "master-lead", Status: plan.StatusOpen,
 				Budget: plan.Budget{Nodes: 40, Reason: "It adds a listing."},
@@ -216,8 +217,8 @@ func TestAddFilesEveryRowOfADocument(t *testing.T) {
 	if rendered(t, after.Decisions) != rendered(t, append(held.Decisions, filed.Decisions...)) {
 		t.Fatalf("decisions after filing = %s", rendered(t, after.Decisions))
 	}
-	if after.Campaign != held.Campaign || after.Doctrine != held.Doctrine {
-		t.Fatalf("filing took the document's campaign or doctrine: %q, %q", after.Campaign, after.Doctrine)
+	if after.Campaign != held.Campaign || !reflect.DeepEqual(after.Doctrine, held.Doctrine) {
+		t.Fatalf("filing took the document's campaign or doctrine: %q, %+v", after.Campaign, after.Doctrine)
 	}
 	requireNoCheckRan(t, root)
 

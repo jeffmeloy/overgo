@@ -51,7 +51,7 @@ func TestSmallGateLandsAChange(t *testing.T) {
 			ID: "do", Title: id, Status: plan.StatusOpen, Verify: "go test ./internal/p -run '^TestValue$' -count=1",
 		}}}
 	}
-	document := plan.Plan{Campaign: "fixture", Doctrine: "fixture", Items: []plan.Item{row("first"), row("second")}}
+	document := plan.Plan{Campaign: "fixture", Items: []plan.Item{row("first"), row("second")}}
 	if err := os.MkdirAll(filepath.Join(repo, "docs"), 0o755); err != nil {
 		t.Fatal(err)
 	}

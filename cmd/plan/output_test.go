@@ -13,7 +13,7 @@ import (
 
 func TestCompactAgentOutput(t *testing.T) {
 	t.Parallel()
-	document := plan.Plan{Campaign: "campaign", Doctrine: strings.Repeat("long doctrine ", 200), Items: []plan.Item{{
+	document := plan.Plan{Campaign: "campaign", Doctrine: []plan.Paragraph{{Governs: "standing", Text: strings.Repeat("long doctrine ", 200)}}, Items: []plan.Item{{
 		ID: "item", Title: "item title", Status: "open", Steps: []plan.Step{{
 			ID: "do", Title: "make the bounded change", Status: "open", Verify: "go test ./x -run '^TestX$'",
 		}},

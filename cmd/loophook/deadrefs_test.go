@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+
+	"overgo/internal/repoanalysis"
 )
 
 // TestDeadReferencesAreReported holds the session-start scan to what prose
@@ -29,7 +31,7 @@ func TestDeadReferencesAreReported(t *testing.T) {
 	}
 	text := "Run cmd/tool, not cmd/gone. Read internal/present/x.go, not internal/absent/y.go (internal/absent/y.go twice). " +
 		"TestAlive holds it; TestGone did. The TestAli* prefix, cmd/<name>, docs/29.6 MB and cmd/x are no references."
-	got := deadReferences(root, map[string]string{"note": text})
+	got := repoanalysis.DeadReferences(root, map[string]string{"note": text})
 	if want := []string{"note: TestGone", "note: cmd/gone", "note: internal/absent/y.go"}; !slices.Equal(got, want) {
 		t.Fatalf("dead references = %q, want %q", got, want)
 	}

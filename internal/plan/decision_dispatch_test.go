@@ -34,13 +34,13 @@ func TestADecisionBlocksNamedItems(t *testing.T) {
 	decision := Decision{ID: "choose", Question: "Which?", Options: []string{"a", "b"}, Recommendation: "a", Asked: "2026-09-28"}
 	for _, blocks := range [][]string{nil, {"a-row-that-landed"}} {
 		decision.Blocks = blocks
-		if err := Validate(Plan{Campaign: "fixture", Doctrine: "fixture", Decisions: []Decision{decision}}); err != nil {
+		if err := Validate(Plan{Campaign: "fixture", Decisions: []Decision{decision}}); err != nil {
 			t.Fatalf("a decision blocking %q was refused: %v", blocks, err)
 		}
 	}
 	for _, blocks := range [][]string{{""}, {"a-row", ""}, {"an/item/path"}} {
 		decision.Blocks = blocks
-		if err := Validate(Plan{Campaign: "fixture", Doctrine: "fixture", Decisions: []Decision{decision}}); err == nil {
+		if err := Validate(Plan{Campaign: "fixture", Decisions: []Decision{decision}}); err == nil {
 			t.Fatalf("a decision blocking %q was accepted", blocks)
 		}
 	}
@@ -56,7 +56,7 @@ func TestDispatchPassesRowsAwaitingADecision(t *testing.T) {
 		return Item{ID: id, Title: id, Status: StatusOpen, Steps: []Step{{ID: "do", Title: id, Status: StatusOpen, Verify: "true"}}}
 	}
 	decision := Decision{ID: "choose", Question: "Which?", Options: []string{"a", "b"}, Recommendation: "a", Blocks: []string{"first"}, Asked: "2026-09-28"}
-	document := Plan{Campaign: "fixture", Doctrine: "fixture", Items: []Item{row("first"), row("second")}, Decisions: []Decision{decision}}
+	document := Plan{Campaign: "fixture", Items: []Item{row("first"), row("second")}, Decisions: []Decision{decision}}
 	if dispatch, err := selectDispatch(document, "", ""); err != nil || dispatch.Item != "second" {
 		t.Fatalf("with first awaiting a decision, dispatch = %+v, %v; want second", dispatch, err)
 	}

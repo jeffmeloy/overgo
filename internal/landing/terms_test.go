@@ -45,7 +45,7 @@ func rowPlan(count int, steps ...[2]string) plan.Plan {
 	for _, step := range steps {
 		row.Steps = append(row.Steps, plan.Step{ID: step[0], Title: step[0], Status: plan.StatusOpen, Verify: step[1]})
 	}
-	return plan.Plan{Campaign: "fixture", Doctrine: "fixture", Items: []plan.Item{row}}
+	return plan.Plan{Campaign: "fixture", Items: []plan.Item{row}}
 }
 
 // TestChangeIsJudgedByTheTermsItStartedWith holds a change to the count and the

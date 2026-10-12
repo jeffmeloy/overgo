@@ -20,7 +20,7 @@ func newRowFixture(t *testing.T, stub map[string]string) *sliceFixture {
 	fixture := newSliceFixture(t, stub)
 	fixture.git("config", "user.name", "fixture")
 	fixture.git("config", "user.email", "fixture@example.com")
-	document := plan.Plan{Campaign: "fixture", Doctrine: "fixture", Items: []plan.Item{{ID: "row", Title: "row", Status: plan.StatusOpen,
+	document := plan.Plan{Campaign: "fixture", Items: []plan.Item{{ID: "row", Title: "row", Status: plan.StatusOpen,
 		Steps: []plan.Step{{ID: "do", Title: "row", Status: plan.StatusOpen, Verify: "true"}}}}}
 	if err := plan.Save(fixture.planPath(), document); err != nil {
 		t.Fatal(err)
@@ -80,7 +80,7 @@ func (f *sliceFixture) read(name string) string {
 func TestLandingCompletesSeveralSteps(t *testing.T) {
 	t.Parallel()
 	fixture := newRowFixture(t, map[string]string{"a.txt": "base\n"})
-	document := plan.Plan{Campaign: "fixture", Doctrine: "fixture", Items: []plan.Item{
+	document := plan.Plan{Campaign: "fixture", Items: []plan.Item{
 		{ID: "row", Title: "row", Status: plan.StatusOpen, Budget: plan.Budget{Nodes: 10},
 			Steps: []plan.Step{{ID: "do", Title: "row", Status: plan.StatusOpen, Verify: "true"}, {ID: "later", Title: "later", Status: plan.StatusOpen, Verify: "true"}}},
 		{ID: "other", Title: "other", Status: plan.StatusOpen, Budget: plan.Budget{Nodes: 5},

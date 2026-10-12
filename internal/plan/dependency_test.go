@@ -8,7 +8,6 @@ import (
 func dependencyFixture() Plan {
 	return Plan{
 		Campaign: "dependency-fixture",
-		Doctrine: "fixture doctrine",
 		Items: []Item{
 			{ID: "root", Status: StatusOpen, Owner: "gui", Steps: []Step{{
 				ID: "do", Title: "root work", Status: StatusOpen, Verify: "exit 0",

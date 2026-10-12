@@ -121,7 +121,7 @@ func TestSecondImplementingSessionIsSentToAWorktreeOfItsOwn(t *testing.T) {
 		t.Fatalf("after a turn of the first session that a valve let end, the next session is told %q holds the worktree; want the first", holder("three"))
 	}
 	// A turn that ends with the plan complete and nothing uncommitted gives it back.
-	if err := plan.Save(plan.Path, plan.Plan{Campaign: "fixture", Doctrine: "fixture", Lane: "master-lead"}); err != nil {
+	if err := plan.Save(plan.Path, plan.Plan{Campaign: "fixture", Lane: "master-lead"}); err != nil {
 		t.Fatal(err)
 	}
 	if stopHook("one") != 0 {

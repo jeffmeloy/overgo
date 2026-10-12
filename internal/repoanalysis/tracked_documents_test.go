@@ -3,7 +3,6 @@ package repoanalysis
 import (
 	"errors"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -19,22 +18,7 @@ import (
 // last reader.
 func TestEveryTrackedFileHasAReader(t *testing.T) {
 	t.Parallel()
-	root := "../.."
-	snapshot, err := gosyntax.DiscoverGo(root, "internal", "cmd")
-	if err != nil {
-		t.Fatal(err)
-	}
-	documents, err := TrackedDocuments(t.Context(), root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	census, err := TrackedDocumentCensus(snapshot, documents)
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = DocumentReferences(census, func(document string) ([]byte, error) {
-		return os.ReadFile(filepath.Join(root, filepath.FromSlash(document)))
-	})
+	census, err := CheckoutDocuments(t.Context(), "../..")
 	if err != nil {
 		t.Fatal(err)
 	}

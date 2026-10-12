@@ -50,7 +50,7 @@ func TestTrunkCheckoutFollowsWithItsOwnChangesKept(t *testing.T) {
 		}
 		return item
 	}
-	fixture.commitPlan(plan.Plan{Campaign: "fixture", Doctrine: "fixture", Items: []plan.Item{row("first", "do", "later"), row("second", "do"), row("third", "do")}})
+	fixture.commitPlan(plan.Plan{Campaign: "fixture", Items: []plan.Item{row("first", "do", "later"), row("second", "do"), row("third", "do")}})
 	linked := &sliceFixture{t: t, repo: filepath.Join(t.TempDir(), "linked")}
 	fixture.git("worktree", "add", "-q", "--detach", linked.repo, "HEAD")
 	message := []byte("Change the fixture\n\nCause: the fixture needs a change.\nPredicted effect: none.\n")

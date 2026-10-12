@@ -307,7 +307,7 @@ func measureSignal(metric trainingprogram.EvaluationMetric, verifier artifact.ID
 	}
 	value, err := trainingprogram.EvaluateNative(metric, dtype.ConvertSlice[float32](observation.Values), dtype.ConvertSlice[float32](expected))
 	if err != nil {
-		return mediaTargetObservation{}, artifact.Descriptor{}, err
+		return mediaTargetObservation{}, artifact.Descriptor{}, fmt.Errorf("evaluation: record %q has no %s: %w", observation.Record, metric, err)
 	}
 	measured.Verifiers = []mediaVerifierResult{{Name: string(metric), Verifier: verifier, Value: value}}
 	return measured, output, nil

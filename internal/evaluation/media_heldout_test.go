@@ -5,6 +5,7 @@ import (
 	"math"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -20,7 +21,9 @@ import (
 // under quiet noise. The objective declares a bounded held-out subset, so
 // only its first held-out records are scored; the verdict passes on the SNR
 // gain, commits, and re-derives as passed, which is what approves the
-// objective, while a trained model no quieter than its base fails.
+// objective, while a trained model no quieter than its base fails. An answer
+// the ratio has no value for, because it equals its target or its target is
+// silent, is refused with its record, the metric and the reason.
 func TestMediaObjectiveApprovesOnHeldOutGain(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
@@ -154,5 +157,30 @@ func TestMediaObjectiveApprovesOnHeldOutGain(t *testing.T) {
 	broken[0].Values[0] = math.NaN()
 	if _, err := plan.Score(broken); err == nil {
 		t.Fatal("a produced signal holding a non-finite value was measured")
+	}
+	// A ratio in decibels has no value where the answer equals its target or
+	// the target is silent. Every answer here equals the first plan's target,
+	// and the second plan's first target is silent; answers are measured in
+	// the order given, so each refusal is of the first record.
+	silent := slices.Clone(cases)
+	silent[0].Values = make([]float64, samples)
+	quiet, err := CompileHeldoutPlan(objective, view, silent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var exact []HeldoutObservation
+	for _, target := range cases {
+		exact = append(exact, HeldoutObservation{Record: target.Record, Values: slices.Clone(target.Values)})
+	}
+	for _, refused := range []struct {
+		plan   HeldoutPlan
+		reason string
+	}{{plan, "exactly"}, {quiet, "silent"}} {
+		_, err := refused.plan.Score(exact)
+		for _, part := range []string{cases[0].Record, string(trainingprogram.MetricAudioSNR), refused.reason} {
+			if err == nil || !strings.Contains(err.Error(), part) {
+				t.Errorf("a ratio with no value was refused as %q, want the refusal to hold %q", fmt.Sprint(err), part)
+			}
+		}
 	}
 }

@@ -7,6 +7,10 @@ import (
 	"overgo/internal/checked"
 )
 
+// errExactRatio refuses a ratio in decibels at no error, where it has no
+// finite value for a report to hold or a mean to take in.
+var errExactRatio = errors.New("training evaluation: answer matches its target exactly, so a ratio in decibels has no finite value")
+
 // EvaluateNative applies the objective-declared output metric.
 func EvaluateNative(metric EvaluationMetric, prediction, target []float32) (float64, error) {
 	if len(prediction) == 0 || len(prediction) != len(target) {
@@ -34,21 +38,21 @@ func EvaluateNative(metric EvaluationMetric, prediction, target []float32) (floa
 	case MetricImagePSNRSigned, MetricVideoPSNRSigned:
 		mse := squared / count
 		if mse == 0 {
-			return math.Inf(1), nil
+			return 0, errExactRatio
 		}
 		return 10 * math.Log10(4/mse), nil
 	case MetricImagePSNRUnit, MetricVideoPSNRUnit:
 		mse := squared / count
 		if mse == 0 {
-			return math.Inf(1), nil
+			return 0, errExactRatio
 		}
 		return 10 * math.Log10(1/mse), nil
 	case MetricAudioSNR:
 		if squared == 0 {
-			return math.Inf(1), nil
+			return 0, errExactRatio
 		}
 		if signal == 0 {
-			return math.Inf(-1), nil
+			return 0, errors.New("training evaluation: target is silent, so a ratio in decibels has no finite value")
 		}
 		return 10 * math.Log10(signal/squared), nil
 	case MetricForecastMAE:

@@ -31,7 +31,7 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 418,
+        "nodes": 411,
         "reason": "What the row may still add. Set on 2026-10-11 to the sum of what its five adding steps were counted at in their own checkouts, by the count of syntax nodes the automated checks take: 173 for the cell credit, 182 for the pair's identity, 62 for the naming of earlier parts, 56 for the continued adapter and 7 for the named refusal. The bridge judge's step removes 63 and adds none; the stated rules change comments alone."
       },
       "steps": [
@@ -41,13 +41,6 @@
           "status": "open",
           "verify": "go test ./cmd/train -count=1 -run '^TestEncoderBridgeJudgmentScoresAFrameDrawnAsItIsAtNoError$' \u0026\u0026 go test ./internal/evaluation -count=1 -run '^(TestLevelErrorScoresARoundTripByThePixelsShown|TestLevelErrorSaysWhyItRefusedARoundTrip)$'",
           "rationale": "Reviewer finding SQA-112, second severity, its first remaining site, confirmed by reading (docs/sqa_findings.json, not in the repository). The encoder-bridge judge measured each side of each frame as a ratio in decibels, which has no value at zero error, and it runs before the fitted bridge is saved: one frame drawn exactly ended the judgment and lost the fit. Closure: the judge scores each side by the mean squared error in eight-bit levels, the measure the reconstruction suite has published since ddf7dc41e, and zero is a value; the ratio function, which then has no production caller, is deleted. Decided on 2026-10-11 by the lead, under the owner's instruction not to wait for a decision; the owner may overrule. The unit of the judge's printed verdict becomes squared levels, lower becomes better, and each frame contributes a difference of errors where it contributed a ratio; output in decibels from before does not convert. One measure then serves the suite and the judge. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader and then by the lead, in a checkout of the step's own, before this row was filed. The register stays the reviewer's and is not edited here.\n\nServes: failure-rate of the bridge route; fewer components. Disappears: the signal-to-noise function and its constant. Evidence: the tests. Batch: device; the commit runs the device tests, since the training command is under them."
-        },
-        {
-          "id": "ratio-refusal",
-          "title": "Refuse a held-out signal answer its ratio has no value for by record, metric and reason",
-          "status": "open",
-          "verify": "go test ./internal/trainingprogram -count=1 -run '^TestNativeEvaluationRefusesARatioThatHasNoValue$' \u0026\u0026 go test ./internal/evaluation -count=1 -run '^TestMediaObjectiveApprovesOnHeldOutGain$'",
-          "rationale": "Reviewer finding SQA-112, second severity, its second remaining site, confirmed by reading (docs/sqa_findings.json, not in the repository). A held-out signal verdict whose answer equals its target exactly, or whose target is silent, came back as an infinity with no error and was then refused as a verifier that differs from the plan, which names neither the record nor the reason. Closure: the native evaluation refuses a ratio that has no value, and the scorer names the record and the metric. Decided on 2026-10-11 by the lead, under the owner's instruction not to wait for a decision; the owner may overrule. The finding's first acceptance criterion, that the signal path accepts exact and mixed observations, is not met: a ratio in decibels has no finite value at zero error, and the three ways that would meet it (an error metric registered anew, an exact state carried through the report and the verdict, a second verifier version) each add a mechanism for a case no production run is shown to reach. They are not taken. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader and then by the lead, in a checkout of the step's own, before this row was filed. The register stays the reviewer's and is not edited here.\n\nServes: failure-rate: a refusal that says what to look at. Evidence: the tests. Batch: device and browser; the commit runs both."
         },
         {
           "id": "continued-adapter",

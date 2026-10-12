@@ -36,7 +36,16 @@ func main() {
 	status := flag.Bool("status", false, "one line per item")
 	decisions := flag.Bool("decisions", false, "the owner decisions still open, with how long each has waited")
 	answer := flag.Bool("answer", false, "record the owner's answer to a decision: -answer <decision-id> -title <one of its options>")
-	add := flag.Bool("add", false, "inject a new top-priority task owned by -role: -add <item-id> -title <t> [-before <id>] [-vcmd <cmd>]")
+	add := flag.Bool("add", false, "inject a new top-priority task owned by -role: -add <item-id> -title <t> [-before <id>] [-vcmd <cmd>]; or file a document's rows: -add -from <document> [-before <id>]")
+	from := flag.String("from", "", "with -add: a plan-shaped JSON document; every row and decision of it is filed, an id the plan holds is refused, and no row the plan holds changes")
+	setcount := flag.Bool("setcount", false, "set what a row may still add and why, running no check: -setcount -nodes <n> -reason <why> <item-id>")
+	nodes := flag.Int("nodes", 0, "with -setcount: the production syntax nodes the row may still add (0, the default: it may not grow; below zero: it must shrink)")
+	reason := flag.String("reason", "", "with -setcount, -addstep, -note or -retire: the edit's words, why the row grows, the step's reasoning or why the work will not be done")
+	rationaleFile := flag.String("rationale-file", "", "in place of -reason: a file that holds the edit's words")
+	addstep := flag.Bool("addstep", false, "add an open step to a row, last unless -before names a step: -addstep -title <t> -vcmd <cmd> -rationale-file <file> [-before <step-id>] <item-id> <step-id>")
+	note := flag.Bool("note", false, "add a paragraph to a step's reasoning, before its closing Serves lines: -note -rationale-file <file> <item-id> <step-id>")
+	show := flag.Bool("show", false, "print one row whole, with each step's check, what it awaits and the reasoning -prompt leaves out: -show <item-id>")
+	retire := flag.Bool("retire", false, "remove a row, or one step, that will not be worked: -retire -reason <why> <item-id>[/<step-id>]. A landing completes an open step by its check and records it in a Landed-Row trailer; a retirement runs no check and leaves no trailer, so the commit's message carries the reason")
 	move := flag.Bool("move", false, "re-rank an open item: -move <item-id> [-before <id>] (default: top of the plan)")
 	retitle := flag.Bool("retitle", false, "re-scope an open item and its single step: -retitle <item-id> -title <t>")
 	setverify := flag.Bool("setverify", false, "set an existing step's verify: -setverify <item> <step> -vcmd <cmd> (then runs it; exit code is the verdict)")
@@ -46,15 +55,16 @@ func main() {
 	maintenanceStop := flag.String("maintenance-stop", "", "authorize one supervised task while the exact stop remains active: <item/step> <reason>")
 	stopMode := flag.String("stop-mode", "", "stop scope: all (default), interactive or unattended; resume preserves the recorded scope")
 	executionMode := flag.String("mode", "", "execution mode: interactive or unattended; default inherited from the driver")
-	title := flag.String("title", "", "with -add: the task title")
+	title := flag.String("title", "", "with -add or -addstep: the task title")
 	class := flag.String("class", "", "with -add: the row class (consolidation; empty is a feature)")
-	before := flag.String("before", "", "with -add: insert before this item id (default: top of the plan)")
-	verifyCmd := flag.String("vcmd", "", "with -add: the step's verify command (a shell command that exits 0 iff accepted)")
+	before := flag.String("before", "", "with -add: insert before this item id (default: top of the plan); with -addstep: before this step id (default: last)")
+	verifyCmd := flag.String("vcmd", "", "with -add or -addstep: the step's verify command (a shell command that exits 0 iff accepted)")
 	role := flag.String("role", "", "lane role for dispatch (default OVERGO_AUTOMATION_ROLE, then unassigned)")
 	worker := flag.String("worker", "", "stable session identity a stop is scoped by (default OVERGO_AUTOMATION_WORKER)")
 	handled, err := commanddoc.Plan.Command.ParseCommandLine(flag.CommandLine, os.Stdout)
 	if err == nil && !handled {
-		err = run(cli{resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, next: *next, prompt: *prompt, verify: *verify, status: *status, decisions: *decisions, answer: *answer, add: *add, setverify: *setverify, stop: *stop, title: *title, class: *class, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker}, flag.Args())
+		err = run(cli{resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, next: *next, prompt: *prompt, verify: *verify, status: *status, decisions: *decisions, answer: *answer, add: *add, setverify: *setverify, stop: *stop, title: *title, class: *class, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker,
+			from: *from, setcount: *setcount, nodes: *nodes, reason: *reason, addstep: *addstep, note: *note, rationaleFile: *rationaleFile, show: *show, retire: *retire}, flag.Args())
 	}
 	clioptions.MainNamed("plan", func() error { return err })
 }
@@ -66,6 +76,9 @@ type cli struct {
 	decisions, answer                            bool
 	stop, move, retitle, json                    bool
 	title, class, before, verifyCmd, role        string
+	setcount, addstep, note, show, retire        bool
+	from, reason, rationaleFile                  string
+	nodes                                        int
 }
 
 func run(c cli, args []string) error {
@@ -95,6 +108,30 @@ func run(c cli, args []string) error {
 		return err
 	}
 	switch {
+	case c.add && c.from != "":
+		if len(args) != 0 {
+			return errors.New("usage: plan -add -from <document> [-before <id>]")
+		}
+		filed, err := plan.Load(c.from)
+		if err != nil {
+			return err
+		}
+		// Only the document's rows and decisions are taken, and no row the plan
+		// holds is edited: what awaits a filed row is the document's to say.
+		return mutatePlan(commandWorktree, role, "filed the rows and decisions of "+c.from, func(document plan.Plan) (plan.Plan, error) {
+			document.Decisions = append(document.Decisions, filed.Decisions...)
+			return insertRows(document, c.before, filed.Items...)
+		})
+	case c.setcount:
+		return editPlan(role, c, args, fmt.Sprintf("count set to %d nodes", c.nodes))
+	case c.addstep:
+		return editPlan(role, c, args, "step added")
+	case c.note:
+		return editPlan(role, c, args, "reasoning added to")
+	case c.retire:
+		return editPlan(role, c, args, "retired; no Landed-Row trailer records it, so the commit's message says why")
+	case c.show:
+		return printRow(os.Stdout, document, strings.Join(args, "/"))
 	case c.add:
 		if len(args) != 1 || strings.TrimSpace(c.title) == "" {
 			return errors.New("usage: plan -add <item-id> -title <title> [-before <id>] [-vcmd <verify>]")
@@ -140,7 +177,7 @@ func run(c cli, args []string) error {
 			return nil
 		})
 	default:
-		return errors.New("one of -next, -prompt, -verify, -status, -decisions, -answer, -add, -move, -retitle, -setverify, -stop is required")
+		return errors.New("one of -next, -prompt, -verify, -status, -show, -decisions, -answer, -add, -addstep, -move, -retitle, -setverify, -setcount, -note, -retire, -stop is required")
 	}
 }
 
@@ -165,20 +202,12 @@ func withPlanMutation(root string, mutate func(plan.Plan) error) (err error) {
 // "inject a task" operation -- a merge, a fix, or any owner-requested work becomes
 // a first-class dispatched/verified/advanced task without hand-editing plan.json.
 func addItem(root, id, title, class, before, verifyCmd, role string) error {
-	return withPlanMutation(root, func(document plan.Plan) error {
+	return mutatePlan(root, role, "added item "+id+" (step do)", func(document plan.Plan) (plan.Plan, error) {
 		updated, err := insertItem(document, id, title, class, before, verifyCmd)
-		if err != nil {
-			return err
-		}
-		if role != worklease.UnassignedRole {
+		if err == nil && role != worklease.UnassignedRole {
 			updated.Items[slices.IndexFunc(updated.Items, itemNamed(id))].Owner = role
 		}
-		if err := savePlanMutation(root, updated); err != nil {
-			return err
-		}
-		action, _ := nextAction(updated, role)
-		fmt.Printf("added item %s (step do); next: %s\n", id, action)
-		return nil
+		return updated, err
 	})
 }
 
@@ -272,14 +301,7 @@ func relocateItem(document plan.Plan, id, before string) (plan.Plan, error) {
 // requires. A merge's own row is not awaited: the merge completes it, so the
 // merged plan equals the first-parent plan. No I/O.
 func insertItem(document plan.Plan, id, title, class, before, verifyCmd string) (plan.Plan, error) {
-	pos, err := positionBefore(document.Items, before)
-	switch {
-	case slices.ContainsFunc(document.Items, itemNamed(id)):
-		return plan.Plan{}, fmt.Errorf("item %q already exists", id)
-	case err != nil:
-		return plan.Plan{}, err
-	}
-	document.Items = slices.Insert(slices.Clone(document.Items), pos, plan.Item{
+	document, err := insertRows(document, before, plan.Item{
 		ID: id, Title: title, Class: class, Status: "open",
 		Steps: []plan.Step{{ID: "do", Title: title, Status: "open", Verify: verifyCmd}},
 	})
@@ -290,25 +312,137 @@ func insertItem(document plan.Plan, id, title, class, before, verifyCmd string) 
 		}
 		document.Items[closeout].Steps = steps
 	}
+	return document, err
+}
+
+// insertRows is the one way this command puts rows into a plan: together and
+// in their order, before `before` or at the top when empty, never under an
+// id the plan holds. It edits no row the plan had. No I/O.
+func insertRows(document plan.Plan, before string, rows ...plan.Item) (plan.Plan, error) {
+	pos, err := positionBefore(document.Items, before)
+	for _, row := range rows {
+		if slices.ContainsFunc(document.Items, itemNamed(row.ID)) {
+			return plan.Plan{}, fmt.Errorf("item %q already exists", row.ID)
+		}
+	}
+	if err != nil {
+		return plan.Plan{}, err
+	}
+	document.Items = slices.Insert(slices.Clone(document.Items), pos, rows...)
 	return document, nil
+}
+
+// stepAt finds the row an edit names and the place of the step it names
+// there; for an edit that names no step, the place after the row's last.
+func stepAt(document plan.Plan, itemID, stepID string, named bool) (item, step int, err error) {
+	if item = slices.IndexFunc(document.Items, itemNamed(itemID)); item < 0 {
+		return item, step, fmt.Errorf("item %q not found", itemID)
+	}
+	steps := document.Items[item].Steps
+	if step = slices.IndexFunc(steps, func(candidate plan.Step) bool { return candidate.ID == stepID }); !named {
+		step = len(steps)
+	} else if step < 0 {
+		err = fmt.Errorf("step %q not found in %q", stepID, itemID)
+	}
+	return item, step, err
 }
 
 // assignVerify is the pure core of setStepVerify: returns a plan with the named
 // step's Verify replaced, or an error if the item/step is absent.
 func assignVerify(document plan.Plan, itemID, stepID, cmd string) (plan.Plan, error) {
-	for i := range document.Items {
-		if document.Items[i].ID != itemID {
-			continue
-		}
-		for j := range document.Items[i].Steps {
-			if document.Items[i].Steps[j].ID == stepID {
-				document.Items[i].Steps[j].Verify = strings.TrimSpace(cmd)
-				return document, nil
-			}
-		}
-		return plan.Plan{}, fmt.Errorf("step %q not found in %q", stepID, itemID)
+	item, step, err := stepAt(document, itemID, stepID, true)
+	if err != nil {
+		return plan.Plan{}, err
 	}
-	return plan.Plan{}, fmt.Errorf("item %q not found", itemID)
+	document.Items[item].Steps[step].Verify = strings.TrimSpace(cmd)
+	return document, nil
+}
+
+// rationaleClosing opens the paragraph a rationale closes with, its Serves,
+// Evidence and Batch lines: a note goes before it, so they stay last.
+const rationaleClosing = "\n\nServes:"
+
+// editUsage is what the edits of a row or a step take.
+const editUsage = `usage, with every flag before the names, where Go's flag parsing stops:
+  plan -setcount -nodes <n> -reason <why> <item-id>
+  plan -addstep -title <title> -vcmd <cmd> -rationale-file <file> [-before <step-id>] <item-id> <step-id>
+  plan -note -rationale-file <file> <item-id> <step-id>
+  plan -retire -reason <why> <item-id>[/<step-id>]
+-reason gives an edit's words, its reason or reasoning, and -rationale-file a file that holds them`
+
+// editPlan makes one of the edits of a row or a step that one-use programs
+// used to make, through the plan's lock and its one writer, running no check.
+// The names after the flags are the row and, for a step, the step, as two
+// words or joined by a slash.
+//
+// A retirement is not a completion. A landing completes one open step whose
+// check passed, and its commit says so in a Landed-Row trailer (plan.Advance).
+// A retirement removes a step whatever its state, or a row with every step it
+// has; it runs no check and leaves no trailer, so only the message of the
+// commit that carries the plan says why. A step that awaited the work waits
+// no longer in either case.
+func editPlan(role string, c cli, args []string, did string) error {
+	reference, words := strings.Join(args, "/"), strings.TrimSpace(c.reason)
+	if c.rationaleFile != "" {
+		text, err := os.ReadFile(c.rationaleFile)
+		if err != nil {
+			return err
+		}
+		words = strings.TrimSpace(string(text))
+	}
+	itemID, stepID, named := strings.Cut(reference, "/")
+	if words == "" || c.note && !named || c.setcount && named || c.addstep && strings.TrimSpace(c.title) == "" {
+		return errors.New(editUsage)
+	}
+	if c.retire {
+		did += ": " + words
+	}
+	return mutatePlan(commandWorktree, role, reference+": "+did, func(document plan.Plan) (plan.Plan, error) {
+		// A new step is placed by -before; every other edit by the step it names.
+		place, placed := stepID, named
+		if c.addstep {
+			place, placed = c.before, c.before != ""
+		}
+		item, step, err := stepAt(document, itemID, place, placed)
+		if err != nil {
+			return document, err
+		}
+		row := &document.Items[item]
+		switch {
+		case c.setcount:
+			row.Budget.Nodes, row.Budget.Reason = c.nodes, words
+		case c.addstep:
+			row.Steps = slices.Insert(row.Steps, step, plan.Step{ID: stepID, Title: c.title, Status: plan.StatusOpen, Verify: c.verifyCmd, Rationale: words})
+		case c.note:
+			rationale := &row.Steps[step].Rationale
+			cut := strings.LastIndex(*rationale, rationaleClosing)
+			if cut < 0 {
+				cut = len(*rationale)
+			}
+			*rationale = strings.TrimSpace((*rationale)[:cut] + "\n\n" + words + (*rationale)[cut:])
+		case c.retire && named && len(row.Steps) > 1:
+			row.Steps = slices.Delete(row.Steps, step, step+1)
+		case c.retire:
+			// The row goes whole, or with the last step it had.
+			document.Items = slices.Delete(document.Items, item, item+1)
+		}
+		return document, nil
+	})
+}
+
+// printRow prints one row whole: its count with the reason, and each step's
+// state, what it awaits, its check and its reasoning.
+func printRow(output io.Writer, document plan.Plan, id string) error {
+	at, _, err := stepAt(document, id, "", false)
+	if err != nil {
+		return err
+	}
+	item := document.Items[at]
+	fmt.Fprintf(output, "%s | %s | nodes %d\ncount reason: %s\n", item.ID, item.Title, item.Budget.Nodes, item.Budget.Reason)
+	for _, step := range item.Steps {
+		fmt.Fprintf(output, "-- %s | %s | %s | awaits %v\nverify: %s\n%s\n", step.ID, step.Title, step.Status, step.DependsOn, step.Verify, step.Rationale)
+	}
+	return nil
 }
 
 // setStepVerify records an existing step's verify command (closing the gap that
@@ -425,7 +559,8 @@ func printPromptStep(it plan.Item, st plan.Step, output io.Writer) {
 	if len(st.DependsOn) != 0 {
 		fmt.Fprintf(output, "PREREQUISITES %s\n", strings.Join(st.DependsOn, commandWordSeparator))
 	}
-	fmt.Fprintf(output, `COMMIT go run ./cmd/loop -land %s/%s -message-file <msg> (the small gate over the dirty tree, the landing confirmed from git)
+	fmt.Fprintf(output, `COMMIT go run ./cmd/loop -land %[1]s/%[2]s -message-file <msg> (the small gate over the dirty tree, the landing confirmed from git)
+SCRATCH tmp/%[1]s/ for this row's probes and documents only
 FINDINGS park off-scope work: go run ./cmd/finding -h
 RULES skill.md; only this task; port-first; gate advances atomically; then rerun plan -prompt.
 STOP only a user stop pauses the loop (plan -stop <reason>); rationale stays in docs/plan.json and landed rows in git (Landed-Row trailers).

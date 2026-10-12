@@ -9,17 +9,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 888,
+        "nodes": 0,
         "reason": "What the row may still add. Set on 2026-10-12 to the 888 nodes its step plan-edits was counted at once built, by the count of syntax nodes the automated checks take: cmd/plan/main.go 2,868 before and 3,756 after, and no other production file. The step grows because six plan edits that were programs typed for the occasion become flags of the plan command. The step inventory used the 4,228 the row carried before. Each later step is counted the same way before it is committed."
       },
       "steps": [
-        {
-          "id": "plan-edits",
-          "title": "Make the plan edits the lead does with one-use helper programs into commands of cmd/plan",
-          "status": "open",
-          "verify": "go test ./cmd/plan -count=1 -run '^(TestAddFilesEveryRowOfADocument|TestSetCountWritesTheCountAndItsReason|TestAddStepInsertsBeforeAnother|TestNoteAppendsToARationale|TestShowPrintsARowWithItsRationale|TestRetireRemovesARowOrAStep)$'",
-          "rationale": "Added by the lead on 2026-10-12 from the preparation of step tmp, which found that most of what recurs in ./tmp is plan edits with no command. The step tmp's own reasoning says a helper that recurs is an operator action without a command and moves into the command that owns its subject; its check names one test of cmd/loop and cannot hold changes to cmd/plan, so they are a step of their own, before the convention that step sets.\n\nCounted by the preparation from commit messages and the helpers still in ./tmp, not counted again here: setting a row's count was the subject of 37 of 66 plan-only changes and of 29 helper programs; adding or inserting a step of 28; filing rows or decisions from a document, appending to a step's reasoning, printing a row and retiring a row or a step each of several. The plan's one filing command, plan -add, also appends the new row to the close-out row's list on one line, so two plan changes waiting their turn collide, and the lead has filed rows by helper program instead.\n\nClosure: cmd/plan gains plan -setcount (the count and its reason, running no check), plan -add -from (every row and decision of a plan-shaped document the plan does not hold, editing no other row), plan -addstep (with -before), plan -show (a row with each step's check, what it awaits and its reasoning), plan -note (a paragraph appended to a step's reasoning) and plan -retire (a row or a step that will not be worked, with the reason); and plan -prompt names the dispatched row's scratch folder. One core inserts rows; the existing flags keep their behaviour. The helper programs that these replace are then leftovers of step tmp's first clearing.\n\nServes: change: a plan edit is a command with a test, not a program typed for the occasion.\nDisappears: the one-use plan helpers under ./tmp, about a hundred of them by name.\nEvidence: the six tests; the next count, step and row filed by command.\nBatch: host; cmd/plan and internal/plan reach no lane."
-        },
         {
           "id": "tmp",
           "title": "Tie every ./tmp entry to the row that made it, and clear the entries whose row is closed",

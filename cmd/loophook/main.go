@@ -200,14 +200,6 @@ func runPostCommit(hookJSON string) {
 	}
 }
 
-// worktreeHolder is the file, in a worktree's process state, that names the
-// implementing session that holds the worktree. A landing takes the
-// checkout's whole tree as its candidate, so two implementing sessions in one
-// worktree would land each other's files; the second is sent to a worktree of
-// its own. A hook is a short process and can keep no lock of the system's
-// open for a session, so the file is the holding, and its creation is atomic.
-const worktreeHolder = "implementing_session"
-
 // takeoverDeclaration opens the message of a session that takes a worktree
 // from the session that holds it, when that session is gone or its work here
 // is this one's to continue.
@@ -223,7 +215,7 @@ const stateFileMode = 0o600
 // it, and one that declares a takeover takes it. A session the harness does
 // not name takes none.
 func holdWorktree(session string, takeover bool) (holder string) {
-	path, err := filepath.Join(processlock.StateDirectory, worktreeHolder), processlock.EnsureStateDirectory(".")
+	path, err := filepath.Join(processlock.StateDirectory, guard.WorktreeHolder), processlock.EnsureStateDirectory(".")
 	if session == "" || err != nil {
 		return ""
 	}
@@ -247,7 +239,7 @@ func holdWorktree(session string, takeover bool) (holder string) {
 // releaseWorktree gives the worktree back when the session that holds it
 // ends a turn with nothing left to do here.
 func releaseWorktree(session string) {
-	path, err := filepath.Join(processlock.StateDirectory, worktreeHolder), processlock.EnsureStateDirectory(".")
+	path, err := filepath.Join(processlock.StateDirectory, guard.WorktreeHolder), processlock.EnsureStateDirectory(".")
 	if held, readErr := os.ReadFile(path); err == nil && readErr == nil && session != "" && strings.TrimSpace(string(held)) == session {
 		_ = os.Remove(path)
 	}

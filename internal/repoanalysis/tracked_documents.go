@@ -44,9 +44,9 @@ var entryDocuments = []string{"README.md", "skill.md", "SECURITY.md"}
 // licensesRoot holds the license notices the repository carries.
 const licensesRoot = "licenses/"
 
-// workRecords name documents they are about -- ones a row will delete among
+// WorkRecords name documents they are about -- ones a row will delete among
 // them -- without reading any, so their text keeps nothing.
-var workRecords = []string{"docs/plan.json", "docs/sqa_findings.json", "docs/api_manifest.json"}
+var WorkRecords = []string{"docs/plan.json", "docs/sqa_findings.json", "docs/api_manifest.json"}
 
 // embedDirective opens a go:embed line; the patterns after it are read.
 const embedDirective = "//go:embed "
@@ -350,7 +350,7 @@ func liveDocuments(census []TrackedDocument) map[string]bool {
 			if slices.Contains(entryDocuments, document.Path) || strings.HasPrefix(document.Path, licensesRoot) ||
 				len(document.Writers)+len(document.Readers) > 0 ||
 				slices.ContainsFunc(document.ReferencedBy, func(referrer string) bool {
-					return live[referrer] && !slices.Contains(workRecords, referrer)
+					return live[referrer] && !slices.Contains(WorkRecords, referrer)
 				}) {
 				live[document.Path], grew = true, true
 			}

@@ -18,31 +18,48 @@ import (
 // state of its trunk's checkout.
 const turnLock = "landing_turn.lock"
 
+// Worktree is one registered worktree as git lists it: its directory, the
+// commit it has checked out, and its branch, none when it is on no branch.
+type Worktree struct{ Root, Head, Branch string }
+
+// Worktrees reads a repository's registered worktrees from git's list, the
+// main worktree first. The list is the same from whichever worktree of the
+// repository it is read.
+func Worktrees(ctx context.Context, repo string) ([]Worktree, error) {
+	listed, err := gitauthority.Query(ctx, repo, "worktree", "list", "--porcelain")
+	if err != nil {
+		return nil, err
+	}
+	var trees []Worktree
+	for line := range strings.Lines(string(listed)) {
+		key, value, _ := strings.Cut(strings.TrimSpace(line), " ")
+		switch {
+		case key == "worktree":
+			trees = append(trees, Worktree{Root: filepath.FromSlash(value)})
+		case len(trees) == 0:
+		case key == "HEAD":
+			trees[len(trees)-1].Head = value
+		case key == "branch":
+			trees[len(trees)-1].Branch = value
+		}
+	}
+	if len(trees) == 0 {
+		return nil, errors.New("land: git lists no worktree for this repository")
+	}
+	return trees, nil
+}
+
 // trunkOf reads a repository's trunk from git's list of its worktrees: the
 // directory of the main worktree, which git lists first, and the branch it
 // has checked out, none when it is on no branch. It is the same from whichever
 // worktree of the repository it is read, which is what makes it the one place
 // their commits take turns and the one branch they publish onto.
 func trunkOf(ctx context.Context, repo string) (root, branch string, err error) {
-	listed, err := gitauthority.Query(ctx, repo, "worktree", "list", "--porcelain")
+	trees, err := Worktrees(ctx, repo)
 	if err != nil {
 		return "", "", err
 	}
-	for line := range strings.Lines(string(listed)) {
-		key, value, _ := strings.Cut(strings.TrimSpace(line), " ")
-		switch {
-		case key == "" && root != "":
-			return root, branch, nil
-		case key == "worktree" && root == "":
-			root = filepath.FromSlash(value)
-		case key == "branch":
-			branch = value
-		}
-	}
-	if root == "" {
-		return "", "", errors.New("land: git lists no worktree for this repository")
-	}
-	return root, branch, nil
+	return trees[0].Root, trees[0].Branch, nil
 }
 
 // holdTurn takes the repository's one turn for a commit's whole run. Of the

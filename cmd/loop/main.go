@@ -16,6 +16,10 @@
 //	}
 //
 // Pause by creating .overgo-runtime/loop_pause; delete it to resume.
+//
+//	go run ./cmd/loop -leftovers
+//
+// lists every place files accumulate and removes nothing.
 package main
 
 import (
@@ -105,11 +109,15 @@ func run(args []string) error {
 	improveOnce := flags.Bool("improve", false, "run one improvement cycle now, as an emptied plan does: measure the scorecard, compare each cell with its newest earlier complete measurement, and file the declines and the other gaps as rows")
 	pushCommit := flags.String("push", "", "the owner's command: push the named commit to origin's main, fast-forward only; refused from a worker's environment and without -confirm-push")
 	confirmPush := flags.Bool("confirm-push", false, "with -push: say the push is wanted")
+	leftovers := flags.Bool("leftovers", false, "list every place files accumulate (helper copies, worktrees, branches, stashes, experiment outputs, temporary folders, bin, tmp, store backups), one line an entry with its bytes and the rule that decided it, and every directory no line of the table names; writes the same listing to the trunk checkout's process state and removes nothing")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if *landReference != "" {
 		return landCommand(*landReference, *landMessage, os.Stdin, os.Stdout)
+	}
+	if *leftovers {
+		return leftoversFor(*repoPath, os.Stdout)
 	}
 	resolved, err := dataroot.StoreRoot(*repoPath)
 	if err != nil {

@@ -207,6 +207,8 @@ Repository shrinks while capability grows.
   produces, the Python original and library versions it used, its seed, and the
   output file or store identity. Evaluation sets, tools and anything else are Go.
 - Models, datasets, store, `build/` live in `OVERGO_DATA_ROOT`, outside the module.
+- `go run ./cmd/loop -leftovers` lists every place files accumulate, each entry with
+  its bytes and the rule that decided its state; it removes nothing.
 - Port through typed contracts and recipe-selected consumers. llama.cpp for pinned
   behavior; `adaptive_new` read-only. Keep commits, licenses, artifact identities.
   Model-family facts live in artifacts and recipes, never model-specific code.

@@ -19,7 +19,11 @@ import (
 // two cells names. A baseline published before environments were recorded says nothing of where it
 // ran, so neither a gain nor a decline is read against it, and the reason shows the missing name as
 // empty. The same environment still compares, and so do two cells that both name none: a loss
-// between those is still a decline.
+// between those is still a decline. That last rule is kept on purpose. Two serving cells that
+// both name none are two records published before environments were recorded, which only the
+// page's history reads side by side; a record built now names an environment on every serving
+// cell. Reading such a pair as Unknown would say nothing more of where either ran, and would
+// drop a decline the two numbers do show.
 func TestServingEnvironmentChangeIsUnknown(t *testing.T) {
 	t.Parallel()
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "served")

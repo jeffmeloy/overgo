@@ -93,7 +93,7 @@ func RecordWholeOutput(ctx context.Context, store artifact.Repository, attempt W
 // finding could not be parked. An attempt whose run is bound to an
 // environment is recorded under that one, where the work was done, and not
 // the recorder's own, where it was only watched from; an attempt with no
-// run, or a run that names none, keeps the recorder's.
+// run, a run that cannot be read or one that names none keeps the recorder's.
 func Record(ctx context.Context, store artifact.Repository, observation runrecord.ServingObservation) (runrecord.ServingObservation, error) {
 	if run, err := runrecord.RequireRun(ctx, store, observation.Run); err == nil && run.Environment.Valid() {
 		observation.Environment = run.Environment

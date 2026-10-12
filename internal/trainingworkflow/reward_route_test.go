@@ -2,9 +2,9 @@ package trainingworkflow
 
 import (
 	"fmt"
-	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -20,7 +20,8 @@ const orderedPrompt = "ab"
 
 // orderedRewardFixture writes a tiny model and one reward group, the answers
 // to one prompt, each rewarded over those after it, and makes the authority
-// of a reward session over answers already scored, held to the host.
+// of a reward session over answers already scored. Its device trainer is the
+// stand-in that takes the weighted step on the host (hostWeightedStep).
 func orderedRewardFixture(t *testing.T, answers ...string) (string, Request) {
 	t.Helper()
 	weights, shapes := testutil.DenseCausalWeights(t, testutil.DenseCausalSpec{
@@ -41,7 +42,7 @@ func orderedRewardFixture(t *testing.T, answers ...string) (string, Request) {
 		t.Fatal(err)
 	}
 	store, recipeID := trainingAuthority(t, model, "", dataset, trainingprogram.ObjectiveGRPO)
-	return root, Request{Repository: store, Recipe: recipeID, ModelDirectory: model, DatasetPath: dataset, Host: true}
+	return root, Request{Repository: store, Recipe: recipeID, ModelDirectory: model, DatasetPath: dataset, Device: hostWeightedStep}
 }
 
 // hostWeightedStep stands in for the device trainer and takes its step for
@@ -114,9 +115,9 @@ func hostWeightedStep(model *densecausal.Model, groups [][]densecausal.WeightedS
 }
 
 // TestRewardDeviceRouteTakesARealStepOnTheHost holds the route a reward
-// session takes off the host to training a model, with no graphics card: the
-// device trainer here is a stand-in that takes the weighted step for real on
-// the host (hostWeightedStep), where the other stand-ins step on no gradient.
+// session takes to training a model, with no graphics card: the device
+// trainer here is a stand-in that takes the weighted step for real on the
+// host (hostWeightedStep), where the other stand-ins step on no gradient.
 // Its group is three answers of unequal lengths, the first rewarded over the
 // second and the second over the third, so the middle one weighs nothing.
 //
@@ -124,11 +125,6 @@ func hostWeightedStep(model *densecausal.Model, groups [][]densecausal.WeightedS
 // best answer further above the worst than the model it began from did: the
 // step is handed each answer's weight with the sign a loss takes, and a
 // weight handed with the other sign lowers that margin.
-//
-// While the host keeps a reward trainer of its own, the two agree: over the
-// group taken twice, the route's losses and the weights it ends at are the
-// host trainer's, within what two orders of the same single-precision sums
-// differ by after the optimizer has stepped on them.
 //
 // And a session stopped at its checkpoint and resumed ends at the weights,
 // the optimizer state and the place in its stream that one session ends at,
@@ -185,53 +181,80 @@ func TestRewardDeviceRouteTakesARealStepOnTheHost(t *testing.T) {
 		}
 		return result, loaded(request.OutputDirectory)
 	}
-	// What the two host calculations were measured to differ by, on this
-	// fixture: 2.2e-8 and 2.0e-7 in the two groups' losses, and 2.5e-4 in the
-	// weights after both, which had moved 3.6e-2. The weights differ by more
-	// than single precision does because the optimizer steps along a direction
-	// it makes from the gradient and not along the gradient, and a last-place
-	// change in a gradient turns that direction: handing the stand-in every
-	// weight moved to the next single-precision number moved the same weights
-	// by 5.0e-4. The bounds are fifty times the losses' difference and eight
-	// times the weights'.
-	const groups, lossBound, weightBound = 2, 1e-5, 2e-3
-	hosted, onHost := run(request, "host", groups)
-	request.Host, request.Device = false, hostWeightedStep
-
 	// The step teaches what the rewards say.
 	one, stepped := run(request, "one", 1)
 	if one.Backend != "cuda" || len(one.GRPO) != 1 || one.Checkpoint.Optimizer.Step != 1 {
-		t.Fatalf("one group off the host = backend %q, %d observations, step %d; want the device route's one step", one.Backend, len(one.GRPO), one.Checkpoint.Optimizer.Step)
+		t.Fatalf("one group = backend %q, %d observations, step %d; want the device route's one step", one.Backend, len(one.GRPO), one.Checkpoint.Optimizer.Step)
 	}
 	if before, after := margin(loaded(request.ModelDirectory)), margin(stepped); !(after > before) {
 		t.Errorf("after one step the model puts the best answer %.6f above the worst, and before it %.6f; want the step to have raised it", after, before)
 	}
 
-	// The route against the host's own reward trainer, over the same groups.
-	routed, offHost := run(request, "routed", groups)
-	if len(routed.GRPO) != groups || len(hosted.GRPO) != groups {
-		t.Fatalf("%d groups gave %d observations off the host and %d on it", groups, len(routed.GRPO), len(hosted.GRPO))
-	}
-	for step, observation := range hosted.GRPO {
-		if math.Abs(observation.Loss-routed.GRPO[step].Loss) > lossBound {
-			t.Errorf("group %d: the route's loss %.9f, the host trainer's %.9f; want them within %.0e", step, routed.GRPO[step].Loss, observation.Loss, lossBound)
-		}
-	}
-	var furthest float64
-	for name, values := range onHost.Weights {
-		for index, value := range values {
-			furthest = max(furthest, math.Abs(float64(value)-float64(offHost.Weights[name][index])))
-		}
-	}
-	if furthest > weightBound {
-		t.Errorf("after %d groups the route's weights stand %.2e from the host trainer's; want them within %.0e", groups, furthest, weightBound)
-	}
-
 	// Stopped at a checkpoint and resumed, over answers already scored and over answers the session draws.
 	verifyWorkflowResume(t, root, request)
 	sampledRoot, sampling := rewardFixture(t)
-	sampling.Host, sampling.Device = false, hostWeightedStep
 	if sampled := verifyWorkflowResume(t, sampledRoot, sampling); sampled.Rewards.Updated == 0 || sampled.Rewards.Skipped != 0 {
 		t.Fatalf("the session that drew its own answers = %+v; want a step on each of its groups, so that the resumed half takes one", sampled.Rewards)
+	}
+}
+
+// TestRewardSessionsTrainThroughTheWeightedStepAlone holds a reward session
+// to the one trainer it has: the weighted step, which the device takes. The
+// host has no reward trainer of its own.
+//
+// A session held to the host is refused with that reason and leaves nothing
+// where its checkpoint was to go, whether it is over answers already scored
+// or draws and scores its own, and although its request carries a device
+// trainer, as a training command's does.
+//
+// Not held to the host, each goes to the device trainer its request carries,
+// here the stand-in that takes the weighted step for real on the host
+// (hostWeightedStep): the session is reported as the device's, the checkpoint
+// it returns is the one published, after the one step, and the model
+// published has moved from the one the session began at.
+func TestRewardSessionsTrainThroughTheWeightedStepAlone(t *testing.T) {
+	ctx := t.Context()
+	scoredRoot, scored := orderedRewardFixture(t, "c", "d")
+	drawnRoot, drawn := rewardFixture(t)
+	for _, session := range []struct {
+		name, root string
+		request    Request
+	}{{"over answers already scored", scoredRoot, scored}, {"that draws its own answers", drawnRoot, drawn}} {
+		held := session.request
+		held.Host, held.Steps, held.OutputDirectory = true, 1, filepath.Join(session.root, "held")
+		refused, err := Execute(ctx, held)
+		if err == nil || !strings.Contains(err.Error(), "weighted step") {
+			t.Errorf("a reward session %s, held to the host, ended on backend %q with %v; want it refused, since a reward session trains through the weighted step and the host has no reward trainer", session.name, refused.Backend, err)
+		}
+		if _, err := os.Stat(held.OutputDirectory); !os.IsNotExist(err) {
+			t.Errorf("a reward session %s, held to the host, left %s behind (%v); want nothing published by a session that was refused", session.name, held.OutputDirectory, err)
+		}
+
+		stepped := session.request
+		stepped.Steps, stepped.OutputDirectory = 1, filepath.Join(session.root, "stepped")
+		result, err := Execute(ctx, stepped)
+		if err != nil {
+			t.Fatalf("a reward session %s, not held to the host: %v", session.name, err)
+		}
+		published, err := trainingprogram.LoadCheckpoint(stepped.OutputDirectory)
+		if err != nil || result.Backend != "cuda" || published.ID() != result.Checkpoint.ID() || published.Optimizer.Step != 1 {
+			t.Fatalf("a reward session %s, not held to the host = backend %q, checkpoint %s; %s holds %s at step %d (%v); want the device's session and its checkpoint published after one step",
+				session.name, result.Backend, result.Checkpoint.ID(), stepped.OutputDirectory, published.ID(), published.Optimizer.Step, err)
+		}
+		began, err := loadTrainableModel(stepped.ModelDirectory)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ended, err := loadTrainableModel(stepped.OutputDirectory)
+		if err != nil {
+			t.Fatal(err)
+		}
+		moved := false
+		for name, values := range began.Weights {
+			moved = moved || !slices.Equal(values, ended.Weights[name])
+		}
+		if !moved {
+			t.Errorf("a reward session %s, not held to the host, published the weights it began at; want the weighted step to have moved them", session.name)
+		}
 	}
 }

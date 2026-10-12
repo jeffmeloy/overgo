@@ -104,8 +104,8 @@ func weightedGradient(t *testing.T, model *densecausal.Model, answers []training
 // group's rewards gives (trainingprogram.OrderGradients) with its sign
 // turned, since that is a gradient by an answer's log probability and a
 // weight multiplies its loss, and the step is the masked loss's gradients
-// under those weights (weightedGradient). It reads neither the sequences the
-// device is handed nor the host's reward trainer.
+// under those weights (weightedGradient). It does not read the sequences the
+// device is handed.
 func rewardReference(t *testing.T, model *densecausal.Model, groups []trainingdata.RolloutGroup, momentum float64) []float64 {
 	t.Helper()
 	update, err := model.NewDenseUpdate(derivedTestLearningRate(t, model), momentum, nil)
@@ -148,11 +148,10 @@ func rewardReference(t *testing.T, model *densecausal.Model, groups []trainingda
 // taken on this device before and after.
 //
 // Rewards. Groups of answers of unequal lengths, weighed by the order of
-// their rewards, are stepped on the device, by the host's reward trainer,
-// and by this file's own reference on the host (rewardReference), which
-// reads neither that trainer nor what the device is handed: the device's
-// losses and weights agree with each within the trainer's bounds, a shorter
-// answer padded with tokens of no weight.
+// their rewards, are stepped on the device and by this file's own reference
+// on the host (rewardReference), which does not read what the device is
+// handed: the device's losses and weights agree with the reference's within
+// the trainer's bounds, a shorter answer padded with tokens of no weight.
 //
 // The control. The answers that pass are weighed alike and the rest not at
 // all, each passing answer one over their count on every token of its
@@ -216,7 +215,7 @@ func TestOneWeightedStepServesFineTuningAndRewards(t *testing.T) {
 		t.Fatalf("fine-tuning with its mean written out as weights: weights the same %t, momentum the same %t, losses %v against %v", same(plain, written), slices.Equal(before.State.Momentum, after.State.Momentum), after.Losses, before.Losses)
 	}
 
-	// Rewards: the device's step against the host's reward trainer and against the reference.
+	// Rewards: the device's step against the reference.
 	weighted := func(group trainingdata.RolloutGroup) []densecausal.WeightedSequence {
 		t.Helper()
 		sequences, err := densecausal.RewardSequences(group)
@@ -226,23 +225,19 @@ func TestOneWeightedStepServesFineTuningAndRewards(t *testing.T) {
 		return sequences
 	}
 	ordered := orderedRewardGroups(t)
-	host, resident, expected := tinyMuonModel(t), tinyMuonModel(t), tinyMuonModel(t)
-	observed, _, err := host.TrainGRPOGroupsResume(ordered, derivedTestLearningRate(t, host), momentum, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	resident, expected := tinyMuonModel(t), tinyMuonModel(t)
 	expectedLosses := rewardReference(t, expected, ordered, momentum)
 	rewarded := train(resident, nil, weighted(ordered[0]), weighted(ordered[1]), weighted(ordered[2]))
-	if len(rewarded.Losses) != len(observed) || len(rewarded.Losses) != len(expectedLosses) {
-		t.Fatalf("%d reward groups gave %d losses on the device, %d by the host's trainer and %d by the reference", len(ordered), len(rewarded.Losses), len(observed), len(expectedLosses))
+	if len(rewarded.Losses) != len(expectedLosses) {
+		t.Fatalf("%d reward groups gave %d losses on the device and %d by the reference", len(ordered), len(rewarded.Losses), len(expectedLosses))
 	}
-	for step, observation := range observed {
-		if math.Abs(observation.Loss-rewarded.Losses[step]) > lossLimit || math.Abs(expectedLosses[step]-rewarded.Losses[step]) > lossLimit {
-			t.Errorf("reward group %d: the device's loss %.6f, the host trainer's %.6f, the reference's %.6f", step, rewarded.Losses[step], observation.Loss, expectedLosses[step])
+	for step, expectedLoss := range expectedLosses {
+		if math.Abs(expectedLoss-rewarded.Losses[step]) > lossLimit {
+			t.Errorf("reward group %d: the device's loss %.6f, the reference's %.6f", step, rewarded.Losses[step], expectedLoss)
 		}
 	}
-	if furthest := max(apart(host, resident), apart(expected, resident)); furthest > weightLimit || same(resident, tinyMuonModel(t)) {
-		t.Fatalf("after %d reward groups the device's weights stand %.2e from the host trainer's and %.2e from the reference's; want them within %.1e and moved", len(observed), apart(host, resident), apart(expected, resident), weightLimit)
+	if furthest := apart(expected, resident); furthest > weightLimit || same(resident, tinyMuonModel(t)) {
+		t.Fatalf("after %d reward groups the device's weights stand %.2e from the reference's; want them within %.1e and moved", len(ordered), furthest, weightLimit)
 	}
 
 	// The control: passing answers weighed alike, against a host step built from the masked loss.

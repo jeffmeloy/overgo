@@ -464,3 +464,49 @@ func TestTrainingCommandRunsAWorkbenchRewardRun(t *testing.T) {
 		t.Fatalf("the runs left the scratch directories %v behind (%v); want each removed when its run returned", left, err)
 	}
 }
+
+// TestTrainingCommandRefusesRewardTrainingHeldToTheHost holds the training
+// command's -host to what the host trains, which is no reward session. The
+// child is this test binary run as the command over its own flags, its device
+// trainer the stand-in, so a run that was not refused would train and end
+// well.
+//
+// A run under a reward recipe with -host ends with the workflow's refusal,
+// which names the weighted step, publishes nothing at -out, and leaves the
+// session it was admitted as recorded as failed. And -pilot with -host is
+// refused for the two flags together, before the pilot reads its acceptance:
+// a pilot's arms are reward sessions.
+func TestTrainingCommandRefusesRewardTrainingHeldToTheHost(t *testing.T) {
+	ctx := t.Context()
+	fixture := newRewardCommandFixture(t)
+	t.Setenv(commandChildEnvironment, childStandIn)
+	// refused runs the command over the arguments and returns the status it
+	// ended with and the error it wrote for its starter.
+	refused := func(arguments ...string) (int, string) {
+		t.Helper()
+		written := filepath.Join(t.TempDir(), "error.txt")
+		receipt, err := processcontrol.Run(ctx, processcontrol.Command{
+			Path: os.Args[0], Args: arguments, Env: append(os.Environ(), clioptions.ErrorFileEnvironment+"="+written),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		// A command that ended well wrote no error.
+		refusal, _ := os.ReadFile(written)
+		return receipt.ExitCode, string(refusal)
+	}
+	held := fixture.request("held")
+	if status, refusal := refused("-store", fixture.storePath, "-recipe", held.Recipe.String(), "-model", held.ModelDirectory, "-dataset", held.DatasetPath,
+		"-out", held.OutputDirectory, "-steps", "1", "-host"); status != 1 || !strings.Contains(refusal, "weighted step") || !strings.Contains(refusal, "held to the host") {
+		t.Fatalf("a reward run with -host ended with status %d and %q; want it refused, since a reward session trains through the weighted step and the host has no reward trainer", status, refusal)
+	}
+	if _, err := os.Stat(held.OutputDirectory); !os.IsNotExist(err) {
+		t.Fatalf("a reward run with -host left %s behind (%v); want nothing published by a run that was refused", held.OutputDirectory, err)
+	}
+	if sessions := fixture.sessions(t); len(sessions) != 1 || sessions[0].Outcome != runrecord.OutcomeFailed {
+		t.Fatalf("after the refused run the store holds the training sessions %+v; want the one session the command admitted, recorded as failed", sessions)
+	}
+	if status, refusal := refused("-store", fixture.storePath, "-pilot", fixture.recipe.String(), "-host"); status != 1 || !strings.Contains(refusal, "-pilot takes no -host") {
+		t.Fatalf("-pilot with -host ended with status %d and %q; want the two flags refused together, with the reason", status, refusal)
+	}
+}

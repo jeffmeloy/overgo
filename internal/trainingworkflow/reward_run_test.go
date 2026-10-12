@@ -43,7 +43,9 @@ func rewardPromptEvaluators(raw []byte) ([]artifact.ID, bool) {
 
 // rewardFixture writes the tiny model, which declares token zero its end,
 // and the suite of prompts, and makes the authority of a reward session over
-// them. Two fixtures are the same model and prompts in two stores.
+// them. Its device trainer is the stand-in that takes the weighted step on
+// the host (hostWeightedStep). Two fixtures are the same model and prompts in
+// two stores.
 func rewardFixture(t *testing.T) (string, Request) {
 	t.Helper()
 	weights, shapes := testutil.DenseCausalWeights(t, testutil.DenseCausalSpec{
@@ -64,7 +66,7 @@ func rewardFixture(t *testing.T) (string, Request) {
 	}
 	store, recipeID := trainingAuthority(t, model, "", prompts, trainingprogram.ObjectiveGRPO)
 	return root, Request{
-		Repository: store, Observations: store, Recipe: recipeID, ModelDirectory: model, DatasetPath: prompts, Host: true,
+		Repository: store, Observations: store, Recipe: recipeID, ModelDirectory: model, DatasetPath: prompts, Device: hostWeightedStep,
 		Rewards: &RewardSampling{
 			Protocol: evaluation.InstructionProtocol{Scorer: evaluation.InstructionScorer, Template: "none", Thinking: pilotThinking, Sampling: rewardSampling, Stop: pilotStop, Window: 16, MaxTokens: 4},
 			Training: testutil.ArtifactID(t, artifact.KindProfile, "reward fixture training"), Seed: 5, Draws: 4, Code: "reward fixture code",
@@ -104,7 +106,9 @@ func (neverSampled) Generate(context.Context, string, inference.GenerateOptions)
 //
 // A session asked for a cut or sharpened distribution, for fewer than two
 // draws, for another scorer, or given no store to keep its draws in is
-// refused. Off the host, each group goes to the device trainer as one step.
+// refused. Each group goes to the device trainer as one step: the sessions
+// above train by the stand-in that takes the weighted step for real on the
+// host (hostWeightedStep), and the last by one that counts what it is handed.
 func TestRewardRunSamplesAndScoresItsOwnGroups(t *testing.T) {
 	ctx := t.Context()
 	root, request := rewardFixture(t)
@@ -229,10 +233,10 @@ func TestRewardRunSamplesAndScoresItsOwnGroups(t *testing.T) {
 		}
 	}
 
-	// Off the host each group is one step of the device trainer, here a stand-in.
+	// Each group is one call of the device trainer, here a stand-in that counts them.
 	calls := 0
 	device := request
-	device.Host, device.Device = false, func(model *densecausal.Model, groups [][]densecausal.WeightedSequence, learningRate, momentum float64, _ bool, resume *densecausal.TrainState, _ densecausal.TrainObserver) ([]float64, int, densecausal.TrainState, error) {
+	device.Device = func(model *densecausal.Model, groups [][]densecausal.WeightedSequence, learningRate, momentum float64, _ bool, resume *densecausal.TrainState, _ densecausal.TrainObserver) ([]float64, int, densecausal.TrainState, error) {
 		calls++
 		update, err := model.NewDenseUpdate(learningRate, momentum, resume)
 		if err != nil || len(groups) != 1 || len(groups[0]) != request.Rewards.Draws {
@@ -247,7 +251,7 @@ func TestRewardRunSamplesAndScoresItsOwnGroups(t *testing.T) {
 		return []float64{0.5}, 0, update.Snapshot(), nil
 	}
 	if onDevice := run(device, "device", prompts); onDevice.Backend != "cuda" || calls != prompts || onDevice.Rewards.Sampled != prompts || onDevice.Rewards.Updated+onDevice.Rewards.Skipped != prompts || len(onDevice.GRPO) != onDevice.Rewards.Updated {
-		t.Fatalf("the session off the host = backend %q, %d device calls, %+v, %d observations; want each of %d groups one call", onDevice.Backend, calls, onDevice.Rewards, len(onDevice.GRPO), prompts)
+		t.Fatalf("the session = backend %q, %d device calls, %+v, %d observations; want each of %d groups one call", onDevice.Backend, calls, onDevice.Rewards, len(onDevice.GRPO), prompts)
 	}
 }
 
@@ -256,8 +260,8 @@ func TestRewardRunSamplesAndScoresItsOwnGroups(t *testing.T) {
 // sequence whose own tokens share a weight of one, and nothing of its prompt
 // weighs; an answer that did not pass weighs nothing, so a group none of whose
 // answers passed is all zeros, which the weighted step passes without an
-// update. And a control session asked to train on the host is refused: it
-// trains through the weighted step, which is the device's.
+// update. And a control session held to the host is refused, as every reward
+// session is: it trains through the weighted step, which is the device's.
 func TestControlSessionStepsOnPassedAnswersAlone(t *testing.T) {
 	sequence := func(prompt, answer int) trainingdata.PreferenceSequence {
 		made := trainingdata.PreferenceSequence{Tokens: make([]int, prompt+answer), Completion: make([]bool, prompt+answer)}
@@ -280,8 +284,8 @@ func TestControlSessionStepsOnPassedAnswersAlone(t *testing.T) {
 	root, request := rewardFixture(t)
 	control := *request.Rewards
 	control.Control = true
-	request.Rewards, request.Steps, request.OutputDirectory = &control, 1, filepath.Join(root, "control")
+	request.Rewards, request.Host, request.Steps, request.OutputDirectory = &control, true, 1, filepath.Join(root, "control")
 	if _, err := Execute(t.Context(), request); err == nil || !strings.Contains(err.Error(), "weighted step") {
-		t.Fatalf("a control session on the host = %v, want it refused", err)
+		t.Fatalf("a control session held to the host = %v, want it refused", err)
 	}
 }

@@ -296,13 +296,13 @@ func TestGRPOUsesSharedRecipeTrainingRuntime(t *testing.T) {
 	var observed []trainingprogram.GRPOObservation
 	result, err := Execute(t.Context(), Request{
 		Repository: store, Recipe: recipeID, ModelDirectory: model, DatasetPath: dataset,
-		OutputDirectory: filepath.Join(root, "output"), Steps: 1, Host: true,
+		OutputDirectory: filepath.Join(root, "output"), Steps: 1, Device: hostWeightedStep,
 		ObserveGRPO: func(value trainingprogram.GRPOObservation) { observed = append(observed, value) },
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Objective != trainingprogram.ObjectiveGRPO || result.Backend != "host" ||
+	if result.Objective != trainingprogram.ObjectiveGRPO || result.Backend != "cuda" ||
 		result.Checkpoint.ID().Kind() != artifact.KindCheckpoint || len(observed) != 1 ||
 		observed[0].Evaluator != evaluator || observed[0].GroupSize != 2 || observed[0].RewardDispersion == 0 {
 		t.Fatalf("result=%+v observations=%+v", result, observed)
@@ -386,11 +386,14 @@ func testGRPOResume(t *testing.T) {
 // stream past both; and the same two units as one session, its checkpoint,
 // and a second session resumed from it end at the same weights, the same
 // optimizer step and the same place in the stream, however the stream
-// orders the two. A request that names an objective scale is refused. A
-// session not held to the host goes to the device trainer the request
-// carries, the step fine-tuning takes: each answer's completion weighed by
-// its standing, the tied group at zero, the stepped group observed and the
-// other counted; and with no device trainer it is refused.
+// orders the two. Those sessions' device trainer is the stand-in that takes
+// the weighted step for real on the host (hostWeightedStep). A request that
+// names an objective scale is refused for it, held to the host or not: a
+// session's inputs are read before where it trains. A session goes to the
+// device trainer the request carries, the step fine-tuning takes: each
+// answer's completion weighed by its standing, the tied group at zero, the
+// stepped group observed and the other counted; and with no device trainer
+// it is refused.
 func TestRewardSessionPassesATiedGroupAcrossACheckpoint(t *testing.T) {
 	weights, shapes := testutil.DenseCausalWeights(t, testutil.DenseCausalSpec{
 		Vocab: 8, Hidden: 8, Heads: 2, HeadDim: 4, KVHeads: 1, Intermediate: 16, Layers: 1, Seed: 13,
@@ -411,11 +414,13 @@ func TestRewardSessionPassesATiedGroupAcrossACheckpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	store, recipeID := trainingAuthority(t, model, "", dataset, trainingprogram.ObjectiveGRPO)
-	request := Request{Repository: store, Recipe: recipeID, ModelDirectory: model, DatasetPath: dataset, Host: true}
-	scaled := request
-	scaled.Steps, scaled.ObjectiveScale, scaled.OutputDirectory = 2, 1, filepath.Join(root, "scaled")
-	if _, err := Execute(t.Context(), scaled); err == nil || !strings.Contains(err.Error(), "no objective scale") {
-		t.Fatalf("a reward session with an objective scale = %v, want it refused", err)
+	request := Request{Repository: store, Recipe: recipeID, ModelDirectory: model, DatasetPath: dataset, Device: hostWeightedStep}
+	for _, held := range []bool{false, true} {
+		scaled := request
+		scaled.Host, scaled.Steps, scaled.ObjectiveScale, scaled.OutputDirectory = held, 2, 1, filepath.Join(root, "scaled")
+		if _, err := Execute(t.Context(), scaled); err == nil || !strings.Contains(err.Error(), "no objective scale") {
+			t.Fatalf("a reward session with an objective scale, held to the host %t = %v, want it refused for its scale", held, err)
+		}
 	}
 	both := request
 	both.Steps, both.OutputDirectory = 2, filepath.Join(root, "both")
@@ -429,11 +434,11 @@ func TestRewardSessionPassesATiedGroupAcrossACheckpoint(t *testing.T) {
 	}
 	verifyWorkflowResume(t, root, request)
 
-	// Not on the host, the same session goes to the device's weighted step:
-	// each answer one sequence, its completion weighed by its standing, the
-	// better answer's loss positively and the worse negatively, and the tied
-	// group all zeros. The device here is a stand-in that steps the optimizer
-	// once for a group it is to learn from and says what it passed.
+	// What the session hands the device's weighted step: each answer one
+	// sequence, its completion weighed by its standing, the better answer's
+	// loss positively and the worse negatively, and the tied group all zeros.
+	// The device here is a stand-in that steps the optimizer once for a group
+	// it is to learn from and says what it passed.
 	var handed [][]densecausal.WeightedSequence
 	device := func(model *densecausal.Model, groups [][]densecausal.WeightedSequence, learningRate, momentum float64, _ bool, resume *densecausal.TrainState, _ densecausal.TrainObserver) ([]float64, int, densecausal.TrainState, error) {
 		handed = groups
@@ -456,7 +461,7 @@ func TestRewardSessionPassesATiedGroupAcrossACheckpoint(t *testing.T) {
 		return losses, skipped, update.Snapshot(), nil
 	}
 	resident := request
-	resident.Host, resident.Device, resident.Steps, resident.OutputDirectory = false, device, 2, filepath.Join(root, "device")
+	resident.Device, resident.Steps, resident.OutputDirectory = device, 2, filepath.Join(root, "device")
 	onDevice, err := Execute(t.Context(), resident)
 	if err != nil {
 		t.Fatal(err)

@@ -104,6 +104,9 @@ func run() error {
 	if (*orderSeed != 0 || *runs != 0) && *objective == "" {
 		return fmt.Errorf("train: an order seed and a corpus of runs belong to an -objective run; -order-seed and -runs need -objective")
 	}
+	if *pilot != "" && *host {
+		return fmt.Errorf("train: -pilot trains its arms through the weighted step, which the device takes; the host has no reward trainer, so -pilot takes no -host")
+	}
 	// A command a server starts opens the store the server writes to, so it
 	// waits its turn for the writer lock where a plain open would fail at once.
 	store, err := overgodb.OpenContext(ctx, *storePath)
@@ -112,7 +115,7 @@ func run() error {
 	}
 	defer store.Close()
 	if *pilot != "" {
-		return runPilot(ctx, store, *pilot, *model, *output, *host, os.Stdout)
+		return runPilot(ctx, store, *pilot, *model, *output, os.Stdout)
 	}
 	if *propose != "" || *confirm != "" {
 		if *objective != "" || *model == "" || *output == "" || *propose != "" && *confirm != "" || *maximumSequence != 0 {

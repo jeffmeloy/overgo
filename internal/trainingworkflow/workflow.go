@@ -182,6 +182,9 @@ func admittedRun(ctx context.Context, request Request, observer *Observer, input
 		if request.ReferenceDirectory != "" || request.ObjectiveScale != 0 || request.FreezeLexical {
 			return Result{}, errors.New("training workflow: GRPO inputs differ from recipe: the reward objective takes no reference, no objective scale and no frozen lexicon")
 		}
+		if request.Host {
+			return Result{}, errors.New("training workflow: a reward session trains through the weighted step, which the device takes; the host has no reward trainer, so a session held to the host is refused")
+		}
 	default:
 		if request.ReferenceDirectory != "" || request.ObjectiveScale != 0 {
 			return Result{}, errors.New("training workflow: token recipe rejects RL inputs")
@@ -442,15 +445,7 @@ func (session denseSession) execute(prepared densePrepared, plan trainingprogram
 		if session.request.Rewards != nil {
 			return session.produceRewards(prepared, resume)
 		}
-		if !session.request.Host {
-			return session.rewardsOnDevice(prepared.groups, resume, densecausal.RewardSequences)
-		}
-		observations, state, err := session.model.TrainGRPOGroupsResume(
-			prepared.groups, session.optimizerConfig.BaseLearningRate, session.optimizerConfig.Momentum,
-			resume, session.request.ObserveGRPO,
-		)
-		return Result{Backend: "host", Objective: session.objective, GRPO: observations,
-			StreamPosition: state.Stream.Position, Skipped: state.Skipped}, state.Optimizer, err
+		return session.rewardsOnDevice(prepared.groups, resume, densecausal.RewardSequences)
 	}
 	if session.objective == trainingprogram.ObjectiveDPO {
 		var resume *densecausal.RLState

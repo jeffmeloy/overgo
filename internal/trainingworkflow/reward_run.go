@@ -229,11 +229,10 @@ func (sampler modelSampler) Generate(ctx context.Context, _ string, options infe
 // probabilities under the identity of those weights (evaluation.SampleGroup);
 // scores each answer by the prompt's rules; puts the answers in the
 // instruction objective's one order; and takes at most one step on the group,
-// on the host or the device as the session trains. A group is drawn whole
-// from one set of weights before its step, and the next from the weights
-// after it, by the sampler that serves the model's representation
-// (rewardSampler), which also reads how a stepped group's answers stand
-// under the weights after the step.
+// the device's weighted step. A group is drawn whole from one set of weights
+// before its step, and the next from the weights after it, by the sampler
+// that serves the model's representation (rewardSampler), which also reads
+// how a stepped group's answers stand under the weights after the step.
 //
 // A session that is run again from the same checkpoint reaches the same
 // weights and so names the same groups: the draws it recorded are read back
@@ -261,10 +260,7 @@ func (session denseSession) produceRewards(prepared densePrepared, resume *dense
 	if resume != nil {
 		state = *resume
 	}
-	result := Result{Backend: "host", Objective: session.objective}
-	if !session.request.Host {
-		result.Backend = "cuda"
-	}
+	result := Result{Backend: "cuda", Objective: session.objective}
 	trace := &result.Rewards
 	for _, produced := range prepared.cases {
 		prompt, limit, _ := prepared.prompts.Asked(produced.name)
@@ -349,13 +345,12 @@ func (session denseSession) produceRewards(prepared densePrepared, resume *dense
 	return result, state.Optimizer, nil
 }
 
-// stepRewards takes at most one step on one reward group from a state, by
-// the trainer the session trains with, and returns what was observed of the
-// step, nothing when the group's answers all stand together, and the state
-// after it. passes says which answers passed every rule. A control session
-// steps on those alone, each weighed over its own tokens as a fine-tuning
-// step weighs them, and passes a group none of whose answers passed; it
-// trains through the weighted step, which is the device's.
+// stepRewards takes at most one step on one reward group from a state, the
+// device's weighted step, and returns what was observed of the step, nothing
+// when the group's answers all stand together, and the state after it. passes
+// says which answers passed every rule. A control session steps on those
+// alone, each weighed over its own tokens as a fine-tuning step weighs them,
+// and passes a group none of whose answers passed.
 func (session denseSession) stepRewards(group trainingdata.RolloutGroup, passes []bool, state densecausal.RLState) ([]trainingprogram.GRPOObservation, densecausal.RLState, error) {
 	resume := &state
 	if !state.Stream.Identity.Valid() {
@@ -366,16 +361,11 @@ func (session denseSession) stepRewards(group trainingdata.RolloutGroup, passes 
 		weigh = func(group trainingdata.RolloutGroup) ([]densecausal.WeightedSequence, error) {
 			return passedSequences(group, passes), nil
 		}
-	} else if session.request.Host {
-		return session.model.TrainGRPOGroupsResume([]trainingdata.RolloutGroup{group}, session.optimizerConfig.BaseLearningRate, session.optimizerConfig.Momentum, resume, nil)
-	}
-	if session.request.Host {
-		return nil, state, errors.New("training workflow: a control session trains through the weighted step, which the device takes; it has no host trainer")
 	}
 	// The step's observation is returned to whoever asked for the step, who observes it.
 	session.request.ObserveGRPO = nil
 	stepped, optimizer, err := session.rewardsOnDevice([]trainingdata.RolloutGroup{group}, resume, weigh)
-	return stepped.GRPO, densecausal.RLState{Optimizer: optimizer, Stream: group.State, Skipped: state.Skipped + stepped.Skipped}, err
+	return stepped.GRPO, densecausal.RLState{Optimizer: optimizer, Stream: group.State}, err
 }
 
 // passedSequences is a group as a control session trains on it: each answer

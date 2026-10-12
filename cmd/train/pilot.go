@@ -20,7 +20,7 @@ import (
 // is adopted, with the reason when it is not. Not adopting is the pilot's
 // answer and no failure of the command. The answers it draws are bound to the
 // commit it was built at, so it refuses a tree with uncommitted source.
-func runPilot(ctx context.Context, store *overgodb.Store, acceptanceText, model, out string, host bool, output io.Writer) error {
+func runPilot(ctx context.Context, store *overgodb.Store, acceptanceText, model, out string, output io.Writer) error {
 	acceptance, err := artifact.ParseID(acceptanceText)
 	if err != nil || model == "" || out == "" {
 		return fmt.Errorf("train: -pilot names an instruction acceptance, as training-objective -pilot wrote it, and needs -model, the base it was fixed over, and -out: %w", err)
@@ -29,7 +29,7 @@ func runPilot(ctx context.Context, store *overgodb.Store, acceptanceText, model,
 	if err != nil {
 		return err
 	}
-	result, err := trainingworkflow.RunInstructionPilot(ctx, store, trainingworkflow.PilotRun{Acceptance: acceptance, Model: model, Out: out, Code: code, Host: host, Device: denseDevice})
+	result, err := trainingworkflow.RunInstructionPilot(ctx, store, trainingworkflow.PilotRun{Acceptance: acceptance, Model: model, Out: out, Code: code, Device: denseDevice})
 	if err != nil {
 		return err
 	}

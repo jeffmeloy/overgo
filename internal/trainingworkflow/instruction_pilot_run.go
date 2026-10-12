@@ -22,12 +22,11 @@ const pilotBase = "base"
 // PilotRun states one run of the instruction pilot under a published
 // acceptance: the base model, a GGUF; the directory its arms' checkpoints are
 // written under, which a run begun again continues from; the code that
-// samples; and where it trains.
+// samples; and the device trainer its arms train by.
 type PilotRun struct {
 	Acceptance artifact.ID
 	Model, Out string
 	Code       string
-	Host       bool
 	Device     DeviceTrainer
 }
 
@@ -168,7 +167,7 @@ func RunInstructionPilot(ctx context.Context, store *overgodb.Store, run PilotRu
 		if err != nil {
 			return nil, 0, err
 		}
-		sampler := &rewardSampler{session: denseSession{ctx: ctx, request: Request{Repository: store, Observations: store, Host: run.Host}, inputDirectory: path}, tokens: tokens}
+		sampler := &rewardSampler{session: denseSession{ctx: ctx, request: Request{Repository: store, Observations: store}, inputDirectory: path}, tokens: tokens}
 		passes, count := make([]bool, len(names)), 0
 		for index, name := range names {
 			prompt, limit, _ := prompts.Asked(name)
@@ -212,7 +211,7 @@ func RunInstructionPilot(ctx context.Context, store *overgodb.Store, run PilotRu
 			if err != nil {
 				request := Request{
 					Repository: store, Observations: store, Recipe: recipeID, DatasetPath: asked, OutputDirectory: checkpoint.Directory,
-					ModelDirectory: run.Model, ResumeDirectory: previous, Steps: groups - reached, Host: run.Host, Device: run.Device, Rewards: &sampling,
+					ModelDirectory: run.Model, ResumeDirectory: previous, Steps: groups - reached, Device: run.Device, Rewards: &sampling,
 				}
 				if previous != "" {
 					request.ModelDirectory = ""

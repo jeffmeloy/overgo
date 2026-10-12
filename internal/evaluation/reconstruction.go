@@ -33,8 +33,6 @@ const (
 	// its cut, frames by height by width.
 	clipReconstructionSource = "vidgen-1m/reconstruction"
 	clipReconstructionSchema = "overgo/vidgen-reconstruction/v1"
-	// decibelsPerBel states a ratio of powers in decibels: ten times its common logarithm.
-	decibelsPerBel = 10
 )
 
 var (
@@ -165,9 +163,10 @@ func bindReconstruction(compiled reconstructionPlan, authorities ExactAuthoritie
 	return bindKindPlan(compiled.dataset, compiled.split, compiled.identity, compiled.suite, reconstructionKind, authorities)
 }
 
-// levelError sums, over every value, the squared difference of what came back against what
-// went in, both read as the eight-bit pixels a viewer is shown: zero when none changed.
-func levelError(source, output []float32) (float64, error) {
+// MeanSquaredLevelError is the mean, over every value, of the squared difference of what came
+// back against what went in, both read as the eight-bit pixels a viewer is shown: zero when
+// none changed, so a round trip that lost nothing is scored and not refused.
+func MeanSquaredLevelError(source, output []float32) (float64, error) {
 	if len(source) == 0 || len(source) != len(output) {
 		return 0, fmt.Errorf("evaluation: %d values went in and %d came back", len(source), len(output))
 	}
@@ -180,21 +179,7 @@ func levelError(source, output []float32) (float64, error) {
 		difference := float64(media.SignedUnitF32ToU8(value)) - float64(media.SignedUnitF32ToU8(back))
 		squared += difference * difference
 	}
-	return squared, nil
-}
-
-// PeakSignalToNoise is the peak signal-to-noise ratio, in decibels, of what came back
-// against what went in, both read as the eight-bit pixels a viewer is shown. A round trip
-// that changes nothing has no ratio and is refused: nothing was lost for it to measure.
-func PeakSignalToNoise(source, output []float32) (float64, error) {
-	squared, err := levelError(source, output)
-	if err != nil {
-		return 0, err
-	}
-	if squared == 0 {
-		return 0, errors.New("evaluation: what came back is what went in, so the round trip lost nothing to measure")
-	}
-	return decibelsPerBel * math.Log10(math.MaxUint8*math.MaxUint8*float64(len(source))/squared), nil
+	return squared / float64(len(source)), nil
 }
 
 // evaluateReconstruction passes every clip through the autoencoder and publishes, through
@@ -229,14 +214,13 @@ func evaluateReconstruction(
 		if err != nil {
 			return reconstructionReport{}, fmt.Errorf("evaluation: reconstruction case %q: %w", testCase.Name, err)
 		}
-		squared, err := levelError(trip.Source, trip.Output)
+		levelError, err := MeanSquaredLevelError(trip.Source, trip.Output)
 		if err != nil || trip.LatentValues <= 0 {
 			return reconstructionReport{}, fmt.Errorf("evaluation: reconstruction case %q: a latent of %d values: %w", testCase.Name, trip.LatentValues, err)
 		}
-		values := float64(len(trip.Source))
-		report.Observations = append(report.Observations, reconstructionObservation{Name: testCase.Name, LevelError: squared / values})
-		total += squared / values
-		sourceValues += values
+		report.Observations = append(report.Observations, reconstructionObservation{Name: testCase.Name, LevelError: levelError})
+		total += levelError
+		sourceValues += float64(len(trip.Source))
 		latentValues += float64(trip.LatentValues)
 		progress.advance()
 	}

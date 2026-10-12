@@ -87,16 +87,19 @@ func TestEncoderBridgeIsJudgedByHeldOutReconstruction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	verdict, err := judgeEncoderBridge(t.Context(), pair, fit.Bridge, frames[fitted:])
+	verdict, err := judgeEncoderBridge(t.Context(), pair.Decode, fit.Bridge, frames[fitted:])
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("fit residual %.2e (%s); on the unseen picture own encoder %.2f dB, bridged %.2f dB, feature residual %.2e",
-		fit.Residual, fit.Rung, verdict.OwnEncoderDB, verdict.BridgedDB, verdict.FeatureResidual)
+	t.Logf("fit residual %.2e (%s); on the unseen picture a mean squared level error of %.3f from the own encoder and %.3f bridged, feature residual %.2e",
+		fit.Residual, fit.Rung, verdict.OwnEncoderError, verdict.BridgedError, verdict.FeatureResidual)
 	if fit.Residual > 1e-2 || fit.Rung == composition.AdapterBridge {
 		t.Fatalf("an affine relation was fitted with residual %.3g, rung %s", fit.Residual, fit.Rung)
 	}
-	if verdict.Frames != 1 || verdict.FeatureResidual > 5e-2 || math.Abs(verdict.DifferenceDB) > 0.5 {
+	// On the one frame the two errors are held within half a decibel of each other, the
+	// bound the judge's ratio was once held to: ten times the logarithm of their ratio.
+	// Two errors of zero have no ratio and pass, being the same; one alone does not.
+	if verdict.Frames != 1 || verdict.FeatureResidual > 5e-2 || math.Abs(10*math.Log10(verdict.BridgedError/verdict.OwnEncoderError)) > 0.5 {
 		t.Fatalf("the bridged encoder is judged %+v, want what the decoder's own encoder gives", verdict)
 	}
 	// The pair the bridge makes, as it is served, gives back what the decoder's own pair does.

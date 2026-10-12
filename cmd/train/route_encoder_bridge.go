@@ -57,16 +57,16 @@ type bridgeFit struct {
 	Rung     composition.AdapterRung
 }
 
-// bridgeVerdict is a bridge judged on frames it was not fitted to: the mean peak
-// signal-to-noise ratio of what the decoder draws from its own encoder's tokens and
+// bridgeVerdict is a bridge judged on frames it was not fitted to: the mean squared level
+// error, where lower is better, of what the decoder draws from its own encoder's tokens and
 // from the bridged ones, the mean of the bridged less the own frame by frame with its
 // standard error, and the share of the target tokens the bridge leaves unexplained.
 type bridgeVerdict struct {
 	Frames          int     `json:"frames"`
-	OwnEncoderDB    float64 `json:"own_encoder_psnr_db"`
-	BridgedDB       float64 `json:"bridged_psnr_db"`
-	DifferenceDB    float64 `json:"bridged_less_own_db"`
-	DifferenceError float64 `json:"bridged_less_own_standard_error_db"`
+	OwnEncoderError float64 `json:"own_encoder_mean_squared_level_error"`
+	BridgedError    float64 `json:"bridged_mean_squared_level_error"`
+	Difference      float64 `json:"bridged_less_own_level_error"`
+	DifferenceError float64 `json:"bridged_less_own_standard_error"`
 	FeatureResidual float64 `json:"feature_residual"`
 }
 
@@ -131,10 +131,10 @@ func fitEncoderBridge(frames []bridgeFrame, sourceWidth, targetWidth int) (bridg
 	return bridgeFit{Bridge: bridge, Residual: residual, Rung: composition.AdapterRungFor(residual)}, nil
 }
 
-// judgeEncoderBridge has the pair's decoder draw each frame twice, from its own
-// encoder's tokens and from the source encoder's tokens through the bridge, and
-// compares both with the frame.
-func judgeEncoderBridge(ctx context.Context, pair *rae.Autoencoder, bridge rae.EncoderBridge, frames []bridgeFrame) (bridgeVerdict, error) {
+// judgeEncoderBridge has decode, the pair's decoder, draw each frame twice, from its own
+// encoder's tokens and from the source encoder's tokens through the bridge, and scores
+// both by their level error against the frame: a side that drew it exactly scores zero.
+func judgeEncoderBridge(ctx context.Context, decode func(context.Context, []float32) ([]float32, error), bridge rae.EncoderBridge, frames []bridgeFrame) (bridgeVerdict, error) {
 	if len(frames) == 0 {
 		return bridgeVerdict{}, errors.New("encoder bridge: no frames to judge on")
 	}
@@ -151,24 +151,24 @@ func judgeEncoderBridge(ctx context.Context, pair *rae.Autoencoder, bridge rae.E
 			featureError += difference * difference
 			featureEnergy += float64(value) * float64(value)
 		}
-		var ratios [tensor.PairedExtent]float64
+		var levelErrors [tensor.PairedExtent]float64
 		for side, tokens := range [tensor.PairedExtent][]float32{frame.target, mapped} {
-			drawn, err := pair.Decode(ctx, tokens)
+			drawn, err := decode(ctx, tokens)
 			if err != nil {
 				return bridgeVerdict{}, err
 			}
-			if ratios[side], err = evaluation.PeakSignalToNoise(signedUnit(frame.picture), signedUnit(drawn)); err != nil {
+			if levelErrors[side], err = evaluation.MeanSquaredLevelError(signedUnit(frame.picture), signedUnit(drawn)); err != nil {
 				return bridgeVerdict{}, err
 			}
 		}
-		verdict.OwnEncoderDB += ratios[0] / float64(len(frames))
-		verdict.BridgedDB += ratios[1] / float64(len(frames))
-		differences[index] = ratios[1] - ratios[0]
-		verdict.DifferenceDB += differences[index] / float64(len(frames))
+		verdict.OwnEncoderError += levelErrors[0] / float64(len(frames))
+		verdict.BridgedError += levelErrors[1] / float64(len(frames))
+		differences[index] = levelErrors[1] - levelErrors[0]
+		verdict.Difference += differences[index] / float64(len(frames))
 	}
 	var spread float64
 	for _, difference := range differences {
-		spread += (difference - verdict.DifferenceDB) * (difference - verdict.DifferenceDB)
+		spread += (difference - verdict.Difference) * (difference - verdict.Difference)
 	}
 	if len(frames) > tensor.SingletonExtent {
 		verdict.DifferenceError = math.Sqrt(spread / float64(len(frames)-tensor.SingletonExtent) / float64(len(frames)))
@@ -177,7 +177,7 @@ func judgeEncoderBridge(ctx context.Context, pair *rae.Autoencoder, bridge rae.E
 	return verdict, nil
 }
 
-// signedUnit maps values in [0, 1] to the [-1, 1] the judge's ratio reads.
+// signedUnit maps values in [0, 1] to the [-1, 1] the judge's level error reads.
 func signedUnit(unit []float32) []float32 {
 	signed := make([]float32, len(unit))
 	for index, value := range unit {
@@ -383,7 +383,7 @@ func trainEncoderBridge(ctx context.Context, flags *flag.FlagSet, args []string)
 	if err != nil {
 		return err
 	}
-	verdict, err := judgeEncoderBridge(ctx, pair, fit.Bridge, frames[*fitFrames:])
+	verdict, err := judgeEncoderBridge(ctx, pair.Decode, fit.Bridge, frames[*fitFrames:])
 	if err != nil {
 		return err
 	}

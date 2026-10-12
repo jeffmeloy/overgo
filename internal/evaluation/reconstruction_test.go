@@ -269,38 +269,48 @@ func TestReconstructionRefusesAClipItCouldNotMeasure(t *testing.T) {
 	}
 }
 
-// TestSignalToNoiseRefusesWhatIsNoRoundTrip holds the ratio to refusing a round trip that
-// lost nothing, one that came back another length, and one that is no number, and to
+// TestLevelErrorScoresARoundTripByThePixelsShown holds the mean squared level error to
+// scoring a round trip that lost nothing as zero, where the ratio it replaces refused it;
+// to refusing one that came back another length, as no number or as nothing; and to
 // reading both sides as the eight-bit pixels shown: a value past the range is clipped to it.
-func TestSignalToNoiseRefusesWhatIsNoRoundTrip(t *testing.T) {
+func TestLevelErrorScoresARoundTripByThePixelsShown(t *testing.T) {
 	t.Parallel()
 	source := []float32{-1, 0, 1, 0.5}
 	for name, output := range map[string][]float32{
-		"what went in":   {-1, 0, 1, 0.5},
 		"another length": {-1, 0, 1},
 		"no number":      {-1, 0, float32(math.NaN()), 0.5},
 		"nothing at all": nil,
 	} {
-		if ratio, err := PeakSignalToNoise(source, output); err == nil {
-			t.Errorf("a ratio of %v was given for %s", ratio, name)
+		if levelError, err := MeanSquaredLevelError(source, output); err == nil {
+			t.Errorf("a level error of %v was given for %s", levelError, name)
 		}
 	}
-	// 1.5 is shown as the brightest pixel, as 1 is; only the last value differs, by the 64
-	// levels between 0.5 and 0: a mean squared error of 64 squared over four values.
-	ratio, err := PeakSignalToNoise(source, []float32{-1, 0, 1.5, 0})
-	levels := float64(media.SignedUnitF32ToU8(0.5)) - float64(media.SignedUnitF32ToU8(0))
-	if want := 10 * math.Log10(255*255*4/(levels*levels)); err != nil || math.Abs(ratio-want) > 1e-9 {
-		t.Fatalf("ratio = %v, %v, want %v", ratio, err, want)
+	if levelError, err := MeanSquaredLevelError(source, []float32{-1, 0, 1, 0.5}); err != nil || levelError != 0 {
+		t.Fatalf("what came back as it went in is scored %v, %v, want no error at all", levelError, err)
+	}
+	// 1.5 is shown as the brightest pixel, as 1 is; only the last value differs, by the 63
+	// levels between 0.5, shown as 191, and 0, shown as 128: a mean squared error of 63
+	// squared over four values.
+	levelError, err := MeanSquaredLevelError(source, []float32{-1, 0, 1.5, 0})
+	went, back := media.SignedUnitF32ToU8(0.5), media.SignedUnitF32ToU8(0)
+	if want := 63 * 63 / 4.0; err != nil || went != 191 || back != 128 || levelError != want {
+		t.Fatalf("level error = %v, %v, want %v from one value shown as %d that came back as %d", levelError, err, want, went, back)
 	}
 }
 
-// TestSignalToNoiseSaysWhyItRefusedARoundTrip holds the ratio, which takes its sum from
-// the level error, to passing on that error's own refusal: what came back at another
-// length is told so, and is not told that it lost nothing.
-func TestSignalToNoiseSaysWhyItRefusedARoundTrip(t *testing.T) {
+// TestLevelErrorSaysWhyItRefusedARoundTrip holds the level error, which the bridge judge
+// reads outside a suite, to naming its own reason for each refusal: what came back at
+// another length, a clip of no values, and what came back as no number.
+func TestLevelErrorSaysWhyItRefusedARoundTrip(t *testing.T) {
 	t.Parallel()
-	if _, err := PeakSignalToNoise([]float32{0, 0.5}, []float32{0}); err == nil || !strings.Contains(err.Error(), "2 values went in and 1 came back") {
+	if _, err := MeanSquaredLevelError([]float32{0, 0.5}, []float32{0}); err == nil || !strings.Contains(err.Error(), "2 values went in and 1 came back") {
 		t.Fatalf("a round trip of another length was refused with %v, want the two lengths named", err)
+	}
+	if _, err := MeanSquaredLevelError(nil, nil); err == nil || !strings.Contains(err.Error(), "0 values went in and 0 came back") {
+		t.Fatalf("a round trip of no values was refused with %v, want it told it holds none", err)
+	}
+	if _, err := MeanSquaredLevelError([]float32{0}, []float32{float32(math.Inf(1))}); err == nil || !strings.Contains(err.Error(), "not finite") {
+		t.Fatalf("what came back past every number was refused with %v, want it told it is not finite", err)
 	}
 }
 

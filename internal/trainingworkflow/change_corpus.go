@@ -12,6 +12,7 @@ import (
 	"overgo/internal/evaluation"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
+	"overgo/internal/peft"
 	"overgo/internal/runrecord"
 	"overgo/internal/trainingprogram"
 )
@@ -101,15 +102,34 @@ type changeRun struct {
 // askedChange names what a corpus asks of each of its runs, whatever its
 // order seed: the recipe, which stands for the base model, the objective and
 // the optimizer policy, the update count, the window, and how the trainer
-// reads the records and what it trains. A finished run is credited only to a
-// request of the same name. The request's recipe is the resolved one.
+// reads the records and what it trains. A continued adapter is named by what
+// it adds to the weights, not by its directory. A finished run is credited
+// only to a request of the same name. The request's recipe is the resolved one.
 func askedChange(request TextHeldoutRequest) (artifact.ID, error) {
 	// Left out is what changes nothing a run trains: where it publishes, what
 	// it reports as it goes, the samples it generates and the wall it is
 	// held to. The device's trainer is a function and cannot be named.
+	//
+	// An adapter the runs continue is read here and named by its digest in
+	// place of its directory. A credited run never loads the adapter, so the
+	// directory's name would credit the runs of one adapter to a request whose
+	// directory now holds another. The digest goes into a copy, because every
+	// run loads the adapter through the request's own LoRA. The list keeps its
+	// nine elements in their order, so the name of a request that continues no
+	// adapter does not move.
+	lora := request.LoRA
+	if lora != nil && lora.From != "" {
+		adapter, err := peft.Load(lora.From)
+		if err != nil {
+			return artifact.ID{}, err
+		}
+		continued := *lora
+		continued.From = adapter.Digest()
+		lora = &continued
+	}
 	return artifact.JSONID(artifact.KindProfile, []any{
 		request.Recipe, request.Steps, request.MaximumSequence, request.Host, request.FreezeLexical,
-		request.Chat, request.Conversations, request.Average, request.LoRA,
+		request.Chat, request.Conversations, request.Average, lora,
 	})
 }
 
@@ -130,8 +150,9 @@ const (
 // holds its finished record is not trained again, so a corpus that stopped
 // part way, or one asked to grow, trains only the runs it lacks. The record
 // is the run's only when it is of that order and of what this request asks
-// (askedChange): at a directory holding any other finished record the
-// collection stops, training nothing there and changing nothing in it.
+// (askedChange, which reads an adapter the runs continue): at a directory
+// holding any other finished record the collection stops, training nothing
+// there and changing nothing in it.
 func CollectChangeCorpus(ctx context.Context, store *overgodb.Store, request TextHeldoutRequest, first uint64, count int) (ChangeCorpus, error) {
 	if request.Proof || request.Resume != "" || request.CheckpointEvery > 0 || request.Order != 0 {
 		return ChangeCorpus{}, errors.New("training workflow: a change corpus trains whole runs under its own order seeds and judges each: it takes no proof run, resumed run, saved steps or order seed of the request's")
@@ -163,7 +184,7 @@ func CollectChangeCorpus(ctx context.Context, store *overgodb.Store, request Tex
 		record := filepath.Join(run.OutputDirectory, changeRunFile)
 		if err := jsonfile.DecodeStrict(record, &runs[index]); err == nil {
 			if runs[index].Order != order || runs[index].Asked != asked {
-				return ChangeCorpus{}, fmt.Errorf("training workflow: the directory of order %d holds a finished run that is not this request's run of that order: it was asked of another base model, objective or recipe, or with another update count, window or trainer setting, or is another order's, or was recorded before runs said what they were asked; it is left as it is, so collect this request in a directory of its own", order)
+				return ChangeCorpus{}, fmt.Errorf("training workflow: the directory of order %d holds a finished run that is not this request's run of that order: it was asked of another base model, objective or recipe, or with another update count, window or trainer setting, or continued another adapter than the one this request's adapter directory holds now, or is another order's, or was recorded before runs said what they were asked or before they named a continued adapter by what it holds; it is left as it is, so collect this request in a directory of its own", order)
 			}
 			if request.Progress != nil {
 				fmt.Fprintf(request.Progress, "order %d: finished before, verdict %s\n", order, runs[index].Verdict)

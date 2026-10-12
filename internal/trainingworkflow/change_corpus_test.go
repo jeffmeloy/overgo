@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -12,6 +13,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/peft"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/strictjson"
@@ -426,5 +428,168 @@ func TestChangeCorpusCreditsOnlyRunsOfItsRequest(t *testing.T) {
 	}
 	if _, err := CollectChangeCorpus(ctx, text.store, moving, first, count); err == nil || !strings.Contains(err.Error(), "recipe objective differs") || trained != steps {
 		t.Fatalf("a corpus whose objective alias moved after its first run = (%d updates, %v), want its second run refused after %d", trained, err, steps)
+	}
+}
+
+// TestChangeCorpusCreditsARunOfAContinuedAdapterOnlyToThatAdapter collects a
+// small change corpus whose runs each continue one adapter, counting every
+// update any run trains. The same request again trains nothing and names the
+// same corpus, and so does a request that names the same adapter held in
+// another directory. A request that continues the same adapter with another
+// of its adapter settings is refused before any update, since those settings
+// stay in the name. With the adapter's directory gone the request ends with
+// the adapter reader's error and trains nothing. With another adapter put in
+// the first one's directory, one that differs in a module's alpha, in its
+// scale rule or in a single factor value, the request is refused before any
+// update, the refusal names a continued adapter as a cause, and both finished
+// records stay as they were; asked to grow, it starts no run: the runs it has
+// continued one adapter and the run it lacks would continue another. With the
+// first adapter back, the same request for one more run trains that run alone.
+func TestChangeCorpusCreditsARunOfAContinuedAdapterOnlyToThatAdapter(t *testing.T) {
+	t.Parallel()
+	var documents []string
+	for index := range 12 {
+		documents = append(documents, strings.Repeat("abcd", 5)[:6+index])
+	}
+	text := registerTextObjective(t, documents, trainingprogram.MetricTokenAccuracy)
+	ctx := t.Context()
+	const (
+		steps = 4
+		first = 1
+		count = 2
+		// refusal is the phrase of the collector's own refusal: a run that
+		// cannot load its adapter has an error of its own, which may not pass
+		// for it.
+		refusal = "not this request's run"
+	)
+	prior := filepath.Join(text.root, "prior")
+	if _, err := RunTextHeldout(ctx, text.store, TextHeldoutRequest{
+		Alias: text.alias, ModelDirectory: text.model, OutputDirectory: prior, Steps: 16, Host: true, LoRA: &LoRA{Rank: 4, Alpha: 8, Seed: 1},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// place puts the prior run's adapter in a directory, as change leaves it
+	// when one is given. The adapter is read again for every placing: a copy of
+	// a loaded adapter shares its modules and their factors with the original.
+	place := func(directory string, change func(*peft.Adapter)) {
+		t.Helper()
+		adapter, err := peft.Load(filepath.Join(prior, LoRAAdapterDirectory))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if change != nil {
+			change(&adapter)
+		}
+		if err := os.RemoveAll(directory); err != nil {
+			t.Fatal(err)
+		}
+		if err := peft.Save(directory, adapter); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// module changes one module of an adapter, the first by name.
+	module := func(change func(*peft.Module)) func(*peft.Adapter) {
+		return func(adapter *peft.Adapter) {
+			name := slices.Sorted(maps.Keys(adapter.Modules))[0]
+			edited := adapter.Modules[name]
+			change(&edited)
+			adapter.Modules[name] = edited
+		}
+	}
+	continued, moved := filepath.Join(text.root, "continued"), filepath.Join(text.root, "moved")
+	updates := 0
+	request := TextHeldoutRequest{
+		Alias: text.alias, ModelDirectory: text.model, OutputDirectory: filepath.Join(text.root, "runs"), Steps: steps, Host: true,
+		LoRA: &LoRA{From: continued}, Step: func(int, int, float64) { updates++ },
+	}
+	records := func() []string {
+		t.Helper()
+		var read []string
+		for order := uint64(first); order < first+count; order++ {
+			data, err := os.ReadFile(filepath.Join(runDirectory(request.OutputDirectory, order), changeRunFile))
+			if err != nil {
+				t.Fatal(err)
+			}
+			read = append(read, string(data))
+		}
+		return read
+	}
+
+	place(continued, nil)
+	corpus, err := CollectChangeCorpus(ctx, text.store, request, first, count)
+	if err != nil || updates != count*steps || request.LoRA.From != continued {
+		t.Fatalf("collecting %d runs of %d updates that continue the adapter at %s took %d updates and left the request naming %s (%v)", count, steps, continued, updates, request.LoRA.From, err)
+	}
+	finished := records()
+	again, err := CollectChangeCorpus(ctx, text.store, request, first, count)
+	if err != nil || again.ID != corpus.ID || updates != count*steps {
+		t.Fatalf("the same request again = (corpus %s after %d updates, %v), want corpus %s and the %d updates it had", again.ID, updates, err, corpus.ID, count*steps)
+	}
+
+	// The same adapter held in another directory is the same request.
+	place(moved, nil)
+	elsewhere := request
+	elsewhere.LoRA = &LoRA{From: moved}
+	if again, err := CollectChangeCorpus(ctx, text.store, elsewhere, first, count); err != nil || again.ID != corpus.ID || updates != count*steps {
+		t.Errorf("the same adapter in another directory = (corpus %s after %d updates, %v), want corpus %s and the %d updates it had", again.ID, updates, err, corpus.ID, count*steps)
+	}
+
+	// The request's other adapter settings stay in its name: the same adapter
+	// continued in the base's stored quantization is another request, refused
+	// where the first record is read, before any run.
+	stored := request
+	stored.LoRA = &LoRA{From: continued, Quantized: true}
+	_, err = CollectChangeCorpus(ctx, text.store, stored, first, count)
+	if kept := slices.Equal(records(), finished); err == nil || !strings.Contains(err.Error(), refusal) || updates != count*steps || !kept {
+		t.Errorf("the finished corpus asked again with its adapter continued in the base's stored quantization = (%d updates, records as they were %t, %v), want it refused before any update past %d", updates, kept, err, count*steps)
+	}
+
+	// A request whose adapter cannot be read cannot be told from another: it
+	// ends with the reader's own error, neither credited nor refused as a
+	// request that was read and found to be another.
+	if err := os.RemoveAll(continued); err != nil {
+		t.Fatal(err)
+	}
+	_, err = CollectChangeCorpus(ctx, text.store, request, first, count)
+	if kept := slices.Equal(records(), finished); err == nil || strings.Contains(err.Error(), refusal) || updates != count*steps || !kept {
+		t.Errorf("the finished corpus asked again with its adapter gone = (%d updates, records as they were %t, %v), want the adapter reader's error and no update past %d", updates, kept, err, count*steps)
+	}
+
+	// Another adapter in the same directory is another request: it is refused
+	// before any update, the refusal says so, and the finished records stay as
+	// they were.
+	for _, other := range []struct {
+		what   string
+		change func(*peft.Adapter)
+	}{
+		{"one module's alpha doubled", module(func(edited *peft.Module) { edited.Alpha *= 2 })},
+		{"the rank-stabilized scale rule", func(adapter *peft.Adapter) { adapter.Config.RSLoRA = true }},
+		// The last stays in place for the growth below.
+		{"one factor value changed", module(func(edited *peft.Module) { edited.Up[0] += 0.5 })},
+	} {
+		place(continued, other.change)
+		_, err := CollectChangeCorpus(ctx, text.store, request, first, count)
+		if kept := slices.Equal(records(), finished); err == nil || !strings.Contains(err.Error(), refusal) || !strings.Contains(err.Error(), "continued another adapter") || updates != count*steps || !kept {
+			t.Errorf("the finished corpus asked again with its adapter replaced by one with %s = (%d updates, records as they were %t, %v), want it refused as a run that continued another adapter, before any update past %d", other.what, updates, kept, err, count*steps)
+		}
+	}
+
+	// A corpus asked to grow over a replaced adapter starts no run.
+	_, err = CollectChangeCorpus(ctx, text.store, request, first, count+1)
+	if _, started := os.Stat(runDirectory(request.OutputDirectory, first+count)); err == nil || !strings.Contains(err.Error(), refusal) || updates != count*steps || !errors.Is(started, os.ErrNotExist) {
+		t.Errorf("the corpus asked to grow with its adapter replaced = (%d updates, the new run's directory %v, %v), want it refused before any update past %d", updates, started, err, count*steps)
+	}
+	if t.Failed() {
+		// What follows reads the directory, which a request that was not
+		// refused has trained into.
+		t.FailNow()
+	}
+
+	// With the adapter it continued back, the same request for one more run
+	// trains that run alone.
+	place(continued, nil)
+	grown, err := CollectChangeCorpus(ctx, text.store, request, first, count+1)
+	if err != nil || len(grown.Changes) != count+1 || !slices.Equal(grown.Changes[:count], corpus.Changes) || updates != (count+1)*steps {
+		t.Fatalf("the same request for one more run = (%d changes after %d updates, %v), want the %d it had and one more after %d", len(grown.Changes), updates, err, count, (count+1)*steps)
 	}
 }

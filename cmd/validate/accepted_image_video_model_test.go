@@ -23,7 +23,9 @@ func TestAcceptedImageVideoEvidence(t *testing.T) {
 	testskip.Short(t)
 	root := testutil.RepoRoot(t)
 	var coverage imageVideoCoverage
-	requireAcceptedDocument(t, root, "docs/verification/image-video-coverage.json", acceptedImageVideoSHA256, &coverage)
+	// The digest is written here and not through a constant: the commit checks read a pin only
+	// from a call that names its document and its digest as literals (internal/landing pins).
+	requireAcceptedDocument(t, root, "docs/verification/image-video-coverage.json", "fd649a1b15c8102fe5d63963bd3131ce665dea7514205d6a87eb5803c67d74ee", &coverage)
 	var protocol imageVideoProtocol
 	if err := jsonfile.DecodeStrict(filepath.Join(root, imageVideoProtocolPath), &protocol); err != nil {
 		t.Fatal(err)
@@ -115,5 +117,3 @@ func TestAcceptedImageVideoEvidence(t *testing.T) {
 	}
 	t.Logf("%d frozen cases, %d models, %d accepted phases; acquisition=0; original quality/resource scopes retained", len(coverage.Cases), len(coverage.Models), len(coverage.Proofs))
 }
-
-const acceptedImageVideoSHA256 = "fd649a1b15c8102fe5d63963bd3131ce665dea7514205d6a87eb5803c67d74ee"

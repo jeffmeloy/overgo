@@ -9,20 +9,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 830,
+        "nodes": 0,
         "reason": "What the row may still add. Set on 2026-10-11 to the 830 nodes its workbench step was counted at once built, by the count of syntax nodes the automated checks take over the six production files it changes: the routine that runs a reward request in the training command as a child process and reads back its steps and its checkpoint, the file a training command leaves those steps in, the server's flag for the command and its refusal when the file is absent, and the workspace's reward capability listed off the host with its note and its reason. The step after it removes the host reward trainer and adds nothing to the count."
       },
       "steps": [
-        {
-          "id": "workbench",
-          "title": "A reward run from the workbench trains on the device in the training command's own process, weighed beside the served model",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestRewardRunHandsItsStepsToItsStarter$' \u0026\u0026 go test ./cmd/train -count=1 -run '^TestTrainingCommandRunsAWorkbenchRewardRun$' \u0026\u0026 go test ./internal/server -count=1 -run '^TestTrainingWorkspaceTrainsRewardsInTheTrainingCommand$' \u0026\u0026 go test ./internal/server -count=1 -run '^TestRewardRunIsWeighedBesideTheServedModel$' \u0026\u0026 go test ./cmd/server -count=1 -run '^TestRewardTrainerIsFoundOrRefused$'",
-          "rationale": "The first way the row names, designed on 2026-10-11 by reading. A trainer inside the server cannot be the route: one import of the device trainer by the server or its tests breaks two rows of TestReachInvariants (an edit to the device trainer must reach no serving test run), and a device session inside the server records the whole process's device memory, the served model's with the trainer's, so the fit rule would then ask for the model's bytes a second time. So a reward run from the workbench executes in the training command, as a child process the server starts: the server links no trainer, and the child's device memory is the trainer's alone, which is what the fit rule of gui-resident-model-fit then weighs. The child hands its reward steps back in a file; the server reads them and the checkpoint. A server started without the training command lists the capability as refused, with the reason and where the command comes from; the launcher builds it. The training command waits for the store's writer lock where it failed at once. Decided on 2026-10-11 by the lead, under the owner's instruction not to wait for a decision; the owner may overrule, and every change here is one git can put back. What a person then meets, stated for the owner: a reward run shows no step until it ends; cancel ends the child's process; the run needs the second executable; and beside a large served model the measured need may never fit, so in practice it may serve small models only. The count is set, in a change to the plan alone, once this step is built and measured.\n\nServes: train from rewards through one numerical owner. Evidence: the five host tests, and a device test that holds the recorded peak below an allocation the test itself holds. Batch: browser and device; the commit runs both.",
-          "depends_on": [
-            "reward-device-route-coverage/do"
-          ]
-        },
         {
           "id": "do",
           "title": "Retire the host's reward trainer once the workbench trains rewards on the device or stops offering them",

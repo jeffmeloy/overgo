@@ -25,6 +25,8 @@ goto :workspaces
 echo Building the overgo server and swap proxy...
 go build -o bin\overgo-server.exe .\cmd\server || goto :error
 go build -o bin\overgo-swap.exe .\cmd\swap || goto :error
+rem The training command: a reward run from the workbench trains in it.
+go build -o bin\overgo-train.exe .\cmd\train || goto :error
 
 start "" http://localhost:8080/
 if "%MODEL%"=="" (

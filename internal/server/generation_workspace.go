@@ -480,8 +480,10 @@ func (h *Handler) submitWorkflow(
 	}
 	// Judged here, behind the request ledger: a repeat of a numbered run that
 	// started is answered from the ledger, not weighed against the memory its
-	// own run now holds.
-	if kind == WorkflowTraining && !capability.Host {
+	// own run now holds. A capability listed with a refusal is not weighed:
+	// its workspace refuses the run with that reason, which a run that did
+	// not fit would otherwise hide.
+	if kind == WorkflowTraining && !capability.Host && capability.Refusal == "" {
 		if err := h.admitDeviceRun(ctx, capability.Recipe); err != nil {
 			return artifact.ID{}, err
 		}

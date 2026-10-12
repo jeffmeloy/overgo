@@ -23,9 +23,19 @@ type trainingWorkspace struct {
 	roots     dataroot.Roots
 	program   recipe.Program
 	objective trainingprogram.ObjectiveKind
+	// execute runs a request: in the server for the preference objective, and
+	// for the reward objective as the server was started to run it, nil when
+	// it was started without the training command.
+	execute func(context.Context, trainingworkflow.Request) (trainingworkflow.Result, error)
 }
 
-func NewTrainingWorkspace(ctx context.Context, store artifact.Repository, roots dataroot.Roots, model artifact.ID) (*trainingWorkspace, error) {
+// NewTrainingWorkspace opens the workspace of the model's active training
+// recipe, a preference (DPO) or a reward (GRPO) objective. A preference run
+// trains in the server, on the host processor. A reward run trains on the
+// device, and the server links no device trainer: the run is handed to
+// rewards, which executes it in the training command, and with no rewards the
+// capability is listed with the reason it cannot run.
+func NewTrainingWorkspace(ctx context.Context, store artifact.Repository, roots dataroot.Roots, model artifact.ID, rewards func(context.Context, trainingworkflow.Request) (trainingworkflow.Result, error)) (*trainingWorkspace, error) {
 	if ctx == nil || store == nil || model.Kind() != artifact.KindModel || roots.Checkpoints == "" {
 		return nil, errors.New("training workspace: invalid store, roots, or model")
 	}
@@ -40,7 +50,11 @@ func NewTrainingWorkspace(ctx context.Context, store artifact.Repository, roots 
 	if objective != trainingprogram.ObjectiveDPO && objective != trainingprogram.ObjectiveGRPO {
 		return nil, errors.New("training workspace: active recipe is not an RL objective")
 	}
-	return &trainingWorkspace{store: store, roots: roots, program: program, objective: objective}, nil
+	execute := trainingworkflow.Execute
+	if objective == trainingprogram.ObjectiveGRPO {
+		execute = rewards
+	}
+	return &trainingWorkspace{store: store, roots: roots, program: program, objective: objective, execute: execute}, nil
 }
 
 func (workspace *trainingWorkspace) WorkflowCapabilities(_ context.Context, kind WorkflowKind) ([]WorkflowCapability, error) {
@@ -54,10 +68,15 @@ func (workspace *trainingWorkspace) WorkflowCapabilities(_ context.Context, kind
 		{Name: "output", Type: workflowControlOutput, Required: true},
 		{Name: "steps", Type: workflowControlInteger, Required: true},
 	}
+	capability := WorkflowCapability{
+		Task: definition.Task, Recipe: definition.ID, Stages: workspace.program.Stages(), model: definition.Model,
+		Inputs: definition.Inputs, Outputs: definition.Outputs,
+	}
 	// The scale is the preference objective's, as are DPO's loss modes: unset
 	// trains DPO's own; the margin is SimPO's. The reward objective weighs a
 	// group by the order of its answers and takes no scale.
 	if workspace.objective == trainingprogram.ObjectiveDPO {
+		capability.Host = trainsOnHost
 		choices := make([]string, len(workspacePreferenceModes))
 		for index, mode := range workspacePreferenceModes {
 			choices[index] = string(mode)
@@ -67,16 +86,30 @@ func (workspace *trainingWorkspace) WorkflowCapabilities(_ context.Context, kind
 			workflowControl{Name: "preference_mode", Type: workflowControlText, Choices: choices},
 			workflowControl{Name: "preference_margin", Type: workflowControlNumber},
 		)
+	} else {
+		// A reward run is not on the host: the note says where it trains, and a
+		// server with no training command lists it with why it cannot run.
+		capability.Note = rewardNote
+		if workspace.execute == nil {
+			capability.Refusal = rewardTrainerAbsent
+		}
 	}
-	return []WorkflowCapability{{
-		Task: definition.Task, Recipe: definition.ID, Stages: workspace.program.Stages(), model: definition.Model,
-		Inputs: definition.Inputs, Outputs: definition.Outputs, Host: trainsOnHost, Controls: controls,
-	}}, nil
+	capability.Controls = controls
+	return []WorkflowCapability{capability}, nil
 }
 
-// trainsOnHost: the workbench trains on the host processor, as its
-// capability declares to the page.
+// trainsOnHost: a preference run and a conversation fine-tune train in the
+// server, on the host processor, as their capabilities declare to the page.
+// A reward run does not: it trains on the device, in the training command.
 const trainsOnHost = true
+
+// rewardNote is what the page says of a reward run beside its controls.
+const rewardNote = "Trains on the device, in the training command's own process beside the served model. A run whose measured memory does not fit beside the model is refused with the numbers. Its steps are reported when the run ends."
+
+// rewardTrainerAbsent is why a server started without the training command
+// lists the reward capability and runs none, in words that fit a server the
+// launcher started and one started by hand.
+const rewardTrainerAbsent = `reward training runs on the device in the training command, which this server was started without: overgo_gui.bat builds it as bin\overgo-train.exe, and a server started by hand names it with -trainer`
 
 // workspacePreferenceModes are the DPO loss modes the workspace trains
 // besides DPO's own. KTO trains through cmd/train: its unpaired steps have
@@ -196,14 +229,8 @@ func (workspace *trainingWorkspace) executeWorkflow(
 		ModelDirectory: policyDirectory, ReferenceDirectory: referenceDirectory,
 		DatasetPath: datasetPath, OutputDirectory: output, ResumeDirectory: resumeDirectory,
 		Steps:          input.Steps,
-		ObjectiveScale: input.ObjectiveScale, Host: trainsOnHost, Observations: workspace.store,
+		ObjectiveScale: input.ObjectiveScale, Observations: workspace.store,
 		PreferenceMode: input.PreferenceMode, PreferenceMargin: input.PreferenceMargin,
-		ObserveDPO: func(observation trainingprogram.DPOObservation) {
-			dpo = append(dpo, observation)
-			completed++
-			reporter.Progress(completed, &total)
-			reportDPO(reporter, observation)
-		},
 		ObserveGRPO: func(observation trainingprogram.GRPOObservation) {
 			grpo = append(grpo, observation)
 			completed++
@@ -211,7 +238,21 @@ func (workspace *trainingWorkspace) executeWorkflow(
 			reportGRPO(reporter, observation)
 		},
 	}
-	result, executeErr := trainingworkflow.Execute(ctx, request)
+	// Only a preference run is held to the host and observes preference
+	// steps: the training command a reward run goes to carries neither.
+	if workspace.objective == trainingprogram.ObjectiveDPO {
+		request.Host = trainsOnHost
+		request.ObserveDPO = func(observation trainingprogram.DPOObservation) {
+			dpo = append(dpo, observation)
+			completed++
+			reporter.Progress(completed, &total)
+			reportDPO(reporter, observation)
+		}
+	}
+	if workspace.execute == nil {
+		return workspace.fail(ctx, definition.ID, inputs, errors.New("training workspace: "+rewardTrainerAbsent))
+	}
+	result, executeErr := workspace.execute(ctx, request)
 	if executeErr != nil {
 		return workspace.fail(ctx, definition.ID, inputs, executeErr)
 	}
@@ -294,6 +335,8 @@ func (workspace *trainingWorkspace) publish(ctx context.Context, recipeID artifa
 	return operation.Completion{Run: run.ID, Outputs: outputs}, nil
 }
 
+// reportGRPO reports a reward step's metrics. Its gradient and update norms
+// are not among them: a device step's stay on the device.
 func reportGRPO(reporter operation.Reporter, observation trainingprogram.GRPOObservation) {
 	for _, metric := range []operation.Metric{
 		{Name: "grpo_loss", Value: observation.Loss},
@@ -302,8 +345,6 @@ func reportGRPO(reporter operation.Reporter, observation trainingprogram.GRPOObs
 		{Name: "group_size", Value: float64(observation.GroupSize), Unit: "rollouts"},
 		{Name: "completion_tokens", Value: float64(observation.CompletionTokens), Unit: "tokens"},
 		{Name: "learning_rate", Value: observation.LearningRate},
-		{Name: "gradient_l2", Value: observation.GradientL2},
-		{Name: "update_l2", Value: observation.UpdateL2},
 	} {
 		reporter.Metric(metric)
 	}

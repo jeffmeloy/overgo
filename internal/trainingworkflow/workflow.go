@@ -153,6 +153,11 @@ func Execute(ctx context.Context, request Request) (Result, error) {
 			runErr = observer.Verify(ctx, request.Recipe, result.Observation, result.Checkpoint.ID())
 		}
 	}
+	// A run that succeeded in a training command a workbench started leaves
+	// its reward steps where its starter reads them.
+	if runErr == nil {
+		runErr = handRewardSteps(result.GRPO)
+	}
 	return result, runErr
 }
 

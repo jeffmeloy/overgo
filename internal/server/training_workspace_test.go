@@ -387,7 +387,7 @@ func newDPOFixture(t *testing.T, datasetData []byte, split *dataset.SplitPlan) d
 	if err := modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceVerified, "native DPO fixture"); err != nil {
 		t.Fatal(err)
 	}
-	workspace, err := NewTrainingWorkspace(ctx, store, roots, policy)
+	workspace, err := NewTrainingWorkspace(ctx, store, roots, policy, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -445,7 +445,7 @@ func TestTrainingWorkspaceAdmissionMatrix(t *testing.T) {
 			if test.registered {
 				model = policy
 			}
-			workspace, err := NewTrainingWorkspace(ctx, store, dataroot.Roots{Checkpoints: filepath.Join(root, "checkpoints")}, model)
+			workspace, err := NewTrainingWorkspace(ctx, store, dataroot.Roots{Checkpoints: filepath.Join(root, "checkpoints")}, model, nil)
 			if (err == nil) != test.admitted {
 				t.Fatalf("workspace admitted=%v err=%v, want admitted=%v", err == nil, err, test.admitted)
 			}

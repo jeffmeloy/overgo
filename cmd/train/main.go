@@ -104,7 +104,9 @@ func run() error {
 	if (*orderSeed != 0 || *runs != 0) && *objective == "" {
 		return fmt.Errorf("train: an order seed and a corpus of runs belong to an -objective run; -order-seed and -runs need -objective")
 	}
-	store, err := overgodb.Open(*storePath)
+	// A command a server starts opens the store the server writes to, so it
+	// waits its turn for the writer lock where a plain open would fail at once.
+	store, err := overgodb.OpenContext(ctx, *storePath)
 	if err != nil {
 		return err
 	}

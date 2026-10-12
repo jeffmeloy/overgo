@@ -31,6 +31,7 @@ import (
 	"overgo/internal/runrecord"
 	llamaserver "overgo/internal/server"
 	"overgo/internal/tensor"
+	"overgo/internal/trainingworkflow"
 )
 
 const (
@@ -63,6 +64,21 @@ func deviceStartupError(err error) error {
 		return fmt.Errorf("%w: %v", processcontrol.ErrDeviceMemory, err)
 	}
 	return err
+}
+
+// rewardTrainer is how the training workspace runs a reward session: in the
+// training command at path, a child process over the store at store whose
+// output goes to the server's standard error. With no file at path it is
+// nil, and the workspace lists reward training with the reason it cannot
+// run: a missing command is no reason to stop the server.
+func rewardTrainer(path, store string) func(context.Context, trainingworkflow.Request) (trainingworkflow.Result, error) {
+	if _, err := os.Stat(path); err != nil {
+		return nil
+	}
+	return func(ctx context.Context, request trainingworkflow.Request) (trainingworkflow.Result, error) {
+		request.Progress = os.Stderr
+		return trainingworkflow.ExecuteInCommand(ctx, path, store, request)
+	}
 }
 
 func run() error {
@@ -123,6 +139,7 @@ func run() error {
 	videoFPS := clioptions.Float64Override(flag.CommandLine, "video-fps", "video frame sampling rate; unset uses recipe policy")
 	videoMaxFrames := clioptions.IntOverride(flag.CommandLine, "video-max-frames", "maximum decoded video frames; unset uses recipe policy")
 	trainingEnabled := flag.Bool("training", false, "enable active recipe-bound training workspace")
+	trainer := flag.String("trainer", "bin/overgo-train.exe", "with -training: the built training command a reward run executes in, on the device in its own process; with no file there, reward training is listed with the reason it cannot run")
 	transcriptionPolicyPath := flag.String("transcription-policy", "", "strict CPU transcription resource policy; unset discovers transcription_policy.json beside the store")
 	modelBuilderEnabled := flag.Bool("model-builder", false, "enable corpus-derived model builder workspace")
 	webuiDir := flag.String("webui-dir", "", "serve the workbench client from this directory with caching disabled (development); empty serves the embedded client")
@@ -299,7 +316,7 @@ func run() error {
 		if rootsErr != nil {
 			return rootsErr
 		}
-		workspace, err := llamaserver.NewTrainingWorkspace(shutdownContext, workspaceStore, roots, runner.ModelID())
+		workspace, err := llamaserver.NewTrainingWorkspace(shutdownContext, workspaceStore, roots, runner.ModelID(), rewardTrainer(*trainer, repoPath))
 		if err != nil {
 			return fmt.Errorf("open training workspace: %w", err)
 		}

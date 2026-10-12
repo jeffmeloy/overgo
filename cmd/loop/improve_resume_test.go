@@ -95,9 +95,10 @@ func TestInterruptedCycleResumesAtItsFirstUnpassedPhase(t *testing.T) {
 
 // TestCycleCreditFollowsTheInputsARunConsumes holds the credit of a cycle to what a run reads: a
 // change to the root an inventory was registered from, the committed data a training or
-// projection run reads (grounding, objective, conditioning, projector) changes the obligations
-// the cycle is keyed by, as a changed recipe does; every phase a cycle runs is told the file its
-// cells' credit is kept in, beside the cycle's state.
+// projection run reads (grounding, objective, conditioning, projector), or what validate found
+// the files a cell's command is given to be (consumed) changes the obligations the cycle is
+// keyed by, as a changed recipe does, so the phases that passed run again; every phase a cycle
+// runs is told the file its cells' credit is kept in, beside the cycle's state.
 func TestCycleCreditFollowsTheInputsARunConsumes(t *testing.T) {
 	t.Parallel()
 	digest := func(cell string) string {
@@ -111,6 +112,7 @@ func TestCycleCreditFollowsTheInputsARunConsumes(t *testing.T) {
 	base := digest("")
 	for field, value := range map[string]string{
 		"directory": "d:/models/a", "grounding": "dataset:1", "objective": "objective.registered.text-text", "conditioning": "d:/video-stack", "projector": "d:/mmproj.gguf",
+		"consumed": "what the files a command is given were",
 	} {
 		changed := digest(`,"` + field + `":"` + value + `"`)
 		if changed == base {
@@ -118,6 +120,22 @@ func TestCycleCreditFollowsTheInputsARunConsumes(t *testing.T) {
 		}
 		if digest(`,"`+field+`":"`+value+`x"`) == changed {
 			t.Errorf("a changed %s left the obligations as they were", field)
+		}
+	}
+
+	// A cycle whose cells and publication passed runs them again once a file a cell's command is
+	// given has changed, and only its lanes while every such file is as it was.
+	resumed := filepath.Join(t.TempDir(), cycleStateFile)
+	for _, step := range []struct {
+		consumed string
+		want     int
+	}{{"files as bound", 3}, {"files as bound", 1}, {"a file changed", 3}} {
+		ran := 0
+		if err := measurePhases(resumed, "commit|store|"+digest(`,"consumed":"`+step.consumed+`"`), io.Discard, nil, func([]string, ...string) error {
+			ran++
+			return nil
+		}); err != nil || ran != step.want {
+			t.Errorf("a cycle over %s ran %d phases (%v), want %d", step.consumed, ran, err, step.want)
 		}
 	}
 

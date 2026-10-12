@@ -313,7 +313,7 @@ func (w improvement) moveCycle(checkout, commit string) error {
 // The key names what the credit is for: the commit, the store the cells and
 // the scorecard go to, and the obligations the dry-run plan names, so a
 // different store or an obligation that changed since (a model activated, a
-// recipe replaced) starts over. Only a phase that passed is recorded, so a
+// recipe replaced, a file a cell's command is given changed) starts over. Only a phase that passed is recorded, so a
 // failure runs again; the lanes are not recorded, since go test's cache
 // replays the packages whose inputs held and runs the rest.
 type cycleState struct {
@@ -349,10 +349,10 @@ func readCycleState(path, key string) cycleState {
 
 // obligationsDigest names what the dry-run plan asks of a cycle: the model,
 // task, validation, protocol, recipe and location of every cell it runs or
-// leaves to the background, the root its inventory was registered from and the
+// leaves to the background, the root its inventory was registered from, the
 // committed data its training and projection runs read (grounding, objective,
-// conditioning, projector), and why it is scheduled so, without what a run
-// itself changes (the cost it measured).
+// conditioning, projector), what validate found the files its command is given to be
+// (consumed), and why it is scheduled so, without what a run itself changes (the cost it measured).
 func obligationsDigest(plan []byte) (string, error) {
 	var decoded struct {
 		Run        []map[string]any `json:"run"`
@@ -365,7 +365,7 @@ func obligationsDigest(plan []byte) (string, error) {
 	for bucket, cells := range map[string][]map[string]any{"run": decoded.Run, "background": decoded.Background} {
 		for _, cell := range cells {
 			parts := []string{bucket}
-			for _, field := range []string{"model", "kind", "validation", "protocol", "recipe", "location", "directory", "grounding", "objective", "conditioning", "projector", "promotion"} {
+			for _, field := range []string{"model", "kind", "validation", "protocol", "recipe", "location", "directory", "grounding", "objective", "conditioning", "projector", "consumed", "promotion"} {
 				parts = append(parts, fmt.Sprint(cell[field]))
 			}
 			lines = append(lines, strings.Join(parts, "\x00"))

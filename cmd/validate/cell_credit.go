@@ -1,10 +1,14 @@
 package main
 
 import (
+	"cmp"
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -45,19 +49,56 @@ func openCellCredit(path, commit, store string) *cellCredit {
 }
 
 // cellKey names a cell by what a run of it consumes: its model, task, validation, protocol,
-// recipe, weights and the committed inputs its training and projection runs read, and not by
-// what a run changes (the cost it measured, why it is scheduled), so a
-// changed input is a different cell and a measured one is the same.
+// recipe, weights, the committed inputs its training and projection runs read and what the
+// files its command is given were when it was bound, and not by what a run changes (the cost
+// it measured, why it is scheduled), so a changed input is a different cell and a measured one is the same.
 func cellKey(cell ModelValidation) string {
 	consumed, err := json.Marshal([]any{
 		cell.Model, cell.Kind, cell.Validation, cell.Recipe, cell.Protocol, cell.Location, cell.Directory,
-		cell.Grounding, cell.Objective, cell.Conditioning, cell.Projector,
+		cell.Grounding, cell.Objective, cell.Conditioning, cell.Projector, cell.Consumed,
 	})
 	if err != nil {
 		return ""
 	}
 	sum := sha256.Sum256(consumed)
 	return hex.EncodeToString(sum[:])
+}
+
+// consumedFiles says, without reading them, what the files a cell's command is given and its
+// weights are: the path, size and time of each, and of every file under a directory. The
+// catalog checks by content only what a manifest lists, so this tells a location-only model's
+// replaced weights, or a changed file beside a model, from those a run measured; a change that
+// keeps a file's size and time is not seen. A relative argument is a committed file, which the
+// credit's commit fixes. A path that cannot be read, a remote model's address among them, gives a
+// value no later binding repeats: unknown bytes are never credited. A cell with no command has none.
+// listed keeps what one binding found each path to be, so a path many cells are given is read once.
+func consumedFiles(cell ModelValidation, listed map[string]string) string {
+	_, given, err := reacquireCommand(cell, "")
+	if err != nil {
+		return ""
+	}
+	found := sha256.New()
+	for _, path := range append(given, cell.Location) {
+		if path != cell.Location && !filepath.IsAbs(path) {
+			continue
+		}
+		if _, read := listed[path]; !read {
+			under := sha256.New()
+			listed[path] = rand.Text()
+			// Walk reports a link as the link; Stat reads the file it leads to.
+			if filepath.Walk(path, func(file string, _ fs.FileInfo, walkErr error) error {
+				info, err := os.Stat(file)
+				if err = cmp.Or(walkErr, err); err == nil && !info.IsDir() {
+					fmt.Fprintln(under, file, info.Size(), info.ModTime().UnixNano())
+				}
+				return err
+			}) == nil {
+				listed[path] = hex.EncodeToString(under.Sum(nil))
+			}
+		}
+		fmt.Fprintln(found, listed[path])
+	}
+	return hex.EncodeToString(found.Sum(nil))
 }
 
 // has says the cell was acquired by an earlier run of this commit and store.
@@ -74,11 +115,7 @@ func (credit *cellCredit) add(cell ModelValidation) error {
 	}
 	credit.credit[key] = true
 	credit.Cells = append(credit.Cells, key)
-	return jsonfile.Write(credit.path, struct {
-		Commit string   `json:"commit"`
-		Store  string   `json:"store"`
-		Cells  []string `json:"cells"`
-	}{credit.Commit, credit.Store, credit.Cells}, cellCreditMode)
+	return jsonfile.Write(credit.path, credit, cellCreditMode)
 }
 
 // cycleCellCredit is the credit of this run: the file the cycle named for the commit root holds

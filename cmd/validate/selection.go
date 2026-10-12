@@ -44,6 +44,7 @@ type ModelValidation struct {
 	Route        string `json:"route,omitzero"`
 	Conditioning string `json:"conditioning,omitzero"`
 	Projector    string `json:"projector,omitzero"`
+	Consumed     string `json:"consumed,omitzero"` // what binding found the files its command is given to be (consumedFiles)
 }
 
 // Selected pairs an obligation with the reason it landed in its plan bucket

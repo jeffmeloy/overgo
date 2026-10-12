@@ -94,6 +94,8 @@ const landedAs = " landed as "
 func (w *execRowWorld) tool(echo io.Writer, arguments ...string) (string, error) {
 	errorFile := filepath.Join(os.TempDir(), fmt.Sprintf("overgo-loop-%d.error", os.Getpid()))
 	_ = os.Remove(errorFile)
+	// A failed run's file is read below and is then nobody's: it does not outlive the run.
+	defer os.Remove(errorFile)
 	progress := clioptions.NewTailWriter(clioptions.DiagnosticTailBytes)
 	err := runToolEnv(append(os.Environ(), clioptions.ErrorFileEnvironment+"="+errorFile), bytes.NewReader(w.message), echo, progress, arguments...)
 	if err == nil {

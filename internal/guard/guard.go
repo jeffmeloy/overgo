@@ -45,7 +45,7 @@ var (
 	gitClean     = regexp.MustCompile("(?i)" + commandBoundary + `git\s+clean\b`)
 	forceDelete  = regexp.MustCompile("(?i)" + commandBoundary + `(?:rm|rmdir|del|rd|remove-item)\b[^\n;|&]*(?:-rf|-fr|-force|--force|-recurse\s+-force|-fdx)`)
 	rmForce      = regexp.MustCompile("(?i)" + commandBoundary + `rm\b[^\n;|&]*\s-[a-z]*f`)
-	protected    = regexp.MustCompile("(?i)" + commandBoundary + `(?:rm|rmdir|del|rd|remove-item|unlink|shred|mv|move-item|move|chmod|attrib|icacls|takeown)\b[^\n;|&]*(?:models[\\/]|datasets[\\/]|checkpoints[\\/]|docs[\\/]repodb|repodb-store|overgodb-store)`)
+	protected    = regexp.MustCompile("(?i)" + commandBoundary + `(?:rm|rmdir|del|rd|remove-item|unlink|shred|mv|move-item|move|chmod|attrib|icacls|takeown)\b[^\n;|&]*(?:models[\\/]|datasets[\\/]|checkpoints[\\/]|experiments[\\/]|docs[\\/]repodb|repodb-store|overgodb-store)`)
 	// A landing's output goes to the terminal or a filter, never a file: the
 	// sinks that keep nothing are removed before the rule looks for one.
 	harmlessSink   = regexp.MustCompile(`\d?>>?\s*(?:/dev/null\b|&\d)`)
@@ -54,7 +54,7 @@ var (
 	// find's delete verb receives the substituted {} as its target, so the
 	// protected path lives in find's OWN argument and no verb-scoped rule can
 	// see it; judge the pair (protected traversal root, -exec delete verb).
-	findDelete = regexp.MustCompile("(?i)" + commandBoundary + `find\b[^\n;|&]*(?:models[\\/]|datasets[\\/]|checkpoints[\\/]|docs[\\/]repodb|repodb-store)[^\n;|&]*(?:-delete\b|-(?:exec|execdir)\s+(?:rm|rmdir|del|unlink|shred|mv|chmod)\b)`)
+	findDelete = regexp.MustCompile("(?i)" + commandBoundary + `find\b[^\n;|&]*(?:models[\\/]|datasets[\\/]|checkpoints[\\/]|experiments[\\/]|docs[\\/]repodb|repodb-store)[^\n;|&]*(?:-delete\b|-(?:exec|execdir)\s+(?:rm|rmdir|del|unlink|shred|mv|chmod)\b)`)
 	// Whitespace before "commit", not \b: \b matches after a hyphen, so a
 	// lookbehind-free rule would deny `git log --grep=pre-commit`.
 	rawCommit = regexp.MustCompile("(?i)" + commandBoundary + `git\s+(?:[^\n;|&]*\s)?commit(?:\s|$)`)
@@ -95,10 +95,14 @@ func SessionState(session string) string {
 // landing is a command that lands a change through the gate.
 var landing = regexp.MustCompile(`(?i)\./cmd/(?:loop\b[^\n;&|]*\s-land\b|gate\b)`)
 
+// removal is the command that removes leftovers; its listing alone removes nothing.
+var removal = regexp.MustCompile(`(?i)\./cmd/loop\b[^\n;&|]*\s--?delete\b`)
+
 // reviewVerdict refuses what a session that changes nothing here may not do,
 // and allows the rest. A session that declared itself a review session (its
-// state says so) lands nothing and edits no file the repository tracks or
-// would track, so it has no work of its own for the stop gate to hold it to.
+// state says so) lands nothing, removes no leftover and edits no file the
+// repository tracks or would track, so it has no work of its own for the stop
+// gate to hold it to, and nothing here that is its own to remove.
 // Neither does an implementing session in a worktree another implementing
 // session holds (its state names the holder): a landing takes the checkout's
 // whole tree, so its files would join the holder's commit, and it is sent to
@@ -119,6 +123,9 @@ func reviewVerdict(call ToolCall, root string) string {
 	}
 	if landing.MatchString(call.ToolInput.Command) {
 		return session + " lands nothing here; " + instead
+	}
+	if removal.MatchString(call.ToolInput.Command) {
+		return session + " removes nothing here; " + instead
 	}
 	relative, err := filepath.Rel(root, cmp.Or(call.ToolInput.Path, root))
 	if err != nil || relative == "." || !filepath.IsLocal(relative) {
@@ -252,7 +259,7 @@ func ruleVerdict(command, root string) string {
 		return "force-delete flags are banned; never override read-only"
 	}
 	if protected.MatchString(executable) {
-		return "delete/move/chmod under a protected data path (models/, datasets/, checkpoints/, docs/repodb/, overgodb-store)"
+		return "delete/move/chmod under a protected data path (models/, datasets/, checkpoints/, experiments/, docs/repodb/, overgodb-store)"
 	}
 	if findDelete.MatchString(executable) {
 		return "find with -delete or -exec <delete-verb> over a protected data path; the delete target is the " +
@@ -260,8 +267,8 @@ func ruleVerdict(command, root string) string {
 	}
 	if worktreeRm.MatchString(stripped) {
 		return "git worktree remove recurses INTO junctioned model directories and has already destroyed 170 GB of " +
-			"weights; retire the lane with 'git branch -d' and leave the directory. If the directory must go, check " +
-			"'dir /AL /S' for reparse points first and ask the user"
+			"weights; retire the lane with 'git branch -d' and leave the directory. A helper copy whose commit is on the " +
+			"trunk is cleared by 'go run ./cmd/loop -leftovers -delete helper-copy', which follows no link"
 	}
 	if os.Getenv(GateEnv) != "1" && !mergeInProgress(root) && rawCommit.MatchString(stripped) {
 		return "raw git commit bypasses the small gate (format, vet, rules, tests, lanes, the row's verify); run " +

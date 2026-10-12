@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"crypto/sha256"
 	"errors"
 	"fmt"
@@ -10,11 +11,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/authoritylock"
+	"overgo/internal/fsatomic"
 	"overgo/internal/guard"
 	"overgo/internal/landing"
 	"overgo/internal/overgodb"
@@ -27,14 +31,19 @@ import (
 // TestLeftoversListsEveryDeclaredPlaceWithItsRule builds, under a temporary directory, a repository
 // with one entry of each kind in each state: helper copies that are clean, changed, part deleted,
 // emptied, holding ignored content, ahead of the trunk, held by a session and gone from disk; lane
-// worktrees, branches and a stash; experiment outputs that a committed record names, that a store
-// registration names and that nothing names; checkpoints, scratch, session folders, temporary build
+// worktrees, branches and a stash; experiment outputs that a committed record names in its store
+// field, that it names in another field, that a store registration names and that nothing names;
+// checkpoints, scratch, session folders, temporary build
 // folders, executables, a media sample that a read record names by its digest and one that nothing
 // reads, a record of a run that names only what the tree has, one that names a command and a test
 // it no longer has and one that is a picture, and directories no line of the table names. The
 // listing gives exactly those verdicts, each with the rule that decided it: a sample is held by
 // what names it and finished when nothing reads it, and a record is kept, as history when it
-// names what the tree no longer has. It measures bytes only where a line allows a delete
+// names what the tree no longer has. A helper copy is finished only when a commit ran in it, which
+// its process state says: a clean copy with none is of unknown state, and the emptied one is
+// finished because a commit left the record of its run there. An experiment's output is held by a
+// record's store field and by no other field, and every line that deletes has a remover while no
+// other line has one. It measures bytes only where a line allows a delete
 // or a report, reads a source that failed as unknown and never as nothing, on a line that deletes
 // calls nothing finished that holds a link a recursive delete could follow, calls no entry finished
 // for want of a committed line that names it when the search could not have found its name, prints
@@ -171,6 +180,12 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	// A commit ran in the emptied copy, and left the record of its run in its process state: the
+	// copy with none is of unknown state.
+	if err := processlock.EnsureStateDirectory(emptied); err != nil {
+		t.Fatal(err)
+	}
+	write("temporary/sessions/s1/scratchpad/emptied/"+processlock.StateDirectory+"/landing_waits.json", "[]\n")
 	// As many changed paths as tracked files, one of them a file added: not an emptied copy.
 	replaced := copyAt("temporary/sessions/s1/scratchpad/replaced", "--detach")
 	for _, file := range tracked[1:] {
@@ -345,7 +360,7 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 	found := list(t, h)
 	t.Run("every entry has the verdict its state gives it", func(t *testing.T) {
 		want := []string{
-			"helper-copy|temporary/sessions/s1/scratchpad/clean|delete|finished",
+			"helper-copy|temporary/sessions/s1/scratchpad/clean|delete|unknown",
 			"helper-copy|temporary/sessions/s1/scratchpad/dirty|delete|held",
 			"helper-copy|temporary/sessions/s1/scratchpad/partial|delete|held",
 			"helper-copy|temporary/sessions/s1/scratchpad/emptied|delete|finished",
@@ -354,7 +369,7 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 			"helper-copy|temporary/sessions/s2/scratchpad/ahead|delete|held",
 			"helper-copy|temporary/sessions/s2/scratchpad/held|delete|held",
 			"helper-copy|temporary/sessions/s2/scratchpad/gone|delete|unknown",
-			"helper-copy|repo/.claude/worktrees/agent-clean|delete|finished",
+			"helper-copy|repo/.claude/worktrees/agent-clean|delete|unknown",
 			"helper-copy|repo/.claude/worktrees/agent-unlinked|delete|unknown",
 			"worktree|lanes/feature|report|held",
 			"worktree|lanes/merged|report|finished",
@@ -370,7 +385,7 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 			"experiment|data/experiments/done/final run|delete|unknown",
 			"experiment|data/experiments/kept/store|delete|held",
 			"experiment|data/experiments/kept/store.lock|delete|unknown",
-			"experiment|data/experiments/kept/run|delete|held",
+			"experiment|data/experiments/kept/run|delete|finished",
 			"experiment|data/experiments/kept/model|delete|held",
 			"experiment|data/experiments/orphan/out|delete|unknown",
 			"experiment|data/experiments/whole/out|delete|held",
@@ -430,6 +445,9 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 				!slices.Contains([]string{actionDelete, actionReport, actionNever}, line.action) {
 				t.Errorf("line %+v is not whole: it needs a name of its own, a root word, what it holds, its finished state and an action", line)
 			}
+			if (line.remove != nil) != (line.action == actionDelete) {
+				t.Errorf("line %s has the action %s and a remover: %v; a line that deletes has one, and no other line has", line.name, line.action, line.remove != nil)
+			}
 			names[line.name] = true
 			if !slices.ContainsFunc(found, func(entry leftover) bool { return entry.place == line.name }) {
 				t.Errorf("the fixture holds no entry of line %s, so nothing holds its verdicts", line.name)
@@ -457,6 +475,9 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 			{"bin", "repo/bin/named.exe", "scripts/hook.txt:1"},
 			{"bin", "repo/bin/slashed.exe", "scripts/hook.txt:2"},
 			{"bin", "repo/bin/two words.exe", "no line that names it could be found"},
+			{"experiment", "data/experiments/kept/run", "outside a store field"},
+			{"helper-copy", "temporary/sessions/s1/scratchpad/clean", "no process state"},
+			{"helper-copy", "repo/.claude/worktrees/agent-clean", "no process state"},
 			{"helper-copy", "temporary/sessions/s2/scratchpad/ahead", aheadCommit[:12]},
 			{"helper-copy", "temporary/sessions/s2/scratchpad/held", "s9"},
 			{"helper-copy", "temporary/sessions/s1/scratchpad/ignored", "overgodb-store/"},
@@ -1004,5 +1025,1008 @@ func TestTmpEntryBelongsToAnOpenRowOrIsFinished(t *testing.T) {
 			t.Fatalf("with a link in pair-a the scratch entries are\n%s\nwant\n%s", strings.Join(states, "\n"), strings.Join(want, "\n"))
 		}
 		named(t, entries, "pair-a", "unknown", "link")
+	})
+}
+
+// sandbox is the temporary directory a test that removes builds its whole machine in: the trunk's
+// checkout, the data root, the temporary directory. Every path such a test hands a remover lies
+// beneath it, so nothing of the real machine is ever removed.
+type sandbox struct {
+	t    *testing.T
+	root string
+}
+
+// newSandbox resolves the test's temporary directory as git does, which names a worktree by its
+// resolved path.
+func newSandbox(t *testing.T) sandbox {
+	t.Helper()
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return sandbox{t, root}
+}
+
+func (s sandbox) at(slash string) string { return filepath.Join(s.root, filepath.FromSlash(slash)) }
+
+func (s sandbox) folder(slash string) string {
+	s.t.Helper()
+	if err := os.MkdirAll(s.at(slash), 0o755); err != nil {
+		s.t.Fatal(err)
+	}
+	return s.at(slash)
+}
+
+func (s sandbox) write(slash, content string) {
+	s.t.Helper()
+	s.folder(filepath.ToSlash(filepath.Dir(filepath.FromSlash(slash))))
+	if err := os.WriteFile(s.at(slash), []byte(content), 0o644); err != nil {
+		s.t.Fatal(err)
+	}
+}
+
+// landedCopy makes a helper copy of the trunk's checkout as a session does, makes one commit in
+// it, moves the trunk up to that commit, and leaves in the copy's process state what a commit run
+// there writes: the ignore rule, the gate's lock and the records of its waits and its refusals.
+func (s sandbox) landedCopy(repo, slash string) string {
+	s.t.Helper()
+	helper := s.at(slash)
+	gitFixture(s.t, repo, "worktree", "add", "-q", "--detach", helper, "master")
+	s.write(slash+"/work/"+filepath.Base(helper)+".txt", "the work of one helper copy\n")
+	gitFixture(s.t, helper, "add", "-A")
+	gitFixture(s.t, helper, "commit", "-q", "-m", "the commit of "+slash)
+	gitFixture(s.t, repo, "merge", "-q", "--ff-only", gitFixture(s.t, helper, "rev-parse", "HEAD"))
+	if err := processlock.EnsureStateDirectory(helper); err != nil {
+		s.t.Fatal(err)
+	}
+	for _, written := range []string{"gate.lock", "landing_waits.json", "landing_refusals.json"} {
+		s.write(slash+"/"+processlock.StateDirectory+"/"+written, "{}\n")
+	}
+	return helper
+}
+
+// seen walks the sandbox and returns every path beneath it, by its slash path from the root, with
+// its size, a directory's as -1. The administrative directory of the repository is left out: git's
+// own view of it is compared through git.
+func (s sandbox) seen() map[string]int64 {
+	s.t.Helper()
+	seen := map[string]int64{}
+	if err := filepath.WalkDir(s.root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		inside, err := filepath.Rel(s.root, path)
+		if err != nil || entry.Name() == ".git" && entry.IsDir() {
+			return cmp.Or(err, fs.SkipDir)
+		}
+		seen[filepath.ToSlash(inside)] = -1
+		if entry.Type().IsRegular() {
+			info, err := entry.Info()
+			if err != nil {
+				return err
+			}
+			seen[filepath.ToSlash(inside)] = info.Size()
+		}
+		return nil
+	}); err != nil {
+		s.t.Fatal(err)
+	}
+	return seen
+}
+
+// moved lists what differs between two walks of a sandbox, but for the paths that are one of
+// those given or lie beneath one.
+func moved(before, after map[string]int64, but ...string) []string {
+	excepted := func(path string) bool {
+		return slices.ContainsFunc(but, func(prefix string) bool { return path == prefix || strings.HasPrefix(path, prefix+"/") })
+	}
+	var differences []string
+	for path, size := range before {
+		if now, kept := after[path]; !excepted(path) && (!kept || now != size) {
+			differences = append(differences, fmt.Sprintf("%s was %d and is %d (still there: %v)", path, size, now, kept))
+		}
+	}
+	for path := range after {
+		if _, was := before[path]; !was && !excepted(path) {
+			differences = append(differences, path+" is new")
+		}
+	}
+	slices.Sort(differences)
+	return differences
+}
+
+// removalState is where the removing command keeps its lock and its receipt, as slash paths from
+// a sandbox's root: the process state of the trunk's checkout, which no removal touches otherwise.
+const removalState = "repo/" + processlock.StateDirectory
+
+// removalRun names a place to the removing command over a machine and returns its lines, each split
+// into its fields, the token its last line carries when it only listed, and its error.
+func removalRun(h hygiene, place, token string, worker bool) (lines [][]string, shown string, err error) {
+	var output bytes.Buffer
+	err = deleteLeftovers(h, place, token, worker, &output)
+	for line := range strings.Lines(output.String()) {
+		if said, found := strings.CutPrefix(line, "loop: "); found {
+			words := strings.Fields(said)
+			shown = words[len(words)-1]
+			continue
+		}
+		lines = append(lines, strings.Split(strings.TrimSuffix(line, "\n"), "\t"))
+	}
+	return lines, shown, err
+}
+
+// verbs is a run's lines as sorted "verb path" pairs, a path by its slash path from the root.
+func (s sandbox) verbs(lines [][]string) []string {
+	s.t.Helper()
+	var pairs []string
+	for _, fields := range lines {
+		if len(fields) != 5 || slices.Contains(fields, "") {
+			s.t.Fatalf("the line %q is not five fields: verb, bytes, place, path, rule", fields)
+		}
+		path := fields[3]
+		if inside, err := filepath.Rel(s.root, path); filepath.IsAbs(path) && err == nil {
+			path = filepath.ToSlash(inside)
+		}
+		pairs = append(pairs, fields[0]+" "+path)
+	}
+	slices.Sort(pairs)
+	return pairs
+}
+
+// ruled fails unless the line of a path carries the verb and its rule the text.
+func (s sandbox) ruled(lines [][]string, slash, verb, text string) {
+	s.t.Helper()
+	for _, fields := range lines {
+		if fields[3] == s.at(slash) || fields[3] == slash {
+			if fields[0] != verb || !strings.Contains(filepath.ToSlash(fields[4]), text) {
+				s.t.Errorf("%s reads %s by %q, want %s by a rule that names %q", slash, fields[0], fields[4], verb, text)
+			}
+			return
+		}
+	}
+	s.t.Errorf("no line names %s", slash)
+}
+
+// TestLeftoversDeletesOnlyWhatItsTableMarksFinished builds, under a temporary directory, a machine
+// with entries of every place whose finished entries are deleted but the helper copies, which
+// TestHelperCopyIsRemovedOnceItsCommitIsOnTheTrunk holds, and beside them what must never go: a
+// store, a sealed backup, a model prototype the store registers, checkpoints, models, a stash,
+// session folders, a run that is still going. The real machine is never read.
+//
+// Named with a place and no token, the command removes nothing: it prints a line for each finished
+// entry, a line with its rule for every other entry of the place, and a token over the finished
+// entries' paths, bytes and rules. Given that token it removes exactly those entries, a line each,
+// and appends the lines to one receipt in the trunk's process state, whichever checkout it runs
+// in. It refuses a token that is not the listing's, a token whose listing no longer holds (an
+// entry's bytes changed), a place whose action is not delete, a place the table does not have, a
+// second removal while one holds the lock, and, from a worker's environment, the owner's data:
+// experiments and branches. A refusal removes nothing.
+//
+// What it leaves, each with the rule that keeps it: an experiment's output a committed record
+// names in a store field, also when the path stands on the field's continuation line, while a
+// record's other mention holds nothing; one the store registers a location in; one that holds a
+// store, a sealed backup or the lock of a run still going, and one whose experiment's own directory
+// holds such a lock, while a lock a run left there untaken holds nothing; one that holds a link; a
+// file; a branch a worktree has checked out or the trunk lacks; a build folder that holds this command's executable,
+// and every build folder while another go command runs or the process list cannot be read; a
+// scratch folder whose row the plan holds. A removal that is refused, by the remover, by a file held
+// open in the folder or by a lock on a branch's ref, leaves its entry as it was, reads left in its
+// line, removes the rest and fails the command.
+func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	s := newSandbox(t)
+	repo := s.folder("repo")
+	gitFixture(t, repo, "init", "-q", "-b", "master")
+	gitFixture(t, repo, "config", "core.autocrlf", "false")
+	s.write("repo/.gitignore", "/tmp/\n")
+	s.write("repo/source/tracked.txt", "tracked\n")
+	// The store field wraps: the path it names stands on its continuation line. The last field names
+	// an output too, and is no store field.
+	s.write("repo/docs/verification/sweep-note.txt", strings.Join([]string{
+		"outputs: experiments/done, experiments/sealed, experiments/live, experiments/idle, experiments/linked, experiments/pilot, experiments/rerun and experiments/busy",
+		"store: a copy of the store taken before the runs,",
+		"  at D:/data/experiments/kept/store. The runs are kept out of the real store.",
+		`runs: D:\data\experiments\kept\runs\order-1`,
+		"",
+	}, "\n"))
+	document := plan.Plan{Campaign: "hygiene", Doctrine: []plan.Paragraph{{Governs: "standing", Text: "the plan of a fixture"}}, Lane: "master-lead"}
+	document.Items = []plan.Item{{ID: "open-row", Title: "a row of the fixture", Status: plan.StatusOpen, Steps: []plan.Step{{
+		ID: "do", Title: "its one step", Status: plan.StatusOpen, Verify: "go version", Rationale: "a row that is still open",
+	}}}}
+	if err := plan.Save(filepath.Join(repo, filepath.FromSlash(plan.Path)), document); err != nil {
+		t.Fatal(err)
+	}
+	gitFixture(t, repo, "add", "-A")
+	gitFixture(t, repo, "commit", "-q", "-m", "base")
+	gitFixture(t, repo, "commit", "-q", "--allow-empty", "-m", "an empty landing", "-m", plan.LandedRowTrailer+": landed-row/do")
+	s.write("repo/source/tracked.txt", "work a stash holds\n")
+	gitFixture(t, repo, "stash", "push", "-q", "-m", "kept work")
+	gitFixture(t, repo, "branch", "merged-free", "master")
+	gitFixture(t, repo, "worktree", "add", "-q", "-b", "merged-held", s.at("lanes/merged"), "master")
+	gitFixture(t, repo, "worktree", "add", "-q", "-b", "lane/feature", s.at("lanes/feature"), "master")
+	gitFixture(t, s.at("lanes/feature"), "commit", "-q", "--allow-empty", "-m", "lane work")
+	s.write("repo/tmp/landed-row/probe.go", "package probe\n")
+	s.write("repo/tmp/open-row/probe.go", "package probe\n")
+	s.write("repo/tmp/loose.go", "package loose\n")
+
+	// The data root: a real store that registers a prototype's file inside one experiment's output.
+	storePath := s.folder("data/overgodb-store")
+	store, err := overgodb.Open(storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prototype := testutil.ArtifactID(t, artifact.KindTensorSet, "prototype")
+	s.write("data/experiments/pilot/run/reward/weights.bin", "a prototype")
+	if _, err := store.Commit(ctx, artifact.Batch{
+		Key:       "removal-fixture/prototype",
+		Artifacts: []artifact.Descriptor{{ID: prototype, Size: 1}},
+		Locations: []artifact.LocationEvent{{Location: artifact.Location{Artifact: prototype, Kind: artifact.LocationFile, Value: s.at("data/experiments/pilot/run/reward/weights.bin")}, Action: artifact.LocationAdd}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Backup(ctx, s.at("data/experiments/sealed/out")); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	for _, output := range []string{"done/weights", "kept/store", "kept/runs/order-1", "live/run", "idle/run", "rerun/control", "busy/weights", "orphan/out", "sealed/named/" + filepath.Base(storePath)} {
+		s.write("data/experiments/"+output+"/step.bin", "weights")
+	}
+	s.write("data/experiments/done/run.log", "log\n")
+	// A run that is still going holds the lock in its output directory, which is an entry or, for a
+	// run that wrote into the experiment's own directory, the directory above its entries; a run
+	// that ended left its lock file in either.
+	for _, output := range []string{"live/run", "rerun"} {
+		going, err := processlock.Acquire(s.at("data/experiments/"+output+"/"+processlock.OutputLock), 0o600)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer going.Close()
+	}
+	s.write("data/experiments/idle/run/"+processlock.OutputLock, "")
+	s.write("data/experiments/done/"+processlock.OutputLock, "")
+	s.write("outside/large.bin", "bytes behind a link")
+	linked := fixtureLink(s.at("outside"), filepath.Join(s.folder("data/experiments/linked/weights"), "out"))
+	if !linked {
+		t.Log("this machine makes neither a symbolic link nor a junction, so nothing about links is held here")
+		if err := os.RemoveAll(s.at("data/experiments/linked")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s.write("data/checkpoints/proto/model.bin", "a trained model")
+	s.write("data/models/base/model.bin", "a model")
+	s.write("backups/sealed/blob", "a backup")
+	s.write("data/overgodb-store.superseded-1/blob", "a superseded store")
+	s.write("temporary/go-build1/x", "object")
+	s.write("temporary/go-build2/b001/exe/loop.exe", "this command")
+	s.folder("cache")
+
+	running := []string(nil)
+	var listing error
+	h := hygiene{
+		checkout: repo, running: repo, data: s.at("data"), sessions: s.at("temporary/sessions"), temporary: s.at("temporary"), cache: s.at("cache"),
+		executable: s.at("temporary/go-build2/b001/exe/loop.exe"),
+		kept:       []string{storePath, s.at("data/models")},
+		stores: func() ([]leftover, error) {
+			return []leftover{{path: s.at("backups/sealed"), state: stateKept, rule: "a sealed-backup is never deleted"}, {path: s.at("data/overgodb-store.superseded-1"), state: stateKept, rule: "a superseded-store is never deleted"}}, nil
+		},
+		registered: func() ([]string, error) { return storeLocations(storePath, 1) },
+		processes:  func() ([]string, error) { return running, listing },
+		removeTree: fsatomic.RemoveTree,
+	}
+
+	run, verbs, ruled := removalRun, s.verbs, s.ruled
+	gitState := func() string {
+		t.Helper()
+		var state strings.Builder
+		for _, arguments := range [][]string{{"worktree", "list", "--porcelain"}, {"branch", "--list"}, {"stash", "list"}} {
+			state.WriteString(gitFixture(t, repo, arguments...) + "\n")
+		}
+		return state.String()
+	}
+	locations, err := storeLocations(storePath, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, registered := s.seen(), gitState()
+	// untouched fails when anything in the sandbox or in git's view of it moved since the walk
+	// given, but for the command's own lock and receipt and the paths excepted.
+	untouched := func(t *testing.T, before map[string]int64, git string, but ...string) {
+		t.Helper()
+		if differences := moved(before, s.seen(), append(but, removalState)...); len(differences) != 0 {
+			t.Fatalf("the command moved what it must leave:\n%s", strings.Join(differences, "\n"))
+		}
+		if now := gitState(); git != "" && now != git {
+			t.Fatalf("git's worktrees, branches and stashes are\n%s\nwant them as they were:\n%s", now, git)
+		}
+	}
+	receipt := s.at(removalState + "/leftovers-removed.txt")
+	var receipted strings.Builder
+	// receipts adds a run's removal lines to those the receipt must hold, in order.
+	receipts := func(lines [][]string) {
+		for _, fields := range lines {
+			if fields[0] == "removed" || fields[0] == "left" {
+				receipted.WriteString(strings.Join(fields, "\t") + "\n")
+			}
+		}
+	}
+
+	experiments := []string{
+		"kept data/experiments/busy/weights", "kept data/experiments/done/run.log", "kept data/experiments/done/weights", "kept data/experiments/idle/run",
+		"kept data/experiments/kept/runs", "kept data/experiments/kept/store", "kept data/experiments/live/run", "kept data/experiments/orphan/out",
+		"kept data/experiments/pilot/run", "kept data/experiments/sealed/named", "kept data/experiments/sealed/out", "kept data/experiments/sealed/out.lock",
+		"kept data/experiments/rerun/control", "kept data/experiments/rerun/" + processlock.OutputLock, "kept data/experiments/done/" + processlock.OutputLock,
+	}
+	if linked {
+		experiments = append(experiments, "kept data/experiments/linked/weights")
+	}
+	finishedExperiments := []string{"data/experiments/busy/weights", "data/experiments/done/weights", "data/experiments/idle/run", "data/experiments/kept/runs"}
+	// listed is a place's listing: every entry kept, but for the finished ones given.
+	listed := func(all []string, finished ...string) []string {
+		lines := slices.Clone(all)
+		for index, line := range lines {
+			if slices.Contains(finished, strings.TrimPrefix(line, "kept ")) {
+				lines[index] = "would-remove " + strings.TrimPrefix(line, "kept ")
+			}
+		}
+		slices.Sort(lines)
+		return lines
+	}
+
+	var token string
+	t.Run("a place named with no token is listed with a token, and nothing is removed", func(t *testing.T) {
+		lines, shown, err := run(h, "experiment", "", false)
+		if want := listed(experiments, finishedExperiments...); err != nil || !slices.Equal(verbs(lines), want) || len(shown) != 16 {
+			t.Fatalf("the listing of the experiments is (%v, token %q)\n%s\nwant a token of 16 digits and\n%s", err, shown, strings.Join(verbs(lines), "\n"), strings.Join(want, "\n"))
+		}
+		for _, entry := range []struct{ slash, verb, text string }{
+			{"data/experiments/done/weights", "would-remove", "experiment a committed record names"},
+			{"data/experiments/kept/runs", "would-remove", "docs/verification/sweep-note.txt:4"},
+			{"data/experiments/kept/store", "kept", "docs/verification/sweep-note.txt:3"},
+			{"data/experiments/pilot/run", "kept", "the store registers"},
+			{"data/experiments/sealed/out", "kept", "a store or a store backup"},
+			{"data/experiments/sealed/named", "kept", "a store or a store backup"},
+			{"data/experiments/live/run", "kept", "a run holds it"},
+			{"data/experiments/rerun/control", "kept", "a run holds its experiment"},
+			{"data/experiments/orphan/out", "kept", "no committed record names its experiment"},
+			{"data/experiments/done/run.log", "kept", "a file"},
+		} {
+			ruled(lines, entry.slash, entry.verb, entry.text)
+		}
+		if linked {
+			ruled(lines, "data/experiments/linked/weights", "kept", "link")
+		}
+		// Only what a removal would take is walked: a kept entry may be very large, and is not measured.
+		for _, fields := range lines {
+			if fields[3] == s.at("data/experiments/done/weights") && fields[1] != "7" {
+				t.Errorf("the finished output is listed with %s bytes, want the 7 of its one file", fields[1])
+			}
+			if fields[0] == "kept" && fields[1] != "-" {
+				t.Errorf("the kept entry %s is listed with %s bytes, want it unmeasured", fields[3], fields[1])
+			}
+		}
+		again, repeated, err := run(h, "experiment", "", false)
+		if err != nil || repeated != shown || !slices.Equal(verbs(again), verbs(lines)) {
+			t.Fatalf("a second listing gave the token %q (%v), want the first one's %q: nothing changed between them", repeated, err, shown)
+		}
+		token = shown
+		untouched(t, first, registered)
+	})
+
+	t.Run("a refusal removes nothing", func(t *testing.T) {
+		for _, refused := range []struct {
+			name, place, token, want string
+			worker                   bool
+		}{
+			{"a token that is not the listing's", "experiment", "0123456789abcdef", "list it again", false},
+			{"a worker's environment, listing the experiments", "experiment", "", "owner", true},
+			{"a worker's environment, with the experiments' token", "experiment", token, "owner", true},
+			{"a worker's environment, listing the branches", "branch", "", "owner", true},
+			{"a place that only reports", "checkpoint", "", "helper-copy, branch, experiment, temporary-build, tmp", false},
+			{"a place that never deletes", "store-backup", "", "helper-copy, branch, experiment, temporary-build, tmp", false},
+			{"the stashes", "stash", "", "helper-copy, branch, experiment, temporary-build, tmp", false},
+			{"the worktrees that are no helper copies", "worktree", "", "helper-copy, branch, experiment, temporary-build, tmp", false},
+			{"a place the table does not have", "nowhere", "", `"nowhere"`, false},
+		} {
+			lines, _, err := run(h, refused.place, refused.token, refused.worker)
+			if err == nil || !strings.Contains(err.Error(), refused.want) || len(lines) != 0 {
+				t.Errorf("%s: the command answered %v with the lines %q, want it refused, naming %q, with no line", refused.name, err, lines, refused.want)
+			}
+		}
+		// A worker may remove what is no one's data: the listing of the scratch folders is allowed it.
+		if _, _, err := run(h, "tmp", "", true); err != nil {
+			t.Errorf("a worker's environment was refused the listing of the scratch folders: %v", err)
+		}
+		held, err := processlock.Acquire(s.at(removalState+"/leftovers-removal.lock"), 0o600)
+		if err != nil {
+			t.Fatal(err)
+		}
+		lines, _, err := run(h, "experiment", token, false)
+		if closeErr := held.Close(); err == nil || closeErr != nil || len(lines) != 0 || !strings.Contains(err.Error(), "another removal") {
+			t.Errorf("with the removal lock held the command answered %v with the lines %q (close: %v), want it refused as another removal's", err, lines, closeErr)
+		}
+		// The listing's token no longer holds once an entry it showed has other bytes.
+		s.write("data/experiments/done/weights/step.bin", "weights, and more of them")
+		lines, _, err = run(h, "experiment", token, false)
+		if err == nil || !strings.Contains(err.Error(), "list it again") || len(lines) != 0 {
+			t.Errorf("with a finished entry's bytes changed since the listing the command answered %v with the lines %q, want it refused with no line", err, lines)
+		}
+		s.write("data/experiments/done/weights/step.bin", "weights")
+		if _, err := os.Stat(receipt); !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("the refusals left a receipt (%v), and a refusal removes nothing", err)
+		}
+		untouched(t, first, registered)
+	})
+
+	t.Run("the experiments' token removes the finished outputs, and a removal that fails leaves its entry whole", func(t *testing.T) {
+		// One entry's removal fails, and on Windows a second entry is in use: a file in it is open.
+		failing := h
+		failing.removeTree = func(path string) error {
+			if path == s.at("data/experiments/kept/runs") {
+				return errors.New("the disk refused")
+			}
+			return fsatomic.RemoveTree(path)
+		}
+		left := []string{"data/experiments/kept/runs"}
+		if runtime.GOOS == "windows" {
+			busy, err := os.Open(s.at("data/experiments/busy/weights/step.bin"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer busy.Close()
+			left = append(left, "data/experiments/busy/weights")
+		}
+		lines, _, err := run(failing, "experiment", token, false)
+		receipts(lines)
+		want := listed(experiments)
+		for _, slash := range finishedExperiments {
+			verb := "removed "
+			if slices.Contains(left, slash) {
+				verb = "left "
+			}
+			want = append(slices.DeleteFunc(want, func(line string) bool { return line == "kept "+slash }), verb+slash)
+		}
+		slices.Sort(want)
+		if err == nil || !strings.Contains(err.Error(), "the disk refused") || !slices.Equal(verbs(lines), want) {
+			t.Fatalf("the removal answered %v with\n%s\nwant it to fail by the entry it left and to say\n%s", err, strings.Join(verbs(lines), "\n"), strings.Join(want, "\n"))
+		}
+		ruled(lines, "data/experiments/kept/runs", "left", "the disk refused")
+		gone := []string{"data/experiments/done/weights", "data/experiments/idle/run"}
+		if runtime.GOOS != "windows" {
+			gone = append(gone, "data/experiments/busy/weights")
+		}
+		untouched(t, first, registered, gone...)
+		for _, slash := range gone {
+			if _, err := os.Stat(s.at(slash)); !errors.Is(err, fs.ErrNotExist) {
+				t.Errorf("%s is still there after its removal (%v)", slash, err)
+			}
+		}
+	})
+
+	t.Run("a later listing has a token of its own, and its removal is appended to the one receipt", func(t *testing.T) {
+		if lines, _, err := run(h, "experiment", token, false); err == nil || len(lines) != 0 {
+			t.Fatalf("the first listing's token was taken again (%v, lines %q) after the removal changed what the place holds", err, lines)
+		}
+		_, shown, err := run(h, "experiment", "", false)
+		if err != nil || shown == token {
+			t.Fatalf("the listing after the removal gave the token %q (%v), want one of its own", shown, err)
+		}
+		lines, _, err := run(h, "experiment", shown, false)
+		receipts(lines)
+		if err != nil {
+			t.Fatalf("the removal of what the first one left: %v", err)
+		}
+		ruled(lines, "data/experiments/kept/runs", "removed", "docs/verification/sweep-note.txt:4")
+		untouched(t, first, registered, finishedExperiments...)
+		if written, err := os.ReadFile(receipt); err != nil || string(written) != receipted.String() {
+			t.Fatalf("the receipt holds (%v)\n%s\nwant the removal lines of both runs, in order:\n%s", err, written, receipted.String())
+		}
+	})
+
+	removed := slices.Clone(finishedExperiments)
+	t.Run("a merged branch no worktree has checked out goes, and no other", func(t *testing.T) {
+		before := gitState()
+		lines, shown, err := run(h, "branch", "", false)
+		all := []string{"kept refs/heads/lane/feature", "kept refs/heads/merged-free", "kept refs/heads/merged-held"}
+		if want := listed(all, "refs/heads/merged-free"); err != nil || !slices.Equal(verbs(lines), want) {
+			t.Fatalf("the listing of the branches is (%v)\n%s\nwant\n%s", err, strings.Join(verbs(lines), "\n"), strings.Join(want, "\n"))
+		}
+		if now := gitState(); now != before {
+			t.Fatalf("the listing of the branches changed git's view:\n%s\nwant\n%s", now, before)
+		}
+		// A branch git cannot delete, its ref locked by another git command, is left, and its line
+		// says left: a branch is no path whose absence could say it was removed in part.
+		refLock := s.at("repo/.git/refs/heads/merged-free.lock")
+		s.write("repo/.git/refs/heads/merged-free.lock", "")
+		lines, _, err = run(h, "branch", shown, false)
+		receipts(lines)
+		if unlockErr := os.Remove(refLock); err == nil || unlockErr != nil {
+			t.Fatalf("with the branch's ref locked the removal answered %v (unlocked: %v), want it to fail", err, unlockErr)
+		}
+		ruled(lines, "refs/heads/merged-free", "left", "git branch")
+		lines, _, err = run(h, "branch", shown, false)
+		receipts(lines)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ruled(lines, "refs/heads/merged-free", "removed", "wholly in the trunk")
+		if branches := strings.Fields(gitFixture(t, repo, "branch", "--format=%(refname:short)")); !slices.Equal(branches, []string{"lane/feature", "master", "merged-held"}) {
+			t.Fatalf("after the removal git holds the branches %q, want all but merged-free", branches)
+		}
+		untouched(t, first, "", removed...)
+	})
+
+	t.Run("a build folder goes only while no other go command runs, and never the one this command runs from", func(t *testing.T) {
+		running = []string{"go.exe"}
+		lines, shown, err := run(h, "temporary-build", "", false)
+		if want := []string{"kept temporary/go-build1", "kept temporary/go-build2"}; err != nil || !slices.Equal(verbs(lines), want) {
+			t.Fatalf("with a go command running the listing is (%v) %q, want every folder kept", err, verbs(lines))
+		}
+		if lines, _, err = run(h, "temporary-build", shown, false); err != nil || slices.ContainsFunc(lines, func(fields []string) bool { return fields[0] != "kept" }) {
+			t.Fatalf("with a go command running the token of nothing removed something or failed: %v %q", err, lines)
+		}
+		running, listing = nil, errors.New("the process list is unreadable")
+		if lines, _, err = run(h, "temporary-build", "", false); err != nil || !slices.Equal(verbs(lines), []string{"kept temporary/go-build1", "kept temporary/go-build2"}) {
+			t.Fatalf("with the process list unreadable the listing is (%v) %q, want every folder kept", err, verbs(lines))
+		}
+		ruled(lines, "temporary/go-build1", "kept", "the process list is unreadable")
+		untouched(t, first, "", removed...)
+		listing = nil
+		_, shown, err = run(h, "temporary-build", "", false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// The token names the paths it was shown for: another folder of the same bytes by the same
+		// rule is not what the listing showed.
+		if err := os.Rename(s.at("temporary/go-build1"), s.at("temporary/go-build3")); err != nil {
+			t.Fatal(err)
+		}
+		lines, _, err = run(h, "temporary-build", shown, false)
+		if renameErr := os.Rename(s.at("temporary/go-build3"), s.at("temporary/go-build1")); err == nil || renameErr != nil || len(lines) != 0 {
+			t.Fatalf("the token of one folder was taken for another of the same bytes (%v, lines %q; renamed back: %v)", err, lines, renameErr)
+		}
+		lines, _, err = run(h, "temporary-build", shown, false)
+		receipts(lines)
+		if want := []string{"kept temporary/go-build2", "removed temporary/go-build1"}; err != nil || !slices.Equal(verbs(lines), want) {
+			t.Fatalf("with no other go command running the removal said (%v) %q, want %q", err, verbs(lines), want)
+		}
+		ruled(lines, "temporary/go-build2", "kept", "this command's own executable")
+		removed = append(removed, "temporary/go-build1")
+		untouched(t, first, "", removed...)
+	})
+
+	t.Run("a scratch folder whose row landed and left the plan goes, and no other scratch entry", func(t *testing.T) {
+		_, stale, err := run(h, "tmp", "", false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// The token names the rule it was shown with: once a newer commit is the one that landed the
+		// row, the folder is finished by another rule than the listing gave, and is listed again.
+		gitFixture(t, repo, "commit", "-q", "--allow-empty", "-m", "a later landing", "-m", plan.LandedRowTrailer+": landed-row/again")
+		if lines, _, err := run(h, "tmp", stale, false); err == nil || len(lines) != 0 {
+			t.Fatalf("the token of a listing was taken after the rule of its entry changed (%v, lines %q)", err, lines)
+		}
+		_, shown, err := run(h, "tmp", "", false)
+		if err != nil || shown == stale {
+			t.Fatalf("the listing under the newer landing gave the token %q (%v), want one of its own", shown, err)
+		}
+		lines, _, err := run(h, "tmp", shown, false)
+		receipts(lines)
+		if want := []string{"kept repo/tmp/loose.go", "kept repo/tmp/open-row", "removed repo/tmp/landed-row"}; err != nil || !slices.Equal(verbs(lines), want) {
+			t.Fatalf("the removal of the scratch entries said (%v) %q, want %q", err, verbs(lines), want)
+		}
+		ruled(lines, "repo/tmp/open-row", "kept", "the working plan holds its row")
+		removed = append(removed, "repo/tmp/landed-row")
+	})
+
+	t.Run("a place goes with the listing flag and a token with a place", func(t *testing.T) {
+		for _, flags := range []struct {
+			leftovers    bool
+			place, token string
+			refused      bool
+		}{
+			{true, "", "", false}, {true, "experiment", "", false}, {true, "experiment", "0123456789abcdef", false}, {false, "", "", false},
+			{false, "experiment", "", true}, {false, "experiment", "0123456789abcdef", true}, {true, "", "0123456789abcdef", true}, {false, "", "0123456789abcdef", true},
+		} {
+			if err := removalFlags(flags.leftovers, flags.place, flags.token); (err != nil) != flags.refused {
+				t.Errorf("the flags %+v are answered %v, want refused: %v", flags, err, flags.refused)
+			}
+		}
+	})
+
+	t.Run("nothing else moved", func(t *testing.T) {
+		untouched(t, first, "", removed...)
+		for _, kept := range []string{
+			"data/checkpoints/proto/model.bin", "data/models/base/model.bin", "data/overgodb-store", "backups/sealed/blob", "data/overgodb-store.superseded-1/blob",
+			"data/experiments/pilot/run/reward/weights.bin", "data/experiments/kept/store/step.bin", "data/experiments/sealed/out", "data/experiments/live/run/step.bin",
+			"data/experiments/rerun/control/step.bin", "outside/large.bin", "lanes/merged/source/tracked.txt", "temporary/go-build2/b001/exe/loop.exe", "repo/tmp/open-row/probe.go",
+		} {
+			if _, err := os.Stat(s.at(kept)); err != nil {
+				t.Errorf("%s did not outlive the removals: %v", kept, err)
+			}
+		}
+		if stash := gitFixture(t, repo, "stash", "list"); !strings.Contains(stash, "kept work") {
+			t.Errorf("the stash list is %q after the removals, want the stash it held", stash)
+		}
+		if now, err := storeLocations(storePath, 1); err != nil || !slices.Equal(now, locations) {
+			t.Errorf("the store registers %q (%v) after the removals, want what it registered before: %q", now, err, locations)
+		}
+		// Every path removed has its line, and so has the branch, which is no path.
+		if written, err := os.ReadFile(receipt); err != nil || string(written) != receipted.String() || strings.Count(string(written), "removed\t") != len(removed)+1 {
+			t.Errorf("the receipt holds (%v)\n%s\nwant the lines the removals printed, one for each of the %d paths removed and one for the branch:\n%s", err, written, len(removed), receipted.String())
+		}
+	})
+}
+
+// removingWorld is a row sequence's world that can also remove. Its gate and git's confirmation
+// answer as scripted; its remove is whatever removal a test gives it, and is recorded among the
+// calls. No method of rowWorld reaches it, so the row sequence, handed this world, shows whether a
+// commit removes.
+type removingWorld struct {
+	fakeRowWorld
+	removal func() error
+}
+
+// remove runs the world's removal and records that it was asked for.
+func (w *removingWorld) remove() error {
+	w.calls = append(w.calls, "remove")
+	return w.removal()
+}
+
+// TestHelperCopyIsRemovedOnceItsCommitIsOnTheTrunk builds, under a temporary directory, a
+// repository with helper copies in every state a session leaves one in. The real machine is never
+// read.
+//
+// A helper copy is removed by the deleting command and by nothing else. A commit removes none: the
+// row sequence, run over a world that could remove the fixture's finished copies, calls the gate
+// and git's confirmation and no more, and leaves every file and every registration as it was. Rows
+// are committed from build checkouts that are used again, and a commit made in one would take
+// another that is clean at that moment: one just reset for work whose first file is not written.
+//
+// Named the helper copies with no token, the command lists the finished ones as would-remove and
+// removes nothing: a copy a commit ran in whose commit is on the trunk, and that holds nothing
+// uncommitted, nothing ignored and nothing in its process state but what a commit writes, or that
+// is emptied of every tracked file. Every other copy is kept with the rule that keeps it: one with
+// an edited file, one with an ignored file, one a session's holder file names, one that holds a
+// session's state, one whose commit the trunk lacks, one a commit is running in, one git holds
+// locked against removal, and the checkout the command runs in; and, of unknown state, one with no
+// process state, one whose process state holds no record of a commit's run and one whose directory
+// is gone. A lane's worktree and the cycle checkout are no helper copies and are not listed, and no
+// fact of another place is read, the store's least of all. A worker's environment is given the
+// same listing: a helper copy is no one's data.
+//
+// A token that is not the listing's, the listing's own token once a copy it showed has changed,
+// and a removal while another holds the lock remove nothing. A remover that fails, one that leaves
+// the directory in place and, on Windows, a file held open in a copy leave every copy whole and
+// registered, each on a line that reads left, and fail the command. Given its token, the command
+// removes exactly the copies it listed, clears each one's registration and appends a line for each
+// to the receipt in the trunk's process state, from whichever checkout it runs in; every other
+// copy stays whole and registered. A copy locked after it was listed and before git is asked loses
+// its directory and keeps its registration: its line reads part-removed, never removed and never
+// left, and says its directory is gone and git still registers it.
+func TestHelperCopyIsRemovedOnceItsCommitIsOnTheTrunk(t *testing.T) {
+	t.Parallel()
+	s := newSandbox(t)
+	repo := s.folder("repo")
+	gitFixture(t, repo, "init", "-q", "-b", "master")
+	gitFixture(t, repo, "config", "core.autocrlf", "false")
+	s.write("repo/.gitignore", "/tmp/\n")
+	s.write("repo/source/tracked.txt", "tracked\n")
+	gitFixture(t, repo, "add", "-A")
+	gitFixture(t, repo, "commit", "-q", "-m", "base")
+	const copies = "temporary/sessions/s1/scratchpad/"
+	state := "/" + processlock.StateDirectory + "/"
+	landed := s.landedCopy(repo, copies+"landed")
+	emptied := s.landedCopy(repo, copies+"emptied")
+	for file := range strings.FieldsSeq(gitFixture(t, emptied, "ls-files")) {
+		if err := os.Remove(filepath.Join(emptied, filepath.FromSlash(file))); err != nil {
+			t.Fatal(err)
+		}
+	}
+	raced := s.landedCopy(repo, copies+"raced")
+	s.landedCopy(repo, copies+"edited")
+	s.write(copies+"edited/source/tracked.txt", "edited\n")
+	s.landedCopy(repo, copies+"heldby")
+	s.write(copies+"heldby"+state+guard.WorktreeHolder, "s9\n")
+	s.landedCopy(repo, copies+"stated")
+	s.write(copies+"stated"+state+guard.SessionState("s3"), "{}\n")
+	s.landedCopy(repo, copies+"ignored")
+	s.write(copies+"ignored/tmp/probe.txt", "ignored\n")
+	committing, err := authoritylock.Acquire(s.landedCopy(repo, copies+"locked"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer committing.Close()
+	gitFixture(t, repo, "worktree", "lock", "--reason", "its session keeps it", s.landedCopy(repo, copies+"reserved"))
+	gitFixture(t, repo, "worktree", "add", "-q", "--detach", s.at(copies+"fresh"), "master")
+	// Process state that no commit made: what a command that only takes the gate's lock leaves.
+	gitFixture(t, repo, "worktree", "add", "-q", "--detach", s.at(copies+"prepared"), "master")
+	if err := processlock.EnsureStateDirectory(s.at(copies + "prepared")); err != nil {
+		t.Fatal(err)
+	}
+	s.write(copies+"prepared"+state+"gate.lock", "")
+	gitFixture(t, repo, "worktree", "add", "-q", "--detach", s.at(copies+"gone"), "master")
+	if err := os.RemoveAll(s.at(copies + "gone")); err != nil {
+		t.Fatal(err)
+	}
+	ahead := s.landedCopy(repo, copies+"ahead")
+	gitFixture(t, ahead, "commit", "-q", "--allow-empty", "-m", "ahead of the trunk")
+	gitFixture(t, repo, "worktree", "add", "-q", "-b", "merged-held", s.at("lanes/merged"), "master")
+	if err := processlock.EnsureStateDirectory(repo); err != nil {
+		t.Fatal(err)
+	}
+	gitFixture(t, repo, "worktree", "add", "-q", "--detach", s.at("repo"+state+"cycle"), "master")
+
+	unread := func() ([]string, error) {
+		t.Error("the removal of helper copies read a fact of another place: the store's registrations or the running processes")
+		return nil, nil
+	}
+	h := hygiene{
+		checkout: repo, running: repo, temporary: s.at("temporary"), removeTree: fsatomic.RemoveTree, registered: unread, processes: unread,
+		stores: func() ([]leftover, error) {
+			t.Error("the removal of helper copies asked the store for its backups")
+			return nil, nil
+		},
+	}
+	names := []string{"ahead", "edited", "emptied", "fresh", "gone", "heldby", "ignored", "landed", "locked", "prepared", "raced", "reserved", "stated"}
+	// said is what a run says of the copies: each kept, but for those given another verb.
+	said := func(verbs map[string]string) []string {
+		var lines []string
+		for _, name := range names {
+			lines = append(lines, cmp.Or(verbs[name], "kept")+" "+copies+name)
+		}
+		slices.Sort(lines)
+		return lines
+	}
+	finished := map[string]string{"emptied": "would-remove", "landed": "would-remove", "raced": "would-remove"}
+	registrations := func() string {
+		t.Helper()
+		return gitFixture(t, repo, "worktree", "list", "--porcelain")
+	}
+	// roots are the worktrees git registers, each by its path as git writes it.
+	roots := func(registrations string) (paths []string) {
+		for line := range strings.Lines(registrations) {
+			if path, found := strings.CutPrefix(strings.TrimSpace(line), "worktree "); found {
+				paths = append(paths, path)
+			}
+		}
+		return paths
+	}
+	before, registered := s.seen(), registrations()
+	// whole fails when anything in the sandbox moved but the command's own lock and receipt, or git
+	// registers anything other than it did.
+	whole := func(t *testing.T) {
+		t.Helper()
+		if differences := moved(before, s.seen(), removalState); len(differences) != 0 {
+			t.Fatalf("a run that removes nothing moved:\n%s", strings.Join(differences, "\n"))
+		}
+		if now := registrations(); now != registered {
+			t.Fatalf("a run that removes nothing left git registering\n%s\nwant\n%s", now, registered)
+		}
+	}
+	receipt := s.at(removalState + "/leftovers-removed.txt")
+	var receipted strings.Builder
+	// receipts adds a run's removal lines to those the receipt must hold, in order.
+	receipts := func(lines [][]string) {
+		for _, fields := range lines {
+			if fields[0] != "kept" {
+				receipted.WriteString(strings.Join(fields, "\t") + "\n")
+			}
+		}
+	}
+
+	t.Run("a commit removes no copy and calls nothing that could", func(t *testing.T) {
+		for _, gate := range []string{"land: test: failed", ""} {
+			// The world's removal is the command run as the one who removes runs it: once for its
+			// token, and once with it.
+			world := &removingWorld{fakeRowWorld: fakeRowWorld{gate: gate}, removal: func() error {
+				_, token, err := removalRun(h, "helper-copy", "", false)
+				if err == nil {
+					_, _, err = removalRun(h, "helper-copy", token, false)
+				}
+				return err
+			}}
+			calls, outcome := []string{phaseGate, phaseLanded}, outcomeReady
+			if gate != "" {
+				calls, outcome = calls[:1], outcomeRefused
+			}
+			ended, err := landRow(world, "row/do", "message.txt")
+			if err != nil || ended.Outcome != outcome || !slices.Equal(world.calls, calls) {
+				t.Errorf("the commit ended %+v (%v) after the calls %v, want it %s after %v and no call more: a commit removes nothing", ended, err, world.calls, outcome, calls)
+			}
+			// Not the command's lock and not its receipt either: a commit does not come near a removal.
+			if differences := moved(before, s.seen()); len(differences) != 0 {
+				t.Fatalf("a commit that ended %s moved:\n%s", ended.Outcome, strings.Join(differences, "\n"))
+			}
+			if now := registrations(); now != registered {
+				t.Fatalf("a commit that ended %s left git registering\n%s\nwant\n%s", ended.Outcome, now, registered)
+			}
+		}
+	})
+
+	var token string
+	t.Run("named with no token the finished copies are listed with a token, and nothing is removed", func(t *testing.T) {
+		lines, shown, err := removalRun(h, "helper-copy", "", false)
+		if want := said(finished); err != nil || !slices.Equal(s.verbs(lines), want) || len(shown) != tokenDigits {
+			t.Fatalf("the listing of the helper copies is (%v, token %q)\n%s\nwant a token of %d digits and\n%s", err, shown, strings.Join(s.verbs(lines), "\n"), tokenDigits, strings.Join(want, "\n"))
+		}
+		for _, entry := range []struct{ name, verb, text string }{
+			{"landed", "would-remove", gitFixture(t, landed, "rev-parse", "HEAD")[:commitAbbreviation]},
+			{"emptied", "would-remove", "emptied"},
+			{"edited", "kept", "1 uncommitted or ignored paths, the first source/tracked.txt"},
+			{"ignored", "kept", "the first tmp/"},
+			{"heldby", "kept", "the session s9 holds it"},
+			{"stated", "kept", "its process state holds " + guard.SessionState("s3")},
+			{"ahead", "kept", "is not on the trunk"},
+			{"locked", "kept", "a commit is running in it"},
+			{"reserved", "kept", "git holds it locked against removal: its session keeps it"},
+			{"fresh", "kept", "unknown: it has no process state"},
+			{"prepared", "kept", "unknown: it has no process state that holds the record of a commit's run"},
+			{"gone", "kept", "unknown: "},
+		} {
+			s.ruled(lines, copies+entry.name, entry.verb, entry.text)
+		}
+		for _, fields := range lines {
+			if measured := fields[1] != "-" && fields[1] != "0"; measured != (fields[0] == "would-remove") {
+				t.Errorf("the line %q carries the bytes %s, want a copy that would go measured and no other", fields, fields[1])
+			}
+		}
+		again, repeated, err := removalRun(h, "helper-copy", "", true)
+		if err != nil || repeated != shown || !slices.Equal(s.verbs(again), s.verbs(lines)) {
+			t.Fatalf("a worker's environment was given the token %q (%v), want the listing and the token %q that any other is given", repeated, err, shown)
+		}
+		// Run in a finished copy, the command keeps that copy: its listing is another, with a token of its own.
+		inside := h
+		inside.running = landed
+		lines, own, err := removalRun(inside, "helper-copy", "", false)
+		if want := said(map[string]string{"emptied": "would-remove", "raced": "would-remove"}); err != nil || own == shown || !slices.Equal(s.verbs(lines), want) {
+			t.Fatalf("run in a finished copy the listing is (%v, token %q beside %q)\n%s\nwant\n%s", err, own, shown, strings.Join(s.verbs(lines), "\n"), strings.Join(want, "\n"))
+		}
+		s.ruled(lines, copies+"landed", "kept", "it is the checkout this command runs in")
+		token = shown
+		whole(t)
+	})
+
+	t.Run("a token that is not the listing's, or is no longer, removes nothing", func(t *testing.T) {
+		// refused fails unless the command, given a token, answers with an error that names want and prints no line.
+		refused := func(name, given, want string) {
+			t.Helper()
+			lines, _, err := removalRun(h, "helper-copy", given, false)
+			if err == nil || !strings.Contains(err.Error(), want) || len(lines) != 0 {
+				t.Errorf("%s: the command answered %v with the lines %q, want it refused, naming %q, with no line", name, err, lines, want)
+			}
+		}
+		refused("a token that is not the listing's", "0123456789abcdef", "list it again")
+		held, err := processlock.Acquire(s.at(removalState+"/leftovers-removal.lock"), 0o600)
+		if err != nil {
+			t.Fatal(err)
+		}
+		refused("the listing's token while another removal holds the lock", token, "another removal")
+		if err := held.Close(); err != nil {
+			t.Fatal(err)
+		}
+		// A copy the listing showed as finished is written in before the token comes back.
+		later := copies + "landed/work/later.txt"
+		s.write(later, "written after the listing\n")
+		refused("the listing's token once a copy it showed has changed", token, "list it again")
+		if written, err := os.ReadFile(s.at(later)); err != nil || string(written) != "written after the listing\n" {
+			t.Fatalf("the file written after the listing reads %q (%v), want it as it was written", written, err)
+		}
+		if err := os.Remove(s.at(later)); err != nil {
+			t.Fatal(err)
+		}
+		if _, again, err := removalRun(h, "helper-copy", "", false); err != nil || again != token {
+			t.Fatalf("with the copy as it was listed the token is %q (%v), want the first listing's %q", again, err, token)
+		}
+		if _, err := os.Stat(receipt); !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("the refusals left a receipt (%v), and a refusal removes nothing", err)
+		}
+		whole(t)
+	})
+
+	t.Run("a removal that fails leaves its copy whole and registered", func(t *testing.T) {
+		left := said(map[string]string{"emptied": "left", "landed": "left", "raced": "left"})
+		// failed fails unless the token's run, over a machine whose remover fails, reads every finished
+		// copy as left by a rule that names want, fails, and moves nothing.
+		failed := func(remover func(path string) error, want string) [][]string {
+			t.Helper()
+			failing := h
+			failing.removeTree = remover
+			lines, _, err := removalRun(failing, "helper-copy", token, false)
+			receipts(lines)
+			if err == nil || !strings.Contains(err.Error(), want) || !slices.Equal(s.verbs(lines), left) {
+				t.Fatalf("the removal answered %v with\n%s\nwant it to fail, naming %q, and to say\n%s", err, strings.Join(s.verbs(lines), "\n"), want, strings.Join(left, "\n"))
+			}
+			s.ruled(lines, copies+"emptied", "left", want)
+			whole(t)
+			return lines
+		}
+		refuse := func(string) error { return errors.New("the disk refused") }
+		failed(refuse, "the disk refused")
+		// A remover that reports success and leaves the directory: git is not asked to clear the
+		// registration, since git would then remove the directory itself, following what it holds.
+		failed(func(string) error { return nil }, "is still there")
+		if runtime.GOOS == "windows" {
+			// A file held open in one copy: Windows refuses the remover that follows no link.
+			busy, err := os.Open(filepath.Join(landed, "source", "tracked.txt"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer busy.Close()
+			lines := failed(func(path string) error {
+				if path == landed {
+					return fsatomic.RemoveTree(path)
+				}
+				return refuse(path)
+			}, "the disk refused")
+			for _, fields := range lines {
+				if fields[3] == landed && strings.Contains(fields[4], "the disk refused") {
+					t.Errorf("the copy with a file held open reads %q, want it left by Windows's own refusal", fields)
+				}
+			}
+		}
+	})
+
+	t.Run("given its token the command removes exactly the copies it listed, from whichever checkout it runs in", func(t *testing.T) {
+		commit := gitFixture(t, landed, "rev-parse", "HEAD")
+		// A session locks one copy after the listing found it finished and before git is asked to
+		// clear its registration: the directory is gone by then, and git refuses.
+		elsewhere := h
+		elsewhere.running = s.at(copies + "fresh")
+		elsewhere.removeTree = func(path string) error {
+			if path == raced {
+				gitFixture(t, repo, "worktree", "lock", path)
+			}
+			return fsatomic.RemoveTree(path)
+		}
+		lines, _, err := removalRun(elsewhere, "helper-copy", token, false)
+		receipts(lines)
+		gone := "its directory is gone, and git still registers it"
+		if want := said(map[string]string{"emptied": "removed", "landed": "removed", "raced": "part-removed"}); err == nil || !strings.Contains(err.Error(), raced+": "+gone) || !slices.Equal(s.verbs(lines), want) {
+			t.Fatalf("the removal answered %v with\n%s\nwant it to fail only by the copy git still registers and to say\n%s", err, strings.Join(s.verbs(lines), "\n"), strings.Join(want, "\n"))
+		}
+		s.ruled(lines, copies+"landed", "removed", commit[:commitAbbreviation])
+		s.ruled(lines, copies+"emptied", "removed", "emptied")
+		s.ruled(lines, copies+"raced", "part-removed", gone)
+		s.ruled(lines, copies+"fresh", "kept", "it is the checkout this command runs in")
+		for _, fields := range lines {
+			if fields[0] != "kept" && (fields[1] == "-" || fields[1] == "0" || fields[2] != "helper-copy") {
+				t.Errorf("the line %q of a copy that went carries the bytes %s and the place %s, want its measured bytes and helper-copy", fields, fields[1], fields[2])
+			}
+		}
+		taken := []string{copies + "landed", copies + "emptied", copies + "raced"}
+		for _, slash := range taken {
+			if _, err := os.Lstat(s.at(slash)); !errors.Is(err, fs.ErrNotExist) {
+				t.Errorf("%s is still on disk after its removal (%v)", slash, err)
+			}
+		}
+		// The two removed are no longer registered; the one locked in between is, and so is every other.
+		want := slices.DeleteFunc(roots(registered), func(path string) bool {
+			return path == filepath.ToSlash(landed) || path == filepath.ToSlash(emptied)
+		})
+		if now := roots(registrations()); !slices.Equal(now, want) || !slices.Contains(now, filepath.ToSlash(raced)) {
+			t.Fatalf("after the removal git registers\n%s\nwant\n%s", strings.Join(now, "\n"), strings.Join(want, "\n"))
+		}
+		if differences := moved(before, s.seen(), append(taken, removalState)...); len(differences) != 0 {
+			t.Fatalf("the removal moved more than the copies it listed:\n%s", strings.Join(differences, "\n"))
+		}
+		if written, err := os.ReadFile(receipt); err != nil || string(written) != receipted.String() || strings.Count(string(written), "\nremoved\t") != len(taken)-1 {
+			t.Fatalf("run from a helper copy, the receipt in the trunk's process state holds (%v)\n%s\nwant every line the removals printed, in order, two of them removed:\n%s", err, written, receipted.String())
+		}
+		// The token is of a listing the place no longer gives; the next listing has nothing to remove.
+		if lines, _, err := removalRun(h, "helper-copy", token, false); err == nil || len(lines) != 0 {
+			t.Fatalf("the token was taken again (%v, lines %q) after the removal changed what the place holds", err, lines)
+		}
+		lines, shown, err := removalRun(h, "helper-copy", "", false)
+		if want := said(nil); err != nil || shown == token || !slices.Equal(s.verbs(lines), slices.DeleteFunc(want, func(line string) bool {
+			return line == "kept "+copies+"landed" || line == "kept "+copies+"emptied"
+		})) {
+			t.Fatalf("the listing after the removal is (%v, token %q)\n%s\nwant every copy that is left kept, under a token of its own", err, shown, strings.Join(s.verbs(lines), "\n"))
+		}
+		if differences := moved(before, s.seen(), append(taken, removalState)...); len(differences) != 0 {
+			t.Fatalf("the runs after the removal moved:\n%s", strings.Join(differences, "\n"))
+		}
 	})
 }

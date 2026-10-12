@@ -3,7 +3,9 @@ package main
 import (
 	"cmp"
 	"context"
+	"crypto/sha256"
 	"encoding/csv"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,12 +14,15 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
 	"overgo/internal/artifact"
+	"overgo/internal/authoritylock"
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
+	"overgo/internal/fsatomic"
 	"overgo/internal/gitauthority"
 	"overgo/internal/guard"
 	"overgo/internal/landing"
@@ -55,18 +60,41 @@ const (
 	pathRunes = "abcdefghijklmnopqrstuvwxyz0123456789_-./"
 	// noAnswer is the exit status with which git says no: a commit is not an ancestor, no line matches.
 	noAnswer = toolExit(1)
+	// removalReceipt is the file, in the process state of the trunk's checkout, that every removal
+	// appends its lines to. removalLock is the file there that one removing command locks at a
+	// time: nothing else keeps two from running at once, each on a listing the other changes.
+	removalReceipt, removalLock = receiptPrefix + "removed.txt", receiptPrefix + "removal.lock"
+	// tokenDigits is how many hex digits of the digest of a listing's finished entries its token shows.
+	tokenDigits = 16
+	// gateLock is the lock a commit holds in the process state of the checkout it runs in (internal/authoritylock).
+	gateLock = "gate.lock"
+	// commitRecord is the record of its waits that every run of a commit's checks adds to as it
+	// ends (internal/landing): the one file there that says a commit ran. The ignore rule and
+	// the gate's lock do not: a command that only takes that lock leaves both.
+	commitRecord = "landing_waits.json"
 )
 
+// commitFiles are what a commit writes in the process state of the checkout it runs in: the
+// ignore rule (internal/processlock), the gate's lock, and the records of its waits and of its
+// refusals (internal/landing). Any other entry there is a session's or a loop's, and holds the copy.
+var commitFiles = []string{".gitignore", gateLock, commitRecord, "landing_refusals.json"}
+
+// ownersData are the places whose entries are the owner's data: only the owner or the lead
+// removes them, by hand, so a worker's environment is refused them as it is refused a push.
+var ownersData = []string{"branch", "experiment"}
+
 // place is one line of the table: somewhere files accumulate, what it holds,
-// the state that makes an entry finished, the action, and the function that
-// lists its entries. Its at is one literal, a root word and a colon before a
-// slash path, and never a bare path: a directory written bare would make this
-// package a reader of every document beneath it (internal/repoanalysis
+// the state that makes an entry finished, the action, the function that lists
+// its entries, and, on a line that deletes and on no other, the function that
+// removes one finished entry. Its at is one literal, a root word and a colon
+// before a slash path, and never a bare path: a directory written bare would
+// make this package a reader of every document beneath it (internal/repoanalysis
 // TrackedDocumentCensus). The roots checkout, data, sessions, temporary and
 // cache are directories of the fact source; git, store and elsewhere are not.
 type place struct {
 	name, at, holds, finished, action string
 	list                              func(f *facts, line place) []leftover
+	remove                            func(h hygiene, path string) error
 }
 
 // leftover is one entry of a place, with the state the listing established,
@@ -78,84 +106,99 @@ type leftover struct {
 }
 
 // hygiene is where a listing reads the machine, so a test supplies each fact:
-// the trunk's checkout, the directory that holds the store, the harness's
-// folder of this checkout's sessions, the temporary directory, the go build
-// cache, this command's own executable, and the directories the data-root
-// contract and the scorecards name. stores is what overgodb precheck
-// -leftovers lists; registered, the file and directory locations the store
-// registers; processes, the go commands and test binaries that run, but for
-// this command's parent.
+// the trunk's checkout, the checkout this command runs in, the directory that
+// holds the store, the harness's folder of this checkout's sessions, the
+// temporary directory, the go build cache, this command's own executable, and
+// the directories the data-root contract and the scorecards name. stores is
+// what overgodb precheck -leftovers lists; registered, the file and directory
+// locations the store registers; processes, the go commands and test binaries
+// that run, but for this command's parent. removeTree is how a removal takes
+// a directory away, which a test replaces with one that fails.
 type hygiene struct {
-	checkout, data, sessions, temporary, cache, executable string
-	kept                                                   []string
-	stores                                                 func() ([]leftover, error)
-	registered, processes                                  func() ([]string, error)
+	checkout, running, data, sessions, temporary, cache, executable string
+	kept                                                            []string
+	stores                                                          func() ([]leftover, error)
+	registered, processes                                           func() ([]string, error)
+	removeTree                                                      func(path string) error
 }
 
 // facts is the fact source with what one listing reads once: git's registered
 // worktrees, the trunk's checkout first; the checkout's untracked paths, a
 // directory's ending in a slash; the store's registrations, or why they could
-// not be read; and the directories a line or the data-root contract names.
+// not be read, once a line has asked for them; and the directories a line or
+// the data-root contract names.
 type facts struct {
 	hygiene
 	trees                     []landing.Worktree
 	untracked, located, named []string
 	unlocated                 error
+	asked                     bool
 }
 
 // leftoverPlaces is the table. A line that only data tells from another
 // shares its list function with it. The last line reads what the lines before
 // it named.
 var leftoverPlaces = []place{
-	{"helper-copy", "checkout:" + agentWorktrees, "checkouts a session or an agent made to build or test in, here and under the temporary directory", "its commit is on the trunk and it holds nothing uncommitted and nothing ignored", actionDelete, worktrees},
-	{"worktree", "git:worktrees", "every other registered worktree but the trunk's checkout and those inside process state", "its commit is on the trunk and it holds nothing uncommitted and nothing ignored", actionReport, worktrees},
-	{"branch", "git:refs/heads", "local branches but the trunk", "wholly in the trunk and checked out in no worktree", actionDelete, branches},
-	{"stash", "git:stash", "stashed changes", "none: a stash may hold the only copy of work", actionReport, stashes},
-	{"store-backup", "store:", "superseded stores and sealed backups, as overgodb precheck -leftovers lists them", "none: a backup is never deleted", actionNever, storeBackups},
-	{"experiment", "data:experiments/", "what the runs of each experiment wrote, an entry a child of the experiment's directory", "a directory whose experiment a committed record names, and which no committed record and no store registration names", actionDelete, outputs},
-	{"checkpoint", "data:checkpoints/", "trained models", "none: a registered model is kept", actionReport, outputs},
-	{"scratch", "data:scratch/", "outputs of runs that left no record", "none until a maker is recorded", actionReport, outputs},
-	{"data-build", "data:build/", "build outputs kept outside the module", "none: the data root is where build outputs belong", actionReport, wholeDirectory},
-	{"session-scratch", "sessions:", "the harness's scratch folder of each session of this checkout", "none this command can read", actionReport, sessionFolders},
-	{"temporary-build", "temporary:go-build", "the folders a go command builds in", "no go command and no test binary runs, and it does not hold this command's own executable", actionDelete, temporaryBuilds},
-	{"build-cache", "cache:", "the go build cache", "none: clearing it takes the owner's approval", actionReport, wholeDirectory},
-	{"bin", "checkout:bin/", "built executables", "no tracked file names it", actionReport, executables},
-	{"tmp", "checkout:tmp/", "short-lived probes, each in the folder named for the plan row that made it", "a folder named for a row that neither the working plan nor the plan of the trunk's commit holds, a step of which a commit on the trunk landed, and which no committed line and no store registration names", actionDelete, scratchEntries},
-	{"build", "checkout:build/", "generated build inputs", "none here: go run ./cmd/buildscrub decides", actionReport, wholeDirectory},
-	{"release", "checkout:dist/", "release bundles", "none: the release command's output", actionReport, wholeDirectory},
-	{"python-place", "checkout:scripts/python_golden_references/", "the scripts that produce golden references", "none: the one place for Python", actionNever, wholeDirectory},
-	{"checkout-store", "checkout:" + gitauthority.CanonicalOvergoDBDirectory + "/", "a store inside the checkout", "none: a store is never deleted", actionNever, wholeDirectory},
-	{"docs-untracked", "checkout:docs/", "files under docs that git does not track", "none: listed, never deleted", actionNever, untrackedUnder},
-	{"media-samples", "checkout:docs/media_samples/", "media samples, each named by the digest of its bytes", "nothing reads it: no test and no read document carries its digest", actionReport, samples},
-	{"verification", "checkout:docs/verification/", "committed records of runs", "none: a record is kept, and one that names what the tree no longer has is history", actionNever, records},
-	{"process-state", "checkout:" + processlock.StateDirectory + "/", "locks, markers and the cycle checkout", "none: the processes that write it own it", actionNever, wholeDirectory},
-	{"undeclared", "elsewhere:", "directories under the checkout or the data root that no line above names", "none: give it a line, or remove it by hand", actionReport, undeclared},
+	{"helper-copy", "checkout:" + agentWorktrees, "checkouts a session or an agent made to build or test in, here and under the temporary directory", "a commit ran in it and is on the trunk, no session holds it, git does not hold it locked and no commit runs in it, and it holds nothing uncommitted, nothing ignored and nothing in its process state but what a commit writes", actionDelete, worktrees, removeCopy},
+	{"worktree", "git:worktrees", "every other registered worktree but the trunk's checkout and those inside process state", "its commit is on the trunk and it holds nothing uncommitted and nothing ignored", actionReport, worktrees, nil},
+	{"branch", "git:refs/heads", "local branches but the trunk", "wholly in the trunk and checked out in no worktree", actionDelete, branches, removeBranch},
+	{"stash", "git:stash", "stashed changes", "none: a stash may hold the only copy of work", actionReport, stashes, nil},
+	{"store-backup", "store:", "superseded stores and sealed backups, as overgodb precheck -leftovers lists them", "none: a backup is never deleted", actionNever, storeBackups, nil},
+	{"experiment", "data:experiments/", "what the runs of each experiment wrote, an entry a child of the experiment's directory", "a directory whose experiment a committed record names, which no committed record names in a store field and no store registration names, and which holds no store, no store backup and no run that is still going, in it or in its experiment's directory", actionDelete, outputs, removeEntry},
+	{"checkpoint", "data:checkpoints/", "trained models", "none: a registered model is kept", actionReport, outputs, nil},
+	{"scratch", "data:scratch/", "outputs of runs that left no record", "none until a maker is recorded", actionReport, outputs, nil},
+	{"data-build", "data:build/", "build outputs kept outside the module", "none: the data root is where build outputs belong", actionReport, wholeDirectory, nil},
+	{"session-scratch", "sessions:", "the harness's scratch folder of each session of this checkout", "none this command can read", actionReport, sessionFolders, nil},
+	{"temporary-build", "temporary:go-build", "the folders a go command builds in", "no go command and no test binary runs, and it does not hold this command's own executable", actionDelete, temporaryBuilds, removeEntry},
+	{"build-cache", "cache:", "the go build cache", "none: clearing it takes the owner's approval", actionReport, wholeDirectory, nil},
+	{"bin", "checkout:bin/", "built executables", "no tracked file names it", actionReport, executables, nil},
+	{"tmp", "checkout:tmp/", "short-lived probes, each in the folder named for the plan row that made it", "a folder named for a row that neither the working plan nor the plan of the trunk's commit holds, a step of which a commit on the trunk landed, and which no committed line and no store registration names", actionDelete, scratchEntries, removeEntry},
+	{"build", "checkout:build/", "generated build inputs", "none here: go run ./cmd/buildscrub decides", actionReport, wholeDirectory, nil},
+	{"release", "checkout:dist/", "release bundles", "none: the release command's output", actionReport, wholeDirectory, nil},
+	{"python-place", "checkout:scripts/python_golden_references/", "the scripts that produce golden references", "none: the one place for Python", actionNever, wholeDirectory, nil},
+	{"checkout-store", "checkout:" + gitauthority.CanonicalOvergoDBDirectory + "/", "a store inside the checkout", "none: a store is never deleted", actionNever, wholeDirectory, nil},
+	{"docs-untracked", "checkout:docs/", "files under docs that git does not track", "none: listed, never deleted", actionNever, untrackedUnder, nil},
+	{"media-samples", "checkout:docs/media_samples/", "media samples, each named by the digest of its bytes", "nothing reads it: no test and no read document carries its digest", actionReport, samples, nil},
+	{"verification", "checkout:docs/verification/", "committed records of runs", "none: a record is kept, and one that names what the tree no longer has is history", actionNever, records, nil},
+	{"process-state", "checkout:" + processlock.StateDirectory + "/", "locks, markers and the cycle checkout", "none: the processes that write it own it", actionNever, wholeDirectory, nil},
+	{"undeclared", "elsewhere:", "directories under the checkout or the data root that no line above names", "none: give it a line, or remove it by hand", actionReport, undeclared, nil},
 }
 
 // listLeftovers reads every line's entries, each with its state, the rule
 // that decided it and its bytes. It removes nothing. A line's directory is
 // named, and so is what a line that never deletes lists: a superseded store
-// beside the store is a backup, not an undeclared directory.
-func listLeftovers(h hygiene) ([]leftover, error) {
+// beside the store is a backup, not an undeclared directory. With places
+// named it lists those lines alone, for a removal: it reads only the facts
+// they read, so a removal of helper copies never opens the store, and it
+// walks only the entries a removal would take.
+func listLeftovers(h hygiene, only ...string) ([]leftover, error) {
 	trees, err := landing.Worktrees(context.Background(), h.checkout)
 	if err != nil {
 		return nil, err
 	}
-	untracked, err := gitRead(h.checkout, "ls-files", "--others", "--directory", "-z")
-	if err != nil {
-		return nil, err
+	f := &facts{hygiene: h, trees: trees, named: slices.Clone(h.kept)}
+	if len(only) == 0 {
+		untracked, err := gitRead(h.checkout, "ls-files", "--others", "--directory", "-z")
+		if err != nil {
+			return nil, err
+		}
+		f.untracked = strings.Split(untracked, "\x00")
 	}
-	f := &facts{hygiene: h, trees: trees, untracked: strings.Split(untracked, "\x00"), named: slices.Clone(h.kept)}
-	f.located, f.unlocated = h.registered()
 	var found []leftover
 	for _, line := range leftoverPlaces {
+		if len(only) != 0 && !slices.Contains(only, line.name) {
+			continue
+		}
 		f.named = append(f.named, f.directory(line))
 		for _, entry := range line.list(f, line) {
 			entry.place, entry.action = line.name, line.action
 			if line.action == actionNever {
 				f.named = append(f.named, entry.path)
 			}
-			found = append(found, weighed(entry))
+			if len(only) == 0 || entry.state == stateFinished {
+				entry = weighed(entry)
+			}
+			found = append(found, entry)
 		}
 	}
 	return found, nil
@@ -166,10 +209,12 @@ func listLeftovers(h hygiene) ([]leftover, error) {
 // measured. The walk descends no symbolic link and no junction, which Go
 // reports as irregular: a recursive delete could follow one out of the entry,
 // so on a line that deletes, a finished entry that holds one, or that cannot
-// be walked, is not finished. On a line that reports nothing is deleted, so
-// its entries are only measured.
+// be walked, is not finished. Neither is one that holds, at any depth, a
+// store, a store backup or the lock of a run that is still going: those are
+// never deleted, whatever line the entry is on. On a line that reports
+// nothing is deleted, so its entries are only measured.
 func weighed(entry leftover) leftover {
-	deletable := entry.action == actionDelete && entry.state == stateFinished
+	deletable, state := entry.action == actionDelete && entry.state == stateFinished, stateUnknown
 	if !filepath.IsAbs(entry.path) || entry.action == actionNever {
 		return entry
 	}
@@ -178,6 +223,10 @@ func weighed(entry leftover) leftover {
 		case err != nil:
 		case deletable && item.Type()&(fs.ModeSymlink|fs.ModeIrregular) != 0:
 			err = errors.New("it holds a link a recursive delete could follow: " + path)
+		case deletable && item.IsDir() && holdsStore(path):
+			state, err = stateHeld, errors.New("it holds a store or a store backup, which is never deleted: "+path)
+		case deletable && item.Name() == processlock.OutputLock && runHolds(path):
+			state, err = stateHeld, errors.New("a run holds it: its lock "+path+" is taken, or cannot be")
 		case item.Type().IsRegular():
 			var info fs.FileInfo
 			if info, err = item.Info(); err == nil {
@@ -187,10 +236,26 @@ func weighed(entry leftover) leftover {
 		return err
 	})
 	if deletable && err != nil {
-		entry.state, entry.rule = stateUnknown, err.Error()
+		entry.state, entry.rule = state, err.Error()
 	}
 	entry.measured = err == nil
 	return entry
+}
+
+// holdsStore reports whether a directory is a store or a backup of one: by
+// the name a store has, or by the seal a backup carries. A seal that is there
+// and cannot be read is still a backup's.
+func holdsStore(directory string) bool {
+	_, err := overgodb.ReadBackupSeal(directory)
+	return filepath.Base(directory) == gitauthority.CanonicalOvergoDBDirectory || !errors.Is(err, fs.ErrNotExist)
+}
+
+// runHolds reports whether a run holds the lock file it left in its output
+// directory, by taking the lock and letting it go at once. A lock that cannot
+// be taken for any reason is held: only a lock taken says the run has ended.
+func runHolds(lock string) bool {
+	taken, err := processlock.Acquire(lock, clioptions.PrivateFileMode)
+	return err != nil || taken.Close() != nil
 }
 
 // directory is the directory a line names: its root word's, joined with the
@@ -251,7 +316,7 @@ func worktrees(f *facts, line place) []leftover {
 	for _, tree := range f.trees[1:] {
 		helper := under(f.temporary, tree.Root) || under(agents, tree.Root)
 		if helper == helpers && !under(filepath.Join(f.checkout, processlock.StateDirectory), tree.Root) {
-			state, rule := f.copyState(tree)
+			state, rule := f.copyState(tree, helpers)
 			found = append(found, leftover{path: tree.Root, state: state, rule: rule})
 		}
 	}
@@ -271,8 +336,19 @@ func worktrees(f *facts, line place) []leftover {
 // reports, ignored ones among them; an unstaged deletion is a change unless
 // every tracked file is missing, which is a copy emptied of its content. A
 // worktree whose directory is gone cannot be read, so it is unknown.
-func (f *facts) copyState(tree landing.Worktree) (state, rule string) {
-	trunk := f.trees[0]
+//
+// A helper copy is removed when it is finished, so more must hold of it. It
+// is not the checkout this command runs in. Its process state holds only
+// what a commit writes, which git's status then leaves out; any other entry
+// there is a session's or a loop's and holds it. A commit ran in it, which
+// only the record of a commit's run says: a copy that holds nothing and has
+// no such record is one a session may have just made, to build in with
+// nothing yet to show, and is unknown. Git does not hold it locked: a session
+// locks a copy to keep it. And no commit runs in it now: the gate's lock,
+// when the file is there, is taken and let go, last of all, so a copy kept
+// for another reason is never probed.
+func (f *facts) copyState(tree landing.Worktree, helper bool) (state, rule string) {
+	trunk, written := f.trees[0], filepath.Join(tree.Root, processlock.StateDirectory)
 	if trunk.Branch == "" {
 		return stateUnknown, noTrunk
 	}
@@ -281,8 +357,21 @@ func (f *facts) copyState(tree landing.Worktree) (state, rule string) {
 	} else if err != nil {
 		return stateUnknown, err.Error()
 	}
-	if holder, err := os.ReadFile(filepath.Join(tree.Root, processlock.StateDirectory, guard.WorktreeHolder)); err == nil {
+	if holder, err := os.ReadFile(filepath.Join(written, guard.WorktreeHolder)); err == nil {
 		return stateHeld, "the session " + strings.TrimSpace(string(holder)) + " holds it"
+	}
+	locked, ran := false, !helper
+	if helper {
+		if same, _ := pathidentity.Same(f.running, tree.Root); same {
+			return stateHeld, "it is the checkout this command runs in"
+		}
+		entries, _ := os.ReadDir(written)
+		for _, entry := range entries {
+			if !slices.Contains(commitFiles, entry.Name()) {
+				return stateHeld, "its process state holds " + entry.Name() + ", which no commit writes"
+			}
+			locked, ran = locked || entry.Name() == gateLock, ran || entry.Name() == commitRecord
+		}
 	}
 	status, err := gitRead(tree.Root, "status", "--porcelain=v1", "-z", "--ignored")
 	paths, parseErr := repoanalysis.ParseDirtyStatus([]byte(status))
@@ -290,17 +379,41 @@ func (f *facts) copyState(tree landing.Worktree) (state, rule string) {
 	if err = errors.Join(err, parseErr, trackedErr); err != nil {
 		return stateUnknown, err.Error()
 	}
+	paths = slices.DeleteFunc(paths, func(path repoanalysis.DirtyPath) bool {
+		return helper && strings.TrimSuffix(path.Path, "/") == processlock.StateDirectory
+	})
 	deleted := 0
 	for _, path := range paths {
 		if path.IndexStatus+path.WorktreeStatus == " D" {
 			deleted++
 		}
 	}
-	switch files := strings.Count(tracked, "\x00"); {
-	case len(paths) == 0:
-		return stateFinished, "its commit is on the trunk and it holds nothing uncommitted and nothing ignored"
-	case deleted != len(paths) || deleted != files:
+	files := strings.Count(tracked, "\x00")
+	if len(paths) != 0 && (deleted != len(paths) || deleted != files) {
 		return stateHeld, fmt.Sprintf("it holds %d uncommitted or ignored paths, the first %s, %d of them deletions among its %d tracked files", len(paths), paths[0].Path, deleted, files)
+	}
+	if !ran {
+		return stateUnknown, "it has no process state that holds the record of a commit's run, " + commitRecord + ", so nothing says a commit ran in it"
+	}
+	if helper {
+		kept, err := gitRead(tree.Root, "rev-parse", "--path-format=absolute", "--git-path", "locked")
+		if err != nil {
+			return stateUnknown, err.Error()
+		}
+		// The file's text is the reason given; one that is there and cannot be read locks as well.
+		if reason, err := os.ReadFile(strings.TrimSpace(kept)); !errors.Is(err, fs.ErrNotExist) {
+			return stateHeld, "git holds it locked against removal: " + strings.TrimSpace(string(reason))
+		}
+	}
+	if locked {
+		lock, err := authoritylock.Acquire(tree.Root)
+		if err != nil {
+			return stateHeld, "a commit is running in it: " + err.Error()
+		}
+		defer lock.Close()
+	}
+	if len(paths) == 0 {
+		return stateFinished, fmt.Sprintf("its commit %.*s is on the trunk and it holds nothing uncommitted and nothing ignored", commitAbbreviation, tree.Head)
 	}
 	return stateFinished, fmt.Sprintf("its commit is on the trunk and it is emptied: every one of its %d tracked files is missing from disk", deleted)
 }
@@ -408,6 +521,33 @@ func unnamed(line place, base, path string) (state, rule string) {
 	return stateFinished, line.finished
 }
 
+// storeFields keeps, of git grep's lines, those of a field whose key is
+// store. A record's field opens a line with its key and a colon, and a line
+// that opens with white space continues the field above it: a path on a
+// continuation line is the store's as surely as one on the first. Each record
+// is read whole, at the commit the lines came from; a line whose record or
+// whose number cannot be read fails the listing, so it never reads as no field.
+func (f *facts) storeFields(lines []string) ([]string, error) {
+	var kept []string
+	for _, line := range lines {
+		document, rest, _ := strings.Cut(line, "\x00")
+		number, _, _ := strings.Cut(rest, "\x00")
+		text, err := gitRead(f.checkout, "cat-file", "blob", document)
+		rows := strings.Split(text, "\n")
+		at, numberErr := strconv.Atoi(number)
+		if err = errors.Join(err, numberErr); err != nil || at < 1 || at > len(rows) {
+			return nil, fmt.Errorf("git grep's line %q is no numbered line of its record: %v", line, err)
+		}
+		for at > 1 && strings.TrimLeft(rows[at-1], " \t") != rows[at-1] {
+			at--
+		}
+		if strings.HasPrefix(strings.ToLower(rows[at-1]), "store:") {
+			kept = append(kept, line)
+		}
+	}
+	return kept, nil
+}
+
 // outputs lists a data directory's entries: the children of each experiment's
 // directory on the line that deletes, the directory's own children on a line
 // that reports. An entry is held by a committed record's line that names it,
@@ -415,16 +555,26 @@ func unnamed(line place, base, path string) (state, rule string) {
 // the line that deletes finishes one, and then only a directory whose
 // experiment a committed record names: a file there is a log, a marker or a
 // lock whose owner nothing says, and an experiment with no record has nothing
-// that keeps its result.
+// that keeps its result. On that line a record holds an entry only through a
+// store field: a record names a run's output directory to say where the run
+// wrote, which keeps nothing once the record is committed, and the rule of an
+// entry so named says where. A run that is still going holds every entry of
+// the experiment whose own directory it writes in: its lock lies there, above
+// the entries, where the walk of an entry never sees it. The lock is probed
+// only when its file is there, since taking it makes the file.
 func outputs(f *facts, line place) []leftover {
 	directory := f.directory(line)
 	lines, err := f.citations(line, "docs")
+	holding := lines
+	if err == nil && line.action == actionDelete {
+		holding, err = f.storeFields(lines)
+	}
 	if err != nil {
 		return failed(directory, err)
 	}
 	located := f.locatedUnder(directory)
 	decide := func(child os.DirEntry, path string) (string, string) {
-		if at := cited(lines, f.data, path); at != "" {
+		if at := cited(holding, f.data, path); at != "" {
 			return stateHeld, at
 		}
 		for _, location := range located {
@@ -442,7 +592,15 @@ func outputs(f *facts, line place) []leftover {
 		case cited(lines, f.data, filepath.Dir(path)) == "":
 			return stateUnknown, "no committed record names its experiment"
 		}
-		return unnamed(line, f.data, path)
+		lock := filepath.Join(filepath.Dir(path), processlock.OutputLock)
+		if _, err := os.Lstat(lock); !errors.Is(err, fs.ErrNotExist) && runHolds(lock) {
+			return stateHeld, "a run holds its experiment: its lock " + lock + " is taken, or cannot be"
+		}
+		state, rule := unnamed(line, f.data, path)
+		if at := cited(lines, f.data, path); at != "" {
+			rule += "; " + at + " outside a store field, which keeps nothing"
+		}
+		return state, rule
 	}
 	if line.action != actionDelete {
 		return each(directory, decide)
@@ -475,8 +633,13 @@ func executables(f *facts, line place) []leftover {
 
 // locatedUnder is the store's registrations that lie in directory, so that
 // each entry there is compared with those alone: a comparison is by file
-// identity and reads the disk.
+// identity and reads the disk. The store is read when the first line asks,
+// so a listing of lines that never ask does not open it.
 func (f *facts) locatedUnder(directory string) (inside []string) {
+	if !f.asked {
+		f.located, f.unlocated = f.registered()
+		f.asked = true
+	}
 	for _, location := range f.located {
 		if under(directory, location) {
 			inside = append(inside, location)
@@ -889,50 +1052,195 @@ func leftoversCommand(h hygiene, output io.Writer) error {
 // path tried.
 var sessionFolderName = strings.NewReplacer(":", "-", `\`, "-", "/", "-")
 
-// leftoversFor lists the leftovers of the repository the current directory
-// is a worktree of, against the real machine. The checkout is the trunk's,
-// which git lists first, so the listing and its receipt are the same from any
-// worktree; the store is the one named, or the one the data-root contract
-// gives that checkout.
-func leftoversFor(store string, output io.Writer) error {
-	trees, err := landing.Worktrees(context.Background(), loopWorktree)
+// said is one line of a removal: what was done with an entry or would be,
+// its bytes when they were measured, its place, its path, and the rule or the
+// failure, on one line.
+func (entry leftover) said(verb, rule string) string {
+	size := "-"
+	if entry.measured {
+		size = fmt.Sprint(entry.bytes)
+	}
+	return fmt.Sprintf("%s\t%s\t%s\t%s\t%s\n", verb, size, entry.place, entry.path, strings.Join(strings.Fields(rule), " "))
+}
+
+// removeEntry removes a finished entry that is a directory and no more: an
+// experiment's output, a build folder, a row's scratch folder.
+func removeEntry(h hygiene, path string) error { return h.removeTree(path) }
+
+// removeCopy removes a helper copy's directory and then has git clear that
+// one registration, only once the directory is gone: asked while it stands,
+// git removes the directory itself and follows a junction in it, which is how
+// 170 GB of weights were lost. It never prunes, which would also clear the
+// registration of a copy whose directory is gone and whose state is unknown.
+// When git refuses, a copy locked since it was listed, the failure says what
+// is so by then: the directory is gone and the registration stays.
+func removeCopy(h hygiene, path string) error {
+	if err := h.removeTree(path); err != nil {
+		return err
+	}
+	if _, err := os.Lstat(path); !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("%s is still there after its removal (%v), so git keeps its registration", path, err)
+	}
+	if err := gitWrite(h.checkout, "worktree", "remove", path); err != nil {
+		return fmt.Errorf("its directory is gone, and git still registers it: %w", err)
+	}
+	return nil
+}
+
+// removeBranch deletes a local branch as git does when it is merged, and
+// never by force: a branch git finds unmerged stays.
+func removeBranch(h hygiene, name string) error {
+	return gitWrite(h.checkout, "branch", "-d", strings.TrimPrefix(name, "refs/heads/"))
+}
+
+// removing takes the lock of the one removal that runs at a time, without
+// waiting: a second removal is refused, since each acts on a listing of its own.
+func (h hygiene) removing() (*processlock.Lock, error) {
+	if err := processlock.EnsureStateDirectory(h.checkout); err != nil {
+		return nil, err
+	}
+	lock, err := processlock.Acquire(filepath.Join(h.checkout, processlock.StateDirectory, removalLock), clioptions.PrivateFileMode)
+	if err != nil {
+		return nil, fmt.Errorf("another removal holds the lock, or it cannot be taken, so nothing was removed: %w", err)
+	}
+	return lock, nil
+}
+
+// removeFinished removes each finished entry of a listing of one line, by
+// that line's remover, and writes a line for each to output and to the
+// receipt in the process state of the trunk's checkout: removed, or left with
+// the failure, or part-removed when the failure came after the entry left its
+// path, so that no line says an entry stands that does not: its directory is
+// gone, or stands under the other name the failure gives. A failure goes on
+// to the next entry; the failures are returned together.
+func (h hygiene) removeFinished(remove func(h hygiene, path string) error, found []leftover, output io.Writer) error {
+	receipt, err := os.OpenFile(filepath.Join(h.checkout, processlock.StateDirectory, removalReceipt), os.O_APPEND|os.O_CREATE|os.O_WRONLY, clioptions.PrivateFileMode)
 	if err != nil {
 		return err
 	}
-	checkout := trees[0].Root
-	roots, err := dataroot.Resolve(checkout)
+	for _, entry := range found {
+		if entry.state != stateFinished {
+			continue
+		}
+		did := entry.said("removed", entry.rule)
+		if failure := remove(h, entry.path); failure != nil {
+			verb := "left"
+			if _, gone := os.Lstat(entry.path); filepath.IsAbs(entry.path) && errors.Is(gone, fs.ErrNotExist) {
+				verb = "part-removed"
+			}
+			did, err = entry.said(verb, failure.Error()), errors.Join(err, fmt.Errorf("%s: %w", entry.path, failure))
+		}
+		_, writeErr := io.WriteString(io.MultiWriter(output, receipt), did)
+		err = errors.Join(err, writeErr)
+	}
+	return errors.Join(err, receipt.Close())
+}
+
+// deleteLeftovers is the one command that removes leftovers. Named a place
+// whose finished entries are deleted, it lists that place afresh under the
+// removal lock and prints a line for each finished entry, a line with its
+// state and rule for every other, and a token: the first digits of a digest
+// over each finished entry's path, bytes and rule. It removes nothing until
+// it is given that token back, and then only if the place still lists the
+// same: the entries removed are the ones a listing showed. A place of the
+// owner's data is refused from a worker's environment, as a push is.
+func deleteLeftovers(h hygiene, name, token string, worker bool, output io.Writer) error {
+	at := slices.IndexFunc(leftoverPlaces, func(line place) bool { return line.name == name && line.remove != nil })
+	switch {
+	case at < 0:
+		var deleting []string
+		for _, line := range leftoverPlaces {
+			if line.remove != nil {
+				deleting = append(deleting, line.name)
+			}
+		}
+		return fmt.Errorf("-delete names a place whose finished entries are deleted, one of %s, and %q is none of them", strings.Join(deleting, ", "), name)
+	case worker && slices.Contains(ownersData, name):
+		return errors.New("the loop and its workers never remove the owner's data: the owner or the lead runs -delete " + name)
+	}
+	lock, err := h.removing()
+	if err != nil {
+		return err
+	}
+	defer lock.Close()
+	found, err := listLeftovers(h, name)
+	if err != nil {
+		return err
+	}
+	var listing strings.Builder
+	digest, finished := sha256.New(), 0
+	for _, entry := range found {
+		if entry.state != stateFinished {
+			listing.WriteString(entry.said("kept", entry.state+": "+entry.rule))
+			continue
+		}
+		finished++
+		fmt.Fprintf(digest, "%s\x00%d\x00%s\x00", entry.path, entry.bytes, entry.rule)
+		if token == "" {
+			listing.WriteString(entry.said("would-remove", entry.rule))
+		}
+	}
+	shown := hex.EncodeToString(digest.Sum(nil))[:tokenDigits]
+	switch {
+	case token == "":
+		_, err = fmt.Fprintf(output, "%sloop: nothing was removed; to remove the %d entries marked would-remove, run this again with -confirm %s\n", listing.String(), finished, shown)
+		return err
+	case token != shown:
+		return fmt.Errorf("-confirm %s is not the token of what the place %s holds now: list it again, and confirm what that listing shows", token, name)
+	}
+	if _, err := io.WriteString(output, listing.String()); err != nil {
+		return err
+	}
+	return h.removeFinished(leftoverPlaces[at].remove, found, output)
+}
+
+// leftoversFor lists the leftovers of the repository the current directory
+// is a worktree of, against the real machine, or, named a place, removes that
+// place's finished entries as deleteLeftovers does. The checkout is the
+// trunk's, which git lists first, so a listing, a removal and their receipts
+// are the same from any worktree; the store is the one named, or the one the
+// data-root contract gives that checkout.
+func leftoversFor(store, deleting, token string, worker bool, output io.Writer) error {
+	trees, err := landing.Worktrees(context.Background(), loopWorktree)
+	running, absErr := filepath.Abs(loopWorktree)
+	if err = errors.Join(err, absErr); err != nil {
+		return err
+	}
+	h := hygiene{checkout: trees[0].Root, running: running, temporary: os.TempDir(), removeTree: fsatomic.RemoveTree}
+	roots, err := dataroot.Resolve(h.checkout)
 	if err != nil {
 		return err
 	}
 	if roots.Store, err = filepath.Abs(cmp.Or(strings.TrimSpace(store), roots.Store)); err != nil {
 		return err
 	}
-	executable, err := os.Executable()
-	if err != nil {
+	if h.executable, err = os.Executable(); err != nil {
 		return err
 	}
 	cache, err := readTool(os.Environ(), "go", "env", "GOCACHE")
 	if err != nil {
 		return err
 	}
-	return leftoversCommand(hygiene{
-		checkout: checkout, data: filepath.Dir(roots.Store), temporary: os.TempDir(), cache: strings.TrimSpace(cache), executable: executable,
-		sessions: filepath.Join(os.TempDir(), "claude", sessionFolderName.Replace(checkout)),
-		kept:     []string{roots.Store, roots.Models, roots.StoreModels, roots.Datasets, roots.Checkpoints, roots.AudioReference, roots.References(), roots.Libraries(), scorecard.Directory(roots.Store)},
-		stores: func() ([]leftover, error) {
-			printed, err := readTool(loopEnvironment(), "go", "-C", checkout, "run", "./cmd/overgodb", "precheck", "-leftovers", "-repo", roots.Store, "-checkout", checkout)
-			if err != nil {
-				return nil, err
-			}
-			return decodeStoreLeftovers([]byte(printed))
-		},
-		registered: func() ([]string, error) { return storeLocations(roots.Store, registrationPage) },
-		processes: func() ([]string, error) {
-			listed, err := readTool(os.Environ(), "tasklist", "/FO", "CSV", "/NH")
-			if err != nil {
-				return nil, err
-			}
-			return goProcesses(listed, os.Getppid())
-		},
-	}, output)
+	h.data, h.cache = filepath.Dir(roots.Store), strings.TrimSpace(cache)
+	h.sessions = filepath.Join(os.TempDir(), "claude", sessionFolderName.Replace(h.checkout))
+	h.kept = []string{roots.Store, roots.Models, roots.StoreModels, roots.Datasets, roots.Checkpoints, roots.AudioReference, roots.References(), roots.Libraries(), scorecard.Directory(roots.Store)}
+	h.stores = func() ([]leftover, error) {
+		printed, err := readTool(loopEnvironment(), "go", "-C", h.checkout, "run", "./cmd/overgodb", "precheck", "-leftovers", "-repo", roots.Store, "-checkout", h.checkout)
+		if err != nil {
+			return nil, err
+		}
+		return decodeStoreLeftovers([]byte(printed))
+	}
+	h.registered = func() ([]string, error) { return storeLocations(roots.Store, registrationPage) }
+	h.processes = func() ([]string, error) {
+		listed, err := readTool(os.Environ(), "tasklist", "/FO", "CSV", "/NH")
+		if err != nil {
+			return nil, err
+		}
+		return goProcesses(listed, os.Getppid())
+	}
+	if deleting != "" {
+		return deleteLeftovers(h, deleting, token, worker, output)
+	}
+	return leftoversCommand(h, output)
 }

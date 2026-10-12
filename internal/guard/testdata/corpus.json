@@ -293,6 +293,42 @@
       "rule": "land-transcript"
     },
     {
+      "name": "leftovers-delete-lists-what-it-would-remove",
+      "command": "go run ./cmd/loop -leftovers -delete experiment",
+      "expect": "ALLOW",
+      "rule": "land-transcript"
+    },
+    {
+      "name": "leftovers-delete-with-its-token",
+      "command": "go run ./cmd/loop -leftovers -delete helper-copy -confirm 0123456789abcdef",
+      "expect": "ALLOW",
+      "rule": "land-transcript"
+    },
+    {
+      "name": "leftovers-delete-output-kept-in-a-file",
+      "command": "go run ./cmd/loop -leftovers -delete experiment > removed.txt",
+      "expect": "DENY",
+      "rule": "land-transcript"
+    },
+    {
+      "name": "delete-under-experiments-is-gpu-hours",
+      "command": "rm -r overgo_data/experiments/instruction-pilot/run",
+      "expect": "DENY",
+      "rule": "protected"
+    },
+    {
+      "name": "reading-an-experiment-is-ordinary",
+      "command": "ls overgo_data/experiments/instruction-pilot/",
+      "expect": "ALLOW",
+      "rule": "protected"
+    },
+    {
+      "name": "find-dash-delete-over-experiments",
+      "command": "find overgo_data/experiments/ -name '*.safetensors' -delete",
+      "expect": "DENY",
+      "rule": "find-delete"
+    },
+    {
       "name": "ordinary-read",
       "command": "tail -20 /tmp/gate.log",
       "expect": "ALLOW",

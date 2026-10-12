@@ -20,6 +20,11 @@
 //	go run ./cmd/loop -leftovers
 //
 // lists every place files accumulate and removes nothing.
+//
+//	go run ./cmd/loop -leftovers -delete <place> [-confirm <token>]
+//
+// lists the finished entries of one place with a token, and removes them when
+// it is given that token back.
 package main
 
 import (
@@ -110,14 +115,19 @@ func run(args []string) error {
 	pushCommit := flags.String("push", "", "the owner's command: push the named commit to origin's main, fast-forward only; refused from a worker's environment and without -confirm-push")
 	confirmPush := flags.Bool("confirm-push", false, "with -push: say the push is wanted")
 	leftovers := flags.Bool("leftovers", false, "list every place files accumulate (helper copies, worktrees, branches, stashes, experiment outputs, temporary folders, bin, tmp, store backups), one line an entry with its bytes and the rule that decided it, and every directory no line of the table names; writes the same listing to the trunk checkout's process state and removes nothing")
+	deletePlace := flags.String("delete", "", "with -leftovers: list the finished entries of one place whose finished entries are deleted (helper-copy, branch, experiment, temporary-build, tmp), each with its bytes and its rule, and print a token; removes nothing without -confirm, and is refused from a worker's environment for the owner's data, the places experiment and branch")
+	confirmToken := flags.String("confirm", "", "with -leftovers -delete: the token the listing printed; removes exactly the entries that listing showed, a line each, appended to a receipt in the trunk checkout's process state, and is refused when the place no longer lists the same")
 	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if err := removalFlags(*leftovers, *deletePlace, *confirmToken); err != nil {
 		return err
 	}
 	if *landReference != "" {
 		return landCommand(*landReference, *landMessage, os.Stdin, os.Stdout)
 	}
 	if *leftovers {
-		return leftoversFor(*repoPath, os.Stdout)
+		return leftoversFor(*repoPath, *deletePlace, *confirmToken, os.Getenv(plan.AutomationWorkerEnvironment) != "", os.Stdout)
 	}
 	resolved, err := dataroot.StoreRoot(*repoPath)
 	if err != nil {
@@ -215,6 +225,16 @@ func run(args []string) error {
 	fmt.Printf("loop: %s after %d worker invocation(s); parked=%v; audit: the gate remains the sole commit path, workers cannot advance an unverified step\n",
 		outcome.Reason, outcome.Invocations, outcome.Parked)
 	return err
+}
+
+// removalFlags refuses the flags of a removal where they do not belong: a
+// place goes with -leftovers and a token with a place, so a flag mistyped or
+// left out never turns a removal into another command, or a listing into one.
+func removalFlags(leftovers bool, place, token string) error {
+	if place != "" && !leftovers || token != "" && place == "" {
+		return errors.New("usage: loop -leftovers -delete <place> [-confirm <token>]")
+	}
+	return nil
 }
 
 func resolveConfiguredStrategy(loaded config) (loop.Strategy, error) {

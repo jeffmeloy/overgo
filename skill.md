@@ -210,6 +210,11 @@ Repository shrinks while capability grows.
 - Models, datasets, store, `build/` live in `OVERGO_DATA_ROOT`, outside the module.
 - `go run ./cmd/loop -leftovers` lists every place files accumulate, each entry with
   its bytes and the rule that decided its state; it removes nothing.
+- `go run ./cmd/loop -leftovers -delete <place>` is the one command that removes them:
+  it lists the place's finished entries with a token, and removes exactly those when run
+  again with `-confirm <token>`. Experiments and branches are the owner's data: never from
+  a worker or a review session. A commit removes nothing: a finished helper copy goes
+  by `-delete helper-copy` and its token, since a clean build checkout may be in use.
 - Port through typed contracts and recipe-selected consumers. llama.cpp for pinned
   behavior; `adaptive_new` read-only. Keep commits, licenses, artifact identities.
   Model-family facts live in artifacts and recipes, never model-specific code.

@@ -18,6 +18,8 @@ const messageEcho = "OVERGO_TEST_ECHO_MESSAGE"
 // verdict, never the progress on standard error; a refusal is the final error
 // the tool wrote to its error file, or the tail of standard error from a run
 // that wrote none; and a message given on standard input reaches the tool.
+// The error file does not outlive the run that read it: the temporary
+// directory, here one of the test's own, holds nothing after a refused run.
 func TestLandReadsStructuredVerdict(t *testing.T) {
 	if mode := os.Getenv(messageEcho); mode != "" {
 		message, _ := io.ReadAll(os.Stdin)
@@ -30,6 +32,10 @@ func TestLandReadsStructuredVerdict(t *testing.T) {
 	}
 	world := execRowWorld{message: []byte("Cause: on standard input")}
 	arguments := []string{os.Args[0], "-test.run=^TestLandReadsStructuredVerdict$"}
+	temporary := t.TempDir()
+	for _, variable := range []string{"TMP", "TEMP", "TMPDIR"} {
+		t.Setenv(variable, temporary)
+	}
 	for mode, want := range map[string]string{
 		"typed":   "gate: test: TestSomething: got 3, want 4",
 		"untyped": "gate: step=test package=overgo/cmd/a result=pass",
@@ -42,6 +48,9 @@ func TestLandReadsStructuredVerdict(t *testing.T) {
 		}
 		if got := echoed.String(); got != "GATE FAILED | received Cause: on standard input\n" {
 			t.Fatalf("%s run echoed %q, want the verdict alone", mode, got)
+		}
+		if left, err := os.ReadDir(temporary); err != nil || len(left) != 0 {
+			t.Fatalf("%s run left %v in the temporary directory (%v), want its error file gone once it was read", mode, left, err)
 		}
 	}
 	if refusal, err := world.tool(io.Discard, "go", "version"); err != nil || refusal != "" {

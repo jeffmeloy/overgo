@@ -66,8 +66,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "What the row may still add. Set on 2026-10-12, with plan -setcount, to the 1,828 nodes its step own-cleanup, the deleting command, was counted at once built, by the count of syntax nodes the automated checks take, each file against the trunk's commit df0eaa224: cmd/loop/leftovers.go 5,099 to 6,797, cmd/loop/main.go 2,260 to 2,356, internal/guard/guard.go 1,561 to 1,589 and cmd/loop/land.go 869 to 875; the four measure 9,789 before and 11,617 after. The step's preparation estimated about 1,100. It was 2,061 after its first repair and fell by 233 when the lead took the clearing of helper copies out of the commit. The step grows because finished leftovers are removed by one command with a listing, a token and a receipt, where a hand delete had no rule and left no record. The earlier steps used the 4,228, 888, 1,641 and 1,772 the row carried before. Each later step is counted the same way before it is committed."
+        "nodes": 1044,
+        "reason": "What the row may still add. Set on 2026-10-12, with plan -setcount, to the 1,044 nodes its step own-cleanup-withdrawal was counted at once built, by the count of syntax nodes the automated checks take, each file against the deleting command it is built on, the trunk's commit 586ebc744: cmd/loop/leftovers.go 6,797 to 7,806, cmd/loop/main.go 2,356 to 2,390 and internal/guard/guard.go 1,589 to 1,590; the three measure 10,742 before and 11,786 after. The step's preparation estimated about 380; the builder's count, its repairer's and the lead's agree. The step grows because nothing in the tree withdrew a recorded location before: a model or checkpoint whose files were removed stayed registered for good. The earlier steps used the 4,228, 888, 1,641, 1,772 and 1,828 the row carried before. Step enforce is counted the same way before it is committed."
       },
       "steps": [
         {

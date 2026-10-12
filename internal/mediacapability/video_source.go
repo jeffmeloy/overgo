@@ -3,7 +3,6 @@ package mediacapability
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
@@ -54,59 +53,20 @@ func autoencoderInventory(path string) (modelartifact.Inventory, error) {
 	})
 }
 
-// pairFiles are the files a decoder and the encoder that feeds it are: the
-// collection's decoder and latent statistics, and the encoder's weights,
-// configuration and image processor.
-func pairFiles(collection rae.Collection, encoder string) []modelartifact.FileSpec {
-	return []modelartifact.FileSpec{
-		{Path: collection.Decoder, Name: "decoder", Role: artifact.ComponentWeights},
-		{Path: collection.Statistics, Name: "statistics", Role: artifact.ComponentWeights},
-		{Path: filepath.Join(encoder, "model.safetensors"), Name: "encoder/weights", Role: artifact.ComponentWeights},
-		{Path: filepath.Join(encoder, "config.json"), Name: "encoder/config", Role: artifact.ComponentConfig},
-		{Path: filepath.Join(encoder, "preprocessor_config.json"), Name: "encoder/processor", Role: artifact.ComponentConfig},
-	}
-}
-
 // resolveAutoencoder reads a directory as the autoencoder it holds, on the
-// host topology: a bridged pair, whose parts are its bridge, the encoder the
-// bridge maps and the decoder of the collection it maps to; or a
-// representation autoencoder's collection, whose pair is its decoder, the
-// latent statistics it decodes under and the encoder beside the collection.
-// Any other directory is read as a Wan release's one autoencoder file, on the
-// device topology.
+// host topology: a bridged pair or a representation autoencoder's collection,
+// by the files rae names it by. Any other directory is read as a Wan
+// release's one autoencoder file, on the device topology.
 func resolveAutoencoder(path string) (Source, error) {
-	bridged, isBridged, err := rae.ResolveBridgedPair(path)
+	inventory, held, err := rae.PairInventory(path)
 	if err != nil {
 		return Source{}, err
 	}
-	collection, held, err := rae.ResolveCollection(path)
-	if err != nil {
-		return Source{}, err
-	}
-	if !held && !isBridged {
+	if !held {
 		inventory, err := autoencoderInventory(path)
 		return Source{Inventory: inventory}, err
 	}
-	// A pair spans directories beside each other, so the inventory roots
-	// at their common parent; the capability resolves only from the pair's
-	// own directory, which is recorded beside the root.
-	files := pairFiles(collection, collection.EncoderDirectory())
-	if isBridged {
-		// The bridged pair runs the source encoder in place of the
-		// decoder's own, of which it reads only the image processor.
-		files = append([]modelartifact.FileSpec{{Path: bridged.Bridge, Name: "bridge", Role: artifact.ComponentWeights}},
-			pairFiles(bridged.Collection, bridged.SourceEncoder)...)
-		files = append(files, modelartifact.FileSpec{
-			Path: filepath.Join(bridged.Collection.EncoderDirectory(), "preprocessor_config.json"), Name: "decoder/processor", Role: artifact.ComponentConfig,
-		})
-	}
-	inventory, err := modelartifact.FromFiles(filepath.Dir(filepath.Clean(path)), files)
-	if err == nil {
-		var own artifact.Location
-		own, err = artifact.CanonicalLocalLocation(inventory.Manifest.ID, artifact.LocationDirectory, path)
-		inventory.Locations = append(inventory.Locations, own)
-	}
-	return definitionSource(inventory, err, modelrecipe.RepresentationReconstructionDefinition)
+	return definitionSource(inventory, nil, modelrecipe.RepresentationReconstructionDefinition)
 }
 
 // hostPair is a representation autoencoder as the host runs one, the

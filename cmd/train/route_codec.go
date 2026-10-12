@@ -57,8 +57,8 @@ type codecRun struct {
 
 // codecParts is the loaded pair a codec run trains: the bridged pair whose
 // bridge moves, the source encoder that gives a picture its tokens, the
-// collection whose frozen decoder draws, and the directory this pair's tokens
-// are kept in.
+// collection whose frozen decoder draws, and the directory that encoder's
+// tokens are kept in.
 type codecParts struct {
 	pair       *rae.BridgedAutoencoder
 	source     *vitencoder.Encoder
@@ -136,8 +136,8 @@ func trainCodec(ctx context.Context, flags *flag.FlagSet, args []string) (err er
 }
 
 // load reads the pair's bridge, the encoder it maps and the collection whose
-// decoder it feeds, each once, and makes the directory the pair's tokens are
-// kept in.
+// decoder it feeds, each once, and makes the directory the encoder's tokens
+// are kept in.
 func (run codecRun) load() (codecParts, error) {
 	source, err := vitencoder.Load(run.resolved.SourceEncoder)
 	if err != nil {
@@ -155,8 +155,10 @@ func (run codecRun) load() (codecParts, error) {
 	if err != nil {
 		return codecParts{}, err
 	}
-	tokens := filepath.Join(run.cache, filepath.Base(run.resolved.SourceEncoder)+"--"+filepath.Base(run.resolved.CollectionDirectory))
-	return codecParts{pair: pair, source: source, collection: collection, tokens: tokens}, os.MkdirAll(tokens, bridgeCacheMode)
+	// The run keeps the source encoder's tokens alone, so another decoder,
+	// bridge or statistics leaves them good.
+	tokens, err := tokenCache(run.cache, run.resolved.SourceEncoder)
+	return codecParts{pair: pair, source: source, collection: collection, tokens: tokens}, err
 }
 
 // trainer plans the run's steps over the bridge's weights and starts the
@@ -217,13 +219,22 @@ func (run codecRun) observed(ctx context.Context, manifest string) (err error) {
 	if err != nil {
 		return err
 	}
+	side := parts.collection.Side()
 	examples := make([]rae.BridgeExample, len(clips))
 	for index, clip := range clips {
-		frame, err := clipBridgeFrame(ctx, parts.collection, parts.source, filepath.Join(filepath.Dir(manifest), clip), parts.tokens)
+		cut, err := clipFirstFrame(ctx, filepath.Join(filepath.Dir(manifest), clip), side)
 		if err != nil {
 			return err
 		}
-		examples[index] = rae.BridgeExample{SourceTokens: frame.source, Picture: frame.picture}
+		picture, err := unitPicture(cut)
+		if err != nil {
+			return err
+		}
+		tokens, err := pictureSourceTokens(parts.source, picture, side, filepath.Join(parts.tokens, pictureDigest(picture)+codecTokenExtension))
+		if err != nil {
+			return err
+		}
+		examples[index] = rae.BridgeExample{SourceTokens: tokens, Picture: picture}
 	}
 	plan, trainer, err := run.trainer(parts)
 	if err != nil {

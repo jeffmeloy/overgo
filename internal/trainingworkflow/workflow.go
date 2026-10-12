@@ -19,6 +19,7 @@ import (
 	"overgo/internal/hostoptimizer"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelintake"
+	"overgo/internal/rae"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
@@ -605,7 +606,9 @@ func IdentifyModelWeights(directory string) (string, error) {
 
 // identifyWeights retains the raw identity of legacy single Safetensors
 // inputs and binds every component of GGUF and multi-file Safetensors inputs
-// through their existing inventory owners.
+// through their existing inventory owners. A bridged pair's bridge is a single
+// Safetensors file, but a run over it trains and judges through the encoder
+// and the decoder beside it, so the pair is the model serving names it as.
 func identifyWeights(input string) (artifact.ID, artifact.Batch, error) {
 	var inventory modelartifact.Inventory
 	var err error
@@ -628,7 +631,11 @@ func identifyWeights(input string) (artifact.ID, artifact.Batch, error) {
 		if globErr != nil {
 			return artifact.ID{}, artifact.Batch{}, globErr
 		}
-		if info.IsDir() || len(candidates) > 1 || len(indexes) > 0 {
+		if _, bridged, pairErr := rae.ResolveBridgedPair(directory); pairErr != nil {
+			return artifact.ID{}, artifact.Batch{}, pairErr
+		} else if bridged {
+			inventory, _, err = rae.PairInventory(directory)
+		} else if info.IsDir() || len(candidates) > 1 || len(indexes) > 0 {
 			inventory, err = modelartifact.FromSafetensorsPath(directory)
 		}
 	}

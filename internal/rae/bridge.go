@@ -7,8 +7,10 @@ import (
 	"os"
 	"path/filepath"
 
+	"overgo/internal/artifact"
 	"overgo/internal/checked"
 	"overgo/internal/latentimage"
+	"overgo/internal/modelartifact"
 	"overgo/internal/safetensors"
 	"overgo/internal/vitencoder"
 )
@@ -115,6 +117,56 @@ func ResolveBridgedPair(directory string) (pair BridgedPair, held bool, err erro
 		return BridgedPair{}, true, fmt.Errorf("rae: the bridge's encoder %s: %w", encoder, err)
 	}
 	return pair, true, nil
+}
+
+// pairFiles are the files a decoder and the encoder that feeds it are: the
+// collection's decoder and latent statistics, and the encoder's weights,
+// configuration and image processor.
+func pairFiles(collection Collection, encoder string) []modelartifact.FileSpec {
+	return []modelartifact.FileSpec{
+		{Path: collection.Decoder, Name: "decoder", Role: artifact.ComponentWeights},
+		{Path: collection.Statistics, Name: "statistics", Role: artifact.ComponentWeights},
+		{Path: filepath.Join(encoder, "model.safetensors"), Name: "encoder/weights", Role: artifact.ComponentWeights},
+		{Path: filepath.Join(encoder, "config.json"), Name: "encoder/config", Role: artifact.ComponentConfig},
+		{Path: filepath.Join(encoder, processorConfig), Name: "encoder/processor", Role: artifact.ComponentConfig},
+	}
+}
+
+// PairInventory names, each by its bytes, the files the autoencoder in
+// directory runs through: a bridged pair's bridge, the encoder the bridge maps
+// and the decoder of the collection it maps to; or a collection's decoder, the
+// latent statistics it decodes under and the encoder beside the collection.
+// Serving and training name a pair by this one inventory, so a model trained
+// is the model served. held is false when directory is neither.
+func PairInventory(directory string) (inventory modelartifact.Inventory, held bool, err error) {
+	bridged, isBridged, err := ResolveBridgedPair(directory)
+	if err != nil {
+		return inventory, isBridged, err
+	}
+	collection, held, err := ResolveCollection(directory)
+	if err != nil || !held && !isBridged {
+		return inventory, held, err
+	}
+	// A pair spans directories beside each other, so the inventory roots
+	// at their common parent; the capability resolves only from the pair's
+	// own directory, which is recorded beside the root.
+	files := pairFiles(collection, collection.encoder)
+	if isBridged {
+		// The bridged pair runs the source encoder in place of the
+		// decoder's own, of which it reads only the image processor.
+		files = append([]modelartifact.FileSpec{{Path: bridged.Bridge, Name: "bridge", Role: artifact.ComponentWeights}},
+			pairFiles(bridged.Collection, bridged.SourceEncoder)...)
+		files = append(files, modelartifact.FileSpec{
+			Path: filepath.Join(bridged.Collection.encoder, processorConfig), Name: "decoder/processor", Role: artifact.ComponentConfig,
+		})
+	}
+	inventory, err = modelartifact.FromFiles(filepath.Dir(filepath.Clean(directory)), files)
+	if err == nil {
+		var own artifact.Location
+		own, err = artifact.CanonicalLocalLocation(inventory.Manifest.ID, artifact.LocationDirectory, directory)
+		inventory.Locations = append(inventory.Locations, own)
+	}
+	return inventory, true, err
 }
 
 // BridgedAutoencoder is another encoder's tokens, mapped by a bridge, feeding

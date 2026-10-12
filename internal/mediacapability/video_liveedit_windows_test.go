@@ -3,8 +3,6 @@
 package mediacapability
 
 import (
-	"archive/zip"
-	"bytes"
 	"os"
 	"path/filepath"
 	"slices"
@@ -26,25 +24,9 @@ func TestLiveEditRecordsItsOwnDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 	edit, wan := filepath.Join(parent, "LiveEdit"), filepath.Join(parent, "Wan2.1-T2V-1.3B")
-	// A protocol-2 torch state_dict holding one float32 weight of shape [1].
-	metadata := "\x80\x02}X\x06\x00\x00\x00weightctorch._utils\n_rebuild_tensor_v2\n((X\x07\x00\x00\x00storagectorch\nFloatStorage\nX\x01\x00\x00\x000X\x03\x00\x00\x00cpuK\x01tQK\x00K\x01\x85K\x01\x85\x89)tRs."
 	checkpoint := func(path, value string) {
 		t.Helper()
-		var encoded bytes.Buffer
-		archive := zip.NewWriter(&encoded)
-		for _, entry := range [][2]string{{"archive/data.pkl", metadata}, {"archive/data/0", value}} {
-			writer, err := archive.CreateHeader(&zip.FileHeader{Name: entry[0], Method: zip.Store})
-			if err == nil {
-				_, err = writer.Write([]byte(entry[1]))
-			}
-			if err != nil {
-				t.Fatal(err)
-			}
-		}
-		if err := archive.Close(); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, encoded.Bytes(), 0o600); err != nil {
+		if err := os.WriteFile(path, torchStateDict(t, value), 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}

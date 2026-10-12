@@ -22,6 +22,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/latentvideo"
 	"overgo/internal/media"
+	"overgo/internal/modelartifact"
 	"overgo/internal/rae"
 	"overgo/internal/tensor"
 	"overgo/internal/vitencoder"
@@ -226,7 +227,7 @@ func unitPicture(decoded image.Image) ([]float32, error) {
 
 // clipBridgeFrame cuts a clip's first frame to the pair's size, keeping its proportions,
 // and computes its tokens, or reads them from the cache when a run before this one
-// computed them for a clip of the same bytes.
+// computed them for the same cut.
 func clipBridgeFrame(ctx context.Context, pair *rae.Autoencoder, source *vitencoder.Encoder, clip, cache string) (bridgeFrame, error) {
 	cut, err := clipFirstFrame(ctx, clip, pair.Side())
 	if err != nil {
@@ -236,15 +237,10 @@ func clipBridgeFrame(ctx context.Context, pair *rae.Autoencoder, source *vitenco
 	if err != nil {
 		return bridgeFrame{}, err
 	}
-	data, err := os.ReadFile(clip)
-	if err != nil {
-		return bridgeFrame{}, err
-	}
-	sum := sha256.Sum256(data)
 	_, sourceGrid, sourceWidth := source.Shape()
 	targetWidth, targetGrid := pair.Latent()
 	sourceValues, targetValues := sourceGrid*sourceGrid*sourceWidth, targetGrid*targetGrid*targetWidth
-	cached := filepath.Join(cache, hex.EncodeToString(sum[:])+".tokens")
+	cached := filepath.Join(cache, pictureDigest(picture)+".tokens")
 	if values, kept := readTokens(cached, sourceValues+targetValues); kept {
 		return bridgeFrame{picture: picture, source: values[:sourceValues], target: values[sourceValues:]}, nil
 	}
@@ -253,6 +249,29 @@ func clipBridgeFrame(ctx context.Context, pair *rae.Autoencoder, source *vitenco
 		return bridgeFrame{}, err
 	}
 	return frame, writeTokens(cached, slices.Concat(frame.source, frame.target))
+}
+
+// tokenCache is the directory under cache that keeps the tokens the encoders
+// in the given directories make, made if it is absent. It is named by the
+// bytes of each encoder's weights, configuration and image processor, so
+// tokens are read back only by the encoders that made them, wherever they sit.
+func tokenCache(cache string, encoders ...string) (string, error) {
+	for _, encoder := range encoders {
+		inventory, err := modelartifact.FromHFPath(encoder)
+		if err != nil {
+			return "", err
+		}
+		cache = filepath.Join(cache, inventory.Manifest.ID.DigestHex())
+	}
+	return cache, os.MkdirAll(cache, bridgeCacheMode)
+}
+
+// pictureDigest names the tokens kept for a picture by the picture's values:
+// tokens answer for the cut an encoder was shown, not for the file it was cut
+// from.
+func pictureDigest(picture []float32) string {
+	sum := sha256.Sum256(tokenBytes(picture))
+	return hex.EncodeToString(sum[:])
 }
 
 // readTokens reads count token values a run before this one kept at path; kept is
@@ -269,13 +288,18 @@ func readTokens(path string, count int) (values []float32, kept bool) {
 	return values, true
 }
 
-// writeTokens keeps token values at path for the runs after this one.
-func writeTokens(path string, values []float32) error {
+// tokenBytes are values as a cache keeps and names them.
+func tokenBytes(values []float32) []byte {
 	raw := make([]byte, 0, len(values)*binary.Size(float32(0)))
 	for _, value := range values {
 		raw = binary.LittleEndian.AppendUint32(raw, math.Float32bits(value))
 	}
-	return os.WriteFile(path, raw, bridgeCacheFileMode)
+	return raw
+}
+
+// writeTokens keeps token values at path for the runs after this one.
+func writeTokens(path string, values []float32) error {
+	return os.WriteFile(path, tokenBytes(values), bridgeCacheFileMode)
 }
 
 // trainEncoderBridge is the encoder-bridge route: it fits the affine map that lets one
@@ -336,8 +360,14 @@ func trainEncoderBridge(ctx context.Context, flags *flag.FlagSet, args []string)
 	if err != nil {
 		return err
 	}
-	cacheDirectory := filepath.Join(*cache, filepath.Base(filepath.Clean(*sourceDir))+"--"+filepath.Base(filepath.Clean(*collectionDir)))
-	if err := os.MkdirAll(cacheDirectory, bridgeCacheMode); err != nil {
+	// The pair loaded, so the collection resolves; its tokens are its own
+	// encoder's.
+	collection, _, err := rae.ResolveCollection(*collectionDir)
+	if err != nil {
+		return err
+	}
+	cacheDirectory, err := tokenCache(*cache, *sourceDir, collection.EncoderDirectory())
+	if err != nil {
 		return err
 	}
 	frames := make([]bridgeFrame, *fitFrames+*judgeFrames)

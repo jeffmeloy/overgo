@@ -26,6 +26,67 @@
       ]
     },
     {
+      "id": "reviewer-repairs-third",
+      "title": "Repair what remained of six of the reviewer's findings after their first repairs",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 480,
+        "reason": "What the row may still add. Set on 2026-10-11 to the sum of what its five adding steps were counted at in their own checkouts, by the count of syntax nodes the automated checks take: 173 for the cell credit, 182 for the pair's identity, 62 for the naming of earlier parts, 56 for the continued adapter and 7 for the named refusal. The bridge judge's step removes 63 and adds none; the stated rules change comments alone."
+      },
+      "steps": [
+        {
+          "id": "bridge-level-error",
+          "title": "Score a frame the bridge judge's decoder drew exactly as a level error of zero, where the judge refused it and the route lost the fitted bridge",
+          "status": "open",
+          "verify": "go test ./cmd/train -count=1 -run '^TestEncoderBridgeJudgmentScoresAFrameDrawnAsItIsAtNoError$' \u0026\u0026 go test ./internal/evaluation -count=1 -run '^(TestLevelErrorScoresARoundTripByThePixelsShown|TestLevelErrorSaysWhyItRefusedARoundTrip)$'",
+          "rationale": "Reviewer finding SQA-112, second severity, its first remaining site, confirmed by reading (docs/sqa_findings.json, not in the repository). The encoder-bridge judge measured each side of each frame as a ratio in decibels, which has no value at zero error, and it runs before the fitted bridge is saved: one frame drawn exactly ended the judgment and lost the fit. Closure: the judge scores each side by the mean squared error in eight-bit levels, the measure the reconstruction suite has published since ddf7dc41e, and zero is a value; the ratio function, which then has no production caller, is deleted. Decided on 2026-10-11 by the lead, under the owner's instruction not to wait for a decision; the owner may overrule. The unit of the judge's printed verdict becomes squared levels, lower becomes better, and each frame contributes a difference of errors where it contributed a ratio; output in decibels from before does not convert. One measure then serves the suite and the judge. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader and then by the lead, in a checkout of the step's own, before this row was filed. The register stays the reviewer's and is not edited here.\n\nServes: failure-rate of the bridge route; fewer components. Disappears: the signal-to-noise function and its constant. Evidence: the tests. Batch: device; the commit runs the device tests, since the training command is under them."
+        },
+        {
+          "id": "ratio-refusal",
+          "title": "Refuse a held-out signal answer its ratio has no value for by record, metric and reason",
+          "status": "open",
+          "verify": "go test ./internal/trainingprogram -count=1 -run '^TestNativeEvaluationRefusesARatioThatHasNoValue$' \u0026\u0026 go test ./internal/evaluation -count=1 -run '^TestMediaObjectiveApprovesOnHeldOutGain$'",
+          "rationale": "Reviewer finding SQA-112, second severity, its second remaining site, confirmed by reading (docs/sqa_findings.json, not in the repository). A held-out signal verdict whose answer equals its target exactly, or whose target is silent, came back as an infinity with no error and was then refused as a verifier that differs from the plan, which names neither the record nor the reason. Closure: the native evaluation refuses a ratio that has no value, and the scorer names the record and the metric. Decided on 2026-10-11 by the lead, under the owner's instruction not to wait for a decision; the owner may overrule. The finding's first acceptance criterion, that the signal path accepts exact and mixed observations, is not met: a ratio in decibels has no finite value at zero error, and the three ways that would meet it (an error metric registered anew, an exact state carried through the report and the verdict, a second verifier version) each add a mechanism for a case no production run is shown to reach. They are not taken. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader and then by the lead, in a checkout of the step's own, before this row was filed. The register stays the reviewer's and is not edited here.\n\nServes: failure-rate: a refusal that says what to look at. Evidence: the tests. Batch: device and browser; the commit runs both."
+        },
+        {
+          "id": "continued-adapter",
+          "title": "Credit a corpus run recorded for a continued adapter only while the request's adapter directory still holds that adapter",
+          "status": "open",
+          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestChangeCorpusCreditsARunOfAContinuedAdapterOnlyToThatAdapter$'",
+          "rationale": "Reviewer finding SQA-115, second severity, the part 8cfa15418 left undone, confirmed by reading (docs/sqa_findings.json, not in the repository). The name a finished corpus run is credited by held the directory of the adapter its runs continue, not what the directory holds: with another adapter put in that directory, finished runs of the first were credited to a request for the second, and a corpus asked to grow trained its new run from the other adapter. Closure: the name holds the adapter's digest, read where the request is named, so a replaced adapter is refused before any update and the same adapter in another directory is the same request. Not closed: an adapter replaced while a collection runs. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader and then by the lead, in a checkout of the step's own, before this row was filed. The register stays the reviewer's and is not edited here.\n\nServes: held-out-quality of a change corpus. Evidence: the test. Batch: device; the commit runs the device tests, since the training workflow is under them."
+        },
+        {
+          "id": "earlier-parts-whole",
+          "title": "Name an earlier held-out part whole or not at all, and refuse one that answered confirmations while a document of it has no recorded content",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestMaterialChargedUnnamedIsNotFreshWhenImportedAgain$'",
+          "rationale": "Reviewer finding SQA-110, second severity, what remained after 746a0717b, confirmed by reading (docs/sqa_findings.json, not in the repository). The naming of earlier held-out parts named a part by whichever of its records had a content recorded and passed a part with any name by on every later run, so a document left out could read as fresh where it is registered again though the part had answered confirmations. Closure: a part is named whole or not at all; a pool's named part that has answered is read again and refused when a record of it has no recorded content. Not closed: the published names of a named part are not compared with its records, and an acceptance's named part is not checked again; by reading, no committed writer publishes either state. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader and then by the lead, in a checkout of the step's own, before this row was filed. The register stays the reviewer's and is not edited here.\n\nServes: held-out-quality: what a part answered follows all of its documents or admission stops. Evidence: the test. Batch: browser and device; the commit runs both."
+        },
+        {
+          "id": "cell-credit-inputs",
+          "title": "Measure a kept cell again once a file its command is given has changed, where the full measurement run's credit named only the path",
+          "status": "open",
+          "verify": "go test ./cmd/validate -count=1 -run '^(TestCellCreditSurvivesAKilledRun|TestResumedRunStartsAgainACellWhoseWeightsChanged)$' \u0026\u0026 go test ./cmd/loop -count=1 -run '^TestCycleCreditFollowsTheInputsARunConsumes$'",
+          "rationale": "Reviewer finding SQA-089, second severity, the credit for inputs outside the repository, confirmed by reading (docs/sqa_findings.json, not in the repository). A resumed full measurement run skips a cell it holds credit for, and the credit named the commit, the store and the paths of the model and the task, not the bytes at those paths: a model file replaced between a stopped run and its resumption was not measured again. Closure: the credit follows the files a cell's command is given, so a cell whose input changed starts again. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader and then by the lead, in a checkout of the step's own, before this row was filed. The register stays the reviewer's and is not edited here.\n\nServes: held-out-quality and failure-rate of a resumed measurement run. Evidence: the tests. Batch: host."
+        },
+        {
+          "id": "pair-identity",
+          "title": "Name a bridged pair's training evidence by every file it runs through, as serving names it, and its kept tokens by the encoders that made them",
+          "status": "open",
+          "verify": "go test ./internal/mediacapability -count=1 -run '^TestABridgedPairTrainsUnderTheModelItIsServedAs$' \u0026\u0026 go test ./cmd/train -count=1 -run '^(TestCodecCheckpointNamesEveryFileOfThePairItTrained|TestTokensAreKeptUnderTheBytesOfTheEncodersThatMadeThem|TestAClipsTokensAreKeptUnderItsCut)$'",
+          "rationale": "Reviewer finding SQA-114, second severity, confirmed by reading (docs/sqa_findings.json, not in the repository). The codec route trained and judged a bridged pair under the bridge's file alone, though it loads a frozen encoder, a decoder and statistics, and its kept source and token files were admitted by the media's digest and shape under a name made of base names: with a dependency of the same shape replaced, training could reuse features made by the old one and publish a verdict that does not identify the pair it trained. Closure: the pair's training evidence is named by every file it runs through, through the inventory serving already uses, and kept tokens are named by the bytes of the encoders that made them and by the clip's cut. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader and then by the lead, in a checkout of the step's own, before this row was filed. The register stays the reviewer's and is not edited here.\n\nServes: held-out-quality of a trained bridge; one owner for a pair's identity. Evidence: the tests. Batch: device; the commit runs the device tests, since the training command is under them."
+        },
+        {
+          "id": "environment-rules-stated",
+          "title": "State the two environment rules the reviewer's finding left open as kept on purpose, where the code and its test hold them",
+          "status": "open",
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestServingEnvironmentChangeIsUnknown$'",
+          "rationale": "Reviewer finding SQA-053, second severity, what remained after 087a754e7 and 01ee3e336, confirmed by reading (docs/sqa_findings.json, not in the repository). The finding leaves three points and allows a repair or a justification for each. An attempt with no bound run, an unreadable run or a run that names no environment keeps its recorder's: kept, since the measurement run's own serving measurement cites no run and withholding comparison there would file no serving decline at all. Two serving cells that both name no environment still compare: kept, since such a pair is two records from before environments were recorded and reading it as unknown would drop a decline the numbers show. Peer compatibility's reading of a local attempt's environment is parked in the findings register as evidence:sha256:7524abfe8ef11ddba7e0458cec23e38bc3808b1db716d7191f8d01bb27fa5720. Closure: two comments say so where the rules are enforced; no behaviour changes, so the check is the test that already holds the second rule. Decided on 2026-10-11 by the lead, under the owner's instruction not to wait for a decision; the owner may overrule. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader and then by the lead, in a checkout of the step's own, before this row was filed. The register stays the reviewer's and is not edited here.\n\nServes: a reader of the two rules. Evidence: the unchanged tests. Batch: host."
+        }
+      ]
+    },
+    {
       "id": "campaign-closeout",
       "title": "Close the campaign once every branch is accounted for",
       "owner": "master-lead",

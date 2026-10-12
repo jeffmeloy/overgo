@@ -56,6 +56,11 @@ type Request struct {
 	PreferenceMargin float64
 	// Observations: optional typed run evidence.
 	Observations artifact.Repository
+	// throwaway marks the session's checkpoint as an intermediate product of
+	// a larger run, which removes it once its own record is kept: the store
+	// is given the checkpoint's document and nothing that says where its
+	// files are (recordThrowaway).
+	throwaway bool
 
 	ObserveDPO       func(trainingprogram.DPOObservation)
 	ObserveGRPO      func(trainingprogram.GRPOObservation)
@@ -298,8 +303,12 @@ func (session denseSession) run() (Result, error) {
 	result.authority = authority
 	// The checkpoint records where the run's evidence goes, and a trained
 	// GGUF registers there as the candidate the server, validate and the
-	// scorecard open.
-	if err == nil && session.request.Observations != nil {
+	// scorecard open. A throw-away checkpoint records its document alone.
+	switch {
+	case err != nil || session.request.Observations == nil:
+	case session.request.throwaway:
+		err = recordThrowaway(session.ctx, session.request.Observations, result.Checkpoint)
+	default:
 		var candidate modelintake.Candidate
 		candidate, err = RecordCheckpoint(session.ctx, session.request.Observations, session.request.OutputDirectory, result.Checkpoint)
 		result.Candidate = candidate.Definition.ID

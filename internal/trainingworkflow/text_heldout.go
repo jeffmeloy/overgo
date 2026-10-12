@@ -103,6 +103,10 @@ type TextHeldoutRequest struct {
 	// runs that differ in nothing else are two changes of one base. The
 	// held-out records and their order do not depend on it.
 	Order uint64
+	// throwaway marks the trained checkpoint as one run of a larger
+	// collection, meant to be removed once the collection's record is kept:
+	// the store is given its document and no location (recordThrowaway).
+	throwaway bool
 }
 
 // promptAnswers is one record of a generation objective: a prompt and the
@@ -615,7 +619,9 @@ func publishTrainedText(
 	if err != nil {
 		return trainingprogram.Checkpoint{}, err
 	}
-	if record {
+	if record && request.throwaway {
+		err = recordThrowaway(ctx, store, checkpoint)
+	} else if record {
 		_, err = RecordCheckpoint(ctx, store, target, checkpoint)
 	}
 	return checkpoint, err

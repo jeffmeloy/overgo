@@ -195,19 +195,7 @@ func RecordCheckpoint(ctx context.Context, store artifact.Repository, directory 
 	if err != nil {
 		return modelintake.Candidate{}, err
 	}
-	for _, edge := range batch.Lineage {
-		if slices.ContainsFunc(batch.Artifacts, func(declared artifact.Descriptor) bool { return declared.ID == edge.Parent }) ||
-			slices.ContainsFunc(batch.Contents, func(content artifact.Content) bool { return content.Descriptor.ID == edge.Parent }) ||
-			slices.ContainsFunc(batch.Manifests, func(manifest artifact.Manifest) bool { return manifest.ID == edge.Parent }) {
-			continue
-		}
-		if _, held, err := store.Artifact(ctx, edge.Parent); err != nil {
-			return modelintake.Candidate{}, err
-		} else if !held {
-			batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: edge.Parent})
-		}
-	}
-	if err := PublishTrainingEvidence(ctx, store, TrainingEvidencePublication{Batch: batch}); err != nil {
+	if err := publishWithParents(ctx, store, batch); err != nil {
 		return modelintake.Candidate{}, err
 	}
 	weights, err := trainingprogram.CheckpointWeightsPath(directory)
@@ -218,6 +206,52 @@ func RecordCheckpoint(ctx context.Context, store artifact.Repository, directory 
 		return modelintake.Candidate{}, nil
 	}
 	return publishTrainedModel(ctx, store, weights, checkpoint)
+}
+
+// publishWithParents publishes a checkpoint's batch as training evidence,
+// declaring first each parent its lineage names that neither the batch nor
+// the store holds: the store refuses an edge to an artifact it does not know.
+func publishWithParents(ctx context.Context, store artifact.Repository, batch artifact.Batch) error {
+	for _, edge := range batch.Lineage {
+		if slices.ContainsFunc(batch.Artifacts, func(declared artifact.Descriptor) bool { return declared.ID == edge.Parent }) ||
+			slices.ContainsFunc(batch.Contents, func(content artifact.Content) bool { return content.Descriptor.ID == edge.Parent }) ||
+			slices.ContainsFunc(batch.Manifests, func(manifest artifact.Manifest) bool { return manifest.ID == edge.Parent }) {
+			continue
+		}
+		if _, held, err := store.Artifact(ctx, edge.Parent); err != nil {
+			return err
+		} else if !held {
+			batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: edge.Parent})
+		}
+	}
+	return PublishTrainingEvidence(ctx, store, TrainingEvidencePublication{Batch: batch})
+}
+
+// recordThrowaway records a checkpoint that is an intermediate product of a
+// larger run, meant to be removed once the run's own record is kept. The store
+// is given the checkpoint's document and lineage, which a session's record
+// and a verdict name, and no location, weights, trained model or candidate:
+// a catalog must not list files that will be gone, and what is read back
+// from such a checkpoint is read from its directory while it stands.
+//
+// A checkpoint whose document the store holds is recorded already, with its
+// lineage, and nothing is published: the same checkpoint trained again, as a
+// run begun again after its checkpoints were removed trains it, would name
+// the same key with other content, because the parents the first batch had to
+// declare are held by then.
+func recordThrowaway(ctx context.Context, store artifact.Repository, checkpoint trainingprogram.Checkpoint) error {
+	if _, held, err := artifact.ReadContent(ctx, store, checkpoint.ID()); err != nil || held {
+		return err
+	}
+	content, err := checkpoint.Content()
+	if err != nil {
+		return err
+	}
+	batch, err := artifact.NewDocumentBatch("training/evidence/checkpoint/"+checkpoint.ID().String()+"/throwaway", []artifact.Content{content}, checkpoint.ArtifactLineage(), nil)
+	if err != nil {
+		return err
+	}
+	return publishWithParents(ctx, store, batch)
 }
 
 // publishTrainedModel registers the trained model a recorded checkpoint

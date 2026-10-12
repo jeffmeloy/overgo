@@ -16,3 +16,14 @@ func Remove(path string) error {
 	}
 	return SyncDirectory(filepath.Dir(path))
 }
+
+// RemoveTree removes the directory tree at path with everything in it, and
+// leaves what a link in it names: a link is deleted and never followed. Like
+// Remove it makes the absence durable, and a path that is not there is no
+// error.
+func RemoveTree(path string) error {
+	if err := os.RemoveAll(path); err != nil {
+		return err
+	}
+	return SyncDirectory(filepath.Dir(path))
+}

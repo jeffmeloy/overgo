@@ -1,12 +1,15 @@
 package trainingworkflow
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"overgo/internal/artifact"
 	"overgo/internal/atomicfile"
@@ -16,6 +19,8 @@ import (
 	"overgo/internal/hostoptimizer"
 	"overgo/internal/loratrain"
 	"overgo/internal/optimizer"
+	"overgo/internal/overgodb"
+	"overgo/internal/pathidentity"
 	"overgo/internal/peft"
 	"overgo/internal/safetensors"
 	"overgo/internal/strictjson"
@@ -38,6 +43,10 @@ const (
 	averageStateFile   = "state.json"
 	// averageFileMode is the mode the average's state file is written with.
 	averageFileMode = 0o600
+	// modelPage bounds one read of the store's listing of its models, which
+	// refuses a read with no bound; the listing is read to its end, a page
+	// after a page.
+	modelPage = 1000
 )
 
 // stepCheckpointDirectory is where a run writing to output saves its checkpoint
@@ -90,6 +99,160 @@ func (saves *stepSaves) saved(target string) error {
 		saves.own = saves.own[1:]
 	}
 	return nil
+}
+
+// RemoveCheckpoints removes the checkpoints a run wrote at directories, once
+// the run's own record is kept, and writes receipt a line for each: removed,
+// kept or left, then the bytes, the place, the path and the rule, between
+// tabs. With a reason in kept it removes nothing and the reason is the rule.
+//
+// A directory that holds no checkpoint document is passed over. A checkpoint
+// the store records at a path in its directory is kept: a recorded checkpoint
+// is read by its location, and only one the store was never told the place of
+// is a run's to throw away. A directory in which the store records a model is
+// kept as well, whatever its checkpoint is to the store: a registered model
+// is never removed, and whether any model is in use is never asked. The
+// store's models are read once, before anything is removed, and a read that
+// fails removes nothing (registeredModels). A removal that fails is left, its
+// error the rule, and the others still go; the errors are returned together.
+// A folder the removals left empty is removed too, and one that still holds
+// something is given a line.
+func RemoveCheckpoints(ctx context.Context, store modelCatalog, receipt io.Writer, kept string, directories ...string) error {
+	var failed error
+	line := func(verb string, bytes int64, path, rule string) {
+		_, err := fmt.Fprintf(receipt, "%s\t%d\trun-checkpoint\t%s\t%s\n", verb, bytes, path, rule)
+		failed = errors.Join(failed, err)
+	}
+	var models []artifact.Location
+	if kept == "" {
+		var err error
+		if models, err = registeredModels(ctx, store); err != nil {
+			return err
+		}
+	}
+	var parents []string
+	for _, directory := range directories {
+		if kept != "" {
+			line("kept", 0, directory, kept)
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(directory, trainingprogram.CheckpointFilename))
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		var bytes int64
+		held := ""
+		if err == nil {
+			bytes, held, err = throwawayBytes(ctx, store, models, directory, data)
+		}
+		if err == nil && held == "" {
+			err = fsatomic.RemoveTree(directory)
+		}
+		switch {
+		case err != nil:
+			line("left", bytes, directory, err.Error())
+			failed = errors.Join(failed, err)
+		case held != "":
+			line("kept", 0, directory, held)
+		default:
+			line("removed", bytes, directory, "a throw-away checkpoint of a run whose record is kept")
+			if parent := filepath.Dir(directory); !slices.Contains(parents, parent) {
+				parents = append(parents, parent)
+			}
+		}
+	}
+	for _, parent := range parents {
+		if entries, err := os.ReadDir(parent); err != nil || len(entries) != 0 {
+			line("kept", 0, parent, "it still holds what this run did not remove")
+			failed = errors.Join(failed, err)
+			continue
+		}
+		failed = errors.Join(failed, os.Remove(parent))
+	}
+	return failed
+}
+
+// modelCatalog is the store RemoveCheckpoints reads: where an artifact is
+// recorded, and the catalog's listing, which names its models. An
+// *overgodb.Store is one.
+type modelCatalog interface {
+	Locations(context.Context, artifact.ID) ([]artifact.Location, error)
+	Query(context.Context, overgodb.Query) (overgodb.QueryResult, error)
+}
+
+// registeredModels reads every place on this machine the store records a
+// model at, a page of its catalog at a time, as the model listings of
+// internal/modeltest and cmd/loop read it. Any read that fails fails the
+// whole, and so does a listing cut short with nowhere to go on from: what is
+// decided from this is what may be removed, and a listing that did not come
+// whole must never read as a store that registers no model.
+func registeredModels(ctx context.Context, store modelCatalog) ([]artifact.Location, error) {
+	var recorded []artifact.Location
+	query := overgodb.Query{Kind: artifact.KindModel, MaxResults: modelPage, Projection: overgodb.ProjectArtifacts}
+	for {
+		page, err := store.Query(ctx, query)
+		if err != nil {
+			return nil, err
+		}
+		for _, model := range page.Artifacts {
+			locations, err := store.Locations(ctx, model.ID)
+			if err != nil {
+				return nil, err
+			}
+			for _, location := range locations {
+				if location.Kind != artifact.LocationRemote {
+					recorded = append(recorded, location)
+				}
+			}
+		}
+		if query.Cursor = page.Next; query.Cursor != nil {
+			continue
+		}
+		if page.Truncated {
+			return nil, errors.New("training workflow: the store's listing of its models is cut short, so no checkpoint is removed")
+		}
+		return recorded, nil
+	}
+}
+
+// throwawayBytes reads the checkpoint document data of directory and gives
+// the rule the directory is held by, when the store records that checkpoint
+// or one of models, the registered models' locations, at a path in it. When
+// it records neither there, the rule is empty and bytes is how much the
+// directory's files hold. The checkpoint's own record is looked for first, so
+// a recorded checkpoint that holds its trained model is kept as a checkpoint.
+func throwawayBytes(ctx context.Context, store modelCatalog, models []artifact.Location, directory string, data []byte) (bytes int64, held string, err error) {
+	checkpoint, err := trainingprogram.ParseCheckpoint(data)
+	if err != nil {
+		return 0, "", err
+	}
+	locations, err := store.Locations(ctx, checkpoint.ID())
+	if err != nil {
+		return 0, "", err
+	}
+	for _, location := range slices.Concat(locations, models) {
+		inside, err := pathidentity.Contains(directory, location.Value)
+		if err != nil {
+			return 0, "", err
+		}
+		if inside && location.Artifact == checkpoint.ID() {
+			return 0, "the store records this checkpoint at this path, so it is not a run's to throw away", nil
+		}
+		if inside {
+			return 0, fmt.Sprintf("the store records %s at %s, and a registered model is never a run's to throw away", location.Artifact, location.Value), nil
+		}
+	}
+	err = filepath.WalkDir(directory, func(_ string, entry fs.DirEntry, err error) error {
+		if err != nil || !entry.Type().IsRegular() {
+			return err
+		}
+		info, err := entry.Info()
+		if err == nil {
+			bytes += info.Size()
+		}
+		return err
+	})
+	return bytes, "", err
 }
 
 // averageState is what a checkpoint records of its moving average besides its values.

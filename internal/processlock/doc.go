@@ -14,6 +14,11 @@ import (
 // time, and a lock or a crash locator must never be beside what is.
 const StateDirectory = ".overgo-runtime"
 
+// OutputLock names the file a run locks in its output directory for as long
+// as it runs: a second run into the directory finds it held and stops. It is
+// named here so that a command removing what a run left can probe it too.
+const OutputLock = ".overgo-run.lock"
+
 // ErrBusy reports contention proven by the OS lock operation. A lock file's
 // existence, process name or stale heartbeat does not establish ownership.
 var ErrBusy = errors.New("process lock: another open handle holds the lock")

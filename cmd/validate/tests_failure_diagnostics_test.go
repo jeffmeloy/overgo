@@ -33,13 +33,19 @@ func TestFailureDiagnostics(t *testing.T) {
 	if os.Getenv("OVERGO_FAILURE_DIAGNOSTICS_CHILD") == "wait" {
 		fmt.Fprint(os.Stdout, diagnosticEvent("run", "fixture", "TestBlocked", ""))
 		// Both streams feed the parser, so the fixture announces its block by
-		// connecting to its caller, then lives until the caller ends it.
+		// connecting to its caller, then lives until the caller ends it: it
+		// reads from the connection, which the caller holds open and never
+		// writes to. A goroutine parked on the network is no deadlock to the
+		// runtime, where an empty select is one: with every goroutine asleep
+		// the runtime ended the fixture by itself a few milliseconds after
+		// its announcement, and the caller's cancellation had to win that race.
 		connection, err := net.Dial("tcp", os.Getenv(blockedAnnouncement))
 		if err != nil {
 			t.Fatal(err)
 		}
-		_ = connection.Close()
-		select {}
+		_, _ = connection.Read(make([]byte, 1))
+		// The read returns only when the caller is gone.
+		os.Exit(1)
 	}
 	if os.Getenv("OVERGO_FAILURE_DIAGNOSTICS_CHILD") == "1" {
 		fmt.Fprint(os.Stdout, diagnosticEvent("output", "fixture", "TestBroken", "assertion: expected preserved value\n"))
@@ -205,16 +211,23 @@ func TestFailureDiagnostics(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer blocked.Close()
+		// The fixture's connection is held open until the run has ended: the
+		// fixture lives on its read of it.
+		announced := make(chan net.Conn, 1)
 		go func() {
-			if connection, err := blocked.Accept(); err == nil {
-				_ = connection.Close()
-			}
+			connection, _ := blocked.Accept()
+			announced <- connection
 			cancel(ended)
 		}()
 		report, err := testevidence.RunGoTestCommand(ctx, processcontrol.Command{
 			Path: os.Args[0], Args: []string{"-test.run=^TestFailureDiagnostics$"},
 			Env: append(os.Environ(), "OVERGO_FAILURE_DIAGNOSTICS_CHILD=wait", blockedAnnouncement+"="+blocked.Addr().String()),
 		}, testevidence.GoTestOptions{Short: true, DiagnosticBytes: clioptions.DiagnosticTailBytes})
+		// A fixture that never announced leaves the accept waiting: closing the listener ends it.
+		_ = blocked.Close()
+		if connection := <-announced; connection != nil {
+			_ = connection.Close()
+		}
 		if !errors.Is(err, ended) || len(report.Unfinished) != 1 || report.Unfinished[0] != "fixture: TestBlocked" {
 			t.Fatalf("err=%v report=%+v", err, report)
 		}

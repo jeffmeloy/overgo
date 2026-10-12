@@ -212,6 +212,8 @@ func RunInstructionPilot(ctx context.Context, store *overgodb.Store, run PilotRu
 				request := Request{
 					Repository: store, Observations: store, Recipe: recipeID, DatasetPath: asked, OutputDirectory: checkpoint.Directory,
 					ModelDirectory: run.Model, ResumeDirectory: previous, Steps: groups - reached, Device: run.Device, Rewards: &sampling,
+					// An arm's checkpoints are the pilot's to remove once its record is kept.
+					throwaway: true,
 				}
 				if previous != "" {
 					request.ModelDirectory = ""

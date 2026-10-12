@@ -9,10 +9,13 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/overgodb"
+	"overgo/internal/processlock"
 	"overgo/internal/strictjson"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
@@ -81,7 +84,13 @@ func run() error {
 	evidenceThrough := flag.Uint64("evidence-to-sequence", 0, "with -evidence: read the store as it stood at this journal sequence and not as it stands, as overgodb query -verdicts -to-sequence lists it")
 	evidenceBytes := flag.Uint64("evidence-max-bytes", 0, "with -evidence: refuse a listing whose verdict documents exceed this many bytes (0 for no bound)")
 	pilot := flag.String("pilot", "", "instruction acceptance artifact ID, as training-objective -pilot wrote it: train the pilot's reward arm and its control from -model under -out to each checkpoint its training specification names, freeze one checkpoint an arm on the selection groups, charge and read each comparison the acceptance named on the promotion groups, and say whether the reward arm is adopted")
+	keep := flag.String(keepFlag, "", "with -pilot: keep the checkpoints the pilot wrote, for the reason given, which the record states; without it they are removed once the record is written under -out, unless the reward arm is adopted")
 	flag.Parse()
+	given := false
+	flag.Visit(func(set *flag.Flag) { given = given || set.Name == keepFlag })
+	if err := keepReason(given, *pilot, *keep); err != nil {
+		return err
+	}
 	if (*evidence || *evidenceThrough != 0 || *evidenceBytes != 0) && (*propose == "" || !*evidence) {
 		return fmt.Errorf("train: -evidence shows a proposer what was tried before it, and -evidence-to-sequence and -evidence-max-bytes bound what it is shown; they need -propose and -evidence")
 	}
@@ -114,8 +123,15 @@ func run() error {
 		return err
 	}
 	defer store.Close()
+	if *output != "" && (*pilot != "" || *runs > 0 || *propose != "" || *confirm != "") {
+		held, err := holdOutput(*output)
+		if err != nil {
+			return err
+		}
+		defer held.Close()
+	}
 	if *pilot != "" {
-		return runPilot(ctx, store, *pilot, *model, *output, os.Stdout)
+		return runPilot(ctx, store, *pilot, *model, *output, *keep, os.Stdout)
 	}
 	if *propose != "" || *confirm != "" {
 		if *objective != "" || *model == "" || *output == "" || *propose != "" && *confirm != "" || *maximumSequence != 0 {
@@ -202,6 +218,36 @@ func run() error {
 		fmt.Printf("candidate=%s (not activated)\n", result.Candidate)
 	}
 	return judgePreference(ctx, store, request, result, os.Stdout)
+}
+
+// keepFlag names the flag that gives the reason a pilot's checkpoints are kept.
+const keepFlag = "keep-checkpoints"
+
+// keepReason refuses the keep flag where it would be misread: without
+// -pilot, the one run that removes its checkpoints, and with a blank reason,
+// because a flag given with nothing after it must never read as no flag and
+// let the checkpoints go.
+func keepReason(given bool, pilot, reason string) error {
+	if given && (pilot == "" || strings.TrimSpace(reason) == "") {
+		return fmt.Errorf("train: -%s gives the reason the pilot's checkpoints are kept, which its record states; it needs -pilot and a reason that is not blank", keepFlag)
+	}
+	return nil
+}
+
+// holdOutput makes the output directory of a run that writes many things
+// under it, a pilot, a corpus, a proposal or a confirmation, and locks
+// processlock.OutputLock there until the lock it returns is closed. A second
+// run into the directory is refused while the first goes. The lock is also
+// for a command removing what a finished run left to tell a live run by.
+func holdOutput(out string) (*processlock.Lock, error) {
+	if err := os.MkdirAll(out, clioptions.OutputDirectoryMode); err != nil {
+		return nil, err
+	}
+	lock, err := processlock.Acquire(filepath.Join(out, processlock.OutputLock), clioptions.PrivateFileMode)
+	if err != nil {
+		return nil, fmt.Errorf("train: %s is held by a run that is still going, or its lock cannot be taken: %w", out, err)
+	}
+	return lock, nil
 }
 
 // judgePreference publishes the held-out verdict of a preference run from a

@@ -180,7 +180,8 @@ func CollectChangeCorpus(ctx context.Context, store *overgodb.Store, request Tex
 	for index := range runs {
 		order := first + uint64(index)
 		run := request
-		run.Order, run.OutputDirectory = order, runDirectory(request.OutputDirectory, order)
+		// The store is not told where a run's weights are: what proposes from the corpus reads them by directory, and they are meant to be removed once the corpus's record is kept, which nothing here does.
+		run.Order, run.OutputDirectory, run.throwaway = order, runDirectory(request.OutputDirectory, order), true
 		record := filepath.Join(run.OutputDirectory, changeRunFile)
 		if err := jsonfile.DecodeStrict(record, &runs[index]); err == nil {
 			if runs[index].Order != order || runs[index].Asked != asked {

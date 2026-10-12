@@ -1,6 +1,7 @@
 package trainingworkflow
 
 import (
+	"bytes"
 	"errors"
 	"math"
 	"os"
@@ -196,7 +197,9 @@ func residentTrainer(model *densecausal.Model, groups [][]densecausal.WeightedSe
 // Both arms are trained from the base to each checkpoint the training
 // specification names, the reward arm and its control; each checkpoint is
 // read on the selection groups, and the one frozen for an arm passes as many
-// of them as any of the arm's, the earliest of equals. Each comparison the
+// of them as any of the arm's, the earliest of equals. Every checkpoint is
+// throw-away to the store, which holds its document and no location or
+// trained model of it (requireThrowaway). Each comparison the
 // acceptance named is charged under it and answered once, the promotion part
 // left with one confirmation and then none, and the arm is adopted exactly
 // when the adoption rule says so of those answers. Run again over the same
@@ -204,6 +207,12 @@ func residentTrainer(model *densecausal.Model, groups [][]densecausal.WeightedSe
 // each comparison returns the verdict it recorded. And with the reward arm's
 // first checkpoint put where the control's belongs, the run is refused: a
 // checkpoint is credited to the arm it was sampled as.
+//
+// Last, in the process that trained, sampled and read them, every arm
+// checkpoint is removed as the command removes them once its record is kept
+// (RemoveCheckpoints): each line says removed and each directory is gone, so
+// nothing the pilot opened of a checkpoint's weights is still held open or
+// mapped when the removal renames its directory.
 func TestPilotRunTrainsFreezesAndJudgesItsArms(t *testing.T) {
 	cudatest.Require(t)
 	ctx := t.Context()
@@ -230,6 +239,8 @@ func TestPilotRunTrainsFreezesAndJudgesItsArms(t *testing.T) {
 		}
 		sampled := 0
 		for at, checkpoint := range arm.Checkpoints {
+			// An arm's checkpoints are the pilot's to remove: the store is told of none where it stands.
+			requireThrowaway(t, store, checkpoint.Directory)
 			sampled += checkpoint.Trace.Sampled
 			if checkpoint.Groups != outcome.Training.Checkpoints[at] || sampled != checkpoint.Groups || checkpoint.Selected > arm.Checkpoints[arm.Frozen].Selected || at < arm.Frozen && checkpoint.Selected == arm.Checkpoints[arm.Frozen].Selected {
 				t.Fatalf("the %s arm's checkpoint %d = %+v after %d groups sampled, frozen at %d: want the specification's count reached and the first of the best frozen", arm.Name, at, checkpoint, sampled, arm.Frozen)
@@ -274,5 +285,27 @@ func TestPilotRunTrainsFreezesAndJudgesItsArms(t *testing.T) {
 	}
 	if _, err := RunInstructionPilot(ctx, store, run); err == nil || !strings.Contains(err.Error(), "holds a checkpoint that is not the "+pilotArms[1]+" arm's") {
 		t.Fatalf("with the reward arm's checkpoint in the control's place the run ended with %v, want it refused as not the control's", err)
+	}
+	// Nothing below reads a checkpoint: the arms' directories go, and with them the control's own first, set aside above.
+	directories := []string{control + ".aside"}
+	for _, arm := range result.Arms {
+		for _, checkpoint := range arm.Checkpoints {
+			directories = append(directories, checkpoint.Directory)
+		}
+	}
+	var receipt bytes.Buffer
+	if err := RemoveCheckpoints(ctx, store, &receipt, "", directories...); err != nil {
+		t.Fatalf("removing the pilot's checkpoints in the process that trained and read them ended with %v and the lines %q, want every one removed", err, receipt.String())
+	}
+	lines := receiptLines(t, receipt.String())
+	for path, line := range lines {
+		if line[0] != "removed" {
+			t.Errorf("after the pilot, in its own process, the line for %s is %q, want every line a removal: none left, none kept", path, line)
+		}
+	}
+	for _, directory := range directories {
+		if _, err := os.Stat(directory); !errors.Is(err, os.ErrNotExist) || receiptVerb(lines, directory) != "removed" {
+			t.Errorf("after the pilot, in its own process, the checkpoint at %s is %v with the line %q, want it removed", directory, err, lines[directory])
+		}
 	}
 }

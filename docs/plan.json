@@ -8,6 +8,10 @@
       "title": "Retire the host's reward trainer once the workbench trains rewards on the device or stops offering them",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 830,
+        "reason": "What the row may still add. Set on 2026-10-11 to the 830 nodes its workbench step was counted at once built, by the count of syntax nodes the automated checks take over the six production files it changes: the routine that runs a reward request in the training command as a child process and reads back its steps and its checkpoint, the file a training command leaves those steps in, the server's flag for the command and its refusal when the file is absent, and the workspace's reward capability listed off the host with its note and its reason. The step after it removes the host reward trainer and adds nothing to the count."
+      },
       "steps": [
         {
           "id": "workbench",

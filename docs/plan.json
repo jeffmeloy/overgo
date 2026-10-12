@@ -31,7 +31,7 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 480,
+        "nodes": 418,
         "reason": "What the row may still add. Set on 2026-10-11 to the sum of what its five adding steps were counted at in their own checkouts, by the count of syntax nodes the automated checks take: 173 for the cell credit, 182 for the pair's identity, 62 for the naming of earlier parts, 56 for the continued adapter and 7 for the named refusal. The bridge judge's step removes 63 and adds none; the stated rules change comments alone."
       },
       "steps": [
@@ -55,13 +55,6 @@
           "status": "open",
           "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestChangeCorpusCreditsARunOfAContinuedAdapterOnlyToThatAdapter$'",
           "rationale": "Reviewer finding SQA-115, second severity, the part 8cfa15418 left undone, confirmed by reading (docs/sqa_findings.json, not in the repository). The name a finished corpus run is credited by held the directory of the adapter its runs continue, not what the directory holds: with another adapter put in that directory, finished runs of the first were credited to a request for the second, and a corpus asked to grow trained its new run from the other adapter. Closure: the name holds the adapter's digest, read where the request is named, so a replaced adapter is refused before any update and the same adapter in another directory is the same request. Not closed: an adapter replaced while a collection runs. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader and then by the lead, in a checkout of the step's own, before this row was filed. The register stays the reviewer's and is not edited here.\n\nServes: held-out-quality of a change corpus. Evidence: the test. Batch: device; the commit runs the device tests, since the training workflow is under them."
-        },
-        {
-          "id": "earlier-parts-whole",
-          "title": "Name an earlier held-out part whole or not at all, and refuse one that answered confirmations while a document of it has no recorded content",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestMaterialChargedUnnamedIsNotFreshWhenImportedAgain$'",
-          "rationale": "Reviewer finding SQA-110, second severity, what remained after 746a0717b, confirmed by reading (docs/sqa_findings.json, not in the repository). The naming of earlier held-out parts named a part by whichever of its records had a content recorded and passed a part with any name by on every later run, so a document left out could read as fresh where it is registered again though the part had answered confirmations. Closure: a part is named whole or not at all; a pool's named part that has answered is read again and refused when a record of it has no recorded content. Not closed: the published names of a named part are not compared with its records, and an acceptance's named part is not checked again; by reading, no committed writer publishes either state. The step's test was written first and seen to fail on the committed code, the repair made, and both read and rerun by a second reader and then by the lead, in a checkout of the step's own, before this row was filed. The register stays the reviewer's and is not edited here.\n\nServes: held-out-quality: what a part answered follows all of its documents or admission stops. Evidence: the test. Batch: browser and device; the commit runs both."
         },
         {
           "id": "cell-credit-inputs",

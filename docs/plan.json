@@ -8,6 +8,10 @@
       "title": "Keep the checkout, ./tmp, ./docs and the data root free of finished leftovers, by rule and by command",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 4228,
+        "reason": "What the row may still add. Set on 2026-10-12 to the 4,228 nodes its step inventory was counted at once built, by the count of syntax nodes the automated checks take: the table of places and the listing command in cmd/loop (4,110), its flag (25), the worktree listing exported from internal/landing (89) and the name of the file that says which session holds a worktree, exported from internal/guard (11), less 7 in cmd/loophook. The row grows because it adds a command where hand surveys stood. Each later step is counted the same way before it is committed."
+      },
       "steps": [
         {
           "id": "inventory",

@@ -164,9 +164,7 @@ var Catalog = map[recipe.Task]Capability{
 	recipe.TaskSeq2Seq: inventoryCapability(modelartifact.FromHFPath, capabilityruntime.JSONScalar[textgeneration.Request, *seq2seq.Generator, string](
 		"seq2seq", textgeneration.Validate,
 		capabilityruntime.IgnoreInput[textgeneration.Request](seq2seq.LoadGenerator), seq2seq.RegisterRuntime)),
-	recipe.TaskSpeech: inventoryCapability(speechInventory, capabilityruntime.JSONScalar[speechsynth.SynthesisRequest, *speechsynth.Synthesizer, speechsynth.Audio](
-		"speech", speechsynth.ValidateSynthesisRequest,
-		capabilityruntime.IgnoreInput[speechsynth.SynthesisRequest](speechsynth.LoadSynthesizer), speechsynth.RegisterRuntime)),
+	recipe.TaskSpeech:        speechCapability(speechsynth.LoadSynthesizer),
 	recipe.TaskTranscription: transcriptionCapability(),
 	recipe.TaskActivityDetection: inventoryCapability(activityInventory, capabilityruntime.JSONScalar[speechactivity.DetectionRequest, *speechactivity.OfflineDetector, []recipecontract.ActivitySegment](
 		"activity-detection", speechactivity.ValidateDetectionRequest, loadActivityDetector, speechactivity.RegisterRuntime)),
@@ -338,6 +336,37 @@ func loadActivityDetector(ctx context.Context, _ artifact.Repository, path strin
 		return nil, fmt.Errorf("activity detection: no reviewed declaration answers for weights %s", digest)
 	}
 	return speechactivity.NewOfflineDetector(ctx, filepath.Join(path, activityWeights), reviewed.Network, reviewed.Frontend, reviewed.Policy, request.MemoryBytes)
+}
+
+// speechExecutor gives a speech request to one of two executors over the same
+// request, model and stages, by its frame limit. How many segments a text is
+// read in is known only to a loaded model, and a stored answer is looked for
+// before any load, so the limit decides. A request with no limit, or a limit
+// of zero, is read whole. Any other goes to the bounded preview, a request
+// that does not decode among them, so it is refused as it always was. The
+// executor chosen decodes the request again; the two never share an answer,
+// because the limit is part of the request an answer is kept under.
+func speechExecutor(preview, whole capabilityruntime.Executor) capabilityruntime.Executor {
+	return func(ctx context.Context, store artifact.Repository, path string, execution modelrecipe.CapabilityEvidenceSelection, raw string) (any, error) {
+		var request speechsynth.SynthesisRequest
+		if strictjson.DecodeBytes([]byte(raw), &request) == nil && request.MaxFrames == 0 {
+			return whole(ctx, store, path, execution, raw)
+		}
+		return preview(ctx, store, path, execution, raw)
+	}
+}
+
+// speechCapability is the catalog's speech entry over the model load gives:
+// the bounded preview and the whole reading, which differ only in the stages
+// each binds. The loader is a parameter so that a test with no model file
+// holds which binding stands on which side of speechExecutor.
+func speechCapability(load func(string) (*speechsynth.Synthesizer, error)) Capability {
+	loaded := capabilityruntime.IgnoreInput[speechsynth.SynthesisRequest](load)
+	return inventoryCapability(speechInventory, speechExecutor(
+		capabilityruntime.JSONScalar[speechsynth.SynthesisRequest, *speechsynth.Synthesizer, speechsynth.Audio](
+			"speech", speechsynth.ValidateSynthesisRequest, loaded, speechsynth.RegisterRuntime),
+		capabilityruntime.JSONScalar[speechsynth.SynthesisRequest, *speechsynth.Synthesizer, speechsynth.Audio](
+			"speech", speechsynth.ValidateSynthesisRequest, loaded, speechsynth.RegisterWholeText)))
 }
 
 func speechInventory(path string) (modelartifact.Inventory, error) {

@@ -19,9 +19,11 @@ import (
 var audioContract = artifact.JSONContract(artifact.KindFile, "overgo.speech-audio.v1")
 
 type SynthesisRequest struct {
-	Text      string `json:"text"`
-	MaxFrames int    `json:"max_frames"`
-	Seed      int64  `json:"seed"`
+	Text string `json:"text"`
+	// MaxFrames stops a bounded preview after that many frames. Zero, which
+	// is how an absent limit reads, asks for the whole text read aloud.
+	MaxFrames int   `json:"max_frames"`
+	Seed      int64 `json:"seed"`
 	// Voice names an exported artifact voice; the model was trained to
 	// speak behind a voice prompt, and generating without one drifts
 	// into noise, so a voice is required.
@@ -32,7 +34,10 @@ type SynthesisRequest struct {
 }
 
 type Audio struct {
-	// Complete records the native post-EOS stop; a bounded preview can be false.
+	// Complete records the native post-EOS stop. A bounded preview can be
+	// false; a whole reading is published only when it is true. A value
+	// rebuilt from a stored WAV carries no completeness and reads false, and
+	// cmd/recipe prints the field.
 	Complete   bool      `json:"complete"`
 	PCM        []float32 `json:"pcm"`
 	SampleRate int       `json:"sample_rate"`
@@ -51,8 +56,8 @@ type generationPlan struct {
 }
 
 func ValidateSynthesisRequest(request SynthesisRequest) error {
-	if strings.TrimSpace(request.Text) == "" || request.MaxFrames <= tensor.FirstOffset {
-		return errors.New("speechsynth: synthesis requires text and a positive frame limit")
+	if strings.TrimSpace(request.Text) == "" || request.MaxFrames < tensor.FirstOffset {
+		return errors.New("speechsynth: synthesis requires text, and a frame limit may not be negative")
 	}
 	if strings.TrimSpace(request.Voice) == "" {
 		return errors.New("speechsynth: synthesis requires a voice; the model speaks behind a voice prompt")

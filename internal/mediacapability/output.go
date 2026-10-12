@@ -7,17 +7,10 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/latentimage"
 	"overgo/internal/latentvideo"
-	"overgo/internal/media"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/oscillatorimage"
 	"overgo/internal/speechsynth"
 )
-
-// encodedWAVContract is the stored form of a synthesized speech clip: the
-// same output kind the encoded image and video contracts publish.
-var encodedWAVContract = artifact.DocumentContract{
-	Kind: artifact.KindOutput, MediaType: media.WAVMediaType, Schema: "overgo.encoded-audio.wav.v1",
-}
 
 // OutputContent turns what an executor produced into the artifact the
 // store publishes and the page renders: encoded images as PNG, video as
@@ -39,14 +32,7 @@ func OutputContent(output any) (artifact.Content, error) {
 			Channels: value.Channels, Height: value.Height, Width: value.Width, FPS: value.FPS,
 		})
 	case speechsynth.Audio:
-		if value.Channels != 1 {
-			return artifact.Content{}, fmt.Errorf("media capability: speech output has %d channels; one is published", value.Channels)
-		}
-		data, err := media.EncodeWAVPCM16(value.PCM, value.SampleRate)
-		if err != nil {
-			return artifact.Content{}, err
-		}
-		return encodedWAVContract.OwnedContentBytes(data)
+		return speechsynth.WAVContent(value)
 	case nil:
 		return artifact.Content{}, errors.New("media capability: the executor produced no output")
 	default:

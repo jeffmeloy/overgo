@@ -72,28 +72,6 @@
       ]
     },
     {
-      "id": "speech-document-admission",
-      "title": "Read a whole text aloud on the served speech route, and retire the document speech graph that only tests reach",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 1718,
-        "reason": ""
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "A speech request with no frame limit is read whole through the whole-text routine, stored and replayed as its WAV; a whole reading that was cut is refused",
-          "status": "open",
-          "verify": "go test ./internal/mediacapability -run '^TestSpeechReplaysWholeTextBeforeLoad$' -count=1 \u0026\u0026 go test ./internal/mediacapability -run '^TestSpeechRoutesByFrameLimit$' -count=1 \u0026\u0026 go test ./internal/speechsynth -run '^TestWholeTextBinding$' -count=1 \u0026\u0026 go test ./internal/speechsynth -run '^TestWholeTextStagesReadAsSpeak$' -count=1",
-          "rationale": "The served speech executor refuses a request with no frame limit and cuts every other at its limit, publishing the cut recording unmarked. Closure: a request with no limit, or a limit of zero, goes to a second binding of the same three stages that reads the whole text through Synthesizer.Speak and stores its last output as the published WAV, so a repeated request is still answered from the store before a model loads; a positive limit is the bounded preview, unchanged. A whole reading in which a segment did not end by itself is refused, as the retired graph refused it, with words that tell the person to change the seed or the temperature. /v1/audio/speech gains whole-text reading the same way. Known and accepted: a long text shows only that it is running, a stopped reading starts again from the beginning, a text budgeted past about 23 minutes is refused, and one long reading can read as a decline of the speech cell against bounded previews. The page still sends a remembered limit until the row speech-page-limit lands.\n\nServes: serve; setup-steps for a long text. Evidence: the four tests, and a tagged real-model test the measurement run runs. Batch: host, with the real speech model on the processor; the commit runs the browser and device tests.",
-          "depends_on": [
-            "speech-document-admission/retire"
-          ]
-        }
-      ]
-    },
-    {
       "id": "campaign-closeout",
       "title": "Close the campaign once every branch is accounted for",
       "owner": "master-lead",

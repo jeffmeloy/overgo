@@ -4,6 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	"overgo/internal/artifact"
+	"overgo/internal/modelrecipe"
+	"overgo/internal/workflowruntime"
 )
 
 // Speak reads a text aloud in a voice, as a document is read: the document plan
@@ -52,4 +56,39 @@ func (s *Synthesizer) speakFrom(ctx context.Context, request DocumentRequest, no
 
 func documentSegmentRequest(plan DocumentPlan, part DocumentSegment) SynthesisRequest {
 	return SynthesisRequest{Text: plan.Request.Text[part.Start:part.End], Voice: plan.Request.Voice, Seed: plan.Request.Seed, Temperature: plan.Request.Temperature, MaxFrames: part.MaxFrames}
+}
+
+// RegisterWholeText binds one synthesizer to the speech recipe's three stages
+// as a reading of the whole text, for a request that names no frame limit. The
+// stages keep the recipe's names and carry other things than a preview's:
+// tokenize hands on the text and its settings, generate is Speak, which
+// generates and decodes every segment, and decode only refuses a reading that
+// was cut. The time generate records is therefore the whole reading's, and
+// the other two record almost none. Only the WAV is stored, since a long
+// reading's samples as a JSON list pass what one stored document may hold: an
+// answered request is replayed, and any other is read again from its start.
+func RegisterWholeText(runtime *workflowruntime.Runtime, modelID artifact.ID, synthesizer *Synthesizer) error {
+	if synthesizer == nil {
+		return errors.New("speechsynth: incomplete runtime binding")
+	}
+	return registerWholeText(runtime, modelID, synthesizer.Speak)
+}
+
+// registerWholeText is RegisterWholeText with the reading given by the caller,
+// so the binding's rules are held without a model.
+func registerWholeText(runtime *workflowruntime.Runtime, modelID artifact.ID, speak func(context.Context, DocumentRequest) (Audio, error)) error {
+	return workflowruntime.RegisterContextPipeline(runtime, modelID,
+		modelrecipe.ModuleSpeechTokenize, func(_ context.Context, request SynthesisRequest) (DocumentRequest, error) {
+			return DocumentRequest{Text: request.Text, Voice: request.Voice, Seed: request.Seed, Temperature: request.Temperature}, nil
+		},
+		modelrecipe.ModuleSpeechGenerate, speak,
+		// A whole reading is not published short. Every segment has been read by
+		// now, and the same request is cut the same way again, so the refusal
+		// says what to change.
+		modelrecipe.ModuleSpeechDecode, func(_ context.Context, audio Audio) (Audio, error) {
+			if !audio.Complete {
+				return Audio{}, errors.New("speechsynth: the reading did not finish by itself and is not published cut short; change the seed or the temperature")
+			}
+			return audio, nil
+		}, WAVContent)
 }

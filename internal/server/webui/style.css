@@ -564,7 +564,9 @@ summary { cursor:pointer; min-height:32px; list-style:none; }
   .sidebar { padding-top:max(var(--s4), env(safe-area-inset-top)); padding-left:max(var(--s4), env(safe-area-inset-left)); padding-bottom:max(var(--s4), env(safe-area-inset-bottom)); }
   .topbar > .btn { min-height:44px; padding:var(--s2) var(--s3); }
   .topbar > .icon-button { width:44px; }
-  #model-pill { flex:1; padding:var(--s2) 0; max-width:none; text-align:left; }
+  /* The picker keeps a finger's width whatever stands beside it; a long support tier is what gives way, cut with an ellipsis. */
+  #model-pill { flex:1 0 72px; padding:var(--s2) 0; max-width:none; text-align:left; }
+  .topbar > .support-tier { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; }
   .topbar .grow { display:none; }
   #inbox-count { max-width:80px; font-size:var(--t-xs); }
   .wrap { padding:var(--s4); }

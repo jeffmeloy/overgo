@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "phone-top-bar-tier",
-      "title": "Keep the model picker a finger's width on a phone when the served model's support tag is long",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "The row adds no counted code: the change is to the page's stylesheet and a browser test."
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "At a phone's width the top bar holds a support tag of a tier and two rungs beside the memory bar: the picker keeps its width, nothing stands off the screen, and the tag is cut with an ellipsis",
-          "status": "open",
-          "verify": "test -f internal/server/webui_browser_topbar_tier_test.go \u0026\u0026 go run ./cmd/webui-lane -run PhoneTopBarHoldsALongSupportTier",
-          "rationale": "Found on 2026-10-12 by the full measurement run at 0de17a0f5: its first-run journey, a browser test under the model tags that no commit's checks run, failed with the model picker at no width and Settings two pixels off the screen at a phone's width, in each of its three conversation states. No page file had changed since the journey last passed. The served model had gained a training capability, so its support tag came to read its tier with two rungs beside it, and the phone's top bar had no rule for a long tag: the tag kept its whole width and the picker, the one part allowed to shrink, shrank to nothing. Closure: at a phone's width the picker keeps a width a finger can press and the tag is the part that gives way, cut with an ellipsis; a browser test in the commit's own run holds it over a served model whose tag names a tier and both rungs, with the memory bar shown. The change and its test are built, and the test seen to fail on the page as committed, in a checkout of its own before this row was filed. A plan row's page change: plain styles, reviewed in a browser at desktop and phone widths.\n\nServes: failure-rate of the model tests, and a phone's top bar a person can use. Evidence: the browser leg, and the first-run journey run again by hand. Batch: browser."
-        }
-      ]
-    },
-    {
       "id": "scorecard-regressed-544f19a37fc86ca0",
       "title": "Restore gemma-4-12B-it-fp8 inference first-output to 157.3404 ms",
       "owner": "master-lead",

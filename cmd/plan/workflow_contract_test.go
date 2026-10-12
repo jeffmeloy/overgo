@@ -15,11 +15,11 @@ import (
 
 // TestScratchModuleWorkflow proves the supported scratch-module developer
 // workflow on an isolated fixture with the same parent/nested-module contract as
-// tmp: a nested module that replaces the parent lets a scratch file import the
-// parent's internal package and run without an overlay from either the parent
-// root or the nested directory, and the scratch package stays outside the
-// parent's production ./... package set. No probe executable, overlay wrapper, or
-// second module mechanism is introduced.
+// tmp: a nested module that replaces the parent lets a scratch file in a row's
+// folder import the parent's internal package and run without an overlay from
+// either the parent root or the nested directory, and the scratch package stays
+// outside the parent's production ./... package set. No probe executable,
+// overlay wrapper, or second module mechanism is introduced.
 func TestScratchModuleWorkflow(t *testing.T) {
 	t.Parallel()
 	parent := t.TempDir()
@@ -37,11 +37,11 @@ func TestScratchModuleWorkflow(t *testing.T) {
 	write("go.mod", "module fixtureparent\n\ngo 1.26\n")
 	write("internal/probe/probe.go", "package probe\n\n// Marker proves the scratch file linked the parent's internal package.\nconst Marker = \""+marker+"\"\n")
 	write("tmp/go.mod", "module fixtureparent/tmp\n\ngo 1.26\n\nrequire fixtureparent v0.0.0\n\nreplace fixtureparent => ..\n")
-	write("tmp/scratch.go", "package main\n\nimport (\n\t\"fmt\"\n\n\t\"fixtureparent/internal/probe\"\n)\n\nfunc main() { fmt.Print(probe.Marker) }\n")
+	write("tmp/work/scratch.go", "package main\n\nimport (\n\t\"fmt\"\n\n\t\"fixtureparent/internal/probe\"\n)\n\nfunc main() { fmt.Print(probe.Marker) }\n")
 
 	for _, invocation := range []struct{ dir, file string }{
-		{parent, "./tmp/scratch.go"},
-		{filepath.Join(parent, "tmp"), "./scratch.go"},
+		{parent, "./tmp/work/scratch.go"},
+		{filepath.Join(parent, "tmp"), "./work/scratch.go"},
 	} {
 		out, err := commandOutput(invocation.dir, "go", "run", invocation.file)
 		if err != nil || !strings.Contains(string(out), marker) {

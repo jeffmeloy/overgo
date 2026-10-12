@@ -9,20 +9,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1641,
+        "nodes": 1027,
         "reason": "What the row may still add. Set on 2026-10-12, with plan -setcount, to the 1,641 nodes its steps tmp and docs were counted at once built and laid over the trunk's commit 9e18b0e46 together, by the count of syntax nodes the automated checks take. Step tmp, 614: cmd/loop/leftovers.go 4,110 to 4,711 and internal/repoanalysis/entry_authority.go 1,546 to 1,559. Step docs, 1,027: internal/plan/plan.go 2,271 to 2,641, internal/repoanalysis/tracked_documents.go 2,003 to 2,260, internal/repoanalysis/dead_references.go 581 (new), cmd/loophook/deadrefs.go 682 to 111, cmd/loophook/main.go 2,223 to 2,225, and cmd/loop/leftovers.go a further 388. The two together measure 18,710 to 20,351 over the ten files, the sum of the two. The row grows because each step adds a rule where a hand survey stood. The steps inventory and plan-edits used the 4,228 and the 888 the row carried before. The steps own-cleanup and enforce are counted the same way before they are committed."
       },
       "steps": [
-        {
-          "id": "tmp",
-          "title": "Tie every ./tmp entry to the row that made it, and clear the entries whose row is closed",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestTmpEntryBelongsToAnOpenRowOrIsFinished$'",
-          "rationale": "./tmp is git-ignored scratch with no owner recorded for anything in it. Counted on 2026-10-12: 1,313 entries; 457 Go helpers, 434 text files, 82 JSON, 63 JavaScript, 54 shell scripts, 50 Python files, 42 logs, 29 executables, 47 folders; 345 entries untouched for more than seven days. The owner's rule of 2026-10-06 already says executables go in bin, Python only in scripts/python_golden_references, run outputs under the data root, and ./tmp is for short-lived probes; nothing holds it.\n\nFirst measure: from commit messages and the lessons kept before 2026-10-11, list the ./tmp helpers that more than one row used (count_nodes, set_row_budget, add_step, insert_step, append_rationale, plan_restructure, publish_review and the like). That list decides the next sentence.\n\nA helper that recurs is an operator action without a command: move it into the command that owns its subject (most are plan edits, so cmd/plan) or delete it; do not keep a second tool set in scratch. After that a new entry lives under tmp/\u003crow id\u003e/, and the table's line for ./tmp calls it finished when its row is no longer in the plan. An entry outside a row's folder is reported as unowned. An executable or a Python file in ./tmp is reported as misplaced.\n\nThe entries there today have no maker recorded, so the first clearing is one review by the lead from the listing: promote what recurs, keep what an open row still uses, delete the rest through the door of step own-cleanup. Nothing is deleted by pattern. The owner's instruction of 2026-10-06 stands: do not delete what another session made and still uses.\n\nNo cached package test may walk ./tmp (it would become a cache input of that package): the check is the leftovers command on a fixture, and the real folder is read at close-out.\n\nServes: change.\nDisappears: about 1,300 unowned entries; hand-kept helper programs that duplicate cmd/plan; executables and Python outside their places.\nEvidence: the entry count before and after; the list of helpers promoted or deleted.\nBatch: host.",
-          "depends_on": [
-            "repo-hygiene/inventory"
-          ]
-        },
         {
           "id": "docs",
           "title": "Hold ./docs to what is read and current: superseded samples finished, cited paths real, doctrine scoped",

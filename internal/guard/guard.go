@@ -279,7 +279,7 @@ func ruleVerdict(command, root string) string {
 	}
 	if buildsCommandHere(stripped) {
 		return "go build of one command without -o writes its binary into the working directory; at the repository " +
-			"root that moves the root folder's time, and go test reruns every suite that stats it; build with -o tmp/<name>.exe"
+			"root that moves the root folder's time, and go test reruns every suite that stats it; build with -o bin/<name>.exe"
 	}
 	return ""
 }

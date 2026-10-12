@@ -8,9 +8,10 @@ import (
 
 // TestPlanHelpContract exercises the real plan binary through the same parser
 // execution uses: explicit help prints the purpose and the actual flags,
-// resolves the -add/-vcmd versus boolean -verify confusion, exits successfully
-// without touching a store or plan, and an unknown flag exits non-zero with
-// guidance.
+// resolves the -add/-vcmd versus boolean -verify confusion, says a scratch
+// probe lives in the folder named for the plan row that made it, exits
+// successfully without touching a store or plan, and an unknown flag exits
+// non-zero with guidance.
 func TestPlanHelpContract(t *testing.T) {
 	t.Parallel()
 	for _, arg := range []string{"-h", "-help"} {
@@ -19,7 +20,7 @@ func TestPlanHelpContract(t *testing.T) {
 			t.Fatalf("plan %s exited non-zero: %v\n%s", arg, err, out)
 		}
 		text := string(out)
-		for _, want := range []string{"plan:", "-add", "-vcmd", "-verify", "-stop"} {
+		for _, want := range []string{"plan:", "-add", "-vcmd", "-verify", "-stop", "scratch probes live in tmp/<row id>/", "go run ./tmp/<row id>/<file>.go"} {
 			if !strings.Contains(text, want) {
 				t.Fatalf("plan %s help missing %q in:\n%s", arg, want, text)
 			}

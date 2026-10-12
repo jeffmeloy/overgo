@@ -200,7 +200,8 @@ Repository shrinks while capability grows.
 
 - Go owns runtime, orchestration, tooling. No runtime cgo; no Python in the tree
   (goldens are data from the Python original). CUDA through the kernel manifest.
-  Scratch in `tmp/`, executables in `bin/`.
+  Scratch in `tmp/<row id>/`, the folder named for the plan row that made it;
+  executables in `bin/`.
 - The one place for Python is `scripts/python_golden_references/` (git-ignored):
   the scripts that produce a golden reference from the Python original. The gate
   and the Go code never run them. Each starts with a header naming what it

@@ -3,8 +3,23 @@ package guard
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 )
+
+// TestBuildAdviceNamesBin holds the guard's advice to the place an executable
+// belongs. A go build of one command with no output is refused, and the
+// refusal says to build into bin/ and never into the scratch folder, where
+// the leftovers listing reports an executable as misplaced.
+func TestBuildAdviceNamesBin(t *testing.T) {
+	t.Parallel()
+	call := ToolCall{ToolName: "Bash"}
+	call.ToolInput.Command = "go build ./cmd/plan"
+	message, _ := Verdict(call, t.TempDir())
+	if !strings.Contains(message, "-o bin/") || strings.Contains(message, "tmp/") {
+		t.Fatalf("a go build with no output is answered with %q, want a refusal that says to build with -o bin/ and names no tmp/", message)
+	}
+}
 
 // The corpus is the guard's non-vacuity check: every rule proves both a DENY
 // on the dangerous shape and an ALLOW on the neighbouring safe command. A

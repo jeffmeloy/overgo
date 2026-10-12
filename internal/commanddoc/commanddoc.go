@@ -26,7 +26,7 @@ var Plan = Descriptor{
 			"-add takes the step's verify command through -vcmd; boolean -verify runs the top open step's verify",
 			"one operation per invocation; committing and advancing a row belong to cmd/loop -land, not plan",
 			"help opens no store and mutates no plan",
-			"scratch probes live in tmp (module overgo/tmp, replace overgo => ..): run one with go run ./tmp/<file>.go from the repository root or go run ./<file>.go from tmp; they stay outside ./...",
+			"scratch probes live in tmp/<row id>/, the folder named for the plan row that made them (module overgo/tmp, replace overgo => ..): run one with go run ./tmp/<row id>/<file>.go from the repository root or go run ./<row id>/<file>.go from tmp; they stay outside ./...",
 		},
 	},
 	Classification: "both",

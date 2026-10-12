@@ -17,6 +17,7 @@ import (
 	"overgo/internal/guard"
 	"overgo/internal/landing"
 	"overgo/internal/overgodb"
+	"overgo/internal/plan"
 	"overgo/internal/processlock"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/testutil"
@@ -61,10 +62,6 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 	git := func(directory string, arguments ...string) string {
 		t.Helper()
 		return gitFixture(t, directory, arguments...)
-	}
-	// A link a recursive delete could follow: a symbolic link, or a junction where that needs a privilege.
-	link := func(target, name string) bool {
-		return os.Symlink(target, name) == nil || exec.Command("cmd", "/c", "mklink", "/J", name, target).Run() == nil
 	}
 	relative := func(path string) string {
 		t.Helper()
@@ -267,9 +264,9 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 	folder("temporary/other")
 	folder("cache")
 	write("outside/large.bin", "bytes behind a link")
-	linked := link(at("outside"), filepath.Join(folder("temporary/go-build4"), "b001")) &&
-		link(at("outside"), filepath.Join(folder("data/experiments/done/linked"), "out")) &&
-		link(at("outside"), at("data/scratch/out"))
+	linked := fixtureLink(at("outside"), filepath.Join(folder("temporary/go-build4"), "b001")) &&
+		fixtureLink(at("outside"), filepath.Join(folder("data/experiments/done/linked"), "out")) &&
+		fixtureLink(at("outside"), at("data/scratch/out"))
 	if !linked {
 		t.Log("this machine makes neither a symbolic link nor a junction, so nothing about links is held here")
 		for _, slash := range []string{"temporary/go-build4", "data/experiments/done/linked", "data/scratch/out"} {
@@ -379,8 +376,8 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 			"bin|repo/bin/slashed.exe|report|held",
 			"bin|repo/bin/loose.exe|report|finished",
 			"bin|repo/bin/two words.exe|report|unknown",
-			"tmp|repo/tmp/probe.go|report|unknown",
-			"tmp|repo/tmp/tool.exe|report|unknown",
+			"tmp|repo/tmp/probe.go|delete|unowned",
+			"tmp|repo/tmp/tool.exe|delete|misplaced",
 			"build|repo/build|report|unknown",
 			"release|repo/dist|report|unknown",
 			"python-place|repo/scripts/python_golden_references|never|kept",
@@ -451,7 +448,7 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 			{"helper-copy", "temporary/sessions/s1/scratchpad/dirty", "note.txt"},
 			{"stash", "stash@{0}", "kept work"},
 			{"store-backup", "backups/sealed", "sealed-backup"},
-			{"tmp", "repo/tmp/tool.exe", "an executable outside bin"},
+			{"tmp", "repo/tmp/tool.exe", "an executable belongs in bin/"},
 			{"temporary-build", "temporary/go-build2", "this command's own executable"},
 		} {
 			if entry := entryOf(t, found, named.place, named.slash); !strings.Contains(filepath.ToSlash(entry.rule), named.rule) {
@@ -635,5 +632,351 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 		if registered, err := landing.Worktrees(ctx, repo); err != nil || !slices.Equal(registered, registeredBefore) {
 			t.Fatalf("after the listings git registers %+v (%v), want the worktrees it registered before", registered, err)
 		}
+	})
+}
+
+// fixtureLink makes a link a recursive delete could follow, a symbolic link, or a junction where
+// that needs a privilege, and reports whether this machine made one.
+func fixtureLink(target, name string) bool {
+	return os.Symlink(target, name) == nil || exec.Command("cmd", "/c", "mklink", "/J", name, target).Run() == nil
+}
+
+// TestTmpEntryBelongsToAnOpenRowOrIsFinished builds, under a temporary directory, a repository whose
+// scratch folder holds one entry of each kind; the real scratch folder is never read. A folder named
+// for a row is held while either plan holds the row, the working plan or the plan of the trunk's
+// commit, in any letter case, and while a committed line or a store registration names it. It is
+// finished only when neither plan holds its row and a commit on the trunk's first-parent chain
+// landed a step of a row of exactly its name, in a trailer git itself reads as one. A landing on a
+// branch nobody merged, one a merge brought in, one named in a message's prose, one under another
+// trailer's key and one that names no step finish nothing: such a folder is unowned, as is a folder
+// that was never a row and a file outside a row's folder. An executable and a Python file are
+// misplaced, each with the place it belongs, and a folder's rule names those directly inside it.
+// The scratch module's two files are kept. What cannot be established is unknown and kept: every
+// folder when the working plan cannot be read, a landed folder when the store's registrations
+// cannot be read or the main worktree is on no branch, and a finished folder that holds a link.
+// Every entry's action is delete, an entry's bytes are measured, and no listing removes anything.
+func TestTmpEntryBelongsToAnOpenRowOrIsFinished(t *testing.T) {
+	t.Parallel()
+	// Git names a worktree by its resolved path, so the fixture's root is resolved the same way.
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := func(slash string) string { return filepath.Join(root, filepath.FromSlash(slash)) }
+	folder := func(slash string) string {
+		t.Helper()
+		if err := os.MkdirAll(at(slash), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		return at(slash)
+	}
+	write := func(slash, content string) {
+		t.Helper()
+		folder(filepath.ToSlash(filepath.Dir(filepath.FromSlash(slash))))
+		if err := os.WriteFile(at(slash), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	const trailer = plan.LandedRowTrailer + ": "
+	// land makes an empty commit whose message ends with the paragraphs given, and returns the commit.
+	land := func(repository string, paragraphs ...string) string {
+		t.Helper()
+		arguments := []string{"commit", "-q", "--allow-empty", "-m", "an empty landing"}
+		for _, paragraph := range paragraphs {
+			arguments = append(arguments, "-m", paragraph)
+		}
+		gitFixture(t, repository, arguments...)
+		return gitFixture(t, repository, "rev-parse", "HEAD")
+	}
+	// savePlan writes the working plan of a checkout: the rows named, each with one open step whose
+	// reasoning names a scratch folder, which holds nothing since the plan is a work record.
+	savePlan := func(checkout string, rows ...string) {
+		t.Helper()
+		document := plan.Plan{Campaign: "hygiene", Doctrine: "the plan of a fixture", Lane: "master-lead"}
+		for _, row := range rows {
+			document.Items = append(document.Items, plan.Item{ID: row, Title: "a row of the fixture", Status: plan.StatusOpen, Steps: []plan.Step{{
+				ID: "do", Title: "its one step", Status: plan.StatusOpen, Verify: "go version", Rationale: "its probes lie under tmp/landed-row/x",
+			}}})
+		}
+		if err := plan.Save(filepath.Join(checkout, filepath.FromSlash(plan.Path)), document); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// The trunk's checkout: a record and a source file that name scratch entries, the plan, and
+	// then the landings, each an empty commit.
+	repo := folder("repo")
+	gitFixture(t, repo, "init", "-q", "-b", "master")
+	gitFixture(t, repo, "config", "core.autocrlf", "false")
+	write("repo/.gitignore", "/tmp/\n")
+	write("repo/docs/verification/scratch-record.note", "overlay: tmp/cited-row/overlay.data\n")
+	// The second name has no boundary on its left, so it names nothing in the scratch folder.
+	write("repo/internal/x/x.go", "// Package x reads tmp/cited-file.go and mytmp/loose.go, and its probes build under tmp/go.mod.\npackage x\n")
+	savePlan(repo, "open-row", "reopened-row", "refiled-row", "Case-Row", "tip-row")
+	gitFixture(t, repo, "add", "-A")
+	gitFixture(t, repo, "commit", "-q", "-m", "base")
+	older := land(repo, trailer+"landed-row/first")
+	land(repo, trailer+"pair-a/do\n"+trailer+"pair-b/do")
+	for _, step := range []string{"cited-row/do", "reopened-row/first", "refiled-row/do", "case-row/do", "loud-row/do", "tip-row/first", "filed-row/do", "registered-row/do"} {
+		land(repo, trailer+step)
+	}
+	newest := land(repo, trailer+"landed-row/do")
+	land(repo, trailer+"prose-row/do", "The line above names a row in the prose of a message, and this paragraph ends it")
+	land(repo, "Reviewed-Row: reviewed-row/do")
+	land(repo, trailer+"stepless-row")
+	gitFixture(t, repo, "checkout", "-q", "-b", "lane/other")
+	land(repo, trailer+"lane-row/do")
+	gitFixture(t, repo, "checkout", "-q", "-b", "lane/merged", "master")
+	land(repo, trailer+"merged-row/do")
+	gitFixture(t, repo, "checkout", "-q", "master")
+	gitFixture(t, repo, "merge", "-q", "--no-ff", "-m", "merge the lane", "lane/merged")
+	// The working plan after the last commit, uncommitted: one row landed whole and left it, one was filed.
+	savePlan(repo, "open-row", "reopened-row", "refiled-row", "Case-Row", "filed-row")
+
+	folders := []string{
+		"open-row", "reopened-row", "refiled-row", "case-row", "tip-row", "filed-row", "cited-row", "registered-row", "outputs",
+		"landed-row", "pair-a", "pair-b", "LOUD-ROW", "lane-row", "merged-row", "prose-row", "reviewed-row", "stepless-row", "prep", "folder.exe",
+	}
+	for _, name := range folders {
+		folder("repo/tmp/" + name)
+	}
+	write("repo/tmp/open-row/probe.go", "package probe\n")
+	write("repo/tmp/open-row/built.exe", "built")
+	write("repo/tmp/open-row/packed.exe/inner.exe", "inner")
+	write("repo/tmp/prep/old.py", "print('old')\n")
+	write("repo/tmp/landed-row/probe.go", "package probe\n")
+	for _, name := range []string{"loose.go", "cited-file.go", "weights.bin", "tool.exe", "TOOL2.EXE", "script.py", "UPPER.PY", "go.mod", "go.sum"} {
+		write("repo/tmp/"+name, "a file of the fixture\n")
+	}
+	write("repo/tmp/notes.txt", "notes")
+	write("outside/large.bin", "bytes behind a link")
+
+	// A second repository whose main worktree is on no branch: nothing says what its trunk is.
+	second := folder("second")
+	gitFixture(t, second, "init", "-q", "-b", "master")
+	gitFixture(t, second, "config", "core.autocrlf", "false")
+	write("second/.gitignore", "/tmp/\n")
+	folder("second/docs")
+	savePlan(second, "open-row")
+	gitFixture(t, second, "add", "-A")
+	gitFixture(t, second, "commit", "-q", "-m", "base")
+	land(second, trailer+"landed-row/do")
+	gitFixture(t, second, "checkout", "-q", "--detach")
+	folder("second/tmp/open-row")
+	folder("second/tmp/landed-row")
+
+	// The store registers a location in a landed row's folder, one in a folder that was never a
+	// row's, a file of the scratch folder itself, and one that is no scratch entry's.
+	locations := []string{at("repo/tmp/registered-row/model.bin"), at("repo/tmp/outputs/run.bin"), at("repo/tmp/weights.bin"), at("data/elsewhere.bin")}
+	h := hygiene{
+		checkout: repo, data: folder("data"), sessions: folder("sessions"), temporary: folder("temporary"), cache: folder("cache"),
+		executable: at("temporary/loop.exe"),
+		stores:     func() ([]leftover, error) { return nil, nil },
+		registered: func() ([]string, error) { return locations, nil },
+		processes:  func() ([]string, error) { return nil, nil },
+	}
+
+	// scratch lists a checkout and returns the entries of its scratch folder by name, and their
+	// states as sorted lines. Every entry is a child of the folder, and its action is delete.
+	scratch := func(t *testing.T, h hygiene) (map[string]leftover, []string) {
+		t.Helper()
+		found, err := listLeftovers(h)
+		if err != nil {
+			t.Fatal(err)
+		}
+		entries, states := map[string]leftover{}, []string{}
+		for _, entry := range found {
+			if entry.place != "tmp" {
+				continue
+			}
+			name := filepath.Base(entry.path)
+			if entry.path != filepath.Join(h.checkout, "tmp", name) {
+				t.Errorf("the scratch entry %s is no child of the scratch folder of %s", entry.path, h.checkout)
+			}
+			if entry.action != "delete" {
+				t.Errorf("the scratch entry %s has the action %s, want delete", name, entry.action)
+			}
+			if strings.TrimSpace(entry.rule) == "" {
+				t.Errorf("the scratch entry %s is %s by no rule", name, entry.state)
+			}
+			entries[name] = entry
+			states = append(states, name+"|"+entry.state)
+		}
+		slices.Sort(states)
+		return entries, states
+	}
+	base := map[string]string{
+		"open-row": "held", "reopened-row": "held", "refiled-row": "held", "case-row": "held", "tip-row": "held", "filed-row": "held",
+		"cited-row": "held", "registered-row": "held", "outputs": "held",
+		"landed-row": "finished", "pair-a": "finished", "pair-b": "finished",
+		"LOUD-ROW": "unowned", "lane-row": "unowned", "merged-row": "unowned", "prose-row": "unowned", "reviewed-row": "unowned", "stepless-row": "unowned",
+		"prep": "unowned", "folder.exe": "unowned", "loose.go": "unowned", "notes.txt": "unowned",
+		"cited-file.go": "held", "weights.bin": "held",
+		"tool.exe": "misplaced", "TOOL2.EXE": "misplaced", "script.py": "misplaced", "UPPER.PY": "misplaced",
+		"go.mod": "kept", "go.sum": "kept",
+	}
+	// wanted is the states of the fixture's entries as sorted lines, with those given in place of the usual ones.
+	wanted := func(changed map[string]string) []string {
+		states := maps.Clone(base)
+		maps.Copy(states, changed)
+		lines := make([]string, 0, len(states))
+		for name, state := range states {
+			lines = append(lines, name+"|"+state)
+		}
+		slices.Sort(lines)
+		return lines
+	}
+	// named fails unless an entry has the state given and its rule carries the text given, with either slash.
+	named := func(t *testing.T, entries map[string]leftover, name, state, text string) {
+		t.Helper()
+		if entry := entries[name]; entry.state != state || !strings.Contains(filepath.ToSlash(entry.rule), filepath.ToSlash(text)) {
+			t.Errorf("%s is %s by the rule %q, want %s by a rule that names %q", name, entry.state, entry.rule, state, text)
+		}
+	}
+	snapshot := func(t *testing.T) map[string]int64 {
+		t.Helper()
+		seen := map[string]int64{}
+		if err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			seen[path] = -1
+			if entry.Type().IsRegular() {
+				info, err := entry.Info()
+				if err != nil {
+					return err
+				}
+				seen[path] = info.Size()
+			}
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+		for _, repository := range []string{repo, second} {
+			for _, arguments := range [][]string{{"log", "--all", "--format=%H"}, {"branch", "--list"}} {
+				seen[repository+" git "+strings.Join(arguments, " ")+"\n"+gitFixture(t, repository, arguments...)] = 0
+			}
+		}
+		return seen
+	}
+	before := snapshot(t)
+	// unchanged fails when a listing removed, added or resized anything in the fixture, or moved a commit or a branch.
+	unchanged := func(t *testing.T) {
+		t.Helper()
+		if after := snapshot(t); !maps.Equal(before, after) {
+			var moved []string
+			for path, size := range before {
+				if now, kept := after[path]; !kept || now != size {
+					moved = append(moved, fmt.Sprintf("%s was %d and is %d (still there: %v)", path, size, now, kept))
+				}
+			}
+			for path := range after {
+				if _, was := before[path]; !was {
+					moved = append(moved, path+" is new")
+				}
+			}
+			slices.Sort(moved)
+			t.Fatalf("the listing changed the fixture, and a listing removes and writes nothing:\n%s", strings.Join(moved, "\n"))
+		}
+	}
+
+	t.Run("every entry has the state its row gives it, by a rule that names what decided it", func(t *testing.T) {
+		entries, states := scratch(t, h)
+		if want := wanted(nil); !slices.Equal(states, want) {
+			t.Fatalf("the scratch entries are\n%s\nwant\n%s", strings.Join(states, "\n"), strings.Join(want, "\n"))
+		}
+		for _, entry := range []struct{ name, state, text string }{
+			{"open-row", "held", "built.exe"},
+			{"open-row", "held", "bin/"},
+			{"prep", "unowned", "old.py"},
+			{"prep", "unowned", "scripts/python_golden_references/"},
+			{"landed-row", "finished", newest[:12]},
+			{"cited-row", "held", "docs/verification/scratch-record.note:1"},
+			{"cited-file.go", "held", "internal/x/x.go:1"},
+			{"registered-row", "held", locations[0]},
+			{"outputs", "held", locations[1]},
+			{"weights.bin", "held", locations[2]},
+			{"script.py", "misplaced", "scripts/python_golden_references/"},
+			{"UPPER.PY", "misplaced", "scripts/python_golden_references/"},
+			{"tool.exe", "misplaced", "bin/"},
+			{"TOOL2.EXE", "misplaced", "bin/"},
+		} {
+			named(t, entries, entry.name, entry.state, entry.text)
+		}
+		// The check of what lies in a folder goes one level and names files, and the rule names the newest landing.
+		if rule := entries["open-row"].rule; strings.Contains(rule, "inner.exe") || strings.Contains(rule, "packed.exe") || strings.Contains(rule, "probe.go") {
+			t.Errorf("the rule of open-row is %q, and it names a file that is in its place, a directory, or a file that lies deeper than the folder", rule)
+		}
+		if rule := entries["landed-row"].rule; strings.Contains(rule, older[:12]) {
+			t.Errorf("the rule of landed-row is %q, and it names the older landing %s, not the newest", rule, older[:12])
+		}
+		if notes := entries["notes.txt"]; !notes.measured || notes.bytes != 5 {
+			t.Errorf("notes.txt measures %d bytes (measured %v), want its 5", notes.bytes, notes.measured)
+		}
+		unchanged(t)
+	})
+
+	t.Run("with the store's registrations unreadable a landed folder is unknown, and nothing reads as registered", func(t *testing.T) {
+		failing := h
+		failing.registered = func() ([]string, error) { return nil, errors.New("the store's registrations are unreadable") }
+		entries, states := scratch(t, failing)
+		want := wanted(map[string]string{"landed-row": "unknown", "pair-a": "unknown", "pair-b": "unknown", "registered-row": "unknown", "outputs": "unowned", "weights.bin": "unowned"})
+		if !slices.Equal(states, want) {
+			t.Fatalf("with the registrations unreadable the scratch entries are\n%s\nwant\n%s", strings.Join(states, "\n"), strings.Join(want, "\n"))
+		}
+		for _, name := range []string{"landed-row", "pair-a", "pair-b", "registered-row"} {
+			named(t, entries, name, "unknown", "the store's registrations are unreadable")
+		}
+		unchanged(t)
+	})
+
+	t.Run("with the main worktree on no branch a row's folder is held and a landed one is unknown", func(t *testing.T) {
+		detached := h
+		detached.checkout = second
+		entries, states := scratch(t, detached)
+		if want := []string{"landed-row|unknown", "open-row|held"}; !slices.Equal(states, want) {
+			t.Fatalf("with the main worktree detached the scratch entries are %q, want %q", states, want)
+		}
+		named(t, entries, "landed-row", "unknown", "on no branch")
+		unchanged(t)
+	})
+
+	t.Run("with the working plan unreadable every folder is unknown and every file keeps its state", func(t *testing.T) {
+		working := filepath.Join(repo, filepath.FromSlash(plan.Path))
+		saved, err := os.ReadFile(working)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(working, []byte("no plan\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		entries, states := scratch(t, h)
+		if err := os.WriteFile(working, saved, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		unreadable := map[string]string{}
+		for _, name := range folders {
+			unreadable[name] = "unknown"
+		}
+		if want := wanted(unreadable); !slices.Equal(states, want) {
+			t.Fatalf("with the working plan unreadable the scratch entries are\n%s\nwant\n%s", strings.Join(states, "\n"), strings.Join(want, "\n"))
+		}
+		for _, name := range folders {
+			named(t, entries, name, "unknown", working)
+		}
+		unchanged(t)
+	})
+
+	// Last, since it changes the fixture: a finished folder that holds a link is not finished.
+	t.Run("a finished folder that holds a link a recursive delete could follow is unknown", func(t *testing.T) {
+		if !fixtureLink(at("outside"), at("repo/tmp/pair-a/out")) {
+			t.Log("this machine makes neither a symbolic link nor a junction, so nothing about links is held here")
+			return
+		}
+		entries, states := scratch(t, h)
+		if want := wanted(map[string]string{"pair-a": "unknown"}); !slices.Equal(states, want) {
+			t.Fatalf("with a link in pair-a the scratch entries are\n%s\nwant\n%s", strings.Join(states, "\n"), strings.Join(want, "\n"))
+		}
+		named(t, entries, "pair-a", "unknown", "link")
 	})
 }

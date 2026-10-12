@@ -66,17 +66,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1044,
+        "nodes": 0,
         "reason": "What the row may still add. Set on 2026-10-12, with plan -setcount, to the 1,044 nodes its step own-cleanup-withdrawal was counted at once built, by the count of syntax nodes the automated checks take, each file against the deleting command it is built on, the trunk's commit 586ebc744: cmd/loop/leftovers.go 6,797 to 7,806, cmd/loop/main.go 2,356 to 2,390 and internal/guard/guard.go 1,589 to 1,590; the three measure 10,742 before and 11,786 after. The step's preparation estimated about 380; the builder's count, its repairer's and the lead's agree. The step grows because nothing in the tree withdrew a recorded location before: a model or checkpoint whose files were removed stayed registered for good. The earlier steps used the 4,228, 888, 1,641, 1,772 and 1,828 the row carried before. Step enforce is counted the same way before it is committed."
       },
       "steps": [
-        {
-          "id": "own-cleanup-withdrawal",
-          "title": "Withdraw the store's locations of a run's checkpoints, and only those, by a command that lists first",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestWithdrawalTakesOnlyARunsCheckpointRegistrations$'",
-          "rationale": "Added by the lead on 2026-10-12 from the preparation of step own-cleanup. The 12 checkpoints the instruction pilot wrote before step own-cleanup-experiments are registered in the installed store with a location for each file, so the listing reads their folder as held and the deleting command will not take it, and deleting the files by hand would leave the store naming files that are gone.\n\nOne command withdraws the store's locations of a run's checkpoints, and only those: for each folder under the directory named that holds a checkpoint document, the locations under that folder of the checkpoint, of what its lineage names, and of each model produced by it with that model's components. Every other location under the directory is listed as kept and not touched. It refuses the experiments folder itself, a directory outside it, a directory no committed record names, a worker's environment, and any withdrawal that would leave a component of a model with an active alias without a location. It lists first and writes only when given back the token of what it listed. The identities stay in the store without a location; a model prototype is never withdrawn by this, since only a run's own checkpoint folders are read.\n\nClosure: cmd/loop gains the withdrawal beside the deleting command, with its receipt lines. The lead then runs it once on the pilot's run folder, after a sealed backup of the store.\n\nServes: train: an experiment's weights can be removed without the store naming files that are gone.\nDisappears: the hold the store's registrations keep on the pilot's 80 GB.\nEvidence: the test; the receipt of the one real withdrawal.\nBatch: host; cmd/loop reaches no longer test run."
-        },
         {
           "id": "own-cleanup-census",
           "title": "Accept the store's census without the pilot's withdrawn checkpoints, then show the owner the experiments' weights to remove",

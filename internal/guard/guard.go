@@ -95,8 +95,9 @@ func SessionState(session string) string {
 // landing is a command that lands a change through the gate.
 var landing = regexp.MustCompile(`(?i)\./cmd/(?:loop\b[^\n;&|]*\s-land\b|gate\b)`)
 
-// removal is the command that removes leftovers; its listing alone removes nothing.
-var removal = regexp.MustCompile(`(?i)\./cmd/loop\b[^\n;&|]*\s--?delete\b`)
+// removal is the command that removes leftovers, or withdraws from the store
+// the locations of a run's checkpoints; its listing alone removes nothing.
+var removal = regexp.MustCompile(`(?i)\./cmd/loop\b[^\n;&|]*\s--?(?:delete|withdraw)\b`)
 
 // reviewVerdict refuses what a session that changes nothing here may not do,
 // and allows the rest. A session that declared itself a review session (its

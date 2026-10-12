@@ -311,6 +311,24 @@
       "rule": "land-transcript"
     },
     {
+      "name": "leftovers-withdraw-lists-what-it-would-withdraw",
+      "command": "go run ./cmd/loop -leftovers -withdraw overgo_data/experiments/instruction-pilot/run",
+      "expect": "ALLOW",
+      "rule": "land-transcript"
+    },
+    {
+      "name": "leftovers-withdraw-with-its-token",
+      "command": "go run ./cmd/loop -leftovers -withdraw overgo_data/experiments/instruction-pilot/run -confirm 0123456789abcdef",
+      "expect": "ALLOW",
+      "rule": "land-transcript"
+    },
+    {
+      "name": "leftovers-withdraw-output-kept-in-a-file",
+      "command": "go run ./cmd/loop -leftovers -withdraw overgo_data/experiments/instruction-pilot/run > withdrawn.txt",
+      "expect": "DENY",
+      "rule": "land-transcript"
+    },
+    {
       "name": "delete-under-experiments-is-gpu-hours",
       "command": "rm -r overgo_data/experiments/instruction-pilot/run",
       "expect": "DENY",

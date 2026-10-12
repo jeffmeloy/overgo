@@ -25,6 +25,11 @@
 //
 // lists the finished entries of one place with a token, and removes them when
 // it is given that token back.
+//
+//	go run ./cmd/loop -leftovers -withdraw <directory> [-confirm <token>]
+//
+// lists the locations the store registers for the checkpoints of one run with
+// a token, and withdraws them, and no file, when it is given that token back.
 package main
 
 import (
@@ -116,18 +121,19 @@ func run(args []string) error {
 	confirmPush := flags.Bool("confirm-push", false, "with -push: say the push is wanted")
 	leftovers := flags.Bool("leftovers", false, "list every place files accumulate (helper copies, worktrees, branches, stashes, experiment outputs, temporary folders, bin, tmp, store backups), one line an entry with its bytes and the rule that decided it, and every directory no line of the table names; writes the same listing to the trunk checkout's process state and removes nothing")
 	deletePlace := flags.String("delete", "", "with -leftovers: list the finished entries of one place whose finished entries are deleted (helper-copy, branch, experiment, temporary-build, tmp), each with its bytes and its rule, and print a token; removes nothing without -confirm, and is refused from a worker's environment for the owner's data, the places experiment and branch")
-	confirmToken := flags.String("confirm", "", "with -leftovers -delete: the token the listing printed; removes exactly the entries that listing showed, a line each, appended to a receipt in the trunk checkout's process state, and is refused when the place no longer lists the same")
+	withdrawRun := flags.String("withdraw", "", "with -leftovers: list the locations the store registers for the checkpoints in one run's output directory, which lies in the experiments folder and is named itself by a committed record, and print a token; withdraws nothing without -confirm, never a location of a model no checkpoint of the run produced, and nothing when a served model or such a model would be left a component with no location; the owner's data, so refused from a worker's environment")
+	confirmToken := flags.String("confirm", "", "with -leftovers -delete or -withdraw: the token the listing printed; removes or withdraws exactly the entries that listing showed, a line each, appended to a receipt in the trunk checkout's process state, and is refused when the listing is no longer the same")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	if err := removalFlags(*leftovers, *deletePlace, *confirmToken); err != nil {
+	if err := removalFlags(*leftovers, *deletePlace, *withdrawRun, *confirmToken); err != nil {
 		return err
 	}
 	if *landReference != "" {
 		return landCommand(*landReference, *landMessage, os.Stdin, os.Stdout)
 	}
 	if *leftovers {
-		return leftoversFor(*repoPath, *deletePlace, *confirmToken, os.Getenv(plan.AutomationWorkerEnvironment) != "", os.Stdout)
+		return leftoversFor(*repoPath, *deletePlace, *withdrawRun, *confirmToken, os.Getenv(plan.AutomationWorkerEnvironment) != "", os.Stdout)
 	}
 	resolved, err := dataroot.StoreRoot(*repoPath)
 	if err != nil {
@@ -228,11 +234,13 @@ func run(args []string) error {
 }
 
 // removalFlags refuses the flags of a removal where they do not belong: a
-// place goes with -leftovers and a token with a place, so a flag mistyped or
-// left out never turns a removal into another command, or a listing into one.
-func removalFlags(leftovers bool, place, token string) error {
-	if place != "" && !leftovers || token != "" && place == "" {
-		return errors.New("usage: loop -leftovers -delete <place> [-confirm <token>]")
+// place to delete from, or a run's directory to withdraw, goes with
+// -leftovers, a token with one of the two, and the two never together, so a
+// flag mistyped or left out never turns a removal into another command, or a
+// listing into one.
+func removalFlags(leftovers bool, place, directory, token string) error {
+	if named := place + directory; named != "" && !leftovers || token != "" && named == "" || place != "" && directory != "" {
+		return errors.New("usage: loop -leftovers (-delete <place> | -withdraw <directory>) [-confirm <token>]")
 	}
 	return nil
 }

@@ -26,6 +26,7 @@ import (
 	"overgo/internal/gitauthority"
 	"overgo/internal/guard"
 	"overgo/internal/landing"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/pathidentity"
 	"overgo/internal/plan"
@@ -33,6 +34,7 @@ import (
 	"overgo/internal/protection"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/scorecard"
+	"overgo/internal/trainingprogram"
 )
 
 // A listing gives every entry a state: finished; held, when something it
@@ -57,7 +59,8 @@ const (
 	// bound; it is the page cmd/overgodb's own walk of the catalog defaults to.
 	registrationPage = 1000
 	// pathRunes are the characters a path written in a line of text continues through, in lower case.
-	pathRunes = "abcdefghijklmnopqrstuvwxyz0123456789_-./"
+	// runEnd closes a run for cited: only the end of a run names a path given with runEnd after it.
+	pathRunes, runEnd = "abcdefghijklmnopqrstuvwxyz0123456789_-./", "/\x00/"
 	// noAnswer is the exit status with which git says no: a commit is not an ancestor, no line matches.
 	noAnswer = toolExit(1)
 	// removalReceipt is the file, in the process state of the trunk's checkout, that every removal
@@ -66,6 +69,9 @@ const (
 	removalReceipt, removalLock = receiptPrefix + "removed.txt", receiptPrefix + "removal.lock"
 	// tokenDigits is how many hex digits of the digest of a listing's finished entries its token shows.
 	tokenDigits = 16
+	// withdrawalKey opens the key of a withdrawal's one commit, which ends with the head of the
+	// store it was made at: no two withdrawals share a key, so none is taken for another's repeat.
+	withdrawalKey = "loop/leftovers/withdrawn/"
 	// gateLock is the lock a commit holds in the process state of the checkout it runs in (internal/authoritylock).
 	gateLock = "gate.lock"
 	// commitRecord is the record of its waits that every run of a commit's checks adds to as it
@@ -107,19 +113,20 @@ type leftover struct {
 
 // hygiene is where a listing reads the machine, so a test supplies each fact:
 // the trunk's checkout, the checkout this command runs in, the directory that
-// holds the store, the harness's folder of this checkout's sessions, the
-// temporary directory, the go build cache, this command's own executable, and
-// the directories the data-root contract and the scorecards name. stores is
+// holds the store, the store itself, which only a withdrawal opens, the
+// harness's folder of this checkout's sessions, the temporary directory, the
+// go build cache, this command's own executable, and the directories the
+// data-root contract and the scorecards name. stores is
 // what overgodb precheck -leftovers lists; registered, the file and directory
 // locations the store registers; processes, the go commands and test binaries
 // that run, but for this command's parent. removeTree is how a removal takes
 // a directory away, which a test replaces with one that fails.
 type hygiene struct {
-	checkout, running, data, sessions, temporary, cache, executable string
-	kept                                                            []string
-	stores                                                          func() ([]leftover, error)
-	registered, processes                                           func() ([]string, error)
-	removeTree                                                      func(path string) error
+	checkout, running, data, store, sessions, temporary, cache, executable string
+	kept                                                                   []string
+	stores                                                                 func() ([]leftover, error)
+	registered, processes                                                  func() ([]string, error)
+	removeTree                                                             func(path string) error
 }
 
 // facts is the fact source with what one listing reads once: git's registered
@@ -501,7 +508,12 @@ func cited(lines []string, base, path string) string {
 		number, text, _ := strings.Cut(rest, "\x00")
 		text = strings.ToLower(strings.ReplaceAll(text, `\`, "/"))
 		for run := range strings.FieldsFuncSeq(text, func(r rune) bool { return !strings.ContainsRune(pathRunes, r) }) {
-			if strings.Contains("/"+strings.TrimRight(run, ".")+"/", inside) {
+			// The run is closed with runEnd: a slash, a character no path holds, and a slash. A path
+			// holds no such character, so it matches only in the run and the first of those slashes:
+			// the run names it wherever the run carries it. A path given with runEnd after it matches
+			// only where the run ends: a run that ends with it names it, and a run that goes on
+			// beneath it does not.
+			if strings.Contains("/"+strings.TrimRight(run, ".")+runEnd, inside) {
 				return document + ":" + number + " names it"
 			}
 		}
@@ -957,16 +969,26 @@ func decodeStoreLeftovers(printed []byte) (found []leftover, err error) {
 	return found, nil
 }
 
-// storeLocations reads the locations on this machine, a file's and a
-// directory's, that the store at root registers, a page of its catalog at a
-// time, through a read-only open.
+// storeLocations reads the paths of the locations on this machine that the
+// store at root registers, through a read-only open.
 func storeLocations(root string, page int) ([]string, error) {
 	store, err := overgodb.OpenReadOnly(root)
 	if err != nil {
 		return nil, err
 	}
 	defer store.Close()
+	located, err := localLocations(store, page)
 	var values []string
+	for _, location := range located {
+		values = append(values, location.Value)
+	}
+	return values, err
+}
+
+// localLocations reads the locations on this machine, a file's and a
+// directory's, that an open store registers, each with its artifact, a page
+// of the store's catalog at a time.
+func localLocations(store *overgodb.Store, page int) (located []artifact.Location, err error) {
 	query, ctx := overgodb.Query{Projection: overgodb.ProjectArtifacts, MaxResults: page}, context.Background()
 	for {
 		result, err := store.Query(ctx, query)
@@ -980,12 +1002,12 @@ func storeLocations(root string, page int) ([]string, error) {
 			}
 			for _, location := range locations {
 				if location.Kind != artifact.LocationRemote {
-					values = append(values, location.Value)
+					located = append(located, location)
 				}
 			}
 		}
 		if query.Cursor = result.Next; query.Cursor == nil {
-			return values, nil
+			return located, nil
 		}
 	}
 }
@@ -1108,12 +1130,13 @@ func (h hygiene) removing() (*processlock.Lock, error) {
 
 // removeFinished removes each finished entry of a listing of one line, by
 // that line's remover, and writes a line for each to output and to the
-// receipt in the process state of the trunk's checkout: removed, or left with
+// receipt in the process state of the trunk's checkout: the word given for
+// what was done, removed or withdrawn, or left with
 // the failure, or part-removed when the failure came after the entry left its
 // path, so that no line says an entry stands that does not: its directory is
 // gone, or stands under the other name the failure gives. A failure goes on
 // to the next entry; the failures are returned together.
-func (h hygiene) removeFinished(remove func(h hygiene, path string) error, found []leftover, output io.Writer) error {
+func (h hygiene) removeFinished(remove func(h hygiene, path string) error, done string, found []leftover, output io.Writer) error {
 	receipt, err := os.OpenFile(filepath.Join(h.checkout, processlock.StateDirectory, removalReceipt), os.O_APPEND|os.O_CREATE|os.O_WRONLY, clioptions.PrivateFileMode)
 	if err != nil {
 		return err
@@ -1122,7 +1145,7 @@ func (h hygiene) removeFinished(remove func(h hygiene, path string) error, found
 		if entry.state != stateFinished {
 			continue
 		}
-		did := entry.said("removed", entry.rule)
+		did := entry.said(done, entry.rule)
 		if failure := remove(h, entry.path); failure != nil {
 			verb := "left"
 			if _, gone := os.Lstat(entry.path); filepath.IsAbs(entry.path) && errors.Is(gone, fs.ErrNotExist) {
@@ -1167,6 +1190,21 @@ func deleteLeftovers(h hygiene, name, token string, worker bool, output io.Write
 	if err != nil {
 		return err
 	}
+	if agreed, err := confirmed(found, token, "remove", "removed", "the place "+name, output); !agreed {
+		return err
+	}
+	return h.removeFinished(leftoverPlaces[at].remove, "removed", found, output)
+}
+
+// confirmed is the half of a removal that removes nothing, which the deleting
+// and the withdrawing command share. With no token it prints the listing, a
+// line for each finished entry under the verb it would be taken by and a line
+// with its state and rule for every other, and then the listing's token. With
+// a token that is this listing's it prints only the lines of what is kept and
+// reports that the caller may go on, to write a line for each entry it takes;
+// a token that is not is refused, naming what holds the entries listed. The
+// verb is given as it is asked and as done.
+func confirmed(found []leftover, token, verb, done, holder string, output io.Writer) (bool, error) {
 	var listing strings.Builder
 	digest, finished := sha256.New(), 0
 	for _, entry := range found {
@@ -1177,30 +1215,178 @@ func deleteLeftovers(h hygiene, name, token string, worker bool, output io.Write
 		finished++
 		fmt.Fprintf(digest, "%s\x00%d\x00%s\x00", entry.path, entry.bytes, entry.rule)
 		if token == "" {
-			listing.WriteString(entry.said("would-remove", entry.rule))
+			listing.WriteString(entry.said("would-"+verb, entry.rule))
 		}
 	}
 	shown := hex.EncodeToString(digest.Sum(nil))[:tokenDigits]
 	switch {
 	case token == "":
-		_, err = fmt.Fprintf(output, "%sloop: nothing was removed; to remove the %d entries marked would-remove, run this again with -confirm %s\n", listing.String(), finished, shown)
-		return err
+		_, err := fmt.Fprintf(output, "%sloop: nothing was %s; to %s the %d entries marked would-%s, run this again with -confirm %s\n", listing.String(), done, verb, finished, verb, shown)
+		return false, err
 	case token != shown:
-		return fmt.Errorf("-confirm %s is not the token of what the place %s holds now: list it again, and confirm what that listing shows", token, name)
+		return false, fmt.Errorf("-confirm %s is not the token of what %s holds now: list it again, and confirm what that listing shows", token, holder)
 	}
-	if _, err := io.WriteString(output, listing.String()); err != nil {
+	_, err := io.WriteString(output, listing.String())
+	return err == nil, err
+}
+
+// withdrawRegistrations is the one command that withdraws from the store the
+// locations of a run's checkpoints, so that the run's directory, once its
+// record is committed, reads finished and the deleting command can take it.
+// It is the deleting command's sibling: it lists under the removal lock,
+// prints a token, changes nothing until it is given that token back, writes
+// its lines to the same receipt, and is refused from a worker's environment,
+// since a run's registrations are the owner's data. Only locations are
+// withdrawn: every identity and every edge stays in the store, and no file
+// is touched.
+//
+// The directory is a run's output: inside the experiments folder, and named
+// itself by a committed record. For each folder in it that holds a checkpoint
+// document, the locations withdrawn are those the store registers under that
+// folder for the checkpoint, for its weights and their parts, for the
+// momentum its resume document holds, and for each model the store says the
+// checkpoint produced, with that model's components. Every other location
+// under the directory is listed as kept and not touched: a model registered
+// from a file there that no checkpoint of the run produced is a prototype,
+// which is never withdrawn, whatever serves it, uses it or was made from it.
+//
+// A component other models also hold loses only its location in the
+// checkpoint's folder. When that would leave it no location on this machine,
+// the whole withdrawal is refused if one of those models is served, by an
+// active alias, or is one no checkpoint of the run produced: whether a model
+// is served is read only to refuse, never as grounds to withdraw.
+func withdrawRegistrations(h hygiene, directory, token string, worker bool, output io.Writer) error {
+	f := &facts{hygiene: h}
+	line := leftoverPlaces[slices.IndexFunc(leftoverPlaces, func(line place) bool { return line.name == "experiment" })]
+	directory, err := filepath.Abs(directory)
+	lines, citeErr := f.citations(line, "docs")
+	switch experiments := f.directory(line); {
+	case worker:
+		return errors.New("the loop and its workers never remove the owner's data: the owner or the lead runs -withdraw")
+	case err != nil || citeErr != nil:
+		return errors.Join(err, citeErr)
+	case !under(experiments, directory) || under(directory, experiments):
+		return fmt.Errorf("-withdraw names the output directory of a run, inside %s, and %s is not inside it", experiments, directory)
+	// The record names the directory itself. A line that names only something beneath it does not
+	// count: a record of one run names its experiment's folder that way, and that folder would
+	// stand for every run in it, one no record names among them, whose weights the deleting
+	// command takes once nothing registers them, because it asks only that the experiment be named.
+	case cited(lines, h.data, directory+runEnd) == "":
+		return fmt.Errorf("no committed record names %s, so nothing says the record of its run is kept: nothing is withdrawn", directory)
+	}
+	lock, err := h.removing()
+	if err != nil {
 		return err
 	}
-	return h.removeFinished(leftoverPlaces[at].remove, found, output)
+	defer lock.Close()
+	// The store is opened for writing only to withdraw. An open store reads as it was when it was
+	// opened, and the one commit is held to that head: a store another process has changed since
+	// the listing was read refuses it, and is listed again.
+	open := overgodb.OpenReadOnly
+	if token != "" {
+		open = overgodb.Open
+	}
+	store, err := open(h.store)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	// owned names, for each artifact a checkpoint of the run accounts for, the folders of those checkpoints.
+	ctx, owned := context.Background(), map[artifact.ID][]string{}
+	err = filepath.WalkDir(directory, func(path string, item fs.DirEntry, err error) error {
+		if err != nil || item.Name() != trainingprogram.CheckpointFilename {
+			return err
+		}
+		document, err := os.ReadFile(path)
+		checkpoint, parseErr := trainingprogram.ParseCheckpoint(document)
+		if err = errors.Join(err, parseErr); err != nil {
+			return fmt.Errorf("%s: %w", path, err)
+		}
+		members := []artifact.ID{checkpoint.ID(), checkpoint.Weights}
+		sidecar, err := store.Parents(ctx, checkpoint.Resume)
+		for _, edge := range sidecar {
+			if edge.Relation == artifact.RelationContains {
+				members = append(members, edge.Parent)
+			}
+		}
+		produced, producedErr := store.Children(ctx, checkpoint.ID())
+		for _, edge := range produced {
+			if edge.Relation == artifact.RelationProducedBy && edge.Child.Kind() == artifact.KindModel {
+				members = append(members, edge.Child)
+			}
+		}
+		err = errors.Join(err, producedErr)
+		// The range reads the members as they stood when it began: a component that a manifest
+		// adds is accounted for, and is not itself read for a manifest.
+		for _, member := range members {
+			manifest, _, manifestErr := store.Manifest(ctx, member)
+			err = errors.Join(err, manifestErr)
+			for _, component := range manifest.Components {
+				members = append(members, component.Artifact)
+			}
+		}
+		for _, member := range members {
+			owned[member] = append(owned[member], filepath.Dir(path))
+		}
+		return err
+	})
+	located, locatedErr := localLocations(store, registrationPage)
+	if err = errors.Join(err, locatedErr); err != nil {
+		return err
+	}
+	var found []leftover
+	var withdrawn []artifact.LocationEvent
+	// staying counts, for each artifact, the locations on this machine the withdrawal leaves it.
+	staying := map[artifact.ID]int{}
+	for _, location := range located {
+		entry := leftover{place: line.name, path: location.Value, state: stateKept, rule: "not a run's checkpoint: a location of " + location.Artifact.String()}
+		if slices.ContainsFunc(owned[location.Artifact], func(folder string) bool { return under(folder, location.Value) }) {
+			entry.state, entry.rule = stateFinished, "a location of "+location.Artifact.String()+", which a checkpoint in the folder accounts for"
+			withdrawn = append(withdrawn, artifact.LocationEvent{Location: location, Action: artifact.LocationRemove})
+		} else if staying[location.Artifact]++; !under(directory, location.Value) {
+			continue
+		}
+		found = append(found, entry)
+	}
+	// served holds each model an active alias names; an alias that is no activation names none,
+	// and marks only the identity no model has.
+	served := map[artifact.ID]bool{}
+	err = store.VisitAliases(ctx, "", func(alias overgodb.AliasView) error {
+		model, _, _ := modelrecipe.ParseActiveAlias(alias.Name)
+		served[model] = true
+		return nil
+	})
+	for _, event := range withdrawn {
+		holders, holdersErr := store.Children(ctx, event.Artifact)
+		err = errors.Join(err, holdersErr)
+		for _, edge := range holders {
+			if model := edge.Child; staying[event.Artifact] == 0 && edge.Relation == artifact.RelationContains && model.Kind() == artifact.KindModel && (served[model] || owned[model] == nil) {
+				err = errors.Join(err, fmt.Errorf("the model %s is served, or is one no checkpoint of this run produced, and the withdrawal would leave its component %s no location on this machine: nothing is withdrawn", model, event.Artifact))
+			}
+		}
+	}
+	if err != nil {
+		return err
+	}
+	if agreed, err := confirmed(found, token, "withdraw", "withdrawn", "the store under "+directory, output); !agreed || len(withdrawn) == 0 {
+		return err
+	}
+	head, _ := store.Head()
+	if _, err := store.Commit(ctx, artifact.Batch{Key: withdrawalKey + head.String(), ExpectedHead: &head, Locations: withdrawn}); err != nil {
+		return err
+	}
+	// The one commit withdrew every location, so what is left for each is its line.
+	return h.removeFinished(func(hygiene, string) error { return nil }, "withdrawn", found, output)
 }
 
 // leftoversFor lists the leftovers of the repository the current directory
 // is a worktree of, against the real machine, or, named a place, removes that
-// place's finished entries as deleteLeftovers does. The checkout is the
-// trunk's, which git lists first, so a listing, a removal and their receipts
-// are the same from any worktree; the store is the one named, or the one the
-// data-root contract gives that checkout.
-func leftoversFor(store, deleting, token string, worker bool, output io.Writer) error {
+// place's finished entries as deleteLeftovers does, or, named a run's
+// directory, withdraws its checkpoints' locations as withdrawRegistrations
+// does. The checkout is the trunk's, which git lists first, so a listing, a
+// removal and their receipts are the same from any worktree; the store is
+// the one named, or the one the data-root contract gives that checkout.
+func leftoversFor(store, deleting, withdrawing, token string, worker bool, output io.Writer) error {
 	trees, err := landing.Worktrees(context.Background(), loopWorktree)
 	running, absErr := filepath.Abs(loopWorktree)
 	if err = errors.Join(err, absErr); err != nil {
@@ -1221,7 +1407,7 @@ func leftoversFor(store, deleting, token string, worker bool, output io.Writer) 
 	if err != nil {
 		return err
 	}
-	h.data, h.cache = filepath.Dir(roots.Store), strings.TrimSpace(cache)
+	h.store, h.data, h.cache = roots.Store, filepath.Dir(roots.Store), strings.TrimSpace(cache)
 	h.sessions = filepath.Join(os.TempDir(), "claude", sessionFolderName.Replace(h.checkout))
 	h.kept = []string{roots.Store, roots.Models, roots.StoreModels, roots.Datasets, roots.Checkpoints, roots.AudioReference, roots.References(), roots.Libraries(), scorecard.Directory(roots.Store)}
 	h.stores = func() ([]leftover, error) {
@@ -1239,8 +1425,11 @@ func leftoversFor(store, deleting, token string, worker bool, output io.Writer) 
 		}
 		return goProcesses(listed, os.Getppid())
 	}
-	if deleting != "" {
+	switch {
+	case deleting != "":
 		return deleteLeftovers(h, deleting, token, worker, output)
+	case withdrawing != "":
+		return withdrawRegistrations(h, withdrawing, token, worker, output)
 	}
 	return leftoversCommand(h, output)
 }

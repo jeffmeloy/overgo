@@ -11,7 +11,9 @@ import (
 )
 
 // TestReviewSessionRemovesNothing holds the guard to who may run the one
-// command that removes leftovers. A review session, and a session in a
+// command that removes leftovers, in its form that deletes a place's finished
+// entries and in its form that withdraws from the store the locations of a
+// run's checkpoints. A review session, and a session in a
 // worktree another session holds, are refused it, with a confirming token and
 // without: neither has anything of its own here to remove. An ordinary
 // session, and a harness that names none, are allowed it, since the command
@@ -45,6 +47,9 @@ func TestReviewSessionRemovesNothing(t *testing.T) {
 		"go run ./cmd/loop -leftovers -delete experiment",
 		"go run ./cmd/loop -leftovers -delete experiment -confirm 0123456789abcdef",
 		"go run ./cmd/loop -leftovers --delete=helper-copy",
+		"go run ./cmd/loop -leftovers -withdraw C:/data/experiments/pilot/run",
+		"go run ./cmd/loop -leftovers -withdraw C:/data/experiments/pilot/run -confirm 0123456789abcdef",
+		`go run ./cmd/loop -leftovers --withdraw=C:\data\experiments\pilot\run`,
 	} {
 		for _, refused := range []string{"reviewer", "second"} {
 			if message := call(refused, command); !strings.Contains(message, "removes nothing here") {

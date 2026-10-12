@@ -215,6 +215,7 @@ Repository shrinks while capability grows.
   again with `-confirm <token>`. Experiments and branches are the owner's data: never from
   a worker or a review session. A commit removes nothing: a finished helper copy goes
   by `-delete helper-copy` and its token, since a clean build checkout may be in use.
+  `-leftovers -withdraw <run>` withdraws, by its token, the store's locations of that run's checkpoints alone.
 - Port through typed contracts and recipe-selected consumers. llama.cpp for pinned
   behavior; `adaptive_new` read-only. Keep commits, licenses, artifact identities.
   Model-family facts live in artifacts and recipes, never model-specific code.

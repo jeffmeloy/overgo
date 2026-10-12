@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"cmp"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
 	"maps"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -20,12 +22,17 @@ import (
 	"overgo/internal/authoritylock"
 	"overgo/internal/fsatomic"
 	"overgo/internal/guard"
+	"overgo/internal/hostoptimizer"
 	"overgo/internal/landing"
+	"overgo/internal/modelrecipe"
+	"overgo/internal/optimizer"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/processlock"
+	"overgo/internal/recipe"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/testutil"
+	"overgo/internal/trainingprogram"
 )
 
 // TestLeftoversListsEveryDeclaredPlaceWithItsRule builds, under a temporary directory, a repository
@@ -1144,7 +1151,14 @@ const removalState = "repo/" + processlock.StateDirectory
 func removalRun(h hygiene, place, token string, worker bool) (lines [][]string, shown string, err error) {
 	var output bytes.Buffer
 	err = deleteLeftovers(h, place, token, worker, &output)
-	for line := range strings.Lines(output.String()) {
+	lines, shown = removalLines(output.String())
+	return lines, shown, err
+}
+
+// removalLines splits what a removing or a withdrawing command printed into its lines, each split
+// into its fields, and the token its last line carries when the command only listed.
+func removalLines(printed string) (lines [][]string, shown string) {
+	for line := range strings.Lines(printed) {
 		if said, found := strings.CutPrefix(line, "loop: "); found {
 			words := strings.Fields(said)
 			shown = words[len(words)-1]
@@ -1152,7 +1166,7 @@ func removalRun(h hygiene, place, token string, worker bool) (lines [][]string, 
 		}
 		lines = append(lines, strings.Split(strings.TrimSuffix(line, "\n"), "\t"))
 	}
-	return lines, shown, err
+	return lines, shown
 }
 
 // verbs is a run's lines as sorted "verb path" pairs, a path by its slash path from the root.
@@ -1630,7 +1644,7 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 			{true, "", "", false}, {true, "experiment", "", false}, {true, "experiment", "0123456789abcdef", false}, {false, "", "", false},
 			{false, "experiment", "", true}, {false, "experiment", "0123456789abcdef", true}, {true, "", "0123456789abcdef", true}, {false, "", "0123456789abcdef", true},
 		} {
-			if err := removalFlags(flags.leftovers, flags.place, flags.token); (err != nil) != flags.refused {
+			if err := removalFlags(flags.leftovers, flags.place, "", flags.token); (err != nil) != flags.refused {
 				t.Errorf("the flags %+v are answered %v, want refused: %v", flags, err, flags.refused)
 			}
 		}
@@ -2027,6 +2041,667 @@ func TestHelperCopyIsRemovedOnceItsCommitIsOnTheTrunk(t *testing.T) {
 		}
 		if differences := moved(before, s.seen(), append(taken, removalState)...); len(differences) != 0 {
 			t.Fatalf("the runs after the removal moved:\n%s", strings.Join(differences, "\n"))
+		}
+	})
+}
+
+// recorded is one checkpoint a fixture's run recorded in its store: its folder, as a slash path
+// from the sandbox's root, its identity and its resume document's, the model registered as
+// produced by it, and that model's two shards: the one only it has, and the one whose bytes the
+// fixture chose.
+type recorded struct {
+	slash                                  string
+	checkpoint, resume, model, own, shared artifact.ID
+}
+
+// files are the paths the store registers for a recorded checkpoint, as slash paths from the
+// sandbox's root: the checkpoint's folder twice, once for the checkpoint and once for its model,
+// then its weights, its momentum and the model's two shards.
+func (r recorded) files() []string {
+	return []string{r.slash, r.slash, r.slash + "/" + trainingprogram.CheckpointWeights, r.slash + "/momentum.bin", r.slash + "/model-00001-of-00002.gguf", r.slash + "/model-00002-of-00002.gguf"}
+}
+
+// written is a writer that hands each write to a function, so that a test can act at the moment a
+// command prints.
+type written func(line []byte) (int, error)
+
+func (w written) Write(line []byte) (int, error) { return w(line) }
+
+// commit commits one batch of a fixture to its store.
+func (s sandbox) commit(store *overgodb.Store, batch artifact.Batch) {
+	s.t.Helper()
+	if _, err := store.Commit(s.t.Context(), batch); err != nil {
+		s.t.Fatalf("the batch %s: %v", batch.Key, err)
+	}
+}
+
+// location registers a file or a directory of the sandbox for an artifact, spelled as a run spells
+// the locations it records.
+func (s sandbox) location(id artifact.ID, kind artifact.LocationKind, slash string) artifact.LocationEvent {
+	s.t.Helper()
+	location, err := artifact.CanonicalLocalLocation(id, kind, s.at(slash))
+	if err != nil {
+		s.t.Fatal(err)
+	}
+	return artifact.LocationEvent{Location: location, Action: artifact.LocationAdd}
+}
+
+// registerModel registers a model whose components are the files given, a shard each: every file
+// with its location and the model with the directory of its first file, as the intake of a model
+// registers one. A model a checkpoint produced names that checkpoint, as a run's trained model does.
+func (s sandbox) registerModel(store *overgodb.Store, name string, producedBy artifact.ID, files ...string) artifact.ID {
+	s.t.Helper()
+	batch := artifact.Batch{Key: "withdrawal-fixture/model/" + name}
+	var components []artifact.Component
+	for index, slash := range files {
+		data, err := os.ReadFile(s.at(slash))
+		if err != nil {
+			s.t.Fatal(err)
+		}
+		shard := testutil.ArtifactBytesID(s.t, artifact.KindTensorSet, data)
+		components = append(components, artifact.Component{Role: artifact.ComponentWeightsShard, Ordinal: uint32(index), Name: fmt.Sprintf("weights-%d", index), Artifact: shard})
+		batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: shard, Size: uint64(len(data))})
+		batch.Locations = append(batch.Locations, s.location(shard, artifact.LocationFile, slash))
+	}
+	manifest, err := artifact.NewManifest(artifact.KindModel, components)
+	if err != nil {
+		s.t.Fatal(err)
+	}
+	batch.Manifests = []artifact.Manifest{manifest}
+	batch.Locations = append(batch.Locations, s.location(manifest.ID, artifact.LocationDirectory, path.Dir(files[0])))
+	if producedBy.Valid() {
+		batch.Lineage = []artifact.Lineage{{Child: manifest.ID, Parent: producedBy, Relation: artifact.RelationProducedBy}}
+	}
+	s.commit(store, batch)
+	return manifest.ID
+}
+
+// activate gives a model an active alias, as an activation does: the alias of the model and a
+// task, bound to the recipe that serves it.
+func (s sandbox) activate(store *overgodb.Store, model artifact.ID) {
+	s.t.Helper()
+	served := testutil.ArtifactID(s.t, artifact.KindRecipe, "the recipe that serves "+model.String())
+	s.commit(store, artifact.Batch{
+		Key: "withdrawal-fixture/active/" + model.String(), Artifacts: []artifact.Descriptor{{ID: served}},
+		Aliases: []artifact.AliasBinding{{Name: modelrecipe.ActiveAlias(model, recipe.TaskInference), Target: served}},
+	})
+}
+
+// recordCheckpoint publishes a one-step checkpoint in a folder of the sandbox and records it in the
+// store as a run records a checkpoint that holds a trained model: the checkpoint's document, its
+// weights, its momentum and their locations, by the checkpoint's own batch, and beside them a model
+// of two shards registered as produced by the checkpoint. The second shard's bytes are those given,
+// so that a model of another run, or of no run, can hold the same shard. The step is taken along
+// the gradient given: two checkpoints of one gradient hold the same weights and the same momentum,
+// byte for byte, and two of different gradients share neither.
+func (s sandbox) recordCheckpoint(store *overgodb.Store, slash, shared string, gradient float32) recorded {
+	s.t.Helper()
+	id := func(kind artifact.Kind, name string) artifact.ID {
+		return testutil.ArtifactID(s.t, kind, slash+" "+name)
+	}
+	const parameters = 4
+	groups, err := hostoptimizer.CompilePlan(parameters, []hostoptimizer.GroupSpec{{Name: "weight", End: parameters, Rows: 2, Cols: 2}})
+	if err != nil {
+		s.t.Fatal(err)
+	}
+	config, err := trainingprogram.BuiltinOptimizerPolicy().Config(parameters)
+	if err != nil {
+		s.t.Fatal(err)
+	}
+	weights := make([]float32, parameters)
+	muon, err := hostoptimizer.New(weights, []float32{gradient, -gradient, gradient / 2, gradient / 4}, groups, config)
+	if err != nil {
+		s.t.Fatal(err)
+	}
+	muon.Step()
+	state := muon.Snapshot()
+	base, rng := id(artifact.KindModel, "base"), id(artifact.KindProfile, "rng")
+	checkpoint, err := trainingprogram.PublishCheckpoint(s.at(slash), trainingprogram.CheckpointSpec{
+		RunPlan: id(artifact.KindRecipe, "run plan"), Program: id(artifact.KindRecipe, "program"), Model: base,
+		Dataset: id(artifact.KindDataset, "dataset"), Split: id(artifact.KindDatasetShard, "split"),
+		Stream:    trainingprogram.DatasetState{Identity: id(artifact.KindProfile, "stream"), Position: 1},
+		Optimizer: state, ParameterCount: state.Parameters(),
+		RNG:        []trainingprogram.RNGState{{Name: "augmentation", Algorithm: rng}, {Name: "data", Algorithm: rng}},
+		Processors: []artifact.ID{id(artifact.KindProfile, "processor")},
+		Lineage:    []trainingprogram.LineageParent{{Artifact: base, Relation: artifact.RelationTrainedFrom}},
+	}, func(stage string) error {
+		return optimizer.SavePlanWeights(filepath.Join(stage, trainingprogram.CheckpointWeights), groups, weights)
+	})
+	if err != nil {
+		s.t.Fatal(err)
+	}
+	batch, err := checkpoint.Batch("withdrawal-fixture/checkpoint/"+slash, s.at(slash))
+	if err != nil {
+		s.t.Fatal(err)
+	}
+	// The store refuses an edge to an artifact it does not know, and the base model is a stand-in.
+	batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: base})
+	s.commit(store, batch)
+	trained := "the weights the run at " + slash + " trained"
+	s.write(slash+"/model-00001-of-00002.gguf", trained)
+	s.write(slash+"/model-00002-of-00002.gguf", shared)
+	model := s.registerModel(store, slash, checkpoint.ID(), slash+"/model-00001-of-00002.gguf", slash+"/model-00002-of-00002.gguf")
+	return recorded{slash, checkpoint.ID(), checkpoint.Resume, model, testutil.ArtifactID(s.t, artifact.KindTensorSet, trained), testutil.ArtifactID(s.t, artifact.KindTensorSet, shared)}
+}
+
+// recordSplitWeights records, in a folder of the sandbox, a checkpoint whose weights are no one
+// file but a manifest of one shard, which is how a checkpoint over a GGUF base names its weights,
+// and which produced no model: the store locates the shard in the folder, and nothing but the
+// manifest of the checkpoint's weights says the shard is the checkpoint's. The document is that of
+// a checkpoint the fixture already recorded, with the manifest in place of its weights, so the two
+// share a resume document; no GGUF file is written, and the store is given no model, which the
+// batch of a real checkpoint over a GGUF base also publishes. It returns the paths the store
+// registers for the checkpoint, as slash paths from the sandbox's root: its folder and its shard.
+func (s sandbox) recordSplitWeights(store *overgodb.Store, from recorded, slash string) []string {
+	s.t.Helper()
+	const shardName, content = "/weights-00001-of-00001.gguf", "the one shard of weights that are a manifest"
+	s.write(slash+shardName, content)
+	shard := testutil.ArtifactID(s.t, artifact.KindTensorSet, content)
+	weights, err := artifact.NewManifest(artifact.KindTensorSet, []artifact.Component{{Role: artifact.ComponentWeightsShard, Name: "weights-0", Artifact: shard}})
+	if err != nil {
+		s.t.Fatal(err)
+	}
+	document, err := os.ReadFile(s.at(from.slash + "/" + trainingprogram.CheckpointFilename))
+	if err != nil {
+		s.t.Fatal(err)
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(document, &fields); err != nil {
+		s.t.Fatal(err)
+	}
+	if fields["weights"], err = json.Marshal(weights.ID); err != nil {
+		s.t.Fatal(err)
+	}
+	if document, err = json.Marshal(fields); err != nil {
+		s.t.Fatal(err)
+	}
+	checkpoint, err := trainingprogram.ParseCheckpoint(document)
+	if err != nil || checkpoint.Weights != weights.ID {
+		s.t.Fatalf("the document with a manifest for its weights reads as a checkpoint of the weights %s (%v), want %s", checkpoint.Weights, err, weights.ID)
+	}
+	s.write(slash+"/"+trainingprogram.CheckpointFilename, string(document))
+	s.commit(store, artifact.Batch{
+		Key:       "withdrawal-fixture/split-weights/" + slash,
+		Artifacts: []artifact.Descriptor{{ID: checkpoint.ID()}, {ID: shard, Size: uint64(len(content))}},
+		Manifests: []artifact.Manifest{weights},
+		Locations: []artifact.LocationEvent{
+			s.location(checkpoint.ID(), artifact.LocationDirectory, slash), s.location(shard, artifact.LocationFile, slash+shardName),
+		},
+	})
+	return []string{slash, slash + shardName}
+}
+
+// TestWithdrawalTakesOnlyARunsCheckpointRegistrations builds, under a temporary directory, a data
+// root whose store registers the checkpoints of several experiment runs, each with the model it
+// produced, and beside them what a withdrawal must never take: a model prototype registered from a
+// file in a run's directory, a second there whose file holds the same bytes as a shard of the
+// checkpoint's model, two registered from files in a checkpoint's own folder, a file there
+// that is no model, and models of no run that hold a shard a checkpoint's model also holds. The
+// real machine and the real store are never read.
+//
+// Named a run's directory and no token, the command changes nothing, and asks the store for no
+// write access: it prints a line for every location the store registers under a folder that holds
+// a checkpoint document, when the location is of that checkpoint, of its weights or its momentum,
+// or of a model the checkpoint produced or one of that model's shards; a line that reads kept for
+// every other location under the directory, which is not a run's checkpoint; and a token. Given
+// that token it withdraws exactly the locations it listed, in the store alone: no file moves, every
+// identity and every edge stays, the same weights and momentum recorded by a checkpoint elsewhere
+// keep their locations there, and each withdrawn location has its line in the receipt the removals
+// share. A checkpoint accounts for a location only under its own folder: the same bytes located
+// elsewhere in the run, as a prototype's file, keep that location. A prototype keeps every location, also in a checkpoint's own folder, whatever else the
+// store says of it: that the checkpoint's resume document depends on it, or that it was derived
+// from the checkpoint. So does a file the checkpoint is said to have produced that is no model.
+// What is kept still holds the run's directory against deletion; a run with nothing kept reads
+// finished once its registrations are withdrawn, and the deleting command then removes it.
+//
+// A shard another model also holds loses only its location in the checkpoint's folder. When that
+// is the only location the shard has, the whole withdrawal is refused and names the model: one
+// that is served, whether or not a checkpoint of the run produced it, and one that no checkpoint
+// of the run produced, served or not. Also refused, with nothing withdrawn: the experiments folder
+// itself, a directory outside it, a run no committed record names, a run with a checkpoint
+// document that cannot be read as one, a worker's environment, a token that is not the listing's,
+// and a withdrawal while a removal holds the lock.
+//
+// A committed record must name the directory itself. The pilot's experiment holds a second run
+// that no record names, and the record of the pilot's run names the experiment's folder only
+// through that run beneath it: the second run is refused, and so is the experiment's folder, which
+// would otherwise list the second run's registrations beside the first's.
+//
+// A checkpoint's weights may be a manifest of shards and no one file. One checkpoint of the run
+// with no prototype has such weights and produced no model: the shard the store locates in its
+// folder is withdrawn with the checkpoint's own location, by the manifest of its weights alone.
+func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	s := newSandbox(t)
+	repo := s.folder("repo")
+	gitFixture(t, repo, "init", "-q", "-b", "master")
+	gitFixture(t, repo, "config", "core.autocrlf", "false")
+	s.write("repo/docs/verification/pilot-record.txt", "out: D:/data/experiments/pilot/run\nruns: experiments/clean/run, experiments/strand/run, experiments/adopted/run, experiments/lone/run and experiments/torn/run\n")
+	gitFixture(t, repo, "add", "-A")
+	gitFixture(t, repo, "commit", "-q", "-m", "base")
+
+	const (
+		pilotRun, cleanRun, strandRun   = "data/experiments/pilot/run", "data/experiments/clean/run", "data/experiments/strand/run"
+		adoptedRun, loneRun, unrecorded = "data/experiments/adopted/run", "data/experiments/lone/run", "data/experiments/unrecorded/run"
+		tornRun, siblingRun             = "data/experiments/torn/run", "data/experiments/pilot/other"
+		pilotShard                      = "the shard the pilot's model shares with a served one"
+	)
+	storePath := s.folder("data/overgodb-store")
+	store, err := overgodb.Open(storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The pilot's run: one checkpoint with its model, and prototypes the owner registered by hand,
+	// first one from a folder of its own and two from files beside the checkpoint's own files. A
+	// served model of no run holds the shard the checkpoint's model holds, at a path of its own.
+	pilot := s.recordCheckpoint(store, pilotRun+"/reward/groups-001", pilotShard, 1)
+	s.write(pilotRun+"/proto/model.gguf", "a prototype the owner made by hand")
+	s.write(pilot.slash+"/handmade.gguf", "a second prototype, beside a checkpoint's own files")
+	s.write(pilot.slash+"/derived.gguf", "a third prototype, made by hand from the checkpoint")
+	s.write(pilot.slash+"/notes.txt", "what the owner wrote down about the checkpoint")
+	apart := s.registerModel(store, "prototype-apart", artifact.ID{}, pilotRun+"/proto/model.gguf")
+	beside := s.registerModel(store, "prototype-beside", artifact.ID{}, pilot.slash+"/handmade.gguf")
+	derived := s.registerModel(store, "prototype-derived", artifact.ID{}, pilot.slash+"/derived.gguf")
+	// A fourth prototype, in the run and outside every checkpoint's folder, whose one file holds the
+	// same bytes as the shard only the checkpoint's model has: the store locates that shard twice,
+	// and a checkpoint accounts only for the location in its own folder.
+	s.write(pilotRun+"/proto/copy.gguf", "the weights the run at "+pilot.slash+" trained")
+	copied := s.registerModel(store, "prototype-copied", artifact.ID{}, pilotRun+"/proto/copy.gguf")
+	// What else the store says of the two prototypes in the checkpoint's folder does not make them
+	// the run's: the checkpoint's resume document is said to depend on one, and the other is said
+	// to be derived from the checkpoint, which is not to be produced by it. The notes are said to
+	// be produced by the checkpoint, and are no model.
+	notes := testutil.ArtifactID(t, artifact.KindFile, "what the owner wrote down about the checkpoint")
+	s.commit(store, artifact.Batch{
+		Key: "withdrawal-fixture/by-hand", Artifacts: []artifact.Descriptor{{ID: notes, Size: 1}},
+		Locations: []artifact.LocationEvent{s.location(notes, artifact.LocationFile, pilot.slash+"/notes.txt")},
+		Lineage: []artifact.Lineage{
+			{Child: pilot.resume, Parent: beside, Relation: artifact.RelationDependsOn},
+			{Child: derived, Parent: pilot.checkpoint, Relation: artifact.RelationDerivedFrom},
+			{Child: notes, Parent: pilot.checkpoint, Relation: artifact.RelationProducedBy},
+		},
+	})
+	kept := []string{
+		pilotRun + "/proto", pilotRun + "/proto/model.gguf", pilot.slash, pilot.slash + "/handmade.gguf",
+		pilot.slash, pilot.slash + "/derived.gguf", pilot.slash + "/notes.txt",
+		pilotRun + "/proto", pilotRun + "/proto/copy.gguf",
+	}
+	s.write("data/models/served/own.gguf", "the weights of a model that is served")
+	s.write("data/models/served/meta.gguf", pilotShard)
+	s.activate(store, s.registerModel(store, "served", artifact.ID{}, "data/models/served/own.gguf", "data/models/served/meta.gguf"))
+	// A run with no prototype: two arms of one gradient, whose checkpoints hold the same weights and
+	// the same momentum, which no other checkpoint holds, and whose models hold one shard between them.
+	clean := []recorded{
+		s.recordCheckpoint(store, cleanRun+"/control/groups-001", "the shard the two arms share", 2),
+		s.recordCheckpoint(store, cleanRun+"/reward/groups-001", "the shard the two arms share", 2),
+	}
+	// A third checkpoint of that run, whose weights are a manifest of a shard in its folder and which
+	// produced no model: only the manifest of its weights says the shard is a checkpoint's.
+	split := s.recordSplitWeights(store, clean[0], cleanRun+"/split/groups-001")
+	// Three runs whose withdrawal would leave a model with a shard no location names: a served model
+	// of no run, the run's own model once it is served, and a prototype of no run that nothing serves.
+	strand := s.recordCheckpoint(store, strandRun+"/reward/groups-001", "the shard only the checkpoint of strand has on disk", 3)
+	s.write("data/models/leaning/own.gguf", "the weights of a served model that leans on a run's shard")
+	leaning := s.registerModel(store, "leaning", artifact.ID{}, "data/models/leaning/own.gguf", strand.slash+"/model-00002-of-00002.gguf")
+	s.activate(store, leaning)
+	adopted := s.recordCheckpoint(store, adoptedRun+"/reward/groups-001", "the shard of the arm that was adopted", 4)
+	s.activate(store, adopted.model)
+	lone := s.recordCheckpoint(store, loneRun+"/reward/groups-001", "the shard only the checkpoint of lone has on disk", 5)
+	s.write("data/models/borrowing/own.gguf", "the weights of a prototype that borrows a run's shard")
+	borrowing := s.registerModel(store, "borrowing", artifact.ID{}, "data/models/borrowing/own.gguf", lone.slash+"/model-00002-of-00002.gguf")
+	// A run no committed record names and a recorded checkpoint outside the experiments, both of the
+	// pilot's gradient: the same weights and the same momentum as the pilot's checkpoint, elsewhere.
+	s.recordCheckpoint(store, unrecorded+"/groups-001", "the shard of a run with no record", 1)
+	s.recordCheckpoint(store, "data/checkpoints/kept/groups-001", "the shard of a trained model that is kept", 1)
+	// A second run of the pilot's experiment, which no committed record names: the record names the
+	// pilot's run, and so names the experiment's folder only through that run beneath it.
+	s.recordCheckpoint(store, siblingRun+"/groups-001", "the shard of a sibling run with no record", 6)
+	// A run whose checkpoint document cannot be read as one.
+	s.write(tornRun+"/groups-001/"+trainingprogram.CheckpointFilename, "{}")
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	h := hygiene{
+		checkout: repo, running: repo, data: s.at("data"), store: storePath, temporary: s.at("temporary"),
+		kept:       []string{storePath, s.at("data/models")},
+		registered: func() ([]string, error) { return storeLocations(storePath, 1) },
+		removeTree: fsatomic.RemoveTree,
+	}
+	withdraw := func(slash, token string, worker bool) ([][]string, string, error) {
+		var output bytes.Buffer
+		err := withdrawRegistrations(h, s.at(slash), token, worker, &output)
+		lines, shown := removalLines(output.String())
+		return lines, shown, err
+	}
+	// read opens the fixture's store for reading alone and hands it to a check.
+	read := func(t *testing.T, check func(store *overgodb.Store)) {
+		t.Helper()
+		store, err := overgodb.OpenReadOnly(storePath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer store.Close()
+		check(store)
+	}
+	// slashes turns locations into their sorted slash paths from the sandbox's root.
+	slashes := func(t *testing.T, values []string) []string {
+		t.Helper()
+		inside := make([]string, len(values))
+		for index, value := range values {
+			relative, err := filepath.Rel(s.root, value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			inside[index] = filepath.ToSlash(relative)
+		}
+		slices.Sort(inside)
+		return inside
+	}
+	// registered is every location the store registers, a path once for each artifact it locates,
+	// and the store's head, which every commit moves.
+	registered := func(t *testing.T) (paths []string, head artifact.CommitID) {
+		t.Helper()
+		values, err := storeLocations(storePath, 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		read(t, func(store *overgodb.Store) { head, _ = store.Head() })
+		return slashes(t, values), head
+	}
+	// located is where the store locates one artifact.
+	located := func(t *testing.T, id artifact.ID) (paths []string) {
+		t.Helper()
+		read(t, func(store *overgodb.Store) {
+			locations, err := store.Locations(ctx, id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, location := range locations {
+				paths = append(paths, location.Value)
+			}
+		})
+		return slashes(t, paths)
+	}
+	// said is a command's expected lines: every path of each list under the list's verb, sorted.
+	said := func(listed map[string][]string) (lines []string) {
+		for verb, paths := range listed {
+			for _, path := range paths {
+				lines = append(lines, verb+" "+path)
+			}
+		}
+		slices.Sort(lines)
+		return lines
+	}
+	disk := s.seen()
+	// unmoved fails when a file of the sandbox moved since the fixture was built, but for the store's
+	// own files, the command's lock and receipt, and the paths excepted.
+	unmoved := func(t *testing.T, but ...string) {
+		t.Helper()
+		if differences := moved(disk, s.seen(), append(but, removalState, "data/overgodb-store")...); len(differences) != 0 {
+			t.Fatalf("the command moved files, and a withdrawal moves none:\n%s", strings.Join(differences, "\n"))
+		}
+	}
+	receipt := s.at(removalState + "/leftovers-removed.txt")
+	first, firstHead := registered(t)
+
+	var token string
+	t.Run("a run named with no token is listed with a token, and nothing is withdrawn", func(t *testing.T) {
+		lines, shown, err := withdraw(pilotRun, "", false)
+		want := said(map[string][]string{"would-withdraw": pilot.files(), "kept": kept})
+		if err != nil || !slices.Equal(s.verbs(lines), want) || len(shown) != 16 {
+			t.Fatalf("the listing of the pilot's run is (%v, token %q)\n%s\nwant a token of 16 digits and\n%s", err, shown, strings.Join(s.verbs(lines), "\n"), strings.Join(want, "\n"))
+		}
+		for _, fields := range lines {
+			if (fields[0] == "kept") != strings.Contains(fields[4], "not a run's checkpoint") {
+				t.Errorf("the line %q does not say, by its rule, whether the location is a run's checkpoint's", fields)
+			}
+		}
+		// A listing asks the store for no write access: it lists while a writer holds the store's
+		// write lock, the file beside the store that one writer takes at a time.
+		writing, err := processlock.Acquire(storePath+".lock", 0o600)
+		if err != nil {
+			t.Fatal(err)
+		}
+		again, repeated, err := withdraw(pilotRun, "", false)
+		if closeErr := writing.Close(); err != nil || closeErr != nil || repeated != shown || !slices.Equal(s.verbs(again), want) {
+			t.Fatalf("a second listing, made while a writer held the store, gave the token %q (%v, close: %v), want the first one's %q: nothing changed between them", repeated, err, closeErr, shown)
+		}
+		// The listing's last line says what was done, which is nothing, and what the token would do.
+		var printed bytes.Buffer
+		if err := withdrawRegistrations(h, s.at(pilotRun), "", false, &printed); err != nil || !strings.HasSuffix(printed.String(), "\nloop: nothing was withdrawn; to withdraw the 6 entries marked would-withdraw, run this again with -confirm "+shown+"\n") {
+			t.Errorf("the listing ends (%v)\n%s\nwant its last line to say nothing was withdrawn and to give the token of its 6 entries", err, printed.String())
+		}
+		token = shown
+	})
+
+	t.Run("a refusal withdraws nothing", func(t *testing.T) {
+		for _, refused := range []struct {
+			name, slash, token, want string
+			worker                   bool
+		}{
+			{"the experiments folder itself", "data/experiments", "", "inside", false},
+			{"the data root, which holds the experiments folder", "data", "", "inside", false},
+			{"a directory outside the experiments folder", "data/checkpoints/kept", "", "inside", false},
+			{"a run no committed record names", unrecorded, "", "no committed record", false},
+			{"a run no committed record names, beside one of its experiment that a record names", siblingRun, "", "no committed record", false},
+			{"an experiment's folder, which a record names only through a run in it", path.Dir(pilotRun), "", "no committed record", false},
+			{"a worker's environment, listing", pilotRun, "", "owner", true},
+			{"a worker's environment, with the listing's token", pilotRun, token, "owner", true},
+			{"a token that is not the listing's", pilotRun, "0123456789abcdef", "holds now: list it again", false},
+			{"a token that is not the listing's, by what it is said not to be the token of", pilotRun, "0123456789abcdef", "the store under " + s.at(pilotRun), false},
+			{"a run that has the only copy of a shard of a served model of no run", strandRun, "", leaning.String(), false},
+			{"a run whose own model is served", adoptedRun, "", adopted.model.String(), false},
+			{"a run that has the only copy of a shard of a prototype nothing serves", loneRun, "", borrowing.String(), false},
+			{"a run whose checkpoint document cannot be read as one", tornRun, "", trainingprogram.CheckpointFilename, false},
+		} {
+			lines, _, err := withdraw(refused.slash, refused.token, refused.worker)
+			if err == nil || !strings.Contains(err.Error(), refused.want) || len(lines) != 0 {
+				t.Errorf("%s: the command answered %v with the lines %q, want it refused, naming %q, with no line", refused.name, err, lines, refused.want)
+			}
+		}
+		// Committed records that cannot be searched are a failure of their own, never read as no
+		// record: a checkout that is no repository refuses with what git said.
+		blind := h
+		blind.checkout = s.at("data/models")
+		var printed bytes.Buffer
+		if err := withdrawRegistrations(blind, s.at(pilotRun), "", false, &printed); err == nil || !strings.Contains(err.Error(), "git") || strings.Contains(err.Error(), "no committed record") || printed.Len() != 0 {
+			t.Errorf("with the committed records unreadable the command answered %v and printed %q, want it refused with git's own failure and no line", err, printed.String())
+		}
+		held, err := processlock.Acquire(s.at(removalState+"/leftovers-removal.lock"), 0o600)
+		if err != nil {
+			t.Fatal(err)
+		}
+		lines, _, err := withdraw(pilotRun, token, false)
+		if closeErr := held.Close(); err == nil || closeErr != nil || len(lines) != 0 || !strings.Contains(err.Error(), "another removal") {
+			t.Errorf("with the removal lock held the command answered %v with the lines %q (close: %v), want it refused as another removal's", err, lines, closeErr)
+		}
+		if now, head := registered(t); !slices.Equal(now, first) || head != firstHead {
+			t.Fatalf("the listings and the refusals changed the store: it registers\n%s\nat the head %s, want what it registered before them at %s:\n%s", strings.Join(now, "\n"), head, firstHead, strings.Join(first, "\n"))
+		}
+		// The withdrawal is held to the store its listing read. Another process commits between that
+		// reading and the withdrawal's own commit, here at the moment the command prints what it
+		// keeps: the withdrawal is refused and nothing is withdrawn. What that process registered has
+		// no location, so the listing is unchanged and its token still stands.
+		raced := false
+		racing := written(func(line []byte) (int, error) {
+			if raced {
+				return len(line), nil
+			}
+			raced = true
+			other, err := overgodb.Open(storePath)
+			if err != nil {
+				return 0, err
+			}
+			meanwhile := testutil.ArtifactID(t, artifact.KindFile, "what another process registered meanwhile")
+			_, err = other.Commit(ctx, artifact.Batch{Key: "withdrawal-fixture/meanwhile", Artifacts: []artifact.Descriptor{{ID: meanwhile, Size: 1}}})
+			return len(line), errors.Join(err, other.Close())
+		})
+		if err := withdrawRegistrations(h, s.at(pilotRun), token, false, racing); !raced || !errors.Is(err, artifact.ErrCommitPrecondition) {
+			t.Errorf("with the store changed by another process since the listing was read (it was: %v), the withdrawal answered %v, want it refused as a store that has moved", raced, err)
+		}
+		if now, head := registered(t); !slices.Equal(now, first) || head == firstHead {
+			t.Fatalf("after the refused withdrawal the store registers\n%s\nat the head %s, want what it registered before at a head the other process moved from %s", strings.Join(now, "\n"), head, firstHead)
+		}
+		if _, err := os.Stat(receipt); !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("the listings and the refusals left a receipt (%v), and they withdraw nothing", err)
+		}
+		unmoved(t)
+	})
+
+	t.Run("the token withdraws the locations of the run's checkpoint, and no other", func(t *testing.T) {
+		lines, _, err := withdraw(pilotRun, token, false)
+		want := said(map[string][]string{"withdrawn": pilot.files(), "kept": kept})
+		if err != nil || !slices.Equal(s.verbs(lines), want) {
+			t.Fatalf("the withdrawal said (%v)\n%s\nwant\n%s", err, strings.Join(s.verbs(lines), "\n"), strings.Join(want, "\n"))
+		}
+		var receipted strings.Builder
+		for _, fields := range lines {
+			if fields[0] == "withdrawn" {
+				receipted.WriteString(strings.Join(fields, "\t") + "\n")
+			}
+		}
+		if written, err := os.ReadFile(receipt); err != nil || string(written) != receipted.String() {
+			t.Fatalf("the receipt holds (%v)\n%s\nwant the lines of the locations withdrawn, in order:\n%s", err, written, receipted.String())
+		}
+		// Every other location the store registered is still registered: those of the other runs'
+		// checkpoints, whose weights are the same bytes as the pilot's, among them.
+		left := slices.Clone(first)
+		for _, path := range pilot.files() {
+			at := slices.Index(left, path)
+			if at < 0 {
+				t.Fatalf("the fixture's store never registered %s", path)
+			}
+			left = slices.Delete(left, at, at+1)
+		}
+		if now, _ := registered(t); !slices.Equal(now, left) {
+			t.Fatalf("after the withdrawal the store registers\n%s\nwant all it registered but the checkpoint's own:\n%s", strings.Join(now, "\n"), strings.Join(left, "\n"))
+		}
+		prototype := func(content string) artifact.ID { return testutil.ArtifactID(t, artifact.KindTensorSet, content) }
+		for _, held := range []struct {
+			what string
+			id   artifact.ID
+			want []string
+		}{
+			{"the checkpoint", pilot.checkpoint, nil}, {"the checkpoint's model", pilot.model, nil},
+			{"the model's own shard, which a prototype's file elsewhere in the run also is", pilot.own, []string{pilotRun + "/proto/copy.gguf"}},
+			{"the prototype whose file is that copy", copied, []string{pilotRun + "/proto"}},
+			{"the shard a served model also holds", pilot.shared, []string{"data/models/served/meta.gguf"}},
+			{"the prototype in a folder of its own", apart, []string{pilotRun + "/proto"}},
+			{"that prototype's file", prototype("a prototype the owner made by hand"), []string{pilotRun + "/proto/model.gguf"}},
+			{"the prototype beside the checkpoint's files", beside, []string{pilot.slash}},
+			{"that prototype's file", prototype("a second prototype, beside a checkpoint's own files"), []string{pilot.slash + "/handmade.gguf"}},
+			{"the prototype made from the checkpoint", derived, []string{pilot.slash}},
+			{"that prototype's file", prototype("a third prototype, made by hand from the checkpoint"), []string{pilot.slash + "/derived.gguf"}},
+			{"the notes, which are no model", notes, []string{pilot.slash + "/notes.txt"}},
+		} {
+			if now := located(t, held.id); !slices.Equal(now, held.want) {
+				t.Errorf("after the withdrawal %s is located at %q, want %q", held.what, now, held.want)
+			}
+		}
+		// Only locations are withdrawn: the checkpoint, its model and the edge between them stay.
+		read(t, func(store *overgodb.Store) {
+			_, known, err := store.Artifact(ctx, pilot.checkpoint)
+			_, modelled, manifestErr := store.Manifest(ctx, pilot.model)
+			produced, lineageErr := store.Children(ctx, pilot.checkpoint)
+			if err = errors.Join(err, manifestErr, lineageErr); err != nil || !known || !modelled ||
+				!slices.Contains(produced, artifact.Lineage{Child: pilot.model, Parent: pilot.checkpoint, Relation: artifact.RelationProducedBy}) {
+				t.Errorf("after the withdrawal the store holds the checkpoint: %v, its model: %v, and the edges %v (%v), want both identities and the edge from the model to the checkpoint", known, modelled, produced, err)
+			}
+		})
+		unmoved(t)
+		// The prototypes still hold the run's directory against the deleting command.
+		listed, _, err := removalRun(h, "experiment", "", false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s.ruled(listed, pilotRun, "kept", "the store registers")
+		// The token is of a listing the run no longer gives; the next one has nothing to withdraw,
+		// and its token withdraws nothing.
+		if lines, _, err := withdraw(pilotRun, token, false); err == nil || len(lines) != 0 {
+			t.Fatalf("the token was taken again (%v, lines %q) after the withdrawal changed what the store registers", err, lines)
+		}
+		after, afterHead := registered(t)
+		lines, shown, err := withdraw(pilotRun, "", false)
+		if want := said(map[string][]string{"kept": kept}); err != nil || shown == token || !slices.Equal(s.verbs(lines), want) {
+			t.Fatalf("the listing after the withdrawal is (%v, token %q)\n%s\nwant only the locations that are no checkpoint's, kept, under a token of its own", err, shown, strings.Join(s.verbs(lines), "\n"))
+		}
+		if _, _, err := withdraw(pilotRun, shown, false); err != nil {
+			t.Fatalf("the token of a listing with nothing to withdraw: %v", err)
+		}
+		if now, head := registered(t); !slices.Equal(now, after) || head != afterHead {
+			t.Fatalf("the token of a listing with nothing to withdraw changed the store: it registers\n%s", strings.Join(now, "\n"))
+		}
+		if written, err := os.ReadFile(receipt); err != nil || string(written) != receipted.String() {
+			t.Fatalf("the receipt holds (%v)\n%s\nafter runs that withdrew nothing, want it as the withdrawal left it:\n%s", err, written, receipted.String())
+		}
+	})
+
+	t.Run("a run with no prototype reads finished once its registrations are withdrawn, and is then deleted", func(t *testing.T) {
+		listed, _, err := removalRun(h, "experiment", "", false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s.ruled(listed, cleanRun, "kept", "the store registers")
+		_, shown, err := withdraw(cleanRun, "", false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		lines, _, err := withdraw(cleanRun, shown, false)
+		if want := said(map[string][]string{"withdrawn": slices.Concat(clean[0].files(), clean[1].files(), split)}); err != nil || !slices.Equal(s.verbs(lines), want) {
+			t.Fatalf("the withdrawal of a run of two arms, and of a checkpoint whose weights are a manifest, said (%v)\n%s\nwant\n%s", err, strings.Join(s.verbs(lines), "\n"), strings.Join(want, "\n"))
+		}
+		unmoved(t)
+		listed, shown, err = removalRun(h, "experiment", "", false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s.ruled(listed, cleanRun, "would-remove", "experiment a committed record names")
+		s.ruled(listed, pilotRun, "kept", "the store registers")
+		s.ruled(listed, strandRun, "kept", "the store registers")
+		// The deleting command's own sentences are as they were: the two commands share the code that
+		// prints a listing and holds a token to it, each under its own verb.
+		var printed bytes.Buffer
+		if err := deleteLeftovers(h, "experiment", "", false, &printed); err != nil || !strings.HasSuffix(printed.String(), "\nloop: nothing was removed; to remove the 2 entries marked would-remove, run this again with -confirm "+shown+"\n") {
+			t.Errorf("the deleting command's listing ends (%v)\n%s\nwant its last line to say nothing was removed and to give the token of its 2 entries", err, printed.String())
+		}
+		if err := deleteLeftovers(h, "experiment", "0123456789abcdef", false, &printed); err == nil || !strings.Contains(err.Error(), "is not the token of what the place experiment holds now") {
+			t.Errorf("the deleting command answered a token that is not its listing's with %v, want it refused as not the token of what the place holds", err)
+		}
+		listed, _, err = removalRun(h, "experiment", shown, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s.ruled(listed, cleanRun, "removed", "experiment a committed record names")
+		if _, err := os.Stat(s.at(cleanRun)); !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("the run whose registrations were withdrawn is still there after its removal (%v)", err)
+		}
+		// The run whose checkpoint document is torn went with it: no registration ever held it.
+		unmoved(t, cleanRun, tornRun)
+		// The files are gone and the identities stay: the store still knows both checkpoints.
+		read(t, func(store *overgodb.Store) {
+			for _, arm := range clean {
+				if _, known, err := store.Artifact(ctx, arm.checkpoint); err != nil || !known {
+					t.Errorf("after its run was deleted the store no longer holds the checkpoint of %s (%v)", arm.slash, err)
+				}
+			}
+		})
+	})
+
+	t.Run("a directory goes with the listing flag, alone or with a token, and never with a place", func(t *testing.T) {
+		for _, flags := range []struct {
+			leftovers               bool
+			place, directory, token string
+			refused                 bool
+		}{
+			{true, "", "D:/data/experiments/pilot/run", "", false}, {true, "", "D:/data/experiments/pilot/run", "0123456789abcdef", false},
+			{false, "", "D:/data/experiments/pilot/run", "", true}, {false, "", "D:/data/experiments/pilot/run", "0123456789abcdef", true},
+			{true, "experiment", "D:/data/experiments/pilot/run", "", true}, {true, "experiment", "D:/data/experiments/pilot/run", "0123456789abcdef", true},
+		} {
+			if err := removalFlags(flags.leftovers, flags.place, flags.directory, flags.token); (err != nil) != flags.refused {
+				t.Errorf("the flags %+v are answered %v, want refused: %v", flags, err, flags.refused)
+			}
 		}
 	})
 }

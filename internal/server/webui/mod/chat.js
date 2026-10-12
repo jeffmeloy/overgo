@@ -671,7 +671,10 @@
           if (mode === 'speech') speechSelection = picker.value;
           composer.invalidateIntake();
           generation.capability = declared.find((capability) => capability.recipe === picker.value && !capability.refusal) || null;
-          const typed = generation.capability ? generation.capability.controls.filter((control) => control !== overgo.bodyControl(generation.capability.controls)) : [];
+          // Speech reads a text whole: the frame limit, which cuts a reading to a preview, is not offered there, so
+          // none is sent, a remembered one included.
+          const typed = generation.capability ? generation.capability.controls.filter((control) => control !== overgo.bodyControl(generation.capability.controls) &&
+            !(mode === 'speech' && control.name === 'max_frames')) : [];
           generation.fields = overgo.controlInputs(controlsHost, typed);
           selectionNote.hidden = !!generation.capability;
           selectionNote.textContent = generation.capability ? '' : (declared.find((capability) => capability.recipe === picker.value)?.refusal || 'The selected model is unavailable').replace(/\.$/, '') + '. Choose another model for this task.';

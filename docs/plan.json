@@ -50,28 +50,6 @@
       ]
     },
     {
-      "id": "speech-page-limit",
-      "title": "Stop sending a remembered frame limit from the page's Speech mode, so a text is read whole",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "The row adds no counted code: the change is to the page's JavaScript and browser tests."
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Speech mode builds no frame-limit control and sends none; a browser leg seeds a remembered limit, sends, and reads the posted input",
-          "status": "open",
-          "verify": "test -f internal/server/webui_browser_speech_limit_test.go \u0026\u0026 go run ./cmd/webui-lane -run SpeechSendsNoFrameLimit",
-          "rationale": "Once a speech request with no frame limit is read whole (speech-document-admission), a browser that has used Speech mode still sends the limit it remembers and keeps getting the cut preview. Closure: Speech mode builds no frame-limit control, so no limit is sent; the two browser tests that type into that control are changed with it. A plan row's page change: plain JavaScript, reviewed in a browser at desktop and phone widths in both colour schemes.\n\nServes: setup-steps for a long text. Evidence: the browser leg. Batch: browser.",
-          "depends_on": [
-            "speech-document-admission/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "campaign-closeout",
       "title": "Close the campaign once every branch is accounted for",
       "owner": "master-lead",

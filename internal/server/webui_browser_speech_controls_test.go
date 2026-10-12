@@ -74,7 +74,7 @@ func TestWebUIBrowserSpeechControls(t *testing.T) {
 		Stages: []recipe.Stage{{Node: recipe.Node{ID: "generate", Module: "test.generate"}}},
 		Controls: []workflowControl{
 			{Name: "text", Type: workflowControlText, Required: true},
-			{Name: "max_frames", Type: workflowControlInteger, Required: true},
+			{Name: "max_frames", Type: workflowControlInteger},
 			{Name: "seed", Type: workflowControlInteger, Required: true},
 			{Name: "voice", Type: workflowControlText, Required: true, Choices: []string{"alba", "marius"}},
 			{Name: "temperature", Type: workflowControlNumber},
@@ -121,9 +121,9 @@ func TestWebUIBrowserSpeechControls(t *testing.T) {
 	check(`(()=>{document.querySelector('.composer .send-button').focus();return true;})()`)
 	check(`(()=>{window.speechControl=(name)=>[...document.querySelectorAll('[aria-label="Speech options"] .control')].find(label=>label.querySelector('span')?.textContent===name)?.querySelector('input');return true;})()`)
 	pressKey(t, ctx, browser, "Enter", 13)
-	settle(`document.querySelector('#settings-dialog').open && document.activeElement===speechControl('max frames')`)
+	settle(`document.querySelector('#settings-dialog').open && document.activeElement===speechControl('seed') && !speechControl('max frames')`)
 	check(`document.querySelector('.composer textarea').value==='Read this document aloud.'`)
-	for _, field := range []struct{ label, value string }{{"max frames", "120"}, {"seed", "7"}, {"temperature", "0.7"}} {
+	for _, field := range []struct{ label, value string }{{"seed", "7"}, {"temperature", "0.7"}} {
 		check(`(()=>{speechControl('` + field.label + `').focus();return true;})()`)
 		if err := browser.Call(ctx, "Input.insertText", map[string]any{"text": field.value}, nil); err != nil {
 			t.Fatal(err)
@@ -136,7 +136,7 @@ func TestWebUIBrowserSpeechControls(t *testing.T) {
 	settle(`document.querySelector('.mode-controls select[aria-label="voice"]').value==='alba'`)
 	check(`(()=>{const mode=document.querySelector('.composer select[aria-label="mode"]');mode.value='chat';mode.dispatchEvent(new Event('change'));mode.value='speech';mode.dispatchEvent(new Event('change'));return true;})()`)
 	settle(`document.querySelector('.mode-controls select[aria-label="voice"]')?.value==='alba'`)
-	check(`speechControl('max frames').value==='120' && speechControl('seed').value==='7' && speechControl('temperature').value==='0.7'`)
+	check(`!speechControl('max frames') && speechControl('seed').value==='7' && speechControl('temperature').value==='0.7'`)
 	check(`(()=>{document.querySelector('[data-draft-setting="temperature"]').value='-1';return true;})()`)
 	check(`(()=>{document.querySelector('.composer .send-button').focus();return true;})()`)
 	pressKey(t, ctx, browser, "Enter", 13)
@@ -145,7 +145,7 @@ func TestWebUIBrowserSpeechControls(t *testing.T) {
 	executions, speech, request, recipeUsed := generator.executions, generator.speech, generator.request, generator.recipeUsed
 	generator.retired = true
 	generator.mu.Unlock()
-	if executions != 1 || recipeUsed != generator.secondRecipe || speech.Voice != "alba" || speech.MaxFrames != 120 || speech.Temperature != 0.7 || request.Seed == nil || *request.Seed != 7 {
+	if executions != 1 || recipeUsed != generator.secondRecipe || speech.Voice != "alba" || speech.MaxFrames != 0 || speech.Temperature != 0.7 || request.Seed == nil || *request.Seed != 7 {
 		t.Fatalf("native workflow executions=%d recipe=%s speech=%+v request=%+v", executions, recipeUsed, speech, request)
 	}
 	for _, viewport := range webuilane.ScreenViewports {

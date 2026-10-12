@@ -24,7 +24,7 @@ func TestWebUIBrowserSpeechTextImport(t *testing.T) {
 		Stages: []recipe.Stage{{Node: recipe.Node{ID: "generate", Module: "test.generate"}}},
 		Controls: []workflowControl{
 			{Name: "text", Type: workflowControlText, Required: true},
-			{Name: "max_frames", Type: workflowControlInteger, Required: true},
+			{Name: "max_frames", Type: workflowControlInteger},
 			{Name: "seed", Type: workflowControlInteger, Required: true},
 			{Name: "voice", Type: workflowControlText, Required: true, Choices: []string{"alba", "marius"}},
 			{Name: "temperature", Type: workflowControlNumber},
@@ -149,7 +149,7 @@ func TestWebUIBrowserSpeechTextImport(t *testing.T) {
  window.sourceID=new URL(document.querySelector('.attachment-info a').href).searchParams.get('id');
  textInput.value+=' An edit.';textInput.dispatchEvent(new Event('input'));
  const voice=document.querySelector('.mode-controls select[aria-label="voice"]');voice.value='alba';voice.dispatchEvent(new Event('change'));
- for(const [name,value] of [['max frames','120'],['seed','7']]){const control=[...document.querySelectorAll('[aria-label="Speech options"] .control')].find(label=>label.querySelector('span')?.textContent===name).querySelector('input');control.value=value;control.dispatchEvent(new Event('input'));}
+ for(const [name,value] of [['seed','7']]){const control=[...document.querySelectorAll('[aria-label="Speech options"] .control')].find(label=>label.querySelector('span')?.textContent===name).querySelector('input');control.value=value;control.dispatchEvent(new Event('input'));}
  window.originalPost=overgo.api.post;overgo.api.post=(path,body,options)=>{if(path==='/generation/run')window.importRequest=body;return originalPost(path,body,options);};document.querySelector('.send-button').focus();return true;
  })()`)
 	pressKey(t, ctx, browser, "Enter", 13)

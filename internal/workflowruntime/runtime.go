@@ -95,12 +95,11 @@ type Result struct {
 
 // Runtime: registered module adapters plus run repository.
 type Runtime struct {
-	mu            sync.RWMutex
-	store         artifact.Repository
-	catalog       *recipe.Catalog
-	definition    recipe.Definition
-	adapters      map[recipe.ModuleID]Adapter
-	stageObserver func(runrecord.StageReceipt)
+	mu         sync.RWMutex
+	store      artifact.Repository
+	catalog    *recipe.Catalog
+	definition recipe.Definition
+	adapters   map[recipe.ModuleID]Adapter
 	// entries serializes Execute per adapter: the Adapter contract does
 	// not require concurrency safety, so two stages of one module never
 	// enter their shared adapter at once.
@@ -445,23 +444,6 @@ type stageResult struct {
 	err     error
 }
 
-// ObserveStages receives completed receipts after their outputs are durable.
-// Callbacks run on the execution coordinator, not on adapter goroutines.
-func (r *Runtime) ObserveStages(observer func(runrecord.StageReceipt)) {
-	r.mu.Lock()
-	r.stageObserver = observer
-	r.mu.Unlock()
-}
-
-func (r *Runtime) observeStage(receipt runrecord.StageReceipt) {
-	r.mu.RLock()
-	observer := r.stageObserver
-	r.mu.RUnlock()
-	if observer != nil {
-		observer(receipt)
-	}
-}
-
 func (r *Runtime) executeReadySet(
 	ctx context.Context,
 	definition recipe.Definition,
@@ -683,7 +665,6 @@ func (r *Runtime) recoverStage(
 		// evidence to serve from; the stage executes again.
 		return nil, false, nil
 	}
-	r.observeStage(receipt)
 	return validated, true, nil
 }
 
@@ -752,10 +733,7 @@ func (r *Runtime) finishStage(
 		return err
 	}
 	base.Outputs = outputs
-	completed, err := runrecord.PublishStageReceipt(publishContext, r.store, withStageState(base, runrecord.StageCompleted, ""), outputFacts.contents, outputFacts.descriptors)
-	if err == nil {
-		r.observeStage(completed)
-	}
+	_, err = runrecord.PublishStageReceipt(publishContext, r.store, withStageState(base, runrecord.StageCompleted, ""), outputFacts.contents, outputFacts.descriptors)
 	return err
 }
 

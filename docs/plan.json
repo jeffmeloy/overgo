@@ -32,24 +32,6 @@
       ]
     },
     {
-      "id": "stage-observer-retire",
-      "title": "Remove the stage observer once the document speech graph it was built for is gone",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The workflow runtime has no stage observer; the one test that used it as its signal that a receipt is durable takes that signal from the store's commit",
-          "status": "open",
-          "verify": "go test ./internal/workflowruntime -count=1 -run '^TestRuntimeHasNoStageObserver$'",
-          "rationale": "Runtime.ObserveStages was added for the document speech graph and has no production caller; once the graph is retired its only caller is one test of the workflow runtime, which uses it as a signal. Closure: the method and what it carries are removed, and that test takes its signal from a wrapping repository's commit, as the recovery test does. The row has no count: it removes code.\n\nServes: fewer components. Disappears: the stage observer. Evidence: the test of absence. Batch: host.",
-          "depends_on": [
-            "speech-document-admission/retire"
-          ]
-        }
-      ]
-    },
-    {
       "id": "campaign-closeout",
       "title": "Close the campaign once every branch is accounted for",
       "owner": "master-lead",

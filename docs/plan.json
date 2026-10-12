@@ -9,8 +9,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "What the row may still add. Set on 2026-10-12 to the 888 nodes its step plan-edits was counted at once built, by the count of syntax nodes the automated checks take: cmd/plan/main.go 2,868 before and 3,756 after, and no other production file. The step grows because six plan edits that were programs typed for the occasion become flags of the plan command. The step inventory used the 4,228 the row carried before. Each later step is counted the same way before it is committed."
+        "nodes": 1641,
+        "reason": "What the row may still add. Set on 2026-10-12, with plan -setcount, to the 1,641 nodes its steps tmp and docs were counted at once built and laid over the trunk's commit 9e18b0e46 together, by the count of syntax nodes the automated checks take. Step tmp, 614: cmd/loop/leftovers.go 4,110 to 4,711 and internal/repoanalysis/entry_authority.go 1,546 to 1,559. Step docs, 1,027: internal/plan/plan.go 2,271 to 2,641, internal/repoanalysis/tracked_documents.go 2,003 to 2,260, internal/repoanalysis/dead_references.go 581 (new), cmd/loophook/deadrefs.go 682 to 111, cmd/loophook/main.go 2,223 to 2,225, and cmd/loop/leftovers.go a further 388. The two together measure 18,710 to 20,351 over the ten files, the sum of the two. The row grows because each step adds a rule where a hand survey stood. The steps inventory and plan-edits used the 4,228 and the 888 the row carried before. The steps own-cleanup and enforce are counted the same way before they are committed."
       },
       "steps": [
         {

@@ -65,6 +65,10 @@
       "title": "A store open replays little, so a model's load is the model's",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 115,
+        "reason": "measured by the preflight of step bound's change at e068a6513: a writer that closes with more than a bound of records past the checkpoint writes one, a handle whose journal was sealed rebuilds from the checkpoint as an open does, and the open and the rebuild share one function"
+      },
       "steps": [
         {
           "id": "bound",

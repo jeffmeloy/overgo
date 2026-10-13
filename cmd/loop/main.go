@@ -30,6 +30,11 @@
 //
 // lists the locations the store registers for the checkpoints of one run with
 // a token, and withdraws them, and no file, when it is given that token back.
+//
+//	go run ./cmd/loop -closeout
+//
+// is a campaign's close-out check: the listing without sizes, which fails
+// while a finished entry remains on a line whose action is delete.
 package main
 
 import (
@@ -123,17 +128,19 @@ func run(args []string) error {
 	deletePlace := flags.String("delete", "", "with -leftovers: list the finished entries of one place whose finished entries are deleted (helper-copy, branch, experiment, temporary-build, tmp), each with its bytes and its rule, and print a token; removes nothing without -confirm, and is refused from a worker's environment for the owner's data, the places experiment and branch")
 	withdrawRun := flags.String("withdraw", "", "with -leftovers: list the locations the store registers for the checkpoints in one run's output directory, which lies in the experiments folder and is named itself by a committed record, and print a token; withdraws nothing without -confirm, never a location of a model no checkpoint of the run produced, and nothing when a served model or such a model would be left a component with no location; the owner's data, so refused from a worker's environment")
 	confirmToken := flags.String("confirm", "", "with -leftovers -delete or -withdraw: the token the listing printed; removes or withdraws exactly the entries that listing showed, a line each, appended to a receipt in the trunk checkout's process state, and is refused when the listing is no longer the same")
+	closeout := flags.Bool("closeout", false, "the campaign's close-out check: list every place files accumulate, without sizes, write the listing to the trunk checkout's process state, and fail while an entry of a line whose action is delete is finished; removes nothing, and takes no -delete and no -withdraw")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	if err := removalFlags(*leftovers, *deletePlace, *withdrawRun, *confirmToken); err != nil {
+	// A close-out is never a removal: with -closeout a place or a run's directory is refused as it is without -leftovers.
+	if err := removalFlags(*leftovers && !*closeout, *deletePlace, *withdrawRun, *confirmToken); err != nil {
 		return err
 	}
 	if *landReference != "" {
 		return landCommand(*landReference, *landMessage, os.Stdin, os.Stdout)
 	}
-	if *leftovers {
-		return leftoversFor(*repoPath, *deletePlace, *withdrawRun, *confirmToken, os.Getenv(plan.AutomationWorkerEnvironment) != "", os.Stdout)
+	if *leftovers || *closeout {
+		return leftoversFor(*repoPath, *deletePlace, *withdrawRun, *confirmToken, os.Getenv(plan.AutomationWorkerEnvironment) != "", *closeout, os.Stdout)
 	}
 	resolved, err := dataroot.StoreRoot(*repoPath)
 	if err != nil {

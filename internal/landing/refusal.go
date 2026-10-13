@@ -46,6 +46,11 @@ func Classify(reference, refusal string) Refusal {
 	}
 	classified := Refusal{Reference: reference, Class: gateClass}
 	_, stage, _ := strings.Cut(refusal, stagePrefix)
+	// The stage space is none of checks, and what it refuses is the machine, not the change.
+	if strings.HasPrefix(stage, spaceClass+":") {
+		classified.Class, classified.Probe = spaceClass, "go run ./cmd/gate -plan <item>/<step> -message-file - -preflight"
+		classified.External = "the volume a commit's checks write to has less free space than their floor, or its free space could not be read; freeing it is the owner's action, and go run ./cmd/loop -leftovers lists what can be removed"
+	}
 	for _, check := range (&landing{}).checks() {
 		if strings.HasPrefix(stage, check.name+":") {
 			classified.Class = check.name

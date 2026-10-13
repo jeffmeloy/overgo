@@ -61,30 +61,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "repo-hygiene",
-      "title": "Keep the checkout, ./tmp, ./docs and the data root free of finished leftovers, by rule and by command",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 660,
-        "reason": "What the row may still add. Set on 2026-10-13, with plan -setcount, to the 660 nodes its step enforce was counted at once built and fitted onto the trunk's commit b03b6068d, by the count of syntax nodes the automated checks take: cmd/loop/leftovers.go 7,766 to 8,004, cmd/loop/main.go 2,390 to 2,413, cmd/gate/land.go 137 to 142, internal/landing/landing.go 3,942 to 3,983, internal/landing/refusal.go 340 to 364, internal/repoanalysis/entry_authority.go 1,546 to 1,549, and three new files in internal/landing, space.go 158, space_windows.go 102 and space_unix.go 66; the ten measure 16,217 before and 16,877 after. The step's preparation estimated 700 to 1,000. The step grows because a commit's checks now read the volume's free space and a campaign's close-out reads the leftovers, where neither was read. The earlier steps used the 4,228, 888, 1,641, 1,772, 1,828, 1,044 and 17 the row carried before; this is the row's last step."
-      },
-      "steps": [
-        {
-          "id": "enforce",
-          "title": "Refuse close-out while finished leftovers remain, and refuse a commit's checks below a free-space floor",
-          "status": "open",
-          "verify": "go test ./internal/landing ./cmd/loop -count=1 -run '^(TestCommitChecksRefuseBelowTheFreeSpaceFloor|TestCloseoutRefusesFinishedLeftovers)$'",
-          "rationale": "Hygiene runs at three points, none a timer. The first is the end of the command that made the leftovers (step own-cleanup). This step adds the other two.\n\nClose-out. The campaign's close-out check runs the leftovers listing and fails while any entry the table marks delete is finished, naming each. The close-out of 2026-10-12 passed with 236 GB of experiment outputs, 1,313 ./tmp entries and a stale doctrine in place.\n\nThe start of a commit's checks. They read the volume's free space once and refuse to start below a floor, with the number, and the commit's measured line reports free space. On 2026-10-11 free space went from 352 to 236 GB within two hours while 22 helper copies built; the build cache once filled the drive. The floor is a named constant derived from what the largest commit check and the full measurement run have been measured to write, with that reason beside it, not a round number.\n\nThe build cache at its source. Each helper copy builds the tree cold because a build is keyed by its directory. Measure whether building helper copies with -trimpath shares the cache, and whether that setting moves any execution identity (it is a build setting, and identities count build settings); adopt it only if stored evaluation answers stay reusable, and say what was measured either way. Clearing the cache stays the owner's approval.\n\nServes: change.\nDisappears: the risk of a full drive during a commit or a run; close-outs that leave leftovers behind.\nEvidence: a fixture below the floor refused with its number; close-out refused with one finished entry and passed with none; cache size per helper copy before and after.\nBatch: host; internal/landing reaches no lane.\n\nOn adoption (lead, 2026-10-12, at the owner's instruction to merge the review session's amendment as the lead sees fit): the cache measurement is also the reopening event of the register's deferred finding ba3e2aae (a commit made from a new checkout directory reruns every package, because go's test cache holds nothing for a new directory): if helper copies come to share the cache, that finding is closed with the measurement.",
-          "depends_on": [
-            "repo-hygiene/own-cleanup",
-            "repo-hygiene/tmp",
-            "repo-hygiene/docs"
-          ]
-        }
-      ]
-    },
-    {
       "id": "measurement-run-passes",
       "title": "Let a full measurement run pass, and stop it writing what it then removes",
       "owner": "master-lead",

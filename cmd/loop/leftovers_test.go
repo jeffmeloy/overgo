@@ -116,7 +116,7 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 	}
 	list := func(t *testing.T, h hygiene) []leftover {
 		t.Helper()
-		found, err := listLeftovers(h)
+		found, err := listLeftovers(h, true)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -623,7 +623,7 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 
 	t.Run("the command prints the listing, writes it as a receipt and removes nothing", func(t *testing.T) {
 		var output bytes.Buffer
-		if err := leftoversCommand(h, &output); err != nil {
+		if err := leftoversCommand(h, false, &output); err != nil {
 			t.Fatal(err)
 		}
 		receipt := filepath.Join(repo, processlock.StateDirectory, "leftovers-"+trunk[:12]+".txt")
@@ -801,7 +801,7 @@ func TestTmpEntryBelongsToAnOpenRowOrIsFinished(t *testing.T) {
 	// states as sorted lines. Every entry is a child of the folder, and its action is delete.
 	scratch := func(t *testing.T, h hygiene) (map[string]leftover, []string) {
 		t.Helper()
-		found, err := listLeftovers(h)
+		found, err := listLeftovers(h, true)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1893,7 +1893,7 @@ func TestCommitClearsWhatNothingHolds(t *testing.T) {
 	})
 
 	t.Run("what the other places list as finished is still there, and still finished", func(t *testing.T) {
-		found, err := listLeftovers(h, "experiment", "branch")
+		found, err := listLeftovers(h, true, "experiment", "branch")
 		if err != nil {
 			t.Fatal(err)
 		}

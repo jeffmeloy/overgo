@@ -82,7 +82,7 @@ Repository shrinks while capability grows.
 4. Fix the cause in its owner; migrate callers; delete displaced code.
 5. Step verify fails before, passes after. Preflight first:
    `go run ./cmd/gate -plan <item>/<step> -message-file - -preflight` runs the
-   gate's cheap stages (format, fix, vet, rules, invariant tests, verify), commits
+   gate's cheap stages (space, format, fix, vet, rules, invariant tests, verify), commits
    nothing. Also `go run ./cmd/validate -claims` after hand edits.
 6. Land: `go run ./cmd/loop -land <item>/<step> -message-file -`; message on stdin
    with `Cause:` and `Predicted effect:` naming scorecard metrics (worsening in
@@ -107,6 +107,9 @@ Repository shrinks while capability grows.
   build tag. Promotion needs them at the promoted commit. Phases: cells, publish,
   lanes; an interrupted cycle resumes at the first unpassed phase when
   `go run ./cmd/loop -improve` runs again.
+- Gate opens with stage `space`: refuses below a free-space floor on the temporary
+  directory's volume, preflights and plan-only commits too; the measured line
+  reports free space. Refusal is external: free space, land again.
 - A hand step is a system defect: change the system so it does not recur.
 - Landing cost = lanes reached + inference-surface guard expiry + pinned-media
   reconciliation. Batch surface moves; land before an evaluation run.
@@ -218,6 +221,9 @@ Repository shrinks while capability grows.
   go build folders, and finished helper copies; a checkout to be used again is locked with
   `git worktree lock`.
   `-leftovers -withdraw <run>` withdraws, by its token, the store's locations of that run's checkpoints alone.
+- `go run ./cmd/loop -closeout` is a campaign's close-out check: the `-leftovers`
+  listing without sizes; fails while a finished entry remains on a line whose action
+  is delete. A close-out row names it in its check.
 - Port through typed contracts and recipe-selected consumers. llama.cpp for pinned
   behavior; `adaptive_new` read-only. Keep commits, licenses, artifact identities.
   Model-family facts live in artifacts and recipes, never model-specific code.

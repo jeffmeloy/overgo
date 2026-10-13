@@ -53,6 +53,9 @@ const (
 	// receiptPrefix opens the name of a listing's receipt, which ends with the trunk's commit:
 	// the listings of two commits are two files, and no literal is a whole file name.
 	receiptPrefix = "leftovers-"
+	// closeoutPrefix opens the name of a close-out's receipt, so a close-out leaves the measured
+	// listing of the same commit as it was written.
+	closeoutPrefix = "closeout-"
 	// registrationPage bounds one read of the store's catalog, which refuses a read with no
 	// bound; it is the page cmd/overgodb's own walk of the catalog defaults to.
 	registrationPage = 1000
@@ -175,8 +178,10 @@ var leftoverPlaces = []place{
 // beside the store is a backup, not an undeclared directory. With places
 // named it lists those lines alone, for a removal: it reads only the facts
 // they read, so a removal of helper copies never opens the store, and it
-// walks only the entries a removal would take.
-func listLeftovers(h hygiene, only ...string) ([]leftover, error) {
+// walks only the entries a removal would take. Without measure, a close-out's
+// listing of every line, no entry reads as measured, and only an entry a
+// delete could take is walked.
+func listLeftovers(h hygiene, measure bool, only ...string) ([]leftover, error) {
 	trees, err := landing.Worktrees(context.Background(), h.checkout)
 	if err != nil {
 		return nil, err
@@ -201,7 +206,7 @@ func listLeftovers(h hygiene, only ...string) ([]leftover, error) {
 				f.named = append(f.named, entry.path)
 			}
 			if len(only) == 0 || entry.state == stateFinished {
-				entry = weighed(entry)
+				entry = weighed(entry, measure)
 			}
 			found = append(found, entry)
 		}
@@ -217,10 +222,12 @@ func listLeftovers(h hygiene, only ...string) ([]leftover, error) {
 // be walked, is not finished. Neither is one that holds, at any depth, a
 // store, a store backup or the lock of a run that is still going: those are
 // never deleted, whatever line the entry is on. On a line that reports
-// nothing is deleted, so its entries are only measured.
-func weighed(entry leftover) leftover {
+// nothing is deleted, so its entries are only measured. Without measure only
+// an entry a delete could take is walked, since the walk is what decides its
+// state, and no entry reads as measured.
+func weighed(entry leftover, measure bool) leftover {
 	deletable, state := entry.action == actionDelete && entry.state == stateFinished, stateUnknown
-	if !filepath.IsAbs(entry.path) || entry.action == actionNever {
+	if !filepath.IsAbs(entry.path) || entry.action == actionNever || !measure && !deletable {
 		return entry
 	}
 	err := filepath.WalkDir(entry.path, func(path string, item fs.DirEntry, err error) error {
@@ -243,7 +250,7 @@ func weighed(entry leftover) leftover {
 	if deletable && err != nil {
 		entry.state, entry.rule = state, err.Error()
 	}
-	entry.measured = err == nil
+	entry.measured = measure && err == nil
 	return entry
 }
 
@@ -986,35 +993,80 @@ func goProcesses(listed string, parent int) (running []string, err error) {
 // state, bytes, place, path, rule) and then the table, a line a place with
 // what the listing found there, and writes the same text as a receipt in the
 // process state of the trunk's checkout: the guard refuses to redirect this
-// command's output into a file. It removes nothing.
-func leftoversCommand(h hygiene, output io.Writer) error {
-	found, err := listLeftovers(h)
+// command's output into a file. It removes nothing. As a campaign's close-out
+// it measures no bytes, prints after the table each finished entry of a line
+// that deletes once more, so those are the last entry lines, and then the
+// counts; it names its receipt apart from a listing's, and it fails while
+// such an entry remains.
+func leftoversCommand(h hygiene, closeout bool, output io.Writer) error {
+	found, err := listLeftovers(h, !closeout)
 	head, headErr := gitRead(h.checkout, "rev-parse", "HEAD")
 	if err = errors.Join(err, headErr, processlock.EnsureStateDirectory(h.checkout)); err != nil {
 		return err
 	}
 	var text strings.Builder
-	entries, bytes := map[string]int{}, map[string]int64{}
-	for _, entry := range found {
+	entries, states, bytes, prefix := map[string]int{}, map[string]int{}, map[string]int64{}, receiptPrefix
+	var refusing []leftover
+	write := func(entry leftover) {
 		size := "-"
 		if entry.measured {
 			size = fmt.Sprint(entry.bytes)
 			bytes[entry.place] += entry.bytes
 		}
 		fmt.Fprintf(&text, "%s\t%s\t%s\t%s\t%s\t%s\n", entry.action, entry.state, size, entry.place, entry.path, strings.Join(strings.Fields(entry.rule), " "))
+	}
+	for _, entry := range found {
+		write(entry)
 		entries[entry.place]++
 		entries[entry.place+entry.state]++
+		states[entry.state]++
+		if entry.action == actionDelete && entry.state == stateFinished {
+			refusing = append(refusing, entry)
+		}
 	}
 	for _, line := range leftoverPlaces {
 		fmt.Fprintf(&text, "# %s at %s: %s; finished: %s; a finished entry: %s; %d entries, %d bytes measured, %d finished\n",
 			line.name, line.at, line.holds, line.finished, line.action, entries[line.name], bytes[line.name], entries[line.name+stateFinished])
 	}
-	receipt := filepath.Join(h.checkout, processlock.StateDirectory, receiptPrefix+head[:min(len(head), commitAbbreviation)]+".txt")
+	if closeout {
+		prefix = closeoutPrefix
+		for _, entry := range refusing {
+			write(entry)
+		}
+		fmt.Fprintf(&text, "loop: close-out listed %d entries: %d unknown, %d undeclared, %d finished on a line whose action is delete\n",
+			len(found), states[stateUnknown], states[stateUndeclared], len(refusing))
+	}
+	receipt := filepath.Join(h.checkout, processlock.StateDirectory, prefix+head[:min(len(head), commitAbbreviation)]+".txt")
 	if err := os.WriteFile(receipt, []byte(text.String()), clioptions.PrivateFileMode); err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(output, "%sloop: wrote this listing to %s\n", text.String(), receipt)
-	return err
+	if _, err = fmt.Fprintf(output, "%sloop: wrote this listing to %s\n", text.String(), receipt); err != nil || !closeout {
+		return err
+	}
+	return closeoutRefusal(refusing, receipt)
+}
+
+// closeoutRefusal is why a close-out fails while the entries given remain,
+// and nothing when none does. A commit's checks keep only the end of what a
+// failed check printed, so it names no entry: it counts them by line and ends
+// with the total, the receipt that lists each, and the command that removes
+// a place's finished entries (deleteLeftovers).
+func closeoutRefusal(refusing []leftover, receipt string) error {
+	if len(refusing) == 0 {
+		return nil
+	}
+	counts := map[string]int{}
+	for _, entry := range refusing {
+		counts[entry.place]++
+	}
+	var lines []string
+	for _, line := range leftoverPlaces {
+		if count := counts[line.name]; count != 0 {
+			lines = append(lines, fmt.Sprintf("%s %d", line.name, count))
+		}
+	}
+	return fmt.Errorf("close-out is refused while finished entries remain on lines whose action is delete: %s; %d in all, each listed last in %s; remove them with go run ./cmd/loop -leftovers -delete <place>",
+		strings.Join(lines, ", "), len(refusing), receipt)
 }
 
 // sessionFolderName turns a checkout's path into the name of the folder the
@@ -1136,7 +1188,7 @@ func deleteLeftovers(h hygiene, name, token string, worker bool, output io.Write
 		return err
 	}
 	defer lock.Close()
-	found, err := listLeftovers(h, name)
+	found, err := listLeftovers(h, true, name)
 	if err != nil {
 		return err
 	}
@@ -1168,7 +1220,7 @@ func clearFinished(h hygiene) string {
 		if !slices.Contains(clearedAtCommit, line.name) {
 			continue
 		}
-		found, failure := listLeftovers(h, line.name)
+		found, failure := listLeftovers(h, true, line.name)
 		if failure == nil {
 			failure = h.removeFinished(line.remove, "removed", found, &said)
 		}
@@ -1415,8 +1467,9 @@ func realMachine(store string) (h hygiene, err error) {
 // leftoversFor lists the leftovers of the real machine, or, named a place,
 // removes that place's finished entries as deleteLeftovers does, or, named a
 // run's directory, withdraws its checkpoints' locations as
-// withdrawRegistrations does.
-func leftoversFor(store, deleting, withdrawing, token string, worker bool, output io.Writer) error {
+// withdrawRegistrations does. With closeout, and neither named, it is the
+// campaign's close-out check.
+func leftoversFor(store, deleting, withdrawing, token string, worker, closeout bool, output io.Writer) error {
 	h, err := realMachine(store)
 	switch {
 	case err != nil:
@@ -1426,5 +1479,5 @@ func leftoversFor(store, deleting, withdrawing, token string, worker bool, outpu
 	case withdrawing != "":
 		return withdrawRegistrations(h, withdrawing, token, worker, output)
 	}
-	return leftoversCommand(h, output)
+	return leftoversCommand(h, closeout, output)
 }

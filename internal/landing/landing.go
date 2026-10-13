@@ -20,6 +20,8 @@
 // follows. A refusal names the stage that refused it; the loop
 // classes it, an antivirus quarantine as an external prerequisite, and
 // records its class in the checkout's process state, where a recurrence shows.
+// The landing command's checks open by reading free space, and refuse to
+// start below a floor (space).
 package landing
 
 import (
@@ -63,6 +65,11 @@ type Options struct {
 	// timed measurement in progress. The landing command sets it; a fixture does not, so
 	// a test of the gate never waits for a cycle's cell.
 	Quiet bool
+	// Free reads the bytes free on the volume that holds a directory. With it
+	// the checks open with the stage space, which refuses a run below the
+	// floor. The landing command gives VolumeFree; a fixture gives none, so a
+	// test of the gate is held to no floor of the machine it runs on.
+	Free func(directory string) (uint64, error)
 }
 
 type landing struct {
@@ -177,6 +184,11 @@ func Run(ctx context.Context, options Options) (landed string, err error) {
 	// the tests that read the plan run with the next code landing.
 	if l.planOnly() {
 		checks = slices.DeleteFunc(checks, func(check check) bool { return check.name != "verify" })
+	}
+	// Free space is read first whatever the run keeps: a preflight and a
+	// change to the plan alone build too.
+	if l.Free != nil {
+		checks = slices.Insert(checks, 0, check{spaceClass, l.space, true})
 	}
 	for _, check := range checks {
 		started := time.Now()

@@ -61,13 +61,38 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "store-open",
+      "title": "A store open replays little, so a model's load is the model's",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "bound",
+          "title": "Have a writer keep the journal past the store's checkpoint under a measured bound",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -count=1 -run '^TestAnOpenReplaysNoMoreThanTheBound$'",
+          "rationale": "Filed by the lead on 2026-10-13 from the first readings of step trustworthy-measurement/stages.\n\nMeasured on this machine with recipe measure -journey (the instrument of that step), on the installed store at sequence 88,5xx\n- MiniCPM5-1B: a load takes 4.6 to 4.9 s, of which the store's read-only open is 3.65 to 3.73 s (76 to 80%) and the weights 0.83 s\n- Qwen3.5-9B-Q8_0: a load takes 7.5 to 7.7 s, of which the store's open is 3.56 to 3.67 s (47 to 48%) and the weights 3.7 s\n- a second load in the same process pays the same open\n- a built overgodb query that opens the store and resolves one alias takes 2.5 to 2.7 s\n\nRead in the code and on disk\n- an open loads the newest checkpoint generation and replays the journal after it (internal/overgodb/store.go open, loadProjectionCheckpoints, openRecordLog)\n- the installed store's one checkpoint generation is 00000000000000049212, written 2026-09-21, and its head is past sequence 88,500, so every open replays about 39,000 records\n- Store.Snapshot writes a checkpoint, and its one caller outside tests is the retention operation (internal/overgodb/retention.go)\n- so no checkpoint is written in normal work, and an open's time grows with every commit to the store\n\nWhat an open costs\n- every text row's load-time cell holds about 3.6 s of it (the scorecard's load phase is the whole of the open, cmd/recipe/inference_measure.go)\n- a measured cell opens the store three times (to find its request, to load, to record)\n- every command that opens the store pays it\n\nMust hold\n- a writer that ends a transaction with more than a bound of records past the checkpoint writes a checkpoint, by Store.Snapshot or its inner part\n- the bound is a named number taken from a measurement of the replay rate and of what a checkpoint costs to write (the two files of the installed generation hold 57,620,849 bytes)\n- an open of a store kept that way replays no more than the bound\n- a checkpoint stays acceleration and never authority (a store with none still opens by replay)\n\nMeasure first, on a copy of the installed store or its sealed backup, never the live one\n- the replay rate, records a second\n- what Snapshot takes and writes at this store's size\n- whether Snapshot's rotation of the journal changes what a reader holding the store open sees\n\nServes: load-time on every row, and the time of every command and every measured cell that opens the store.\nDisappears: a load-time that grows with the store's history.\nEvidence: the test; the journey's load parts before and after on a copy.\nBatch: host; internal/overgodb is outside the capability packages' closure by the surface's own rule (it stops at overgodb), which the step confirms before it edits."
+        },
+        {
+          "id": "installed",
+          "title": "Write the installed store's checkpoint at its head by the maintenance protocol, and read the load-time cells again",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -count=1 -run '^TestAnOpenReplaysNoMoreThanTheBound$'",
+          "rationale": "The installed store is changed only by the lead's maintenance protocol: a sealed backup first (go run ./cmd/overgodb backup), the change proved on a candidate (overgodb precheck -backup \u003cdir\u003e -swap), and the superseded store kept until the next commit passes.\n\nMust hold\n- the installed store has a checkpoint generation at or near its head\n- the journey's store open part on MiniCPM5-1B and Qwen3.5-9B-Q8_0 reads a small fraction of 3.6 s\n- the accepted census is unchanged\n\nServes: load-time on every row.\nDisappears: about 3.6 s of every load on this machine.\nEvidence: the journey before and after; the census check against the installed store.\nBatch: store maintenance, then device readings by hand.",
+          "depends_on": [
+            "store-open/bound"
+          ]
+        }
+      ]
+    },
+    {
       "id": "trustworthy-measurement",
       "title": "Make a timing and a quality reading trustworthy before anything is judged by them",
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "measured by the preflight of step shared-side's change at 0c2a8c884, after its code moved to internal/quietmachine so that no capability's identity moves: the quiet machine's name, its wait and a workload's entry there, where the commit checks' own copy of the wait moves to, and one line in each of cmd/train, cmd/evaluate, cmd/recipe, cmd/longform and the push"
+        "nodes": 578,
+        "reason": "measured by the preflight of step stages' change at 098dc591e: marks on the parts of a text model's load in internal/modelcli and internal/inference, three moments of a request kept apart, the measure verb's printing of both, and a -journey mode that prints them four ways and records nothing"
       },
       "steps": [
         {
@@ -75,7 +100,7 @@
           "title": "Record the stages of a first request apart, cold and warm, to the first token a person sees",
           "status": "open",
           "verify": "go test ./cmd/recipe -count=1 -run '^TestMeasurementSeparatesLoadPrefillAndVisibleOutput$'",
-          "rationale": "From the proposal, kept. A text attempt records load, prefill and decode, and its first output is the time at which the prompt was evaluated, not the first token emitted (cmd/recipe/inference_measure.go:168; internal/scorecard/scorecard.go:566, both read by the lead on 2026-10-13). By the proposal, not counted again: ten of eleven text rows read 99 to 161 ms there while throughput spans 17 times, and load time fits about 2.3 s plus 0.385 s for each GiB of peak device memory. The commit that closed the two declines could not say which stage had been slow (19ff19be7). Record context setup, compilation, store open, source bytes, hashing, upload, admission, prefill and first emitted output, for a cold process, a warm process and a warm model. For text rows the load cell is a fresh-process load that includes opening the store, so this record also says whether the constant is the store's open. It decides whether a row for a resident device worker is filed: a hypothesis until the stages a resident process would keep exceed their own spread.\nServes: first-output, load-time.\nDisappears: prefill presented as first output; a decline closed by measuring until the number returns.\nEvidence: docs/verification/journey-stages.txt, held by the test; old records read with the new fields unknown.\nBatch: host tests, then isolated measurements.",
+          "rationale": "From the proposal, kept. A text attempt records load, prefill and decode, and its first output is the time at which the prompt was evaluated, not the first token emitted (cmd/recipe/inference_measure.go:168; internal/scorecard/scorecard.go:566, both read by the lead on 2026-10-13). By the proposal, not counted again: ten of eleven text rows read 99 to 161 ms there while throughput spans 17 times, and load time fits about 2.3 s plus 0.385 s for each GiB of peak device memory. The commit that closed the two declines could not say which stage had been slow (19ff19be7). Record context setup, compilation, store open, source bytes, hashing, upload, admission, prefill and first emitted output, for a cold process, a warm process and a warm model. For text rows the load cell is a fresh-process load that includes opening the store, so this record also says whether the constant is the store's open. It decides whether a row for a resident device worker is filed: a hypothesis until the stages a resident process would keep exceed their own spread.\nServes: first-output, load-time.\nDisappears: prefill presented as first output; a decline closed by measuring until the number returns.\nEvidence: docs/verification/journey-stages.txt, held by the test; old records read with the new fields unknown.\nBatch: host tests, then isolated measurements.\n\nThe lead's choices of 2026-10-13 for this step, after its instrument's first readings.\n\n- the step = the instrument and its readings. recipe measure -task inference prints the parts of its load and three moments of its request, and with -journey prints them for a first load, a second load, the same request again on a loaded model and another request on a loaded model, and records nothing.\n- no field is added to the serving observation. The first token comes 10 to 40 microseconds after the prompt is evaluated on every reading taken (MiniCPM5-1B, Qwen3.5-9B-Q8_0), so the time the scorecard reads as first output is the first token's to within that.\n- no record file under docs/verification. No code would read it, and one command reproduces the readings.\n- the load's constant = the store's open, 3.6 to 3.7 s of every load. Row store-open.\n- a resident device worker = not filed. The parts a resident process would keep read 0.05 to 0.11 s for the device worker and nothing for the executor.\n- found, not yet a row: the first request after a load pays a one-time cost that a second request does not (MiniCPM5-1B 133 ms then 5.9 ms for another request; Qwen3.5-9B-Q8_0 31 to 35 ms then 28 ms). The scorecard's first-output cell of a text row reads that first request.",
           "depends_on": [
             "trustworthy-measurement/exclusive"
           ]

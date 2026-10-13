@@ -71,13 +71,6 @@
       },
       "steps": [
         {
-          "id": "own-cleanup-census",
-          "title": "Accept the store's census without the pilot's withdrawn checkpoints, then show the owner the experiments' weights to remove",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestAcceptedCapabilityCensus$'",
-          "rationale": "Added by the lead on 2026-10-12 from the preparation of step own-cleanup. The accepted capability census (cmd/validate/testdata/accepted_census.json) binds the census of the installed store, which counts every model artifact the store holds a location for. Once the pilot's 12 checkpoints are withdrawn the store's census differs from the bound one, and TestAcceptedCapabilityCensus fails against the real store until the new census is accepted.\n\nThe lead publishes the census from a clean checkout (go run ./cmd/validate -publish-census), compares it with the bound one, files the review finding that names both, closes it with its disposition, and binds the three identities in the test data. The check reads the real store only when OVERGO_STORE_ACCEPTANCE=1 is set, as the lead sets it for this commit, and skips without it; so set, it fails between the withdrawal and this commit and passes after; the experiments' weights are deleted only after it passes, and it is run once more after the deletion, which must not move it.\n\nClosure: test data only. The owner's data, the two experiments' weights, is then shown as the deleting command's listing and removed by the owner's word.\n\nServes: measure: the census a full measurement run checks is the store's.\nDisappears: the 12 pilot checkpoints from the accepted census.\nEvidence: the two census identities and the finding's disposition.\nBatch: host; test data of cmd/validate."
-        },
-        {
           "id": "enforce",
           "title": "Refuse close-out while finished leftovers remain, and refuse a commit's checks below a free-space floor",
           "status": "open",

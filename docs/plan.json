@@ -66,8 +66,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 120,
-        "reason": ""
+        "nodes": 1470,
+        "reason": "measured by the preflight of step exclusive's change at 06d623d49: the machine's processes read from one snapshot, the rule for which compete with a timed measurement, the reading a measurement returns, the record that sets a contended serving attempt aside and the scorecard's reading of it, and a contended cell's second measurement; less the tasklist call and its parser in cmd/loop"
       },
       "steps": [
         {

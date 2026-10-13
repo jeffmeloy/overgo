@@ -87,14 +87,11 @@
       "title": "Make a timing and a quality reading trustworthy before anything is judged by them",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 120,
+        "reason": ""
+      },
       "steps": [
-        {
-          "id": "spread",
-          "title": "Keep one busy attempt from masking a decline, and read a timed cell from several attempts",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestOneBusyAttemptCannotMaskADecline$'",
-          "rationale": "From the proposal's row, with a first step the lead adds: a fault that is live now. A cell's spread is the range of its last three attempts over their mean, and a decline is filed only above the larger of the column's allowance and that spread (01ee3e336), so one busy attempt stays in the spread for the next two and raises the bar. Checked by the lead's review of 2026-10-12 against scorecard-20261012T104626Z.json: ten timing cells carried a spread wider than their allowance; gemma-4-12B-it-fp8's first output could file no decline below about 1,144 ms while it read 132, and Wan2.1's video cell none at any value. The run of 2026-10-13 timed its serving cells beside a session's compiling and testing and filed no row, which this fault would hide either way. A statistic one outlier cannot move replaces the range, and a timed cell is read from several attempts.\nServes: first-output, throughput, load-time: a real decline files a row.\nDisappears: the range of three as the bar.\nEvidence: the scorecard's history judged both ways; the ten cells' bars before and after.\nBatch: host fixtures."
-        },
         {
           "id": "exclusive",
           "title": "Have a timed cell see the work that competes with it, and have every overgo workload honor the quiet machine",

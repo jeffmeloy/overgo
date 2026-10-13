@@ -28,7 +28,7 @@ func TestScorecardStatesInapplicableMetrics(t *testing.T) {
 		t.Fatalf("training first output = %+v, want a stated inapplicability", cell)
 	}
 	// A training session decodes no output tokens, whatever else it measured.
-	if cell := throughputCell(recipe.TaskTraining, none, false, &servingSummary{decodeTokens: 10, decodeNS: 1}); !cell.NotApplicable || cell.Reason == "" {
+	if cell := throughputCell(recipe.TaskTraining, none, false, &servingSummary{window: []servingSample{{took: [timingCount]float64{timingDecodeRate: 10}}}}); !cell.NotApplicable || cell.Reason == "" {
 		t.Fatalf("training throughput = %+v, want a stated inapplicability", cell)
 	}
 	// A projection cell no attempt measured states why it is not a measurement missing; one an attempt measured stays.

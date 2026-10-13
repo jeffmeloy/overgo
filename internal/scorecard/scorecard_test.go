@@ -26,7 +26,8 @@ import (
 // the success peaked at. Each keeps its origin and scope, the serving
 // attempts of its recipe, so it compares only with the same population. A
 // recipe that has only failed reads its failure cell under the environment
-// its attempts ran in, so its first success holds against that cell.
+// its attempts ran in, so its first success holds against that cell, and its
+// timing cells are gaps: no attempt took a timing.
 func TestServingCountsWhatUsersHit(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
@@ -105,6 +106,9 @@ func TestServingCountsWhatUsersHit(t *testing.T) {
 	if failing.Value != 1 || failing.Environment != environment {
 		t.Errorf("failure cell of a recipe that has only failed = %+v, want every attempt failed under its attempts' environment %s", failing, environment)
 	}
+	if cell := firstOutputCell(recipe.TaskImageGen, none, false, summaries[never]); cell.Measured() {
+		t.Errorf("first-output cell of a recipe that has only failed = %+v, want a gap: no attempt took a timing", cell)
+	}
 	observe("first-success", runrecord.ServingObservation{Recipe: never, Outcome: runrecord.OutcomeSucceeded, StartedUnixNS: 2, MeasuredNS: wholeOutputNS})
 	if summaries, err = servingByRecipe(ctx, store); err != nil {
 		t.Fatal(err)
@@ -114,17 +118,21 @@ func TestServingCountsWhatUsersHit(t *testing.T) {
 	}
 }
 
-// TestServingCellsReadTheNewestMeasuredAttempt holds the timing and memory
-// cells to one attempt: the newest success that timed its model's load, as
-// the cycle measures a recipe, and the timing cells to carry how far the
-// newest three such attempts differ (their range over their mean), which an
-// older, slower attempt widens and never blends in, so a landed improvement
-// reads in full. A later request served
-// from a resident session, which times no load, does not stand in for the
-// measurement; and a stale benchmark record is read only where no attempt
-// measured the cell. A recipe whose attempts never timed a load reads its
-// newest success.
-func TestServingCellsReadTheNewestMeasuredAttempt(t *testing.T) {
+// TestServingTimingsReadTheMedianOfTheNewestMeasuredAttempts holds the memory
+// cell to one attempt, the newest success that timed its model's load, as
+// the cycle measures a recipe, and the timing cells to the median of the
+// newest three such attempts, with how far those stand from it as their
+// spread. Two such attempts read midway between them and name the newer, so
+// the older and slower of two still counts for half the cell. A request
+// served from a resident session, which times no load, does not stand in
+// for the measurement where it is the newest, and joins no median where it
+// lies between two measured attempts, as a page's requests lie between two
+// measurement runs. A timing the newest measured attempt did not take is not
+// read from an older one, and one an older attempt did not take is no
+// reading of zero beside the newer's. A stale benchmark record is read only
+// where no attempt measured the cell. A recipe whose attempts never timed a
+// load reads its newest success.
+func TestServingTimingsReadTheMedianOfTheNewestMeasuredAttempts(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
@@ -135,7 +143,9 @@ func TestServingCellsReadTheNewestMeasuredAttempt(t *testing.T) {
 	model := testutil.ArtifactID(t, artifact.KindModel, "measured-model")
 	environment := testutil.ArtifactID(t, artifact.KindEvidence, "measured-environment")
 	measuredRecipe, served := testutil.ArtifactID(t, artifact.KindRecipe, "measured-recipe"), testutil.ArtifactID(t, artifact.KindRecipe, "served-recipe")
-	if _, err := store.Commit(ctx, artifact.Batch{Key: "measured/authorities", Artifacts: []artifact.Descriptor{{ID: model}, {ID: environment}, {ID: measuredRecipe}, {ID: served}}}); err != nil {
+	silent, onceSilent := testutil.ArtifactID(t, artifact.KindRecipe, "silent-recipe"), testutil.ArtifactID(t, artifact.KindRecipe, "once-silent-recipe")
+	between := testutil.ArtifactID(t, artifact.KindRecipe, "between-recipe")
+	if _, err := store.Commit(ctx, artifact.Batch{Key: "measured/authorities", Artifacts: []artifact.Descriptor{{ID: model}, {ID: environment}, {ID: measuredRecipe}, {ID: served}, {ID: silent}, {ID: onceSilent}, {ID: between}}}); err != nil {
 		t.Fatal(err)
 	}
 	const millisecond, peak = uint64(time.Millisecond), 5 << 30
@@ -170,6 +180,16 @@ func TestServingCellsReadTheNewestMeasuredAttempt(t *testing.T) {
 	latest := attempt("page", measuredRecipe, 3, 0, 5, 200, 50, 0)
 	attempt("page-older", served, 1, 0, 7, 400, 40, 0)
 	page := attempt("page-newest", served, 2, 0, 5, 200, 50, 0)
+	// The newest measured attempt of the silent recipe decoded no tokens; the one before it did.
+	attempt("spoke", silent, 1, 4000, 100, 1000, 80, peak)
+	attempt("silent", silent, 2, 4000, 100, 1000, 0, peak)
+	// The other way round: the older measured attempt decoded no tokens and the newest did.
+	attempt("once-silent", onceSilent, 1, 4000, 100, 1000, 0, peak)
+	speaking := attempt("speaking", onceSilent, 2, 4000, 100, 1000, 80, peak)
+	// A request from a resident session lies between two attempts that timed their load.
+	attempt("between-slow", between, 1, 9000, 200, 2000, 10, 2*peak)
+	attempt("between-page", between, 2, 0, 5, 200, 50, 0)
+	resumed := attempt("between-fast", between, 3, 4000, 100, 1000, 80, peak)
 
 	summaries, err := servingByRecipe(ctx, store)
 	if err != nil {
@@ -190,12 +210,22 @@ func TestServingCellsReadTheNewestMeasuredAttempt(t *testing.T) {
 		"load": loadCell(stale, true, summary), "peak": peakMemoryCell(stale, true, summary),
 	} {
 		// Two attempts timed their load: the slow one (200 ms prefill, 5 tok/s, 9 s load) and the fast one
-		// (100 ms, 80 tok/s, 4 s): the cell reads the fast one, and its spread is their range over their mean.
-		want := map[string]float64{"first output": 100, "throughput": 80, "load": 4000, "peak": peak}[name]
-		spread := map[string]float64{"first output": 100.0 / 150, "throughput": 75 / 42.5, "load": 5000.0 / 6500, "peak": 0}[name]
+		// (100 ms, 80 tok/s, 4 s). A timing reads midway between the two, with half their gap over that
+		// as its spread, and names the fast one, the newer; the memory is the fast one's alone.
+		want := map[string]float64{"first output": 150, "throughput": 42.5, "load": 6500, "peak": peak}[name]
+		spread := map[string]float64{"first output": 50.0 / 150, "throughput": 37.5 / 42.5, "load": 2500.0 / 6500, "peak": 0}[name]
 		if cell.Value != want || cell.Source != fast || cell.Contract.Origin != originServing || math.Abs(cell.Spread-spread) > 1e-9 {
-			t.Errorf("%s = %+v, want %v with spread %v from the newest attempt that timed its load", name, cell, want, spread)
+			t.Errorf("%s = %+v, want %v with spread %v, named by the newer of the two attempts that timed their load", name, cell, want, spread)
 		}
+	}
+	if cell := throughputCell(recipe.TaskInference, stale, true, summaries[silent]); cell.Value != stale.DecodeTokensPerSecond || cell.Contract.Origin != originBenchmark {
+		t.Errorf("throughput of a recipe whose newest measured attempt decoded no tokens = %+v, want the benchmark's: the rate of the attempt before it does not stand in", cell)
+	}
+	if cell := throughputCell(recipe.TaskInference, stale, true, summaries[onceSilent]); cell.Value != 80 || cell.Spread != 0 || cell.Source != speaking {
+		t.Errorf("throughput of a recipe whose older measured attempt decoded no tokens = %+v, want the newest attempt's 80 tok/s with no spread: a rate an attempt did not take is no reading of zero", cell)
+	}
+	if cell := firstOutputCell(recipe.TaskInference, stale, true, summaries[between]); cell.Value != 150 || cell.Source != resumed {
+		t.Errorf("first output of attempts of 200 and 100 ms that timed their load, a request of 5 ms from a resident session between them = %+v, want the 150 ms midway between the two, named by the newer: the request between them joins no median", cell)
 	}
 	if cell := failureCell(summary); cell.Value != 0 || cell.Source != latest {
 		t.Errorf("failure cell = %+v, want none failed since the newest success, read from the latest attempt", cell)

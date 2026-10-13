@@ -17,15 +17,16 @@ import (
 
 // TestACellsOwnSpreadNeitherHidesItsDeclineNorRestoresIt holds a serving timing's decline to noise that
 // was measured before the candidate existed. A recipe with four attempts that timed their load reads the
-// newest and the spread of the newest three (the oldest reads in none), and that spread counts the attempt
-// the cell reads: attempts of 100, 100 and 160 ms publish 160 ms with a spread of a half, which would
-// excuse any step the cell took. So a comparison allows a change up to the reference cell's spread beside
-// the column's allowance and never the candidate's own: the 160 ms is a decline from a stable 100, a
-// throughput that fell from 100 to 80 is filed once with 100 as its target and not again while it stays
-// at 80, and a decline is restored only when the cell is back within the column's allowance of its
-// target, whatever its own repeats spread by. What that costs is the row the old rule was written for: a
-// 9 ms operation whose repeats read 9, 16, 23, 49 and 18 ms is a decline at 30 ms while its reference
-// rests on one attempt, and holds once the reference carries that spread.
+// median of the newest three and how far they stand from it (the oldest reads in neither): attempts of
+// 16, 23 and 49 ms publish 23 ms with a spread of 7/23, and attempts of 100, 100 and 160 ms publish
+// 100 ms with none, the one slow attempt moving neither. A cell's spread still counts the attempts the
+// cell is read from, so a comparison allows a change up to the reference cell's spread beside the
+// column's allowance and never the candidate's own. The rows that hold that set their spreads by hand:
+// a cell at 160 ms that carries a spread of a half is a decline from a stable 100, a throughput that
+// fell from 100 to 80 is filed once with 100 as its target and not again while it stays at 80, and a
+// decline is restored only when the cell is back within the column's allowance of its target, whatever
+// spread it carries. What that costs: a 9 ms operation at 30 ms is a decline while its reference
+// carries no spread, and holds once the reference carries one that wide.
 func TestACellsOwnSpreadNeitherHidesItsDeclineNorRestoresIt(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
@@ -69,11 +70,11 @@ func TestACellsOwnSpreadNeitherHidesItsDeclineNorRestoresIt(t *testing.T) {
 		t.Fatal(err)
 	}
 	cell := firstOutputCell(recipe.TaskInference, evaluation.BenchmarkSummary{}, false, summaries[noisy])
-	if want := 49.0; cell.Value != want || math.Abs(cell.Spread-(49.0-16)*3/(49+23+16)) > 1e-9 {
-		t.Fatalf("first output = %v with spread %v, want the newest attempt %v and the range of 16, 23 and 49 ms over their mean", cell.Value, cell.Spread, want)
+	if want := 23.0; cell.Value != want || math.Abs(cell.Spread-7.0/23) > 1e-9 {
+		t.Fatalf("first output = %v with spread %v, want %v, the median of 16, 23 and 49 ms, and 7/23, their median distance from it over it", cell.Value, cell.Spread, want)
 	}
-	if cell := firstOutputCell(recipe.TaskInference, evaluation.BenchmarkSummary{}, false, summaries[stepped]); cell.Value != 160 || math.Abs(cell.Spread-0.5) > 1e-9 {
-		t.Fatalf("first output = %v with spread %v, want the newest attempt 160 and a spread of a half: the step the cell took is in its own spread", cell.Value, cell.Spread)
+	if cell := firstOutputCell(recipe.TaskInference, evaluation.BenchmarkSummary{}, false, summaries[stepped]); cell.Value != 100 || cell.Spread != 0 {
+		t.Fatalf("first output = %v with spread %v, want the median 100 and no spread: one slow attempt of three moves neither", cell.Value, cell.Spread)
 	}
 
 	contract := Contract{Metric: "time to prefill", Origin: originServing}
@@ -112,8 +113,9 @@ func TestACellsOwnSpreadNeitherHidesItsDeclineNorRestoresIt(t *testing.T) {
 		}
 	}
 
-	// A throughput that fell from 100 to 80 tok/s and stayed there. The record it fell in carries the
-	// spread of 100, 100 and 80, and the next one that of 100, 80 and 80.
+	// A throughput that fell from 100 to 80 tok/s and stayed there. Each record's cell carries a spread
+	// set by hand, wider than the column's allowance: the range of 100, 100 and 80 over their mean, then
+	// that of 100, 80 and 80.
 	rate := func(value, spread float64) Record {
 		throughput := Cell{Value: value, Spread: spread, Unit: "tok/s", Contract: Contract{Metric: "output tokens over decode time", Origin: originServing}}
 		return Record{Rows: []Row{measuredFixture(model, map[metric.Name]Cell{metric.Throughput: throughput})}}

@@ -67,7 +67,7 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 34,
+        "nodes": 91,
         "reason": ""
       },
       "steps": [
@@ -80,13 +80,6 @@
           "depends_on": [
             "consumer-checks/declarations"
           ]
-        },
-        {
-          "id": "beside-tests",
-          "title": "Move the checks that only tests call beside their tests",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestEveryProcessDeclarationIsReachedByACommand$'",
-          "rationale": "From the census of step declarations. 79 unreached declarations of 1,699 lines are checks that only tests call and that live in production files: the analyzers of internal/repoanalysis (60 declarations, 1,326 lines) and the source review of internal/webuilane (19, 373). They move into test files beside the tests that call them, as 4d53c93bf did for others, with the exception entries and the regex-owner entry that name those files deleted (the prepared note lists them). The census list loses their lines in the same commit.\nServes: the loop's upkeep: less production code to compile, vet and carry into the longer test runs.\nDisappears: about 1,700 lines of production code, kept as test code.\nEvidence: the census test passes with those lines gone from its list; the tests that called the checks still pass.\nBatch: host."
         },
         {
           "id": "delete-unreached",

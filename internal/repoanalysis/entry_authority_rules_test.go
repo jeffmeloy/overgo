@@ -175,9 +175,7 @@ func EntryAuthorityRules() []EntryAuthorityRule {
 			Domain:     EntryAuthorityStorage,
 			Owner:      "internal/overgodb owns the canonical journal layout; recovery replays through its reader",
 			OwnerPaths: []string{"internal/overgodb"},
-			Exceptions: map[string]string{
-				"internal/repoanalysis/entry_authority.go": "single policy owner; the rule table names the journal layout it guards",
-			},
+			Exceptions: map[string]string{},
 			Detect: func(file *ast.File) int {
 				return literalSites(file, "overgodb.log")
 			},
@@ -197,9 +195,7 @@ func EntryAuthorityRules() []EntryAuthorityRule {
 			Domain:     EntryAuthorityPromotion,
 			Owner:      "internal/modelrecipe owns capability activation; the recipe.active alias namespace changes only through its lifecycle",
 			OwnerPaths: []string{"internal/modelrecipe"},
-			Exceptions: map[string]string{
-				"internal/repoanalysis/entry_authority.go": "single policy owner; the rule table names the activation alias namespace it guards",
-			},
+			Exceptions: map[string]string{},
 			Detect: func(file *ast.File) int {
 				return literalSites(file, "recipe.active.")
 			},
@@ -248,8 +244,6 @@ func EntryAuthorityRules() []EntryAuthorityRule {
 				"internal/processlock/lock_windows.go":               "OS-ABI owner: kernel32 LockFileEx for the exclusive process lock",
 				"internal/processmeasure/peak_windows.go":            "OS-ABI owner: psapi peak-memory measurement",
 				"internal/protection/protection.go":                  "protection guard verifies the harness hook configuration; it grants no capability from it",
-				"internal/repoanalysis/production_authority_rsi.go":  "typed architecture audit enumerates forbidden runtime formats; naming them grants no runtime behavior",
-				"internal/repoanalysis/entry_authority.go":           "single policy owner; the rule table names the plugin, library, script, and configuration patterns it guards",
 			},
 			Detect: func(file *ast.File) int {
 				sites := 0

@@ -11,6 +11,18 @@ import (
 	"overgo/internal/gosyntax"
 )
 
+// ValidateTrackedDocuments refuses every tracked document nothing reads.
+func ValidateTrackedDocuments(census []TrackedDocument) error {
+	var findings []error
+	live := LiveDocuments(census)
+	for _, document := range census {
+		if !live[document.Path] {
+			findings = append(findings, fmt.Errorf("tracked document %s has no reader: no package, test, embed or read document names it; give it a reader or delete it", document.Path))
+		}
+	}
+	return errors.Join(findings...)
+}
+
 // TestEveryTrackedFileHasAReader holds every document in the checkout --
 // tracked, or untracked and not ignored, wherever it is -- to a reader: a
 // package or test that names or embeds it, the tool that writes it, a read

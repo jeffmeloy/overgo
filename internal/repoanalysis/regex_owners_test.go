@@ -33,7 +33,6 @@ var regexOwners = map[string]string{
 	"internal/hfconvert/convert.go":                   "reads the Hugging Face tensor-name grammar",
 	"internal/hfgguf/qwen35_projector.go":             "reads the Hugging Face tensor-name grammar",
 	"internal/inference/chat_tool_grammar.go":         "validates a tool-name grammar",
-	"internal/repoanalysis/docs_inventory.go":         "reads markdown links and command references in prose",
 	"internal/runrecord/verify_selector.go":           "compiles a go test -run selector, which is a regular expression",
 	"internal/sampling/json_schema.go":                "JSON Schema pattern and format keywords are regular expressions",
 	"internal/server/document_text.go":                "locates PDF stream dictionaries in raw PDF bytes",

@@ -391,18 +391,6 @@ func LiveDocuments(census []TrackedDocument) map[string]bool {
 	return live
 }
 
-// ValidateTrackedDocuments refuses every tracked document nothing reads.
-func ValidateTrackedDocuments(census []TrackedDocument) error {
-	var findings []error
-	live := LiveDocuments(census)
-	for _, document := range census {
-		if !live[document.Path] {
-			findings = append(findings, fmt.Errorf("tracked document %s has no reader: no package, test, embed or read document names it; give it a reader or delete it", document.Path))
-		}
-	}
-	return errors.Join(findings...)
-}
-
 // CheckoutDocuments measures the census of the checkout at root: every
 // document it tracks or would track if added, with the packages of its
 // source and the documents that name each. A commit's checks and a listing of

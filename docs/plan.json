@@ -66,7 +66,7 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1112,
+        "nodes": 271,
         "reason": "What the row may still add. Set on 2026-10-13, with plan -setcount, to the 1,112 nodes its steps bound-cells and census-binding were counted at once built, each in a checkout of its own on the trunk's commit c2799a282, by the count of syntax nodes the automated checks take. Step bound-cells, 271: cmd/validate/training_proof.go, cmd/validate/run.go and cmd/train/route_codec.go (the bridge's training cell bound to the codec route's proof, and a reward recipe's cell left to the operator with its reason). Step census-binding, 841: cmd/validate/census.go and cmd/validate/main.go (accepting a changed census as one command, with the check and the binding type moved out of a test file). The builders' counts, each confirmed by a second reader; the commit's own check gives the figure that governs. The row grows because two hand procedures become commands and a refused cell becomes a bound one. Step coverage-27b added no production code. Step proof-footprint is counted the same way before it is committed."
       },
       "steps": [
@@ -86,13 +86,6 @@
           "depends_on": [
             "measurement-run-passes/bound-cells"
           ]
-        },
-        {
-          "id": "census-binding",
-          "title": "Make accepting a changed census one command",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestCensusAcceptanceIsOneCommand$'",
-          "rationale": "Filed by the lead on 2026-10-13; not in the proposal. Accepting a changed capability census is four hand steps, done by hand on 2026-10-12 at the close-out and again at abaeb0b94: publish the census, file a finding that names the base and the new census, close it, and type three identities into cmd/validate/testdata/accepted_census.json. A hand step is a system defect by the owner's rule. One command of cmd/validate does the four, refuses when the census has not changed, and prints what differs so the acceptance is read before it is made.\nServes: change: a census is accepted by one reviewed command.\nDisappears: three identities typed by hand.\nEvidence: the test, over a temporary store.\nBatch: host."
         }
       ]
     },

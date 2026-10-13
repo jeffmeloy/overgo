@@ -9,9 +9,9 @@
 // sources they bind and checks the matrices published from them; a claim whose
 // source moved is rebound only after -claims -run re-runs its verify. It also
 // renders the model and media reports from the store on demand, exports the
-// media samples, publishes and checks the capability census, and commits
-// model-verification records. It also runs the smoke oracles against the
-// active inference models, the reference parity comparisons, the hermetic
+// media samples, publishes, checks and accepts the capability census, and
+// commits model-verification records. It also runs the smoke oracles against
+// the active inference models, the reference parity comparisons, the hermetic
 // short test lane and the test receipts reviewed media deltas bind.
 package main
 
@@ -36,6 +36,7 @@ import (
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
 	"overgo/internal/scorecard"
 	"overgo/internal/testevidence"
 	"overgo/internal/trainingworkflow"
@@ -76,6 +77,8 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	mediaScope := flags.String("media-scope", "all", "with -export-samples: the tasks exported, all or image-video; the media report always renders every media task")
 	publishCensus := flags.Bool("publish-census", false, "publish the complete registered capability denominator from clean code")
 	checkCensus := flags.String("check-census", "", "check one exact immutable capability census against the live registered denominator")
+	acceptPath := flags.String("accept-census", "", "a census binding file, cmd/validate/testdata/accepted_census.json or media_census.json: print what the registered models add to, remove from or change in the census it accepts; with -reason, from clean code, publish the live census with a finding closed for that reason and bind the file to them")
+	reason := flags.String("reason", "", "with -accept-census: why the changed census is accepted; without it nothing is written")
 	recordVerification := flags.String("record-verification", "", "commit a typed model-verification record from a JSON spec (model, name, evidenced capability claims) into the store")
 	smoke := flags.Bool("smoke", false, "serve every active inference model, or the one -model names, against its declared oracle in docs/verification/smoke-oracles.json and record a bound run into the store")
 	budget := flags.Duration("budget", 0, "with -smoke: the total discovery and execution budget; required")
@@ -97,7 +100,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 			"-scorecard reads the store and the serving source: it loads no model and opens no device",
 			"-onboard runs on a clean tree: the activation binds the commit it validated under",
 			"-claims reads the checkout only; a claim is rebound only by its own verify passing, never by hand",
-			"-models, -media and -check-census read the store; -export-samples writes only under docs/media_samples; -publish-census and -record-verification write the store",
+			"-models, -media and -check-census read the store; -export-samples writes only under docs/media_samples; -publish-census and -record-verification write the store; -accept-census reads it, and with -reason writes it and the binding file",
 			"-smoke loads each selected model on the device and, without -diagnostic, records its run at the checked-out commit into the store",
 			"-parity, -tests and -receipt take their arguments after the flags; -receipt alone writes the store",
 			"help opens no store and reads nothing",
@@ -159,7 +162,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	if *media != "" && *media != "markdown" && *media != "json" || *mediaScope != "all" && !*exportSamples {
 		return errors.New("-media renders markdown or json, and -media-scope narrows -export-samples alone; the media report always renders every media task")
 	}
-	if *models || *media != "" || *exportSamples || *publishCensus || *checkCensus != "" || *recordVerification != "" {
+	if *models || *media != "" || *exportSamples || *publishCensus || *checkCensus != "" || *acceptPath != "" || *recordVerification != "" {
 		storeRoot, err := dataroot.StoreRoot(*repository)
 		if err != nil {
 			return err
@@ -167,6 +170,19 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 		switch {
 		case *publishCensus || *checkCensus != "":
 			return runCapabilityCensus(storeRoot, *publishCensus, *checkCensus, output)
+		case *acceptPath != "":
+			// Only an acceptance publishes a census, which names the commit that
+			// built it, so only it needs clean code; a reading of what differs
+			// publishes nothing and runs from any checkout.
+			resolve := runrecord.HeadCommit
+			if *reason != "" {
+				resolve = runrecord.ExecutableCodeCommit
+			}
+			commit, err := resolve(".")
+			if err != nil {
+				return err
+			}
+			return acceptCensus(storeRoot, commit, *acceptPath, *reason, output)
 		case *recordVerification != "":
 			return runRecordVerification(*recordVerification, storeRoot, output)
 		case *exportSamples:

@@ -240,7 +240,12 @@ func TestImageVideoInventoryAcceptance(t *testing.T) {
 	if err := jsonfile.DecodeStrict(filepath.Join(root, "cmd/validate/testdata/media_census.json"), &binding); err != nil {
 		t.Fatal(err)
 	}
-	if err := checkCensusDisposition(t.Context(), store, census.ID, binding); err != nil {
+	// The binding names its own base so that one command can accept a new
+	// census into it; that base is the frozen inventory's census and no other.
+	if binding.Base != census.ID {
+		t.Fatalf("the media binding's base is %s, want the frozen inventory's census %s", binding.Base, census.ID)
+	}
+	if err := checkCensusDisposition(t.Context(), store, binding); err != nil {
 		t.Fatal(err)
 	}
 	current, err := capabilityCensusCodec.Require(t.Context(), store, binding.Current)
@@ -271,11 +276,11 @@ func TestImageVideoInventoryAcceptance(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, invalid := range []acceptedCensus{
-		{Current: census.ID, Finding: binding.Finding, Disposition: binding.Disposition},
-		{Current: binding.Current, Finding: binding.Finding, Disposition: binding.Finding},
-		{Current: binding.Current, Finding: binding.Disposition, Disposition: binding.Disposition},
+		{Base: census.ID, Current: census.ID, Finding: binding.Finding, Disposition: binding.Disposition},
+		{Base: census.ID, Current: binding.Current, Finding: binding.Finding, Disposition: binding.Finding},
+		{Base: census.ID, Current: binding.Current, Finding: binding.Disposition, Disposition: binding.Disposition},
 	} {
-		if err := checkCensusDisposition(t.Context(), store, census.ID, invalid); err == nil {
+		if err := checkCensusDisposition(t.Context(), store, invalid); err == nil {
 			t.Fatal("unbound census or substituted disposition accepted")
 		}
 	}

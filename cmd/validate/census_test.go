@@ -18,6 +18,45 @@ import (
 	"overgo/internal/testutil"
 )
 
+// registerCensusModel registers a model of one weights file named name in
+// store: the file is written when present is set, and the model is activated
+// for forecasting when active is. It returns the model's identity and the
+// file's path, so a test can move the catalog a census reads.
+func registerCensusModel(t *testing.T, store *overgodb.Store, name string, present, active bool) (artifact.ID, string) {
+	t.Helper()
+	ctx := t.Context()
+	payload := []byte(name)
+	component := testutil.ArtifactBytesID(t, artifact.KindTensorSet, payload)
+	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: component}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), name+".bin")
+	if present {
+		if err := os.WriteFile(path, payload, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := store.Commit(ctx, artifact.Batch{
+		Key:       "census-fixture/" + name,
+		Artifacts: []artifact.Descriptor{{ID: component, Size: uint64(len(payload))}},
+		Manifests: []artifact.Manifest{manifest},
+		Locations: []artifact.LocationEvent{{Location: artifact.Location{Artifact: component, Kind: artifact.LocationFile, Value: path}, Action: artifact.LocationAdd}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if active {
+		definition, err := modelrecipe.CapabilityDefinition(recipe.TaskForecast, manifest.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := modelrecipetest.PublishActivation(ctx, store, "census-fixture/"+name, definition); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return manifest.ID, path
+}
+
 func TestCapabilityCensusContract(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
@@ -33,36 +72,7 @@ func TestCapabilityCensusContract(t *testing.T) {
 	})
 	register := func(name string, present, active bool) (artifact.ID, string) {
 		t.Helper()
-		payload := []byte(name)
-		component := testutil.ArtifactBytesID(t, artifact.KindTensorSet, payload)
-		manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: component}})
-		if err != nil {
-			t.Fatal(err)
-		}
-		path := filepath.Join(t.TempDir(), name+".bin")
-		if present {
-			if err := os.WriteFile(path, payload, 0o600); err != nil {
-				t.Fatal(err)
-			}
-		}
-		if _, err := store.Commit(ctx, artifact.Batch{
-			Key:       "census-fixture/" + name,
-			Artifacts: []artifact.Descriptor{{ID: component, Size: uint64(len(payload))}},
-			Manifests: []artifact.Manifest{manifest},
-			Locations: []artifact.LocationEvent{{Location: artifact.Location{Artifact: component, Kind: artifact.LocationFile, Value: path}, Action: artifact.LocationAdd}},
-		}); err != nil {
-			t.Fatal(err)
-		}
-		if active {
-			definition, err := modelrecipe.CapabilityDefinition(recipe.TaskForecast, manifest.ID)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := modelrecipetest.PublishActivation(ctx, store, "census-fixture/"+name, definition); err != nil {
-				t.Fatal(err)
-			}
-		}
-		return manifest.ID, path
+		return registerCensusModel(t, store, name, present, active)
 	}
 	presentID, presentPath := register("present", true, true)
 	missingID, _ := register("missing", false, true)

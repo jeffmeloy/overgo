@@ -198,17 +198,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1,
+        "nodes": 0,
         "reason": "measured by the preflight of step tests-path-free's change at 5fe0ce0d4: the one argument that keeps the checks' go fix untrimmed"
       },
       "steps": [
-        {
-          "id": "tests-path-free",
-          "title": "Make the five tests that fail under -trimpath find the tree without the compiled source path",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestCommitCheckTestsHoldUnderTrimmedBuilds$'",
-          "rationale": "Filed by the lead on 2026-10-13; not in the proposal. It is the measured lead of the register's deferred finding ba3e2aae and of the owner's instruction to stop accumulating garbage: the go build cache is the largest accumulation on the machine, 272 GB at the listing of c201605d7, because a build is keyed by its directory and every new checkout compiles the tree again. Measured on 2026-10-12 at beb6a2137 with two new checkouts and private empty caches: with the commit's commands built with -trimpath, the second checkout added 298,699 KB to the cache where it added 1,546,296 untrimmed (0.19), the gate's three commands alone 66,113 against 1,313,734 (0.05), and 106 of 194 packages replayed their tests where none did. It cannot be adopted yet: under the setting internal/clioptions TestCLIInferenceDependencyBoundary and internal/plan TestColibriCampaign, TestSinglePlanAuthority and TestDoctrineParagraphsNameWhatTheyGovern fail, because they find the tree from the compiled source path, and cmd/gate TestSmallGateLandsAChange fails in a second checkout with go fix opening a file by an earlier run's absolute path. The five are made to hold under both builds.\nServes: change: the pace of a commit from a new checkout, and the cache's growth.\nDisappears: nothing yet.\nEvidence: the five tests under both builds.\nBatch: host."
-        },
         {
           "id": "adopt",
           "title": "Build a commit's checks trimmed, if the measurement repeats and no stored answer is expired",

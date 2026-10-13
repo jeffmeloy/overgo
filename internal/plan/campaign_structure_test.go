@@ -2,7 +2,6 @@ package plan
 
 import (
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 )
@@ -116,11 +115,9 @@ func TestPreparedMergeBoundaryVerification(t *testing.T) {
 
 func loadCampaignPlan(t *testing.T) Plan {
 	t.Helper()
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("campaign test path is unavailable")
-	}
-	root := filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
+	// The tree is found from the directory the test runs in, its package's, and never from the path
+	// the test was compiled at, which a trimmed build replaces with the import path.
+	root := filepath.Join("..", "..")
 	document, err := Load(filepath.Join(root, filepath.FromSlash(Path)))
 	if err != nil {
 		t.Fatal(err)

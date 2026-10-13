@@ -3,7 +3,6 @@ package plan
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 )
 
@@ -13,11 +12,8 @@ import (
 // this test refuses any reintroduction of a parallel plan surface.
 func TestSinglePlanAuthority(t *testing.T) {
 	t.Parallel()
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("caller path unavailable")
-	}
-	root := filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
+	// The tree is found from the directory the test runs in, as loadCampaignPlan finds it.
+	root := filepath.Join("..", "..")
 	for _, banned := range []string{
 		"docs/rsi_plan.json",
 		"cmd/roadmap",

@@ -4,18 +4,19 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strings"
 	"testing"
 )
 
 func TestCLIInferenceDependencyBoundary(t *testing.T) {
-	_, source, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("source location unavailable")
+	// The tree is found from the directory the test runs in, its package's, and never from the path
+	// the test was compiled at, which a trimmed build replaces with the import path. It stays
+	// absolute, since the go command started below resolves the overlay's keys.
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
 	}
-	root := filepath.Clean(filepath.Join(filepath.Dir(source), "..", ".."))
 	const inference = "overgo/internal/inference"
 	dependencies := func(overlay string, targets ...string) []string {
 		t.Helper()

@@ -502,7 +502,11 @@ func (l *landing) fix(ctx context.Context) error {
 			return err
 		}
 		if packages := strings.Fields(listed); len(packages) != 0 {
-			if _, err := l.run(ctx, nil, "go", append([]string{"fix", "-tags", CycleTags}, packages...)...); err != nil {
+			// go fix keeps what it fixed under the names of the files it was given, in an entry whose
+			// key forgets the directory once a build is trimmed. Another checkout of the same bytes
+			// would then have the first checkout's files written and its own left as they were. So
+			// this one command is never trimmed, whatever the environment asks of the others.
+			if _, err := l.run(ctx, nil, "go", append([]string{"fix", "-trimpath=false", "-tags", CycleTags}, packages...)...); err != nil {
 				return err
 			}
 		}

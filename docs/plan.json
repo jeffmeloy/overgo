@@ -197,6 +197,10 @@
       "title": "Let checkouts share the build cache in a commit's checks",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 1,
+        "reason": "measured by the preflight of step tests-path-free's change at 5fe0ce0d4: the one argument that keeps the checks' go fix untrimmed"
+      },
       "steps": [
         {
           "id": "tests-path-free",

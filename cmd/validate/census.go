@@ -167,13 +167,19 @@ type censusVerification struct {
 	Record runrecord.ModelVerification `json:"record"`
 }
 
+// errCensusCheckpointAbsent says the store does not hold, at the sequence a
+// census recorded, the commit it recorded there. A store rebuilt since the
+// census was taken holds none of the commits the census counted among: a
+// rebuild writes what it carries in commits of its own.
+var errCensusCheckpointAbsent = errors.New("capability census: recorded store checkpoint is absent")
+
 func readCensusVerifications(ctx context.Context, store *overgodb.Store, value capabilityCensus) ([]censusVerification, error) {
 	checkpoint, found, err := store.CommitAt(ctx, value.StoreSequence)
 	if err != nil {
 		return nil, err
 	}
 	if !found || checkpoint.ID != value.StoreCommit {
-		return nil, errors.New("capability census: recorded store checkpoint is absent")
+		return nil, errCensusCheckpointAbsent
 	}
 	registered := make(map[artifact.ID]bool, len(value.Models))
 	for _, model := range value.Models {
@@ -371,7 +377,8 @@ func printCensusEntries(output io.Writer, sign string, entries, others []censusM
 
 // acceptCensus replaces the census the binding file at path accepts with the
 // live one, built at commit. It refuses while the registered models are those
-// of the census accepted before, and otherwise prints what differs. With no
+// of the census accepted before and the store still holds the checkpoint that
+// census recorded, and otherwise prints what differs. With no
 // reason it stops there, on a store it opened for reading. With a reason it
 // publishes, in one store commit, the live census, a finding that names the
 // base, the census accepted before and the new one, and that finding's
@@ -402,7 +409,10 @@ func acceptCensus(repository, commit, path, reason string, output io.Writer) err
 	if err != nil {
 		return err
 	}
-	if sameCensusModels(previous.Models, value.Models) {
+	// The same models on a store that no longer holds the accepted census's
+	// checkpoint are a census to take again: the store was rebuilt, and the
+	// accepted census counts its verifications by a commit that is gone.
+	if _, err := readCensusVerifications(ctx, store, previous); sameCensusModels(previous.Models, value.Models) && !errors.Is(err, errCensusCheckpointAbsent) {
 		return fmt.Errorf("capability census: the registered models are those of the accepted census %s; there is nothing to accept", previous.ID)
 	}
 	printCensusEntries(output, "-", previous.Models, value.Models)

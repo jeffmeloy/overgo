@@ -61,26 +61,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "process-records-out",
-      "title": "Keep the development process's records out of the store that models load from",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 26,
-        "reason": "measured by the preflight of step install's change at 5ec51a835: the acceptance of a census taken again on a rebuilt store, whose models are those of the census before"
-      },
-      "steps": [
-        {
-          "id": "install",
-          "title": "Put a store rebuilt without the retired families into service, and read two models' loads before and after",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -count=1 -run '^TestInstalledStoreRecordIsWhole$'",
-          "rationale": "Filed from step rebuild's record (docs/verification/rebuilt-store.txt). A copy of the store rebuilt without the retired families loads its checkpoint as an open does in 0.49 s where the installed store's takes 0.86 s, holds every alias not of a retired family at the same target and every kept artifact's lineage, passes overgodb check with the same 45 published chains, and gives the same scorecard, line for line. This step puts such a store into service: the lead's store maintenance under the owner's standing grant. With no commit, no measurement run and no other session writing the store, seal a backup under C:/Users/jeffm/overgo-backups, then run overgodb rebuild -without-retired -swap from the store in service at that moment, since the copy the record measured is behind it by then. The command swaps only once every consumer check has passed and keeps the superseded store beside the new one, which stays until the next commit has passed. A rebuilt store that closes with a short journal has no checkpoint (the record says so), so the step makes sure the installed one has one before a model loads from it. Then read one small and one large model's load with recipe measure -journey, as step stages did, beside the 1.82 s and 5.24 s read on 2026-10-13, and add the installed store's census and those readings to the record. No tool deletes a store or a backup.\nServes: load-time: about 0.37 s of every model's load, by the record.\nDisappears: 150 MB of the checkpoint every open decodes, and 1.35 GB of the store on disk.\nEvidence: the record's installed section, held by the test: the census of the store in service shows no retired family, and the two loads read before and after.\nBatch: the quiet machine, with the device for the two readings; never beside a commit."
-        }
-      ]
-    },
-    {
       "id": "one-way-to-train",
       "title": "Train every family through a registered objective, and delete the routes and their proofs",
       "class": "consolidation",

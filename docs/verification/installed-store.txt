@@ -1,0 +1,89 @@
+overgo installed store: the store rebuilt without the retired record families put into service, with the checks it passed and two models' loads read before and after
+tool: overgodb and recipe, each built from the tree at 5ec51a835 with go build -o and run with the arguments the command lines below give
+taken: 2026-10-13 local time on the development machine, from 16:25:18 to 16:29:36, with no commit, no measurement run and no test binary running
+read by: TestInstalledStoreRecordIsWhole (internal/overgodb), which holds the install to its checks, the store in service to the copy the record docs/verification/rebuilt-store.txt measured, and the loads' figures to one another
+
+What was done. The record of the rebuilt copy measured what a store without the retired families
+costs to open and showed the copy sound. This is the store put into service the same way. A backup
+of the store in service was sealed first. overgodb rebuild -without-retired -swap then rebuilt from
+that store, opened to read it, proved the candidate with the store's consumer checks under the gate's
+authority, committed the proof into it and renamed it into service. The superseded store stays beside
+the new one and the backup stays where it was sealed. No tool deleted a store or a backup.
+
+== install ==
+overgodb backup -repo C:/Users/jeffm/overgo_data/overgodb-store -dest C:/Users/jeffm/overgo-backups/overgodb-20261013-before-retired-rebuild
+backup published: C:/Users/jeffm/overgo-backups/overgodb-20261013-before-retired-rebuild head=a78e8844da1764123168a5c52f66016fa3535700537679d900d479ecc4552046 sequence=88536
+overgodb rebuild -repo C:/Users/jeffm/overgo_data/overgodb-store -without-retired -checkout C:/Users/jeffm/overgo -swap
+rebuilt C:\Users\jeffm\overgo_data\overgodb-store.candidate: artifacts=116092 contents_kept=101409 (1.35 GB) contents_dropped=2963 (3.67 GB) manifests=235 lineage=345433 locations=7401 aliases=22116 batches=28489
+head-before: a78e8844da1764123168a5c52f66016fa3535700537679d900d479ecc4552046
+sequence-before: 88536
+head-after: fb77a3b302ef4cbcb4829b7bd7f8032fd8cbfc8d8b5787aa3c85fac457a051a9
+sequence-after: 28489
+check-blob-identity: passed
+check-published-chains: passed
+swapped: true
+superseded: C:/Users/jeffm/overgo_data/overgodb-store.superseded-a78e8844da17
+
+The rebuild's lines for the retired families are those of the copy's record, line for line, and its
+head is the copy's: a rebuild of one store is one store.
+
+== store in service ==
+overgodb check -repo C:/Users/jeffm/overgo_data/overgodb-store -blobs
+overgodb check:blobs=11272 verified
+overgodb check:chains=45 broken=0
+overgodb checkpoint-families -repo C:/Users/jeffm/overgo_data/overgodb-store -repeats 9 -floor 101
+store sequence 28490 head d4cefaa7fa1c653f1f216ab97ab42199f61433ce42a0646faca72f8de834145c
+generation 00000000000000028489 sequence 28489 bytes 127690553 repeats 9
+set load-microseconds 506828 least 497842 most 513257
+projection artifacts bytes 24898232 header 357 framing 1 records 116092 families 344 decode-microseconds 151578 least 147768 most 155327
+projection contents bytes 15917994 header 356 framing 1 records 101409 families 316 decode-microseconds 80994 least 79304 most 83611
+projection lineage bytes 71560688 header 355 framing 1 records 345433 families 184 decode-microseconds 458604 least 434845 most 501858
+projection causality bytes 359 header 357 framing 2 records 0 families 0 decode-microseconds 1 least 1 most 10
+projection locations bytes 1402374 header 357 framing 1 records 7401 families 20 decode-microseconds 8451 least 7966 most 8811
+projection aliases bytes 5534337 header 355 framing 1 records 22116 families 45 decode-microseconds 21658 least 20794 most 22721
+projection commits bytes 8376569 header 355 framing 1 records 28489 families 1 decode-microseconds 74308 least 72899 most 74965
+retired-lines: 0
+
+The store's sequence is one past its checkpoint's: the commit of the install's proof.
+
+== loads ==
+recipe measure -journey -repo C:/Users/jeffm/overgo_data/overgodb-store C:/Users/jeffm/overgo_data/models/MiniCPM5-1B-native-chat.gguf
+recipe measure -journey -repo C:/Users/jeffm/overgo_data/overgodb-store C:/Users/jeffm/overgo_data/models/Qwen3.5-9B-Q8_0.gguf
+minicpm5-1b-load-milliseconds-before: 1818
+minicpm5-1b-load-milliseconds-after: 1420
+minicpm5-1b-load-milliseconds-saved: 398
+minicpm5-1b-store-open-milliseconds-before: 890
+minicpm5-1b-store-open-milliseconds-after: 480
+minicpm5-1b-weights-milliseconds-before: 810
+minicpm5-1b-weights-milliseconds-after: 810
+qwen35-9b-load-milliseconds-before: 4697
+qwen35-9b-load-milliseconds-after: 4242
+qwen35-9b-load-milliseconds-saved: 455
+qwen35-9b-store-open-milliseconds-before: 900
+qwen35-9b-store-open-milliseconds-after: 490
+qwen35-9b-weights-milliseconds-before: 3610
+qwen35-9b-weights-milliseconds-after: 3620
+
+Each figure is the first load of the command's process, read four minutes apart on the same
+machine: before at 16:25, on the store then in service, and after at 16:29, on the rebuilt one.
+The command prints a load's parts to a hundredth of a second, so the parts are given to ten
+milliseconds. The second load of each process read 1.767 s before and 1.366 s after for the small
+model, and 4.619 s and 4.214 s for the large one.
+
+What the figures say. A model's load is 0.40 s shorter for the small model and 0.46 s shorter for the
+large one, and all of it is the store's open, 0.89 s and 0.90 s before and 0.48 s and 0.49 s after.
+Reading the weights took what it took before. The small model loaded in 4.74 s when 2026-10-13 began,
+in 1.82 s once the journal an open replays was bounded, and loads in 1.42 s now. What is left of an
+open is the lineage projection, 71,560,688 bytes that restore in 0.46 s and that every open waits
+for.
+
+What the first commit on it found. The rebuild's two consumer checks passed and one consumer was not
+among them. The capability census records the store commit it was taken at and counts its
+verifications up to that commit, and a rebuild writes what it carries in commits of its own, so the
+two census bindings under cmd/validate/testdata named a checkpoint the store in service no longer
+held. The first commit after the install was refused by TestImageVideoInventoryAcceptance for it.
+The media census was taken again with validate -accept-census as it stood, since its registered
+models had changed since it was accepted. The other binding has the models it had, which that command
+refused as nothing to accept: the command now accepts the same models where the store no longer
+holds the accepted census's checkpoint, and that census is taken again in the commit after this
+record's. The superseded store and the sealed backup were kept throughout.

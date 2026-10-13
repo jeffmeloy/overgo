@@ -72,16 +72,6 @@
       },
       "steps": [
         {
-          "id": "declarations",
-          "title": "Every production declaration outside a model prototype is reached by a command",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestEveryProcessDeclarationIsReachedByACommand$'",
-          "rationale": "From the proposal, with the prototype class decided by the registry. TestEveryTrackedFileHasAReader holds every tracked document and repo-hygiene/clear-at-commit every fixture; this is the same check for code: a walk of names from every command. What it skips is read from compatibility.json, which lists the model prototypes and which cmd/validate already holds to the code, and never from a table typed for this check: a model prototype stays although no model of its family is active (owner, 2026-10-12), and a check that is permanent must not refuse the next one. Declarations are keyed by file, since build tags make twins, and a function held in a package variable is reached. The first list is the census. A lower bound by the proposal, taken at 14dc80967 and not counted again: 308 declarations of 5,356 lines, 1,616 of them analyzers in internal/repoanalysis that only tests call. Each failing entry is wired or deleted by the standing rule; the video MP4 encoder is an unwired capability and is given a route; an analyzer only a test calls moves beside its test.\nServes: less to read, compile, vet and carry into the longer test runs.\nDisappears: what fails the check and is not wired.\nEvidence: the list before and after, with the rule applied to each entry, in steps that are each one commit.\nBatch: host; a deletion inside the inference surface waits for a commit that moves the surface anyway.",
-          "depends_on": [
-            "consumer-checks/documents"
-          ]
-        },
-        {
           "id": "record-schemas",
           "title": "Every process record schema outside a model prototype has a writer a command reaches",
           "status": "open",

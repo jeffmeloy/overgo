@@ -135,8 +135,21 @@ func writeProjectionCheckpoints(
 // none verifies it returns loaded=false with the newest one's reason, and
 // the caller falls back to an earlier verified anchor.
 func loadProjectionCheckpoints(root string) (catalogState, replayAnchor, bool, string) {
-	parent := filepath.Join(root, checkpointDirectory)
-	entries, _ := os.ReadDir(parent)
+	var refused string
+	for _, generation := range slices.Backward(checkpointGenerations(root)) {
+		state, anchor, loaded, reason := loadCheckpointSet(checkpointMembers(root, generation))
+		if loaded {
+			return state, anchor, true, ""
+		}
+		refused = cmp.Or(refused, reason)
+	}
+	return catalogState{}, replayAnchor{}, false, refused
+}
+
+// checkpointGenerations names the generations under root, oldest first. The
+// empty name leads them: the flat set a store held before generations.
+func checkpointGenerations(root string) []string {
+	entries, _ := os.ReadDir(filepath.Join(root, checkpointDirectory))
 	generations := []string{""}
 	for _, entry := range entries {
 		if entry.IsDir() {
@@ -144,18 +157,15 @@ func loadProjectionCheckpoints(root string) (catalogState, replayAnchor, bool, s
 		}
 	}
 	slices.Sort(generations)
-	var refused string
-	for _, generation := range slices.Backward(generations) {
-		directory := filepath.Join(parent, generation)
-		state, anchor, loaded, reason := loadCheckpointSet(func(name string) ([]byte, error) {
-			return os.ReadFile(filepath.Join(directory, name+checkpointExtension))
-		})
-		if loaded {
-			return state, anchor, true, ""
-		}
-		refused = cmp.Or(refused, reason)
+	return generations
+}
+
+// checkpointMembers reads the members of one generation under root by name.
+func checkpointMembers(root, generation string) func(name string) ([]byte, error) {
+	directory := filepath.Join(root, checkpointDirectory, generation)
+	return func(name string) ([]byte, error) {
+		return os.ReadFile(filepath.Join(directory, name+checkpointExtension))
 	}
-	return catalogState{}, replayAnchor{}, false, refused
 }
 
 // loadCheckpointSet loads every member at once: each restores a facet of its

@@ -1,0 +1,658 @@
+overgo checkpoint families: the installed store's newest checkpoint counted by record family, in bytes and in decode time, with the writer and the readers of every family that holds a hundredth of it
+tool: go run ./cmd/overgodb checkpoint-families -repo C:/Users/jeffm/overgo_data/overgodb-store -repeats 9 -floor 0.05
+code: the tree at 12d5b0de9 with the change this record came in; the places the table names are places in that tree
+taken: 2026-10-13 from 14:48:52 to 14:49:36 local time, on the development machine with no test binary and no go command running when it began or when it ended
+read by: TestCheckpointFamiliesRecordIsWhole (internal/overgodb), which holds the census to its sums, the table to the census, and the closing figures to both
+
+What was asked. An open of the store loads its newest checkpoint generation and replays the journal
+after it, and every model load opens the store. The plan's row process-records-out asked what that
+generation holds by record family, in bytes and in decode time, which code writes each family, and
+which families a model load, an evaluation, a training run and the scorecard read. A family none of
+them reads is the development process's by the row's rule, and the step that follows is filed from
+this record. Nothing was moved or deleted for it: the command opens the store to read it and reads
+the generation's files, and writes nothing.
+
+What a family is. A family is the key that lets a reader name the code that wrote a record.
+
+  artifacts  The descriptor's schema and the leading part of the key of the commit that introduced
+             it, written "schema by key". One schema has several writers, a run record an evaluation
+             writes and one the old gate wrote, and the key tells them apart. A descriptor that
+             states no schema is written "no schema: kind media-type by key", with "untyped" where it
+             states no media type and "bare" where it is an identity a batch declared and did not
+             carry.
+  contents, locations  The family of the artifact the record belongs to.
+  lineage    The family of the edge's child, the document that declares the edge.
+  commits    The leading part of the batch key.
+  aliases    The leading part of the name.
+  causality  The link's trigger. This generation holds no causal link.
+
+The leading part of a key or a name is its text before the second of the separators it is built
+with, a slash, a colon or a full stop, and before the first when what follows it is empty or holds
+a digit: gate/package/evidence:sha256:05a0 is gate/package and rebuild/000003 is rebuild. A store
+rebuild commits another store's records again under its own key (internal/overgodb/rebuild.go:88),
+so "by rebuild" names the rebuild and not the code that first wrote the record; the schema names
+that.
+
+How the bytes are attributed. A member of the generation is a file: a header line and a body, and
+the body is a compact JSON array of records. A record owns its own bytes and the separator after
+it, so the attribution is exact: a projection's bytes are its header, its framing (the array's
+opening bracket, or both brackets of an empty array) and the bytes of its families. A projection's
+families that each hold less than 0.05% of the generation are counted together in its line "rest",
+which says how many they are. A family's lines are
+
+  family <projection> <bytes> <records> <share of the generation> <last> <name>
+
+where last is the latest commit sequence among the family's records: a commit's own, and for every
+other record the sequence that introduced the artifact it belongs to, an alias's target and an
+edge's child among them. A family whose last sequence is far behind the generation's is one that
+nothing writes any more.
+
+How the times were taken. Every time is in microseconds, read with the repository's counter
+(internal/processmeasure), and is the middle of nine readings beside the least and the most; each
+reading follows a collection, so it starts as an open does, on a heap that holds little. A
+projection's decode time is the restore of its body alone into an empty facet, which is what an
+open does with a member once it has read and verified it. The line "set" is the load of the whole
+generation as an open makes it: all seven members read, verified and restored at once. An open
+restores the members at once, so the set's load is about its slowest member's restore and far less
+than the sum of the seven.
+
+How the table was made. The table that follows the census was written by reading the tree. A
+writer is the place a record of the family is committed, or the place its key or alias is built;
+"none in the tree" says nothing at this commit builds the family's schema or key. The four readers
+are a model load for serving (internal/modelcli, internal/inference, internal/modelrecipe,
+internal/discovery), an evaluation (cmd/evaluate, internal/evaluation), a training run (cmd/train,
+internal/trainingworkflow) and the scorecard (internal/scorecard, cmd/validate -scorecard), each
+with what it calls. A reader is a place where one of them decodes a document of the family's
+schema or resolves a name of the family; "none found" says a search of those packages for the
+schema, for the functions of its codec and for the key or alias prefix found none. A walk of the
+whole catalog that decodes no document of the family is not counted. A family is classed "read"
+when a reader was found and "development process" when none was. The class is the row's rule and
+no more: it does not say a family is worth nothing, and two of these families are read by a test.
+The table has an entry for every family whose printed lines hold 1% of the generation or more, and
+for the smaller families of the same deleted writers. An entry's bytes are those of its printed
+lines; where a family is under the floor in one projection, that part is in the projection's rest.
+
+== census ==
+overgodb checkpoint-families -repo C:/Users/jeffm/overgo_data/overgodb-store -repeats 9 -floor 0.05
+store sequence 88536 head a78e8844da1764123168a5c52f66016fa3535700537679d900d479ecc4552046
+generation 00000000000000088536 sequence 88536 bytes 277418440 repeats 9
+set load-microseconds 1266331 least 840990 most 1299783
+projection artifacts bytes 63581076 header 350 framing 1 records 311951 families 604 decode-microseconds 616186 least 512138 most 634983
+family artifacts 12550317 54352 4.52% 50788 overgo/agent-obligation/v1 by gate/package
+family artifacts 9395199 39300 3.39% 63268 overgo/gate-package-receipt/v1 by gate/package
+family artifacts 7083284 54109 2.55% 50788 no schema: evidence bare by gate/package
+family artifacts 5648903 24318 2.04% 4 overgo/benchmark-record/v1 by rebuild
+family artifacts 2910503 13011 1.05% 9 overgo/closure-ledger/v3 by rebuild
+family artifacts 2496363 10332 0.90% 82023 overgo/instruction-generation/v1 by evaluation/instruction-generations
+family artifacts 1952130 8682 0.70% 88210 overgo/stage-receipt/v2 by stage-receipt/evidence
+family artifacts 1840897 8103 0.66% 63140 overgo/closure-ledger/v3 by closure-scan/rebind
+family artifacts 1636714 12494 0.59% 63233 no schema: evidence bare by gate/package-obligations
+family artifacts 1611932 7121 0.58% 1446 overgo/closure-ledger/v3 by closure-scan
+family artifacts 1062622 4534 0.38% 88514 overgo/evaluation-answers/v1 by evaluation/observations
+family artifacts 801269 3523 0.29% 61627 overgo/closure-ledger/v3 by closure-scan/import
+family artifacts 479084 2102 0.17% 88433 overgo/evaluation-plan/v1 by evaluation/authorities
+family artifacts 461699 2237 0.17% 63262 overgo.code-manifest-digest.v1 by code-manifest-digest/profile
+family artifacts 447390 1890 0.16% 63567 overgo/serving-observation/v1 by validation/media-resources
+family artifacts 385965 2518 0.14% 63229 no schema: file text/plain by gate/final
+family artifacts 370139 1509 0.13% 63263 overgo/code-manifest-analysis/v1 by gate/final
+family artifacts 353550 2357 0.13% 8 no schema: file text/plain by rebuild
+family artifacts 352799 1559 0.13% 63230 overgo/gate-lifecycle/v1 by gate/prepared
+family artifacts 349172 1543 0.13% 63263 overgo/gate-lifecycle/v1 by gate/final
+family artifacts 341306 1543 0.12% 63263 overgo/gate-result/v1 by gate/final
+family artifacts 339530 1432 0.12% 88532 overgo/serving-observation/v1 by serving/observation
+family artifacts 336326 1513 0.12% 63263 overgo/gate-attempt/v1 by gate/final
+family artifacts 316810 1273 0.11% 88516 overgo/observation-chunk-summary/v1 by evaluation/run
+family artifacts 307511 1543 0.11% 63263 overgo/run/v2 by gate/final
+family artifacts 289054 1215 0.10% 88516 overgo/evaluation-evidence/v1 by evaluation/run
+family artifacts 287979 1268 0.10% 63130 overgo/closure-ledger/v3 by closure-scan/publish
+family artifacts 286721 2216 0.10% 63262 no schema: profile bare by code-manifest-digest/profile
+family artifacts 274689 1241 0.10% 88516 overgo/evaluation/v1 by evaluation/run
+family artifacts 258873 1193 0.09% 88516 overgo/evaluator/v1 by evaluation/run
+family artifacts 254433 1273 0.09% 88516 overgo/run/v2 by evaluation/run
+family artifacts 241703 1273 0.09% 88516 no schema: file application/vnd.overgo.observation-chunk+json by evaluation/run
+family artifacts 207221 972 0.07% 63229 overgo/finding/v1 by gate/final
+family artifacts 190289 863 0.07% 63263 overgo/evaluation/v1 by gate/final
+family artifacts 177994 744 0.06% 63269 overgo/gate-lane-obligation/v1 by gate/lanes
+family artifacts 170835 1080 0.06% 63178 no schema: evidence text/plain by gate/final
+family artifacts 167085 711 0.06% 82437 overgo/evaluation-replay/v1 by evaluation/replay
+family artifacts 164304 1280 0.06% 63263 no schema: recipe bare by gate/final
+family artifacts 154987 695 0.06% 10 overgo/gate-lifecycle/v1 by rebuild
+family artifacts 146370 1158 0.05% 9 no schema: file untyped by rebuild
+family artifacts 143445 655 0.05% 63222 overgo/work-lease/v2 by automation/work-lease
+family artifacts 140784 570 0.05% 88301 overgo/evaluation-shard-report/v1 by evaluation/shards
+rest artifacts 6192545 30646 2.23% 88536 562 families
+projection contents bytes 36417403 header 349 framing 1 records 233628 families 521 decode-microseconds 331174 least 305851 most 339706
+family contents 8427154 54352 3.04% 50788 overgo/agent-obligation/v1 by gate/package
+family contents 6120893 39300 2.21% 63268 overgo/gate-package-receipt/v1 by gate/package
+family contents 3873689 24318 1.40% 4 overgo/benchmark-record/v1 by rebuild
+family contents 2009540 13011 0.72% 9 overgo/closure-ledger/v3 by rebuild
+family contents 1606262 10332 0.58% 82023 overgo/instruction-generation/v1 by evaluation/instruction-generations
+family contents 1358361 8682 0.49% 88210 overgo/stage-receipt/v2 by stage-receipt/evidence
+family contents 1259725 8103 0.45% 63140 overgo/closure-ledger/v3 by closure-scan/rebind
+family contents 1102348 7121 0.40% 1446 overgo/closure-ledger/v3 by closure-scan
+family contents 706390 4534 0.25% 88514 overgo/evaluation-answers/v1 by evaluation/observations
+family contents 550661 3523 0.20% 61627 overgo/closure-ledger/v3 by closure-scan/import
+family contents 377155 2518 0.14% 63229 no schema: file text/plain by gate/final
+family contents 351064 2356 0.13% 8 no schema: file text/plain by rebuild
+family contents 347326 2237 0.13% 63262 overgo.code-manifest-digest.v1 by code-manifest-digest/profile
+family contents 329486 2102 0.12% 88433 overgo/evaluation-plan/v1 by evaluation/authorities
+family contents 293220 1890 0.11% 63567 overgo/serving-observation/v1 by validation/media-resources
+family contents 257250 1509 0.09% 63263 overgo/code-manifest-analysis/v1 by gate/final
+family contents 241804 1559 0.09% 63230 overgo/gate-lifecycle/v1 by gate/prepared
+family contents 239796 1543 0.09% 63263 overgo/gate-result/v1 by gate/final
+family contents 239308 1543 0.09% 63263 overgo/gate-lifecycle/v1 by gate/final
+family contents 234665 1513 0.08% 63263 overgo/gate-attempt/v1 by gate/final
+family contents 231593 1543 0.08% 63263 overgo/run/v2 by gate/final
+family contents 225059 1432 0.08% 88532 overgo/serving-observation/v1 by serving/observation
+family contents 200642 1273 0.07% 88516 overgo/observation-chunk-summary/v1 by evaluation/run
+family contents 198740 1241 0.07% 88516 overgo/evaluation/v1 by evaluation/run
+family contents 197033 1268 0.07% 63130 overgo/closure-ledger/v3 by closure-scan/publish
+family contents 195550 1273 0.07% 88516 no schema: file application/vnd.overgo.observation-chunk+json by evaluation/run
+family contents 194277 1273 0.07% 88516 overgo/run/v2 by evaluation/run
+family contents 192899 1215 0.07% 88516 overgo/evaluation-evidence/v1 by evaluation/run
+family contents 188346 1193 0.07% 88516 overgo/evaluator/v1 by evaluation/run
+family contents 167208 1080 0.06% 63178 no schema: evidence text/plain by gate/final
+family contents 151395 972 0.05% 63229 overgo/finding/v1 by gate/final
+rest contents 4348214 27819 1.57% 88536 490 families
+projection lineage bytes 126378729 header 348 framing 1 records 609007 families 310 decode-microseconds 1246886 least 1166305 most 1295834
+family lineage 33970000 163056 12.25% 50788 overgo/agent-obligation/v1 by gate/package
+family lineage 18817555 91747 6.78% 63229 overgo/finding/v1 by gate/final
+family lineage 8214118 39302 2.96% 63268 overgo/gate-package-receipt/v1 by gate/package
+family lineage 6522474 31786 2.35% 9 overgo/finding/v1 by rebuild
+family lineage 6053920 29140 2.18% 88210 overgo/stage-receipt/v2 by stage-receipt/evidence
+family lineage 5845765 28103 2.11% 63233 overgo/gate-package-obligations/v1 by gate/package-obligations
+family lineage 5179734 24318 1.87% 4 overgo/benchmark-import/v1 by rebuild
+family lineage 3512442 16816 1.27% 88433 overgo/evaluation-plan/v1 by evaluation/authorities
+family lineage 3306015 15795 1.19% 88516 overgo/evaluation-evidence/v1 by evaluation/run
+family lineage 2680375 13075 0.97% 9 overgo/closure-ledger/v3 by rebuild
+family lineage 2128392 10332 0.77% 82023 overgo/instruction-generation/v1 by evaluation/instruction-generations
+family lineage 1903856 9168 0.69% 63263 overgo/gate-result/v1 by gate/final
+family lineage 1899891 9056 0.68% 88536 overgo/capability-census/v1 by capability-census/evidence
+family lineage 1661730 8106 0.60% 63140 overgo/closure-ledger/v3 by closure-scan/rebind
+family lineage 1463905 7141 0.53% 1446 overgo/closure-ledger/v3 by closure-scan
+family lineage 1311190 6365 0.47% 88516 overgo/observation-chunk-summary/v1 by evaluation/run
+family lineage 1252992 6024 0.45% 63263 overgo/gate-attempt/v1 by gate/final
+family lineage 1175580 5670 0.42% 63567 overgo/serving-observation/v1 by validation/media-resources
+family lineage 1033753 4964 0.37% 88516 overgo/evaluation/v1 by evaluation/run
+family lineage 1031130 5092 0.37% 88516 overgo/run/v2 by evaluation/run
+family lineage 970060 4685 0.35% 88532 overgo/serving-observation/v1 by serving/observation
+family lineage 934004 4534 0.34% 88514 overgo/evaluation-answers/v1 by evaluation/observations
+family lineage 899913 4265 0.32% 82437 overgo/evaluation-replay/v1 by evaluation/replay
+family lineage 722215 3523 0.26% 61627 overgo/closure-ledger/v3 by closure-scan/import
+family lineage 676544 3328 0.24% 78645 overgo/run/v2 by evaluation/transcription-resource
+family lineage 648060 3086 0.23% 63263 overgo/gate-lifecycle/v1 by gate/final
+family lineage 626458 3086 0.23% 63263 overgo/run/v2 by gate/final
+family lineage 539375 2589 0.19% 63263 overgo/evaluation/v1 by gate/final
+family lineage 399357 1911 0.14% 63567 overgo/gate-result/v1 by validation/media-resources
+family lineage 361950 1710 0.13% 88301 overgo/evaluation-shard-report/v1 by evaluation/shards
+family lineage 340885 1644 0.12% 10 overgo/gate-result/v1 by rebuild
+family lineage 325831 1559 0.12% 63230 overgo/gate-lifecycle/v1 by gate/prepared
+family lineage 322493 1549 0.12% 23121 overgo/interaction/v2 by interaction/evidence
+family lineage 270135 1305 0.10% 78646 overgo/observation-chunk-summary/v1 by evaluation/transcription-resource
+family lineage 259940 1268 0.09% 63130 overgo/closure-ledger/v3 by closure-scan/publish
+family lineage 246202 1178 0.09% 27154 overgo/ifeval-raw-observation/v1 by qwen4/ifeval
+family lineage 243366 1161 0.09% 88515 overgo/mmlu-pro-report/v1 by evaluation/campaigns
+family lineage 241854 1165 0.09% 88535 overgo.recipe-lifecycle.v1 by recipe/reverified
+family lineage 241155 1162 0.09% 88214 overgo/model-verification/v1 by verification/evidence
+family lineage 235614 1135 0.08% 88529 overgo.recipe-lifecycle.v1 by recipe/active
+family lineage 233319 1113 0.08% 88309 overgo/multiple-choice-report/v1 by evaluation/campaigns
+family lineage 231012 1116 0.08% 63269 overgo/gate-result/v1 by gate/lanes
+family lineage 218472 1042 0.08% 10 overgo/gate-lifecycle/v1 by rebuild
+family lineage 211712 1024 0.08% 78646 overgo/transcription-execution-receipt/v1 by evaluation/transcription-resource
+family lineage 203093 981 0.07% 86263 overgo/finding/v1 by finding/evidence
+family lineage 196587 939 0.07% 78648 overgo/transcription-resource-report/v2 by evaluation/transcription-resource
+family lineage 171314 844 0.06% 10 overgo/run/v2 by rebuild
+family lineage 169620 817 0.06% 88531 overgo.recipe-lifecycle.v1 by recipe/retired
+family lineage 168663 807 0.06% 22950 overgo/ifeval-raw-observation/v1 by ifeval/raw
+family lineage 161588 788 0.06% 78527 overgo/dataset/v1 by dataset/register
+family lineage 159468 776 0.06% 23115 overgo/operation-lifecycle/v1 by operation/lifecycle
+family lineage 157072 756 0.06% 10 overgo/stage-receipt/v1 by rebuild
+family lineage 156984 744 0.06% 63269 overgo/gate-lane-obligation/v1 by gate/lanes
+family lineage 153012 750 0.06% 88534 overgo/run/v2 by training/evidence
+family lineage 151032 744 0.05% 63269 overgo/run/v2 by gate/lanes
+family lineage 145718 725 0.05% 83406 overgo/run/v1 by recipe/run
+family lineage 144460 699 0.05% 88535 overgo/decision/v1 by recipe/reverified
+rest lineage 4875026 23443 1.76% 88536 253 families
+projection causality bytes 352 header 350 framing 2 records 0 families 0 decode-microseconds 4 least 3 most 9
+projection locations bytes 1402367 header 350 framing 1 records 7401 families 47 decode-microseconds 12955 least 12522 most 14938
+family locations 414702 2229 0.15% 9 no schema: file untyped by rebuild
+family locations 354231 1851 0.13% 1446 no schema: file untyped by closure-scan
+family locations 229760 1268 0.08% 63140 no schema: file untyped by closure-scan/rebind
+rest locations 403323 2053 0.15% 87266 44 families
+projection aliases bytes 15007654 header 348 framing 1 records 70619 families 48 decode-microseconds 95878 least 74452 most 102814
+family aliases 7741706 39298 2.79% 63268 gate/package
+family aliases 3120264 10332 1.12% 82023 evaluation/instruction-generations
+family aliases 1274046 6962 0.46% 63140 closure/active
+family aliases 457572 2243 0.16% 63262 code-manifest/digest
+family aliases 426214 2069 0.15% 88515 evaluation/campaigns
+family aliases 419627 2033 0.15% 88210 stage-receipt/evidence
+family aliases 311173 1534 0.11% 88516 observation/chunk
+family aliases 287800 1439 0.10% 88532 serving/attempt
+family aliases 244216 1246 0.09% 88516 evaluation/run
+family aliases 175423 607 0.06% 88301 evaluation/shards
+rest aliases 549264 2856 0.20% 88536 38 families
+projection commits bytes 34630859 header 348 framing 1 records 88536 families 171 decode-microseconds 413267 least 400564 most 452348
+family commits 14952615 40002 5.39% 63268 gate/package
+family commits 4964354 10332 1.79% 82023 evaluation/instruction-generations
+family commits 3252261 8682 1.17% 88210 stage-receipt/evidence
+family commits 1755300 4534 0.63% 88514 evaluation/observations
+family commits 849352 2237 0.31% 63262 code-manifest-digest/profile
+family commits 822038 2102 0.30% 88433 evaluation/authorities
+family commits 583436 1559 0.21% 63230 gate/prepared
+family commits 574006 1543 0.21% 63263 gate/final
+family commits 544996 1432 0.20% 88532 serving/observation
+family commits 510571 1341 0.18% 88515 evaluation/campaigns
+family commits 472708 1273 0.17% 88516 evaluation/run
+family commits 359774 802 0.13% 88204 workflow/authority
+family commits 333483 864 0.12% 63222 automation/work-lease
+family commits 277760 744 0.10% 63269 gate/lanes
+family commits 270389 711 0.10% 82437 evaluation/replay
+family commits 264092 570 0.10% 88301 evaluation/shards
+family commits 232656 624 0.08% 23121 interaction/evidence
+family commits 208873 559 0.08% 88214 verification/evidence
+family commits 207137 522 0.07% 78648 evaluation/transcription-resource
+family commits 196397 548 0.07% 27156 qwen4/ifeval
+family commits 190708 523 0.07% 63140 closure-scan/rebind
+family commits 189400 359 0.07% 83406 recipe/run
+family commits 169513 359 0.06% 88534 training/evidence
+family commits 158124 444 0.06% 22950 ifeval/raw
+family commits 157173 429 0.06% 31602 media-intake
+family commits 149084 400 0.05% 63231 modern-census/profile
+family commits 147865 388 0.05% 23115 operation/lifecycle
+rest commits 1836445 4653 0.66% 88536 144 families
+
+== writers and readers ==
+family: overgo/agent-obligation/v1 by gate/package
+bytes: 54947471
+share: 19.81%
+last: 50788
+in: artifacts, contents, lineage
+writer: none in the tree. The old gate wrote one for each requirement of a package it checked, in the batch of the package's receipt; commit d80326076 (2026-09-27) deleted the old gate. The schema is declared at internal/runrecord/agent_obligation.go:17 and the agent loop still makes obligations of it, at internal/agentloop/delegated_runtime.go:71, which reach the store under other keys.
+load: none found
+evaluation: none found for these records. internal/evaluation/trajectory_supervisor.go:238 loads the obligation a resolution names, and the 19 resolutions of this generation name obligations written under gate/batch, none under gate/package (a join of the lineage and artifacts members, made once with a scratch program that is not kept).
+training: none found
+scorecard: none found
+class: development process
+
+family: overgo/gate-package-receipt/v1 by gate/package
+bytes: 23730210
+share: 8.55%
+last: 63268
+in: artifacts, contents, lineage
+writer: none in the tree. The old gate wrote one receipt for each package a commit's checks ran; commit d80326076 (2026-09-27) deleted it. internal/overgodb/write_admission.go:46 still reserves the schema to the producer named gate, and nothing else names it.
+load: none found
+evaluation: none found
+training: none found
+scorecard: none found
+class: development process
+
+family: gate/package
+bytes: 22694321
+share: 8.18%
+last: 63268
+in: aliases, commits
+writer: none in the tree. It is the key of the batch that carried a package receipt and the name of the alias to it; nothing builds or resolves a name that begins gate/package since commit d80326076 (2026-09-27).
+load: none found
+evaluation: none found
+training: none found
+scorecard: none found
+class: development process
+
+family: overgo/finding/v1 by gate/final
+bytes: 19176171
+share: 6.91%
+last: 63229
+in: artifacts, contents, lineage
+writer: none in the tree. The old gate filed its advisories as findings in the batch that closed a run; commit d80326076 (2026-09-27) deleted it. The schema is declared at internal/finding/document.go:23 and findings are still filed under other keys (see overgo/finding/v1 by rebuild). Nearly all of these bytes are lineage, one edge for each text file a finding cites.
+load: none found
+evaluation: none found
+training: none found
+scorecard: none found. cmd/validate/census.go:341 parses the one finding a capability census binds, in validate's census mode, which the scorecard does not run.
+class: development process
+
+family: overgo/benchmark-record/v1 by rebuild
+bytes: 9522592
+share: 3.43%
+last: 4
+in: artifacts, contents
+writer: internal/dataset/benchmark.go:127, in ImportBenchmark, which an evaluation calls at internal/evaluation/catalog.go:216 for a benchmark the store lacks. A store rebuild committed these again (internal/overgodb/rebuild.go:88), and its key is the one they carry.
+load: none found
+evaluation: internal/evaluation/store_suites.go:212
+training: none found
+scorecard: none found
+class: read
+
+family: overgo/stage-receipt/v2 by stage-receipt/evidence
+bytes: 9364411
+share: 3.38%
+last: 88210
+in: artifacts, contents, lineage
+writer: internal/runrecord/stage_receipt.go:144, PublishStageReceipt, called for each transition of a workflow's stage at internal/workflowruntime/runtime.go:704.
+load: internal/modelrecipe/lifecycle_invocation.go:134
+evaluation: internal/evaluation/production_probe.go:510
+training: none found
+scorecard: none found
+class: read
+
+family: evaluation/instruction-generations
+bytes: 8084618
+share: 2.91%
+last: 82023
+in: aliases, commits
+writer: none in the tree. An instruction-rules evaluation kept each case's response in a batch of this key and under an alias of this name; since commit d4d40d2ee (2026-10-10) an evaluation keeps its answers in one record (evaluation/observations) and nothing writes these.
+load: none found
+evaluation: none found in the command. A test of the retained evaluations resolves these aliases, at internal/evaluation/qwen9_ifeval_scores_test.go:207.
+training: none found
+scorecard: none found
+class: development process
+
+family: overgo/closure-ledger/v3 by rebuild
+bytes: 7600418
+share: 2.74%
+last: 9
+in: artifacts, contents, lineage
+writer: none in the tree. The closure scanner wrote a ledger for each file it bound; commit be70f7c1c (2026-09-27) deleted the scanner and the ledger, and cmd/gate/machinery_gone_test.go:48 holds them gone. A store rebuild committed these again, and its key is the one they carry.
+load: none found
+evaluation: none found
+training: none found
+scorecard: none found
+class: development process
+
+family: no schema: evidence bare by gate/package
+bytes: 7083284
+share: 2.55%
+last: 50788
+in: artifacts
+writer: none in the tree. They are identities the batch of a package receipt declared as the sources of its obligations and did not carry; the old gate declared them, and commit d80326076 (2026-09-27) deleted it.
+load: none found
+evaluation: none found
+training: none found
+scorecard: none found
+class: development process
+
+family: overgo/finding/v1 by rebuild
+bytes: 6522474
+share: 2.35%
+last: 9
+in: lineage
+writer: internal/finding/document.go:132 files a finding now, for cmd/finding/main.go:71, and cmd/advisories/main.go:172 files a gate advisory as one. A store rebuild committed these again (internal/overgodb/rebuild.go:88), its key is the one they carry, and the batch that first carried each is not recorded.
+load: none found
+evaluation: none found
+training: none found
+scorecard: none found. cmd/validate/census.go:341 parses the one finding a capability census binds, in validate's census mode, which the scorecard does not run.
+class: development process
+
+family: overgo/instruction-generation/v1 by evaluation/instruction-generations
+bytes: 6231017
+share: 2.25%
+last: 82023
+in: artifacts, contents, lineage
+writer: none in the tree. It is one case's response as an instruction-rules evaluation kept it until commit d4d40d2ee (2026-10-10); internal/evaluation/instruction_generation_retained_test.go:24 declares the schema for the tests of the retained evaluations, and nothing writes one.
+load: none found
+evaluation: none found in the command. A test of the retained evaluations loads them, at internal/evaluation/qwen9_ifeval_scores_test.go:208.
+training: none found
+scorecard: none found
+class: development process
+
+family: overgo/gate-package-obligations/v1 by gate/package-obligations
+bytes: 5845765
+share: 2.11%
+last: 63233
+in: lineage
+writer: none in the tree. The old gate wrote one obligations document for each preparation of a package; commit d80326076 (2026-09-27) deleted it. Nearly all of these bytes are lineage.
+load: none found
+evaluation: none found
+training: none found
+scorecard: none found
+class: development process
+
+family: overgo/benchmark-import/v1 by rebuild
+bytes: 5179734
+share: 1.87%
+last: 4
+in: lineage
+writer: internal/dataset/benchmark.go:168, in ImportBenchmark, which an evaluation calls at internal/evaluation/catalog.go:216. A store rebuild committed these again (internal/overgodb/rebuild.go:88), and its key is the one they carry. Nearly all of these bytes are lineage, one edge for each record of an import.
+load: none found
+evaluation: internal/evaluation/store_suites.go:189
+training: none found
+scorecard: none found
+class: read
+
+family: overgo/closure-ledger/v3 by closure-scan/rebind
+bytes: 4762352
+share: 1.72%
+last: 63140
+in: artifacts, contents, lineage
+writer: none in the tree. The closure scanner wrote it; commit be70f7c1c (2026-09-27) deleted the scanner and the ledger, and cmd/gate/machinery_gone_test.go:48 holds them gone.
+load: none found
+evaluation: none found
+training: none found
+scorecard: none found
+class: development process
+
+family: overgo/evaluation-plan/v1 by evaluation/authorities
+bytes: 4321012
+share: 1.56%
+last: 88433
+in: artifacts, contents, lineage
+writer: internal/evaluation/ledger.go:81, which commits a plan with the authorities it names under the key built at internal/evaluation/ledger.go:75.
+load: none found
+evaluation: internal/evaluation/evidence.go:339
+training: none found
+scorecard: internal/scorecard/scorecard.go:727, through evaluation.EvaluatedMeasure (internal/evaluation/suite.go:58)
+class: read
+
+family: overgo/closure-ledger/v3 by closure-scan
+bytes: 4178185
+share: 1.51%
+last: 1446
+in: artifacts, contents, lineage
+writer: none in the tree. The closure scanner wrote it; commit be70f7c1c (2026-09-27) deleted the scanner and the ledger, and cmd/gate/machinery_gone_test.go:48 holds them gone.
+load: none found
+evaluation: none found
+training: none found
+scorecard: none found
+class: development process
+
+family: overgo/evaluation-evidence/v1 by evaluation/run
+bytes: 3787968
+share: 1.37%
+last: 88516
+in: artifacts, contents, lineage
+writer: internal/evaluation/evidence.go:276, which adds the evidence to the batch of an evaluation's run, the batch keyed at internal/evaluation/campaign.go:318.
+load: none found
+evaluation: internal/evaluation/capability_gap.go:88
+training: none found
+scorecard: internal/scorecard/scorecard.go:717
+class: read
+
+family: stage-receipt/evidence
+bytes: 3671888
+share: 1.32%
+last: 88210
+in: aliases, commits
+writer: internal/runrecord/stage_receipt.go:196, the key of a stage receipt's batch; the alias is the one internal/runrecord/stage_receipt.go:285 names by operation and node.
+load: internal/modelrecipe/lifecycle_invocation.go:134
+evaluation: internal/evaluation/production_probe.go:510
+training: none found
+scorecard: none found
+class: read
+
+family: overgo/closure-ledger/v3 by closure-scan/import
+bytes: 2074145
+share: 0.75%
+last: 61627
+in: artifacts, contents, lineage
+writer: none in the tree. The closure scanner wrote it; commit be70f7c1c (2026-09-27) deleted the scanner and the ledger, and cmd/gate/machinery_gone_test.go:48 holds them gone.
+load: none found
+evaluation: none found
+training: none found
+scorecard: none found
+class: development process
+
+family: no schema: evidence bare by gate/package-obligations
+bytes: 1636714
+share: 0.59%
+last: 63233
+in: artifacts
+writer: none in the tree. They are identities the batch of a package's obligations document declared and did not carry; the old gate declared them, and commit d80326076 (2026-09-27) deleted it.
+load: none found
+evaluation: none found
+training: none found
+scorecard: none found
+class: development process
+
+family: closure/active
+bytes: 1274046
+share: 0.46%
+last: 63140
+in: aliases
+writer: none in the tree. It is the alias to a file's current closure ledger; nothing builds or resolves a name that begins closure/ since commit be70f7c1c (2026-09-27).
+load: none found
+evaluation: none found
+training: none found
+scorecard: none found
+class: development process
+
+family: code-manifest-digest/profile
+bytes: 849352
+share: 0.31%
+last: 63262
+in: commits
+writer: none in the tree. It is the key of the batch that recorded a code manifest's digest for a gate run; commit c69524039 (2026-09-27) deleted the code manifest, and cmd/gate/machinery_gone_test.go:31 holds it gone.
+load: none found
+evaluation: none found
+training: none found
+scorecard: none found
+class: development process
+
+family: overgo.code-manifest-digest.v1 by code-manifest-digest/profile
+bytes: 809025
+share: 0.29%
+last: 63262
+in: artifacts, contents
+writer: none in the tree. Commit c69524039 (2026-09-27) deleted the code manifest that wrote it, and cmd/gate/machinery_gone_test.go:31 holds it gone.
+load: none found
+evaluation: none found
+training: none found
+scorecard: none found
+class: development process
+
+family: overgo/closure-ledger/v3 by closure-scan/publish
+bytes: 744952
+share: 0.27%
+last: 63130
+in: artifacts, contents, lineage
+writer: none in the tree. The closure scanner wrote it; commit be70f7c1c (2026-09-27) deleted the scanner and the ledger, and cmd/gate/machinery_gone_test.go:48 holds them gone.
+load: none found
+evaluation: none found
+training: none found
+scorecard: none found
+class: development process
+
+family: code-manifest/digest
+bytes: 457572
+share: 0.16%
+last: 63262
+in: aliases
+writer: none in the tree. It is the alias to a profile's code manifest digest; nothing builds or resolves a name that begins code-manifest/ since commit c69524039 (2026-09-27).
+load: none found
+evaluation: none found
+training: none found
+scorecard: none found
+class: development process
+
+family: no schema: profile bare by code-manifest-digest/profile
+bytes: 286721
+share: 0.10%
+last: 63262
+in: artifacts
+writer: none in the tree. They are profile identities the batch of a code manifest's digest declared and did not carry; commit c69524039 (2026-09-27) deleted the code manifest.
+load: none found
+evaluation: none found
+training: none found
+scorecard: none found
+class: development process
+
+family: overgo/finding/v1 by finding/evidence
+bytes: 203093
+share: 0.07%
+last: 86263
+in: lineage
+writer: internal/finding/document.go:132, the batch of a finding with the texts it cites, called from cmd/finding/main.go:71, cmd/validate/census.go:414 and internal/servingattempt/servingattempt.go:105. It is the one family of this table that is the development process's and still written.
+load: none found
+evaluation: none found
+training: none found
+scorecard: none found. cmd/validate/census.go:341 parses the one finding a capability census binds, in validate's census mode, which the scorecard does not run.
+class: development process
+
+== closing ==
+checkpoint-bytes: 277418440
+development-process-bytes: 179191906
+development-process-share: 64.59%
+development-process-without-writer-bytes: 172466339
+development-process-with-writer-bytes: 6725567
+read-bytes: 35847605
+unclassed-bytes: 62378929
+
+development-process-artifacts-bytes: 41570098
+development-process-artifacts-estimate-microseconds: 402870
+development-process-contents-bytes: 21772337
+development-process-contents-estimate-microseconds: 197994
+development-process-lineage-bytes: 82489562
+development-process-lineage-estimate-microseconds: 813863
+development-process-causality-bytes: 0
+development-process-causality-estimate-microseconds: 0
+development-process-locations-bytes: 0
+development-process-locations-estimate-microseconds: 0
+development-process-aliases-bytes: 12593588
+development-process-aliases-estimate-microseconds: 80455
+development-process-commits-bytes: 20766321
+development-process-commits-estimate-microseconds: 247814
+
+estimate-processor-microseconds: 1742996
+open-load-microseconds: 1266331
+slowest-restore-microseconds: 1246886
+slowest-restore-after-microseconds: 433023
+estimate-open-microseconds: 826555
+
+What the figures say. By the row's rule 179,191,906 of the generation's 277,418,440 bytes, 64.6%,
+belong to families that no model load, evaluation, training run or scorecard reads. 35,847,605 bytes,
+12.9%, belong to families one of them reads. The other 62,378,929, 22.5%, are
+not classed: 18,204,817 in the rest lines, 2,451 in header lines and framing, and the families
+under 1% that the table does not enter. Most of those are the records of evaluations, runs, recipes
+and serving. The old gate's result records are among them as well, the gate-result, gate-lifecycle,
+gate-attempt and run records written under gate/final and gate/prepared. They are left unclassed
+because the media coverage report still reads the historical ones as acceptance proofs, as
+internal/overgodb/write_admission.go:36 says. That report is none of the four readers, and it is a
+reader.
+
+Nearly all of the development process's bytes have no writer. 172,466,339 of them, 62.2%
+of the generation, belong to families that nothing in the tree writes: the old gate's package
+receipts, the obligations of those receipts and the identities they declared (deleted in
+d80326076), the closure ledgers (be70f7c1c), the code manifest's digests (c69524039) and the
+instruction generations (d4d40d2ee). None of the old gate's, the closure scanner's or the code
+manifest's families is dated after sequence 63,268, and the newest instruction generation is dated
+82,023, in a generation at 88,536. Moving a writer out of the store takes none of these
+bytes out of an open. No writer is left to move, and an open goes on decoding them until the store
+is rebuilt without them. The instruction generations, with their aliases and commits, are read by
+a test of the retained evaluations, so a store rebuilt without them needs that test changed or
+those records kept.
+
+6,725,567 bytes belong to the two families in the table that have a writer and no reader. Both
+are findings: those a rebuild committed again, and those filed since under finding/evidence, which
+is the one family here that is the development process's and still written.
+
+The estimate. What follows is an estimate and not a measurement. It takes a projection's restore
+to cost in proportion to its bytes, which holds for the decoding and only roughly for the indexes a
+restore builds, and nothing was timed on a store without the records. For each projection the
+estimate is the development process's bytes times the projection's measured restore, over the
+projection's bytes; the fields above give it. Summed over the projections it is 1,742,996
+microseconds of the 2,716,350 that the seven restores take one after another. That sum is
+processor time and not what an open waits, because an open restores the projections at once and
+waits for the slowest. The slowest is lineage at 1,246,886 microseconds, and 65%
+of its bytes are the development process's. Without them the restore of lineage is estimated
+at 433,023 microseconds and is the slowest that remains. Scaling the measured load of the set,
+1,266,331 microseconds, by that shortening gives an estimated 826,555 microseconds saved at every open:
+a load of the generation of about 0.44 s where it is 1.27 s. The row's next step
+times this on a copy of the store rebuilt without the records.

@@ -59,7 +59,7 @@ func operator(name, purpose, audience string) Descriptor {
 // nothing declares is refused by TestEveryCommandHasACaller.
 var Declared = map[string]Descriptor{
 	"plan": Plan,
-	"overgodb": operator("overgodb", "back up, check, import, precheck, query, rebuild or repair an OvergoDB store, one subcommand each",
+	"overgodb": operator("overgodb", "back up, check, import, precheck, query, rebuild or repair an OvergoDB store, or count its checkpoint by record family, one subcommand each",
 		"an operator maintaining or inspecting the store"),
 	"seam-align": operator("seam-align", "compute a seam's alignment residual, the causal proxy for whether a linear adapter composes it, and bias-audit recorded residuals against measured bridge parity",
 		"an operator studying model composition before training a bridge"),

@@ -67,17 +67,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 2039,
+        "nodes": 0,
         "reason": "measured by the preflight of step measure's change at 12d5b0de9: the census of a checkpoint generation by record family and its subcommand of cmd/overgodb"
       },
       "steps": [
-        {
-          "id": "measure",
-          "title": "Count the installed store's checkpoint by record family, in bytes and in decode time, and name each family's writer and readers",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -count=1 -run '^TestCheckpointFamiliesRecordIsWhole$'",
-          "rationale": "From the owner's amendment of 2026-10-13: the part of its row evidence-one-source that the day's measurements support, filed alone. The lead's review did not file the rest of that row, and the commit that filed this one says why. An open of the store loads its newest checkpoint and replays the journal after it. Since store-open (275213a7e, 04627abb2) the replay is bounded at 4,096 records, and what remains of an open is the checkpoint's decode: 0.85 to 1.3 s of 277 MB on 2026-10-13, 126 MB of it lineage, paid by every model load (MiniCPM5-1B loads in 1.82 s). By the amendment's count of the journal that open replayed before the checkpoint, by key: 12,124 of 39,324 commits (31%) were records of the development process (the commit checks' receipts, leases and scans), 8,709 (22%) the generations of one experiment that was not adopted, 5,427 evaluation's bookkeeping beside 4,534 that hold answers, and 924 the serving observations the timing columns read. The lead has not counted these again, and commits are not bytes. This step counts the checkpoint by family in bytes and in decode time, names the command that writes each family, and says which families a model load, an evaluation, a training run and the scorecard read. A family none of them reads is the development process's. The step that moves such a family's writer to git or the checkout's state directory is filed from this record, with what a store rebuilt without those records saves at an open, timed on a copy. No tool deletes a store or a backup: what a move changes is what is written from then on, and a smaller installed store is the lead's store maintenance, with a sealed backup.\nServes: load-time: every model's load pays the checkpoint's decode.\nDisappears: nothing yet.\nEvidence: docs/verification/checkpoint-families.txt, held by the test.\nBatch: host; reads the installed store read-only and a copy for the rebuild's timing."
-        },
         {
           "id": "rebuild",
           "title": "Rebuild a copy of the store without the families nothing writes and nothing reads, hold it to the store's checks, and time its open",

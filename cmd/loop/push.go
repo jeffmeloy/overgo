@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"overgo/internal/gitauthority"
+	"overgo/internal/quietmachine"
 )
 
 // pushedBranch is the branch of the remote that a push publishes to. The local branch of that
@@ -43,7 +45,8 @@ func pushNamed(root, name, remote string, confirmed, worker bool) (string, error
 			return "", fmt.Errorf("%s/main holds %.12s, which %.12s does not contain: a push only fast-forwards: %w", remote, tip, commit, err)
 		}
 	}
-	if err := gitWrite(root, "push", remote, commit+":"+pushedBranch); err != nil {
+	push := func() error { return gitWrite(root, "push", remote, commit+":"+pushedBranch) }
+	if err := quietmachine.Workload("push", os.Stderr, push)(); err != nil {
 		return "", err
 	}
 	return commit, nil

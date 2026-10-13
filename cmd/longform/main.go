@@ -33,6 +33,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
 	"overgo/internal/processmeasure"
+	"overgo/internal/quietmachine"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/tensor/dtype"
@@ -77,7 +78,7 @@ type options struct {
 }
 
 func main() {
-	clioptions.MainNamed("longform", func() error { return run(os.Args[1:], os.Stdout) })
+	clioptions.MainNamed("longform", quietmachine.Workload("longform", os.Stderr, func() error { return run(os.Args[1:], os.Stdout) }))
 }
 
 func parseOptions(args []string) (options, error) {

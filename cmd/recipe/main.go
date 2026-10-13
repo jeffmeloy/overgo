@@ -25,12 +25,13 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/processmeasure"
+	"overgo/internal/quietmachine"
 	"overgo/internal/recipe"
 	"overgo/internal/servingattempt"
 )
 
 func main() {
-	clioptions.MainNamed("recipe", run)
+	clioptions.MainNamed("recipe", quietmachine.Workload("recipe", os.Stderr, run))
 }
 
 func run() error {

@@ -21,6 +21,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
+	"overgo/internal/quietmachine"
 	"overgo/internal/runrecord"
 	"overgo/internal/scorecard"
 	"overgo/internal/testevidence"
@@ -224,6 +225,7 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 			continue
 		}
 		fmt.Fprintf(output, "validate -run %d/%d: %s %s (%s; %s)\n", index+1, len(cells), sel.Validation, displayName(sel.ModelValidation), sel.Reason, sel.Promotion)
+		environment = cellEnvironment(sel.Validation, environment)
 		acquireCell := func() error {
 			if sel.Validation == trainingProof {
 				return acquireTraining(ctx, output, root, store, sel.ModelValidation, name, args, environment...)
@@ -308,6 +310,17 @@ func measureCell(ctx context.Context, output io.Writer, storeRoot string, store 
 	recorded, asideErr := scorecard.SetAsideContended(context.WithoutCancel(ctx), writable, before, reading.Competing)
 	fmt.Fprintf(output, "validate -run: set aside %d serving attempt(s) measured beside %s\n", recorded, strings.Join(reading.Competing, ", "))
 	return true, errors.Join(err, asideErr, writable.Close())
+}
+
+// cellEnvironment is the environment a cell's command runs under beyond this
+// process's own. A timed cell's says that a holder has the quiet machine for
+// it. The command is one of overgo's workloads, which wait for a timed
+// measurement, and this one is the measurement's own.
+func cellEnvironment(validation string, environment []string) []string {
+	if !timedValidation(validation) {
+		return environment
+	}
+	return append(slices.Clone(environment), quietmachine.HeldEnvironment+"=1")
 }
 
 // timedValidation says whether a cell's result is a time the scorecard compares: the

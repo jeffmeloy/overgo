@@ -5,11 +5,13 @@ import (
 	"context"
 	"errors"
 	"io"
+	"slices"
 	"strings"
 	"testing"
 
 	"overgo/internal/clioptions"
 	"overgo/internal/landing"
+	"overgo/internal/quietmachine"
 	"overgo/internal/recipe"
 )
 
@@ -27,6 +29,12 @@ func TestOnlyTheCellsThatReadTimesTakeTheQuietMachine(t *testing.T) {
 	} {
 		if got := timedValidation(validation); got != timed {
 			t.Errorf("%s: timed = %t, want %t", validation, got, timed)
+		}
+		// A timed cell's command is told that its measurement holds the quiet machine for it, so it
+		// does not wait for its own parent. Any other cell's command takes the shared side itself.
+		environment := cellEnvironment(validation, []string{"KEPT=1"})
+		if held := slices.Contains(environment, quietmachine.HeldEnvironment+"=1"); held != timed || !slices.Contains(environment, "KEPT=1") {
+			t.Errorf("%s: its command runs under %q, want what it was given, and the mark of a held machine only for a timed cell: %t", validation, environment, timed)
 		}
 	}
 }

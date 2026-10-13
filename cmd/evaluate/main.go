@@ -24,6 +24,7 @@ import (
 	"overgo/internal/evaluation"
 	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
+	"overgo/internal/quietmachine"
 	"overgo/internal/runrecord"
 	"overgo/internal/strictjson"
 )
@@ -61,7 +62,7 @@ type modelRequest struct {
 type workerLauncher func(context.Context, int) error
 
 func main() {
-	clioptions.Main(run)
+	clioptions.Main(quietmachine.Workload("evaluate", os.Stderr, run))
 }
 
 func run() error {

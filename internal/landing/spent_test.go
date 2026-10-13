@@ -12,6 +12,7 @@ import (
 
 	"overgo/internal/jsonfile"
 	"overgo/internal/processlock"
+	"overgo/internal/quietmachine"
 )
 
 // firstWrite is a log that says when it is first written to.
@@ -82,7 +83,7 @@ func TestLandingRecordsItsWaitsByCause(t *testing.T) {
 
 	// A landing that finds a timed measurement running waits for it, and the
 	// wait is its record's.
-	measuring, _, err := awaitQuiet(ctx, quietTestMachine, true, noWait)
+	measuring, _, err := quietmachine.Await(ctx, quietTestMachine, true, noWait)
 	if err != nil {
 		t.Fatal(err)
 	}

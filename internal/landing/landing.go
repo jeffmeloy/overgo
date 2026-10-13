@@ -46,6 +46,7 @@ import (
 	"overgo/internal/plan"
 	"overgo/internal/planverify"
 	"overgo/internal/processcontrol"
+	"overgo/internal/quietmachine"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/testevidence"
 )
@@ -151,7 +152,7 @@ func Run(ctx context.Context, options Options) (landed string, err error) {
 		}
 	}
 	if options.Quiet {
-		release, err := l.holdQuiet(ctx, quietMachine)
+		release, err := l.holdQuiet(ctx, quietmachine.Name)
 		if err != nil {
 			return "", err
 		}
@@ -757,7 +758,7 @@ func (l *landing) run(ctx context.Context, environment []string, name string, ar
 	if environment == nil {
 		environment = os.Environ()
 	}
-	environment = append(slices.Clone(environment), underLandingEnvironment+"=1")
+	environment = append(slices.Clone(environment), quietmachine.HeldEnvironment+"=1")
 	var output, diagnostics bytes.Buffer
 	receipt, err := processcontrol.Run(ctx, processcontrol.Command{
 		Path: name, Args: arguments, Dir: l.Repo, Env: environment, Stdout: &output, Stderr: &diagnostics,

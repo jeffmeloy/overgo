@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"overgo/internal/quietmachine"
 )
 
 // quietTestMachine is the machine these tests share among themselves, not the host's own,
@@ -25,11 +27,11 @@ func noWait() {}
 // finds the machine busy says so when it starts waiting, not when it stops.
 func TestATimedMeasurementAndALandingNeverRunTogether(t *testing.T) {
 	ctx := t.Context()
-	first, waited, err := awaitQuiet(ctx, quietTestMachine, false, noWait)
+	first, waited, err := quietmachine.Await(ctx, quietTestMachine, false, noWait)
 	if err != nil || waited != 0 {
 		t.Fatalf("a landing on a free machine = (%v, %v), want it admitted at once", waited, err)
 	}
-	second, waited, err := awaitQuiet(ctx, quietTestMachine, false, noWait)
+	second, waited, err := quietmachine.Await(ctx, quietTestMachine, false, noWait)
 	if err != nil || waited != 0 {
 		t.Fatalf("a second landing = (%v, %v), want it to share the machine with the first", waited, err)
 	}
@@ -40,7 +42,7 @@ func TestATimedMeasurementAndALandingNeverRunTogether(t *testing.T) {
 	waiting := make(chan struct{})
 	var group sync.WaitGroup
 	group.Go(func() {
-		release, _, err := awaitQuiet(ctx, quietTestMachine, true, func() { close(waiting) })
+		release, _, err := quietmachine.Await(ctx, quietTestMachine, true, func() { close(waiting) })
 		if err != nil {
 			t.Error(err)
 			return
@@ -60,7 +62,7 @@ func TestATimedMeasurementAndALandingNeverRunTogether(t *testing.T) {
 	group.Wait()
 
 	// And the other way: no landing starts while a measurement runs.
-	measuring, _, err := awaitQuiet(ctx, quietTestMachine, true, noWait)
+	measuring, _, err := quietmachine.Await(ctx, quietTestMachine, true, noWait)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +70,7 @@ func TestATimedMeasurementAndALandingNeverRunTogether(t *testing.T) {
 	measured.Store(true)
 	waiting = make(chan struct{})
 	group.Go(func() {
-		release, _, err := awaitQuiet(ctx, quietTestMachine, false, func() { close(waiting) })
+		release, _, err := quietmachine.Await(ctx, quietTestMachine, false, func() { close(waiting) })
 		if err != nil {
 			t.Error(err)
 			return
@@ -90,20 +92,11 @@ func TestATimedMeasurementAndALandingNeverRunTogether(t *testing.T) {
 // their measurements at once: the tests of cmd/validate run cells' fixtures inside the gate,
 // which holds the machine for them, and one that waited would wait for its own parent.
 func TestAMeasurementUnderALandingDoesNotWaitForIt(t *testing.T) {
-	t.Setenv(underLandingEnvironment, "1")
+	t.Setenv(quietmachine.HeldEnvironment, "1")
 	want := errors.New("measured")
 	if reading, err := Measuring(t.Context(), io.Discard, func() error { return want }); !errors.Is(err, want) || reading.Waited != 0 || len(reading.Competing) != 0 {
 		t.Fatalf("a measurement under a landing = (%+v, %v), want its own result without waiting and with nothing read of the machine", reading, err)
 	}
-}
-
-// firstLine is an output that calls the function it is as each line is written, for a test
-// that waits on the first.
-type firstLine func()
-
-func (said firstLine) Write(line []byte) (int, error) {
-	said()
-	return len(line), nil
 }
 
 // TestTimedWorkExcludesCompetingWork holds what a timed measurement reads of the machine it runs
@@ -194,13 +187,13 @@ func TestTimedWorkExcludesCompetingWork(t *testing.T) {
 
 	// A landing holds the machine: the measurement waits, runs only once the landing has ended, and
 	// returns its wait apart from what it measured.
-	held, _, err := awaitQuiet(ctx, machine, false, noWait)
+	held, _, err := quietmachine.Await(ctx, machine, false, noWait)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var landed, ran atomic.Bool
 	written := make(chan struct{})
-	output := firstLine(sync.OnceFunc(func() { close(written) }))
+	output := firstWrite{written: sync.OnceFunc(func() { close(written) })}
 	var reading Reading
 	var group sync.WaitGroup
 	group.Go(func() {

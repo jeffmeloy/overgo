@@ -16,6 +16,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/overgodb"
 	"overgo/internal/processlock"
+	"overgo/internal/quietmachine"
 	"overgo/internal/strictjson"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
@@ -30,7 +31,7 @@ const defaultKeptCheckpoints = 3
 var denseDevice trainingworkflow.DeviceTrainer
 
 func main() {
-	clioptions.MainNamed("train", run)
+	clioptions.MainNamed("train", quietmachine.Workload("train", os.Stderr, run))
 }
 
 func run() error {

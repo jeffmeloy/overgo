@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -23,12 +25,25 @@ func (w *fakeRowWorld) Landed(string) (string, error) {
 	return "0123456789abcdef0123456789abcdef01234567", w.landedErr
 }
 
+// clearedCall is the call a world records when the row sequence asks it to clear, and what the
+// scripted world answers that it cleared.
+const clearedCall = "cleared"
+
+func (w *fakeRowWorld) Cleared() string {
+	w.calls = append(w.calls, clearedCall)
+	return clearedCall
+}
+
 // TestRowSequenceStateMachine binds the row sequence: the gate runs once, a
 // refusal stops the sequence before git is read, and a landing is only
-// believed from git.
+// believed from git. The clearing is asked for once, after git confirms the
+// landing and never before: a refused landing and one git does not confirm
+// clear nothing, and what the clearing says is the outcome's and changes
+// nothing else of it: it is printed with the outcome of a confirmed landing,
+// and an outcome with no clearing prints no word of one.
 func TestRowSequenceStateMachine(t *testing.T) {
 	t.Parallel()
-	full := []string{phaseGate, phaseLanded}
+	full := []string{phaseGate, phaseLanded, clearedCall}
 	for _, scenario := range []struct {
 		name    string
 		world   fakeRowWorld
@@ -38,7 +53,7 @@ func TestRowSequenceStateMachine(t *testing.T) {
 		failed  bool
 	}{
 		{name: "gate refusal", world: fakeRowWorld{gate: "land: test: failed tests/packages: p"}, phase: phaseGate, outcome: outcomeRefused, calls: full[:1]},
-		{name: "gate success git does not confirm", world: fakeRowWorld{landedErr: errors.New("HEAD is not the landing")}, phase: phaseLanded, outcome: outcomeRefused, calls: full, failed: true},
+		{name: "gate success git does not confirm", world: fakeRowWorld{landedErr: errors.New("HEAD is not the landing")}, phase: phaseLanded, outcome: outcomeRefused, calls: full[:2], failed: true},
 		{name: "landed", phase: phaseLanded, outcome: outcomeReady, calls: full},
 	} {
 		world := scenario.world
@@ -49,6 +64,10 @@ func TestRowSequenceStateMachine(t *testing.T) {
 		}
 		if (outcome.Outcome == outcomeReady) != (outcome.Commit != "") {
 			t.Fatalf("%s: commit %q does not match a confirmed landing", scenario.name, outcome.Commit)
+		}
+		printed, err := json.Marshal(outcome)
+		if said := outcome.Outcome == outcomeReady; err != nil || said != (outcome.Cleared == clearedCall) || !said && outcome.Cleared != "" || said != strings.Contains(string(printed), `"cleared":"`+clearedCall+`"`) || !said && strings.Contains(string(printed), "cleared") {
+			t.Fatalf("%s: the outcome says %q of a clearing and prints as %s (%v), want what the world's clearing said after a confirmed landing, and no word of one otherwise", scenario.name, outcome.Cleared, printed, err)
 		}
 	}
 }

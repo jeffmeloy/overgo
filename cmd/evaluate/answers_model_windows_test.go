@@ -122,7 +122,7 @@ func TestModelsAnswerAsTransformersDoes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fixtures, err := filepath.Glob(filepath.Join(root, "fixtures", "answer_log_probabilities", "*.json"))
+	fixtures, err := filepath.Glob(filepath.Join(root, "fixtures/answer_log_probabilities/*.json"))
 	if err != nil || len(fixtures) == 0 {
 		t.Fatalf("no model's reference answers are on file (%v); write them with %s", err, answersScript)
 	}

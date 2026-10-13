@@ -213,8 +213,10 @@ Repository shrinks while capability grows.
 - `go run ./cmd/loop -leftovers -delete <place>` is the one command that removes them:
   it lists the place's finished entries with a token, and removes exactly those when run
   again with `-confirm <token>`. Experiments and branches are the owner's data: never from
-  a worker or a review session. A commit removes nothing: a finished helper copy goes
-  by `-delete helper-copy` and its token, since a clean build checkout may be in use.
+  a worker or a review session. A confirmed commit clears three places by the same rules,
+  and never the owner's data: from `./tmp` everything that is not an open row's folder, the
+  go build folders, and finished helper copies; a checkout to be used again is locked with
+  `git worktree lock`.
   `-leftovers -withdraw <run>` withdraws, by its token, the store's locations of that run's checkpoints alone.
 - Port through typed contracts and recipe-selected consumers. llama.cpp for pinned
   behavior; `adaptive_new` read-only. Keep commits, licenses, artifact identities.

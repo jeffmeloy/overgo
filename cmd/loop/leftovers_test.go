@@ -414,8 +414,8 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 			"bin|repo/bin/slashed.exe|report|held",
 			"bin|repo/bin/loose.exe|report|finished",
 			"bin|repo/bin/two words.exe|report|unknown",
-			"tmp|repo/tmp/probe.go|delete|unowned",
-			"tmp|repo/tmp/tool.exe|delete|misplaced",
+			"tmp|repo/tmp/probe.go|delete|unknown",
+			"tmp|repo/tmp/tool.exe|delete|unknown",
 			"build|repo/build|report|unknown",
 			"release|repo/dist|report|unknown",
 			"python-place|repo/scripts/python_golden_references|never|kept",
@@ -496,7 +496,7 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 			{"helper-copy", "temporary/sessions/s1/scratchpad/dirty", "note.txt"},
 			{"stash", "stash@{0}", "kept work"},
 			{"store-backup", "backups/sealed", "sealed-backup"},
-			{"tmp", "repo/tmp/tool.exe", "an executable belongs in bin/"},
+			{"tmp", "repo/tmp/tool.exe", "docs/plan.json"},
 			{"temporary-build", "temporary/go-build2", "this command's own executable"},
 			{"media-samples", "repo/docs/media_samples/" + sampled + ".dat", "named by docs/verification/run-record.txt"},
 			{"media-samples", "repo/docs/media_samples/sample.dat", "nothing reads it"},
@@ -696,18 +696,17 @@ func fixtureLink(target, name string) bool {
 }
 
 // TestTmpEntryBelongsToAnOpenRowOrIsFinished builds, under a temporary directory, a repository whose
-// scratch folder holds one entry of each kind; the real scratch folder is never read. A folder named
-// for a row is held while either plan holds the row, the working plan or the plan of the trunk's
-// commit, in any letter case, and while a committed line or a store registration names it. It is
-// finished only when neither plan holds its row and a commit on the trunk's first-parent chain
-// landed a step of a row of exactly its name, in a trailer git itself reads as one. A landing on a
-// branch nobody merged, one a merge brought in, one named in a message's prose, one under another
-// trailer's key and one that names no step finish nothing: such a folder is unowned, as is a folder
-// that was never a row and a file outside a row's folder. An executable and a Python file are
-// misplaced, each with the place it belongs, and a folder's rule names those directly inside it.
-// The scratch module's two files are kept. What cannot be established is unknown and kept: every
-// folder when the working plan cannot be read, a landed folder when the store's registrations
-// cannot be read or the main worktree is on no branch, and a finished folder that holds a link.
+// scratch folder holds one entry of each kind; the real scratch folder is never read. Nothing
+// accumulates there. An entry is kept only as one of the scratch module's own two files, and held
+// only while a plan holds a row of its name, the working plan or the plan of the trunk's commit, in
+// any letter case, or while a committed line or a store registration names it. Every other entry
+// is finished, whatever it is: a loose file, an executable, a Python file, a folder no row was ever
+// named for, and the folder of a row that has left both plans, for which no landing is asked. What
+// cannot be established is unknown and kept, since a failed read never reads as finished: every
+// entry but the module's two files when the working plan cannot be read; every entry that neither
+// the working plan nor a committed line holds when the main worktree is on no branch; every entry
+// that nothing else holds when the store's registrations cannot be read; an entry whose name the
+// search of the committed lines could not have found; and a finished entry that holds a link.
 // Every entry's action is delete, an entry's bytes are measured, and no listing removes anything.
 func TestTmpEntryBelongsToAnOpenRowOrIsFinished(t *testing.T) {
 	t.Parallel()
@@ -731,17 +730,6 @@ func TestTmpEntryBelongsToAnOpenRowOrIsFinished(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	const trailer = plan.LandedRowTrailer + ": "
-	// land makes an empty commit whose message ends with the paragraphs given, and returns the commit.
-	land := func(repository string, paragraphs ...string) string {
-		t.Helper()
-		arguments := []string{"commit", "-q", "--allow-empty", "-m", "an empty landing"}
-		for _, paragraph := range paragraphs {
-			arguments = append(arguments, "-m", paragraph)
-		}
-		gitFixture(t, repository, arguments...)
-		return gitFixture(t, repository, "rev-parse", "HEAD")
-	}
 	// savePlan writes the working plan of a checkout: the rows named, each with one open step whose
 	// reasoning names a scratch folder, which holds nothing since the plan is a work record.
 	savePlan := func(checkout string, rows ...string) {
@@ -757,8 +745,7 @@ func TestTmpEntryBelongsToAnOpenRowOrIsFinished(t *testing.T) {
 		}
 	}
 
-	// The trunk's checkout: a record and a source file that name scratch entries, the plan, and
-	// then the landings, each an empty commit.
+	// The trunk's checkout: a record and a source file that name scratch entries, and the plan.
 	repo := folder("repo")
 	gitFixture(t, repo, "init", "-q", "-b", "master")
 	gitFixture(t, repo, "config", "core.autocrlf", "false")
@@ -766,43 +753,23 @@ func TestTmpEntryBelongsToAnOpenRowOrIsFinished(t *testing.T) {
 	write("repo/docs/verification/scratch-record.note", "overlay: tmp/cited-row/overlay.data\n")
 	// The second name has no boundary on its left, so it names nothing in the scratch folder.
 	write("repo/internal/x/x.go", "// Package x reads tmp/cited-file.go and mytmp/loose.go, and its probes build under tmp/go.mod.\npackage x\n")
-	savePlan(repo, "open-row", "reopened-row", "refiled-row", "Case-Row", "tip-row")
+	savePlan(repo, "open-row", "Case-Row", "tip-row")
 	gitFixture(t, repo, "add", "-A")
 	gitFixture(t, repo, "commit", "-q", "-m", "base")
-	older := land(repo, trailer+"landed-row/first")
-	land(repo, trailer+"pair-a/do\n"+trailer+"pair-b/do")
-	for _, step := range []string{"cited-row/do", "reopened-row/first", "refiled-row/do", "case-row/do", "loud-row/do", "tip-row/first", "filed-row/do", "registered-row/do"} {
-		land(repo, trailer+step)
-	}
-	newest := land(repo, trailer+"landed-row/do")
-	land(repo, trailer+"prose-row/do", "The line above names a row in the prose of a message, and this paragraph ends it")
-	land(repo, "Reviewed-Row: reviewed-row/do")
-	land(repo, trailer+"stepless-row")
-	gitFixture(t, repo, "checkout", "-q", "-b", "lane/other")
-	land(repo, trailer+"lane-row/do")
-	gitFixture(t, repo, "checkout", "-q", "-b", "lane/merged", "master")
-	land(repo, trailer+"merged-row/do")
-	gitFixture(t, repo, "checkout", "-q", "master")
-	gitFixture(t, repo, "merge", "-q", "--no-ff", "-m", "merge the lane", "lane/merged")
 	// The working plan after the last commit, uncommitted: one row landed whole and left it, one was filed.
-	savePlan(repo, "open-row", "reopened-row", "refiled-row", "Case-Row", "filed-row")
+	savePlan(repo, "open-row", "Case-Row", "filed-row")
 
-	folders := []string{
-		"open-row", "reopened-row", "refiled-row", "case-row", "tip-row", "filed-row", "cited-row", "registered-row", "outputs",
-		"landed-row", "pair-a", "pair-b", "LOUD-ROW", "lane-row", "merged-row", "prose-row", "reviewed-row", "stepless-row", "prep", "folder.exe",
-	}
+	folders := []string{"open-row", "case-row", "tip-row", "filed-row", "cited-row", "registered-row", "outputs", "landed-row", "left-row", "prep", "folder.exe"}
 	for _, name := range folders {
 		folder("repo/tmp/" + name)
 	}
 	write("repo/tmp/open-row/probe.go", "package probe\n")
-	write("repo/tmp/open-row/built.exe", "built")
-	write("repo/tmp/open-row/packed.exe/inner.exe", "inner")
 	write("repo/tmp/prep/old.py", "print('old')\n")
 	write("repo/tmp/landed-row/probe.go", "package probe\n")
-	for _, name := range []string{"loose.go", "cited-file.go", "weights.bin", "tool.exe", "TOOL2.EXE", "script.py", "UPPER.PY", "go.mod", "go.sum"} {
-		write("repo/tmp/"+name, "a file of the fixture\n")
+	files := []string{"loose.go", "cited-file.go", "weights.bin", "tool.exe", "script.py", "two words.txt", "notes.txt"}
+	for _, name := range append([]string{"go.mod", "go.sum"}, files...) {
+		write("repo/tmp/"+name, "notes")
 	}
-	write("repo/tmp/notes.txt", "notes")
 	write("outside/large.bin", "bytes behind a link")
 
 	// A second repository whose main worktree is on no branch: nothing says what its trunk is.
@@ -814,13 +781,13 @@ func TestTmpEntryBelongsToAnOpenRowOrIsFinished(t *testing.T) {
 	savePlan(second, "open-row")
 	gitFixture(t, second, "add", "-A")
 	gitFixture(t, second, "commit", "-q", "-m", "base")
-	land(second, trailer+"landed-row/do")
 	gitFixture(t, second, "checkout", "-q", "--detach")
 	folder("second/tmp/open-row")
 	folder("second/tmp/landed-row")
+	write("second/tmp/loose.go", "package loose\n")
 
-	// The store registers a location in a landed row's folder, one in a folder that was never a
-	// row's, a file of the scratch folder itself, and one that is no scratch entry's.
+	// The store registers a location in the folder of a row that has left the plans, one in a folder
+	// that was never a row's, a file of the scratch folder itself, and one that is no scratch entry's.
 	locations := []string{at("repo/tmp/registered-row/model.bin"), at("repo/tmp/outputs/run.bin"), at("repo/tmp/weights.bin"), at("data/elsewhere.bin")}
 	h := hygiene{
 		checkout: repo, data: folder("data"), sessions: folder("sessions"), temporary: folder("temporary"), cache: folder("cache"),
@@ -859,23 +826,23 @@ func TestTmpEntryBelongsToAnOpenRowOrIsFinished(t *testing.T) {
 		slices.Sort(states)
 		return entries, states
 	}
+	finished := []string{"landed-row", "left-row", "prep", "folder.exe", "loose.go", "notes.txt", "tool.exe", "script.py"}
 	base := map[string]string{
-		"open-row": "held", "reopened-row": "held", "refiled-row": "held", "case-row": "held", "tip-row": "held", "filed-row": "held",
-		"cited-row": "held", "registered-row": "held", "outputs": "held",
-		"landed-row": "finished", "pair-a": "finished", "pair-b": "finished",
-		"LOUD-ROW": "unowned", "lane-row": "unowned", "merged-row": "unowned", "prose-row": "unowned", "reviewed-row": "unowned", "stepless-row": "unowned",
-		"prep": "unowned", "folder.exe": "unowned", "loose.go": "unowned", "notes.txt": "unowned",
-		"cited-file.go": "held", "weights.bin": "held",
-		"tool.exe": "misplaced", "TOOL2.EXE": "misplaced", "script.py": "misplaced", "UPPER.PY": "misplaced",
-		"go.mod": "kept", "go.sum": "kept",
+		"open-row": "held", "case-row": "held", "tip-row": "held", "filed-row": "held",
+		"cited-row": "held", "registered-row": "held", "outputs": "held", "cited-file.go": "held", "weights.bin": "held",
+		"two words.txt": "unknown", "go.mod": "kept", "go.sum": "kept",
 	}
-	// wanted is the states of the fixture's entries as sorted lines, with those given in place of the usual ones.
-	wanted := func(changed map[string]string) []string {
-		states := maps.Clone(base)
-		maps.Copy(states, changed)
-		lines := make([]string, 0, len(states))
-		for name, state := range states {
-			lines = append(lines, name+"|"+state)
+	for _, name := range finished {
+		base[name] = "finished"
+	}
+	// wanted is the states of the fixture's entries as sorted lines, with those named given the state in place of the usual one.
+	wanted := func(state string, names ...string) []string {
+		lines := make([]string, 0, len(base))
+		for name, usual := range base {
+			if slices.Contains(names, name) {
+				usual = state
+			}
+			lines = append(lines, name+"|"+usual)
 		}
 		slices.Sort(lines)
 		return lines
@@ -934,35 +901,28 @@ func TestTmpEntryBelongsToAnOpenRowOrIsFinished(t *testing.T) {
 		}
 	}
 
-	t.Run("every entry has the state its row gives it, by a rule that names what decided it", func(t *testing.T) {
+	t.Run("every entry is finished unless a plan, a committed line or a registration holds it, by a rule that says which", func(t *testing.T) {
 		entries, states := scratch(t, h)
-		if want := wanted(nil); !slices.Equal(states, want) {
+		if want := wanted(""); !slices.Equal(states, want) {
 			t.Fatalf("the scratch entries are\n%s\nwant\n%s", strings.Join(states, "\n"), strings.Join(want, "\n"))
 		}
 		for _, entry := range []struct{ name, state, text string }{
-			{"open-row", "held", "built.exe"},
-			{"open-row", "held", "bin/"},
-			{"prep", "unowned", "old.py"},
-			{"prep", "unowned", "scripts/python_golden_references/"},
-			{"landed-row", "finished", newest[:12]},
+			{"open-row", "held", "the working plan holds its row"},
+			{"case-row", "held", "the working plan holds its row"},
+			{"filed-row", "held", "the working plan holds its row"},
+			{"tip-row", "held", "the plan of the trunk's commit holds its row"},
 			{"cited-row", "held", "docs/verification/scratch-record.note:1"},
 			{"cited-file.go", "held", "internal/x/x.go:1"},
 			{"registered-row", "held", locations[0]},
 			{"outputs", "held", locations[1]},
 			{"weights.bin", "held", locations[2]},
-			{"script.py", "misplaced", "scripts/python_golden_references/"},
-			{"UPPER.PY", "misplaced", "scripts/python_golden_references/"},
-			{"tool.exe", "misplaced", "bin/"},
-			{"TOOL2.EXE", "misplaced", "bin/"},
+			{"go.mod", "kept", "the scratch module's own file"},
+			{"two words.txt", "unknown", "no line that names it could be found"},
 		} {
 			named(t, entries, entry.name, entry.state, entry.text)
 		}
-		// The check of what lies in a folder goes one level and names files, and the rule names the newest landing.
-		if rule := entries["open-row"].rule; strings.Contains(rule, "inner.exe") || strings.Contains(rule, "packed.exe") || strings.Contains(rule, "probe.go") {
-			t.Errorf("the rule of open-row is %q, and it names a file that is in its place, a directory, or a file that lies deeper than the folder", rule)
-		}
-		if rule := entries["landed-row"].rule; strings.Contains(rule, older[:12]) {
-			t.Errorf("the rule of landed-row is %q, and it names the older landing %s, not the newest", rule, older[:12])
+		for _, name := range finished {
+			named(t, entries, name, "finished", "no row of its name")
 		}
 		if notes := entries["notes.txt"]; !notes.measured || notes.bytes != 5 {
 			t.Errorf("notes.txt measures %d bytes (measured %v), want its 5", notes.bytes, notes.measured)
@@ -970,32 +930,33 @@ func TestTmpEntryBelongsToAnOpenRowOrIsFinished(t *testing.T) {
 		unchanged(t)
 	})
 
-	t.Run("with the store's registrations unreadable a landed folder is unknown, and nothing reads as registered", func(t *testing.T) {
+	t.Run("with the store's registrations unreadable nothing reads as finished, and nothing as registered", func(t *testing.T) {
 		failing := h
 		failing.registered = func() ([]string, error) { return nil, errors.New("the store's registrations are unreadable") }
 		entries, states := scratch(t, failing)
-		want := wanted(map[string]string{"landed-row": "unknown", "pair-a": "unknown", "pair-b": "unknown", "registered-row": "unknown", "outputs": "unowned", "weights.bin": "unowned"})
-		if !slices.Equal(states, want) {
+		unread := append([]string{"registered-row", "outputs", "weights.bin", "two words.txt"}, finished...)
+		if want := wanted("unknown", unread...); !slices.Equal(states, want) {
 			t.Fatalf("with the registrations unreadable the scratch entries are\n%s\nwant\n%s", strings.Join(states, "\n"), strings.Join(want, "\n"))
 		}
-		for _, name := range []string{"landed-row", "pair-a", "pair-b", "registered-row"} {
+		for _, name := range unread {
 			named(t, entries, name, "unknown", "the store's registrations are unreadable")
 		}
 		unchanged(t)
 	})
 
-	t.Run("with the main worktree on no branch a row's folder is held and a landed one is unknown", func(t *testing.T) {
+	t.Run("with the main worktree on no branch a row's folder is held and every other entry is unknown", func(t *testing.T) {
 		detached := h
 		detached.checkout = second
 		entries, states := scratch(t, detached)
-		if want := []string{"landed-row|unknown", "open-row|held"}; !slices.Equal(states, want) {
+		if want := []string{"landed-row|unknown", "loose.go|unknown", "open-row|held"}; !slices.Equal(states, want) {
 			t.Fatalf("with the main worktree detached the scratch entries are %q, want %q", states, want)
 		}
 		named(t, entries, "landed-row", "unknown", "on no branch")
+		named(t, entries, "loose.go", "unknown", "on no branch")
 		unchanged(t)
 	})
 
-	t.Run("with the working plan unreadable every folder is unknown and every file keeps its state", func(t *testing.T) {
+	t.Run("with the working plan unreadable every entry but the module's own two files is unknown", func(t *testing.T) {
 		working := filepath.Join(repo, filepath.FromSlash(plan.Path))
 		saved, err := os.ReadFile(working)
 		if err != nil {
@@ -1008,14 +969,11 @@ func TestTmpEntryBelongsToAnOpenRowOrIsFinished(t *testing.T) {
 		if err := os.WriteFile(working, saved, 0o644); err != nil {
 			t.Fatal(err)
 		}
-		unreadable := map[string]string{}
-		for _, name := range folders {
-			unreadable[name] = "unknown"
-		}
-		if want := wanted(unreadable); !slices.Equal(states, want) {
+		unread := append(slices.Clone(folders), files...)
+		if want := wanted("unknown", unread...); !slices.Equal(states, want) {
 			t.Fatalf("with the working plan unreadable the scratch entries are\n%s\nwant\n%s", strings.Join(states, "\n"), strings.Join(want, "\n"))
 		}
-		for _, name := range folders {
+		for _, name := range unread {
 			named(t, entries, name, "unknown", working)
 		}
 		unchanged(t)
@@ -1023,15 +981,15 @@ func TestTmpEntryBelongsToAnOpenRowOrIsFinished(t *testing.T) {
 
 	// Last, since it changes the fixture: a finished folder that holds a link is not finished.
 	t.Run("a finished folder that holds a link a recursive delete could follow is unknown", func(t *testing.T) {
-		if !fixtureLink(at("outside"), at("repo/tmp/pair-a/out")) {
+		if !fixtureLink(at("outside"), at("repo/tmp/left-row/out")) {
 			t.Log("this machine makes neither a symbolic link nor a junction, so nothing about links is held here")
 			return
 		}
 		entries, states := scratch(t, h)
-		if want := wanted(map[string]string{"pair-a": "unknown"}); !slices.Equal(states, want) {
-			t.Fatalf("with a link in pair-a the scratch entries are\n%s\nwant\n%s", strings.Join(states, "\n"), strings.Join(want, "\n"))
+		if want := wanted("unknown", "left-row"); !slices.Equal(states, want) {
+			t.Fatalf("with a link in left-row the scratch entries are\n%s\nwant\n%s", strings.Join(states, "\n"), strings.Join(want, "\n"))
 		}
-		named(t, entries, "pair-a", "unknown", "link")
+		named(t, entries, "left-row", "unknown", "link")
 	})
 }
 
@@ -1253,7 +1211,6 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 	}
 	gitFixture(t, repo, "add", "-A")
 	gitFixture(t, repo, "commit", "-q", "-m", "base")
-	gitFixture(t, repo, "commit", "-q", "--allow-empty", "-m", "an empty landing", "-m", plan.LandedRowTrailer+": landed-row/do")
 	s.write("repo/source/tracked.txt", "work a stash holds\n")
 	gitFixture(t, repo, "stash", "push", "-q", "-m", "kept work")
 	gitFixture(t, repo, "branch", "merged-free", "master")
@@ -1611,28 +1568,29 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 		untouched(t, first, "", removed...)
 	})
 
-	t.Run("a scratch folder whose row landed and left the plan goes, and no other scratch entry", func(t *testing.T) {
+	t.Run("every scratch entry that no plan holds goes, a loose file among them, and the folder of an open row stays", func(t *testing.T) {
 		_, stale, err := run(h, "tmp", "", false)
 		if err != nil {
 			t.Fatal(err)
 		}
-		// The token names the rule it was shown with: once a newer commit is the one that landed the
-		// row, the folder is finished by another rule than the listing gave, and is listed again.
-		gitFixture(t, repo, "commit", "-q", "--allow-empty", "-m", "a later landing", "-m", plan.LandedRowTrailer+": landed-row/again")
+		// The token names the entries it was shown for: once another entry lies in the folder, the
+		// listing is another, and is listed again.
+		s.write("repo/tmp/later.go", "package later\n")
 		if lines, _, err := run(h, "tmp", stale, false); err == nil || len(lines) != 0 {
-			t.Fatalf("the token of a listing was taken after the rule of its entry changed (%v, lines %q)", err, lines)
+			t.Fatalf("the token of a listing was taken after another entry was written beside those it showed (%v, lines %q)", err, lines)
 		}
 		_, shown, err := run(h, "tmp", "", false)
 		if err != nil || shown == stale {
-			t.Fatalf("the listing under the newer landing gave the token %q (%v), want one of its own", shown, err)
+			t.Fatalf("the listing with the later entry gave the token %q (%v), want one of its own", shown, err)
 		}
 		lines, _, err := run(h, "tmp", shown, false)
 		receipts(lines)
-		if want := []string{"kept repo/tmp/loose.go", "kept repo/tmp/open-row", "removed repo/tmp/landed-row"}; err != nil || !slices.Equal(verbs(lines), want) {
+		if want := []string{"kept repo/tmp/open-row", "removed repo/tmp/landed-row", "removed repo/tmp/later.go", "removed repo/tmp/loose.go"}; err != nil || !slices.Equal(verbs(lines), want) {
 			t.Fatalf("the removal of the scratch entries said (%v) %q, want %q", err, verbs(lines), want)
 		}
 		ruled(lines, "repo/tmp/open-row", "kept", "the working plan holds its row")
-		removed = append(removed, "repo/tmp/landed-row")
+		ruled(lines, "repo/tmp/loose.go", "removed", "no row of its name")
+		removed = append(removed, "repo/tmp/landed-row", "repo/tmp/later.go", "repo/tmp/loose.go")
 	})
 
 	t.Run("a place goes with the listing flag and a token with a place", func(t *testing.T) {
@@ -1674,30 +1632,294 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 	})
 }
 
-// removingWorld is a row sequence's world that can also remove. Its gate and git's confirmation
-// answer as scripted; its remove is whatever removal a test gives it, and is recorded among the
-// calls. No method of rowWorld reaches it, so the row sequence, handed this world, shows whether a
-// commit removes.
-type removingWorld struct {
+// clearingWorld is a row sequence's world whose clearing is the real one over a test's machine. Its
+// gate and git's confirmation answer as scripted; asked to clear, it records the call and clears
+// whatever that machine lists as finished, as the world of a real commit does on the real one.
+type clearingWorld struct {
 	fakeRowWorld
-	removal func() error
+	machine hygiene
 }
 
-// remove runs the world's removal and records that it was asked for.
-func (w *removingWorld) remove() error {
-	w.calls = append(w.calls, "remove")
-	return w.removal()
+func (w *clearingWorld) Cleared() string {
+	w.calls = append(w.calls, clearedCall)
+	return clearFinished(w.machine)
+}
+
+// TestCommitClearsWhatNothingHolds builds, under a temporary directory, a machine with what
+// accumulates around a commit and, beside it, everything a commit must leave. The real machine is
+// never read, and every removal happens beneath the test's own directory.
+//
+// A commit that git confirms clears three places and no other, none of them the owner's data: the
+// scratch folder, the folders a go command builds in, and the helper copies. From the scratch folder
+// goes everything that nothing holds: a loose file, an executable, a Python file, a folder no row
+// was ever named for and the folder of a row that has left both plans. A build folder goes, and a
+// helper copy whose commit is on the trunk and that holds nothing. Each removal has its line in the
+// receipt, and the commit's outcome says in one sentence how many went.
+//
+// What stays: the folder of a row the working plan holds, of one only the plan of the trunk's
+// commit holds, and of one a plan names in another letter case; the scratch module's two files; an
+// entry a committed line names and one the store registers a location in; a helper copy git holds
+// locked, one with uncommitted work, and the checkout the commit ran in; the build folder this
+// command runs from, and every build folder while a go command runs; and every entry of every other
+// place, finished or not: an experiment's output that its own line lists as finished, a merged
+// branch, a stash, a model prototype, a model, a store and a backup.
+//
+// A landing the gate refuses, and one git does not confirm, clear nothing and take no lock. A
+// clearing that cannot run, because another removal holds the lock, and one whose remover fails
+// leave the commit's outcome ready, remove nothing, and say why in the outcome.
+func TestCommitClearsWhatNothingHolds(t *testing.T) {
+	t.Parallel()
+	s := newSandbox(t)
+	repo := s.folder("repo")
+	gitFixture(t, repo, "init", "-q", "-b", "master")
+	gitFixture(t, repo, "config", "core.autocrlf", "false")
+	s.write("repo/.gitignore", "/tmp/\n")
+	s.write("repo/source/tracked.txt", "tracked\n")
+	s.write("repo/docs/verification/run-note.txt", "outputs: experiments/done\nprobes: tmp/cited-probe/out.data and tmp/cited.go\n")
+	// savePlan writes the working plan of the trunk's checkout: the rows named, each open.
+	savePlan := func(rows ...string) {
+		t.Helper()
+		document := plan.Plan{Campaign: "hygiene", Doctrine: []plan.Paragraph{{Governs: "standing", Text: "the plan of a fixture"}}, Lane: "master-lead"}
+		for _, row := range rows {
+			document.Items = append(document.Items, plan.Item{ID: row, Title: "a row of the fixture", Status: plan.StatusOpen, Steps: []plan.Step{{
+				ID: "do", Title: "its one step", Status: plan.StatusOpen, Verify: "go version", Rationale: "a row that is still open",
+			}}})
+		}
+		if err := plan.Save(filepath.Join(repo, filepath.FromSlash(plan.Path)), document); err != nil {
+			t.Fatal(err)
+		}
+	}
+	savePlan("open-row", "Case-Row", "tip-row")
+	gitFixture(t, repo, "add", "-A")
+	gitFixture(t, repo, "commit", "-q", "-m", "base")
+	s.write("repo/source/tracked.txt", "work a stash holds\n")
+	gitFixture(t, repo, "stash", "push", "-q", "-m", "kept work")
+	gitFixture(t, repo, "branch", "merged-free", "master")
+
+	// The helper copies: one that is finished, and three a commit must leave.
+	const copies = "temporary/sessions/s1/scratchpad/"
+	landed := s.landedCopy(repo, copies+"landed")
+	gitFixture(t, repo, "worktree", "lock", "--reason", "its session keeps it", s.landedCopy(repo, copies+"reserved"))
+	s.landedCopy(repo, copies+"edited")
+	s.write(copies+"edited/source/tracked.txt", "edited\n")
+	committing := s.landedCopy(repo, copies+"committing")
+	// The working plan after the last commit, uncommitted: one row landed whole and left it, one was filed.
+	savePlan("open-row", "Case-Row", "filed-row")
+
+	// The scratch folder: what nothing holds, and what a plan, a committed line or the store holds.
+	held := []string{"open-row", "case-row", "tip-row", "filed-row", "cited-probe", "registered"}
+	for _, name := range append([]string{"never-a-row", "landed-row"}, held...) {
+		s.write("repo/tmp/"+name+"/probe.go", "package probe\n")
+	}
+	loose := []string{"loose.go", "tool.exe", "script.py"}
+	for _, name := range append([]string{"go.mod", "go.sum", "cited.go"}, loose...) {
+		s.write("repo/tmp/"+name, "a file of the fixture\n")
+	}
+	// The other places: what their own lines list as finished, and what is never anyone's to remove.
+	for _, kept := range []string{
+		"data/experiments/done/weights/step.bin", "data/checkpoints/proto/model.bin", "data/models/base/model.bin", "data/overgodb-store/blob", "backups/sealed/blob",
+		"temporary/go-build1/x", "temporary/go-build2/b001/exe/loop.exe",
+	} {
+		s.write(kept, "bytes of the fixture")
+	}
+
+	running := []string(nil)
+	h := hygiene{
+		checkout: repo, running: committing, data: s.at("data"), sessions: s.at("temporary/sessions"), temporary: s.at("temporary"), cache: s.folder("cache"),
+		executable: s.at("temporary/go-build2/b001/exe/loop.exe"),
+		kept:       []string{s.at("data/overgodb-store"), s.at("data/models")},
+		stores:     func() ([]leftover, error) { return nil, nil },
+		registered: func() ([]string, error) { return []string{s.at("repo/tmp/registered/probe.go")}, nil },
+		processes:  func() ([]string, error) { return running, nil },
+		removeTree: fsatomic.RemoveTree,
+	}
+	gitState := func() string {
+		t.Helper()
+		var state strings.Builder
+		for _, arguments := range [][]string{{"worktree", "list", "--porcelain"}, {"branch", "--list"}, {"stash", "list"}} {
+			state.WriteString(gitFixture(t, repo, arguments...) + "\n")
+		}
+		return state.String()
+	}
+	before, registered := s.seen(), gitState()
+	// commit runs the row sequence over a machine, with a gate that answers as given and git
+	// confirming unless an error is given, and returns its outcome and the calls it made.
+	commit := func(t *testing.T, machine hygiene, gate string, unconfirmed error) (landOutcome, []string) {
+		t.Helper()
+		world := &clearingWorld{fakeRowWorld: fakeRowWorld{gate: gate, landedErr: unconfirmed}, machine: machine}
+		outcome, err := landRow(world, "row/do", "message.txt")
+		if (err != nil) != (unconfirmed != nil) {
+			t.Fatalf("the row sequence answered %v, want an error only when git does not confirm: %v", err, unconfirmed)
+		}
+		return outcome, world.calls
+	}
+	// left fails when anything in the sandbox moved but the paths given and the removal's own lock
+	// and receipt, or git's worktrees, branches and stashes are not those given.
+	left := func(t *testing.T, git string, gone ...string) {
+		t.Helper()
+		// A copy: the paths given may be the head of a longer list, which an append in place would overwrite.
+		if differences := moved(before, s.seen(), append(slices.Clone(gone), removalState)...); len(differences) != 0 {
+			t.Fatalf("the commit moved what it must leave:\n%s", strings.Join(differences, "\n"))
+		}
+		if now := gitState(); now != git {
+			t.Fatalf("git's worktrees, branches and stashes are\n%s\nwant\n%s", now, git)
+		}
+	}
+	receipt := s.at(removalState + "/" + removalReceipt)
+	finished := []string{"repo/tmp/never-a-row", "repo/tmp/landed-row"}
+	for _, name := range loose {
+		finished = append(finished, "repo/tmp/"+name)
+	}
+	finished = append(finished, copies+"landed", "temporary/go-build1")
+	// receipted fails unless the receipt holds exactly a line for each finished entry under each verb
+	// given, as sorted "verb path" pairs.
+	receipted := func(t *testing.T, verbs ...string) {
+		t.Helper()
+		written, err := os.ReadFile(receipt)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var want []string
+		for _, verb := range verbs {
+			for _, slash := range finished {
+				want = append(want, verb+" "+slash)
+			}
+		}
+		slices.Sort(want)
+		lines, _ := removalLines(string(written))
+		if got := s.verbs(lines); !slices.Equal(got, want) {
+			t.Errorf("the receipt holds the lines\n%s\nwant one for each finished entry under each of %q:\n%s", strings.Join(got, "\n"), verbs, strings.Join(want, "\n"))
+		}
+	}
+	// said is what an outcome says of a clearing that removed so many of so many finished entries.
+	said := func(removed, finished int) string {
+		return fmt.Sprintf("cleared %d of %d finished entries", removed, finished)
+	}
+
+	t.Run("a commit clears three places, and none is the owner's data", func(t *testing.T) {
+		if want := []string{"tmp", "temporary-build", "helper-copy"}; !slices.Equal(clearedAtCommit, want) {
+			t.Fatalf("a commit clears the places %q, want exactly %q", clearedAtCommit, want)
+		}
+		for _, name := range clearedAtCommit {
+			if !slices.ContainsFunc(leftoverPlaces, func(line place) bool { return line.name == name && line.remove != nil }) || slices.Contains(ownersData, name) {
+				t.Errorf("a commit clears %s, which is the owner's data or no line of the table that deletes", name)
+			}
+		}
+	})
+
+	t.Run("a landing that is refused, or that git does not confirm, clears nothing", func(t *testing.T) {
+		for _, refused := range []struct {
+			gate        string
+			unconfirmed error
+			calls       []string
+		}{
+			{"land: test: failed", nil, []string{phaseGate}},
+			{"", errors.New("HEAD is not the landing"), []string{phaseGate, phaseLanded}},
+		} {
+			outcome, calls := commit(t, h, refused.gate, refused.unconfirmed)
+			if outcome.Outcome != outcomeRefused || outcome.Cleared != "" || !slices.Equal(calls, refused.calls) {
+				t.Errorf("the landing ended %+v after the calls %v, want it refused after %v with nothing cleared", outcome, calls, refused.calls)
+			}
+			// Not the removal's lock and not its receipt either: a landing that failed comes near no removal.
+			if differences := moved(before, s.seen()); len(differences) != 0 {
+				t.Fatalf("a landing that ended %s moved:\n%s", outcome.Outcome, strings.Join(differences, "\n"))
+			}
+		}
+		left(t, registered)
+	})
+
+	t.Run("a clearing that cannot run, or whose remover fails, leaves the commit ready and says why", func(t *testing.T) {
+		if err := processlock.EnsureStateDirectory(repo); err != nil {
+			t.Fatal(err)
+		}
+		other, err := processlock.Acquire(s.at(removalState+"/"+removalLock), 0o600)
+		if err != nil {
+			t.Fatal(err)
+		}
+		outcome, calls := commit(t, h, "", nil)
+		if closeErr := other.Close(); closeErr != nil || outcome.Outcome != outcomeReady || outcome.Commit == "" || !strings.Contains(outcome.Cleared, "another removal") || !slices.Equal(calls, []string{phaseGate, phaseLanded, clearedCall}) {
+			t.Fatalf("with the removal lock held the commit ended %+v after %v (close: %v), want it ready, saying another removal holds the lock", outcome, calls, closeErr)
+		}
+		if _, err := os.Stat(receipt); !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("a clearing that could not take the lock left a receipt (%v)", err)
+		}
+		left(t, registered)
+		failing := h
+		failing.removeTree = func(string) error { return errors.New("the disk refused") }
+		outcome, _ = commit(t, failing, "", nil)
+		if outcome.Outcome != outcomeReady || outcome.Commit == "" || !strings.Contains(outcome.Cleared, "the disk refused") || !strings.Contains(outcome.Cleared, said(0, len(finished))) {
+			t.Fatalf("with a remover that fails the commit ended %+v, want it ready, saying that none of the %d finished entries went and why", outcome, len(finished))
+		}
+		receipted(t, "left")
+		left(t, registered)
+	})
+
+	t.Run("a confirmed commit clears what nothing holds, and a build folder only once no go command runs", func(t *testing.T) {
+		running = []string{"go.exe"}
+		outcome, calls := commit(t, h, "", nil)
+		gone := finished[:len(finished)-1]
+		if outcome.Outcome != outcomeReady || outcome.Commit == "" || !strings.Contains(outcome.Cleared, said(len(gone), len(gone))) || !strings.Contains(outcome.Cleared, receipt) || !slices.Equal(calls, []string{phaseGate, phaseLanded, clearedCall}) {
+			t.Fatalf("the commit ended %+v after %v, want it ready, saying that each of %d finished entries went and naming the receipt %s", outcome, calls, len(gone), receipt)
+		}
+		if strings.Contains(outcome.Cleared, "\n") {
+			t.Errorf("the outcome says %q of the clearing, want one line", outcome.Cleared)
+		}
+		// Git registers every worktree it did but the one helper copy that went, whose lines end with an empty one.
+		at := strings.Index(registered, "worktree "+filepath.ToSlash(landed)+"\n")
+		if at < 0 {
+			t.Fatalf("git never registered the finished helper copy %s:\n%s", landed, registered)
+		}
+		rest := registered[at:]
+		git := registered[:at] + rest[strings.Index(rest, "\n\n")+len("\n\n"):]
+		left(t, git, gone...)
+		for _, slash := range gone {
+			if _, err := os.Lstat(s.at(slash)); !errors.Is(err, fs.ErrNotExist) {
+				t.Errorf("%s is still there after the commit (%v)", slash, err)
+			}
+		}
+		running = nil
+		if outcome, _ = commit(t, h, "", nil); outcome.Outcome != outcomeReady || !strings.Contains(outcome.Cleared, said(1, 1)) {
+			t.Fatalf("with no go command running the next commit ended %+v, want it ready, saying that the one build folder went", outcome)
+		}
+		left(t, git, finished...)
+		// Every removal has its line, after the lines of the clearing whose remover failed.
+		receipted(t, "left", "removed")
+		// A commit after it finds nothing to clear, and moves nothing.
+		if outcome, _ = commit(t, h, "", nil); !strings.Contains(outcome.Cleared, said(0, 0)) {
+			t.Errorf("a commit with nothing to clear says %q, want it to say that none went", outcome.Cleared)
+		}
+		left(t, git, finished...)
+		receipted(t, "left", "removed")
+	})
+
+	t.Run("what the other places list as finished is still there, and still finished", func(t *testing.T) {
+		found, err := listLeftovers(h, "experiment", "branch")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, entry := range []string{s.at("data/experiments/done/weights"), "refs/heads/merged-free"} {
+			if !slices.ContainsFunc(found, func(listed leftover) bool { return listed.path == entry && listed.state == stateFinished }) {
+				t.Errorf("after the commits %s is not listed as finished by its own place, so nothing shows a commit leaves another place's finished entries: %+v", entry, found)
+			}
+		}
+		if _, err := os.Stat(s.at("data/experiments/done/weights/step.bin")); err != nil {
+			t.Errorf("the experiment's finished output did not outlive the commits: %v", err)
+		}
+		for _, name := range append([]string{"go.mod", "go.sum", "cited.go"}, held...) {
+			if _, err := os.Stat(s.at("repo/tmp/" + name)); err != nil {
+				t.Errorf("the scratch entry %s did not outlive the commits: %v", name, err)
+			}
+		}
+	})
 }
 
 // TestHelperCopyIsRemovedOnceItsCommitIsOnTheTrunk builds, under a temporary directory, a
 // repository with helper copies in every state a session leaves one in. The real machine is never
 // read.
 //
-// A helper copy is removed by the deleting command and by nothing else. A commit removes none: the
-// row sequence, run over a world that could remove the fixture's finished copies, calls the gate
-// and git's confirmation and no more, and leaves every file and every registration as it was. Rows
-// are committed from build checkouts that are used again, and a commit made in one would take
-// another that is clean at that moment: one just reset for work whose first file is not written.
+// This test holds the deleting command. A confirmed commit clears the finished copies too, by the
+// same listing and the same remover, which TestCommitClearsWhatNothingHolds holds: a build checkout
+// that is to be used again is kept by git's lock on it, as the copy here that git holds locked is.
 //
 // Named the helper copies with no token, the command lists the finished ones as would-remove and
 // removes nothing: a copy a commit ran in whose commit is on the trunk, and that holds nothing
@@ -1830,35 +2052,6 @@ func TestHelperCopyIsRemovedOnceItsCommitIsOnTheTrunk(t *testing.T) {
 			}
 		}
 	}
-
-	t.Run("a commit removes no copy and calls nothing that could", func(t *testing.T) {
-		for _, gate := range []string{"land: test: failed", ""} {
-			// The world's removal is the command run as the one who removes runs it: once for its
-			// token, and once with it.
-			world := &removingWorld{fakeRowWorld: fakeRowWorld{gate: gate}, removal: func() error {
-				_, token, err := removalRun(h, "helper-copy", "", false)
-				if err == nil {
-					_, _, err = removalRun(h, "helper-copy", token, false)
-				}
-				return err
-			}}
-			calls, outcome := []string{phaseGate, phaseLanded}, outcomeReady
-			if gate != "" {
-				calls, outcome = calls[:1], outcomeRefused
-			}
-			ended, err := landRow(world, "row/do", "message.txt")
-			if err != nil || ended.Outcome != outcome || !slices.Equal(world.calls, calls) {
-				t.Errorf("the commit ended %+v (%v) after the calls %v, want it %s after %v and no call more: a commit removes nothing", ended, err, world.calls, outcome, calls)
-			}
-			// Not the command's lock and not its receipt either: a commit does not come near a removal.
-			if differences := moved(before, s.seen()); len(differences) != 0 {
-				t.Fatalf("a commit that ended %s moved:\n%s", ended.Outcome, strings.Join(differences, "\n"))
-			}
-			if now := registrations(); now != registered {
-				t.Fatalf("a commit that ended %s left git registering\n%s\nwant\n%s", ended.Outcome, now, registered)
-			}
-		}
-	})
 
 	var token string
 	t.Run("named with no token the finished copies are listed with a token, and nothing is removed", func(t *testing.T) {

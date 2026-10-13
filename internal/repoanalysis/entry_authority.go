@@ -33,15 +33,6 @@ const (
 	EntryAuthorityEfficiency EntryAuthorityDomain = "efficiency"
 )
 
-const (
-	// PythonSuffix ends the name of a Python file.
-	PythonSuffix = ".py"
-	// PythonPlace is the one directory that may hold Python: the scripts that
-	// write a golden reference from a Python original. Git ignores it, so
-	// nothing in it is tracked or would be.
-	PythonPlace = "scripts/python_golden_references/"
-)
-
 // EntryAuthorityRule binds one domain's bypass detection to its single owner.
 // Exceptions grandfather the production files still holding a direct site,
 // each with the reason and the work that retires it. The list only shrinks: a

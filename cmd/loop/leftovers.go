@@ -40,12 +40,10 @@ import (
 // A listing gives every entry a state: finished; held, when something it
 // established still uses the entry; unknown, when it could not establish the
 // state, so the entry is kept; kept, when the entry's place is never finished;
-// undeclared, when no line of the table names it; unowned, when nothing ties
-// it to a row of the plan; misplaced, when its kind has another place. A
-// line's action is what may be done with a finished entry of it.
+// undeclared, when no line of the table names it. A line's action is what may
+// be done with a finished entry of it.
 const (
 	stateFinished, stateHeld, stateUnknown, stateKept, stateUndeclared = "finished", "held", "unknown", "kept", "undeclared"
-	stateUnowned, stateMisplaced                                       = "unowned", "misplaced"
 	actionDelete, actionReport, actionNever                            = "delete", "report", "never"
 
 	// agentWorktrees is where the harness's agents make their helper copies.
@@ -159,7 +157,7 @@ var leftoverPlaces = []place{
 	{"temporary-build", "temporary:go-build", "the folders a go command builds in", "no go command and no test binary runs, and it does not hold this command's own executable", actionDelete, temporaryBuilds, removeEntry},
 	{"build-cache", "cache:", "the go build cache", "none: clearing it takes the owner's approval", actionReport, wholeDirectory, nil},
 	{"bin", "checkout:bin/", "built executables", "no tracked file names it", actionReport, executables, nil},
-	{"tmp", "checkout:tmp/", "short-lived probes, each in the folder named for the plan row that made it", "a folder named for a row that neither the working plan nor the plan of the trunk's commit holds, a step of which a commit on the trunk landed, and which no committed line and no store registration names", actionDelete, scratchEntries, removeEntry},
+	{"tmp", "checkout:tmp/", "short-lived probes, each in the folder named for the plan row that made it", "no row of its name is in the working plan or in the plan of the trunk's commit, and no committed line and no store registration names it; the scratch module's own two files are kept", actionDelete, scratchEntries, removeEntry},
 	{"build", "checkout:build/", "generated build inputs", "none here: go run ./cmd/buildscrub decides", actionReport, wholeDirectory, nil},
 	{"release", "checkout:dist/", "release bundles", "none: the release command's output", actionReport, wholeDirectory, nil},
 	{"python-place", "checkout:scripts/python_golden_references/", "the scripts that produce golden references", "none: the one place for Python", actionNever, wholeDirectory, nil},
@@ -660,61 +658,32 @@ func (f *facts) locatedUnder(directory string) (inside []string) {
 	return inside
 }
 
-// landings reads, at the commit the trunk's checkout holds, the plan and the
-// rows that landed: each row a commit on the first-parent chain landed a step
-// of, with the newest such commit. A landing is a trailer of the commit's
-// message as git reads trailers, naming a row and a step. A merge leaves the
-// trunk's plan as it was, so a landing it brought in is none of the trunk's.
-func (f *facts) landings() (committed plan.Plan, landed map[string]string, err error) {
+// trunkPlan reads the plan of the commit the trunk's checkout holds. A main
+// worktree on no branch has no trunk, so no plan of it either.
+func (f *facts) trunkPlan() (committed plan.Plan, err error) {
 	trunk := f.trees[0]
 	if trunk.Branch == "" {
-		return committed, nil, errors.New(noTrunk)
+		return committed, errors.New(noTrunk)
 	}
 	document, err := gitRead(f.checkout, "cat-file", "blob", trunk.Head+":"+plan.Path)
 	if err == nil {
 		committed, err = plan.Parse([]byte(document))
 	}
-	log, logErr := gitRead(f.checkout, "log", "--first-parent", "--format=%H%x00%(trailers:key="+plan.LandedRowTrailer+",valueonly,unfold,separator=%x00)", trunk.Head)
-	landed = map[string]string{}
-	for row := range strings.Lines(log) {
-		steps := strings.Split(strings.TrimSpace(row), "\x00")
-		for _, step := range steps[1:] {
-			if id, _, found := strings.Cut(step, "/"); found && landed[id] == "" {
-				landed[id] = steps[0]
-			}
-		}
-	}
-	return committed, landed, errors.Join(err, logErr)
+	return committed, err
 }
 
-// outOfPlace says where a file belongs when the scratch folder is not the
-// place for its kind: an executable or a Python file, by the ending of its
-// name in any letter case. Another file, and a directory, has no other place.
-func outOfPlace(file os.DirEntry) string {
-	switch ending := strings.ToLower(filepath.Ext(file.Name())); {
-	case file.IsDir():
-	case ending == ".exe":
-		return "an executable belongs in bin/"
-	case ending == repoanalysis.PythonSuffix:
-		return "the one place for Python is " + repoanalysis.PythonPlace + ", which admits only what produces a golden reference: move it there, or write the tool in Go"
-	}
-	return ""
-}
-
-// scratchEntries lists the children of the checkout's scratch folder, each
-// tied to the plan row that made it. A folder is a row's by its name. It is
-// held while the working plan holds the row, while a committed line names it,
-// while the store registers a location in it, and while the plan of the
-// trunk's commit holds the row; a plan holds a row in any letter case, since
-// two names that differ only in case are one folder on Windows. It is finished
-// when neither plan holds the row and a commit on the trunk landed a step of a
-// row of exactly its name, and unowned when none did. A plan, a trunk or
-// registrations that cannot be read leave it unknown. A file is never
-// finished: the scratch module's own two are kept, one a committed line or the
-// store names is held, an executable or a Python file is misplaced, and any
-// other is unowned. A folder's rule also names the misplaced files directly in
-// it; a folder that cannot be read names none, and is not finished either,
-// since the walk that measures it fails.
+// scratchEntries lists the children of the checkout's scratch folder, where
+// nothing accumulates: an entry is finished unless something holds it. The
+// scratch module's own two files are kept. An entry is held while the working
+// plan holds a row of its name, while a committed line names it, while the
+// store registers a location in it, and while the plan of the trunk's commit
+// holds a row of its name; a plan holds a row in any letter case, since two
+// names that differ only in case are one folder on Windows. Every other entry
+// is finished, a loose file and a folder no row was named for among them: no
+// landing is asked for. A plan, a trunk or registrations that cannot be read,
+// and a name no committed line could be found to carry, leave unknown what
+// they might have held; so does the walk that measures an entry, when it
+// cannot read it or finds a link in it.
 func scratchEntries(f *facts, line place) []leftover {
 	directory := f.directory(line)
 	lines, err := f.citations(line, ".")
@@ -722,7 +691,7 @@ func scratchEntries(f *facts, line place) []leftover {
 		return failed(directory, err)
 	}
 	working, workingErr := plan.Load(filepath.Join(f.checkout, plan.Path))
-	committed, landed, trunkErr := f.landings()
+	committed, trunkErr := f.trunkPlan()
 	located := f.locatedUnder(directory)
 	return each(directory, func(child os.DirEntry, path string) (state, rule string) {
 		name, holder := child.Name(), cited(lines, f.checkout, path)
@@ -734,42 +703,23 @@ func scratchEntries(f *facts, line place) []leftover {
 		holds := func(document plan.Plan) bool {
 			return slices.ContainsFunc(document.Items, func(row plan.Item) bool { return strings.EqualFold(row.ID, name) })
 		}
-		switch belongs := outOfPlace(child); {
-		case child.IsDir():
+		switch {
 		case name == "go.mod" || name == "go.sum":
 			return stateKept, "the scratch module's own file"
+		case workingErr != nil:
+			return stateUnknown, workingErr.Error()
+		case holds(working):
+			return stateHeld, "the working plan holds its row"
 		case holder != "":
 			return stateHeld, holder
-		case belongs != "":
-			return stateMisplaced, belongs
-		default:
-			return stateUnowned, "a file outside a row's folder"
-		}
-		switch {
-		case workingErr != nil:
-			state, rule = stateUnknown, workingErr.Error()
-		case holds(working):
-			state, rule = stateHeld, "the working plan holds its row"
-		case holder != "":
-			state, rule = stateHeld, holder
 		case trunkErr != nil:
-			state, rule = stateUnknown, trunkErr.Error()
+			return stateUnknown, trunkErr.Error()
 		case holds(committed):
-			state, rule = stateHeld, "the plan of the trunk's commit holds its row"
-		case landed[name] == "":
-			state, rule = stateUnowned, "no commit on the trunk landed a step of a row of this name"
+			return stateHeld, "the plan of the trunk's commit holds its row"
 		case f.unlocated != nil:
-			state, rule = stateUnknown, f.unlocated.Error()
-		default:
-			state, rule = stateFinished, fmt.Sprintf("neither plan holds its row, and the commit %.*s landed a step of it", commitAbbreviation, landed[name])
+			return stateUnknown, f.unlocated.Error()
 		}
-		inside, _ := os.ReadDir(path)
-		for _, file := range inside {
-			if belongs := outOfPlace(file); belongs != "" {
-				rule += "; it holds " + file.Name() + ": " + belongs
-			}
-		}
-		return state, rule
+		return unnamed(line, f.checkout, path)
 	})
 }
 
@@ -1085,8 +1035,8 @@ func (entry leftover) said(verb, rule string) string {
 	return fmt.Sprintf("%s\t%s\t%s\t%s\t%s\n", verb, size, entry.place, entry.path, strings.Join(strings.Fields(rule), " "))
 }
 
-// removeEntry removes a finished entry that is a directory and no more: an
-// experiment's output, a build folder, a row's scratch folder.
+// removeEntry removes a finished entry that is a path on disk and no more: an
+// experiment's output, a build folder, a scratch entry, which may be a file.
 func removeEntry(h hygiene, path string) error { return h.removeTree(path) }
 
 // removeCopy removes a helper copy's directory and then has git clear that
@@ -1194,6 +1144,42 @@ func deleteLeftovers(h hygiene, name, token string, worker bool, output io.Write
 		return err
 	}
 	return h.removeFinished(leftoverPlaces[at].remove, "removed", found, output)
+}
+
+// clearedAtCommit are the places a confirmed commit clears: where a session's
+// and a build's own leftovers accumulate, and never the owner's data.
+var clearedAtCommit = []string{"tmp", "temporary-build", "helper-copy"}
+
+// clearFinished is what a confirmed commit does so that nothing accumulates:
+// the deleting command's own removal, with no token, of the places a commit
+// clears. Under the removal lock, taken without waiting, it lists each place
+// afresh, in the table's order, and removes its finished entries by that
+// line's remover, a line for each in the receipt. It has no rule of its own
+// for what is finished, and it fails nothing: what it did, or why it could
+// not, is the sentence it returns.
+func clearFinished(h hygiene) string {
+	lock, err := h.removing()
+	if err != nil {
+		return "nothing was cleared: " + err.Error()
+	}
+	defer lock.Close()
+	var said strings.Builder
+	for _, line := range leftoverPlaces {
+		if !slices.Contains(clearedAtCommit, line.name) {
+			continue
+		}
+		found, failure := listLeftovers(h, line.name)
+		if failure == nil {
+			failure = h.removeFinished(line.remove, "removed", found, &said)
+		}
+		err = errors.Join(err, failure)
+	}
+	text := fmt.Sprintf("cleared %d of %d finished entries of %s, a line for each in %s", strings.Count("\n"+said.String(), "\nremoved\t"),
+		strings.Count(said.String(), "\n"), strings.Join(clearedAtCommit, ", "), filepath.Join(h.checkout, processlock.StateDirectory, removalReceipt))
+	if err != nil {
+		text += "; " + strings.Join(strings.Fields(err.Error()), " ")
+	}
+	return text
 }
 
 // confirmed is the half of a removal that removes nothing, which the deleting
@@ -1379,33 +1365,31 @@ func withdrawRegistrations(h hygiene, directory, token string, worker bool, outp
 	return h.removeFinished(func(hygiene, string) error { return nil }, "withdrawn", found, output)
 }
 
-// leftoversFor lists the leftovers of the repository the current directory
-// is a worktree of, against the real machine, or, named a place, removes that
-// place's finished entries as deleteLeftovers does, or, named a run's
-// directory, withdraws its checkpoints' locations as withdrawRegistrations
-// does. The checkout is the trunk's, which git lists first, so a listing, a
-// removal and their receipts are the same from any worktree; the store is
-// the one named, or the one the data-root contract gives that checkout.
-func leftoversFor(store, deleting, withdrawing, token string, worker bool, output io.Writer) error {
+// realMachine reads, for the repository the current directory is a worktree
+// of, the real machine a listing, a removal and a commit's clearing act on.
+// The checkout is the trunk's, which git lists first, so a listing, a removal
+// and their receipts are the same from any worktree; the store is the one
+// named, or the one the data-root contract gives that checkout.
+func realMachine(store string) (h hygiene, err error) {
 	trees, err := landing.Worktrees(context.Background(), loopWorktree)
 	running, absErr := filepath.Abs(loopWorktree)
 	if err = errors.Join(err, absErr); err != nil {
-		return err
+		return h, err
 	}
-	h := hygiene{checkout: trees[0].Root, running: running, temporary: os.TempDir(), removeTree: fsatomic.RemoveTree}
+	h = hygiene{checkout: trees[0].Root, running: running, temporary: os.TempDir(), removeTree: fsatomic.RemoveTree}
 	roots, err := dataroot.Resolve(h.checkout)
 	if err != nil {
-		return err
+		return h, err
 	}
 	if roots.Store, err = filepath.Abs(cmp.Or(strings.TrimSpace(store), roots.Store)); err != nil {
-		return err
+		return h, err
 	}
 	if h.executable, err = os.Executable(); err != nil {
-		return err
+		return h, err
 	}
 	cache, err := readTool(os.Environ(), "go", "env", "GOCACHE")
 	if err != nil {
-		return err
+		return h, err
 	}
 	h.store, h.data, h.cache = roots.Store, filepath.Dir(roots.Store), strings.TrimSpace(cache)
 	h.sessions = filepath.Join(os.TempDir(), "claude", sessionFolderName.Replace(h.checkout))
@@ -1425,7 +1409,18 @@ func leftoversFor(store, deleting, withdrawing, token string, worker bool, outpu
 		}
 		return goProcesses(listed, os.Getppid())
 	}
+	return h, nil
+}
+
+// leftoversFor lists the leftovers of the real machine, or, named a place,
+// removes that place's finished entries as deleteLeftovers does, or, named a
+// run's directory, withdraws its checkpoints' locations as
+// withdrawRegistrations does.
+func leftoversFor(store, deleting, withdrawing, token string, worker bool, output io.Writer) error {
+	h, err := realMachine(store)
 	switch {
+	case err != nil:
+		return err
 	case deleting != "":
 		return deleteLeftovers(h, deleting, token, worker, output)
 	case withdrawing != "":

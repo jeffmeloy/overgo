@@ -58,9 +58,10 @@ const embedDirective = "//go:embed "
 // name a document.
 var fileWriterCalls = []string{"write", "create", "openfile", "replace", "compareandswap", "outputgenerated"}
 
-// documentsRoot is the one directory whose bare name does not name a document:
-// every document is beneath it, so a walk of it reads no one of them.
-const documentsRoot = "docs"
+// documentsRoot and fixturesRoot are the two directories whose bare name names
+// nothing beneath them: every document is beneath the one and every fixture
+// beneath the other, so a walk of either reads no one of them.
+const documentsRoot, fixturesRoot = "docs", "fixtures"
 
 // modulePrefix turns an import path of this module into a package directory.
 const modulePrefix = "overgo/"
@@ -287,7 +288,7 @@ func namesDocument(name, document string) bool {
 		return err == nil && matched
 	}
 	directory := strings.TrimSuffix(name, "/")
-	return directory != documentsRoot && strings.HasPrefix(document, directory+"/") && contentDigest(document) == ""
+	return directory != documentsRoot && directory != fixturesRoot && strings.HasPrefix(document, directory+"/") && contentDigest(document) == ""
 }
 
 // hexDigits are the characters a digest written in a text continues through.
@@ -422,8 +423,9 @@ func CheckoutDocuments(ctx context.Context, root string) ([]TrackedDocument, err
 }
 
 // documentPathspecs select what the census covers: documents by their
-// extension wherever they are, and everything beneath docs whatever it is.
-var documentPathspecs = []string{"*.json", "*.md", "*.txt", "*.jsonl", documentsRoot}
+// extension wherever they are, and everything beneath docs and beneath
+// fixtures whatever it is: a golden tensor is held to a reader as a page is.
+var documentPathspecs = []string{"*.json", "*.md", "*.txt", "*.jsonl", documentsRoot, fixturesRoot}
 
 // TrackedDocuments lists the documents of the checkout at root: what git
 // tracks and what it would track if added, so a stray document is measured

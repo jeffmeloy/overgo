@@ -2,6 +2,7 @@ package repoanalysis
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"slices"
 	"strings"
@@ -26,6 +27,79 @@ func TestEveryTrackedFileHasAReader(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("documents=%d all read", len(census))
+}
+
+// TestEveryFixtureHasAReader holds every file beneath the fixtures folder,
+// whatever its type, to a reader, as a document is held: a golden tensor that
+// lost its test is megabytes nobody opens, and nothing said so while only the JSON
+// beside it was measured. In a census of invented files, a tensor a test names
+// by its file name is read, and so is one that only a read manifest names; one
+// that nothing names is refused; and so is one that only a directory covers,
+// whether a test joins that directory to a name from its table or a package
+// writes the folder's own bare name, as a list of the repository's roots does.
+// A file that is no text is never opened to look for the names it carries.
+// Then the real checkout: the census covers every fixture git lists there,
+// and each has a reader.
+func TestEveryFixtureHasAReader(t *testing.T) {
+	t.Parallel()
+	const fixtures = "fixtures/"
+	snapshot, err := gosyntax.Snapshot{}.Overlay(map[string][]byte{
+		"internal/golden/golden_test.go": []byte(`package golden
+func TestGolden(t *testing.T) { load("latent.f32le"); open("fixtures/model/manifest.json"); join("fixtures/joined", row.Name) }
+`),
+		"internal/prose/prose.go": []byte("package prose\nvar roots = []string{\"cmd/\", \"fixtures/\"}\n"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	texts := map[string]string{"fixtures/model/manifest.json": `{"weights": "weights.bin"}`}
+	census, err := TrackedDocumentCensus(snapshot, []string{
+		"fixtures/joined/tensor.bin", "fixtures/model/latent.f32le", "fixtures/model/manifest.json", "fixtures/model/weights.bin", "fixtures/stray.sum",
+	})
+	if err == nil {
+		err = DocumentReferences(census, func(document string) ([]byte, error) {
+			text, isText := texts[document]
+			if !isText {
+				return nil, fmt.Errorf("%s is no text, and was opened to look for the names it carries", document)
+			}
+			return []byte(text), nil
+		})
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	var refused []string
+	for _, finding := range unwrapFindings(ValidateTrackedDocuments(census)) {
+		refused = append(refused, strings.Fields(finding.Error())[2])
+	}
+	if want := []string{"fixtures/joined/tensor.bin", "fixtures/stray.sum"}; !slices.Equal(refused, want) {
+		t.Errorf("the census refuses %q, want %q: the fixture nothing names and the one only a directory covers, and neither the one a test names nor the one a read manifest names", refused, want)
+	}
+
+	listed, err := checkoutFiles(t.Context(), "../..", []string{fixtures})
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkout, err := CheckoutDocuments(t.Context(), "../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	live, covered := LiveDocuments(checkout), 0
+	for _, document := range checkout {
+		if !strings.HasPrefix(document.Path, fixtures) {
+			continue
+		}
+		covered++
+		if !live[document.Path] {
+			t.Errorf("the fixture %s has no reader: no package, test, embed or read document names it; give it a reader or delete it", document.Path)
+		}
+	}
+	if covered != len(listed) || covered == 0 {
+		t.Fatalf("the census covers %d of the %d files the checkout holds beneath %s, want every one of them", covered, len(listed), fixtures)
+	}
+	if !t.Failed() {
+		t.Logf("fixtures=%d all read", covered)
+	}
 }
 
 // TestTrackedDocumentCensusFollowsTheName pins how a document's name reaches

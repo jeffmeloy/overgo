@@ -11,8 +11,17 @@ import (
 	"testing"
 )
 
+const (
+	// pythonSuffix ends the name of a Python file.
+	pythonSuffix = ".py"
+	// pythonPlace is the one directory that may hold Python: the scripts that
+	// write a golden reference from a Python original. Git ignores it, so
+	// nothing in it is tracked or would be.
+	pythonPlace = "scripts/python_golden_references/"
+)
+
 // pythonPathspecs select every Python file, wherever it is.
-var pythonPathspecs = []string{"*" + PythonSuffix}
+var pythonPathspecs = []string{"*" + pythonSuffix}
 
 // validatePythonPlace refuses every Python file git tracks or would track if
 // added. The repository holds no Python: a golden reference is data, and the
@@ -25,7 +34,7 @@ func validatePythonPlace(ctx context.Context, root string) error {
 	}
 	var findings []error
 	for _, script := range scripts {
-		findings = append(findings, fmt.Errorf("python file %s is tracked, or would be if added: the one place for Python is %s, which git ignores; move it there, or write the tool in Go", script, PythonPlace))
+		findings = append(findings, fmt.Errorf("python file %s is tracked, or would be if added: the one place for Python is %s, which git ignores; move it there, or write the tool in Go", script, pythonPlace))
 	}
 	return errors.Join(findings...)
 }
@@ -64,8 +73,8 @@ func TestPythonLivesOnlyInItsIgnoredPlace(t *testing.T) {
 		}
 	}
 	git("init", "--quiet")
-	write(".gitignore", "/"+PythonPlace+"\n")
-	write(PythonPlace+"golden.py", "print('a golden reference')\n")
+	write(".gitignore", "/"+pythonPlace+"\n")
+	write(pythonPlace+"golden.py", "print('a golden reference')\n")
 	write("internal/model/model.go", "package model\n")
 	if err := validatePythonPlace(t.Context(), root); err != nil {
 		t.Fatalf("a script in the ignored place was refused: %v", err)
@@ -82,7 +91,7 @@ func TestPythonLivesOnlyInItsIgnoredPlace(t *testing.T) {
 			t.Errorf("%s was not refused: %v", refused, err)
 		}
 	}
-	if strings.Contains(err.Error(), PythonPlace+"golden.py") {
+	if strings.Contains(err.Error(), pythonPlace+"golden.py") {
 		t.Errorf("the script in the ignored place was refused: %v", err)
 	}
 }

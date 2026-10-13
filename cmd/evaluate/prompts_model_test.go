@@ -80,7 +80,7 @@ func TestPromptsReachEachModelAsItsOwnTokenizerGivesThem(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fixtures, err := filepath.Glob(filepath.Join(root, "fixtures", "prompt_ids", "*.json"))
+	fixtures, err := filepath.Glob(filepath.Join(root, "fixtures/prompt_ids/*.json"))
 	if err != nil || len(fixtures) == 0 {
 		t.Fatalf("no model's own tokens are on file (%v); write them with %s", err, promptIDsScript)
 	}

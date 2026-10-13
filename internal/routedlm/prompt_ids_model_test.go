@@ -28,7 +28,7 @@ const promptIDsScript = "scripts/python_golden_references/sensenova_prompt_ids.p
 // another test; without this one a fault before the ids would read as the
 // model's score, as a tokenizer's did for another model.
 func TestSenseNovaPromptIDsMatchUpstream(t *testing.T) {
-	raw, err := os.ReadFile(testutil.FixturePath(t, "sensenova/prompt_ids.json"))
+	raw, err := os.ReadFile(testutil.FixturePath(t, "sensenova", "prompt_ids.json"))
 	if err != nil {
 		t.Fatalf("the upstream prompt ids are absent (%v); write them with %s", err, promptIDsScript)
 	}

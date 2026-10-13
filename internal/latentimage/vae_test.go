@@ -1,6 +1,8 @@
 package latentimage
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -94,7 +96,8 @@ func TestVAEDenormFromConfig(t *testing.T) {
 // The exact final LATENT that produced the g3 golden image is a NEEDS-HOOK
 // stage: the goldens carry only its per-step distribution (median/MAD), not the
 // exact element tensor. This test pins that gap so the bit-exact g3 obligation
-// is tracked, not silently dropped.
+// is tracked, not silently dropped. The 8-bit image the goldens do carry is
+// held to the digest its record gives it.
 func TestVAEExactFinalLatentIsHookGap(t *testing.T) {
 	path := filepath.Join("..", "..", "fixtures", "krea", "g3_final_image.json")
 	raw, err := os.ReadFile(path)
@@ -129,6 +132,12 @@ func TestVAEExactFinalLatentIsHookGap(t *testing.T) {
 	}
 	if g.DecodedImage.VAETelemetry.OutputScale != 8 {
 		t.Errorf("g3 output_scale=%d want 8 (matches SpatialScale)", g.DecodedImage.VAETelemetry.OutputScale)
+	}
+	// The 8-bit image is on file beside its record, which names it and its digest: the bytes are
+	// held to that digest, so the image the record calls bit-exact is the one the tree carries.
+	image, err := os.ReadFile(filepath.Join("..", "..", "fixtures", "krea", "raw", "g3_decoded_rgb_u8.bin"))
+	if digest := sha256.Sum256(image); err != nil || len(image) != g.DecodedImage.Height*g.DecodedImage.Width*g.DecodedImage.Channels || hex.EncodeToString(digest[:]) != g.DecodedImage.RawU8SHA256 {
+		t.Fatalf("the 8-bit g3 image on file is %d bytes with the digest %x (%v), want the %dx%dx%d bytes its record gives the digest %s", len(image), digest, err, g.DecodedImage.Height, g.DecodedImage.Width, g.DecodedImage.Channels, g.DecodedImage.RawU8SHA256)
 	}
 	// final latent size 16*32*32*4 = 65536 bytes -> [16,32,32], the DecodeImage
 	// input geometry. This is telemetry only; the element tensor is not present.

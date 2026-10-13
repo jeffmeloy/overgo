@@ -9,8 +9,9 @@ import (
 
 // TestBuildAdviceNamesBin holds the guard's advice to the place an executable
 // belongs. A go build of one command with no output is refused, and the
-// refusal says to build into bin/ and never into the scratch folder, where
-// the leftovers listing reports an executable as misplaced.
+// refusal says to build into bin/ and never into the scratch folder, which
+// the next confirmed commit clears of whatever nothing holds, an executable
+// among it.
 func TestBuildAdviceNamesBin(t *testing.T) {
 	t.Parallel()
 	call := ToolCall{ToolName: "Bash"}

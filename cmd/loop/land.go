@@ -49,16 +49,22 @@ type landOutcome struct {
 	Detail    string `json:"detail,omitzero"`
 	// Refusal is a refusal's class as the checkout's record holds it.
 	Refusal *landing.Refusal `json:"refusal,omitempty"`
+	// Cleared says what a confirmed landing's clearing removed, or why it could not.
+	Cleared string `json:"cleared,omitzero"`
 }
 
 // rowWorld is what the row sequence drives. A step that refuses returns its
-// reason as text; an error is the step being unable to run at all.
+// reason as text; an error is the step being unable to run at all. Cleared
+// removes what nothing holds and says what it did: it has no failure to give.
 type rowWorld interface {
 	Gate(reference, messageFile string) (failure string, err error)
 	Landed(reference string) (commit string, err error)
+	Cleared() string
 }
 
 // landRow runs the sequence and stops at the first phase that does not pass.
+// A landing git confirms clears, once; no other does, and the clearing changes
+// nothing of the outcome but what it says of itself.
 func landRow(world rowWorld, reference, messageFile string) (landOutcome, error) {
 	outcome := landOutcome{Reference: reference, Outcome: outcomeRefused, Phase: phaseGate}
 	refusal, err := world.Gate(reference, messageFile)
@@ -71,7 +77,7 @@ func landRow(world rowWorld, reference, messageFile string) (landOutcome, error)
 	if err != nil {
 		return outcome, err
 	}
-	outcome.Commit, outcome.Outcome = commit, outcomeReady
+	outcome.Commit, outcome.Outcome, outcome.Cleared = commit, outcomeReady, world.Cleared()
 	return outcome, nil
 }
 
@@ -150,6 +156,16 @@ func (w *execRowWorld) Landed(reference string) (string, error) {
 		return "", fmt.Errorf("loop: the gate reported %.12s as the landing of %s, and HEAD does not hold it", commit, reference)
 	}
 	return commit, nil
+}
+
+// Cleared clears, on the real machine, the places a commit clears of what
+// nothing holds (clearFinished). A machine that cannot be read clears nothing.
+func (w *execRowWorld) Cleared() string {
+	machine, err := realMachine("")
+	if err != nil {
+		return "nothing was cleared: " + err.Error()
+	}
+	return clearFinished(machine)
 }
 
 // standardInput names the landing's own input as the message file.

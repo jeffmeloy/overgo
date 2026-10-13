@@ -66,8 +66,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "measured by the preflight of step two-suites' change at d725cf3f1: one case in each of the two printers of moves, and the wording of two contracts' difference made the scorecard package's to give"
+        "nodes": 504,
+        "reason": "measured by the preflight of step reference-and-noise's change at 3e3980f5f: the reference built from a cell's own readings, the printed-digits floor, and the earlier-measurement reader the printed moves keep, less the frozen allowances and the float32 comparison"
       },
       "steps": [
         {
@@ -75,10 +75,88 @@
           "title": "Judge a reading against a fixed reference by its measured noise",
           "status": "open",
           "verify": "go test ./internal/scorecard -count=1 -run '^TestScorecardUsesCompatibleFixedReferencesAndMetricSpecificEvidence$'",
-          "rationale": "From the proposal, kept; the sizing of a reading moved to step spread. The reference is only the newest earlier record (reviewer finding SQA-102, step 2), so three runs each 30% slower pass, 2.2 times slower in all; the four allowances are those frozen from contended runs; quality is compared at float32 precision while its stated noise judges nothing. Three quiet readings gave gemma-4-12B-it-fp8 27.68, 21.17 and 35.67 tok/s, wider than the allowance of 0.15 (19ff19be7). An allowance is taken from quiet repeats, a fixed campaign reference is kept beside the newest record, two suites are never compared as one cell, and a quality move is judged by the exact paired test over the cases answered differently (internal/evaluation/instruction_acceptance.go). Too little evidence reads unknown, never equal.\nServes: every column: a regression row for a real change and for no other.\nDisappears: the frozen allowances and the float32 comparison of quality.\nEvidence: the scorecard's history judged both ways; a run of small declines that is large in sum is caught.\nBatch: host fixtures and quiet-run calibration.",
+          "rationale": "From the proposal, kept; the sizing of a reading moved to step spread. The reference is only the newest earlier record (reviewer finding SQA-102, step 2), so three runs each 30% slower pass, 2.2 times slower in all; the four allowances are those frozen from contended runs; quality is compared at float32 precision while its stated noise judges nothing. Three quiet readings gave gemma-4-12B-it-fp8 27.68, 21.17 and 35.67 tok/s, wider than the allowance of 0.15 (19ff19be7). An allowance is taken from quiet repeats, a fixed campaign reference is kept beside the newest record, two suites are never compared as one cell, and a quality move is judged by the exact paired test over the cases answered differently (internal/evaluation/instruction_acceptance.go). Too little evidence reads unknown, never equal.\nServes: every column: a regression row for a real change and for no other.\nDisappears: the frozen allowances and the float32 comparison of quality.\nEvidence: the scorecard's history judged both ways; a run of small declines that is large in sum is caught.\nBatch: host fixtures and quiet-run calibration.\n\nDecided by the lead on 2026-10-13, from the 32 published records (tmp/trustworthy-measurement). Nobody sets the fixed reference: it is the best level three consecutive readings held among a cell's newest nine distinct readings on its contract and environment, and it moves when a better level is held twice or the level leaves the nine. The allowance is the cell's own: eight times the median distance between its consecutive readings. No calibration run is taken: the nine readings turn over as quiet runs publish. Fewer than five readings read Unknown. A quality, a setup count and a memory with no noise are judged by the printed digits, which replaces the float32 comparison. This step is that much, in the published records alone. The paired test of a quality move reads the store and is step paired-quality.",
           "depends_on": [
             "trustworthy-measurement/spread",
             "trustworthy-measurement/exclusive"
+          ]
+        },
+        {
+          "id": "paired-quality",
+          "title": "Judge a held-out quality move by the exact paired test over the cases answered differently",
+          "status": "open",
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestAQualityMoveIsJudgedByTheCasesAnsweredDifferently$'",
+          "rationale": "Split from step reference-and-noise, whose text asks for it. After that step a held-out quality declines by any move the scorecard's four printed digits show, so one case of a suite answered wrong where it was answered right files a row. Over the 32 published records a quality cell was read again by a new source 823 times and 808 of those gave the same value, most of them a result carried forward and not scored again; two were declines, of 0.0024 on an accuracy and of 0.0011 on a word error rate. A move is a decline when, over the cases the two readings answered differently, more went from right to wrong than the exact paired test allows (tensorstats.ExactPairedBinary, as internal/evaluation/instruction_acceptance.go uses it). A cell carries no per-case outcomes: a choice report in the store does, reached from a cell's source through its run (internal/evaluation/evidence_index.go, the path unreadAnswers walks). Decide first where the two readings' outcomes are read: from the store when a record is compared, which Gaps and Compare do not take today, or kept beside the cell when it is published. A metric with a stated standard error and no per-case outcomes is judged by that error, and one with neither reads Unknown once it moves beyond the printed digits. If the owner's amendment row for one table of measurements is ever taken, this reads that table.\nServes: held-out-quality: a row for a model that answers worse, and none for one that answers a few cases differently.\nDisappears: the judging of a quality by its value alone.\nEvidence: two stored readings of one suite, paired case by case, in a temporary store; the published history's two quality declines judged both ways.\nBatch: host; a change to internal/evaluation is in the answer scope and goes just before a full measurement run."
+        }
+      ]
+    },
+    {
+      "id": "process-records-out",
+      "title": "Keep the development process's records out of the store that models load from",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "measure",
+          "title": "Count the installed store's checkpoint by record family, in bytes and in decode time, and name each family's writer and readers",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -count=1 -run '^TestCheckpointFamiliesRecordIsWhole$'",
+          "rationale": "From the owner's amendment of 2026-10-13: the part of its row evidence-one-source that the day's measurements support, filed alone. The lead's review did not file the rest of that row, and the commit that filed this one says why. An open of the store loads its newest checkpoint and replays the journal after it. Since store-open (275213a7e, 04627abb2) the replay is bounded at 4,096 records, and what remains of an open is the checkpoint's decode: 0.85 to 1.3 s of 277 MB on 2026-10-13, 126 MB of it lineage, paid by every model load (MiniCPM5-1B loads in 1.82 s). By the amendment's count of the journal that open replayed before the checkpoint, by key: 12,124 of 39,324 commits (31%) were records of the development process (the commit checks' receipts, leases and scans), 8,709 (22%) the generations of one experiment that was not adopted, 5,427 evaluation's bookkeeping beside 4,534 that hold answers, and 924 the serving observations the timing columns read. The lead has not counted these again, and commits are not bytes. This step counts the checkpoint by family in bytes and in decode time, names the command that writes each family, and says which families a model load, an evaluation, a training run and the scorecard read. A family none of them reads is the development process's. The step that moves such a family's writer to git or the checkout's state directory is filed from this record, with what a store rebuilt without those records saves at an open, timed on a copy. No tool deletes a store or a backup: what a move changes is what is written from then on, and a smaller installed store is the lead's store maintenance, with a sealed backup.\nServes: load-time: every model's load pays the checkpoint's decode.\nDisappears: nothing yet.\nEvidence: docs/verification/checkpoint-families.txt, held by the test.\nBatch: host; reads the installed store read-only and a copy for the rebuild's timing."
+        }
+      ]
+    },
+    {
+      "id": "one-way-to-train",
+      "title": "Train every family through a registered objective, and delete the routes and their proofs",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "slice",
+          "title": "Train one family that trains only by its route's own loop through a registered objective with a held-out split, delete what that loop and its proof were, and count",
+          "status": "open",
+          "verify": "go test ./cmd/train ./internal/trainingworkflow -count=1 -run '^TestARouteTrainedFamilyTrainsByItsObjectiveAlone$'",
+          "rationale": "From the owner's amendment of 2026-10-13, with three changes from the lead's review, checked at da559484e. cmd/train has three ways in: a recipe, a registered objective, and 18 named routes (cmd/train/routes.go:26-41 and four Windows registrations), 4,662 lines in 21 files. Training orchestration is 23,246 lines (cmd/train 5,921, internal/trainingworkflow 11,065, internal/trainingprogram 4,215, internal/trainingdata 2,045), counted before the change proposer left. Change one: the amendment's slice converts nothing. The series forecaster already trains by its objective (route_seriesforecast.go:24 requires -objective and route_seriesforecast_objective.go:69 runs RunHeldout), as the tabular and codec routes do. The slice takes a family that trains only by its route's own loop. The sequence-to-sequence model is the first candidate, by its route's size (route_seq2seq.go, 143 lines) and because the generated-answer metric already judges text; that is a lead, not read, and the builder takes another family by the same test if this one cannot hold data out, and says which. A family supplies a HeldoutRun (internal/trainingworkflow/heldout_run.go:46-65): its data, Train, Predict and a metric CompileHeldoutPlan scores. Change two: a training row reads no quality because the full measurement run proves training with -proof, which records no held-out verdict under an objective as under a route (heldout_run.go:195-196). Routes are not the cause. The slice says what the proof of an objective-trained family is, so the proof stays a bounded run and the row's quality is read from the family's real training run. Change three: the 66 documents named training under docs/verification are mixed. Four run records are the dense workflow's, seven are test smokes, and three stimulus files are inputs the proofs read (cmd/validate/training_proof.go:43-51). The slice deletes only what its family's route wrote. cmd/validate/training_proof.go:63-71 runs dit, mot and hybrid-stack by route and maps the objective kinds tabular and codec (:90-93). The forecaster is unmapped (:203), which the slice repairs.\nServes: failure-rate of the full measurement run, whose only failures in the two runs before 2026-10-13 were training proofs; held-out-quality for a training row that has none.\nDisappears: one route's training loop and the proof documents it wrote. The rest step is worked only if the slice removes at least 25% of the production lines it acts on, the share the amendment's lower estimate needs (6,000 of 23,600). Otherwise it is retired with the slice's record.\nEvidence: the family trains and is judged on held-out data through train -objective; its scorecard row; production lines before and after, from the commit's own measured line.\nBatch: host and the device tests cmd/train reaches."
+        },
+        {
+          "id": "rest",
+          "title": "Move every remaining route to an objective, a family a change",
+          "status": "open",
+          "verify": "go test ./cmd/train ./cmd/validate -count=1 -run '^TestTrainHasOneEntry$'",
+          "rationale": "From the owner's amendment of 2026-10-13. With the slice's ratio measured, each remaining route becomes an objective and the proof documents it wrote go; the row's count is set below zero from that ratio before the first of these changes. The change proposer is already out (proposer-retire, 2026-10-13). A family for which no held-out split or metric can be made keeps a bounded run and is named: no held-out metric exists today for the video and latent families (by the review, not built). No family is removed, and a model prototype keeps its training route in some form whether or not a model of its family is active (owner, 2026-10-12).\nServes: held-out-quality; failure-rate of the full measurement run; the loop's upkeep.\nDisappears: the route table, the proof documents the routes wrote and their reader.\nEvidence: every training row of the scorecard reads a held-out verdict or says why it cannot; a full measurement run with no route proof among its cells; production lines removed against the count the slice set.\nBatch: host and device tests; one family a change.",
+          "depends_on": [
+            "one-way-to-train/slice"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "suites-as-data",
+      "title": "Declare an evaluation suite as data over a small set of scorers",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "slice",
+          "title": "Declare two suite kinds as documents over shared scorers, hold their prompts and scores to their written forms case by case, and count",
+          "status": "open",
+          "verify": "go test ./internal/evaluation ./cmd/evaluate -count=1 -run '^TestDeclaredSuitesScoreAsTheirWrittenOnes$'",
+          "rationale": "From the owner's amendment of 2026-10-13, with four changes from the lead's review, checked at da559484e. Evaluation is 28,983 production lines (internal/evaluation 25,199 in 106 files, cmd/evaluate 3,784) and names 118 record schemas; the amendment's 34,000 and 109 were not reproduced. Its mass is many suite kinds of 250 to 800 lines each (knowledge 773, generated 753, candidate 713, speech 703, store 699, grounded 570, production 549 and more than twenty smaller), beside held-out 1,684, transcription 1,588, instruction 1,038 and IFEval 1,488, whose lines are ports of its scorers and stay. Change one: a suite is already a JSON document dispatched on its kind (suite.go:142-149) and the prompting protocols exist (plan.go:72-83). What is written in Go for a kind is its builder, its prompt form (mmlu_pro.go:204-214), its report type and its scorer. The slice takes two kinds and measures what a declared prompt form and a shared report remove: MMLU-Pro (mmlu_pro.go, 214 lines, over multiple_choice.go, 446) and the function-call suite (function_call.go 270, bfcl_function_calls.go 177). Change two: no answer is kept across this change. A stored answer is keyed by a digest of every source file of cmd/evaluate, internal/evaluation and internal/modelcli (internal/inferencesurface/identity.go:57,276-296), so adding or deleting any file there asks every case of every suite again, and the function-call suite never reuses an answer (function_call.go:159-160). The step therefore waits for evidence-identity/measure, which defines what an answer depends on, and is one commit taken just before a full measurement run. Change three: a score stays comparable only if the declared form emits the same bytes, since the comparison identity is the marshalled dataset, case profile and scorer (plan.go:284-295). The proving test holds the prompts, the field order and the constants case by case. Change four: the stored report types keep their readers (inspect.go:47).\nServes: held-out-quality: a new suite is a document, not a package.\nDisappears: the two kinds' prompt builders and report types. The rest step is worked only if the slice removes at least 35% of the production lines it acts on, the share the amendment's lower estimate needs. Otherwise it is retired with the slice's record.\nEvidence: the same prompts and the same score, case by case, over the stored evaluations' cases; production lines before and after, from the commit's own measured line.\nBatch: host; internal/evaluation is in the answer scope, so the commit goes just before a full measurement run.",
+          "depends_on": [
+            "evidence-identity/measure"
+          ]
+        },
+        {
+          "id": "rest",
+          "title": "Declare every suite kind that shares a scorer, and keep in Go only the scorers",
+          "status": "open",
+          "verify": "go test ./internal/evaluation ./cmd/evaluate -count=1 -run '^TestEverySuiteThatSharesAScorerIsADeclaration$'",
+          "rationale": "From the owner's amendment of 2026-10-13. With the slice's ratio measured, the remaining suite kinds move a kind a change, and the row's count is set below zero from that ratio first. A scorer only one suite could use stays in Go and is named as such. Each change asks every case again unless evidence-identity has by then narrowed what an answer depends on, so the changes are batched before full measurement runs.\nServes: held-out-quality.\nDisappears: each kind's prompt builder, report type and command flags (cmd/evaluate has nine -build and four -render modes).\nEvidence: every scorecard quality cell unchanged; production lines removed against the count the slice set.\nBatch: host and the device tests cmd/train reaches.",
+          "depends_on": [
+            "suites-as-data/slice"
           ]
         }
       ]

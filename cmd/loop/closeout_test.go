@@ -97,7 +97,7 @@ func TestCloseoutRefusesFinishedLeftovers(t *testing.T) {
 	write("data/experiments/done/weights/step.bin", "weights")
 	folder("data/experiments/orphan/out")
 	write("temporary/go-build1/x", "object")
-	folder("cache")
+	write("cache/00/entry-a", "an entry of the build cache")
 	write("outside/large.bin", "bytes behind a link")
 	if !fixtureLink(at("outside"), filepath.Join(folder("repo/tmp/linked-row"), "out")) {
 		t.Log("this machine makes neither a symbolic link nor a junction, so nothing about links is held here")
@@ -216,6 +216,7 @@ func TestCloseoutRefusesFinishedLeftovers(t *testing.T) {
 	text, last, failure := closeout(h)
 	want := []string{
 		"branch|refs/heads/merged-free",
+		"build-cache|cache",
 		"experiment|data/experiments/done/weights",
 		"helper-copy|temporary/sessions/s1/scratchpad/clean",
 		"temporary-build|temporary/go-build1",
@@ -287,7 +288,7 @@ func TestCloseoutRefusesFinishedLeftovers(t *testing.T) {
 	// Each refusing entry is cleared by the means of its kind; the close-out then passes, and counts.
 	gitFixture(t, repo, "worktree", "remove", clean)
 	gitFixture(t, repo, "branch", "-d", "merged-free")
-	for _, slash := range []string{"data/experiments/done/weights", "temporary/go-build1", "repo/tmp/landed-row"} {
+	for _, slash := range []string{"data/experiments/done/weights", "temporary/go-build1", "repo/tmp/landed-row", "cache"} {
 		if err := os.RemoveAll(at(slash)); err != nil {
 			t.Fatal(err)
 		}

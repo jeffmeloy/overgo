@@ -122,7 +122,9 @@ type hygiene struct {
 	kept                                                                   []string
 	stores                                                                 func() ([]leftover, error)
 	registered, processes                                                  func() ([]string, error)
-	removeTree                                                             func(path string) error
+	// checkoutCache is how many bytes of the go build cache each registered checkout may hold.
+	checkoutCache int64
+	removeTree    func(path string) error
 }
 
 // facts is the fact source with what one listing reads once: git's registered
@@ -153,7 +155,7 @@ var leftoverPlaces = []place{
 	{"data-build", "data:build/", "build outputs kept outside the module", "none: the data root is where build outputs belong", actionReport, wholeDirectory, nil},
 	{"session-scratch", "sessions:", "the harness's scratch folder of each session of this checkout", "none this command can read", actionReport, sessionFolders, nil},
 	{"temporary-build", "temporary:go-build", "the folders a go command builds in", "no go command and no test binary runs, and it does not hold this command's own executable", actionDelete, temporaryBuilds, removeEntry},
-	{"build-cache", "cache:", "the go build cache", "none: clearing it takes the owner's approval", actionReport, wholeDirectory, nil},
+	{"build-cache", "cache:", "the go build cache, which every go command rebuilds what it lacks of", "it holds more than every registered checkout's own build comes to, and no go command and no test binary runs", actionDelete, buildCache, removeEntry},
 	{"bin", "checkout:bin/", "built executables", "no tracked file names it", actionReport, executables, nil},
 	{"tmp", "checkout:tmp/", "short-lived probes, each in the folder named for the plan row that made it", "no row of its name is in the working plan or in the plan of the trunk's commit, and no committed line and no store registration names it; the scratch module's own two files are kept", actionDelete, scratchEntries, removeEntry},
 	{"build", "checkout:build/", "generated build inputs", "none here: go run ./cmd/buildscrub decides", actionReport, wholeDirectory, nil},
@@ -759,6 +761,54 @@ func temporaryBuilds(f *facts, line place) []leftover {
 		}
 		return stateFinished, line.finished
 	})
+}
+
+// The go build cache keeps its entries in cacheParts directories, each named
+// by the first byte of an entry's hash, so cachePart, one of them, holds one
+// part in cacheParts of the cache whatever the cache holds. checkoutCacheBytes
+// is what one checkout's whole build and tests left in an empty cache, the
+// 2,210,006,016 bytes measured on 2026-10-12 at beb6a2137 (internal/landing,
+// largestCheckWrites). The cache is keyed by a checkout's path, so each
+// registered checkout may hold that much of its own.
+const (
+	cacheParts               = 256
+	cachePart                = "00"
+	checkoutCacheBytes int64 = 2_210_006_016
+)
+
+// buildCache lists the go build cache as one entry. Its size is read from one
+// of its parts and not from a walk of it all, which every commit would pay
+// for. A cache that holds no more than every registered checkout's own build
+// comes to is held, and so is a larger one while a go command or a test
+// binary runs, since that command reads and writes it. Removed, it is rebuilt
+// by the next go command, entry by entry.
+func buildCache(f *facts, line place) []leftover {
+	directory := f.directory(line)
+	if _, err := os.Lstat(directory); errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	var part int64
+	walkErr := filepath.WalkDir(filepath.Join(directory, cachePart), func(_ string, item fs.DirEntry, err error) error {
+		if err != nil || !item.Type().IsRegular() {
+			return err
+		}
+		info, err := item.Info()
+		part += info.Size()
+		return err
+	})
+	entry := leftover{path: directory, state: stateFinished, rule: line.finished}
+	holds, allowed := part*cacheParts, int64(len(f.trees))*f.checkoutCache
+	switch running, err := f.processes(); {
+	case walkErr != nil && !errors.Is(walkErr, fs.ErrNotExist):
+		entry.state, entry.rule = stateUnknown, walkErr.Error()
+	case holds <= allowed:
+		entry.state, entry.rule = stateHeld, fmt.Sprintf("it holds about %d bytes, no more than the %d that the builds of %d registered checkouts come to", holds, allowed, len(f.trees))
+	case err != nil:
+		entry.state, entry.rule = stateUnknown, err.Error()
+	case len(running) != 0:
+		entry.state, entry.rule = stateHeld, "a go command or a test binary runs: "+running[0]
+	}
+	return []leftover{entry}
 }
 
 // untrackedUnder lists the checkout's untracked paths under a line's
@@ -1420,7 +1470,7 @@ func realMachine(store string) (h hygiene, err error) {
 	if err = errors.Join(err, absErr); err != nil {
 		return h, err
 	}
-	h = hygiene{checkout: trees[0].Root, running: running, temporary: os.TempDir(), removeTree: fsatomic.RemoveTree}
+	h = hygiene{checkout: trees[0].Root, running: running, temporary: os.TempDir(), removeTree: fsatomic.RemoveTree, checkoutCache: checkoutCacheBytes}
 	roots, err := dataroot.Resolve(h.checkout)
 	if err != nil {
 		return h, err

@@ -409,7 +409,7 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 			"session-scratch|temporary/sessions/s2|report|unknown",
 			"temporary-build|temporary/go-build1|delete|finished",
 			"temporary-build|temporary/go-build2|delete|held",
-			"build-cache|cache|report|unknown",
+			"build-cache|cache|delete|held",
 			"bin|repo/bin/named.exe|report|held",
 			"bin|repo/bin/slashed.exe|report|held",
 			"bin|repo/bin/loose.exe|report|finished",
@@ -1276,7 +1276,9 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 	s.write("data/overgodb-store.superseded-1/blob", "a superseded store")
 	s.write("temporary/go-build1/x", "object")
 	s.write("temporary/go-build2/b001/exe/loop.exe", "this command")
-	s.folder("cache")
+	// The build cache: an entry in the part its size is read from, and one in another part.
+	s.write("cache/00/entry-a", "an entry of the build cache")
+	s.write("cache/7f/entry-d", "another entry")
 
 	running := []string(nil)
 	var listing error
@@ -1395,10 +1397,10 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 			name, place, token, want string
 		}{
 			{"a token that is not the listing's", "experiment", "0123456789abcdef", "list it again"},
-			{"a place that only reports", "checkpoint", "", "helper-copy, branch, experiment, temporary-build, tmp"},
-			{"a place that never deletes", "store-backup", "", "helper-copy, branch, experiment, temporary-build, tmp"},
-			{"the stashes", "stash", "", "helper-copy, branch, experiment, temporary-build, tmp"},
-			{"the worktrees that are no helper copies", "worktree", "", "helper-copy, branch, experiment, temporary-build, tmp"},
+			{"a place that only reports", "checkpoint", "", "helper-copy, branch, experiment, temporary-build, build-cache, tmp"},
+			{"a place that never deletes", "store-backup", "", "helper-copy, branch, experiment, temporary-build, build-cache, tmp"},
+			{"the stashes", "stash", "", "helper-copy, branch, experiment, temporary-build, build-cache, tmp"},
+			{"the worktrees that are no helper copies", "worktree", "", "helper-copy, branch, experiment, temporary-build, build-cache, tmp"},
 			{"a place the table does not have", "nowhere", "", `"nowhere"`},
 		} {
 			lines, _, err := run(h, refused.place, refused.token)
@@ -1564,6 +1566,44 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 		}
 		ruled(lines, "temporary/go-build2", "kept", "this command's own executable")
 		removed = append(removed, "temporary/go-build1")
+		untouched(t, first, "", removed...)
+	})
+
+	t.Run("the build cache goes only once it holds more than the checkouts' own builds, and while no go command runs", func(t *testing.T) {
+		// Its size is read from one part in 256: the 27 bytes of that part's one entry stand for 6,912.
+		roomy := h
+		roomy.checkoutCache = 1 << 20
+		lines, _, err := run(roomy, "build-cache", "")
+		if err != nil || !slices.Equal(verbs(lines), []string{"kept cache"}) {
+			t.Fatalf("with room for every checkout's build the listing is (%v) %q, want the cache kept", err, verbs(lines))
+		}
+		ruled(lines, "cache", "kept", "it holds about 6912 bytes, no more than")
+		// With no room at all it is over, and a go command that runs still holds it.
+		running = []string{"go.exe"}
+		if lines, _, err = run(h, "build-cache", ""); err != nil || !slices.Equal(verbs(lines), []string{"kept cache"}) {
+			t.Fatalf("with a go command running the listing is (%v) %q, want the cache kept", err, verbs(lines))
+		}
+		ruled(lines, "cache", "kept", "a go command or a test binary runs: go.exe")
+		running, listing = nil, errors.New("the process list is unreadable")
+		if lines, _, err = run(h, "build-cache", ""); err != nil || !slices.Equal(verbs(lines), []string{"kept cache"}) {
+			t.Fatalf("with the process list unreadable the listing is (%v) %q, want the cache kept", err, verbs(lines))
+		}
+		ruled(lines, "cache", "kept", "the process list is unreadable")
+		listing = nil
+		untouched(t, first, "", removed...)
+		lines, shown, err := run(h, "build-cache", "")
+		if err != nil || !slices.Equal(verbs(lines), []string{"would-remove cache"}) {
+			t.Fatalf("over what the checkouts' builds come to, with nothing running, the listing is (%v) %q, want the cache listed to go", err, verbs(lines))
+		}
+		lines, _, err = run(h, "build-cache", shown)
+		receipts(lines)
+		if err != nil || !slices.Equal(verbs(lines), []string{"removed cache"}) {
+			t.Fatalf("the removal said (%v) %q, want the cache removed", err, verbs(lines))
+		}
+		if _, err := os.Lstat(s.at("cache")); !errors.Is(err, fs.ErrNotExist) {
+			t.Fatalf("the build cache is still there after its removal (%v)", err)
+		}
+		removed = append(removed, "cache")
 		untouched(t, first, "", removed...)
 	})
 
@@ -1814,7 +1854,7 @@ func TestCommitClearsWhatNothingHolds(t *testing.T) {
 	}
 
 	t.Run("a commit clears every place whose finished entries are deleted", func(t *testing.T) {
-		if got, want := deletingPlaces(), []string{"helper-copy", "branch", "experiment", "temporary-build", "tmp"}; !slices.Equal(got, want) {
+		if got, want := deletingPlaces(), []string{"helper-copy", "branch", "experiment", "temporary-build", "build-cache", "tmp"}; !slices.Equal(got, want) {
 			t.Fatalf("the table deletes the finished entries of the places %q, want exactly %q", got, want)
 		}
 	})

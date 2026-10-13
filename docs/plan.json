@@ -61,25 +61,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "build-cache-rule",
-      "title": "The go build cache has a rule that ends in keep or delete",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 274,
-        "reason": "measured by the preflight of the step's change at 04627abb2: the lister that reads the cache's size from one of its 256 parts and decides its state, three named figures, and the per-checkout figure a machine carries"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Clear the go build cache once it holds more than every registered checkout's own build, while no go command runs",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestLeftoversDeletesOnlyWhatItsTableMarksFinished$'",
-          "rationale": "Filed by the lead on 2026-10-13, after row system-cleanup, from the operator's \"Clean up disk space as part of system\".\n\nMeasured by go run ./cmd/loop -leftovers on 2026-10-13\n- the go build cache holds 283,251,067,439 bytes, the largest place on the machine\n- its line of the table reports and never deletes (\"none: clearing it takes the owner's approval\")\n- 20 worktrees are registered, and one checkout's whole build and tests leave 2,210,006,016 bytes in an empty cache (internal/landing, largestCheckWrites)\n\nRead in the tool's own behaviour\n- the cache is keyed by a checkout's path, so each checkout and each helper copy holds its own copy of every package\n- the go command trims an entry only once it is five days unused, so the cache settles at about five days of every checkout's builds\n- every go command rebuilds what the cache lacks, so clearing it costs each checkout one whole build and one whole run of its tests\n\nMust hold\n- the cache is finished once it holds more than every registered checkout's own build comes to and no go command and no test binary runs\n- its size is read from one of its 256 parts, never from a walk of it all at every commit\n- under that size it is held, with both figures in its rule\n- a confirmed commit clears it as it clears every place whose finished entries are deleted\n\nCost the operator sees: after a clearing, the next commit from each checkout builds and tests everything again, a few minutes more once. Until checkouts share the cache (row shared-build-cache), it grows back past the bound within about a day.\n\nServes: change: disk space is kept by the system.\nDisappears: the largest place whose bytes end in report.\nEvidence: the test; the receipt line of the first clearing and the free space after it.\nBatch: host; cmd/loop reaches no longer test run."
-        }
-      ]
-    },
-    {
       "id": "trustworthy-measurement",
       "title": "Make a timing and a quality reading trustworthy before anything is judged by them",
       "owner": "master-lead",

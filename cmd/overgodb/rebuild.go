@@ -21,13 +21,18 @@ import (
 // registered. The store keeps recipes, prototypes, activations, and evaluated
 // performance; it stops carrying recomputable snapshots (owner ruling
 // 2026-08-27, measured: 6.07 GB of code manifests against ~450 MB of
-// knowledge). -swap puts the candidate into service the way precheck does:
-// under the gate's authority, only once every consumer check passed, and by
-// renaming the whole store, so the superseded store stays beside it and a
-// failed rename restores it.
+// knowledge). -without-retired also leaves out the records of the families the
+// store's code lists as retired, which nothing writes and nothing reads, and
+// prints what it left out of each and what it kept of each because a kept
+// record names it; what it keeps, the candidate registers in the store's
+// order. The store is opened to read it and is not written. -swap puts the
+// candidate into service the way precheck does: under the gate's authority,
+// only once every consumer check passed, and by renaming the whole store, so
+// the superseded store stays beside it and a failed rename restores it.
 func rebuild(flags *flag.FlagSet, args []string) error {
 	repository := flags.String("repo", "overgodb-store", "OvergoDB store directory")
 	destination := flags.String("destination", "", "fresh directory for the rebuilt store (default: <repo>.candidate)")
+	withoutRetired := flags.Bool("without-retired", false, "leave out the records of the retired families, which nothing writes and nothing reads, keeping the ones a kept record names")
 	checkout := flags.String("checkout", ".", "with -swap: checkout whose committed documents the rebuilt store must satisfy")
 	swap := flags.Bool("swap", false, "put the rebuilt store into service once every consumer check passed, keeping the superseded store beside it")
 	if err := flags.Parse(args); err != nil {
@@ -52,7 +57,7 @@ func rebuild(flags *flag.FlagSet, args []string) error {
 		return err
 	}
 	head, sequence := source.Head()
-	report, err := overgodb.Rebuild(ctx, source, *destination, storepolicy.DerivedCache, runrecord.RetiredGateAliasesAtRest)
+	report, err := overgodb.Rebuild(ctx, source, *destination, storepolicy.DerivedCache, runrecord.RetiredGateAliasesAtRest, *withoutRetired)
 	if err := errors.Join(err, source.Close()); err != nil {
 		return err
 	}
@@ -60,6 +65,9 @@ func rebuild(flags *flag.FlagSet, args []string) error {
 		*destination, report.Artifacts, report.ContentsKept, float64(report.BytesKept)/1e9,
 		report.ContentsDropped, float64(report.BytesDropped)/1e9,
 		report.Manifests, report.LineageEdges, report.Locations, report.Aliases, report.Batches)
+	for _, line := range report.Retired() {
+		fmt.Println(line)
+	}
 	if !*swap {
 		return nil
 	}

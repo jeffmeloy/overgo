@@ -112,7 +112,7 @@ func TestRSIStoreMigrationDrill(t *testing.T) {
 	// Migration: rebuild into a fresh segmented layout and read it back
 	// read-only.
 	rebuiltRoot := filepath.Join(base, "rebuilt")
-	report, err := Rebuild(ctx, source, rebuiltRoot, nil, nil)
+	report, err := Rebuild(ctx, source, rebuiltRoot, nil, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}

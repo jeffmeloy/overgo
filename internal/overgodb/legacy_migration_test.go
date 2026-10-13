@@ -134,7 +134,7 @@ func TestLegacyInlineToBlobRebuildRoundTrip(t *testing.T) {
 	}
 
 	destination := filepath.Join(t.TempDir(), "migrated")
-	if _, err := Rebuild(ctx, store, destination, nil, nil); err != nil {
+	if _, err := Rebuild(ctx, store, destination, nil, nil, false); err != nil {
 		t.Fatal(err)
 	}
 	migrated, err := OpenReadOnly(destination)

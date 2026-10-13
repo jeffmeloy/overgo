@@ -239,14 +239,14 @@ func (m *memberCensus) count(read func(string) ([]byte, error), keys map[string]
 	return nil
 }
 
-// familyKeys gives each projection the key of one record of its body, read
-// against the generation's restored state.
-func familyKeys(state *catalogState) map[string]familyKey {
+// artifactFamily gives, read against state, the family of the artifact an
+// identity names and the sequence that introduced it.
+func artifactFamily(state *catalogState) func(artifact.ID) (string, uint64) {
 	introducedBy := make(map[uint64]string, state.commits.count())
 	for _, commit := range state.commits.all() {
 		introducedBy[commit.sequence] = leadingPart(commit.key)
 	}
-	owner := func(id artifact.ID) (string, uint64) {
+	return func(id artifact.ID) (string, uint64) {
 		record, held := state.artifacts.record(id)
 		if !held {
 			return "an artifact the generation does not hold", 0
@@ -260,6 +260,12 @@ func familyKeys(state *catalogState) map[string]familyKey {
 		}
 		return stated + " by " + cmp.Or(introducedBy[record.sequence], "an unkeyed commit"), record.sequence
 	}
+}
+
+// familyKeys gives each projection the key of one record of its body, read
+// against the generation's restored state.
+func familyKeys(state *catalogState) map[string]familyKey {
+	owner := artifactFamily(state)
 	return map[string]familyKey{
 		"artifacts": keyedBy(func(entry artifactCheckpointEntry) (string, uint64) { return owner(entry.Descriptor.ID) }),
 		"contents":  keyedBy(func(entry contentCheckpointEntry) (string, uint64) { return owner(entry.Artifact) }),
@@ -301,7 +307,10 @@ func middle(sorted []time.Duration) time.Duration { return sorted[len(sorted)/ha
 // member one line a family: bytes, records, its share of the generation's
 // bytes, the latest sequence among its records, and its name. A member's
 // families that each hold less than floor percent of the generation are
-// counted together in one line, the rest, with how many they are. The times
+// counted together in one line, the rest, with how many they are. A retired
+// family's line opens with "retired" where another's opens with "family",
+// and it is printed whatever it holds, so a census with no such line is of a
+// store that holds no record of a retired family under its key. The times
 // are the middle reading in microseconds beside the least and the most. It
 // writes nothing to the store.
 func WriteCheckpointCensus(output io.Writer, root string, repeats int, floor float64) error {
@@ -325,14 +334,18 @@ func WriteCheckpointCensus(output io.Writer, root string, repeats int, floor flo
 		var rest familyCount
 		small := 0
 		for _, family := range member.families {
-			if share(family.bytes) < floor {
+			line := "family"
+			if retiredAt(keyedLike(member.name), family.name) >= 0 {
+				line = "retired"
+			}
+			if share(family.bytes) < floor && line == "family" {
 				rest.bytes += family.bytes
 				rest.records += family.records
 				rest.last = max(rest.last, family.last)
 				small++
 				continue
 			}
-			fmt.Fprintf(&text, "family %s %d %d %.2f%% %d %s\n", member.name, family.bytes, family.records, share(family.bytes), family.last, family.name)
+			fmt.Fprintf(&text, "%s %s %d %d %.2f%% %d %s\n", line, member.name, family.bytes, family.records, share(family.bytes), family.last, family.name)
 		}
 		if small > 0 {
 			fmt.Fprintf(&text, "rest %s %d %d %.2f%% %d %d families\n", member.name, rest.bytes, rest.records, share(rest.bytes), rest.last, small)

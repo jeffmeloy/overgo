@@ -24,6 +24,24 @@ type RebuildReport struct {
 	Locations       int
 	Aliases         int
 	Batches         int
+	// retired is what the rebuild did with each retired family, in the
+	// table's order, when it was asked to leave them out.
+	retired []retiredCount
+}
+
+// Retired gives one line for each retired family of a rebuild that left them
+// out, and none for a rebuild that did not. A line names the key the family
+// is under and counts the records of that key left out, then what went with
+// them when they are artifacts: content locators, the bytes of the content
+// the source held, lineage edges and locations. It then counts the records
+// kept because a kept record names them, and ends with the family's name.
+func (report RebuildReport) Retired() []string {
+	lines := make([]string, len(report.retired))
+	for at, count := range report.retired {
+		lines[at] = fmt.Sprintf("retired %s left-out %d contents %d content-bytes %d lineage %d locations %d kept %d %s",
+			count.keyed, count.leftOut, count.contents, count.bytes, count.edges, count.locations, count.kept, count.name)
+	}
+	return lines
 }
 
 // rebuildBatchBytes bounds one rebuild batch comfortably inside the
@@ -39,9 +57,11 @@ const (
 // at destination, in original creation order so every dependency
 // precedes its dependents. strip decides whose CONTENT is dropped; a
 // stripped artifact keeps its registered identity, size, lineage, and
-// locations, so references to it stay resolvable. The source is not
-// modified.
-func Rebuild(ctx context.Context, source *Store, destination string, strip func(artifact.Descriptor) bool, admit StoreLocalAdmission) (RebuildReport, error) {
+// locations, so references to it stay resolvable. withoutRetired leaves out
+// the records of the retired families, whole, but for the ones a kept record
+// names (leaveOutRetired). Every rebuild registers what it carries in the
+// order the source registered it. The source is not modified.
+func Rebuild(ctx context.Context, source *Store, destination string, strip func(artifact.Descriptor) bool, admit StoreLocalAdmission, withoutRetired bool) (RebuildReport, error) {
 	if source == nil || destination == "" {
 		return RebuildReport{}, errors.New("overgodb: rebuild needs a source store and destination")
 	}
@@ -65,6 +85,10 @@ func Rebuild(ctx context.Context, source *Store, destination string, strip func(
 	defer target.Close()
 
 	source.mu.RLock()
+	var leave omission
+	if withoutRetired {
+		leave = leaveOutRetired(&source.state)
+	}
 	order := append([]artifact.ID(nil), source.state.artifacts.bySequence...)
 	causalLinks := make([]artifact.CausalLink, 0, len(source.state.causality.records))
 	for _, link := range source.state.causality.records {
@@ -75,11 +99,13 @@ func Rebuild(ctx context.Context, source *Store, destination string, strip func(
 	})
 	source.mu.RUnlock()
 
-	report := RebuildReport{}
+	report := RebuildReport{retired: leave.counts}
 	var manifests []artifact.Manifest
 	var edges []relationKey
 	batch := artifact.Batch{}
 	var batchBytes uint64
+	// previous is the identity of the artifact a batch took last.
+	var previous string
 	flush := func() error {
 		if len(batch.Artifacts) == 0 && len(batch.Contents) == 0 && len(batch.Manifests) == 0 &&
 			len(batch.Lineage) == 0 && len(batch.Causality) == 0 && len(batch.Locations) == 0 && len(batch.Aliases) == 0 {
@@ -96,6 +122,9 @@ func Rebuild(ctx context.Context, source *Store, destination string, strip func(
 	}
 
 	for _, id := range order {
+		if leave.artifacts[id] {
+			continue
+		}
 		source.mu.RLock()
 		record, ok := source.state.artifacts.record(id)
 		if !ok {
@@ -110,6 +139,17 @@ func Rebuild(ctx context.Context, source *Store, destination string, strip func(
 		locator, hasContent := source.state.contents.locator(id)
 		source.mu.RUnlock()
 
+		// A commit registers its artifacts in the order of their identities,
+		// so a batch that takes one out of that order loses the order the
+		// source registered them in, which a read of the newest record goes
+		// by. The rebuild closes its batch there.
+		name := id.String()
+		if len(batch.Artifacts) > 0 && name < previous {
+			if err := flush(); err != nil {
+				return report, err
+			}
+		}
+		previous = name
 		report.Artifacts++
 		batch.Artifacts = append(batch.Artifacts, descriptor)
 		if hasContent {
@@ -194,7 +234,9 @@ func Rebuild(ctx context.Context, source *Store, destination string, strip func(
 	source.mu.RLock()
 	names := make([]string, 0, source.state.aliases.count())
 	source.state.aliases.each(func(name string, _ artifact.ID) {
-		names = append(names, name)
+		if !leave.aliases[name] {
+			names = append(names, name)
+		}
 	})
 	slices.Sort(names)
 	bindings := make([]artifact.AliasBinding, 0, len(names))

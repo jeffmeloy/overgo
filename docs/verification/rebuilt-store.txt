@@ -1,0 +1,149 @@
+overgo rebuilt store: a copy of the installed store rebuilt without the retired record families, held to the store's checks and to the installed store, and its open timed beside the installed store's
+tool: overgodb and validate, each built from the tree with go build -o tmp/process-records-out/<name>.exe ./cmd/<name> and run with the arguments the command lines below give
+code: the tree at d69282c87 with the change this record came in
+taken: 2026-10-13 local time on the development machine. The rebuild ran from 15:53:04 to 15:53:45 and the two censuses from 15:54:05 to 15:54:48, with no test binary and no go command running at 15:54:05, at 15:54:33 between the two, and at 15:54:48. The checks, the comparison and the scorecards followed.
+read by: TestRebuiltStoreRecordIsWhole (internal/overgodb), which holds the report to the table of retired families, the copy's counts to the installed store's less what the report left out, the checks and the comparison to no difference, and the closing figures to the two censuses and to the estimate
+
+What was asked. The record of the installed store's checkpoint (docs/verification/checkpoint-families.txt) found that most of
+what every open decodes belongs to record families nothing writes and nothing reads, and estimated what an open would save
+without them. The plan's row process-records-out asked for a copy of the store rebuilt without them, proof that the copy is
+sound, and the open of both timed. Every command here opened the installed store read-only. The copy is not installed.
+What is left out. The families are the table retiredFamilies (internal/overgodb/retired_families.go), keyed as the census keys
+them: the old gate's package receipts, their obligations and the identities their batches declared (writer deleted in
+d80326076), the closure ledgers (be70f7c1c) and the code manifest's digests (c69524039). overgodb rebuild -without-retired
+carries no artifact of a retired family, nor its content, locations or declared lineage edges, and no alias named for one. An
+artifact a kept record names stays: a kept artifact's lineage parent, a kept alias's target, an identity in a causal link, and
+what those name in turn. No rebuild carries a commit of its source.
+
+== rebuild ==
+overgodb rebuild -repo C:/Users/jeffm/overgo_data/overgodb-store -destination C:/Users/jeffm/AppData/Local/Temp/claude/C--Users-jeffm-overgo/8576468c-6c08-491b-8c64-347c6a4b74fe/scratchpad/store-rebuild/rebuilt -without-retired
+source sequence 88536 head a78e8844da1764123168a5c52f66016fa3535700537679d900d479ecc4552046
+rebuilt C:/Users/jeffm/AppData/Local/Temp/claude/C--Users-jeffm-overgo/8576468c-6c08-491b-8c64-347c6a4b74fe/scratchpad/store-rebuild/rebuilt: artifacts=116092 contents_kept=101409 (1.35 GB) contents_dropped=2963 (3.67 GB) manifests=235 lineage=345433 locations=7401 aliases=22116 batches=28489
+retired artifacts left-out 54352 contents 54352 content-bytes 19480438 lineage 163056 locations 0 kept 0 overgo/agent-obligation/v1 by gate/package
+retired artifacts left-out 39300 contents 39300 content-bytes 32041462 lineage 39302 locations 0 kept 0 overgo/gate-package-receipt/v1 by gate/package
+retired artifacts left-out 54109 contents 0 content-bytes 0 lineage 0 locations 0 kept 0 no schema: evidence bare by gate/package
+retired artifacts left-out 341 contents 341 content-bytes 4646532 lineage 28103 locations 0 kept 0 overgo/gate-package-obligations/v1 by gate/package-obligations
+retired artifacts left-out 12494 contents 0 content-bytes 0 lineage 0 locations 0 kept 0 no schema: evidence bare by gate/package-obligations
+retired aliases left-out 39298 contents 0 content-bytes 0 lineage 0 locations 0 kept 0 gate/package
+retired commits left-out 40002 contents 0 content-bytes 0 lineage 0 locations 0 kept 0 gate/package
+retired artifacts left-out 7121 contents 7121 content-bytes 7469328 lineage 7141 locations 0 kept 0 overgo/closure-ledger/v3 by closure-scan
+retired artifacts left-out 3523 contents 3523 content-bytes 3910780 lineage 3523 locations 0 kept 0 overgo/closure-ledger/v3 by closure-scan/import
+retired artifacts left-out 1268 contents 1268 content-bytes 1437816 lineage 1268 locations 0 kept 0 overgo/closure-ledger/v3 by closure-scan/publish
+retired artifacts left-out 8103 contents 8103 content-bytes 8715227 lineage 8106 locations 0 kept 0 overgo/closure-ledger/v3 by closure-scan/rebind
+retired artifacts left-out 13011 contents 13011 content-bytes 13734480 lineage 13075 locations 0 kept 0 overgo/closure-ledger/v3 by rebuild
+retired aliases left-out 6962 contents 0 content-bytes 0 lineage 0 locations 0 kept 0 closure/active
+retired artifacts left-out 2237 contents 2237 content-bytes 784755 lineage 0 locations 0 kept 0 overgo.code-manifest-digest.v1 by code-manifest-digest/profile
+retired artifacts left-out 0 contents 0 content-bytes 0 lineage 0 locations 0 kept 2216 no schema: profile bare by code-manifest-digest/profile
+retired aliases left-out 2243 contents 0 content-bytes 0 lineage 0 locations 0 kept 0 code-manifest/digest
+retired commits left-out 2237 contents 0 content-bytes 0 lineage 0 locations 0 kept 0 code-manifest-digest/profile
+The rebuild took 40 seconds. It left out 195,859 artifacts with their 129,256 content locators (92,220,818 bytes of content)
+and the 263,574 lineage edges they declared, 48,503 aliases, and 42,239 commits. It kept all 2,216 artifacts of one retired
+family, the profile identities the code manifest's digests declared: each is the lineage parent of a gate attempt and of a
+gate result, which are of no retired family and are in the copy, so that entry leaves nothing out of this store.
+contents_dropped is not of the retired families. The command strips the derived caches' content as it did before
+(internal/storepolicy/derived_cache.go): 2,963 locators, of which the installed store had released 1,876 and still held 1,087
+(779,469,418 bytes in 337 code-manifest analyses, 100 code profiles, 438 modern-Go census parts and 212 computations).
+
+== checks ==
+overgodb check -repo C:/Users/jeffm/AppData/Local/Temp/claude/C--Users-jeffm-overgo/8576468c-6c08-491b-8c64-347c6a4b74fe/scratchpad/store-rebuild/rebuilt -blobs
+overgodb check:blobs=11272 verified
+overgodb check:chains=45 broken=0
+overgodb check -repo C:/Users/jeffm/overgo_data/overgodb-store -blobs
+overgodb check:blobs=137052 verified
+overgodb check:chains=45 broken=0
+Both pass, with the same 45 published chains. The copy has fewer blobs because a store written now keeps content under 4,096
+bytes in its journal frame (internal/overgodb/store.go:985), where the installed store holds such content from before as blobs.
+
+== copy against the installed store ==
+installed sequence 88536 head a78e8844da1764123168a5c52f66016fa3535700537679d900d479ecc4552046 from-checkpoint true
+copy sequence 28489 head fb77a3b302ef4cbcb4829b7bd7f8032fd8cbfc8d8b5787aa3c85fac457a051a9 from-checkpoint true
+aliases installed 70619 not-of-a-retired-family 22116 same-target-in-copy 22116 missing-in-copy 0 different-target 0
+aliases of-a-retired-family 48503 present-in-copy 0
+aliases copy 22116 not-in-installed 0
+artifacts copy 116092 descriptor-differs-from-installed 0
+lineage edges-declared-by-copy-artifacts-in-installed 345433 artifacts-whose-parents-differ 0 parents-absent-from-copy 0
+contents copy-holds 101409 held-by-both 101409 held-by-installed-only 1087 (779469418 bytes) held-by-copy-only 0
+These lines were made once with a scratch program that is not kept. It opens both stores read-only, resolves every alias of
+each in the other, and reads the copy's own journal for every artifact it registers, asking both stores for its descriptor,
+its lineage parents and whether its content is held. Every alias not of a retired family has the target it had. Every artifact
+of the copy has the descriptor and exactly the lineage parents it has in the installed store, and each parent is in the copy.
+
+== census of the installed store ==
+overgodb checkpoint-families -repo C:/Users/jeffm/overgo_data/overgodb-store -repeats 9 -floor 101
+store sequence 88536 head a78e8844da1764123168a5c52f66016fa3535700537679d900d479ecc4552046
+generation 00000000000000088536 sequence 88536 bytes 277418440 repeats 9
+set load-microseconds 857068 least 843864 most 865898
+projection artifacts bytes 63581076 header 350 framing 1 records 311951 families 604 decode-microseconds 373420 least 368857 most 383426
+projection contents bytes 36417403 header 349 framing 1 records 233628 families 521 decode-microseconds 187880 least 186681 most 190182
+projection lineage bytes 126378729 header 348 framing 1 records 609007 families 310 decode-microseconds 775372 least 767997 most 801758
+projection causality bytes 352 header 350 framing 2 records 0 families 0 decode-microseconds 1 least 1 most 7
+projection locations bytes 1402367 header 350 framing 1 records 7401 families 47 decode-microseconds 7608 least 7365 most 8493
+projection aliases bytes 15007654 header 348 framing 1 records 70619 families 48 decode-microseconds 60642 least 59083 most 62735
+projection commits bytes 34630859 header 348 framing 1 records 88536 families 171 decode-microseconds 256046 least 252309 most 260026
+retired-lines: 34
+retired-bytes: 139112511
+
+== census of the copy ==
+overgodb checkpoint-families -repo C:/Users/jeffm/AppData/Local/Temp/claude/C--Users-jeffm-overgo/8576468c-6c08-491b-8c64-347c6a4b74fe/scratchpad/store-rebuild/rebuilt -repeats 9 -floor 101
+store sequence 28489 head fb77a3b302ef4cbcb4829b7bd7f8032fd8cbfc8d8b5787aa3c85fac457a051a9
+generation 00000000000000028489 sequence 28489 bytes 127690553 repeats 9
+set load-microseconds 487553 least 483768 most 492367
+projection artifacts bytes 24898232 header 357 framing 1 records 116092 families 344 decode-microseconds 148051 least 145001 most 153671
+projection contents bytes 15917994 header 356 framing 1 records 101409 families 316 decode-microseconds 80188 least 77439 most 82379
+projection lineage bytes 71560688 header 355 framing 1 records 345433 families 184 decode-microseconds 434612 least 433662 most 456027
+projection causality bytes 359 header 357 framing 2 records 0 families 0 decode-microseconds 2 least 1 most 7
+projection locations bytes 1402374 header 357 framing 1 records 7401 families 20 decode-microseconds 7899 least 7495 most 8332
+projection aliases bytes 5534337 header 355 framing 1 records 22116 families 45 decode-microseconds 20165 least 19258 most 21553
+projection commits bytes 8376569 header 355 framing 1 records 28489 families 1 decode-microseconds 72748 least 70794 most 73630
+retired-lines: 0
+retired-bytes: 0
+Each census is the command's own lines for the generation, the set and the projections. At a floor no family reaches, it also
+prints a line for each projection's families together and one for each retired family, counted here and not pasted. A retired
+family's line is printed whatever it holds, so the copy, with none, holds no record under a retired family's key. The 2,216
+profile identities that were kept are under the rebuild's key, as every record of a rebuilt store is, a family not in the table.
+
+== scorecard ==
+validate -scorecard -repo C:/Users/jeffm/overgo_data/overgodb-store
+validate -scorecard -repo C:/Users/jeffm/AppData/Local/Temp/claude/C--Users-jeffm-overgo/8576468c-6c08-491b-8c64-347c6a4b74fe/scratchpad/store-rebuild/rebuilt
+scorecard-lines-installed: 168
+scorecard-lines-copy: 168
+scorecard-table-lines-installed: 47
+scorecard-table-lines-copy: 47
+scorecard-lines-that-differ: 0
+Without -publish the command prints the scorecard built from the store and writes nothing. The two are the same text, line
+for line: a heading, a rule and 45 rows of nine cells, and the notes under them. Neither has a line that states a time of day.
+A first copy did differ, in one cell. It was built in 286 batches, before the rebuild kept the order of registration. A commit
+registers its artifacts in the order of their identities (internal/overgodb/store.go:1117), so a batch of thousands loses the
+order they were written in, and a reader of the newest record of a schema finds another. That copy gave pocket-tts speech's
+held-out quality as 0.0504 on the set fd1ccc539452, where the installed store gives 0.02157 on its newest, 4faeb947536c, and
+changed the note on how that rate was counted to match. The rebuild now closes a batch before an identity that does not sort
+after the one before it, so this copy has 28,489 commits. Every rebuild does so, asked to leave the retired families out or not.
+
+== closing ==
+checkpoint-bytes-installed: 277418440
+checkpoint-bytes-copy: 127690553
+checkpoint-bytes-saved: 149727887
+checkpoint-bytes-saved-share: 53.97%
+open-load-microseconds-installed: 857068
+open-load-microseconds-copy: 487553
+open-load-microseconds-saved: 369515
+open-load-saved-share: 43.11%
+slowest-restore-microseconds-installed: 775372
+slowest-restore-microseconds-copy: 434612
+estimate-open-load-microseconds: 1266331
+estimate-open-microseconds-saved: 826555
+estimate-open-saved-share: 65.27%
+rebuild-seconds: 40
+store-bytes-installed: 2964207114
+store-bytes-copy: 1610322263
+What the figures say. The copy's checkpoint is 127,690,553 bytes where the installed store's is 277,418,440: 149,727,887
+fewer, 54.0%. Loading it as an open does took 487,553 microseconds where the installed store's took 857,068 in the same minute:
+369,515 fewer, 43.1%, at every open. Lineage is the slowest projection of both, and an open waits for it: 434,612 microseconds
+for 71,560,688 bytes in the copy, 775,372 for 126,378,729. On disk the copy is 1,610,322,263 bytes of the store's 2,964,207,114.
+Against the estimate. The earlier record estimated 826,555 microseconds saved of a load of 1,266,331, 65.3%, leaving about
+0.44 s. The measured saving is 0.37 s of 0.86 s and leaves 0.49 s, for two reasons that both show here. The same generation
+loaded in 857,068 microseconds when this record was taken and in 1,266,331 when that one was, so the two records' seconds do
+not compare and their shares do. And the estimate took out every family that record classes as the development process's,
+82,489,562 bytes of lineage, where this rebuild took out the retired families alone, 54,818,048 bytes of it: the findings and
+the instruction generations stay, because a command and a test read them. What the estimate assumed held, that a restore
+costs in proportion to its bytes: the installed store's rate gives the copy's lineage 439,046 microseconds, measured 434,612.

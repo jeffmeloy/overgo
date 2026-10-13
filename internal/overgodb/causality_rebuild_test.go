@@ -60,7 +60,7 @@ func TestCausalityProjectionRebuild(t *testing.T) {
 	assertCausalityProjection(t, checkpointed, head, sequence, root, motivation, attempt, retry, replay, evaluation)
 
 	rebuiltRoot := t.TempDir()
-	rebuildReport, err := Rebuild(ctx, checkpointed, rebuiltRoot, nil, nil)
+	rebuildReport, err := Rebuild(ctx, checkpointed, rebuiltRoot, nil, nil, false)
 	if err != nil || rebuildReport.CausalLinks != len(links) {
 		t.Fatalf("rebuild report = (%+v, %v)", rebuildReport, err)
 	}

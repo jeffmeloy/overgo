@@ -79,7 +79,7 @@ func TestWriteAdmissionBindsKindsToProducers(t *testing.T) {
 	}
 
 	destination := filepath.Join(t.TempDir(), "rebuilt")
-	if _, err := Rebuild(ctx, store, destination, nil, func(string, artifact.ID) error { return nil }); err != nil {
+	if _, err := Rebuild(ctx, store, destination, nil, func(string, artifact.ID) error { return nil }, false); err != nil {
 		t.Fatalf("rebuild could not transplant a guarded kind: %v", err)
 	}
 	rebuilt, err := OpenReadOnly(destination)

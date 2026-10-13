@@ -34,7 +34,7 @@ func TestRebuildRefusesLiveStoreLocalAlias(t *testing.T) {
 		t.Fatal(err)
 	}
 	destination := filepath.Join(root, "rebuilt")
-	if _, err := Rebuild(ctx, source, destination, nil, nil); err == nil || !strings.Contains(err.Error(), localAlias) {
+	if _, err := Rebuild(ctx, source, destination, nil, nil, false); err == nil || !strings.Contains(err.Error(), localAlias) {
 		t.Fatalf("store-local rebuild error = %v", err)
 	}
 	if _, err := os.Stat(destination); !errors.Is(err, os.ErrNotExist) {
@@ -49,7 +49,7 @@ func TestRebuildRefusesLiveStoreLocalAlias(t *testing.T) {
 			t.Fatalf("admission saw %s -> %s", name, target)
 		}
 		return refused
-	}); err == nil || !errors.Is(err, refused) {
+	}, false); err == nil || !errors.Is(err, refused) {
 		t.Fatalf("refusing admission error = %v", err)
 	}
 	if _, err := os.Stat(destination); !errors.Is(err, os.ErrNotExist) {
@@ -59,7 +59,7 @@ func TestRebuildRefusesLiveStoreLocalAlias(t *testing.T) {
 	// An at-rest admission lets the rebuild proceed and carries the
 	// store-local alias into the destination bound to the same
 	// content-addressed target.
-	if _, err := Rebuild(ctx, source, destination, nil, func(string, artifact.ID) error { return nil }); err != nil {
+	if _, err := Rebuild(ctx, source, destination, nil, func(string, artifact.ID) error { return nil }, false); err != nil {
 		t.Fatal(err)
 	}
 	rebuilt, err := Open(destination)

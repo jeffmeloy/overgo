@@ -67,17 +67,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 923,
+        "nodes": 3,
         "reason": "measured by the preflight of step rebuild's change at d69282c87: the table of retired record families and the rebuild that leaves them out"
       },
       "steps": [
-        {
-          "id": "rebuild",
-          "title": "Rebuild a copy of the store without the families nothing writes and nothing reads, hold it to the store's checks, and time its open",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -count=1 -run '^TestRebuiltStoreRecordIsWhole$'",
-          "rationale": "Filed from step measure's record (docs/verification/checkpoint-families.txt), which changed what the row has to do. Of the installed store's checkpoint, 277,418,440 bytes at sequence 88,536, 179,191,906 (64.6%) belong to families no model load, evaluation, training run or scorecard reads, and 172,466,339 of those to families nothing in the tree writes any more: the old gate's package receipts, their obligations and the identities they declared (deleted in d80326076), the closure ledgers (be70f7c1c), the code manifest's digests (c69524039) and the instruction generations (d4d40d2ee). No writer is left to move: an open decodes them until the store is rebuilt without them. The record estimates 0.83 s of the 1.27 s an open's checkpoint load takes, and it is an estimate. This step measures it. On a copy of the store, rebuild without the families the record classes as the development process's and unwritten, keeping every family it leaves unclassed (the old gate's result records, which the media coverage report reads) and the instruction generations unless the test that reads them (internal/evaluation/qwen9_ifeval_scores_test.go:207) is changed first. The rebuilt copy passes overgodb check, holds every alias, every record a kept record's lineage names, and the scorecard built from it equals the installed store's cell by cell. Time the open of both on the quiet machine. Decide from the record whether overgodb rebuild takes the families to leave out as an argument or the leaving out is a retention class (internal/overgodb/retention.go, storage_classes.go), and say which existed already. Installing the rebuilt store is the lead's store maintenance under the owner's standing grant: a sealed backup first, the superseded store kept until the next commit passes, never beside a commit. No tool deletes a store or a backup. Findings, 6.7 MB, are the one family of the development process still written, and whether their writer moves is decided from this step's timing.\nServes: load-time: every model's load pays the checkpoint's decode.\nDisappears: about 172 MB of the checkpoint an open decodes, if the timing bears the estimate out.\nEvidence: the open of the copy before and after, timed by the census command and by recipe measure -journey on one model; overgodb check; the scorecard's cells equal.\nBatch: host for the rebuild and the checks, the quiet machine for the timing."
-        },
         {
           "id": "install",
           "title": "Put a store rebuilt without the retired families into service, and read two models' loads before and after",

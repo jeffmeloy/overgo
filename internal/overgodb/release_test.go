@@ -245,7 +245,7 @@ func TestReleaseThenBackupAndRebuild(t *testing.T) {
 	if head, sequence := fixture.store.Head(); seal.Head != head || seal.Sequence != sequence || report.Head != head {
 		t.Fatalf("backup seal %+v does not name the released head (%s, %d)", seal, head, sequence)
 	}
-	rebuilt, err := Rebuild(ctx, fixture.store, filepath.Join(t.TempDir(), "rebuilt"), nil, nil)
+	rebuilt, err := Rebuild(ctx, fixture.store, filepath.Join(t.TempDir(), "rebuilt"), nil, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}

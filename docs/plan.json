@@ -61,30 +61,15 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "trustworthy-measurement",
-      "title": "Make a timing and a quality reading trustworthy before anything is judged by them",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "measured by the preflight of step reference-and-noise's change at 3e3980f5f: the reference built from a cell's own readings, the printed-digits floor, and the earlier-measurement reader the printed moves keep, less the frozen allowances and the float32 comparison"
-      },
-      "steps": [
-        {
-          "id": "paired-quality",
-          "title": "Judge a held-out quality move by the exact paired test over the cases answered differently",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestAQualityMoveIsJudgedByTheCasesAnsweredDifferently$'",
-          "rationale": "Split from step reference-and-noise, whose text asks for it. After that step a held-out quality declines by any move the scorecard's four printed digits show, so one case of a suite answered wrong where it was answered right files a row. Over the 32 published records a quality cell was read again by a new source 823 times and 808 of those gave the same value, most of them a result carried forward and not scored again; two were declines, of 0.0024 on an accuracy and of 0.0011 on a word error rate. A move is a decline when, over the cases the two readings answered differently, more went from right to wrong than the exact paired test allows (tensorstats.ExactPairedBinary, as internal/evaluation/instruction_acceptance.go uses it). A cell carries no per-case outcomes: a choice report in the store does, reached from a cell's source through its run (internal/evaluation/evidence_index.go, the path unreadAnswers walks). Decide first where the two readings' outcomes are read: from the store when a record is compared, which Gaps and Compare do not take today, or kept beside the cell when it is published. A metric with a stated standard error and no per-case outcomes is judged by that error, and one with neither reads Unknown once it moves beyond the printed digits. If the owner's amendment row for one table of measurements is ever taken, this reads that table.\nServes: held-out-quality: a row for a model that answers worse, and none for one that answers a few cases differently.\nDisappears: the judging of a quality by its value alone.\nEvidence: two stored readings of one suite, paired case by case, in a temporary store; the published history's two quality declines judged both ways.\nBatch: host; a change to internal/evaluation is in the answer scope and goes just before a full measurement run."
-        }
-      ]
-    },
-    {
       "id": "process-records-out",
       "title": "Keep the development process's records out of the store that models load from",
       "class": "consolidation",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 2039,
+        "reason": "measured by the preflight of step measure's change at 12d5b0de9: the census of a checkpoint generation by record family and its subcommand of cmd/overgodb"
+      },
       "steps": [
         {
           "id": "measure",
@@ -92,6 +77,13 @@
           "status": "open",
           "verify": "go test ./internal/overgodb -count=1 -run '^TestCheckpointFamiliesRecordIsWhole$'",
           "rationale": "From the owner's amendment of 2026-10-13: the part of its row evidence-one-source that the day's measurements support, filed alone. The lead's review did not file the rest of that row, and the commit that filed this one says why. An open of the store loads its newest checkpoint and replays the journal after it. Since store-open (275213a7e, 04627abb2) the replay is bounded at 4,096 records, and what remains of an open is the checkpoint's decode: 0.85 to 1.3 s of 277 MB on 2026-10-13, 126 MB of it lineage, paid by every model load (MiniCPM5-1B loads in 1.82 s). By the amendment's count of the journal that open replayed before the checkpoint, by key: 12,124 of 39,324 commits (31%) were records of the development process (the commit checks' receipts, leases and scans), 8,709 (22%) the generations of one experiment that was not adopted, 5,427 evaluation's bookkeeping beside 4,534 that hold answers, and 924 the serving observations the timing columns read. The lead has not counted these again, and commits are not bytes. This step counts the checkpoint by family in bytes and in decode time, names the command that writes each family, and says which families a model load, an evaluation, a training run and the scorecard read. A family none of them reads is the development process's. The step that moves such a family's writer to git or the checkout's state directory is filed from this record, with what a store rebuilt without those records saves at an open, timed on a copy. No tool deletes a store or a backup: what a move changes is what is written from then on, and a smaller installed store is the lead's store maintenance, with a sealed backup.\nServes: load-time: every model's load pays the checkpoint's decode.\nDisappears: nothing yet.\nEvidence: docs/verification/checkpoint-families.txt, held by the test.\nBatch: host; reads the installed store read-only and a copy for the rebuild's timing."
+        },
+        {
+          "id": "rebuild",
+          "title": "Rebuild a copy of the store without the families nothing writes and nothing reads, hold it to the store's checks, and time its open",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -count=1 -run '^TestRebuiltStoreRecordIsWhole$'",
+          "rationale": "Filed from step measure's record (docs/verification/checkpoint-families.txt), which changed what the row has to do. Of the installed store's checkpoint, 277,418,440 bytes at sequence 88,536, 179,191,906 (64.6%) belong to families no model load, evaluation, training run or scorecard reads, and 172,466,339 of those to families nothing in the tree writes any more: the old gate's package receipts, their obligations and the identities they declared (deleted in d80326076), the closure ledgers (be70f7c1c), the code manifest's digests (c69524039) and the instruction generations (d4d40d2ee). No writer is left to move: an open decodes them until the store is rebuilt without them. The record estimates 0.83 s of the 1.27 s an open's checkpoint load takes, and it is an estimate. This step measures it. On a copy of the store, rebuild without the families the record classes as the development process's and unwritten, keeping every family it leaves unclassed (the old gate's result records, which the media coverage report reads) and the instruction generations unless the test that reads them (internal/evaluation/qwen9_ifeval_scores_test.go:207) is changed first. The rebuilt copy passes overgodb check, holds every alias, every record a kept record's lineage names, and the scorecard built from it equals the installed store's cell by cell. Time the open of both on the quiet machine. Decide from the record whether overgodb rebuild takes the families to leave out as an argument or the leaving out is a retention class (internal/overgodb/retention.go, storage_classes.go), and say which existed already. Installing the rebuilt store is the lead's store maintenance under the owner's standing grant: a sealed backup first, the superseded store kept until the next commit passes, never beside a commit. No tool deletes a store or a backup. Findings, 6.7 MB, are the one family of the development process still written, and whether their writer moves is decided from this step's timing.\nServes: load-time: every model's load pays the checkpoint's decode.\nDisappears: about 172 MB of the checkpoint an open decodes, if the timing bears the estimate out.\nEvidence: the open of the copy before and after, timed by the census command and by recipe measure -journey on one model; overgodb check; the scorecard's cells equal.\nBatch: host for the rebuild and the checks, the quiet machine for the timing."
         }
       ]
     },
@@ -229,6 +221,25 @@
       ]
     },
     {
+      "id": "trustworthy-measurement",
+      "title": "Make a timing and a quality reading trustworthy before anything is judged by them",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 0,
+        "reason": "measured by the preflight of step reference-and-noise's change at 3e3980f5f: the reference built from a cell's own readings, the printed-digits floor, and the earlier-measurement reader the printed moves keep, less the frozen allowances and the float32 comparison"
+      },
+      "steps": [
+        {
+          "id": "paired-quality",
+          "title": "Judge a held-out quality move by the exact paired test over the cases answered differently",
+          "status": "open",
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestAQualityMoveIsJudgedByTheCasesAnsweredDifferently$'",
+          "rationale": "Split from step reference-and-noise, whose text asks for it. After that step a held-out quality declines by any move the scorecard's four printed digits show, so one case of a suite answered wrong where it was answered right files a row. Over the 32 published records a quality cell was read again by a new source 823 times and 808 of those gave the same value, most of them a result carried forward and not scored again; two were declines, of 0.0024 on an accuracy and of 0.0011 on a word error rate. A move is a decline when, over the cases the two readings answered differently, more went from right to wrong than the exact paired test allows (tensorstats.ExactPairedBinary, as internal/evaluation/instruction_acceptance.go uses it). A cell carries no per-case outcomes: a choice report in the store does, reached from a cell's source through its run (internal/evaluation/evidence_index.go, the path unreadAnswers walks). Decide first where the two readings' outcomes are read: from the store when a record is compared, which Gaps and Compare do not take today, or kept beside the cell when it is published. A metric with a stated standard error and no per-case outcomes is judged by that error, and one with neither reads Unknown once it moves beyond the printed digits. If the owner's amendment row for one table of measurements is ever taken, this reads that table.\nServes: held-out-quality: a row for a model that answers worse, and none for one that answers a few cases differently.\nDisappears: the judging of a quality by its value alone.\nEvidence: two stored readings of one suite, paired case by case, in a temporary store; the published history's two quality declines judged both ways.\nBatch: host; a change to internal/evaluation is in the answer scope and goes just before a full measurement run.\n\nRanked behind policy-search by the lead on 2026-10-13. The reader of a report's per-case outcomes belongs beside unreadAnswers in internal/evaluation, and any file change there asks every case of every suite again (internal/inferencesurface/identity.go:57,276-296). It is taken in the same batch as policy-search/protocol, which changes that package anyway, or after evidence-identity narrows what an answer depends on. Design leaning: Gaps stays a reading of published records; where the loop files a decline of a quality (cmd/loop Propose) it opens the store, reads the two readings' reports, and drops a decline the exact paired test does not support at the tail two standard errors leave, the package's noiseDeviates. A quality with no per-case outcomes is judged by its value as now, so no metric stops filing."
+        }
+      ]
+    },
+    {
       "id": "evidence-identity",
       "title": "Measure what past commits expired and reached before any key or boundary is moved",
       "owner": "master-lead",
@@ -240,28 +251,6 @@
           "status": "open",
           "verify": "go test ./internal/inferencesurface -count=1 -run '^TestSurfaceMoveRecordDefinesClaimDependencies$'",
           "rationale": "From the proposal; its adoption step is not filed, being a hypothesis until this reports. A model's evidence is keyed by a digest of every source file in the closure of internal/inference, internal/cuda/executor and internal/modelrecipe (61 repository packages under internal/inference, by the proposal). Classify the last 500 commits by their own dependency graphs: which expired evidence a narrower key would have kept, and which reached the longer test runs only through a package a boundary would cut. Read the cost from the commits' own measured lines, which are complete and tracked; the waits file the proposal cites is one checkout's and covers 114 of 166 commits of those days. By the lead's review: on the whole record the largest time was waiting for another checkout's commit, and store edits reach the device runs through a test helper, not through the runner, so say which cost a boundary would cut before one is proposed. Then define what an answer, a score, a timing and an activation each depend on. Counted as existing: the surface already stops at overgodb and runrecord (internal/inferencesurface/surface.go:44), and a kept cell is measured again when a file its command is given changes (78534ee41). If an adoption is filed from this, it carries no deletion or rename with the identity change.\nServes: the loop's pace: evidence is earned again, and a test run reached, only when a result can have changed.\nDisappears: nothing yet.\nEvidence: docs/verification/surface-moves.txt, held by the test.\nBatch: host."
-        }
-      ]
-    },
-    {
-      "id": "shared-build-cache",
-      "title": "Let checkouts share the build cache in a commit's checks",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "measured by the preflight of step tests-path-free's change at 5fe0ce0d4: the one argument that keeps the checks' go fix untrimmed"
-      },
-      "steps": [
-        {
-          "id": "adopt",
-          "title": "Build a commit's checks trimmed, if the measurement repeats and no stored answer is expired",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestCommitChecksBuildTrimmedAndIdentitiesHold$'",
-          "rationale": "The rule was set before the measurement and stands: adopt only if the setting reaches no process whose answers are kept in the real store (given as an argument to the gate's build and in the environment of the gate's children only, never by go env -w or in a session's shell: an execution identity counts -trimpath when it is in GOFLAGS of the counting process, internal/inferencesurface/identity.go), if a second new checkout adds no more than half the cache bytes it adds without it, and if vet, the host tests, the two generators and the benchmark build give the same results. Open from the first measurement: the trimmed test stage took longer in the two runs that replayed (475 s and 346 s against 263 s and 233 s) and one repeat did not show it. Measure again with the five tests fixed; adopt or record why not; the first full measurement run after an adoption must ask no case again for an unchanged identity. Finding ba3e2aae is closed or left deferred with the figures.\nServes: change.\nDisappears: about 1.2 GB of cache for each new checkout that runs a commit's checks, if adopted.\nEvidence: the two-checkout measurement repeated; the identity check of the next run.\nBatch: host; internal/landing reaches no longer test run.",
-          "depends_on": [
-            "shared-build-cache/tests-path-free"
-          ]
         }
       ]
     },

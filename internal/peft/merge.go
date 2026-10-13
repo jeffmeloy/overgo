@@ -121,7 +121,7 @@ func mergePlan(source *safetensors.Source, adapter Adapter) (safetensors.Streami
 		return safetensors.StreamingPlan{}, fmt.Errorf("peft: identify the base checkpoint: %w", err)
 	}
 	names := source.Names()
-	plan := safetensors.StreamingPlan{Metadata: map[string]string{"format": "pt", adapterMetadata: adapter.Digest(), baseMetadata: baseDigest(digests)}}
+	plan := safetensors.StreamingPlan{Metadata: map[string]string{"format": "pt", adapterMetadata: adapter.digest(), baseMetadata: baseDigest(digests)}}
 	for _, shard := range source.Shards() {
 		spec := safetensors.StreamingShardSpec{Name: shard}
 		for _, name := range names {
@@ -134,11 +134,10 @@ func mergePlan(source *safetensors.Source, adapter Adapter) (safetensors.Streami
 	return plan, nil
 }
 
-// Digest is the identity of what the adapter adds to a weight: its scale rule
+// digest is the identity of what the adapter adds to a weight: its scale rule
 // and, per module in name order, the name, shape, alpha and factors. A hash
-// never fails a write. A staged merge and what a change corpus asks of its
-// runs are bound to the value, so a change to what is hashed moves both.
-func (adapter Adapter) Digest() string {
+// never fails a write.
+func (adapter Adapter) digest() string {
 	hash := sha256.New()
 	_ = binary.Write(hash, binary.LittleEndian, adapter.Config.RSLoRA)
 	for _, name := range slices.Sorted(maps.Keys(adapter.Modules)) {

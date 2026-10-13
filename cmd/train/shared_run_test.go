@@ -279,7 +279,7 @@ func TestProofWritesOnlyWhatItsClaimReads(t *testing.T) {
 		// refused one before it starts. The store is named so that a command
 		// that was not refused would open the fixture's, not one of its own
 		// beside this package.
-		for _, other := range []string{"-pilot", "-propose", "-confirm", "-preview-dataset", "-bootstrap-recipe", "-audio-manifest"} {
+		for _, other := range []string{"-pilot", "-preview-dataset", "-bootstrap-recipe", "-audio-manifest"} {
 			if _, status, refusal := started("-store", storePath, "-proof", other, "named"); status != 1 || !strings.Contains(refusal, "-proof re-verifies") {
 				t.Errorf("the training command given -proof with %s ended with status %d and %q, want the two refused together", other, status, refusal)
 			}

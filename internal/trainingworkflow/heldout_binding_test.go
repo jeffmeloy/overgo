@@ -180,7 +180,7 @@ func TestHeldoutApprovalReconstructsTheTrainedResult(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, _, err := textObjectiveData(ctx, store, objective, tokenizer, baseModel.Dims.ContextLength, false)
+	data, _, err := textObjectiveData(ctx, store, objective, tokenizer, baseModel.Dims.ContextLength, false, 0)
 	if err != nil || data.Heldout != verdict.Inputs {
 		t.Fatalf("held-out inputs read again = (%s, %v), want the bound %s", data.Heldout, err, verdict.Inputs)
 	}

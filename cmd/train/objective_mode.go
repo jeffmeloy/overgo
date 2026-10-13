@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -10,7 +9,6 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
-	"overgo/internal/evaluation"
 	"overgo/internal/overgodb"
 	"overgo/internal/trainingworkflow"
 )
@@ -39,9 +37,6 @@ type objectiveRun struct {
 	ResumeRun       string
 	// Order, when not zero, seeds the order the run reads its training records in.
 	Order uint64
-	// Runs, when positive, trains that many runs from the same base, their order
-	// seeds counting up from Order, and publishes them as a change corpus.
-	Runs int
 }
 
 // loraFlags are the -lora flags as parsed.
@@ -115,10 +110,12 @@ func runObjectiveMode(ctx context.Context, store *overgodb.Store, run objectiveR
 			return fmt.Errorf("training recipe: %w", err)
 		}
 	}
-	if run.Runs > 0 {
-		return runChangeCorpus(ctx, store, run, recipeID, output)
-	}
-	result, err := trainingworkflow.RunTextHeldout(ctx, store, run.request(recipeID, run.Order, run.Out, output))
+	result, err := trainingworkflow.RunTextHeldout(ctx, store, trainingworkflow.TextHeldoutRequest{
+		Alias: run.Alias, Recipe: recipeID, ModelDirectory: run.Model, OutputDirectory: run.Out, Steps: run.Steps, MaximumSequence: run.Sequence,
+		Host: run.Host || run.LoRA != nil || run.Average > 0 || run.SaveEvery > 0 || run.ResumeRun != "", Device: denseDevice, FreezeLexical: run.FreezeLexical, MaxProjectedWall: run.MaxWall, Progress: output,
+		Proof: run.Proof, LoRA: run.LoRA, Average: run.Average,
+		CheckpointEvery: run.SaveEvery, CheckpointKeep: run.Keep, Resume: run.ResumeRun, Order: run.Order,
+	})
 	if err != nil {
 		return err
 	}
@@ -131,120 +128,6 @@ func runObjectiveMode(ctx context.Context, store *overgodb.Store, run objectiveR
 		}
 	}
 	return reportVerdict(output, result)
-}
-
-// request is the held-out text run the flags ask for, reading its training
-// records by order and publishing at out.
-func (run objectiveRun) request(recipeID artifact.ID, order uint64, out string, output io.Writer) trainingworkflow.TextHeldoutRequest {
-	return trainingworkflow.TextHeldoutRequest{
-		Alias: run.Alias, Recipe: recipeID, ModelDirectory: run.Model, OutputDirectory: out, Steps: run.Steps, MaximumSequence: run.Sequence,
-		Host: run.Host || run.LoRA != nil || run.Average > 0 || run.SaveEvery > 0 || run.ResumeRun != "", Device: denseDevice, FreezeLexical: run.FreezeLexical, MaxProjectedWall: run.MaxWall, Progress: output,
-		Proof: run.Proof, LoRA: run.LoRA, Average: run.Average,
-		CheckpointEvery: run.SaveEvery, CheckpointKeep: run.Keep, Resume: run.ResumeRun, Order: order,
-	}
-}
-
-// firstOrderSeed is the order seed a corpus counts up from when the run gives
-// none: zero is membership order, which is no seed.
-const firstOrderSeed = 1
-
-// runChangeCorpus trains run.Runs bounded runs of one base under one
-// objective, their order seeds counting up from the run's, or from
-// firstOrderSeed when it gives none, publishes them as a change corpus, and
-// writes one line a run: the change and the verdict it earned.
-func runChangeCorpus(ctx context.Context, store *overgodb.Store, run objectiveRun, recipeID artifact.ID, output io.Writer) error {
-	corpus, err := trainingworkflow.CollectChangeCorpus(ctx, store, run.request(recipeID, 0, run.Out, output), max(run.Order, firstOrderSeed), run.Runs)
-	if err != nil {
-		return err
-	}
-	lines := json.NewEncoder(output)
-	for _, change := range corpus.Changes {
-		if err := lines.Encode(change); err != nil {
-			return err
-		}
-	}
-	_, err = fmt.Fprintf(output, "change corpus %s: %d changes of model %s under objective %s, judged by %s\n", corpus.ID, len(corpus.Changes), corpus.Model, corpus.Objective, corpus.Metric)
-	return err
-}
-
-// proposalDirectory is where a proposal's candidates are written, under the
-// directory its corpus was collected in, when -proposal names no other.
-const proposalDirectory = "proposal"
-
-// shownEvidence is what -evidence shows a proposer of what was tried before
-// it: whether it is shown the store's held-out verdicts at all, the journal
-// sequence the store is read through, zero for the store as it stands, and
-// the most bytes of verdict documents the listing may hold, zero for no bound.
-type shownEvidence struct {
-	shown          bool
-	through, bytes uint64
-}
-
-// proposeChange has a change proposed from the corpus whose runs sit under
-// out, fitted and ranked against its controls on the held-out pool an
-// acceptance names, and writes the judgment: a line for each candidate, then
-// whether the proposal is kept and by what margin. Its candidates are written
-// in proposal, under out. A proposer shown evidence is listed the verdicts it
-// was shown, and the judgment's last line says how far the proposal stands
-// from the one the same code makes without them.
-func proposeChange(ctx context.Context, store *overgodb.Store, corpus, pool, model, out, proposal string, evidence shownEvidence, output io.Writer) error {
-	corpusID, err := artifact.ParseID(corpus)
-	if err != nil {
-		return fmt.Errorf("change corpus: %w", err)
-	}
-	acceptance, err := artifact.ParseID(pool)
-	if err != nil {
-		return fmt.Errorf("train: -propose fits and ranks on a held-out pool; -pool names its acceptance: %w", err)
-	}
-	request := trainingworkflow.ChangeProposalRequest{
-		Corpus: corpusID, Acceptance: acceptance, ModelDirectory: model, RunsDirectory: out, OutputDirectory: filepath.Join(out, proposal), Progress: output,
-	}
-	if evidence.shown {
-		var read uint64
-		if request.Shown, read, err = evaluation.PastHeldoutVerdicts(ctx, store, evidence.through, evidence.bytes); err != nil {
-			return err
-		}
-		if _, err := fmt.Fprintf(output, "shown %d held-out verdicts in %d bytes of verdict documents, the store read through sequence %d (0: as it stands)\n", len(request.Shown), read, evidence.through); err != nil {
-			return err
-		}
-	}
-	judgment, err := trainingworkflow.ProposeChange(ctx, store, request)
-	if err != nil {
-		return err
-	}
-	lines := json.NewEncoder(output)
-	for _, candidate := range judgment.Candidates {
-		if err := lines.Encode(candidate); err != nil {
-			return err
-		}
-	}
-	if _, err = fmt.Fprintf(output, "change judgment %s: kept=%t; proposed less %s is %.6f, between %.6f and %.6f over the redrawn documents of the pool's selection part; a code of rank %d explains %.3f of a left-out run's gain; the runs' gains spread %.6f against a noise of %.6f\n",
-		judgment.ID, judgment.Kept, judgment.Control, judgment.Difference, judgment.Lower, judgment.Upper, judgment.Rank, judgment.Explained, judgment.GainSpread, judgment.GainNoise); err != nil || !evidence.shown {
-		return err
-	}
-	_, err = fmt.Fprintf(output, "evidence: the verdicts shown judged %d of the corpus's runs; proposed less the proposal without them is %.6f, between %.6f and %.6f over the same redrawn documents\n",
-		judgment.Used, judgment.EvidenceDifference, judgment.EvidenceLower, judgment.EvidenceUpper)
-	return err
-}
-
-// confirmChange has the promotion part of a judgment's pool answer for one of
-// the judgment's candidates, whose model sits where proposeChange wrote it,
-// in proposal under out, and writes the verdict and what the pool's budget
-// has left.
-func confirmChange(ctx context.Context, store *overgodb.Store, judgment, candidate, model, out, proposal string, output io.Writer) error {
-	judgmentID, err := artifact.ParseID(judgment)
-	if err != nil {
-		return fmt.Errorf("change judgment: %w", err)
-	}
-	confirmation, left, err := trainingworkflow.ConfirmChange(ctx, store, trainingworkflow.ChangeConfirmationRequest{
-		Judgment: judgmentID, Candidate: candidate, ModelDirectory: model, RunsDirectory: out, OutputDirectory: filepath.Join(out, proposal),
-	})
-	if err != nil {
-		return err
-	}
-	_, err = fmt.Fprintf(output, "confirmation %s of %s, candidate %s, on the promotion part of pool %s: %s; the part answers %d more\n",
-		confirmation.ID, candidate, confirmation.Candidate, confirmation.Acceptance, confirmation.Verdict, left)
-	return err
 }
 
 // reportProof writes what a proof run published: its session and the model it

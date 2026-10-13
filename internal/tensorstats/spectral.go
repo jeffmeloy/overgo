@@ -1,9 +1,7 @@
 package tensorstats
 
 import (
-	"cmp"
 	"math"
-	"slices"
 	"sort"
 
 	"overgo/internal/checked"
@@ -73,47 +71,10 @@ func EffectiveRankOf(data []float64, rows, cols int) (float64, bool) {
 	return EffectiveRank(values)
 }
 
-// SymmetricEigen returns the eigenvalues of a k×k row-major symmetric matrix,
-// descending, with their unit eigenvectors: vectors[i*k+j] is component i of
-// the eigenvector of values[j]. It is the cyclic Jacobi sweep the singular
-// values use, with the rotations accumulated: exact, and cubic in k a sweep,
-// so it suits a small matrix such as the Gram matrix of a few dozen runs.
-// Returns false on invalid dimensions or a data-length mismatch.
-func SymmetricEigen(symmetric []float64, k int) (values, vectors []float64, ok bool) {
-	if k <= 0 || len(symmetric) != k*k {
-		return nil, nil, false
-	}
-	rotations := make([]float64, k*k)
-	for diagonal := range k {
-		rotations[diagonal*k+diagonal] = 1
-	}
-	unordered := jacobiEigenvalues(symmetric, k, rotations)
-	order := make([]int, k)
-	for index := range order {
-		order[index] = index
-	}
-	slices.SortStableFunc(order, func(left, right int) int { return cmp.Compare(unordered[right], unordered[left]) })
-	values, vectors = make([]float64, k), make([]float64, k*k)
-	for column, from := range order {
-		values[column] = unordered[from]
-		for row := range k {
-			vectors[row*k+column] = rotations[row*k+from]
-		}
-	}
-	return values, vectors, true
-}
-
 // symmetricEigenvalues returns the eigenvalues of a k×k row-major symmetric
 // matrix via a cyclic Jacobi sweep. The matrix is treated as read-only (a copy
 // is rotated). Eigenvalues only — the rotations are not accumulated.
 func symmetricEigenvalues(symmetric []float64, k int) []float64 {
-	return jacobiEigenvalues(symmetric, k, nil)
-}
-
-// jacobiEigenvalues is the cyclic Jacobi sweep: it rotates a copy of the
-// matrix to diagonal and returns the diagonal. rotations, when not nil,
-// starts as the identity and ends holding the eigenvectors in its columns.
-func jacobiEigenvalues(symmetric []float64, k int, rotations []float64) []float64 {
 	if k <= 0 {
 		return nil
 	}
@@ -157,13 +118,6 @@ func jacobiEigenvalues(symmetric []float64, k int, rotations []float64) []float6
 					cp, cq := s[i*k+p], s[i*k+q]
 					s[i*k+p] = c*cp - sn*cq
 					s[i*k+q] = sn*cp + c*cq
-				}
-				if rotations != nil {
-					for i := range k {
-						vp, vq := rotations[i*k+p], rotations[i*k+q]
-						rotations[i*k+p] = c*vp - sn*vq
-						rotations[i*k+q] = sn*vp + c*vq
-					}
 				}
 			}
 		}

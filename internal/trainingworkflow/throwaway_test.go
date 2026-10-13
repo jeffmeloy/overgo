@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -106,12 +105,12 @@ func (store unlisted) Query(context.Context, overgodb.Query) (overgodb.QueryResu
 // A session asked to treat its checkpoint as throw-away records the
 // checkpoint's document and nothing else: no location, and for a GGUF base
 // no trained model and no candidate. That is so for token sessions over a
-// GGUF, the layout the pilot's checkpoints have, for a reward session, the
-// pilot's kind, and for each run of a change corpus. A session still resumes
-// from such a checkpoint, a reward checkpoint is still held to be its
-// session's, and a corpus still credits its finished runs, because each of
-// those reads the directory or the document and not a location. A session
-// not asked records as before.
+// GGUF, the layout the pilot's checkpoints have, and for a reward session, the
+// pilot's kind. A session still resumes from such a checkpoint, and a reward
+// checkpoint is still held to be its session's, because each of those reads
+// the directory or the document and not a location. A reward session trained
+// again in another directory publishes the checkpoint it published before,
+// which the store records once. A session not asked records as before.
 //
 // RemoveCheckpoints removes the directories it is given that hold a
 // checkpoint, and says so a line each. One the store records at that very
@@ -307,7 +306,7 @@ func TestExperimentRemovesItsCheckpointsOnceItsRecordIsKept(t *testing.T) {
 		t.Parallel()
 		root, request := rewardFixture(t)
 		request.throwaway = true
-		verifyWorkflowResume(t, root, request)
+		uninterrupted := verifyWorkflowResume(t, root, request)
 		store := request.Observations.(*overgodb.Store)
 		base, err := identifyModel(request.ModelDirectory)
 		if err != nil {
@@ -319,46 +318,14 @@ func TestExperimentRemovesItsCheckpointsOnceItsRecordIsKept(t *testing.T) {
 		if err := errors.Join(request.Rewards.published(first, base, trainingprogram.Checkpoint{}, 1), request.Rewards.published(resumed, base, first, 2)); err != nil {
 			t.Fatalf("a throw-away reward checkpoint, loaded again, is not held to be its session's: %v", err)
 		}
-	})
-
-	t.Run("the runs of a change corpus", func(t *testing.T) {
-		t.Parallel()
-		text := registerTextObjective(t, changeDocuments(), trainingprogram.MetricTokenAccuracy)
-		ctx := t.Context()
-		request := TextHeldoutRequest{
-			Alias: text.alias, ModelDirectory: text.model, OutputDirectory: filepath.Join(text.root, "corpus"), Steps: 3, MaximumSequence: 8, Host: true,
+		// The same session trained again in another directory publishes the
+		// same checkpoint, whose document the store holds by then, as a run
+		// begun again after its checkpoints were removed trains it.
+		again := request
+		again.Steps, again.OutputDirectory = uninterrupted.Plan.Updates(), filepath.Join(root, "again")
+		if repeated, err := Execute(t.Context(), again); err != nil || repeated.Checkpoint.ID() != uninterrupted.Checkpoint.ID() {
+			t.Fatalf("the uninterrupted session trained again in another directory published %s (%v), want the checkpoint %s it published before", repeated.Checkpoint.ID(), err, uninterrupted.Checkpoint.ID())
 		}
-		const first, count = 1, 2
-		corpus, err := CollectChangeCorpus(ctx, text.store, request, first, count)
-		if err != nil {
-			t.Fatal(err)
-		}
-		thrown := func(corpus ChangeCorpus, directory string) {
-			t.Helper()
-			for _, change := range corpus.Changes {
-				run := filepath.Join(directory, fmt.Sprintf("order-%04d", change.Order))
-				if checkpoint := requireThrowaway(t, text.store, run); checkpoint.ID() != change.Trained {
-					t.Fatalf("the run of order %d holds checkpoint %s, and its change names %s", change.Order, checkpoint.ID(), change.Trained)
-				}
-				if _, err := os.Stat(filepath.Join(run, changeRunFile)); err != nil {
-					t.Fatalf("the run of order %d kept no record of itself: %v", change.Order, err)
-				}
-			}
-		}
-		thrown(corpus, request.OutputDirectory)
-		grown, err := CollectChangeCorpus(ctx, text.store, request, first, count+1)
-		if err != nil || len(grown.Changes) != count+1 || grown.Changes[0] != corpus.Changes[0] || grown.Changes[1] != corpus.Changes[1] {
-			t.Fatalf("the corpus asked to grow = %+v (%v), want the two runs it had and one more", grown.Changes, err)
-		}
-		thrown(grown, request.OutputDirectory)
-		// The same runs trained again in another directory are the same checkpoints, which the
-		// store holds by then: as a run begun again after its checkpoints were removed trains them.
-		elsewhere := request
-		elsewhere.OutputDirectory = filepath.Join(text.root, "elsewhere")
-		again, err := CollectChangeCorpus(ctx, text.store, elsewhere, first, count)
-		if err != nil || len(again.Changes) != count || again.Changes[0].Trained != corpus.Changes[0].Trained || again.Changes[1].Trained != corpus.Changes[1].Trained {
-			t.Fatalf("the corpus's runs trained again in another directory = %+v (%v), want the checkpoints of %+v", again.Changes, err, corpus.Changes)
-		}
-		thrown(again, elsewhere.OutputDirectory)
+		requireThrowaway(t, store, again.OutputDirectory)
 	})
 }

@@ -84,22 +84,6 @@
       ]
     },
     {
-      "id": "proposer-retire",
-      "title": "Take the change proposer out, a pilot that was not accepted",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Remove the proposal and evidence-conditioning modes of cmd/train, keeping their records and what training still uses",
-          "status": "open",
-          "verify": "go test ./cmd/train -count=1 -run '^TestProposalRetirementPreservesTrainingAndEvidence$'",
-          "rationale": "From the proposal, with three changes from the lead's review. The proposer lost to the plain mean of its corpus and evidence conditioning gave no measurable benefit (docs/verification/change-proposal-qwen25-05b.txt, evidence-conditioning-qwen25-05b.txt); the path has since needed three reviewer repairs (8cfa15418, 8988728ae, 2ae868219). cmd/train -propose, -confirm, -candidate and -evidence go with their implementation (the flags are at cmd/train/main.go:78-83). Kept: the held-out pool's confirmation core, which the instruction pilot still uses; the three records with their readers; every model family. Said in the commit: what becomes of the plain mean of the runs, which the experiment's own record shows was the best candidate. The corpus mode (-runs) stays if a consumer audit finds one. The proposal's 170.2 GB is not this row's: since 586ebc744 the corpus's runs read finished without it, and their removal is the owner's command.\nServes: the loop's upkeep.\nDisappears: the four modes, their now-unreferenced code, and the output lock and throw-away handling df0eaa224 gave the two commands that go.\nEvidence: retained training, checkpoint resume and historical evidence tested; production nodes removed; the check fails on today's code.\nBatch: host; cmd/train imports evaluation, so the commit runs the device tests."
-        }
-      ]
-    },
-    {
       "id": "consumer-checks",
       "title": "Hold every committed surface to a consumer by a check at every commit, and delete what has none",
       "class": "consolidation",

@@ -11,6 +11,7 @@ import (
 	"slices"
 
 	"overgo/internal/artifact"
+	"overgo/internal/clioptions"
 	"overgo/internal/evaluation"
 	"overgo/internal/overgodb"
 	"overgo/internal/trainingprogram"
@@ -144,7 +145,7 @@ func RunInstructionPilot(ctx context.Context, store *overgodb.Store, run PilotRu
 	if written, err := os.ReadFile(asked); err == nil && !bytes.Equal(written, suite) {
 		return PilotResult{}, fmt.Errorf("training workflow: %s holds the development prompts of another run, and is left as it is: a pilot is run again over its own directory, or begun in an empty one", asked)
 	} else if err != nil {
-		if err := errors.Join(os.MkdirAll(run.Out, changeDirectoryMode), os.WriteFile(asked, suite, changeRunFileMode)); err != nil {
+		if err := errors.Join(os.MkdirAll(run.Out, clioptions.OutputDirectoryMode), os.WriteFile(asked, suite, clioptions.PrivateFileMode)); err != nil {
 			return PilotResult{}, err
 		}
 	}
@@ -199,7 +200,7 @@ func RunInstructionPilot(ctx context.Context, store *overgodb.Store, run PilotRu
 		if _, err := artifact.Publish(ctx, store, artifact.Batch{Key: instructionTrainingSchema + "/arm/" + specification.String(), Artifacts: []artifact.Descriptor{{ID: specification}}}); err != nil {
 			return PilotResult{}, err
 		}
-		if err := os.MkdirAll(filepath.Join(run.Out, name), changeDirectoryMode); err != nil {
+		if err := os.MkdirAll(filepath.Join(run.Out, name), clioptions.OutputDirectoryMode); err != nil {
 			return PilotResult{}, err
 		}
 		previous, reached := "", 0

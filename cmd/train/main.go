@@ -75,15 +75,6 @@ func run() error {
 	loraQuantized := flag.Bool("lora-quantized", false, "with -lora-rank and a GGUF -model: keep each adapted projection as the file stores it, quantized, dequantizing it as its layer reads it, so the run needs far less memory; the model published is then the base as stored, with the adapter in its adapter directory")
 	loraFrom := flag.String("lora-from", "", "with -objective: continue training the PEFT adapter in this directory, which brings its own rank, alpha and targets")
 	orderSeed := flag.Uint64("order-seed", 0, "with -objective: read the training records in the order this seed draws rather than in membership order, so a run of fewer updates than the text holds windows trains on other text for each seed")
-	runs := flag.Int("runs", 0, "with -objective: train this many runs from the same base, their order seeds counting up from -order-seed (from 1 without it), each published under -out in a directory named after its seed, and publish them as a change corpus, one line a run")
-	propose := flag.String("propose", "", "change corpus artifact ID: propose a change from the corpus's runs under -out, fitted on the development part of the held-out pool -pool names, write it and its controls under -out/proposal, score each on the pool's selection part, each document read as far as the pool's acceptance fixed, and publish the judgment; needs -model, the corpus's base, and takes no -seq")
-	pool := flag.String("pool", "", "with -propose: the acceptance of the objective's held-out pool, as training-objective -pool wrote it")
-	confirm := flag.String("confirm", "", "change judgment artifact ID: have the promotion part of the judgment's pool say whether -candidate is a gain over the base, each document read as far as the pool's acceptance fixed; charges one confirmation to what the part's documents have left and writes the verdict and what is left; needs -model and -out as -propose had them, and takes no -seq")
-	candidate := flag.String("candidate", "proposed", "with -confirm: the candidate to confirm, by the name its judgment gives it")
-	proposal := flag.String("proposal", proposalDirectory, "with -propose and -confirm: the directory under -out the candidates are written in, and read from")
-	evidence := flag.Bool("evidence", false, "with -propose: show the proposer the held-out verdicts the store holds of what was tried before it; it fits the gains they recorded for its corpus's runs beside the gains it reads on the pool, and scores the proposal it would have made without them beside its own")
-	evidenceThrough := flag.Uint64("evidence-to-sequence", 0, "with -evidence: read the store as it stood at this journal sequence and not as it stands, as overgodb query -verdicts -to-sequence lists it")
-	evidenceBytes := flag.Uint64("evidence-max-bytes", 0, "with -evidence: refuse a listing whose verdict documents exceed this many bytes (0 for no bound)")
 	pilot := flag.String("pilot", "", "instruction acceptance artifact ID, as training-objective -pilot wrote it: train the pilot's reward arm and its control from -model under -out to each checkpoint its training specification names, freeze one checkpoint an arm on the selection groups, charge and read each comparison the acceptance named on the promotion groups, and say whether the reward arm is adopted")
 	keep := flag.String(keepFlag, "", "with -pilot: keep the checkpoints the pilot wrote, for the reason given, which the record states; without it they are removed once the record is written under -out, unless the reward arm is adopted")
 	flag.Parse()
@@ -92,13 +83,10 @@ func run() error {
 	if err := keepReason(given, *pilot, *keep); err != nil {
 		return err
 	}
-	if (*evidence || *evidenceThrough != 0 || *evidenceBytes != 0) && (*propose == "" || !*evidence) {
-		return fmt.Errorf("train: -evidence shows a proposer what was tried before it, and -evidence-to-sequence and -evidence-max-bytes bound what it is shown; they need -propose and -evidence")
-	}
 	// A proof is a training run under -objective or the dense workflow's
 	// -recipe; each of these does something else, or trains an audio adapter,
 	// whose run takes no proof.
-	for _, other := range []*string{pilot, propose, confirm, previewDataset, bootstrapRecipe, audioManifest} {
+	for _, other := range []*string{pilot, previewDataset, bootstrapRecipe, audioManifest} {
 		if *proof && *other != "" {
 			return fmt.Errorf("train: -proof re-verifies a recipe by a training run alone, under -objective or the dense workflow's -recipe; it goes with no other mode and no audio manifest")
 		}
@@ -116,8 +104,8 @@ func run() error {
 	if lora != nil && *objective == "" {
 		return fmt.Errorf("train: a LoRA adapter trains under an -objective; -lora-rank and -lora-from need -objective")
 	}
-	if (*orderSeed != 0 || *runs != 0) && *objective == "" {
-		return fmt.Errorf("train: an order seed and a corpus of runs belong to an -objective run; -order-seed and -runs need -objective")
+	if *orderSeed != 0 && *objective == "" {
+		return fmt.Errorf("train: -order-seed needs -objective, because the seed orders the training records of an objective's run")
 	}
 	if *pilot != "" && *host {
 		return fmt.Errorf("train: -pilot trains its arms through the weighted step, which the device takes; the host has no reward trainer, so -pilot takes no -host")
@@ -129,7 +117,7 @@ func run() error {
 		return err
 	}
 	defer store.Close()
-	if *output != "" && (*pilot != "" || *runs > 0 || *propose != "" || *confirm != "") {
+	if *output != "" && *pilot != "" {
 		held, err := holdOutput(*output)
 		if err != nil {
 			return err
@@ -139,22 +127,13 @@ func run() error {
 	if *pilot != "" {
 		return runPilot(ctx, store, *pilot, *model, *output, *keep, os.Stdout)
 	}
-	if *propose != "" || *confirm != "" {
-		if *objective != "" || *model == "" || *output == "" || *propose != "" && *confirm != "" || *maximumSequence != 0 {
-			return fmt.Errorf("train: -propose reads a corpus and -confirm a judgment, each of which names its own objective; one of them at a time, with -model and -out, no -objective, and no -seq: the pool's acceptance fixed how far each document is read")
-		}
-		if *confirm != "" {
-			return confirmChange(ctx, store, *confirm, *candidate, *model, *output, *proposal, os.Stdout)
-		}
-		return proposeChange(ctx, store, *propose, *pool, *model, *output, *proposal, shownEvidence{shown: *evidence, through: *evidenceThrough, bytes: *evidenceBytes}, os.Stdout)
-	}
 	if *objective != "" {
 		set := map[string]bool{}
 		flag.Visit(func(given *flag.Flag) { set[given.Name] = true })
 		return runObjectiveMode(ctx, store, objectiveRun{
 			Alias: *objective, Recipe: *recipeID, Model: *model, Out: *output, Steps: *steps, Sequence: *maximumSequence, Host: *host,
 			FreezeLexical: *freezeLexical, Proof: *proof, MaxWall: *maxWall, LoRA: lora, Average: *average, SaveEvery: *saveEvery, Keep: *keepLast, ResumeRun: *resumeRun,
-			Order: *orderSeed, Runs: *runs,
+			Order: *orderSeed,
 		}, set, os.Stdout)
 	}
 	if *previewDataset != "" {
@@ -244,11 +223,11 @@ func keepReason(given bool, pilot, reason string) error {
 	return nil
 }
 
-// holdOutput makes the output directory of a run that writes many things
-// under it, a pilot, a corpus, a proposal or a confirmation, and locks
-// processlock.OutputLock there until the lock it returns is closed. A second
-// run into the directory is refused while the first goes. The lock is also
-// for a command removing what a finished run left to tell a live run by.
+// holdOutput makes the output directory of a pilot, the run that writes many
+// things under it, and locks processlock.OutputLock there until the lock it
+// returns is closed. A second run into the directory is refused while the
+// first goes. The lock is also for a command removing what a finished run
+// left to tell a live run by.
 func holdOutput(out string) (*processlock.Lock, error) {
 	if err := os.MkdirAll(out, clioptions.OutputDirectoryMode); err != nil {
 		return nil, err

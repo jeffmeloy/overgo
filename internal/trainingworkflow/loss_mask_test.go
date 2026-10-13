@@ -88,7 +88,7 @@ func TestAssistantOnlyLoss(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		data, held, err := textObjectiveData(ctx, run.store, objective, tokens, conversationWindow, true)
+		data, held, err := textObjectiveData(ctx, run.store, objective, tokens, conversationWindow, true, 0)
 		if err != nil {
 			t.Fatal(err)
 		}

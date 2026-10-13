@@ -104,11 +104,6 @@ type TextHeldoutRequest struct {
 	// runs that differ in nothing else are two changes of one base. The
 	// held-out records and their order do not depend on it.
 	Order uint64
-	// throwaway marks the trained checkpoint as one run of a larger
-	// collection, meant to be removed once the collection's record is kept:
-	// the store is given its document and no location
-	// (RecordCheckpointDocument), and its files stay for the collection to read.
-	throwaway bool
 }
 
 // promptAnswers is one record of a generation objective: a prompt and the
@@ -227,7 +222,7 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 	if request.MaximumSequence > 0 {
 		sequence = min(sequence, request.MaximumSequence)
 	}
-	data, records, err := orderedTextObjectiveData(ctx, store, objective, tokenizer, sequence, request.Conversations, request.Order)
+	data, records, err := textObjectiveData(ctx, store, objective, tokenizer, sequence, request.Conversations, request.Order)
 	if err != nil {
 		return HeldoutResult{}, err
 	}
@@ -523,14 +518,10 @@ func windowPosition(documents [][]int, sequence, updates int) uint64 {
 // rendered conversation, and its example's target is the tokens it learns
 // alone, the ones a held-out run is judged on predicting. Every token of each
 // record's sequence, which training packs, and what a held-out generation
-// answers it from return keyed by record.
-func textObjectiveData(ctx context.Context, reader artifact.Reader, objective trainingprogram.ObjectiveDocument, tokenizer trainableTokenizer, sequence int, conversations bool) (ObjectiveData, map[string]textRecord, error) {
-	return orderedTextObjectiveData(ctx, reader, objective, tokenizer, sequence, conversations, 0)
-}
-
-// orderedTextObjectiveData is textObjectiveData with the training records
-// read in the order a seed draws (seededObjectiveExamples).
-func orderedTextObjectiveData(ctx context.Context, reader artifact.Reader, objective trainingprogram.ObjectiveDocument, tokenizer trainableTokenizer, sequence int, conversations bool, order uint64) (ObjectiveData, map[string]textRecord, error) {
+// answers it from return keyed by record. The training records are read in
+// the order the seed order draws, and in membership order when it is zero
+// (seededObjectiveExamples).
+func textObjectiveData(ctx context.Context, reader artifact.Reader, objective trainingprogram.ObjectiveDocument, tokenizer trainableTokenizer, sequence int, conversations bool, order uint64) (ObjectiveData, map[string]textRecord, error) {
 	generation := objective.Metric == trainingprogram.MetricGeneratedAnswer
 	records := map[string]textRecord{}
 	data, err := seededObjectiveExamples(ctx, reader, objective, order, []byte("overgo/training/text-utf8/v1"), recipecontract.ModalityText,
@@ -623,7 +614,7 @@ func publishTrainedText(
 	if err != nil {
 		return trainingprogram.Checkpoint{}, err
 	}
-	if record && (request.throwaway || request.Proof) {
+	if record && request.Proof {
 		err = RecordCheckpointDocument(ctx, store, checkpoint)
 	} else if record {
 		_, err = RecordCheckpoint(ctx, store, target, checkpoint)

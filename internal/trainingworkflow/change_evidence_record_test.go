@@ -40,14 +40,14 @@ func TestEvidenceConditioningRecordIsOfItsJudgments(t *testing.T) {
 	}
 	record := read("evidence-conditioning-qwen25-05b.txt")
 	corpus, _, _ := strings.Cut(read("change-corpus-qwen25-05b.txt")["corpus"], " ")
-	arms := map[string]ChangeJudgment{}
-	candidates := map[string]map[string]ChangeCandidate{}
+	arms := map[string]changeJudgment{}
+	candidates := map[string]map[string]changeCandidate{}
 	for arm, shown := range map[string][2]int{"none": {0, 0}, "now": {32, 24}, "cutoff": {24, 16}} {
 		named, err := artifact.ParseID(record["judgment-"+arm])
 		if err != nil {
 			t.Fatalf("%s: %v", arm, err)
 		}
-		var judgment ChangeJudgment
+		var judgment changeJudgment
 		if err := strictjson.DecodeBytes([]byte(record["document-"+arm]), &judgment); err != nil {
 			t.Fatalf("%s: %v", arm, err)
 		}
@@ -58,7 +58,7 @@ func TestEvidenceConditioningRecordIsOfItsJudgments(t *testing.T) {
 		if canonical.Corpus.String() != corpus || len(canonical.Shown) != shown[0] || canonical.Used != shown[1] {
 			t.Fatalf("%s: the judgment is of corpus %s, shown %d verdicts that judged %d of its runs; want corpus %s, %d and %d", arm, canonical.Corpus, len(canonical.Shown), canonical.Used, corpus, shown[0], shown[1])
 		}
-		arms[arm], candidates[arm] = canonical, map[string]ChangeCandidate{}
+		arms[arm], candidates[arm] = canonical, map[string]changeCandidate{}
 		for _, candidate := range canonical.Candidates {
 			candidates[arm][candidate.Name] = candidate
 		}

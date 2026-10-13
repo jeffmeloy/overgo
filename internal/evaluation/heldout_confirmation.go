@@ -13,8 +13,6 @@ import (
 )
 
 const (
-	selectionReadingMedia  = "application/vnd.overgo.heldout-selection-reading+json"
-	selectionReadingSchema = "overgo/heldout-selection-reading/v1"
 	poolConfirmationMedia  = "application/vnd.overgo.heldout-confirmation+json"
 	poolConfirmationSchema = "overgo/heldout-confirmation/v1"
 
@@ -82,57 +80,6 @@ func partDocuments(ctx context.Context, reader artifact.Reader, shard artifact.I
 		documents[index] = record.ID
 	}
 	return documents, nil
-}
-
-// SelectionReading is one model read on the selection part of a pool by the
-// pool's measure, before the base is taken from it: the mean log-likelihood of
-// each document's tokens, a document a value in the order given. It is what a
-// candidate is ranked by, and it names the candidate's weights by identity
-// with the pool's acceptance, before any confirmation reads them.
-type SelectionReading struct {
-	ID         artifact.ID `json:"-"`
-	Version    uint16      `json:"version"`
-	Acceptance artifact.ID `json:"acceptance"`
-	Model      artifact.ID `json:"model"`
-	Documents  []string    `json:"documents"`
-	Values     []float64   `json:"values"`
-}
-
-var selectionReadingCodec = artifact.JSONDocumentCodec(
-	"held-out selection reading", artifact.KindEvaluation, selectionReadingMedia, selectionReadingSchema,
-	func(value *SelectionReading) error {
-		if value == nil || value.Version != artifact.InitialDocumentVersion || value.Acceptance.Kind() != artifact.KindEvidence ||
-			value.Model.Kind() != artifact.KindModel || len(value.Documents) == 0 || len(value.Documents) != len(value.Values) {
-			return errors.New("evaluation: invalid held-out selection reading")
-		}
-		return nil
-	},
-	func(value SelectionReading) artifact.ID { return value.ID },
-	func(value *SelectionReading, id artifact.ID) { value.ID = id },
-	func(value SelectionReading) SelectionReading {
-		value.Documents, value.Values = slices.Clone(value.Documents), slices.Clone(value.Values)
-		return value
-	},
-)
-
-// NewSelectionReading records what a model scored on the selection part of
-// the pool an acceptance was fixed for, and stages it under key.
-func NewSelectionReading(key string, acceptance, model artifact.ID, scores []RecordScore) (SelectionReading, artifact.Batch, error) {
-	reading := SelectionReading{Acceptance: acceptance, Model: model}
-	for _, score := range scores {
-		reading.Documents, reading.Values = append(reading.Documents, score.Record), append(reading.Values, score.Value)
-	}
-	reading, err := selectionReadingCodec.NewInitial(reading)
-	if err != nil {
-		return SelectionReading{}, artifact.Batch{}, err
-	}
-	batch, err := selectionReadingCodec.Batch(key, reading, artifact.DependencyLineage(reading.ID, acceptance), nil)
-	return reading, batch, err
-}
-
-// RequireSelectionReading loads one committed selection reading.
-func RequireSelectionReading(ctx context.Context, reader artifact.Reader, id artifact.ID) (SelectionReading, error) {
-	return selectionReadingCodec.Require(ctx, reader, id)
 }
 
 // PoolConfirmation is one confirmation as a pool records it: the acceptance

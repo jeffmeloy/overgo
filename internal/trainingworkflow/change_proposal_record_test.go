@@ -39,7 +39,7 @@ func TestChangeProposalRecordIsTheJudgmentItNames(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var judgment ChangeJudgment
+	var judgment changeJudgment
 	if err := strictjson.DecodeBytes([]byte(record["document"]), &judgment); err != nil {
 		t.Fatal(err)
 	}

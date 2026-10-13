@@ -66,8 +66,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "What the row may still add. Set on 2026-10-13, with plan -setcount, to the 1,112 nodes its steps bound-cells and census-binding were counted at once built, each in a checkout of its own on the trunk's commit c2799a282, by the count of syntax nodes the automated checks take. Step bound-cells, 271: cmd/validate/training_proof.go, cmd/validate/run.go and cmd/train/route_codec.go (the bridge's training cell bound to the codec route's proof, and a reward recipe's cell left to the operator with its reason). Step census-binding, 841: cmd/validate/census.go and cmd/validate/main.go (accepting a changed census as one command, with the check and the binding type moved out of a test file). The builders' counts, each confirmed by a second reader; the commit's own check gives the figure that governs. The row grows because two hand procedures become commands and a refused cell becomes a bound one. Step coverage-27b added no production code. Step proof-footprint is counted the same way before it is committed."
+        "nodes": 247,
+        "reason": "What the row may still add. Set on 2026-10-13, with plan -setcount, to the 247 nodes its last step, proof-footprint, was counted at once built on the trunk's commit 14c2c5965, by the count of syntax nodes the automated checks take, over the production files it changes in cmd/train, cmd/validate, internal/trainingprogram and internal/trainingworkflow: every proof route takes -proof, a proof publishes its checkpoint's identity and document and writes no file, and the store records no location for it. The builder's count, confirmed by a second reader; the commit's own check gives the figure that governs. The earlier steps used the 1,112 the row carried before (census-binding 841, bound-cells 271); coverage-27b added none."
       },
       "steps": [
         {

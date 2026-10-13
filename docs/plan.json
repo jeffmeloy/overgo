@@ -66,8 +66,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "What the row may still add. Set on 2026-10-12, with plan -setcount, to the 1,044 nodes its step own-cleanup-withdrawal was counted at once built, by the count of syntax nodes the automated checks take, each file against the deleting command it is built on, the trunk's commit 586ebc744: cmd/loop/leftovers.go 6,797 to 7,806, cmd/loop/main.go 2,356 to 2,390 and internal/guard/guard.go 1,589 to 1,590; the three measure 10,742 before and 11,786 after. The step's preparation estimated about 380; the builder's count, its repairer's and the lead's agree. The step grows because nothing in the tree withdrew a recorded location before: a model or checkpoint whose files were removed stayed registered for good. The earlier steps used the 4,228, 888, 1,641, 1,772 and 1,828 the row carried before. Step enforce is counted the same way before it is committed."
+        "nodes": 17,
+        "reason": "What the row may still add. Set on 2026-10-13, with plan -setcount, to the 17 nodes its step clear-at-commit was counted at once built, by the count of syntax nodes the automated checks take, the five production files it changes against the trunk's commit cc82ed097: cmd/loop/land.go, cmd/loop/leftovers.go, internal/commanddoc/commanddoc.go, internal/repoanalysis/entry_authority.go and internal/repoanalysis/tracked_documents.go measure 12,872 before and 12,889 after. The step adds the clearing a confirmed commit makes and takes out most of the rule it replaces for ./tmp, so it is near level. The earlier steps used the 4,228, 888, 1,641, 1,772, 1,828 and 1,044 the row carried before. Step enforce is counted the same way before it is committed."
       },
       "steps": [
         {

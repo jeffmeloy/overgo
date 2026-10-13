@@ -29,8 +29,8 @@ import (
 )
 
 // improvement closes the loop each time the plan empties: the scorecard run
-// measures, each cell is compared with its newest earlier complete
-// measurement, and the gaps return as rows of the plan at path
+// measures, each cell is judged against what its earlier readings
+// held, and the gaps return as rows of the plan at path
 // plan. root is the checkout whose HEAD is measured and whose plan mutation
 // lock is taken; records is the directory the scorecards are published in.
 type improvement struct {

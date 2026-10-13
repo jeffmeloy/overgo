@@ -128,7 +128,7 @@ func TestComparisonIsTyped(t *testing.T) {
 		{name: "renamed and reordered", record: record(row(second, "renamed", 0.7, mmlu), row(first, "shared", 0.5, mmlu)), verdict: holding},
 		{name: "gain", record: record(row(first, "shared", 0.6, mmlu), row(second, "shared", 0.7, mmlu)), verdict: holding},
 		{name: "fall on the same contract", record: record(row(first, "shared", 0.4, mmlu), row(second, "shared", 0.7, mmlu)), verdict: regressed},
-		{name: "one case in a million lost", record: record(row(first, "shared", 0.5-1e-6, mmlu), row(second, "shared", 0.7, mmlu)), verdict: regressed},
+		{name: "one case in ten thousand lost", record: record(row(first, "shared", 0.5-1e-4, mmlu), row(second, "shared", 0.7, mmlu)), verdict: regressed},
 		{name: "a summation-order difference", record: record(row(first, "shared", 0.5*(1-1e-8), mmlu), row(second, "shared", 0.7, mmlu)), verdict: holding},
 		{name: "a larger headline suite, the baseline's suite holding", record: record(headlineMoved(0.5), row(second, "shared", 0.7, mmlu)), verdict: holding},
 		{name: "a larger headline suite, the baseline's suite fallen", record: record(headlineMoved(0.4), row(second, "shared", 0.7, mmlu)), verdict: regressed},
@@ -330,12 +330,12 @@ func measuredFixture(model artifact.ID, cells map[metric.Name]Cell) Row {
 	return Row{Model: model, Name: "served", Task: recipe.TaskInference, Cells: cells}
 }
 
-// TestReferenceIsEachCellsNewestEarlierMeasurement holds the reference a record is
+// TestEarlierIsEachCellsNewestEarlierMeasurement holds what a record is
 // compared with to the records before it: the newest earlier record's cells, one it
 // did not measure taken from the newest older record that did, and nothing in place
 // of a value the newest record lacks. A record alone has no reference, and building
 // one changes no record.
-func TestReferenceIsEachCellsNewestEarlierMeasurement(t *testing.T) {
+func TestEarlierIsEachCellsNewestEarlierMeasurement(t *testing.T) {
 	t.Parallel()
 	model := testutil.ArtifactID(t, artifact.KindModel, "served")
 	contract := Contract{Metric: "rate", Origin: originServing}
@@ -345,7 +345,7 @@ func TestReferenceIsEachCellsNewestEarlierMeasurement(t *testing.T) {
 	current := Record{Commit: "c", Rows: []Row{measuredFixture(model, map[metric.Name]Cell{metric.Throughput: measured(25), metric.Load: measured(8)})}}
 	records := []Record{older, incomplete, current}
 
-	reference := Reference(records)
+	reference := Earlier(records)
 	if reference == nil || reference.Commit != "b" {
 		t.Fatalf("reference = %+v, want the newest earlier record's", reference)
 	}
@@ -355,7 +355,7 @@ func TestReferenceIsEachCellsNewestEarlierMeasurement(t *testing.T) {
 	if incomplete.Rows[0].Cells[metric.Throughput].Measured() {
 		t.Fatal("building the reference filled the incomplete record's own cell")
 	}
-	if Reference(records[:1]) != nil || Reference(nil) != nil {
+	if Earlier(records[:1]) != nil || Earlier(nil) != nil || Reference(records[:1]) != nil || Reference(nil) != nil {
 		t.Fatal("a record with none before it has a reference")
 	}
 
@@ -383,21 +383,30 @@ func TestReferenceIsEachCellsNewestEarlierMeasurement(t *testing.T) {
 	}
 }
 
-// TestADeclineMustPassTheColumnsNoise holds each column to what a decline is in it: a
-// quality only by float32 arithmetic, a count of setup steps by any increase, a failed
-// share by more than one failure beyond what the earlier share predicts at the attempts
-// counted now (and not at all when either share lost its attempts), and the four
-// performance columns by more than their frozen allowances, each side of the line.
-func TestADeclineMustPassTheColumnsNoise(t *testing.T) {
+// TestADeclineMustPassWhatItsReferenceAllows holds each column to what a decline is in it. A
+// timing or a peak memory declines by more than its reference allows, each side of the line,
+// and is Unknown against a reference whose readings are too few. A quality, a count of setup
+// steps and a memory whose reference allows nothing decline by any move the scorecard's four
+// printed digits show and by none they do not: one case lost of ten thousand is a decline, a
+// perplexity that moved by parts in a billion and a peak memory a few hundred bytes larger
+// are not. A failed share declines by more than one failure beyond what the earlier share
+// predicts at the attempts counted now, and not at all when either share lost its attempts.
+func TestADeclineMustPassWhatItsReferenceAllows(t *testing.T) {
 	t.Parallel()
 	contract := Contract{Metric: "rate", Origin: originServing}
 	cell := func(value float64) Cell { return Cell{Value: value, Contract: contract} }
+	allowing := func(value, allowed float64) Cell { return Cell{Value: value, Contract: contract, allowed: allowed} }
 	failed := func(failures, attempts int) Cell {
 		return Cell{Value: float64(failures) / float64(attempts), Attempts: attempts, Contract: contract}
 	}
 	setup := func(steps float64) Cell {
 		return Cell{Value: steps, Contract: Contract{Metric: "transitions", Origin: originLifecycle}}
 	}
+	scored := func(value float64, direction runrecord.Direction) Cell {
+		return Cell{Value: value, Direction: direction, Contract: contract}
+	}
+	few := cell(100)
+	few.unjudged = "three earlier readings"
 	for _, test := range []struct {
 		name         string
 		column       metric.Name
@@ -405,16 +414,22 @@ func TestADeclineMustPassTheColumnsNoise(t *testing.T) {
 		wantVerdict  Verdict
 		wantContains string
 	}{
-		{"first output inside the allowance", metric.FirstOutput, cell(100), cell(134), holding, ""},
-		{"first output beyond it", metric.FirstOutput, cell(100), cell(160), regressed, "+60.0%"},
-		{"first output faster", metric.FirstOutput, cell(100), cell(40), holding, ""},
-		{"throughput inside the allowance", metric.Throughput, cell(40), cell(35), holding, ""},
-		{"throughput beyond it", metric.Throughput, cell(40), cell(33), regressed, "-17.5%"},
-		{"throughput faster", metric.Throughput, cell(40), cell(80), holding, ""},
-		{"load inside the allowance", metric.Load, cell(5000), cell(7000), holding, ""},
-		{"load beyond it", metric.Load, cell(5000), cell(8000), regressed, ""},
-		{"peak memory a rounding more", metric.PeakMemory, cell(1000), cell(1005), holding, ""},
-		{"peak memory more", metric.PeakMemory, cell(1000), cell(1020), regressed, ""},
+		{"first output inside what its reference allows", metric.FirstOutput, allowing(100, 35), cell(134), holding, ""},
+		{"first output beyond it", metric.FirstOutput, allowing(100, 35), cell(160), regressed, "+60.0%, allowed 35;"},
+		{"first output faster", metric.FirstOutput, allowing(100, 35), cell(40), holding, ""},
+		{"first output against too few readings", metric.FirstOutput, few, cell(160), Unknown, "three earlier readings"},
+		{"throughput inside what its reference allows", metric.Throughput, allowing(40, 6), cell(35), holding, ""},
+		{"throughput beyond it", metric.Throughput, allowing(40, 6), cell(33), regressed, "-17.5%"},
+		{"throughput faster", metric.Throughput, allowing(40, 6), cell(80), holding, ""},
+		{"load inside what its reference allows", metric.Load, allowing(5000, 2500), cell(7000), holding, ""},
+		{"load beyond it", metric.Load, allowing(5000, 2500), cell(8000), regressed, ""},
+		{"peak memory a few hundred bytes more", metric.PeakMemory, cell(5650920830), cell(5650921340), holding, ""},
+		{"peak memory a printed digit more", metric.PeakMemory, cell(5650920830), cell(5652000000), regressed, "allowed 500000;"},
+		{"a quality one case in ten thousand lower", metric.Quality, scored(0.2855, runrecord.DirectionMaximize), scored(0.2854, runrecord.DirectionMaximize), regressed, ""},
+		{"a full quality one case in ten thousand lower", metric.Quality, scored(1, runrecord.DirectionMaximize), scored(0.9999, runrecord.DirectionMaximize), regressed, ""},
+		{"a quality a summation order lower", metric.Quality, scored(0.2855, runrecord.DirectionMaximize), scored(0.2855*(1-1e-8), runrecord.DirectionMaximize), holding, ""},
+		{"a perplexity parts in a billion higher", metric.Quality, scored(910.321, runrecord.DirectionMinimize), scored(910.321+6.5e-6, runrecord.DirectionMinimize), holding, ""},
+		{"a perplexity a printed digit higher", metric.Quality, scored(910.321, runrecord.DirectionMinimize), scored(910.4, runrecord.DirectionMinimize), regressed, ""},
 		{"setup steps the same", metric.SetupSteps, setup(3), setup(3), holding, ""},
 		{"setup steps one more", metric.SetupSteps, setup(3), setup(4), regressed, "+1"},
 		{"setup steps fewer", metric.SetupSteps, setup(4), setup(3), holding, ""},

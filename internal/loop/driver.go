@@ -8,7 +8,7 @@
 // after the attempt budget. Continuity is a for-loop in a process that cannot
 // be talked out of anything, so it works regardless of harness or model. When
 // the plan empties, the scorecard measures what the work changed, each cell
-// is compared with its newest earlier measurement, and the gaps become the next rows.
+// is judged against what its earlier readings held, and the gaps become the next rows.
 package loop
 
 import (
@@ -82,7 +82,7 @@ type ObligationWorld interface {
 
 // ImprovementWorld is the optional world extension that closes the
 // improvement loop each time the plan empties: the scorecard run measures, each
-// cell is compared with its newest earlier complete measurement, and the run's
+// cell is judged against what its earlier readings held, and the run's
 // gaps, the declines among them, return as plan rows, the next work.
 type ImprovementWorld interface {
 	// Measure runs the scorecard at the main checkout's HEAD, in a checkout
@@ -292,8 +292,8 @@ func improve(world World) (int, error) {
 }
 
 // Improve runs one improvement cycle: it measures the scorecard, proposes
-// the gaps as rows (each cell compared with its newest earlier complete
-// measurement, so a decline is a row and an Unknown is only reported), then fills
+// the gaps as rows (each cell judged against what its earlier readings
+// held, so a decline is a row and an Unknown is only reported), then fills
 // the validations the scorecard does not compare at the measured commit. The
 // measurement and the fill record their claims in a checkout of that commit
 // apart from the main one, so rows land while they run and the proposals do not

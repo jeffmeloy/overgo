@@ -58,8 +58,9 @@ type Cell struct {
 	Attempts int `json:"attempts,omitzero"`
 	// Spread is how far the recent measured attempts a serving timing is the median of stand from it:
 	// their median distance from that median, as a share of it, which one attempt far from the others
-	// does not widen. A later record's cell is allowed it beside the column's noise; the cell itself
-	// never is. Zero where one attempt measured it.
+	// does not widen. It is stated beside the reading and judges nothing: what a later record's cell
+	// is allowed is its reference's, from the cell's earlier readings (Reference). Zero where one
+	// attempt measured it.
 	Spread float64 `json:"spread,omitzero"`
 	// Cases is how many cases a held-out quality rests on: a suite's cases, a
 	// held-out verdict's records, a transcription report's utterances. Zero
@@ -97,6 +98,12 @@ type Cell struct {
 	// is counted wrong, so a reading with many says as much of how answers are
 	// read as of what the model knows.
 	Unread uint64 `json:"unread,omitzero"`
+	// allowed and unjudged are a reference's alone (Reference) and are never
+	// published: how far, in the cell's unit, a later reading may stand worse
+	// than the reference's value, and why nothing is judged against it, said
+	// where its earlier readings are too few to say what the cell holds.
+	allowed  float64
+	unjudged string
 }
 
 // QualityText renders a held-out quality as a user reads it: its value, its
@@ -123,7 +130,7 @@ func (c Cell) QualityText() string {
 	if c.Constant != nil {
 		advantage, directed := c.Direction.Advantage(c.Value, *c.Constant)
 		switch {
-		case !worse(metric.Quality, c.Direction, *c.Constant, c.Value, 0):
+		case !worse(c.Direction, *c.Constant, c.Value, 0):
 			text += fmt.Sprintf(", no better than the %.4g a constant answer scores", *c.Constant)
 		case directed && advantage < noiseDeviates*c.Noise:
 			// Better by less than its own noise tells nothing from a constant answer.

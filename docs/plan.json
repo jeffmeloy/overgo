@@ -66,21 +66,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 504,
+        "nodes": 0,
         "reason": "measured by the preflight of step reference-and-noise's change at 3e3980f5f: the reference built from a cell's own readings, the printed-digits floor, and the earlier-measurement reader the printed moves keep, less the frozen allowances and the float32 comparison"
       },
       "steps": [
-        {
-          "id": "reference-and-noise",
-          "title": "Judge a reading against a fixed reference by its measured noise",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestScorecardUsesCompatibleFixedReferencesAndMetricSpecificEvidence$'",
-          "rationale": "From the proposal, kept; the sizing of a reading moved to step spread. The reference is only the newest earlier record (reviewer finding SQA-102, step 2), so three runs each 30% slower pass, 2.2 times slower in all; the four allowances are those frozen from contended runs; quality is compared at float32 precision while its stated noise judges nothing. Three quiet readings gave gemma-4-12B-it-fp8 27.68, 21.17 and 35.67 tok/s, wider than the allowance of 0.15 (19ff19be7). An allowance is taken from quiet repeats, a fixed campaign reference is kept beside the newest record, two suites are never compared as one cell, and a quality move is judged by the exact paired test over the cases answered differently (internal/evaluation/instruction_acceptance.go). Too little evidence reads unknown, never equal.\nServes: every column: a regression row for a real change and for no other.\nDisappears: the frozen allowances and the float32 comparison of quality.\nEvidence: the scorecard's history judged both ways; a run of small declines that is large in sum is caught.\nBatch: host fixtures and quiet-run calibration.\n\nDecided by the lead on 2026-10-13, from the 32 published records (tmp/trustworthy-measurement). Nobody sets the fixed reference: it is the best level three consecutive readings held among a cell's newest nine distinct readings on its contract and environment, and it moves when a better level is held twice or the level leaves the nine. The allowance is the cell's own: eight times the median distance between its consecutive readings. No calibration run is taken: the nine readings turn over as quiet runs publish. Fewer than five readings read Unknown. A quality, a setup count and a memory with no noise are judged by the printed digits, which replaces the float32 comparison. This step is that much, in the published records alone. The paired test of a quality move reads the store and is step paired-quality.",
-          "depends_on": [
-            "trustworthy-measurement/spread",
-            "trustworthy-measurement/exclusive"
-          ]
-        },
         {
           "id": "paired-quality",
           "title": "Judge a held-out quality move by the exact paired test over the cases answered differently",

@@ -68,7 +68,7 @@ func writeScorecard(ctx context.Context, store *overgodb.Store, root, records st
 		_, err = fmt.Fprintf(output, "\nPublished %s, the first record: nothing to compare with.\n", path)
 		return err
 	}
-	if moved := scorecardMoves(*scorecard.Reference(append(previous, current)), current); len(moved) != 0 {
+	if moved := scorecardMoves(*scorecard.Earlier(append(previous, current)), current); len(moved) != 0 {
 		_, err = fmt.Fprintf(output, "\nPublished %s. Since the previous record:\n%s\n", path, strings.Join(moved, "\n"))
 		return err
 	}
@@ -92,7 +92,7 @@ func lastRecord(storeRoot string) (*scorecard.Record, error) {
 // of the row the loop proposed for the gap. A decline's key names one cell and
 // target is the value it is to be restored to, which the row carries from the
 // cycle that first found the decline; the gap is closed when the cell is back at
-// it, not worse by more than the column's noise. A key that names no gap the
+// it. A key that names no gap the
 // scorecard can propose fails too: it would read as closed for ever.
 func openGap(ctx context.Context, store *overgodb.Store, records, key string, target *float64, output io.Writer) error {
 	if !scorecard.KnownGapKey(key) {

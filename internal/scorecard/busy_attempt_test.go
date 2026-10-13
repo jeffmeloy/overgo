@@ -103,9 +103,6 @@ func TestOneBusyAttemptCannotMaskADecline(t *testing.T) {
 	if busy.Value != 157.34 || busy.Source != quiet {
 		t.Errorf("first output with a busy attempt of 308.4 ms newest = %v from %s, want the median 157.34 from the attempt that read it, %s", busy.Value, busy.Source, quiet)
 	}
-	if verdict, why := holds(metric.FirstOutput, two, busy); verdict != holding {
-		t.Errorf("a busy attempt of 308.4 ms after 128 and 157.34: holds = %q (%s), want %q: one attempt beside other work is no decline", verdict, why, holding)
-	}
 	attempt(text, here, 132.15)
 	reference := published(text)
 	if reference.Value != 157.34 || !near(reference.Spread, (157.34-132.15)/157.34) || reference.Source != quiet {
@@ -127,22 +124,30 @@ func TestOneBusyAttemptCannotMaskADecline(t *testing.T) {
 		t.Errorf("70 ms after whole outputs of 340, 13 and 14 ms, the reference at %v with spread %v: holds = %q (%s), want %q: no reading could file under a spread above one", slow.Value, slow.Spread, verdict, why, regressed)
 	}
 
-	// The noisy operation, judged one publication at a time, an attempt a publication.
-	var before Cell
+	// The noisy operation, a publication an attempt. Its six publications are one cell's readings, and
+	// what they allow the next is the reference's to say: 46 ms holds what they held, and 70 does not.
+	var readings []Record
 	for index, step := range []struct{ ms, median float64 }{{8.96, 8.96}, {16.37, (8.96 + 16.37) / 2}, {23.03, 16.37}, {49.12, 23.03}, {18.07, 23.03}, {30.51, 30.51}} {
 		newest := attempt(noisy, here, step.ms)
 		cell := published(noisy)
 		if !near(cell.Value, step.median) {
 			t.Errorf("the noisy operation after its reading of %v ms = %v, want the median %v", step.ms, cell.Value, step.median)
 		}
-		if index == 0 {
-			if cell.Source != newest || cell.Spread != 0 {
-				t.Errorf("a cell of one attempt = spread %v from %s, want no spread and that attempt, %s", cell.Spread, cell.Source, newest)
-			}
-		} else if verdict, why := holds(metric.FirstOutput, before, cell); verdict != holding {
-			t.Errorf("the noisy operation's reading of %v ms: holds = %q (%s), want %q: its readings differ this much with nothing changed", step.ms, verdict, why, holding)
+		if index == 0 && (cell.Source != newest || cell.Spread != 0) {
+			t.Errorf("a cell of one attempt = spread %v from %s, want no spread and that attempt, %s", cell.Spread, cell.Source, newest)
 		}
-		before = cell
+		readings = append(readings, Record{Rows: []Row{measuredFixture(noisy, map[metric.Name]Cell{metric.FirstOutput: cell})}})
+	}
+	// The five distinct readings are 8.96, 12.665, 16.37, 23.03 and 30.51 ms: the level is 12.665, the
+	// best three in a row held, and eight times their median step of 5.1825 ms is allowed beyond it.
+	against := Reference(append(readings, Record{})).Rows[0].Cells[metric.FirstOutput]
+	if !near(against.Value, (8.96+16.37)/2) || !near(against.allowed, noiseMultiple*(3.705+6.66)/2) {
+		t.Errorf("the noisy operation's reference = %v allowing %v, want its best level 12.665 allowing eight times the 5.1825 its readings step by", against.Value, against.allowed)
+	}
+	for ms, want := range map[float64]Verdict{54: holding, 55: regressed} {
+		if verdict, why := holds(metric.FirstOutput, against, at(against, ms)); verdict != want {
+			t.Errorf("the noisy operation at %v ms: holds = %q (%s), want %q: its own readings allow 41.46 ms beyond 12.665", ms, verdict, why, want)
+		}
 	}
 
 	// Two attempts under another environment lie between the two taken under this one.
@@ -162,7 +167,7 @@ func TestOneBusyAttemptCannotMaskADecline(t *testing.T) {
 	attempt(stepped, here, 160)
 	once := published(stepped)
 	if verdict, why := holds(metric.FirstOutput, steady, once); once.Value != 100 || verdict != holding {
-		t.Errorf("one attempt of 160 ms after three of 100 = %v: holds = %q (%s), want 100 and %q: one slow attempt is not yet a step", once.Value, verdict, why, holding)
+		t.Errorf("one attempt of 160 ms after three of 100 = %v: holds = %q (%s), want 100 and %q: one slow attempt is not yet a step, and the reading has not moved", once.Value, verdict, why, holding)
 	}
 	attempt(stepped, here, 160)
 	twice := published(stepped)

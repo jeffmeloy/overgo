@@ -102,13 +102,110 @@ func (record Record) explained() error {
 	return nil
 }
 
-// Reference is what the newest record's cells are compared with: the cells of the
-// newest earlier record, each one that record did not measure taken from the newest
-// older record that did, so a cell is judged against its newest earlier complete
-// measurement and never against nothing. A value is never carried forward in place
-// of a missing current one: the reference only ever answers a cell the newest record
-// has. Nil when no record is earlier.
+// Reference is what the newest record's cells are judged against: its earlier
+// measurements (Earlier), with each cell of a column that a repeat of the same work
+// reads differently replaced by what the cell's own readings say of it.
+//
+// A cell's readings are the values the earlier records hold for it on its contract,
+// environment and direction, each source once and oldest first, the newest
+// referenceWindow of them. Its value is the best level they held, a level being the
+// median of levelReadings consecutive readings: one reading far from its neighbours is
+// no level, an improvement is one once two readings hold it, and a run of small
+// declines is judged against where the cell stood before them, not against the
+// reading before the last. What a later reading is allowed is noiseMultiple times the
+// median distance between consecutive readings, which a step among them does not
+// widen. Fewer than fewestReadings say neither, and such a cell is Unknown, never
+// holding. A level leaves with the window, so a decline that stands is a decline until
+// then. Nil when no record is earlier.
 func Reference(records []Record) *Record {
+	reference := Earlier(records)
+	if reference == nil {
+		return nil
+	}
+	earlier := records[:len(records)-1]
+	for _, row := range reference.Rows {
+		for _, column := range repeated {
+			cell := row.Cells[column]
+			if !cell.Measured() {
+				continue
+			}
+			var readings []float64
+			var read Cell
+			for _, record := range earlier {
+				at := slices.IndexFunc(record.Rows, func(candidate Row) bool { return candidate.Model == row.Model && candidate.Task == row.Task })
+				if at < 0 {
+					continue
+				}
+				// The value a later record carries from the same source is the same reading.
+				if one := record.Rows[at].Cells[column]; one.Measured() && one.Contract == cell.Contract && one.Environment == cell.Environment && one.Direction == cell.Direction &&
+					(len(readings) == 0 || !one.Source.Valid() || one.Source != read.Source || one.Value != read.Value) {
+					readings, read = append(readings, one.Value), one
+				}
+			}
+			readings = readings[max(0, len(readings)-referenceWindow):]
+			if len(readings) < fewestReadings {
+				cell.unjudged = fmt.Sprintf("%d earlier readings on its contract, fewer than the %d that say what it holds and how far it moves", len(readings), fewestReadings)
+				row.Cells[column] = cell
+				continue
+			}
+			direction := cmp.Or(cell.Direction, columnDirections[column])
+			moves := make([]float64, len(readings)-1)
+			for index := range moves {
+				moves[index] = math.Abs(readings[index+1] - readings[index])
+			}
+			cell.Value, cell.allowed = median(slices.Clone(readings[:levelReadings])), noiseMultiple*median(moves)
+			for from := 1; from+levelReadings <= len(readings); from++ {
+				held := median(slices.Clone(readings[from : from+levelReadings]))
+				if advantage, _ := direction.Advantage(held, cell.Value); advantage > 0 {
+					cell.Value = held
+				}
+			}
+			row.Cells[column] = cell
+		}
+	}
+	return reference
+}
+
+// repeated are the columns a repeat of the same work reads differently: the three
+// timings and the device's peak memory. A held-out quality and a count of setup
+// steps are what the work gave and repeat to the digit, and the failed share is
+// judged by its attempts.
+var repeated = []metric.Name{metric.FirstOutput, metric.Throughput, metric.Load, metric.PeakMemory}
+
+// What a cell of a repeated column is judged by (Reference). The four were chosen on
+// the 32 records published from 2026-09-30 to 2026-10-13, judged in turn by this code
+// with each cell's readings taken as the medians of three that a record publishes
+// since 2026-10-13 (a replay the commit that set them describes). At eight times its
+// noise the rule files 42 load-time readings on 14 cells, none of them back at its target
+// by the cell's next reading: most are the growth of the store's open, which the
+// frozen allowances filed 2 of. It files 7 first-output and 2 throughput readings, 1
+// of the 9 back at its target by the next reading. At six times it files 17 of those
+// two columns with 5 back, and at four times 29 with 7 back. At ten times it files
+// 5 with 1 back and loses two of the load-time cells. Those readings were taken
+// beside other work, so they are the noisiest the cells will be judged on.
+const (
+	// referenceWindow is how many of a cell's newest distinct readings judge it: wide
+	// enough that eight small declines in a row are judged against the first, and
+	// narrow enough that readings taken beside other work, as all before 2026-10-13
+	// were, leave it within nine more.
+	referenceWindow = 9
+	// levelReadings is how many consecutive readings hold a level, the fewest whose
+	// median one reading far from the others does not move.
+	levelReadings = 3
+	// fewestReadings is the fewest readings that judge a cell: four distances between
+	// consecutive readings, whose median neither the largest nor the smallest sets.
+	fewestReadings = 5
+	// noiseMultiple is how many times its noise a reading may stand worse than its level.
+	noiseMultiple = 8
+)
+
+// Earlier is each cell's newest earlier measurement, which what moved since the
+// previous record is read against: the cells of the newest earlier record, each one
+// that record did not measure taken from the newest older record that did, so a cell
+// is compared with its newest earlier complete measurement and never with nothing. A
+// value is never carried forward in place of a missing current one: it only ever
+// answers a cell the newest record has. Nil when no record is earlier.
+func Earlier(records []Record) *Record {
 	if len(records) <= 1 {
 		return nil
 	}
@@ -228,13 +325,14 @@ func ContractDifference(now, then Contract) string {
 
 // holds reports how now holds the reference's measured cell then of a column,
 // and why when it does not. It has regressed when now measured it on the same
-// contract and direction and it got worse by more than the column's noise or the
-// reference's spread allows (see worse); now's own spread counts the step being
-// judged and allows nothing. A failed share regresses when more attempts failed than
-// the earlier share predicts for the attempts counted now, by more than one. It is
-// Unknown when now is not measured, measured only another contract, then has no
-// contract, or a serving cell's environment is not its reference's, as when only one
-// of the two names any: two that both name none still compare.
+// contract and direction and it got worse by more than the reference allows (see
+// worse); now's own readings count the step being judged and allow nothing. A
+// failed share regresses when more attempts failed than the earlier share predicts
+// for the attempts counted now, by more than one. It is Unknown when now is not
+// measured, measured only another contract, then has no contract, a serving cell's
+// environment is not its reference's, as when only one of the two names any (two
+// that both name none still compare), or the reference's earlier readings are too
+// few to judge by.
 func holds(column metric.Name, then, now Cell) (Verdict, string) {
 	switch {
 	case !now.Measured():
@@ -251,67 +349,46 @@ func holds(column metric.Name, then, now Cell) (Verdict, string) {
 		return Unknown, fmt.Sprintf("improves in direction %q, the reference in %q", now.Direction, then.Direction)
 	case column == metric.Failures && (then.Attempts == 0 || now.Attempts == 0):
 		return Unknown, "the failed share was published without the attempts it counts"
+	case then.unjudged != "":
+		return Unknown, then.unjudged
 	}
-	declined := worse(column, cmp.Or(now.Direction, columnDirections[column]), now.Value, then.Value, then.Spread)
+	declined := worse(cmp.Or(now.Direction, columnDirections[column]), now.Value, then.Value, then.allowed)
 	if column == metric.Failures {
 		declined = now.Value*float64(now.Attempts)-then.Value*float64(now.Attempts) > failureNoise
 	}
 	if declined {
-		return regressed, fmt.Sprintf("%.9g to %.9g (%+.9g, %+.1f%%; %s)", then.Value, now.Value, now.Value-then.Value, percent*(now.Value-then.Value)/then.Value, now.Label)
+		return regressed, fmt.Sprintf("%.9g to %.9g (%+.9g, %+.1f%%, allowed %.9g; %s)", then.Value, now.Value, now.Value-then.Value, percent*(now.Value-then.Value)/then.Value,
+			max(then.allowed, unread(min(math.Abs(now.Value), math.Abs(then.Value)))), now.Label)
 	}
 	return holding, ""
 }
 
-// worse reports whether value is worse than reference in the column's direction
-// by more than the column's noise allows, or than spread, whichever is more: the
-// spread of the reference's attempts, measured before the value judged existed, so
-// a value's own step never widens what it is allowed. A value with no direction never is.
-func worse(column metric.Name, direction runrecord.Direction, value, reference, spread float64) bool {
+// worse reports whether value is worse than reference in direction by more than
+// allowed, or by more than the scorecard's printed digits show of the smaller of the
+// two (unread), whichever is more. What is allowed is the reference's, measured before
+// the value judged existed, so a value's own step never widens it. A value with no
+// direction never is.
+func worse(direction runrecord.Direction, value, reference, allowed float64) bool {
 	advantage, directed := direction.Advantage(value, reference)
-	return directed && -advantage > max(allowances[column], spread)*max(math.Abs(value), math.Abs(reference))
+	return directed && -advantage > max(allowed, unread(min(math.Abs(value), math.Abs(reference))))
 }
 
-// float32Precision is the relative precision of the float32 logits every
-// held-out quality is computed from. Two values closer than this for their
-// size differ in summation order, as a kernel's reduction order does across
-// commits, not in what the model answered: a re-measured perplexity moves by
-// parts per billion, while one case lost in a million moves an accuracy by
-// many times this.
-const float32Precision = 0x1p-23
+// printedDigits is how many significant digits the scorecard prints of a value
+// (QualityText, and the table and the moves of the validate command).
+const printedDigits = 4
 
-// allowances are how far a column's value may move against its reference, as a
-// share of the larger of the two, before it counts as worse. A quality moves
-// only by float32 arithmetic; a count of setup steps and the failed share move
-// by what happened, so they allow nothing (the failed share is judged by
-// failureNoise as well); the four performance columns allow what identical
-// repeat runs moved: the largest, over the eight consecutive pairs of the nine
-// records published on 2026-10-04 and 2026-10-05 (tmp/noise_profile.go), of the
-// pair's 90th percentile of the change of every re-measured cell on one contract
-// (28 first-output, 14 throughput, 33 load and 23 peak-memory cells a pair),
-// rounded up to a twentieth: first output 0.346 (0.135 to 0.346 by pair),
-// throughput 0.104 (0.041 to 0.104), load 0.352 (0.144 to 0.352), and peak
-// device memory unchanged to the byte, which its allowance only keeps from
-// reading a rounding as a decline. Those cells were measured with landings
-// running beside them, so these are the widest the noise has been: refreeze
-// them from the cycles that ran on a quiet machine (landing.Measuring) as those accumulate.
-var allowances = map[metric.Name]float64{
-	metric.Quality:     float32Precision,
-	metric.FirstOutput: firstOutputAllowance,
-	metric.Throughput:  throughputAllowance,
-	metric.Load:        loadAllowance,
-	metric.PeakMemory:  peakMemoryAllowance,
-	metric.SetupSteps:  0,
-	metric.Failures:    0,
+// unread is half a unit of the last digit the scorecard prints of value: a move
+// smaller than it is one no reader of the scorecard sees, and is no decline. It is
+// what keeps a held-out quality computed from float32 logits in another order of
+// summation, a re-measured perplexity that moves by parts in a billion, and a peak
+// memory a few hundred bytes larger from reading as declines, while one case lost
+// of ten thousand still is one. Zero has no digit and allows nothing.
+func unread(value float64) float64 {
+	if value == 0 {
+		return 0
+	}
+	return half * math.Pow10(int(math.Floor(math.Log10(math.Abs(value))))-printedDigits+1)
 }
-
-// The frozen allowances of the performance columns, each a share of the larger of
-// the two values compared, as the allowances above derive them.
-const (
-	firstOutputAllowance = 0.35
-	throughputAllowance  = 0.15
-	loadAllowance        = 0.35
-	peakMemoryAllowance  = 0.01
-)
 
 // percent renders a change as users read it.
 const percent = 100
@@ -376,14 +453,15 @@ func KnownGapKey(key string) bool {
 }
 
 // Restored reports whether the cell a decline's key names, read from rows, is
-// back at target: measured, and not worse than it by more than the column's
-// noise. found says whether a cell carries the key at all.
+// back at target: measured, and not worse than it by more than the scorecard's
+// printed digits show. A target already holds what the cell's readings allowed
+// (Gap). found says whether a cell carries the key at all.
 func Restored(rows []Row, key string, target float64) (restored, found bool) {
 	for _, row := range rows {
 		for _, column := range metric.Columns {
 			for _, cell := range row.Measured(column) {
 				if regressionKey(row, column, cell) == key {
-					return !worse(column, cmp.Or(cell.Direction, columnDirections[column]), cell.Value, target, 0), true
+					return !worse(cmp.Or(cell.Direction, columnDirections[column]), cell.Value, target, 0), true
 				}
 			}
 		}
@@ -395,8 +473,10 @@ func Restored(rows []Row, key string, target float64) (restored, found bool) {
 // row that falls short and its reason or values. Key names the gap the same
 // way in every record, so its row is proposed once and its verifier finds
 // it again. A decline names one cell, and Target is the value that cell is
-// to be restored to: the earlier one it declined from, kept by the row proposed
-// the first time and never replaced by a later, worse one.
+// to be restored to: the worst value that would have held its reference, which
+// is the reference's value, worse by what the cell's readings allowed. It is
+// kept by the row proposed the first time and never replaced by a later, worse
+// one.
 type Gap struct {
 	Key, Title, Detail string
 	kind               string
@@ -404,9 +484,18 @@ type Gap struct {
 	Restore            bool
 }
 
+// bar is the worst value in direction that holds a reference's cell: its value,
+// worse by what it allows.
+func (c Cell) bar(direction runrecord.Direction) float64 {
+	if direction == runrecord.DirectionMaximize {
+		return c.Value - c.allowed
+	}
+	return c.Value + c.allowed
+}
+
 // Gaps lists the record's gaps against its reference, which may be nil: each
 // cell no record measures, each failure-rate above zero, each cell that declined
-// against its reference by more than the column's noise (one gap for each, by
+// against its reference by more than the reference allows (one gap for each, by
 // its model, task, measure and contract; a cell nothing compares, or that the
 // record no longer has, is Unknown and reported by Moves, never filed), each
 // held-out quality that is not applicable because its task's held-out
@@ -436,9 +525,10 @@ func (record Record) Gaps(reference *Record) []Gap {
 		for _, column := range metric.Columns {
 			for _, comparison := range pair.Compare(column) {
 				if comparison.Verdict == regressed {
+					target := comparison.Then.bar(cmp.Or(comparison.Now.Direction, columnDirections[column]))
 					declines = append(declines, Gap{
-						Key: regressionKey(*row, column, comparison.Now), kind: string(regressed), Restore: true, Target: comparison.Then.Value,
-						Title:  fmt.Sprintf("Restore %s %s %s to %.9g %s", row.Name, row.Task, column, comparison.Then.Value, comparison.Then.Unit),
+						Key: regressionKey(*row, column, comparison.Now), kind: string(regressed), Restore: true, Target: target,
+						Title:  fmt.Sprintf("Restore %s %s %s to %.9g %s", row.Name, row.Task, column, target, comparison.Then.Unit),
 						Detail: fmt.Sprintf("- %s %s, %+v: %s\n", row.Name, column, comparison.Now.Contract, comparison.Why),
 					})
 				}
@@ -454,7 +544,7 @@ func (record Record) Gaps(reference *Record) []Gap {
 				add(gapFailing, row, column, cell.Label)
 			}
 		}
-		if cell := row.Cells[metric.Quality]; cell.Measured() && cell.Base != nil && worse(metric.Quality, cell.Direction, cell.Value, *cell.Base, 0) {
+		if cell := row.Cells[metric.Quality]; cell.Measured() && cell.Base != nil && worse(cell.Direction, cell.Value, *cell.Base, 0) {
 			add(gapBelowBase, row, metric.Quality, cell.QualityText())
 		}
 		if row.PathUnchecked() {

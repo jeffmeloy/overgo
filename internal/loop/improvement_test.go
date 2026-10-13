@@ -91,7 +91,7 @@ func TestDriverStartsATriggeredCycleBeforeTheNextStep(t *testing.T) {
 
 // TestCycleFilesDeclinesAndAcceptsNothing empties the plan against scripted
 // scorecards and holds the cycle to what it does: each cell is compared with its
-// reference, and a decline beyond the column's noise, in held-out quality in the
+// reference, and a decline beyond what the reference allows, in held-out quality in the
 // metric's own direction or in throughput, is proposed as a gap of its own, whatever
 // else improved; a quality nothing compares (another suite, a row the record lost, no
 // reference at all) is reported and proposes no decline, and no run proposes an
@@ -133,9 +133,9 @@ func TestCycleFilesDeclinesAndAcceptsNothing(t *testing.T) {
 		// declined says a decline is proposed; unmeasured, that a measurement to take is.
 		declined, unmeasured bool
 	}{
-		{name: "held quality, a little slower, failing", reference: record("a", accuracy(0.5, "mmlu"), 40, 0), published: record("b", accuracy(0.5, "mmlu"), 38, 0.1)},
+		{name: "held quality and throughput, failing", reference: record("a", accuracy(0.5, "mmlu"), 40, 0), published: record("b", accuracy(0.5, "mmlu"), 40, 0.1)},
 		{name: "accuracy fell while throughput rose", reference: record("a", accuracy(0.5, "mmlu"), 40, 0), published: record("b", accuracy(0.4, "mmlu"), 50, 0), declined: true},
-		{name: "throughput fell beyond its noise", reference: record("a", accuracy(0.5, "mmlu"), 40, 0), published: record("b", accuracy(0.5, "mmlu"), 30, 0), declined: true},
+		{name: "throughput fell", reference: record("a", accuracy(0.5, "mmlu"), 40, 0), published: record("b", accuracy(0.5, "mmlu"), 30, 0), declined: true},
 		{name: "perplexity rose", reference: record("a", perplexity(900), 40, 0), published: record("b", perplexity(950), 40, 0), declined: true},
 		{name: "perplexity fell", reference: record("a", perplexity(900), 40, 0), published: record("b", perplexity(850), 40, 0)},
 		{name: "another suite scores lower", reference: record("a", accuracy(0.5, "mmlu"), 40, 0), published: record("b", accuracy(0.2, "mmlu-pro"), 40, 0)},

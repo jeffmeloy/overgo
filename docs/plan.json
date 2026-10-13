@@ -61,28 +61,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "store-open",
-      "title": "A store open replays little, so a model's load is the model's",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "measured by the preflight of step bound's change at e068a6513: a writer that closes with more than a bound of records past the checkpoint writes one, a handle whose journal was sealed rebuilds from the checkpoint as an open does, and the open and the rebuild share one function"
-      },
-      "steps": [
-        {
-          "id": "installed",
-          "title": "Write the installed store's checkpoint at its head by the maintenance protocol, and read the load-time cells again",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -count=1 -run '^TestAnOpenReplaysNoMoreThanTheBound$'",
-          "rationale": "The installed store is changed only by the lead's maintenance protocol: a sealed backup first (go run ./cmd/overgodb backup), the change proved on a candidate (overgodb precheck -backup \u003cdir\u003e -swap), and the superseded store kept until the next commit passes.\n\nMust hold\n- the installed store has a checkpoint generation at or near its head\n- the journey's store open part on MiniCPM5-1B and Qwen3.5-9B-Q8_0 reads a small fraction of 3.6 s\n- the accepted census is unchanged\n\nServes: load-time on every row.\nDisappears: about 3.6 s of every load on this machine.\nEvidence: the journey before and after; the census check against the installed store.\nBatch: store maintenance, then device readings by hand.",
-          "depends_on": [
-            "store-open/bound"
-          ]
-        }
-      ]
-    },
-    {
       "id": "trustworthy-measurement",
       "title": "Make a timing and a quality reading trustworthy before anything is judged by them",
       "owner": "master-lead",

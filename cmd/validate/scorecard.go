@@ -154,6 +154,9 @@ func scorecardMoves(previous, current scorecard.Record) []string {
 			case unknown:
 			case now.Measured() && !then.Measured():
 				moved = append(moved, fmt.Sprintf("- %s: now measured, %.4g %s", heading, now.Value, now.Unit))
+			case then.Measured() && now.Contract != then.Contract:
+				// Two headline cells of two contracts, as when a row's headline suite changed, are no difference.
+				moved = append(moved, "- "+heading+": "+scorecard.ContractDifference(now.Contract, then.Contract))
 			case now.Value != then.Value:
 				moved = append(moved, fmt.Sprintf("- %s: %.4g to %.4g %s (%+.4g)", heading, then.Value, now.Value, now.Unit, now.Value-then.Value))
 			}

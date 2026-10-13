@@ -12,12 +12,12 @@ func TestAContractDifferenceIsSaidInWords(t *testing.T) {
 	t.Parallel()
 	now := Contract{Metric: "token-accuracy", Origin: originEvaluation, Suite: "suite-a"}
 	then := Contract{Metric: "token-accuracy", Origin: originEvaluation, Suite: "suite-b"}
-	got := contractDifference(now, then)
+	got := ContractDifference(now, then)
 	if want := `measured on another contract: the suite is "suite-a", the reference's "suite-b"`; got != want {
 		t.Fatalf("difference = %q, want %q", got, want)
 	}
 	then.Metric, then.Origin = "accuracy", originServing
-	got = contractDifference(now, then)
+	got = ContractDifference(now, then)
 	for _, part := range []string{`the measure is "token-accuracy", the reference's "accuracy"`, `the origin is "evaluation", the reference's "serving"`} {
 		if !strings.Contains(got, part) {
 			t.Errorf("difference %q does not say %s", got, part)

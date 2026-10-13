@@ -209,10 +209,10 @@ func (pair Pair) Compare(column metric.Name) []Comparison {
 	return comparisons
 }
 
-// contractDifference says in words how two contracts differ, naming each part
+// ContractDifference says in words how two contracts differ, naming each part
 // that does: the measure, where its value comes from, the suite and protocol it
 // was scored on, the comparison authority, and the recipe it was measured under.
-func contractDifference(now, then Contract) string {
+func ContractDifference(now, then Contract) string {
 	var differing []string
 	for _, part := range []struct{ name, now, then string }{
 		{"the measure", now.Metric, then.Metric}, {"the origin", now.Origin, then.Origin},
@@ -244,7 +244,7 @@ func holds(column metric.Name, then, now Cell) (Verdict, string) {
 	case (then.Contract.Origin == originEvaluation || then.Contract.Origin == originBenchmark) && !then.Contract.Comparison.Valid():
 		return Unknown, then.Contract.Origin + " comparison authority is unknown"
 	case now.Contract != then.Contract:
-		return Unknown, contractDifference(now.Contract, then.Contract)
+		return Unknown, ContractDifference(now.Contract, then.Contract)
 	case then.Contract.Origin == originServing && now.Environment != then.Environment:
 		return Unknown, fmt.Sprintf("measured under environment %q, the reference under %q", now.Environment, then.Environment)
 	case now.Direction != then.Direction:

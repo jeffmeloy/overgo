@@ -96,6 +96,10 @@ func Moves(previous, current Record) []Move {
 				continue
 			case unknown >= 0:
 				move.Kind, move.Reason = moveUnknown, comparisons[unknown].Why
+			case now.Contract != then.Contract:
+				// The two headline cells are of two contracts, as when a row's headline suite changed and
+				// the earlier one is still measured beside it. Their difference is no move of either.
+				move.Kind, move.Reason = moveUnknown, ContractDifference(now.Contract, then.Contract)
 			case now.Value != then.Value:
 				move.Kind = moveChanged
 			default:

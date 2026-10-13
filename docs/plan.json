@@ -66,8 +66,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "What the row may still add. Set on 2026-10-13, with plan -setcount, to the 17 nodes its step clear-at-commit was counted at once built, by the count of syntax nodes the automated checks take, the five production files it changes against the trunk's commit cc82ed097: cmd/loop/land.go, cmd/loop/leftovers.go, internal/commanddoc/commanddoc.go, internal/repoanalysis/entry_authority.go and internal/repoanalysis/tracked_documents.go measure 12,872 before and 12,889 after. The step adds the clearing a confirmed commit makes and takes out most of the rule it replaces for ./tmp, so it is near level. The earlier steps used the 4,228, 888, 1,641, 1,772, 1,828 and 1,044 the row carried before. Step enforce is counted the same way before it is committed."
+        "nodes": 660,
+        "reason": "What the row may still add. Set on 2026-10-13, with plan -setcount, to the 660 nodes its step enforce was counted at once built and fitted onto the trunk's commit b03b6068d, by the count of syntax nodes the automated checks take: cmd/loop/leftovers.go 7,766 to 8,004, cmd/loop/main.go 2,390 to 2,413, cmd/gate/land.go 137 to 142, internal/landing/landing.go 3,942 to 3,983, internal/landing/refusal.go 340 to 364, internal/repoanalysis/entry_authority.go 1,546 to 1,549, and three new files in internal/landing, space.go 158, space_windows.go 102 and space_unix.go 66; the ten measure 16,217 before and 16,877 after. The step's preparation estimated 700 to 1,000. The step grows because a commit's checks now read the volume's free space and a campaign's close-out reads the leftovers, where neither was read. The earlier steps used the 4,228, 888, 1,641, 1,772, 1,828, 1,044 and 17 the row carried before; this is the row's last step."
       },
       "steps": [
         {

@@ -61,35 +61,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "suites-as-data",
-      "title": "Declare an evaluation suite as data over a small set of scorers",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "slice",
-          "title": "Declare two suite kinds as documents over shared scorers, hold their prompts and scores to their written forms case by case, and count",
-          "status": "open",
-          "verify": "go test ./internal/evaluation ./cmd/evaluate -count=1 -run '^TestDeclaredSuitesScoreAsTheirWrittenOnes$'",
-          "rationale": "From the owner's amendment of 2026-10-13, with four changes from the lead's review, checked at da559484e. Evaluation is 28,983 production lines (internal/evaluation 25,199 in 106 files, cmd/evaluate 3,784) and names 118 record schemas; the amendment's 34,000 and 109 were not reproduced. Its mass is many suite kinds of 250 to 800 lines each (knowledge 773, generated 753, candidate 713, speech 703, store 699, grounded 570, production 549 and more than twenty smaller), beside held-out 1,684, transcription 1,588, instruction 1,038 and IFEval 1,488, whose lines are ports of its scorers and stay. Change one: a suite is already a JSON document dispatched on its kind (suite.go:142-149) and the prompting protocols exist (plan.go:72-83). What is written in Go for a kind is its builder, its prompt form (mmlu_pro.go:204-214), its report type and its scorer. The slice takes two kinds and measures what a declared prompt form and a shared report remove: MMLU-Pro (mmlu_pro.go, 214 lines, over multiple_choice.go, 446) and the function-call suite (function_call.go 270, bfcl_function_calls.go 177). Change two: no answer is kept across this change. A stored answer is keyed by a digest of every source file of cmd/evaluate, internal/evaluation and internal/modelcli (internal/inferencesurface/identity.go:57,276-296), so adding or deleting any file there asks every case of every suite again, and the function-call suite never reuses an answer (function_call.go:159-160). The step therefore waits for evidence-identity/measure, which defines what an answer depends on, and is one commit taken just before a full measurement run. Change three: a score stays comparable only if the declared form emits the same bytes, since the comparison identity is the marshalled dataset, case profile and scorer (plan.go:284-295). The proving test holds the prompts, the field order and the constants case by case. Change four: the stored report types keep their readers (inspect.go:47).\nServes: held-out-quality: a new suite is a document, not a package.\nDisappears: the two kinds' prompt builders and report types. The rest step is worked only if the slice removes at least 35% of the production lines it acts on, the share the amendment's lower estimate needs. Otherwise it is retired with the slice's record.\nEvidence: the same prompts and the same score, case by case, over the stored evaluations' cases; production lines before and after, from the commit's own measured line.\nBatch: host; internal/evaluation is in the answer scope, so the commit goes just before a full measurement run.",
-          "depends_on": [
-            "evidence-identity/measure"
-          ]
-        },
-        {
-          "id": "rest",
-          "title": "Declare every suite kind that shares a scorer, and keep in Go only the scorers",
-          "status": "open",
-          "verify": "go test ./internal/evaluation ./cmd/evaluate -count=1 -run '^TestEverySuiteThatSharesAScorerIsADeclaration$'",
-          "rationale": "From the owner's amendment of 2026-10-13. With the slice's ratio measured, the remaining suite kinds move a kind a change, and the row's count is set below zero from that ratio first. A scorer only one suite could use stays in Go and is named as such. Each change asks every case again unless evidence-identity has by then narrowed what an answer depends on, so the changes are batched before full measurement runs.\nServes: held-out-quality.\nDisappears: each kind's prompt builder, report type and command flags (cmd/evaluate has nine -build and four -render modes).\nEvidence: every scorecard quality cell unchanged; production lines removed against the count the slice set.\nBatch: host and the device tests cmd/train reaches.",
-          "depends_on": [
-            "suites-as-data/slice"
-          ]
-        }
-      ]
-    },
-    {
       "id": "consumer-checks",
       "title": "Hold every committed surface to a consumer by a check at every commit, and delete what has none",
       "class": "consolidation",
@@ -104,7 +75,7 @@
           "id": "declarations",
           "title": "Every production declaration outside a model prototype is reached by a command",
           "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestEveryProcessDeclarationIsReachedByACommand$'",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestEveryProcessDeclarationIsReachedByACommand$'",
           "rationale": "From the proposal, with the prototype class decided by the registry. TestEveryTrackedFileHasAReader holds every tracked document and repo-hygiene/clear-at-commit every fixture; this is the same check for code: a walk of names from every command. What it skips is read from compatibility.json, which lists the model prototypes and which cmd/validate already holds to the code, and never from a table typed for this check: a model prototype stays although no model of its family is active (owner, 2026-10-12), and a check that is permanent must not refuse the next one. Declarations are keyed by file, since build tags make twins, and a function held in a package variable is reached. The first list is the census. A lower bound by the proposal, taken at 14dc80967 and not counted again: 308 declarations of 5,356 lines, 1,616 of them analyzers in internal/repoanalysis that only tests call. Each failing entry is wired or deleted by the standing rule; the video MP4 encoder is an unwired capability and is given a route; an analyzer only a test calls moves beside its test.\nServes: less to read, compile, vet and carry into the longer test runs.\nDisappears: what fails the check and is not wired.\nEvidence: the list before and after, with the rule applied to each entry, in steps that are each one commit.\nBatch: host; a deletion inside the inference surface waits for a commit that moves the surface anyway.",
           "depends_on": [
             "consumer-checks/documents"
@@ -119,6 +90,27 @@
           "depends_on": [
             "consumer-checks/declarations"
           ]
+        },
+        {
+          "id": "beside-tests",
+          "title": "Move the checks that only tests call beside their tests",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestEveryProcessDeclarationIsReachedByACommand$'",
+          "rationale": "From the census of step declarations. 79 unreached declarations of 1,699 lines are checks that only tests call and that live in production files: the analyzers of internal/repoanalysis (60 declarations, 1,326 lines) and the source review of internal/webuilane (19, 373). They move into test files beside the tests that call them, as 4d53c93bf did for others, with the exception entries and the regex-owner entry that name those files deleted (the prepared note lists them). The census list loses their lines in the same commit.\nServes: the loop's upkeep: less production code to compile, vet and carry into the longer test runs.\nDisappears: about 1,700 lines of production code, kept as test code.\nEvidence: the census test passes with those lines gone from its list; the tests that called the checks still pass.\nBatch: host."
+        },
+        {
+          "id": "delete-unreached",
+          "title": "Delete the four groups outside the model families that no command reaches",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestEveryProcessDeclarationIsReachedByACommand$'",
+          "rationale": "From the census of step declarations. Outside the model families, four groups are reached by no command and have no route worth adding: the swap of internal/atomicfile (12 declarations, 451 lines), the causality and alias queries of internal/overgodb (11, 272), the claims of internal/worklease (11, 205) and the store and writer checks of internal/gitauthority (8, 205). Each is deleted with its tests, a group a commit where a group stands alone, and the census list loses its lines. Two of the four lie inside the inference surface (atomicfile, gitauthority), and a deletion there moves stored answers' keys: by the record docs/verification/surface-moves.txt most full measurement runs ask the kept cases again anyway, so the surface deletions go together in one commit just before a run. Before each deletion the builder confirms by a type-checked search that nothing reached uses the group, since the census reads names.\nServes: the loop's upkeep.\nDisappears: about 1,130 lines of production code and their tests.\nEvidence: the census test with those lines gone from its list; the packages' tests.\nBatch: host; the surface deletions in one commit before a full measurement run."
+        },
+        {
+          "id": "sort-unreached",
+          "title": "Sort the rest of the unreached declarations into wired, deleted and kept as a prototype",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestEveryProcessDeclarationIsReachedByACommand$'",
+          "rationale": "From the census of step declarations. The operator's rule for a path only tests reach is to add its route, lane or command, and to delete it only when its input chain is half missing, it is record ceremony, it costs now and a rebuild would redesign it. A model prototype stays. Four groups outside the model families need that rule applied one by one: the recovery and checkpoint restore of internal/agentloop (15 declarations, 356 lines), speculative sampling (6, 226, inside the inference surface), the MP4 encoder of internal/latentvideo (4, 103; the prepared note finds a flag on cmd/latentvideo-run the smaller route) and inferencesurface.Moves (3, 86), which the surface-moves record found has no caller. The model families hold 341 unreached declarations of 9,565 lines by the builder's reading, internal/inference 130 of 4,054 and internal/devicemath 54 of 2,099 among them. Those are not all prototypes: a helper nothing calls inside a family that serves is dead code, and a whole unreached path of a family with no active model is a prototype and stays. This step sorts the list into wired, deleted and kept as a prototype, each with its reason beside its line, and files the deletions and the routes as steps with their sizes. It changes no code itself.\nServes: the loop's upkeep, and a route for each capability that has none.\nDisappears: nothing yet; the steps it files say what.\nEvidence: the census list with a class and a reason on every remaining line, held by the census test.\nBatch: host."
         }
       ]
     },
@@ -161,6 +153,13 @@
             "policy-search/protocol",
             "trustworthy-measurement/exclusive"
           ]
+        },
+        {
+          "id": "mmlu-pro-fold",
+          "title": "Fold the MMLU-Pro kind into the grouped-choice kind, its identities unchanged",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestMMLUProIsAGroupedChoiceWithItsIdentitiesUnchanged$'",
+          "rationale": "The one saving the reading of the retired row suites-as-data found that needs no new machinery. evaluateMMLUPro (internal/evaluation/mmlu_pro.go:157-191) is EvaluateGroupedChoice (grouped_choice.go:102-136) but for a delimiter on the scorer's method and the name of one report field, and its few-shot code (:114-124) is unused by its one producer. Folding MMLU-Pro into the grouped-choice kind with one delimiter field removes about 165 lines for about 20, by reading. It is safe only if the dataset identity, the case profile and the scorer's method marshal to the bytes they do now (multiple_choice.go:41-57, :166, :226-228; mmlu_pro.go:140-149), which the proving test holds case by case, and the stored report overgo/mmlu-pro-report/v1 keeps its readers (inspect.go:47, cmd/validate/media_coverage.go:635). The change asks every MMLU-Pro case again, as any change to the package does, so it goes in the batch that changes internal/evaluation anyway.\nServes: the loop's upkeep.\nDisappears: about 145 lines of internal/evaluation, an estimate by reading.\nEvidence: the comparison identity of the MMLU-Pro plan unchanged, byte for byte, on the store's cases.\nBatch: host; with the other changes to internal/evaluation, before a full measurement run."
         }
       ]
     },

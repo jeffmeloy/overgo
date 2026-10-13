@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"image/png"
 	"io"
+	"io/fs"
 	"math"
 	"os"
 	"path/filepath"
@@ -25,6 +26,7 @@ import (
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
+	"overgo/internal/trainingworkflow"
 )
 
 // installedBridgedPair is the installed bridged pair's directory and count
@@ -150,6 +152,8 @@ func TestCodecRouteTrainsADecoderOrNamesTheMissingOperator(t *testing.T) {
 // training pictures and publishes a held-out verdict that scores the
 // installed bridge and the trained one, on pictures neither was trained on
 // here, by the peak signal-to-noise ratio of what the frozen decoder draws.
+// A proof of the recipe that run trained under then trains a step again with
+// no cache: it publishes a checkpoint, keeps no token and adds no verdict.
 func TestCodecRouteJudgesATrainedBridgeOnHeldOutFrames(t *testing.T) {
 	work := t.TempDir()
 	const frames = 6
@@ -210,5 +214,49 @@ func TestCodecRouteJudgesATrainedBridgeOnHeldOutFrames(t *testing.T) {
 	}, nil)
 	if err != nil || verdicts != 1 || checkpoint.Optimizer.Step != 1 {
 		t.Fatalf("read %d verdicts (%v) of a checkpoint at step %d, want one verdict of the one step", verdicts, err, checkpoint.Optimizer.Step)
+	}
+
+	// A proof re-verifies the recipe the judged run trained under by a
+	// training run alone, as the measurement run starts it: with no cache, it
+	// reads the encoder's tokens for the pictures its step takes, keeps none,
+	// publishes its own checkpoint and leaves the one verdict as it was.
+	resolved, _, err := rae.ResolveBridgedPair(pair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recipeID, err := trainingworkflow.BootstrapObjectiveRecipe(ctx, store, resolved.Bridge, pictureObjectiveAlias)
+	if err != nil {
+		t.Fatal(err)
+	}
+	kept := func() int {
+		var files int
+		if err := filepath.WalkDir(filepath.Join(work, "cache"), func(_ string, entry fs.DirEntry, err error) error {
+			if err == nil && !entry.IsDir() {
+				files++
+			}
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return files
+	}
+	before, proofOut := kept(), filepath.Join(work, "proof")
+	if err := runRoute(ctx, []string{"codec", "-pair", pair, "-objective", pictureObjectiveAlias, "-proof", "-recipe", recipeID.String(),
+		"-batch", "2", "-steps", "1", "-store", storePath, "-out", proofOut}); err != nil {
+		t.Fatal(err)
+	}
+	proved := recordedBridgeCheckpoint(t, storePath, proofOut)
+	// The route wrote through a handle of its own; this one reads what it left.
+	if err := store.Refresh(ctx); err != nil {
+		t.Fatal(err)
+	}
+	verdicts = 0
+	err = evaluation.VisitHeldoutVerdicts(ctx, store, func(artifact.ID, evaluation.EvalSummary, evaluation.EvalSummary) error {
+		verdicts++
+		return nil
+	}, nil)
+	if err != nil || verdicts != 1 || proved.Optimizer.Step != 1 || kept() != before {
+		t.Fatalf("after a proof the store holds %d verdicts (%v), its checkpoint is at step %d and the cache holds %d files where it held %d: want the one verdict, the one step and no token kept",
+			verdicts, err, proved.Optimizer.Step, kept(), before)
 	}
 }

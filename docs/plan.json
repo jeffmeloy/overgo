@@ -66,17 +66,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 271,
+        "nodes": 0,
         "reason": "What the row may still add. Set on 2026-10-13, with plan -setcount, to the 1,112 nodes its steps bound-cells and census-binding were counted at once built, each in a checkout of its own on the trunk's commit c2799a282, by the count of syntax nodes the automated checks take. Step bound-cells, 271: cmd/validate/training_proof.go, cmd/validate/run.go and cmd/train/route_codec.go (the bridge's training cell bound to the codec route's proof, and a reward recipe's cell left to the operator with its reason). Step census-binding, 841: cmd/validate/census.go and cmd/validate/main.go (accepting a changed census as one command, with the check and the binding type moved out of a test file). The builders' counts, each confirmed by a second reader; the commit's own check gives the figure that governs. The row grows because two hand procedures become commands and a refused cell becomes a bound one. Step coverage-27b added no production code. Step proof-footprint is counted the same way before it is committed."
       },
       "steps": [
-        {
-          "id": "bound-cells",
-          "title": "Every scorecard cell has a command bound to it, or is retired with its reason",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestEveryScorecardCellHasABoundCommandOrIsRetired$'",
-          "rationale": "Filed by the lead on 2026-10-13 with the owner's instruction to incorporate the proposed plan as the lead sees fit; this step is not in the proposal. Every full measurement run ends its cells phase \"did not pass\" and exits with an error, because two training-proof cells have no bound command: Qwen2.5-0.5B-f16.gguf and encoder_bridge.safetensors, each with \"no cmd/train route grounds its recipe's objective, and no alias registers it for train -objective\" (seen in the runs of 2026-10-10, 2026-10-12 and 2026-10-13, the last at cc82ed097 after 3 h 39 m). A run that always fails teaches its reader to ignore the failure. Each cell is given a route by the standing rule (a capability is wired, not deleted), or is retired with the reason in the scorecard.\nServes: failure-rate of the loop itself: a run that passes when its cells pass.\nDisappears: the standing error of every run.\nEvidence: the test; the next run's cells phase.\nBatch: host for the test; cmd/validate reaches no longer test run."
-        },
         {
           "id": "proof-footprint",
           "title": "Have a training proof write only what its claim reads",

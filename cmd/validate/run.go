@@ -149,8 +149,12 @@ func runScopeOf(background, cellsOnly, lanesOnly bool) (runScope, error) {
 // and store refresh; a projection proof's producer runs under the environment it
 // publishes by. An empty run set is the clean "nothing to re-acquire" result. A timed cell
 // runs while no landing does and none starts, and the quality cells and the lanes, whose
-// results are not times, run beside landings.
+// results are not times, run beside landings. A cell the plan leaves to the
+// operator is named first with its reason, and is not run.
 func executeRun(ctx context.Context, output io.Writer, root, storeRoot string, store *overgodb.Store, plan Plan, scope runScope) error {
+	for _, sel := range plan.OperatorOwned {
+		fmt.Fprintf(output, "validate -run: %s %s is not run: %s\n", sel.Validation, displayName(sel.ModelValidation), sel.Reason)
+	}
 	cells, suites := plan.Run, plan.Suites
 	switch scope {
 	case scopeBackground:

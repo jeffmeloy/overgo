@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"fmt"
 	"os"
@@ -26,24 +27,33 @@ import (
 // fixtureCommit is the commit a fixture verification ran at.
 const fixtureCommit = "0123456789abcdef0123456789abcdef01234567"
 
-// TestEveryBlockingProofHasACommand holds every proof promotion waits on to
-// a command that re-acquires it into the selected store. Each training recipe
-// declares an objective over the data its route grounds on, and the record
-// reader names the route from that objective alone: the dit route trains a
-// video stack from its directory and a raw checkpoint against that stack, and
-// the dense workflow trains the recipe it is named. A recipe whose objective
-// no committed data grounds but an alias registers is re-verified by a proof
-// run of train -objective under that alias, bounded as the dense workflow's
-// run, or, when it is a table objective, by the tabular route's proof run on
-// the model directory above the head the catalog names; one over data nothing
-// grounds or registers, or of a kind no route is bound for, binds nothing. Each
-// projection recipe passed a verification
+// TestEveryScorecardCellHasABoundCommandOrIsRetired holds every proof the
+// scorecard waits on to a command that re-acquires it into the selected store,
+// or to a declared reason the measurement run does not run it. Each training
+// recipe declares an objective over the data its route grounds on, and the
+// record reader names the route from that objective alone: the dit route
+// trains a video stack from its directory and a raw checkpoint against that
+// stack, and the dense workflow trains the recipe it is named. A recipe whose
+// objective no committed data grounds but an alias registers is re-verified by
+// a proof run of train -objective under that alias, bounded as the dense
+// workflow's run, or, when it is a table objective, by the tabular route's
+// proof run on the model directory above the head the catalog names, or, when
+// it is a picture objective, by the codec route's proof run on the directory
+// of the bridged pair, with a batch size and no token cache, since a proof
+// keeps no tokens. A reward objective is proved by a reward session the
+// operator starts, as the instruction pilot's sessions and a workbench's
+// reward run are, and the measurement run has no bounded run to start for it:
+// its cell is filed as the operator's with that reason, which the run prints,
+// and is not run; its recipe and activation stay as they are. One over
+// data nothing grounds or registers, or of a kind no route is bound for and no
+// reason is declared for, still runs and binds nothing, so the run fails
+// rather than pass over it. Each projection recipe passed a verification
 // the reader names from its gate alone: an exact verification whose plan ran
 // the committed suite re-runs it through recipe verify -reverify against the
 // projector its activation binds, one the E4B serving producer published
 // against the committed oracle runs that producer into the selected store,
 // and an exact verification of another suite grounds nothing.
-func TestEveryBlockingProofHasACommand(t *testing.T) {
+func TestEveryScorecardCellHasABoundCommandOrIsRetired(t *testing.T) {
 	t.Parallel()
 	ctx, root, models := t.Context(), testutil.RepoRoot(t), t.TempDir()
 	const selected = "C:/stores/selected"
@@ -114,6 +124,15 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 		trainingprogram.ObjectiveTablePrediction, trainingprogram.MetricTableAccuracy, recipecontract.ModalityTable)
 	forecast := trained("TimesFM", "model.safetensors", "", forecasted,
 		trainingprogram.ObjectiveForecast, trainingprogram.MetricForecastMAE, recipecontract.ModalityTimeSeries)
+	// A picture objective an alias registers trains through the codec route, on
+	// the directory of the pair its bridge sits in. The reward cell is shaped
+	// as the instruction pilot's is, a reward objective no alias registers, on
+	// a GGUF: the measurement run binds no proof run for its kind.
+	const pictured = "objective.registered.image-image"
+	bridge := trained("Bridge", "encoder_bridge.safetensors", "", pictured,
+		trainingprogram.ObjectiveImageLatent, trainingprogram.MetricImagePSNRUnit, recipecontract.ModalityImage)
+	reward := trained("Pilot", "pilot.gguf", "", "",
+		trainingprogram.ObjectiveGRPO, trainingprogram.MetricTokenAccuracy, recipecontract.ModalityText)
 
 	projectorPaths := map[string]string{}
 	projection := func(name, evidence string) ModelValidation {
@@ -218,7 +237,7 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 	suite.Cases[0].Text += " but another answer"
 	otherSuite := projection("OtherSuite", exactRan(suite))
 
-	cells := []ModelValidation{stack, edit, mot, hybrid, dense, ungrounded, objective, table, forecast, exact, protocol, otherSuite}
+	cells := []ModelValidation{stack, edit, mot, hybrid, dense, ungrounded, objective, table, forecast, bridge, reward, exact, protocol, otherSuite}
 	for _, task := range []recipe.Task{
 		recipe.TaskImageGen, recipe.TaskVideoGen, recipe.TaskSpeech, recipe.TaskTranscription,
 		recipe.TaskVQA, recipe.TaskSeq2Seq, recipe.TaskForecast, recipe.TaskTabular, recipe.TaskImageEmbedding, recipe.TaskReconstruction,
@@ -238,14 +257,29 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 		t.Fatal(err)
 	}
 	plan := SelectValidation(Inputs{Registered: cells})
-	if len(plan.Run) != len(cells) {
-		t.Fatalf("promotion waits on %d of %d proofs: background=%+v", len(plan.Run), len(cells), plan.Background)
+	// Every proof runs but the reward recipe's, which is left to the operator
+	// with its reason, and the run says so.
+	if len(plan.Run) != len(cells)-1 || len(plan.OperatorOwned) != 1 || plan.OperatorOwned[0].ModelName != reward.ModelName ||
+		!strings.Contains(plan.OperatorOwned[0].Reason, "reward recipe") {
+		t.Errorf("the run takes %d of %d proofs and leaves the operator %+v, want every proof run but %s's, and that one left to the operator as a reward recipe",
+			len(plan.Run), len(cells), plan.OperatorOwned, reward.ModelName)
+	}
+	var printed bytes.Buffer
+	if err := executeRun(ctx, &printed, root, selected, nil, Plan{OperatorOwned: plan.OperatorOwned}, scopeCells); err != nil {
+		t.Fatal(err)
+	}
+	for _, owned := range plan.OperatorOwned {
+		if !strings.Contains(printed.String(), owned.ModelName) || !strings.Contains(printed.String(), owned.Reason) {
+			t.Errorf("the run printed %q, want %s named as not run, with its reason %q", printed.String(), owned.ModelName, owned.Reason)
+		}
 	}
 
+	// A kind with no route and no declared reason still runs and still refuses.
 	refusals := map[string]string{
 		ungrounded.ModelName: "no cmd/train route grounds", forecast.ModelName: "no cmd/train route grounds",
 		otherSuite.ModelName: "no committed exact suite or oracle grounds",
 	}
+	refusing := 0
 	commands, environments := map[string][]string{}, map[string][]string{}
 	for _, sel := range plan.Run {
 		_, environments[sel.ModelName], _ = trainingRun(sel.ModelValidation, selected)
@@ -265,12 +299,17 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 			if err == nil || !strings.Contains(err.Error(), refusal) {
 				t.Fatalf("%s %s bound (%v, %v), want the refusal that it %s", sel.ModelName, sel.Validation, args, err, refusal)
 			}
+			refusing++
 			continue
 		}
 		if err != nil || name != "go" || !slices.Contains(args, selected) {
-			t.Fatalf("%s %s bound (%q, %v, %v), want a command into the selected store", sel.ModelName, sel.Validation, name, args, err)
+			t.Errorf("%s %s bound (%q, %v, %v), want a command into the selected store", sel.ModelName, sel.Validation, name, args, err)
+			continue
 		}
 		commands[sel.ModelName] = args
+	}
+	if refusing != len(refusals) {
+		t.Errorf("%d of the %d proofs nothing grounds were run and refused, want each of them: a cell without a command or a reason must fail the run", refusing, len(refusals))
 	}
 	flag := func(model, name string) string {
 		args := commands[model]
@@ -293,6 +332,10 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 			"-route": tabularRoute, "-recipe": table.Recipe.String(), "-objective": tabled, "-model": filepath.Dir(filepath.Dir(table.Location)),
 			"-steps": routeSteps, "-seq": "", "-dataset": "",
 		},
+		bridge.ModelName: {
+			"-route": "codec", "-recipe": bridge.Recipe.String(), "-objective": pictured, "-pair": filepath.Dir(bridge.Location),
+			"-steps": routeSteps, "-model": "", "-cache": "", "-seq": "", "-dataset": "",
+		},
 	} {
 		for name, value := range want {
 			if got := flag(model, name); got != value {
@@ -311,6 +354,10 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 	// A table objective's is the tabular route's proof run, which has no text to freeze.
 	if proof := commands[table.ModelName]; !slices.Contains(proof, "-proof") || slices.Contains(proof, "-freeze-lexical") {
 		t.Errorf("%s runs %v, want the tabular route's proof run", table.ModelName, proof)
+	}
+	// A picture objective's is the codec route's proof run, a batch of pictures a step.
+	if batch, err := strconv.Atoi(flag(bridge.ModelName, "-batch")); err != nil || batch <= 0 || !slices.Contains(commands[bridge.ModelName], "-proof") {
+		t.Errorf("%s runs %v, want the codec route's proof run on a positive batch", bridge.ModelName, commands[bridge.ModelName])
 	}
 	verify := commands[exact.ModelName]
 	for name, value := range map[string]string{

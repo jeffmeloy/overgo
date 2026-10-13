@@ -15,6 +15,7 @@ import (
 	"math/rand/v2"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -22,6 +23,7 @@ import (
 	"overgo/internal/rae"
 	"overgo/internal/recipecontract"
 	"overgo/internal/safetensors"
+	"overgo/internal/testutil"
 	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
@@ -160,6 +162,39 @@ func TestCodecAdaptationPublishesItsHeldOutVerdict(t *testing.T) {
 	approved, err := trainingworkflow.PromoteObjectiveApproved(ctx, store, pictureObjectiveAlias, []artifact.ID{result.Verdict})
 	if err != nil || approved.Authority != trainingprogram.ObjectiveApproved {
 		t.Fatalf("approval = (%q, %v), want approved on the held-out verdict", approved.Authority, err)
+	}
+}
+
+// TestCodecProofTakesARecipeAndNoTokenCache holds what the codec route takes
+// of a proof, before it reads any weight. A proof is an objective's run under
+// the recipe it is given, and it keeps no tokens: it is started without a
+// cache, so it reaches the store and stops only at the objective nothing
+// registered there, and it is refused a cache, where every other run is
+// refused without one. A proof of a manifest's frames, which no recipe is
+// selected for, and a recipe that is no identity are refused by name.
+func TestCodecProofTakesARecipeAndNoTokenCache(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	pair := writeBridgedPair(t, filepath.Join(root, "models"))
+	cache, recipeID := filepath.Join(root, "cache"), testutil.ArtifactID(t, artifact.KindRecipe, "a picture objective's recipe").String()
+	for _, run := range []struct {
+		name, want string
+		args       []string
+	}{
+		{"a proof under a recipe, without a cache", "is absent", []string{"-objective", pictureObjectiveAlias, "-proof", "-recipe", recipeID}},
+		{"a proof given a cache", "a cache", []string{"-objective", pictureObjectiveAlias, "-proof", "-cache", cache}},
+		{"a full run without a cache", "a cache", []string{"-objective", pictureObjectiveAlias}},
+		{"a proof of a manifest's frames", "go with objective", []string{"-frames", filepath.Join(root, "frames.txt"), "-proof", "-cache", cache}},
+		{"a recipe that is no identity", "training recipe", []string{"-objective", pictureObjectiveAlias, "-proof", "-recipe", "no identity"}},
+	} {
+		err := runRoute(t.Context(), append([]string{"codec", "-pair", filepath.Dir(pair.Bridge), "-batch", "2", "-steps", "1",
+			"-store", filepath.Join(root, "store"), "-out", filepath.Join(root, "out")}, run.args...))
+		if err == nil || !strings.Contains(err.Error(), run.want) {
+			t.Errorf("%s = %v, want a refusal that says %q", run.name, err, run.want)
+		}
+	}
+	if _, err := os.Stat(cache); !os.IsNotExist(err) {
+		t.Errorf("a refused run left a token cache at %s (%v)", cache, err)
 	}
 }
 

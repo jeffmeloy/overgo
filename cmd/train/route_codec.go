@@ -79,7 +79,8 @@ type codecParts struct {
 // does not descend, and publishes the trained bridge as a checkpoint. Given a
 // registered picture objective, it trains on the objective's training
 // pictures and publishes the held-out verdict of the trained bridge against
-// the installed one. Either can write the trained bridge as a pair of its
+// the installed one, or, as a proof, re-verifies the recipe it is given by
+// the training run alone. Either can write the trained bridge as a pair of its
 // own. With -cut it trains nothing and writes the manifest's first frames as
 // the pictures a dataset registers.
 func trainCodec(ctx context.Context, flags *flag.FlagSet, args []string) (err error) {
@@ -94,12 +95,14 @@ func trainCodec(ctx context.Context, flags *flag.FlagSet, args []string) (err er
 	storePath := flags.String("store", "overgodb-store", "OvergoDB for the session observation, recipe authority, checkpoint record and verdict")
 	out := flags.String("out", "", "directory the trained bridge's checkpoint publishes to")
 	pairOut := flags.String("pair-out", "", "optional directory, beside the encoder and the collection, to write the trained bridge to as a pair of its own")
+	recipeText := flags.String("recipe", "", "with -objective, the training recipe artifact ID to train under; omitted trains under the objective's own")
+	proof := flags.Bool("proof", false, "with -objective, re-verify the recipe by the training run alone: it reads tokens for the pictures its steps take and keeps none, so it takes no -cache, judges no bridge and publishes no held-out verdict")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	name := flags.Name()
-	if *pairDir == "" || (*manifest == "") == (*objective == "") {
-		return fmt.Errorf("%s: pair and one of frames and objective required", name)
+	if *pairDir == "" || (*manifest == "") == (*objective == "") || *objective == "" && (*proof || *recipeText != "") {
+		return fmt.Errorf("%s: pair and one of frames and objective required, and proof and recipe go with objective", name)
 	}
 	resolved, bridged, err := rae.ResolveBridgedPair(*pairDir)
 	if err != nil {
@@ -114,11 +117,17 @@ func trainCodec(ctx context.Context, flags *flag.FlagSet, args []string) (err er
 		}
 		return cutCodecPictures(ctx, name, resolved, *manifest, *cut)
 	}
-	if *cache == "" || *out == "" || *steps <= 0 || *batch <= 0 {
-		return fmt.Errorf("%s: cache, out, and positive steps and batch required", name)
+	if (*cache == "") != *proof || *out == "" || *steps <= 0 || *batch <= 0 {
+		return fmt.Errorf("%s: out, positive steps and batch, and a cache, which a proof alone does not take, required", name)
 	}
 	if *pairOut != "" && filepath.Dir(filepath.Clean(*pairOut)) != filepath.Dir(filepath.Clean(*pairDir)) {
 		return fmt.Errorf("%s: the trained pair sits beside the pair it was trained from", name)
+	}
+	var recipeID artifact.ID
+	if *recipeText != "" {
+		if recipeID, err = artifact.ParseID(*recipeText); err != nil {
+			return fmt.Errorf("training recipe: %w", err)
+		}
 	}
 	store, err := overgodb.Open(*storePath)
 	if err != nil {
@@ -130,14 +139,14 @@ func trainCodec(ctx context.Context, flags *flag.FlagSet, args []string) (err er
 		steps: *steps, batch: *batch, maxWall: *maxWall,
 	}
 	if *objective != "" {
-		return run.judged(ctx, *objective)
+		return run.judged(ctx, *objective, recipeID, *proof)
 	}
 	return run.observed(ctx, *manifest)
 }
 
 // load reads the pair's bridge, the encoder it maps and the collection whose
 // decoder it feeds, each once, and makes the directory the encoder's tokens
-// are kept in.
+// are kept in when the run was given a cache.
 func (run codecRun) load() (codecParts, error) {
 	source, err := vitencoder.Load(run.resolved.SourceEncoder)
 	if err != nil {
@@ -156,9 +165,12 @@ func (run codecRun) load() (codecParts, error) {
 		return codecParts{}, err
 	}
 	// The run keeps the source encoder's tokens alone, so another decoder,
-	// bridge or statistics leaves them good.
-	tokens, err := tokenCache(run.cache, run.resolved.SourceEncoder)
-	return codecParts{pair: pair, source: source, collection: collection, tokens: tokens}, err
+	// bridge or statistics leaves them good. A proof has no cache and keeps none.
+	parts := codecParts{pair: pair, source: source, collection: collection}
+	if run.cache != "" {
+		parts.tokens, err = tokenCache(run.cache, run.resolved.SourceEncoder)
+	}
+	return parts, err
 }
 
 // trainer plans the run's steps over the bridge's weights and starts the
@@ -264,8 +276,10 @@ func (run codecRun) observed(ctx context.Context, manifest string) (err error) {
 // one each have the frozen decoder draw every held-out picture from the
 // source encoder's tokens, and the verdict compares the mean peak
 // signal-to-noise ratio of what it draws. The bridge never sees a held-out
-// picture.
-func (run codecRun) judged(ctx context.Context, alias string) error {
+// picture. It trains under recipeID, or under the objective's own recipe when
+// that is zero. A proof judges nothing, so it reads the encoder's tokens only
+// as its steps take their pictures, keeps none and publishes no verdict.
+func (run codecRun) judged(ctx context.Context, alias string, recipeID artifact.ID, proof bool) error {
 	objective, err := trainingworkflow.LoadObjectiveAlias(ctx, run.store, alias)
 	if err != nil {
 		return err
@@ -284,12 +298,14 @@ func (run codecRun) judged(ctx context.Context, alias string) error {
 		return err
 	}
 	tokens := make(map[string][]float32, len(data.Examples))
-	for record, example := range data.Examples {
-		cached := filepath.Join(parts.tokens, digests[record]+codecTokenExtension)
-		if tokens[record], err = pictureSourceTokens(parts.source, dtype.ConvertSlice[float32](example.Target), side, cached); err != nil {
-			return err
+	if !proof {
+		for record, example := range data.Examples {
+			cached := filepath.Join(parts.tokens, digests[record]+codecTokenExtension)
+			if tokens[record], err = pictureSourceTokens(parts.source, dtype.ConvertSlice[float32](example.Target), side, cached); err != nil {
+				return err
+			}
+			fmt.Fprintf(os.Stderr, "  tokens %d/%d\n", len(tokens), len(data.Examples))
 		}
-		fmt.Fprintf(os.Stderr, "  tokens %d/%d\n", len(tokens), len(data.Examples))
 	}
 	plan, trainer, err := run.trainer(parts)
 	if err != nil {
@@ -297,7 +313,7 @@ func (run codecRun) judged(ctx context.Context, alias string) error {
 	}
 	result, err := trainingworkflow.RunHeldout(ctx, run.store, trainingworkflow.HeldoutRun{
 		// The representation autoencoder runs on the host.
-		Alias: alias, ModelPath: run.resolved.Bridge, Data: data, Host: true, Load: time.Since(loadStart),
+		Alias: alias, ModelPath: run.resolved.Bridge, Recipe: recipeID, Data: data, Host: true, Load: time.Since(loadStart), Proof: proof,
 		Train: func(ctx context.Context, recipeID artifact.ID, shown []trainingworkflow.HeldoutExample) (trainingprogram.Checkpoint, error) {
 			if len(shown) < run.batch {
 				return trainingprogram.Checkpoint{}, fmt.Errorf("%s: the training membership holds %d pictures, fewer than one batch of %d", run.name, len(shown), run.batch)
@@ -307,7 +323,19 @@ func (run codecRun) judged(ctx context.Context, alias string) error {
 				examples[index] = rae.BridgeExample{SourceTokens: tokens[example.Record], Picture: dtype.ConvertSlice[float32](example.Target)}
 			}
 			for step := range plan.Updates() {
-				loss, err := trainer.Step(ctx, run.batchAt(examples, step))
+				batch := run.batchAt(examples, step)
+				if proof {
+					// A proof read no tokens before training: it reads them
+					// here, for the pictures this step takes.
+					for at, example := range batch {
+						read, err := rae.BridgeSourceTokens(parts.source, example.Picture, side)
+						if err != nil {
+							return trainingprogram.Checkpoint{}, err
+						}
+						batch[at].SourceTokens = read
+					}
+				}
+				loss, err := trainer.Step(ctx, batch)
 				if err != nil {
 					return trainingprogram.Checkpoint{}, err
 				}
@@ -333,6 +361,9 @@ func (run codecRun) judged(ctx context.Context, alias string) error {
 	})
 	if err != nil {
 		return err
+	}
+	if proof {
+		return reportProof(os.Stdout, result)
 	}
 	return reportVerdict(os.Stdout, result)
 }

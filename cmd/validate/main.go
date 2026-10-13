@@ -93,7 +93,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 		Audience: "the master-lead session and its unattended driver validating the whole system per commit",
 		Constraints: []string{
 			"the default dry run itself loads no model and opens no device: it reads the registered models and the newest benchmark evaluations and prints the plan as JSON",
-			"every activated cell the model's declaration does not exclude runs every cycle, whatever it recorded before; a benchmark runs under the protocol of its newest record, and evaluate puts to the model only the cases the store holds no answer to by the code that answers now",
+			"every activated cell the model's declaration does not exclude runs every cycle, whatever it recorded before, but a training proof of a kind of objective declared as the operator's to run, which -run names with its reason and does not run; a benchmark runs under the protocol of its newest record, and evaluate puts to the model only the cases the store holds no answer to by the code that answers now",
 			"the scorecard waits on every guard, serving cell, proof and cycle lane, and on a benchmark that re-measures the held-out contract the scorecard beside the store compares; any other benchmark is background, and -run -background runs those",
 			"every registered model is accounted for; each available model is dispatched by its declared functions",
 			"-inventory starts from the directories on disk, so a model nothing has registered is reported; it ties a converted model to its directory by the content of the config files the conversion recorded, never by a name",

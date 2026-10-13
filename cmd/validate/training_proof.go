@@ -22,10 +22,10 @@ import (
 // one a run of the route reaches and re-verifies at the commit it executed.
 // An objective registered over store data is proved under the selected
 // recipe, whose objective must equal the alias's immutable target. A proof
-// run, of train -objective for text and of its route for a table, re-verifies
-// that recipe, publishing no held-out verdict to supersede the one the
-// recipe's quality reads. Each run keeps the bounds the training lane recorded
-// for its route.
+// run, of train -objective for text and of its route for a table or a
+// picture, re-verifies that recipe, publishing no held-out verdict to
+// supersede the one the recipe's quality reads. Each run keeps the bounds the
+// training lane recorded for its route.
 const (
 	trainingProof = "training-proof"
 	routeSteps    = "3"
@@ -72,22 +72,38 @@ var trainingRoutes = []trainingRoute{
 // workflow's run is bounded.
 var objectiveProof = []string{"-proof", "-steps", denseSteps, "-seq", denseSequence, "-max-wall", "10m", "-freeze-lexical"}
 
-// tabularRoute is the cmd/train route that trains a table-prediction
-// objective, and objectiveRoutes names, by the kind of objective, the route
-// that trains an objective registered over store data which train -objective,
-// training text, does not: its proof run is the route's, under the objective's
-// alias and the cell's recipe, bounded as the routes' runs are.
-const tabularRoute = "tabular"
+// tabularRoute and codecRoute are the cmd/train routes that train a
+// table-prediction objective and a picture objective, and objectiveRoutes
+// names, by the kind of objective, the route that trains an objective
+// registered over store data which train -objective, training text, does not:
+// its proof run is the route's, under the objective's alias and the cell's
+// recipe, bounded as the routes' runs are. codecBatch is the pictures a step
+// of the codec route's proof takes, the batch the route's own tests train on.
+const (
+	tabularRoute = "tabular"
+	codecRoute   = "codec"
+	codecBatch   = "2"
+)
 
 var objectiveRoutes = map[trainingprogram.ObjectiveKind]string{
 	trainingprogram.ObjectiveTablePrediction: tabularRoute,
+	trainingprogram.ObjectiveImageLatent:     codecRoute,
+}
+
+// operatorProofs says, by the kind of objective, why the measurement run does
+// not run a training cell's proof: the cell is filed as the operator's with
+// that reason, and its recipe and activation stay as they are. A kind with no
+// route and no reason here still runs and refuses, which fails the run.
+var operatorProofs = map[trainingprogram.ObjectiveKind]string{
+	trainingprogram.ObjectiveGRPO: "a reward recipe is verified by a reward session the operator starts, as the instruction pilot's sessions and a workbench's reward run are: the measurement run has no bounded proof run to start for it",
 }
 
 // groundTraining gives each training cell, in place, the committed data its
 // recipe's objective reads when a route grounds its recipe on it, else the
 // alias, the first by name, that registers its token-prediction objective,
 // and a raw DiT checkpoint the one video stack directory the dit route
-// trains from.
+// trains from. A cell whose objective's kind operatorProofs declares is
+// filed as the operator's.
 func groundTraining(ctx context.Context, root string, store *overgodb.Store, cells []ModelValidation) error {
 	grounded := map[artifact.ID]string{}
 	for _, route := range trainingRoutes {
@@ -117,6 +133,9 @@ func groundTraining(ctx context.Context, root string, store *overgodb.Store, cel
 				return err
 			}
 			cells[index].Grounding = grounded[objective.Dataset]
+			if reason, declared := operatorProofs[objective.Kind]; declared {
+				cells[index].OperatorOnly, cells[index].OperatorReason = true, reason
+			}
 			// train -objective trains text; an objective of another kind
 			// trains through the route that kind names, where one does.
 			route, routed := objectiveRoutes[objective.Kind]
@@ -165,9 +184,9 @@ func aliasNames(ctx context.Context, store *overgodb.Store) (map[artifact.ID]str
 // directory's weights, a GGUF or a raw DiT checkpoint as its own flags name
 // them, the dense workflow the recipe the cell names, and an objective's
 // proof run the model directory under the objective's alias: through train
-// -objective for text, and through its route for a table. It says why
-// when no route grounds the cell's recipe and no alias registers its
-// objective, or the route lacks an input.
+// -objective for text, and through its route for a table, or for a picture
+// the bridged pair's directory. It says why when no route grounds the cell's
+// recipe and no alias registers its objective, or the route lacks an input.
 func trainingRun(cell ModelValidation, store string) (args, environment []string, err error) {
 	at := slices.IndexFunc(trainingRoutes, func(route trainingRoute) bool { return route.grounding == cell.Grounding })
 	route := trainingRoute{arguments: append([]string{"-objective", cell.Objective}, objectiveProof...)}
@@ -187,6 +206,11 @@ func trainingRun(cell ModelValidation, store string) (args, environment []string
 		// own directory; the route takes the model's, and trains the head the
 		// objective's metric names.
 		inputs = []string{"-model", filepath.Dir(filepath.Dir(cell.Location)), "-recipe", cell.Recipe.String()}
+	case at < 0 && cell.Route == codecRoute:
+		// The catalog finds a bridged pair by its bridge, in the pair's own
+		// directory, which the route takes. A proof keeps no tokens, so the
+		// run names no cache for it to write and then remove.
+		inputs = []string{"-pair", filepath.Dir(cell.Location), "-recipe", cell.Recipe.String(), "-batch", codecBatch}
 	case at < 0:
 		inputs = append(inputs, "-recipe", cell.Recipe.String())
 	case cell.Grounding == motGrounding:

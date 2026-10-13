@@ -86,10 +86,6 @@ const (
 // refusals (internal/landing). Any other entry there is a session's or a loop's, and holds the copy.
 var commitFiles = []string{".gitignore", gateLock, commitRecord, "landing_refusals.json"}
 
-// ownersData are the places whose entries are the owner's data: only the owner or the lead
-// removes them, by hand, so a worker's environment is refused them as it is refused a push.
-var ownersData = []string{"branch", "experiment"}
-
 // place is one line of the table: somewhere files accumulate, what it holds,
 // the state that makes an entry finished, the action, the function that lists
 // its entries, and, on a line that deletes and on no other, the function that
@@ -430,23 +426,28 @@ func (f *facts) copyState(tree landing.Worktree, helper bool) (state, rule strin
 	return stateFinished, fmt.Sprintf("its commit is on the trunk and it is emptied: every one of its %d tracked files is missing from disk", deleted)
 }
 
-// branches lists the local branches but the trunk.
+// branches lists the local branches but the trunk. A finished branch's rule
+// names the commit it stands on, so the receipt of its removal says where
+// the name pointed. The local copy of the branch a push publishes to is held.
 func branches(f *facts, line place) []leftover {
 	trunk := f.trees[0]
 	merged, mergedErr := gitRead(f.checkout, "for-each-ref", "--merged="+trunk.Head, "--format=%(refname)", "refs/heads")
-	listed, err := gitRead(f.checkout, "for-each-ref", "--format=%(refname)%00%(worktreepath)", "refs/heads")
+	listed, err := gitRead(f.checkout, "for-each-ref", "--format=%(refname)%00%(objectname)%00%(worktreepath)", "refs/heads")
 	if err = errors.Join(err, mergedErr); err != nil {
 		return failed(line.at, err)
 	}
 	var found []leftover
 	for row := range strings.Lines(listed) {
-		name, tree, _ := strings.Cut(strings.TrimSpace(row), "\x00")
-		entry := leftover{path: name, state: stateFinished, rule: line.finished}
+		name, rest, _ := strings.Cut(strings.TrimSpace(row), "\x00")
+		commit, tree, _ := strings.Cut(rest, "\x00")
+		entry := leftover{path: name, state: stateFinished, rule: fmt.Sprintf("%s, at the commit %.*s", line.finished, commitAbbreviation, commit)}
 		switch {
 		case name == trunk.Branch:
 			continue
 		case trunk.Branch == "":
 			entry.state, entry.rule = stateUnknown, noTrunk
+		case name == pushedBranch:
+			entry.state, entry.rule = stateHeld, "a push publishes to the remote's branch of this name, and this is its local copy"
 		case tree != "":
 			entry.state, entry.rule = stateHeld, "the worktree "+tree+" has it checked out"
 		case !slices.Contains(strings.Fields(merged), name):
@@ -1167,21 +1168,12 @@ func (h hygiene) removeFinished(remove func(h hygiene, path string) error, done 
 // state and rule for every other, and a token: the first digits of a digest
 // over each finished entry's path, bytes and rule. It removes nothing until
 // it is given that token back, and then only if the place still lists the
-// same: the entries removed are the ones a listing showed. A place of the
-// owner's data is refused from a worker's environment, as a push is.
-func deleteLeftovers(h hygiene, name, token string, worker bool, output io.Writer) error {
+// same: the entries removed are the ones a listing showed. Who runs it
+// decides nothing, and the table's rule for the place decides what goes.
+func deleteLeftovers(h hygiene, name, token string, output io.Writer) error {
 	at := slices.IndexFunc(leftoverPlaces, func(line place) bool { return line.name == name && line.remove != nil })
-	switch {
-	case at < 0:
-		var deleting []string
-		for _, line := range leftoverPlaces {
-			if line.remove != nil {
-				deleting = append(deleting, line.name)
-			}
-		}
-		return fmt.Errorf("-delete names a place whose finished entries are deleted, one of %s, and %q is none of them", strings.Join(deleting, ", "), name)
-	case worker && slices.Contains(ownersData, name):
-		return errors.New("the loop and its workers never remove the owner's data: the owner or the lead runs -delete " + name)
+	if at < 0 {
+		return fmt.Errorf("-delete names a place whose finished entries are deleted, one of %s, and %q is none of them", strings.Join(deletingPlaces(), ", "), name)
 	}
 	lock, err := h.removing()
 	if err != nil {
@@ -1198,17 +1190,27 @@ func deleteLeftovers(h hygiene, name, token string, worker bool, output io.Write
 	return h.removeFinished(leftoverPlaces[at].remove, "removed", found, output)
 }
 
-// clearedAtCommit are the places a confirmed commit clears: where a session's
-// and a build's own leftovers accumulate, and never the owner's data.
-var clearedAtCommit = []string{"tmp", "temporary-build", "helper-copy"}
+// deletingPlaces names, in the table's order, the places whose finished
+// entries are deleted. The deleting command takes any one of them, and a
+// confirmed commit clears them all.
+func deletingPlaces() []string {
+	var names []string
+	for _, line := range leftoverPlaces {
+		if line.remove != nil {
+			names = append(names, line.name)
+		}
+	}
+	return names
+}
 
 // clearFinished is what a confirmed commit does so that nothing accumulates:
-// the deleting command's own removal, with no token, of the places a commit
-// clears. Under the removal lock, taken without waiting, it lists each place
-// afresh, in the table's order, and removes its finished entries by that
-// line's remover, a line for each in the receipt. It has no rule of its own
-// for what is finished, and it fails nothing: what it did, or why it could
-// not, is the sentence it returns.
+// the deleting command's own removal, with no token, of every place whose
+// finished entries are deleted. Under the removal lock, taken without
+// waiting, it lists each place afresh, in the table's order, and removes its
+// finished entries by that line's remover, a line for each in the receipt.
+// It has no rule of its own for what is finished and no list of its own of
+// what it clears, and it fails nothing: what it did, or why it could not, is
+// the sentence it returns.
 func clearFinished(h hygiene) string {
 	lock, err := h.removing()
 	if err != nil {
@@ -1217,7 +1219,7 @@ func clearFinished(h hygiene) string {
 	defer lock.Close()
 	var said strings.Builder
 	for _, line := range leftoverPlaces {
-		if !slices.Contains(clearedAtCommit, line.name) {
+		if line.remove == nil {
 			continue
 		}
 		found, failure := listLeftovers(h, true, line.name)
@@ -1227,7 +1229,7 @@ func clearFinished(h hygiene) string {
 		err = errors.Join(err, failure)
 	}
 	text := fmt.Sprintf("cleared %d of %d finished entries of %s, a line for each in %s", strings.Count("\n"+said.String(), "\nremoved\t"),
-		strings.Count(said.String(), "\n"), strings.Join(clearedAtCommit, ", "), filepath.Join(h.checkout, processlock.StateDirectory, removalReceipt))
+		strings.Count(said.String(), "\n"), strings.Join(deletingPlaces(), ", "), filepath.Join(h.checkout, processlock.StateDirectory, removalReceipt))
 	if err != nil {
 		text += "; " + strings.Join(strings.Fields(err.Error()), " ")
 	}
@@ -1272,11 +1274,9 @@ func confirmed(found []leftover, token, verb, done, holder string, output io.Wri
 // locations of a run's checkpoints, so that the run's directory, once its
 // record is committed, reads finished and the deleting command can take it.
 // It is the deleting command's sibling: it lists under the removal lock,
-// prints a token, changes nothing until it is given that token back, writes
-// its lines to the same receipt, and is refused from a worker's environment,
-// since a run's registrations are the owner's data. Only locations are
-// withdrawn: every identity and every edge stays in the store, and no file
-// is touched.
+// prints a token, changes nothing until it is given that token back, and
+// writes its lines to the same receipt. Only locations are withdrawn: every
+// identity and every edge stays in the store, and no file is touched.
 //
 // The directory is a run's output: inside the experiments folder, and named
 // itself by a committed record. For each folder in it that holds a checkpoint
@@ -1293,14 +1293,12 @@ func confirmed(found []leftover, token, verb, done, holder string, output io.Wri
 // the whole withdrawal is refused if one of those models is served, by an
 // active alias, or is one no checkpoint of the run produced: whether a model
 // is served is read only to refuse, never as grounds to withdraw.
-func withdrawRegistrations(h hygiene, directory, token string, worker bool, output io.Writer) error {
+func withdrawRegistrations(h hygiene, directory, token string, output io.Writer) error {
 	f := &facts{hygiene: h}
 	line := leftoverPlaces[slices.IndexFunc(leftoverPlaces, func(line place) bool { return line.name == "experiment" })]
 	directory, err := filepath.Abs(directory)
 	lines, citeErr := f.citations(line, "docs")
 	switch experiments := f.directory(line); {
-	case worker:
-		return errors.New("the loop and its workers never remove the owner's data: the owner or the lead runs -withdraw")
 	case err != nil || citeErr != nil:
 		return errors.Join(err, citeErr)
 	case !under(experiments, directory) || under(directory, experiments):
@@ -1469,15 +1467,15 @@ func realMachine(store string) (h hygiene, err error) {
 // run's directory, withdraws its checkpoints' locations as
 // withdrawRegistrations does. With closeout, and neither named, it is the
 // campaign's close-out check.
-func leftoversFor(store, deleting, withdrawing, token string, worker, closeout bool, output io.Writer) error {
+func leftoversFor(store, deleting, withdrawing, token string, closeout bool, output io.Writer) error {
 	h, err := realMachine(store)
 	switch {
 	case err != nil:
 		return err
 	case deleting != "":
-		return deleteLeftovers(h, deleting, token, worker, output)
+		return deleteLeftovers(h, deleting, token, output)
 	case withdrawing != "":
-		return withdrawRegistrations(h, withdrawing, token, worker, output)
+		return withdrawRegistrations(h, withdrawing, token, output)
 	}
 	return leftoversCommand(h, closeout, output)
 }

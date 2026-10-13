@@ -61,22 +61,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "system-cleanup",
-      "title": "Disk space is cleaned by the system, and no place of leftovers is set apart as the owner's",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Have every commit clear finished experiment outputs and merged branches, and take the owner's-data refusal out of the two removing commands",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestCommitClearsWhatNothingHolds$'",
-          "rationale": "The operator said on 2026-10-13 \"Clean up disk space as part of system, delete this from skill.md, it doesn't even mean anything: Experiments and branches are the owner's data: never from a worker or a review session.\"\nThe operator said on 2026-10-12 \"Removing stale data / experiments is intent\".\nThe operator said on 2026-10-13 that cleanup is deterministic code, never a model's judgement and never a question to the operator.\n\nFound in cmd/loop/leftovers.go\n- the deleting command refuses the places experiment and branch from a worker's environment (ownersData)\n- the withdrawing command refuses a worker's environment for the same reason\n- a commit clears tmp, temporary-build and helper-copy and leaves experiment and branch out (clearedAtCommit)\n- result = the largest leftovers waited for a hand command (250,344,090,949 bytes of experiment weights in two run folders, removed by hand on 2026-10-13)\n\nMust hold\n- no removing command refuses a place because of who runs it\n- a confirmed commit clears every place whose finished entries are deleted\n- the table of places decides what a commit clears, with no second list\n- experiment output finished \u003c=\u003e a committed record names its experiment and no record names it in a store field and the store registers nothing in it and no store, backup or running run is in it (the listing's rule, unchanged)\n- branch finished \u003c=\u003e wholly in the trunk and checked out in no worktree (removed with git branch -d, never forced)\n- the local branch main is held, since a push publishes to the remote's branch of that name (found while preparing: main stands at 5455dc909, wholly in the trunk and checked out nowhere, so the rule above would remove it at the first commit)\n- a removed branch's receipt line names the commit it stood on, so the name can be put back\n- never removed = a store, a backup, a stash, a registered model, a model prototype\n- the guard still refuses the removing forms to a review session and to a session in a held worktree\n- a hand rm under the experiments folder stays refused, so the command is the one door\n\nNot in this step\n- skill.md's sentence. Another session holds an uncommitted rewrite of skill.md in the main checkout, and that rewrite has no such sentence. A commit from a worktree that changes skill.md is refused while the rewrite is uncommitted (internal/landing/follow.go). The sentence leaves the committed file with that rewrite.\n\nServes: change: disk space is kept by the system with no hand step.\nDisappears: ownersData, clearedAtCommit, the worker refusal in two commands, the hand command for experiments and branches.\nEvidence: the test; the receipt lines of the next commits' clearings.\nBatch: host; cmd/loop reaches no longer test run."
-        }
-      ]
-    },
-    {
       "id": "bridge-proof",
       "title": "The picture bridge's training proof runs under the recipe its cell names",
       "owner": "master-lead",

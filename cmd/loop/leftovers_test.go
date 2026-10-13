@@ -1106,9 +1106,9 @@ const removalState = "repo/" + processlock.StateDirectory
 
 // removalRun names a place to the removing command over a machine and returns its lines, each split
 // into its fields, the token its last line carries when it only listed, and its error.
-func removalRun(h hygiene, place, token string, worker bool) (lines [][]string, shown string, err error) {
+func removalRun(h hygiene, place, token string) (lines [][]string, shown string, err error) {
 	var output bytes.Buffer
-	err = deleteLeftovers(h, place, token, worker, &output)
+	err = deleteLeftovers(h, place, token, &output)
 	lines, shown = removalLines(output.String())
 	return lines, shown, err
 }
@@ -1170,16 +1170,15 @@ func (s sandbox) ruled(lines [][]string, slash, verb, text string) {
 // entries' paths, bytes and rules. Given that token it removes exactly those entries, a line each,
 // and appends the lines to one receipt in the trunk's process state, whichever checkout it runs
 // in. It refuses a token that is not the listing's, a token whose listing no longer holds (an
-// entry's bytes changed), a place whose action is not delete, a place the table does not have, a
-// second removal while one holds the lock, and, from a worker's environment, the owner's data:
-// experiments and branches. A refusal removes nothing.
+// entry's bytes changed), a place whose action is not delete, a place the table does not have, and a
+// second removal while one holds the lock. Who runs it decides nothing. A refusal removes nothing.
 //
 // What it leaves, each with the rule that keeps it: an experiment's output a committed record
 // names in a store field, also when the path stands on the field's continuation line, while a
 // record's other mention holds nothing; one the store registers a location in; one that holds a
 // store, a sealed backup or the lock of a run still going, and one whose experiment's own directory
 // holds such a lock, while a lock a run left there untaken holds nothing; one that holds a link; a
-// file; a branch a worktree has checked out or the trunk lacks; a build folder that holds this command's executable,
+// file; a branch a worktree has checked out or the trunk lacks, and the local copy of the branch a push publishes to; a build folder that holds this command's executable,
 // and every build folder while another go command runs or the process list cannot be read; a
 // scratch folder whose row the plan holds. A removal that is refused, by the remover, by a file held
 // open in the folder or by a lock on a branch's ref, leaves its entry as it was, reads left in its
@@ -1214,6 +1213,7 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 	s.write("repo/source/tracked.txt", "work a stash holds\n")
 	gitFixture(t, repo, "stash", "push", "-q", "-m", "kept work")
 	gitFixture(t, repo, "branch", "merged-free", "master")
+	gitFixture(t, repo, "branch", "main", "master")
 	gitFixture(t, repo, "worktree", "add", "-q", "-b", "merged-held", s.at("lanes/merged"), "master")
 	gitFixture(t, repo, "worktree", "add", "-q", "-b", "lane/feature", s.at("lanes/feature"), "master")
 	gitFixture(t, s.at("lanes/feature"), "commit", "-q", "--allow-empty", "-m", "lane work")
@@ -1348,7 +1348,7 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 
 	var token string
 	t.Run("a place named with no token is listed with a token, and nothing is removed", func(t *testing.T) {
-		lines, shown, err := run(h, "experiment", "", false)
+		lines, shown, err := run(h, "experiment", "")
 		if want := listed(experiments, finishedExperiments...); err != nil || !slices.Equal(verbs(lines), want) || len(shown) != 16 {
 			t.Fatalf("the listing of the experiments is (%v, token %q)\n%s\nwant a token of 16 digits and\n%s", err, shown, strings.Join(verbs(lines), "\n"), strings.Join(want, "\n"))
 		}
@@ -1378,7 +1378,7 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 				t.Errorf("the kept entry %s is listed with %s bytes, want it unmeasured", fields[3], fields[1])
 			}
 		}
-		again, repeated, err := run(h, "experiment", "", false)
+		again, repeated, err := run(h, "experiment", "")
 		if err != nil || repeated != shown || !slices.Equal(verbs(again), verbs(lines)) {
 			t.Fatalf("a second listing gave the token %q (%v), want the first one's %q: nothing changed between them", repeated, err, shown)
 		}
@@ -1389,38 +1389,30 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 	t.Run("a refusal removes nothing", func(t *testing.T) {
 		for _, refused := range []struct {
 			name, place, token, want string
-			worker                   bool
 		}{
-			{"a token that is not the listing's", "experiment", "0123456789abcdef", "list it again", false},
-			{"a worker's environment, listing the experiments", "experiment", "", "owner", true},
-			{"a worker's environment, with the experiments' token", "experiment", token, "owner", true},
-			{"a worker's environment, listing the branches", "branch", "", "owner", true},
-			{"a place that only reports", "checkpoint", "", "helper-copy, branch, experiment, temporary-build, tmp", false},
-			{"a place that never deletes", "store-backup", "", "helper-copy, branch, experiment, temporary-build, tmp", false},
-			{"the stashes", "stash", "", "helper-copy, branch, experiment, temporary-build, tmp", false},
-			{"the worktrees that are no helper copies", "worktree", "", "helper-copy, branch, experiment, temporary-build, tmp", false},
-			{"a place the table does not have", "nowhere", "", `"nowhere"`, false},
+			{"a token that is not the listing's", "experiment", "0123456789abcdef", "list it again"},
+			{"a place that only reports", "checkpoint", "", "helper-copy, branch, experiment, temporary-build, tmp"},
+			{"a place that never deletes", "store-backup", "", "helper-copy, branch, experiment, temporary-build, tmp"},
+			{"the stashes", "stash", "", "helper-copy, branch, experiment, temporary-build, tmp"},
+			{"the worktrees that are no helper copies", "worktree", "", "helper-copy, branch, experiment, temporary-build, tmp"},
+			{"a place the table does not have", "nowhere", "", `"nowhere"`},
 		} {
-			lines, _, err := run(h, refused.place, refused.token, refused.worker)
+			lines, _, err := run(h, refused.place, refused.token)
 			if err == nil || !strings.Contains(err.Error(), refused.want) || len(lines) != 0 {
 				t.Errorf("%s: the command answered %v with the lines %q, want it refused, naming %q, with no line", refused.name, err, lines, refused.want)
 			}
-		}
-		// A worker may remove what is no one's data: the listing of the scratch folders is allowed it.
-		if _, _, err := run(h, "tmp", "", true); err != nil {
-			t.Errorf("a worker's environment was refused the listing of the scratch folders: %v", err)
 		}
 		held, err := processlock.Acquire(s.at(removalState+"/leftovers-removal.lock"), 0o600)
 		if err != nil {
 			t.Fatal(err)
 		}
-		lines, _, err := run(h, "experiment", token, false)
+		lines, _, err := run(h, "experiment", token)
 		if closeErr := held.Close(); err == nil || closeErr != nil || len(lines) != 0 || !strings.Contains(err.Error(), "another removal") {
 			t.Errorf("with the removal lock held the command answered %v with the lines %q (close: %v), want it refused as another removal's", err, lines, closeErr)
 		}
 		// The listing's token no longer holds once an entry it showed has other bytes.
 		s.write("data/experiments/done/weights/step.bin", "weights, and more of them")
-		lines, _, err = run(h, "experiment", token, false)
+		lines, _, err = run(h, "experiment", token)
 		if err == nil || !strings.Contains(err.Error(), "list it again") || len(lines) != 0 {
 			t.Errorf("with a finished entry's bytes changed since the listing the command answered %v with the lines %q, want it refused with no line", err, lines)
 		}
@@ -1449,7 +1441,7 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 			defer busy.Close()
 			left = append(left, "data/experiments/busy/weights")
 		}
-		lines, _, err := run(failing, "experiment", token, false)
+		lines, _, err := run(failing, "experiment", token)
 		receipts(lines)
 		want := listed(experiments)
 		for _, slash := range finishedExperiments {
@@ -1477,14 +1469,14 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 	})
 
 	t.Run("a later listing has a token of its own, and its removal is appended to the one receipt", func(t *testing.T) {
-		if lines, _, err := run(h, "experiment", token, false); err == nil || len(lines) != 0 {
+		if lines, _, err := run(h, "experiment", token); err == nil || len(lines) != 0 {
 			t.Fatalf("the first listing's token was taken again (%v, lines %q) after the removal changed what the place holds", err, lines)
 		}
-		_, shown, err := run(h, "experiment", "", false)
+		_, shown, err := run(h, "experiment", "")
 		if err != nil || shown == token {
 			t.Fatalf("the listing after the removal gave the token %q (%v), want one of its own", shown, err)
 		}
-		lines, _, err := run(h, "experiment", shown, false)
+		lines, _, err := run(h, "experiment", shown)
 		receipts(lines)
 		if err != nil {
 			t.Fatalf("the removal of what the first one left: %v", err)
@@ -1499,31 +1491,34 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 	removed := slices.Clone(finishedExperiments)
 	t.Run("a merged branch no worktree has checked out goes, and no other", func(t *testing.T) {
 		before := gitState()
-		lines, shown, err := run(h, "branch", "", false)
-		all := []string{"kept refs/heads/lane/feature", "kept refs/heads/merged-free", "kept refs/heads/merged-held"}
+		lines, shown, err := run(h, "branch", "")
+		all := []string{"kept refs/heads/lane/feature", "kept refs/heads/main", "kept refs/heads/merged-free", "kept refs/heads/merged-held"}
 		if want := listed(all, "refs/heads/merged-free"); err != nil || !slices.Equal(verbs(lines), want) {
 			t.Fatalf("the listing of the branches is (%v)\n%s\nwant\n%s", err, strings.Join(verbs(lines), "\n"), strings.Join(want, "\n"))
 		}
 		if now := gitState(); now != before {
 			t.Fatalf("the listing of the branches changed git's view:\n%s\nwant\n%s", now, before)
 		}
+		// The local copy of the branch a push publishes to is as merged and as free as the one that
+		// goes, and is held.
+		ruled(lines, pushedBranch, "kept", "a push publishes")
 		// A branch git cannot delete, its ref locked by another git command, is left, and its line
 		// says left: a branch is no path whose absence could say it was removed in part.
 		refLock := s.at("repo/.git/refs/heads/merged-free.lock")
 		s.write("repo/.git/refs/heads/merged-free.lock", "")
-		lines, _, err = run(h, "branch", shown, false)
+		lines, _, err = run(h, "branch", shown)
 		receipts(lines)
 		if unlockErr := os.Remove(refLock); err == nil || unlockErr != nil {
 			t.Fatalf("with the branch's ref locked the removal answered %v (unlocked: %v), want it to fail", err, unlockErr)
 		}
 		ruled(lines, "refs/heads/merged-free", "left", "git branch")
-		lines, _, err = run(h, "branch", shown, false)
+		lines, _, err = run(h, "branch", shown)
 		receipts(lines)
 		if err != nil {
 			t.Fatal(err)
 		}
 		ruled(lines, "refs/heads/merged-free", "removed", "wholly in the trunk")
-		if branches := strings.Fields(gitFixture(t, repo, "branch", "--format=%(refname:short)")); !slices.Equal(branches, []string{"lane/feature", "master", "merged-held"}) {
+		if branches := strings.Fields(gitFixture(t, repo, "branch", "--format=%(refname:short)")); !slices.Equal(branches, []string{"lane/feature", "main", "master", "merged-held"}) {
 			t.Fatalf("after the removal git holds the branches %q, want all but merged-free", branches)
 		}
 		untouched(t, first, "", removed...)
@@ -1531,21 +1526,21 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 
 	t.Run("a build folder goes only while no other go command runs, and never the one this command runs from", func(t *testing.T) {
 		running = []string{"go.exe"}
-		lines, shown, err := run(h, "temporary-build", "", false)
+		lines, shown, err := run(h, "temporary-build", "")
 		if want := []string{"kept temporary/go-build1", "kept temporary/go-build2"}; err != nil || !slices.Equal(verbs(lines), want) {
 			t.Fatalf("with a go command running the listing is (%v) %q, want every folder kept", err, verbs(lines))
 		}
-		if lines, _, err = run(h, "temporary-build", shown, false); err != nil || slices.ContainsFunc(lines, func(fields []string) bool { return fields[0] != "kept" }) {
+		if lines, _, err = run(h, "temporary-build", shown); err != nil || slices.ContainsFunc(lines, func(fields []string) bool { return fields[0] != "kept" }) {
 			t.Fatalf("with a go command running the token of nothing removed something or failed: %v %q", err, lines)
 		}
 		running, listing = nil, errors.New("the process list is unreadable")
-		if lines, _, err = run(h, "temporary-build", "", false); err != nil || !slices.Equal(verbs(lines), []string{"kept temporary/go-build1", "kept temporary/go-build2"}) {
+		if lines, _, err = run(h, "temporary-build", ""); err != nil || !slices.Equal(verbs(lines), []string{"kept temporary/go-build1", "kept temporary/go-build2"}) {
 			t.Fatalf("with the process list unreadable the listing is (%v) %q, want every folder kept", err, verbs(lines))
 		}
 		ruled(lines, "temporary/go-build1", "kept", "the process list is unreadable")
 		untouched(t, first, "", removed...)
 		listing = nil
-		_, shown, err = run(h, "temporary-build", "", false)
+		_, shown, err = run(h, "temporary-build", "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1554,11 +1549,11 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 		if err := os.Rename(s.at("temporary/go-build1"), s.at("temporary/go-build3")); err != nil {
 			t.Fatal(err)
 		}
-		lines, _, err = run(h, "temporary-build", shown, false)
+		lines, _, err = run(h, "temporary-build", shown)
 		if renameErr := os.Rename(s.at("temporary/go-build3"), s.at("temporary/go-build1")); err == nil || renameErr != nil || len(lines) != 0 {
 			t.Fatalf("the token of one folder was taken for another of the same bytes (%v, lines %q; renamed back: %v)", err, lines, renameErr)
 		}
-		lines, _, err = run(h, "temporary-build", shown, false)
+		lines, _, err = run(h, "temporary-build", shown)
 		receipts(lines)
 		if want := []string{"kept temporary/go-build2", "removed temporary/go-build1"}; err != nil || !slices.Equal(verbs(lines), want) {
 			t.Fatalf("with no other go command running the removal said (%v) %q, want %q", err, verbs(lines), want)
@@ -1569,21 +1564,21 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 	})
 
 	t.Run("every scratch entry that no plan holds goes, a loose file among them, and the folder of an open row stays", func(t *testing.T) {
-		_, stale, err := run(h, "tmp", "", false)
+		_, stale, err := run(h, "tmp", "")
 		if err != nil {
 			t.Fatal(err)
 		}
 		// The token names the entries it was shown for: once another entry lies in the folder, the
 		// listing is another, and is listed again.
 		s.write("repo/tmp/later.go", "package later\n")
-		if lines, _, err := run(h, "tmp", stale, false); err == nil || len(lines) != 0 {
+		if lines, _, err := run(h, "tmp", stale); err == nil || len(lines) != 0 {
 			t.Fatalf("the token of a listing was taken after another entry was written beside those it showed (%v, lines %q)", err, lines)
 		}
-		_, shown, err := run(h, "tmp", "", false)
+		_, shown, err := run(h, "tmp", "")
 		if err != nil || shown == stale {
 			t.Fatalf("the listing with the later entry gave the token %q (%v), want one of its own", shown, err)
 		}
-		lines, _, err := run(h, "tmp", shown, false)
+		lines, _, err := run(h, "tmp", shown)
 		receipts(lines)
 		if want := []string{"kept repo/tmp/open-row", "removed repo/tmp/landed-row", "removed repo/tmp/later.go", "removed repo/tmp/loose.go"}; err != nil || !slices.Equal(verbs(lines), want) {
 			t.Fatalf("the removal of the scratch entries said (%v) %q, want %q", err, verbs(lines), want)
@@ -1649,24 +1644,29 @@ func (w *clearingWorld) Cleared() string {
 // accumulates around a commit and, beside it, everything a commit must leave. The real machine is
 // never read, and every removal happens beneath the test's own directory.
 //
-// A commit that git confirms clears three places and no other, none of them the owner's data: the
-// scratch folder, the folders a go command builds in, and the helper copies. From the scratch folder
-// goes everything that nothing holds: a loose file, an executable, a Python file, a folder no row
-// was ever named for and the folder of a row that has left both plans. A build folder goes, and a
-// helper copy whose commit is on the trunk and that holds nothing. Each removal has its line in the
-// receipt, and the commit's outcome says in one sentence how many went.
+// A commit that git confirms clears every place whose finished entries are deleted, and no other.
+// Those places are the helper copies, the branches, the experiments' outputs, the folders a go
+// command builds in and the scratch folder. From the scratch folder goes everything that nothing
+// holds, which is a loose file, an executable, a Python file, a folder no row was ever named for
+// and the folder of a row that has left both plans. A build folder goes, and so does a helper copy
+// whose commit is on the trunk and that holds nothing, a branch that is wholly in the trunk and
+// checked out nowhere, and an experiment's output that a committed record names and the store
+// registers nothing in. Each removal has its line in the receipt, and the commit's outcome says in
+// one sentence how many went.
 //
-// What stays: the folder of a row the working plan holds, of one only the plan of the trunk's
-// commit holds, and of one a plan names in another letter case; the scratch module's two files; an
-// entry a committed line names and one the store registers a location in; a helper copy git holds
-// locked, one with uncommitted work, and the checkout the commit ran in; the build folder this
-// command runs from, and every build folder while a go command runs; and every entry of every other
-// place, finished or not: an experiment's output that its own line lists as finished, a merged
-// branch, a stash, a model prototype, a model, a store and a backup.
+// What stays is the folder of a row the working plan holds, of one only the plan of the trunk's
+// commit holds, and of one a plan names in another letter case. The scratch module's two files
+// stay, and so does an entry a committed line names and one the store registers a location in,
+// in the scratch folder or among an experiment's outputs. A helper copy git holds locked stays,
+// one with uncommitted work, and the checkout the commit ran in. The build folder this command
+// runs from stays, and every build folder while a go command runs. Every entry of a place that
+// only reports or never deletes stays, which here is a stash, a model prototype, a model, a store
+// and a backup.
 //
 // A landing the gate refuses, and one git does not confirm, clear nothing and take no lock. A
-// clearing that cannot run, because another removal holds the lock, and one whose remover fails
-// leave the commit's outcome ready, remove nothing, and say why in the outcome.
+// clearing that cannot run, because another removal holds the lock, removes nothing. One whose
+// remover of directories fails removes only the branch, which git removes. Each leaves the commit's
+// outcome ready and says why in the outcome.
 func TestCommitClearsWhatNothingHolds(t *testing.T) {
 	t.Parallel()
 	s := newSandbox(t)
@@ -1695,6 +1695,8 @@ func TestCommitClearsWhatNothingHolds(t *testing.T) {
 	s.write("repo/source/tracked.txt", "work a stash holds\n")
 	gitFixture(t, repo, "stash", "push", "-q", "-m", "kept work")
 	gitFixture(t, repo, "branch", "merged-free", "master")
+	// The local copy of the branch a push publishes to is as merged and as free, and a commit leaves it.
+	gitFixture(t, repo, "branch", "main", "master")
 
 	// The helper copies: one that is finished, and three a commit must leave.
 	const copies = "temporary/sessions/s1/scratchpad/"
@@ -1715,12 +1717,13 @@ func TestCommitClearsWhatNothingHolds(t *testing.T) {
 	for _, name := range append([]string{"go.mod", "go.sum", "cited.go"}, loose...) {
 		s.write("repo/tmp/"+name, "a file of the fixture\n")
 	}
-	// The other places: what their own lines list as finished, and what is never anyone's to remove.
-	for _, kept := range []string{
-		"data/experiments/done/weights/step.bin", "data/checkpoints/proto/model.bin", "data/models/base/model.bin", "data/overgodb-store/blob", "backups/sealed/blob",
-		"temporary/go-build1/x", "temporary/go-build2/b001/exe/loop.exe",
+	// The other places: an experiment's output that is finished and one the store registers a
+	// location in, the build folders, and what is never anyone's to remove.
+	for _, written := range []string{
+		"data/experiments/done/weights/step.bin", "data/experiments/done/registered/step.bin", "data/checkpoints/proto/model.bin", "data/models/base/model.bin",
+		"data/overgodb-store/blob", "backups/sealed/blob", "temporary/go-build1/x", "temporary/go-build2/b001/exe/loop.exe",
 	} {
-		s.write(kept, "bytes of the fixture")
+		s.write(written, "bytes of the fixture")
 	}
 
 	running := []string(nil)
@@ -1729,7 +1732,9 @@ func TestCommitClearsWhatNothingHolds(t *testing.T) {
 		executable: s.at("temporary/go-build2/b001/exe/loop.exe"),
 		kept:       []string{s.at("data/overgodb-store"), s.at("data/models")},
 		stores:     func() ([]leftover, error) { return nil, nil },
-		registered: func() ([]string, error) { return []string{s.at("repo/tmp/registered/probe.go")}, nil },
+		registered: func() ([]string, error) {
+			return []string{s.at("repo/tmp/registered/probe.go"), s.at("data/experiments/done/registered/step.bin")}, nil
+		},
 		processes:  func() ([]string, error) { return running, nil },
 		removeTree: fsatomic.RemoveTree,
 	}
@@ -1742,6 +1747,12 @@ func TestCommitClearsWhatNothingHolds(t *testing.T) {
 		return state.String()
 	}
 	before, registered := s.seen(), gitState()
+	// branch is the one finished branch, and unbranched is what git holds once it is gone.
+	const branch = "refs/heads/merged-free"
+	unbranched := strings.Replace(registered, "  "+path.Base(branch)+"\n", "", 1)
+	if unbranched == registered {
+		t.Fatalf("git lists no branch %s to remove:\n%s", path.Base(branch), registered)
+	}
 	// commit runs the row sequence over a machine, with a gate that answers as given and git
 	// confirming unless an error is given, and returns its outcome and the calls it made.
 	commit := func(t *testing.T, machine hygiene, gate string, unconfirmed error) (landOutcome, []string) {
@@ -1770,16 +1781,18 @@ func TestCommitClearsWhatNothingHolds(t *testing.T) {
 	for _, name := range loose {
 		finished = append(finished, "repo/tmp/"+name)
 	}
-	finished = append(finished, copies+"landed", "temporary/go-build1")
-	// receipted fails unless the receipt holds exactly a line for each finished entry under each verb
-	// given, as sorted "verb path" pairs.
+	// finished are the finished entries that are directories and files, the build folder last. The
+	// branch is one more, which git removes.
+	finished = append(finished, copies+"landed", "data/experiments/done/weights", "temporary/go-build1")
+	// receipted fails unless the receipt holds exactly a line for each finished directory and file
+	// under each verb given, and the one line of the branch's removal, as sorted "verb path" pairs.
 	receipted := func(t *testing.T, verbs ...string) {
 		t.Helper()
 		written, err := os.ReadFile(receipt)
 		if err != nil {
 			t.Fatal(err)
 		}
-		var want []string
+		want := []string{"removed " + branch}
 		for _, verb := range verbs {
 			for _, slash := range finished {
 				want = append(want, verb+" "+slash)
@@ -1796,14 +1809,9 @@ func TestCommitClearsWhatNothingHolds(t *testing.T) {
 		return fmt.Sprintf("cleared %d of %d finished entries", removed, finished)
 	}
 
-	t.Run("a commit clears three places, and none is the owner's data", func(t *testing.T) {
-		if want := []string{"tmp", "temporary-build", "helper-copy"}; !slices.Equal(clearedAtCommit, want) {
-			t.Fatalf("a commit clears the places %q, want exactly %q", clearedAtCommit, want)
-		}
-		for _, name := range clearedAtCommit {
-			if !slices.ContainsFunc(leftoverPlaces, func(line place) bool { return line.name == name && line.remove != nil }) || slices.Contains(ownersData, name) {
-				t.Errorf("a commit clears %s, which is the owner's data or no line of the table that deletes", name)
-			}
+	t.Run("a commit clears every place whose finished entries are deleted", func(t *testing.T) {
+		if got, want := deletingPlaces(), []string{"helper-copy", "branch", "experiment", "temporary-build", "tmp"}; !slices.Equal(got, want) {
+			t.Fatalf("the table deletes the finished entries of the places %q, want exactly %q", got, want)
 		}
 	})
 
@@ -1828,7 +1836,7 @@ func TestCommitClearsWhatNothingHolds(t *testing.T) {
 		left(t, registered)
 	})
 
-	t.Run("a clearing that cannot run, or whose remover fails, leaves the commit ready and says why", func(t *testing.T) {
+	t.Run("a clearing that cannot run, or whose remover of directories fails, leaves the commit ready and says why", func(t *testing.T) {
 		if err := processlock.EnsureStateDirectory(repo); err != nil {
 			t.Fatal(err)
 		}
@@ -1847,11 +1855,12 @@ func TestCommitClearsWhatNothingHolds(t *testing.T) {
 		failing := h
 		failing.removeTree = func(string) error { return errors.New("the disk refused") }
 		outcome, _ = commit(t, failing, "", nil)
-		if outcome.Outcome != outcomeReady || outcome.Commit == "" || !strings.Contains(outcome.Cleared, "the disk refused") || !strings.Contains(outcome.Cleared, said(0, len(finished))) {
-			t.Fatalf("with a remover that fails the commit ended %+v, want it ready, saying that none of the %d finished entries went and why", outcome, len(finished))
+		// The branch is no directory: git removes it, and every directory and file is left.
+		if all := len(finished) + 1; outcome.Outcome != outcomeReady || outcome.Commit == "" || !strings.Contains(outcome.Cleared, "the disk refused") || !strings.Contains(outcome.Cleared, said(1, all)) {
+			t.Fatalf("with a remover of directories that fails the commit ended %+v, want it ready, saying that the branch alone of the %d finished entries went and why", outcome, all)
 		}
 		receipted(t, "left")
-		left(t, registered)
+		left(t, unbranched)
 	})
 
 	t.Run("a confirmed commit clears what nothing holds, and a build folder only once no go command runs", func(t *testing.T) {
@@ -1865,12 +1874,12 @@ func TestCommitClearsWhatNothingHolds(t *testing.T) {
 			t.Errorf("the outcome says %q of the clearing, want one line", outcome.Cleared)
 		}
 		// Git registers every worktree it did but the one helper copy that went, whose lines end with an empty one.
-		at := strings.Index(registered, "worktree "+filepath.ToSlash(landed)+"\n")
+		at := strings.Index(unbranched, "worktree "+filepath.ToSlash(landed)+"\n")
 		if at < 0 {
-			t.Fatalf("git never registered the finished helper copy %s:\n%s", landed, registered)
+			t.Fatalf("git never registered the finished helper copy %s:\n%s", landed, unbranched)
 		}
-		rest := registered[at:]
-		git := registered[:at] + rest[strings.Index(rest, "\n\n")+len("\n\n"):]
+		rest := unbranched[at:]
+		git := unbranched[:at] + rest[strings.Index(rest, "\n\n")+len("\n\n"):]
 		left(t, git, gone...)
 		for _, slash := range gone {
 			if _, err := os.Lstat(s.at(slash)); !errors.Is(err, fs.ErrNotExist) {
@@ -1892,18 +1901,21 @@ func TestCommitClearsWhatNothingHolds(t *testing.T) {
 		receipted(t, "left", "removed")
 	})
 
-	t.Run("what the other places list as finished is still there, and still finished", func(t *testing.T) {
-		found, err := listLeftovers(h, true, "experiment", "branch")
+	t.Run("nothing finished is left, and what a rule keeps is still there", func(t *testing.T) {
+		found, err := listLeftovers(h, true, deletingPlaces()...)
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, entry := range []string{s.at("data/experiments/done/weights"), "refs/heads/merged-free"} {
-			if !slices.ContainsFunc(found, func(listed leftover) bool { return listed.path == entry && listed.state == stateFinished }) {
-				t.Errorf("after the commits %s is not listed as finished by its own place, so nothing shows a commit leaves another place's finished entries: %+v", entry, found)
-			}
+		if at := slices.IndexFunc(found, func(listed leftover) bool { return listed.state == stateFinished }); at >= 0 {
+			t.Errorf("after the commits %s is still listed as finished by the place %s", found[at].path, found[at].place)
 		}
-		if _, err := os.Stat(s.at("data/experiments/done/weights/step.bin")); err != nil {
-			t.Errorf("the experiment's finished output did not outlive the commits: %v", err)
+		if !slices.ContainsFunc(found, func(listed leftover) bool {
+			return listed.path == s.at("data/experiments/done/registered") && listed.state == stateHeld
+		}) {
+			t.Errorf("the experiment's output the store registers a location in is not listed as held: %+v", found)
+		}
+		if _, err := os.Stat(s.at("data/experiments/done/registered/step.bin")); err != nil {
+			t.Errorf("the experiment's output the store registers a location in did not outlive the commits: %v", err)
 		}
 		for _, name := range append([]string{"go.mod", "go.sum", "cited.go"}, held...) {
 			if _, err := os.Stat(s.at("repo/tmp/" + name)); err != nil {
@@ -1930,8 +1942,7 @@ func TestCommitClearsWhatNothingHolds(t *testing.T) {
 // locked against removal, and the checkout the command runs in; and, of unknown state, one with no
 // process state, one whose process state holds no record of a commit's run and one whose directory
 // is gone. A lane's worktree and the cycle checkout are no helper copies and are not listed, and no
-// fact of another place is read, the store's least of all. A worker's environment is given the
-// same listing: a helper copy is no one's data.
+// fact of another place is read, the store's least of all.
 //
 // A token that is not the listing's, the listing's own token once a copy it showed has changed,
 // and a removal while another holds the lock remove nothing. A remover that fails, one that leaves
@@ -2055,7 +2066,7 @@ func TestHelperCopyIsRemovedOnceItsCommitIsOnTheTrunk(t *testing.T) {
 
 	var token string
 	t.Run("named with no token the finished copies are listed with a token, and nothing is removed", func(t *testing.T) {
-		lines, shown, err := removalRun(h, "helper-copy", "", false)
+		lines, shown, err := removalRun(h, "helper-copy", "")
 		if want := said(finished); err != nil || !slices.Equal(s.verbs(lines), want) || len(shown) != tokenDigits {
 			t.Fatalf("the listing of the helper copies is (%v, token %q)\n%s\nwant a token of %d digits and\n%s", err, shown, strings.Join(s.verbs(lines), "\n"), tokenDigits, strings.Join(want, "\n"))
 		}
@@ -2080,14 +2091,14 @@ func TestHelperCopyIsRemovedOnceItsCommitIsOnTheTrunk(t *testing.T) {
 				t.Errorf("the line %q carries the bytes %s, want a copy that would go measured and no other", fields, fields[1])
 			}
 		}
-		again, repeated, err := removalRun(h, "helper-copy", "", true)
+		again, repeated, err := removalRun(h, "helper-copy", "")
 		if err != nil || repeated != shown || !slices.Equal(s.verbs(again), s.verbs(lines)) {
-			t.Fatalf("a worker's environment was given the token %q (%v), want the listing and the token %q that any other is given", repeated, err, shown)
+			t.Fatalf("a second listing gave the token %q (%v), want the listing and the token %q of the first: nothing changed between them", repeated, err, shown)
 		}
 		// Run in a finished copy, the command keeps that copy: its listing is another, with a token of its own.
 		inside := h
 		inside.running = landed
-		lines, own, err := removalRun(inside, "helper-copy", "", false)
+		lines, own, err := removalRun(inside, "helper-copy", "")
 		if want := said(map[string]string{"emptied": "would-remove", "raced": "would-remove"}); err != nil || own == shown || !slices.Equal(s.verbs(lines), want) {
 			t.Fatalf("run in a finished copy the listing is (%v, token %q beside %q)\n%s\nwant\n%s", err, own, shown, strings.Join(s.verbs(lines), "\n"), strings.Join(want, "\n"))
 		}
@@ -2100,7 +2111,7 @@ func TestHelperCopyIsRemovedOnceItsCommitIsOnTheTrunk(t *testing.T) {
 		// refused fails unless the command, given a token, answers with an error that names want and prints no line.
 		refused := func(name, given, want string) {
 			t.Helper()
-			lines, _, err := removalRun(h, "helper-copy", given, false)
+			lines, _, err := removalRun(h, "helper-copy", given)
 			if err == nil || !strings.Contains(err.Error(), want) || len(lines) != 0 {
 				t.Errorf("%s: the command answered %v with the lines %q, want it refused, naming %q, with no line", name, err, lines, want)
 			}
@@ -2124,7 +2135,7 @@ func TestHelperCopyIsRemovedOnceItsCommitIsOnTheTrunk(t *testing.T) {
 		if err := os.Remove(s.at(later)); err != nil {
 			t.Fatal(err)
 		}
-		if _, again, err := removalRun(h, "helper-copy", "", false); err != nil || again != token {
+		if _, again, err := removalRun(h, "helper-copy", ""); err != nil || again != token {
 			t.Fatalf("with the copy as it was listed the token is %q (%v), want the first listing's %q", again, err, token)
 		}
 		if _, err := os.Stat(receipt); !errors.Is(err, fs.ErrNotExist) {
@@ -2141,7 +2152,7 @@ func TestHelperCopyIsRemovedOnceItsCommitIsOnTheTrunk(t *testing.T) {
 			t.Helper()
 			failing := h
 			failing.removeTree = remover
-			lines, _, err := removalRun(failing, "helper-copy", token, false)
+			lines, _, err := removalRun(failing, "helper-copy", token)
 			receipts(lines)
 			if err == nil || !strings.Contains(err.Error(), want) || !slices.Equal(s.verbs(lines), left) {
 				t.Fatalf("the removal answered %v with\n%s\nwant it to fail, naming %q, and to say\n%s", err, strings.Join(s.verbs(lines), "\n"), want, strings.Join(left, "\n"))
@@ -2188,7 +2199,7 @@ func TestHelperCopyIsRemovedOnceItsCommitIsOnTheTrunk(t *testing.T) {
 			}
 			return fsatomic.RemoveTree(path)
 		}
-		lines, _, err := removalRun(elsewhere, "helper-copy", token, false)
+		lines, _, err := removalRun(elsewhere, "helper-copy", token)
 		receipts(lines)
 		gone := "its directory is gone, and git still registers it"
 		if want := said(map[string]string{"emptied": "removed", "landed": "removed", "raced": "part-removed"}); err == nil || !strings.Contains(err.Error(), raced+": "+gone) || !slices.Equal(s.verbs(lines), want) {
@@ -2223,10 +2234,10 @@ func TestHelperCopyIsRemovedOnceItsCommitIsOnTheTrunk(t *testing.T) {
 			t.Fatalf("run from a helper copy, the receipt in the trunk's process state holds (%v)\n%s\nwant every line the removals printed, in order, two of them removed:\n%s", err, written, receipted.String())
 		}
 		// The token is of a listing the place no longer gives; the next listing has nothing to remove.
-		if lines, _, err := removalRun(h, "helper-copy", token, false); err == nil || len(lines) != 0 {
+		if lines, _, err := removalRun(h, "helper-copy", token); err == nil || len(lines) != 0 {
 			t.Fatalf("the token was taken again (%v, lines %q) after the removal changed what the place holds", err, lines)
 		}
-		lines, shown, err := removalRun(h, "helper-copy", "", false)
+		lines, shown, err := removalRun(h, "helper-copy", "")
 		if want := said(nil); err != nil || shown == token || !slices.Equal(s.verbs(lines), slices.DeleteFunc(want, func(line string) bool {
 			return line == "kept "+copies+"landed" || line == "kept "+copies+"emptied"
 		})) {
@@ -2452,7 +2463,7 @@ func (s sandbox) recordSplitWeights(store *overgodb.Store, from recorded, slash 
 // that is served, whether or not a checkpoint of the run produced it, and one that no checkpoint
 // of the run produced, served or not. Also refused, with nothing withdrawn: the experiments folder
 // itself, a directory outside it, a run no committed record names, a run with a checkpoint
-// document that cannot be read as one, a worker's environment, a token that is not the listing's,
+// document that cannot be read as one, a token that is not the listing's,
 // and a withdrawal while a removal holds the lock.
 //
 // A committed record must name the directory itself. The pilot's experiment holds a second run
@@ -2562,9 +2573,9 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 		registered: func() ([]string, error) { return storeLocations(storePath, 1) },
 		removeTree: fsatomic.RemoveTree,
 	}
-	withdraw := func(slash, token string, worker bool) ([][]string, string, error) {
+	withdraw := func(slash, token string) ([][]string, string, error) {
 		var output bytes.Buffer
-		err := withdrawRegistrations(h, s.at(slash), token, worker, &output)
+		err := withdrawRegistrations(h, s.at(slash), token, &output)
 		lines, shown := removalLines(output.String())
 		return lines, shown, err
 	}
@@ -2641,7 +2652,7 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 
 	var token string
 	t.Run("a run named with no token is listed with a token, and nothing is withdrawn", func(t *testing.T) {
-		lines, shown, err := withdraw(pilotRun, "", false)
+		lines, shown, err := withdraw(pilotRun, "")
 		want := said(map[string][]string{"would-withdraw": pilot.files(), "kept": kept})
 		if err != nil || !slices.Equal(s.verbs(lines), want) || len(shown) != 16 {
 			t.Fatalf("the listing of the pilot's run is (%v, token %q)\n%s\nwant a token of 16 digits and\n%s", err, shown, strings.Join(s.verbs(lines), "\n"), strings.Join(want, "\n"))
@@ -2657,13 +2668,13 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		again, repeated, err := withdraw(pilotRun, "", false)
+		again, repeated, err := withdraw(pilotRun, "")
 		if closeErr := writing.Close(); err != nil || closeErr != nil || repeated != shown || !slices.Equal(s.verbs(again), want) {
 			t.Fatalf("a second listing, made while a writer held the store, gave the token %q (%v, close: %v), want the first one's %q: nothing changed between them", repeated, err, closeErr, shown)
 		}
 		// The listing's last line says what was done, which is nothing, and what the token would do.
 		var printed bytes.Buffer
-		if err := withdrawRegistrations(h, s.at(pilotRun), "", false, &printed); err != nil || !strings.HasSuffix(printed.String(), "\nloop: nothing was withdrawn; to withdraw the 6 entries marked would-withdraw, run this again with -confirm "+shown+"\n") {
+		if err := withdrawRegistrations(h, s.at(pilotRun), "", &printed); err != nil || !strings.HasSuffix(printed.String(), "\nloop: nothing was withdrawn; to withdraw the 6 entries marked would-withdraw, run this again with -confirm "+shown+"\n") {
 			t.Errorf("the listing ends (%v)\n%s\nwant its last line to say nothing was withdrawn and to give the token of its 6 entries", err, printed.String())
 		}
 		token = shown
@@ -2672,24 +2683,21 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 	t.Run("a refusal withdraws nothing", func(t *testing.T) {
 		for _, refused := range []struct {
 			name, slash, token, want string
-			worker                   bool
 		}{
-			{"the experiments folder itself", "data/experiments", "", "inside", false},
-			{"the data root, which holds the experiments folder", "data", "", "inside", false},
-			{"a directory outside the experiments folder", "data/checkpoints/kept", "", "inside", false},
-			{"a run no committed record names", unrecorded, "", "no committed record", false},
-			{"a run no committed record names, beside one of its experiment that a record names", siblingRun, "", "no committed record", false},
-			{"an experiment's folder, which a record names only through a run in it", path.Dir(pilotRun), "", "no committed record", false},
-			{"a worker's environment, listing", pilotRun, "", "owner", true},
-			{"a worker's environment, with the listing's token", pilotRun, token, "owner", true},
-			{"a token that is not the listing's", pilotRun, "0123456789abcdef", "holds now: list it again", false},
-			{"a token that is not the listing's, by what it is said not to be the token of", pilotRun, "0123456789abcdef", "the store under " + s.at(pilotRun), false},
-			{"a run that has the only copy of a shard of a served model of no run", strandRun, "", leaning.String(), false},
-			{"a run whose own model is served", adoptedRun, "", adopted.model.String(), false},
-			{"a run that has the only copy of a shard of a prototype nothing serves", loneRun, "", borrowing.String(), false},
-			{"a run whose checkpoint document cannot be read as one", tornRun, "", trainingprogram.CheckpointFilename, false},
+			{"the experiments folder itself", "data/experiments", "", "inside"},
+			{"the data root, which holds the experiments folder", "data", "", "inside"},
+			{"a directory outside the experiments folder", "data/checkpoints/kept", "", "inside"},
+			{"a run no committed record names", unrecorded, "", "no committed record"},
+			{"a run no committed record names, beside one of its experiment that a record names", siblingRun, "", "no committed record"},
+			{"an experiment's folder, which a record names only through a run in it", path.Dir(pilotRun), "", "no committed record"},
+			{"a token that is not the listing's", pilotRun, "0123456789abcdef", "holds now: list it again"},
+			{"a token that is not the listing's, by what it is said not to be the token of", pilotRun, "0123456789abcdef", "the store under " + s.at(pilotRun)},
+			{"a run that has the only copy of a shard of a served model of no run", strandRun, "", leaning.String()},
+			{"a run whose own model is served", adoptedRun, "", adopted.model.String()},
+			{"a run that has the only copy of a shard of a prototype nothing serves", loneRun, "", borrowing.String()},
+			{"a run whose checkpoint document cannot be read as one", tornRun, "", trainingprogram.CheckpointFilename},
 		} {
-			lines, _, err := withdraw(refused.slash, refused.token, refused.worker)
+			lines, _, err := withdraw(refused.slash, refused.token)
 			if err == nil || !strings.Contains(err.Error(), refused.want) || len(lines) != 0 {
 				t.Errorf("%s: the command answered %v with the lines %q, want it refused, naming %q, with no line", refused.name, err, lines, refused.want)
 			}
@@ -2699,14 +2707,14 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 		blind := h
 		blind.checkout = s.at("data/models")
 		var printed bytes.Buffer
-		if err := withdrawRegistrations(blind, s.at(pilotRun), "", false, &printed); err == nil || !strings.Contains(err.Error(), "git") || strings.Contains(err.Error(), "no committed record") || printed.Len() != 0 {
+		if err := withdrawRegistrations(blind, s.at(pilotRun), "", &printed); err == nil || !strings.Contains(err.Error(), "git") || strings.Contains(err.Error(), "no committed record") || printed.Len() != 0 {
 			t.Errorf("with the committed records unreadable the command answered %v and printed %q, want it refused with git's own failure and no line", err, printed.String())
 		}
 		held, err := processlock.Acquire(s.at(removalState+"/leftovers-removal.lock"), 0o600)
 		if err != nil {
 			t.Fatal(err)
 		}
-		lines, _, err := withdraw(pilotRun, token, false)
+		lines, _, err := withdraw(pilotRun, token)
 		if closeErr := held.Close(); err == nil || closeErr != nil || len(lines) != 0 || !strings.Contains(err.Error(), "another removal") {
 			t.Errorf("with the removal lock held the command answered %v with the lines %q (close: %v), want it refused as another removal's", err, lines, closeErr)
 		}
@@ -2731,7 +2739,7 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 			_, err = other.Commit(ctx, artifact.Batch{Key: "withdrawal-fixture/meanwhile", Artifacts: []artifact.Descriptor{{ID: meanwhile, Size: 1}}})
 			return len(line), errors.Join(err, other.Close())
 		})
-		if err := withdrawRegistrations(h, s.at(pilotRun), token, false, racing); !raced || !errors.Is(err, artifact.ErrCommitPrecondition) {
+		if err := withdrawRegistrations(h, s.at(pilotRun), token, racing); !raced || !errors.Is(err, artifact.ErrCommitPrecondition) {
 			t.Errorf("with the store changed by another process since the listing was read (it was: %v), the withdrawal answered %v, want it refused as a store that has moved", raced, err)
 		}
 		if now, head := registered(t); !slices.Equal(now, first) || head == firstHead {
@@ -2744,7 +2752,7 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 	})
 
 	t.Run("the token withdraws the locations of the run's checkpoint, and no other", func(t *testing.T) {
-		lines, _, err := withdraw(pilotRun, token, false)
+		lines, _, err := withdraw(pilotRun, token)
 		want := said(map[string][]string{"withdrawn": pilot.files(), "kept": kept})
 		if err != nil || !slices.Equal(s.verbs(lines), want) {
 			t.Fatalf("the withdrawal said (%v)\n%s\nwant\n%s", err, strings.Join(s.verbs(lines), "\n"), strings.Join(want, "\n"))
@@ -2805,22 +2813,22 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 		})
 		unmoved(t)
 		// The prototypes still hold the run's directory against the deleting command.
-		listed, _, err := removalRun(h, "experiment", "", false)
+		listed, _, err := removalRun(h, "experiment", "")
 		if err != nil {
 			t.Fatal(err)
 		}
 		s.ruled(listed, pilotRun, "kept", "the store registers")
 		// The token is of a listing the run no longer gives; the next one has nothing to withdraw,
 		// and its token withdraws nothing.
-		if lines, _, err := withdraw(pilotRun, token, false); err == nil || len(lines) != 0 {
+		if lines, _, err := withdraw(pilotRun, token); err == nil || len(lines) != 0 {
 			t.Fatalf("the token was taken again (%v, lines %q) after the withdrawal changed what the store registers", err, lines)
 		}
 		after, afterHead := registered(t)
-		lines, shown, err := withdraw(pilotRun, "", false)
+		lines, shown, err := withdraw(pilotRun, "")
 		if want := said(map[string][]string{"kept": kept}); err != nil || shown == token || !slices.Equal(s.verbs(lines), want) {
 			t.Fatalf("the listing after the withdrawal is (%v, token %q)\n%s\nwant only the locations that are no checkpoint's, kept, under a token of its own", err, shown, strings.Join(s.verbs(lines), "\n"))
 		}
-		if _, _, err := withdraw(pilotRun, shown, false); err != nil {
+		if _, _, err := withdraw(pilotRun, shown); err != nil {
 			t.Fatalf("the token of a listing with nothing to withdraw: %v", err)
 		}
 		if now, head := registered(t); !slices.Equal(now, after) || head != afterHead {
@@ -2832,21 +2840,21 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 	})
 
 	t.Run("a run with no prototype reads finished once its registrations are withdrawn, and is then deleted", func(t *testing.T) {
-		listed, _, err := removalRun(h, "experiment", "", false)
+		listed, _, err := removalRun(h, "experiment", "")
 		if err != nil {
 			t.Fatal(err)
 		}
 		s.ruled(listed, cleanRun, "kept", "the store registers")
-		_, shown, err := withdraw(cleanRun, "", false)
+		_, shown, err := withdraw(cleanRun, "")
 		if err != nil {
 			t.Fatal(err)
 		}
-		lines, _, err := withdraw(cleanRun, shown, false)
+		lines, _, err := withdraw(cleanRun, shown)
 		if want := said(map[string][]string{"withdrawn": slices.Concat(clean[0].files(), clean[1].files(), split)}); err != nil || !slices.Equal(s.verbs(lines), want) {
 			t.Fatalf("the withdrawal of a run of two arms, and of a checkpoint whose weights are a manifest, said (%v)\n%s\nwant\n%s", err, strings.Join(s.verbs(lines), "\n"), strings.Join(want, "\n"))
 		}
 		unmoved(t)
-		listed, shown, err = removalRun(h, "experiment", "", false)
+		listed, shown, err = removalRun(h, "experiment", "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2856,13 +2864,13 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 		// The deleting command's own sentences are as they were: the two commands share the code that
 		// prints a listing and holds a token to it, each under its own verb.
 		var printed bytes.Buffer
-		if err := deleteLeftovers(h, "experiment", "", false, &printed); err != nil || !strings.HasSuffix(printed.String(), "\nloop: nothing was removed; to remove the 2 entries marked would-remove, run this again with -confirm "+shown+"\n") {
+		if err := deleteLeftovers(h, "experiment", "", &printed); err != nil || !strings.HasSuffix(printed.String(), "\nloop: nothing was removed; to remove the 2 entries marked would-remove, run this again with -confirm "+shown+"\n") {
 			t.Errorf("the deleting command's listing ends (%v)\n%s\nwant its last line to say nothing was removed and to give the token of its 2 entries", err, printed.String())
 		}
-		if err := deleteLeftovers(h, "experiment", "0123456789abcdef", false, &printed); err == nil || !strings.Contains(err.Error(), "is not the token of what the place experiment holds now") {
+		if err := deleteLeftovers(h, "experiment", "0123456789abcdef", &printed); err == nil || !strings.Contains(err.Error(), "is not the token of what the place experiment holds now") {
 			t.Errorf("the deleting command answered a token that is not its listing's with %v, want it refused as not the token of what the place holds", err)
 		}
-		listed, _, err = removalRun(h, "experiment", shown, false)
+		listed, _, err = removalRun(h, "experiment", shown)
 		if err != nil {
 			t.Fatal(err)
 		}

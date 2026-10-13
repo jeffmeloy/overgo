@@ -9,6 +9,10 @@ import (
 	"overgo/internal/gitauthority"
 )
 
+// pushedBranch is the branch of the remote that a push publishes to. The local branch of that
+// name is the staging copy of it, so a listing of leftovers holds it however far the trunk is past it.
+const pushedBranch = "refs/heads/main"
+
 // pushNamed publishes the commit the owner names to the remote's main, which only the owner
 // does, only when asked: it refuses from a worker's environment and without the explicit
 // confirmation, and only fast-forwards the remote, never forcing it. The loop itself never calls
@@ -26,7 +30,7 @@ func pushNamed(root, name, remote string, confirmed, worker bool) (string, error
 		return "", fmt.Errorf("%s names no commit in this repository: %w", name, err)
 	}
 	commit := strings.TrimSpace(string(resolved))
-	listed, err := gitauthority.Query(ctx, root, "ls-remote", remote, "refs/heads/main")
+	listed, err := gitauthority.Query(ctx, root, "ls-remote", remote, pushedBranch)
 	if err != nil {
 		return "", err
 	}
@@ -39,7 +43,7 @@ func pushNamed(root, name, remote string, confirmed, worker bool) (string, error
 			return "", fmt.Errorf("%s/main holds %.12s, which %.12s does not contain: a push only fast-forwards: %w", remote, tip, commit, err)
 		}
 	}
-	if err := gitWrite(root, "push", remote, commit+":refs/heads/main"); err != nil {
+	if err := gitWrite(root, "push", remote, commit+":"+pushedBranch); err != nil {
 		return "", err
 	}
 	return commit, nil

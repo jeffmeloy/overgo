@@ -61,32 +61,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "one-way-to-train",
-      "title": "Train every family through a registered objective, and delete the routes and their proofs",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "slice",
-          "title": "Train one family that trains only by its route's own loop through a registered objective with a held-out split, delete what that loop and its proof were, and count",
-          "status": "open",
-          "verify": "go test ./cmd/train ./internal/trainingworkflow -count=1 -run '^TestARouteTrainedFamilyTrainsByItsObjectiveAlone$'",
-          "rationale": "From the owner's amendment of 2026-10-13, with three changes from the lead's review, checked at da559484e. cmd/train has three ways in: a recipe, a registered objective, and 18 named routes (cmd/train/routes.go:26-41 and four Windows registrations), 4,662 lines in 21 files. Training orchestration is 23,246 lines (cmd/train 5,921, internal/trainingworkflow 11,065, internal/trainingprogram 4,215, internal/trainingdata 2,045), counted before the change proposer left. Change one: the amendment's slice converts nothing. The series forecaster already trains by its objective (route_seriesforecast.go:24 requires -objective and route_seriesforecast_objective.go:69 runs RunHeldout), as the tabular and codec routes do. The slice takes a family that trains only by its route's own loop. The sequence-to-sequence model is the first candidate, by its route's size (route_seq2seq.go, 143 lines) and because the generated-answer metric already judges text; that is a lead, not read, and the builder takes another family by the same test if this one cannot hold data out, and says which. A family supplies a HeldoutRun (internal/trainingworkflow/heldout_run.go:46-65): its data, Train, Predict and a metric CompileHeldoutPlan scores. Change two: a training row reads no quality because the full measurement run proves training with -proof, which records no held-out verdict under an objective as under a route (heldout_run.go:195-196). Routes are not the cause. The slice says what the proof of an objective-trained family is, so the proof stays a bounded run and the row's quality is read from the family's real training run. Change three: the 66 documents named training under docs/verification are mixed. Four run records are the dense workflow's, seven are test smokes, and three stimulus files are inputs the proofs read (cmd/validate/training_proof.go:43-51). The slice deletes only what its family's route wrote. cmd/validate/training_proof.go:63-71 runs dit, mot and hybrid-stack by route and maps the objective kinds tabular and codec (:90-93). The forecaster is unmapped (:203), which the slice repairs.\nServes: failure-rate of the full measurement run, whose only failures in the two runs before 2026-10-13 were training proofs; held-out-quality for a training row that has none.\nDisappears: one route's training loop and the proof documents it wrote. The rest step is worked only if the slice removes at least 25% of the production lines it acts on, the share the amendment's lower estimate needs (6,000 of 23,600). Otherwise it is retired with the slice's record.\nEvidence: the family trains and is judged on held-out data through train -objective; its scorecard row; production lines before and after, from the commit's own measured line.\nBatch: host and the device tests cmd/train reaches."
-        },
-        {
-          "id": "rest",
-          "title": "Move every remaining route to an objective, a family a change",
-          "status": "open",
-          "verify": "go test ./cmd/train ./cmd/validate -count=1 -run '^TestTrainHasOneEntry$'",
-          "rationale": "From the owner's amendment of 2026-10-13. With the slice's ratio measured, each remaining route becomes an objective and the proof documents it wrote go; the row's count is set below zero from that ratio before the first of these changes. The change proposer is already out (proposer-retire, 2026-10-13). A family for which no held-out split or metric can be made keeps a bounded run and is named: no held-out metric exists today for the video and latent families (by the review, not built). No family is removed, and a model prototype keeps its training route in some form whether or not a model of its family is active (owner, 2026-10-12).\nServes: held-out-quality; failure-rate of the full measurement run; the loop's upkeep.\nDisappears: the route table, the proof documents the routes wrote and their reader.\nEvidence: every training row of the scorecard reads a held-out verdict or says why it cannot; a full measurement run with no route proof among its cells; production lines removed against the count the slice set.\nBatch: host and device tests; one family a change.",
-          "depends_on": [
-            "one-way-to-train/slice"
-          ]
-        }
-      ]
-    },
-    {
       "id": "suites-as-data",
       "title": "Declare an evaluation suite as data over a small set of scorers",
       "class": "consolidation",

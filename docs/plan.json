@@ -90,6 +90,240 @@
           ]
         }
       ]
+    },
+    {
+      "id": "measurement-run-passes",
+      "title": "Let a full measurement run pass, and stop it writing what it then removes",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "bound-cells",
+          "title": "Every scorecard cell has a command bound to it, or is retired with its reason",
+          "status": "open",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestEveryScorecardCellHasABoundCommandOrIsRetired$'",
+          "rationale": "Filed by the lead on 2026-10-13 with the owner's instruction to incorporate the proposed plan as the lead sees fit; this step is not in the proposal. Every full measurement run ends its cells phase \"did not pass\" and exits with an error, because two training-proof cells have no bound command: Qwen2.5-0.5B-f16.gguf and encoder_bridge.safetensors, each with \"no cmd/train route grounds its recipe's objective, and no alias registers it for train -objective\" (seen in the runs of 2026-10-10, 2026-10-12 and 2026-10-13, the last at cc82ed097 after 3 h 39 m). A run that always fails teaches its reader to ignore the failure. Each cell is given a route by the standing rule (a capability is wired, not deleted), or is retired with the reason in the scorecard.\nServes: failure-rate of the loop itself: a run that passes when its cells pass.\nDisappears: the standing error of every run.\nEvidence: the test; the next run's cells phase.\nBatch: host for the test; cmd/validate reaches no longer test run."
+        },
+        {
+          "id": "proof-footprint",
+          "title": "Have a training proof write only what its claim reads",
+          "status": "open",
+          "verify": "go test ./cmd/train -count=1 -run '^TestProofWritesOnlyWhatItsClaimReads$'",
+          "rationale": "Filed by the lead on 2026-10-13; not in the proposal. Measured that night by a sampler of the volume's free space beside the full measurement run at cc82ed097: free space fell 86.7 GiB at one moment (451.89 GB to 358.78 GB) and returned within a minute, during the training proof of Qwen3.5-9B, which trains three full-stack steps in 11 m 14 s and writes its checkpoint under the temporary directory (overgo-validate-proof-*), about 27 GB of weights and 27 GB of momentum in float32, and removes it. The run's net growth over 3 h 40 m was about 10 GiB. So what a run needs free is set by a checkpoint nothing keeps. Measure first what the proof's claim reads of that checkpoint (the trajectory and the session observation are already in the store); then write only that.\nServes: load on the drive and the free-space floor of repo-hygiene/enforce, which this dip sets; the proof's own time.\nDisappears: about 80 GB written and removed in every run.\nEvidence: the sampler's reading before and after; the proof's record unchanged.\nBatch: host test; cmd/train imports evaluation, so the commit runs the device tests.",
+          "depends_on": [
+            "measurement-run-passes/bound-cells"
+          ]
+        },
+        {
+          "id": "census-binding",
+          "title": "Make accepting a changed census one command",
+          "status": "open",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestCensusAcceptanceIsOneCommand$'",
+          "rationale": "Filed by the lead on 2026-10-13; not in the proposal. Accepting a changed capability census is four hand steps, done by hand on 2026-10-12 at the close-out and again at abaeb0b94: publish the census, file a finding that names the base and the new census, close it, and type three identities into cmd/validate/testdata/accepted_census.json. A hand step is a system defect by the owner's rule. One command of cmd/validate does the four, refuses when the census has not changed, and prints what differs so the acceptance is read before it is made.\nServes: change: a census is accepted by one reviewed command.\nDisappears: three identities typed by hand.\nEvidence: the test, over a temporary store.\nBatch: host."
+        },
+        {
+          "id": "coverage-27b",
+          "title": "Settle what the 27B model owes the accepted MMLU-Pro coverage, so the model tests pass",
+          "status": "open",
+          "verify": "OVERGO_STORE_ACCEPTANCE=1 go test -tags modeltest,integration ./cmd/benchmark-report -count=1 -run '^TestAcceptedSmallModelMMLUPro$'",
+          "rationale": "Filed by the lead on 2026-10-13; not in the proposal, and the one failure of the model tests in the full measurement run of that night at cc82ed097: cmd/benchmark-report TestAcceptedSmallModelMMLUPro, \"Qwen3.8-27B-UD-Q6_K.gguf has incomplete MMLU-Pro coverage: 1 protocol(s) map[raw-completion:true], needs both raw and chat\", while the same test's own line says \"27B operator-owned and excluded\". The model gained a raw-completion MMLU-Pro reading in the runs of 2026-10-12 (its headline moved from bbh to mmlu-pro then), and the test now holds it to a pair it also says it is excused from. Measure first which is meant: read the test and the record that excused the model; then either the excuse is applied where the coverage is counted, or the chat-template reading is evaluated, sized to the decision it serves. The check reads the real store and the model tests' tags, so it is run by hand with both set; the lead confirms the form of the check when the step is dispatched.\nServes: failure-rate of the loop itself; held-out-quality as the benchmark report states it.\nDisappears: a model-test failure in every run.\nEvidence: the test against the real store; the next run's model tests.\nBatch: host for a change to the test's rule; device time on the quiet machine if the reading is evaluated."
+        }
+      ]
+    },
+    {
+      "id": "trustworthy-measurement",
+      "title": "Make a timing and a quality reading trustworthy before anything is judged by them",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "spread",
+          "title": "Keep one busy attempt from masking a decline, and read a timed cell from several attempts",
+          "status": "open",
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestOneBusyAttemptCannotMaskADecline$'",
+          "rationale": "From the proposal's row, with a first step the lead adds: a fault that is live now. A cell's spread is the range of its last three attempts over their mean, and a decline is filed only above the larger of the column's allowance and that spread (01ee3e336), so one busy attempt stays in the spread for the next two and raises the bar. Checked by the lead's review of 2026-10-12 against scorecard-20261012T104626Z.json: ten timing cells carried a spread wider than their allowance; gemma-4-12B-it-fp8's first output could file no decline below about 1,144 ms while it read 132, and Wan2.1's video cell none at any value. The run of 2026-10-13 timed its serving cells beside a session's compiling and testing and filed no row, which this fault would hide either way. A statistic one outlier cannot move replaces the range, and a timed cell is read from several attempts.\nServes: first-output, throughput, load-time: a real decline files a row.\nDisappears: the range of three as the bar.\nEvidence: the scorecard's history judged both ways; the ten cells' bars before and after.\nBatch: host fixtures."
+        },
+        {
+          "id": "exclusive",
+          "title": "Have a timed cell see the work that competes with it, and have every overgo workload honor the quiet machine",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestTimedWorkExcludesCompetingWork$'",
+          "rationale": "From the proposal, re-aimed. A commit holds the quiet machine shared and a timed cell holds it alone (internal/landing/quiet.go; cmd/validate/run.go:212). Serving, training, evaluation and a push take neither side: one of the two declines filed on 2026-10-12 was timed while a commit was pushed (19ff19be7). The proposal has each take the shared side, and that is kept for overgo's own commands. It cannot be the whole answer: a session's plain go test takes no hold, and on 2026-10-13 a builder's compiler and test processes ran beside the timing cells of a full measurement run from its first minute. So the timed cell also reads the machine itself, the go commands, compilers and test binaries that run (the list cmd/loop's leftovers already reads), and waits for a quiet moment or records the reading as contended, which is never compared.\nServes: first-output, throughput and load-time as readings that can be trusted.\nDisappears: timings read beside other work, and the rule that only a person's care keeps the machine quiet.\nEvidence: contention, cancellation and process death each release the hold; a competing process seen makes the reading contended; the wait is recorded apart.\nBatch: host tests and one controlled device check."
+        },
+        {
+          "id": "stages",
+          "title": "Record the stages of a first request apart, cold and warm, to the first token a person sees",
+          "status": "open",
+          "verify": "go test ./cmd/recipe -count=1 -run '^TestMeasurementSeparatesLoadPrefillAndVisibleOutput$'",
+          "rationale": "From the proposal, kept. A text attempt records load, prefill and decode, and its first output is the time at which the prompt was evaluated, not the first token emitted (cmd/recipe/inference_measure.go:168; internal/scorecard/scorecard.go:566, both read by the lead on 2026-10-13). By the proposal, not counted again: ten of eleven text rows read 99 to 161 ms there while throughput spans 17 times, and load time fits about 2.3 s plus 0.385 s for each GiB of peak device memory. The commit that closed the two declines could not say which stage had been slow (19ff19be7). Record context setup, compilation, store open, source bytes, hashing, upload, admission, prefill and first emitted output, for a cold process, a warm process and a warm model. For text rows the load cell is a fresh-process load that includes opening the store, so this record also says whether the constant is the store's open. It decides whether a row for a resident device worker is filed: a hypothesis until the stages a resident process would keep exceed their own spread.\nServes: first-output, load-time.\nDisappears: prefill presented as first output; a decline closed by measuring until the number returns.\nEvidence: docs/verification/journey-stages.txt, held by the test; old records read with the new fields unknown.\nBatch: host tests, then isolated measurements.",
+          "depends_on": [
+            "trustworthy-measurement/exclusive"
+          ]
+        },
+        {
+          "id": "reference-and-noise",
+          "title": "Judge a reading against a fixed reference by its measured noise",
+          "status": "open",
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestScorecardUsesCompatibleFixedReferencesAndMetricSpecificEvidence$'",
+          "rationale": "From the proposal, kept; the sizing of a reading moved to step spread. The reference is only the newest earlier record (reviewer finding SQA-102, step 2), so three runs each 30% slower pass, 2.2 times slower in all; the four allowances are those frozen from contended runs; quality is compared at float32 precision while its stated noise judges nothing. Three quiet readings gave gemma-4-12B-it-fp8 27.68, 21.17 and 35.67 tok/s, wider than the allowance of 0.15 (19ff19be7). An allowance is taken from quiet repeats, a fixed campaign reference is kept beside the newest record, two suites are never compared as one cell, and a quality move is judged by the exact paired test over the cases answered differently (internal/evaluation/instruction_acceptance.go). Too little evidence reads unknown, never equal.\nServes: every column: a regression row for a real change and for no other.\nDisappears: the frozen allowances and the float32 comparison of quality.\nEvidence: the scorecard's history judged both ways; a run of small declines that is large in sum is caught.\nBatch: host fixtures and quiet-run calibration.",
+          "depends_on": [
+            "trustworthy-measurement/spread",
+            "trustworthy-measurement/exclusive"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "proposer-retire",
+      "title": "Take the change proposer out, a pilot that was not accepted",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Remove the proposal and evidence-conditioning modes of cmd/train, keeping their records and what training still uses",
+          "status": "open",
+          "verify": "go test ./cmd/train -count=1 -run '^TestProposalRetirementPreservesTrainingAndEvidence$'",
+          "rationale": "From the proposal, with three changes from the lead's review. The proposer lost to the plain mean of its corpus and evidence conditioning gave no measurable benefit (docs/verification/change-proposal-qwen25-05b.txt, evidence-conditioning-qwen25-05b.txt); the path has since needed three reviewer repairs (8cfa15418, 8988728ae, 2ae868219). cmd/train -propose, -confirm, -candidate and -evidence go with their implementation (the flags are at cmd/train/main.go:78-83). Kept: the held-out pool's confirmation core, which the instruction pilot still uses; the three records with their readers; every model family. Said in the commit: what becomes of the plain mean of the runs, which the experiment's own record shows was the best candidate. The corpus mode (-runs) stays if a consumer audit finds one. The proposal's 170.2 GB is not this row's: since 586ebc744 the corpus's runs read finished without it, and their removal is the owner's command.\nServes: the loop's upkeep.\nDisappears: the four modes, their now-unreferenced code, and the output lock and throw-away handling df0eaa224 gave the two commands that go.\nEvidence: retained training, checkpoint resume and historical evidence tested; production nodes removed; the check fails on today's code.\nBatch: host; cmd/train imports evaluation, so the commit runs the device tests."
+        }
+      ]
+    },
+    {
+      "id": "consumer-checks",
+      "title": "Hold every committed surface to a consumer by a check at every commit, and delete what has none",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "documents",
+          "title": "Root documents name only what the tree holds, and the benchmark report is never behind the store",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestRootDocumentsNameOnlyWhatTheTreeHolds$'",
+          "rationale": "From the proposal, first in its row because it is small and binds every agent. skill.md, the one root instruction document, and README.md still state a promotion that was removed on 2026-10-05 (seven lines between them at cc82ed097, by git grep), while the plan's own doctrine was corrected at 88a306e5e; docs/assets/overgo_graphic.json names two files that no longer exist (by the proposal, not checked again). repoanalysis.DeadReferences, which repo-hygiene added for texts under docs, is extended to those three; the promotion wording is prose and is corrected by hand to what cmd/loop -improve does. docs/BENCHMARK.md is derived from the live store, so no commit check can hold it (the proposal says it fails its own check at cc82ed097; not run by the lead): it is printed on demand, as the scorecard is, and the tracked copy goes, or the full measurement run writes it where it files its rows. The lead takes the smaller.\nServes: every agent the documents instruct; held-out-quality as a person reads it.\nDisappears: statements of a loop the code does not run; a derived document that goes stale between runs.\nEvidence: the test, and the benchmark report's own.\nBatch: host; documents and the analyzer's list of texts."
+        },
+        {
+          "id": "declarations",
+          "title": "Every production declaration outside a model prototype is reached by a command",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestEveryProcessDeclarationIsReachedByACommand$'",
+          "rationale": "From the proposal, with the prototype class decided by the registry. TestEveryTrackedFileHasAReader holds every tracked document and repo-hygiene/clear-at-commit every fixture; this is the same check for code: a walk of names from every command. What it skips is read from compatibility.json, which lists the model prototypes and which cmd/validate already holds to the code, and never from a table typed for this check: a model prototype stays although no model of its family is active (owner, 2026-10-12), and a check that is permanent must not refuse the next one. Declarations are keyed by file, since build tags make twins, and a function held in a package variable is reached. The first list is the census. A lower bound by the proposal, taken at 14dc80967 and not counted again: 308 declarations of 5,356 lines, 1,616 of them analyzers in internal/repoanalysis that only tests call. Each failing entry is wired or deleted by the standing rule; the video MP4 encoder is an unwired capability and is given a route; an analyzer only a test calls moves beside its test.\nServes: less to read, compile, vet and carry into the longer test runs.\nDisappears: what fails the check and is not wired.\nEvidence: the list before and after, with the rule applied to each entry, in steps that are each one commit.\nBatch: host; a deletion inside the inference surface waits for a commit that moves the surface anyway.",
+          "depends_on": [
+            "consumer-checks/documents"
+          ]
+        },
+        {
+          "id": "record-schemas",
+          "title": "Every process record schema outside a model prototype has a writer a command reaches",
+          "status": "open",
+          "verify": "go test ./internal/runrecord -count=1 -run '^TestEveryProcessRecordSchemaHasAProductionWriter$'",
+          "rationale": "From the proposal, narrowed by the prototype rule. By the proposal, at 14dc80967: production code names 401 record schemas and the live store has never held 223 of them. That is a lead and not proof: experiments run on copies of the store and a wire document is never stored. Kept whatever the store holds, as prototypes by the lead's review of 2026-10-12: the routed-mixture records, the composition and representation records, the offline artifact records the candidate path compiles every arm through, the controller trainer's records, and the candidate chain. The check asks each remaining schema for a writer reachable from a command. Leads by family: mechanism (7, with the command mechanism-census), agent retrieval (4), improvement (3), agent strategy and task contract (2).\nServes: fewer documents to validate, version and read.\nDisappears: each failing family's type, validator, codec and tests.\nEvidence: schemas and production nodes removed, family by family.\nBatch: host; a family under internal/evaluation or internal/modelrecipe waits for a commit that moves the surface anyway.",
+          "depends_on": [
+            "consumer-checks/declarations"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "governance-retire",
+      "title": "Retire the sealed authority, a requirement over artifacts that no longer exist",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Remove the sealed-authority command, its record and the protection requirement",
+          "status": "open",
+          "verify": "go test ./internal/protection -count=1 -run '^TestRetiredSealedAuthorityLeavesNoCommandRecordOrRequirement$'",
+          "rationale": "From the proposal, narrowed to what is the owner's. .github/protection.json requires a sealed authority over promotion-policy and champion-alias (lines 18 to 25 at cc82ed097), artifacts of a promotion removed on 2026-10-05, and the store has never held a record of the family (by the proposal). The protection file states a security requirement, so the decision retire-sealed-authority blocks this row and asks about that alone; if the answer keeps it, the lead retires this row with plan -retire. Not in this row: mechanism-census, a lead of consumer-checks/record-schemas under the lead's rule; and offline-artifact-validate, whose records serve model prototypes and stay.\nServes: the loop's upkeep.\nDisappears: the command, its record family and the requirement.\nEvidence: no command, schema or requirement of the set remains; the commands kept still pass.\nBatch: host; the API manifest and the SBOM are regenerated."
+        }
+      ]
+    },
+    {
+      "id": "policy-search",
+      "title": "Make the exploratory request protocol a protocol of the evaluation command, and reproduce its one result",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "protocol",
+          "title": "Make the exploratory request protocol a named, fully identified protocol of the evaluation command",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestEvaluationProtocolCapturesAllPolicyInputs$'",
+          "rationale": "From the proposal, kept. The largest quality effect on record, 34 correct answers against 20 on the same 40 questions for Qwen3.5-4B, came from a scratch program the evaluation tools cannot run (finding 69b4c1ed, by the proposal). It changed the thinking switch, the wording, the sampling settings, the token limit and the answer parser together, so the gain belongs to the whole protocol until ablations separate them. Identify all of those with the model, the cases and the scorer; mark the 40 cases as exposed development evidence.\nServes: held-out-quality.\nDisappears: a result only a scratch program can produce.\nEvidence: host fixtures show the command expresses and records the whole protocol.\nBatch: host."
+        },
+        {
+          "id": "reproduce",
+          "title": "Reproduce the result once with the named protocol, and state the difference a search must detect",
+          "status": "open",
+          "verify": "go test ./cmd/evaluate -count=1 -run '^TestProtocolReproductionRecordIsWhole$'",
+          "rationale": "The lead's, in place of the proposal's freeze, search and pilot, which are a hypothesis until this reports: an enumeration with restart and fault tests is a mechanism with no second case while one result exists and has not been repeated. Run the 40 questions on Qwen3.5-4B under the protocol of the step before and under the default, a few device-minutes, and record both with the paired test over the cases answered differently. The record states the difference a bounded search would have to detect and what device time that takes, which is the figure the owner's question about an unattended allowance needs; that question, and rows for the search, are filed from this record or not at all. The candidate owners (cmd/loop/evidence.go, internal/plan/candidate_scheduler.go) are not touched: they serve model prototypes.\nServes: held-out-quality.\nDisappears: nothing; a result that does not reproduce closes the question.\nEvidence: docs/verification/protocol-reproduction.txt, derived by the test from the store's records.\nBatch: host for the test; the two evaluations on the quiet machine outside a commit.",
+          "depends_on": [
+            "policy-search/protocol",
+            "trustworthy-measurement/exclusive"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "evidence-identity",
+      "title": "Measure what past commits expired and reached before any key or boundary is moved",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "measure",
+          "title": "Classify what past commits expired and reached, and define what each kind of claim depends on",
+          "status": "open",
+          "verify": "go test ./internal/inferencesurface -count=1 -run '^TestSurfaceMoveRecordDefinesClaimDependencies$'",
+          "rationale": "From the proposal; its adoption step is not filed, being a hypothesis until this reports. A model's evidence is keyed by a digest of every source file in the closure of internal/inference, internal/cuda/executor and internal/modelrecipe (61 repository packages under internal/inference, by the proposal). Classify the last 500 commits by their own dependency graphs: which expired evidence a narrower key would have kept, and which reached the longer test runs only through a package a boundary would cut. Read the cost from the commits' own measured lines, which are complete and tracked; the waits file the proposal cites is one checkout's and covers 114 of 166 commits of those days. By the lead's review: on the whole record the largest time was waiting for another checkout's commit, and store edits reach the device runs through a test helper, not through the runner, so say which cost a boundary would cut before one is proposed. Then define what an answer, a score, a timing and an activation each depend on. Counted as existing: the surface already stops at overgodb and runrecord (internal/inferencesurface/surface.go:44), and a kept cell is measured again when a file its command is given changes (78534ee41). If an adoption is filed from this, it carries no deletion or rename with the identity change.\nServes: the loop's pace: evidence is earned again, and a test run reached, only when a result can have changed.\nDisappears: nothing yet.\nEvidence: docs/verification/surface-moves.txt, held by the test.\nBatch: host."
+        }
+      ]
+    },
+    {
+      "id": "shared-build-cache",
+      "title": "Let checkouts share the build cache in a commit's checks",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "tests-path-free",
+          "title": "Make the five tests that fail under -trimpath find the tree without the compiled source path",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestCommitCheckTestsHoldUnderTrimmedBuilds$'",
+          "rationale": "Filed by the lead on 2026-10-13; not in the proposal. It is the measured lead of the register's deferred finding ba3e2aae and of the owner's instruction to stop accumulating garbage: the go build cache is the largest accumulation on the machine, 272 GB at the listing of c201605d7, because a build is keyed by its directory and every new checkout compiles the tree again. Measured on 2026-10-12 at beb6a2137 with two new checkouts and private empty caches: with the commit's commands built with -trimpath, the second checkout added 298,699 KB to the cache where it added 1,546,296 untrimmed (0.19), the gate's three commands alone 66,113 against 1,313,734 (0.05), and 106 of 194 packages replayed their tests where none did. It cannot be adopted yet: under the setting internal/clioptions TestCLIInferenceDependencyBoundary and internal/plan TestColibriCampaign, TestSinglePlanAuthority and TestDoctrineParagraphsNameWhatTheyGovern fail, because they find the tree from the compiled source path, and cmd/gate TestSmallGateLandsAChange fails in a second checkout with go fix opening a file by an earlier run's absolute path. The five are made to hold under both builds.\nServes: change: the pace of a commit from a new checkout, and the cache's growth.\nDisappears: nothing yet.\nEvidence: the five tests under both builds.\nBatch: host."
+        },
+        {
+          "id": "adopt",
+          "title": "Build a commit's checks trimmed, if the measurement repeats and no stored answer is expired",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestCommitChecksBuildTrimmedAndIdentitiesHold$'",
+          "rationale": "The rule was set before the measurement and stands: adopt only if the setting reaches no process whose answers are kept in the real store (given as an argument to the gate's build and in the environment of the gate's children only, never by go env -w or in a session's shell: an execution identity counts -trimpath when it is in GOFLAGS of the counting process, internal/inferencesurface/identity.go), if a second new checkout adds no more than half the cache bytes it adds without it, and if vet, the host tests, the two generators and the benchmark build give the same results. Open from the first measurement: the trimmed test stage took longer in the two runs that replayed (475 s and 346 s against 263 s and 233 s) and one repeat did not show it. Measure again with the five tests fixed; adopt or record why not; the first full measurement run after an adoption must ask no case again for an unchanged identity. Finding ba3e2aae is closed or left deferred with the figures.\nServes: change.\nDisappears: about 1.2 GB of cache for each new checkout that runs a commit's checks, if adopted.\nEvidence: the two-checkout measurement repeated; the identity check of the next run.\nBatch: host; internal/landing reaches no longer test run.",
+          "depends_on": [
+            "shared-build-cache/tests-path-free"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "resume-census",
+      "title": "Map the paths that resume or reuse finished work before any is moved",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "census",
+          "title": "Record each path's reuse identity, retry rule, readers and size, and what each recent repair had to add",
+          "status": "open",
+          "verify": "go test ./internal/workflowruntime -count=1 -run '^TestResumePathRecordIsWhole$'",
+          "rationale": "From the proposal, kept as a census and ranked last. Five reviewer repairs each added an identity a resume path had lacked: a corpus run credited only to its request (8cfa15418), an interrupted proposal finished by the same request (8988728ae), a measurement run cut short after it published (2542eb677), a kept cell measured again when a file its command is given changes (78534ee41), and a continued adapter's corpus run (2ae868219). By the lead's review they landed within about nine hours and none touched the operation lifecycle or the workflow replay, so the record must show the connection before a merge is proposed. The paths are the workflow runtime's replay, the operation's own reuse, the measurement run's cell files and the trainers' checkpoints, whose lifecycle repo-hygiene now owns (df0eaa224, 25e6ec9cd). A path proposer-retire removes is not mapped.\nServes: an interrupted run continues where it stopped, by one rule.\nDisappears: nothing yet.\nEvidence: docs/verification/resume-paths.txt, held by the test.\nBatch: host.",
+          "depends_on": [
+            "proposer-retire/do"
+          ]
+        }
+      ]
     }
   ],
   "decisions": [
@@ -425,6 +659,19 @@
       "recommendation": "Keep the current likelihood objective; decide any replacement only after calibration in likelihood units",
       "asked": "2026-10-10",
       "answer": "Keep the current likelihood objective; decide any replacement only after calibration in likelihood units"
+    },
+    {
+      "id": "retire-sealed-authority",
+      "question": "Remove the sealed-authority requirement from .github/protection.json, with the sealed-authority command and its record? The requirement covers promotion-policy and champion-alias, artifacts of a promotion that was removed on 2026-10-05, and the store has never held a record of the family. It is a security setting, so it is yours alone. If you keep it, the lead retires the row governance-retire.",
+      "options": [
+        "remove the requirement and the command",
+        "keep them"
+      ],
+      "recommendation": "remove the requirement and the command",
+      "blocks": [
+        "governance-retire"
+      ],
+      "asked": "2026-10-13"
     }
   ]
 }

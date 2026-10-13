@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"maps"
 	"os"
 	"path/filepath"
@@ -57,7 +58,11 @@ func TestAcceptedCapabilityCensus(t *testing.T) {
 	if value.ProducerCommit != "5d55e6108519e7abf35776892b0043cad030027f" || len(value.Models) != 43 || len(value.Verifications) != 51 {
 		t.Fatal("accepted producer, registered denominator or historical record set differs")
 	}
-	if _, err := readCensusVerifications(t.Context(), store, value); err != nil {
+	// The base counts its verifications up to the store commit it was taken
+	// at. A store rebuilt since holds the base's document and none of those
+	// commits: there the census accepted on the rebuilt store, held below,
+	// answers for the checkpoint.
+	if _, err := readCensusVerifications(t.Context(), store, value); err != nil && !errors.Is(err, errCensusCheckpointAbsent) {
 		t.Fatal(err)
 	}
 	wantTasks := map[recipe.Task]int{

@@ -67,8 +67,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 3,
-        "reason": "measured by the preflight of step rebuild's change at d69282c87: the table of retired record families and the rebuild that leaves them out"
+        "nodes": 26,
+        "reason": "measured by the preflight of step install's change at 5ec51a835: the acceptance of a census taken again on a rebuilt store, whose models are those of the census before"
       },
       "steps": [
         {

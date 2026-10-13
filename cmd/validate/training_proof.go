@@ -24,8 +24,10 @@ import (
 // recipe, whose objective must equal the alias's immutable target. A proof
 // run, of train -objective for text and of its route for a table or a
 // picture, re-verifies that recipe, publishing no held-out verdict to
-// supersede the one the recipe's quality reads. Each run keeps the bounds the
-// training lane recorded for its route.
+// supersede the one the recipe's quality reads. Every run is given -proof:
+// the verification reads the trained checkpoint's identity alone, so the run
+// keeps no file of it. Each run keeps the bounds the training lane recorded
+// for its route.
 const (
 	trainingProof = "training-proof"
 	routeSteps    = "3"
@@ -59,12 +61,12 @@ type trainingRoute struct {
 }
 
 var trainingRoutes = []trainingRoute{
-	{grounding: ditGrounding, arguments: []string{"-route", "dit", "-schedule-index", "0", "-steps", routeSteps, "-max-wall", "60m"}},
-	{grounding: motGrounding, arguments: []string{"-route", "mot", "-binding", "rxbrain", "-steps", routeSteps, "-max-wall", "30m"}},
-	{grounding: hybridGrounding, arguments: []string{"-route", "hybrid-stack", "-lane", "layer-streamed", "-steps", routeSteps, "-max-wall", "120m"},
+	{grounding: ditGrounding, arguments: []string{"-route", "dit", "-proof", "-schedule-index", "0", "-steps", routeSteps, "-max-wall", "60m"}},
+	{grounding: motGrounding, arguments: []string{"-route", "mot", "-proof", "-binding", "rxbrain", "-steps", routeSteps, "-max-wall", "30m"}},
+	{grounding: hybridGrounding, arguments: []string{"-route", "hybrid-stack", "-proof", "-lane", "layer-streamed", "-steps", routeSteps, "-max-wall", "120m"},
 		environment: []string{"GOGC=50", "GOMEMLIMIT=68GiB"}},
 	{grounding: denseGrounding, arguments: []string{
-		"-dataset", denseGrounding, "-steps", denseSteps, "-seq", denseSequence, "-max-wall", "10m", "-freeze-lexical",
+		"-proof", "-dataset", denseGrounding, "-steps", denseSteps, "-seq", denseSequence, "-max-wall", "10m", "-freeze-lexical",
 	}},
 }
 
@@ -178,9 +180,9 @@ func aliasNames(ctx context.Context, store *overgodb.Store) (map[artifact.ID]str
 }
 
 // trainingRun is the bounded run into store that re-verifies a training cell,
-// the environment it runs under, and the scratch directory its checkpoint
-// publishes beneath, which -run empties before and after the run: the proof
-// is the verification the run records, not the checkpoint. A route trains a
+// the environment it runs under, and the scratch directory its checkpoint is
+// staged beneath, which -run removes after the run: the proof is the
+// verification the run records, and it keeps no checkpoint. A route trains a
 // directory's weights, a GGUF or a raw DiT checkpoint as its own flags name
 // them, the dense workflow the recipe the cell names, and an objective's
 // proof run the model directory under the objective's alias: through train

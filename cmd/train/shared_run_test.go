@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -10,10 +12,13 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/clioptions"
 	"overgo/internal/hostoptimizer"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/optimizer"
 	"overgo/internal/oscillatorimage"
 	"overgo/internal/overgodb"
+	"overgo/internal/processcontrol"
 	"overgo/internal/recipecontract"
 	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
@@ -84,6 +89,270 @@ func sharedRunPublishes(t *testing.T) {
 	}
 	if again, err := trainingprogram.LoadCheckpoint(rerun); err != nil || again.ID() != checkpoint.ID() {
 		t.Fatalf("a rerun publishing the same checkpoint elsewhere = (%s, %v), want %s recorded again", again.ID(), err, checkpoint.ID())
+	}
+}
+
+// TestProofWritesOnlyWhatItsClaimReads holds a training proof to writing only
+// what its claim reads. A proof re-verifies its recipe on its session's
+// observation and on the identity of the checkpoint the session trained, and
+// reads nothing else of the checkpoint. So it gives the store the checkpoint's
+// document, with what the checkpoint descends from, and keeps no file: nothing
+// stands at its -out, no staging directory is left beside it, the store names
+// no place the checkpoint is, and a GGUF base's proof registers no trained
+// model. The identity is the one a run that is not a proof publishes for the
+// same trained state, so the evidence a verification cites is what it was.
+//
+// That is held for the shared run the routes publish through, for the two
+// publications a held-out run's proof makes, the tabular route's and the codec
+// route's, and for the dense workflow and a text objective's train -objective
+// through the training command's own flags, the child being this test binary
+// run as the command on the host; and every route the measurement run proves
+// takes -proof. The command refuses -proof with each thing it does that is no
+// training run of those two kinds. A run that is not a proof publishes as
+// before, which the second run of each case but the text objective's, whose
+// full run is another test's, and TestEveryTrainRoutePublishesACheckpoint
+// hold.
+func TestProofWritesOnlyWhatItsClaimReads(t *testing.T) {
+	t.Run("the shared run", func(t *testing.T) {
+		root, store, modelPath, datasetPath := routeFixture(t)
+		ctx := t.Context()
+		session, err := openSession(ctx, store, modelPath, datasetPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		session.proof = true
+		plan, err := probeSession(session.authority.Objective, 3, testMatrix.End, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		matrix := newHostMatrix(t, session.authority.Objective, plan.Optimizer())
+		target, full := filepath.Join(root, "proof"), filepath.Join(root, "full")
+		if err := (boundedRun{name: "proof", plan: plan, session: session, loss: matrix.loss,
+			step: func(int) (optimizer.ObservedStepResult, error) { return matrix.step(), nil },
+			publish: func(ctx context.Context) error {
+				return session.publishPlanned(ctx, target, matrix, plan.Updates())
+			},
+		}).train(ctx); err != nil {
+			t.Fatal(err)
+		}
+		proved := *session.published
+		requireProofFootprint(t, store, target, proved, session.model)
+		// The same trained state, published by a session that is not a proof.
+		session.proof = false
+		if err := session.publishPlanned(ctx, full, matrix, plan.Updates()); err != nil {
+			t.Fatal(err)
+		}
+		requireFullPublication(t, store, full, proved)
+	})
+	t.Run("a held-out run's publications", func(t *testing.T) {
+		root, store, modelPath, datasetPath := routeFixture(t)
+		ctx := t.Context()
+		session, err := recipeSession(ctx, store, modelPath, datasetPath, trainingworkflow.TokenContract)
+		if err != nil {
+			t.Fatal(err)
+		}
+		config, err := trainingprogram.BuiltinOptimizerPolicy().Config(testMatrix.End)
+		if err != nil {
+			t.Fatal(err)
+		}
+		matrix := newHostMatrix(t, session.authority.Objective, config)
+		for name, publish := range map[string]func(target string, stream trainingdata.StreamState, proof bool) (trainingprogram.Checkpoint, error){
+			"under the trainer's own program, as the tabular route publishes": func(target string, stream trainingdata.StreamState, proof bool) (trainingprogram.Checkpoint, error) {
+				return publishTrained(ctx, store, session.recipe, target, matrix, stream, proof)
+			},
+			"under the program the recipe's objective compiles, as the codec route publishes": func(target string, stream trainingdata.StreamState, proof bool) (trainingprogram.Checkpoint, error) {
+				return publishPlannedTrained(ctx, store, session.recipe, target, matrix, stream, proof)
+			},
+		} {
+			// Each publication takes a step of its own, so its checkpoint is no other's.
+			stream, err := trainingworkflow.TextStream([]byte(routeFixtureDataset), uint64(matrix.step().Step))
+			if err != nil {
+				t.Fatal(err)
+			}
+			target, full := filepath.Join(root, name, "proof"), filepath.Join(root, name, "full")
+			proved, err := publish(target, stream, true)
+			if err != nil {
+				t.Fatalf("a proof's publication %s: %v", name, err)
+			}
+			requireProofFootprint(t, store, target, proved.ID(), session.model)
+			if _, err := publish(full, stream, false); err != nil {
+				t.Fatalf("a publication %s that is not a proof's: %v", name, err)
+			}
+			requireFullPublication(t, store, full, proved.ID())
+		}
+	})
+	t.Run("every route the measurement run proves takes -proof", func(t *testing.T) {
+		// cmd/validate names these routes in its training proofs; hybrid-stack
+		// is registered where the build carries its device worker.
+		for _, name := range []string{"codec", "dit", "hybrid-stack", "mot", "tabular"} {
+			if _, registered := trainRoutes[name]; !registered {
+				continue
+			}
+			if err := runRoute(t.Context(), []string{name, "-proof", "-out", t.TempDir()}); err == nil || strings.Contains(err.Error(), "not defined") {
+				t.Errorf("route %s given -proof and a checkpoint target = %v, want its refusal of the inputs it lacks", name, err)
+			}
+		}
+	})
+	t.Run("the dense workflow and a text objective, by the command's own flags", func(t *testing.T) {
+		ctx := t.Context()
+		root := t.TempDir()
+		base, dataset, storePath := writeServingFixture(t, root), filepath.Join(root, "dataset.txt"), filepath.Join(root, "store")
+		if err := os.WriteFile(dataset, bytes.Repeat([]byte("a b c d "), 64), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		store, err := overgodb.Open(storePath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer store.Close()
+		if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
+			t.Fatal(err)
+		}
+		recipeID, err := trainingworkflow.BootstrapTokenRecipe(ctx, store, base, dataset)
+		if err != nil {
+			t.Fatal(err)
+		}
+		model, err := trainingworkflow.WeightsIdentity(base)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv(commandChildEnvironment, childStandIn)
+		// started runs the training command over the arguments and returns
+		// what it printed, the status it ended with and the error it wrote for
+		// its starter.
+		started := func(arguments ...string) (string, int, string) {
+			t.Helper()
+			var printed bytes.Buffer
+			written := filepath.Join(t.TempDir(), "error.txt")
+			receipt, err := processcontrol.Run(ctx, processcontrol.Command{
+				Path: os.Args[0], Args: arguments, Stdout: &printed, Env: append(os.Environ(), clioptions.ErrorFileEnvironment+"="+written),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			// A command that ended well wrote no error.
+			refusal, _ := os.ReadFile(written)
+			return printed.String(), receipt.ExitCode, string(refusal)
+		}
+		// command trains the fixture's model on the host into out, by the mode
+		// and bounds its arguments name, and returns what the command printed;
+		// the store is then read afresh, since the command wrote through a
+		// handle of its own.
+		command := func(out string, arguments ...string) string {
+			t.Helper()
+			printed, status, refusal := started(append([]string{"-store", storePath, "-model", base, "-host", "-out", out}, arguments...)...)
+			if status != 0 {
+				t.Fatalf("the training command given %v ended with status %d: %s", arguments, status, refusal)
+			}
+			if err := store.Refresh(ctx); err != nil {
+				t.Fatal(err)
+			}
+			return printed
+		}
+		models := func() int {
+			registered, err := store.Query(ctx, overgodb.Query{Kind: artifact.KindModel, MaxResults: 100, Projection: overgodb.ProjectArtifacts})
+			if err != nil || registered.Truncated {
+				t.Fatal(err, registered.Truncated)
+			}
+			return len(registered.Artifacts)
+		}
+		// proves runs command as a proof into out, holds what it left to a
+		// proof's footprint, and returns the checkpoint the proof named.
+		proves := func(out string, arguments ...string) artifact.ID {
+			t.Helper()
+			before := models()
+			printed := command(out, append(arguments, "-proof")...)
+			_, named, _ := strings.Cut(printed, "trained=")
+			named, _, _ = strings.Cut(named, ";")
+			proved, err := artifact.ParseID(named)
+			if err != nil {
+				t.Fatalf("the proof printed %q, want it to name the checkpoint it trained: %v", printed, err)
+			}
+			requireProofFootprint(t, store, out, proved, model)
+			if after := models(); after != before {
+				t.Errorf("a proof over a GGUF base left the store with %d models, and it held %d before: want no trained model registered", after, before)
+			}
+			return proved
+		}
+		// A proof is a training run: everything else the command does, and
+		// the audio adapter's run, which publishes by a path of its own, is
+		// refused one before it starts. The store is named so that a command
+		// that was not refused would open the fixture's, not one of its own
+		// beside this package.
+		for _, other := range []string{"-pilot", "-propose", "-confirm", "-preview-dataset", "-bootstrap-recipe", "-audio-manifest"} {
+			if _, status, refusal := started("-store", storePath, "-proof", other, "named"); status != 1 || !strings.Contains(refusal, "-proof re-verifies") {
+				t.Errorf("the training command given -proof with %s ended with status %d and %q, want the two refused together", other, status, refusal)
+			}
+		}
+		// The dense workflow, one step under the recipe it is named.
+		dense := []string{"-recipe", recipeID.String(), "-dataset", dataset, "-steps", "1", "-seq", "16"}
+		proved, full := proves(filepath.Join(root, "proof"), dense...), filepath.Join(root, "full")
+		command(full, dense...)
+		requireFullPublication(t, store, full, proved)
+		// A text objective, by train -objective: each file of the corpus is one
+		// record, of a length of its own.
+		corpus := filepath.Join(root, "corpus")
+		if err := os.Mkdir(corpus, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		const documents = 8
+		for index := range documents {
+			text := strings.Repeat("a b c d ", 3)[:8+2*index]
+			if err := os.WriteFile(filepath.Join(corpus, fmt.Sprintf("text-%02d.txt", index)), []byte(text), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		source, training := registerSplit(t, ctx, store, "texts", corpus, documents, nil)
+		const alias = "objective.registered.texts"
+		registerObjective(t, ctx, store, root, alias, trainingprogram.ObjectiveSpec{
+			Name: "texts", Kind: trainingprogram.ObjectiveTokenPrediction, Metric: trainingprogram.MetricTokenAccuracy,
+			Signature: recipecontract.ModalitySignature{Inputs: []recipecontract.Modality{recipecontract.ModalityText}, Outputs: []recipecontract.Modality{recipecontract.ModalityText}},
+			Dataset:   source, Split: training,
+		})
+		proves(filepath.Join(root, "objective-proof"), "-objective", alias, "-steps", "2", "-seq", "8")
+	})
+}
+
+// requireProofFootprint holds a proof that trained checkpoint from model, and
+// was given target as its output, to what it may leave: nothing at target, no
+// staging directory beside it, and in the store the checkpoint's document, its
+// descent from model and no location.
+func requireProofFootprint(t *testing.T, store *overgodb.Store, target string, checkpoint, model artifact.ID) {
+	t.Helper()
+	ctx := t.Context()
+	if entries, err := os.ReadDir(target); !errors.Is(err, os.ErrNotExist) {
+		var names []string
+		for _, entry := range entries {
+			names = append(names, entry.Name())
+		}
+		t.Errorf("the proof left %v at %s (%v), want nothing there", names, target, err)
+	}
+	if staged, err := filepath.Glob(filepath.Join(filepath.Dir(target), ".overgo-checkpoint-*")); err != nil || len(staged) != 0 {
+		t.Errorf("the proof left the staging directories %v beside %s (%v), want none", staged, target, err)
+	}
+	if _, held, err := artifact.ReadContent(ctx, store, checkpoint); err != nil || !held {
+		t.Errorf("the store holds the document of the proof's checkpoint %s: %t (%v), want it held", checkpoint, held, err)
+	}
+	if parents, err := store.Parents(ctx, checkpoint); err != nil || !slices.Contains(parents, artifact.Lineage{Child: checkpoint, Parent: model, Relation: artifact.RelationTrainedFrom}) {
+		t.Errorf("the store holds the parents %v of the proof's checkpoint (%v), want its descent from the model %s it trained", parents, err, model)
+	}
+	if locations, err := store.Locations(ctx, checkpoint); err != nil || len(locations) != 0 {
+		t.Errorf("the store records the proof's checkpoint at %v (%v), want no location", locations, err)
+	}
+}
+
+// requireFullPublication holds a run that is not a proof, publishing at target
+// the trained state a proof identified as checkpoint, to publishing as before:
+// a checkpoint of that identity loads from target, and the store records
+// where it is.
+func requireFullPublication(t *testing.T, store *overgodb.Store, target string, checkpoint artifact.ID) {
+	t.Helper()
+	published, err := trainingprogram.LoadCheckpoint(target)
+	if err != nil || published.ID() != checkpoint {
+		t.Fatalf("a run that is not a proof published checkpoint (%s, %v) at %s, want the checkpoint %s the proof identified", published.ID(), err, target, checkpoint)
+	}
+	if locations, err := store.Locations(t.Context(), checkpoint); err != nil || len(locations) == 0 {
+		t.Fatalf("the store records the published checkpoint at %v (%v), want where its files are", locations, err)
 	}
 }
 
@@ -348,7 +617,7 @@ func publishUnderObjective(t *testing.T, ctx context.Context, store *overgodb.St
 	matrix := newHostMatrix(t, kind, config)
 	result := matrix.step()
 	target := filepath.Join(t.TempDir(), "checkpoint")
-	published, err := publishTrained(ctx, store, recipeID, target, matrix, trainingdata.StreamState{Identity: stream, Position: uint64(result.Step)})
+	published, err := publishTrained(ctx, store, recipeID, target, matrix, trainingdata.StreamState{Identity: stream, Position: uint64(result.Step)}, false)
 	if err != nil {
 		return trainingprogram.Checkpoint{}, err
 	}

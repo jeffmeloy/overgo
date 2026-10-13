@@ -128,7 +128,7 @@ func trainTableObjective(ctx context.Context, store *overgodb.Store, alias, mode
 				return trainingprogram.Checkpoint{}, err
 			}
 			// Each update consumed one training request.
-			return publishTrained(ctx, store, recipeID, out, trainer, trainingdata.StreamState{Identity: data.Training, Position: uint64(plan.Updates())})
+			return publishTrained(ctx, store, recipeID, out, trainer, trainingdata.StreamState{Identity: data.Training, Position: uint64(plan.Updates())}, proof)
 		},
 		Predict: func(example trainingworkflow.HeldoutExample) (trainingworkflow.HeldoutPrediction, error) {
 			return predictQueryRows(head, requests[example.Record])

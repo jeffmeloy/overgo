@@ -12,6 +12,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/densecausal"
 	"overgo/internal/hfbpe"
+	"overgo/internal/jsonfile"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/overgodb"
@@ -325,6 +326,79 @@ func testTokenResume(t *testing.T) {
 		Repository: store, Recipe: recipeID, ModelDirectory: model, DatasetPath: dataset,
 		Host: true, Observations: store,
 	})
+}
+
+// TestDenseProofVerifiesOnItsCheckpointsIdentityAndKeepsNoFile: a dense
+// workflow session run as a proof re-verifies its recipe on exactly its
+// session's observation and the identity of the checkpoint it trained, as a
+// session that is no proof does, and hands its producer the completed gate
+// and run. That identity is all the claim reads of the checkpoint, so nothing
+// stands at the proof's output, and the store holds the checkpoint's document
+// and names no place for it. The same session not run as a proof trains the
+// same checkpoint and publishes it at its output, as before. A verification
+// binds a named code revision, which this test sets as a package variable, so
+// it runs alone.
+func TestDenseProofVerifiesOnItsCheckpointsIdentityAndKeepsNoFile(t *testing.T) {
+	stubExecutableCodeCommit(t, strings.Repeat("f1", 20))
+	resultPath := filepath.Join(t.TempDir(), "verification.json")
+	t.Setenv(VerificationOutputEnvironment, resultPath)
+	weights, shapes := testutil.DenseCausalWeights(t, testutil.DenseCausalSpec{
+		Vocab: 8, Hidden: 8, Heads: 2, HeadDim: 4, KVHeads: 1, Intermediate: 16, Layers: 1, Seed: 5,
+	})
+	root := t.TempDir()
+	model, dataset := filepath.Join(root, "model"), filepath.Join(root, "dataset.txt")
+	writeModel(t, model, weights, shapes)
+	if err := os.WriteFile(dataset, []byte("abcd"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	store, recipeID := trainingAuthority(t, model, "", dataset, trainingprogram.ObjectiveTokenPrediction)
+	ctx := t.Context()
+	request := Request{
+		Repository: store, Recipe: recipeID, Observations: store, ModelDirectory: model, DatasetPath: dataset,
+		OutputDirectory: filepath.Join(root, "proof"), Steps: 2, Host: true, Proof: true,
+	}
+	proof, err := Execute(ctx, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(request.OutputDirectory); !os.IsNotExist(err) {
+		t.Errorf("the proof left its output at %s (%v), want nothing there", request.OutputDirectory, err)
+	}
+	locations, err := store.Locations(ctx, proof.Checkpoint.ID())
+	if _, held, heldErr := artifact.ReadContent(ctx, store, proof.Checkpoint.ID()); err != nil || heldErr != nil || !held || len(locations) != 0 || proof.Candidate.Valid() {
+		t.Errorf("the store holds the document of the proof's checkpoint %s: %t, at %v, with candidate %s (%v, %v): want the document, no location and no candidate",
+			proof.Checkpoint.ID(), held, locations, proof.Candidate, err, heldErr)
+	}
+	modelID, err := identifyModel(model)
+	if err != nil {
+		t.Fatal(err)
+	}
+	activation, found, err := modelrecipe.ActiveRecord(ctx, store, modelID, recipe.TaskTraining)
+	if err != nil || !found {
+		t.Fatalf("training activation = (found %t, %v), want the recipe active", found, err)
+	}
+	verified, err := runrecord.VerifyEvidence(ctx, store, activation.Definition.ID, activation.Event.Evidence)
+	if inputs := verified.Run.Inputs; err != nil || len(inputs) != 2 || !slices.Contains(inputs, proof.Observation) || !slices.Contains(inputs, proof.Checkpoint.ID()) {
+		t.Fatalf("active verification = (%+v, %v), want it to depend on the proof's session %s and checkpoint %s alone",
+			verified.Run, err, proof.Observation, proof.Checkpoint.ID())
+	}
+	var handoff modelrecipe.Verification
+	if err := jsonfile.DecodeStrict(resultPath, &handoff); err != nil || handoff.Gate != verified.Gate.ID || handoff.Run != verified.Run.ID {
+		t.Errorf("producer handoff = (%+v, %v), want the proof's completed gate and run", handoff, err)
+	}
+	// The handoff file must be new for each run that writes one.
+	if err := os.Remove(resultPath); err != nil {
+		t.Fatal(err)
+	}
+	request.Proof, request.OutputDirectory = false, filepath.Join(root, "full")
+	full, err := Execute(ctx, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if published, err := trainingprogram.LoadCheckpoint(request.OutputDirectory); err != nil || published.ID() != full.Checkpoint.ID() || full.Checkpoint.ID() != proof.Checkpoint.ID() {
+		t.Fatalf("the session that is no proof published checkpoint (%s, %v) at its output and returned %s, want the checkpoint %s the proof identified",
+			published.ID(), err, full.Checkpoint.ID(), proof.Checkpoint.ID())
+	}
 }
 
 func TestTrainingObservationSharesDirectedLifecycle(t *testing.T) {

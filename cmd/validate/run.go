@@ -144,7 +144,7 @@ func runScopeOf(background, cellsOnly, lanesOnly bool) (runScope, error) {
 // declared themselves inapplicable here acquired nothing and withholds too,
 // reported apart from the failures, as cells without a bound command are
 // reported as incomplete coverage. A training run runs under its route's
-// environment and publishes its checkpoint beneath private invocation scratch.
+// environment as a proof: its checkpoint is staged in private invocation scratch and not kept.
 // Its exact fresh gate/run handoff is checked after actual process completion
 // and store refresh; a projection proof's producer runs under the environment it
 // publishes by. An empty run set is the clean "nothing to re-acquire" result. A timed cell

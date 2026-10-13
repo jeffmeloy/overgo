@@ -209,6 +209,7 @@ func trainDiT(ctx context.Context, flags *flag.FlagSet, args []string) (err erro
 	t5Cache := flags.String("t5-cache", "", "optional cache base path for the streamed raw text rows")
 	vidgenRoot := flags.String("vidgen-root", "", "VidGen corpus directory; set to train on real VAE-encoded captioned clips instead of fixture latents")
 	clipCount := flags.Int("clips", 4, "captioned clips to train over when -vidgen-root is set")
+	proof := proofFlag(flags)
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -257,6 +258,7 @@ func trainDiT(ctx context.Context, flags *flag.FlagSet, args []string) (err erro
 	if err != nil {
 		return err
 	}
+	session.proof = *proof
 	defer session.settle(ctx, &err)
 
 	loadStarted := time.Now()

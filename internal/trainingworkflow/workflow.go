@@ -56,10 +56,15 @@ type Request struct {
 	PreferenceMargin float64
 	// Observations: optional typed run evidence.
 	Observations artifact.Repository
+	// Proof re-verifies the recipe by the training run alone. Its claim reads
+	// the checkpoint's identity and nothing else of it, so the session gives
+	// the store the checkpoint's document and keeps no file at its output.
+	Proof bool
 	// throwaway marks the session's checkpoint as an intermediate product of
 	// a larger run, which removes it once its own record is kept: the store
 	// is given the checkpoint's document and nothing that says where its
-	// files are (recordThrowaway).
+	// files are (RecordCheckpointDocument). The files stay until then, for
+	// the larger run to read back; it is not a proof, which keeps none.
 	throwaway bool
 
 	ObserveDPO       func(trainingprogram.DPOObservation)
@@ -298,16 +303,17 @@ func (session denseSession) run() (Result, error) {
 	result.Optimizer = plan.Optimizer()
 	result.Plan = plan
 	result.Checkpoint, err = publishCheckpoint(
-		session.ctx, session.request.Repository, session.inputDirectory, session.request.OutputDirectory, session.model, authority, state,
+		session.ctx, session.request.Repository, session.inputDirectory, session.request.OutputDirectory, session.model, authority, state, session.request.Proof,
 	)
 	result.authority = authority
 	// The checkpoint records where the run's evidence goes, and a trained
 	// GGUF registers there as the candidate the server, validate and the
-	// scorecard open. A throw-away checkpoint records its document alone.
+	// scorecard open. A throw-away checkpoint records its document alone,
+	// and so does a proof's, which kept no file.
 	switch {
 	case err != nil || session.request.Observations == nil:
-	case session.request.throwaway:
-		err = recordThrowaway(session.ctx, session.request.Observations, result.Checkpoint)
+	case session.request.throwaway || session.request.Proof:
+		err = RecordCheckpointDocument(session.ctx, session.request.Observations, result.Checkpoint)
 	default:
 		var candidate modelintake.Candidate
 		candidate, err = RecordCheckpoint(session.ctx, session.request.Observations, session.request.OutputDirectory, result.Checkpoint)
@@ -531,11 +537,13 @@ func (session denseSession) execute(prepared densePrepared, plan trainingprogram
 // the server opens and whose untrained tensors store may already hold, or
 // a safetensors directory with its config and tokenizer. Each companion, when
 // not nil, writes more files into the staged directory before it publishes.
-func publishCheckpoint(ctx context.Context, store artifact.Reader, source, target string, model *densecausal.Model, authority compiledAuthority, state densecausal.TrainState, companions ...func(stage string) error) (trainingprogram.Checkpoint, error) {
+// A proof's checkpoint is identified and nothing of it is kept at target.
+func publishCheckpoint(ctx context.Context, store artifact.Reader, source, target string, model *densecausal.Model, authority compiledAuthority, state densecausal.TrainState, proof bool, companions ...func(stage string) error) (trainingprogram.Checkpoint, error) {
 	spec, err := authority.checkpointSpec(state)
 	if err != nil {
 		return trainingprogram.Checkpoint{}, err
 	}
+	spec.IdentityOnly = proof
 	writeModel := func(stage string) error {
 		if isGGUFModelInput(source) {
 			return WriteTrainedModel(ctx, store, source, stage, len(model.Weights), trainedGGUFTensors(model))

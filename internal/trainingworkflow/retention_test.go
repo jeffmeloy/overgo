@@ -151,8 +151,10 @@ func TestStepCheckpointsIgnoreAnotherRunsDirectories(t *testing.T) {
 // only the older ones are deleted and nothing else beside the output is; a run
 // resumed from a kept checkpoint ends holding exactly the weights, and for an
 // adapter exactly the factors, an uninterrupted run does, under a moving average
-// that continues from the checkpoint's rather than starting over; and a
-// checkpoint that follows the run's last update has nothing left to resume.
+// that continues from the checkpoint's rather than starting over; a
+// checkpoint that follows the run's last update has nothing left to resume;
+// and a proof keeps the checkpoints it saves along the way, which a stopped
+// run resumes from, though it keeps no file of its own checkpoint.
 func TestCheckpointRetention(t *testing.T) {
 	text := registerTextObjective(t, averageDocuments(), trainingprogram.MetricTokenAccuracy)
 	ctx := t.Context()
@@ -257,6 +259,19 @@ func TestCheckpointRetention(t *testing.T) {
 			if _, err := RunTextHeldout(ctx, text.store, request); err == nil {
 				t.Errorf("%s was accepted", name)
 			}
+		}
+	})
+
+	t.Run("a proof keeps what it saves along the way, and nothing at its output", func(t *testing.T) {
+		// A checkpoint saved along the way is what a stopped run resumes from.
+		// It is not the checkpoint a proof's claim names, so it stays, as the
+		// run was asked; the proof's own checkpoint leaves no file.
+		output := run(t, "proved", TextHeldoutRequest{Proof: true, CheckpointEvery: 4, CheckpointKeep: 1})
+		if _, err := trainingprogram.LoadCheckpoint(stepCheckpointDirectory(output, 8)); err != nil {
+			t.Errorf("the checkpoint the proof saved after update 8: %v", err)
+		}
+		if _, err := os.Stat(output); !os.IsNotExist(err) {
+			t.Errorf("the proof left its output at %s (%v), want no file of its own checkpoint kept", output, err)
 		}
 	})
 }

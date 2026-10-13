@@ -323,11 +323,14 @@ func TestFrozenLexicalTextRunRecordsItsFrozenPlan(t *testing.T) {
 
 // TestTextObjectiveProofReverifiesWithoutAVerdict: a proof run under a text
 // objective re-verifies the recipe a full run activated by training alone.
-// It records its session and publishes its checkpoint at its output, and the
-// recipe's verification depends on exactly those; it scores neither model,
-// so no held-out verdict publishes and the full run's stays the newest, the
-// one the recipe's held-out quality reads. A verification binds a named code
-// revision, which this test sets as a package variable, so it runs alone.
+// It records its session and gives the store its checkpoint's document, and
+// the recipe's verification depends on exactly the session and the
+// checkpoint's identity, which is all it reads of the checkpoint: so nothing
+// remains at the proof's output and the store names no location for the
+// checkpoint. It scores neither model, so no held-out verdict publishes and
+// the full run's stays the newest, the one the recipe's held-out quality
+// reads. A verification binds a named code revision, which this test sets as
+// a package variable, so it runs alone.
 func TestTextObjectiveProofReverifiesWithoutAVerdict(t *testing.T) {
 	stubExecutableCodeCommit(t, strings.Repeat("e7", 20))
 	resultPath := filepath.Join(t.TempDir(), "verification.json")
@@ -338,28 +341,35 @@ func TestTextObjectiveProofReverifiesWithoutAVerdict(t *testing.T) {
 	}
 	text := registerTextObjective(t, documents, trainingprogram.MetricTokenAccuracy)
 	ctx := t.Context()
-	run := func(output string, proof bool) HeldoutResult {
+	run := func(output string, steps int, proof bool) HeldoutResult {
 		t.Helper()
 		result, err := RunTextHeldout(ctx, text.store, TextHeldoutRequest{
 			Alias: text.alias, ModelDirectory: text.model, OutputDirectory: filepath.Join(text.root, output),
-			Steps: 2, MaximumSequence: 8, Host: true, Proof: proof,
+			Steps: steps, MaximumSequence: 8, Host: true, Proof: proof,
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
 		return result
 	}
-	full := run("full", false)
+	full := run("full", 2, false)
 	if err := os.Remove(resultPath); err != nil {
 		t.Errorf("full run handoff: %v", err)
 	}
-	proof := run("proof", true)
+	// The proof takes a step more than the full run, so its checkpoint is its
+	// own: of the same steps it trains the full run's checkpoint again, and
+	// where the full run published that one is not the proof's doing.
+	proof := run("proof", 3, true)
 	if !full.Verdict.Valid() || !proof.Observation.Valid() || proof.Verdict.Valid() || proof.View.Valid() || proof.Plan.Valid() ||
 		proof.Baseline.Valid() || proof.Candidate.Valid() {
 		t.Fatalf("full run = %+v, proof run = %+v: want a session and checkpoint from each and only the full run judged", full, proof)
 	}
-	if checkpoint, err := trainingprogram.LoadCheckpoint(filepath.Join(text.root, "proof")); err != nil || checkpoint.ID() != proof.Trained {
-		t.Fatalf("proof output holds checkpoint (%s, %v), want %s", checkpoint.ID(), err, proof.Trained)
+	if _, err := os.Stat(filepath.Join(text.root, "proof")); !os.IsNotExist(err) {
+		t.Fatalf("the proof output is there (%v), want nothing left at it", err)
+	}
+	if locations, err := text.store.Locations(ctx, proof.Trained); err != nil || len(locations) != 0 || proof.Trained == full.Trained {
+		t.Fatalf("the store names the proof's checkpoint %s at %v (%v), and the full run's is %s: want a checkpoint of the proof's own that the store names no location for",
+			proof.Trained, locations, err, full.Trained)
 	}
 	var judged []artifact.ID
 	if err := evaluation.VisitHeldoutVerdicts(ctx, text.store, func(observation artifact.ID, _, _ evaluation.EvalSummary) error {

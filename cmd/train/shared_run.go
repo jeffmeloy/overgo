@@ -129,6 +129,10 @@ type routeSession struct {
 	// published is the checkpoint the session published, which its finish
 	// verifies the recipe on; every copy of the session shares it.
 	published *artifact.ID
+	// proof marks a run that re-verifies its recipe by training alone. Its
+	// verification reads the checkpoint's identity and nothing else of it, so
+	// the session records the checkpoint's document and keeps no file.
+	proof bool
 }
 
 // generationContract is the contract of a trainer that steps kind from
@@ -245,19 +249,21 @@ type planned interface {
 
 // publishTrained publishes, as a checkpoint at target, what trainer trained
 // under the recipe a held-out run's session trained under; stream is where
-// the training stopped in the objective's training membership.
-func publishTrained(ctx context.Context, store *overgodb.Store, recipeID artifact.ID, target string, trainer checkpointed, stream trainingdata.StreamState) (trainingprogram.Checkpoint, error) {
+// the training stopped in the objective's training membership. A proof's
+// publication keeps no file there (routeSession.proof).
+func publishTrained(ctx context.Context, store *overgodb.Store, recipeID artifact.ID, target string, trainer checkpointed, stream trainingdata.StreamState, proof bool) (trainingprogram.Checkpoint, error) {
 	session, err := bindSession(ctx, store, recipeID)
 	if err != nil {
 		return trainingprogram.Checkpoint{}, err
 	}
+	session.proof = proof
 	return session.publishWeights(ctx, target, trainer.Program(), trainer, stream)
 }
 
 // publishPlannedTrained is publishTrained for a trainer that compiled no
 // program of its own: its checkpoint names the program the recipe's
 // objective compiles over the trainer's optimizer plan.
-func publishPlannedTrained(ctx context.Context, store *overgodb.Store, recipeID artifact.ID, target string, trainer planned, stream trainingdata.StreamState) (trainingprogram.Checkpoint, error) {
+func publishPlannedTrained(ctx context.Context, store *overgodb.Store, recipeID artifact.ID, target string, trainer planned, stream trainingdata.StreamState, proof bool) (trainingprogram.Checkpoint, error) {
 	session, err := bindSession(ctx, store, recipeID)
 	if err != nil {
 		return trainingprogram.Checkpoint{}, err
@@ -266,6 +272,7 @@ func publishPlannedTrained(ctx context.Context, store *overgodb.Store, recipeID 
 	if err != nil {
 		return trainingprogram.Checkpoint{}, err
 	}
+	session.proof = proof
 	return session.publishWeights(ctx, target, program, trainer, stream)
 }
 
@@ -345,7 +352,8 @@ func (session routeSession) settle(ctx context.Context, err *error) {
 // records it in the store, so the loop can judge it. write stages the
 // trained weights, program and state are the trainer's own, stream is where
 // the run stopped in the recipe objective's dataset, and the objective
-// supplies the dataset authority the run plan binds.
+// supplies the dataset authority the run plan binds. A proof's session
+// identifies the checkpoint and records its document, keeping no file.
 func (session routeSession) publish(ctx context.Context, target string, program trainingprogram.TrainingProgram, state hostoptimizer.State, stream trainingdata.StreamState, write func(stage string) error) (trainingprogram.Checkpoint, error) {
 	policies, err := trainingprogram.PoliciesFromRecipe(session.authority.Program.Definition())
 	if err != nil {
@@ -392,20 +400,29 @@ func (session routeSession) publish(ctx context.Context, target string, program 
 			{Name: "augmentation", Algorithm: rng, Counter: uint64(state.Step)}, {Name: "data", Algorithm: rng, Counter: stream.Position},
 		},
 		Processors: objective.Processors, Projectors: objective.Projectors, Codecs: objective.Codecs,
-		Lineage: lineage,
+		Lineage: lineage, IdentityOnly: session.proof,
 	}, write)
 	if err != nil {
 		return trainingprogram.Checkpoint{}, err
 	}
-	fmt.Printf("checkpoint=%s written to %s\n", checkpoint.ID(), target)
-	// The record names the program, run plan and scratch construction the
-	// checkpoint's lineage cites, and registers a trained GGUF it holds.
-	candidate, err := trainingworkflow.RecordCheckpoint(ctx, session.store, target, checkpoint)
-	if err != nil {
-		return trainingprogram.Checkpoint{}, err
-	}
-	if candidate.Definition.ID.Valid() {
-		fmt.Printf("model=%s candidate=%s (not activated)\n", candidate.Inventory.Manifest.ID, candidate.Definition.ID)
+	if session.proof {
+		// A proof's verification reads the checkpoint's identity alone: the
+		// store is given its document and lineage, and no file is kept.
+		fmt.Printf("checkpoint=%s identified for a proof; no file kept at %s\n", checkpoint.ID(), target)
+		if err := trainingworkflow.RecordCheckpointDocument(ctx, session.store, checkpoint); err != nil {
+			return trainingprogram.Checkpoint{}, err
+		}
+	} else {
+		fmt.Printf("checkpoint=%s written to %s\n", checkpoint.ID(), target)
+		// The record names the program, run plan and scratch construction the
+		// checkpoint's lineage cites, and registers a trained GGUF it holds.
+		candidate, err := trainingworkflow.RecordCheckpoint(ctx, session.store, target, checkpoint)
+		if err != nil {
+			return trainingprogram.Checkpoint{}, err
+		}
+		if candidate.Definition.ID.Valid() {
+			fmt.Printf("model=%s candidate=%s (not activated)\n", candidate.Inventory.Manifest.ID, candidate.Definition.ID)
+		}
 	}
 	if session.published != nil {
 		*session.published = checkpoint.ID()

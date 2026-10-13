@@ -28,7 +28,8 @@ import (
 // device trainer, a reference, a sequence limit, an objective scale, a frozen
 // lexicon, a session that samples its own answers, a preference mode or
 // margin, an observer of preference steps, a bound on projected time or an
-// audio specification, and one that records no session. The command path
+// audio specification, one that records no session, and a proof, which keeps
+// no checkpoint for the starter to load. The command path
 // here names no file, so the request that is carried fails at the start of
 // the command, and each refused one does not get that far. And a context
 // that has already ended returns its own error, with nothing started.
@@ -95,6 +96,8 @@ func TestRewardRunHandsItsStepsToItsStarter(t *testing.T) {
 		"with a bound on projected time": func(request *Request) { request.MaxProjectedWall = 1 },
 		"with an audio specification":    func(request *Request) { request.Audio = &AudioTrainingSpec{} },
 		"recording no session":           func(request *Request) { request.Observations = nil },
+		// A proof keeps no checkpoint for the starter to load from the output.
+		"as a proof": func(request *Request) { request.Proof = true },
 	} {
 		refused := carried
 		change(&refused)

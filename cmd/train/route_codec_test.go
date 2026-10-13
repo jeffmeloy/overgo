@@ -153,7 +153,8 @@ func TestCodecRouteTrainsADecoderOrNamesTheMissingOperator(t *testing.T) {
 // installed bridge and the trained one, on pictures neither was trained on
 // here, by the peak signal-to-noise ratio of what the frozen decoder draws.
 // A proof of the recipe that run trained under then trains a step again with
-// no cache: it publishes a checkpoint, keeps no token and adds no verdict.
+// no cache: it keeps no file of its checkpoint and no token, and adds no
+// verdict.
 func TestCodecRouteJudgesATrainedBridgeOnHeldOutFrames(t *testing.T) {
 	work := t.TempDir()
 	const frames = 6
@@ -219,7 +220,8 @@ func TestCodecRouteJudgesATrainedBridgeOnHeldOutFrames(t *testing.T) {
 	// A proof re-verifies the recipe the judged run trained under by a
 	// training run alone, as the measurement run starts it: with no cache, it
 	// reads the encoder's tokens for the pictures its step takes, keeps none,
-	// publishes its own checkpoint and leaves the one verdict as it was.
+	// keeps no file of the checkpoint it trains, whose identity is all its
+	// claim reads, and leaves the one verdict as it was.
 	resolved, _, err := rae.ResolveBridgedPair(pair)
 	if err != nil {
 		t.Fatal(err)
@@ -245,7 +247,9 @@ func TestCodecRouteJudgesATrainedBridgeOnHeldOutFrames(t *testing.T) {
 		"-batch", "2", "-steps", "1", "-store", storePath, "-out", proofOut}); err != nil {
 		t.Fatal(err)
 	}
-	proved := recordedBridgeCheckpoint(t, storePath, proofOut)
+	if _, err := os.Stat(proofOut); !os.IsNotExist(err) {
+		t.Fatalf("the proof left its output at %s (%v), want no file of its checkpoint kept", proofOut, err)
+	}
 	// The route wrote through a handle of its own; this one reads what it left.
 	if err := store.Refresh(ctx); err != nil {
 		t.Fatal(err)
@@ -255,8 +259,8 @@ func TestCodecRouteJudgesATrainedBridgeOnHeldOutFrames(t *testing.T) {
 		verdicts++
 		return nil
 	}, nil)
-	if err != nil || verdicts != 1 || proved.Optimizer.Step != 1 || kept() != before {
-		t.Fatalf("after a proof the store holds %d verdicts (%v), its checkpoint is at step %d and the cache holds %d files where it held %d: want the one verdict, the one step and no token kept",
-			verdicts, err, proved.Optimizer.Step, kept(), before)
+	if err != nil || verdicts != 1 || kept() != before {
+		t.Fatalf("after a proof the store holds %d verdicts (%v) and the cache holds %d files where it held %d: want the one verdict and no token kept",
+			verdicts, err, kept(), before)
 	}
 }

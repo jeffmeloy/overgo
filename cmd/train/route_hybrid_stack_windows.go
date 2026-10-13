@@ -86,6 +86,7 @@ func trainHybridStack(ctx context.Context, flags *flag.FlagSet, args []string) (
 	storePath := flags.String("store", "overgodb-store", "OvergoDB for the session observation, recipe authority and checkpoint record")
 	lane := flags.String("lane", "full-slab", "training lane: full-slab (masters+gradients+momentum all full host slabs) or layer-streamed (bounded host triplication: gradients never exceed one layer)")
 	roundTrip := flags.Bool("serving-roundtrip", false, "after training, requantize layer 0's mlp gate masters to their declared serving dtype and re-evaluate the objective through the round trip")
+	proof := proofFlag(flags)
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -111,6 +112,7 @@ func trainHybridStack(ctx context.Context, flags *flag.FlagSet, args []string) (
 	if err != nil {
 		return err
 	}
+	session.proof = *proof
 	defer session.settle(ctx, &err)
 	// The fixture is the bytes the session's recipe grounds.
 	fixture := session.data
@@ -246,7 +248,10 @@ func trainHybridStack(ctx context.Context, flags *flag.FlagSet, args []string) (
 		return err
 	}
 	fmt.Printf("trajectory: %v\n", trajectory)
-	fmt.Printf("checkpoint: %s at %s\n", checkpoint.ID(), *out)
+	// A proof kept no file at -out, as its publication said.
+	if !*proof {
+		fmt.Printf("checkpoint: %s at %s\n", checkpoint.ID(), *out)
+	}
 	fmt.Printf("PASS: finite loss decreased over %d full-stack steps in %s\n", len(trajectory), trainWall.Round(time.Millisecond))
 	return nil
 }

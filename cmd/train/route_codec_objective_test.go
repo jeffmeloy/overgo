@@ -125,7 +125,7 @@ func TestCodecAdaptationPublishesItsHeldOutVerdict(t *testing.T) {
 			matrix := newHostMatrix(t, trainingprogram.ObjectiveImageLatent, config)
 			step := matrix.step()
 			off = trainedError
-			return publishPlannedTrained(ctx, store, recipeID, filepath.Join(root, "checkpoint"), matrix, trainingdata.StreamState{Identity: data.Training, Position: uint64(step.Step)})
+			return publishPlannedTrained(ctx, store, recipeID, filepath.Join(root, "checkpoint"), matrix, trainingdata.StreamState{Identity: data.Training, Position: uint64(step.Step)}, false)
 		},
 		Predict: func(example trainingworkflow.HeldoutExample) (trainingworkflow.HeldoutPrediction, error) {
 			drawn := make([]float64, len(example.Target))
@@ -308,7 +308,7 @@ func TestCodecCheckpointNamesEveryFileOfThePairItTrained(t *testing.T) {
 			matrix := newHostMatrix(t, trainingprogram.ObjectiveImageLatent, config)
 			step := matrix.step()
 			off = 0.01
-			checkpoint, err = publishPlannedTrained(ctx, store, recipeID, filepath.Join(root, "checkpoint"), matrix, trainingdata.StreamState{Identity: data.Training, Position: uint64(step.Step)})
+			checkpoint, err = publishPlannedTrained(ctx, store, recipeID, filepath.Join(root, "checkpoint"), matrix, trainingdata.StreamState{Identity: data.Training, Position: uint64(step.Step)}, false)
 			return checkpoint, err
 		},
 		Predict: func(example trainingworkflow.HeldoutExample) (trainingworkflow.HeldoutPrediction, error) {

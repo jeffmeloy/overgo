@@ -89,7 +89,8 @@ type TextHeldoutRequest struct {
 	// before it trains, is still the base model's.
 	Resume string
 	// Proof re-verifies the recipe by the training run alone, judging and
-	// publishing no verdict (HeldoutRun.Proof).
+	// publishing no verdict (HeldoutRun.Proof): the store is given the trained
+	// checkpoint's document, and no file of it is kept at OutputDirectory.
 	Proof bool
 	// LoRA, when set, trains a low-rank adapter over the frozen model rather
 	// than the model: the run is a host run, its program's parameters are the
@@ -105,7 +106,8 @@ type TextHeldoutRequest struct {
 	Order uint64
 	// throwaway marks the trained checkpoint as one run of a larger
 	// collection, meant to be removed once the collection's record is kept:
-	// the store is given its document and no location (recordThrowaway).
+	// the store is given its document and no location
+	// (RecordCheckpointDocument), and its files stay for the collection to read.
 	throwaway bool
 }
 
@@ -615,12 +617,14 @@ func publishTrainedText(
 	if err != nil {
 		return trainingprogram.Checkpoint{}, err
 	}
-	checkpoint, err := publishCheckpoint(ctx, store, request.ModelDirectory, target, model, authority, state, companions...)
+	// A proof keeps no file of the checkpoint it records; one a run saves along
+	// the way is not recorded, and stays to be resumed from.
+	checkpoint, err := publishCheckpoint(ctx, store, request.ModelDirectory, target, model, authority, state, record && request.Proof, companions...)
 	if err != nil {
 		return trainingprogram.Checkpoint{}, err
 	}
-	if record && request.throwaway {
-		err = recordThrowaway(ctx, store, checkpoint)
+	if record && (request.throwaway || request.Proof) {
+		err = RecordCheckpointDocument(ctx, store, checkpoint)
 	} else if record {
 		_, err = RecordCheckpoint(ctx, store, target, checkpoint)
 	}

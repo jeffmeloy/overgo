@@ -348,7 +348,7 @@ func (run codecRun) judged(ctx context.Context, alias string, recipeID artifact.
 				return trainingprogram.Checkpoint{}, err
 			}
 			// Each update consumed one batch of training pictures.
-			return publishPlannedTrained(ctx, run.store, recipeID, run.out, trainer, trainingdata.StreamState{Identity: data.Training, Position: uint64(plan.Updates() * run.batch)})
+			return publishPlannedTrained(ctx, run.store, recipeID, run.out, trainer, trainingdata.StreamState{Identity: data.Training, Position: uint64(plan.Updates() * run.batch)}, proof)
 		},
 		Predict: func(example trainingworkflow.HeldoutExample) (trainingworkflow.HeldoutPrediction, error) {
 			mapped, err := trainer.Bridge().Apply(tokens[example.Record])

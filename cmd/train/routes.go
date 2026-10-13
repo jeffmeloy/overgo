@@ -13,6 +13,12 @@ import (
 // flag: train -route <name> [its flags]. Each route parses its own flags.
 const routeFlag = "-route"
 
+// proofFlag registers -proof for the dense workflow, train -objective and
+// each route the measurement run proves that had no -proof of its own.
+func proofFlag(flags *flag.FlagSet) *bool {
+	return flags.Bool("proof", false, "re-verify the recipe by the training run alone: the store is given the trained checkpoint's identity, no file is kept at -out, and no held-out verdict publishes")
+}
+
 // trainRoutes are the bounded family trainers that were once their own
 // *-train-probe commands; the trainer is reached through cmd/train by name
 // and trains until its context ends. A route that needs a platform's device

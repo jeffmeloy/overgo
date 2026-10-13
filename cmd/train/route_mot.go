@@ -87,6 +87,7 @@ func trainMot(ctx context.Context, flags *flag.FlagSet, args []string) (err erro
 	storePath := flags.String("store", "overgodb-store", "OvergoDB for the session observation, recipe authority and checkpoint record")
 	stimulus := flags.String("stimulus", "docs/verification/rxbrain-mot-training-stimulus.txt", "committed stimulus declaration grounding the recipe dataset")
 	out := flags.String("out", "", "directory the trained vision fork's checkpoint publishes to")
+	proof := proofFlag(flags)
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -112,6 +113,7 @@ func trainMot(ctx context.Context, flags *flag.FlagSet, args []string) (err erro
 	if err != nil {
 		return err
 	}
+	session.proof = *proof
 	defer session.settle(ctx, &err)
 
 	// Real prompt: golden-verified token ids, modality mask, and vision rows

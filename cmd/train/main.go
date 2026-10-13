@@ -60,7 +60,7 @@ func run() error {
 	previewDataset := flag.String("preview-dataset", "", "validate one speech training example from a source/split/policy JSON manifest without loading a model or updating parameters")
 	audioManifest := flag.String("audio-manifest", "", "CPU CTC adapter source-processing manifest; the active training recipe owns the registered dataset and split")
 	objective := flag.String("objective", "", "registered text objective alias: train on its training split, publish the trained model at -out and the held-out verdict that binds it (table and forecast objectives train through -route tabular and -route seriesforecast)")
-	proof := flag.Bool("proof", false, "with -objective: re-verify the objective's recipe by the training run alone, scoring no model and publishing no held-out verdict")
+	proof := proofFlag(flag.CommandLine)
 	loraRank := flag.Int("lora-rank", 0, "with -objective: train a LoRA adapter of this rank over the frozen model instead of the model, on the host; the adapter is written under -out/adapter as a Hugging Face PEFT directory")
 	loraAlpha := flag.Float64("lora-alpha", 0, "with -lora-rank: the adapter's alpha, its scale being alpha over rank; omitted takes twice the rank")
 	loraTargets := flag.String("lora-targets", "", "with -lora-rank: comma-separated projections to adapt (q_proj,k_proj,v_proj,o_proj,gate_proj,up_proj,down_proj); omitted adapts all of them")
@@ -94,8 +94,13 @@ func run() error {
 	if (*evidence || *evidenceThrough != 0 || *evidenceBytes != 0) && (*propose == "" || !*evidence) {
 		return fmt.Errorf("train: -evidence shows a proposer what was tried before it, and -evidence-to-sequence and -evidence-max-bytes bound what it is shown; they need -propose and -evidence")
 	}
-	if *proof && *objective == "" {
-		return fmt.Errorf("train: -proof re-verifies an -objective recipe; it needs -objective")
+	// A proof is a training run under -objective or the dense workflow's
+	// -recipe; each of these does something else, or trains an audio adapter,
+	// whose run takes no proof.
+	for _, other := range []*string{pilot, propose, confirm, previewDataset, bootstrapRecipe, audioManifest} {
+		if *proof && *other != "" {
+			return fmt.Errorf("train: -proof re-verifies a recipe by a training run alone, under -objective or the dense workflow's -recipe; it goes with no other mode and no audio manifest")
+		}
 	}
 	lora := loraRequest(loraFlags{Rank: *loraRank, Alpha: *loraAlpha, Targets: *loraTargets, Seed: *loraSeed, From: *loraFrom, RSLoRA: *loraRSLoRA, Plus: *loraPlus, Quantized: *loraQuantized})
 	if lora == nil && (*loraAlpha != 0 || *loraTargets != "" || *loraSeed != 0 || *loraRSLoRA || *loraPlus != 0 || *loraQuantized) {
@@ -181,7 +186,7 @@ func run() error {
 
 	request := trainingworkflow.Request{
 		Audio:      audio,
-		Repository: store, Recipe: parsedRecipe, Observations: store,
+		Repository: store, Recipe: parsedRecipe, Observations: store, Proof: *proof,
 		ModelDirectory: *model, DatasetPath: *dataset, OutputDirectory: *output,
 		ResumeDirectory: *resume, ReferenceDirectory: *reference,
 		Steps: *steps, MaximumSequence: *maximumSequence,
@@ -212,6 +217,10 @@ func run() error {
 	}
 	for _, observation := range result.GRPO {
 		fmt.Printf("step %d: loss %.6f mean_reward %.6f\n", observation.Step, observation.Loss, observation.MeanReward)
+	}
+	if *proof {
+		// A proof kept no file at -out, so there is nothing there to judge.
+		return reportProof(os.Stdout, trainingworkflow.HeldoutResult{Observation: result.Observation, Trained: result.Checkpoint.ID()})
 	}
 	fmt.Printf("checkpoint=%s written to %s\n", result.Checkpoint.ID(), *output)
 	if result.Candidate.Valid() {

@@ -56,7 +56,7 @@ func ExecuteInCommand(ctx context.Context, command, store string, request Reques
 	if request.Audio != nil || request.ReferenceDirectory != "" || request.MaximumSequence != 0 || request.ObjectiveScale != 0 ||
 		request.Host || request.Device != nil || request.FreezeLexical || request.Rewards != nil ||
 		request.PreferenceMode != "" || request.PreferenceMargin != 0 || request.ObserveDPO != nil ||
-		request.MaxProjectedWall != 0 || request.Observations == nil {
+		request.MaxProjectedWall != 0 || request.Observations == nil || request.Proof {
 		return Result{}, errors.New("training workflow: the training command takes a recipe, a model or a checkpoint to resume, a dataset, an output and a count of steps, and trains off the host with its session recorded; this request asks for something else")
 	}
 	scratch, err := os.MkdirTemp("", "overgo-reward-run-")

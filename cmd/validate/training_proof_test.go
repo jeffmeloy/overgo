@@ -33,7 +33,9 @@ const fixtureCommit = "0123456789abcdef0123456789abcdef01234567"
 // recipe declares an objective over the data its route grounds on, and the
 // record reader names the route from that objective alone: the dit route
 // trains a video stack from its directory and a raw checkpoint against that
-// stack, and the dense workflow trains the recipe it is named. A recipe whose
+// stack, and the dense workflow trains the recipe it is named. Every training
+// proof's command is given -proof, so that the run keeps no file of the
+// checkpoint it trains, whose identity is all its claim reads. A recipe whose
 // objective no committed data grounds but an alias registers is re-verified by
 // a proof run of train -objective under that alias, bounded as the dense
 // workflow's run, or, when it is a table objective, by the tabular route's
@@ -344,6 +346,11 @@ func TestEveryScorecardCellHasABoundCommandOrIsRetired(t *testing.T) {
 		}
 		if out := flag(model, "-out"); out != "checkpoint" {
 			t.Errorf("%s preview publishes its checkpoint at %q, want a caller-chosen output", model, out)
+		}
+		// Every training proof is run as a proof: its claim reads the trained
+		// checkpoint's identity alone, so the run keeps no file of it.
+		if !slices.Contains(commands[model], "-proof") {
+			t.Errorf("%s runs %v, want it given -proof, so it writes no checkpoint that the run then removes", model, commands[model])
 		}
 	}
 	// The objective's proof run re-verifies its recipe without publishing the

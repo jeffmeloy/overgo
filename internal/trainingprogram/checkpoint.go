@@ -93,6 +93,9 @@ type CheckpointSpec struct {
 	Lineage           []LineageParent
 	RouterControllers []RouterControllerState
 	Accumulation      int
+	// IdentityOnly has PublishCheckpoint identify the checkpoint and keep no
+	// file: a training proof's verification reads the identity alone.
+	IdentityOnly bool
 }
 
 type Checkpoint struct {
@@ -359,7 +362,10 @@ func ParseCheckpoint(data []byte) (Checkpoint, error) {
 }
 
 // PublishCheckpoint publishes, at a fresh target, the weights writeWeights
-// stages with the checkpoint document and resume sidecar that bind them.
+// stages with the checkpoint document and resume sidecar that bind them. A
+// spec that asks for the identity only gets the checkpoint a publication
+// would name, the weights staged to be identified and then removed, and
+// nothing at target.
 func PublishCheckpoint(target string, spec CheckpointSpec, writeWeights func(string) error) (Checkpoint, error) {
 	if strings.TrimSpace(target) == "" || writeWeights == nil {
 		return Checkpoint{}, errors.New("training checkpoint: target and weight writer are required")
@@ -418,6 +424,10 @@ func PublishCheckpoint(target string, spec CheckpointSpec, writeWeights func(str
 	}
 	if err := identify(&checkpoint); err != nil {
 		return Checkpoint{}, err
+	}
+	if spec.IdentityOnly {
+		// The stage is not committed, so it is removed on return.
+		return checkpoint, nil
 	}
 	// Each document is written as the canonical bytes its identity hashes.
 	files := map[string][]byte{momentumFilename: values}

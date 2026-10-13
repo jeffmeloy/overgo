@@ -76,7 +76,7 @@ func runObjective(ctx context.Context, storeRoot, alias, modelDir, out string, s
 				return trainingprogram.Checkpoint{}, err
 			}
 			// Each update consumed one training record.
-			return publishTrained(ctx, store, recipeID, out, trainer, trainingdata.StreamState{Identity: data.Training, Position: uint64(plan.Updates())})
+			return publishTrained(ctx, store, recipeID, out, trainer, trainingdata.StreamState{Identity: data.Training, Position: uint64(plan.Updates())}, false)
 		},
 		Predict: func(example trainingworkflow.HeldoutExample) (trainingworkflow.HeldoutPrediction, error) {
 			return pointForecast(model, example)

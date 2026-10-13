@@ -227,19 +227,20 @@ func publishWithParents(ctx context.Context, store artifact.Repository, batch ar
 	return PublishTrainingEvidence(ctx, store, TrainingEvidencePublication{Batch: batch})
 }
 
-// recordThrowaway records a checkpoint that is an intermediate product of a
-// larger run, meant to be removed once the run's own record is kept. The store
-// is given the checkpoint's document and lineage, which a session's record
+// RecordCheckpointDocument records a checkpoint whose files do not stay: an
+// intermediate product of a larger run, removed once the run's own record is
+// kept, or a proof's, which keeps no file at all. The store is given the
+// checkpoint's document and lineage, which a session's record, a verification
 // and a verdict name, and no location, weights, trained model or candidate:
 // a catalog must not list files that will be gone, and what is read back
-// from such a checkpoint is read from its directory while it stands.
+// from an intermediate checkpoint is read from its directory while it stands.
 //
 // A checkpoint whose document the store holds is recorded already, with its
 // lineage, and nothing is published: the same checkpoint trained again, as a
 // run begun again after its checkpoints were removed trains it, would name
 // the same key with other content, because the parents the first batch had to
 // declare are held by then.
-func recordThrowaway(ctx context.Context, store artifact.Repository, checkpoint trainingprogram.Checkpoint) error {
+func RecordCheckpointDocument(ctx context.Context, store artifact.Repository, checkpoint trainingprogram.Checkpoint) error {
 	if _, held, err := artifact.ReadContent(ctx, store, checkpoint.ID()); err != nil || held {
 		return err
 	}

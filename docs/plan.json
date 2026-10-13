@@ -61,28 +61,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "measurement-run-passes",
-      "title": "Let a full measurement run pass, and stop it writing what it then removes",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 247,
-        "reason": "What the row may still add. Set on 2026-10-13, with plan -setcount, to the 247 nodes its last step, proof-footprint, was counted at once built on the trunk's commit 14c2c5965, by the count of syntax nodes the automated checks take, over the production files it changes in cmd/train, cmd/validate, internal/trainingprogram and internal/trainingworkflow: every proof route takes -proof, a proof publishes its checkpoint's identity and document and writes no file, and the store records no location for it. The builder's count, confirmed by a second reader; the commit's own check gives the figure that governs. The earlier steps used the 1,112 the row carried before (census-binding 841, bound-cells 271); coverage-27b added none."
-      },
-      "steps": [
-        {
-          "id": "proof-footprint",
-          "title": "Have a training proof write only what its claim reads",
-          "status": "open",
-          "verify": "go test ./cmd/train -count=1 -run '^TestProofWritesOnlyWhatItsClaimReads$'",
-          "rationale": "Filed by the lead on 2026-10-13; not in the proposal. Measured that night by a sampler of the volume's free space beside the full measurement run at cc82ed097: free space fell 86.7 GiB at one moment (451.89 GB to 358.78 GB) and returned within a minute, during the training proof of Qwen3.5-9B, which trains three full-stack steps in 11 m 14 s and writes its checkpoint under the temporary directory (overgo-validate-proof-*), about 27 GB of weights and 27 GB of momentum in float32, and removes it. The run's net growth over 3 h 40 m was about 10 GiB. So what a run needs free is set by a checkpoint nothing keeps. Measure first what the proof's claim reads of that checkpoint (the trajectory and the session observation are already in the store); then write only that.\nServes: load on the drive and the free-space floor of repo-hygiene/enforce, which this dip sets; the proof's own time.\nDisappears: about 80 GB written and removed in every run.\nEvidence: the sampler's reading before and after; the proof's record unchanged.\nBatch: host test; cmd/train imports evaluation, so the commit runs the device tests.",
-          "depends_on": [
-            "measurement-run-passes/bound-cells"
-          ]
-        }
-      ]
-    },
-    {
       "id": "trustworthy-measurement",
       "title": "Make a timing and a quality reading trustworthy before anything is judged by them",
       "owner": "master-lead",

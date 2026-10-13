@@ -16,6 +16,7 @@ import (
 	"overgo/internal/modelartifact"
 	"overgo/internal/modeldevice"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tokenizer"
@@ -71,7 +72,13 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 			return fail(err)
 		}
 	}
+	// The parts of the open name themselves to a request that keeps a ledger of
+	// them (processmeasure): the tokenizer here, and below the device worker
+	// with its context, the executor, and the one pass that reads, proves and
+	// uploads the weights.
+	tokenized := processmeasure.Stage(ctx, "tokenizer")
 	vocab, err := tokenizer.Load(file)
+	tokenized()
 	if err != nil {
 		return fail(err)
 	}
@@ -106,11 +113,15 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 	}
 	recovered := false
 	if residency.deviceF32 || residency.deviceNative {
+		started := processmeasure.Stage(ctx, "device worker")
 		worker, err = device.New(options.DeviceOrdinal)
+		started()
 		if err != nil {
 			return fail(err)
 		}
+		built := processmeasure.Stage(ctx, "executor")
 		cuda, err = executor.NewWithWorker(worker)
+		built()
 		if err != nil {
 			return fail(err)
 		}
@@ -119,6 +130,7 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 		if program.Model.Terminal().OutputHead == model.OutputHeadDedicated && weights.Output != nil {
 			outputProjection = *weights.Output
 		}
+		uploaded := processmeasure.Stage(ctx, "weights")
 		recovered, err = loadWithHostRecovery(residency.hostRecovery, func() error {
 			return loadResidentWeights(
 				ctx, file, weights, outputProjection, loraAdapters, residency, worker, claims,
@@ -127,6 +139,7 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 		}, func() error {
 			return releasePartialStores(&decodeWeights, &rawWeights, &deviceWeights)
 		})
+		uploaded()
 		if err != nil {
 			return fail(err)
 		}

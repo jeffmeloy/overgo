@@ -79,6 +79,7 @@ func run() error {
 	alias := flags.String("alias", "", "OvergoDB model alias (run)")
 	selection := flags.String("selection", string(modelrecipe.SessionWarm), "alias session selection: pin | warm | spillover (run)")
 	fresh := flags.Bool("fresh", false, "run the request as its own operation, where an identical request this build already answered is answered with what the store kept of it (run)")
+	journey := flags.Bool("journey", false, "print where a first request's time goes, three ways, and record nothing: the parts of a first load in this process, of a second load in it, and when the prompt is evaluated and the first token comes, on those and on a second request on a loaded model (measure -task inference)")
 	compatibility := flags.String("compatibility", "", "remote peer compatibility evidence ID (spillover run)")
 	if err := flags.Parse(os.Args[2:]); err != nil {
 		return err
@@ -224,7 +225,7 @@ func run() error {
 		)
 	case "measure":
 		if selectedTask == recipe.TaskInference {
-			return measureRunner(repository, path)
+			return measureRunner(repository, path, *journey)
 		}
 		if !capabilityKnown || capability.Execute == nil {
 			return fmt.Errorf("task %q has no registered runtime", selectedTask)

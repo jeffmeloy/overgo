@@ -101,18 +101,16 @@ func servingAttempts(t *testing.T, directory string) []runrecord.ServingObservat
 	return observed
 }
 
-// TestInferenceMeasurementFillsTheServingCells holds one measurement of an
-// active inference recipe to the observation the scorecard's serving cells
-// read. The recipe is activated the way the library activates one, by an exact
-// suite recorded and replayed, whose first case speaks the model's own
-// alphabet; the measurement runs that case on the loaded model, and the
-// attempt it records gives the row its first output, throughput, failure rate,
-// load and peak device memory.
-func TestInferenceMeasurementFillsTheServingCells(t *testing.T) {
-	t.Parallel()
+// measuredFixture gives a store at directory in which the model file at path
+// has an active inference recipe, and the loaded model that answers for it.
+// The recipe is activated the way the library activates one, by an exact suite
+// recorded and replayed, whose first case speaks the model's own alphabet. It
+// returns the recipe and that first case, the request a measurement runs.
+func measuredFixture(t *testing.T) (directory, path string, model *servedFixture, active artifact.ID, first evaluation.ExactCase) {
+	t.Helper()
 	ctx := t.Context()
-	path := testutil.HermeticLlamaGGUF(t, servedContext)
-	directory := t.TempDir()
+	path = testutil.HermeticLlamaGGUF(t, servedContext)
+	directory = t.TempDir()
 	store, err := overgodb.Open(directory)
 	if err != nil {
 		t.Fatal(err)
@@ -151,7 +149,7 @@ func TestInferenceMeasurementFillsTheServingCells(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	model := &servedFixture{t: t}
+	model = &servedFixture{t: t}
 	report, err := evaluation.EvaluateExactSharded(ctx, store, model, exact, plan, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -167,16 +165,27 @@ func TestInferenceMeasurementFillsTheServingCells(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
+	return directory, path, model, candidate.Definition.ID, cases[0]
+}
 
+// TestInferenceMeasurementFillsTheServingCells holds one measurement of an
+// active inference recipe to the observation the scorecard's serving cells
+// read: the measurement runs the first case of the recipe's verification on
+// the loaded model, and the attempt it records gives the row its first output,
+// throughput, failure rate, load and peak device memory.
+func TestInferenceMeasurementFillsTheServingCells(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	directory, path, model, active, first := measuredFixture(t)
 	result, err := measureInference(ctx, directory, path, func(context.Context) (servedModel, error) {
 		tick(t, tick(t, 0))
 		return model, nil
 	})
-	if err != nil || result.Text != servedOutput || model.prompts[len(model.prompts)-1] != cases[0].Prompt {
+	if err != nil || result.Text != servedOutput || model.prompts[len(model.prompts)-1] != first.Prompt {
 		t.Fatalf("measurement = %+v, %v after prompts %q; want the first verified case answered", result, err, model.prompts)
 	}
 	observed := servingAttempts(t, directory)
-	if len(observed) != 1 || observed[0].Recipe != candidate.Definition.ID || observed[0].Outcome != runrecord.OutcomeSucceeded || observed[0].Usage.OutputTokens == 0 {
+	if len(observed) != 1 || observed[0].Recipe != active || observed[0].Outcome != runrecord.OutcomeSucceeded || observed[0].Usage.OutputTokens == 0 {
 		t.Fatalf("serving attempts = %+v; want one succeeded attempt of the recipe with output tokens", observed)
 	}
 	// The scorecard's serving cells read these facts: the load and decode

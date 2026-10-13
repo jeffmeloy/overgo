@@ -17,6 +17,7 @@ import (
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/processmeasure"
 	"overgo/internal/tensor"
 )
 
@@ -135,16 +136,21 @@ func openRunner(
 	// Serving only READS the store (recipe resolution); a writer open here
 	// starved concurrent serves and self-deadlocked the smoke lane against
 	// its own child process.
+	// The parts of a load name themselves to a request that keeps a ledger of them (processmeasure).
+	opened := processmeasure.Stage(ctx, "store open")
 	store, err := overgodb.OpenReadOnly(repository)
+	opened()
 	if err != nil {
 		return nil, fmt.Errorf("open model recipe repository: %w", err)
 	}
+	resolved := processmeasure.Stage(ctx, "recipe resolve")
 	var claimer modelartifact.Claimer
 	if remembered {
 		claimer = discovery.LoadMemo(ctx, store).Claim
 	}
 	loaded, resolveErr := modelrecipe.ResolveClaimedGGUF(ctx, store, path, claimer)
 	closeErr := store.Close()
+	resolved()
 	if resolveErr != nil || closeErr != nil {
 		_ = loaded.Close()
 		return nil, errors.Join(resolveErr, closeErr)

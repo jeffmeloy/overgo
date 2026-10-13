@@ -188,7 +188,9 @@ func bootstrapRegisteredObjective(ctx context.Context, store *overgodb.Store, mo
 // one moment the identity and the path are both in hand, so every
 // bootstrapped activation stays discoverable by the training lanes; a
 // location the store already holds for this path is left as the recorded
-// fact.
+// fact. Weights that are several files, given by one of them, leave no
+// training activation standing under that one file's own identity
+// (retireLoneFile).
 func identifyAndRecordWeights(ctx context.Context, store *overgodb.Store, modelPath string) (artifact.ID, error) {
 	modelID, batch, err := identifyWeights(modelPath)
 	if err != nil {
@@ -202,7 +204,7 @@ func identifyAndRecordWeights(ctx context.Context, store *overgodb.Store, modelP
 		if _, err := artifact.Publish(ctx, store, batch); err != nil {
 			return artifact.ID{}, err
 		}
-		return modelID, nil
+		return modelID, retireLoneFile(ctx, store, modelPath, modelID)
 	}
 	existing, err := store.Locations(ctx, modelID)
 	if err != nil {
@@ -222,6 +224,54 @@ func identifyAndRecordWeights(ctx context.Context, store *overgodb.Store, modelP
 		return artifact.ID{}, err
 	}
 	return modelID, nil
+}
+
+// loneFileReason is the reason recorded with the retirement of an activation
+// that a file of a larger model held as a model of its own.
+const loneFileReason = "a run over these weights binds the model they are a part of, so nothing runs under this activation"
+
+// retireLoneFile retires the training activation that the file at modelPath
+// holds as a model of its own, when a run over that file binds bound, the
+// model the file is a part of. Such an activation was made before the model
+// was named by every file it runs through. No run binds its model any more,
+// so its proof can never run. It is retired as orphaned, and the evidence is
+// what a run binds from each file the store locates that model at
+// (modelrecipe.RetireOrphanedActivation).
+//
+// Nothing is retired for a path that is no file, for a file that holds no
+// training activation of its own, or while one of that model's files is still
+// bound as that model. Nothing is retired from a tree whose code revision
+// cannot be named either, where no claim is recorded: the next run from a
+// clean one retires it.
+func retireLoneFile(ctx context.Context, store *overgodb.Store, modelPath string, bound artifact.ID) error {
+	info, err := os.Stat(modelPath)
+	if err != nil || info.IsDir() {
+		return err
+	}
+	file, err := os.Open(modelPath)
+	if err != nil {
+		return err
+	}
+	lone, _, identifyErr := artifact.Identify(artifact.KindModel, file)
+	if err := errors.Join(identifyErr, file.Close()); err != nil || lone == bound {
+		return err
+	}
+	if _, active, err := artifact.ResolveAlias(ctx, store, modelrecipe.ActiveAliasPrefix(recipe.TaskTraining)+lone.String()); err != nil || !active {
+		return err
+	}
+	revision, err := executableCodeCommit(".")
+	if err != nil {
+		fmt.Printf("the training activation of %s, which a run over %s no longer binds, is not retired: %v\n", lone, modelPath, err)
+		return nil
+	}
+	switch err := modelrecipe.RetireOrphanedActivation(ctx, store, lone, recipe.TaskTraining, revision, loneFileReason, WeightsIdentity); {
+	case errors.Is(err, modelrecipe.ErrTrustedActivation):
+		return nil
+	case err != nil:
+		return err
+	}
+	fmt.Printf("retired the training activation of %s as orphaned: a run over %s binds %s\n", lone, modelPath, bound)
+	return nil
 }
 
 // bootstrapRecipeForObjective assembles, grounds, and publishes as a

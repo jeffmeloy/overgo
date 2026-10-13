@@ -61,25 +61,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "bridge-proof",
-      "title": "The picture bridge's training proof runs under the recipe its cell names",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 453,
-        "reason": "measured by the preflight of the step's change at 6d61ee390: the orphan rule's second measured ground in internal/modelrecipe, a run's retirement of the activation one file of its weights holds as a model of its own in internal/trainingworkflow, and two refusals that name the recipe's model and the run's"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Read the recipe's model and the route's model from the installed store, then make the cell and the proof name one model",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestARunOverAFileOfALargerModelRetiresTheFilesOwnActivation$'",
-          "rationale": "Filed by the lead from the full measurement run of 2026-10-13 at 09746220c.\n\nMeasured\n- the cells phase re-acquired 107 of 108 cells and did not pass\n- cell 108 (encoder_bridge.safetensors training-proof, recipe recipe:sha256:20f13ae7...) ended \"train: training workflow: recipe model or task differs\" after \"trainable parameters=787200 batch=2\"\n- the refusal = internal/trainingworkflow/session_authority.go:53 (the recipe's model != the model the run identifies, or the recipe's task != training)\n- sha256 of models/webssl-dino-to-rae-bridge/encoder_bridge.safetensors = 6f048b9a9f74..., the model the scorecard names for the cell\n- the workflow identifies a bridged pair's directory as the pair (internal/trainingworkflow/workflow.go identifyWeights -\u003e rae.PairInventory), never as the bridge file alone\n- the real-model test of step bound-cells passed because it bootstraps a recipe of its own and never reads the installed one\n- commit c57f39d15 (2026-10-11) made training name a bridged pair by every file it runs through, as serving names it (its message: \"it recorded the hash of the bridge file alone as the model\")\n- the scorecard's training row for webssl-dino-to-rae-bridge names model 6f048b9a and recipe 20f13ae7, so the installed recipe is of the bare bridge file, the identity that commit left behind\n\nCause\n- the installed training activation names an identity no run produces any more\n- every proof under it is refused before it trains\n\nNot measured (read first, read-only, against the installed store)\n- the identity rae.PairInventory gives the installed pair\n- whether the store holds a training recipe for that identity\n- whether the trust check of the bare file's activation fails, which cmd/recipe retire-orphan requires (internal/modelrecipe RetireOrphanedActivation names this case, a stale alias left when a migration changed the model identity)\n\nMust hold\n- the pair, as it is served, has the training recipe its proof runs under\n- the bare bridge file's training activation is retired by the store's own command, with its reason\n- the census changes by one accepted command (cmd/validate -accept-census)\n- a training cell whose weights a run would identify as another model is reported unbound with both identities when cells are bound, never after the weights are loaded\n\nThe check = a host test over a temporary store that holds a pair and a recipe for each identity.\nThe real evidence = validate -run -cells for that one model against the installed store, by hand, after the commit.\n\nServes: failure-rate of the loop itself: a full measurement run whose cells phase passes.\nDisappears: the last failing cell of the run.\nEvidence: the test; the one cell acquired by hand; the next run's cells phase.\nBatch: host for the test; cmd/train imports evaluation, so a change there runs the device tests."
-        }
-      ]
-    },
-    {
       "id": "trustworthy-measurement",
       "title": "Make a timing and a quality reading trustworthy before anything is judged by them",
       "owner": "master-lead",

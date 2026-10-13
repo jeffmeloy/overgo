@@ -2,7 +2,6 @@ package trainingworkflow
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"slices"
 
@@ -51,7 +50,7 @@ func ResolveSessionAuthority(ctx context.Context, repository artifact.Reader, mo
 		return SessionAuthority{}, err
 	}
 	if definition.Model != model || definition.Task != recipe.TaskTraining {
-		return SessionAuthority{}, errors.New("training workflow: recipe model or task differs")
+		return SessionAuthority{}, fmt.Errorf("training workflow: recipe %s is a %q recipe of model %s, and this run trains model %s", recipeID, definition.Task, definition.Model, model)
 	}
 	program, err := modelrecipe.CompileCapability(definition)
 	if err != nil {

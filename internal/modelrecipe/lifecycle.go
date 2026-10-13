@@ -236,17 +236,68 @@ func ReleaseRetiredAlias(ctx context.Context, store artifact.Repository, model a
 	return err
 }
 
+// ErrTrustedActivation refuses the retirement, as orphaned, of an activation
+// that is trusted and that something can still run under.
+var ErrTrustedActivation = errors.New("model recipe: the activation is trusted and its bytes are present; retire it through the evidence-backed path")
+
+// dead says why nothing can run under a trusted activation of model, which is
+// the evidence of its retirement, or refuses with ErrTrustedActivation when
+// something can. A live file of the model's is one a run can be given. With
+// no bound, one live file refuses. With one, a file that a run still binds as
+// the model refuses, and a file a run binds as another model is evidence.
+func dead(ctx context.Context, store artifact.Reader, model artifact.ID, bound func(path string) (artifact.ID, error)) (evidence, refusal error) {
+	locations, err := store.Locations(ctx, model)
+	if err != nil {
+		return nil, err
+	}
+	var moved []string
+	for _, location := range locations {
+		if location.Kind != artifact.LocationFile {
+			continue
+		}
+		live, liveErr := artifact.CanonicalLocalLocation(model, artifact.LocationFile, location.Value)
+		if liveErr != nil {
+			continue
+		}
+		if bound == nil {
+			return nil, ErrTrustedActivation
+		}
+		now, err := bound(live.Value)
+		if err != nil {
+			return nil, err
+		}
+		if now == model {
+			return nil, ErrTrustedActivation
+		}
+		moved = append(moved, fmt.Sprintf("a run over %s binds %s", live.Value, now))
+	}
+	if len(moved) != 0 {
+		return fmt.Errorf("model recipe: no run binds %s any more: %s", model, strings.Join(moved, "; ")), nil
+	}
+	if _, pathErr := artifact.AvailablePath(ctx, store, model, artifact.LocationFile); pathErr != nil {
+		return pathErr, nil
+	}
+	return nil, ErrTrustedActivation
+}
+
 // RetireOrphanedActivation retires an activation whose own trust check
 // fails -- a stale alias left behind when a schema migration changed
 // the model identity, or an activation whose verifier evidence never
 // stood. The failed trust check IS the evidence: a trusted activation
 // is refused here and must retire through the evidence-backed path.
+//
+// A trusted activation can still be dead in two ways, and each is measured.
+// No recorded location holds the model's bytes, so the identity resolves from
+// nothing. Or the bytes are there and bound says a run over each live file of
+// them binds another model, as after a change to how a model is identified,
+// so nothing can run under the activation. A nil bound reads only the first.
 func RetireOrphanedActivation(
 	ctx context.Context,
 	store artifact.Repository,
 	model artifact.ID,
 	task recipe.Task,
 	revision, reason string,
+	bound func(path string) (artifact.ID, error),
 ) error {
 	if strings.TrimSpace(reason) == "" {
 		return errors.New("model recipe: retirement reason is empty")
@@ -261,13 +312,8 @@ func RetireOrphanedActivation(
 	}
 	_, _, trustErr := ActiveRecord(ctx, store, model, task)
 	if trustErr == nil {
-		// A trusted activation can still be dead: when no recorded
-		// location holds the model bytes, the identity resolves from
-		// nothing and absence is the measured orphan evidence.
-		if _, pathErr := artifact.AvailablePath(ctx, store, model, artifact.LocationFile); pathErr == nil {
-			return errors.New("model recipe: the activation is trusted and its bytes are present; retire it through the evidence-backed path")
-		} else {
-			trustErr = pathErr
+		if trustErr, err = dead(ctx, store, model, bound); err != nil {
+			return err
 		}
 	}
 	definition, err := recipe.RequireDefinition(ctx, store, activeID)

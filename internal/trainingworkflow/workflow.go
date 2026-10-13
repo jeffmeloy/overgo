@@ -720,7 +720,7 @@ func compileAuthority(
 	}
 	definition := runtime.Definition()
 	if definition.Task != recipe.TaskTraining || definition.Model != modelID {
-		return compiledAuthority{}, errors.New("training workflow: recipe model or task differs")
+		return compiledAuthority{}, fmt.Errorf("training workflow: recipe %s is a %q recipe of model %s, and this run trains model %s", definition.ID, definition.Task, definition.Model, modelID)
 	}
 	if preference != nil {
 		reference, ok := ProgramReference(runtime)

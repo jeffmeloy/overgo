@@ -29,7 +29,7 @@ func retireOrphan(repository, modelID string, task recipe.Task, reason string) e
 		return err
 	}
 	defer store.Close()
-	if err := modelrecipe.RetireOrphanedActivation(context.Background(), store, model, task, revision, reason); err != nil {
+	if err := modelrecipe.RetireOrphanedActivation(context.Background(), store, model, task, revision, reason, nil); err != nil {
 		return err
 	}
 	fmt.Printf("retired orphaned %s activation for %s\n", task, model)

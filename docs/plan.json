@@ -61,6 +61,20 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "skill-rules",
+      "title": "Commit the operator's rewrite of skill.md, reviewed against the tree",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Commit the operator's rewrite of skill.md, reviewed against the tree",
+          "status": "open",
+          "verify": "go test ./internal/commanddoc ./internal/plan -count=1 -run '^(TestRootDocumentsNameExistingCommands|TestSinglePlanAuthority)$'"
+        }
+      ]
+    },
+    {
       "id": "one-way-to-train",
       "title": "Train every family through a registered objective, and delete the routes and their proofs",
       "class": "consolidation",

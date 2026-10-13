@@ -121,14 +121,11 @@
       "class": "consolidation",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 34,
+        "reason": ""
+      },
       "steps": [
-        {
-          "id": "documents",
-          "title": "Root documents name only what the tree holds, and the benchmark report is never behind the store",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestRootDocumentsNameOnlyWhatTheTreeHolds$'",
-          "rationale": "From the proposal, first in its row because it is small and binds every agent. skill.md, the one root instruction document, and README.md still state a promotion that was removed on 2026-10-05 (seven lines between them at cc82ed097, by git grep), while the plan's own doctrine was corrected at 88a306e5e; docs/assets/overgo_graphic.json names two files that no longer exist (by the proposal, not checked again). repoanalysis.DeadReferences, which repo-hygiene added for texts under docs, is extended to those three; the promotion wording is prose and is corrected by hand to what cmd/loop -improve does. docs/BENCHMARK.md is derived from the live store, so no commit check can hold it (the proposal says it fails its own check at cc82ed097; not run by the lead): it is printed on demand, as the scorecard is, and the tracked copy goes, or the full measurement run writes it where it files its rows. The lead takes the smaller.\nServes: every agent the documents instruct; held-out-quality as a person reads it.\nDisappears: statements of a loop the code does not run; a derived document that goes stale between runs.\nEvidence: the test, and the benchmark report's own.\nBatch: host; documents and the analyzer's list of texts."
-        },
         {
           "id": "declarations",
           "title": "Every production declaration outside a model prototype is reached by a command",

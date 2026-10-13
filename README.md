@@ -93,11 +93,11 @@ failures, load time, peak device memory, and setup steps. Each value is read
 from the store, or listed as a gap with its reason.
 
 One improvement cycle (`go run ./cmd/loop -improve`) runs the validations
-promotion waits on (long-form guards, serving, media, training and projection
+the scorecard waits on (long-form guards, serving, media, training and projection
 proofs, held-out benchmarks that replay their newest record), publishes the
-scorecard, and fast-forwards `main` only when held-out quality holds against
-the scorecard `main` already has. Open gaps become plan rows. Progress is
-counted in promotions, not landings.
+scorecard, and files each decline and each open gap as a plan row. There is no
+passed state: progress is each scorecard cell compared with its previous
+measurement.
 
 ## Training
 
@@ -152,7 +152,7 @@ holds priorities, dependencies, owners, and acceptance.
 2. Land it: `go run ./cmd/loop -land <item>/<step> -message-file -`. The
    [small gate](internal/landing/landing.go) (its package doc lists the stages)
    checks the tree and commits with the step removed from the plan.
-3. The improvement cycle judges models on held-out data and promotes `main`.
+3. The improvement cycle measures the scorecard and files each decline as a row.
 4. Scorecard gaps become the next rows.
 
 The gate judges a commit from the tree alone: unit, golden, hermetic, and
@@ -174,7 +174,7 @@ models are checked with `go run ./cmd/validate -smoke`.
 ## References
 
 - [API manifest](docs/api_manifest.json) — commands, routes, typed contracts
-- [Benchmark report](docs/BENCHMARK.md) — evaluation and performance results
+- Benchmark report — `go run ./cmd/benchmark-report -repo <store>` prints evaluation and performance results
 - Model catalog — `go run ./cmd/validate -models -repo <store>`
 - Media report — `go run ./cmd/validate -media markdown -repo <store>` (`-media json` for the typed projection)
 - [Training compatibility](docs/TRAINING_COMPATIBILITY.md) — training evidence and scope

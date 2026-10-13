@@ -180,8 +180,6 @@
     "README.md",
     "skill.md",
     "internal/loop/driver.go",
-    "internal/loop/circuit_breaker.go",
-    "internal/loop/live_rollback.go",
     "internal/recipe/lifecycle.go",
     "internal/workflowruntime/runtime.go",
     "internal/overgodb/store.go"

@@ -401,25 +401,5 @@ func recordDispatch(ctx context.Context, repository artifact.Repository, value L
 	return value, ResolveOwner(ctx, repository, value)
 }
 
-// ReleaseBatch retires exact ownership with CAS, for atomic composition with
-// completion evidence. Lease contents, results and outstanding checks survive.
-func (lease Lease) ReleaseBatch(worker, reason string) (artifact.Batch, error) {
-	if reason != "completed" && reason != "cancelled" && reason != "handoff" {
-		return artifact.Batch{}, errors.New("work lease: claim release requires completed, cancelled or handoff")
-	}
-	if err := lease.ValidateIdentity(); err != nil {
-		return artifact.Batch{}, err
-	}
-	if worker == "" || lease.Worker != worker {
-		return artifact.Batch{}, errors.New("work lease: claim release requires its exact worker and lease")
-	}
-	id := lease.ID
-	batch := artifact.Batch{Key: "automation/work-lease/release/" + id.String() + "/" + reason}
-	for _, name := range Aliases(lease) {
-		batch.Aliases = append(batch.Aliases, artifact.AliasRemoval(name, id))
-	}
-	return batch, nil
-}
-
 // NonCanonicalPathSeparator is the separator persisted worktree paths never carry; they use forward slashes on every host.
 const NonCanonicalPathSeparator = "\\"

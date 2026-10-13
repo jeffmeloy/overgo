@@ -67,7 +67,7 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 91,
+        "nodes": 1054,
         "reason": ""
       },
       "steps": [
@@ -80,13 +80,6 @@
           "depends_on": [
             "consumer-checks/declarations"
           ]
-        },
-        {
-          "id": "delete-unreached",
-          "title": "Delete the four groups outside the model families that no command reaches",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestEveryProcessDeclarationIsReachedByACommand$'",
-          "rationale": "From the census of step declarations. Outside the model families, four groups are reached by no command and have no route worth adding: the swap of internal/atomicfile (12 declarations, 451 lines), the causality and alias queries of internal/overgodb (11, 272), the claims of internal/worklease (11, 205) and the store and writer checks of internal/gitauthority (8, 205). Each is deleted with its tests, a group a commit where a group stands alone, and the census list loses its lines. Two of the four lie inside the inference surface (atomicfile, gitauthority), and a deletion there moves stored answers' keys: by the record docs/verification/surface-moves.txt most full measurement runs ask the kept cases again anyway, so the surface deletions go together in one commit just before a run. Before each deletion the builder confirms by a type-checked search that nothing reached uses the group, since the census reads names.\nServes: the loop's upkeep.\nDisappears: about 1,130 lines of production code and their tests.\nEvidence: the census test with those lines gone from its list; the packages' tests.\nBatch: host; the surface deletions in one commit before a full measurement run."
         },
         {
           "id": "sort-unreached",

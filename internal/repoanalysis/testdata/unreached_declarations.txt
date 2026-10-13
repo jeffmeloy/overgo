@@ -342,15 +342,11 @@ internal/operatoraction/action.go Recoverable
 internal/optimizer/muon_step_cuda_windows.go deviceMuonMatrixStep
 internal/optimizer/muon_step_cuda_windows.go deviceOps.muonMatrixGroup
 internal/optimizer/newton_schulz_cuda_windows.go deviceNewtonSchulz
-internal/overgodb/alias_history.go Store.VisitAliasEvents
 internal/overgodb/causality.go Store.QueryCausality
 internal/overgodb/causality.go causalityFacet.descendants
 internal/overgodb/causality.go causalityFacet.selectIDs
 internal/overgodb/causality.go validateCausalityQuery
 internal/overgodb/commit_delta.go Store.CommitDeltaAt
-internal/overgodb/common_prefix.go CommonCommitPrefix
-internal/overgodb/operation_proof.go Store.LastRelease
-internal/overgodb/operation_proof.go Store.RequireProvenSince
 internal/overgodb/storage_classes.go DocumentStorageClass
 internal/overgodb/storage_classes.go LayoutStorageClass
 internal/plan/verification_batch.go VerificationCheckpoint.GateCheckName
@@ -505,7 +501,6 @@ internal/worklease/worklease.go Alias
 internal/worklease/worklease.go Aliases
 internal/worklease/worklease.go AssessResources
 internal/worklease/worklease.go ClaimPathsOverlap
-internal/worklease/worklease.go Lease.ReleaseBatch
 internal/worklease/worklease.go Record
 internal/worklease/worklease.go ResolveOwner
 internal/worklease/worklease.go WorkspaceClaimsConflict

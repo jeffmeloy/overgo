@@ -1,10 +1,8 @@
 package overgodb
 
 import (
-	"cmp"
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"overgo/internal/artifact"
 )
@@ -82,48 +80,4 @@ func (p OperationProof) Batch(ctx context.Context, store *Store) (artifact.Batch
 		Contents: []artifact.Content{content},
 		Aliases:  []artifact.AliasBinding{binding},
 	}, nil
-}
-
-// LastRelease reports the sequence of the newest commit that released
-// content, zero when none has: the chain's own record that the store was
-// mutated, which no operator has to remember to declare.
-func (s *Store) LastRelease() uint64 {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	var last uint64
-	for _, locator := range s.state.contents.locators {
-		last = max(last, locator.released)
-	}
-	return last
-}
-
-// RequireProvenSince refuses a store whose newest release after sequence is
-// not followed by a passed proof: the mutation went into service without the
-// candidate checks its class owns.
-func (s *Store) RequireProvenSince(ctx context.Context, sequence uint64) error {
-	released := s.LastRelease()
-	if released <= sequence {
-		return nil
-	}
-	refusal := fmt.Errorf("overgodb: content was released at sequence %d with no passed proof after it; prove the store on a candidate with `go run ./cmd/store-precheck -backup <sealed backup> -swap`", released)
-	id, found, err := artifact.ResolveAlias(ctx, s, OperationProofAlias)
-	if err != nil || !found {
-		return cmp.Or(err, refusal)
-	}
-	introduced, _, err := s.ArtifactIntroduction(ctx, id)
-	if err != nil {
-		return err
-	}
-	content, _, err := artifact.ReadContent(ctx, s, id)
-	if err != nil {
-		return err
-	}
-	var proof OperationProof
-	if err := json.Unmarshal(content.Data, &proof); err != nil {
-		return err
-	}
-	if introduced.Sequence < released || !proof.Passed {
-		return refusal
-	}
-	return nil
 }

@@ -61,21 +61,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "bridge-census",
-      "title": "The accepted census names the picture bridge's training cell under the pair",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Commit the census binding the store's acceptance command wrote after the bridge file's activation was retired",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestCensusAcceptanceIsOneCommand$'",
-          "rationale": "Filed by the lead on 2026-10-13, after step bridge-proof/do (06561df69).\n\nDone on the installed store, each by one command, from a clean tree at 06561df69\n- a proof run over the installed pair retired the bridge file's training activation as orphaned (model 6f048b9a, recipe 20f13ae7) and verified the pair's recipe (model 29e312bd, recipe 1133df26)\n- the census check then failed (\"registered identity, availability or task/recipe set changed (snapshot=240 live=240)\")\n- cmd/validate -accept-census listed the change as two lines out and two in: the pair gains its training recipe, the bridge file keeps no activation\n- the same command with -reason published the live census and wrote the binding file\n- the census check passes against the installed store with that file\n\nMust hold\n- the committed binding file is the one the command wrote\n\nThe check named is the acceptance command's own test, which runs in every commit. The census check against the installed store runs only with OVERGO_STORE_ACCEPTANCE=1, by hand and in a full measurement run.\n\nServes: failure-rate of the loop itself: a full measurement run's census check passes.\nDisappears: a binding that names a census the store no longer has.\nEvidence: the census check against the installed store, run by hand after the command.\nBatch: host; a data file under cmd/validate."
-        }
-      ]
-    },
-    {
       "id": "trustworthy-measurement",
       "title": "Make a timing and a quality reading trustworthy before anything is judged by them",
       "owner": "master-lead",

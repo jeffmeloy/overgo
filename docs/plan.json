@@ -66,17 +66,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 115,
+        "nodes": 0,
         "reason": "measured by the preflight of step bound's change at e068a6513: a writer that closes with more than a bound of records past the checkpoint writes one, a handle whose journal was sealed rebuilds from the checkpoint as an open does, and the open and the rebuild share one function"
       },
       "steps": [
-        {
-          "id": "bound",
-          "title": "Have a writer keep the journal past the store's checkpoint under a measured bound",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -count=1 -run '^TestAnOpenReplaysNoMoreThanTheBound$'",
-          "rationale": "Filed by the lead on 2026-10-13 from the first readings of step trustworthy-measurement/stages.\n\nMeasured on this machine with recipe measure -journey (the instrument of that step), on the installed store at sequence 88,5xx\n- MiniCPM5-1B: a load takes 4.6 to 4.9 s, of which the store's read-only open is 3.65 to 3.73 s (76 to 80%) and the weights 0.83 s\n- Qwen3.5-9B-Q8_0: a load takes 7.5 to 7.7 s, of which the store's open is 3.56 to 3.67 s (47 to 48%) and the weights 3.7 s\n- a second load in the same process pays the same open\n- a built overgodb query that opens the store and resolves one alias takes 2.5 to 2.7 s\n\nRead in the code and on disk\n- an open loads the newest checkpoint generation and replays the journal after it (internal/overgodb/store.go open, loadProjectionCheckpoints, openRecordLog)\n- the installed store's one checkpoint generation is 00000000000000049212, written 2026-09-21, and its head is past sequence 88,500, so every open replays about 39,000 records\n- Store.Snapshot writes a checkpoint, and its one caller outside tests is the retention operation (internal/overgodb/retention.go)\n- so no checkpoint is written in normal work, and an open's time grows with every commit to the store\n\nWhat an open costs\n- every text row's load-time cell holds about 3.6 s of it (the scorecard's load phase is the whole of the open, cmd/recipe/inference_measure.go)\n- a measured cell opens the store three times (to find its request, to load, to record)\n- every command that opens the store pays it\n\nMust hold\n- a writer that ends a transaction with more than a bound of records past the checkpoint writes a checkpoint, by Store.Snapshot or its inner part\n- the bound is a named number taken from a measurement of the replay rate and of what a checkpoint costs to write (the two files of the installed generation hold 57,620,849 bytes)\n- an open of a store kept that way replays no more than the bound\n- a checkpoint stays acceleration and never authority (a store with none still opens by replay)\n\nMeasure first, on a copy of the installed store or its sealed backup, never the live one\n- the replay rate, records a second\n- what Snapshot takes and writes at this store's size\n- whether Snapshot's rotation of the journal changes what a reader holding the store open sees\n\nServes: load-time on every row, and the time of every command and every measured cell that opens the store.\nDisappears: a load-time that grows with the store's history.\nEvidence: the test; the journey's load parts before and after on a copy.\nBatch: host; internal/overgodb is outside the capability packages' closure by the surface's own rule (it stops at overgodb), which the step confirms before it edits."
-        },
         {
           "id": "installed",
           "title": "Write the installed store's checkpoint at its head by the maintenance protocol, and read the load-time cells again",

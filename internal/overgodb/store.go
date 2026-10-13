@@ -210,7 +210,20 @@ type Store struct {
 	fault     error
 	root      string
 	snapshot  SnapshotReplay
+	// anchored is the sequence of the checkpoint the state was loaded from, zero when it was
+	// replayed whole, and tail is how many records past it a writer may leave when it closes.
+	anchored, tail uint64
 }
+
+// checkpointTail is how many records a writer may leave in the journal past
+// the store's checkpoint when it closes. A writer that closes with more
+// writes a checkpoint first, so an open replays at most about that many.
+// Measured on 2026-10-13 on a copy of the installed store of 88,536 records,
+// whose checkpoint was 39,324 records old: an open took 3.65 s, and 0.85 s
+// from a checkpoint at the head, so a record replays in about 71 microseconds
+// and a tail of this size in about 0.3 s. Writing the checkpoint took 8 s
+// beside other work, which a writer then pays once in this many records.
+const checkpointTail = 4096
 
 // Open replays the store and returns a writable handle without waiting for a writer.
 func Open(root string) (*Store, error) {
@@ -257,29 +270,10 @@ func open(ctx context.Context, root string, readOnly bool) (*Store, error) {
 		}
 		defer lock.Close()
 	}
-	// A checkpoint generation is the verified anchor; when none verifies the
-	// open replays the whole journal and says why. Checkpoints are
-	// acceleration, not authority.
-	state, anchor, loaded, refused := loadProjectionCheckpoints(root)
-	snapshot := SnapshotReplay{Loaded: loaded, Path: filepath.Join(root, checkpointDirectory), Fallback: refused}
-	if !loaded {
-		state, snapshot.Path = newCatalogState(), ""
-	}
-	store := &Store{state: state, readOnly: readOnly, root: root, snapshot: snapshot, blobs: newBlobStore(root)}
-	log, replay, err := openRecordLog(root, readOnly, anchor, store.applyRecord)
-	if errors.Is(err, ErrSnapshotAnchor) && loaded {
-		store.state = newCatalogState()
-		store.snapshot.Loaded = false
-		store.snapshot.Fallback = ErrSnapshotAnchor.Error()
-		log, replay, err = openRecordLog(root, readOnly, replayAnchor{}, store.applyRecord)
-	}
-	if err != nil {
+	store := &Store{readOnly: readOnly, root: root, blobs: newBlobStore(root), tail: checkpointTail}
+	if err := store.replayLocked(); err != nil {
 		return nil, err
 	}
-	store.log = log
-	store.head = replay.head
-	store.sequence = replay.sequence
-	store.replayEnd = replay.validEnd
 	if ctx != nil {
 		if err := contextError(ctx); err != nil {
 			return nil, errors.Join(err, store.Close())
@@ -478,15 +472,36 @@ func (s *Store) refreshLocked() error {
 // process exclusion throughout replay and torn-tail recovery.
 func (s *Store) reopenLocked() error {
 	_ = s.log.Close()
-	s.state = newCatalogState()
-	log, replay, err := openRecordLog(s.root, s.readOnly, replayAnchor{}, s.applyRecord)
-	if err != nil {
+	if err := s.replayLocked(); err != nil {
 		s.fault = err
 		return err
 	}
-	s.log = log
-	s.head, s.sequence, s.replayEnd = replay.head, replay.sequence, replay.validEnd
-	s.snapshot = SnapshotReplay{Fallback: "segment rotation reopen"}
+	return nil
+}
+
+// replayLocked builds the store's state as an open does, and as a handle does
+// again once the journal it tailed was sealed: from the newest checkpoint
+// generation that verifies and the journal after it. A checkpoint generation
+// is the verified anchor; when none verifies, or the journal does not continue
+// the one that does, the whole journal is replayed and the store says why.
+// Checkpoints are acceleration, not authority.
+func (s *Store) replayLocked() error {
+	state, anchor, loaded, refused := loadProjectionCheckpoints(s.root)
+	s.snapshot = SnapshotReplay{Loaded: loaded, Path: filepath.Join(s.root, checkpointDirectory), Fallback: refused}
+	if !loaded {
+		state, s.snapshot.Path = newCatalogState(), ""
+	}
+	s.state = state
+	log, replay, err := openRecordLog(s.root, s.readOnly, anchor, s.applyRecord)
+	if errors.Is(err, ErrSnapshotAnchor) && loaded {
+		s.state, anchor = newCatalogState(), replayAnchor{}
+		s.snapshot.Loaded, s.snapshot.Fallback = false, ErrSnapshotAnchor.Error()
+		log, replay, err = openRecordLog(s.root, s.readOnly, anchor, s.applyRecord)
+	}
+	if err != nil {
+		return err
+	}
+	s.log, s.head, s.sequence, s.replayEnd, s.anchored = log, replay.head, replay.sequence, replay.validEnd, anchor.sequence
 	return nil
 }
 
@@ -905,6 +920,19 @@ func (s *Store) Head() (artifact.CommitID, uint64) {
 func (s *Store) Close() error {
 	if s == nil {
 		return nil
+	}
+	if !s.readOnly {
+		// A writer that would leave more than its tail of records past the
+		// checkpoint writes one first, so an open's replay stays bounded. The
+		// checkpoint is acceleration: a handle that cannot write it, because it
+		// is closed already, is faulted or lost its store, closes as before.
+		_ = s.writeTransaction(context.Background(), func() error {
+			if s.sequence-s.anchored <= s.tail {
+				return nil
+			}
+			_, err := s.snapshotLocked()
+			return err
+		})
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()

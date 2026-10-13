@@ -45,25 +45,32 @@ type snapshotAlias struct {
 // sealed segments.
 func (s *Store) Snapshot(ctx context.Context) (SnapshotInfo, error) {
 	var info SnapshotInfo
-	err := s.writeTransaction(ctx, func() error {
-		if rotateErr := s.sealLocked(); rotateErr != nil && !isSealRefusal(rotateErr) {
-			return rotateErr
-		}
-		if s.sequence == 0 {
-			return errors.New("overgodb: cannot snapshot empty store")
-		}
-		anchor, err := s.log.anchorDigest(s.replayEnd)
-		if err != nil {
-			return err
-		}
-		if err := writeProjectionCheckpoints(s.root, &s.state, s.sequence, s.head, s.replayEnd, hex.EncodeToString(anchor[:])); err != nil {
-			return err
-		}
-		_ = os.RemoveAll(filepath.Join(s.root, snapshotDirectory))
-		info = SnapshotInfo{Sequence: s.sequence, Head: s.head, Path: filepath.Join(s.root, checkpointDirectory, checkpointGeneration(s.sequence))}
-		return nil
+	err := s.writeTransaction(ctx, func() (err error) {
+		info, err = s.snapshotLocked()
+		return err
 	})
 	return info, err
+}
+
+// snapshotLocked is Snapshot inside a write transaction its caller holds: a
+// writer that closes with a long tail takes it there too (Close).
+func (s *Store) snapshotLocked() (SnapshotInfo, error) {
+	if rotateErr := s.sealLocked(); rotateErr != nil && !isSealRefusal(rotateErr) {
+		return SnapshotInfo{}, rotateErr
+	}
+	if s.sequence == 0 {
+		return SnapshotInfo{}, errors.New("overgodb: cannot snapshot empty store")
+	}
+	anchor, err := s.log.anchorDigest(s.replayEnd)
+	if err != nil {
+		return SnapshotInfo{}, err
+	}
+	if err := writeProjectionCheckpoints(s.root, &s.state, s.sequence, s.head, s.replayEnd, hex.EncodeToString(anchor[:])); err != nil {
+		return SnapshotInfo{}, err
+	}
+	_ = os.RemoveAll(filepath.Join(s.root, snapshotDirectory))
+	s.anchored = s.sequence
+	return SnapshotInfo{Sequence: s.sequence, Head: s.head, Path: filepath.Join(s.root, checkpointDirectory, checkpointGeneration(s.sequence))}, nil
 }
 
 // isSealRefusal reports the sanctioned reasons a snapshot proceeds

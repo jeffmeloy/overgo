@@ -66,10 +66,17 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "measured by the preflight of step stages' change at 098dc591e: marks on the parts of a text model's load in internal/modelcli and internal/inference, three moments of a request kept apart, the measure verb's printing of both, and a -journey mode that prints them four ways and records nothing"
+        "nodes": 58,
+        "reason": "measured by the preflight of step two-suites' change at d725cf3f1: one case in each of the two printers of moves, and the wording of two contracts' difference made the scorecard package's to give"
       },
       "steps": [
+        {
+          "id": "two-suites",
+          "title": "Never print two suites' values as one change",
+          "status": "open",
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestTwoSuitesAreNeverOneMove$'",
+          "rationale": "Split by the lead from step reference-and-noise on 2026-10-13. It is the one part of that step that needs no decision and no calibration, and its fault is in a published record.\n\nMeasured (19ff19be7's message, and the lead's check of the code on 2026-10-13)\n- Qwen3.8-27B's held-out quality was printed as 0.7539 to 0.6055, a change, across store/bbh and store/mmlu-pro\n- the comparison finds the earlier headline's suite again wherever the newer row still measures it, so nothing reads unknown (internal/scorecard/record.go Compare)\n- both printers of moves then compare the two rows' headline values without asking whether they share a contract (internal/scorecard/history.go Moves, cmd/validate/scorecard.go scorecardMoves)\n\nMust hold\n- two headline cells of two contracts are never printed as one change\n- such a cell reads unknown in Moves and names both contracts in words in both printers\n- two headline cells of one contract are a change, as before\n\nServes: held-out-quality as a reading a person can trust on the page and in a run's log.\nDisappears: a difference printed between two suites.\nEvidence: the two tests, each failing with the old line when its guard is taken out.\nBatch: host fixtures."
+        },
         {
           "id": "reference-and-noise",
           "title": "Judge a reading against a fixed reference by its measured noise",

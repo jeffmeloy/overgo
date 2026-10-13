@@ -1,0 +1,1100 @@
+overgo surface moves: what the last 500 commits of the trunk's first-parent line expired and reached under the keys the code has, what narrower keys and lane boundaries would have kept, and what an answer, a score, a timing and an activation each depend on
+tool: go run tmp/evidence-identity/surface_moves.go -head 39c6bfcc445c566a0fb39a9680025fdab41eef47 -count 500 -scorecards C:/Users/jeffm/overgo_data/scorecards -live 8b7defa1c
+code: the tree at 39c6bfcc4, and each place the definitions name is a place in that tree
+taken: 2026-10-13, from git objects and the published scorecards, with no commit checked out and the store not opened
+host: go1.26.2 on windows/amd64 with CGO_ENABLED=0
+read by: TestSurfaceMoveRecordDefinesClaimDependencies (internal/inferencesurface), which counts every figure again from the rows, holds each narrower key to the key it narrows, holds the checks, the packages and the closing to the rows, and holds the definitions and the declared sets to the code
+
+What was asked.
+The plan's row evidence-identity asked what past commits expired and reached, before any key is narrowed or any boundary is moved.
+A stored result is kept or asked again by an identity counted from source files.
+This record classifies each of the last 500 commits by the import graph of the commit's own tree, under the keys the code has at the range head.
+It tries seven narrower keys and two kinds of lane boundary on the same commits.
+It then defines what an answer, a score, a timing and an activation each depend on.
+No production code changed for it.
+The probe is scratch under tmp/evidence-identity and is not in the tree.
+The probe wrote the range, checks, commits, packages and figures sections, and the rest was written by hand from its tables.
+
+The range.
+The 500 commits are the first-parent line back from range-head to range-oldest, and range-base is the first commit outside it.
+The line holds 498 commits of one parent and 2 merges.
+The 2 merges brought in 65 more commits, 15 of them merges.
+Those 65 are compared with their own first parents and counted apart, as kind side.
+A merge of the line is compared with its first parent, so its row holds everything its branch brought.
+Every figure without the prefix side- counts the 500 commits of the line.
+
+The keys.
+A row names a key by a letter.
+  T  the execution identity of internal/inference, the text runner's package (internal/inferencesurface/identity.go:211).
+  E  the evaluation scope, the digest of every non-test source and embedded file of cmd/evaluate, internal/evaluation and internal/modelcli (internal/inferencesurface/identity.go:57).
+  S  the surface digest of internal/inferencesurface/surface.go:53.
+  G  the cycle trigger of cmd/loop/trigger.go:43.
+A native text evaluation keeps an answer under T and E together, so its answer key moves when either moves.
+The identities are the execution identities of every package one is counted for, 34 at the range head and 32 at range-oldest.
+T is one of them.
+A lane is one of the gate's three longer test runs, device, webui and cuda.
+The slice is the scorecard slice a commit measures when it reaches cmd/benchmark.
+The hosted, thought-bank, capability-task and projection sessions of cmd/evaluate keep answers under the commit, so each of the 500 commits expires them.
+S decides nothing.
+Its one production chain labels the long-form record and one sentence of the page, and no production code compares it.
+
+When each mechanism began.
+The figures apply the range head's keys to every commit of the range, so a figure for a commit older than a mechanism says what that mechanism would have done.
+The cycle trigger began at 65fa18461 on 2026-10-05.
+The execution identity began at 7f1d10568 on 2026-10-09.
+The kept answers of an evaluation began at d4d40d2ee and the evaluation identity at 8b7defa1c, both on 2026-10-10.
+The wait for another worktree's commit began at 17493e6b1 on 2026-10-11.
+The live period is the 5 measurement runs published since 8b7defa1c.
+
+How a commit was classified.
+A key moved at a commit when the paths, blobs and module versions the key reads differ between the commit and its first parent.
+The probe reads each tree with git ls-tree and each blob with git cat-file.
+It parses each package with go/build under the build context the identity count and the gate's lanes list under, which is windows, amd64, cgo off and no build tag.
+It resolves each embed pattern against the tree as the Go tool does.
+It reads each commit's lane table from the source of internal/landing and internal/devicescope at that commit.
+It applies the reach rule of internal/landing/lanes.go:382 to the commit's changed paths.
+Which lanes ran, and every second, come from the commit's own line Measured by the gate.
+Seconds are rounded to whole seconds in each row, and each figure of seconds is the sum of the rows.
+A measurement run is one published scorecard whose commit is on the line.
+32 scorecards are published, 2 name a commit older than the range and 2 name one commit, so 29 runs lie on the line.
+A commit belongs to the first run at or after it, and a commit after the last run belongs to none.
+The first run of the range is cut short by the range's start.
+
+What the probe does not see.
+A build setting, a result setting or a library that changed leaves no trace in history, and each moves every identity.
+The count refuses an identity whose sources read an undeclared environment name, and the probe does not apply that refusal to past trees.
+A run of the gate that was refused left no commit, so the seconds are of the runs that landed.
+The seconds a measurement run spends asking a case again are not in a commit's line, so re-asking is counted in commits and in runs and not in seconds.
+The ask-file split of candidate 2 is read at the range head and applied to past commits by path, so its figure is an estimate.
+
+The checks.
+Each check line gives what the probe and the code both hold, of what either holds.
+The surface closure is compared with inferencesurface.Packages.
+Each identity's digest is compared with the entry inferencesurface.LinkFlag counts for it, the evaluation scope among them.
+Each lane's closure is compared with the Go tool's listing as landing.discover reads it.
+The lanes and the slice the probe predicts for each of the 500 commits are compared with what the commit's line says ran.
+The side commits are not held to that check, because 34 of their 80 lane runs or predictions disagree.
+Many of their lines are of an older gate and give the lanes stage without naming the lanes that ran, so a side row may show no lane where one ran.
+11 of the side commits carry no line of today's form and have no seconds.
+
+How to read a row.
+A row is the word commit and 13 fields.
+  name        the first 9 characters of the commit's name.
+  kind        line, merge or side.
+  run         the measurement run the commit belongs to, counted from 0, or the number of runs when no run has measured it yet, or - for a side commit.
+  keys        the letters of the keys that moved, or -.
+  text        the region that moved T, r for the runner's own closure, x for the executor's closure beyond it, c for the catalog's own sources and s for several of them, or -.
+  scope       the region that moved E, e for internal/evaluation, c for cmd/evaluate, o for internal/modelcli and s for several of them, or -.
+  still       the numbers of the narrower keys that still move, or -.
+  identities  identities moved, identities held, identities that move without the catalog's own sources, identities that move by their own closure alone.
+  device      the device lane's run, or -.
+  webui       the webui lane's run, or -.
+  cuda        the cuda lane's run, or -.
+  slice       1 when the commit measured the scorecard slice.
+  seconds     queue wait, timed measurement wait, test, lanes, lane turn wait, device admission, other stages.
+A lane's run is a reach class and the lane's own seconds.
+After an at sign come the numbers of the packages the commit's changed paths reached the lane through.
+After a slash come the numbers of the packages a stop at which would have cut the run.
+The packages section gives each number its package.
+The reach classes are m for a module file, p for a path under the lane's prefix, o for a test file of a package the lane owns, i for a package the lane's own packages import, and t for a package only their tests import.
+A row names the strongest class among the commit's changed paths, in that order.
+A stop at a package cuts a run when no changed path reaches the lane once the lane's closure neither holds that package nor descends into it.
+A package the lane owns is never a stop.
+The seconds of the lanes are the lanes stage less its turn wait and its device admission, because a stage's time holds its waits.
+The other stages are space, format, fix, vet, rules, invariants, verify and scorecard.
+The webui lane runs beside the device and cuda lanes, so the lanes' own seconds overlap and do not add up to the lanes stage.
+
+The narrower keys.
+  1  E with comments and layout left out, each Go source named by its tokens and by the comments the compiler reads.
+  2  E limited to the files of internal/evaluation that put a case to a model or keep its answer, with cmd/evaluate and internal/modelcli whole.
+  3  T without the catalog's own sources.
+  4  T without the catalog's own sources and without the executor's closure.
+  5  T with comments and layout left out.
+  6  E under 1 and 2 together.
+  7  T counting only the files the host's build compiles.
+Candidates 5 and 7 were added because the identity counts every Go file of a package directory, whatever its build constraint.
+A change to a test file alone moves no key today, because the count leaves out every file whose name ends in _test.go.
+The files of candidate 2 are the 9 that hold a function literal passed to answers.answer, or a declaration such a literal reaches, or the declarations that name and keep an answer.
+They are campaign.go, chat_choice.go, exact.go, instruction_rules.go, multiple_choice.go, observation.go, plan.go, sampled_answer.go and suite.go.
+The package was type-checked for that closure, and a call through an interface reaches every type of the package that implements it.
+A file a past commit changed that the range head no longer holds is counted inside the scope.
+
+== range ==
+range-head: 39c6bfcc445c566a0fb39a9680025fdab41eef47
+range-oldest: 430209c14f8682c0af5ea901df4736296981376a
+range-base: 93dac59b5ad29aa4e45196d6a4cfb5801f3e3164
+commits: 500
+commits-line: 498
+commits-merge: 2
+commits-side: 65
+scorecards-published: 32
+scorecards-off-the-line: 2
+runs: 29
+runs-live: 5
+runs-live-first: 24
+live-from: 8b7defa1c
+
+== checks ==
+check-surface-closure: 55 of 55 packages
+check-identities: 35 of 35 digests of inferencesurface.LinkFlag, the evaluation count among them
+check-lane-closure-device: 84 of 84 directories
+check-lane-closure-webui: 136 of 136 directories
+check-lane-closure-cuda: 130 of 130 directories
+check-lane-closure-slice: 85 of 85 directories
+check-trigger-closure: 151 of 151 packages
+check-lanes-predicted: 530 of 530
+check-slice-predicted: 148 of 148
+side-lanes-predicted: 46 of 80
+
+== commits ==
+commit 430209c14 line 0 G - - - 0/32/0/0 - o65 - 0 0,0,149,66,0,0,19
+commit 20e73d110 line 0 G - - - 0/32/0/0 i87@58/58 i59@58/58 i50@58/58 1 0,0,96,203,0,0,113
+commit 27b55a743 line 0 G - - - 0/32/0/0 - o81 - 0 0,0,122,87,0,0,66
+commit e9cf44531 line 0 - - - - 0/32/0/0 - - - 0 0,0,113,1,0,0,68
+commit f2410cc45 line 0 - - - - 0/32/0/0 o24 - - 0 0,0,42,25,0,0,21
+commit 8ebd34f79 line 0 - - - - 0/32/0/0 t3@55/55 t56@55/55 t41@55/55 0 0,0,58,100,0,0,15
+commit 54d24dbe2 line 1 - - - - 0/32/0/0 - - - 0 0,0,49,1,0,0,8
+commit f224682d6 line 1 G - - - 0/32/0/0 i153@24 - o264@22.24 0 0,0,74,418,0,0,8
+commit 837619f15 line 1 G - - - 0/32/0/0 - i54@88/88 i20@88/88 0 0,0,49,74,0,0,7
+commit ce983b068 line 1 G - - - 2/32/2/2 - i53@50/50 i76@50/50.88 0 0,0,74,130,0,0,14
+commit abfe71bbd line 1 G - - - 0/32/0/0 - - o18@2 0 0,0,64,18,0,0,8
+commit e90cfc720 line 1 - - - - 0/32/0/0 - t60@6/6.45 - 0 0,0,80,60,0,0,30
+commit 6037485bd line 1 G - - - 0/32/0/0 - i55@88/88 o131@2.88 0 0,0,68,187,0,0,15
+commit 966f0d410 line 1 G - - - 0/32/0/0 - - - 0 0,0,129,2,0,0,15
+commit f15e5f120 line 1 - - - - 0/32/0/0 - - - 0 0,0,64,1,0,0,62
+commit 0585169f5 line 1 G - - - 16/32/16/16 o18@21.87 i53@21.71.87.88 o37@21.71.87.88 1 0,0,47,108,0,0,39
+commit d96c59656 line 1 - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,25
+commit f95321f53 line 2 G - - - 0/32/0/0 - - - 0 0,0,113,2,0,0,17
+commit e1a4bfe7b line 2 G - - - 0/32/0/0 - - - 0 0,0,91,1,0,0,16
+commit 9e03ba2f0 line 2 - - - - 0/32/0/0 - - - 0 0,0,46,1,0,0,32
+commit ac751edb5 line 2 G - - - 16/32/16/16 i21@53.87 i54@53.87.88 o168@2.53.87.88 1 0,0,127,244,0,0,645
+commit bdd9ad695 line 2 TSG r - 3457 32/32/32/23 i24@32.52.76 i57@32.50.52.76 i264@32.50.52.76 1 0,0,147,346,0,0,49
+commit 0f9e046a2 line 3 - - - - 0/32/0/0 - - - 0 0,0,67,1,0,0,20
+commit a61a1aa45 line 3 TG c - 57 32/32/1/1 - i61@26.45.74 - 1 0,0,79,61,0,0,39
+commit 7b83cf27f line 3 - - - - 0/32/0/0 - - - 0 0,0,77,1,0,0,39
+commit 1cdb20685 line 4 G - - - 0/32/0/0 - i52@88/88 i954@2.88 0 0,0,69,1008,0,0,20
+commit 299655aaa line 5 EG - s 126 2/32/2/2 - i56@29/29 i138@29/29.88 0 0,0,104,195,0,0,10
+commit d09c530f7 line 6 G - - - 0/32/0/0 - - - 0 0,0,62,1,0,0,16
+commit d993c2b10 line 6 - - - - 0/32/0/0 - - - 0 0,0,54,1,0,0,12
+commit 5455dc909 line 6 G - - - 0/32/0/0 - - - 0 0,0,63,1,0,0,31
+commit 7bffb49a8 line 7 - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,24
+commit 356eaf946 line 7 TSG r - 3457 32/32/32/24 p203@17.18.37.80 i53@17.18.37.80 o315@17.18.37.80 1 0,0,138,572,0,0,34
+commit 50330d7a8 line 7 G - - - 0/32/0/0 - - o11@42 0 0,0,58,12,0,0,10
+commit 53aef9219 line 7 TSG s - 3457 32/32/32/18 o206@16 i54@9.16.75 i310@9.16 1 0,0,127,570,0,0,30
+commit e588a373c line 7 - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,28
+commit 41c23b87c line 7 G - - - 0/32/0/0 - - - 0 0,0,96,1,0,0,10
+commit 63682da64 line 7 TSG s - 3457 32/32/32/27 i21@4/4 i56@4.9 i314@4.9 1 0,0,170,392,0,0,40
+commit 48e7eb0af line 7 G - - - 0/32/0/0 i17@58/58 o54@58 i148@58/58 1 0,0,130,220,0,0,38
+commit 7535399bf line 7 TSG r - 3457 32/32/32/23 i23@47.87 i56@47.87.88 o342@47.87.88 1 0,0,194,421,0,0,39
+commit ddc27b55b line 7 EG - e 1 2/32/2/2 - p53@29 i76@29/29.88 0 0,0,87,130,0,0,14
+commit ff8199f2b line 7 TSG r - 3457 32/32/32/22 i19@52/52 i52@52/52 i134@52/52 1 0,0,149,207,0,0,35
+commit 0e3843868 line 7 G - - - 0/32/0/0 - i53@88/88 o82@2.88 0 0,0,131,136,0,0,14
+commit 40ac2f0a6 line 7 G - - - 0/32/0/0 - i52@88/88 i77@88/88 0 0,0,90,130,0,0,9
+commit e114232cb line 7 EG - e 126 2/32/2/2 - i53@29/29 i77@29/29.88 0 0,0,115,130,0,0,12
+commit 4e04b8541 line 7 EG - e 126 2/32/2/2 - i56@29.88 i74@29.88/88 0 0,0,62,131,0,0,8
+commit eff279788 line 7 EG - e 1 2/32/2/2 - i53@29/29 i74@29/29.88 1 0,0,90,128,0,0,27
+commit d153173f1 line 7 EG - e 126 2/32/2/2 - i51@29/29 i75@29/29.88 0 0,0,103,127,0,0,20
+commit 5b0e828a2 line 7 - - - - 0/32/0/0 - - - 1 0,0,60,1,0,0,29
+commit f78594f30 line 7 EG - e 1 2/32/2/2 - i53@7.29.88 i79@7.29.88/88 1 0,0,105,132,0,0,36
+commit ebe6f6973 line 7 G - - - 0/32/0/0 - - - 0 0,0,107,1,0,0,16
+commit b18858edd line 7 TG s - 357 32/32/32/5 - i50@9.45.90 i14@9/9.88 1 0,0,118,65,0,0,68
+commit ce751528f line 7 TG s - 357 32/32/32/19 t2@91/53.76.91 i51@9.45.91 i79@9.91 1 0,0,100,133,0,0,28
+commit 5ad966147 line 7 G - - - 0/32/0/0 - - - 0 0,0,65,1,0,0,13
+commit 0972c0df8 line 7 - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,0
+commit 98c1f2e68 line 7 TSG r - 3457 17/32/17/17 p302@18 i53@18/18 i467@18/18 1 0,0,179,822,0,0,26
+commit 7031d1b37 line 7 TG s - 357 32/32/32/7 - i61@9.45.73.75.84.88 i88@9.73.84.88 1 0,0,146,150,0,0,24
+commit c2889acbb line 7 TSG r - 3457 17/32/17/17 i209@16 i52@16.88 i307@16.88 1 0,0,111,568,0,0,24
+commit 64f5cb978 line 7 G - - - 0/32/0/0 - i52@88/88 i15@88/88 0 0,0,37,68,0,0,10
+commit 48d44c5b4 line 7 G - - - 0/32/0/0 - - - 0 0,0,29,1,0,0,7
+commit ebee280d7 line 8 - - - - 0/32/0/0 - - - 1 0,0,32,1,0,0,23
+commit 72bc4248d line 8 TESG r o 1234567 32/32/32/27 o18@4.32.37.46.47.49.52.63 i52@4.26.32.37.46.47.48.49.52.63 o309@4.26.32.37.46.47.48.49.52.63 1 0,0,38,379,0,0,25
+commit 01047803b line 8 - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,0
+commit 87a39980c line 9 EG - c 126 0/32/0/0 - - - 0 0,0,59,1,0,0,7
+commit 9cc2288f7 line 9 G - - - 0/32/0/0 - - - 0 0,0,57,1,0,0,6
+commit 90c06fa5e line 9 - - - - 0/32/0/0 - - - 0 0,0,47,1,0,0,5
+commit ebde995a0 line 10 G - - - 0/32/0/0 - - - 0 0,0,55,1,0,0,7
+commit 33b4f02b3 line 10 G - - - 0/32/0/0 - i56@88/88 i124@88/88 0 0,0,58,181,1349,0,8
+commit c6037a80b line 10 TSG r - 3457 32/32/32/23 o23@37.46.83 i53@37.46.83 o226@37.46.83 1 0,0,56,303,299,0,42
+commit 76f797b5e line 10 G - - - 0/32/0/0 - - - 0 0,0,35,1,0,0,14
+commit eb15395a8 line 11 G - - - 0/32/0/0 - - - 0 0,0,46,1,0,0,14
+commit 42eda0662 merge 11 TESG r e 13457 32/32/32/26 o158@20.21.32.33.37.59.60.67.86 p55@20.21.29.30.32.37.43.51.59.60.67.74.86.88 o310@2.20.21.29.30.32.33.37.43.51.59.60.67.86.88 1 0,0,137,525,0,0,37
+commit a051e3744 line 11 TSG r - 3457 32/32/32/26 i156@20.31.59 p52@20.30.31.59.74 i324@20.30.31.59 1 0,0,141,533,0,0,36
+commit 850263c56 line 11 - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,0
+commit 1ec83f32d line 11 - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,0
+commit 2bd924894 line 11 TSG r - 3457 32/32/32/24 i155@35/35 i53@35/35 i304@35/35 1 0,0,31,513,0,0,38
+commit bce88f264 line 11 G - - - 0/32/0/0 o4@21.59 i54@21.43.59 o117@21.43.59 0 0,0,57,176,0,0,13
+commit 01124d4e7 line 11 TSG r - 3457 32/32/32/23 i21@32/32 i55@32.51 i15@32.51 1 0,0,44,92,808,0,31
+commit 8b38689e7 line 11 - - - - 0/32/0/0 - p65 - 0 0,0,40,66,0,0,17
+commit 67f29af2e line 11 - - - - 0/32/0/0 - p59 - 0 0,0,44,59,210,0,14
+commit ba15b6f37 line 11 G - - - 0/32/0/0 - i60@30.74 i77@30/30 0 0,0,45,138,0,0,15
+commit da78a0709 line 11 G - - - 0/32/0/0 - o59@51.74 i77@51/30.51 0 0,0,72,137,60,0,16
+commit d6d31eb4c line 11 TSG r - 3457 32/32/32/26 i186@20.31 i59@20.30.31.43.74.88 i306@20.30.31.43.88 1 0,0,141,554,0,0,37
+commit 75d1023c0 line 11 - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,0
+commit fd402903b line 11 EG - e 1 2/32/2/2 - o53@29.74 i72@29/29.88 1 0,0,59,126,0,0,46
+commit 0fe04d27f line 11 - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,0
+commit 3e700c972 line 11 TSG r - 3457 32/32/32/24 i158@35/35 i54@35/35 i297@35/35 1 0,0,121,510,0,0,32
+commit d4aed5828 line 11 G - - - 0/32/0/0 o7@21 i53@21/21.88 o86@21 0 0,0,54,146,230,0,15
+commit cd21083ac line 11 G - - - 0/32/0/0 - - - 0 0,0,57,1,0,0,20
+commit ad68f79d6 line 11 G - - - 0/32/0/0 - i53@88/88 i73@88/88 0 0,0,62,127,199,0,16
+commit 6c768ed13 line 11 G - - - 0/32/0/0 - - - 0 0,0,46,1,0,0,13
+commit 9cf13e00d line 11 - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,0
+commit 04eec10f0 line 11 G - - - 0/32/0/0 o4@21 i52@21/21.88 o82@21 0 0,0,47,140,0,0,14
+commit a4c09a2d9 line 11 - - - - 0/32/0/0 - - o65 0 0,0,30,65,0,0,14
+commit d1fc1196a line 11 EG - e 1 2/32/2/2 - i52@29/29 i73@29/29.88 1 0,0,87,126,0,0,45
+commit cee26ab22 line 11 - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,25
+commit ef6010569 line 12 - - - - 0/32/0/0 - - - 0 0,0,29,1,0,0,63
+commit 72ed4605a line 12 G - - - 0/32/0/0 - - - 0 0,0,48,1,0,0,15
+commit d1e739a04 line 12 TSG r - 3457 32/32/32/25 i125@67/67 i58@67/67 i181@67/67 1 0,0,116,365,0,0,202
+commit a91d8effc line 12 - - - - 0/32/0/0 - - - 0 0,0,28,1,0,0,14
+commit e29bc0846 line 12 - - - - 0/32/0/0 - - - 0 0,0,28,1,0,0,25
+commit da1ec2c77 line 12 EG - e 1 2/32/2/2 - i53@29/29 i74@29/29.88 1 0,0,58,128,0,0,34
+commit e126f1aa6 line 12 EG - c 126 0/32/0/0 - - i19@2 0 0,0,46,20,0,0,15
+commit 4899210fa line 12 - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,3
+commit 6a7a9a209 merge 12 TSG r - 3457 32/32/32/26 o168@11.20.21.31.57.83 p54@11.20.21.31.43.57.74.83.88 o307@2.11.20.21.31.43.57.83.88 1 0,0,137,529,0,0,38
+commit 80e7f3668 line 12 - - - - 0/32/0/0 - - - 0 0,0,37,1,0,0,3
+commit b69b2d98e line 12 - - - - 0/32/0/0 - p57 - 0 0,0,43,58,0,0,17
+commit 4fd674752 line 13 G - - - 0/32/0/0 - o56@74 - 0 0,0,46,57,0,0,18
+commit 8fe7731c7 line 13 - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,3
+commit f78d5e319 line 13 G - - - 0/32/0/0 - o59@74 - 0 0,0,45,60,0,0,16
+commit 2a4b071e1 line 13 - - - - 0/32/0/0 - p54 - 0 0,0,45,55,0,0,27
+commit 3ce7dad94 line 13 - - - - 0/32/0/0 - p54 - 0 0,0,45,55,0,0,18
+commit 31854c8fc line 13 G - - - 0/32/0/0 - p53@3.54.74 - 0 0,0,58,54,0,0,23
+commit 27f9d4dda line 13 G - - - 0/32/0/0 - o60@74 - 0 0,0,95,64,0,0,21
+commit a4e628e36 line 13 G - - - 0/32/0/0 - o68@74 - 0 0,0,51,69,0,0,23
+commit baee94655 line 13 - - - - 0/32/0/0 - p54 - 0 0,0,46,54,0,0,17
+commit 002ed653d line 13 - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,3
+commit a44a526d1 line 13 G - - - 0/32/0/0 - i53@88/88 i123@88/88 0 0,0,48,177,0,0,18
+commit 77e7a0501 line 14 TEG x e 1357 32/32/32/5 o171@21.59.83 p63@9.21.29.43.59.74.83.88 o92@9.21.29.43.59.83.88 1 0,0,116,327,0,0,39
+commit 93f001b48 line 14 EG - e 126 2/32/2/2 - i53@29/29 i77@29/29.88 1 0,0,98,130,0,0,35
+commit 867dcc8c9 line 14 G - - - 0/32/0/0 - i54@26/26 t14@26/26.48 1 0,0,62,68,0,0,24
+commit 448d10d63 line 14 G - - - 0/32/0/0 - i52@88/88 i78@88/88 0 0,0,67,132,0,0,15
+commit ef8b298f3 line 14 G - - - 0/32/0/0 - - - 0 0,0,45,1,0,0,15
+commit 53904b20a line 14 - - - - 0/32/0/0 - - - 0 0,0,32,1,0,0,17
+commit 94056b3dd line 14 G - - - 0/32/0/0 - - - 0 0,0,33,1,0,0,15
+commit cc61655fa line 14 G - - - 0/32/0/0 i3@11/11 i54@11/11 i133@11/11 1 0,0,70,191,0,0,22
+commit 65fa18461 line 14 EG - e 1 2/32/2/2 - i53@29.88 i91@29.88/88 1 0,0,91,94,0,0,30
+commit ae77bcdde line 15 EG - e 1 2/32/2/2 - i57@29.43.88 i140@29.43.88/88 1 0,0,88,143,0,0,29
+commit 1c3d4fd93 line 16 TSG r - 3457 32/32/32/24 i181@60/60 i56@60/60 i314@60/60 1 0,0,48,496,0,0,38
+commit 924ee2e4b line 16 G - - - 0/32/0/0 - - - 0 0,0,47,1,0,0,30
+commit 2e08ea2fc line 17 - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,0
+commit 6d48fb860 line 17 - - - - 0/32/0/0 - - - 0 0,2,0,0,0,0,0
+commit 04c521273 line 17 - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,0
+commit 421961e9a line 17 G - - - 0/32/0/0 - - - 0 0,0,53,1,0,0,16
+commit 941e6168c line 17 - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,0
+commit 0465e075e line 17 - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,0
+commit 77a8a3eae line 17 - - - - 0/32/0/0 - - - 0 0,0,49,1,0,0,17
+commit 946146aa5 line 17 - - - - 0/32/0/0 o3@1 p54 - 0 0,0,32,55,0,0,13
+commit 0be23f15c line 17 - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,0
+commit b0680be5d line 17 - - - - 0/32/0/0 - - - 0 0,347,46,1,0,0,29
+commit 6b7facc1b line 17 - - - - 0/32/0/0 - - - 0 0,671,0,0,0,0,1
+commit 60713070b line 18 - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,0
+commit 549a62596 line 18 G - - - 0/32/0/0 - - - 0 0,0,45,1,0,0,14
+commit 9c02582fb line 18 G - - - 0/32/0/0 - - - 0 0,0,45,1,0,0,26
+commit 43e49f2e4 line 18 G - - - 0/32/0/0 - - - 0 0,0,43,1,0,0,31
+commit 1d6335994 line 18 G - - - 0/32/0/0 - - - 0 0,0,45,1,0,0,32
+commit 5765ae04f line 19 G - - - 0/32/0/0 - - - 0 0,0,47,1,0,0,29
+commit b93a36d51 line 19 - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,8
+commit 19a3b8040 line 19 EG - c 126 2/32/2/2 - t57@84/45.84 i76@84/84 0 0,0,40,76,0,0,15
+commit f6dc3b3af line 19 TESG r c 1234567 32/32/32/22 i27@52/52 i55@52/52 i13@52/52 1 0,0,47,59,0,0,21
+commit 6ed0058ff line 19 - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,8
+commit 119826345 line 19 EG - s 126 2/32/2/2 - i58@29/29 i147@29/29.88 1 0,0,98,148,0,0,24
+commit 81cb7a94a line 19 - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,8
+commit 10f8207ec line 19 - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,0
+commit c30e4b4a5 line 19 - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,0
+commit b47bbfb05 line 19 EG - s 126 3/32/3/3 - i53@29.73 i88@29.73 1 0,0,98,92,0,0,23
+commit cbf5abfee line 19 - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,8
+commit b83313fed line 19 EG - s 126 2/32/2/2 - i58@29/29 i84@29/29.88 1 0,0,94,84,0,0,22
+commit 873baa8be line 19 - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,8
+commit cdccef4cb line 20 EG - s 126 2/32/2/2 - i53@29/29 i86@29/29.88 1 0,0,95,90,0,0,24
+commit eb2698282 line 20 EG - s 126 2/32/2/2 - i54@29/29 i83@29/29.88 1 0,0,94,83,0,0,22
+commit fa28bd47d line 20 EG - c 126 0/32/0/0 - - - 0 0,0,37,1,0,0,14
+commit 02653901a line 20 - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,8
+commit 5aeb6e1f1 line 21 - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,8
+commit 209da1836 line 21 G - - - 0/32/0/0 - - - 0 0,0,44,1,0,0,15
+commit 9e806cf47 line 21 - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,0
+commit 9de6051d0 line 21 G - - - 0/32/0/0 - - - 0 0,0,45,1,0,0,20
+commit c3a732e47 line 21 TEG c s 12567 32/32/3/3 - i52@29.45.79 i82@29.79 1 0,0,75,82,0,0,22
+commit b15c97235 line 21 TESG r c 1234567 9/32/9/9 i30@5/5 i54@5.77 i97@5.77 1 0,0,92,127,0,0,21
+commit 6d9d78f2e line 21 - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,8
+commit 16f6bcb30 line 21 EG - s 126 2/32/2/2 - i61@29/29 i86@29/29.88 1 0,0,84,86,0,0,25
+commit 409c11a41 line 21 EG - s 126 2/32/2/2 - i53@29/29 i90@29/29.88 1 0,0,98,90,0,0,31
+commit ae083c8f8 line 21 EG - s 126 2/32/2/2 - i64@29/29 i152@29/29.88 1 0,0,162,153,0,0,29
+commit 2e75d0652 line 21 - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,13
+commit 05a7cf46e line 21 EG - s 126 2/32/2/2 - i58@29/29 i26@29/29.88 1 0,0,39,59,0,0,22
+commit ee0609fc3 line 21 EG - e 1 2/32/2/2 - i53@29/29 i27@29/29.88 1 0,0,58,54,0,0,22
+commit 8e9012bfa line 21 - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,9
+commit a9afb6b33 line 21 G - - - 0/32/0/0 o33@19.83 i54@19.83 o80@19.83 1 0,0,49,114,0,0,25
+commit 380dfd3b2 line 21 G - - - 0/32/0/0 t207@19/19 i61@19/19 o80@19 1 0,0,114,292,0,0,29
+commit 1af5de4b4 line 21 EG - s 126 2/32/2/2 - i60@29/29 i84@29/29.88 1 0,0,89,85,0,0,22
+commit 143e34720 line 21 EG - s 126 6/32/6/6 i28@20/20 i54@20.29 i76@20.29 1 0,0,89,105,0,0,22
+commit 32d8d73d8 line 22 TESG s s 1234567 32/32/32/20 i29@44/44 i58@9.29.44 i46@9.29.44 1 0,0,32,76,0,0,25
+commit 39005467c line 22 - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,0
+commit c479e46d3 line 22 TEG s c 123567 32/32/32/7 - i54@9.41.45 i86@9.41 1 0,0,87,87,0,0,23
+commit c7a0ad605 line 22 G - - - 0/32/0/0 - - - 0 0,0,80,1,0,0,24
+commit d66a7446e line 22 TSG s - 3457 32/32/32/25 i238@52.67 i60@41.45.52.67 i301@2.41.52.67 1 0,0,117,540,0,0,25
+commit 92888f3a7 line 22 TEG c s 12567 32/32/4/4 - i59@29.41.45 i82@29.41 1 0,0,89,85,0,0,25
+commit 0154d91c0 line 22 TESG s c 1234567 34/34/34/24 i230@52/52 i54@45.52.66.89 i132@52/52 1 0,0,120,366,0,0,63
+commit 075e18b4d line 22 TESG r s 1234567 19/34/19/19 i29@44/44 i59@29.44 i76@29.44 1 0,0,29,105,0,0,24
+commit 2988099cb line 22 TEG c s 12567 34/34/3/3 - i53@26.29.45.66 i85@2.26.29.66 1 0,0,97,86,0,0,161
+commit 763e01ce7 line 22 G - - - 4/34/4/4 - t54@41.66/45 i32@2.41.66 0 0,0,52,55,0,0,202
+commit 2c9566f16 line 22 EG - e 1 3/34/3/3 - i60@29.66 o86@2.29.66 1 0,0,77,86,0,0,159
+commit 2bf2ad0c3 line 22 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,22
+commit 63bea99df line 22 - - - - 0/34/0/0 - - - 0 0,0,48,1,0,0,9
+commit 226a04f6b line 22 EG - e 1 2/34/2/2 - i60@29.88 i88@2.29.88 1 0,0,89,88,0,0,25
+commit 7a962ad0f line 22 TESG r e 13457 34/34/34/24 i30@82/82 i62@29.82.88 i310@2.29.82.88 1 0,0,135,340,0,0,30
+commit b02a618d0 line 22 TESG r c 1234567 19/34/19/19 i626@44/44 i53@41.44 i134@41.44 1 0,0,46,761,0,0,262
+commit 14f3ff750 line 22 EG - e 126 2/34/2/2 - i58@29/29 i90@29/29 1 0,0,94,91,0,0,32
+commit a9b8f8248 line 22 - - - - 0/34/0/0 - - - 0 0,0,60,1,0,0,19
+commit 18aa1ce92 line 22 EG - e 1 2/34/2/2 i30@58/58 i55@29.58 i151@29.58 1 0,0,117,181,0,0,26
+commit fae1df629 line 22 EG - e 126 2/34/2/2 - i61@29/29 i85@29/29 1 0,0,96,86,0,0,23
+commit d89d28ad6 line 22 EG - e 126 2/34/2/2 - i53@29/29 i84@29/29 1 0,0,87,85,0,0,22
+commit 33c84d100 line 22 G - - - 0/34/0/0 - - - 0 0,0,46,1,0,0,16
+commit f4acfd00b line 22 EG - e 1 2/34/2/2 - i53@29/29 i85@29/29 1 0,0,87,86,0,0,23
+commit c3a114465 line 22 EG - e 126 2/34/2/2 - i53@29/29 i84@29/29 1 0,0,67,84,0,0,23
+commit 4807fe506 line 22 G - - - 2/34/2/2 - t55@73/45.73 i34@73/73 0 0,0,67,56,0,0,23
+commit be649c255 line 22 EG - e 1 2/34/2/2 - i56@29/29 i120@29/29 1 0,0,91,121,0,0,21
+commit 9a19724a9 line 22 G - - - 0/34/0/0 - t53@73/45.73 i26@73/73 0 0,0,39,54,0,0,16
+commit dee201974 line 22 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,9
+commit 642b3943c line 22 G - - - 0/34/0/0 - - - 0 0,0,50,1,0,0,16
+commit fc164d354 line 22 G - - - 0/34/0/0 - - - 0 0,0,46,1,0,0,17
+commit a6fd30147 line 22 EG - s 126 2/34/2/2 - i55@29/29 i184@29/29 1 0,0,92,185,0,0,22
+commit 310b83f1e line 22 EG - s 126 2/34/2/2 - i57@29/29 i184@29/29 1 0,0,94,188,0,0,21
+commit fb0156a0e line 22 G - - - 0/34/0/0 - - - 0 0,0,56,1,0,0,22
+commit 6b683b6b4 line 22 - - - - 0/34/0/0 - - - 0 0,0,32,1,0,0,16
+commit d18891dc0 line 22 G - - - 2/34/2/2 - t61@79/45.79 i37@79/79 0 0,0,61,62,0,0,16
+commit 834e7a8e5 line 22 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,2
+commit dd7049092 line 22 EG - s 126 3/34/3/3 - i55@29.84 i188@29.84 1 0,0,103,192,0,0,384
+commit 25e357633 line 22 EG - e 1 2/34/2/2 - i69@29/29 i36@29/29 1 0,0,102,71,0,0,31
+commit 26fd0529c line 22 G - - - 0/34/0/0 - - - 0 0,0,83,7,0,0,82
+commit dabc796ec line 22 G - - - 0/34/0/0 - - - 0 0,0,92,1,0,0,14
+commit 12de7d161 line 22 G - - - 2/34/2/2 - t57@79/45.79 i36@79/79 0 0,0,83,58,0,0,23
+commit 376ecae4a line 22 G - - - 0/34/0/0 - - - 0 0,0,54,1,0,0,16
+commit 79e2f5e76 line 22 EG - e 1 2/34/2/2 - i58@28.29/29 i194@28.29/29 1 0,0,101,194,0,0,22
+commit 64d6b4acf line 22 EG - e 1 2/34/2/2 - i55@29/29 i187@29/29 1 0,0,102,188,0,0,22
+commit 761011d26 line 22 EG - e 1 2/34/2/2 - i56@29/29 i188@29/29 1 0,0,79,189,0,0,22
+commit a802291a4 line 22 EG - e 1 2/34/2/2 - i55@29/29 i187@29/29 1 0,0,99,188,0,0,22
+commit b9710d6a7 line 22 EG - e 1 2/34/2/2 - i56@29/29 i191@29/29 1 0,0,63,191,0,0,22
+commit 2237a3f85 line 22 G - - - 0/34/0/0 - - - 0 0,0,54,1,0,0,34
+commit 17b26a43f line 22 TESG r s 1234567 3/34/3/3 o12@37 i55@29.37 o213@29.37 1 0,0,100,226,0,0,24
+commit c1734f442 line 22 EG - e 126 2/34/2/2 - i54@29/29 i195@29/29 1 0,0,77,196,0,0,22
+commit 814d1fd5e line 22 TESG r c 1234567 3/34/3/3 i13@37 i55@37/37 i38@37 1 0,0,55,56,0,0,24
+commit 26ce73c48 line 22 G - - - 0/34/0/0 - - - 0 0,0,54,1,0,0,20
+commit 15148dacd line 22 TSG r - 3457 3/34/3/3 o8@37.39 o57@37.39.74 o208@37.39 1 0,0,45,217,0,0,40
+commit 3b20a6e87 line 22 G - - - 0/34/0/0 - - - 0 0,0,48,1,0,0,7
+commit e1f91003a line 22 G - - - 0/34/0/0 - - - 0 0,0,90,11,0,0,28
+commit f16be2c0e line 22 TSG r - 3457 34/34/34/24 i30@33.85 i54@85/85 i43@33.85 1 0,0,28,74,0,0,29
+commit dd148d4ec line 22 G - - - 0/34/0/0 - - - 0 0,0,52,1,0,0,16
+commit 598942dd6 line 22 G - - - 0/34/0/0 - - - 0 0,0,52,1,0,0,20
+commit f86d509d2 line 22 G - - - 0/34/0/0 - - - 0 0,0,129,1,0,0,41
+commit 911fc6ea1 line 22 EG - e 126 2/34/2/2 - i67@29/29 i164@29/29 1 0,0,191,165,0,0,44
+commit 6946f0f2c line 22 G - - - 0/34/0/0 - - - 0 0,0,65,1,0,0,30
+commit 242ed2d89 line 22 EG - e - 2/34/2/2 - i55@29/29 i23@29/29 1 0,0,54,55,0,0,26
+commit 524c03f5d line 22 TESG r c 1234567 19/34/19/19 i648@44/44 i60@41.44 i24@41.44 1 0,0,60,672,0,0,315
+commit 55871962c line 22 G - - - 0/34/0/0 - - - 0 0,0,62,1,0,0,16
+commit 64890d4cf line 22 G - - - 0/34/0/0 - - - 0 0,0,53,1,0,0,7
+commit 03a40426b line 22 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,32
+commit 56a5820a7 line 22 G - - - 7/34/7/7 - t55@40/40 o58@40 0 0,0,57,59,0,0,51
+commit 569598f41 line 22 G - - - 0/34/0/0 - - - 0 0,0,63,1,0,0,7
+commit 46e0d8729 line 22 G - - - 0/34/0/0 - - - 0 0,0,59,1,0,0,48
+commit eab64a2ed line 22 G - - - 0/34/0/0 - - - 0 0,0,52,1,0,0,45
+commit 3b8c31f6a line 22 G - - - 0/34/0/0 i29@69/69 i65@69/69 i323@69/69 1 0,0,135,353,0,0,24
+commit 740e0c04f line 22 TG x - 357 34/34/34/20 t5@91/53.76.91 i58@9.91 i85@9.91 1 0,0,95,90,0,0,26
+commit a94a14ed3 line 22 G - - - 0/34/0/0 - - - 0 0,0,48,1,0,0,44
+commit 9ab17724a line 22 - - - - 0/34/0/0 t2@34/33.34 - t18@34/33.34 0 0,0,49,21,0,0,20
+commit 1d1e4bf0d line 22 G - - - 0/34/0/0 - - - 0 0,0,48,1,0,0,34
+commit 58261e0c5 line 22 G - - - 0/34/0/0 - - - 0 0,0,47,1,0,0,44
+commit c2e582897 line 22 TSG s - 3457 35/35/35/27 i386@62.64 i56@9.41.45.62.64 i315@9.41.62.64 1 0,0,142,702,0,0,153
+commit c1d38123f line 22 TSG r - 3457 17/35/17/17 p233@17.18 i56@17.18.41 i313@17.18.41 1 0,0,35,547,0,0,34
+commit 527df96d9 line 22 TG s - 357 34/34/34/7 - i58@9.41.45 i90@9.41 1 0,0,97,90,0,0,60
+commit e9569ba30 line 22 TSG r - 3457 34/34/34/26 i290@35.64 i57@35.41.64 i317@35.41.64 1 0,0,149,608,0,0,50
+commit 96ebdbe05 line 22 G - - - 3/34/3/3 - t56@41/41.45 i28@41/41 0 0,0,62,57,0,0,16
+commit 75ccc2c00 line 23 G - - - 0/34/0/0 - - - 0 0,0,77,1,0,0,24
+commit a3beb4701 line 23 - - - - 0/34/0/0 - - - 0 0,284,0,0,0,0,8
+commit 5a46fcc8f line 23 G - - - 0/34/0/0 - - - 0 0,0,48,1,0,0,26
+commit e3152e501 line 23 TSG r - 3457 34/34/34/23 i30@52/52 i60@52.88 i86@52.88 1 0,0,91,116,0,0,32
+commit e2b64c855 line 23 - - - - 0/34/0/0 - - - 0 0,0,52,1,0,0,19
+commit b8f4e1e01 line 23 - - - - 0/34/0/0 - - - 0 0,0,37,1,0,0,18
+commit 67790b98a line 23 - - - - 0/34/0/0 - - - 0 0,0,39,1,0,0,21
+commit fc1b774f5 line 23 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,8
+commit 6fea0bc74 line 23 EG - e 1 2/34/2/2 i31@69/69 i54@29.69 i11@29.69 1 0,0,33,55,0,0,23
+commit b74998c5b line 23 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 7f1d10568 line 23 TG s - 357 34/34/34/8 - i63@9.38.41.45.66 i186@9.38.41.66 1 0,0,137,186,0,0,34
+commit 733510f42 line 23 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 85d4da4a3 line 23 - - - - 0/34/0/0 - - - 0 0,0,36,1,0,0,20
+commit e04f4c170 line 23 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit b72e3a015 line 23 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit c2e480956 line 23 TSG r - 3457 3/34/3/3 i13@37.39 i55@37.39/37 i3745@37.39 1 0,0,97,3758,0,0,19
+commit e9500ead8 line 23 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit dde379779 line 23 EG - e 1 2/34/2/2 i39@69/69 i55@29.69.88 i8679@2.29.69.88 1 0,0,160,8719,0,0,32
+commit 88ce4ffe1 line 23 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit d4d40d2ee line 23 EG - e 126 2/34/2/2 - i55@29/29 i803@29/29 1 0,0,114,804,0,0,22
+commit 668f2b338 line 23 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit e9a32a191 line 23 G - - - 0/34/0/0 - - i20@2 0 0,0,46,21,0,0,46
+commit 0cb814b73 line 23 TG s - 357 34/34/34/11 - i61@9.40.45 i4396@9.40 1 0,0,102,4396,0,0,90
+commit 87337cbb7 line 23 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 685397181 line 23 TSG s - 3457 34/34/34/18 p4133@14.15.17.18 i55@14.15.17.18.38.41 i5392@14.15.17.18.38.41 1 0,0,140,9526,0,0,29
+commit e30dc2c1f line 23 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit d92dd314a line 23 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,1
+commit 081ba06ea line 23 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,1
+commit 272b5e9c5 line 23 EG - s 126 2/34/2/2 - i57@29/29 i102@29/29 1 0,0,141,103,0,0,44
+commit 43ea9b823 line 23 G - - - 3/34/3/3 - t61@41/41.45 i21@41/41 0 0,0,122,63,0,0,27
+commit 99218153e line 23 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,1
+commit 7a7a930c4 line 23 TG x - 357 34/34/34/7 i330@15.19 i72@15.19.38 i208@15.19.38 1 0,0,203,539,0,0,45
+commit 9d2af5bc4 line 23 - - - - 0/34/0/0 - - - 0 0,0,106,1,0,0,393
+commit faa589c33 line 23 G - - - 0/34/0/0 - i62@88/88 i82@2.88 0 0,0,72,83,0,0,20
+commit 8b7defa1c line 24 TEG x s 123567 34/34/34/5 - i59@29.38 i174@29.38 1 0,897,144,175,0,0,102
+commit 8b5ab2772 line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 4b22d724f line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 61b87a5ac line 24 TSG r - 3457 17/34/17/17 p652@17.18 i56@17.18.41 i433@17.18.41 1 0,0,148,1086,0,0,27
+commit 03c9a1faf line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit a95d21c1d line 24 - - - - 0/34/0/0 - - - 0 0,0,117,1,0,0,473
+commit 830fd0024 line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 20304302d line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 6cd9a9488 line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 00ae7c549 line 24 - - - - 0/34/0/0 - - - 0 0,0,69,1,0,0,52
+commit 53bb0e998 line 24 TSG r - 3457 34/34/34/26 i520@62/62 i55@41.62 i23@41.62 1 0,0,71,543,0,0,109
+commit 68964fd01 line 24 G - - - 3/34/3/3 - t63@41/41.45 i29@41/41 0 0,0,73,64,0,0,16
+commit 8c87ee60b line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,33
+commit 2859145eb line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 9cf0b6ac7 line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 54ea9b986 line 24 EG - e 1 2/34/2/2 - i59@29.88 i91@2.29.88 1 0,0,102,92,0,0,35
+commit 14b2ba3bb line 24 TSG r - 3457 34/34/34/24 i32@82/82 i55@82/82 i316@82/82 1 0,0,148,348,0,0,26
+commit 648ada827 line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 0604568ba line 24 TESG r e 13457 34/34/34/24 i33@82/82 i63@29.82 i81@29.82 1 0,0,108,115,0,0,28
+commit b660cf2c0 line 24 EG - e 126 2/34/2/2 - i56@29/29 i92@29/29 1 0,0,103,93,0,0,26
+commit aad44237a line 24 G - - - 16/34/16/16 o33@21.87 i55@21.74.87.88 o319@2.21.87.88 1 0,0,152,353,0,0,28
+commit 591a84b04 line 24 TSG r - 3457 17/34/17/17 p235@17.18.21.24 i66@17.18.21.88 o318@2.17.18.21.22.24.88 1 0,0,145,553,0,0,28
+commit 62fde1a14 line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 1296b1f4c line 24 EG - e 126 16/34/16/16 i33@87/87 i63@29.87.88 o83@29.87.88 1 0,0,107,117,0,0,31
+commit 565335746 line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 5f594a1e2 line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 1662794d5 line 24 TESG r e 1234567 34/34/34/23 i63@70/70 i56@29.70.88 o133@29.70.88 1 0,0,104,199,0,0,33
+commit 4c11d685b line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit cd7268a49 line 24 EG - e 126 2/34/2/2 - i54@29.88 o132@29.88 1 0,0,98,133,0,0,60
+commit b84a3f43d line 24 - - - - 0/34/0/0 - - - 0 0,0,59,1,0,0,17
+commit a552e0ec9 line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 06e2f9cbd line 24 TSG r - 3457 3/34/3/3 i7@39/39 i55@39/37.39 i153@39/39 1 0,0,101,160,0,0,25
+commit a5170a42b line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit b3d29720b line 24 EG - e 1 2/34/2/2 - i56@29/29 i136@29/29 1 0,0,99,137,0,0,29
+commit 6b3ba2caf line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 8fa1a81dc line 24 EG - e 1 2/34/2/2 - i57@29.88 o155@2.29.88 1 0,0,100,160,0,0,48
+commit 17e04d771 line 24 - - - - 0/34/0/0 - - o80 0 0,0,79,80,0,0,16
+commit e8586a77f line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 5dc7b2861 line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 41d07d7bb line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 8c36c36e3 line 24 G - - - 0/34/0/0 o6@21.81 i59@21.81/21.88 o170@21.81 0 0,0,81,177,0,0,17
+commit fa989b916 line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 5b3c023a7 line 24 G - - - 0/34/0/0 o28@21 i57@21/21.88 o170@21 0 0,0,54,199,0,0,29
+commit cb23e6064 line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 9b8439ae3 line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit a0d66409f line 24 G - - - 0/34/0/0 o30@81 i54@81/21.81.88 o55@81 0 0,0,71,87,0,0,30
+commit cdf036d2e line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 13e074110 line 24 G - - - 0/34/0/0 o6@21 i53@21/21.88 o51@21 0 0,0,73,58,0,0,16
+commit ad8188589 line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 210b1420d line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit e3851b625 line 24 EG - e 1 2/34/2/2 - i55@29.88 o156@29.88 1 0,0,89,157,0,0,30
+commit 97565efb8 line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 7d8708db4 line 24 EG - e 1 2/34/2/2 - i64@29/29 i156@29/29 1 0,0,99,157,0,0,32
+commit 78844aa92 line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 17493e6b1 line 24 G - - - 0/34/0/0 - - - 0 0,0,66,1,0,0,20
+commit 625e21850 line 24 G - - - 0/34/0/0 - - - 0 0,0,71,1,0,0,38
+commit ce0eb6250 line 24 G - - - 0/34/0/0 - - - 0 0,0,59,1,0,0,42
+commit 8c54b6cee line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 265185072 line 24 G - - - 0/34/0/0 - - - 0 0,0,72,1,0,0,36
+commit 9af64c6aa line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit f4dc2fc8b line 24 - - - - 0/34/0/0 - - - 0 0,0,211,1,0,0,98
+commit b61b63f56 line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 76bdf65d0 line 24 TG x - 357 34/34/34/5 - i61@9/9 i425@9/9 1 0,0,154,426,0,0,36
+commit 76001a38c line 24 G - - - 0/34/0/0 - o54@74 - 0 603,0,101,55,0,0,93
+commit f2937ea98 line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit e97a0136e line 24 G - - - 7/34/7/7 - t55@40/40 o190@40 0 0,0,72,190,0,0,73
+commit 7b1090cf3 line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit bcb84c492 line 24 G - - - 3/34/3/3 - t55@41/41.45 i48@41/41 0 0,0,84,56,0,0,78
+commit 7ea3579ca line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 8966521a0 line 24 G - - - 3/34/3/3 - t55@41/41.45 i48@41/41 0 0,0,80,56,0,0,16
+commit 805cee8a7 line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 26d332f81 line 24 TSG s - 3457 34/34/34/28 i369@4.64 i64@4.9.41.45.64 i272@4.9.41.64 1 0,0,164,643,0,0,27
+commit c40936683 line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 2f2c96b46 line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit cd33ba3d5 line 24 EG - e 1 2/34/2/2 - i102@29/29 i98@29/29 1 0,0,94,102,0,0,29
+commit 9801dacc4 line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 746a0717b line 24 EG - e 1 2/34/2/2 - i53@29/29 i148@29/29 1 0,0,114,149,0,0,28
+commit 1a03a7b03 line 24 - - - - 0/34/0/0 - p56 - 0 0,0,56,57,0,0,20
+commit a17f73469 line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 07cc6086a line 24 - - - - 0/34/0/0 - p55 - 0 0,0,76,56,0,0,30
+commit 73c243784 line 24 - - - - 0/34/0/0 - p57 - 0 0,0,66,58,0,0,21
+commit f51647183 line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit a5e84b40f line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit ddf7dc41e line 24 EG - e 126 2/34/2/2 - i60@29/29 i450@29/29 1 0,0,240,451,0,0,100
+commit 8cfa15418 line 24 G - - - 0/34/0/0 - i60@88/88 o489@88 0 0,0,498,490,0,0,164
+commit 8988728ae line 24 G - - - 0/34/0/0 - i62@88/88 o502@88 0 1084,0,323,503,0,0,123
+commit 42e09c092 line 24 - - - - 0/34/0/0 t3@33/33 - t589@33/33 0 2101,0,371,595,0,0,161
+commit 150484c7b line 24 EG - c 126 0/34/0/0 - - - 0 3087,0,251,1,0,0,139
+commit da564ad89 line 24 G - - - 6/34/6/6 i39@20/20 i68@20/20 i470@20/20 1 3479,0,254,511,0,0,123
+commit 2542eb677 line 24 - - - - 0/34/0/0 - - - 0 4374,0,237,5,0,0,127
+commit 1f3a386db line 24 - - - - 0/34/0/0 - - - 0 3806,0,0,0,0,0,4
+commit ad6469092 line 24 - - - - 0/34/0/0 - - - 0 1643,0,0,0,0,0,3
+commit 8e8636c2b line 24 - - - - 0/34/0/0 - p56 - 0 1627,0,221,57,0,0,112
+commit 1646d0f81 line 24 G - - - 0/34/0/0 - p55@30.74 i187@30/30 0 1967,0,114,188,0,0,116
+commit 4b1c2ceab line 24 G - - - 3/34/3/3 - t57@41/41.45 i303@41/41 0 1525,0,157,304,0,0,124
+commit acc661754 line 24 - - - - 0/34/0/0 - p55 - 0 1042,0,250,56,0,0,114
+commit c2cf0970e line 24 - - - - 0/34/0/0 - - - 0 1374,0,0,0,0,0,2
+commit 087a754e7 line 24 G - - - 0/34/0/0 - o56@74.75 - 0 1668,0,222,56,0,0,126
+commit 01ee3e336 line 24 G - - - 0/34/0/0 - - - 0 2071,0,220,1,0,0,112
+commit 061041230 line 24 EG - e 1 2/34/2/2 - i57@29/29 i439@29/29 1 2395,0,225,440,0,0,122
+commit 7d7ab765e line 24 TSG r - 3457 9/34/9/9 i35@5.39.83 i56@5.39.83 o470@5.39.83 1 3487,0,244,506,0,0,117
+commit c5b9b76e9 line 24 - - - - 0/34/0/0 - - - 0 4340,0,205,1,0,0,105
+commit e24aa7f72 line 24 G - - - 0/34/0/0 - p56@74 - 0 4235,0,161,57,0,0,123
+commit 62ce7b595 line 24 - - - - 0/34/0/0 - - - 0 4144,0,0,0,0,0,4
+commit 4c261d3e9 line 24 - - - - 0/34/0/0 - - - 0 4377,0,245,1,0,0,113
+commit 2f9922858 line 24 G - - - 0/34/0/0 - p66@74 - 0 1911,0,217,67,0,0,150
+commit 2fd7b0bff line 24 G - - - 0/34/0/0 - o56@74 - 0 2349,0,178,56,0,0,136
+commit c639f4cf1 line 24 TG x - 357 34/34/34/20 t3@56/53.56.76.91 p57@56.74.88 o452@56.88 1 1595,0,224,456,0,0,138
+commit 0df729086 line 24 - - - - 0/34/0/0 - - - 0 2317,0,0,0,0,0,2
+commit 13de09824 line 24 G - - - 0/34/0/0 - i61@88/88 o450@88 0 2323,0,234,451,0,0,110
+commit 24f28b555 line 24 - - - - 0/34/0/0 - - - 0 2282,0,0,0,0,0,2
+commit a8cdfba26 line 24 - - - - 0/34/0/0 - p54 - 0 2289,0,209,56,0,0,139
+commit 898f62387 line 24 G - - - 0/34/0/0 - o57@74 - 0 1959,0,212,58,0,0,140
+commit f446372d7 line 24 G - - - 0/34/0/0 - p56@74 - 0 2357,0,212,57,0,0,114
+commit a38ba45cb line 24 - - - - 0/34/0/0 - - o418 0 746,0,218,419,0,0,133
+commit 1bd0fe06f line 24 TSG r - 3457 34/34/34/23 i29@52/52 i63@52.79 i414@52.79 1 1370,0,213,444,0,0,116
+commit af85d7294 line 24 - - - - 0/34/0/0 - - - 0 1335,0,0,0,0,0,2
+commit e5c8a421d line 24 - - - - 0/34/0/0 - p64 - 0 1340,0,211,65,0,0,112
+commit 268e937d9 line 24 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 4ce854a58 line 24 G - - - 6/34/6/6 i33@20/20 i60@20/20 i436@20/20 1 0,0,232,470,0,0,105
+commit b6aa2e829 line 24 TG c - 57 34/34/2/2 - t59@45.79/45 i479@79/79 0 0,0,243,480,0,0,133
+commit 78433ea00 line 24 - - - - 0/34/0/0 - p59 - 0 855,0,273,59,0,0,136
+commit a57d4039c line 24 TG x - 357 34/34/34/20 t4@91/53.76.91 i64@91/91 i474@91/91 1 590,0,286,488,0,0,144
+commit 24f83a294 line 24 - - - - 0/34/0/0 - - - 0 1179,0,0,0,0,0,2
+commit b68541971 line 24 G - - - 0/34/0/0 - o58@74.88 o469@2.88 0 0,0,284,470,0,0,54
+commit 8d6104be8 line 24 - - - - 0/34/0/0 - - - 0 171,0,0,0,0,0,0
+commit 4e0abd80b line 24 G - - - 0/34/0/0 - i55@75/75 - 0 0,0,260,56,0,0,27
+commit ac2a88f61 line 24 EG - e 1 2/34/2/2 - i65@29/29 i504@29/29 1 685,0,291,511,0,0,71
+commit 096467c8e line 24 EG - e 1 16/34/16/16 i47@87/87 i65@29.87 o437@29.87 1 966,0,326,485,0,0,159
+commit 78534ee41 line 24 G - - - 0/34/0/0 - - - 0 1307,0,276,3,0,0,128
+commit c57f39d15 line 24 TG c - 57 34/34/2/2 - i71@45.66.88 o433@2.66.88 0 1243,0,255,435,0,0,117
+commit 7166b8da6 line 24 EG - e 1 2/34/2/2 - i61@29/29 o429@2.29 1 1390,0,238,431,0,0,125
+commit 2ae868219 line 24 G - - - 0/34/0/0 t3@59/33.59 i66@59.88 o425@59.88 0 1846,0,164,428,0,0,127
+commit a25428158 line 24 G - - - 0/34/0/0 o119@21 i68@21.88 o468@2.21.88 0 0,0,214,589,0,0,28
+commit 0de17a0f5 line 24 - - - - 0/34/0/0 - - - 0 0,0,196,1,0,0,30
+commit 14dc80967 line 25 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit af90d8f6b line 25 - - - - 0/34/0/0 - p61 - 0 0,0,245,62,0,0,29
+commit 19ff19be7 line 26 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,65
+commit 336676e53 line 26 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit e140d7c9b line 26 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 8db4226b4 line 26 G - - - 0/34/0/0 - - - 0 0,0,246,1,0,0,50
+commit 45e33315e line 26 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 3b239bfca line 26 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 9e18b0e46 line 26 - - - - 0/34/0/0 - - - 0 0,0,236,1,0,0,25
+commit c201605d7 line 26 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 66edbdec1 line 26 G - - - 0/34/0/0 - - - 0 0,0,132,1,0,0,36
+commit 88a306e5e line 26 G - - - 0/34/0/0 - - - 0 0,0,250,1,0,0,27
+commit beb6a2137 line 26 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit bed40c8ef line 26 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit df0eaa224 line 26 TSG r - 3457 34/34/34/27 i290@31.61 i67@31.61.88 o499@2.31.61.88 1 0,0,161,790,0,0,45
+commit 8c9a33312 line 26 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 586ebc744 line 26 - - - - 0/34/0/0 - - - 0 0,0,266,1,0,0,88
+commit 15c9056aa line 26 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 25e6ec9cd line 26 - - - - 0/34/0/0 - - - 0 0,0,149,1,0,0,34
+commit abaeb0b94 line 26 - - - - 0/34/0/0 - - - 0 0,0,424,4,0,0,16
+commit cc82ed097 line 26 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 7395a25bc line 27 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 1e89ab1cd line 27 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit b03b6068d line 27 G - - - 0/34/0/0 - - o434 0 0,0,160,435,0,0,34
+commit 30e4b8764 line 27 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit c2799a282 line 27 G - - - 0/34/0/0 - - - 0 0,0,231,1,0,0,48
+commit 1918e97a0 line 27 - - - - 0/34/0/0 - - - 0 0,0,152,1,0,0,35
+commit c4f213d25 line 27 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 578f0ce12 line 27 G - - - 0/34/0/0 - - - 0 0,0,163,1,0,0,26
+commit 14c2c5965 line 27 G - - - 0/34/0/0 - - o169@2 0 0,0,174,169,0,0,27
+commit f36cde0b9 line 27 G - - - 0/34/0/0 - - - 0 0,0,174,1,0,0,26
+commit 27d793da6 line 28 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 09746220c line 28 G - - - 16/34/16/16 i33@87/87 i63@87.88 o319@2.87.88 1 0,0,229,353,0,0,44
+commit 47dd4356d line 29 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 6d61ee390 line 29 - - - - 0/34/0/0 - - - 0 0,0,233,1,0,0,46
+commit cef5cf91f line 29 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 06561df69 line 29 TSG r - 3457 34/34/34/23 i30@52/52 i56@52.88 o327@52.88 1 0,0,324,357,0,0,41
+commit f781fe240 line 29 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 06d623d49 line 29 - - - - 0/34/0/0 - - - 0 0,0,246,1,0,0,29
+commit f6c3f18d9 line 29 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 95e82e295 line 29 G - - - 0/34/0/0 - - - 0 0,0,328,1,0,0,30
+commit 0c2a8c884 line 29 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit c971f6fb1 line 29 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit d80133f87 line 29 EG - c 126 0/34/0/0 - - i395@2.65 0 0,0,232,396,0,0,30
+commit 098dc591e line 29 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit a9b61e64e line 29 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit e068a6513 line 29 TESG r o 1234567 3/34/3/3 i7@37 i56@37.48 i280@37.48 1 0,0,294,287,0,0,44
+commit 54e25530b line 29 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 275213a7e line 29 G - - - 0/34/0/0 i30@58/58 i61@58/58 i340@58/58 1 0,0,305,382,0,0,41
+commit 04627abb2 line 29 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,5
+commit 811911bdb line 29 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit d725cf3f1 line 29 - - - - 0/34/0/0 - - - 0 0,0,218,1,0,0,43
+commit 3be89650b line 29 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 5fe0ce0d4 line 29 G - - - 0/34/0/0 - - - 0 0,0,346,1,0,0,88
+commit 4af3294a9 line 29 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit da559484e line 29 G - - - 0/34/0/0 - - - 0 0,0,384,1,0,0,106
+commit 3e3980f5f line 29 TESG r e 13457 34/34/34/24 i33@59.82 i62@29.59.82.88 o500@2.29.59.82.88 1 0,0,329,534,0,0,117
+commit 48fc74387 line 29 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 12d5b0de9 line 29 G - - - 0/34/0/0 - - - 0 0,0,314,1,0,0,32
+commit 6601a9abb line 29 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit d69282c87 line 29 G - - - 0/34/0/0 i30@58/58 i56@58/58 i416@58/58 1 0,0,249,447,0,0,86
+commit cf4646209 line 29 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 5ec51a835 line 29 G - - - 0/34/0/0 i28@58/58 i66@58/58 i415@58/58 1 0,0,253,444,0,0,100
+commit bccc47dfe line 29 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit c6158cfac line 29 G - - - 0/34/0/0 - - - 0 0,0,199,1,0,0,107
+commit d810ef30d line 29 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,0
+commit 23c42db83 line 29 - - - - 0/34/0/0 - - - 0 0,0,248,1,0,0,114
+commit 61134da08 line 29 - - - - 0/34/0/0 - - - 0 0,0,0,0,0,0,1
+commit 9c0fb259a line 29 - - - - 0/34/0/0 - - - 0 0,0,192,1,0,0,87
+commit 39c6bfcc4 line 29 - - - - 0/34/0/0 - - - 0 0,0,350,1,0,0,26
+commit 0e1676d52 side - G - - - 0/31/0/0 - - - 0 -
+commit dff7d8b21 side - EG - e 1 2/31/2/2 - - - 0 -
+commit 5719def48 side - G - - - 0/31/0/0 - - - 0 -
+commit 27cda4f86 side - EG - e 1 2/31/2/2 - - - 0 -
+commit 169a4e39f side - TSG r - 3457 31/31/31/21 - - - 0 -
+commit 780f5c3dc side - TSG r - 3457 3/31/3/3 - - - 0 -
+commit b30c3b8f8 side - TSG r - 3457 31/31/31/24 - - - 0 -
+commit 1e0cdcf01 side - TSG r - 3457 31/31/31/25 - - - 0 -
+commit 2f933e9a0 side - TSG r - 3457 31/31/31/23 - - - 0 -
+commit c8535a3a3 side - - - - - 0/31/0/0 - - - 0 -
+commit 15a74f294 side - - - - - 0/31/0/0 - - - 0 -
+commit 406878036 side - G - - - 0/31/0/0 - - - 0 0,0,528,629,0,0,60
+commit fd28895b1 side - G - - - 0/31/0/0 - - - 0 0,0,691,366,0,0,10
+commit ec8470fe4 side - - - - - 0/31/0/0 - - - 0 0,0,440,1,0,0,67
+commit 4e3d643fc side - G - - - 0/31/0/0 - - - 0 0,0,617,238,0,0,19
+commit e8e10e1bf side - EG - e 126 2/31/2/2 - - - 1 0,0,508,0,0,0,56
+commit edfd94a65 side - TSG r - 3457 3/31/3/3 - - - 1 0,0,629,0,0,0,132
+commit 0f8480fca side - G - - - 0/31/0/0 - - - 0 0,0,379,0,0,0,20
+commit e06a56dd8 side - TSG r - 3457 31/31/31/23 - - - 1 0,0,92,0,0,0,33
+commit 5a20c4363 side - G - - - 0/31/0/0 - - - 0 0,0,467,0,0,0,24
+commit e164c60b4 side - - - - - 0/31/0/0 - - - 0 0,0,0,0,0,0,1
+commit 10dab73a4 side - TSG r - 3457 31/31/31/22 - - - 1 0,0,39,2603,0,0,81
+commit 183729916 side - - - - - 0/31/0/0 - - - 0 0,0,0,0,0,0,1
+commit 20ce636a4 side - TSG r - 3457 31/31/31/22 - - - 1 0,0,231,2369,0,0,85
+commit f885a08a0 side - G - - - 0/31/0/0 - - - 0 0,0,585,2042,0,0,20
+commit 40a63e3a7 side - G - - - 0/31/0/0 - - - 0 0,0,210,827,0,0,34
+commit 2826f024e side - - - - - 0/31/0/0 - - - 0 0,0,69,820,0,0,25
+commit a8bafad0b side - - - - - 0/31/0/0 - - - 0 0,0,78,1498,0,0,25
+commit 2205b564b side - - - - - 0/31/0/0 - - - 0 0,0,137,1818,0,0,51
+commit 5cc117bd3 side - - - - - 0/31/0/0 - - - 0 0,0,74,843,0,0,26
+commit 0a7a11b32 side - TESG r e 1234567 31/31/31/17 - - - 1 0,0,399,4449,0,0,99
+commit 69a959084 side - G - - - 0/31/0/0 - - - 0 0,0,398,2144,0,0,28
+commit 16ee7c2d3 side - TESG r e 1234567 31/31/31/25 - - - 1 0,0,408,6461,0,0,69
+commit b43d1c522 side - TESG r e 13457 31/31/31/22 - - - 1 0,0,423,6473,0,0,69
+commit d71816e7d side - TSG r - 3457 16/31/16/16 - - - 1 0,0,396,6567,0,0,48
+commit 38831ed79 side - - - - - 0/31/0/0 - - - 0 0,0,112,1980,0,0,18
+commit c9dab1c7a side - - - - - 0/31/0/0 - - - 0 0,0,81,757,0,0,26
+commit fa0593602 side - - - - - 0/31/0/0 - - - 0 0,0,211,2626,0,0,34
+commit ff6de3d0e side - - - - - 0/31/0/0 - - - 0 0,0,37,371,0,0,24
+commit 69a5f1fcc side - - - - - 0/31/0/0 - - - 0 0,0,66,716,0,0,22
+commit 5225f8011 side - TESG s s 1234567 32/32/32/27 p257@4.10.12.14.16.17.18.20.21.24.32.33.36.37.46.47.52.53.55.56.57.58.69.70.76.80.85.86.87.91 p51@4.6.7.8.9.12.14.16.17.18.20.21.25.26.29.32.36.37.40.45.46.47.50.51.52.53.55.56.57.58.66.68.69.70.71.73.74.75.76.77.78.79.80.84.85.86.87.88.90.91.92 o972@2.4.7.8.9.10.12.13.14.16.17.18.20.21.22.23.24.25.27.29.32.33.36.37.40.42.46.47.50.51.52.53.55.56.57.58.68.69.70.71.72.73.76.77.79.80.84.85.86.87.88.91 1 0,0,192,1280,46,0,94
+commit 51f186a44 side - G - - - 0/32/0/0 - p54@74 - 0 0,0,62,54,0,0,11
+commit 8728981bb side - - - - - 0/32/0/0 - p52 - 0 0,0,111,52,0,0,19
+commit d1eaf14be side - G - - - 0/32/0/0 - o52@74.88 i78@88/88 0 0,0,78,130,0,0,16
+commit 811d90a2c side - G - - - 0/32/0/0 - p51@74.88 i203@88/88 0 0,0,71,255,0,0,13
+commit 40b41e220 side - - - - - 0/32/0/0 - - - 0 0,0,50,0,0,0,11
+commit cebf63a8f side - - - - - 0/32/0/0 t1@33.59/33 - t18@33.59/33 0 0,0,51,20,0,0,12
+commit 2fcb449d0 side - G - - - 0/32/0/0 - i54@43.88/88 o534@2.43.88 0 0,0,124,589,0,0,38
+commit 1f6c801c0 side - TESG s s 1234567 32/32/32/27 p287@4.16.18.32.37.46.47.49.52.63 i57@4.9.16.18.26.32.37.45.46.47.48.49.52.63.73.75.84.88 o316@4.9.16.18.26.32.37.46.47.48.49.52.63.73.84.88 1 0,0,31,661,0,0,44
+commit 2756c73b1 side - G - - - 0/32/0/0 - p52@74.88 i131@2.88 0 0,0,57,184,0,0,21
+commit 535d00d30 side - - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,0
+commit 958e8b45d side - TSG r - 3457 32/32/32/26 o159@11.20.31.37.46.59.83 p59@11.20.30.31.37.46.59.74.83.88 o148@11.20.30.31.37.46.59.83.88 1 0,0,29,367,0,0,41
+commit f21bea6fb side - G - - - 0/32/0/0 o4@21 p53@21.43.74.88 o102@21.43.88 0 0,0,30,159,0,0,23
+commit cbd6bf213 side - G - - - 16/32/16/16 o7@21.57 p59@21.43.57.74.88 o306@2.21.43.57.88 1 0,0,77,372,0,0,43
+commit 0b94ae0ef side - G - - - 0/32/0/0 - p52@74.88 i75@88/88 0 0,0,58,128,0,0,19
+commit 4660d8b40 side - G - - - 0/32/0/0 - i54@43.88/88 o88@2.43.88 0 0,0,70,142,0,0,18
+commit 07ae9767a side - - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,0
+commit af079b9da side - G - - - 16/32/16/16 o8@21.57 o61@21.43.57.74.88 o105@2.21.43.57.88 1 0,0,85,174,302,0,40
+commit 1fe16ef42 side - - - - - 0/32/0/0 - - - 0 0,0,0,0,0,0,0
+commit b405d6d47 side - TESG r e 13457 32/32/32/26 o194@20.21.31.32.35.59 p61@20.21.29.30.31.32.35.43.51.59.74.88 o323@20.21.29.30.31.32.35.43.51.59.88 1 0,0,153,580,0,0,49
+commit 87bdd01b3 side - G - - - 0/32/0/0 i7@21.83 o57@21.43.74.83.88 o303@2.21.43.83.88 1 0,0,113,371,0,0,40
+commit 939002167 side - G - - - 0/32/0/0 - p57@74 - 0 0,0,44,58,0,0,19
+commit 65d6d9639 side - - - - - 0/32/0/0 - p53 - 0 0,0,42,53,0,0,17
+commit 97d1a8c9c side - G - - - 0/32/0/0 - p51@74 - 0 0,0,41,52,0,0,28
+commit a038a1227 side - TESG r s 1234567 32/32/32/25 o19@21.67 i59@21.29.67.88 o212@2.21.29.67.88 1 0,0,119,291,0,0,34
+
+== packages ==
+package-1: cmd/device-lane 1 0 0
+package-2: cmd/train 30 0 0
+package-3: internal/apimanifest 1 0 0
+package-4: internal/artifact 9 1 21
+package-5: internal/audiodsp 6 1 30
+package-6: internal/audioparity 1 1 60
+package-7: internal/benchmarkrecord 2 0 0
+package-8: internal/bridgetrain 0 0 0
+package-9: internal/capabilityruntime 30 3 500
+package-10: internal/checkpointtest 0 0 0
+package-11: internal/clioptions 6 3 190
+package-12: internal/composition 0 0 0
+package-13: internal/controllertrain 0 0 0
+package-14: internal/cuda/cublas 3 0 0
+package-15: internal/cuda/cudnn 6 0 0
+package-16: internal/cuda/driver 6 0 0
+package-17: internal/cuda/executor 15 0 0
+package-18: internal/cuda/kernel 18 2 520
+package-19: internal/dataroot 9 2 268
+package-20: internal/dataset 21 7 1134
+package-21: internal/densecausal 39 6 328
+package-22: internal/densecausaltrain 2 0 0
+package-23: internal/devicegrad 0 0 0
+package-24: internal/devicemath 4 0 0
+package-25: internal/diffusionimage 0 0 0
+package-26: internal/discovery 7 2 68
+package-27: internal/e4btrain 0 0 0
+package-28: internal/englishnorm 2 0 0
+package-29: internal/evaluation 156 91 9410
+package-30: internal/export 10 3 341
+package-31: internal/fsatomic 12 0 0
+package-32: internal/gguf 12 1 21
+package-33: internal/hfconvert 6 5 615
+package-34: internal/hfgguf 2 2 20
+package-35: internal/hostmath 9 6 1021
+package-36: internal/hostoptimizer 0 0 0
+package-37: internal/inference 27 3 165
+package-38: internal/inferencesurface 8 0 0
+package-39: internal/jinja 12 3 215
+package-40: internal/latentimage 6 2 110
+package-41: internal/latentvideo 42 12 824
+package-42: internal/longform 1 0 0
+package-43: internal/loratrain 12 0 0
+package-44: internal/media 12 4 1332
+package-45: internal/mediacapability 17 14 803
+package-46: internal/model 6 0 0
+package-47: internal/modelartifact 6 0 0
+package-48: internal/modelcli 4 1 14
+package-49: internal/modeldevice 3 0 0
+package-50: internal/modelintake 4 2 129
+package-51: internal/modelmerge 6 1 77
+package-52: internal/modelrecipe 27 11 751
+package-53: internal/modelrecipetest 3 4 14
+package-54: internal/modelswap 1 0 0
+package-55: internal/modeltest 3 3 100
+package-56: internal/operation 3 1 3
+package-57: internal/optimizer 3 0 0
+package-58: internal/overgodb 18 15 1833
+package-59: internal/peft 18 1 3
+package-60: internal/processcontrol 6 3 551
+package-61: internal/processlock 3 0 0
+package-62: internal/processmeasure 6 1 520
+package-63: internal/projector 3 0 0
+package-64: internal/pytorchzip 9 0 0
+package-65: internal/quietmachine 1 0 0
+package-66: internal/rae 11 0 0
+package-67: internal/recipe 9 3 364
+package-68: internal/routedlm 0 0 0
+package-69: internal/runrecord 9 5 487
+package-70: internal/sampling 3 1 63
+package-71: internal/scratchmodel 2 0 0
+package-72: internal/scratchtrain 0 0 0
+package-73: internal/seq2seq 8 4 168
+package-74: internal/server 26 0 0
+package-75: internal/servingattempt 4 1 55
+package-76: internal/servingtest 3 4 14
+package-77: internal/speechrecognition 2 0 0
+package-78: internal/speechrecognitiontest 0 0 0
+package-79: internal/speechsynth 10 5 670
+package-80: internal/tensor 3 0 0
+package-81: internal/tensorgrad 6 1 54
+package-82: internal/tensorstats 12 5 466
+package-83: internal/testutil 15 0 0
+package-84: internal/thoughtbank 6 2 133
+package-85: internal/tokenizer 3 1 54
+package-86: internal/trainingdata 3 0 0
+package-87: internal/trainingprogram 21 3 113
+package-88: internal/trainingworkflow 96 52 3690
+package-89: internal/vitencoder 1 0 0
+package-90: internal/vqaserve 1 0 0
+package-91: internal/workflowruntime 9 6 552
+package-92: internal/worklease 0 0 0
+
+== figures ==
+answer-key-moved: 143
+answer-key-still-1: 142
+answer-key-still-2: 109
+answer-key-still-2-4: 94
+answer-key-still-3: 140
+answer-key-still-4: 129
+answer-key-unmoved: 357
+boundary-test-imports-reaches: 30
+boundary-test-imports-seconds: 1863
+candidate-1-scope-still: 92
+candidate-2-scope-still: 54
+candidate-3-identity-expiries-still: 2131
+candidate-3-text-still: 66
+candidate-4-identity-expiries-still: 1492
+candidate-4-text-still: 52
+candidate-5-text-still: 72
+candidate-6-scope-still: 54
+candidate-7-text-still: 72
+identities-all-moved: 56
+identities-none-moved: 343
+identities-some-moved: 101
+identity-commit-pairs: 16630
+identity-expiries: 2314
+lane-cuda-ran: 208
+lane-cuda-reach-module: 0
+lane-cuda-reach-own-test: 55
+lane-cuda-reach-prefix: 0
+lane-cuda-reach-production: 149
+lane-cuda-reach-test-import: 4
+lane-cuda-reach-unexplained: 0
+lane-cuda-seconds: 60387
+lane-device-ran: 94
+lane-device-reach-module: 0
+lane-device-reach-own-test: 21
+lane-device-reach-prefix: 6
+lane-device-reach-production: 58
+lane-device-reach-test-import: 9
+lane-device-reach-unexplained: 0
+lane-device-seconds: 13485
+lane-webui-ran: 228
+lane-webui-reach-module: 0
+lane-webui-reach-own-test: 15
+lane-webui-reach-prefix: 27
+lane-webui-reach-production: 169
+lane-webui-reach-test-import: 17
+lane-webui-reach-unexplained: 0
+lane-webui-seconds: 13087
+measured-commits: 500
+scope-moved: 93
+scope-moved-command: 13
+scope-moved-evaluation: 55
+scope-moved-membership: 0
+scope-moved-opener: 2
+scope-moved-several: 23
+scope-unmoved: 407
+seconds-device-admission: 0
+seconds-lane-turn-wait: 3155
+seconds-lanes: 79648
+seconds-other: 17867
+seconds-queue-wait: 88834
+seconds-test: 41139
+seconds-timed-measurement-wait: 2201
+seconds-total: 232844
+side-answer-key-moved: 21
+side-identity-expiries: 530
+side-lane-cuda-ran: 16
+side-lane-device-ran: 10
+side-lane-webui-ran: 20
+side-measured-commits: 54
+side-scope-moved: 10
+side-seconds-total: 64768
+side-slice-measured: 17
+side-surface-moved: 18
+side-text-moved: 18
+side-trigger-moved: 44
+slice-measured: 148
+surface-moved: 52
+text-moved: 72
+text-moved-catalog: 6
+text-moved-executor: 7
+text-moved-membership: 0
+text-moved-runner: 44
+text-moved-several: 15
+text-unmoved: 428
+trigger-moved: 291
+largest-cost: queue-wait
+runs-answer-key-moved: 19
+runs-live-answer-key-moved: 2
+runs-answer-key-still-1: 19
+runs-live-answer-key-still-1: 2
+runs-answer-key-still-2: 18
+runs-live-answer-key-still-2: 2
+runs-answer-key-still-3: 18
+runs-live-answer-key-still-3: 2
+runs-answer-key-still-4: 18
+runs-live-answer-key-still-4: 2
+runs-answer-key-still-2-4: 17
+runs-live-answer-key-still-2-4: 2
+runs-trigger-moved: 28
+runs-live-trigger-moved: 4
+
+== findings ==
+
+What the 500 commits expired.
+Every commit expired the answers of the sessions that keep them under the commit.
+143 commits moved the answer key of a native text evaluation, 72 through T and 93 through E, 22 of them through both.
+Of the 72 moves of T, 44 lay in the runner's own closure, 7 in the executor's closure beyond it, 6 in the catalog's own sources and 15 in several of those.
+Of the 93 moves of E, 55 lay in internal/evaluation, 13 in cmd/evaluate, 2 in internal/modelcli and 23 in several of those.
+56 commits moved every identity, 101 moved some and 343 moved none.
+A commit therefore moves every identity only when it changes the catalog's own sources, the executor's closure, or a package every counted package reaches.
+Of the 56, 28 changed the runner's own closure alone, 7 the executor's alone, 6 the catalog's alone and 15 several of those.
+The 500 commits made 2314 identity expiries of the 16630 an identity and a commit can make together.
+The surface digest moved at 52 commits and the cycle trigger at 291.
+No commit expired a timing or an activation, because neither is kept under a code identity.
+
+What the measurement runs asked again.
+29 measurement runs lie on the line.
+A run asks a native text evaluation's kept cases again when a commit it measured first moved the answer key.
+19 of the 29 runs held such a commit, and 2 of the 5 runs of the live period.
+28 of the 29 runs held a commit that moved the cycle trigger.
+Every run asks again the cases of the sessions that keep answers under the commit.
+Only two evaluators keep an answer at all, the multiple-choice one and the instruction-rules one, and every other suite puts each case to its model at every run.
+
+What the 500 commits reached.
+The device lane ran at 94 commits, the webui lane at 228 and the cuda lane at 208, 530 lane runs in all.
+242 commits ran a lane and 258 ran none.
+The lanes' own seconds were 13485 for device, 13087 for webui and 60387 for cuda.
+406 of the 530 runs were reached through an import, 376 through a production import and 30 through a test import alone.
+91 were reached by a test file of a package the lane owns, 33 by a path under a lane's prefix and none by a module file.
+The store packages reached a lane through production imports every time.
+A stop at internal/overgodb would have cut 15 lane runs and one at internal/runrecord 5, in 9 commits, and all 20 runs were of class i.
+The device lane owns internal/inference, whose production imports reach both packages.
+No store edit reached the device lane through a test helper.
+
+Where the seconds went.
+The 500 commits' lines hold 232844 seconds.
+The wait for another worktree's commit holds 88834 of them, in 44 commits, all since 2026-10-11.
+15 of those 44 commits ran no lane themselves and waited 37807 seconds.
+The lanes hold 79648 seconds, the tests 41139, the other stages 17867, the wait for the host's lane turn 3155 and the wait for a timed measurement 2201.
+The device admission wait rounds to 0 in every row.
+The queue wait and the lane turn wait are both waits for another landing.
+A key cuts none of these seconds, because a key decides what a measurement run asks and not what a commit's checks run.
+A lane boundary cuts the lanes' seconds of the commit it spares, and by estimate the wait of the commits behind it.
+No boundary cuts the tests, which run by the Go tool's own cache.
+
+== candidates ==
+
+What each narrower key would have avoided.
+Candidate 1 leaves E moved at 92 of its 93 commits and candidate 5 leaves T moved at all 72.
+Candidate 7 leaves T moved at all 72.
+Candidate 2 leaves E moved at 54 commits and avoids 39.
+Candidate 3 leaves T moved at 66 commits and avoids 6.
+Candidate 4 leaves T moved at 52 commits and avoids 20.
+The answer key of a native text evaluation moved at 143 commits, and still moves at 142 under candidate 1, 109 under 2, 140 under 3, 129 under 4 and 94 under 2 and 4 together.
+Of the 19 runs that asked again, 18 still do under candidate 2, 18 under 3, 18 under 4, 19 under 1 and 17 under 2 and 4 together.
+Of the 2 such runs of the live period, every candidate leaves 2.
+Candidate 3 applied to every identity leaves 2131 of the 2314 identity expiries.
+An identity's own closure alone, without the catalog and the executor, leaves 1492, and that key is wrong for a capability, which runs through the executor.
+
+What each lane boundary would have cut.
+A boundary that drops reaches through a test import alone cuts 30 lane runs and 1863 lane seconds.
+The packages section lists every package a run was reached through or a stop at which cuts a run.
+Each line gives the package, the runs reached through it, the runs a stop there cuts and the lane seconds of those runs.
+internal/evaluation was on the path of 156 of the 530 runs and internal/trainingworkflow of 96.
+A stop at internal/evaluation cuts the most, 91 runs and 9410 seconds, 45 runs of the webui lane for 2600 seconds and 46 of the cuda lane for 6810.
+A stop at internal/trainingworkflow cuts 52 runs and 3690 seconds.
+The cuts of two packages are not to be added, because one commit may be cut by either.
+
+What each would have wrongly kept.
+judgement-by: the session that wrote this record, from each avoided commit's subject and changed files, and no line of it is a measurement
+judgement-candidate-1: no commit is judged wrongly kept
+A source with the same tokens compiles to the same code.
+The one commit avoided is 242ed2d89, which changed a comment of internal/evaluation/generated_video_local_edit.go.
+judgement-candidate-2: no commit of the 39 is judged wrongly kept
+The 39 changed held-out pools, verdicts and names, the evidence index, the reading of transcription records, and the cases and scorers of suites that keep no answer.
+6 of them changed what a suite's case asks (be649c255, b9710d6a7, 25e357633, ee0609fc3, 8fa1a81dc, 7d8708db4).
+What a kept case gives the model is part of what its answer is kept under, so such a change keys itself.
+The judgement rests on the split read at the range head.
+A function stored in a field by a file outside the 9 and called from inside them would escape the split.
+The one stored function read on that path, a compiled suite's execute, is built in suite.go, inside the 9.
+No exhaustive search for another was made.
+judgement-candidate-3: no commit of the 6 is judged wrongly kept for a text evaluation's answer
+The 6 changed the forms and sources of video and speech capabilities in internal/mediacapability (a61a1aa45, c3a732e47, 92888f3a7, 2988099cb, b6aa2e829, c57f39d15).
+No capability of the catalog is a type of the runner's package, so the catalog binds no text model.
+judgement-candidate-4: no commit of the 14 more is judged wrongly kept for a text evaluation's answer, and the key is wrong for a capability
+The 14 changed the capability executor, the workflow runtime, the operation record, the identity count itself and the place cuDNN is found.
+internal/evaluation links the executor's closure beneath it, in evidence_driver.go, evidence_route.go, production_probe.go and trajectory_supervisor.go.
+None of the 9 files that ask a case imports a package of it.
+A change to the identity count moves the identity it computes by itself.
+judgement-boundaries: no lane run is judged safe to cut by a stop at a whole package
+A reach through a test import is still code the lane's test binary runs, and 27 of the 30 such runs changed a package other than the test helper internal/modeltest.
+Of the 45 webui runs a stop at internal/evaluation cuts, 11 changed evidence_index.go, which internal/server reads to draw the page.
+The trainers the cuda lane runs call internal/evaluation for held-out verdicts and sampled answers.
+The history holds only lane runs that passed, so it cannot show which cut run would have refused a commit.
+
+== definitions ==
+
+What each kind of claim depends on.
+Each line names one dependency, states it, and gives its places after the bar.
+A place is a file, its line at the range head and a name that file holds.
+depends-answer: recipe-and-request execution-identity process-environment model-and-policy asked-content evaluation-scope code-commit sampled-group
+depends-score: kept-answer scorer-and-targets fresh-answer
+depends-timing: measurement-run attempt-window quiet-machine cell-credit
+depends-activation: recipe-definition verified-evidence accepted-decision reproducible-environment servable-artifacts no-code-identity
+dependency-recipe-and-request: a served answer is kept under its recipe definition and the exact request document | internal/capabilityruntime/run_key.go:71#RunKeyOf
+dependency-execution-identity: a served answer and a native text evaluation's answer are kept under the digest of every non-test source and embedded file in the closure of the answering package and of the capability executor, with the catalog's own sources, the kernel sources, the other modules' versions and the build settings | internal/inferencesurface/identity.go:211#identities internal/inferencesurface/identity.go:147#Execution internal/inferencesurface/surface.go:329#reach internal/inferencesurface/surface.go:110#packageFiles internal/capabilityruntime/run_key.go:56#answerScope
+dependency-process-environment: the identity of a process joins the value of each result setting and the place, size and time of each library a loader may take | internal/inferencesurface/identity.go:186#environment internal/inferencesurface/identity.go:93#resultSettings internal/inferencesurface/identity.go:118#libraries
+dependency-model-and-policy: an evaluation's answer is kept under the plan's model definition, runtime recipe, execution policy and environment | internal/evaluation/observation.go:73#observed internal/evaluation/campaign.go:118#Authorities
+dependency-asked-content: an evaluation's answer is kept under what each case gives the model, in the cases' order, and not under what the answer is scored against | internal/evaluation/observation.go:102#loadAnswers internal/evaluation/multiple_choice.go:279#askedChoice internal/evaluation/instruction_rules.go:204#askedInstruction
+dependency-evaluation-scope: a native text session with a reproducible environment keeps its answers under the runner's execution identity and the digest of the own sources of the evaluation binders, in place of the commit | internal/inferencesurface/identity.go:162#Evaluation internal/inferencesurface/identity.go:57#evaluationBinders internal/evaluation/campaign.go:36#AnsweredBy cmd/evaluate/session.go:123#AnsweredBy
+dependency-code-commit: a build that counted no identity, a campaign whose environment is not reproducible, and the hosted, thought-bank, capability-task and projection sessions keep answers under the commit | internal/evaluation/campaign.go:42#answeredBy internal/capabilityruntime/run_key.go:26#codeScope cmd/evaluate/hosted.go:83#NewIsolatedCampaign cmd/evaluate/capability.go:145#NewIsolatedCampaign cmd/evaluate/projection.go:173#NewIsolatedCampaign
+dependency-sampled-group: a sampled draw is kept under its group's weights, tokenizer, prompt, ending ids, limits and sampler settings, and under no code identity | internal/evaluation/sampled_answer.go:91#loadSampled internal/evaluation/sampled_answer.go:83#Identity
+dependency-kept-answer: a multiple-choice or instruction-rules score is read again at every run from the answer the store keeps | internal/evaluation/multiple_choice.go:360#scoreChoice internal/evaluation/instruction_rules.go:356#evaluateInstructionViews
+dependency-scorer-and-targets: a score depends on the plan's scorer and on what the cases are scored against, which are in the plan's identity with the commit and in no answer key | internal/evaluation/plan.go:227#bindPlan internal/evaluation/plan.go:273#Identity internal/evaluation/observation.go:73#observed
+dependency-fresh-answer: every other evaluator keeps no answer, so its score depends on an answer its model gives at that run | internal/evaluation/observation.go:102#loadAnswers internal/evaluation/suite.go:449#executeSuite
+dependency-measurement-run: a timed cell is measured again at every measurement run, whatever the code changed | cmd/validate/run.go:293#measureCell cmd/validate/run.go:330#timedValidation cmd/validate/selection.go:111#SelectValidation
+dependency-attempt-window: a serving timing on the scorecard is the median of the newest 3 measured attempts of its recipe under one environment, so it can rest on attempts earlier code gave | internal/scorecard/scorecard.go:472#recentAttempts internal/scorecard/scorecard.go:553#servingByRecipe internal/scorecard/scorecard.go:502#timed
+dependency-quiet-machine: a timing measured beside other work is set aside, so a cell reads only attempts measured alone on the machine | cmd/validate/run.go:293#measureCell internal/landing/quiet.go:18#holdQuiet
+dependency-cell-credit: a cell a cut-short measurement run acquired is kept for one commit and one store, by the model, the recipe and the files its command is given | cmd/validate/cell_credit.go:36#openCellCredit cmd/validate/cell_credit.go:55#cellKey cmd/validate/cell_credit.go:75#consumedFiles
+dependency-recipe-definition: an activation is an alias from a model and a task to one recipe definition of that model and task | internal/modelrecipe/lifecycle.go:644#ActiveRecord internal/modelrecipe/lifecycle.go:906#activeAlias
+dependency-verified-evidence: an active record is refused unless its evidence verifies the recipe, and an activation is made only from such evidence | internal/modelrecipe/lifecycle.go:644#ActiveRecord internal/modelrecipe/lifecycle.go:437#ActivateVerified
+dependency-accepted-decision: an activation holds a decision that accepts exactly that subject under that verification | internal/modelrecipe/lifecycle.go:701#activationDecisionMatches
+dependency-reproducible-environment: an activation reads as verified only when the environment of its evidence is one the store can reproduce, and as experimental otherwise | internal/modelrecipe/lifecycle.go:644#ActiveRecord internal/runrecord/reproducible.go:10#Reproducible
+dependency-servable-artifacts: a model is served when its active recipe can be trusted and its recorded locations are present on disk | internal/discovery/servable.go:42#Servable
+dependency-no-code-identity: no code identity expires an activation, and every activated cell runs at every measurement run | cmd/validate/selection.go:111#SelectValidation internal/modelrecipe/lifecycle.go:644#ActiveRecord
+
+The keys the figures count.
+key-identity-link: a process holds an identity only when its build was linked with the count, which the release build, the launch of a measurement run and the commands that run starts are | internal/inferencesurface/identity.go:125#LinkFlag cmd/loop/improve.go:490#LinkFlag cmd/release/main.go:161#LinkFlag cmd/validate/run.go:445#linkedRun
+key-store-stop: an identity does not descend into the store and the run records | internal/inferencesurface/surface.go:44#identityAddressed internal/inferencesurface/surface.go:329#reach
+key-cycle-trigger: a commit moves what a measurement run measures when it changes a non-test Go file in the closure of the six commands a run's cells start, a file one of them embeds by name, or a kernel source | cmd/loop/trigger.go:43#touchesSurface cmd/loop/trigger.go:20#surfaceCommands cmd/loop/trigger.go:81#landingsThatMovedTheSurface
+key-lane-reach: a commit reaches a lane by a module file, a path under the lane's prefix, a test file of a package the lane owns, or a path in the test closure of the lane's packages | internal/landing/lanes.go:382#discover internal/landing/lanes.go:57#lanes
+key-scorecard-slice: a commit measures the scorecard slice when it reaches the test closure of cmd/benchmark or changes the slice's document | internal/landing/scorecard.go:39#slice internal/landing/scorecard.go:157#sliceBaseline
+key-surface-label: the surface digest labels a long-form record and one sentence of the page, and no production code compares it | internal/inferencesurface/surface.go:53#Digest internal/longform/surface.go:14#Surface internal/server/hub_workspace.go:220#Surface
+
+The sets the code declares.
+set-surface-roots: ./internal/inference ./internal/cuda/executor ./internal/modelrecipe
+set-surface-kernels: kernels/manifest.json kernels/cuda
+set-identity-addressed: internal/overgodb internal/runrecord
+set-capability-catalog: internal/mediacapability
+set-capability-executor: internal/capabilityruntime
+set-text-runner: internal/inference
+set-evaluation-binders: cmd/evaluate internal/evaluation internal/modelcli
+set-build-settings: GOOS GOARCH GOAMD64 GOARM64 CGO_ENABLED GOEXPERIMENT GOVERSION GOFLAGS
+set-result-settings: CUDA_PATH CUDA_VISIBLE_DEVICES ProgramFiles OVERGO_FFMPEG
+set-libraries: nvcuda.dll cublas64_12.dll cublasLt64_12.dll cudnn64_9.dll cudnn_graph64_9.dll cudnn_ops64_9.dll cudnn_cnn64_9.dll cudnn_engines_precompiled64_9.dll cudnn_heuristic64_9.dll cudnn_engines_runtime_compiled64_9.dll
+
+== closing ==
+
+The largest cost.
+closing-largest-cost: queue-wait
+closing-largest-cost-share: 38.15%
+The wait for another worktree's commit is the largest part of the 232844 seconds.
+No key and no boundary cuts it directly.
+It is the time of the landings ahead, so it falls only as their tests and lanes fall.
+
+The change to a key that avoids the most re-asking.
+closing-key-candidate: 2
+closing-key-candidate-commits-avoided: 34
+closing-key-candidate-runs-avoided: 1
+closing-key-candidate-live-runs-avoided: 0
+closing-key-candidates-2-4-commits-avoided: 49
+closing-key-candidates-2-4-runs-avoided: 2
+Limiting the evaluation scope to the 9 files that ask a case avoids the most of the four candidates the row asked for.
+It keeps the answer key still at 34 of the 143 commits that moved it.
+It spares 1 of the 19 runs that asked again and none of the 2 of the live period.
+A run is the unit that costs, because answers are asked again at a run and not at a commit.
+The runs lie far enough apart that most hold a commit that moves the key under any candidate.
+Its risk is a change outside the 9 files that alters an answer through a stored function, which a file list cannot see.
+Its cost is a typed closure inside the identity count, or a file list kept by hand.
+The figure of 34 is an estimate, because the split is read at the range head.
+closing-key-candidate-row: no, because it spares 1 run of 19 and none of the live period, and its figure is an estimate
+Two causes of re-asking are outside every candidate.
+Every run asks again the kept cases of the sessions that keep answers under the commit.
+Every run asks again the cases of every suite that keeps no answer.
+How many cases those are is in the store and was not read.
+
+The boundary that cuts the most lane time.
+closing-boundary: internal/evaluation
+closing-boundary-lane-runs-cut: 91
+closing-boundary-lane-seconds-cut: 9410
+closing-boundary-share-of-all-seconds: 4.04%
+A stop at internal/evaluation cuts the most lane time of any one package.
+Its 9410 seconds are 10.82% of the lanes' own 86959 seconds and 4.04% of the 232844.
+By estimate it also shortens the queue wait of the commits behind those 91 runs, by an amount the lines do not give.
+A stop at the whole package is not safe, because the page and the trainers run its code.
+The evidence does not show how much a split of the package by what each lane's packages import would cut.
+That split was not measured, and 9410 seconds is its upper bound.
+closing-boundary-row: no, because a stop at the whole package would skip changes the lanes' tests run, and the split that could be safe was not measured
+The evidence supports one more measurement before any row that moves a boundary.
+That measurement is which declarations of internal/evaluation the packages of the webui and cuda lanes use, and which of the 91 runs changed none of them.

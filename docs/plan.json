@@ -184,21 +184,6 @@
       ]
     },
     {
-      "id": "evidence-identity",
-      "title": "Measure what past commits expired and reached before any key or boundary is moved",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "measure",
-          "title": "Classify what past commits expired and reached, and define what each kind of claim depends on",
-          "status": "open",
-          "verify": "go test ./internal/inferencesurface -count=1 -run '^TestSurfaceMoveRecordDefinesClaimDependencies$'",
-          "rationale": "From the proposal; its adoption step is not filed, being a hypothesis until this reports. A model's evidence is keyed by a digest of every source file in the closure of internal/inference, internal/cuda/executor and internal/modelrecipe (61 repository packages under internal/inference, by the proposal). Classify the last 500 commits by their own dependency graphs: which expired evidence a narrower key would have kept, and which reached the longer test runs only through a package a boundary would cut. Read the cost from the commits' own measured lines, which are complete and tracked; the waits file the proposal cites is one checkout's and covers 114 of 166 commits of those days. By the lead's review: on the whole record the largest time was waiting for another checkout's commit, and store edits reach the device runs through a test helper, not through the runner, so say which cost a boundary would cut before one is proposed. Then define what an answer, a score, a timing and an activation each depend on. Counted as existing: the surface already stops at overgodb and runrecord (internal/inferencesurface/surface.go:44), and a kept cell is measured again when a file its command is given changes (78534ee41). If an adoption is filed from this, it carries no deletion or rename with the identity change.\nServes: the loop's pace: evidence is earned again, and a test run reached, only when a result can have changed.\nDisappears: nothing yet.\nEvidence: docs/verification/surface-moves.txt, held by the test.\nBatch: host."
-        }
-      ]
-    },
-    {
       "id": "resume-census",
       "title": "Map the paths that resume or reuse finished work before any is moved",
       "owner": "master-lead",

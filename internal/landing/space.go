@@ -25,19 +25,21 @@ const (
 	// much.
 	largestCheckWrites uint64 = 3_648_241_664
 	// measurementRunWrites is what one full measurement run was measured to
-	// need free, in bytes: the greatest fall of the volume's free space,
+	// need free, in bytes. It is the greatest fall of the volume's free space,
 	// sampled every two seconds, from the start of go run ./cmd/loop -improve
-	// to its end. Measured on 2026-10-12 and 2026-10-13 at commit cc82ed097 on
-	// this machine, over 4 h 49 m: 106 cells acquired again, the scorecard
-	// published, the model tests run, nothing to fill. The fall is a dip and
-	// not growth: free space ended 11,614,150,656 bytes below where it began,
-	// and the dip came in one minute, when the training proof of the 9B model
-	// wrote its checkpoint, about 80 GB, under the temporary directory and
-	// removed it. For the run's first 38 minutes another session compiled and
-	// ran tests, so its writes are inside both figures. Measure again when a
-	// larger model gains a training proof, or when the proof stops writing a
-	// checkpoint it removes: the floor then falls to the run's growth.
-	measurementRunWrites uint64 = 93_108_281_344
+	// to its end. Measured on 2026-10-13 at commit 09746220c on this machine,
+	// over 2 h 26 m, with nothing compiling beside it: 107 cells acquired
+	// again, the scorecard published, the model tests run, nothing to fill.
+	// The fall is a dip and not growth, since free space ended 3,362,746,368
+	// bytes below where it began. The deepest dip came in the model tests,
+	// while the training command's tests ran. The second, 27,256,725,504
+	// bytes, came when the training proof of the 9B model staged its weights.
+	// The sampler was restarted 42 minutes in, after finished experiment
+	// weights were removed, so the figure is the sum of the first part's fall
+	// at its end, 1,074,880,512 bytes, and the second part's greatest fall,
+	// 41,928,511,488 bytes. Measure again when a larger model gains a training
+	// proof, or when a model test writes more under the temporary directory.
+	measurementRunWrites uint64 = 43_003_392_000
 	// freeSpaceFloor is the least free space a commit's checks may start with:
 	// the sum, since a measurement run writes beside commits.
 	freeSpaceFloor = largestCheckWrites + measurementRunWrites

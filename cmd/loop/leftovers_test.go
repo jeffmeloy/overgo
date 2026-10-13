@@ -549,18 +549,22 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 		if entry := entryOf(t, listed, "temporary-build", "temporary/go-build2"); entry.state != stateHeld {
 			t.Fatalf("the folder that holds this command's executable is %s when the process list is unreadable, want held", entry.state)
 		}
-		const sample = "\"System Idle Process\",\"0\",\"Services\",\"0\",\"8 K\"\r\n\"go.exe\",\"4100\",\"Console\",\"1\",\"21,004 K\"\r\n" +
-			"\"GO.EXE\",\"4200\",\"Console\",\"1\",\"19,112 K\"\r\n\"loop.test.exe\",\"4300\",\"Console\",\"1\",\"9,000 K\"\r\n\"gopls.exe\",\"4400\",\"Console\",\"1\",\"9,000 K\"\r\n"
+		sample := []landing.Process{
+			{Name: "System Idle Process"}, {Name: "go.exe", ID: 4100, Parent: 1}, {Name: "GO.EXE", ID: 4200, Parent: 1},
+			{Name: "loop.test.exe", ID: 4300, Parent: 4200}, {Name: "gopls.exe", ID: 4400, Parent: 1},
+		}
 		if got, err := goProcesses(sample, 4100); err != nil || !slices.Equal(got, []string{"GO.EXE", "loop.test.exe"}) {
 			t.Fatalf("the go commands and test binaries beside the parent 4100 are %q (%v), want the second go command and the test binary", got, err)
 		}
-		if got, err := goProcesses("\"go.exe\",\"4100\",\"Console\",\"1\",\"21,004 K\"\r\n", 4100); err != nil || len(got) != 0 {
+		if got, err := goProcesses([]landing.Process{{Name: "go.exe", ID: 4100, Parent: 1}}, 4100); err != nil || len(got) != 0 {
 			t.Fatalf("with only this command's parent running the list is %q (%v), want none", got, err)
 		}
-		for _, unreadable := range []string{"", "\"go.exe\"\r\n", "\"go.exe\",\"41\"00\"\r\n"} {
-			if got, err := goProcesses(unreadable, 4100); err == nil {
-				t.Fatalf("the process list %q read as %q, want it refused: an empty or malformed list says nothing about what runs", unreadable, got)
-			}
+		if got, err := goProcesses(nil, 4100); err == nil {
+			t.Fatalf("a process list that names no process read as %q, want it refused: it says nothing about what runs", got)
+		}
+		// The real list names this test's own process.
+		if listed, err := landing.Processes(); err != nil || !slices.ContainsFunc(listed, func(process landing.Process) bool { return process.ID == os.Getpid() }) {
+			t.Fatalf("the machine's process list (%v) lacks this process %d among its %d", err, os.Getpid(), len(listed))
 		}
 	})
 

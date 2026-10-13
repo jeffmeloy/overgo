@@ -540,7 +540,9 @@ func (summary *servingSummary) cell(source artifact.ID, value float64, unit, met
 // observation a gate result depends on is a validation run's measurement,
 // deliberate interrupts included, not an attempt a user made, and is left
 // out: E4B's media resource proof published 324 deliberate failures under
-// its projection recipe.
+// its projection recipe. An attempt that was measured beside other work,
+// which the record of a contended reading depends on, is left out the same
+// way, so its recipe's cells keep what the earlier attempts gave them.
 func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.ID]*servingSummary, error) {
 	summaries := map[artifact.ID]*servingSummary{}
 	_, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
@@ -549,7 +551,7 @@ func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.I
 		}},
 		Order: overgodb.DocumentNewestFirst,
 	}, runrecord.ParseServingObservation, func(view overgodb.DocumentView, observation runrecord.ServingObservation) error {
-		if validation, err := validationMeasured(ctx, store, view.Content.Descriptor.ID); err != nil || validation {
+		if aside, err := setAside(ctx, store, view.Content.Descriptor.ID); err != nil || aside {
 			return err
 		}
 		summary := summaries[observation.Recipe]
@@ -620,8 +622,10 @@ func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.I
 	return summaries, err
 }
 
-// validationMeasured reports whether a gate result depends on the artifact.
-func validationMeasured(ctx context.Context, store *overgodb.Store, id artifact.ID) (bool, error) {
+// setAside reports whether a record that takes a serving attempt out of the
+// scorecard's reading depends on the artifact. A gate result does, since its
+// run measured the attempt, and so does the record of a contended reading.
+func setAside(ctx context.Context, store *overgodb.Store, id artifact.ID) (bool, error) {
 	children, err := store.Children(ctx, id)
 	if err != nil {
 		return false, err
@@ -634,7 +638,7 @@ func validationMeasured(ctx context.Context, store *overgodb.Store, id artifact.
 		if err != nil {
 			return false, err
 		}
-		if found && child.Schema == runrecord.GateSchema {
+		if found && (child.Schema == runrecord.GateSchema || child.Schema == contendedSchema) {
 			return true, nil
 		}
 	}

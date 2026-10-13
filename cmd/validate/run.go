@@ -22,6 +22,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
 	"overgo/internal/runrecord"
+	"overgo/internal/scorecard"
 	"overgo/internal/testevidence"
 	"overgo/internal/trainingworkflow"
 )
@@ -151,7 +152,22 @@ func runScopeOf(background, cellsOnly, lanesOnly bool) (runScope, error) {
 // runs while no landing does and none starts, and the quality cells and the lanes, whose
 // results are not times, run beside landings. A cell the plan leaves to the
 // operator is named first with its reason, and is not run.
+//
+// A timed cell also reads the machine it runs on. One whose measurement saw
+// other work has the serving attempts it wrote set aside, so the scorecard
+// reads no time from them, and is measured once more after the other cells,
+// when that work may have ended. A cell measured beside other work both times
+// keeps the times the scorecard had for it.
 func executeRun(ctx context.Context, output io.Writer, root, storeRoot string, store *overgodb.Store, plan Plan, scope runScope) error {
+	return executeMeasured(ctx, output, root, storeRoot, store, plan, scope, landing.Measuring)
+}
+
+// timedMeasurement runs one timed cell and returns what it read of the machine,
+// as landing.Measuring does.
+type timedMeasurement func(ctx context.Context, output io.Writer, run func() error) (landing.Reading, error)
+
+// executeMeasured is executeRun with the measurement its timed cells run under.
+func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot string, store *overgodb.Store, plan Plan, scope runScope, measure timedMeasurement) error {
 	for _, sel := range plan.OperatorOwned {
 		fmt.Fprintf(output, "validate -run: %s %s is not run: %s\n", sel.Validation, displayName(sel.ModelValidation), sel.Reason)
 	}
@@ -182,6 +198,8 @@ func executeRun(ctx context.Context, output io.Writer, root, storeRoot string, s
 		}
 	}
 	credit := cycleCellCredit(ctx, root, storeRoot)
+	// again holds the second measurement of each timed cell whose first was taken beside other work.
+	var again []func()
 	for index, sel := range cells {
 		var name string
 		var args, environment []string
@@ -212,17 +230,35 @@ func executeRun(ctx context.Context, output io.Writer, root, storeRoot string, s
 			}
 			return acquire(ctx, output, root, name, args, environment...)
 		}
-		if timedValidation(sel.Validation) {
-			err = landing.Measuring(ctx, output, acquireCell)
-		} else {
-			err = acquireCell()
-		}
-		record(fmt.Sprintf("%s %s", displayName(sel.ModelValidation), sel.Validation), err)
-		if err == nil {
-			if creditErr := credit.add(sel.ModelValidation); creditErr != nil {
-				fmt.Fprintf(output, "validate -run: the cycle's credit for this cell was not kept: %v\n", creditErr)
+		subject := fmt.Sprintf("%s %s", displayName(sel.ModelValidation), sel.Validation)
+		settle := func(err error) {
+			record(subject, err)
+			if err == nil {
+				if creditErr := credit.add(sel.ModelValidation); creditErr != nil {
+					fmt.Fprintf(output, "validate -run: the cycle's credit for this cell was not kept: %v\n", creditErr)
+				}
 			}
 		}
+		if !timedValidation(sel.Validation) {
+			settle(acquireCell())
+			continue
+		}
+		contended, err := measureCell(ctx, output, storeRoot, store, measure, acquireCell)
+		if !contended || err != nil {
+			settle(err)
+			continue
+		}
+		again = append(again, func() {
+			fmt.Fprintf(output, "validate -run again: %s, measured beside other work the first time\n", subject)
+			contended, err := measureCell(ctx, output, storeRoot, store, measure, acquireCell)
+			if contended && err == nil {
+				fmt.Fprintf(output, "validate -run: %s was measured beside other work both times, and the scorecard keeps the times it had\n", subject)
+			}
+			settle(err)
+		})
+	}
+	for _, measureAgain := range again {
+		measureAgain()
 	}
 	for _, suite := range suites {
 		fmt.Fprintf(output, "validate -run cycle lane %s\n", suite.Lane)
@@ -244,6 +280,34 @@ func executeRun(ctx context.Context, output io.Writer, root, storeRoot string, s
 	}
 	fmt.Fprintf(output, "validate -run: re-acquired %d cell(s)\n", acquired)
 	return nil
+}
+
+// measureCell runs one timed cell under measure and reports whether the
+// measurement saw other work on the machine. When it did, the serving
+// attempts the store first held after the cell began are set aside
+// (scorecard.SetAsideContended), so the scorecard reads no time from them.
+// The store is opened for writing only for that. With no store selected
+// nothing is set aside, and the reading is still reported.
+func measureCell(ctx context.Context, output io.Writer, storeRoot string, store *overgodb.Store, measure timedMeasurement, acquireCell func() error) (contended bool, err error) {
+	var before uint64
+	if store != nil {
+		if err := store.Refresh(ctx); err != nil {
+			return false, err
+		}
+		_, before = store.Head()
+	}
+	reading, err := measure(ctx, output, acquireCell)
+	if len(reading.Competing) == 0 || store == nil {
+		return len(reading.Competing) != 0, err
+	}
+	writable, openErr := overgodb.Open(storeRoot)
+	if openErr != nil {
+		return true, errors.Join(err, openErr)
+	}
+	// The attempts are set aside also when the run was cancelled meanwhile: they are in the store.
+	recorded, asideErr := scorecard.SetAsideContended(context.WithoutCancel(ctx), writable, before, reading.Competing)
+	fmt.Fprintf(output, "validate -run: set aside %d serving attempt(s) measured beside %s\n", recorded, strings.Join(reading.Competing, ", "))
+	return true, errors.Join(err, asideErr, writable.Close())
 }
 
 // timedValidation says whether a cell's result is a time the scorecard compares: the

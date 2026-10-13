@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"crypto/sha256"
-	"encoding/csv"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -970,24 +969,19 @@ func localLocations(store *overgodb.Store, page int) (located []artifact.Locatio
 	}
 }
 
-// goProcesses reads the rows tasklist prints, an image name and a process id
-// first, and returns the go commands and test binaries among them but for the
-// process parent: go run is this command's own parent. A list with no row is
-// refused, since this command itself runs.
-func goProcesses(listed string, parent int) (running []string, err error) {
-	rows, err := csv.NewReader(strings.NewReader(listed)).ReadAll()
-	if err == nil && len(rows) == 0 {
-		err = errors.New("tasklist listed no process")
+// goProcesses returns, of the processes that run, the go commands and test
+// binaries but for the process parent: go run is this command's own parent.
+// A list that names no process is refused, since this command itself runs.
+func goProcesses(listed []landing.Process, parent int) (running []string, err error) {
+	if len(listed) == 0 {
+		return nil, errors.New("the process list names no process")
 	}
-	for _, row := range rows {
-		if len(row) <= 1 {
-			return nil, fmt.Errorf("tasklist listed a row with no process id: %q", row)
-		}
-		if name := strings.ToLower(row[0]); (name == "go.exe" || strings.HasSuffix(name, ".test.exe")) && row[1] != fmt.Sprint(parent) {
-			running = append(running, row[0])
+	for _, process := range listed {
+		if name := strings.ToLower(process.Name); (name == "go.exe" || strings.HasSuffix(name, ".test.exe")) && process.ID != parent {
+			running = append(running, process.Name)
 		}
 	}
-	return running, err
+	return running, nil
 }
 
 // leftoversCommand prints the listing, an entry a line of six fields (action,
@@ -1453,7 +1447,7 @@ func realMachine(store string) (h hygiene, err error) {
 	}
 	h.registered = func() ([]string, error) { return storeLocations(roots.Store, registrationPage) }
 	h.processes = func() ([]string, error) {
-		listed, err := readTool(os.Environ(), "tasklist", "/FO", "CSV", "/NH")
+		listed, err := landing.Processes()
 		if err != nil {
 			return nil, err
 		}

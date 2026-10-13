@@ -71,13 +71,6 @@
       },
       "steps": [
         {
-          "id": "served-beside",
-          "title": "Read no timing from a serving attempt that another attempt overlapped in time",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestAnAttemptServedBesideAnotherGivesNoTiming$'",
-          "rationale": "Added by the lead on 2026-10-13, from the open question of step shared-side.\n\nA request to a running server must not wait for a timed measurement, so the server takes no side of the quiet machine. A timed cell measured while the server served a request then reads a time taken beside other work, and neither the process list (a server is no go tool) nor the shared side sees it.\n\nMust hold\n- a request to a running server never waits for a timed measurement\n- a serving attempt that timed its load gives the scorecard no timing when another serving attempt under the same environment ran at the same time (the two intervals, each from its start to its start plus its measured time, overlap)\n- the rule is read at publication from the attempts' own recorded times, so a request that ends after the cell ended is still seen\n- no record is written and no command changes\n\nRead first, before any code\n- which producers publish attempts that overlap their own on purpose (a composite generation's parts, a training session beside its own proof, a resident session's concurrent requests), since those must not set one another aside\n- whether an attempt's start and measured time bound its device work on each producer\n\nNot covered: a server request that loads no model and is short enough to end between two readings of the store is covered by the rule, since its attempt is recorded. Work by a program that records no attempt is not.\n\nServes: first-output, throughput and load-time as readings that can be trusted.\nDisappears: timed readings taken while the server served a request.\nEvidence: two attempts whose times overlap give no timing, and the same two apart in time do.\nBatch: host fixtures in internal/scorecard."
-        },
-        {
           "id": "stages",
           "title": "Record the stages of a first request apart, cold and warm, to the first token a person sees",
           "status": "open",

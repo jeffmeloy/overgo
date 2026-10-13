@@ -21,7 +21,7 @@ const mmluProSuite = "store/mmlu-pro"
 
 // minMMLUProCovered is the floor of servable models that must carry complete
 // MMLU-Pro coverage, so acceptance is never vacuous: the small and mid text
-// models, the operator-owned 27B excluded.
+// models, and since 2026-10-13 the 27B, which carries both readings of this part.
 const minMMLUProCovered = 6
 
 // smokeOraclePath declares, per servable model, the protocol validate -smoke
@@ -44,8 +44,8 @@ type smokeProtocol struct {
 // model with only one protocol is incomplete and fails. A model whose smoke
 // declaration serves its active recipe without the chat template (a base
 // model, Unlimited-OCR) owes the raw-completion anchor alone and is reported,
-// not counted, when that is all it carries. The operator-owned 27B and
-// non-text models carry no MMLU-Pro record and are not required here.
+// not counted, when that is all it carries. A model with no MMLU-Pro record,
+// a non-text model, is not required here.
 func TestAcceptedSmallModelMMLUPro(t *testing.T) {
 	if os.Getenv(dataroot.Env) == "" {
 		testskip.NotApplicable(t, "integration: set OVERGO_DATA_ROOT for MMLU-Pro coverage acceptance")
@@ -96,7 +96,7 @@ func TestAcceptedSmallModelMMLUPro(t *testing.T) {
 			}
 		}
 		if len(protocols) == 0 {
-			continue // no MMLU-Pro record: the operator-owned 27B or a non-text model.
+			continue // no MMLU-Pro record: a non-text model.
 		}
 		// Fail closed: a model is exempt from the chat protocol only by a
 		// declaration that serves it without the template, which binds its
@@ -119,5 +119,5 @@ func TestAcceptedSmallModelMMLUPro(t *testing.T) {
 	if covered < minMMLUProCovered {
 		t.Fatalf("only %d model(s) carry complete MMLU-Pro coverage; want at least %d", covered, minMMLUProCovered)
 	}
-	t.Logf("MMLU-Pro accepted: %d servable models scored on the full %d-case suite under both protocols; 27B operator-owned and excluded", covered, descriptors[mmluProSuite].Cases)
+	t.Logf("MMLU-Pro accepted: %d servable models scored on the full %d-case suite under both protocols", covered, descriptors[mmluProSuite].Cases)
 }

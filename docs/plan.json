@@ -89,13 +89,6 @@
           "status": "open",
           "verify": "go test ./cmd/validate -count=1 -run '^TestCensusAcceptanceIsOneCommand$'",
           "rationale": "Filed by the lead on 2026-10-13; not in the proposal. Accepting a changed capability census is four hand steps, done by hand on 2026-10-12 at the close-out and again at abaeb0b94: publish the census, file a finding that names the base and the new census, close it, and type three identities into cmd/validate/testdata/accepted_census.json. A hand step is a system defect by the owner's rule. One command of cmd/validate does the four, refuses when the census has not changed, and prints what differs so the acceptance is read before it is made.\nServes: change: a census is accepted by one reviewed command.\nDisappears: three identities typed by hand.\nEvidence: the test, over a temporary store.\nBatch: host."
-        },
-        {
-          "id": "coverage-27b",
-          "title": "Settle what the 27B model owes the accepted MMLU-Pro coverage, so the model tests pass",
-          "status": "open",
-          "verify": "OVERGO_STORE_ACCEPTANCE=1 go test -tags modeltest,integration ./cmd/benchmark-report -count=1 -run '^TestAcceptedSmallModelMMLUPro$'",
-          "rationale": "Filed by the lead on 2026-10-13; not in the proposal, and the one failure of the model tests in the full measurement run of that night at cc82ed097: cmd/benchmark-report TestAcceptedSmallModelMMLUPro, \"Qwen3.8-27B-UD-Q6_K.gguf has incomplete MMLU-Pro coverage: 1 protocol(s) map[raw-completion:true], needs both raw and chat\", while the same test's own line says \"27B operator-owned and excluded\". The model gained a raw-completion MMLU-Pro reading in the runs of 2026-10-12 (its headline moved from bbh to mmlu-pro then), and the test now holds it to a pair it also says it is excused from. Measure first which is meant: read the test and the record that excused the model; then either the excuse is applied where the coverage is counted, or the chat-template reading is evaluated, sized to the decision it serves. The check reads the real store and the model tests' tags, so it is run by hand with both set; the lead confirms the form of the check when the step is dispatched.\nServes: failure-rate of the loop itself; held-out-quality as the benchmark report states it.\nDisappears: a model-test failure in every run.\nEvidence: the test against the real store; the next run's model tests.\nBatch: host for a change to the test's rule; device time on the quiet machine if the reading is evaluated."
         }
       ]
     },

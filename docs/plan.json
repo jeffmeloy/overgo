@@ -104,6 +104,10 @@
       "title": "Restore Unlimited-OCR-bf16 inference throughput to 84.5805257 tok/s",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 13,
+        "reason": "measured by the preflight of the fix: decode taken from the moment the prompt was evaluated"
+      },
       "steps": [
         {
           "id": "do",

@@ -72,16 +72,12 @@ func linearForwardTW(worker *device.Worker, x []float32, w linWeight, rows, in, 
 	}
 	c := make([]float32, rows*out)
 	err := withCUDABLAS(worker, func(s *cudaBLAS) error {
-		xPtr, err := s.upload(x)
-		if err != nil {
-			return err
-		}
 		wPtr, err := w.resolve(s, out*in)
 		if err != nil {
 			return err
 		}
-		cPtr, err := s.alloc(len(c))
-		if err != nil {
+		var xPtr, cPtr driver.DevicePtr
+		if err := s.fill([]deviceSlot{{&xPtr, x, 0}, {&cPtr, nil, len(c)}}); err != nil {
 			return err
 		}
 		if err := s.gemm(false, true, rows, in, out, xPtr, wPtr, cPtr); err != nil {
@@ -110,20 +106,12 @@ func linearBackwardTW(worker *device.Worker, x []float32, w linWeight, dY []floa
 	}
 	dX = make([]float32, rows*in)
 	err = withCUDABLAS(worker, func(s *cudaBLAS) error {
-		xPtr, err := s.upload(x)
-		if err != nil {
-			return err
-		}
 		wPtr, err := w.resolve(s, outDim*in)
 		if err != nil {
 			return err
 		}
-		dyPtr, err := s.upload(dY)
-		if err != nil {
-			return err
-		}
-		dxPtr, err := s.alloc(len(dX))
-		if err != nil {
+		var xPtr, dyPtr, dxPtr driver.DevicePtr
+		if err := s.fill([]deviceSlot{{&xPtr, x, 0}, {&dyPtr, dY, 0}, {&dxPtr, nil, len(dX)}}); err != nil {
 			return err
 		}
 		dwPtr, hostGradient, err := w.allocateGradient(s, outDim*in)

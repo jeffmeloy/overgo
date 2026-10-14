@@ -8,6 +8,7 @@ import (
 	"unsafe"
 
 	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/driver"
 )
 
 // RMSNormForward applies affine RMS normalization to x[rows,d]:
@@ -31,16 +32,8 @@ func RMSNormForward(worker *device.Worker, x, weight []float32, rows, d int, eps
 		if err != nil {
 			return err
 		}
-		xPtr, err := scope.upload(x)
-		if err != nil {
-			return err
-		}
-		wPtr, err := scope.upload(weight)
-		if err != nil {
-			return err
-		}
-		outPtr, err := scope.alloc(rows * d)
-		if err != nil {
+		var xPtr, wPtr, outPtr driver.DevicePtr
+		if err := scope.fill([]deviceSlot{{&xPtr, x, 0}, {&wPtr, weight, 0}, {&outPtr, nil, rows * d}}); err != nil {
 			return err
 		}
 		widthU, rowsU, epsF := uint32(d), uint32(rows), float32(eps)
@@ -81,24 +74,8 @@ func RMSNormBackward(worker *device.Worker, x, weight, dY []float32, rows, d int
 		if err != nil {
 			return err
 		}
-		dyPtr, err := scope.upload(dY)
-		if err != nil {
-			return err
-		}
-		xPtr, err := scope.upload(x)
-		if err != nil {
-			return err
-		}
-		wPtr, err := scope.upload(weight)
-		if err != nil {
-			return err
-		}
-		dxPtr, err := scope.alloc(rows * d)
-		if err != nil {
-			return err
-		}
-		dsPtr, err := scope.upload(dscale)
-		if err != nil {
+		var dyPtr, xPtr, wPtr, dxPtr, dsPtr driver.DevicePtr
+		if err := scope.fill([]deviceSlot{{&dyPtr, dY, 0}, {&xPtr, x, 0}, {&wPtr, weight, 0}, {&dxPtr, nil, rows * d}, {&dsPtr, dscale, 0}}); err != nil {
 			return err
 		}
 

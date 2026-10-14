@@ -86,14 +86,7 @@ func NewCausalTrainingSession(
 		if result.ops, err = newLayerOps(session, stackFnNames, dims, invFreq); err != nil {
 			return err
 		}
-		if result.idPtr, err = session.alloc(seq); err != nil {
-			return err
-		}
-		if result.scales, err = session.alloc(seq - 1); err != nil {
-			return err
-		}
-		result.embeds, err = session.alloc(seq * hidden)
-		return err
+		return session.fill([]deviceSlot{{&result.idPtr, nil, seq}, {&result.scales, nil, seq - 1}, {&result.embeds, nil, seq * hidden}})
 	})
 	if err != nil {
 		if result.cuda != nil {
@@ -340,14 +333,10 @@ func (s *cudaBLAS) causalTailBuffers(seq, vocab, hidden int) (*causalTailBuffers
 		return b, nil
 	}
 	b := &causalTailBuffers{seq: seq, vocab: vocab, hidden: hidden}
-	var err error
-	for _, spec := range []struct {
-		pointer *driver.DevicePtr
-		count   int
-	}{{&b.normed, seq * hidden}, {&b.logits, (seq - 1) * vocab}, {&b.losses, seq - 1}, {&b.dNormed, seq * hidden}, {&b.dHidden, seq * hidden}} {
-		if *spec.pointer, err = s.alloc(spec.count); err != nil {
-			return nil, err
-		}
+	if err := s.fill([]deviceSlot{
+		{&b.normed, nil, seq * hidden}, {&b.logits, nil, (seq - 1) * vocab}, {&b.losses, nil, seq - 1}, {&b.dNormed, nil, seq * hidden}, {&b.dHidden, nil, seq * hidden},
+	}); err != nil {
+		return nil, err
 	}
 	s.causalTail = b
 	return b, nil

@@ -28,29 +28,11 @@ func MultiHeadAttentionForwardResident(worker *device.Worker, q, k, v []float32,
 		if err != nil {
 			return err
 		}
-		qP, err := session.upload(qC)
-		if err != nil {
-			return err
-		}
-		kP, err := session.upload(kC)
-		if err != nil {
-			return err
-		}
-		vP, err := session.upload(vC)
-		if err != nil {
-			return err
-		}
-		attnP, err := session.alloc(seq * nh * hd)
-		if err != nil {
-			return err
-		}
 		// Per-head score + softmax scratch, reused each head.
-		scoresP, err := session.alloc(seq * seq)
-		if err != nil {
-			return err
-		}
-		phP, err := session.alloc(seq * seq)
-		if err != nil {
+		var qP, kP, vP, attnP, scoresP, phP driver.DevicePtr
+		if err := session.fill([]deviceSlot{
+			{&qP, qC, 0}, {&kP, kC, 0}, {&vP, vC, 0}, {&attnP, nil, seq * nh * hd}, {&scoresP, nil, seq * seq}, {&phP, nil, seq * seq},
+		}); err != nil {
 			return err
 		}
 

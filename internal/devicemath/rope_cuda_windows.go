@@ -7,6 +7,7 @@ import (
 	"unsafe"
 
 	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/driver"
 )
 
 type ropeHalfDirection uint8
@@ -52,12 +53,8 @@ func applyRoPEHalf(
 		if err != nil {
 			return err
 		}
-		outputPtr, err := scope.upload(output)
-		if err != nil {
-			return err
-		}
-		invPtr, err := scope.upload(invFreq)
-		if err != nil {
+		var outputPtr, invPtr driver.DevicePtr
+		if err := scope.fill([]deviceSlot{{&outputPtr, output, 0}, {&invPtr, invFreq, 0}}); err != nil {
 			return err
 		}
 

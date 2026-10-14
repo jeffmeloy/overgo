@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/driver"
 )
 
 // deviceGEMM computes row-major C[m,n] = op(A)·op(B) in fp32 on the GPU, with
@@ -18,16 +19,8 @@ func deviceGEMM(worker *device.Worker, transA, transB bool, m, k, n int, a, b []
 	}
 	c := make([]float32, m*n)
 	err := withCUDABLAS(worker, func(session *cudaBLAS) error {
-		aPtr, err := session.upload(a)
-		if err != nil {
-			return err
-		}
-		bPtr, err := session.upload(b)
-		if err != nil {
-			return err
-		}
-		cPtr, err := session.alloc(len(c))
-		if err != nil {
+		var aPtr, bPtr, cPtr driver.DevicePtr
+		if err := session.fill([]deviceSlot{{&aPtr, a, 0}, {&bPtr, b, 0}, {&cPtr, nil, len(c)}}); err != nil {
 			return err
 		}
 		if err := session.gemm(transA, transB, m, k, n, aPtr, bPtr, cPtr); err != nil {

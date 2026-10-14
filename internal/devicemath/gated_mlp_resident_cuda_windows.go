@@ -38,24 +38,11 @@ func gatedMLPBackwardTW(worker *device.Worker, x []float32, mw mlpMatW, g, a, u,
 	var dWGate, dWUp, dWDown []float32
 
 	err := withCUDABLAS(worker, func(session *cudaBLAS) error {
-		mulFn, err := session.function("multiply_f32")
-		if err != nil {
-			return err
-		}
-		addFn, err := session.function("add_f32")
-		if err != nil {
-			return err
-		}
-		siluFn, err := session.function("silu_backward_f32")
-		if err != nil {
+		var mulFn, addFn, siluFn driver.Function
+		if err := session.functions([]deviceKernel{{&mulFn, "multiply_f32"}, {&addFn, "add_f32"}, {&siluFn, "silu_backward_f32"}}); err != nil {
 			return err
 		}
 
-		// Resident inputs (uploaded once).
-		hnP, err := session.upload(x)
-		if err != nil {
-			return err
-		}
 		wGateP, err := mw.gate.resolve(session, inter*d)
 		if err != nil {
 			return err
@@ -68,53 +55,13 @@ func gatedMLPBackwardTW(worker *device.Worker, x []float32, mw mlpMatW, g, a, u,
 		if err != nil {
 			return err
 		}
-		gP, err := session.upload(g)
-		if err != nil {
-			return err
-		}
-		aP, err := session.upload(a)
-		if err != nil {
-			return err
-		}
-		uP, err := session.upload(u)
-		if err != nil {
-			return err
-		}
-		hP, err := session.upload(h)
-		if err != nil {
-			return err
-		}
-		dyP, err := session.upload(dY)
-		if err != nil {
-			return err
-		}
-		// Resident intermediates + outputs.
-		dhP, err := session.alloc(rows * inter)
-		if err != nil {
-			return err
-		}
-		daP, err := session.alloc(rows * inter)
-		if err != nil {
-			return err
-		}
-		duP, err := session.alloc(rows * inter)
-		if err != nil {
-			return err
-		}
-		dgP, err := session.alloc(rows * inter)
-		if err != nil {
-			return err
-		}
-		dxGateP, err := session.alloc(rows * d)
-		if err != nil {
-			return err
-		}
-		dxUpP, err := session.alloc(rows * d)
-		if err != nil {
-			return err
-		}
-		dxP, err := session.alloc(rows * d)
-		if err != nil {
+		// Resident inputs (uploaded once), then resident intermediates + outputs.
+		var hnP, gP, aP, uP, hP, dyP, dhP, daP, duP, dgP, dxGateP, dxUpP, dxP driver.DevicePtr
+		if err := session.fill([]deviceSlot{
+			{&hnP, x, 0}, {&gP, g, 0}, {&aP, a, 0}, {&uP, u, 0}, {&hP, h, 0}, {&dyP, dY, 0},
+			{&dhP, nil, rows * inter}, {&daP, nil, rows * inter}, {&duP, nil, rows * inter}, {&dgP, nil, rows * inter},
+			{&dxGateP, nil, rows * d}, {&dxUpP, nil, rows * d}, {&dxP, nil, rows * d},
+		}); err != nil {
 			return err
 		}
 		dwGateP, hostGate, err := mw.gate.allocateGradient(session, inter*d)

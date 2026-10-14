@@ -7,6 +7,7 @@ import (
 	"unsafe"
 
 	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/driver"
 )
 
 // L2NormBackwardDevice is the cgo-free CUDA port of hostmath.L2NormBackward: the
@@ -26,16 +27,8 @@ func L2NormBackwardDevice(worker *device.Worker, x, dY []float32, rows, width in
 		if err != nil {
 			return err
 		}
-		xPtr, err := scope.upload(x)
-		if err != nil {
-			return err
-		}
-		dyPtr, err := scope.upload(dY)
-		if err != nil {
-			return err
-		}
-		dxPtr, err := scope.alloc(rows * width)
-		if err != nil {
+		var xPtr, dyPtr, dxPtr driver.DevicePtr
+		if err := scope.fill([]deviceSlot{{&xPtr, x, 0}, {&dyPtr, dY, 0}, {&dxPtr, nil, rows * width}}); err != nil {
 			return err
 		}
 		widthU, rowsU, epsF := uint32(width), uint32(rows), float32(eps)

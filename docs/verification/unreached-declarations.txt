@@ -156,8 +156,8 @@ reason: It stays, because it reads the unexported madForwardRows and madBackward
 group hybrid-device-resident-lane
 class: prototype
 surface: outside
-declarations: 49
-lines: 2127
+declarations: 48
+lines: 1852
 members: internal/devicemath/gated_delta_mix_cuda_windows.go
 members: internal/devicemath/gated_delta_net_cuda_windows.go
 members: internal/devicemath/gated_mlp_resident_cuda_windows.go

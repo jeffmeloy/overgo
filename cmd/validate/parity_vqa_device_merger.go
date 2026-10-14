@@ -13,7 +13,6 @@ import (
 	"math"
 
 	"overgo/internal/cuda/device"
-	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/patchtower"
 	"overgo/internal/safetensors"
@@ -88,62 +87,15 @@ func runDeviceMerger(l *campaignContext) error {
 	}
 	defer exe.Close()
 
-	var weightPtrs []driver.DevicePtr
-	upload := func(v []float32) (driver.DevicePtr, error) {
-		var ptr driver.DevicePtr
-		err := worker.Do(ctx, func(state *device.State) error {
-			p, e := state.Driver.MemAlloc(uint64(len(v) * 4))
-			if e != nil {
-				return e
-			}
-			if e := state.Driver.MemcpyHtoD(p, driver.Bytes(v)); e != nil {
-				_ = state.Driver.MemFree(p)
-				return e
-			}
-			ptr = p
-			return nil
-		})
-		if err != nil {
-			return 0, err
-		}
-		weightPtrs = append(weightPtrs, ptr)
-		return ptr, nil
-	}
-	defer func() {
-		_ = worker.Do(ctx, func(state *device.State) error {
-			for _, p := range weightPtrs {
-				_ = state.Driver.MemFree(p)
-			}
-			return nil
-		})
-	}()
-
-	deviceFeeds := map[*tensor.Tensor]driver.DevicePtr{}
-	bind := func(node *tensor.Tensor, v []float32) error {
-		p, e := upload(v)
-		if e != nil {
-			return e
-		}
-		deviceFeeds[node] = p
-		return nil
-	}
-	if err := vqaserve.FirstError(
-		bind(g.Proj1W, merger.Proj1Weight), bind(g.Proj1B, merger.Proj1Bias),
-		bind(g.Proj2W, merger.Proj2Weight), bind(g.Proj2B, merger.Proj2Bias),
-		bind(g.Pool0W, merger.Pool0Weight), bind(g.Pool0B, merger.Pool0Bias),
-		bind(g.Pool2W, merger.Pool2Weight), bind(g.Pool2B, merger.Pool2Bias),
-	); err != nil {
+	allocations := device.NewAllocationSet(worker)
+	defer func() { _ = allocations.Close(ctx) }()
+	deviceInputs := compiled.NewDeviceInputs()
+	if err := vqaserve.BindMergerWeights(ctx, &allocations, deviceInputs, g, merger); err != nil {
 		return fmt.Errorf("device merger weight upload: %w", err)
 	}
 	blockShape := tensor.MustShape(uint64(spec.Hidden), uint64(nPatch))
 	hostFeeds := map[*tensor.Tensor]reference.Value{
 		g.BlockLast: {Shape: blockShape, Data: blockLast},
-	}
-	deviceInputs := compiled.NewDeviceInputs()
-	for node, pointer := range deviceFeeds {
-		if err := deviceInputs.Set(node, pointer); err != nil {
-			return err
-		}
 	}
 	outVals, err := exe.ExecuteCompiled(ctx, compiled, hostFeeds, deviceInputs)
 	if err != nil {

@@ -53,45 +53,19 @@ func MultiHeadAttentionBackwardResident(worker *device.Worker, q, k, v, dOut []f
 	dvC := make([]float32, seq*nkv*hd)
 
 	err = withCUDABLAS(worker, func(session *cudaBLAS) error {
-		addFn, err := session.function("add_f32")
-		if err != nil {
-			return err
-		}
-		softmaxFn, err := session.function("softmax_backward_f32")
-		if err != nil {
-			return err
-		}
-		causalSoftmaxFn, err := session.function("causal_softmax_f32")
-		if err != nil {
+		var addFn, softmaxFn, causalSoftmaxFn driver.Function
+		if err := session.functions([]deviceKernel{{&addFn, "add_f32"}, {&softmaxFn, "softmax_backward_f32"}, {&causalSoftmaxFn, "causal_softmax_f32"}}); err != nil {
 			return err
 		}
 
-		qP, err := session.upload(qC)
-		if err != nil {
-			return err
-		}
-		kP, err := session.upload(kC)
-		if err != nil {
-			return err
-		}
-		vP, err := session.upload(vC)
-		if err != nil {
-			return err
-		}
-		dOutP, err := session.upload(dOutC)
-		if err != nil {
-			return err
-		}
-		dqP, err := session.alloc(seq * nh * hd)
-		if err != nil {
-			return err
-		}
-		dkP, err := session.alloc(seq * nkv * hd)
-		if err != nil {
-			return err
-		}
-		dvP, err := session.alloc(seq * nkv * hd)
-		if err != nil {
+		// Per-head score + softmax scratch (reused each head): scores = qh·khᵀ,
+		// then causal_softmax -> phP (device p, no host [nh,seq,seq] upload).
+		var qP, kP, vP, dOutP, dqP, dkP, dvP, dpP, dsP, scoresP, phP, tmpP driver.DevicePtr
+		if err := session.fill([]deviceSlot{
+			{&qP, qC, 0}, {&kP, kC, 0}, {&vP, vC, 0}, {&dOutP, dOutC, 0},
+			{&dqP, nil, seq * nh * hd}, {&dkP, nil, seq * nkv * hd}, {&dvP, nil, seq * nkv * hd},
+			{&dpP, nil, seq * seq}, {&dsP, nil, seq * seq}, {&scoresP, nil, seq * seq}, {&phP, nil, seq * seq}, {&tmpP, nil, seq * hd},
+		}); err != nil {
 			return err
 		}
 		// dk/dv accumulate across the group -> zero first.
@@ -99,28 +73,6 @@ func MultiHeadAttentionBackwardResident(worker *device.Worker, q, k, v, dOut []f
 			return err
 		}
 		if err := session.state.Driver.MemsetD32Async(dvP, 0, uint64(seq*nh*hd/group), session.state.Stream); err != nil {
-			return err
-		}
-		dpP, err := session.alloc(seq * seq)
-		if err != nil {
-			return err
-		}
-		dsP, err := session.alloc(seq * seq)
-		if err != nil {
-			return err
-		}
-		// Per-head score + softmax scratch (reused each head): scores = qh·khᵀ,
-		// then causal_softmax -> phP (device p, no host [nh,seq,seq] upload).
-		scoresP, err := session.alloc(seq * seq)
-		if err != nil {
-			return err
-		}
-		phP, err := session.alloc(seq * seq)
-		if err != nil {
-			return err
-		}
-		tmpP, err := session.alloc(seq * hd)
-		if err != nil {
 			return err
 		}
 

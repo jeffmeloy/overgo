@@ -199,68 +199,16 @@ func runDeviceDecode(l *campaignContext) error {
 	defer exe.Close()
 
 	// ---- upload BF16/F32 weights as persistent device feeds -----------------
-	var weightPtrs []driver.DevicePtr
-	upload := func(b []byte) (driver.DevicePtr, error) {
-		var ptr driver.DevicePtr
-		err := worker.Do(ctx, func(state *device.State) error {
-			p, e := state.Driver.MemAlloc(uint64(len(b)))
-			if e != nil {
-				return e
-			}
-			if e := state.Driver.MemcpyHtoD(p, b); e != nil {
-				_ = state.Driver.MemFree(p)
-				return e
-			}
-			ptr = p
-			return nil
-		})
-		if err != nil {
-			return 0, err
-		}
-		weightPtrs = append(weightPtrs, ptr)
-		return ptr, nil
-	}
-	defer func() {
-		_ = worker.Do(ctx, func(state *device.State) error {
-			for _, p := range weightPtrs {
-				_ = state.Driver.MemFree(p)
-			}
-			return nil
-		})
-	}()
-
-	deviceFeeds := map[*tensor.Tensor]driver.DevicePtr{}
-	bindMat := func(node *tensor.Tensor, m routedlm.BF16Matrix) error {
-		p, e := upload(driver.Bytes(m.Data))
-		if e != nil {
-			return e
-		}
-		deviceFeeds[node] = p
-		return nil
-	}
-	bindVec := func(node *tensor.Tensor, v []float32) error {
-		p, e := upload(driver.Bytes(v))
-		if e != nil {
-			return e
-		}
-		deviceFeeds[node] = p
-		return nil
-	}
+	allocations := device.NewAllocationSet(worker)
+	defer func() { _ = allocations.Close(ctx) }()
+	deviceInputs := compiled.NewDeviceInputs()
 	for layer := 0; layer < cfg.NumHiddenLayers; layer++ {
-		w := h.weights[layer]
-		in := g.Inputs[layer]
-		if err := vqaserve.FirstError(
-			bindVec(in.InputNorm, w.InputNorm.Text),
-			bindMat(in.Q, w.QKV.QText), bindMat(in.K, w.QKV.KText), bindMat(in.V, w.QKV.VText), bindMat(in.O, w.QKV.OText),
-			bindVec(in.QNorm, w.QKV.QNorm[0]), bindVec(in.KNorm, w.QKV.KNorm[0]),
-			bindVec(in.PostNorm, w.Output.PostText),
-			bindMat(in.Gate, w.Output.GateText), bindMat(in.Up, w.Output.UpText), bindMat(in.Down, w.Output.DownText),
-		); err != nil {
+		if err := vqaserve.BindDecodeLayer(ctx, &allocations, deviceInputs, g.Inputs[layer], h.weights[layer]); err != nil {
 			return fmt.Errorf("device decode weight upload layer %d: %w", layer, err)
 		}
 	}
 	// terminal: final norm (F32) + head (native BF16).
-	if err := bindVec(g.FinalNorm, h.terminal.FinalNorm[tensor.FirstOffset]); err != nil {
+	if err := vqaserve.BindFeed(ctx, &allocations, deviceInputs, g.FinalNorm, driver.Bytes(h.terminal.FinalNorm[tensor.FirstOffset])); err != nil {
 		return err
 	}
 	if h.terminal.Head.DType != "BF16" {
@@ -270,10 +218,8 @@ func runDeviceDecode(l *campaignContext) error {
 	if _, err := h.terminal.Head.ReadAt(headBytes, tensor.FirstOffset); err != nil {
 		return fmt.Errorf("device decode: head read: %w", err)
 	}
-	if p, e := upload(headBytes); e != nil {
-		return e
-	} else {
-		deviceFeeds[g.Head] = p
+	if err := vqaserve.BindFeed(ctx, &allocations, deviceInputs, g.Head, headBytes); err != nil {
+		return err
 	}
 
 	// ---- device-resident KV: capacity buffers seeded with the prompt K/V -----
@@ -310,8 +256,9 @@ func runDeviceDecode(l *campaignContext) error {
 			return fmt.Errorf("device decode kv seed layer %d: %w", layer, e)
 		}
 		caches[layer] = kv
-		deviceFeeds[g.Inputs[layer].PastKey] = kv.KeyV.Pointer
-		deviceFeeds[g.Inputs[layer].PastValue] = kv.ValueV.Pointer
+		if e := vqaserve.FirstError(deviceInputs.Set(g.Inputs[layer].PastKey, kv.KeyV.Pointer), deviceInputs.Set(g.Inputs[layer].PastValue, kv.ValueV.Pointer)); e != nil {
+			return fmt.Errorf("device decode kv input layer %d: %w", layer, e)
+		}
 		if e := targets.Set(g.Nodes[layer].KeyAppend, kv.KeyV); e != nil {
 			return fmt.Errorf("device decode kv key target layer %d: %w", layer, e)
 		}
@@ -329,12 +276,6 @@ func runDeviceDecode(l *campaignContext) error {
 			}
 		}
 	}()
-	deviceInputs := compiled.NewDeviceInputs()
-	for node, pointer := range deviceFeeds {
-		if err := deviceInputs.Set(node, pointer); err != nil {
-			return err
-		}
-	}
 	l.Log(fmt.Sprintf("DEVICE decode residency kv_capacity_bytes=%d/layer", kvBytes))
 
 	// ---- per-step runtime attribute updater --------------------------------

@@ -7,6 +7,7 @@ import (
 	"unsafe"
 
 	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/driver"
 )
 
 // ShortConvBackwardDevice is the cgo-free CUDA port of hostmath.ShortConvBackward:
@@ -41,36 +42,11 @@ func ShortConvBackwardDevice(worker *device.Worker, x, dY []float32, channels, t
 		if err != nil {
 			return err
 		}
-		xPtr, err := scope.upload(x)
-		if err != nil {
-			return err
-		}
-		dyPtr, err := scope.upload(dY)
-		if err != nil {
-			return err
-		}
-		wPtr, err := scope.upload(w)
-		if err != nil {
-			return err
-		}
-		bPtr, err := scope.upload(biasUpload)
-		if err != nil {
-			return err
-		}
-		dxPtr, err := scope.alloc(channels * tokens)
-		if err != nil {
-			return err
-		}
-		dwPtr, err := scope.alloc(channels * k)
-		if err != nil {
-			return err
-		}
-		dbPtr, err := scope.alloc(channels)
-		if err != nil {
-			return err
-		}
-		scratchPtr, err := scope.allocRaw(uint64(channels) * uint64(tokens) * doubleBytes)
-		if err != nil {
+		var xPtr, dyPtr, wPtr, bPtr, dxPtr, dwPtr, dbPtr, scratchPtr driver.DevicePtr
+		if err := scope.fill([]deviceSlot{
+			{&xPtr, x, 0}, {&dyPtr, dY, 0}, {&wPtr, w, 0}, {&bPtr, biasUpload, 0},
+			{&dxPtr, nil, channels * tokens}, {&dwPtr, nil, channels * k}, {&dbPtr, nil, channels}, {&scratchPtr, nil, channels * tokens * float64Words},
+		}); err != nil {
 			return err
 		}
 		chU, tU, kU := uint32(channels), uint32(tokens), uint32(k)

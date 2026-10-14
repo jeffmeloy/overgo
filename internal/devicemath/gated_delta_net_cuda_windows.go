@@ -3,7 +3,6 @@
 package devicemath
 
 import (
-	"errors"
 	"fmt"
 	"unsafe"
 
@@ -11,21 +10,11 @@ import (
 	"overgo/internal/cuda/driver"
 )
 
-const doubleBytes = uint64(8)
-
-// allocRaw allocates an untyped device buffer of the given byte length and
-// registers it for scope cleanup. Used for the f64 scratch the GDN backward
-// carries between its forward-recompute and reverse passes.
-func (s *cudaScope) allocRaw(bytes uint64) (driver.DevicePtr, error) {
-	if bytes == 0 {
-		return 0, errors.New("CUDA raw allocation size must be positive")
-	}
-	pointer, err := s.state.Driver.MemAlloc(bytes)
-	if err == nil {
-		s.allocations = append(s.allocations, pointer)
-	}
-	return pointer, err
-}
+// float64Words is how many float32 words of a scope buffer hold one float64 scratch value.
+//   - source = the sizes of float64 and float32
+//   - scope = the float64 scratch of the gated delta-net and short-convolution backward kernels
+//   - reconsider when the scope gains a buffer typed by its element
+const float64Words = int(unsafe.Sizeof(float64(0)) / unsafe.Sizeof(float32(0)))
 
 // GatedDeltaNetBackwardDevice is the cgo-free CUDA port of
 // hostmath.GatedDeltaNetBackward: the BPTT VJP of the gated delta-net recurrence.
@@ -68,73 +57,19 @@ func GatedDeltaNetBackwardDevice(
 	dInputState = make([]float32, wantState)
 
 	count := heads * sequences
-	safterElems := uint64(count) * uint64(size) * uint64(tokens) * uint64(size)
-	dsCarryElems := uint64(count) * uint64(size) * uint64(size)
 
 	err = withCUDA(worker, func(scope *cudaScope) error {
 		fn, err := scope.function("gated_delta_net_backward_f32")
 		if err != nil {
 			return err
 		}
-		qP, err := scope.upload(query)
-		if err != nil {
-			return err
-		}
-		kP, err := scope.upload(key)
-		if err != nil {
-			return err
-		}
-		vP, err := scope.upload(value)
-		if err != nil {
-			return err
-		}
-		gP, err := scope.upload(gate)
-		if err != nil {
-			return err
-		}
-		bP, err := scope.upload(beta)
-		if err != nil {
-			return err
-		}
-		sP, err := scope.upload(inputState)
-		if err != nil {
-			return err
-		}
-		doP, err := scope.upload(dOutput)
-		if err != nil {
-			return err
-		}
 		// Outputs zero-initialized: uploading zeroed Go slices both allocs and clears.
-		dqP, err := scope.upload(dQuery)
-		if err != nil {
-			return err
-		}
-		dkP, err := scope.upload(dKey)
-		if err != nil {
-			return err
-		}
-		dvP, err := scope.upload(dValue)
-		if err != nil {
-			return err
-		}
-		dgP, err := scope.upload(dGate)
-		if err != nil {
-			return err
-		}
-		dbP, err := scope.upload(dBeta)
-		if err != nil {
-			return err
-		}
-		disP, err := scope.upload(dInputState)
-		if err != nil {
-			return err
-		}
-		safterP, err := scope.allocRaw(safterElems * doubleBytes)
-		if err != nil {
-			return err
-		}
-		dsCarryP, err := scope.allocRaw(dsCarryElems * doubleBytes)
-		if err != nil {
+		var qP, kP, vP, gP, bP, sP, doP, dqP, dkP, dvP, dgP, dbP, disP, safterP, dsCarryP driver.DevicePtr
+		if err := scope.fill([]deviceSlot{
+			{&qP, query, 0}, {&kP, key, 0}, {&vP, value, 0}, {&gP, gate, 0}, {&bP, beta, 0}, {&sP, inputState, 0}, {&doP, dOutput, 0},
+			{&dqP, dQuery, 0}, {&dkP, dKey, 0}, {&dvP, dValue, 0}, {&dgP, dGate, 0}, {&dbP, dBeta, 0}, {&disP, dInputState, 0},
+			{&safterP, nil, count * size * tokens * size * float64Words}, {&dsCarryP, nil, count * size * size * float64Words},
+		}); err != nil {
 			return err
 		}
 

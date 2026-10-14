@@ -8,6 +8,7 @@ import (
 	"unsafe"
 
 	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/driver"
 )
 
 // SiLUGateForward computes the SwiGLU activation forward on the GPU, returning
@@ -25,28 +26,12 @@ func SiLUGateForward(worker *device.Worker, gate, up []float32) (a, hMLP []float
 	a = make([]float32, n)
 	hMLP = make([]float32, n)
 	err = withCUDA(worker, func(scope *cudaScope) error {
-		siluFn, err := scope.function("silu_f32")
-		if err != nil {
+		var siluFn, mulFn driver.Function
+		if err := scope.functions([]deviceKernel{{&siluFn, "silu_f32"}, {&mulFn, "multiply_f32"}}); err != nil {
 			return err
 		}
-		mulFn, err := scope.function("multiply_f32")
-		if err != nil {
-			return err
-		}
-		gatePtr, err := scope.upload(gate)
-		if err != nil {
-			return err
-		}
-		upPtr, err := scope.upload(up)
-		if err != nil {
-			return err
-		}
-		aPtr, err := scope.alloc(n)
-		if err != nil {
-			return err
-		}
-		hPtr, err := scope.alloc(n)
-		if err != nil {
+		var gatePtr, upPtr, aPtr, hPtr driver.DevicePtr
+		if err := scope.fill([]deviceSlot{{&gatePtr, gate, 0}, {&upPtr, up, 0}, {&aPtr, nil, n}, {&hPtr, nil, n}}); err != nil {
 			return err
 		}
 		count := uint32(n)

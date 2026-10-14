@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"overgo/internal/cuda/device"
-	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/patchtower"
 	"overgo/internal/routedlm"
@@ -147,20 +146,14 @@ func runDevicePrefill(l *campaignContext) error {
 				return err
 			}
 		}
-		feeds := map[*tensor.Tensor]driver.DevicePtr{}
-		if err := vqaserve.BindLayerBranches(ctx, &allocations, feeds, g.Text, g.Vision, w); err != nil {
+		inputs := compiled.NewDeviceInputs()
+		if err := vqaserve.BindLayerBranches(ctx, &allocations, inputs, g.Text, g.Vision, w); err != nil {
 			return err
 		}
 		hostFeeds := map[*tensor.Tensor]reference.Value{
 			g.Row:      {Shape: rowShape, Data: input},
 			g.MaskText: {Shape: maskShape, Data: pc.MaskText},
 			g.MaskVis:  {Shape: maskShape, Data: pc.MaskVis},
-		}
-		inputs := compiled.NewDeviceInputs()
-		for node, pointer := range feeds {
-			if err := inputs.Set(node, pointer); err != nil {
-				return err
-			}
 		}
 		out, err := exe.ExecuteCompiled(ctx, compiled, hostFeeds, inputs)
 		if err != nil {
@@ -219,20 +212,14 @@ func runDevicePrefill(l *campaignContext) error {
 		if err != nil {
 			return err
 		}
-		feeds := map[*tensor.Tensor]driver.DevicePtr{}
-		if err := vqaserve.BindLayerBranches(ctx, &allocations, feeds, g.Text, g.Vision, w); err != nil {
+		inputs := compiled.NewDeviceInputs()
+		if err := vqaserve.BindLayerBranches(ctx, &allocations, inputs, g.Text, g.Vision, w); err != nil {
 			return err
 		}
 		hostFeeds := map[*tensor.Tensor]reference.Value{
 			g.Row:      {Shape: rowShape, Data: row},
 			g.MaskText: {Shape: maskShape, Data: pc.MaskText},
 			g.MaskVis:  {Shape: maskShape, Data: pc.MaskVis},
-		}
-		inputs := compiled.NewDeviceInputs()
-		for node, pointer := range feeds {
-			if err := inputs.Set(node, pointer); err != nil {
-				return err
-			}
 		}
 		out, err := exe.ExecuteCompiled(ctx, compiled, hostFeeds, inputs)
 		if err != nil {

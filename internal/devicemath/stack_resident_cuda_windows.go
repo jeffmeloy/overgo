@@ -50,10 +50,7 @@ func (o *layerOps) runStackDevice(input driver.DevicePtr, wp []layerWeightPtrs, 
 			if o.stack.cp[i], err = allocLayerCache(o.s.cudaScope, d); err != nil {
 				return 0, err
 			}
-			if o.stack.xIn[i+1], err = o.s.alloc(seqHidden); err != nil {
-				return 0, err
-			}
-			if o.stack.dX[i], err = o.s.alloc(seqHidden); err != nil {
+			if err = o.s.fill([]deviceSlot{{&o.stack.xIn[i+1], nil, seqHidden}, {&o.stack.dX[i], nil, seqHidden}}); err != nil {
 				return 0, err
 			}
 		}

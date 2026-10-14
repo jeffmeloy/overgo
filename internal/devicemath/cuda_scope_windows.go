@@ -229,6 +229,49 @@ func (s *cudaScope) upload(data []float32) (driver.DevicePtr, error) {
 	return pointer, s.state.Driver.MemcpyHtoD(pointer, driver.Bytes(data))
 }
 
+// deviceSlot is one scope-owned buffer that fill takes and writes the pointer of.
+//   - data != nil => the buffer holds a copy of data
+//   - data = nil => the buffer holds count float32 words, unwritten
+type deviceSlot struct {
+	pointer *driver.DevicePtr
+	data    []float32
+	count   int
+}
+
+// fill takes each slot's buffer in order and stops at the first failure.
+//   - a buffer taken before a failure stays the scope's, which frees it on close.
+func (s *cudaScope) fill(slots []deviceSlot) error {
+	for _, slot := range slots {
+		var err error
+		if slot.data != nil {
+			*slot.pointer, err = s.upload(slot.data)
+		} else {
+			*slot.pointer, err = s.alloc(slot.count)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// deviceKernel is one kernel of the scope's module that functions loads and writes the handle of.
+type deviceKernel struct {
+	function *driver.Function
+	name     string
+}
+
+// functions loads each kernel in order and stops at the first failure.
+func (s *cudaScope) functions(kernels []deviceKernel) error {
+	for _, kernel := range kernels {
+		var err error
+		if *kernel.function, err = s.function(kernel.name); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *cudaScope) download(data []float32, pointer driver.DevicePtr) error {
 	return s.state.Driver.MemcpyDtoH(driver.Bytes(data), pointer)
 }

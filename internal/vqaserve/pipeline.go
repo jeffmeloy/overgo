@@ -62,6 +62,51 @@ func FirstError(errs ...error) error {
 	return nil
 }
 
+// BindFeed uploads payload to a buffer the allocation set owns and binds that buffer to node in inputs.
+//   - the buffer lives until the allocation set closes
+//   - a failed upload or a node the graph did not compile is returned, and inputs stays unchanged.
+func BindFeed(ctx context.Context, allocations *device.AllocationSet, inputs *executor.DeviceInputs, node *tensor.Tensor, payload []byte) error {
+	pointer, err := allocations.Upload(ctx, payload)
+	if err != nil {
+		return err
+	}
+	return inputs.Set(node, pointer)
+}
+
+// BindMergerWeights binds each merger weight to its input of the merger graph by BindFeed.
+func BindMergerWeights(ctx context.Context, allocations *device.AllocationSet, inputs *executor.DeviceInputs, g *patchtower.DeviceMergerGraph, w patchtower.MergerWeights) error {
+	f32 := func(node *tensor.Tensor, v []float32) error {
+		return BindFeed(ctx, allocations, inputs, node, driver.Bytes(v))
+	}
+	return FirstError(
+		f32(g.Proj1W, w.Proj1Weight), f32(g.Proj1B, w.Proj1Bias), f32(g.Proj2W, w.Proj2Weight), f32(g.Proj2B, w.Proj2Bias),
+		f32(g.Pool0W, w.Pool0Weight), f32(g.Pool0B, w.Pool0Bias), f32(g.Pool2W, w.Pool2Weight), f32(g.Pool2B, w.Pool2Bias),
+	)
+}
+
+// BindVisionBlock binds each weight of one vision block to its input of the vision graph by BindFeed.
+func BindVisionBlock(ctx context.Context, allocations *device.AllocationSet, inputs *executor.DeviceInputs, in patchtower.DeviceBlockInputs, w patchtower.BlockWeights) error {
+	f32 := func(node *tensor.Tensor, v []float32) error {
+		return BindFeed(ctx, allocations, inputs, node, driver.Bytes(v))
+	}
+	return FirstError(
+		f32(in.Norm1W, w.Norm1Weight), f32(in.Norm1B, w.Norm1Bias), f32(in.QKVW, w.QKVWeight), f32(in.QKVB, w.QKVBias),
+		f32(in.ProjW, w.ProjWeight), f32(in.ProjB, w.ProjBias), f32(in.Norm2W, w.Norm2Weight), f32(in.Norm2B, w.Norm2Bias),
+		f32(in.FC1W, w.FC1Weight), f32(in.FC1B, w.FC1Bias), f32(in.FC2W, w.FC2Weight), f32(in.FC2B, w.FC2Bias),
+	)
+}
+
+// BindDecodeLayer binds each text-branch weight of one layer to its input of the decode graph by BindFeed.
+//   - decode runs the text branch alone
+//   - the layer's cache inputs are the caller's to bind, because the caller owns the caches.
+func BindDecodeLayer(ctx context.Context, allocations *device.AllocationSet, inputs *executor.DeviceInputs, in routedlm.DeviceLayerInputs, w routedlm.LayerWeights) error {
+	return BindPrefillBranch(ctx, allocations, inputs, routedlm.DevicePrefillBranch{
+		InputNorm: in.InputNorm, Q: in.Q, K: in.K, V: in.V, O: in.O, QNorm: in.QNorm, KNorm: in.KNorm,
+		PostNorm: in.PostNorm, Gate: in.Gate, Up: in.Up, Down: in.Down,
+	}, w.InputNorm.Text, w.QKV.QText, w.QKV.KText, w.QKV.VText, w.QKV.OText,
+		w.QKV.QNorm[0], w.QKV.KNorm[0], w.Output.PostText, w.Output.GateText, w.Output.UpText, w.Output.DownText)
+}
+
 // ArgmaxF32 returns the index of the largest value, -1 for an empty slice.
 func ArgmaxF32(v []float32) int {
 	best, bestI := float32(math.Inf(-1)), -1
@@ -175,37 +220,13 @@ func RunPipeline(
 
 	decodeAllocations := device.NewAllocationSet(worker)
 	defer func() { _ = decodeAllocations.Close(ctx) }()
-	deviceFeeds := map[*tensor.Tensor]driver.DevicePtr{}
-	bindVec := func(node *tensor.Tensor, v []float32) error {
-		p, e := decodeAllocations.Upload(ctx, driver.Bytes(v))
-		if e != nil {
-			return e
-		}
-		deviceFeeds[node] = p
-		return nil
-	}
-	bindMat := func(node *tensor.Tensor, m routedlm.BF16Matrix) error {
-		p, e := decodeAllocations.Upload(ctx, driver.Bytes(m.Data))
-		if e != nil {
-			return e
-		}
-		deviceFeeds[node] = p
-		return nil
-	}
+	deviceInputs := dCompiled.NewDeviceInputs()
 	for layer := range cfg.NumHiddenLayers {
-		w := weights[layer]
-		in := dgraph.Inputs[layer]
-		if err := FirstError(
-			bindVec(in.InputNorm, w.InputNorm.Text),
-			bindMat(in.Q, w.QKV.QText), bindMat(in.K, w.QKV.KText), bindMat(in.V, w.QKV.VText), bindMat(in.O, w.QKV.OText),
-			bindVec(in.QNorm, w.QKV.QNorm[0]), bindVec(in.KNorm, w.QKV.KNorm[0]),
-			bindVec(in.PostNorm, w.Output.PostText),
-			bindMat(in.Gate, w.Output.GateText), bindMat(in.Up, w.Output.UpText), bindMat(in.Down, w.Output.DownText),
-		); err != nil {
+		if err := BindDecodeLayer(ctx, &decodeAllocations, deviceInputs, dgraph.Inputs[layer], weights[layer]); err != nil {
 			return res, fmt.Errorf("device full decode weight upload layer %d: %w", layer, err)
 		}
 	}
-	if err := bindVec(dgraph.FinalNorm, terminal.FinalNorm[tensor.FirstOffset]); err != nil {
+	if err := BindFeed(ctx, &decodeAllocations, deviceInputs, dgraph.FinalNorm, driver.Bytes(terminal.FinalNorm[tensor.FirstOffset])); err != nil {
 		return res, err
 	}
 	if terminal.Head.DType != "BF16" {
@@ -215,11 +236,9 @@ func RunPipeline(
 	if _, err := terminal.Head.ReadAt(headBytes, tensor.FirstOffset); err != nil {
 		return res, fmt.Errorf("device full: head read: %w", err)
 	}
-	head, err := decodeAllocations.Upload(ctx, headBytes)
-	if err != nil {
+	if err := BindFeed(ctx, &decodeAllocations, deviceInputs, dgraph.Head, headBytes); err != nil {
 		return res, err
 	}
-	deviceFeeds[dgraph.Head] = head
 
 	// device-resident KV capacity buffers seeded from the device prefill K/V.
 	kvShape := tensor.MustShape(uint64(hd), uint64(kvHeads), uint64(capacity))
@@ -261,19 +280,11 @@ func RunPipeline(
 			return res, fmt.Errorf("device full kv seed layer %d: %w", layer, e)
 		}
 		caches[layer] = kv
-		deviceFeeds[dgraph.Inputs[layer].PastKey] = kv.KeyV.Pointer
-		deviceFeeds[dgraph.Inputs[layer].PastValue] = kv.ValueV.Pointer
-		if e := targets.Set(dgraph.Nodes[layer].KeyAppend, kv.KeyV); e != nil {
+		if e := FirstError(
+			deviceInputs.Set(dgraph.Inputs[layer].PastKey, kv.KeyV.Pointer), deviceInputs.Set(dgraph.Inputs[layer].PastValue, kv.ValueV.Pointer),
+			targets.Set(dgraph.Nodes[layer].KeyAppend, kv.KeyV), targets.Set(dgraph.Nodes[layer].ValueAppend, kv.ValueV),
+		); e != nil {
 			return res, e
-		}
-		if e := targets.Set(dgraph.Nodes[layer].ValueAppend, kv.ValueV); e != nil {
-			return res, e
-		}
-	}
-	deviceInputs := dCompiled.NewDeviceInputs()
-	for node, pointer := range deviceFeeds {
-		if err := deviceInputs.Set(node, pointer); err != nil {
-			return res, err
 		}
 	}
 	attrs := dCompiled.NewRuntimeAttributes()
@@ -380,23 +391,12 @@ func runMerger(
 	if err != nil {
 		return nil, fmt.Errorf("device full merger compile: %w", err)
 	}
-	mgFeeds := map[*tensor.Tensor]driver.DevicePtr{}
-	if err := FirstError(
-		bindMergerV(ctx, allocations, mgFeeds, mg.Proj1W, pc.Merger.Proj1Weight), bindMergerV(ctx, allocations, mgFeeds, mg.Proj1B, pc.Merger.Proj1Bias),
-		bindMergerV(ctx, allocations, mgFeeds, mg.Proj2W, pc.Merger.Proj2Weight), bindMergerV(ctx, allocations, mgFeeds, mg.Proj2B, pc.Merger.Proj2Bias),
-		bindMergerV(ctx, allocations, mgFeeds, mg.Pool0W, pc.Merger.Pool0Weight), bindMergerV(ctx, allocations, mgFeeds, mg.Pool0B, pc.Merger.Pool0Bias),
-		bindMergerV(ctx, allocations, mgFeeds, mg.Pool2W, pc.Merger.Pool2Weight), bindMergerV(ctx, allocations, mgFeeds, mg.Pool2B, pc.Merger.Pool2Bias),
-	); err != nil {
+	mgInputs := mgCompiled.NewDeviceInputs()
+	if err := BindMergerWeights(ctx, allocations, mgInputs, mg, pc.Merger); err != nil {
 		return nil, err
 	}
 	mgHost := map[*tensor.Tensor]reference.Value{
 		mg.BlockLast: {Shape: tensor.MustShape(uint64(pc.Spec.Hidden), uint64(nPatch)), Data: blockLast},
-	}
-	mgInputs := mgCompiled.NewDeviceInputs()
-	for node, pointer := range mgFeeds {
-		if err := mgInputs.Set(node, pointer); err != nil {
-			return nil, err
-		}
 	}
 	mgOut, err := exe.ExecuteCompiled(ctx, mgCompiled, mgHost, mgInputs)
 	if err != nil {
@@ -438,20 +438,14 @@ func runPrefill(
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		feeds := map[*tensor.Tensor]driver.DevicePtr{}
-		if err := BindLayerBranches(ctx, allocations, feeds, pg.Text, pg.Vision, w); err != nil {
+		inputs := pgCompiled.NewDeviceInputs()
+		if err := BindLayerBranches(ctx, allocations, inputs, pg.Text, pg.Vision, w); err != nil {
 			return nil, nil, nil, err
 		}
 		hostFeeds := map[*tensor.Tensor]reference.Value{
 			pg.Row:      {Shape: rowShape, Data: row},
 			pg.MaskText: {Shape: maskShape, Data: pc.MaskText},
 			pg.MaskVis:  {Shape: maskShape, Data: pc.MaskVis},
-		}
-		inputs := pgCompiled.NewDeviceInputs()
-		for node, pointer := range feeds {
-			if err := inputs.Set(node, pointer); err != nil {
-				return nil, nil, nil, err
-			}
 		}
 		out, err := exe.ExecuteCompiled(ctx, pgCompiled, hostFeeds, inputs)
 		if err != nil {
@@ -493,53 +487,22 @@ func runVision(ctx context.Context, worker *device.Worker, exe *executor.Executo
 	}
 	allocations := device.NewAllocationSet(worker)
 	defer func() { _ = allocations.Close(ctx) }()
-	feeds := map[*tensor.Tensor]driver.DevicePtr{}
-	bind := func(node *tensor.Tensor, v []float32) error {
-		ptr, e := allocations.Upload(ctx, driver.Bytes(v))
-		if e != nil {
-			return e
-		}
-		feeds[node] = ptr
-		return nil
-	}
+	inputs := compiled.NewDeviceInputs()
 	for layer := range pc.Spec.Depth {
 		w, err := patchtower.LoadBlockWeights(pc.Src, pc.Spec, layer)
 		if err != nil {
 			return nil, err
 		}
-		in := g.Inputs[layer]
-		if err := FirstError(
-			bind(in.Norm1W, w.Norm1Weight), bind(in.Norm1B, w.Norm1Bias),
-			bind(in.QKVW, w.QKVWeight), bind(in.QKVB, w.QKVBias),
-			bind(in.ProjW, w.ProjWeight), bind(in.ProjB, w.ProjBias),
-			bind(in.Norm2W, w.Norm2Weight), bind(in.Norm2B, w.Norm2Bias),
-			bind(in.FC1W, w.FC1Weight), bind(in.FC1B, w.FC1Bias),
-			bind(in.FC2W, w.FC2Weight), bind(in.FC2B, w.FC2Bias),
-		); err != nil {
+		if err := BindVisionBlock(ctx, &allocations, inputs, g.Inputs[layer], w); err != nil {
 			return nil, fmt.Errorf("device full vision weight upload block %d: %w", layer, err)
 		}
 	}
 	hostFeeds := map[*tensor.Tensor]reference.Value{
 		g.PreBlock0: {Shape: tensor.MustShape(uint64(pc.Spec.Hidden), uint64(nPatch)), Data: preBlock0},
 	}
-	inputs := compiled.NewDeviceInputs()
-	for node, pointer := range feeds {
-		if err := inputs.Set(node, pointer); err != nil {
-			return nil, err
-		}
-	}
 	out, err := exe.ExecuteCompiled(ctx, compiled, hostFeeds, inputs)
 	if err != nil {
 		return nil, fmt.Errorf("device full vision execute: %w", err)
 	}
 	return append([]float32(nil), out[g.BlockLast].Data...), nil
-}
-
-func bindMergerV(ctx context.Context, allocations *device.AllocationSet, feeds map[*tensor.Tensor]driver.DevicePtr, node *tensor.Tensor, v []float32) error {
-	ptr, e := allocations.Upload(ctx, driver.Bytes(v))
-	if e != nil {
-		return e
-	}
-	feeds[node] = ptr
-	return nil
 }

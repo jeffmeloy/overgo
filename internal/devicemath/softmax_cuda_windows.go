@@ -8,6 +8,7 @@ import (
 	"unsafe"
 
 	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/driver"
 )
 
 // SoftmaxBackward computes the VJP of a row-wise softmax. Given the softmax
@@ -28,16 +29,8 @@ func SoftmaxBackward(worker *device.Worker, p, dp []float32, rows, d int) ([]flo
 		if err != nil {
 			return err
 		}
-		pPtr, err := scope.upload(p)
-		if err != nil {
-			return err
-		}
-		dpPtr, err := scope.upload(dp)
-		if err != nil {
-			return err
-		}
-		dsPtr, err := scope.alloc(rows * d)
-		if err != nil {
+		var pPtr, dpPtr, dsPtr driver.DevicePtr
+		if err := scope.fill([]deviceSlot{{&pPtr, p, 0}, {&dpPtr, dp, 0}, {&dsPtr, nil, rows * d}}); err != nil {
 			return err
 		}
 

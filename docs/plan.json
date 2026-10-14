@@ -93,18 +93,11 @@
       "class": "consolidation",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 1615,
+        "reason": ""
+      },
       "steps": [
-        {
-          "id": "real-repeats",
-          "title": "Read each group of truly repeated logic, and give a common component to those that shrink",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestConsolidatedGroupsNoLongerRepeat$'",
-          "rationale": "The first reading's real repeats are 231 groups covering 2,571 lines, and 63 call-and-test chains worth about 590. The largest it printed: the device upload helper written twice in cmd/validate (runDeviceMerger and runDeviceVision, 78 lines in 2 places); the checkpoint-to-model tensor name tables in internal/hfgguf (80 lines in 8 places); the sampling flags declared in both cmd/generate and cmd/latentvideo-run (75 lines in 15 places); field-by-field clone functions in seven packages (70 lines in 14 places); dimension reads in internal/tensor/reference (60 lines in 12 places); the identity, dataset and split triple in ten suite compilers of internal/evaluation; and the chains on the device scope in internal/devicemath (282 lines). Each group is read before it is touched, and the count is written down: lines deleted, lines the component adds, net. A group that does not shrink is left and named. The one conversion measured so far, a training route onto an objective, added 87 lines (c84a7d7b7), so no saving is assumed. From the lead's review: the reading is taken after the declarations the census classes as dead are deleted, because a repeat inside code no command reaches is deleted and not consolidated, and internal/devicemath alone holds 54 unreached declarations of 2,099 lines.\nServes: the loop's upkeep; nothing a person runs changes.\nDisappears: the repeats of each group consolidated. The whole step is expected to remove under 1% of production code; that is an estimate.\nEvidence: the reading before and after; each consolidated group absent from the listing; every changed package's tests unchanged.\nBatch: host for most groups. internal/evaluation is in the identity stored answers are kept under, and internal/tensor/reference is in the inference surface, so groups there are gathered into one change before a full measurement run, or left.\n\nRead by the lead on 2026-10-14 from the code at 2de1a501b, with no build (scratchpad rows/real-repeats-reading.md). The figures are estimates by reading.\n- the device upload helper of cmd/validate is in four places, and all four rewrite device.AllocationSet, and the upload-and-bind closure is written nine more times across cmd/validate and internal/vqaserve, so one exported vqaserve.BindFeed replaces them, about 156 lines less\n- the upload, allocate and kernel-load chains of eleven functions of internal/devicemath collapse into two helpers on the device scope, about 180 lines less\n- these two are host changes and go first, in one commit\n- in internal/tensor/reference ropeNeoX and ropeNormal differ in how elements pair, and a dims4 helper covers six reads of four axes, about 45 lines less, inside the inference surface, and with step launch-checks because both edit executeNode\n- the identity, dataset and split triple is in fourteen suite compilers of internal/evaluation, and one helper gives byte-identical identities, about 125 lines less, after a pin test of the thirteen kinds no test pins today\n- compileSuite decodes, compiles and binds fifteen kinds in one function, and a generic helper covers thirteen, about 93 lines less\n- these three go in one commit before a full measurement run, because they move the surface digest and the answer scope\n- the sampling flags of cmd/generate are written three times each inside that command, about 29 lines less, and cmd/latentvideo-run shares their shape alone\n- the tensor name tables of internal/hfgguf hold each family's own names, which is data, so they are left\n- the field-by-field clones are no repeat of lines, and step clone-default reads their family\n- the total is about 628 lines less",
-          "depends_on": [
-            "shape-reading/analyzer",
-            "consumer-checks/sort-unreached"
-          ]
-        },
         {
           "id": "launch-checks",
           "title": "Check a device launch's 32-bit limit once when a graph compiles, make attribute types exact, and delete the checks each launch repeats",

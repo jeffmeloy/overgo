@@ -18,7 +18,6 @@ import (
 
 	"overgo/internal/checked"
 	"overgo/internal/cuda/device"
-	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/patchtower"
 	"overgo/internal/safetensors"
@@ -107,68 +106,17 @@ func runDeviceVision(l *campaignContext) error {
 	defer exe.Close()
 
 	// ---- upload F32 block weights as persistent device feeds -----------------
-	var weightPtrs []driver.DevicePtr
-	upload := func(v []float32) (driver.DevicePtr, error) {
-		var ptr driver.DevicePtr
-		err := worker.Do(ctx, func(state *device.State) error {
-			p, e := state.Driver.MemAlloc(uint64(len(v) * 4))
-			if e != nil {
-				return e
-			}
-			if e := state.Driver.MemcpyHtoD(p, driver.Bytes(v)); e != nil {
-				_ = state.Driver.MemFree(p)
-				return e
-			}
-			ptr = p
-			return nil
-		})
-		if err != nil {
-			return 0, err
-		}
-		weightPtrs = append(weightPtrs, ptr)
-		return ptr, nil
-	}
-	defer func() {
-		_ = worker.Do(ctx, func(state *device.State) error {
-			for _, p := range weightPtrs {
-				_ = state.Driver.MemFree(p)
-			}
-			return nil
-		})
-	}()
-
-	deviceFeeds := map[*tensor.Tensor]driver.DevicePtr{}
-	bind := func(node *tensor.Tensor, v []float32) error {
-		p, e := upload(v)
-		if e != nil {
-			return e
-		}
-		deviceFeeds[node] = p
-		return nil
-	}
+	allocations := device.NewAllocationSet(worker)
+	defer func() { _ = allocations.Close(ctx) }()
+	deviceInputs := compiled.NewDeviceInputs()
 	for layer := 0; layer < spec.Depth; layer++ {
-		w := hostBlocks[layer]
-		in := g.Inputs[layer]
-		if err := vqaserve.FirstError(
-			bind(in.Norm1W, w.Norm1Weight), bind(in.Norm1B, w.Norm1Bias),
-			bind(in.QKVW, w.QKVWeight), bind(in.QKVB, w.QKVBias),
-			bind(in.ProjW, w.ProjWeight), bind(in.ProjB, w.ProjBias),
-			bind(in.Norm2W, w.Norm2Weight), bind(in.Norm2B, w.Norm2Bias),
-			bind(in.FC1W, w.FC1Weight), bind(in.FC1B, w.FC1Bias),
-			bind(in.FC2W, w.FC2Weight), bind(in.FC2B, w.FC2Bias),
-		); err != nil {
+		if err := vqaserve.BindVisionBlock(ctx, &allocations, deviceInputs, g.Inputs[layer], hostBlocks[layer]); err != nil {
 			return fmt.Errorf("device vision weight upload block %d: %w", layer, err)
 		}
 	}
 	preShape := tensor.MustShape(uint64(H), uint64(nPatch))
 	hostFeeds := map[*tensor.Tensor]reference.Value{
 		g.PreBlock0: {Shape: preShape, Data: preBlock0},
-	}
-	deviceInputs := compiled.NewDeviceInputs()
-	for node, pointer := range deviceFeeds {
-		if err := deviceInputs.Set(node, pointer); err != nil {
-			return err
-		}
 	}
 	out, err := exe.ExecuteCompiled(ctx, compiled, hostFeeds, deviceInputs)
 	if err != nil {

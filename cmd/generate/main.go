@@ -40,6 +40,68 @@ func (values *stringListFlag) Set(value string) error {
 	return nil
 }
 
+// samplingOptions names the flag that overrides each field of the sampling policy.
+//   - Samplers and DryBreakers have no row, because their flags parse lists
+var samplingOptions = []struct {
+	name, usage string
+	field       func(*sampling.Policy) any
+}{
+	{"temp", "sampling temperature; zero is greedy", func(p *sampling.Policy) any { return &p.Temperature }},
+	{"dynatemp-range", "dynamic temperature range; zero disables", func(p *sampling.Policy) any { return &p.DynatempRange }},
+	{"dynatemp-exp", "entropy-to-temperature exponent", func(p *sampling.Policy) any { return &p.DynatempExponent }},
+	{"top-k", "top-k candidates; zero disables", func(p *sampling.Policy) any { return &p.TopK }},
+	{"top-p", "nucleus sampling probability", func(p *sampling.Policy) any { return &p.TopP }},
+	{"min-p", "minimum probability relative to the most likely token; zero disables", func(p *sampling.Policy) any { return &p.MinP }},
+	{"typical-p", "locally typical cumulative probability", func(p *sampling.Policy) any { return &p.TypicalP }},
+	{"top-n-sigma", "keep logits within N standard deviations of the maximum; non-positive disables", func(p *sampling.Policy) any { return &p.TopNSigma }},
+	{"xtc-probability", "chance of removing leading high-probability tokens", func(p *sampling.Policy) any { return &p.XTCProbability }},
+	{"xtc-threshold", "XTC high-probability threshold; above 0.5 disables", func(p *sampling.Policy) any { return &p.XTCThreshold }},
+	{"min-keep", "minimum candidates retained by probability filters", func(p *sampling.Policy) any { return &p.MinKeep }},
+	{"adaptive-target", "adaptive-p target probability; negative disables", func(p *sampling.Policy) any { return &p.AdaptiveTarget }},
+	{"adaptive-decay", "adaptive-p EMA decay", func(p *sampling.Policy) any { return &p.AdaptiveDecay }},
+	{"repeat-last-n", "history tokens subject to penalties; -1 uses all, zero disables", func(p *sampling.Policy) any { return &p.RepeatLastN }},
+	{"repeat-penalty", "multiplicative repetition penalty", func(p *sampling.Policy) any { return &p.RepeatPenalty }},
+	{"presence-penalty", "penalty applied once to tokens in history", func(p *sampling.Policy) any { return &p.PresencePenalty }},
+	{"frequency-penalty", "penalty applied per token occurrence in history", func(p *sampling.Policy) any { return &p.FrequencyPenalty }},
+	{"no-repeat-ngram-size", "block repeated n-grams; zero disables", func(p *sampling.Policy) any { return &p.NoRepeatNgramSize }},
+	{"ngram-window", "history window for no-repeat n-grams; zero uses all", func(p *sampling.Policy) any { return &p.NgramWindow }},
+	{"dry-multiplier", "DRY repetition penalty multiplier; zero disables", func(p *sampling.Policy) any { return &p.DryMultiplier }},
+	{"dry-base", "DRY exponential penalty base", func(p *sampling.Policy) any { return &p.DryBase }},
+	{"dry-allowed-length", "repetition length allowed before DRY penalties", func(p *sampling.Policy) any { return &p.DryAllowedLength }},
+	{"dry-penalty-last-n", "history tokens scanned by DRY; -1 uses all", func(p *sampling.Policy) any { return &p.DryPenaltyLastN }},
+	{"mirostat", "Mirostat version; zero disables, 1 or 2 enables that version", func(p *sampling.Policy) any { return &p.Mirostat }},
+	{"mirostat-tau", "Mirostat target surprise", func(p *sampling.Policy) any { return &p.MirostatTau }},
+	{"mirostat-eta", "Mirostat learning rate", func(p *sampling.Policy) any { return &p.MirostatEta }},
+	{"seed", "sampling RNG seed", func(p *sampling.Policy) any { return &p.Seed }},
+}
+
+// samplingOverrides defines one flag per row of samplingOptions and returns the function that writes each explicit flag's value into a policy.
+//   - a float32 field's flag parses float64 and converts once, because package flag parses no float32
+//   - an unset flag leaves its field at the policy's value
+func samplingOverrides(flags *flag.FlagSet) func(clioptions.Overrides, *sampling.Policy) {
+	writes := map[string]func(*sampling.Policy){}
+	for _, option := range samplingOptions {
+		switch field := option.field(&sampling.Policy{}).(type) {
+		case *float32:
+			value := clioptions.Float64Override(flags, option.name, option.usage)
+			writes[option.name] = func(policy *sampling.Policy) { *option.field(policy).(*float32) = float32(*value) }
+		case *int:
+			flags.IntVar(field, option.name, *field, option.usage)
+			writes[option.name] = func(policy *sampling.Policy) { *option.field(policy).(*int) = *field }
+		case *int64:
+			flags.Int64Var(field, option.name, *field, option.usage)
+			writes[option.name] = func(policy *sampling.Policy) { *option.field(policy).(*int64) = *field }
+		}
+	}
+	return func(explicit clioptions.Overrides, policy *sampling.Policy) {
+		for name, write := range writes {
+			if explicit.Has(name) {
+				write(policy)
+			}
+		}
+	}
+}
+
 func main() {
 	clioptions.Main(run)
 }
@@ -85,37 +147,15 @@ func run() error {
 		"tokens removed per context shift; zero removes half of the discardable cache",
 	)
 	modelFlags := modelcli.AddModelFlags(flag.CommandLine, "load GGUF LoRA adapter at scale 1; repeatable")
-	temperature := clioptions.Float64Override(flag.CommandLine, "temp", "sampling temperature; zero is greedy")
-	dynatempRange := clioptions.Float64Override(flag.CommandLine, "dynatemp-range", "dynamic temperature range; zero disables")
-	dynatempExponent := clioptions.Float64Override(flag.CommandLine, "dynatemp-exp", "entropy-to-temperature exponent")
+	overrideSampling := samplingOverrides(flag.CommandLine)
 	samplerNames := flag.String(
 		"samplers",
 		"",
 		"ordered sampler names separated by semicolons; use none for an empty chain",
 	)
-	topK := clioptions.IntOverride(flag.CommandLine, "top-k", "top-k candidates; zero disables")
-	topP := clioptions.Float64Override(flag.CommandLine, "top-p", "nucleus sampling probability")
-	minP := clioptions.Float64Override(flag.CommandLine, "min-p", "minimum probability relative to the most likely token; zero disables")
-	typicalP := clioptions.Float64Override(flag.CommandLine, "typical-p", "locally typical cumulative probability")
-	topNSigma := clioptions.Float64Override(flag.CommandLine, "top-n-sigma", "keep logits within N standard deviations of the maximum; non-positive disables")
-	xtcProbability := clioptions.Float64Override(flag.CommandLine, "xtc-probability", "chance of removing leading high-probability tokens")
-	xtcThreshold := clioptions.Float64Override(flag.CommandLine, "xtc-threshold", "XTC high-probability threshold; above 0.5 disables")
-	minKeep := clioptions.IntOverride(flag.CommandLine, "min-keep", "minimum candidates retained by probability filters")
-	adaptiveTarget := clioptions.Float64Override(flag.CommandLine, "adaptive-target", "adaptive-p target probability; negative disables")
-	adaptiveDecay := clioptions.Float64Override(flag.CommandLine, "adaptive-decay", "adaptive-p EMA decay")
 	logitBiasValues := stringListFlag{}
 	flag.Var(&logitBiasValues, "logit-bias", "TOKEN=BIAS logit adjustment; use -inf to ban, repeatable")
 	ignoreEOS := flag.Bool("ignore-eos", false, "ban all recognized end-of-generation tokens")
-	repeatLastN := clioptions.IntOverride(flag.CommandLine, "repeat-last-n", "history tokens subject to penalties; -1 uses all, zero disables")
-	repeatPenalty := clioptions.Float64Override(flag.CommandLine, "repeat-penalty", "multiplicative repetition penalty")
-	presencePenalty := clioptions.Float64Override(flag.CommandLine, "presence-penalty", "penalty applied once to tokens in history")
-	frequencyPenalty := clioptions.Float64Override(flag.CommandLine, "frequency-penalty", "penalty applied per token occurrence in history")
-	noRepeatNgramSize := clioptions.IntOverride(flag.CommandLine, "no-repeat-ngram-size", "block repeated n-grams; zero disables")
-	ngramWindow := clioptions.IntOverride(flag.CommandLine, "ngram-window", "history window for no-repeat n-grams; zero uses all")
-	dryMultiplier := clioptions.Float64Override(flag.CommandLine, "dry-multiplier", "DRY repetition penalty multiplier; zero disables")
-	dryBase := clioptions.Float64Override(flag.CommandLine, "dry-base", "DRY exponential penalty base")
-	dryAllowedLength := clioptions.IntOverride(flag.CommandLine, "dry-allowed-length", "repetition length allowed before DRY penalties")
-	dryPenaltyLastN := clioptions.IntOverride(flag.CommandLine, "dry-penalty-last-n", "history tokens scanned by DRY; -1 uses all")
 	dryBreakers := stringListFlag{}
 	flag.Var(&dryBreakers, "dry-sequence-breaker", "DRY restart string; repeat to add, or use 'none' first to clear defaults")
 	grammarChoices := stringListFlag{}
@@ -128,10 +168,6 @@ func run() error {
 	flag.Var(&grammarTriggerPatterns, "grammar-trigger-pattern", "lazy GBNF trigger regex; repeat to add")
 	grammarTriggerTokenValues := stringListFlag{}
 	flag.Var(&grammarTriggerTokenValues, "grammar-trigger-token", "lazy GBNF trigger token ID; repeat to add")
-	mirostat := clioptions.IntOverride(flag.CommandLine, "mirostat", "Mirostat version; zero disables, 1 or 2 enables that version")
-	mirostatTau := clioptions.Float64Override(flag.CommandLine, "mirostat-tau", "Mirostat target surprise")
-	mirostatEta := clioptions.Float64Override(flag.CommandLine, "mirostat-eta", "Mirostat learning rate")
-	seed := clioptions.Int64Override(flag.CommandLine, "seed", "sampling RNG seed")
 	projectedInputsFile := flag.String("projected-inputs", "", "projected multimodal input JSON")
 	projectorPath := flag.String("mmproj", "", "multimodal projector GGUF")
 	projectorCUDA := flag.Bool("mmproj-cuda", false, "offload supported multimodal projector operations to CUDA")
@@ -166,40 +202,15 @@ func run() error {
 	// server's does.
 	policy := runner.RuntimePolicy().Interactive
 	clioptions.ApplyDefault(explicit, "n", maxNewTokens, policy.OutputTokens)
-	clioptions.ApplyDefault(explicit, "temp", temperature, float64(policy.Sampling.Temperature))
-	clioptions.ApplyDefault(explicit, "dynatemp-range", dynatempRange, float64(policy.Sampling.DynatempRange))
-	clioptions.ApplyDefault(explicit, "dynatemp-exp", dynatempExponent, float64(policy.Sampling.DynatempExponent))
-	clioptions.ApplyDefault(explicit, "top-k", topK, policy.Sampling.TopK)
-	clioptions.ApplyDefault(explicit, "top-p", topP, float64(policy.Sampling.TopP))
-	clioptions.ApplyDefault(explicit, "min-p", minP, float64(policy.Sampling.MinP))
-	clioptions.ApplyDefault(explicit, "typical-p", typicalP, float64(policy.Sampling.TypicalP))
-	clioptions.ApplyDefault(explicit, "top-n-sigma", topNSigma, float64(policy.Sampling.TopNSigma))
-	clioptions.ApplyDefault(explicit, "xtc-probability", xtcProbability, float64(policy.Sampling.XTCProbability))
-	clioptions.ApplyDefault(explicit, "xtc-threshold", xtcThreshold, float64(policy.Sampling.XTCThreshold))
-	clioptions.ApplyDefault(explicit, "min-keep", minKeep, policy.Sampling.MinKeep)
-	clioptions.ApplyDefault(explicit, "adaptive-target", adaptiveTarget, float64(policy.Sampling.AdaptiveTarget))
-	clioptions.ApplyDefault(explicit, "adaptive-decay", adaptiveDecay, float64(policy.Sampling.AdaptiveDecay))
-	clioptions.ApplyDefault(explicit, "repeat-last-n", repeatLastN, policy.Sampling.RepeatLastN)
-	clioptions.ApplyDefault(explicit, "repeat-penalty", repeatPenalty, float64(policy.Sampling.RepeatPenalty))
-	clioptions.ApplyDefault(explicit, "presence-penalty", presencePenalty, float64(policy.Sampling.PresencePenalty))
-	clioptions.ApplyDefault(explicit, "frequency-penalty", frequencyPenalty, float64(policy.Sampling.FrequencyPenalty))
-	clioptions.ApplyDefault(explicit, "no-repeat-ngram-size", noRepeatNgramSize, policy.Sampling.NoRepeatNgramSize)
-	clioptions.ApplyDefault(explicit, "ngram-window", ngramWindow, policy.Sampling.NgramWindow)
-	clioptions.ApplyDefault(explicit, "dry-multiplier", dryMultiplier, float64(policy.Sampling.DryMultiplier))
-	clioptions.ApplyDefault(explicit, "dry-base", dryBase, float64(policy.Sampling.DryBase))
-	clioptions.ApplyDefault(explicit, "dry-allowed-length", dryAllowedLength, policy.Sampling.DryAllowedLength)
-	clioptions.ApplyDefault(explicit, "dry-penalty-last-n", dryPenaltyLastN, policy.Sampling.DryPenaltyLastN)
-	clioptions.ApplyDefault(explicit, "mirostat", mirostat, policy.Sampling.Mirostat)
-	clioptions.ApplyDefault(explicit, "mirostat-tau", mirostatTau, float64(policy.Sampling.MirostatTau))
-	clioptions.ApplyDefault(explicit, "mirostat-eta", mirostatEta, float64(policy.Sampling.MirostatEta))
-	clioptions.ApplyDefault(explicit, "seed", seed, policy.Sampling.Seed)
+	chosen := policy.Sampling
+	overrideSampling(explicit, &chosen)
 	clioptions.ApplyDefault(explicit, "video-max-frames", videoMaxFrames, policy.Video.MaxFrames)
 	clioptions.ApplyDefault(explicit, "video-fps", videoFPS, policy.Video.FPS)
 	if _, set := explicit["dry-sequence-breaker"]; !set {
 		dryBreakers = append(dryBreakers, policy.Sampling.DryBreakers...)
 	}
 	var tokenBreakers [][]int
-	if *dryMultiplier != 0 && *dryPenaltyLastN != 0 {
+	if chosen.DryMultiplier != 0 && chosen.DryPenaltyLastN != 0 {
 		tokenBreakers, err = runner.TokenizeDryBreakers(dryBreakers)
 		if err != nil {
 			return err
@@ -305,41 +316,10 @@ func run() error {
 			return fmt.Errorf("generate: load infill vocabulary: %w", err)
 		}
 	}
-	sampler, err := sampling.New(sampling.Config{
-		Temperature:       float32(*temperature),
-		DynatempRange:     float32(*dynatempRange),
-		DynatempExponent:  float32(*dynatempExponent),
-		TopK:              *topK,
-		TopP:              float32(*topP),
-		MinP:              float32(*minP),
-		TypicalP:          float32(*typicalP),
-		TopNSigma:         float32(*topNSigma),
-		XTCProbability:    float32(*xtcProbability),
-		XTCThreshold:      float32(*xtcThreshold),
-		MinKeep:           *minKeep,
-		AdaptiveTarget:    float32(*adaptiveTarget),
-		AdaptiveDecay:     float32(*adaptiveDecay),
-		RepeatLastN:       *repeatLastN,
-		RepeatPenalty:     float32(*repeatPenalty),
-		PresencePenalty:   float32(*presencePenalty),
-		FrequencyPenalty:  float32(*frequencyPenalty),
-		NoRepeatNgramSize: *noRepeatNgramSize,
-		NgramWindow:       *ngramWindow,
-		DryMultiplier:     float32(*dryMultiplier),
-		DryBase:           float32(*dryBase),
-		DryAllowedLength:  *dryAllowedLength,
-		DryPenaltyLastN:   *dryPenaltyLastN,
-		DryBreakers:       tokenBreakers,
-		Mirostat:          *mirostat,
-		MirostatTau:       float32(*mirostatTau),
-		MirostatEta:       float32(*mirostatEta),
-		Seed:              *seed,
-		Grammar:           grammar,
-		GBNF:              gbnf,
-		Samplers:          samplerOrder,
-		LogitBiases:       logitBiases,
-		Infill:            infillVocabulary,
-	})
+	config := chosen.Config()
+	config.DryBreakers, config.Grammar, config.GBNF = tokenBreakers, grammar, gbnf
+	config.Samplers, config.LogitBiases, config.Infill = samplerOrder, logitBiases, infillVocabulary
+	sampler, err := sampling.New(config)
 	if err != nil {
 		return err
 	}

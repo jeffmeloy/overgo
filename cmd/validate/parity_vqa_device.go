@@ -18,7 +18,6 @@ import (
 	"slices"
 
 	"overgo/internal/cuda/device"
-	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/routedlm"
 	"overgo/internal/safetensors"
@@ -122,24 +121,8 @@ func vqaDevice(l *campaignContext) error {
 	}
 	defer exe.Close()
 
-	var headPtr driver.DevicePtr
-	if err := worker.Do(ctx, func(state *device.State) error {
-		p, e := state.Driver.MemAlloc(uint64(len(headBytes)))
-		if e != nil {
-			return e
-		}
-		if e := state.Driver.MemcpyHtoD(p, headBytes); e != nil {
-			_ = state.Driver.MemFree(p)
-			return e
-		}
-		headPtr = p
-		return nil
-	}); err != nil {
-		return fmt.Errorf("device terminal: head upload: %w", err)
-	}
-	defer func() {
-		_ = worker.Do(ctx, func(state *device.State) error { return state.Driver.MemFree(headPtr) })
-	}()
+	allocations := device.NewAllocationSet(worker)
+	defer func() { _ = allocations.Close(ctx) }()
 
 	db := tensor.NewBuilder()
 	dRow := db.Input("hidden", dtype.F32, rowShape)
@@ -157,8 +140,8 @@ func vqaDevice(l *campaignContext) error {
 		dNorm: {Shape: normShape, Data: normWeight},
 	}
 	devInputs := compiled.NewDeviceInputs()
-	if err := devInputs.Set(dHead, headPtr); err != nil {
-		return err
+	if err := vqaserve.BindFeed(ctx, &allocations, devInputs, dHead, headBytes); err != nil {
+		return fmt.Errorf("device terminal: head upload: %w", err)
 	}
 	devOut, err := exe.ExecuteCompiled(ctx, compiled, hostFeeds, devInputs)
 	if err != nil {

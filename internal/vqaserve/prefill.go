@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/cuda/executor"
 	"overgo/internal/patchtower"
 	"overgo/internal/routedlm"
 	"overgo/internal/safetensors"
@@ -98,43 +99,31 @@ func (pc *PrefillContext) BindMask() {
 	}
 }
 
-// BindPrefillBranch uploads one branch's layer weights into the prefill
-// graph's feeds.
-func BindPrefillBranch(ctx context.Context, allocations *device.AllocationSet, feeds map[*tensor.Tensor]driver.DevicePtr, nodes routedlm.DevicePrefillBranch,
+// BindPrefillBranch binds each weight of one branch of a layer to its input of the prefill graph by BindFeed.
+func BindPrefillBranch(ctx context.Context, allocations *device.AllocationSet, inputs *executor.DeviceInputs, nodes routedlm.DevicePrefillBranch,
 	inputNorm []float32, q, k, v, o routedlm.BF16Matrix, qNorm, kNorm, postNorm []float32, gate, up, down routedlm.BF16Matrix) error {
-	bindV := func(node *tensor.Tensor, val []float32) error {
-		ptr, e := allocations.Upload(ctx, driver.Bytes(val))
-		if e != nil {
-			return e
-		}
-		feeds[node] = ptr
-		return nil
+	f32 := func(node *tensor.Tensor, val []float32) error {
+		return BindFeed(ctx, allocations, inputs, node, driver.Bytes(val))
 	}
-	bindM := func(node *tensor.Tensor, m routedlm.BF16Matrix) error {
-		ptr, e := allocations.Upload(ctx, driver.Bytes(m.Data))
-		if e != nil {
-			return e
-		}
-		feeds[node] = ptr
-		return nil
+	bf16 := func(node *tensor.Tensor, m routedlm.BF16Matrix) error {
+		return BindFeed(ctx, allocations, inputs, node, driver.Bytes(m.Data))
 	}
 	return FirstError(
-		bindV(nodes.InputNorm, inputNorm),
-		bindM(nodes.Q, q), bindM(nodes.K, k), bindM(nodes.V, v), bindM(nodes.O, o),
-		bindV(nodes.QNorm, qNorm), bindV(nodes.KNorm, kNorm), bindV(nodes.PostNorm, postNorm),
-		bindM(nodes.Gate, gate), bindM(nodes.Up, up), bindM(nodes.Down, down),
+		f32(nodes.InputNorm, inputNorm),
+		bf16(nodes.Q, q), bf16(nodes.K, k), bf16(nodes.V, v), bf16(nodes.O, o),
+		f32(nodes.QNorm, qNorm), f32(nodes.KNorm, kNorm), f32(nodes.PostNorm, postNorm),
+		bf16(nodes.Gate, gate), bf16(nodes.Up, up), bf16(nodes.Down, down),
 	)
 }
 
-// BindLayerBranches uploads both branches of one layer into the prefill
-// graph's feeds; the chained prefill and the harness's ladder share it.
-func BindLayerBranches(ctx context.Context, allocations *device.AllocationSet, feeds map[*tensor.Tensor]driver.DevicePtr, text, vision routedlm.DevicePrefillBranch, w routedlm.LayerWeights) error {
-	if err := BindPrefillBranch(ctx, allocations, feeds, text,
+// BindLayerBranches binds both branches of one layer to the prefill graph's inputs by BindPrefillBranch.
+func BindLayerBranches(ctx context.Context, allocations *device.AllocationSet, inputs *executor.DeviceInputs, text, vision routedlm.DevicePrefillBranch, w routedlm.LayerWeights) error {
+	if err := BindPrefillBranch(ctx, allocations, inputs, text,
 		w.InputNorm.Text, w.QKV.QText, w.QKV.KText, w.QKV.VText, w.QKV.OText,
 		w.QKV.QNorm[0], w.QKV.KNorm[0], w.Output.PostText, w.Output.GateText, w.Output.UpText, w.Output.DownText); err != nil {
 		return err
 	}
-	return BindPrefillBranch(ctx, allocations, feeds, vision,
+	return BindPrefillBranch(ctx, allocations, inputs, vision,
 		w.InputNorm.Vision, w.QKV.QVision, w.QKV.KVision, w.QKV.VVision, w.QKV.OVision,
 		w.QKV.QNorm[1], w.QKV.KNorm[1], w.Output.PostVision, w.Output.GateVision, w.Output.UpVision, w.Output.DownVision)
 }

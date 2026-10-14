@@ -214,7 +214,7 @@ func compressedAttentionBlocks(
 			continue
 		}
 		complete := true
-		for offset := uint32(0); offset < ratio; offset++ {
+		for offset := range ratio {
 			if _, present := rows[start+offset]; !present {
 				complete = false
 				break
@@ -224,13 +224,13 @@ func compressedAttentionBlocks(
 			continue
 		}
 		result := make([]float32, width)
-		for channel := uint32(0); channel < width; channel++ {
+		for channel := range width {
 			maximum := math.Inf(-1)
 			type candidate struct{ value, score float64 }
 			candidates := make([]candidate, 0, coefficient*ratio)
 			if overlap {
 				previous := int64(start) - int64(ratio)
-				for offset := uint32(0); offset < ratio; offset++ {
+				for offset := range ratio {
 					position := previous + int64(offset)
 					item := candidate{value: 0, score: math.Inf(-1)}
 					if row, present := rows[uint32(position)]; position >= 0 && present {
@@ -241,7 +241,7 @@ func compressedAttentionBlocks(
 					candidates = append(candidates, item)
 				}
 			}
-			for offset := uint32(0); offset < ratio; offset++ {
+			for offset := range ratio {
 				row := rows[start+offset]
 				column := channel
 				if overlap {
@@ -368,7 +368,7 @@ func compressedAttention(shape tensor.Shape, inputs []Value, attributes tensor.C
 	}
 	output := make([]float32, int(width*heads*newTokens))
 	scale := 1 / math.Sqrt(float64(width))
-	for token := uint32(0); token < newTokens; token++ {
+	for token := range newTokens {
 		position := attributes.Positions[token]
 		visibleCompressed := make([]int, 0, len(compressed))
 		for index, block := range compressed {
@@ -390,7 +390,7 @@ func compressedAttention(shape tensor.Shape, inputs []Value, attributes tensor.C
 					rotateCompressedAttentionTail(queryVector, position, false, attributes)
 					compressedAttentionFWHT(queryVector)
 					var dot float64
-					for channel := uint32(0); channel < indexerWidth; channel++ {
+					for channel := range indexerWidth {
 						dot += float64(queryVector[channel]) * float64(indexerCompressed[blockIndex].value[channel])
 					}
 					if dot > 0 {
@@ -400,10 +400,7 @@ func compressedAttention(shape tensor.Shape, inputs []Value, attributes tensor.C
 				scores[item] = scored{index: blockIndex, score: score}
 			}
 			sort.SliceStable(scores, func(i, j int) bool { return scores[i].score > scores[j].score })
-			limit := int(attributes.IndexerTopK)
-			if limit > len(scores) {
-				limit = len(scores)
-			}
+			limit := min(int(attributes.IndexerTopK), len(scores))
 			visibleCompressed = visibleCompressed[:limit]
 			for index := range limit {
 				visibleCompressed[index] = scores[index].index
@@ -414,7 +411,7 @@ func compressedAttention(shape tensor.Shape, inputs []Value, attributes tensor.C
 			rawFirst = max(rawFirst, position+1-attributes.Window)
 		}
 		rawLast := position + 1
-		for head := uint32(0); head < heads; head++ {
+		for head := range heads {
 			queryBase := int((token*heads + head) * width)
 			queryVector := slices.Clone(query.Data[queryBase : queryBase+int(width)])
 			rotateCompressedAttentionTail(queryVector, position, false, attributes)
@@ -426,7 +423,7 @@ func compressedAttention(shape tensor.Shape, inputs []Value, attributes tensor.C
 			candidates := make([]candidate, 0, int(rawLast-rawFirst)+len(visibleCompressed))
 			add := func(vector []float32) {
 				var dot float64
-				for channel := uint32(0); channel < width; channel++ {
+				for channel := range width {
 					dot += float64(queryVector[channel]) * float64(vector[channel])
 				}
 				logit := dot * scale
@@ -452,7 +449,7 @@ func compressedAttention(shape tensor.Shape, inputs []Value, attributes tensor.C
 			result := output[queryBase : queryBase+int(width)]
 			for _, candidate := range candidates {
 				weight := math.Exp(candidate.logit-maximum) / denominator
-				for channel := uint32(0); channel < width; channel++ {
+				for channel := range width {
 					result[channel] += float32(weight * float64(candidate.value[channel]))
 				}
 			}

@@ -74,7 +74,7 @@ func TestWebUIBrowserRuntimeRecords(t *testing.T) {
 	blocked, err := handler.operations.Submit(ctx, operation.Request{Task: recipe.TaskTraining, Recipe: recipeID},
 		func(context.Context, operation.Reporter) (operation.Completion, error) {
 			if attempts++; attempts == 1 {
-				return operation.Completion{Run: runID}, operatoraction.Recoverable(errors.New("approval required"), operatoraction.Block{
+				return operation.Completion{Run: runID}, testutil.Recoverable(errors.New("approval required"), operatoraction.Block{
 					Subject: recipeID, Reason: "operator approval required", Evidence: []artifact.ID{runID},
 					Actions: []operatoraction.Action{action},
 				})

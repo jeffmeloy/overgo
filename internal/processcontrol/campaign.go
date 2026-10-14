@@ -18,7 +18,7 @@ import (
 )
 
 // CampaignEnvironment carries an unpredictable session identity, not a claim
-// that supervision exists. Admission also requires the live owner and OS lock.
+// that supervision exists.
 const CampaignEnvironment = "OVERGO_CAMPAIGN_SESSION"
 
 const campaignLocatorPath = processlock.StateDirectory + "/loop_supervisor.json"
@@ -43,8 +43,7 @@ type campaignLocator struct {
 	Address string `json:"address"`
 }
 
-// Campaign owns one worktree's continuous worker lifetime. The locator remains
-// after exit so an abandoned campaign cannot silently become manual execution.
+// Campaign owns one worktree's continuous worker lifetime.
 type Campaign struct {
 	lock   *processlock.Lock
 	owner  campaignLocator
@@ -109,7 +108,7 @@ func (campaign *Campaign) Environment() string {
 	return CampaignEnvironment + "=" + campaign.owner.Session
 }
 
-// Close releases live authority; the retained locator still requires a restart.
+// Close releases live authority.
 func (campaign *Campaign) Close() error {
 	err := campaign.server.Close()
 	<-campaign.done
@@ -177,36 +176,4 @@ func CampaignRunning(root string) (bool, error) {
 		return true, nil
 	}
 	return false, err
-}
-
-// RequireCampaign refuses executable admission outside a configured campaign's
-// live session. Unconfigured worktrees retain ordinary interactive operation.
-func RequireCampaign(root, worker string) error {
-	root, err := filepath.Abs(root)
-	if err != nil {
-		return err
-	}
-	var owner campaignLocator
-	if err := jsonfile.DecodeStrict(filepath.Join(root, campaignLocatorPath), &owner); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			// A state directory that cannot be read admits nothing unconfigured.
-			config, configErr := processlock.StateFile(root, LoopConfigFile, LegacyLoopConfigFile)
-			if _, statErr := os.Stat(config); configErr == nil && errors.Is(statErr, os.ErrNotExist) {
-				return nil
-			}
-		}
-		return fmt.Errorf("campaign: start cmd/loop before executable dispatch: %w", err)
-	}
-	if owner.Root != root || owner.Worker != worker || owner.Session == "" || owner.Session != os.Getenv(CampaignEnvironment) || !ProcessAlive(owner.PID) {
-		return errors.New("campaign: executable dispatch requires this worktree's live cmd/loop session")
-	}
-	lock, err := processlock.Acquire(filepath.Join(root, campaignLockPath), campaignFileMode)
-	if err == nil {
-		_ = lock.Close()
-		return errors.New("campaign: supervisor ownership ended; restart cmd/loop")
-	}
-	if !errors.Is(err, processlock.ErrBusy) {
-		return err
-	}
-	return nil
 }

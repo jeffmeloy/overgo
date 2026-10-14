@@ -29,7 +29,7 @@ func TestRecoverableOperationStatus(t *testing.T) {
 			}
 			id, err := manager.Submit(t.Context(), Request{Task: workflow.task, Recipe: recipeID},
 				func(context.Context, Reporter) (Completion, error) {
-					return Completion{Run: runID}, operatoraction.Recoverable(errors.New("artifact unavailable"), block)
+					return Completion{Run: runID}, testutil.Recoverable(errors.New("artifact unavailable"), block)
 				})
 			if err != nil {
 				t.Fatal(err)
@@ -56,7 +56,7 @@ func TestRecoverableOperationStatus(t *testing.T) {
 	runID := testutil.ArtifactID(t, artifact.KindRun, "mismatched recovery run")
 	id, err := manager.Submit(t.Context(), Request{Task: recipe.TaskTraining, Recipe: recipeID},
 		func(context.Context, Reporter) (Completion, error) {
-			return Completion{Run: runID}, operatoraction.Recoverable(errors.New("wrong subject"), operatoraction.Block{
+			return Completion{Run: runID}, testutil.Recoverable(errors.New("wrong subject"), operatoraction.Block{
 				Subject: other, Reason: "wrong recipe is unavailable", Evidence: []artifact.ID{runID},
 				Actions: []operatoraction.Action{{Code: "retry", Summary: "Retry", Argv: []string{"overgo", "train"}}},
 			})
@@ -232,7 +232,7 @@ func TestBlockedOperationResumesAfterDecision(t *testing.T) {
 		func(context.Context, Reporter) (Completion, error) {
 			attempts++
 			if attempts == 1 {
-				return Completion{Run: runID}, operatoraction.Recoverable(errors.New("approval required"), operatoraction.Block{
+				return Completion{Run: runID}, testutil.Recoverable(errors.New("approval required"), operatoraction.Block{
 					Subject: recipeID, Reason: "operator approval required", Evidence: []artifact.ID{runID},
 					Actions: []operatoraction.Action{action},
 				})

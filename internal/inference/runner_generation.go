@@ -9,25 +9,9 @@ import (
 
 	"overgo/internal/model"
 	"overgo/internal/processmeasure"
-	"overgo/internal/sampling"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
 )
-
-func (r *Runner) Greedy(
-	ctx context.Context,
-	prompt string,
-	maxNewTokens int,
-) ([]tokenizer.TokenID, string, error) {
-	sampler, err := sampling.New(sampling.Config{})
-	if err != nil {
-		return nil, "", err
-	}
-	return r.Generate(ctx, prompt, GenerateOptions{
-		MaxNewTokens: maxNewTokens,
-		Sampler:      sampler,
-	})
-}
 
 // Generate: performs correctness-first token generation and optionally reports
 // each new token synchronously through OnToken. A decode step that fails (a

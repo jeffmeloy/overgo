@@ -16,7 +16,6 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
-	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/servingtest"
 	"overgo/internal/testprocess"
@@ -92,8 +91,8 @@ func TestCarbonColdLifecyclePhases(t *testing.T) {
 	testprocess.BuildTestBinary(t, root, candidateBinary, "modeltest", "./internal/inference")
 	testprocess.BuildTestBinary(t, adaptiveGo, referenceBinary, "cuda", "./cmd/adaptive-gpt-server")
 
-	candidate := make([]processmeasure.Result, 0, carbonProcessRuns)
-	reference := make([]processmeasure.Result, 0, carbonProcessRuns)
+	candidate := make([]testprocess.Result, 0, carbonProcessRuns)
+	reference := make([]testprocess.Result, 0, carbonProcessRuns)
 	measureCandidate := func() {
 		candidate = append(candidate, testprocess.MeasureTestProcesses(t, 1, root, candidateBinary,
 			"TestCarbonServingProcessProbe", "CARBON_PROCESS_PROBE")[0])
@@ -139,7 +138,7 @@ func TestCarbonColdLifecyclePhases(t *testing.T) {
 	}
 }
 
-func logCarbonProbeSamples(t testing.TB, label string, results []processmeasure.Result) {
+func logCarbonProbeSamples(t testing.TB, label string, results []testprocess.Result) {
 	t.Helper()
 	for index, result := range results {
 		marker := carbonProcessLineMarker.FindString(string(result.Output))
@@ -150,7 +149,7 @@ func logCarbonProbeSamples(t testing.TB, label string, results []processmeasure.
 	}
 }
 
-func carbonCandidatePhaseMedians(t testing.TB, results []processmeasure.Result) (time.Duration, time.Duration, time.Duration) {
+func carbonCandidatePhaseMedians(t testing.TB, results []testprocess.Result) (time.Duration, time.Duration, time.Duration) {
 	t.Helper()
 	resolveWalls := make([]time.Duration, len(results))
 	openWalls := make([]time.Duration, len(results))
@@ -175,7 +174,7 @@ func carbonCandidatePhaseMedians(t testing.TB, results []processmeasure.Result) 
 	return resolveWalls[middle], openWalls[middle], generationWalls[middle]
 }
 
-func carbonProbeMedians(t testing.TB, results []processmeasure.Result) (time.Duration, time.Duration, uint64) {
+func carbonProbeMedians(t testing.TB, results []testprocess.Result) (time.Duration, time.Duration, uint64) {
 	t.Helper()
 	walls := make([]time.Duration, len(results))
 	warms := make([]time.Duration, len(results))

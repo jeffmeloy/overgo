@@ -15,9 +15,10 @@ func approx(t *testing.T, label string, got, want float64) {
 }
 
 func TestExactLMomentsHandComputed(t *testing.T) {
+	t.Parallel()
 	// [1,2,3,4] is symmetric and evenly spaced: L1=mean, L2=5/6, all higher
 	// L-moments and ratios are zero.
-	m := ExactLMoments([]float64{4, 1, 3, 2}) // unsorted input must not matter
+	m := exactLMomentsSorted([]float64{4, 1, 3, 2}) // unsorted input must not matter
 	approx(t, "L1", m.L1, 2.5)
 	approx(t, "L2", m.L2, 5.0/6.0)
 	approx(t, "L3", m.L3, 0)
@@ -27,14 +28,15 @@ func TestExactLMomentsHandComputed(t *testing.T) {
 }
 
 func TestLMomentsScaleEquivariance(t *testing.T) {
+	t.Parallel()
 	base := []float64{2, 3, 5, 7, 11, 13}
-	m := ExactLMoments(base)
+	m := exactLMomentsSorted(base)
 	const c = 4.0
 	scaled := make([]float64, len(base))
 	for i, v := range base {
 		scaled[i] = c*v + 100 // affine: L1 shifts+scales, L2 scales, ratios invariant
 	}
-	s := ExactLMoments(scaled)
+	s := exactLMomentsSorted(scaled)
 	approx(t, "L1 affine", s.L1, c*m.L1+100)
 	approx(t, "L2 scale", s.L2, c*m.L2)
 	approx(t, "Tau3 invariant", s.Tau3, m.Tau3)
@@ -42,19 +44,21 @@ func TestLMomentsScaleEquivariance(t *testing.T) {
 }
 
 func TestLMomentSkewnessSign(t *testing.T) {
-	right := ExactLMoments([]float64{1, 1, 1, 10}) // long right tail
+	t.Parallel()
+	right := exactLMomentsSorted([]float64{1, 1, 1, 10}) // long right tail
 	if right.Tau3 <= 0 {
 		t.Errorf("right-skewed Tau3 = %.4f, want > 0", right.Tau3)
 	}
-	left := ExactLMoments([]float64{1, 10, 10, 10}) // long left tail
+	left := exactLMomentsSorted([]float64{1, 10, 10, 10}) // long left tail
 	if left.Tau3 >= 0 {
 		t.Errorf("left-skewed Tau3 = %.4f, want < 0", left.Tau3)
 	}
 }
 
 func TestLMomentsBelowFourElements(t *testing.T) {
+	t.Parallel()
 	// Fewer than four values: only defined lower moments are filled.
-	m := ExactLMoments([]float64{2, 4})
+	m := exactLMomentsSorted([]float64{2, 4})
 	approx(t, "L1", m.L1, 3)
 	approx(t, "L2", m.L2, 1) // 2*b1-b0, b1=(0*2+1*4)/(2*1)=2 -> 2*2-3=1
 	if m.L3 != 0 || m.L4 != 0 || m.Tau3 != 0 || m.Tau4 != 0 {

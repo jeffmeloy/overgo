@@ -46,9 +46,6 @@ func (e *Env) SetGlobal(name string, fn GlobalFunc) {
 	e.globals[name] = callable{name: name, call: fn}
 }
 
-// SetFilter registers (or replaces) a filter.
-func (e *Env) SetFilter(name string, f Filter) { e.filters[name] = f }
-
 // Render parses and executes src with the given context variables, inside the
 // environment's limits.
 func (e *Env) Render(src string, ctx map[string]any) (string, error) {
@@ -120,11 +117,6 @@ func (r *renderer) write(out *strings.Builder, value any) error {
 	out.WriteString(stringify(value))
 	return nil
 }
-
-// jinjaError is returned by raise_exception and propagates as a render error.
-type jinjaError struct{ msg string }
-
-func (e jinjaError) Error() string { return e.msg }
 
 func (r *renderer) execAll(body []stmt, sc *scope, out *strings.Builder) error {
 	for _, s := range body {

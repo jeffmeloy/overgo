@@ -146,6 +146,7 @@ func TestCapabilityExecutionAuthorityTracksAliasWithoutChangingExecution(t *test
 }
 
 func TestRemoteCapabilityAdmission(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	fixture := newCapabilitySelectorFixture(t)
 	local := testutil.ArtifactID(t, artifact.KindEvidence, "selector-local-environment")
@@ -185,38 +186,14 @@ func TestRemoteCapabilityAdmission(t *testing.T) {
 	if _, err := fixture.store.Commit(ctx, artifact.Batch{Key: "selector/resources", Contents: []artifact.Content{resourceContent}}); err != nil {
 		t.Fatal(err)
 	}
-	peerCapability, err := remotePeerCapabilityCodec.New(RemotePeerCapability{
-		Version: remotePeerCapabilityVersion, Environment: peer,
-		Tasks: []recipe.Task{recipe.TaskGeneration}, Endpoint: "https://peer.example/v1/generation",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	capabilityBatch, err := remotePeerCapabilityCodec.Batch(
-		"selector/peer-capability", peerCapability,
-		artifact.DependencyLineage(peerCapability.ID, peer), nil,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := fixture.store.Commit(ctx, capabilityBatch); err != nil {
-		t.Fatal(err)
-	}
-	compatibility, err := remotePeerCompatibilityCodec.New(RemotePeerCompatibility{
-		Version: remotePeerCompatibilityVersion,
-		Model:   fixture.model, Recipe: fixture.definition.ID, Resources: resources.Identity, Task: recipe.TaskGeneration,
+	compatibility, err := PublishRemotePeerAuthority(ctx, fixture.store, "selector/peer", RemotePeerCapability{
+		Environment: peer, Tasks: []recipe.Task{recipe.TaskGeneration}, Endpoint: "https://peer.example/v1/generation",
+	}, RemotePeerCompatibility{
+		Model: fixture.model, Recipe: fixture.definition.ID, Resources: resources.Identity, Task: recipe.TaskGeneration,
 		LocalEnvironment: local, PeerEnvironment: peer,
-		PeerCapability:   peerCapability.ID,
 		LocalObservation: localObservation.ID, PeerObservation: peerObservation.ID,
 	})
 	if err != nil {
-		t.Fatal(err)
-	}
-	batch, err := compatibility.batch("selector/peer-compatibility")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := fixture.store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
 	selected, err := ResolveCapabilityEvidenceSelector(ctx, fixture.store, CapabilityEvidenceSelector{

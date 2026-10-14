@@ -182,43 +182,6 @@ func (r *Runner) forwardEncoderLocked(
 	return r.runOutputNorm(ctx, activation)
 }
 
-// NewEncoderDecoderSession: encodes one source sequence.
-func (r *Runner) NewEncoderDecoderSession(ctx context.Context, sourceIDs []tokenizer.TokenID) (*EncoderDecoderSession, error) {
-	if r == nil {
-		return nil, errRunnerNil
-	}
-	if err := r.lockOpen(); err != nil {
-		return nil, err
-	}
-	defer r.mu.Unlock()
-	if r.forwardProgram().Session != model.ForwardSessionEncoderDecoder {
-		return nil, errors.New("inference: encoder-decoder session requires a compiled session program")
-	}
-	encoder, err := r.forwardEncoderLocked(ctx, sourceIDs)
-	if err != nil {
-		return nil, err
-	}
-	return &EncoderDecoderSession{Encoder: encoder}, nil
-}
-
-// DecodeEncoderDecoder: appends decoder tokens and returns all chunk logits.
-func (r *Runner) DecodeEncoderDecoder(
-	ctx context.Context,
-	session *EncoderDecoderSession, decoderIDs []tokenizer.TokenID,
-) (reference.Value, *EncoderDecoderSession, error) {
-	if r == nil {
-		return reference.Value{}, nil, errRunnerNil
-	}
-	if err := r.lockOpen(); err != nil {
-		return reference.Value{}, nil, err
-	}
-	defer r.mu.Unlock()
-	if r.forwardProgram().Session != model.ForwardSessionEncoderDecoder {
-		return reference.Value{}, nil, errors.New("inference: decoder requires a compiled encoder-decoder program")
-	}
-	return r.decodeEncoderDecoderLocked(ctx, session, decoderIDs)
-}
-
 func (r *Runner) decodeEncoderDecoderLocked(
 	ctx context.Context,
 	session *EncoderDecoderSession, decoderIDs []tokenizer.TokenID,

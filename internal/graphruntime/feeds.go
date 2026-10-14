@@ -71,11 +71,6 @@ func (f *Feeds) SetHost(node *tensor.Tensor, value reference.Value) {
 	f.host.Add(node, value)
 }
 
-// HostBindings exposes the ordered host feed bindings.
-func (f *Feeds) HostBindings() *tensor.InputBindings[reference.Value] {
-	return &f.host
-}
-
 func (f *Feeds) AddDevice(values tensor.InputBindings[driver.DevicePtr]) {
 	f.deviceBindings = append(f.deviceBindings, values...)
 }

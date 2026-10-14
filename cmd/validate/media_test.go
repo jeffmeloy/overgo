@@ -112,9 +112,9 @@ func TestMediaMeasurementProjection(t *testing.T) {
 	if healthy.verification.Run.Recipe != definition.ID || healthy.activation.Definition.ID != definition.ID {
 		t.Fatal("missing or foreign verifier")
 	}
-	if reader.resolves[modelrecipe.ActiveAlias(model, recipe.TaskImageGen)] != 1 ||
-		reader.resolves[modelrecipe.ActiveAlias(model, recipe.TaskVideoGen)] != 0 ||
-		reader.resolves[modelrecipe.ActiveAlias(model, recipe.TaskInference)] != 0 {
+	if reader.resolves[modelrecipe.ActiveAliasPrefix(recipe.TaskImageGen)+model.String()] != 1 ||
+		reader.resolves[modelrecipe.ActiveAliasPrefix(recipe.TaskVideoGen)+model.String()] != 0 ||
+		reader.resolves[modelrecipe.ActiveAliasPrefix(recipe.TaskInference)+model.String()] != 0 {
 		t.Fatal("repeated activation read or out-of-scope lookup", reader.resolves)
 	}
 	var headline, inventories bytes.Buffer

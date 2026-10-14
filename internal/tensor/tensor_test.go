@@ -52,6 +52,7 @@ func TestBuilderMulMatComputePolicy(t *testing.T) {
 }
 
 func TestBuilderCacheAppendUsesFixedCapacity(t *testing.T) {
+	t.Parallel()
 	const (
 		activeTokens   = uint32(2)
 		capacityTokens = uint32(4)
@@ -72,9 +73,9 @@ func TestBuilderCacheAppendUsesFixedCapacity(t *testing.T) {
 		attributes.Axis != 2 || attributes.Offset != activeTokens {
 		t.Fatalf("cache append = %+v/%+v", output, attributes)
 	}
-	if capacity, fixed := builder.CacheCapacity(); !fixed || capacity != capacityTokens ||
+	if plan := builder.cacheAppend; plan == nil || plan.CapacityTokens != capacityTokens ||
 		builder.CacheTokenOffset(0) != activeTokens {
-		t.Fatalf("cache plan = %d/%t", capacity, fixed)
+		t.Fatalf("cache plan = %+v", plan)
 	}
 }
 
@@ -261,6 +262,7 @@ func TestBuilderQwen35UnaryPrimitives(t *testing.T) {
 }
 
 func TestBuilderSparsePrimitives(t *testing.T) {
+	t.Parallel()
 	builder := NewBuilder()
 	input := builder.Input("input", dtype.F32, MustShape(4, 3))
 	transformed := builder.FWHT(input)
@@ -270,7 +272,7 @@ func TestBuilderSparsePrimitives(t *testing.T) {
 	query := builder.Input("query", dtype.F32, MustShape(5, 2, 3))
 	key := builder.Input("key", dtype.F32, MustShape(5, 1, 4))
 	value := builder.Input("value", dtype.F32, MustShape(6, 1, 4))
-	attention := builder.SparseAttention(query, key, value, indices, 0.5)
+	attention := builder.SparseAttentionWithOffset(query, key, value, indices, 0.5, false, 0)
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}

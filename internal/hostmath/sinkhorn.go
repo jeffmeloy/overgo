@@ -21,26 +21,6 @@ import (
 // row from producing NaN rather than a finite (if uninformative) result.
 const SinkhornEpsilon = 1e-8
 
-// sinkhorn2x2FromLogits writes the EXACT doubly-stochastic projection of a 2x2
-// positive matrix, in closed form, with no iteration.
-//
-// Sinkhorn is diagonal rescaling, and the cross-ratio ad/(bc) is invariant under
-// it. Every doubly-stochastic 2x2 is [[p,1-p],[1-p,p]], whose cross-ratio is
-// (p/(1-p))^2. Setting those equal gives p = sqrt(r)/(1+sqrt(r)) -- so the fixed
-// point is determined, and iterating toward it is solving a problem that has an
-// answer. In log space p collapses to a logistic:
-//
-//	p = sigmoid((l00 + l11 - l01 - l10) / 2)
-//
-// NOT wired to the shipped path: it is exact where the loop is approximate, and
-// checkpoint parity is against the reference's approximate (20-sweep, +eps
-// guarded) result, so it cannot be swapped in silently (ADV-126).
-func sinkhorn2x2FromLogits(mat []float32) {
-	p := 1 / (1 + math.Exp(-0.5*(float64(mat[0])+float64(mat[3])-float64(mat[1])-float64(mat[2]))))
-	q := float32(1 - p)
-	mat[0], mat[1], mat[2], mat[3] = float32(p), q, q, float32(p)
-}
-
 // SinkhornFromLogitsInPlace projects logits in caller-owned storage.
 func SinkhornFromLogitsInPlace(m []float32, count, n, iters int) {
 	stride := n * n

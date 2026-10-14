@@ -82,6 +82,7 @@ type GBNFVocabulary struct {
 }
 
 // NewGBNFVocabulary copies caller-owned vocabulary data once for reuse.
+//   - tokenIDs resolves named token terminals (<|im_start|>), and a numeric terminal <[id]> needs no name.
 func NewGBNFVocabulary(tokenPieces [][]byte, eosTokens []int, tokenIDs map[string]int) (*GBNFVocabulary, error) {
 	if len(tokenPieces) == 0 {
 		return nil, errors.New("GBNF token vocabulary is empty")
@@ -175,35 +176,11 @@ func NewGBNFGrammar(
 	tokenPieces [][]byte,
 	eosTokens []int,
 ) (*GBNFGrammar, error) {
-	return NewGBNFGrammarWithTokens(source, root, tokenPieces, eosTokens, nil)
-}
-
-// NewGBNFGrammarWithTokens additionally resolves named token terminals such as
-// <|im_start|>; Numeric <[id]> terminals do not require name map
-func NewGBNFGrammarWithTokens(
-	source, root string,
-	tokenPieces [][]byte,
-	eosTokens []int,
-	tokenIDs map[string]int,
-) (*GBNFGrammar, error) {
-	return NewGBNFGrammarWithOptions(
-		source, root, tokenPieces, eosTokens, tokenIDs, GBNFLazyOptions{},
-	)
-}
-
-// NewGBNFGrammarWithOptions: compiles GBNF with optional lazy activation
-func NewGBNFGrammarWithOptions(
-	source, root string,
-	tokenPieces [][]byte,
-	eosTokens []int,
-	tokenIDs map[string]int,
-	lazy GBNFLazyOptions,
-) (*GBNFGrammar, error) {
-	vocabulary, err := NewGBNFVocabulary(tokenPieces, eosTokens, tokenIDs)
+	vocabulary, err := NewGBNFVocabulary(tokenPieces, eosTokens, nil)
 	if err != nil {
 		return nil, err
 	}
-	return vocabulary.Compile(source, root, lazy)
+	return vocabulary.Compile(source, root, GBNFLazyOptions{})
 }
 
 // Compile binds a grammar to this vocabulary without copying vocabulary data.

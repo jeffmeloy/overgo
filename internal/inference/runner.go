@@ -446,49 +446,6 @@ func (r *Runner) ForwardCached(
 	return r.forwardCachedLocked(ctx, tokenIDs, cache)
 }
 
-// ForwardCachedWithEmbeddingOverrides: cache-producing form of
-// ForwardWithEmbeddingOverrides; Override indices address only newly
-// supplied chunk, allowing its returned cache to continue normal decoding
-func (r *Runner) ForwardCachedWithEmbeddingOverrides(
-	ctx context.Context,
-	tokenIDs []tokenizer.TokenID,
-	cache *KVCache,
-	overrides []EmbeddingOverride,
-) (reference.Value, *KVCache, error) {
-	if err := r.lockOpen(); err != nil {
-		return reference.Value{}, nil, err
-	}
-	defer r.mu.Unlock()
-	if r.spec.NonCausalAttention {
-		return reference.Value{}, nil, errors.New("inference: non-causal models do not support KV caching")
-	}
-	return r.forwardCachedProjectedChunkLocked(
-		ctx, tokenIDs, cache, ProjectedInputs{EmbeddingOverrides: overrides},
-	)
-}
-
-// ForwardCachedWithMultimodalInputs: projected embeddings plus MRoPE axes.
-func (r *Runner) ForwardCachedWithMultimodalInputs(
-	ctx context.Context,
-	tokenIDs []tokenizer.TokenID,
-	cache *KVCache,
-	positions MultiAxisPositions,
-	overrides []EmbeddingOverride,
-) (reference.Value, *KVCache, error) {
-	if err := r.lockOpen(); err != nil {
-		return reference.Value{}, nil, err
-	}
-	defer r.mu.Unlock()
-	if !r.program.Model.ProjectedInput().MultiAxis {
-		return reference.Value{}, nil, errors.New("inference: model does not support multi-axis positions")
-	}
-	return r.forwardCachedProjectedChunkLocked(
-		ctx, tokenIDs, cache, ProjectedInputs{
-			EmbeddingOverrides: overrides, MultiAxisPositions: &positions,
-		},
-	)
-}
-
 // ForwardCachedWithProjectedInputs: projected base/deepstack decoder input.
 func (r *Runner) ForwardCachedWithProjectedInputs(
 	ctx context.Context,

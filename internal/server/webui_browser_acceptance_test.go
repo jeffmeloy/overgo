@@ -299,7 +299,7 @@ func blockOperation(t *testing.T, handler *Handler, recipeID, runID artifact.ID,
 		Task: recipe.TaskGeneration, Recipe: recipeID,
 	}, func(context.Context, operation.Reporter) (operation.Completion, error) {
 		if attempts.Add(1) == 1 {
-			return operation.Completion{Run: runID}, operatoraction.Recoverable(errors.New("browser approval required"), operatoraction.Block{
+			return operation.Completion{Run: runID}, testutil.Recoverable(errors.New("browser approval required"), operatoraction.Block{
 				Subject: recipeID, Reason: "approve " + summary, Evidence: []artifact.ID{},
 				Actions: []operatoraction.Action{{Code: code, Summary: summary, Argv: []string{"overgo", code}}},
 			})

@@ -75,13 +75,6 @@ func (v Value) Rows(start, count uint64) (Value, error) {
 	}, nil
 }
 
-func (v Value) TailRows(count uint64) (Value, error) {
-	if v.Shape.Rank != 2 || count > v.Shape.Dims[1] {
-		return Value{}, errors.New("reference tail row count is invalid")
-	}
-	return v.Rows(v.Shape.Dims[1]-count, count)
-}
-
 // RowView returns one borrowed matrix row.
 func (v Value) RowView(row uint64) Value {
 	width, rows, valid := v.MatrixExtents()

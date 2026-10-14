@@ -44,13 +44,6 @@ func newProcessTree(command *exec.Cmd) (processTree, error) {
 	return processTree{pgid: pgid}, nil
 }
 
-func (t processTree) interrupt(*exec.Cmd) error {
-	if t.pgid == 0 {
-		return errors.New("processcontrol: no process group")
-	}
-	return syscall.Kill(-t.pgid, syscall.SIGTERM)
-}
-
 func (t processTree) terminate() error {
 	if t.pgid == 0 {
 		return errors.New("processcontrol: no process group")

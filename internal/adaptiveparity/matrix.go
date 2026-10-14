@@ -1,6 +1,7 @@
 package adaptiveparity
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -69,11 +70,62 @@ func InferenceModalityMatrix(active []recipe.Definition, required []Contract) ([
 }
 
 func modalityContract(definition recipe.Definition) (Contract, error) {
-	signature, err := recipecontract.CompileModalitySignature(definition)
+	signature, err := compileModalitySignature(definition)
 	if err != nil {
 		return Contract{}, fmt.Errorf("adaptive parity: recipe %s: %w", definition.ID, err)
 	}
 	return Contract{Task: definition.Task, Signature: signature}, nil
+}
+
+// compileModalitySignature derives semantic I/O from ordered recipe ports.
+func compileModalitySignature(definition recipe.Definition) (Signature, error) {
+	if !definition.ID.Valid() || len(definition.Inputs) == 0 || len(definition.Outputs) == 0 {
+		return Signature{}, errors.New("recipe: incomplete modality definition")
+	}
+	signature := Signature{Inputs: make([]recipecontract.Modality, len(definition.Inputs)), Outputs: make([]recipecontract.Modality, len(definition.Outputs))}
+	for index, input := range definition.Inputs {
+		modality, err := semanticModality(definition.Task, input.Data)
+		if err != nil {
+			return Signature{}, fmt.Errorf("recipe: input %q: %w", input.Name, err)
+		}
+		signature.Inputs[index] = modality
+	}
+	for index, output := range definition.Outputs {
+		modality, err := semanticModality(definition.Task, output.Data)
+		if err != nil {
+			return Signature{}, fmt.Errorf("recipe: output %q: %w", output.Name, err)
+		}
+		signature.Outputs[index] = modality
+	}
+	return signature, nil
+}
+
+func semanticModality(task recipe.Task, data recipe.DataKind) (recipecontract.Modality, error) {
+	if data == recipe.DataEmbeddings && task == recipe.TaskImageEmbedding {
+		return recipecontract.ModalityImage, nil
+	}
+	switch data {
+	case recipe.DataText, recipe.DataTokens, recipe.DataEmbeddings, recipe.DataLogits,
+		recipe.DataPromptConditioning, recipe.DataTranscription:
+		return recipecontract.ModalityText, nil
+	case recipe.DataClassConditioning:
+		return recipecontract.ModalityTable, nil
+	case recipe.DataImage:
+		return recipecontract.ModalityImage, nil
+	case recipe.DataAudio, recipe.DataTimestampedAlignment, recipe.DataSpeechTurns,
+		recipe.DataActivitySegments, recipe.DataConvertedAudio, recipe.DataGeneratedAudio:
+		return recipecontract.ModalityAudio, nil
+	case recipe.DataVideo:
+		return recipecontract.ModalityVideo, nil
+	case recipe.DataTensor:
+		switch task {
+		case recipe.TaskForecast:
+			return recipecontract.ModalityTimeSeries, nil
+		case recipe.TaskTabular:
+			return recipecontract.ModalityTable, nil
+		}
+	}
+	return "", fmt.Errorf("data kind %q has no semantic modality", data)
 }
 
 func validateContract(contract Contract) error {

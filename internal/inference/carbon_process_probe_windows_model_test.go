@@ -125,7 +125,7 @@ func TestCarbonServingProcessProbe(t *testing.T) {
 	graphLaunches := execution.GraphLaunches - before.GraphLaunches
 	churn, churnOK := checked.Add64(instantiations, updates)
 	scaledChurn, scaleOK := checked.Mul64(churn, carbonMinimumGraphLaunchesPerChurn)
-	if !churnOK || !scaleOK || !checked.Nonzero(graphLaunches) || !checked.AtMost64(scaledChurn, graphLaunches) {
+	if !churnOK || !scaleOK || !checked.Nonzero(graphLaunches) || scaledChurn > graphLaunches {
 		t.Fatalf("Carbon decode graph replay is insufficient: churn=%d launches=%d",
 			churn, graphLaunches)
 	}

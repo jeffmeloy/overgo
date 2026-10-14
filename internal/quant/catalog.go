@@ -54,15 +54,6 @@ var codecCatalog = []codecPolicy{
 	{dataType: dtype.IQ3S},
 }
 
-// Types: supported quantization destinations.
-func Types() []dtype.Type {
-	result := make([]dtype.Type, len(codecCatalog))
-	for index, codec := range codecCatalog {
-		result[index] = codec.dataType
-	}
-	return result
-}
-
 // TypeNames: supported destination names.
 func TypeNames() []string {
 	result := make([]string, len(codecCatalog))

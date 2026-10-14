@@ -518,6 +518,7 @@ func TestExecuteSumRowsAndRWKV7(t *testing.T) {
 }
 
 func TestExecuteSparsePrimitives(t *testing.T) {
+	t.Parallel()
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(4, 2))
 	transformed := builder.FWHT(input)
@@ -527,7 +528,7 @@ func TestExecuteSparsePrimitives(t *testing.T) {
 	query := builder.Input("query", dtype.F32, tensor.MustShape(1, 1, 2))
 	key := builder.Input("key", dtype.F32, tensor.MustShape(1, 1, 4))
 	value := builder.Input("value", dtype.F32, tensor.MustShape(1, 1, 4))
-	attention := builder.SparseAttention(query, key, value, indices, 1)
+	attention := builder.SparseAttentionWithOffset(query, key, value, indices, 1, false, 0)
 	causalAttention := builder.SparseAttentionWithOffset(query, key, value, indices, 1, true, 0)
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
@@ -1704,11 +1705,11 @@ func TestExecuteDeepSeek4CompressedAttention(t *testing.T) {
 				t.Fatal(err)
 			}
 			cacheData := make([]float32, 2*ratioWidth)
-			for token := uint32(0); token < ratioWidth; token++ {
+			for token := range ratioWidth {
 				cacheData[2*token] = 1
 			}
 			compressorData := make([]float32, 2*uint32(coefficient)*ratioWidth)
-			for token := uint32(0); token < ratioWidth; token++ {
+			for token := range ratioWidth {
 				compressorData[token*2*uint32(coefficient)+2*(uint32(coefficient)-1)] = 2
 			}
 			feeds := map[*tensor.Tensor]Value{

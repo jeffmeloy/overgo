@@ -30,13 +30,6 @@ type LMoments struct {
 	Tau3, Tau4     float64
 }
 
-// ExactLMoments computes L-moments from finite values. The input is cloned and
-// sorted; callers must pass only finite values. Fewer than four values yields
-// the lower-order moments that are defined and leaves the rest zero.
-func ExactLMoments(finite []float64) LMoments {
-	return exactLMomentsSorted(slices.Clone(finite))
-}
-
 // exactLMomentsSorted sorts caller-owned finite values in place and computes the
 // unbiased probability-weighted L-moments.
 func exactLMomentsSorted(values []float64) LMoments {

@@ -123,6 +123,7 @@ func TestPreTokenizeGPT2(t *testing.T) {
 }
 
 func TestLoadEncodeDecodeAndSpecialTokens(t *testing.T) {
+	t.Parallel()
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		scalar("tokenizer.ggml.model", gguf.ValueTypeString, "gpt2"),
 		scalar("tokenizer.ggml.pre", gguf.ValueTypeString, "qwen2"),
@@ -142,8 +143,8 @@ func TestLoadEncodeDecodeAndSpecialTokens(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if vocab.Len() != 10 || vocab.MergeCount() != 4 {
-		t.Fatalf("vocab sizes = %d/%d, want 10/4", vocab.Len(), vocab.MergeCount())
+	if vocab.Len() != 10 || len(vocab.mergeRank) != 4 {
+		t.Fatalf("vocab sizes = %d/%d, want 10/4", vocab.Len(), len(vocab.mergeRank))
 	}
 
 	ids, err := vocab.Encode("hello", EncodeOptions{AddSpecial: true})

@@ -578,13 +578,6 @@ func (v *Vocab) ID(text string) (TokenID, bool) {
 	return id, ok
 }
 
-func (v *Vocab) MergeCount() int {
-	if v == nil {
-		return 0
-	}
-	return len(v.mergeRank)
-}
-
 func requiredScalar[T any](values map[string]gguf.Value, key string, kind gguf.ValueType) (T, error) {
 	var zero T
 	value, ok := values[key]

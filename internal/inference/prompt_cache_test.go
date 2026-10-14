@@ -37,23 +37,6 @@ func TestReusablePromptPrefix(t *testing.T) {
 	}
 }
 
-func TestClearPromptCachesPreservesPreparedModel(t *testing.T) {
-	runner := &Runner{
-		preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama"}}},
-		runnerState:   runnerState{promptCaches: []*cachedPrompt{{Tokens: []tokenizer.TokenID{1}}}},
-	}
-	if err := runner.ClearPromptCaches(t.Context()); err != nil {
-		t.Fatal(err)
-	}
-	if len(runner.promptCaches) != 0 || runner.Spec().Architecture != "llama" {
-		t.Fatalf("runner after clear = %+v", runner)
-	}
-	runner.closed = true
-	if err := runner.ClearPromptCaches(t.Context()); err == nil {
-		t.Fatal("closed runner accepted prompt-cache clear")
-	}
-}
-
 func TestHasRecurrentCache(t *testing.T) {
 	runner := &Runner{preparedModel: preparedModel{weights: model.Weights{Layers: []model.LayerWeights{{}, {Recurrent: true}}}}}
 	if !runner.hasRecurrentCache() {

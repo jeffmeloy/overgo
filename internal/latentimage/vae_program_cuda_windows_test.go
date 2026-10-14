@@ -73,7 +73,6 @@ func TestVAEProgramCUDAMatchesReference(t *testing.T) {
 	}
 	maxAbs := 0.0
 	u8Diff := 0
-	wu8, gu8 := media.NormalizedF32ToU8(want), media.NormalizedF32ToU8(got)
 	for i := range want {
 		g := float64(got[i])
 		if math.IsNaN(g) || math.IsInf(g, 0) {
@@ -82,11 +81,11 @@ func TestVAEProgramCUDAMatchesReference(t *testing.T) {
 		if a := math.Abs(float64(want[i]) - g); a > maxAbs {
 			maxAbs = a
 		}
-		if wu8[i] != gu8[i] {
+		if media.SignedUnitF32ToU8(want[i]) != media.SignedUnitF32ToU8(got[i]) {
 			u8Diff++
 		}
 	}
-	t.Logf("CUDA vs reference: max_abs=%.3e u8_diff=%d/%d peak_device=%.1fMB", maxAbs, u8Diff, len(wu8), float64(peak())/(1<<20))
+	t.Logf("CUDA vs reference: max_abs=%.3e u8_diff=%d/%d peak_device=%.1fMB", maxAbs, u8Diff, len(want), float64(peak())/(1<<20))
 	if maxAbs > 2e-3 {
 		t.Fatalf("CUDA/reference divergence max_abs=%.3e exceeds 2e-3", maxAbs)
 	}

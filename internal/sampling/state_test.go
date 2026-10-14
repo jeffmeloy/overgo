@@ -441,12 +441,14 @@ func TestSamplerGBNFStateResumesExactly(t *testing.T) {
 }
 
 func TestSamplerLazyGBNFStateRestoresBufferedTriggerHistory(t *testing.T) {
-	grammar, err := NewGBNFGrammarWithOptions(
+	t.Parallel()
+	vocabulary, err := NewGBNFVocabulary(bytePieces("prefixJS", "ON:42", "", "other"), []int{2}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	grammar, err := vocabulary.Compile(
 		`root ::= "JSON:" [0-9]+`,
 		"root",
-		bytePieces("prefixJS", "ON:42", "", "other"),
-		[]int{2},
-		nil,
 		GBNFLazyOptions{
 			Enabled:  true,
 			Patterns: []string{`prefix(JSON:)`},

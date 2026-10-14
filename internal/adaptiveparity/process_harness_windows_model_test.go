@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"overgo/internal/processmeasure"
+	"overgo/internal/testprocess"
 )
 
 func buildTestBinary(t testing.TB, directory, output, tags, pkg string) {
@@ -22,14 +22,14 @@ func buildTestBinary(t testing.TB, directory, output, tags, pkg string) {
 	}
 }
 
-func measureModelProcesses(t testing.TB, runs int, directory, binary, testName, marker string) []processmeasure.Result {
+func measureModelProcesses(t testing.TB, runs int, directory, binary, testName, marker string) []testprocess.Result {
 	t.Helper()
-	results := make([]processmeasure.Result, runs)
+	results := make([]testprocess.Result, runs)
 	for index := range results {
 		ctx := t.Context()
 		command := exec.CommandContext(ctx, binary, "-test.run=^"+testName+"$", "-test.v")
 		command.Dir = directory
-		result, err := processmeasure.Measure(command)
+		result, err := testprocess.Measure(command)
 		if err != nil {
 			t.Fatalf("%s run %d: %v: %s", testName, index, err, result.Output)
 		}
@@ -41,7 +41,7 @@ func measureModelProcesses(t testing.TB, runs int, directory, binary, testName, 
 	return results
 }
 
-func minimumPeak(results []processmeasure.Result) uint64 {
+func minimumPeak(results []testprocess.Result) uint64 {
 	best := results[0].PeakWorkingSetByte
 	for _, result := range results[1:] {
 		best = min(best, result.PeakWorkingSetByte)
@@ -49,7 +49,7 @@ func minimumPeak(results []processmeasure.Result) uint64 {
 	return best
 }
 
-func medianProcessWall(results []processmeasure.Result) time.Duration {
+func medianProcessWall(results []testprocess.Result) time.Duration {
 	walls := make([]time.Duration, len(results))
 	for index, result := range results {
 		walls[index] = result.Wall
@@ -58,7 +58,7 @@ func medianProcessWall(results []processmeasure.Result) time.Duration {
 	return walls[len(walls)/2]
 }
 
-func medianProcessPeak(results []processmeasure.Result) uint64 {
+func medianProcessPeak(results []testprocess.Result) uint64 {
 	peaks := make([]uint64, len(results))
 	for index, result := range results {
 		peaks[index] = result.PeakWorkingSetByte
@@ -67,7 +67,7 @@ func medianProcessPeak(results []processmeasure.Result) uint64 {
 	return peaks[len(peaks)/2]
 }
 
-func formatPeaks(results []processmeasure.Result) string {
+func formatPeaks(results []testprocess.Result) string {
 	values := make([]string, len(results))
 	for index, result := range results {
 		values[index] = fmt.Sprintf("%.3fMiB/%s", mib(result.PeakWorkingSetByte), result.Wall.Round(time.Millisecond))

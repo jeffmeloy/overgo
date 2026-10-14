@@ -32,28 +32,6 @@ func ChannelRMSNormF64Into(out, input, scale []float32, channels, positions int)
 	return nil
 }
 
-// AddResidualF64Into adds an identity residual or a learned channel projection
-// to output in place.
-func AddResidualF64Into(output, input, projection, bias []float32, inputChannels, outputChannels, positions int) error {
-	if inputChannels == outputChannels {
-		if len(output) != len(input) {
-			return fmt.Errorf("residual: identity storage differs")
-		}
-		for index := range output {
-			output[index] += input[index]
-		}
-		return nil
-	}
-	projected := make([]float32, len(output))
-	if err := ChannelMixF64Into(projected, input, projection, bias, inputChannels, outputChannels, positions); err != nil {
-		return err
-	}
-	for index := range output {
-		output[index] += projected[index]
-	}
-	return nil
-}
-
 // ZeroCenteredRMSNormF64InPlace applies x/sqrt(mean(x²)+eps)*(1+weight)
 // independently to row-major rows.
 func ZeroCenteredRMSNormF64InPlace(values []float64, weight []float32, rows, width int, epsilon float64) {
@@ -68,25 +46,6 @@ func ZeroCenteredRMSNormF64InPlace(values []float64, weight []float32, rows, wid
 			current[index] *= inverse * (1 + float64(weight[index]))
 		}
 	}
-}
-
-// StandardRMSNormF64 applies x/sqrt(mean(x²)+eps)*weight independently to
-// row-major rows and returns new storage.
-func StandardRMSNormF64(values []float64, weight []float32, rows, width int, epsilon float64) []float64 {
-	output := make([]float64, len(values))
-	for row := range rows {
-		source := values[row*width : (row+1)*width]
-		destination := output[row*width : (row+1)*width]
-		var sumSquares float64
-		for _, value := range source {
-			sumSquares += value * value
-		}
-		inverse := 1 / math.Sqrt(sumSquares/float64(width)+epsilon)
-		for index := range source {
-			destination[index] = source[index] * inverse * float64(weight[index])
-		}
-	}
-	return output
 }
 
 // LayerNormF64 applies non-parametric layer normalization independently to
@@ -137,32 +96,6 @@ func ApplyRotaryInterleavedF64(vector, cosine, sine []float64) {
 		x0, x1 := vector[first], vector[second]
 		vector[first] = x0*cosine[first] - x1*sine[first]
 		vector[second] = x1*cosine[second] + x0*sine[second]
-	}
-}
-
-// NormalizeHeadsRotaryHalfF64 applies standard per-head RMS normalization and
-// half-split rotary embedding to row-major projected heads.
-func NormalizeHeadsRotaryHalfF64(values []float64, weight []float32, rows, heads, headWidth int, epsilon float64, cosine, sine []float64) {
-	half := headWidth / 2
-	for row := range rows {
-		cosineRow := cosine[row*headWidth : (row+1)*headWidth]
-		sineRow := sine[row*headWidth : (row+1)*headWidth]
-		for head := range heads {
-			vector := values[(row*heads+head)*headWidth : (row*heads+head+1)*headWidth]
-			var sumSquares float64
-			for _, value := range vector {
-				sumSquares += value * value
-			}
-			inverse := 1 / math.Sqrt(sumSquares/float64(headWidth)+epsilon)
-			for index := range vector {
-				vector[index] *= inverse * float64(weight[index])
-			}
-			for index := range half {
-				first, second := vector[index], vector[half+index]
-				vector[index] = first*cosineRow[index] - second*sineRow[index]
-				vector[half+index] = second*cosineRow[half+index] + first*sineRow[half+index]
-			}
-		}
 	}
 }
 

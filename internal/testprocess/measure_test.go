@@ -1,4 +1,4 @@
-package processmeasure
+package testprocess
 
 import (
 	"fmt"

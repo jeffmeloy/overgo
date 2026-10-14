@@ -48,14 +48,6 @@ func TestAudioArtifactContractsUseSampleExactGeometry(t *testing.T) {
 				{Span: SampleSpan{Start: 800, End: 1_200}, Confidence: 0.85},
 			},
 		},
-		ConvertedAudio{Source: reference, Output: AudioReference{
-			Audio: testutil.ArtifactID(t, artifact.KindOutput, "converted"), Profile: profile,
-		}},
-		GeneratedAudio{
-			Context: testutil.ArtifactID(t, artifact.KindProfile, "generation-context"),
-			State:   checkpoint,
-			Output:  AudioReference{Audio: testutil.ArtifactID(t, artifact.KindOutput, "generated"), Profile: profile},
-		},
 	}
 	for index, contract := range contracts {
 		if err := contract.Validate(); err != nil {
@@ -91,10 +83,6 @@ func TestAudioArtifactContractsRejectAmbiguousTimingAndState(t *testing.T) {
 		{"activity confidence", ActivitySegments{
 			Source:   reference,
 			Segments: []ActivitySegment{{Span: SampleSpan{Start: 0, End: 1}, Confidence: math.NaN()}},
-		}},
-		{"converted input as output", ConvertedAudio{Source: reference, Output: reference}},
-		{"generated input as output", GeneratedAudio{
-			Context: testutil.ArtifactID(t, artifact.KindProfile, "generation-context"), Output: reference,
 		}},
 	}
 	for _, test := range tests {

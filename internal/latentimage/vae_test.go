@@ -13,6 +13,7 @@ import (
 	"overgo/internal/hostmath"
 	"overgo/internal/media"
 	"overgo/internal/tensor"
+	"overgo/internal/testutil"
 )
 
 // The decoder graph must DERIVE from the real Krea checkpoint: z16 -> RGB,
@@ -160,10 +161,37 @@ func TestVAEExactFinalLatentIsHookGap(t *testing.T) {
 		"Float pre-quant tensor: %s", g.DecodedImage.RawU8SHA256[:16], g.VAEFloatTensor.Reason)
 }
 
-func u8ToBytes(u []uint8) []byte {
-	b := make([]byte, len(u))
-	copy(b, u)
-	return b
+// addResidualF64Into adds an identity residual or a learned channel projection
+// to output in place.
+func addResidualF64Into(output, input, projection, bias []float32, inputChannels, outputChannels, positions int) error {
+	if inputChannels == outputChannels {
+		if len(output) != len(input) {
+			return fmt.Errorf("residual: identity storage differs")
+		}
+		for index := range output {
+			output[index] += input[index]
+		}
+		return nil
+	}
+	projected := make([]float32, len(output))
+	if err := hostmath.ChannelMixF64Into(projected, input, projection, bias, inputChannels, outputChannels, positions); err != nil {
+		return err
+	}
+	for index := range output {
+		output[index] += projected[index]
+	}
+	return nil
+}
+
+func TestAddResidualF64IntoIdentity(t *testing.T) {
+	t.Parallel()
+	output := []float32{1, 2}
+	if err := addResidualF64Into(output, []float32{3, 4}, nil, nil, 1, 1, 2); err != nil {
+		t.Fatal(err)
+	}
+	if output[0] != 4 || output[1] != 6 {
+		t.Fatalf("residual=%v", output)
+	}
 }
 
 // DecodeImage decodes one latent frame z [ZDim][h][w] to planar RGB pixels
@@ -207,7 +235,7 @@ func (d *VAEDecoder) DecodeImage(z []float32, h, w int) (pixels []float32, outH,
 		return nil, 0, 0, err
 	}
 	x = volume.Storage
-	media.ClampNormalizedF32InPlace(x)
+	testutil.ClampNormalizedF32InPlace(x)
 	return x, volume.Height, volume.Width, nil
 }
 
@@ -249,7 +277,7 @@ func (d *VAEDecoder) runOp(op media.CodecOperation[[]float32], x []float32, c, h
 			return nil, 0, 0, 0, err
 		}
 		projection, projectionBias := op.Bindings.WeightProjection, op.Bindings.BiasProjection
-		if err := hostmath.AddResidualF64Into(out, x, projection, projectionBias, c, op.OutputChannels, plane); err != nil {
+		if err := addResidualF64Into(out, x, projection, projectionBias, c, op.OutputChannels, plane); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		return out, op.OutputChannels, h, w, nil

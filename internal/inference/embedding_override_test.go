@@ -205,12 +205,11 @@ func TestApplyEmbeddingOverridesRejectsInvalidInput(t *testing.T) {
 }
 
 func TestMultimodalInputAdmission(t *testing.T) {
+	t.Parallel()
 	for _, architecture := range []string{"qwen3vl", "glm4", "hunyuan-dense"} {
 		supported := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: architecture}, AttentionSpec: model.AttentionSpec{RopeSections: [4]int32{2, 2, 0, 0}}}}}
 		supported = attachFixtureProgram(supported)
-		_, _, err := supported.ForwardCachedWithMultimodalInputs(
-			t.Context(), nil, nil, MultiAxisPositions{}, nil,
-		)
+		_, _, err := forwardProjected(t, supported, nil, ProjectedInputs{MultiAxisPositions: &MultiAxisPositions{}})
 		if err == nil || !strings.Contains(err.Error(), "token sequence is empty") {
 			t.Fatalf("%s multimodal error = %v", architecture, err)
 		}
@@ -218,24 +217,36 @@ func TestMultimodalInputAdmission(t *testing.T) {
 
 	unsupported := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama"}}}}
 	unsupported = attachFixtureProgram(unsupported)
-	_, _, err := unsupported.ForwardCachedWithMultimodalInputs(
-		t.Context(), nil, nil, MultiAxisPositions{}, nil,
-	)
+	_, _, err := forwardProjected(t, unsupported, []tokenizer.TokenID{0}, ProjectedInputs{MultiAxisPositions: &MultiAxisPositions{}})
 	if err == nil || !strings.Contains(err.Error(), "does not support") {
 		t.Fatalf("unsupported multimodal error = %v", err)
 	}
 }
 
 func TestMultimodalInputRejectsIncompleteAxes(t *testing.T) {
+	t.Parallel()
 	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "qwen3vl", ContextLength: 4}, AttentionSpec: model.AttentionSpec{RopeSections: [4]int32{1, 1, 0, 0}}}}}
 	runner = attachFixtureProgram(runner)
 	positions := MultiAxisPositions{{0}, {0}, nil, {0}}
-	_, _, err := runner.ForwardCachedWithMultimodalInputs(
-		t.Context(), []tokenizer.TokenID{0}, nil, positions, nil,
-	)
+	_, _, err := forwardProjected(t, runner, []tokenizer.TokenID{0}, ProjectedInputs{MultiAxisPositions: &positions})
 	if err == nil || !strings.Contains(err.Error(), "position 2") {
 		t.Fatalf("incomplete multi-axis error = %v", err)
 	}
+}
+
+// forwardProjected runs the cached forward that Generate enters for projected inputs.
+//   - it holds the runner's lock because that forward requires it
+//   - the forward starts with no cache
+func forwardProjected(
+	t *testing.T,
+	runner *Runner,
+	tokenIDs []tokenizer.TokenID,
+	inputs ProjectedInputs,
+) (reference.Value, *KVCache, error) {
+	t.Helper()
+	runner.mu.Lock()
+	defer runner.mu.Unlock()
+	return runner.forwardCachedWithProjectedInputsLocked(t.Context(), tokenIDs, nil, inputs)
 }
 
 func TestProjectedInputDeepstackAdmission(t *testing.T) {

@@ -16,6 +16,7 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testutil"
 )
 
 func g3nRows(v reference.Value) int  { return int(v.Shape.Dims[1]) }
@@ -579,7 +580,7 @@ func gemma3nActiveLayerBackward(w gemma3nLayerWeights, cfg gemma3nLayerConfig, i
 	dq := make([]float32, qWidth*tk)
 	dk := make([]float32, kvWidth*tk)
 	dv := make([]float32, kvWidth*tk)
-	hostmath.WindowedCausalAttentionBackward(dq, dk, dv, tr.q, tr.k, tr.v, dAttn, tk, hc, kv, hd, cfg.window)
+	testutil.WindowedCausalAttentionBackward(dq, dk, dv, tr.q, tr.k, tr.v, dAttn, tk, hc, kv, hd, cfg.window)
 
 	// q scale, then rope backward on dq/dk.
 	scale := float32(1 / math.Sqrt(float64(hd)))

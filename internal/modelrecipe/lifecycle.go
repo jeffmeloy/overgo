@@ -912,8 +912,3 @@ func activeAlias(modelID artifact.ID, task recipe.Task) string {
 func ActiveAliasPrefix(task recipe.Task) string {
 	return activeAliasPrefix + string(task) + "."
 }
-
-// ActiveAlias names the activation alias of one model and task.
-func ActiveAlias(modelID artifact.ID, task recipe.Task) string {
-	return activeAlias(modelID, task)
-}

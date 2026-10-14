@@ -13,6 +13,7 @@ import (
 	"overgo/internal/hostmath"
 	"overgo/internal/media"
 	"overgo/internal/pytorchzip"
+	"overgo/internal/testutil"
 )
 
 // Torch-fixture oracle values ported from the reference repo
@@ -332,7 +333,7 @@ func DecodeLatentVideo(checkpoint string, plan VAEDecoderPlan, stats VAELatentSt
 		if !checked.Equal(h, geometry.height) || !checked.Equal(w, geometry.width) {
 			return decodeStats, fmt.Errorf("vae decode chunk %d output %dx%d, want %dx%d", chunkIndex, w, h, geometry.width, geometry.height)
 		}
-		media.ClampNormalizedF32InPlace(x)
+		testutil.ClampNormalizedF32InPlace(x)
 		chunkSpatial, ok := checked.MulInt(h, w)
 		if !ok {
 			return decodeStats, fmt.Errorf("vae decode chunk %d spatial geometry overflows", chunkIndex)

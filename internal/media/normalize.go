@@ -12,24 +12,6 @@ func SignedUnitBounds32() (float32, float32) {
 	return -upper, upper
 }
 
-// ClampNormalizedF32InPlace bounds normalized samples to their signed unit
-// interval without assigning an image-, video-, or audio-family policy.
-func ClampNormalizedF32InPlace(values []float32) {
-	lower, upper := SignedUnitBounds32()
-	for index, value := range values {
-		values[index] = max(lower, min(value, upper))
-	}
-}
-
-// NormalizedF32ToU8 maps signed-unit samples to the full unsigned byte range.
-func NormalizedF32ToU8(values []float32) []uint8 {
-	output := make([]uint8, len(values))
-	for index, value := range values {
-		output[index] = SignedUnitF32ToU8(value)
-	}
-	return output
-}
-
 // SignedUnitF32ToU8 maps one signed-unit sample to an unsigned byte.
 func SignedUnitF32ToU8(value float32) uint8 {
 	lower := float64(tensor.FirstOffset)

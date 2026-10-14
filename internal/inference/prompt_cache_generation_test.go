@@ -60,9 +60,7 @@ func assertDecodedTokensContinue(t *testing.T, runner *Runner) {
 		})
 		return result, evaluation, err
 	}
-	if err := runner.ClearPromptCaches(t.Context()); err != nil {
-		t.Fatal(err)
-	}
+	clearPromptCaches(t, runner)
 	reference, _, err := generate(prompt, total, false, 0)
 	if err != nil || len(reference) != len(prompt)+total {
 		t.Fatalf("reference=%v err=%v", reference, err)
@@ -136,9 +134,7 @@ func assertPromptCacheAfterDecode(t *testing.T, runner *Runner) {
 		runner.promptCacheCapacity = capacity
 		for _, next := range [][]tokenizer.TokenID{prompt, {1, 4, 5, 6}, {1, 4, 7}, {1, 4}} {
 			for _, cancelled := range []bool{false, true} {
-				if err := runner.ClearPromptCaches(t.Context()); err != nil {
-					t.Fatal(err)
-				}
+				clearPromptCaches(t, runner)
 				cold := generatePromptCacheFixture(t, runner, next, false, false)
 				generatePromptCacheFixture(t, runner, prompt, true, cancelled)
 				warm := generatePromptCacheFixture(t, runner, next, true, false)
@@ -179,11 +175,27 @@ func assertPromptCacheAfterDecode(t *testing.T, runner *Runner) {
 			}
 		}
 	}
-	if err := runner.ClearPromptCaches(t.Context()); err != nil {
-		t.Fatal(err)
-	}
+	clearPromptCaches(t, runner)
 	if len(runner.promptCaches) != 0 {
 		t.Fatal("cache survived explicit clear")
+	}
+}
+
+// clearPromptCaches releases every prompt cache an open runner retains.
+//   - a cache whose release fails returns to the pool, so Close releases it
+func clearPromptCaches(t *testing.T, runner *Runner) {
+	t.Helper()
+	if err := runner.lockOpen(); err != nil {
+		t.Fatal(err)
+	}
+	caches := runner.detachPromptCaches()
+	runner.mu.Unlock()
+	failed, err := releasePromptCaches(t.Context(), caches)
+	if err != nil {
+		runner.mu.Lock()
+		runner.promptCaches = append(runner.promptCaches, failed...)
+		runner.mu.Unlock()
+		t.Fatal(err)
 	}
 }
 

@@ -69,7 +69,3 @@ func (p tensorShapePlan) ExpertRouter() []uint64 {
 func (p tensorShapePlan) ExpertUp(multiplier uint64) []uint64 {
 	return []uint64{p.Embedding, multiplier * p.ExpertWidth, p.Experts}
 }
-
-func (p tensorShapePlan) ExpertDown() []uint64 {
-	return []uint64{p.ExpertWidth, p.Embedding, p.Experts}
-}

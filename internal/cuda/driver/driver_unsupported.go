@@ -54,10 +54,6 @@ func (l *Library) ContextSetCurrent(context Context) error {
 	return errors.New("CUDA driver loading is currently supported only on Windows")
 }
 
-func (l *Library) ContextSynchronize() error {
-	return errors.New("CUDA driver loading is currently supported only on Windows")
-}
-
 func (l *Library) StreamCreate(flags uint32) (Stream, error) {
 	return 0, errors.New("CUDA driver loading is currently supported only on Windows")
 }

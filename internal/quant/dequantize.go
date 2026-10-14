@@ -79,7 +79,7 @@ func DequantizeInto(dataType dtype.Type, source []byte, output []float32) error 
 		dequantizeQ8(dataType, source, output, blocks, traits)
 	case dtype.Q1_0:
 		layout := scalarCodecs[dataType]
-		for block := uint64(0); block < blocks; block++ {
+		for block := range blocks {
 			outputOffset := block * traits.BlockSize
 			storage := layout.block.storage64(source, block)
 			scale := scalarScale(storage, layout.scale)
@@ -95,7 +95,7 @@ func DequantizeInto(dataType dtype.Type, source []byte, output []float32) error 
 		}
 	case dtype.Q2_0:
 		layout := scalarCodecs[dataType]
-		for block := uint64(0); block < blocks; block++ {
+		for block := range blocks {
 			outputOffset := block * traits.BlockSize
 			storage := layout.block.storage64(source, block)
 			scale := scalarScale(storage, layout.scale)
@@ -181,7 +181,7 @@ func iqGrid1Lane(grid uint64, lane int) float32 {
 }
 
 func dequantizeIQ2XXS(source []byte, output []float32, blocks uint64, traits dtype.Traits) {
-	for block := uint64(0); block < blocks; block++ {
+	for block := range blocks {
 		sourceOffset := block * traits.TypeSize
 		outputOffset := block * traits.BlockSize
 		scale := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset:]))
@@ -208,7 +208,7 @@ func dequantizeIQ2XXS(source []byte, output []float32, blocks uint64, traits dty
 }
 
 func dequantizeIQ2XS(source []byte, output []float32, blocks uint64, traits dtype.Traits) {
-	for block := uint64(0); block < blocks; block++ {
+	for block := range blocks {
 		sourceOffset := block * traits.TypeSize
 		outputOffset := block * traits.BlockSize
 		scale := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset:]))
@@ -240,7 +240,7 @@ func dequantizeIQ2XS(source []byte, output []float32, blocks uint64, traits dtyp
 }
 
 func dequantizeIQ2S(source []byte, output []float32, blocks uint64, traits dtype.Traits) {
-	for block := uint64(0); block < blocks; block++ {
+	for block := range blocks {
 		sourceOffset := block * traits.TypeSize
 		outputOffset := block * traits.BlockSize
 		scale := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset:]))
@@ -272,7 +272,7 @@ func dequantizeIQ2S(source []byte, output []float32, blocks uint64, traits dtype
 }
 
 func dequantizeIQ3XXS(source []byte, output []float32, blocks uint64, traits dtype.Traits) {
-	for block := uint64(0); block < blocks; block++ {
+	for block := range blocks {
 		sourceOffset := block * traits.TypeSize
 		outputOffset := block * traits.BlockSize
 		scale := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset:]))
@@ -304,7 +304,7 @@ func dequantizeIQ3XXS(source []byte, output []float32, blocks uint64, traits dty
 }
 
 func dequantizeIQ3S(source []byte, output []float32, blocks uint64, traits dtype.Traits) {
-	for block := uint64(0); block < blocks; block++ {
+	for block := range blocks {
 		sourceOffset := block * traits.TypeSize
 		outputOffset := block * traits.BlockSize
 		scale := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset:]))
@@ -351,7 +351,7 @@ func dequantizeIQ3S(source []byte, output []float32, blocks uint64, traits dtype
 }
 
 func dequantizeIQ1S(source []byte, output []float32, blocks uint64, traits dtype.Traits) {
-	for block := uint64(0); block < blocks; block++ {
+	for block := range blocks {
 		sourceOffset := block * traits.TypeSize
 		outputOffset := block * traits.BlockSize
 		scale := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset:]))
@@ -379,7 +379,7 @@ func dequantizeIQ1S(source []byte, output []float32, blocks uint64, traits dtype
 }
 
 func dequantizeIQ1M(source []byte, output []float32, blocks uint64, traits dtype.Traits) {
-	for block := uint64(0); block < blocks; block++ {
+	for block := range blocks {
 		sourceOffset := block * traits.TypeSize
 		outputOffset := block * traits.BlockSize
 		quantized := source[sourceOffset : sourceOffset+32]
@@ -447,7 +447,7 @@ func dequantizeIQ1M(source []byte, output []float32, blocks uint64, traits dtype
 }
 
 func dequantizeIQ4NL(source []byte, output []float32, blocks uint64, traits dtype.Traits) {
-	for block := uint64(0); block < blocks; block++ {
+	for block := range blocks {
 		sourceOffset := block * traits.TypeSize
 		outputOffset := block * traits.BlockSize
 		scale := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset:]))
@@ -462,7 +462,7 @@ func dequantizeIQ4NL(source []byte, output []float32, blocks uint64, traits dtyp
 }
 
 func dequantizeTQ2_0(source []byte, output []float32, blocks uint64, traits dtype.Traits) {
-	for block := uint64(0); block < blocks; block++ {
+	for block := range blocks {
 		sourceOffset := block * traits.TypeSize
 		outputOffset := block * traits.BlockSize
 		quantized := source[sourceOffset : sourceOffset+tq2PackedBytes]
@@ -482,7 +482,7 @@ func dequantizeTQ2_0(source []byte, output []float32, blocks uint64, traits dtyp
 
 func dequantizeTQ1_0(source []byte, output []float32, blocks uint64, traits dtype.Traits) {
 	powersOfThree := [...]byte{1, 3, 9, 27, 81}
-	for block := uint64(0); block < blocks; block++ {
+	for block := range blocks {
 		sourceOffset := block * traits.TypeSize
 		outputOffset := block * traits.BlockSize
 		quantized := source[sourceOffset : sourceOffset+tq1TailPackedStart]
@@ -522,7 +522,7 @@ var mxfp4Values = [...]float32{
 }
 
 func dequantizeMXFP4(source []byte, output []float32, blocks uint64, traits dtype.Traits) {
-	for block := uint64(0); block < blocks; block++ {
+	for block := range blocks {
 		sourceOffset := block * traits.TypeSize
 		outputOffset := block * traits.BlockSize
 		exponent := source[sourceOffset]
@@ -556,7 +556,7 @@ func ue4m3ToFloat32(value byte) float32 {
 }
 
 func dequantizeNVFP4(source []byte, output []float32, blocks uint64, traits dtype.Traits) {
-	for block := uint64(0); block < blocks; block++ {
+	for block := range blocks {
 		sourceOffset := block * traits.TypeSize
 		outputOffset := block * traits.BlockSize
 		subBlockWidth := nvfp4BlockLayout.elements / nvfp4ScaleCount
@@ -579,7 +579,7 @@ func dequantizeNVFP4(source []byte, output []float32, blocks uint64, traits dtyp
 }
 
 func dequantizeIQ4XS(source []byte, output []float32, blocks uint64, traits dtype.Traits) {
-	for block := uint64(0); block < blocks; block++ {
+	for block := range blocks {
 		sourceOffset := block * traits.TypeSize
 		outputOffset := block * traits.BlockSize
 		scale := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset:]))
@@ -604,7 +604,7 @@ func dequantizeIQ4XS(source []byte, output []float32, blocks uint64, traits dtyp
 }
 
 func dequantizeQ2K(source []byte, output []float32, blocks uint64, traits dtype.Traits) {
-	for block := uint64(0); block < blocks; block++ {
+	for block := range blocks {
 		storage := q2KCodec.block.storage64(source, block)
 		outputOffset := block * traits.BlockSize
 		scales := q2KCodec.scales.bytes(storage)
@@ -631,7 +631,7 @@ func dequantizeQ2K(source []byte, output []float32, blocks uint64, traits dtype.
 }
 
 func dequantizeQ3K(source []byte, output []float32, blocks uint64, traits dtype.Traits) {
-	for block := uint64(0); block < blocks; block++ {
+	for block := range blocks {
 		storage := q3KCodec.block.storage64(source, block)
 		outputOffset := block * traits.BlockSize
 		highMasks := q3KCodec.high.bytes(storage)
@@ -667,7 +667,7 @@ func dequantizeAffineK(
 	blocks uint64,
 	traits dtype.Traits,
 ) {
-	for block := uint64(0); block < blocks; block++ {
+	for block := range blocks {
 		storage := layout.block.storage64(source, block)
 		outputOffset := block * traits.BlockSize
 		scale := Float16ToFloat32(binary.LittleEndian.Uint16(layout.delta.bytes(storage)))
@@ -705,7 +705,7 @@ func dequantizeQ6K(
 	blocks uint64,
 	traits dtype.Traits,
 ) {
-	for block := uint64(0); block < blocks; block++ {
+	for block := range blocks {
 		storage := q6KCodec.block.storage64(source, block)
 		outputOffset := block * traits.BlockSize
 		lower := q6KCodec.packed.bytes(storage)
@@ -750,7 +750,7 @@ func dequantizeQ4Or5(
 	traits dtype.Traits,
 ) {
 	layout := scalarCodecs[dataType]
-	for block := uint64(0); block < blocks; block++ {
+	for block := range blocks {
 		outputOffset := block * traits.BlockSize
 		storage := layout.block.storage64(source, block)
 		scale := scalarScale(storage, layout.scale)
@@ -783,7 +783,7 @@ func dequantizeQ4Or5(
 
 func dequantizeQ8(dataType dtype.Type, source []byte, output []float32, blocks uint64, traits dtype.Traits) {
 	layout := scalarCodecs[dataType]
-	for block := uint64(0); block < blocks; block++ {
+	for block := range blocks {
 		outputOffset := block * traits.BlockSize
 		storage := layout.block.storage64(source, block)
 		scale := scalarScale(storage, layout.scale)

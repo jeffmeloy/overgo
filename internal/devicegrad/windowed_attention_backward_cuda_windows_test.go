@@ -9,11 +9,11 @@ import (
 
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
-	"overgo/internal/hostmath"
+	"overgo/internal/testutil"
 )
 
 // TestWindowedCausalAttentionBackwardDeviceMatchesHost proves the device
-// sliding-window backward reproduces hostmath.WindowedCausalAttentionBackward
+// sliding-window backward reproduces testutil.WindowedCausalAttentionBackward
 // across windows spanning the full causal prefix (window<=0), sub-seq bands, an
 // exactly-seq band, and an over-seq band (>= full prefix). All three grads must
 // be bit-adjacent (~1e-4 f32-GEMM class). window<=0 must match the full-causal
@@ -55,7 +55,7 @@ func TestWindowedCausalAttentionBackwardDeviceMatchesHost(t *testing.T) {
 		hdq := make([]float32, seq*nh*hd)
 		hdk := make([]float32, seq*nkv*hd)
 		hdv := make([]float32, seq*nkv*hd)
-		hostmath.WindowedCausalAttentionBackward(hdq, hdk, hdv, q, k, v, dOut, seq, nh, nkv, hd, window)
+		testutil.WindowedCausalAttentionBackward(hdq, hdk, hdv, q, k, v, dOut, seq, nh, nkv, hd, window)
 
 		dQ, dK, dV, err := WindowedCausalAttentionBackwardDevice(worker, q, k, v, dOut, seq, nh, nkv, hd, window)
 		if err != nil {

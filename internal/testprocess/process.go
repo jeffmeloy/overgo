@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"overgo/internal/gitauthority"
-	"overgo/internal/processmeasure"
 )
 
 // PinnedTree writes directory as commit holds it in repository into a fresh
@@ -72,13 +71,13 @@ func BuildTestBinary(t testing.TB, directory, output, tags, pkg string) {
 
 // MeasureTestProcesses runs identical isolated probes; each probe runs
 // under the calling test's context, so the test's own end bounds it.
-func MeasureTestProcesses(t testing.TB, runs int, directory, binary, testName, marker string) []processmeasure.Result {
+func MeasureTestProcesses(t testing.TB, runs int, directory, binary, testName, marker string) []Result {
 	t.Helper()
-	results := make([]processmeasure.Result, runs)
+	results := make([]Result, runs)
 	for index := range results {
 		command := exec.CommandContext(t.Context(), binary, "-test.run=^"+testName+"$", "-test.v")
 		command.Dir = directory
-		result, err := processmeasure.Measure(command)
+		result, err := Measure(command)
 		if err != nil {
 			t.Fatalf("%s run %d: %v: %s", testName, index, err, result.Output)
 		}
@@ -91,7 +90,7 @@ func MeasureTestProcesses(t testing.TB, runs int, directory, binary, testName, m
 }
 
 // MedianProcessWall is the median wall time of the measured runs.
-func MedianProcessWall(results []processmeasure.Result) time.Duration {
+func MedianProcessWall(results []Result) time.Duration {
 	values := make([]time.Duration, len(results))
 	for index, result := range results {
 		values[index] = result.Wall
@@ -101,7 +100,7 @@ func MedianProcessWall(results []processmeasure.Result) time.Duration {
 }
 
 // MedianProcessPeak is the median peak working set of the measured runs.
-func MedianProcessPeak(results []processmeasure.Result) uint64 {
+func MedianProcessPeak(results []Result) uint64 {
 	values := make([]uint64, len(results))
 	for index, result := range results {
 		values[index] = result.PeakWorkingSetByte
@@ -111,7 +110,7 @@ func MedianProcessPeak(results []processmeasure.Result) uint64 {
 }
 
 // FormatProcessMeasurements renders each run as peak and wall.
-func FormatProcessMeasurements(results []processmeasure.Result) string {
+func FormatProcessMeasurements(results []Result) string {
 	values := make([]string, len(results))
 	for index, result := range results {
 		values[index] = fmt.Sprintf("%.3fMiB/%s", MiB(result.PeakWorkingSetByte), result.Wall.Round(time.Millisecond))

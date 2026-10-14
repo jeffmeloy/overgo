@@ -237,12 +237,6 @@ func resumeCreatedThread(pid uint32) error {
 	return nil
 }
 
-// interrupt has no cooperative tree signal on Windows without a shared
-// console; the request is recorded and termination is the effective
-// stop. Callers needing cooperative shutdown speak an application
-// protocol instead.
-func (t processTree) interrupt(*exec.Cmd) error { return nil }
-
 func (t processTree) terminate() error {
 	if t.job == 0 {
 		return errors.New("processcontrol: no job handle")

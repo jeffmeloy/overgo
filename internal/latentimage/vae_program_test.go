@@ -147,16 +147,15 @@ func TestVAEProgramReferenceMatchesHost(t *testing.T) {
 	}
 	maxAbs := 0.0
 	u8Diff := 0
-	wu8, gu8 := media.NormalizedF32ToU8(wantPix), media.NormalizedF32ToU8(gotPix)
 	for i := range wantPix {
 		if a := math.Abs(float64(wantPix[i]) - float64(gotPix[i])); a > maxAbs {
 			maxAbs = a
 		}
-		if wu8[i] != gu8[i] {
+		if media.SignedUnitF32ToU8(wantPix[i]) != media.SignedUnitF32ToU8(gotPix[i]) {
 			u8Diff++
 		}
 	}
-	t.Logf("graph vs host vae.go: max_abs=%.3e u8_diff=%d/%d (%dx%d RGB)", maxAbs, u8Diff, len(wu8), gow, goh)
+	t.Logf("graph vs host vae.go: max_abs=%.3e u8_diff=%d/%d (%dx%d RGB)", maxAbs, u8Diff, len(wantPix), gow, goh)
 	if maxAbs > 1e-4 {
 		t.Fatalf("graph/host divergence max_abs=%.3e exceeds 1e-4", maxAbs)
 	}

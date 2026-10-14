@@ -2,7 +2,6 @@ package tokenizer
 
 import (
 	"errors"
-	"fmt"
 	"slices"
 	"strings"
 
@@ -17,10 +16,6 @@ const (
 	VocabularyArtifactMediaType = "application/vnd.overgo.vocabulary-artifact+json"
 	// VocabularyArtifactSchema identifies the semantic vocabulary wire schema.
 	VocabularyArtifactSchema = "overgo/vocabulary-artifact/v1"
-	// VocabularyMappingMediaType identifies exact vocabulary row mappings.
-	VocabularyMappingMediaType = "application/vnd.overgo.vocabulary-mapping+json"
-	// VocabularyMappingSchema identifies the vocabulary mapping wire schema.
-	VocabularyMappingSchema = "overgo/vocabulary-mapping/v1"
 )
 
 // VocabularyRole identifies a tokenizer-declared semantic token role.
@@ -86,15 +81,6 @@ type VocabularyArtifact struct {
 	ID        artifact.ID         `json:"-"`
 }
 
-// VocabularyMapping maps target rows to exact source-token rows.
-type VocabularyMapping struct {
-	Version uint16      `json:"version"`
-	Source  artifact.ID `json:"source"`
-	Target  artifact.ID `json:"target"`
-	Rows    []TokenID   `json:"rows"`
-	ID      artifact.ID `json:"-"`
-}
-
 var vocabularyArtifactCodec = artifact.JSONDocumentCodec(
 	"vocabulary artifact", artifact.KindProfile,
 	VocabularyArtifactMediaType, VocabularyArtifactSchema,
@@ -103,18 +89,6 @@ var vocabularyArtifactCodec = artifact.JSONDocumentCodec(
 	func(value *VocabularyArtifact, id artifact.ID) { value.ID = id },
 	func(value VocabularyArtifact) VocabularyArtifact {
 		value.Tokens = cloneVocabularyTokens(value.Tokens)
-		return value
-	},
-)
-
-var vocabularyMappingCodec = artifact.JSONDocumentCodec(
-	"vocabulary mapping", artifact.KindProfile,
-	VocabularyMappingMediaType, VocabularyMappingSchema,
-	canonicalizeVocabularyMapping,
-	func(value VocabularyMapping) artifact.ID { return value.ID },
-	func(value *VocabularyMapping, id artifact.ID) { value.ID = id },
-	func(value VocabularyMapping) VocabularyMapping {
-		value.Rows = slices.Clone(value.Rows)
 		return value
 	},
 )
@@ -171,59 +145,6 @@ func (value VocabularyArtifact) Batch(key string) (artifact.Batch, error) {
 	return vocabularyArtifactCodec.Batch(key, value, value.Lineage(), nil)
 }
 
-// ExactVocabularyMapping compiles target-row to source-row correspondence.
-// Missing tokens and any semantic mismatch refuse; no embedding is invented.
-func ExactVocabularyMapping(source, target VocabularyArtifact) (VocabularyMapping, error) {
-	if err := source.ValidateIdentity(); err != nil {
-		return VocabularyMapping{}, err
-	}
-	if err := target.ValidateIdentity(); err != nil {
-		return VocabularyMapping{}, err
-	}
-	if source.Semantics != target.Semantics {
-		return VocabularyMapping{}, errors.New("tokenizer: vocabulary semantics differ")
-	}
-	byText := make(map[string]int, len(source.Tokens))
-	for index, token := range source.Tokens {
-		byText[token.Text] = index
-	}
-	rows := make([]TokenID, len(target.Tokens))
-	for index, token := range target.Tokens {
-		sourceIndex, found := byText[token.Text]
-		if !found {
-			return VocabularyMapping{}, fmt.Errorf("tokenizer: target token %q has no exact source", token.Text)
-		}
-		candidate := source.Tokens[sourceIndex]
-		if candidate.Type != token.Type || !slices.Equal(candidate.Roles, token.Roles) {
-			return VocabularyMapping{}, fmt.Errorf("tokenizer: target token %q semantics differ", token.Text)
-		}
-		rows[index] = TokenID(sourceIndex)
-	}
-	return vocabularyMappingCodec.New(VocabularyMapping{
-		Version: VocabularyArtifactVersion, Source: source.ID, Target: target.ID, Rows: rows,
-	})
-}
-
-// ValidateIdentity verifies mapping bounds and content identity.
-func (value VocabularyMapping) ValidateIdentity() error {
-	return vocabularyMappingCodec.ValidateIdentity(value)
-}
-
-// Content returns the immutable exact row mapping.
-func (value VocabularyMapping) Content() (artifact.Content, error) {
-	return vocabularyMappingCodec.Content(value)
-}
-
-// Lineage binds the mapping to both semantic vocabularies.
-func (value VocabularyMapping) Lineage() []artifact.Lineage {
-	return artifact.DependencyLineage(value.ID, value.Source, value.Target)
-}
-
-// Batch prepares atomic publication of an exact vocabulary mapping.
-func (value VocabularyMapping) Batch(key string) (artifact.Batch, error) {
-	return vocabularyMappingCodec.Batch(key, value, value.Lineage(), nil)
-}
-
 func (v *Vocab) roles(id TokenID) []VocabularyRole {
 	bindings := [...]struct {
 		role VocabularyRole
@@ -267,20 +188,6 @@ func canonicalizeVocabularyArtifact(value *VocabularyArtifact) error {
 			if !validVocabularyRole(role) || roleIndex > 0 && role == token.Roles[roleIndex-1] {
 				return errors.New("tokenizer: vocabulary token role is invalid or duplicated")
 			}
-		}
-	}
-	return nil
-}
-
-func canonicalizeVocabularyMapping(value *VocabularyMapping) error {
-	if value == nil || value.Version != VocabularyArtifactVersion ||
-		value.Source.Kind() != artifact.KindProfile || value.Target.Kind() != artifact.KindProfile ||
-		!checked.Nonempty(value.Rows) {
-		return errors.New("tokenizer: invalid vocabulary mapping")
-	}
-	for _, row := range value.Rows {
-		if row < 0 {
-			return errors.New("tokenizer: vocabulary mapping contains a negative row")
 		}
 	}
 	return nil

@@ -19,6 +19,7 @@ import (
 	"overgo/internal/graphruntime"
 	"overgo/internal/processmeasure"
 	"overgo/internal/testevidence"
+	"overgo/internal/testprocess"
 )
 
 // samplingHostBoundary retains the pre-residency sampling contract as an A/B
@@ -175,7 +176,7 @@ func TestResidentSamplingSequenceAcceptance(t *testing.T) {
 		path := filepath.Join(t.TempDir(), mode+".json")
 		command := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^"+t.Name()+"$", "-test.v")
 		command.Env = append(os.Environ(), resultEnvironment+"="+path, modeEnvironment+"="+mode)
-		result, err := processmeasure.Measure(command)
+		result, err := testprocess.Measure(command)
 		if err != nil {
 			t.Fatalf("%s measured process: %v\n%s", mode, err, result.Output)
 		}

@@ -54,49 +54,6 @@ func (r *Runner) NewPairedFeatureSession(
 	}, nil
 }
 
-// SyncPairedFeaturePrefix: recomputes target inputs; injects unsynced suffix.
-func (r *Runner) SyncPairedFeaturePrefix(
-	ctx context.Context,
-	target *Runner,
-	tokenIDs []tokenizer.TokenID,
-	cache *KVCache,
-) (*KVCache, error) {
-	if r == nil || target == nil || r == target || r.path == target.path {
-		return nil, errors.New("inference: paired-feature runners are invalid")
-	}
-	if r.forwardProgram().Session != model.ForwardSessionPairedFeatures || target.spec.EmbeddingLength != r.spec.EmbeddingLength {
-		return nil, errors.New("inference: paired-feature target is incompatible")
-	}
-	start := 0
-	if cache != nil {
-		start = int(cache.Tokens)
-		if start > len(tokenIDs) {
-			return nil, errors.New("inference: paired-feature cache exceeds target prefix")
-		}
-		if start == len(tokenIDs) {
-			return cache, nil
-		}
-	}
-	features, err := target.ExtractLayerInputs(ctx, tokenIDs, r.spec.TargetLayers)
-	if err != nil {
-		return nil, err
-	}
-	featureWidth := int(features.Shape.Dims[0])
-	features = reference.Value{
-		Shape: tensor.MustShape(features.Shape.Dims[0], uint64(len(tokenIDs)-start)),
-		Data:  slices.Clone(features.Data[start*featureWidth:]),
-	}
-	fused, err := r.projectFeatures(ctx, features)
-	if err != nil {
-		return nil, err
-	}
-	positions := make([]uint32, len(tokenIDs)-start)
-	for index := range positions {
-		positions[index] = uint32(start + index)
-	}
-	return r.InjectPairedFeatures(ctx, fused, positions, cache)
-}
-
 // InjectPairedFeatures: appends fused committed-token K/V.
 func (r *Runner) InjectPairedFeatures(
 	ctx context.Context,

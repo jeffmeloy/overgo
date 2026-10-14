@@ -110,30 +110,3 @@ func TestSinkhornBackwardRespectsScaleInvariance(t *testing.T) {
 		}
 	}
 }
-
-// The exact 2x2 closed form is doubly stochastic by construction: every 2x2
-// projection is [[p,1-p],[1-p,p]], so rows and columns sum to 1 and the two
-// off-diagonals match. Deterministic, no iteration to compare against. This
-// keeps the unwired fast path (ADV-126) exercised and its invariant pinned.
-func TestSinkhorn2x2ClosedFormIsDoublyStochastic(t *testing.T) {
-	rng := rand.New(rand.NewSource(7))
-	for trial := range 200 {
-		mat := make([]float32, 4)
-		for i := range mat {
-			mat[i] = float32((rng.Float64()*2 - 1) * 3)
-		}
-		sinkhorn2x2FromLogits(mat)
-		if d := math.Abs(float64(mat[0]+mat[1]) - 1); d > 1e-6 {
-			t.Fatalf("trial %d: row 0 sums to %.9f", trial, mat[0]+mat[1])
-		}
-		if d := math.Abs(float64(mat[0]+mat[2]) - 1); d > 1e-6 {
-			t.Fatalf("trial %d: col 0 sums to %.9f", trial, mat[0]+mat[2])
-		}
-		if d := math.Abs(float64(mat[1] - mat[2])); d > 1e-6 {
-			t.Fatalf("trial %d: off-diagonals differ (%.9f vs %.9f)", trial, mat[1], mat[2])
-		}
-		if mat[0] < 0 || mat[0] > 1 {
-			t.Fatalf("trial %d: p=%.9f outside [0,1]", trial, mat[0])
-		}
-	}
-}

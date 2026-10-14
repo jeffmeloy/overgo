@@ -1,20 +1,20 @@
 package quant
 
 import (
-	"slices"
 	"testing"
 
 	"overgo/internal/tensor/dtype"
 )
 
 func TestCodecCatalogOwnsSupportedTypePolicy(t *testing.T) {
-	types := Types()
+	t.Parallel()
 	names := TypeNames()
-	if len(types) == 0 || len(types) != len(names) {
-		t.Fatalf("catalog types = %d, names = %d", len(types), len(names))
+	if len(codecCatalog) == 0 || len(codecCatalog) != len(names) {
+		t.Fatalf("catalog types = %d, names = %d", len(codecCatalog), len(names))
 	}
-	seen := make(map[dtype.Type]struct{}, len(types))
-	for index, dataType := range types {
+	seen := make(map[dtype.Type]struct{}, len(codecCatalog))
+	for index, codec := range codecCatalog {
+		dataType := codec.dataType
 		if _, duplicate := seen[dataType]; duplicate {
 			t.Fatalf("duplicate type %s", dataType)
 		}
@@ -32,10 +32,5 @@ func TestCodecCatalogOwnsSupportedTypePolicy(t *testing.T) {
 	}
 	if _, ok := ParseType("unknown"); ok || CanQuantize(dtype.I8) {
 		t.Fatal("unsupported type accepted")
-	}
-	cloned := Types()
-	cloned[0] = dtype.I8
-	if slices.Equal(cloned, Types()) {
-		t.Fatal("Types returned shared catalog storage")
 	}
 }

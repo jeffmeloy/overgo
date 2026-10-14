@@ -193,14 +193,6 @@ func (b *Builder) CompressedAttention(
 	return b.add("", dtype.F32, query.Shape, OpCompressedAttention, inputs, attributes)
 }
 
-// SparseAttention: top-k indexed grouped-query attention.
-func (b *Builder) SparseAttention(
-	query, key, value, indices *Tensor,
-	scale float32,
-) *Tensor {
-	return b.SparseAttentionWithOffset(query, key, value, indices, scale, false, 0)
-}
-
 // SparseAttentionWithOffset: optional causal suffix attention.
 func (b *Builder) SparseAttentionWithOffset(
 	query, key, value, indices *Tensor,

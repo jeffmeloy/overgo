@@ -420,7 +420,7 @@ func (f *recipeLifecycle) index(id artifact.ID) int {
 // selected returns the recipe the model's training slot names.
 func (f *recipeLifecycle) selected() (int, *artifact.ID) {
 	f.t.Helper()
-	id, bound, err := artifact.ResolveAlias(f.t.Context(), f.store, modelrecipe.ActiveAlias(f.model, recipe.TaskTraining))
+	id, bound, err := artifact.ResolveAlias(f.t.Context(), f.store, modelrecipe.ActiveAliasPrefix(recipe.TaskTraining)+f.model.String())
 	if err != nil {
 		f.t.Fatal(err)
 	}

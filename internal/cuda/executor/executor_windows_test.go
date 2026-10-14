@@ -150,7 +150,7 @@ func TestExecutorSparsePrimitivesMatchReference(t *testing.T) {
 	query := builder.Input("query", dtype.F32, tensor.MustShape(1, 1, 2))
 	key := builder.Input("key", dtype.F32, tensor.MustShape(1, 1, 4))
 	value := builder.Input("value", dtype.F32, tensor.MustShape(1, 1, 4))
-	attention := builder.SparseAttention(query, key, value, indices, 1)
+	attention := builder.SparseAttentionWithOffset(query, key, value, indices, 1, false, 0)
 	causalAttention := builder.SparseAttentionWithOffset(query, key, value, indices, 1, true, 0)
 	indexerQuery := builder.Input("indexer_query", dtype.F32, tensor.MustShape(2, 2, 2))
 	indexerKey := builder.Input("indexer_key", dtype.F32, tensor.MustShape(2, 1, 4))

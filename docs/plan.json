@@ -67,17 +67,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 22849,
+        "nodes": 33151,
         "reason": ""
       },
       "steps": [
-        {
-          "id": "delete-unreached-surface",
-          "title": "Delete what stands alone of the two unreached groups inside the inference surface, in one commit before a run",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestEveryProcessDeclarationIsReachedByACommand$'",
-          "rationale": "Split from step delete-unreached, which deleted what stood alone outside the inference surface. Two groups the census lists lie inside the surface: the swap of internal/atomicfile (12 declarations, 451 lines) and the store and writer checks of internal/gitauthority (8, 205). A deletion there moves the keys stored answers are kept under. By the record docs/verification/surface-moves.txt 19 of 29 full measurement runs asked the kept text cases again anyway, so the two groups go in one commit taken just before a run. The builder first applies the operator's rule to each declaration, as step delete-unreached did: what a test of live behaviour uses, or what another unreached path uses, stays on the list for step sort-unreached, and only what stands alone is deleted with the tests that exist for it.\nServes: the loop's upkeep.\nDisappears: up to 656 lines of production code inside the inference surface, and their tests.\nEvidence: the census test with those lines gone from its list; the two packages' tests; a build of every package with and without the model tags.\nBatch: host; one commit, just before a full measurement run.\n\nWidened by the lead on 2026-10-13 from docs/verification/unreached-declarations.txt. The commit takes every group the record classes as dead inside the inference surface, about 1,110 lines: the swap of internal/atomicfile (451), the old gate's checks of internal/gitauthority (200), the encoder-decoder step and batch (163), the orphans inside the surface (146) and the smaller groups. It also takes the test-held groups inside the surface, 707 lines, by the remedy the record names for each. It follows step dead-outside, which removes the callers of two functions here. The groups the lead keeps as prototypes are not touched."
-        },
         {
           "id": "wire-unreached",
           "title": "Read each capability no command offers, and file its route or reclass it",

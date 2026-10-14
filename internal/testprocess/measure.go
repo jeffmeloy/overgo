@@ -1,5 +1,4 @@
-// Package processmeasure owns interval and process peak-memory measurements.
-package processmeasure
+package testprocess
 
 import (
 	"bytes"
@@ -7,8 +6,11 @@ import (
 	"fmt"
 	"os/exec"
 	"time"
+
+	"overgo/internal/processmeasure"
 )
 
+// Result is the wall time, the peak working set and the combined output of one measured child.
 type Result struct {
 	Wall               time.Duration
 	PeakWorkingSetByte uint64
@@ -24,7 +26,7 @@ func Measure(command *exec.Cmd) (Result, error) {
 	}
 	var output bytes.Buffer
 	command.Stdout, command.Stderr = &output, &output
-	started, err := Counter()
+	started, err := processmeasure.Counter()
 	if err != nil {
 		return Result{}, err
 	}
@@ -33,7 +35,7 @@ func Measure(command *exec.Cmd) (Result, error) {
 	}
 	peak, peakErr := retainPeak(command.Process)
 	waitErr := command.Wait()
-	ended, clockErr := Counter()
+	ended, clockErr := processmeasure.Counter()
 	result := Result{Wall: ended - started, Output: bytes.Clone(output.Bytes())}
 	if peakErr != nil {
 		return result, errors.Join(waitErr, clockErr, fmt.Errorf("process measure: peak unavailable: %w", peakErr))

@@ -870,18 +870,19 @@ func (f *fakeGenerator) CompileLazyGBNF(
 	for index, token := range tokens {
 		triggerTokens[index] = int(token)
 	}
-	return sampling.NewGBNFGrammarWithOptions(
-		source,
-		root,
+	vocabulary, err := sampling.NewGBNFVocabulary(
 		[][]byte{[]byte("a"), []byte("trigger"), nil},
 		[]int{2},
 		nil,
-		sampling.GBNFLazyOptions{
-			Enabled:  true,
-			Patterns: patterns,
-			Tokens:   triggerTokens,
-		},
 	)
+	if err != nil {
+		return nil, err
+	}
+	return vocabulary.Compile(source, root, sampling.GBNFLazyOptions{
+		Enabled:  true,
+		Patterns: patterns,
+		Tokens:   triggerTokens,
+	})
 }
 
 func (f *fakeGenerator) TokenizeSamplingText(text string) ([]tokenizer.TokenID, error) {

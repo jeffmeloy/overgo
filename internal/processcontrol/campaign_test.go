@@ -6,14 +6,13 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"overgo/internal/processlock"
 )
 
 func TestCampaignProcessLifecycle(t *testing.T) {
+	t.Parallel()
 	const helperRoot = "OVERGO_CAMPAIGN_TEST_ROOT"
 	if root := os.Getenv(helperRoot); root != "" {
 		owner, err := BeginCampaign(root, "process-worker")
@@ -36,14 +35,11 @@ func TestCampaignProcessLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer child.Terminate()
-	line, err := bufio.NewReader(output).ReadString('\n')
-	if err != nil {
+	if _, err := bufio.NewReader(output).ReadString('\n'); err != nil {
 		t.Fatal(err)
 	}
-	_, token, _ := strings.Cut(strings.TrimSpace(line), "=")
-	t.Setenv(CampaignEnvironment, token)
-	if err := RequireCampaign(root, "process-worker"); err != nil {
-		t.Fatal(err)
+	if running, err := CampaignRunning(root); err != nil || !running {
+		t.Fatalf("live supervisor running = %t, %v", running, err)
 	}
 	if err := child.Terminate(); err != nil {
 		t.Fatal(err)
@@ -52,24 +48,24 @@ func TestCampaignProcessLifecycle(t *testing.T) {
 	if _, err := child.Wait(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	if err := RequireCampaign(root, "process-worker"); err == nil {
-		t.Fatal("dead supervisor admitted its former session")
+	if running, err := CampaignRunning(root); err != nil || running {
+		t.Fatalf("dead supervisor running = %t, %v", running, err)
 	}
 }
 
-func TestCampaignAdmission(t *testing.T) {
+func TestCampaignRunningFollowsOwnerLock(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
-	if err := RequireCampaign(root, "worker"); err != nil {
-		t.Fatal(err)
+	running := func() bool {
+		t.Helper()
+		live, err := CampaignRunning(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return live
 	}
-	if err := os.MkdirAll(filepath.Join(root, "docs"), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "docs/loop.json"), []byte("{}"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := RequireCampaign(root, "worker"); err == nil {
-		t.Fatal("configured campaign admitted without supervisor")
+	if running() {
+		t.Fatal("worktree without a supervisor reported a campaign")
 	}
 	owner, err := BeginCampaign(root, "worker")
 	if err != nil {
@@ -82,35 +78,21 @@ func TestCampaignAdmission(t *testing.T) {
 		}
 		t.Fatalf("duplicate supervisor: %v", err)
 	}
-	t.Setenv(CampaignEnvironment, "forged-session")
-	if err := RequireCampaign(root, "worker"); err == nil {
-		t.Fatal("environment alone admitted")
-	}
-	_, token, _ := strings.Cut(owner.Environment(), "=")
-	t.Setenv(CampaignEnvironment, token)
-	if err := RequireCampaign(root, "other-worker"); err == nil {
-		t.Fatal("foreign worker admitted")
-	}
-	if err := RequireCampaign(root, "worker"); err != nil {
-		t.Fatal(err)
+	if !running() {
+		t.Fatal("live supervisor not reported")
 	}
 	if err := owner.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if err := RequireCampaign(root, "worker"); err == nil {
-		t.Fatal("stale session admitted after lock release")
+	if running() {
+		t.Fatal("supervisor reported after lock release")
 	}
 	replacement, err := BeginCampaign(root, "worker")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer replacement.Close()
-	if err := RequireCampaign(root, "worker"); err == nil {
-		t.Fatal("previous session admitted by new supervisor")
-	}
-	_, token, _ = strings.Cut(replacement.Environment(), "=")
-	t.Setenv(CampaignEnvironment, token)
-	if err := RequireCampaign(root, "worker"); err != nil {
-		t.Fatal(err)
+	if !running() {
+		t.Fatal("replacement supervisor not reported")
 	}
 }

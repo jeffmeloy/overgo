@@ -6,7 +6,7 @@ import (
 	"slices"
 	"testing"
 
-	"overgo/internal/hostmath"
+	"overgo/internal/testutil"
 )
 
 // Finite-difference bounds: central differences along one random direction
@@ -74,6 +74,6 @@ func TestE4BHostGradientsMatchFiniteDifference(t *testing.T) {
 
 // hostAttention is the host kit's windowed attention VJP.
 func hostAttention(dq, dk, dv, q, k, v, dOut []float32, seq, heads, kvHeads, headDim, window int) error {
-	hostmath.WindowedCausalAttentionBackward(dq, dk, dv, q, k, v, dOut, seq, heads, kvHeads, headDim, window)
+	testutil.WindowedCausalAttentionBackward(dq, dk, dv, q, k, v, dOut, seq, heads, kvHeads, headDim, window)
 	return nil
 }

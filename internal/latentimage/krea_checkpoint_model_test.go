@@ -48,8 +48,11 @@ func TestVAEDecodeSyntheticImage(t *testing.T) {
 			t.Fatalf("pixel %d out of [-1,1]: %g", i, v)
 		}
 	}
-	u8 := media.NormalizedF32ToU8(pixels)
-	sum := sha256.Sum256(u8ToBytes(u8))
+	u8 := make([]byte, len(pixels))
+	for i, v := range pixels {
+		u8[i] = media.SignedUnitF32ToU8(v)
+	}
+	sum := sha256.Sum256(u8)
 	// determinism: a second decode is bit-identical.
 	pixels2, _, _, err := d.DecodeImage(z, lh, lw)
 	if err != nil {

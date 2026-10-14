@@ -65,19 +65,12 @@ func TestDeclaredEOGTokens(t *testing.T) {
 				t.Fatal("undeclared stop was already treated as terminal")
 			}
 			identity := testutil.ArtifactID(t, artifact.KindTokenizer, "declared EOS fixture")
-			beforeArtifact, err := original.Artifact(identity)
-			if err != nil {
-				t.Fatal(err)
-			}
 			afterArtifact, err := vocab.Artifact(identity)
 			if err != nil {
 				t.Fatal(err)
 			}
 			if !slices.Contains(afterArtifact.Tokens[3].Roles, VocabularyRoleEOS) {
 				t.Fatal("declared EOS role was lost in semantic vocabulary")
-			}
-			if _, err := ExactVocabularyMapping(beforeArtifact, afterArtifact); err == nil {
-				t.Fatal("mapping accepted different declared EOS semantics")
 			}
 		})
 	}

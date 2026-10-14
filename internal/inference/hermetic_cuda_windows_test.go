@@ -6,6 +6,7 @@ import (
 	"context"
 	"math"
 	"reflect"
+	"slices"
 	"testing"
 
 	cudatest "overgo/internal/cuda/testutil"
@@ -47,9 +48,9 @@ func TestHermeticCUDAContinuousCacheParity(t *testing.T) {
 	// class. The replay counter is cumulative over a sequence's session
 	// lineage: these nine decode steps compile at pasts 2, 3, 4, 5, 8, and
 	// 9 (each a new page class) and replay at pasts 6 and 7 on the 8-token
-	// page and at past 10 on the 16-token page, three replays; the forked
-	// cohort below then compiles at past 11 and replays at 12, both on the
-	// 16-token page.
+	// page and at past 10 on the 16-token page, three replays; the
+	// two-sequence cohort below then compiles at past 11 and replays at 12,
+	// both on the 16-token page.
 	const singleSequenceReplays = 3
 	steps := [][]tokenizer.TokenID{{1, 4}, {5}, {6}, {7}, {4}, {5}, {6}, {7}, {4}, {5}}
 	for step, tokens := range steps {
@@ -85,7 +86,11 @@ func TestHermeticCUDAContinuousCacheParity(t *testing.T) {
 	if afterFailure := deviceBatch.Snapshot(); !reflect.DeepEqual(afterFailure, beforeFailure) {
 		t.Fatalf("canceled append changed cache state: before=%+v after=%+v", beforeFailure, afterFailure)
 	}
-	if err := deviceBatch.Fork(1, 2); err != nil {
+	// Sequence 2 appends the whole history of sequence 1 in one step.
+	//   - both then stand at past 11, and sequence 2 holds no decode session
+	if _, err := deviceBatch.Step(t.Context(), []SequenceBatchInput{
+		{ID: 2, Tokens: slices.Concat(steps...)},
+	}); err != nil {
 		t.Fatal(err)
 	}
 	branched, err := deviceBatch.Step(t.Context(), []SequenceBatchInput{
@@ -97,7 +102,7 @@ func TestHermeticCUDAContinuousCacheParity(t *testing.T) {
 	}
 	if len(branched) != 2 || branched[0].Tokens != branched[1].Tokens ||
 		branched[0].Position != branched[1].Position {
-		t.Fatalf("forked states = %+v", branched)
+		t.Fatalf("cohort states = %+v", branched)
 	}
 	deviceBatch.mu.Lock()
 	cohortSession := deviceBatch.sequences[1].device.session
@@ -107,7 +112,7 @@ func TestHermeticCUDAContinuousCacheParity(t *testing.T) {
 	}
 	deviceBatch.mu.Unlock()
 	if cohortSession == nil {
-		t.Fatal("forked cohort has no reusable session")
+		t.Fatal("two-sequence cohort has no reusable session")
 	}
 	if _, err = deviceBatch.Step(t.Context(), []SequenceBatchInput{
 		{ID: 1, Tokens: []tokenizer.TokenID{4}},

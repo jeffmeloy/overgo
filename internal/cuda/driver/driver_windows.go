@@ -86,7 +86,6 @@ type Library struct {
 	cuCtxGetDevice       *syscall.Proc
 	cuCtxDestroy         *syscall.Proc
 	cuCtxSetCurrent      *syscall.Proc
-	cuCtxSynchronize     *syscall.Proc
 	cuStreamCreate       *syscall.Proc
 	cuStreamDestroy      *syscall.Proc
 	cuStreamSynchronize  *syscall.Proc
@@ -137,7 +136,6 @@ func Open() (*Library, error) {
 		{"cuCtxGetDevice", &lib.cuCtxGetDevice},
 		{"cuCtxDestroy_v2", &lib.cuCtxDestroy},
 		{"cuCtxSetCurrent", &lib.cuCtxSetCurrent},
-		{"cuCtxSynchronize", &lib.cuCtxSynchronize},
 		{"cuStreamCreate", &lib.cuStreamCreate},
 		{"cuStreamDestroy_v2", &lib.cuStreamDestroy},
 		{"cuStreamSynchronize", &lib.cuStreamSynchronize},
@@ -462,16 +460,6 @@ func (l *Library) forgetAllocations() {
 func (l *Library) ContextSetCurrent(context Context) error {
 	result, _, _ := l.cuCtxSetCurrent.Call(uintptr(context))
 	return l.result("cuCtxSetCurrent", result)
-}
-
-// ContextSynchronize waits for all preceding work in current context
-func (l *Library) ContextSynchronize() error {
-	result, _, _ := l.cuCtxSynchronize.Call()
-	if err := l.result("cuCtxSynchronize", result); err != nil {
-		return err
-	}
-	l.contextSynchronizations.Add(1)
-	return nil
 }
 
 // StreamCreate creates stream in current context

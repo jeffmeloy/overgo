@@ -136,19 +136,6 @@ func newDeviceCacheOwner(outputs *executor.RetainedOutputs, refs int) *deviceCac
 	return &deviceCacheOwner{outputs: outputs, refs: refs}
 }
 
-func (o *deviceCacheOwner) retain() bool {
-	if o == nil {
-		return false
-	}
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	if o.refs <= 0 || o.outputs == nil {
-		return false
-	}
-	o.refs++
-	return true
-}
-
 func (o *deviceCacheOwner) release(ctx context.Context) error {
 	if o == nil {
 		return nil

@@ -85,9 +85,6 @@ func NonNegativeInts(values ...int) bool {
 	return true
 }
 
-// AtMost64 compares bounded unsigned extents.
-func AtMost64(value, limit uint64) bool { return value <= limit }
-
 // First returns the first value and reports whether it exists.
 func First[T any](values []T) (T, bool) {
 	var zero T

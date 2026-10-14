@@ -15,10 +15,10 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/evaluation"
 	"overgo/internal/overgodb"
-	"overgo/internal/processmeasure"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
 	"overgo/internal/speechrecognition"
+	"overgo/internal/testprocess"
 	"overgo/internal/testutil"
 )
 
@@ -136,7 +136,7 @@ func (f *audioMeasurementFixture) measure(t *testing.T) audioMeasuredProcess {
 	}
 	command := exec.CommandContext(t.Context(), f.executable, "-repo", f.l.storePath, "-transcription-resource-manifest", f.manifest)
 	command.Dir = f.l.fixture.root
-	measured, err := processmeasure.Measure(command)
+	measured, err := testprocess.Measure(command)
 	if err != nil {
 		t.Fatalf("measured evaluator: %v\n%s", err, measured.Output)
 	}

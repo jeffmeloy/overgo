@@ -1,17 +1,19 @@
-package operatoraction
+package operatoraction_test
 
 import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/operatoraction"
 	"overgo/internal/testutil"
 )
 
 func TestDecisionBindsExactAction(t *testing.T) {
+	t.Parallel()
 	operation := testutil.ArtifactID(t, artifact.KindEvidence, "operation")
 	recipe := testutil.ArtifactID(t, artifact.KindRecipe, "recipe")
-	action := Action{Code: "publish", Summary: "Publish output", Argv: []string{"overgo", "publish", "--recipe", recipe.String()}}
-	request, err := NewApprovalRequest(operation, recipe, action, artifact.ID{})
+	action := operatoraction.Action{Code: "publish", Summary: "Publish output", Argv: []string{"overgo", "publish", "--recipe", recipe.String()}}
+	request, err := operatoraction.NewApprovalRequest(operation, recipe, action, artifact.ID{})
 	if err != nil {
 		t.Fatal(err)
 	}

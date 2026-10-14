@@ -39,7 +39,7 @@ func TestApprovalDecisionSeparation(t *testing.T) {
 		Task: recipe.TaskGeneration, Recipe: recipeID,
 	}, func(context.Context, operation.Reporter) (operation.Completion, error) {
 		if attempts.Add(1) == 1 {
-			return operation.Completion{Run: runID}, operatoraction.Recoverable(errors.New("approval required"), operatoraction.Block{
+			return operation.Completion{Run: runID}, testutil.Recoverable(errors.New("approval required"), operatoraction.Block{
 				Subject: recipeID, Reason: "operator approval required", Evidence: []artifact.ID{}, Actions: []operatoraction.Action{action},
 			})
 		}

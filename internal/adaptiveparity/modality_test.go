@@ -1,4 +1,4 @@
-package recipecontract_test
+package adaptiveparity
 
 import (
 	"slices"
@@ -12,6 +12,7 @@ import (
 )
 
 func TestTypedImageRecipeSelectsRuntimeWithoutPlacement(t *testing.T) {
+	t.Parallel()
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "typed-image-modality")
 	profileID := testutil.ArtifactID(t, artifact.KindProfile, "typed-image-profile")
 	tests := []struct {
@@ -28,14 +29,14 @@ func TestTypedImageRecipeSelectsRuntimeWithoutPlacement(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		before, err := recipecontract.CompileModalitySignature(definition)
+		before, err := compileModalitySignature(definition)
 		if err != nil {
 			t.Fatal(err)
 		}
 		for index := range definition.Nodes {
 			definition.Nodes[index].Placement = recipe.PlacementDevice
 		}
-		after, err := recipecontract.CompileModalitySignature(definition)
+		after, err := compileModalitySignature(definition)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -46,6 +47,7 @@ func TestTypedImageRecipeSelectsRuntimeWithoutPlacement(t *testing.T) {
 }
 
 func TestTypedVideoRecipeSelectsSemanticsWithoutPlacement(t *testing.T) {
+	t.Parallel()
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "typed-video-modality")
 	profileID := testutil.ArtifactID(t, artifact.KindProfile, "typed-video-profile")
 	tests := []struct {
@@ -62,14 +64,14 @@ func TestTypedVideoRecipeSelectsSemanticsWithoutPlacement(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		before, err := recipecontract.CompileModalitySignature(definition)
+		before, err := compileModalitySignature(definition)
 		if err != nil {
 			t.Fatal(err)
 		}
 		for index := range definition.Nodes {
 			definition.Nodes[index].Placement = recipe.PlacementDevice
 		}
-		after, err := recipecontract.CompileModalitySignature(definition)
+		after, err := compileModalitySignature(definition)
 		if err != nil {
 			t.Fatal(err)
 		}

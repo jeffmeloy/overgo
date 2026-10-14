@@ -1,79 +1,9 @@
-// E4B (gemma3n) training-leg VJPs: the backward operators the gemma3n arch
-// needs beyond the eight already-verified hostmath VJPs. All are neutral
-// (reusable by any arch): the windowed-causal attention VJP generalizes
-// CausalAttentionBackward, and GELU-tanh / softcap / activation-sparsity /
-// embed-input-scale are element- or row-local. Each is finite-difference
-// gated in e4b_backward_fd_test.go against the exact forward it differentiates.
+// E4B (gemma3n) training-leg VJPs are the backward operators the gemma3n arch needs beyond the eight already-verified hostmath VJPs.
+//   - each is neutral (reusable by any arch) and element- or row-local
+//   - e4b_backward_fd_test.go holds each to a finite difference of the exact forward it differentiates
 package hostmath
 
 import "math"
-
-// WindowedCausalAttentionBackward: VJP of WindowedCausalAttention. window<=0 is
-// the full causal span, so this reduces exactly to CausalAttentionBackward.
-// Score scale is 1 (caller folds 1/sqrt(headDim) into q, matching the forward).
-// dq/dk/dv are cleared then filled; GQA groups accumulate into shared kv rows.
-func WindowedCausalAttentionBackward(dq, dk, dv, q, k, v, dOut []float32, seq, heads, kvHeads, headDim, window int) {
-	clear(dq)
-	clear(dk)
-	clear(dv)
-	probs := make([]float64, seq)
-	dP := make([]float64, seq)
-	group := heads / kvHeads
-	for h := range heads {
-		kv := h / group
-		for qi := range seq {
-			lo := 0
-			if window > 0 && qi+1 > window {
-				lo = qi + 1 - window
-			}
-			nk := qi + 1 - lo
-			qRow := q[(qi*heads+h)*headDim : (qi*heads+h+1)*headDim]
-			dout := dOut[(qi*heads+h)*headDim : (qi*heads+h+1)*headDim]
-			dqRow := dq[(qi*heads+h)*headDim : (qi*heads+h+1)*headDim]
-			// recompute softmax probs over keys lo..qi
-			mx := math.Inf(-1)
-			for m := range nk {
-				kRow := k[((lo+m)*kvHeads+kv)*headDim : ((lo+m)*kvHeads+kv+1)*headDim]
-				var dot float64
-				for x := range headDim {
-					dot += float64(qRow[x]) * float64(kRow[x])
-				}
-				probs[m] = dot
-				mx = max(mx, dot)
-			}
-			var sum float64
-			for m := range nk {
-				probs[m] = math.Exp(probs[m] - mx)
-				sum += probs[m]
-			}
-			inv := 1.0 / sum
-			var dot float64
-			for m := range nk {
-				probs[m] *= inv
-				ki := lo + m
-				vRow := v[(ki*kvHeads+kv)*headDim : (ki*kvHeads+kv+1)*headDim]
-				dvRow := dv[(ki*kvHeads+kv)*headDim : (ki*kvHeads+kv+1)*headDim]
-				var dpm float64
-				for x := range headDim {
-					dpm += float64(dout[x]) * float64(vRow[x])
-					dvRow[x] += float32(probs[m]) * dout[x]
-				}
-				dP[m] = dpm
-				dot += probs[m] * dpm
-			}
-			for m := range nk {
-				g := probs[m] * (dP[m] - dot)
-				ki := lo + m
-				kRow := k[(ki*kvHeads+kv)*headDim : (ki*kvHeads+kv+1)*headDim]
-				dkRow := dk[(ki*kvHeads+kv)*headDim : (ki*kvHeads+kv+1)*headDim]
-				for x := range headDim {
-					dqRow[x] += float32(g * float64(kRow[x]))
-					dkRow[x] += float32(g * float64(qRow[x]))
-				}
-			}
-		}
-	}
-}
 
 // GELUTanhBackward: VJP of GELUTanh, dst = dy * GELUTanhPrime(x). dst may alias
 // dy (each output depends only on its own input).

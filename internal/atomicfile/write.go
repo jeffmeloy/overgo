@@ -33,23 +33,11 @@ func write(path string, data []byte, mode fs.FileMode, replace func(string, stri
 }
 
 func prepare(directory, pattern string, data []byte, mode fs.FileMode) (path string, err error) {
-	return prepareWithHook(directory, pattern, data, mode, nil)
-}
-
-func prepareWithHook(
-	directory, pattern string,
-	data []byte,
-	mode fs.FileMode,
-	afterCreate func(string),
-) (path string, err error) {
 	temporary, err := os.CreateTemp(directory, pattern)
 	if err != nil {
 		return "", err
 	}
 	path = temporary.Name()
-	if afterCreate != nil {
-		afterCreate(path)
-	}
 	defer func() {
 		if err == nil {
 			return

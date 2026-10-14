@@ -59,16 +59,3 @@ func TestOwnsDevicePromptCache(t *testing.T) {
 		t.Fatal("foreign device cache owned")
 	}
 }
-
-// TestClearPromptCachesRefusals pins the cancellation-adjacent edges: a nil
-// runner and a nil context both refuse before any cache detaches.
-func TestClearPromptCachesRefusals(t *testing.T) {
-	var missing *Runner
-	if err := missing.ClearPromptCaches(t.Context()); err == nil {
-		t.Fatal("nil runner cleared caches")
-	}
-	runner := &Runner{}
-	if err := runner.ClearPromptCaches(nil); err == nil || !strings.Contains(err.Error(), "context") { //nolint:staticcheck
-		t.Fatalf("nil context admitted: %v", err)
-	}
-}

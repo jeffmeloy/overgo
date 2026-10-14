@@ -14,57 +14,6 @@ import (
 // NextNMTPSession: trunk snapshot plus draft state.
 type NextNMTPSession = MTPSession
 
-// NewNextNMTPSession: bundled dense-tail setup.
-func (r *Runner) NewNextNMTPSession(
-	ctx context.Context,
-	tokenIDs []tokenizer.TokenID,
-) (*NextNMTPSession, error) {
-	if r == nil || len(tokenIDs) == 0 {
-		return nil, errors.New("inference: NextN MTP inputs are invalid")
-	}
-	if err := r.validateNextNMTP(); err != nil {
-		return nil, err
-	}
-	hidden, cache, err := r.ForwardCached(ctx, tokenIDs, nil)
-	if err != nil {
-		return nil, err
-	}
-	targetModel, err := r.sessionModelSignature()
-	if err != nil {
-		return nil, err
-	}
-	position := effectiveCachePosition(cache)
-	session := &NextNMTPSession{
-		TrunkCache: cache, PendingHidden: hidden.LastRowView().Clone(), MTPStart: position,
-		Position: position, targetModel: targetModel,
-	}
-	if cache.SparseTopK != nil {
-		value := cache.SparseTopK.LastRowView().Clone()
-		if !tensor.IsMatrix(value.Shape, uint64(r.spec.IndexerTopK), tensor.SingletonExtent) {
-			return nil, errors.New("inference: GLM-DSA trunk top-k handoff is incompatible")
-		}
-		session.Layer.Auxiliary = &value
-	}
-	if err := r.validateNextNMTPSession(session); err != nil {
-		return nil, err
-	}
-	return session, nil
-}
-
-// AdvanceNextNMTP: one draft step.
-func (r *Runner) AdvanceNextNMTP(
-	ctx context.Context,
-	tokenID tokenizer.TokenID,
-	session *NextNMTPSession,
-) (reference.Value, *NextNMTPSession, error) {
-	if r == nil || session == nil || session.TrunkCache == nil {
-		return reference.Value{}, nil, errors.New("inference: NextN MTP session is invalid")
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.advanceNextNMTPLocked(ctx, tokenID, session)
-}
-
 func (r *Runner) advanceNextNMTPLocked(
 	ctx context.Context,
 	tokenID tokenizer.TokenID,

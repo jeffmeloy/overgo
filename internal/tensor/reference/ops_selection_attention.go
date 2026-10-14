@@ -497,7 +497,7 @@ func concat(shape tensor.Shape, left, right Value, axis uint32) (Value, error) {
 		return Value{}, errors.New("invalid concat output size")
 	}
 	inner := 1
-	for dimension := uint32(0); dimension < axis; dimension++ {
+	for dimension := range axis {
 		inner *= int(left.Shape.Dims[dimension])
 	}
 	leftAxis := int(left.Shape.Dims[axis])

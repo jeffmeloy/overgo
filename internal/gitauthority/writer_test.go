@@ -7,32 +7,6 @@ import (
 	"testing"
 )
 
-func TestRequireWriterVersion(t *testing.T) {
-	tests := []struct {
-		name    string
-		output  string
-		wantErr bool
-	}{
-		{name: "minimum", output: "git version 2.36.0"},
-		{name: "Windows suffix", output: "git version 2.51.0.windows.1\r\n"},
-		{name: "Apple decoration", output: "git version 2.39.3 (Apple Git-146)"},
-		{name: "new major", output: "git version 3.0.0"},
-		{name: "too old", output: "git version 2.35.9", wantErr: true},
-		{name: "prerelease", output: "git version 2.36.0.rc1", wantErr: true},
-		{name: "missing patch", output: "git version 2.36", wantErr: true},
-		{name: "malformed", output: "version 2.51.0", wantErr: true},
-		{name: "multiline", output: "git version 2.51.0\nignored", wantErr: true},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			err := requireWriterVersion(test.output)
-			if (err != nil) != test.wantErr {
-				t.Fatalf("require writer version error = %v, wantErr=%t", err, test.wantErr)
-			}
-		})
-	}
-}
-
 func TestWriterArgumentsAreStableAndDoNotAliasInput(t *testing.T) {
 	input := []string{"update-ref", "refs/heads/main", "new", "old"}
 	got := WriterArguments(input...)

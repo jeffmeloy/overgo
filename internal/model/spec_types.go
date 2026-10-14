@@ -32,15 +32,6 @@ func (s Spec) sequenceStateRows(shape tensor.Shape) (uint64, error) {
 	return rows, nil
 }
 
-func (s Spec) CompileSequenceState(width, rows uint64) (tensor.Shape, error) {
-	shape, err := tensor.NewShape(width, rows)
-	if err != nil {
-		return tensor.Shape{}, err
-	}
-	_, err = s.sequenceStateRows(shape)
-	return shape, err
-}
-
 // expert_gating_func serialized profile facts.
 const (
 	expertGatingUnset uint32 = iota

@@ -66,10 +66,6 @@ func TestReadTensorRowsF32(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer source.Close()
-	rows64, err := TensorRowsF64(source.Tensors["rows"], 1, []int{1})
-	if err != nil || len(rows64) != 1 || rows64[0] != 2 {
-		t.Fatalf("rows64=%v err=%v", rows64, err)
-	}
 	if height, width, err := MatrixShape(source.Tensors["rows"]); err != nil || height != 3 || width != 1 {
 		t.Fatalf("matrix=%dx%d err=%v", width, height, err)
 	}

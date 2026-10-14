@@ -2371,7 +2371,7 @@ func (s sandbox) activate(store *overgodb.Store, model artifact.ID) {
 	served := testutil.ArtifactID(s.t, artifact.KindRecipe, "the recipe that serves "+model.String())
 	s.commit(store, artifact.Batch{
 		Key: "withdrawal-fixture/active/" + model.String(), Artifacts: []artifact.Descriptor{{ID: served}},
-		Aliases: []artifact.AliasBinding{{Name: modelrecipe.ActiveAlias(model, recipe.TaskInference), Target: served}},
+		Aliases: []artifact.AliasBinding{{Name: modelrecipe.ActiveAliasPrefix(recipe.TaskInference) + model.String(), Target: served}},
 	})
 }
 

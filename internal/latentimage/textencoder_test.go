@@ -399,18 +399,18 @@ func encLayerForward(e TextEncoderSpec, eps float64, x []float64, seq, inter int
 	qDim := e.Heads * e.HeadDim
 	kvDim := e.KVHeads * e.HeadDim
 
-	n1 := hostmath.StandardRMSNormF64(x, w.inputNorm, seq, h, eps)
+	n1 := standardRMSNormF64(x, w.inputNorm, seq, h, eps)
 	q := dense(n1, w.qProj, nil, seq, h, qDim)
 	k := dense(n1, w.kProj, nil, seq, h, kvDim)
 	v := dense(n1, w.vProj, nil, seq, h, kvDim)
-	hostmath.NormalizeHeadsRotaryHalfF64(q, w.qNorm, seq, e.Heads, e.HeadDim, eps, cos, sin)
-	hostmath.NormalizeHeadsRotaryHalfF64(k, w.kNorm, seq, e.KVHeads, e.HeadDim, eps, cos, sin)
-	attn := hostmath.GroupedCausalAttentionF64(q, k, v, seq, e.Heads, e.KVHeads, e.HeadDim, keyMask)
+	normalizeHeadsRotaryHalfF64(q, w.qNorm, seq, e.Heads, e.HeadDim, eps, cos, sin)
+	normalizeHeadsRotaryHalfF64(k, w.kNorm, seq, e.KVHeads, e.HeadDim, eps, cos, sin)
+	attn := groupedCausalAttentionF64(q, k, v, seq, e.Heads, e.KVHeads, e.HeadDim, keyMask)
 	ao := dense(attn, w.oProj, nil, seq, qDim, h)
 	for i := range x {
 		x[i] += ao[i]
 	}
-	n2 := hostmath.StandardRMSNormF64(x, w.postNorm, seq, h, eps)
+	n2 := standardRMSNormF64(x, w.postNorm, seq, h, eps)
 	g := dense(n2, w.gate, nil, seq, h, inter)
 	u := dense(n2, w.up, nil, seq, h, inter)
 	for i := range g {
@@ -421,6 +421,131 @@ func encLayerForward(e TextEncoderSpec, eps float64, x []float64, seq, inter int
 		x[i] += mo[i]
 	}
 	return x
+}
+
+// standardRMSNormF64 applies x/sqrt(mean(x²)+eps)*weight independently to
+// row-major rows and returns new storage.
+func standardRMSNormF64(values []float64, weight []float32, rows, width int, epsilon float64) []float64 {
+	output := make([]float64, len(values))
+	for row := range rows {
+		source := values[row*width : (row+1)*width]
+		destination := output[row*width : (row+1)*width]
+		var sumSquares float64
+		for _, value := range source {
+			sumSquares += value * value
+		}
+		inverse := 1 / math.Sqrt(sumSquares/float64(width)+epsilon)
+		for index := range source {
+			destination[index] = source[index] * inverse * float64(weight[index])
+		}
+	}
+	return output
+}
+
+// normalizeHeadsRotaryHalfF64 applies standard per-head RMS normalization and
+// half-split rotary embedding to row-major projected heads.
+func normalizeHeadsRotaryHalfF64(values []float64, weight []float32, rows, heads, headWidth int, epsilon float64, cosine, sine []float64) {
+	half := headWidth / 2
+	for row := range rows {
+		cosineRow := cosine[row*headWidth : (row+1)*headWidth]
+		sineRow := sine[row*headWidth : (row+1)*headWidth]
+		for head := range heads {
+			vector := values[(row*heads+head)*headWidth : (row*heads+head+1)*headWidth]
+			var sumSquares float64
+			for _, value := range vector {
+				sumSquares += value * value
+			}
+			inverse := 1 / math.Sqrt(sumSquares/float64(headWidth)+epsilon)
+			for index := range vector {
+				vector[index] *= inverse * float64(weight[index])
+			}
+			for index := range half {
+				first, second := vector[index], vector[half+index]
+				vector[index] = first*cosineRow[index] - second*sineRow[index]
+				vector[half+index] = second*cosineRow[half+index] + first*sineRow[half+index]
+			}
+		}
+	}
+}
+
+// groupedCausalAttentionF64 applies masked causal grouped-query attention to
+// row-major float64 projections. A nil keyMask attends every causal key.
+func groupedCausalAttentionF64(q, k, v []float64, rows, heads, kvHeads, headWidth int, keyMask []bool) []float64 {
+	group := heads / kvHeads
+	scale := 1 / math.Sqrt(float64(headWidth))
+	output := make([]float64, rows*heads*headWidth)
+	hostmath.ParallelRangeF64(heads, rows*rows*headWidth, func(startHead, endHead int) {
+		scores := make([]float64, rows)
+		for head := startHead; head < endHead; head++ {
+			keyHead := head / group
+			for query := range rows {
+				queryVector := q[(query*heads+head)*headWidth : (query*heads+head+1)*headWidth]
+				maximum := math.Inf(-1)
+				for key := 0; key <= query; key++ {
+					if keyMask != nil && !keyMask[key] {
+						continue
+					}
+					keyVector := k[(key*kvHeads+keyHead)*headWidth : (key*kvHeads+keyHead+1)*headWidth]
+					var dot float64
+					for dimension := range headWidth {
+						dot += queryVector[dimension] * keyVector[dimension]
+					}
+					scores[key] = dot * scale
+					maximum = max(maximum, scores[key])
+				}
+				var total float64
+				for key := 0; key <= query; key++ {
+					if keyMask != nil && !keyMask[key] {
+						continue
+					}
+					scores[key] = math.Exp(scores[key] - maximum)
+					total += scores[key]
+				}
+				destination := output[(query*heads+head)*headWidth : (query*heads+head+1)*headWidth]
+				for key := 0; key <= query; key++ {
+					if keyMask != nil && !keyMask[key] {
+						continue
+					}
+					probability := scores[key] / total
+					valueVector := v[(key*kvHeads+keyHead)*headWidth : (key*kvHeads+keyHead+1)*headWidth]
+					for dimension := range headWidth {
+						destination[dimension] += probability * valueVector[dimension]
+					}
+				}
+			}
+		}
+	})
+	return output
+}
+
+func TestGroupedCausalAttentionF64Mask(t *testing.T) {
+	t.Parallel()
+	q := []float64{1, 1}
+	k := []float64{1, 1}
+	v := []float64{2, 4}
+	got := groupedCausalAttentionF64(q, k, v, 2, 1, 1, 1, []bool{true, false})
+	if len(got) != 2 || got[0] != 2 || got[1] != 2 {
+		t.Fatalf("attention=%v", got)
+	}
+}
+
+func TestNormalizeHeadsRotaryHalfF64(t *testing.T) {
+	t.Parallel()
+	values := []float64{3, 4}
+	normalizeHeadsRotaryHalfF64(values, []float32{1, 1}, 1, 1, 2, 0, []float64{1, 1}, []float64{0, 0})
+	want := []float64{3 / math.Sqrt(12.5), 4 / math.Sqrt(12.5)}
+	if math.Abs(values[0]-want[0]) > 1e-12 || math.Abs(values[1]-want[1]) > 1e-12 {
+		t.Fatalf("normalized=%v want=%v", values, want)
+	}
+}
+
+func TestStandardRMSNormF64(t *testing.T) {
+	t.Parallel()
+	got := standardRMSNormF64([]float64{3, 4}, []float32{1, 2}, 1, 2, 0)
+	want := []float64{3 / math.Sqrt(12.5), 8 / math.Sqrt(12.5)}
+	if math.Abs(got[0]-want[0]) > 1e-12 || math.Abs(got[1]-want[1]) > 1e-12 {
+		t.Fatalf("normalized=%v want=%v", got, want)
+	}
 }
 
 // encodeSelected runs the full encoder over the embedded token rows, capturing
@@ -500,13 +625,13 @@ func EncodeSelectedLayersMasked(modelDir string, spec *Spec, promptIDs []int, ke
 	}
 
 	seq := len(promptIDs)
-	embedTensor, ok := src.Tensors[textEncoderPrefix+"embed_tokens.weight"]
-	if !ok {
-		return nil, fmt.Errorf("textencoder: missing embedding tensor")
-	}
-	embedRows, err := safetensors.TensorRowsF64(embedTensor, e.Hidden, promptIDs)
+	embedRows32, err := safetensors.ReadTensorRowsF32(modelDir+"/text_encoder", textEncoderPrefix+"embed_tokens.weight", e.Hidden, promptIDs)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("textencoder: embedding rows: %w", err)
+	}
+	embedRows := make([]float64, len(embedRows32))
+	for i, value := range embedRows32 {
+		embedRows[i] = float64(value)
 	}
 	layerAt := func(l int) (*encLayerWeights, error) {
 		return readEncoderLayer(src, e, inter, l)

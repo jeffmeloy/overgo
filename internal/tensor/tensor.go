@@ -482,14 +482,6 @@ func (b *Builder) CacheTokenOffset(fallback uint32) uint32 {
 	return fallback
 }
 
-// CacheCapacity: configured cache storage width.
-func (b *Builder) CacheCapacity() (uint32, bool) {
-	if b == nil || b.cacheAppend == nil {
-		return 0, false
-	}
-	return b.cacheAppend.CapacityTokens, true
-}
-
 // CacheSourceCapacity: configured source storage width.
 func (b *Builder) CacheSourceCapacity() (uint32, bool) {
 	if b == nil || b.cacheAppend == nil {

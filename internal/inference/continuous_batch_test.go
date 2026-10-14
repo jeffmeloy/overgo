@@ -15,6 +15,7 @@ import (
 )
 
 func TestContinuousBatchSequenceLifecycle(t *testing.T) {
+	t.Parallel()
 	value, err := reference.NewValue(
 		tensor.MustShape(1, 1, 5),
 		[]float32{1, 2, 3, 4, 5},
@@ -33,20 +34,18 @@ func TestContinuousBatchSequenceLifecycle(t *testing.T) {
 				Layers: []LayerCache{{Key: value, Value: value}},
 				Tokens: 5, Position: 9,
 			}},
+			8: {host: &KVCache{
+				Layers: []LayerCache{{Key: value, Value: value}},
+				Tokens: 2, Position: 2,
+			}},
 		},
 	}
 	states := batch.Snapshot()
-	if len(states) != 1 || states[0].ID != 7 || states[0].Tokens != 5 ||
+	if len(states) != 2 || states[0].ID != 7 || states[0].Tokens != 5 ||
 		states[0].Position != 9 || len(states[0].Pages) != 2 ||
-		states[0].Pages[1] != (SequenceCachePage{Start: 4, Tokens: 1}) {
+		states[0].Pages[1] != (SequenceCachePage{Start: 4, Tokens: 1}) ||
+		states[1].ID != 8 || states[1].Tokens != 2 || len(states[1].Pages) != 1 {
 		t.Fatalf("states = %+v", states)
-	}
-	if err := batch.Fork(7, 8); err != nil {
-		t.Fatal(err)
-	}
-	batch.sequences[7].host.Layers[0].Key.Data[0] = 99
-	if batch.sequences[8].host.Layers[0].Key.Data[0] != 1 {
-		t.Fatal("fork shares host cache storage")
 	}
 	if err := batch.Remove(t.Context(), 7); err != nil {
 		t.Fatal(err)
@@ -179,40 +178,6 @@ func TestPersistentDeviceCacheCapabilityProfile(t *testing.T) {
 			t.Fatalf("%s support = %t, want %t", architecture, got, want)
 		}
 	}
-}
-
-func TestCloneDeviceCacheSharesOwnerAndCopiesMetadata(t *testing.T) {
-	shape := tensor.MustShape(2, 1, 3)
-	owner := newDeviceCacheOwner(&executor.RetainedOutputs{}, 1)
-	source := &deviceKVCache{
-		owner: owner,
-		session: &deviceDecodeSession{program: decodeSessionPlan{
-			identity: decodeSessionIdentity{capacity: 4},
-		}},
-		Keys:   []executor.DeviceValue{{Shape: shape}},
-		Values: []executor.DeviceValue{{Shape: shape}},
-		States: []deviceLayerStates{{
-			"fixed": {Mode: CacheStateFixed, Value: executor.DeviceValue{Shape: tensor.MustShape(2)}},
-		}},
-		Tokens: 3, Position: 7, Logits: []float32{1, 2},
-	}
-	fork, err := cloneDeviceCache(source)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if owner.refs != 2 || fork.owner != owner || fork.session != nil ||
-		fork.Tokens != 3 || fork.Position != 7 {
-		t.Fatalf("fork = %+v, owner refs = %d", fork, owner.refs)
-	}
-	fork.Keys[0].Shape = tensor.MustShape(1)
-	fork.States[0]["other"] = deviceLayerState{Mode: CacheStateFixed}
-	fork.Logits[0] = 9
-	if source.Keys[0].Shape.Equal(fork.Keys[0].Shape) ||
-		len(source.States[0]) != 1 || source.Logits[0] != 1 {
-		t.Fatal("device fork shares mutable metadata")
-	}
-	source.owner = nil
-	fork.owner = nil
 }
 
 func TestRecurrentPrimaryStateShapesCoverFusedFamilies(t *testing.T) {

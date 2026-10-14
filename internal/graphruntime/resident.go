@@ -42,7 +42,6 @@ type ResidentProgram struct {
 	*executor.IndexedGraph
 	dynamic []executor.InputSlot
 	weights []int
-	bytes   uint64
 }
 
 // ResidentStats reports session-owned device storage and execution.
@@ -164,7 +163,6 @@ func (s *ResidentSession) Bind(
 	program.Inputs.Pointers[slot] = pointer
 	program.weights = append(program.weights, allocationIndex)
 	s.allocations[allocationIndex].refs++
-	program.bytes += bytes
 	return nil
 }
 
@@ -262,7 +260,6 @@ func (s *ResidentSession) Release(ctx context.Context, programs ...*ResidentProg
 			program.Inputs = nil
 			program.dynamic = nil
 			program.weights = nil
-			program.bytes = uint64(tensor.FirstOffset)
 		}
 		return errors.Join(errs...)
 	})
@@ -277,14 +274,6 @@ func (s *ResidentSession) Seal() {
 	for index := range s.allocations {
 		s.allocations[index].key = residentBinding{}
 	}
-}
-
-// ProgramBytes returns static bytes referenced by one program.
-func (p *ResidentProgram) ProgramBytes() uint64 {
-	if p == nil {
-		return uint64(tensor.FirstOffset)
-	}
-	return p.bytes
 }
 
 // StaticBytes returns unique immutable device storage.

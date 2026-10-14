@@ -1,3 +1,4 @@
+// Package processmeasure owns interval and process peak-memory measurements.
 package processmeasure
 
 import (

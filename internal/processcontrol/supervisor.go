@@ -58,12 +58,11 @@ type Supervised struct {
 	exited  chan struct{}
 	waitErr error
 
-	mu          sync.Mutex
-	interrupted bool
-	terminated  bool
-	finished    bool
-	receipt     Receipt
-	receiptErr  error
+	mu         sync.Mutex
+	terminated bool
+	finished   bool
+	receipt    Receipt
+	receiptErr error
 }
 
 // Start launches the command under tree containment and begins
@@ -149,16 +148,6 @@ func (s *Supervised) drainPipe(pipe io.Reader, sink io.Writer, counter *int64) {
 	s.mu.Unlock()
 }
 
-// Interrupt asks the process to stop cooperatively where the platform
-// can, recording the request; on platforms without a cooperative
-// signal it is a no-op that still marks the receipt.
-func (s *Supervised) Interrupt() error {
-	s.mu.Lock()
-	s.interrupted = true
-	s.mu.Unlock()
-	return s.tree.interrupt(s.command)
-}
-
 // Terminate kills the entire process tree, descendants included.
 func (s *Supervised) Terminate() error {
 	s.mu.Lock()
@@ -205,7 +194,6 @@ func (s *Supervised) Wait(ctx context.Context) (Receipt, error) {
 	wall, wallErr := s.clock.Elapsed()
 	s.receipt = Receipt{
 		ExitCode:       s.command.ProcessState.ExitCode(),
-		Interrupted:    s.interrupted,
 		TreeTerminated: s.terminated,
 		StdoutBytes:    s.stdoutBytes,
 		StderrBytes:    s.stderrBytes,

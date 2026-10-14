@@ -61,21 +61,21 @@ func TestReaderEnvironmentDisablesOptionalLocksAfterRemovingGitOverrides(t *test
 	}
 }
 
-func TestRequireRepositoryRootUsesExplicitRepository(t *testing.T) {
+func TestRepositoryRootUsesExplicitRepository(t *testing.T) {
 	repository := t.TempDir()
 	foreign := t.TempDir()
 	gitTestCommand(t, repository, "init", "-q")
 	gitTestCommand(t, foreign, "init", "-q")
 	t.Setenv("GIT_DIR", filepath.Join(foreign, ".git"))
 	t.Setenv("GIT_WORK_TREE", foreign)
-	if err := RequireRepositoryRoot(t.Context(), repository); err != nil {
+	if _, err := RepositoryRoot(t.Context(), repository); err != nil {
 		t.Fatalf("explicit repository root was redirected by ambient Git state: %v", err)
 	}
 	subdirectory := filepath.Join(repository, "nested")
 	if err := os.Mkdir(subdirectory, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := RequireRepositoryRoot(t.Context(), subdirectory); err == nil ||
+	if _, err := RepositoryRoot(t.Context(), subdirectory); err == nil ||
 		!strings.Contains(err.Error(), "exact repository root") {
 		t.Fatalf("repository subdirectory result = %v", err)
 	}

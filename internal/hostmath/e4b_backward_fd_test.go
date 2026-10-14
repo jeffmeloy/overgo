@@ -17,67 +17,6 @@ func e4bRandVec(rng *rand.Rand, n int, base, s float64) []float32 {
 	return v
 }
 
-func TestWindowedCausalAttentionBackwardFiniteDifference(t *testing.T) {
-	const seq, heads, kvHeads, headDim, window = 5, 2, 1, 3, 3
-	rng := rand.New(rand.NewSource(7))
-	q := e4bRandVec(rng, seq*heads*headDim, 0, 0.7)
-	k := e4bRandVec(rng, seq*kvHeads*headDim, 0, 0.7)
-	v := e4bRandVec(rng, seq*kvHeads*headDim, 0, 0.7)
-	dOut := e4bRandVec(rng, seq*heads*headDim, 0, 1)
-
-	loss := func() float64 {
-		out := make([]float32, seq*heads*headDim)
-		WindowedCausalAttention(out, q, k, v, seq, heads, kvHeads, headDim, window)
-		var s float64
-		for i := range out {
-			s += float64(out[i]) * float64(dOut[i])
-		}
-		return s
-	}
-
-	dq := make([]float32, len(q))
-	dk := make([]float32, len(k))
-	dv := make([]float32, len(v))
-	WindowedCausalAttentionBackward(dq, dk, dv, q, k, v, dOut, seq, heads, kvHeads, headDim, window)
-
-	tol := fdTol(fdStep, seq*headDim)
-
-	checkVectorBackwardFD(t, "dq", q, dq, loss, tol)
-	checkVectorBackwardFD(t, "dk", k, dk, loss, tol)
-	checkVectorBackwardFD(t, "dv", v, dv, loss, tol)
-}
-
-// Windowed backward with window<=0 must equal the existing full-causal VJP.
-func TestWindowedCausalAttentionBackwardReducesToFullCausal(t *testing.T) {
-	const seq, heads, kvHeads, headDim = 4, 4, 2, 3
-	rng := rand.New(rand.NewSource(13))
-	q := e4bRandVec(rng, seq*heads*headDim, 0, 0.8)
-	k := e4bRandVec(rng, seq*kvHeads*headDim, 0, 0.8)
-	v := e4bRandVec(rng, seq*kvHeads*headDim, 0, 0.8)
-	dOut := e4bRandVec(rng, seq*heads*headDim, 0, 1)
-
-	dqW := make([]float32, len(q))
-	dkW := make([]float32, len(k))
-	dvW := make([]float32, len(v))
-	WindowedCausalAttentionBackward(dqW, dkW, dvW, q, k, v, dOut, seq, heads, kvHeads, headDim, 0)
-
-	dqF := make([]float32, len(q))
-	dkF := make([]float32, len(k))
-	dvF := make([]float32, len(v))
-	CausalAttentionBackward(dqF, dkF, dvF, q, k, v, dOut, seq, heads, kvHeads, headDim)
-
-	eq := func(name string, a, b []float32) {
-		for i := range a {
-			if math.Abs(float64(a[i]-b[i])) > 1e-6 {
-				t.Fatalf("%s[%d]: windowed %.7g vs full-causal %.7g", name, i, a[i], b[i])
-			}
-		}
-	}
-	eq("dq", dqW, dqF)
-	eq("dk", dkW, dkF)
-	eq("dv", dvW, dvF)
-}
-
 func TestGELUTanhBackwardFiniteDifference(t *testing.T) {
 	x := []float32{-3, -1.5, -0.5, 0, 0.25, 0.9, 2, 4}
 	dy := []float32{1, -2, 0.5, 3, -1, 0.7, 1.3, -0.4}

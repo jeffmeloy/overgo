@@ -86,7 +86,7 @@ func (workflow *recordWorkflow) ExecuteWorkflow(ctx context.Context, _ WorkflowK
 		return completion, err
 	}
 	if workflow.block.CompareAndSwap(true, false) {
-		return completion, operatoraction.Recoverable(errors.New("approval required"), operatoraction.Block{
+		return completion, testutil.Recoverable(errors.New("approval required"), operatoraction.Block{
 			Subject: capability.Recipe, Reason: "operator approval required", Evidence: []artifact.ID{},
 			Actions: []operatoraction.Action{workflow.resume},
 		})

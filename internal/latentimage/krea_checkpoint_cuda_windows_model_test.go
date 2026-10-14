@@ -166,7 +166,7 @@ func TestEncoderResidentRealCheckpoint(t *testing.T) {
 	}
 	ctx := t.Context()
 	re := newResidentFixture(t, ctx, "test encoder", filepath.Join(dir, "text_encoder"), prog.weightInputs, prog.Selected...)
-	t.Logf("resident encoder weights: %.3f GiB (%d tapped layers, seq=%d)", float64(re.graph.ProgramBytes())/(1<<30), prog.CaptureAfter[len(prog.CaptureAfter)-1]+1, len(ids))
+	t.Logf("resident encoder weights: %.3f GiB (%d tapped layers, seq=%d)", float64(re.runtime.StaticBytes())/(1<<30), prog.CaptureAfter[len(prog.CaptureAfter)-1]+1, len(ids))
 	dev := residentEncode(t, ctx, re, prog, embed)
 	if dev.Seq != host.Seq || dev.LayerCount != host.LayerCount || dev.Hidden != host.Hidden {
 		t.Fatalf("device geometry [%d,%d,%d] != host [%d,%d,%d]", dev.Seq, dev.LayerCount, dev.Hidden, host.Seq, host.LayerCount, host.Hidden)
@@ -227,7 +227,7 @@ func TestEncoderResidentRealCheckpoint(t *testing.T) {
 		t.Fatal("templated device selected-hidden not finite")
 	}
 	t.Logf("dtc-tokenizer templated: %d rows (%d attended, %d pad), device encoder [%d,%d,%d] finite; peak device weights %.3f GiB. Pad-key masking is the documented residual (telemetry oracle stays until full e2e SHA).",
-		len(in.IDs), attended, len(in.IDs)-attended, tdev.Seq, tdev.LayerCount, tdev.Hidden, float64(tre.graph.ProgramBytes())/(1<<30))
+		len(in.IDs), attended, len(in.IDs)-attended, tdev.Seq, tdev.LayerCount, tdev.Hidden, float64(tre.runtime.StaticBytes())/(1<<30))
 }
 
 // TestFusionResidentRealCheckpoint drives the text-fusion stream on the device
@@ -291,7 +291,7 @@ func TestFusionResidentRealCheckpoint(t *testing.T) {
 	ctx := t.Context()
 	rf := newResidentFixture(t, ctx, "test fusion", filepath.Join(dir, "transformer"), prog.weightInputs, prog.Fused)
 	t.Logf("resident fusion weights: %.3f GiB (%d layerwise + %d refiner blocks, textSeq=%d)",
-		float64(rf.graph.ProgramBytes())/(1<<30), tspec.LayerwiseTextBlocks, tspec.RefinerTextBlocks, selected.Seq)
+		float64(rf.runtime.StaticBytes())/(1<<30), tspec.LayerwiseTextBlocks, tspec.RefinerTextBlocks, selected.Seq)
 
 	encF32 := make([]float32, len(selected.Data))
 	for i, v := range selected.Data {
@@ -315,7 +315,7 @@ func TestFusionResidentRealCheckpoint(t *testing.T) {
 	}
 	rel := sumAbs / (sa + 1e-9)
 	t.Logf("device vs host fused conditioning: max_abs=%.3e mean|h-d|/mean|h|=%.3e (bf16 band); peak device weights %.3f GiB",
-		maxAbs, rel, float64(rf.graph.ProgramBytes())/(1<<30))
+		maxAbs, rel, float64(rf.runtime.StaticBytes())/(1<<30))
 	if rel > 2e-1 {
 		t.Fatalf("device/host fused mean-relative=%.3e exceeds bf16 band 2e-1", rel)
 	}
@@ -425,7 +425,6 @@ func TestVAEDecodeCUDARealModelMatchesHost(t *testing.T) {
 	}
 	maxAbs := 0.0
 	u8Diff := 0
-	hu8, du8 := media.NormalizedF32ToU8(hostPix), media.NormalizedF32ToU8(devPix)
 	for i := range hostPix {
 		g := float64(devPix[i])
 		if math.IsNaN(g) || math.IsInf(g, 0) {
@@ -434,16 +433,16 @@ func TestVAEDecodeCUDARealModelMatchesHost(t *testing.T) {
 		if a := math.Abs(float64(hostPix[i]) - g); a > maxAbs {
 			maxAbs = a
 		}
-		if hu8[i] != du8[i] {
+		if media.SignedUnitF32ToU8(hostPix[i]) != media.SignedUnitF32ToU8(devPix[i]) {
 			u8Diff++
 		}
 	}
 	t.Logf("REAL Krea VAE device vs host: max_abs=%.3e u8_diff=%d/%d peak_device=%.1fMB weightMB=%.1f (%dx%d RGB, tiling=whole-frame)",
-		maxAbs, u8Diff, len(hu8), float64(peak())/(1<<20), float64(d.WeightBytes)/(1<<20), dow, doh)
+		maxAbs, u8Diff, len(hostPix), float64(peak())/(1<<20), float64(d.WeightBytes)/(1<<20), dow, doh)
 	if maxAbs > 5e-3 {
 		t.Fatalf("device/host divergence max_abs=%.3e exceeds 5e-3", maxAbs)
 	}
-	if u8Diff*50 > len(hu8) { // device fp32 vs host f64: allow <2% off-by-one u8
-		t.Fatalf("device/host u8 mismatch on %d/%d pixels (>2%%)", u8Diff, len(hu8))
+	if u8Diff*50 > len(hostPix) { // device fp32 vs host f64: allow <2% off-by-one u8
+		t.Fatalf("device/host u8 mismatch on %d/%d pixels (>2%%)", u8Diff, len(hostPix))
 	}
 }

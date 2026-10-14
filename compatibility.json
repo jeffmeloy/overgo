@@ -384,7 +384,7 @@
      "contains": "func TestOpenSourceRejectsInvalidRepositories(",
      "path": "internal/safetensors/source_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:85d94f8b80587645ed2ce55c3b34b144fb3b5255ead32c35eb6b94829992305b"
+     "identity": "evidence:sha256:aff428d23d2a813b63518ecabd024205409e0906be336e165d85aaf03df4dabe"
     }
    ],
    "id": "bounded-safetensors-repositories",
@@ -567,7 +567,7 @@
      "contains": "func TestValidateMultimodalImagesEnforcesGeometryBudgets(",
      "path": "internal/server/server_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:e84035f8f1bb9e3bc5601824824d89153de9c206494bd8325ce18643b24d24a8"
+     "identity": "evidence:sha256:5fee75bab80d49a3e37ef4cb35c294be0121d5315fdd28a5d15027ebf404702d"
     }
    ],
    "id": "bounded-server-media",
@@ -755,7 +755,7 @@
      "contains": "func TestQuantizeMatchesPinnedGGMLReference(",
      "path": "internal/quant/quantize_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:17ac050721b30b70334845aacd86519da8e2b36c880435fbcb2915ad732f0468"
+     "identity": "evidence:sha256:43a97e2e3f106766ba98d511b48efe8fa8f40313a9a4dbbcd6d24a5f43166f26"
     }
    ],
    "id": "pinned-quantization",
@@ -856,13 +856,13 @@
      "contains": "func (r *Runner) selectPromptCache(",
      "path": "internal/inference/prompt_cache.go",
      "role": "source",
-     "identity": "file:sha256:58c775daf706da1dd80f2c3bf8928c3548de15c21b73e8b2eefd3803769fc1ce"
+     "identity": "file:sha256:16f4d52479d06eaffcda6b043a8f9d581adf72325bccbe84b4e03f09ce30a95d"
     },
     {
      "contains": "func TestProjectedPromptCacheRequiresExactMediaSignature(",
      "path": "internal/inference/prompt_cache_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:1014bd818153e6d331aa8f8cfe188f57f3870d5b713c10da7c99e274ee311523"
+     "identity": "evidence:sha256:0352f5dfd8c2f42fd1f77de55f9fc114f7c643d066aa16041c64e8392587cded"
     }
    ],
    "id": "editable-prompt-cache",
@@ -877,7 +877,7 @@
      "contains": "func NewGBNFGrammar(",
      "path": "internal/sampling/gbnf.go",
      "role": "source",
-     "identity": "file:sha256:75050f5aed2981cdd3f8ffb09ae5a0f33f1ed16831fc0cc97636feb5ce7e0ba9"
+     "identity": "file:sha256:8b5c75e396f229dc3cf2e0bbb4fc6e3969b2887cb6b22907f9a7d49f8a9eaa23"
     },
     {
      "contains": "func TestJSONSchemaGrammarMatchesPinnedUpstreamCorpus(",
@@ -1220,7 +1220,7 @@
      "contains": "func LookupArchitecture(",
      "path": "internal/model/architecture.go",
      "role": "source",
-     "identity": "file:sha256:c6678f951a706fca22172cfcda4003644b10468e012185b5a3b7314ff59d0cf3"
+     "identity": "file:sha256:9eddd57e50620221c8eeb1347ec5601fd80a055f8aff5a5be8d734305c260108"
     },
     {
      "contains": "func TestArchitectureRegistryProfiles(",
@@ -1268,7 +1268,7 @@
      "contains": "func (b *ContinuousBatch) Step(",
      "path": "internal/inference/continuous_batch.go",
      "role": "source",
-     "identity": "file:sha256:06bf8f32084d55e4971ef7a2f478fb0f212a83ba802efaf3cdb70842869379eb"
+     "identity": "file:sha256:f33e7f26fee0112d89f50dd80daa6b9e9e0d43c3c80e09514026fb347534840a"
     },
     {
      "contains": "func TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState(",
@@ -1281,28 +1281,7 @@
    "evidence_tier": "contract-tested",
    "verify": "go test ./internal/inference -run '^TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState$' -count=1 -v",
    "status": "implemented",
-   "summary": "Retained CUDA cache pages and transactional attention/recurrent/hybrid multi-sequence steps support dynamic admission and forks."
-  },
-  {
-   "evidence": [
-    {
-     "contains": "func (r *Runner) NewEncoderDecoderBatchSession(",
-     "path": "internal/inference/encoder_decoder_batch.go",
-     "role": "source",
-     "identity": "file:sha256:e453df5f1053047c3c11ab1862a544dba9bee03e7f24cb6e74375c73a2070dc6"
-    },
-    {
-     "contains": "func TestPaddedTokenBatchLayoutPreservesDerivedLengths(",
-     "path": "internal/inference/encoder_decoder_batch_test.go",
-     "role": "artifact",
-     "identity": "evidence:sha256:1aaadf1277a4e558e9d3a0cb98e23bf30ef1ddd8155637a94bbdc994cf1c4b26"
-    }
-   ],
-   "id": "padded-encoder-decoder-batches",
-   "evidence_tier": "contract-tested",
-   "verify": "go test ./internal/inference -run '^TestPaddedTokenBatchLayoutPreservesDerivedLengths$' -count=1 -v",
-   "status": "implemented",
-   "summary": "Rectangular encoder-decoder batches use explicit source and decoder lengths so padding never enters attention state."
+   "summary": "Retained CUDA cache pages and transactional attention/recurrent/hybrid multi-sequence steps support dynamic admission."
   },
   {
    "evidence": [

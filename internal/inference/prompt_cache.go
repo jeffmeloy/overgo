@@ -22,36 +22,6 @@ import (
 // signature-checked pool used by Generate. Schedulers declare their own support.
 func (r *Runner) SupportsPromptCache() bool { return r != nil && r.vocab != nil }
 
-// ClearPromptCaches: releases retained request state; preserves prepared assets.
-func (r *Runner) ClearPromptCaches(ctx context.Context) error {
-	if r == nil {
-		return errRunnerNil
-	}
-	if ctx == nil {
-		return errors.New("inference: prompt-cache context is nil")
-	}
-	if err := r.lockOpen(); err != nil {
-		return err
-	}
-	caches := r.detachPromptCaches()
-	r.mu.Unlock()
-	failed, err := releasePromptCaches(ctx, caches)
-	if len(failed) == 0 {
-		return err
-	}
-	r.mu.Lock()
-	closed := r.closed
-	if !closed {
-		r.promptCaches = append(r.promptCaches, failed...)
-	}
-	r.mu.Unlock()
-	if closed {
-		_, retryErr := releasePromptCaches(context.Background(), failed)
-		err = errors.Join(err, retryErr)
-	}
-	return err
-}
-
 func (r *Runner) promotePromptCache(index int) *cachedPrompt {
 	if index < 0 || index >= len(r.promptCaches) {
 		return nil

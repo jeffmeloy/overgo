@@ -171,13 +171,16 @@ content ::= (!<[11]>)*
 }
 
 func TestGBNFNamedTokenTerminalResolution(t *testing.T) {
-	grammar, err := NewGBNFGrammarWithTokens(
-		`root ::= <start> !<end> <end>`,
-		"root",
+	t.Parallel()
+	vocabulary, err := NewGBNFVocabulary(
 		bytePieces("<start>", "x", "<end>", ""),
 		[]int{3},
 		map[string]int{"<start>": 0, "<end>": 2},
 	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	grammar, err := vocabulary.Compile(`root ::= <start> !<end> <end>`, "root", GBNFLazyOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -190,12 +193,14 @@ func TestGBNFNamedTokenTerminalResolution(t *testing.T) {
 }
 
 func TestLazyGBNFPatternReplaysOverlappingTokenPieces(t *testing.T) {
-	grammar, err := NewGBNFGrammarWithOptions(
+	t.Parallel()
+	vocabulary, err := NewGBNFVocabulary(bytePieces("prefixJS", "ON:42", "", "unconstrained"), []int{2}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	grammar, err := vocabulary.Compile(
 		`root ::= "JSON:" [0-9]+`,
 		"root",
-		bytePieces("prefixJS", "ON:42", "", "unconstrained"),
-		[]int{2},
-		nil,
 		GBNFLazyOptions{
 			Enabled:  true,
 			Patterns: []string{`prefix(JSON:)`},
@@ -228,6 +233,7 @@ func TestLazyGBNFPatternReplaysOverlappingTokenPieces(t *testing.T) {
 }
 
 func TestLazyGBNFECMAScriptTriggerFeatures(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		source  string
@@ -266,12 +272,14 @@ func TestLazyGBNFECMAScriptTriggerFeatures(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			grammar, err := NewGBNFGrammarWithOptions(
+			t.Parallel()
+			vocabulary, err := NewGBNFVocabulary(bytePieces(test.pieces...), []int{len(test.pieces) - 1}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			grammar, err := vocabulary.Compile(
 				test.source,
 				"root",
-				bytePieces(test.pieces...),
-				[]int{len(test.pieces) - 1},
-				nil,
 				GBNFLazyOptions{Enabled: true, Patterns: []string{test.pattern}},
 			)
 			if err != nil {
@@ -285,20 +293,23 @@ func TestLazyGBNFECMAScriptTriggerFeatures(t *testing.T) {
 }
 
 func TestLazyGBNFTriggerResourceLimits(t *testing.T) {
-	pieces := bytePieces("a", "")
+	t.Parallel()
+	small, err := NewGBNFVocabulary(bytePieces("a", ""), []int{1}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	options := GBNFLazyOptions{Enabled: true, Patterns: []string{strings.Repeat("a", maxGBNFTriggerPatternBytes+1)}}
-	if _, err := NewGBNFGrammarWithOptions(
-		`root ::= "a"`, "root", pieces, []int{1}, nil, options,
-	); err == nil {
+	if _, err := small.Compile(`root ::= "a"`, "root", options); err == nil {
 		t.Fatalf("lazy grammar accepted oversized trigger options %+v", options)
 	}
 
-	grammar, err := NewGBNFGrammarWithOptions(
+	large, err := NewGBNFVocabulary(bytePieces(strings.Repeat("x", maxGBNFSourceBytes), "y", ""), []int{2}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	grammar, err := large.Compile(
 		`root ::= "x"`,
 		"root",
-		bytePieces(strings.Repeat("x", maxGBNFSourceBytes), "y", ""),
-		[]int{2},
-		nil,
 		GBNFLazyOptions{Enabled: true, Patterns: []string{"trigger"}},
 	)
 	if err != nil {
@@ -326,12 +337,14 @@ func TestLazyGBNFTriggerResourceLimits(t *testing.T) {
 }
 
 func TestLazyGBNFTokenTriggerIsIncludedInGrammar(t *testing.T) {
-	grammar, err := NewGBNFGrammarWithOptions(
+	t.Parallel()
+	vocabulary, err := NewGBNFVocabulary(bytePieces("free", "other", "<trigger>", "x", ""), []int{4}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	grammar, err := vocabulary.Compile(
 		`root ::= <[2]> "x"`,
 		"root",
-		bytePieces("free", "other", "<trigger>", "x", ""),
-		[]int{4},
-		nil,
 		GBNFLazyOptions{Enabled: true, Tokens: []int{2}},
 	)
 	if err != nil {
@@ -346,15 +359,17 @@ func TestLazyGBNFTokenTriggerIsIncludedInGrammar(t *testing.T) {
 }
 
 func TestLazyGBNFRequiresValidTriggers(t *testing.T) {
-	pieces := bytePieces("a", "")
+	t.Parallel()
+	vocabulary, err := NewGBNFVocabulary(bytePieces("a", ""), []int{1}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, options := range []GBNFLazyOptions{
 		{Enabled: true},
 		{Enabled: true, Patterns: []string{"("}},
 		{Enabled: true, Tokens: []int{9}},
 	} {
-		if _, err := NewGBNFGrammarWithOptions(
-			`root ::= "a"`, "root", pieces, []int{1}, nil, options,
-		); err == nil {
+		if _, err := vocabulary.Compile(`root ::= "a"`, "root", options); err == nil {
 			t.Fatalf("lazy grammar accepted invalid options %+v", options)
 		}
 	}

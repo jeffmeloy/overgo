@@ -93,14 +93,6 @@ func PublishRemotePeerAuthority(
 	return identifiedCompatibility, nil
 }
 
-func (value RemotePeerCompatibility) batch(key string) (artifact.Batch, error) {
-	parents := []artifact.ID{
-		value.Model, value.Recipe, value.Resources, value.LocalEnvironment, value.PeerEnvironment,
-		value.PeerCapability, value.LocalObservation, value.PeerObservation,
-	}
-	return remotePeerCompatibilityCodec.Batch(key, value, artifact.DependencyLineage(value.ID, parents...), nil)
-}
-
 func canonicalizeRemotePeerCompatibility(value *RemotePeerCompatibility) error {
 	if value == nil || value.Version != remotePeerCompatibilityVersion ||
 		value.Model.Kind() != artifact.KindModel || value.Recipe.Kind() != artifact.KindRecipe ||

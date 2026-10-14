@@ -236,11 +236,11 @@ func TestEmbeddingOverrideMatchesTokenLookupAndProducesUsableCache(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, cache, err := runner.ForwardCachedWithEmbeddingOverrides(
-		ctx,
+	got, cache, err := forwardProjected(
+		t,
+		runner,
 		[]tokenizer.TokenID{9707, 9707},
-		nil,
-		[]EmbeddingOverride{{TokenIndex: 1, Embedding: append([]float32(nil), replacement.Data...)}},
+		ProjectedInputs{EmbeddingOverrides: []EmbeddingOverride{{TokenIndex: 1, Embedding: append([]float32(nil), replacement.Data...)}}},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -1252,7 +1252,7 @@ func TestNativeQ1BonsaiMatchesPinnedOracle(t *testing.T) {
 	if runner.rawWeights == nil {
 		t.Fatal("Bonsai Q1_0 weights did not use native device storage")
 	}
-	ids, text, err := runner.Greedy(t.Context(), "Hello", 2)
+	ids, text, err := runner.Generate(t.Context(), "Hello", GenerateOptions{MaxNewTokens: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1290,7 +1290,7 @@ func TestNativeGemma3PerplexityMatchesOracle(t *testing.T) {
 	if chatPrompt != oracleChatPrompt {
 		t.Fatalf("Gemma 3 chat prompt = %q, want %q", chatPrompt, oracleChatPrompt)
 	}
-	ids, text, err := runner.Greedy(t.Context(), "Hello", 3)
+	ids, text, err := runner.Generate(t.Context(), "Hello", GenerateOptions{MaxNewTokens: 3})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1415,7 +1415,7 @@ func TestNativeUMT5EncoderMatchesOracle(t *testing.T) {
 			t.Fatalf("UMT5 per-token embedding[%d] delta = %g", index, difference)
 		}
 	}
-	if _, _, err := runner.Greedy(t.Context(), "Hello", 1); err == nil {
+	if _, _, err := runner.Generate(t.Context(), "Hello", GenerateOptions{MaxNewTokens: 1}); err == nil {
 		t.Fatal("UMT5 encoder unexpectedly accepted token generation")
 	}
 }
@@ -1437,7 +1437,7 @@ func assertNativeQuantGreedyOracle(t *testing.T, modelPath string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ids, text, err := runner.Greedy(t.Context(), "Hello", 3)
+	ids, text, err := runner.Generate(t.Context(), "Hello", GenerateOptions{MaxNewTokens: 3})
 	if err != nil {
 		t.Fatal(err)
 	}

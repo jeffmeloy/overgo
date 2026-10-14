@@ -191,24 +191,6 @@
           "rationale": "Split from step reference-and-noise, whose text asks for it. After that step a held-out quality declines by any move the scorecard's four printed digits show, so one case of a suite answered wrong where it was answered right files a row. Over the 32 published records a quality cell was read again by a new source 823 times and 808 of those gave the same value, most of them a result carried forward and not scored again; two were declines, of 0.0024 on an accuracy and of 0.0011 on a word error rate. A move is a decline when, over the cases the two readings answered differently, more went from right to wrong than the exact paired test allows (tensorstats.ExactPairedBinary, as internal/evaluation/instruction_acceptance.go uses it). A cell carries no per-case outcomes: a choice report in the store does, reached from a cell's source through its run (internal/evaluation/evidence_index.go, the path unreadAnswers walks). Decide first where the two readings' outcomes are read: from the store when a record is compared, which Gaps and Compare do not take today, or kept beside the cell when it is published. A metric with a stated standard error and no per-case outcomes is judged by that error, and one with neither reads Unknown once it moves beyond the printed digits. If the owner's amendment row for one table of measurements is ever taken, this reads that table.\nServes: held-out-quality: a row for a model that answers worse, and none for one that answers a few cases differently.\nDisappears: the judging of a quality by its value alone.\nEvidence: two stored readings of one suite, paired case by case, in a temporary store; the published history's two quality declines judged both ways.\nBatch: host; a change to internal/evaluation is in the answer scope and goes just before a full measurement run.\n\nRanked behind policy-search by the lead on 2026-10-13. The reader of a report's per-case outcomes belongs beside unreadAnswers in internal/evaluation, and any file change there asks every case of every suite again (internal/inferencesurface/identity.go:57,276-296). It is taken in the same batch as policy-search/protocol, which changes that package anyway, or after evidence-identity narrows what an answer depends on. Design leaning: Gaps stays a reading of published records; where the loop files a decline of a quality (cmd/loop Propose) it opens the store, reads the two readings' reports, and drops a decline the exact paired test does not support at the tail two standard errors leave, the package's noiseDeviates. A quality with no per-case outcomes is judged by its value as now, so no metric stops filing."
         }
       ]
-    },
-    {
-      "id": "resume-census",
-      "title": "Map the paths that resume or reuse finished work before any is moved",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "census",
-          "title": "Record each path's reuse identity, retry rule, readers and size, and what each recent repair had to add",
-          "status": "open",
-          "verify": "go test ./internal/workflowruntime -count=1 -run '^TestResumePathRecordIsWhole$'",
-          "rationale": "From the proposal, kept as a census and ranked last. Five reviewer repairs each added an identity a resume path had lacked: a corpus run credited only to its request (8cfa15418), an interrupted proposal finished by the same request (8988728ae), a measurement run cut short after it published (2542eb677), a kept cell measured again when a file its command is given changes (78534ee41), and a continued adapter's corpus run (2ae868219). By the lead's review they landed within about nine hours and none touched the operation lifecycle or the workflow replay, so the record must show the connection before a merge is proposed. The paths are the workflow runtime's replay, the operation's own reuse, the measurement run's cell files and the trainers' checkpoints, whose lifecycle repo-hygiene now owns (df0eaa224, 25e6ec9cd). A path proposer-retire removes is not mapped.\nServes: an interrupted run continues where it stopped, by one rule.\nDisappears: nothing yet.\nEvidence: docs/verification/resume-paths.txt, held by the test.\nBatch: host.",
-          "depends_on": [
-            "proposer-retire/do"
-          ]
-        }
-      ]
     }
   ],
   "decisions": [

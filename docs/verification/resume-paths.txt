@@ -1,0 +1,422 @@
+overgo resume paths: what each path that resumes or reuses finished work is found by, when it reuses, retries or runs again, who enters it and how large it is, with what five repairs added, how the paths connect and the other sites that reuse work
+method: read from the tree, with no store opened and nothing run but the test that reads this record
+code: the tree at 3d98adb9d with the change this record came in
+taken: 2026-10-13
+read by: TestResumePathRecordIsWhole (internal/workflowruntime), which finds every cited declaration in the file named, counts each path's size again from the tree, holds each reader to a call that enters its path, holds each repair to a declaration of its path or to files the tree no longer holds, and counts every figure again from the entries
+
+What was asked.
+The plan's row resume-census asked what each path that resumes or reuses finished work is, before any of them is moved.
+Five repairs of 2026-10-11 each added an identity one such path lacked.
+This record maps four paths, says what each repair added, says how the paths connect, and lists the other sites a reading found.
+No production code changed for it.
+
+What a path is.
+A path keeps a record of finished work and reads the record back to decide whether the work runs again.
+Its reuse identity is what the record is found by and compared with.
+Its retry rule says when a found record is reused, when the work runs again and when the request is refused.
+Its readers are the production declarations that enter it.
+
+What a size is.
+A path's size is the syntax nodes of its counted declarations.
+A declaration is counted when it exists to compute the key, to read the stored record, to decide between reuse and running, or to write the record.
+Only a function, a method or a package variable is counted.
+The record's type, its codec and the codec's checks describe the record and are not counted.
+A declaration that runs the work and holds a line of the four is named beside the path and is not counted, because it is the machinery that then trains or executes.
+A declaration is counted whole, with its doc comment, and in one path only.
+A node is counted as a commit's checks count production code, from a parse with comments (internal/landing/rules.go#writtenNodes).
+A whole file is a file that holds its path's declarations, their record and nothing of another mechanism.
+The nodes of a path's whole files are what deleting those files would take out of the production count.
+The sizes hold at every commit, because the test counts them again.
+Which declarations are counted is a judgement of the session that wrote this record.
+
+How to read an entry.
+A line that opens with a key, a colon and a space is read by the test, and every other line is prose.
+A place is a file and a name the file declares, written file#Name or file#Type.Name.
+The places of a statement follow a bar.
+The test finds every place in the tree.
+The readers and the sites were found by a search of the tree at the commit above.
+The test does not look for a reader or a site the record does not name.
+
+What was read and not run.
+Every statement here was read from the code, and only the sizes and the figures were counted.
+Four statements are the ones most likely to be acted on, and none was reproduced.
+No production path finds the operation's lifecycle record again.
+Four command keys into the workflow replay name no code.
+A tool call's stage receipts are never read again by the replay.
+The offline merge's staged output is bound to nothing it was staged from.
+Each needs a failing test of its own before anything is changed.
+
+== paths ==
+
+path: workflow-replay
+The workflow runtime runs a compiled recipe as stages and publishes a receipt at each transition of each stage.
+A stage that runs publishes three receipts, admitted, running and its end.
+record: a stage receipt for each transition of a stage, found again by the alias stage-receipt/<operation>/<node> | internal/runrecord/stage_receipt.go#StageReceipt internal/runrecord/stage_receipt.go#stageReceiptAlias
+identity: the operation id and the stage's node, with the receipt's recipe compared with the program's | internal/runrecord/stage_receipt.go#ResolveStageReceipt internal/workflowruntime/runtime.go#Runtime.recoverStage
+The caller chooses the operation, so the path's identity is whatever its caller derived the operation from.
+identity-derived: an operation is the hash of a recipe and a key, except where a caller hands an id of its own | internal/workflowruntime/runtime.go#ExecutionID
+Callers choose the key or the id in four ways.
+identity-served: a served capability derives it from the recipe, the exact request document and the code that answers | internal/capabilityruntime/run_key.go#RunKeyOf internal/capabilityruntime/measured.go#measuredRun
+identity-code: the code is named by the build's execution identity for the model's package, else by the commit of an unchanged build, else by the process | internal/capabilityruntime/run_key.go#answerScope internal/capabilityruntime/run_key.go#codeScope
+The execution identity is the dependency execution-identity that docs/verification/surface-moves.txt defines, and this record does not define it again.
+identity-beside: the served key also takes the bytes of the files a model reads beside its inventory, and a file among them that cannot be read makes the run a fresh one | internal/capabilityruntime/runtime.go#Reading internal/capabilityruntime/runtime.go#Contents
+identity-command: four commands give a key that names no code, which is a key from the command line, a protocol with a window's number, a hash of a corpus with a seed and a step count, and a fixed tag | cmd/tool-workflow/main.go#run internal/trainingworkflow/chain.go#RunChainViability cmd/model-build/main.go#run cmd/validate/parity_vqa_recipe_serve.go#executeVQAProgram
+identity-manager: the server hands the operation manager's own id for a tool call and for a model build | internal/workflowruntime/tool.go#ToolExecutor.ExecuteToolOperation internal/server/model_builder_workspace.go#modelBuilderWorkspace.ExecuteWorkflow
+identity-fresh: a measurement asks for a run of its own, by a scope drawn for its context or by the time its evaluation began | internal/capabilityruntime/measured.go#FreshRun cmd/recipe/main.go#measureCapability cmd/evaluate/render.go#renderMedia cmd/evaluate/vqa.go#vqaRunKey cmd/evaluate/vqa.go#openVQASession
+So one model build has two keys, the manager's id from the server and the hash of its corpus, seed and step count from the command.
+retry: a stage is taken from the store only when its newest receipt is completed and every output port left artifacts | internal/workflowruntime/runtime.go#Runtime.recoverStage
+retry-drift: a receipt of another recipe, of a port its module lacks or of an artifact the store no longer holds is refused, as an error of an execution and as no answer of a replay | internal/workflowruntime/runtime.go#Runtime.recoverStage internal/workflowruntime/runtime.go#Runtime.beginStage internal/workflowruntime/runtime.go#Runtime.executePlan
+retry-again: a stage whose receipt is not completed, left a value and no artifact, or no longer fits its module runs again as the next attempt | internal/workflowruntime/runtime.go#Runtime.recoverStage internal/workflowruntime/runtime.go#Runtime.beginStage internal/runrecord/stage_receipt.go#stageTransition
+retry-unasked: a stage that only feeds recovered stages does not run | internal/workflowruntime/runtime.go#Runtime.planReplay
+retry-replay: a replay runs no stage, and it publishes nothing and reports false when a stage would have to run | internal/workflowruntime/runtime.go#Runtime.Replay internal/workflowruntime/runtime.go#Runtime.executePlan
+A served capability asks for a replay before it loads a model, so a request the store answers costs neither a load nor a stage.
+code: internal/workflowruntime/runtime.go#errStagesMustRun internal/workflowruntime/runtime.go#Runtime.Replay internal/workflowruntime/runtime.go#ExecutionID internal/workflowruntime/runtime.go#Runtime.planReplay internal/workflowruntime/runtime.go#Runtime.recoverStage internal/workflowruntime/runtime.go#recoveredDatum internal/workflowruntime/runtime.go#Runtime.beginStage internal/workflowruntime/runtime.go#Runtime.finishStage internal/workflowruntime/runtime.go#withStageState internal/runrecord/stage_receipt.go#requireStageReceipt internal/runrecord/stage_receipt.go#ResolveStageReceipt internal/runrecord/stage_receipt.go#PublishStageReceipt internal/runrecord/stage_receipt.go#PrepareStageReceipt internal/runrecord/stage_receipt.go#stageTransition internal/runrecord/stage_receipt.go#stageReceiptAlias internal/capabilityruntime/run_key.go#codeScope internal/capabilityruntime/run_key.go#execution internal/capabilityruntime/run_key.go#answerScope internal/capabilityruntime/run_key.go#RunKeyOf internal/capabilityruntime/run_key.go#RunKey internal/capabilityruntime/measured.go#FreshRun internal/capabilityruntime/measured.go#measuredRun internal/capabilityruntime/runtime.go#Reading internal/capabilityruntime/runtime.go#Contents
+nodes: 2804
+whole-files: internal/capabilityruntime/run_key.go
+whole-nodes: 283
+The six declarations of the stage receipt are counted here and serve other owners too, which the site other-stage-receipts lists.
+beside: internal/workflowruntime/runtime.go#Runtime.executeProgram internal/workflowruntime/runtime.go#Runtime.executePlan internal/workflowruntime/runtime.go#Runtime.executeReadySet internal/workflowruntime/runtime.go#Runtime.prepareStage
+entered-by: ExecuteProgram Replay
+readers: internal/capabilityruntime/measured.go#measuredRun internal/trainingworkflow/chain.go#executeChainArm internal/workflowruntime/model_builder.go#ExecuteModelBuild internal/workflowruntime/tool.go#ToolExecutor.ExecuteToolOperation internal/workflowruntime/tool_workflow.go#ExecuteToolWorkflow
+reached-from: the capability executors and the visual question runner reach the served entry, and four commands and two places of the server reach the others | internal/capabilityruntime/runtime.go#JSONScalar internal/capabilityruntime/session_director.go#ModelSessionDirector.serve internal/capabilityruntime/session_director.go#executeScalar internal/vqaserve/execute.go#RunProgram internal/mediacapability/vqa.go#executeVQA cmd/train/route_graft.go#runChain cmd/model-build/main.go#run cmd/tool-workflow/main.go#run cmd/validate/parity_vqa_recipe_serve.go#executeVQAProgram internal/server/model_builder_workspace.go#modelBuilderWorkspace.ExecuteWorkflow internal/server/tool_execution.go#Handler.executePendingTools
+A fixture of internal/modelrecipetest enters it too, as test support.
+held-by: internal/workflowruntime/replay_test.go#TestReplayRunsNoStageItsOutputDoesNotNeed internal/workflowruntime/runtime_test.go#TestWorkflowRestartSkipsCompletedStages internal/workflowruntime/runtime_test.go#TestWorkflowRecoveryRejectsRecipeDrift internal/workflowruntime/earlier_receipt_test.go#TestOperationRunsOnFromAnEarlierFormReceipt internal/capabilityruntime/replay_test.go#TestReplayDoesNotCrossACodeChange internal/capabilityruntime/reuse_test.go#TestStoredResultIsReusedOnlyUnderItsOwnIdentity
+By reading, a repeat of one of the four commands after its code changed is answered from the store, because its key names no code.
+No test holds that either way.
+
+path: operation-reuse
+The operation's own reuse wraps a server workflow or evaluation and keeps one record of its completion.
+record: a lifecycle record of a completed operation, found again by the alias operations/lifecycle/<operation> | internal/operation/lifecycle.go#lifecycleRecord internal/operation/lifecycle.go#lifecycleAlias
+identity: the operation id, with the record's intent, task and recipe compared with the request's | internal/operation/lifecycle.go#loadLifecycle
+identity-intent: the caller builds the intent, from the kind, task, recipe, input and sources of a workflow, or from the model, the recipe and the plans or the replay request of an evaluation | internal/server/generation_workspace.go#Handler.submitWorkflow internal/server/evaluation_workspace.go#evaluationWorkspace.ExecuteEvaluation internal/server/evaluation_workspace.go#evaluationWorkspace.ExecuteSupervisedGroundedReplay
+identity-minted: the manager mints the id from a salt drawn once for each manager and a sequence, so no second submission and no later process repeats it | internal/operation/runtime.go#Manager.Submit internal/operation/runtime.go#NewManager
+identity-recovered: only a granted recovery of a blocked operation presents an id a second time | internal/operation/runtime.go#Manager.RecoverAfterDecision internal/operation/runtime.go#Manager.Recover internal/server/operations.go#Handler.operationDecision
+The intent names no code.
+retry: a stored record whose run and outputs the store still holds is returned without executing | internal/operation/lifecycle.go#ExecuteReentrant internal/operation/lifecycle.go#loadLifecycle internal/operation/lifecycle.go#validateCompletionPostcondition
+retry-conflict: a stored record of another intent, task or recipe is refused as a conflict | internal/operation/lifecycle.go#loadLifecycle internal/operation/lifecycle.go#ErrLifecycleConflict
+retry-publish: otherwise the operation executes, and its record is published only after it succeeded and every artifact of its completion exists | internal/operation/lifecycle.go#ExecuteReentrant internal/operation/lifecycle.go#publishLifecycle
+retry-unnamed: a reporter with no operation id executes with no record | internal/operation/lifecycle.go#ExecuteReentrant cmd/validate/onboard.go#stageReporter.OperationID
+code: internal/operation/lifecycle.go#ExecuteReentrant internal/operation/lifecycle.go#loadLifecycle internal/operation/lifecycle.go#publishLifecycle internal/operation/lifecycle.go#validateCompletionPostcondition internal/operation/lifecycle.go#lifecycleAlias
+nodes: 664
+whole-files: internal/operation/lifecycle.go
+whole-nodes: 934
+beside: none
+entered-by: ExecuteReentrant
+readers: internal/server/generation_workspace.go#Handler.submitWorkflow internal/server/evaluation_workspace.go#evaluationWorkspace.ExecuteEvaluation internal/server/evaluation_workspace.go#evaluationWorkspace.ExecuteSupervisedGroundedReplay
+held-by: internal/server/lifecycle_reentry_test.go#TestTrainingAndEvaluationLifecycleReentry
+The next five statements were read and not run.
+Every completed server workflow and evaluation writes a lifecycle record.
+No submission repeats an id, so no later submission and no later process presents the id of a stored record.
+An operation blocks only when its execution returned an error, and the path publishes nothing after an error.
+So a granted recovery finds no record, executes and publishes.
+No production path therefore finds a lifecycle record again.
+The one place a record is found again is the test above, which passes one fixed id across a reopened store.
+
+path: measurement-cells
+A measurement run keeps two files beside the cycle's checkout, the cells its runs acquired and the phases it passed.
+record: a file of acquired cells and a file of passed phases, both in the state directory beside the cycle's checkout | cmd/validate/cell_credit.go#cellCredit cmd/loop/improve.go#cycleState cmd/loop/improve.go#cycleCreditFile cmd/loop/improve.go#cycleStateFile internal/clioptions/command.go#CycleCreditEnvironment
+identity: the commit and the store, so a file kept for another commit or store holds nothing | cmd/validate/cell_credit.go#openCellCredit cmd/validate/cell_credit.go#cycleCellCredit
+identity-cell: within them a cell is a hash of its model, kind, validation, recipe, protocol, location, directory, grounding, objective, conditioning, projector and what the files its command is given were | cmd/validate/cell_credit.go#cellKey
+identity-consumed: a file its command is given is named by its path, size and time and not by its bytes, and a relative argument is left to the commit | cmd/validate/cell_credit.go#consumedFiles cmd/validate/bound_records.go#bindCells
+identity-phase: a passed phase is kept under the commit, the store and a digest of what the dry-run plan asks of every cell | cmd/loop/improve.go#measureScorecard cmd/loop/improve.go#obligationsDigest cmd/loop/improve.go#readCycleState
+The commit is the widest code identity there is, since every commit moves it.
+retry: only a cell that was acquired is added, so a cell that failed runs again | cmd/validate/cell_credit.go#cellCredit.add cmd/validate/cell_credit.go#cellCredit.has cmd/validate/run.go#executeMeasured
+retry-unknown: a path that cannot be read gives a value nothing repeats, so unknown bytes are never credited | cmd/validate/cell_credit.go#consumedFiles
+retry-phase: only a phase that passed is recorded, the scorecard publishes again whenever the cells ran again, and the lanes always run | cmd/loop/improve.go#measurePhases
+retry-continue: a cycle cut short continues at the commit of the cells it kept, and is worth finishing though nothing moved since it published | cmd/loop/improve.go#improvement.unfinished cmd/loop/improve.go#improvement.Measure cmd/loop/improve.go#improvement.CycleWorthRunning
+retry-end: a cycle that reaches its end removes both files | cmd/loop/improve.go#improvement.Fill
+code: cmd/validate/cell_credit.go#openCellCredit cmd/validate/cell_credit.go#cellKey cmd/validate/cell_credit.go#consumedFiles cmd/validate/cell_credit.go#cellCredit.has cmd/validate/cell_credit.go#cellCredit.add cmd/validate/cell_credit.go#cycleCellCredit cmd/loop/improve.go#improvement.CycleWorthRunning cmd/loop/improve.go#improvement.unfinished cmd/loop/improve.go#cycleCreditEnvironment cmd/loop/improve.go#readCycleState cmd/loop/improve.go#obligationsDigest cmd/loop/improve.go#measureScorecard cmd/loop/improve.go#measurePhases
+nodes: 1441
+whole-files: cmd/validate/cell_credit.go
+whole-nodes: 637
+beside: cmd/validate/run.go#executeMeasured cmd/validate/bound_records.go#bindCells cmd/loop/improve.go#improvement.Measure cmd/loop/improve.go#improvement.Fill cmd/loop/improve.go#improvementFor
+entered-by: cycleCellCredit consumedFiles measureScorecard CycleWorthRunning
+readers: cmd/validate/run.go#executeMeasured cmd/validate/bound_records.go#bindCells cmd/loop/improve.go#improvementFor internal/loop/driver.go#improve
+reached-from: the loop's cycle starts each validate run and names the file of cells for it | internal/loop/driver.go#Improve cmd/loop/improve.go#validateTo
+held-by: cmd/validate/cell_credit_test.go#TestCellCreditSurvivesAKilledRun cmd/validate/cell_credit_test.go#TestResumedRunStartsAgainACellWhoseWeightsChanged cmd/loop/improve_test.go#TestUnfinishedCycleContinuesAtItsOwnCommit cmd/loop/improve_test.go#TestPublishedCycleCutShortIsStillWorthFinishing cmd/loop/improve_resume_test.go#TestInterruptedCycleResumesAtItsFirstUnpassedPhase cmd/loop/improve_resume_test.go#TestCycleCreditFollowsTheInputsARunConsumes
+The credit decides only whether a cell's command starts.
+Every activated cell is selected at every cycle, and the selection asks of none whether its evidence still holds (cmd/validate/selection.go#SelectValidation).
+What a command that starts does not ask again is the site evaluation-answers.
+
+path: trainer-checkpoints
+A trainer publishes a checkpoint directory, and a later run continues from it.
+record: a checkpoint directory of weights, a checkpoint document, a resume sidecar and a momentum file | internal/trainingprogram/checkpoint.go#Checkpoint internal/trainingprogram/checkpoint.go#resumeDocument
+identity: the checkpoint's identity, which is the digest of a document that names its run plan, program, model, weights, resume sidecar, dataset, split, parameter count, processors, projectors, codecs, lineage, router controllers and accumulation | internal/trainingprogram/checkpoint.go#identify internal/trainingprogram/checkpoint.go#Checkpoint.ValidateIdentity
+The path is entered in four ways, and each compares its own part of that identity.
+identity-session: a session continued from a published checkpoint compares the run plan's checkpoint, program, optimizer plan, model, stream, dataset, split, processors, projectors, codecs and router controllers | internal/trainingprogram/checkpoint.go#ValidateResume internal/trainingworkflow/workflow.go#compileAuthority
+identity-projection: an audio projection compares those, the base recipe in the lineage and the exact generator states | internal/trainingworkflow/input_projection.go#RestoreInputProjection
+identity-step: a text run continued from a step it saved compares the model, the dataset and the split, the fit of the optimizer state to the plan, and that the step lies inside the run | internal/trainingworkflow/checkpoint_steps.go#restoreRun
+identity-sampling: a reward session binds its checkpoint to its sampling, which is the protocol, the training specification, the seed, the draws, the code, whether it renders and the control, and refuses to continue a checkpoint sampled otherwise | internal/trainingworkflow/reward_run.go#RewardSampling.sampledAs internal/trainingworkflow/reward_run.go#RewardSampling.bound
+identity-pilot: a pilot arm credits a checkpoint it finds in its directory only when it is of the base and of that sampling, continues the checkpoint before it and stands after that many groups | internal/trainingworkflow/reward_run.go#RewardSampling.published internal/trainingworkflow/instruction_pilot_run.go#RunInstructionPilot
+Only the sampling names the code, which for a pilot is the commit of a clean checkout (cmd/train/pilot.go#runPilot).
+The other three ways compare no code identity.
+retry: a publication refuses a target that exists and publishes by one rename, so a directory holds a whole checkpoint or none | internal/trainingprogram/checkpoint.go#PublishCheckpoint
+retry-load: a load holds the weights, the sidecar and the momentum to the digests the document names | internal/trainingprogram/checkpoint.go#LoadCheckpoint internal/trainingprogram/checkpoint.go#readMomentum internal/trainingprogram/checkpoint.go#Checkpoint.weights
+retry-refuse: a checkpoint that differs from what the run asks is refused, and no way falls back to a run from the start | internal/trainingprogram/checkpoint.go#ValidateResume internal/trainingworkflow/checkpoint_steps.go#restoreRun internal/trainingworkflow/reward_run.go#RewardSampling.published
+retry-names: a run that would save a step where a directory stands is refused before it spends anything | internal/trainingworkflow/checkpoint_steps.go#checkStepNames internal/trainingworkflow/checkpoint_steps.go#stepCheckpointDirectory
+retry-absent: a pilot arm trains a checkpoint only when its directory holds none that loads | internal/trainingworkflow/instruction_pilot_run.go#RunInstructionPilot
+code: internal/trainingprogram/checkpoint.go#identify internal/trainingprogram/checkpoint.go#Checkpoint.ValidateIdentity internal/trainingprogram/checkpoint.go#ParseCheckpoint internal/trainingprogram/checkpoint.go#PublishCheckpoint internal/trainingprogram/checkpoint.go#LoadCheckpoint internal/trainingprogram/checkpoint.go#Checkpoint.weights internal/trainingprogram/checkpoint.go#readMomentum internal/trainingprogram/checkpoint.go#ValidateResume internal/trainingworkflow/input_projection.go#RestoreInputProjection internal/trainingworkflow/checkpoint_steps.go#stepCheckpointDirectory internal/trainingworkflow/checkpoint_steps.go#checkStepNames internal/trainingworkflow/checkpoint_steps.go#averageCompanion internal/trainingworkflow/checkpoint_steps.go#readAverage internal/trainingworkflow/checkpoint_steps.go#restoreRun internal/trainingworkflow/reward_run.go#RewardSampling.sampledAs internal/trainingworkflow/reward_run.go#RewardSampling.published internal/trainingworkflow/reward_run.go#RewardSampling.bound
+nodes: 3189
+whole-files: none
+whole-nodes: 0
+A checkpoint is also a run's product, so the declarations that identify, publish and parse it would stay under any merge.
+beside: internal/trainingworkflow/workflow.go#publishCheckpoint internal/trainingworkflow/input_projection.go#PublishInputProjection cmd/train/shared_run.go#routeSession.publish internal/trainingworkflow/checkpoint_steps.go#stepSaves.saved internal/trainingworkflow/checkpoint_steps.go#RemoveCheckpoints
+What removes a checkpoint is the lifecycle the plan's row repo-hygiene owns, and it is named beside the path and not mapped.
+entered-by: LoadCheckpoint ValidateResume restoreRun RestoreInputProjection published bound
+readers: internal/trainingworkflow/workflow.go#Execute internal/trainingworkflow/workflow.go#compileAuthority internal/trainingworkflow/workflow.go#denseSession.run internal/trainingworkflow/audio.go#executeAudioTraining internal/trainingworkflow/text_heldout.go#RunTextHeldout internal/trainingworkflow/instruction_pilot_run.go#RunInstructionPilot
+reached-from: the training command's two resume flags, its pilot, the Train tab's two workspaces and the server's training command reach them | cmd/train/main.go#run cmd/train/objective_mode.go#runObjectiveMode cmd/train/pilot.go#runPilot internal/server/training_workspace.go#trainingWorkspace.executeWorkflow internal/server/sft_workspace.go#SFTWorkspace.ExecuteWorkflow internal/trainingworkflow/command_run.go#ExecuteInCommand cmd/server/main.go#rewardTrainer
+The transcriber loads a checkpoint to serve it, which resumes nothing (internal/speechrecognition/transcriber.go#loadCheckpointProjection).
+held-by: internal/trainingworkflow/workflow_test.go#TestTrainingWorkflowExactResumeMatrix internal/trainingprogram/checkpoint_test.go#TestProductionCheckpointResumeExact internal/trainingprogram/checkpoint_test.go#TestResumeSidecarRoundTripsBitExact internal/trainingworkflow/input_projection_test.go#TestInputProjectionResumeRefusals internal/trainingworkflow/retention_test.go#TestCheckpointRetention internal/trainingworkflow/retention_test.go#TestStepCheckpointsIgnoreAnotherRunsDirectories internal/trainingworkflow/instruction_pilot_authority_cuda_windows_test.go#TestPilotRefusesChangedInputsAndForeignCheckpoints cmd/train/proposal_retirement_test.go#TestProposalRetirementPreservesTrainingAndEvidence
+
+== repairs ==
+
+The five repairs are the ones the plan's row names, and all landed on 2026-10-11 within nine hours.
+Three changed the change proposer and its corpus of runs, which the tree no longer holds.
+TestProposalRetirementPreservesTrainingAndEvidence (cmd/train) holds that the proposer's files and flags are gone.
+No path that is gone is mapped.
+
+repair: 8cfa15418
+finding: SQA-115
+path: gone
+was: the change proposer's corpus of runs, which credited a finished run it found in its directory
+from: internal/trainingworkflow
+files: change_corpus.go
+added: a name of what the request asked a run to train, so a finished run is credited only to the request that asked for it
+
+repair: 8988728ae
+finding: SQA-116
+path: gone
+was: the change proposer's staged candidates, written through the safetensors streaming writer
+from: internal/trainingworkflow
+files: change_geometry.go change_proposal.go
+added: a binding of each candidate's staged output to its corpus, its base and its coefficients, so an interrupted proposal is finished only by the same request
+The streaming writer it wrote through is in the tree, as the site stream-writer-stage.
+
+repair: 2542eb677
+finding: SQA-101 and SQA-089
+path: measurement-cells
+added: a cycle that published and was cut short is worth finishing, which the trigger reads from the commit of the cells still kept
+in: cmd/loop/improve.go#improvement.CycleWorthRunning
+outside: cmd/loop/trigger.go#surfaceClosure cmd/loop/trigger.go#touchesSurface
+Its other half made a file a cycle's commands embed count as moving what a cycle measures.
+That half is the cycle trigger's key, which docs/verification/surface-moves.txt defines, and is no part of a path.
+
+repair: 78534ee41
+finding: SQA-089
+path: measurement-cells
+added: the path, size and time of every file a cell's command is given, in the cell's key and in the digest a passed phase is kept under
+in: cmd/validate/cell_credit.go#consumedFiles cmd/validate/cell_credit.go#cellKey cmd/validate/cell_credit.go#cellCredit.add cmd/loop/improve.go#obligationsDigest cmd/validate/bound_records.go#bindCells
+outside: cmd/validate/selection.go#ModelValidation
+
+repair: 2ae868219
+finding: SQA-115
+path: gone
+was: the change proposer's corpus of runs, where its runs continue an adapter
+from: internal/trainingworkflow
+files: change_corpus.go
+added: the digest of a continued adapter in place of its directory, in the name a finished run is credited by
+outside: internal/peft/merge.go#Adapter.digest
+The digest it exported for that is unexported again, and the adapter merge alone reads it.
+
+The same family outside the five.
+The row's sentence holds for the five, since none of them changed internal/operation, internal/workflowruntime or internal/capabilityruntime.
+It does not hold for the week.
+740e0c04f and 7f1d10568, on 2026-10-09, gave the workflow replay its replay before a load and the code in its served key.
+26d332f81, on 2026-10-11, gave the served key the bytes of the files beside a model (SQA-129).
+b8f4e1e01, on 2026-10-09, had a cycle cut short continue at its own commit.
+d4d40d2ee and 8b7defa1c, on 2026-10-10, gave an evaluation its kept answers and their code identity.
+e3851b625, on 2026-10-11, bound a pilot's checkpoint to its sampling (SQA-137).
+So each mapped path but the operation's own reuse gained an identity between 2026-10-09 and 2026-10-11.
+These commits were read with git, and the test does not hold them.
+
+== sites ==
+
+Each site reuses or resumes finished work and is not one of the four paths.
+A site is listed as found, and its identity and its retry rule are not mapped.
+The list is not complete, because it holds what the row's preparation read and what a search for the words resume, restore and recover led to.
+
+site: run-ledger
+keeps: the server remembers a numbered submission, in memory, by its kind, its request id and a fingerprint of its body, and a repeat finds the operation the first one started | internal/server/run_ledger.go#runLedger.begin internal/server/run_ledger.go#submissionFingerprint internal/server/run_ledger.go#ledgerCapacity internal/server/generation_workspace.go#Handler.workflowRun
+read: whole
+By reading it is the only place a client's retry finds the operation its first submission started, and a restart of the server empties it.
+
+site: evaluation-answers
+keeps: an evaluation keeps each case's answer under the plan's model, recipe, execution policy, code identity or commit, environment and what each case asks, and a case answered once is not asked again | internal/evaluation/observation.go#Plan.observed internal/evaluation/observation.go#loadAnswers internal/evaluation/observation.go#loadObserved
+read: to the places cited
+
+site: sampled-draws
+keeps: a sampled draw is kept under its group's identity and under no code identity | internal/evaluation/sampled_answer.go#SampledGroup.Identity internal/evaluation/sampled_answer.go#loadSampled
+read: to the places cited
+
+site: evaluation-shards
+keeps: an evaluation finds its completed shards again by an alias of its plan and the shard | internal/evaluation/ledger.go#loadShardReports internal/evaluation/ledger.go#shardAlias
+read: at the matched line only
+
+site: pool-confirmation
+keeps: a held-out pool returns the verdict recorded for a charge already committed, and the judge is not called again | internal/evaluation/heldout_confirmation.go#confirmOnPart
+read: to the places cited
+
+site: other-stage-receipts
+keeps: the agent loop's mutations, a remote peer's invocation and a recipe's verification each publish stage receipts under an operation of their own derivation, and a production probe reads one back | internal/agentloop/coordinator.go#Coordinator.admitMutationReceipt internal/agentloop/coordinator.go#MutationReceiptOperation internal/capabilityruntime/peer_invoke.go#InvokeRemotePeer internal/modelrecipe/lifecycle_invocation.go#verifiedTransition internal/evaluation/production_probe.go#requireCurrentStageReceipt
+read: to the places cited
+
+site: agent-session-step
+keeps: an agent session's interrupted step is found by the stage receipt of its next mutation, and resumes only from the exact checkpoint of that operation | internal/agentloop/recovery.go#Coordinator.RecoverAgentSession
+read: to the places cited
+
+site: stream-writer-stage
+keeps: the safetensors streaming writer keeps a stage beside its destination that names a plan's identity and the sealed tensors, and goes on only from a stage of the same plan | internal/safetensors/stream_writer.go#newStreamWriter internal/safetensors/stream_writer.go#streamWriter.resume internal/safetensors/stream_writer.go#compileStreamPlan
+read: to the places cited
+
+site: adapter-merge
+keeps: the adapter merge puts a digest of the adapter and of the base into the plan, so a stage of another adapter or base is refused | internal/peft/merge.go#mergePlan internal/peft/merge.go#Adapter.digest internal/peft/merge.go#baseDigest
+read: to the places cited
+
+site: offline-merge
+keeps: the offline merge's plan names shards, tensors, storage and shapes, and nothing of the sources a stage was written from | internal/modelmerge/streaming.go#compileStreamingOutput internal/modelmerge/streaming.go#ExecuteStreaming internal/controlleraction/action.go#ExecuteOfflineArtifact
+read: to the places cited
+
+site: candidate-materialization
+keeps: a candidate materialization is found again for its decision, and an existing destination is accepted only when a replay into a new directory gives the same inventory | internal/controlleraction/candidate_materialization.go#recoverCandidateMaterialization internal/controlleraction/candidate_materialization.go#executeMaterializationPlan
+read: to the places cited
+
+site: download-prefix
+keeps: a model download keeps the prefix it received under a name of the endpoint, repository, revision, file, digest and size, and hashes the kept bytes again before it goes on | internal/hfhub/resume.go#Client.partialPath internal/hfhub/resume.go#Client.openPartial
+read: to the places cited
+
+site: bridge-checkpoint
+keeps: the bridge trainer continues from a checkpoint in the store only when its source, target, dataset, policy, bridge, optimizer plan and configuration are the request's | internal/bridgetrain/dataset.go#Trainer.trainDataset internal/bridgetrain/dataset.go#loadBridgeTrainingCheckpoint
+read: to the places cited
+
+site: hybrid-optimizer-state
+keeps: the hybrid trainer continues from an optimizer state that fits its plan and configuration | internal/hybridtrain/progress.go#Model.resumeParts
+read: at the matched line only
+
+site: speech-trainer-state
+keeps: the speech synthesis trainer restores weights and an optimizer state it validates first | internal/speechsynth/trainer.go#JointTrainer.Restore
+read: at the matched line only
+
+site: audio-stream-checkpoint
+keeps: a recurrent audio stream restores a checkpoint of the same source and recipe | internal/speechrecognition/session.go#Session.OpenStream
+read: at the matched line only
+
+site: continued-response
+keeps: a continued response resumes a stopped turn the same model generated with a kept token context | internal/server/response_session.go#Handler.continuedResponse
+read: at the matched line only
+
+site: agent-thread
+keeps: a restarted server or a reloaded page reads an agent session's turns and steps back from the store | internal/server/agent_session_recovery.go#Handler.agentThread
+read: at the matched line only
+
+site: store-backup
+keeps: a backup of the store resumes an unpublished copy and verifies its bytes before it publishes | internal/overgodb/backup.go#Store.Backup
+read: at the matched line only
+
+== connections ==
+
+No two of the four paths share a counted declaration or a reader, which the test holds.
+No two share a record or a key, which the entries show.
+
+connection: workflow-replay operation-reuse
+states: one request to the server is recorded under two operation ids that do not know of each other, the manager's for the lifecycle record and the derived one for the stage receipts | internal/server/generation_workspace.go#Handler.submitWorkflow internal/server/generation_store_workspace.go#storeGenerationWorkspace.ExecuteWorkflow internal/capabilityruntime/measured.go#measuredRun
+basis: read, not run
+
+connection: operation-reuse workflow-replay
+states: where the workflow replay is entered under the manager's id it takes that id's rule, so a tool call's receipts are never read again by the replay and a model build's only after a granted recovery | internal/workflowruntime/tool.go#NewToolExecutor internal/workflowruntime/tool.go#ToolExecutor.ExecuteToolOperation internal/server/model_builder_workspace.go#modelBuilderWorkspace.ExecuteWorkflow internal/operation/runtime.go#Manager.RecoverAfterDecision
+basis: read, not run
+The tool executor has a manager of its own, on which only a submission is ever made.
+
+connection: operation-reuse run-ledger
+states: a client's repeat of a numbered submission is answered by the ledger with the operation the first one started, and after a restart the same submission is a new operation under a new id | internal/server/generation_workspace.go#Handler.workflowRun internal/server/run_ledger.go#runLedger.begin internal/operation/runtime.go#Manager.Submit
+basis: read, not run
+The new operation's request is still answered from the stage receipts when its recipe, its request and its code are the same.
+
+connection: measurement-cells evaluation-answers
+states: a cell's credit decides whether its command starts, under the commit, and the kept answers decide which cases a started command asks again, under the code's execution identity | cmd/validate/run.go#executeMeasured internal/evaluation/observation.go#Plan.observed
+basis: read, not run
+
+connection: trainer-checkpoints workflow-replay
+states: a model build runs its training as one stage of the workflow runtime, so a repeat skips a finished stage whole and nothing inside a stage is resumed | internal/workflowruntime/model_builder.go#ExecuteModelBuild internal/workflowruntime/runtime.go#Runtime.recoverStage
+basis: read, not run
+
+connection: adapter-merge offline-merge
+states: two callers of one streaming writer bind its stage differently, the adapter merge to its adapter and base and the offline merge to nothing it was staged from | internal/peft/merge.go#mergePlan internal/modelmerge/streaming.go#compileStreamingOutput internal/safetensors/stream_writer.go#streamWriter.resume
+basis: read, not run
+That is the shape the repair 8988728ae mended for the proposer's candidates.
+A candidate materialization stages into a new temporary directory each time.
+The offline artifact command stages at the destination its caller gives, so only it can meet a stage an earlier run left (cmd/controller-action/main.go#run).
+
+== figures ==
+paths: 4
+nodes: 8098
+declarations-workflow-replay: 24
+declarations-operation-reuse: 5
+declarations-measurement-cells: 13
+declarations-trainer-checkpoints: 17
+readers-workflow-replay: 5
+readers-operation-reuse: 3
+readers-measurement-cells: 4
+readers-trainer-checkpoints: 6
+readers-shared: 0
+repairs: 5
+repairs-gone: 3
+repairs-workflow-replay: 0
+repairs-operation-reuse: 0
+repairs-measurement-cells: 2
+repairs-trainer-checkpoints: 0
+sites: 19
+connections: 6
+
+== closing ==
+judgement-by: the session that wrote this record, by reading the code, and no line of the closing is a measurement but the largest path
+
+Which paths share an identity, or could.
+closing-shared-identity: no two paths share a record, a key or a reader, and the workflow replay and the operation's own reuse both key on an operation id that is a different id for one request | internal/workflowruntime/runtime.go#ExecutionID internal/operation/runtime.go#Manager.Submit
+Those two could share one.
+A served request's derived operation already names what the lifecycle record's intent names, which is the recipe and the request.
+The derived operation names the code as well, and the intent does not.
+The measurement run's cells and the trainers' checkpoints could share the outer part of a key with the workflow replay, which is what was asked and by which code.
+They could not share the inner part.
+A cell's credit is kept for one cycle at one commit, and a timed cell is measured again at every measurement run, where a served answer is kept as long as its execution identity holds.
+A checkpoint's identity holds an optimizer's state, a stream's position and generator states, which no other path keeps.
+
+What one rule would key on.
+closing-single-rule: an interrupted run continues where it stopped when its record names what was asked, the code that computes it, the bytes of every input no identity already names, the store and environment it writes to, and each finished unit with the durable outputs it left
+Four of the five repairs added the first or the third of those to one path.
+The fifth, 2542eb677, made the position a cut-short cycle kept count as work to finish.
+The commits of the same family added the code to the workflow replay and to an evaluation's answers, the bytes beside a model to the workflow replay, and the sampling to a pilot's checkpoint.
+The record docs/verification/surface-moves.txt, measured today, defines what an answer, a score, a timing and an activation each depend on.
+By its definitions the code part of a key differs by the kind of claim.
+An answer is kept under the execution identity, a timing is measured again at every measurement run, and no code identity expires an activation.
+So one rule cannot fix one code key, and would take the dependencies of the claim's kind as its key.
+The unit differs too, a stage for the workflow replay, a cell or a phase for the measurement run, and an optimizer step for a trainer.
+
+Which path is closest to it.
+closing-largest-path: trainer-checkpoints
+closing-closest-path: workflow-replay
+The workflow replay is the one path whose record is in the store for each unit of work, with the unit's attempt, state, inputs and outputs.
+Its retry rule is the rule's last part already, since a finished unit is reused only while the store holds its outputs.
+Its served key already names the request, the code and the bytes beside a model.
+It is short of the rule in three ways.
+Four command keys name no code.
+An entry under the manager's id is not repeated.
+A stage is its only unit, so nothing inside a stage is resumed.
+The record docs/verification/checkpoint-families.txt, measured today, found the stage receipts among the store's larger live record families.
+Its two families of stage receipts hold 9364411 and 3671888 bytes, 4.70% of a generation of 277418440 bytes that every open of the store decodes.
+A merge that moved cells, phases or optimizer steps into stage receipts would add three receipts for each unit to what every open decodes.
+
+Whether the evidence supports a merge row.
+closing-merge-row: no, because the four paths share no record, key or reader, three of the five repairs were on code that is gone, and the two that remain are both on the measurement run's cells
+A merge would also move what a cell's credit and a checkpoint are found by, which expires work already paid for and is the operator's to weigh.
+The evidence supports three smaller steps before any merge.
+The first is a test that shows whether any production path finds a lifecycle record again.
+If none does, the operation's own reuse is a path only a test reaches.
+By estimate, deleting it takes out the nodes of its whole file, which its entry gives, and changes its three readers.
+Removing the record's family from the store would be the operator's to weigh.
+The second is a failing test for each of the four command keys that name no code, and one for the offline merge's stage.
+The third is one owner for naming the bytes of the files a piece of work reads.
+closing-input-bytes: four places name the bytes of an input in four ways, the files beside a model by content, the files a cell is given by path, size and time, an adapter by a digest of its modules, and a merge's base by its shards' digests | internal/capabilityruntime/runtime.go#Contents cmd/validate/cell_credit.go#consumedFiles internal/peft/merge.go#Adapter.digest internal/peft/merge.go#baseDigest
+That step is what the repairs have in common, since four commits of the family added the bytes of an input to a key (26d332f81, 78534ee41, 2ae868219, 8988728ae).
+Whether one owner would be smaller than the four was not measured.
+
+closing-retires: when a row that merges paths is filed from this record, or when the lead declines one

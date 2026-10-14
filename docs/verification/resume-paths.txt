@@ -1,5 +1,5 @@
 overgo resume paths: what each path that resumes or reuses finished work is found by, when it reuses, retries or runs again, who enters it and how large it is, with what five repairs added, how the paths connect and the other sites that reuse work
-method: read from the tree, with no store opened and nothing run but the test that reads this record
+method: read from the tree, with no store opened, and nothing run but the test that reads this record and the tests the part on what was read and not run names
 code: the tree at 3d98adb9d with the change this record came in
 taken: 2026-10-13
 read by: TestResumePathRecordIsWhole (internal/workflowruntime), which finds every cited declaration in the file named, counts each path's size again from the tree, holds each reader to a call that enters its path, holds each repair to a declaration of its path or to files the tree no longer holds, and counts every figure again from the entries
@@ -7,8 +7,9 @@ read by: TestResumePathRecordIsWhole (internal/workflowruntime), which finds eve
 What was asked.
 The plan's row resume-census asked what each path that resumes or reuses finished work is, before any of them is moved.
 Five repairs of 2026-10-11 each added an identity one such path lacked.
-This record maps four paths, says what each repair added, says how the paths connect, and lists the other sites a reading found.
+This record maps three paths, says what each repair added, says how the paths connect, and lists the other sites a reading found.
 No production code changed for it.
+A fourth path it mapped, the operation's own reuse, is deleted, and the part on the deleted path says why.
 
 What a path is.
 A path keeps a record of finished work and reads the record back to decide whether the work runs again.
@@ -39,13 +40,32 @@ The test does not look for a reader or a site the record does not name.
 
 What was read and not run.
 Every statement here was read from the code, and only the sizes and the figures were counted.
-Four statements are the ones most likely to be acted on.
-Two were not reproduced, and each needs a failing test of its own before anything is changed.
-No production path finds the operation's lifecycle record again.
-A tool call's stage receipts are never read again by the replay.
-Two were reproduced by a failing test, the code was changed, and the entries below state what holds.
+Four statements were the ones most likely to be acted on, and each was then run.
+Three were reproduced by a failing test, the code was changed, and the entries below state what holds.
+No production path found the operation's lifecycle record again (TestAnOperationsRecordIsFoundAgainOrIsNotWritten, in internal/server).
 Four command keys into the workflow replay named no code, and three now name it (TestAReplayKeyNamesTheCodeThatComputesIt, in the package of each of the three).
 The offline merge's staged output was bound to nothing it was staged from (the same test, in internal/modelmerge).
+One was run by a test that passes, and nothing was changed for it.
+A tool call's stage receipts are never read again by the replay, since one call made twice runs as two operations that each execute (TestAnOperationsRecordIsFoundAgainOrIsNotWritten).
+
+The path that is deleted.
+The operation's own reuse wrapped a server workflow or evaluation and kept one lifecycle record of its completion, found again by the alias operations/lifecycle/<operation>.
+It returned the stored completion to a request that presented the same operation id, intent, task and recipe.
+The manager mints an operation's id from a salt drawn once for each manager and a sequence, so no second submission and no later server presents the id of a stored record (internal/operation/runtime.go#Manager.Submit).
+Only a granted recovery presents an id a second time, and the attempt before it ended in an error, after which nothing was published.
+The test drives each entry into an operation manager twice with one request on one temporary store.
+The entries are a workflow, a numbered workflow on one server and on a later one, a model build, an evaluation of plans, a grounded replay, a library validation, a granted recovery and a tool call.
+The workflows, the model build, the evaluation, the grounded replay and the recovery entered the reuse, and the library validation and the tool call never did.
+On the tree that wrote the record the test failed, because nine operations left a lifecycle record and nothing found one again.
+Every second submission ran under an id of its own, the numbered repeat was answered by the ledger with no second submission, and the recovered attempt executed.
+The grounded replay's request names artifacts the test's store lacks, so both of its operations failed and left no record.
+So the reuse was a path only a test reached, and it is deleted because the four conditions of the operator's rule hold together.
+Its input chain is half missing, since nothing presents the id of a completed operation again.
+It is record ceremony, since no reader named its family, and the run and the outputs it named are artifacts the store holds under their own records.
+It cost at every completed workflow and evaluation, which paid two alias lookups and a commit, and the installed store's newest checkpoint holds 159468 bytes of the family's lineage in 776 records and 147865 bytes of its commits in 388 (docs/verification/checkpoint-families.txt).
+A rebuild would redesign it, since the intent named no code, and a repeat is answered already by the run ledger, by the stage receipts of a derived operation and by an evaluation's kept answers.
+The check that the store holds the run and every output a completion names is kept, and the three readers of the reuse still make it (internal/operation/runtime.go#ExecuteHeld, held by TestACompletionTheStoreDoesNotHoldFailsItsOperation of internal/server).
+The records already written stay in the store, and taking the family out is a rebuild with the family in the table of retired families (internal/overgodb/retired_families.go#retiredFamilies).
 
 == paths ==
 
@@ -65,6 +85,7 @@ identity-command: three commands give a key of their own with the code's name th
 identity-manager: the server hands the operation manager's own id for a tool call and for a model build | internal/workflowruntime/tool.go#ToolExecutor.ExecuteToolOperation internal/server/model_builder_workspace.go#modelBuilderWorkspace.ExecuteWorkflow
 identity-fresh: a measurement asks for a run of its own, by a scope drawn for its context or by the time its evaluation began | internal/capabilityruntime/measured.go#FreshRun cmd/recipe/main.go#measureCapability cmd/evaluate/render.go#renderMedia cmd/evaluate/vqa.go#vqaRunKey cmd/evaluate/vqa.go#openVQASession
 So one model build has two keys, the manager's id from the server and the hash of its corpus, seed, step count and code from the command.
+By a search of the tree no command sets the tool adapter of the server's configuration (internal/server/server.go#Config), so no server that a command starts makes a tool executor.
 retry: a stage is taken from the store only when its newest receipt is completed and every output port left artifacts | internal/workflowruntime/runtime.go#Runtime.recoverStage
 retry-drift: a receipt of another recipe, of a port its module lacks or of an artifact the store no longer holds is refused, as an error of an execution and as no answer of a replay | internal/workflowruntime/runtime.go#Runtime.recoverStage internal/workflowruntime/runtime.go#Runtime.beginStage internal/workflowruntime/runtime.go#Runtime.executePlan
 retry-again: a stage whose receipt is not completed, left a value and no artifact, or no longer fits its module runs again as the next attempt | internal/workflowruntime/runtime.go#Runtime.recoverStage internal/workflowruntime/runtime.go#Runtime.beginStage internal/runrecord/stage_receipt.go#stageTransition
@@ -85,34 +106,6 @@ held-by: internal/workflowruntime/replay_test.go#TestReplayRunsNoStageItsOutputD
 A repeat of the tool workflow, the model build or the training chain by other code runs its stages again, which the three tests of those commands hold.
 A process whose build counted no identity for the command's package and carries no commit names only itself, so what it stored answers no later process, which is every run of such a command under go run.
 The recipe-serve parity still keys its run on a fixed tag, because its file is bound by a device claim whose test records a verification and refuses a tree with changes, so a commit's checks cannot verify the claim again.
-
-path: operation-reuse
-The operation's own reuse wraps a server workflow or evaluation and keeps one record of its completion.
-record: a lifecycle record of a completed operation, found again by the alias operations/lifecycle/<operation> | internal/operation/lifecycle.go#lifecycleRecord internal/operation/lifecycle.go#lifecycleAlias
-identity: the operation id, with the record's intent, task and recipe compared with the request's | internal/operation/lifecycle.go#loadLifecycle
-identity-intent: the caller builds the intent, from the kind, task, recipe, input and sources of a workflow, or from the model, the recipe and the plans or the replay request of an evaluation | internal/server/generation_workspace.go#Handler.submitWorkflow internal/server/evaluation_workspace.go#evaluationWorkspace.ExecuteEvaluation internal/server/evaluation_workspace.go#evaluationWorkspace.ExecuteSupervisedGroundedReplay
-identity-minted: the manager mints the id from a salt drawn once for each manager and a sequence, so no second submission and no later process repeats it | internal/operation/runtime.go#Manager.Submit internal/operation/runtime.go#NewManager
-identity-recovered: only a granted recovery of a blocked operation presents an id a second time | internal/operation/runtime.go#Manager.RecoverAfterDecision internal/operation/runtime.go#Manager.Recover internal/server/operations.go#Handler.operationDecision
-The intent names no code.
-retry: a stored record whose run and outputs the store still holds is returned without executing | internal/operation/lifecycle.go#ExecuteReentrant internal/operation/lifecycle.go#loadLifecycle internal/operation/lifecycle.go#validateCompletionPostcondition
-retry-conflict: a stored record of another intent, task or recipe is refused as a conflict | internal/operation/lifecycle.go#loadLifecycle internal/operation/lifecycle.go#ErrLifecycleConflict
-retry-publish: otherwise the operation executes, and its record is published only after it succeeded and every artifact of its completion exists | internal/operation/lifecycle.go#ExecuteReentrant internal/operation/lifecycle.go#publishLifecycle
-retry-unnamed: a reporter with no operation id executes with no record | internal/operation/lifecycle.go#ExecuteReentrant cmd/validate/onboard.go#stageReporter.OperationID
-code: internal/operation/lifecycle.go#ExecuteReentrant internal/operation/lifecycle.go#loadLifecycle internal/operation/lifecycle.go#publishLifecycle internal/operation/lifecycle.go#validateCompletionPostcondition internal/operation/lifecycle.go#lifecycleAlias
-nodes: 664
-whole-files: internal/operation/lifecycle.go
-whole-nodes: 934
-beside: none
-entered-by: ExecuteReentrant
-readers: internal/server/generation_workspace.go#Handler.submitWorkflow internal/server/evaluation_workspace.go#evaluationWorkspace.ExecuteEvaluation internal/server/evaluation_workspace.go#evaluationWorkspace.ExecuteSupervisedGroundedReplay
-held-by: internal/server/lifecycle_reentry_test.go#TestTrainingAndEvaluationLifecycleReentry
-The next five statements were read and not run.
-Every completed server workflow and evaluation writes a lifecycle record.
-No submission repeats an id, so no later submission and no later process presents the id of a stored record.
-An operation blocks only when its execution returned an error, and the path publishes nothing after an error.
-So a granted recovery finds no record, executes and publishes.
-No production path therefore finds a lifecycle record again.
-The one place a record is found again is the test above, which passes one fixed id across a reopened store.
 
 path: measurement-cells
 A measurement run keeps two files beside the cycle's checkout, the cells its runs acquired and the phases it passed.
@@ -228,19 +221,25 @@ It does not hold for the week.
 b8f4e1e01, on 2026-10-09, had a cycle cut short continue at its own commit.
 d4d40d2ee and 8b7defa1c, on 2026-10-10, gave an evaluation its kept answers and their code identity.
 e3851b625, on 2026-10-11, bound a pilot's checkpoint to its sampling (SQA-137).
-So each mapped path but the operation's own reuse gained an identity between 2026-10-09 and 2026-10-11.
+So each mapped path gained an identity between 2026-10-09 and 2026-10-11.
 These commits were read with git, and the test does not hold them.
 
 == sites ==
 
-Each site reuses or resumes finished work and is not one of the four paths.
+Each site reuses or resumes finished work and is not one of the three paths.
 A site is listed as found, and its identity and its retry rule are not mapped.
 The list is not complete, because it holds what the row's preparation read and what a search for the words resume, restore and recover led to.
 
 site: run-ledger
 keeps: the server remembers a numbered submission, in memory, by its kind, its request id and a fingerprint of its body, and a repeat finds the operation the first one started | internal/server/run_ledger.go#runLedger.begin internal/server/run_ledger.go#submissionFingerprint internal/server/run_ledger.go#ledgerCapacity internal/server/generation_workspace.go#Handler.workflowRun
 read: whole
-By reading it is the only place a client's retry finds the operation its first submission started, and a restart of the server empties it.
+It is the only place a client's retry finds the operation its first submission started, and a server started later holds none of it.
+
+site: operation-recovery
+keeps: the operation manager keeps a blocked operation's request and executor in memory, and a granted decision runs them again under the same operation id | internal/operation/runtime.go#Manager.RecoverAfterDecision internal/operation/runtime.go#Manager.Recover internal/server/operations.go#Handler.operationDecision
+read: whole
+It is the one place an operation's id is presented a second time, and a server started later holds none of it.
+By a search of the tree only tests make the error that blocks an operation, so no operation of a server that a command starts is blocked.
 
 site: evaluation-answers
 keeps: an evaluation keeps each case's answer under the plan's model, recipe, execution policy, code identity or commit, environment and what each case asks, and a case answered once is not asked again | internal/evaluation/observation.go#Plan.observed internal/evaluation/observation.go#loadAnswers internal/evaluation/observation.go#loadObserved
@@ -312,22 +311,18 @@ read: at the matched line only
 
 == connections ==
 
-No two of the four paths share a counted declaration or a reader, which the test holds.
+No two of the three paths share a counted declaration or a reader, which the test holds.
 No two share a record or a key, which the entries show.
 
-connection: workflow-replay operation-reuse
-states: one request to the server is recorded under two operation ids that do not know of each other, the manager's for the lifecycle record and the derived one for the stage receipts | internal/server/generation_workspace.go#Handler.submitWorkflow internal/server/generation_store_workspace.go#storeGenerationWorkspace.ExecuteWorkflow internal/capabilityruntime/measured.go#measuredRun
-basis: read, not run
-
-connection: operation-reuse workflow-replay
+connection: operation-recovery workflow-replay
 states: where the workflow replay is entered under the manager's id it takes that id's rule, so a tool call's receipts are never read again by the replay and a model build's only after a granted recovery | internal/workflowruntime/tool.go#NewToolExecutor internal/workflowruntime/tool.go#ToolExecutor.ExecuteToolOperation internal/server/model_builder_workspace.go#modelBuilderWorkspace.ExecuteWorkflow internal/operation/runtime.go#Manager.RecoverAfterDecision
-basis: read, not run
+basis: run for a tool call and a model build made twice by TestAnOperationsRecordIsFoundAgainOrIsNotWritten of internal/server, and read for a model build's recovery
 The tool executor has a manager of its own, on which only a submission is ever made.
 
-connection: operation-reuse run-ledger
-states: a client's repeat of a numbered submission is answered by the ledger with the operation the first one started, and after a restart the same submission is a new operation under a new id | internal/server/generation_workspace.go#Handler.workflowRun internal/server/run_ledger.go#runLedger.begin internal/operation/runtime.go#Manager.Submit
-basis: read, not run
-The new operation's request is still answered from the stage receipts when its recipe, its request and its code are the same.
+connection: run-ledger workflow-replay
+states: a client's repeat of a numbered submission is answered by the ledger with the operation the first one started, a server started later runs the same submission as a new operation under a new id, and that operation's request is still answered from the stage receipts when its recipe, its request and its code are the same | internal/server/generation_workspace.go#Handler.workflowRun internal/server/run_ledger.go#runLedger.begin internal/operation/runtime.go#Manager.Submit internal/capabilityruntime/measured.go#measuredRun
+basis: run for the ledger and the later server by TestAnOperationsRecordIsFoundAgainOrIsNotWritten of internal/server, and read for the stage receipts
+One request to the server runs under two operation ids that do not know of each other, the manager's for the operation's status and the derived one for the stage receipts (internal/server/generation_workspace.go#Handler.submitWorkflow, internal/server/generation_store_workspace.go#storeGenerationWorkspace.ExecuteWorkflow).
 
 connection: measurement-cells evaluation-answers
 states: a cell's credit decides whether its command starts, under the commit, and the kept answers decide which cases a started command asks again, under the code's execution identity | cmd/validate/run.go#executeMeasured internal/evaluation/observation.go#Plan.observed
@@ -346,34 +341,28 @@ A candidate materialization stages into a new temporary directory each time.
 The offline artifact command stages at the destination its caller gives, so only it can meet a stage an earlier run left (cmd/controller-action/main.go#run).
 
 == figures ==
-paths: 4
-nodes: 8098
+paths: 3
+nodes: 7434
 declarations-workflow-replay: 24
-declarations-operation-reuse: 5
 declarations-measurement-cells: 13
 declarations-trainer-checkpoints: 17
 readers-workflow-replay: 5
-readers-operation-reuse: 3
 readers-measurement-cells: 4
 readers-trainer-checkpoints: 6
 readers-shared: 0
 repairs: 5
 repairs-gone: 3
 repairs-workflow-replay: 0
-repairs-operation-reuse: 0
 repairs-measurement-cells: 2
 repairs-trainer-checkpoints: 0
-sites: 18
-connections: 6
+sites: 19
+connections: 5
 
 == closing ==
 judgement-by: the session that wrote this record, by reading the code, and no line of the closing is a measurement but the largest path
 
 Which paths share an identity, or could.
-closing-shared-identity: no two paths share a record, a key or a reader, and the workflow replay and the operation's own reuse both key on an operation id that is a different id for one request | internal/workflowruntime/runtime.go#ExecutionID internal/operation/runtime.go#Manager.Submit
-Those two could share one.
-A served request's derived operation already names what the lifecycle record's intent names, which is the recipe and the request.
-The derived operation names the code as well, and the intent does not.
+closing-shared-identity: no two of the three paths share a record, a key or a reader, and the operation's own reuse, which keyed on the manager's id where the workflow replay keys on a derived one, is deleted | internal/workflowruntime/runtime.go#ExecutionID internal/operation/runtime.go#Manager.Submit
 The measurement run's cells and the trainers' checkpoints could share the outer part of a key with the workflow replay, which is what was asked and by which code.
 They could not share the inner part.
 A cell's credit is kept for one cycle at one commit, and a timed cell is measured again at every measurement run, where a served answer is kept as long as its execution identity holds.
@@ -405,13 +394,11 @@ Its two families of stage receipts hold 9364411 and 3671888 bytes, 4.70% of a ge
 A merge that moved cells, phases or optimizer steps into stage receipts would add three receipts for each unit to what every open decodes.
 
 Whether the evidence supports a merge row.
-closing-merge-row: no, because the four paths share no record, key or reader, three of the five repairs were on code that is gone, and the two that remain are both on the measurement run's cells
+closing-merge-row: no, because the three paths share no record, key or reader, three of the five repairs were on code that is gone, and the two that remain are both on the measurement run's cells
 A merge would also move what a cell's credit and a checkpoint are found by, which expires work already paid for and is the operator's to weigh.
 The evidence supports three smaller steps before any merge.
-The first is a test that shows whether any production path finds a lifecycle record again.
-If none does, the operation's own reuse is a path only a test reaches.
-By estimate, deleting it takes out the nodes of its whole file, which its entry gives, and changes its three readers.
-Removing the record's family from the store would be the operator's to weigh.
+The first is a test that shows whether any production path finds a lifecycle record again, and it is taken.
+None did, so the operation's own reuse is deleted, and the part on the deleted path states what is kept and what stays in the store.
 The second is a failing test for each of the four command keys that named no code, and one for the offline merge's stage, and it is taken for three of the keys and for the merge.
 The third is one owner for naming the bytes of the files a piece of work reads.
 closing-input-bytes: four places name the bytes of an input in four ways, the files beside a model by content, the files a cell is given by path, size and time, an adapter by a digest of its modules, and an adapter merge's base and an offline merge's sources by their shards' digests | internal/capabilityruntime/runtime.go#Contents cmd/validate/cell_credit.go#consumedFiles internal/peft/merge.go#Adapter.digest internal/safetensors/stream_writer.go#DigestShards

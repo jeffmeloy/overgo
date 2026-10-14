@@ -18,7 +18,7 @@ import (
 )
 
 // TestResumePathRecordIsWhole holds the record of the paths that resume or reuse finished work to the tree.
-//   - path = one of the four the test names, each with its record, identity, retry rule, counted declarations, readers and tests
+//   - path = one of the three the test names, each with its record, identity, retry rule, counted declarations, readers and tests
 //   - counted declaration = a production function, method or package variable its file declares, counted in one path only
 //   - size = the syntax nodes of a path's counted declarations, counted as a commit's checks count production nodes
 //   - whole file = a file the record says holds its path alone, with the nodes of the file
@@ -226,7 +226,6 @@ func TestResumePathRecordIsWhole(t *testing.T) {
 	// anchors names, for each path the plan row resume-census asks for, the declarations that define it.
 	anchors := map[string][]string{
 		"workflow-replay":     {"internal/workflowruntime/runtime.go#Runtime.Replay", "internal/workflowruntime/runtime.go#Runtime.recoverStage"},
-		"operation-reuse":     {"internal/operation/lifecycle.go#ExecuteReentrant"},
 		"measurement-cells":   {"cmd/validate/cell_credit.go#cellKey"},
 		"trainer-checkpoints": {"internal/trainingprogram/checkpoint.go#ValidateResume", "internal/trainingworkflow/checkpoint_steps.go#restoreRun"},
 	}
@@ -238,7 +237,7 @@ func TestResumePathRecordIsWhole(t *testing.T) {
 	for _, entry := range entries[pathsPart] {
 		name := entry["path"]
 		if anchors[name] == nil || code[name] != nil {
-			t.Fatalf("the record maps the path %q, want each of the four the test names, once", name)
+			t.Fatalf("the record maps the path %q, want each of the three the test names, once", name)
 		}
 		for key, value := range entry {
 			if !slices.Contains(pathKeys, key) && !strings.HasPrefix(key, "identity-") && !strings.HasPrefix(key, "retry-") {

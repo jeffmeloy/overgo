@@ -171,18 +171,7 @@ func (workspace *evaluationWorkspace) ExecuteEvaluation(
 	if workspace == nil || model != workspace.model || len(plans) == 0 || reporter == nil {
 		return operation.Completion{}, errors.New("evaluation workspace: request is not admitted")
 	}
-	intent, err := artifact.JSONID(artifact.KindEvidence, struct {
-		Version uint16        `json:"version"`
-		Model   artifact.ID   `json:"model"`
-		Recipe  artifact.ID   `json:"recipe"`
-		Plans   []artifact.ID `json:"plans"`
-	}{Version: artifact.InitialDocumentVersion, Model: model, Recipe: workspace.recipe, Plans: slices.Clone(plans)})
-	if err != nil {
-		return operation.Completion{}, err
-	}
-	return operation.ExecuteReentrant(ctx, workspace.repository, reporter, operation.Request{
-		Task: recipe.TaskInference, Recipe: workspace.recipe,
-	}, intent, func(ctx context.Context) (operation.Completion, error) {
+	return operation.ExecuteHeld(ctx, workspace.repository, func(ctx context.Context) (operation.Completion, error) {
 		return workspace.executeEvaluation(ctx, plans, reporter)
 	})
 }
@@ -232,23 +221,7 @@ func (workspace *evaluationWorkspace) ExecuteSupervisedGroundedReplay(
 		request.RunRecipe != workspace.recipe || reporter == nil {
 		return operation.Completion{}, errors.New("evaluation workspace: grounded replay request is not admitted")
 	}
-	intent, err := artifact.JSONID(artifact.KindEvidence, struct {
-		Version uint16                                     `json:"version"`
-		Model   artifact.ID                                `json:"model"`
-		Recipe  artifact.ID                                `json:"recipe"`
-		Request evaluation.SupervisedGroundedReplayRequest `json:"request"`
-	}{
-		Version: artifact.InitialDocumentVersion,
-		Model:   model,
-		Recipe:  workspace.recipe,
-		Request: request,
-	})
-	if err != nil {
-		return operation.Completion{}, err
-	}
-	return operation.ExecuteReentrant(ctx, workspace.repository, reporter, operation.Request{
-		Task: recipe.TaskInference, Recipe: workspace.recipe,
-	}, intent, func(ctx context.Context) (operation.Completion, error) {
+	return operation.ExecuteHeld(ctx, workspace.repository, func(ctx context.Context) (operation.Completion, error) {
 		total := uint64(1)
 		result, err := evaluation.RunSupervisedGroundedReplay(ctx, workspace.repository, request)
 		if err != nil {

@@ -1,3 +1,5 @@
+// Package operation admits, runs and bounds long-running operations behind
+// the serving surfaces.
 package operation
 
 import (
@@ -201,7 +203,7 @@ func (manager *Manager) start(parent context.Context, id artifact.ID, request Re
 		if current.status.Task != request.Task || current.status.Recipe != request.Recipe {
 			manager.mu.Unlock()
 			cancel()
-			return artifact.ID{}, ErrLifecycleConflict
+			return artifact.ID{}, errors.New("operation: recovery names another task or recipe than the operation it recovers")
 		}
 	}
 	current := &entry{
@@ -313,6 +315,27 @@ func validateCompletion(completion Completion) error {
 		}
 	}
 	return nil
+}
+
+// ExecuteHeld runs execute and refuses a completion that names an artifact the store does not hold.
+//   - an error of execute is returned with its completion, which is not looked up
+//   - refused because an operation's status names its run and its outputs for a reader to open.
+func ExecuteHeld(ctx context.Context, store artifact.Reader, execute func(context.Context) (Completion, error)) (Completion, error) {
+	completion, err := execute(ctx)
+	if err != nil {
+		return completion, err
+	}
+	if err := validateCompletion(completion); err != nil {
+		return completion, err
+	}
+	for _, id := range append([]artifact.ID{completion.Run}, completion.Outputs...) {
+		if _, found, err := store.Artifact(ctx, id); err != nil {
+			return completion, err
+		} else if !found {
+			return completion, fmt.Errorf("operation: the store does not hold %s, which the completion names: want a run and outputs the store holds", id)
+		}
+	}
+	return completion, nil
 }
 
 func (manager *Manager) Status(id artifact.ID) (Status, bool) {

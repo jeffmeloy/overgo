@@ -488,28 +488,15 @@ func (h *Handler) submitWorkflow(
 			return artifact.ID{}, err
 		}
 	}
-	request := operation.Request{Task: capability.Task, Recipe: capability.Recipe}
-	intent, err := artifact.JSONID(artifact.KindEvidence, struct {
-		Version uint16          `json:"version"`
-		Kind    WorkflowKind    `json:"kind"`
-		Task    recipe.Task     `json:"task"`
-		Recipe  artifact.ID     `json:"recipe"`
-		Input   json.RawMessage `json:"input"`
-		Sources []artifact.ID   `json:"sources,omitempty"`
-	}{artifact.InitialDocumentVersion, kind, capability.Task, capability.Recipe, input, sources})
-	if err != nil {
-		return artifact.ID{}, err
-	}
 	execute := func(ctx context.Context, reporter operation.Reporter) (operation.Completion, error) {
 		return h.executeObservedOperation(ctx, reporter, capability.Task, capability.Recipe, capability.model,
 			func(ctx context.Context, reporter operation.Reporter) (operation.Completion, error) {
-				return operation.ExecuteReentrant(ctx, h.repository, reporter, request, intent,
-					func(ctx context.Context) (operation.Completion, error) {
-						return h.config.Workflows.ExecuteWorkflow(withWorkflowSources(ctx, sources), kind, capability, input, reporter)
-					})
+				return operation.ExecuteHeld(ctx, h.repository, func(ctx context.Context) (operation.Completion, error) {
+					return h.config.Workflows.ExecuteWorkflow(withWorkflowSources(ctx, sources), kind, capability, input, reporter)
+				})
 			})
 	}
-	return h.operations.Submit(ctx, request, execute)
+	return h.operations.Submit(ctx, operation.Request{Task: capability.Task, Recipe: capability.Recipe}, execute)
 }
 
 func validateWorkflowCapabilities(capabilities []WorkflowCapability) error {

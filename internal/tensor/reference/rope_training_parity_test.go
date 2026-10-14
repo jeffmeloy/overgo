@@ -13,7 +13,7 @@ import (
 // TestTrainingRopeMatchesServingNeoX locks the SERVING-vs-TRAINING RoPE
 // reconciliation: the training-side rotate-half (hostmath.ApplyRotaryHalf over
 // the first hostmath.RopeWidth dims) must compute bit-identical rotated q/k to
-// the serving graph's rope_neox op (reference.ropeNeoX) for the affected model
+// the serving graph's rope_neox op (reference.rope) for the affected model
 // configs -- both partial rope (rope.dimension_count < key_length, e.g. qwen3.5
 // head_dim*partial_rotary_factor) and full rope (gemma3n key_length==head_dim).
 // Serving is the source of truth; this proves training follows it exactly.

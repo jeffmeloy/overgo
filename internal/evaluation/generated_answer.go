@@ -112,17 +112,7 @@ func CompileGeneratedAnswer(suite GeneratedAnswerSuite) (generatedAnswerPlan, er
 			return generatedAnswerPlan{}, errors.New("evaluation: empty generated answer")
 		}
 	}
-	identity, err := artifact.JSONID(artifact.KindProfile, suite)
-	if err != nil {
-		return generatedAnswerPlan{}, err
-	}
-	dataset, err := artifact.JSONID(artifact.KindDataset, suite.Cases)
-	if err != nil {
-		return generatedAnswerPlan{}, err
-	}
-	split, err := artifact.JSONID(artifact.KindDatasetShard, struct {
-		Dataset artifact.ID `json:"dataset"`
-	}{Dataset: dataset})
+	identity, dataset, split, err := suiteIdentities(suite, suite.Cases)
 	if err != nil {
 		return generatedAnswerPlan{}, err
 	}

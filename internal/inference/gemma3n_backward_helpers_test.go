@@ -378,7 +378,7 @@ func gemma3nLaurelBackward(dNormalized, dLeft, dRight, dPostNorm []float32, norm
 // cfg.ropeDim through the shared hostmath.RopeWidth owner (0 => full head_dim,
 // as real gemma3n's rope.dimension_count defaults to key_length==head_dim), so
 // partial-rope configs rotate only the first RopeWidth dims — matching the
-// serving reference.ropeNeoX convention.
+// serving reference executor's rope_neox convention.
 
 type gemma3nLayerWeights struct {
 	AttnNorm, LaurelLeft, LaurelRight, LaurelPostNorm reference.Value

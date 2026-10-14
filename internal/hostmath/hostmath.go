@@ -150,7 +150,7 @@ func RopeInvFreq(theta float64, ropeDim int) []float64 {
 // valid partial factor in (0, headDim], else the full headDim (full-rope
 // default). Single owner of the serving partial-rope convention: only the first
 // RopeWidth dims of each head row are rotated (NeoX split-half), the remainder
-// pass through unrotated — matching reference.ropeNeoX with rotary<width.
+// pass through unrotated — matching the reference executor's rope_neox with rotary<width.
 func RopeWidth(ropeDim, headDim int) int {
 	if ropeDim <= 0 || ropeDim > headDim {
 		return headDim

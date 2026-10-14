@@ -304,9 +304,9 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 	case tensor.OpGetRows:
 		return getRows(node.Shape, inputs[0], node.Attrs.(tensor.GetRowsAttributes).Rows)
 	case tensor.OpRoPENeoX:
-		return ropeNeoX(node.Shape, inputs, node.Attrs.(tensor.RoPEAttributes))
+		return rope(node.Shape, inputs, node.Attrs.(tensor.RoPEAttributes), node.Op)
 	case tensor.OpRoPENormal:
-		return ropeNormal(node.Shape, inputs, node.Attrs.(tensor.RoPEAttributes))
+		return rope(node.Shape, inputs, node.Attrs.(tensor.RoPEAttributes), node.Op)
 	case tensor.OpRoPEMulti:
 		return ropeMulti(node.Shape, inputs[0], node.Attrs.(tensor.RoPEMultiAttributes))
 	case tensor.OpAttention:

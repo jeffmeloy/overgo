@@ -153,21 +153,11 @@ func compileInstructionRules(suite instructionRulesSuite) (instructionRulesPlan,
 			testCase.Rules[ruleIndex] = rule.source
 		}
 	}
-	identity, err := artifact.JSONID(artifact.KindProfile, suite)
+	identity, dataset, split, err := suiteIdentities(suite, suite.Cases)
 	if err != nil {
 		return instructionRulesPlan{}, err
 	}
-	datasetID, err := artifact.JSONID(artifact.KindDataset, suite.Cases)
-	if err != nil {
-		return instructionRulesPlan{}, err
-	}
-	split, err := artifact.JSONID(artifact.KindDatasetShard, struct {
-		Dataset artifact.ID `json:"dataset"`
-	}{Dataset: datasetID})
-	if err != nil {
-		return instructionRulesPlan{}, err
-	}
-	return instructionRulesPlan{identity: identity, dataset: datasetID, split: split, suite: suite, rules: compiled}, nil
+	return instructionRulesPlan{identity: identity, dataset: dataset, split: split, suite: suite, rules: compiled}, nil
 }
 
 func bindInstructionRules(compiled instructionRulesPlan, authorities ExactAuthorities) (Plan, error) {

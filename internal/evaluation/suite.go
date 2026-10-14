@@ -139,165 +139,78 @@ func CompileSuite(data []byte, authorities ExactAuthorities) (CompiledSuite, err
 	return suite, nil
 }
 
+// suiteEnvelope is what a suite document of every kind holds.
+//   - an exact suite holds no kind
+//   - every kind's suite tags its source `source` and its cases `cases`, so the envelope reads both before a kind decodes them
+type suiteEnvelope struct {
+	Kind   string            `json:"kind"`
+	Source string            `json:"source"`
+	Cases  []json.RawMessage `json:"cases"`
+}
+
 func compileSuite(data []byte, authorities ExactAuthorities) (CompiledSuite, error) {
-	var envelope struct {
-		Kind string `json:"kind"`
-	}
+	var envelope suiteEnvelope
 	if err := json.Unmarshal(data, &envelope); err != nil {
 		return CompiledSuite{}, fmt.Errorf("evaluation: decode suite envelope: %w", err)
 	}
 	switch envelope.Kind {
 	case MultipleChoiceKind:
-		var source MultipleChoiceSuite
-		if err := strictjson.DecodeBytes(data, &source); err != nil {
-			return CompiledSuite{}, err
-		}
-		compiled, err := CompileMultipleChoice(source)
-		if err != nil {
-			return CompiledSuite{}, err
-		}
-		plan, err := BindMultipleChoice(compiled, authorities)
-		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err, accuracyMetrics(0, nil),
-			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (suiteResult, error) {
+		return compileKind(data, envelope, authorities, CompileMultipleChoice, BindMultipleChoice, accuracyMetrics(0, nil),
+			func(ctx context.Context, repository artifact.Repository, runtime Runtime, compiled multipleChoicePlan, plan Plan) (suiteResult, error) {
 				report, err := evaluateMultipleChoice(ctx, repository, runtime, compiled, plan)
 				return suiteResult{Report: report.ID, Metrics: accuracyMetrics(report.Accuracy, nil)}, err
 			})
 	case sequenceScoringKind:
-		var source sequenceScoringSuite
-		if err := strictjson.DecodeBytes(data, &source); err != nil {
-			return CompiledSuite{}, err
-		}
-		compiled, err := compileSequenceScoring(source)
-		if err != nil {
-			return CompiledSuite{}, err
-		}
-		plan, err := bindSequenceScoring(compiled, authorities)
-		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err,
-			sequenceScoringMetrics(0, 1),
-			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (suiteResult, error) {
+		return compileKind(data, envelope, authorities, compileSequenceScoring, bindSequenceScoring, sequenceScoringMetrics(0, 1),
+			func(ctx context.Context, repository artifact.Repository, runtime Runtime, compiled sequenceScoringPlan, plan Plan) (suiteResult, error) {
 				report, err := evaluateSequenceScoring(ctx, repository, runtime, compiled, plan)
-				return suiteResult{
-					Report:  report.ID,
-					Metrics: sequenceScoringMetrics(report.MeanNLLPerToken, report.Perplexity),
-				}, err
+				return suiteResult{Report: report.ID, Metrics: sequenceScoringMetrics(report.MeanNLLPerToken, report.Perplexity)}, err
 			})
 	case imageRetrievalKind:
-		var source ImageRetrievalSuite
-		if err := strictjson.DecodeBytes(data, &source); err != nil {
-			return CompiledSuite{}, err
-		}
-		compiled, err := compileImageRetrieval(source)
-		if err != nil {
-			return CompiledSuite{}, err
-		}
-		plan, err := bindImageRetrieval(compiled, authorities)
-		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err, accuracyMetrics(0, nil),
-			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (suiteResult, error) {
+		return compileKind(data, envelope, authorities, compileImageRetrieval, bindImageRetrieval, accuracyMetrics(0, nil),
+			func(ctx context.Context, repository artifact.Repository, runtime Runtime, compiled imageRetrievalPlan, plan Plan) (suiteResult, error) {
 				report, err := evaluateImageRetrieval(ctx, repository, runtime, compiled, plan)
 				return suiteResult{Report: report.ID, Metrics: accuracyMetrics(report.Accuracy, nil)}, err
 			})
 	case reconstructionKind:
-		var source ReconstructionSuite
-		if err := strictjson.DecodeBytes(data, &source); err != nil {
-			return CompiledSuite{}, err
-		}
-		compiled, err := compileReconstruction(source)
-		if err != nil {
-			return CompiledSuite{}, err
-		}
-		plan, err := bindReconstruction(compiled, authorities)
-		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err, reconstructionMetrics(0),
-			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (suiteResult, error) {
+		return compileKind(data, envelope, authorities, compileReconstruction, bindReconstruction, reconstructionMetrics(0),
+			func(ctx context.Context, repository artifact.Repository, runtime Runtime, compiled reconstructionPlan, plan Plan) (suiteResult, error) {
 				report, err := evaluateReconstruction(ctx, repository, runtime, compiled, plan)
 				return suiteResult{Report: report.ID, Metrics: reconstructionMetrics(report.LevelError)}, err
 			})
 	case speechRoundTripKind:
-		var source SpeechRoundTripSuite
-		if err := strictjson.DecodeBytes(data, &source); err != nil {
-			return CompiledSuite{}, err
-		}
-		compiled, err := compileSpeechRoundTrip(source)
-		if err != nil {
-			return CompiledSuite{}, err
-		}
-		plan, err := bindSpeechRoundTrip(compiled, authorities)
-		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err, speechRoundTripMetrics(0),
-			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (suiteResult, error) {
+		return compileKind(data, envelope, authorities, compileSpeechRoundTrip, bindSpeechRoundTrip, speechRoundTripMetrics(0),
+			func(ctx context.Context, repository artifact.Repository, runtime Runtime, compiled speechRoundTripPlan, plan Plan) (suiteResult, error) {
 				report, err := evaluateSpeechRoundTrip(ctx, repository, runtime, compiled, plan)
 				return suiteResult{Report: report.ID, Metrics: speechRoundTripMetrics(report.WordErrorRate)}, err
 			})
 	case descriptionMatchingKind:
-		var source DescriptionMatchingSuite
-		if err := strictjson.DecodeBytes(data, &source); err != nil {
-			return CompiledSuite{}, err
-		}
-		compiled, err := compileDescriptionMatching(source)
-		if err != nil {
-			return CompiledSuite{}, err
-		}
-		plan, err := bindDescriptionMatching(compiled, authorities)
-		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err, accuracyMetrics(0, nil),
-			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (suiteResult, error) {
+		return compileKind(data, envelope, authorities, compileDescriptionMatching, bindDescriptionMatching, accuracyMetrics(0, nil),
+			func(ctx context.Context, repository artifact.Repository, runtime Runtime, compiled descriptionMatchingPlan, plan Plan) (suiteResult, error) {
 				report, err := evaluateDescriptionMatching(ctx, repository, runtime, compiled, plan)
 				return suiteResult{Report: report.ID, Metrics: accuracyMetrics(report.Accuracy, nil)}, err
 			})
 	case seriesForecastKind:
-		var source SeriesForecastSuite
-		if err := strictjson.DecodeBytes(data, &source); err != nil {
-			return CompiledSuite{}, err
-		}
-		compiled, err := compileSeriesForecast(source)
-		if err != nil {
-			return CompiledSuite{}, err
-		}
-		plan, err := bindSeriesForecast(compiled, authorities)
-		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err, seriesForecastMetrics(0),
-			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (suiteResult, error) {
+		return compileKind(data, envelope, authorities, compileSeriesForecast, bindSeriesForecast, seriesForecastMetrics(0),
+			func(ctx context.Context, repository artifact.Repository, runtime Runtime, compiled seriesForecastPlan, plan Plan) (suiteResult, error) {
 				report, err := evaluateSeriesForecast(ctx, repository, runtime, compiled, plan)
 				return suiteResult{Report: report.ID, Metrics: seriesForecastMetrics(report.MeanAbsoluteError)}, err
 			})
 	case carriedContinuationKind:
-		var source CarriedContinuationSuite
-		if err := strictjson.DecodeBytes(data, &source); err != nil {
-			return CompiledSuite{}, err
-		}
-		compiled, err := compileCarriedContinuation(source)
-		if err != nil {
-			return CompiledSuite{}, err
-		}
-		plan, err := bindCarriedContinuation(compiled, authorities)
-		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err, carriedContinuationMetrics(0, 0, 0),
-			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (suiteResult, error) {
+		return compileKind(data, envelope, authorities, compileCarriedContinuation, bindCarriedContinuation, carriedContinuationMetrics(0, 0, 0),
+			func(ctx context.Context, repository artifact.Repository, runtime Runtime, compiled carriedContinuationPlan, plan Plan) (suiteResult, error) {
 				report, err := evaluateCarriedContinuation(ctx, repository, runtime, compiled, plan)
 				return suiteResult{Report: report.ID, Metrics: carriedContinuationMetrics(report.CarriedGain, report.CarriedLoss, report.ResetLoss)}, err
 			})
 	case functionCallKind:
-		var source FunctionCallSuite
-		if err := strictjson.DecodeBytes(data, &source); err != nil {
-			return CompiledSuite{}, err
-		}
-		compiled, err := compileFunctionCall(source)
-		if err != nil {
-			return CompiledSuite{}, err
-		}
-		plan, err := bindFunctionCall(compiled, authorities)
-		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err, accuracyMetrics(0, nil),
-			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (suiteResult, error) {
+		return compileKind(data, envelope, authorities, compileFunctionCall, bindFunctionCall, accuracyMetrics(0, nil),
+			func(ctx context.Context, repository artifact.Repository, runtime Runtime, compiled functionCallPlan, plan Plan) (suiteResult, error) {
 				report, err := evaluateFunctionCall(ctx, repository, runtime, compiled, plan)
 				return suiteResult{Report: report.ID, Metrics: accuracyMetrics(report.Accuracy, nil)}, err
 			})
 	case GeneratedAnswerKind:
-		var source GeneratedAnswerSuite
-		if err := strictjson.DecodeBytes(data, &source); err != nil {
-			return CompiledSuite{}, err
-		}
-		compiled, err := CompileGeneratedAnswer(source)
-		if err != nil {
-			return CompiledSuite{}, err
-		}
-		plan, err := bindGeneratedAnswer(compiled, authorities)
-		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err, accuracyMetrics(0, nil),
-			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (suiteResult, error) {
+		return compileKind(data, envelope, authorities, CompileGeneratedAnswer, bindGeneratedAnswer, accuracyMetrics(0, nil),
+			func(ctx context.Context, repository artifact.Repository, runtime Runtime, compiled generatedAnswerPlan, plan Plan) (suiteResult, error) {
 				report, err := evaluateGeneratedAnswer(ctx, repository, runtime, compiled, plan)
 				return suiteResult{Report: report.ID, Metrics: accuracyMetrics(report.Accuracy, nil)}, err
 			})
@@ -317,19 +230,10 @@ func compileSuite(data []byte, authorities ExactAuthorities) (CompiledSuite, err
 				return suiteResult{Report: report.ID, Metrics: accuracyMetrics(report.Accuracy, report.Groups)}, err
 			})
 	case probabilityMassKind:
-		var source probabilityMassSuite
-		if err := strictjson.DecodeBytes(data, &source); err != nil {
-			return CompiledSuite{}, err
-		}
-		compiled, err := compileProbabilityMass(source)
-		if err != nil {
-			return CompiledSuite{}, err
-		}
-		plan, err := bindProbabilityMass(compiled, authorities)
-		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err, []runrecord.Metric{{
+		return compileKind(data, envelope, authorities, compileProbabilityMass, bindProbabilityMass, []runrecord.Metric{{
 			Name: "positive-probability-mass", Direction: runrecord.DirectionMaximize,
 		}},
-			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (suiteResult, error) {
+			func(ctx context.Context, repository artifact.Repository, runtime Runtime, compiled probabilityMassPlan, plan Plan) (suiteResult, error) {
 				report, err := evaluateProbabilityMass(ctx, repository, runtime, compiled, plan)
 				return suiteResult{Report: report.ID, Metrics: []runrecord.Metric{{
 					Name: "positive-probability-mass", Value: report.Mean, Direction: runrecord.DirectionMaximize,
@@ -355,22 +259,13 @@ func compileSuite(data []byte, authorities ExactAuthorities) (CompiledSuite, err
 				return suiteResult{Report: report.ID, Metrics: accuracyMetrics(report.Accuracy, report.Groups)}, err
 			})
 	case instructionRulesKind:
-		var source instructionRulesSuite
-		if err := strictjson.DecodeBytes(data, &source); err != nil {
-			return CompiledSuite{}, err
-		}
-		compiled, err := compileInstructionRules(source)
-		if err != nil {
-			return CompiledSuite{}, err
-		}
-		plan, err := bindInstructionRules(compiled, authorities)
-		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err, []runrecord.Metric{
+		return compileKind(data, envelope, authorities, compileInstructionRules, bindInstructionRules, []runrecord.Metric{
 			{Name: "prompt-strict", Direction: runrecord.DirectionMaximize},
 			{Name: "instruction-strict", Direction: runrecord.DirectionMaximize},
 			{Name: "prompt-loose", Direction: runrecord.DirectionMaximize},
 			{Name: "instruction-loose", Direction: runrecord.DirectionMaximize},
 		},
-			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (suiteResult, error) {
+			func(ctx context.Context, repository artifact.Repository, runtime Runtime, compiled instructionRulesPlan, plan Plan) (suiteResult, error) {
 				report, err := evaluateInstructionRules(ctx, repository, runtime, compiled, plan)
 				return suiteResult{Report: report.ID, Metrics: []runrecord.Metric{
 					{Name: "prompt-strict", Value: report.PromptStrict, Direction: runrecord.DirectionMaximize},
@@ -380,19 +275,11 @@ func compileSuite(data []byte, authorities ExactAuthorities) (CompiledSuite, err
 				}}, err
 			})
 	case "":
-		var source ExactSuite
-		if err := strictjson.DecodeBytes(data, &source); err != nil {
-			return CompiledSuite{}, err
-		}
-		compiled, err := CompileExact(source)
-		if err != nil {
-			return CompiledSuite{}, err
-		}
-		plan, err := BindExact(compiled, authorities)
-		return newCompiledSuite(exactGenerationKind, source.Source, uint64(len(source.Cases)), plan, err, []runrecord.Metric{{
+		envelope.Kind = exactGenerationKind
+		return compileKind(data, envelope, authorities, CompileExact, BindExact, []runrecord.Metric{{
 			Name: exactMetricName, Direction: runrecord.DirectionMaximize,
 		}},
-			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (suiteResult, error) {
+			func(ctx context.Context, repository artifact.Repository, runtime Runtime, compiled ExactPlan, plan Plan) (suiteResult, error) {
 				report, err := EvaluateExactSharded(ctx, repository, runtime, compiled, plan, nil)
 				return suiteResult{Report: report, Metrics: []runrecord.Metric{{
 					Name: exactMetricName, Value: 1, Direction: runrecord.DirectionMaximize,
@@ -401,6 +288,29 @@ func compileSuite(data []byte, authorities ExactAuthorities) (CompiledSuite, err
 	default:
 		return CompiledSuite{}, fmt.Errorf("evaluation: unknown suite kind %q", envelope.Kind)
 	}
+}
+
+// compileKind decodes a suite document of one kind, compiles it, binds its plan and runs it through evaluate.
+//   - descriptor kind, source and case count = the envelope's
+//   - a kind whose metric contract reads its compiled plan or its decoded cases keeps its own case of compileSuite, because metrics come before the compile here
+func compileKind[S, C any](
+	data []byte, envelope suiteEnvelope, authorities ExactAuthorities,
+	compile func(S) (C, error), bind func(C, ExactAuthorities) (Plan, error), metrics []runrecord.Metric,
+	evaluate func(context.Context, artifact.Repository, Runtime, C, Plan) (suiteResult, error),
+) (CompiledSuite, error) {
+	var source S
+	if err := strictjson.DecodeBytes(data, &source); err != nil {
+		return CompiledSuite{}, err
+	}
+	compiled, err := compile(source)
+	if err != nil {
+		return CompiledSuite{}, err
+	}
+	plan, err := bind(compiled, authorities)
+	return newCompiledSuite(envelope.Kind, envelope.Source, uint64(len(envelope.Cases)), plan, err, metrics,
+		func(ctx context.Context, repository artifact.Repository, runtime Runtime) (suiteResult, error) {
+			return evaluate(ctx, repository, runtime, compiled, plan)
+		})
 }
 
 func newCompiledSuite(
@@ -429,6 +339,25 @@ func newCompiledSuite(
 		descriptor: SuiteDescriptor{Kind: kind, Source: source, Plan: plan.Identity(), Dataset: plan.Dataset(), Cases: cases},
 		plan:       plan, acceptance: acceptance, evaluator: evaluator, execute: execute,
 	}, nil
+}
+
+// suiteIdentities identifies a suite, the dataset of its cases and the split that holds that whole dataset.
+//   - identity = the profile identity of the suite
+//   - dataset = the dataset identity of cases, which a kind writes as its cases or as its cases with how they are counted
+//   - split = the dataset shard identity of the dataset alone
+//   - stored plans, campaigns and answers name these identities, so their documents never change
+//   - an error leaves the identities after it unset, and a caller returns no plan with it
+func suiteIdentities(suite, cases any) (identity, dataset, split artifact.ID, err error) {
+	identity, err = artifact.JSONID(artifact.KindProfile, suite)
+	if err == nil {
+		dataset, err = artifact.JSONID(artifact.KindDataset, cases)
+	}
+	if err == nil {
+		split, err = artifact.JSONID(artifact.KindDatasetShard, struct {
+			Dataset artifact.ID `json:"dataset"`
+		}{Dataset: dataset})
+	}
+	return identity, dataset, split, err
 }
 
 func executeSuite(ctx context.Context, repository artifact.Repository, runtime Runtime, suite CompiledSuite) (suiteResult, error) {

@@ -9,18 +9,19 @@ import (
 	"overgo/internal/tensor"
 )
 
-func ropeNeoX(shape tensor.Shape, inputs []Value, attributes tensor.RoPENeoXAttributes) (Value, error) {
+// rope rotates the first rotary elements of each head by its token's position, under rope_neox or rope_normal.
+//   - rope_neox pairs element i with element i + rotary/2
+//   - rope_normal pairs element 2i with element 2i + 1
+//   - an error names the operation, so each operation's error text stays its own
+func rope(shape tensor.Shape, inputs []Value, attributes tensor.RoPEAttributes, operation tensor.Op) (Value, error) {
 	input := inputs[0]
-	width := int(shape.Dims[0])
-	heads := int(shape.Dims[1])
-	tokens := int(shape.Dims[2])
-	batches := int(shape.Dims[3])
+	width, heads, tokens, batches := dims4(shape)
 	rotary := int(attributes.RotaryDimensions)
 	if rotary <= 0 || rotary%2 != 0 || rotary > width {
-		return Value{}, errors.New("invalid rope_neox rotary width")
+		return Value{}, errors.New("invalid " + operation.String() + " rotary width")
 	}
 	if len(attributes.Positions) != tokens {
-		return Value{}, errors.New("rope_neox position count differs from token count")
+		return Value{}, errors.New(operation.String() + " position count differs from token count")
 	}
 	factors, err := ropeFrequencyFactors(inputs, rotary)
 	if err != nil {
@@ -34,46 +35,13 @@ func ropeNeoX(shape tensor.Shape, inputs []Value, attributes tensor.RoPENeoXAttr
 				offset := ((batch*tokens+tokenIndex)*heads + head) * width
 				for pairIndex := range half {
 					cosine, sine := ropeCosSin(attributes, pairIndex, rotary, position, factors[pairIndex])
-					x0 := input.Data[offset+pairIndex]
-					x1 := input.Data[offset+pairIndex+half]
-					output[offset+pairIndex] = x0*cosine - x1*sine
-					output[offset+pairIndex+half] = x0*sine + x1*cosine
-				}
-			}
-		}
-	}
-	return Value{Shape: shape, Data: output}, nil
-}
-
-func ropeNormal(shape tensor.Shape, inputs []Value, attributes tensor.RoPEAttributes) (Value, error) {
-	input := inputs[0]
-	width := int(shape.Dims[0])
-	heads := int(shape.Dims[1])
-	tokens := int(shape.Dims[2])
-	batches := int(shape.Dims[3])
-	rotary := int(attributes.RotaryDimensions)
-	if rotary <= 0 || rotary%2 != 0 || rotary > width {
-		return Value{}, errors.New("invalid rope_normal rotary width")
-	}
-	if len(attributes.Positions) != tokens {
-		return Value{}, errors.New("rope_normal position count differs from token count")
-	}
-	factors, err := ropeFrequencyFactors(inputs, rotary)
-	if err != nil {
-		return Value{}, err
-	}
-	output := slices.Clone(input.Data)
-	for batch := range batches {
-		for tokenIndex, position := range attributes.Positions {
-			for head := range heads {
-				offset := ((batch*tokens+tokenIndex)*heads + head) * width
-				for pairIndex := range rotary / 2 {
-					cosine, sine := ropeCosSin(attributes, pairIndex, rotary, position, factors[pairIndex])
-					first := offset + pairIndex*2
-					x0 := input.Data[first]
-					x1 := input.Data[first+1]
+					first, second := offset+pairIndex, offset+pairIndex+half
+					if operation == tensor.OpRoPENormal {
+						first, second = offset+2*pairIndex, offset+2*pairIndex+1
+					}
+					x0, x1 := input.Data[first], input.Data[second]
 					output[first] = x0*cosine - x1*sine
-					output[first+1] = x0*sine + x1*cosine
+					output[second] = x0*sine + x1*cosine
 				}
 			}
 		}
@@ -139,10 +107,7 @@ func ropeMulti(
 	input Value,
 	attributes tensor.RoPEMultiAttributes,
 ) (Value, error) {
-	width := int(shape.Dims[0])
-	heads := int(shape.Dims[1])
-	tokens := int(shape.Dims[2])
-	batches := int(shape.Dims[3])
+	width, heads, tokens, batches := dims4(shape)
 	rotary := int(attributes.RotaryDimensions)
 	half := rotary / 2
 	var sectionPairs int

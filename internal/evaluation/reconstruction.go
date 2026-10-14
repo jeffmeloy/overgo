@@ -142,17 +142,7 @@ func compileReconstruction(suite ReconstructionSuite) (reconstructionPlan, error
 		}
 		names[testCase.Name] = struct{}{}
 	}
-	identity, err := artifact.JSONID(artifact.KindProfile, suite)
-	if err != nil {
-		return reconstructionPlan{}, err
-	}
-	dataset, err := artifact.JSONID(artifact.KindDataset, suite.dataset())
-	if err != nil {
-		return reconstructionPlan{}, err
-	}
-	split, err := artifact.JSONID(artifact.KindDatasetShard, struct {
-		Dataset artifact.ID `json:"dataset"`
-	}{Dataset: dataset})
+	identity, dataset, split, err := suiteIdentities(suite, suite.dataset())
 	if err != nil {
 		return reconstructionPlan{}, err
 	}

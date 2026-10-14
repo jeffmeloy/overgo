@@ -99,21 +99,11 @@ func compileProbabilityMass(suite probabilityMassSuite) (probabilityMassPlan, er
 		}
 		names[testCase.Name] = struct{}{}
 	}
-	identity, err := artifact.JSONID(artifact.KindProfile, suite)
+	identity, dataset, split, err := suiteIdentities(suite, suite.Cases)
 	if err != nil {
 		return probabilityMassPlan{}, err
 	}
-	datasetID, err := artifact.JSONID(artifact.KindDataset, suite.Cases)
-	if err != nil {
-		return probabilityMassPlan{}, err
-	}
-	split, err := artifact.JSONID(artifact.KindDatasetShard, struct {
-		Dataset artifact.ID `json:"dataset"`
-	}{Dataset: datasetID})
-	if err != nil {
-		return probabilityMassPlan{}, err
-	}
-	return probabilityMassPlan{identity: identity, dataset: datasetID, split: split, suite: suite}, nil
+	return probabilityMassPlan{identity: identity, dataset: dataset, split: split, suite: suite}, nil
 }
 
 func bindProbabilityMass(compiled probabilityMassPlan, authorities ExactAuthorities) (Plan, error) {

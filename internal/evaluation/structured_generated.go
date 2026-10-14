@@ -106,21 +106,11 @@ func compileStructuredGenerated(suite structuredGeneratedSuite) (structuredGener
 			}
 		}
 	}
-	identity, err := artifact.JSONID(artifact.KindProfile, suite)
+	identity, dataset, split, err := suiteIdentities(suite, suite.Cases)
 	if err != nil {
 		return structuredGeneratedPlan{}, err
 	}
-	datasetID, err := artifact.JSONID(artifact.KindDataset, suite.Cases)
-	if err != nil {
-		return structuredGeneratedPlan{}, err
-	}
-	split, err := artifact.JSONID(artifact.KindDatasetShard, struct {
-		Dataset artifact.ID `json:"dataset"`
-	}{Dataset: datasetID})
-	if err != nil {
-		return structuredGeneratedPlan{}, err
-	}
-	return structuredGeneratedPlan{identity: identity, dataset: datasetID, split: split, suite: suite}, nil
+	return structuredGeneratedPlan{identity: identity, dataset: dataset, split: split, suite: suite}, nil
 }
 
 func bindStructuredGenerated(compiled structuredGeneratedPlan, authorities ExactAuthorities) (Plan, error) {

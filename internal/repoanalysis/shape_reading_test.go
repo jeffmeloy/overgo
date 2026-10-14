@@ -1034,15 +1034,7 @@ func Warm(color Color) bool {
 //   - a repository read of no production file is refused, because a reading of nothing earns no pass
 func TestShapeReadingFindsPlantedFamilies(t *testing.T) {
 	t.Parallel()
-	contents := map[string][]byte{}
-	for name, source := range shapeFixture {
-		contents[name] = []byte(source)
-	}
-	snapshot, err := gosyntax.Snapshot{}.Overlay(contents)
-	if err != nil {
-		t.Fatal(err)
-	}
-	reading, err := readShapes(snapshot)
+	reading, err := readShapes(fixtureSnapshot(t, shapeFixture))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1059,7 +1051,7 @@ func TestShapeReadingFindsPlantedFamilies(t *testing.T) {
 		t.Errorf("the fixture's listing =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 
-	snapshot, err = gosyntax.DiscoverGo(filepath.Join("..", ".."), "cmd", "internal")
+	snapshot, err := gosyntax.DiscoverGo(filepath.Join("..", ".."), "cmd", "internal")
 	if err != nil {
 		t.Fatal(err)
 	}

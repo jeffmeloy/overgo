@@ -106,17 +106,7 @@ func compileImageRetrieval(suite ImageRetrievalSuite) (imageRetrievalPlan, error
 	if !slices.ContainsFunc(suite.Cases, func(testCase ImageRetrievalCase) bool { return sizes[testCase.Group] >= minimumRetrievalGroup }) {
 		return imageRetrievalPlan{}, errors.New("evaluation: an image-retrieval suite holds no group of two pictures to retrieve")
 	}
-	identity, err := artifact.JSONID(artifact.KindProfile, suite)
-	if err != nil {
-		return imageRetrievalPlan{}, err
-	}
-	dataset, err := artifact.JSONID(artifact.KindDataset, suite.Cases)
-	if err != nil {
-		return imageRetrievalPlan{}, err
-	}
-	split, err := artifact.JSONID(artifact.KindDatasetShard, struct {
-		Dataset artifact.ID `json:"dataset"`
-	}{Dataset: dataset})
+	identity, dataset, split, err := suiteIdentities(suite, suite.Cases)
 	if err != nil {
 		return imageRetrievalPlan{}, err
 	}

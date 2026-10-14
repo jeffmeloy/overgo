@@ -67,17 +67,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 2877,
+        "nodes": 4342,
         "reason": ""
       },
       "steps": [
-        {
-          "id": "repeats-surface",
-          "title": "Consolidate the repeated groups of the reference executor and the suite compilers, in one commit before a run",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestConsolidatedSurfaceGroupsNoLongerRepeat$'",
-          "rationale": "Split from step real-repeats by the lead on 2026-10-14, so that its host groups commit alone. This step takes the groups of the lead's reading (scratchpad rows/real-repeats-reading.md) that move the inference surface or the answer scope.\n- in internal/tensor/reference ropeNeoX and ropeNormal differ in how elements pair, so one function with that choice replaces both, and a dims4 helper covers six reads of four axes, about 45 lines less, after step launch-checks, because both edit executeNode\n- the identity, dataset and split triple of fourteen suite compilers of internal/evaluation becomes one helper with byte-identical identities, about 125 lines less, after a pin test of the thirteen kinds no test pins today\n- compileSuite's decode, compile and bind of thirteen of its fifteen kinds becomes one generic helper, about 93 lines less\nTestConsolidatedGroupsNoLongerRepeat, which step real-repeats writes, gains these groups.\nServes: the loop's upkeep.\nDisappears: about 263 lines of production code, an estimate by reading.\nEvidence: the consolidated groups absent from the shape reading, the pinned identities of every suite kind unchanged, and every changed package's tests unchanged.\nBatch: host; one commit before a full measurement run, because it moves the surface digest and the answer scope."
-        },
         {
           "id": "clone-default",
           "title": "Make a deep copy the document codec's default, and delete the clone functions it replaces",

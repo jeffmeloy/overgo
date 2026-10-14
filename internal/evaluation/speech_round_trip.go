@@ -146,10 +146,6 @@ func compileSpeechRoundTrip(suite SpeechRoundTripSuite) (speechRoundTripPlan, er
 		}
 		names[testCase.Name] = struct{}{}
 	}
-	identity, err := artifact.JSONID(artifact.KindProfile, suite)
-	if err != nil {
-		return speechRoundTripPlan{}, err
-	}
 	// What a judge is charged for a text depends on the text and on how both
 	// sides are written, so a suite counted another way than the plain steps
 	// is another set than the same texts counted plainly. Two contracts over
@@ -160,13 +156,7 @@ func compileSpeechRoundTrip(suite SpeechRoundTripSuite) (speechRoundTripPlan, er
 	if !slices.Equal(normalization, roundTripNormalization) {
 		set = countedTexts{Normalization: normalization, Cases: suite.Cases}
 	}
-	dataset, err := artifact.JSONID(artifact.KindDataset, set)
-	if err != nil {
-		return speechRoundTripPlan{}, err
-	}
-	split, err := artifact.JSONID(artifact.KindDatasetShard, struct {
-		Dataset artifact.ID `json:"dataset"`
-	}{Dataset: dataset})
+	identity, dataset, split, err := suiteIdentities(suite, set)
 	if err != nil {
 		return speechRoundTripPlan{}, err
 	}

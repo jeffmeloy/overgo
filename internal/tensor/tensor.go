@@ -163,8 +163,6 @@ type RoPEAttributes struct {
 	BetaSlow         float32
 }
 
-type RoPENeoXAttributes = RoPEAttributes
-
 type RoPEMultiAttributes struct {
 	Layout              RoPELayout
 	InterleavedSections bool

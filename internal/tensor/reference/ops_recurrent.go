@@ -7,6 +7,11 @@ import (
 	"overgo/internal/tensor"
 )
 
+// dims4 returns the four axes of a shape, innermost first.
+func dims4(shape tensor.Shape) (int, int, int, int) {
+	return int(shape.Dims[0]), int(shape.Dims[1]), int(shape.Dims[2]), int(shape.Dims[3])
+}
+
 func ssmConv(shape tensor.Shape, input, weights Value) (Value, error) {
 	window := int(input.Shape.Dims[0])
 	channels := int(input.Shape.Dims[1])
@@ -38,10 +43,7 @@ func ssmScan(shape tensor.Shape, inputs []Value) (Value, error) {
 		return Value{}, errors.New("SSMScan requires six inputs")
 	}
 	state, x, dt, a, beta, c := inputs[0], inputs[1], inputs[2], inputs[3], inputs[4], inputs[5]
-	stateWidth := int(state.Shape.Dims[0])
-	dimension := int(state.Shape.Dims[1])
-	heads := int(state.Shape.Dims[2])
-	sequences := int(state.Shape.Dims[3])
+	stateWidth, dimension, heads, sequences := dims4(state.Shape)
 	tokens := int(x.Shape.Dims[2])
 	groups := int(beta.Shape.Dims[1])
 	aWidth := int(a.Shape.Dims[0])
@@ -91,10 +93,7 @@ func gatedDeltaNet(
 	}
 	q, k, v := inputs[0], inputs[1], inputs[2]
 	gate, beta, state := inputs[3], inputs[4], inputs[5]
-	size := int(v.Shape.Dims[0])
-	heads := int(v.Shape.Dims[1])
-	tokens := int(v.Shape.Dims[2])
-	sequences := int(v.Shape.Dims[3])
+	size, heads, tokens, sequences := dims4(v.Shape)
 	qHeads := int(q.Shape.Dims[1])
 	kHeads := int(k.Shape.Dims[1])
 	gateWidth := int(gate.Shape.Dims[0])
@@ -175,11 +174,8 @@ func gatedLinearAttention(
 		return Value{}, errors.New("GatedLinearAttention requires five inputs")
 	}
 	key, value, receptance, decay, inputState := inputs[0], inputs[1], inputs[2], inputs[3], inputs[4]
-	width := int(key.Shape.Dims[0])
-	keyHeads := int(key.Shape.Dims[1])
+	width, keyHeads, tokens, sequences := dims4(key.Shape)
 	heads := int(receptance.Shape.Dims[1])
-	tokens := int(key.Shape.Dims[2])
-	sequences := int(key.Shape.Dims[3])
 	if width <= 0 || heads <= 0 || tokens <= 0 || sequences <= 0 {
 		return Value{}, errors.New("invalid GatedLinearAttention dimensions")
 	}
@@ -220,10 +216,7 @@ func wkv6(shape tensor.Shape, inputs []Value) (Value, error) {
 	}
 	key, value, receptance := inputs[0], inputs[1], inputs[2]
 	first, decay, inputState := inputs[3], inputs[4], inputs[5]
-	width := int(key.Shape.Dims[0])
-	heads := int(key.Shape.Dims[1])
-	tokens := int(key.Shape.Dims[2])
-	sequences := int(key.Shape.Dims[3])
+	width, heads, tokens, sequences := dims4(key.Shape)
 	if width <= 0 || heads <= 0 || tokens <= 0 || sequences <= 0 {
 		return Value{}, errors.New("invalid WKV6 dimensions")
 	}
@@ -276,10 +269,7 @@ func wkv7(shape tensor.Shape, inputs []Value) (Value, error) {
 	}
 	receptance, decay, key, value := inputs[0], inputs[1], inputs[2], inputs[3]
 	a, bVector, inputState := inputs[4], inputs[5], inputs[6]
-	width := int(key.Shape.Dims[0])
-	heads := int(key.Shape.Dims[1])
-	tokens := int(key.Shape.Dims[2])
-	sequences := int(key.Shape.Dims[3])
+	width, heads, tokens, sequences := dims4(key.Shape)
 	if width <= 0 || heads <= 0 || tokens <= 0 || sequences <= 0 {
 		return Value{}, errors.New("invalid WKV7 dimensions")
 	}

@@ -3,6 +3,7 @@ package evaluation
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 
@@ -36,7 +37,11 @@ type GroupedChoiceSuite struct {
 	Source        string                      `json:"source"`
 	Normalization sequencescore.Normalization `json:"normalization"`
 	TieBreak      string                      `json:"tie_break,omitzero"`
-	Cases         []DemonstratedChoice        `json:"cases"`
+	// Delimiter is what a likelihood scoring puts between a case's prompt and each of its candidates.
+	//   - accepted = empty or targetDelimiter, because the scorer's method names the target delimiter alone
+	//   - empty => each candidate carries its own delimiter
+	Delimiter string               `json:"delimiter,omitzero"`
+	Cases     []DemonstratedChoice `json:"cases"`
 }
 
 type groupedChoicePlan struct {
@@ -63,6 +68,9 @@ func CompileGroupedChoice(suite GroupedChoiceSuite) (groupedChoicePlan, error) {
 	if suite.Kind != GroupedChoiceKind || strings.TrimSpace(suite.Schema) == "" || strings.TrimSpace(suite.Source) == "" ||
 		len(suite.Cases) == 0 || suite.Normalization != sequencescore.NormalizationSum && suite.Normalization != sequencescore.NormalizationMean && suite.Normalization != sequencescore.NormalizationCharacters {
 		return groupedChoicePlan{}, errors.New("evaluation: invalid grouped-choice suite")
+	}
+	if suite.Delimiter != "" && suite.Delimiter != targetDelimiter {
+		return groupedChoicePlan{}, fmt.Errorf("evaluation: grouped-choice delimiter %q is refused; a suite names none or %q", suite.Delimiter, targetDelimiter)
 	}
 	cases := make([]MultipleChoiceCase, len(suite.Cases))
 	groups := make([]string, len(suite.Cases))
@@ -92,6 +100,7 @@ func CompileGroupedChoice(suite GroupedChoiceSuite) (groupedChoicePlan, error) {
 	if err != nil {
 		return groupedChoicePlan{}, err
 	}
+	choice.delimiter = suite.Delimiter
 	return groupedChoicePlan{choice: choice, groups: groups}, nil
 }
 
@@ -116,7 +125,7 @@ func EvaluateGroupedChoice(
 	if err := publishPlanAuthorities(ctx, repository, plan, contents); err != nil {
 		return GroupedChoiceReport{}, err
 	}
-	observations, groups, answers, accuracy, err := scoreChoiceGroups(ctx, repository, plan, scorer, compiled.choice.suite, compiled.groups)
+	observations, groups, answers, accuracy, err := scoreChoiceGroups(ctx, repository, plan, scorer, compiled.choice.delimited(), compiled.groups)
 	if err != nil {
 		return GroupedChoiceReport{}, err
 	}

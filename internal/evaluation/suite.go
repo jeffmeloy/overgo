@@ -301,21 +301,6 @@ func compileSuite(data []byte, authorities ExactAuthorities) (CompiledSuite, err
 				report, err := evaluateGeneratedAnswer(ctx, repository, runtime, compiled, plan)
 				return suiteResult{Report: report.ID, Metrics: accuracyMetrics(report.Accuracy, nil)}, err
 			})
-	case mmluProKind:
-		var source mmluProSuite
-		if err := strictjson.DecodeBytes(data, &source); err != nil {
-			return CompiledSuite{}, err
-		}
-		compiled, err := compileMMLUPro(source)
-		if err != nil {
-			return CompiledSuite{}, err
-		}
-		plan, err := bindMMLUPro(compiled, authorities)
-		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err, accuracyMetricContract(compiled.categories),
-			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (suiteResult, error) {
-				report, err := evaluateMMLUPro(ctx, repository, runtime, compiled, plan)
-				return suiteResult{Report: report.ID, Metrics: accuracyMetrics(report.Accuracy, report.Categories)}, err
-			})
 	case GroupedChoiceKind:
 		var source GroupedChoiceSuite
 		if err := strictjson.DecodeBytes(data, &source); err != nil {

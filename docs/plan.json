@@ -181,7 +181,7 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
+        "nodes": 994,
         "reason": "measured by the preflight of step protocol's change: a protocol of the evaluation command whose identity holds every input that decides an answer, the parser of a reasoned answer, and the refusal of exposed cases as held-out evidence"
       },
       "steps": [
@@ -195,13 +195,6 @@
             "policy-search/protocol",
             "trustworthy-measurement/exclusive"
           ]
-        },
-        {
-          "id": "mmlu-pro-fold",
-          "title": "Fold the MMLU-Pro kind into the grouped-choice kind, its identities unchanged",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestMMLUProIsAGroupedChoiceWithItsIdentitiesUnchanged$'",
-          "rationale": "The one saving the reading of the retired row suites-as-data found that needs no new machinery. evaluateMMLUPro (internal/evaluation/mmlu_pro.go:157-191) is EvaluateGroupedChoice (grouped_choice.go:102-136) but for a delimiter on the scorer's method and the name of one report field, and its few-shot code (:114-124) is unused by its one producer. Folding MMLU-Pro into the grouped-choice kind with one delimiter field removes about 165 lines for about 20, by reading. It is safe only if the dataset identity, the case profile and the scorer's method marshal to the bytes they do now (multiple_choice.go:41-57, :166, :226-228; mmlu_pro.go:140-149), which the proving test holds case by case, and the stored report overgo/mmlu-pro-report/v1 keeps its readers (inspect.go:47, cmd/validate/media_coverage.go:635). The change asks every MMLU-Pro case again, as any change to the package does, so it goes in the batch that changes internal/evaluation anyway.\nServes: the loop's upkeep.\nDisappears: about 145 lines of internal/evaluation, an estimate by reading.\nEvidence: the comparison identity of the MMLU-Pro plan unchanged, byte for byte, on the store's cases.\nBatch: host; with the other changes to internal/evaluation, before a full measurement run."
         }
       ]
     },

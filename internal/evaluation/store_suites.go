@@ -348,27 +348,37 @@ func assembleMMLUSuite(cases []storeCase) (any, int, error) {
 		if len(choices) > len(choiceLetters) || answer < 0 || answer >= len(choices) {
 			return nil, 0, fmt.Errorf("case %s/%d options are outside the letter vocabulary", entry.entry, entry.ordinal)
 		}
-		prompt := strings.Builder{}
-		prompt.WriteString(question)
-		prompt.WriteString("\n")
 		candidates := make([]string, len(choices))
-		for index, choice := range choices {
-			fmt.Fprintf(&prompt, "%s. %s\n", choiceLetters[index], choice)
-			candidates[index] = " " + choiceLetters[index]
+		for index := range choices {
+			candidates[index] = targetDelimiter + choiceLetters[index]
 		}
-		prompt.WriteString("Answer:")
 		suite.Cases = append(suite.Cases, MultipleChoiceCase{
-			Name: fmt.Sprintf("%s/%d", entry.entry, entry.ordinal), Prompt: prompt.String(),
+			Name: fmt.Sprintf("%s/%d", entry.entry, entry.ordinal), Prompt: letteredPrompt(question, choices),
 			Candidates: candidates, Answer: answer,
 		})
 	}
 	return suite, 0, nil
 }
 
+// letteredPrompt writes a question as lm-eval's MMLU tasks ask it.
+//   - prompt = the question, each option after its letter, then the answer cue ("Q\nA. one\nB. two\nAnswer:")
+func letteredPrompt(question string, options []string) string {
+	prompt := strings.Builder{}
+	prompt.WriteString(question)
+	prompt.WriteByte('\n')
+	for index, option := range options {
+		fmt.Fprintf(&prompt, "%s. %s\n", choiceLetters[index], option)
+	}
+	prompt.WriteString("Answer:")
+	return prompt.String()
+}
+
+// assembleMMLUProSuite asks MMLU-Pro as a grouped-choice suite grouped by category.
+//   - candidates = bare letters scored after targetDelimiter, as lm-eval's leaderboard_mmlu_pro writes its choices
 func assembleMMLUProSuite(cases []storeCase) (any, int, error) {
-	suite := mmluProSuite{
-		Kind: mmluProKind, Schema: mmluProSchema, Source: "store/mmlu-pro",
-		Labels: choiceLetters, Normalization: sequencescore.NormalizationSum,
+	suite := GroupedChoiceSuite{
+		Kind: GroupedChoiceKind, Schema: mmluProSchema, Source: "store/mmlu-pro",
+		Normalization: sequencescore.NormalizationSum, Delimiter: targetDelimiter,
 	}
 	for _, entry := range cases {
 		if entry.undrawn {
@@ -390,12 +400,12 @@ func assembleMMLUProSuite(cases []storeCase) (any, int, error) {
 		if err != nil {
 			return nil, 0, err
 		}
-		if len(options) > len(choiceLetters) || answer < 0 || answer >= len(options) {
-			return nil, 0, fmt.Errorf("case %s/%d options are outside the label vocabulary", entry.entry, entry.ordinal)
+		if question == "" || slices.Contains(options, "") || len(options) > len(choiceLetters) || answer < 0 || answer >= len(options) {
+			return nil, 0, fmt.Errorf("case %s/%d holds %d options and answer %d, or an empty question or option; a case asks a question among at most %d options, none empty, and answers one", entry.entry, entry.ordinal, len(options), answer, len(choiceLetters))
 		}
-		suite.Cases = append(suite.Cases, mmluProCase{
-			Name: fmt.Sprintf("%s/%d", entry.entry, entry.ordinal), Category: category,
-			Question: question, Options: options, Answer: answer,
+		suite.Cases = append(suite.Cases, DemonstratedChoice{
+			Name: fmt.Sprintf("%s/%d", entry.entry, entry.ordinal), Group: category,
+			Prompt: letteredPrompt(question, options), Candidates: slices.Clone(choiceLetters[:len(options)]), Answer: answer,
 		})
 	}
 	return suite, 0, nil

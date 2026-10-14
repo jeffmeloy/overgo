@@ -103,7 +103,7 @@ func TestEvaluationSuitesAreSizedForTheirDecisions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if scored := len(assembled.(mmluProSuite).Cases); scored != len(first["physics"])+len(first["law"])+len(first["history"])+len(first["math"]) {
+	if scored := len(assembled.(GroupedChoiceSuite).Cases); scored != len(first["physics"])+len(first["law"])+len(first["history"])+len(first["math"]) {
 		t.Fatalf("the MMLU-Pro suite scores %d cases, and the draw kept %d", scored, len(first["physics"])+len(first["law"])+len(first["history"])+len(first["math"]))
 	}
 	// A task of forty cases whose answers are four: the four scored cases cannot hold more answers than the task.

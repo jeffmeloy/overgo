@@ -189,16 +189,25 @@ func (w *declarationWalk) drain() {
 	}
 }
 
-// unreachedDeclarations lists the functions and methods of a snapshot's production files that no command reaches, and counts the ones it read.
-//   - universe = top-level functions and methods of non-test, non-generated files outside test-support packages
-//   - a file whose build constraint needs ignoreTag is no part of the package beside it, is no root and is not listed
-//   - a generated file is walked for what it reaches and is not listed
+// commandReach is what one walk from the commands read and entered.
+//   - files = the production files some build selects
+//   - walked holds every declaration the walk entered
+//   - support reports whether a package directory is a test-support package
+type commandReach struct {
+	files   []*reachFile
+	walked  map[ast.Node]bool
+	support func(directory string) bool
+}
+
+// reachFromCommands walks a snapshot's production files from its commands.
+//   - a file whose build constraint needs ignoreTag is no part of the package beside it and is no root
+//   - a generated file is walked for what it reaches
 //   - test-support package = no main package, whose every importing production file outside it is in a test-support package and none in a main package (the rule of landing.newUnconsumedExports)
 //   - roots = main of every main package + init, variables and constants of every package that is not test support, because a command links each such package
 //   - a method is reached <=> its receiver type is reached and (its name is selected or outside holds its name)
 //   - outside = the exported method names of interfaces declared outside the module, whose callers the walk cannot read
-//   - the walk reads names, never types, so a name two declarations share reaches both, and the list is a lower bound
-func unreachedDeclarations(snapshot gosyntax.Snapshot, outside map[string]bool) ([]unreached, int, error) {
+//   - the walk reads names, never types, so a name two declarations share reaches both
+func reachFromCommands(snapshot gosyntax.Snapshot, outside map[string]bool) (commandReach, error) {
 	var files []*reachFile
 	declared, commands := map[string]string{}, map[string]bool{}
 	importers := map[string][]*reachFile{}
@@ -208,7 +217,7 @@ func unreachedDeclarations(snapshot gosyntax.Snapshot, outside map[string]bool) 
 		}
 		syntax, err := source.Syntax()
 		if err != nil {
-			return nil, 0, err
+			return commandReach{}, err
 		}
 		file := &reachFile{source: source, syntax: syntax, directory: path.Dir(source.Path), imports: map[string]string{}}
 		for _, spec := range syntax.Imports {
@@ -251,7 +260,7 @@ func unreachedDeclarations(snapshot gosyntax.Snapshot, outside map[string]bool) 
 				name = spec.Name.Name
 			}
 			if name == "." && local {
-				return nil, 0, fmt.Errorf("%s imports %s as \".\", and the walk follows a name only through the name its package is imported as", file.source.Path, imported)
+				return commandReach{}, fmt.Errorf("%s imports %s as \".\", and the walk follows a name only through the name its package is imported as", file.source.Path, imported)
 			}
 			file.imports[name] = directory
 		}
@@ -300,11 +309,21 @@ func unreachedDeclarations(snapshot gosyntax.Snapshot, outside map[string]bool) 
 			}
 		}
 	}
+	return commandReach{files, walk.walked, testSupport}, nil
+}
 
+// unreachedDeclarations lists the functions and methods of a snapshot's production files that no command reaches, and counts the ones it read.
+//   - universe = top-level functions and methods of the files reachFromCommands walks, outside generated files and test-support packages
+//   - the walk reads names, never types, so the list is a lower bound
+func unreachedDeclarations(snapshot gosyntax.Snapshot, outside map[string]bool) ([]unreached, int, error) {
+	reach, err := reachFromCommands(snapshot, outside)
+	if err != nil {
+		return nil, 0, err
+	}
 	var list []unreached
 	universe := 0
-	for _, file := range files {
-		if generated, _ := file.source.Generated(); generated || testSupport(file.directory) {
+	for _, file := range reach.files {
+		if generated, _ := file.source.Generated(); generated || reach.support(file.directory) {
 			continue
 		}
 		for _, declaration := range file.syntax.Decls {
@@ -313,7 +332,7 @@ func unreachedDeclarations(snapshot gosyntax.Snapshot, outside map[string]bool) 
 				continue
 			}
 			universe++
-			if walk.walked[function] {
+			if reach.walked[function] {
 				continue
 			}
 			name, from := function.Name.Name, function.Pos()
@@ -404,7 +423,7 @@ func interfaceMethods(directory string) ([]string, error) {
 	return names, nil
 }
 
-// listDrift compares the unreached declarations a walk found with the kept list, both sorted.
+// listDrift compares what a walk found with its kept list, both sorted.
 //   - missing = found and not kept
 //   - stale = kept and not found
 func listDrift(found, kept []string) (missing, stale []string) {
@@ -419,6 +438,41 @@ func listDrift(found, kept []string) (missing, stale []string) {
 		}
 	}
 	return missing, stale
+}
+
+// checkoutSource returns the Go files of the checkout's commands and packages, and the interface methods declared outside the module.
+func checkoutSource(t *testing.T) (gosyntax.Snapshot, map[string]bool) {
+	t.Helper()
+	const root = "../.."
+	snapshot, err := gosyntax.DiscoverGo(root, "cmd", "internal")
+	if err != nil {
+		t.Fatal(err)
+	}
+	outside, err := outsideMethods(t.Context(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return snapshot, outside
+}
+
+// keptList reads a kept list beside the tests, one entry a line.
+//   - a list out of byte order, or one that repeats a line, is refused
+func keptList(t *testing.T, name string) []string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("testdata", name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var kept []string
+	for line := range strings.Lines(string(data)) {
+		if line = strings.TrimSpace(line); line != "" {
+			kept = append(kept, line)
+		}
+	}
+	if !slices.IsSorted(kept) || len(slices.Compact(slices.Clone(kept))) != len(kept) {
+		t.Fatalf("%s is not sorted or repeats a line, want one entry a line in byte order", name)
+	}
+	return kept
 }
 
 // unreachedList is the file that keeps the census of declarations no command reaches.
@@ -505,15 +559,7 @@ func TestEveryProcessDeclarationIsReachedByACommand(t *testing.T) {
 		t.Errorf("the comparison names %q as unreached and unlisted and %q as listed and reached, want a and c", missing, stale)
 	}
 
-	const root = "../.."
-	snapshot, err := gosyntax.DiscoverGo(root, "cmd", "internal")
-	if err != nil {
-		t.Fatal(err)
-	}
-	outside, err := outsideMethods(t.Context(), root)
-	if err != nil {
-		t.Fatal(err)
-	}
+	snapshot, outside := checkoutSource(t)
 	found, universe, err := unreachedDeclarations(snapshot, outside)
 	if err != nil {
 		t.Fatal(err)
@@ -521,19 +567,8 @@ func TestEveryProcessDeclarationIsReachedByACommand(t *testing.T) {
 	if universe == 0 || len(outside) == 0 {
 		t.Fatalf("the walk read %d declarations and %d interface methods outside the module, want some of each", universe, len(outside))
 	}
-	data, err := os.ReadFile(filepath.Join("testdata", unreachedList))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var kept, keys []string
-	for line := range strings.Lines(string(data)) {
-		if line = strings.TrimSpace(line); line != "" {
-			kept = append(kept, line)
-		}
-	}
-	if !slices.IsSorted(kept) || len(slices.Compact(slices.Clone(kept))) != len(kept) {
-		t.Fatalf("%s is not sorted or repeats a line, want one declaration a line in byte order", unreachedList)
-	}
+	kept := keptList(t, unreachedList)
+	var keys []string
 	lines := 0
 	for _, declaration := range found {
 		keys, lines = append(keys, declaration.key), lines+declaration.lines

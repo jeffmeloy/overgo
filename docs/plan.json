@@ -72,16 +72,6 @@
       },
       "steps": [
         {
-          "id": "record-schemas",
-          "title": "Every process record schema outside a model prototype has a writer a command reaches",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestEveryProcessRecordSchemaHasAProductionWriter$'",
-          "rationale": "From the proposal, narrowed by the prototype rule. By the proposal, at 14dc80967: production code names 401 record schemas and the live store has never held 223 of them. That is a lead and not proof: experiments run on copies of the store and a wire document is never stored. Kept whatever the store holds, as prototypes by the lead's review of 2026-10-12: the routed-mixture records, the composition and representation records, the offline artifact records the candidate path compiles every arm through, the controller trainer's records, and the candidate chain. The check asks each remaining schema for a writer reachable from a command. Leads by family: mechanism (7, with the command mechanism-census), agent retrieval (4), improvement (3), agent strategy and task contract (2).\nServes: fewer documents to validate, version and read.\nDisappears: each failing family's type, validator, codec and tests.\nEvidence: schemas and production nodes removed, family by family.\nBatch: host; a family under internal/evaluation or internal/modelrecipe waits for a commit that moves the surface anyway.",
-          "depends_on": [
-            "consumer-checks/declarations"
-          ]
-        },
-        {
           "id": "sort-unreached",
           "title": "Sort the rest of the unreached declarations into wired, deleted and kept as a prototype",
           "status": "open",

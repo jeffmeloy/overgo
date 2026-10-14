@@ -183,7 +183,10 @@ func (c *Coordinator) propose(
 		if receiptOperation, err = c.admitMutationReceipt(ctx, callID, manual, stimulus, binding); err != nil {
 			return nil, fmt.Errorf("agent loop: mutation %q refused without a durable receipt: %w", name, err)
 		}
-		if session.Checkpoints != nil {
+		// A checkpoint captures workspace files alone, so a mutation with no workspace target runs without one.
+		if session.Checkpoints != nil && slices.ContainsFunc(plannedEffect.Targets, func(target agenttool.InvocationTarget) bool {
+			return target.Scope == agenttool.EffectScopeWorkspace
+		}) {
 			checkpoint, err = session.Checkpoints.BeginCheckpoint(ctx, receiptOperation, plannedEffect, uint64(session.Steps))
 			if err != nil {
 				_, _ = c.closeMutationReceipt(ctx, receiptOperation, binding, nil, err)

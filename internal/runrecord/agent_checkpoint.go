@@ -1,6 +1,7 @@
 package runrecord
 
 import (
+	"context"
 	"errors"
 	"math"
 	"slices"
@@ -66,6 +67,12 @@ var agentMutationCheckpointCodec = artifact.JSONDocumentCodec(
 // NewAgentMutationCheckpoint canonicalizes and identifies one checkpoint manifest.
 func NewAgentMutationCheckpoint(value AgentMutationCheckpoint) (AgentMutationCheckpoint, error) {
 	return agentMutationCheckpointCodec.NewInitial(value)
+}
+
+// RequireAgentMutationCheckpoint loads one stored checkpoint manifest by its identity.
+//   - an absent manifest, or bytes whose canonical form or identity differ, is refused.
+func RequireAgentMutationCheckpoint(ctx context.Context, reader artifact.Reader, id artifact.ID) (AgentMutationCheckpoint, error) {
+	return agentMutationCheckpointCodec.Require(ctx, reader, id)
 }
 
 // Content returns the canonical committed bytes of the checkpoint.

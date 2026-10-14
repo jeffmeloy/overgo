@@ -84,6 +84,24 @@ func NewDelegatedCapabilityRuntime(
 	}, nil
 }
 
+// RestoreSession rebuilds a delegated session from its interaction chain and binds it to the task.
+//   - contract = the task contract and its obligations, so Admit refuses a mutation whose effect the task does not allow
+//   - checkpoints = the runtime's, so a mutation with a workspace target is captured before it runs and can be restored.
+func (runtime *DelegatedCapabilityRuntime) RestoreSession(ctx context.Context, id string) (*Session, error) {
+	if runtime == nil {
+		return nil, errors.New("agent loop: delegated runtime is absent")
+	}
+	session, err := runtime.Coordinator.coordinator.RestoreSession(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if session.Contract, err = NewContractState(runtime.Task, runtime.Obligations); err != nil {
+		return nil, err
+	}
+	session.Checkpoints = runtime.Checkpoints
+	return session, nil
+}
+
 // SessionManuals returns the delegated session's visible manual set: the
 // compiled grant plus the capability proxy manual the runtime registered,
 // so a delegated session reaches dynamic capabilities only through the

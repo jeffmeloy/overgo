@@ -52,16 +52,6 @@ The first test logs each class's declarations and lines on each side of the surf
 A commit that deletes, wires or moves a group takes its lines off the lists and its block out of this record.
 
 == groups ==
-group agentloop-delegated-session
-class: wire
-surface: outside
-declarations: 6
-lines: 139
-members: internal/agentloop/contract.go NewContractState
-members: internal/agentloop/checkpoint.go
-reason: ContractState.Admit (internal/agentloop/contract.go:52) is the only check of a task's allowed effects and RestoreCheckpoint the only undo of an agent's mutation, and neither runs in a command, because cmd/agent-loop builds a session with no contract and no checkpoint runtime (cmd/agent-loop/main.go:185).
-reason: Step consumer-checks/wire-agent-contract is the route, which binds both to the delegated mode's session, restores the command's session so that its approval is ever given, and offers a restore behind that approval.
-
 group agentloop-obligation-ledger
 class: test-held
 surface: outside

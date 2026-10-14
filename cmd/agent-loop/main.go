@@ -19,10 +19,27 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
+	"overgo/internal/invocation"
+	"overgo/internal/operatoraction"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/representation"
+	"overgo/internal/runrecord"
 )
+
+// usage names the command's forms.
+//   - a step under a serving identity, or under a delegated invocation
+//   - the restore of a delegated step's checkpoint
+const usage = "usage: agent-loop [-repo <path>] -session <id> -tool <name> (-recipe <id> -model <id> -max-steps <n> [-node <id>] | -delegated <invocation-id>) [-arguments <json>] [-preview] [-approve <operation-id>]\n" +
+	"   or: agent-loop [-repo <path>] -delegated <invocation-id> -restore <checkpoint-id> [-preview] [-approve <operation-id>]"
+
+// stepCoordinator admits one step of a session.
+//   - the coordinator, or the delegated coordinator that binds an invocation's grant and ceiling
+type stepCoordinator interface {
+	PreviewMutationDecision(context.Context, *agentloop.Session, string, json.RawMessage) (agentloop.DecisionPreview, error)
+	ApproveMutation(context.Context, *agentloop.Session, string, json.RawMessage, artifact.ID) (artifact.ID, error)
+	Propose(context.Context, *agentloop.Session, string, json.RawMessage) (json.RawMessage, error)
+}
 
 func main() {
 	clioptions.MainNamed("agent-loop", func() error { return run(os.Args[1:], os.Stdout) })
@@ -35,10 +52,11 @@ func run(args []string, output io.Writer) error {
 	sessionID := flags.String("session", "", "agent session identifier")
 	tool := flags.String("tool", "", "registered tool manual name to propose")
 	arguments := flags.String("arguments", "{}", "strict JSON object of tool arguments")
-	approve := flags.String("approve", "", "grant the mutation step by naming the operation identity -preview printed")
-	preview := flags.Bool("preview", false, "print the decision preview for this step instead of proposing it")
+	approve := flags.String("approve", "", "grant the mutation step or the restore by naming the operation identity -preview printed")
+	preview := flags.Bool("preview", false, "print the decision preview for this step or restore instead of running it")
 	steered := flags.String("steered", "", "print the steered proposal phase for this residual direction instead of proposing")
 	delegated := flags.String("delegated", "", "run the step under this delegated agent invocation identity")
+	restore := flags.String("restore", "", "restore this checkpoint of a delegated step instead of proposing")
 	recipeText := flags.String("recipe", "", "serving recipe artifact id the step records against")
 	modelText := flags.String("model", "", "serving model artifact id the step records against")
 	node := flags.String("node", "respond", "interaction node the step records against")
@@ -47,16 +65,11 @@ func run(args []string, output io.Writer) error {
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	if flags.NArg() != 0 || strings.TrimSpace(*sessionID) == "" || strings.TrimSpace(*tool) == "" || maxSteps <= 0 {
-		return errors.New("usage: agent-loop [-repo <path>] -session <id> -tool <name> -recipe <id> -model <id> -max-steps <n> [-node <id>] [-arguments <json>] [-preview] [-approve <operation-id>]")
-	}
-	recipeID, err := artifact.ParseID(strings.TrimSpace(*recipeText))
-	if err != nil {
-		return fmt.Errorf("agent-loop: recipe id: %w", err)
-	}
-	modelID, err := artifact.ParseID(strings.TrimSpace(*modelText))
-	if err != nil {
-		return fmt.Errorf("agent-loop: model id: %w", err)
+	name, toolName := strings.TrimSpace(*sessionID), strings.TrimSpace(*tool)
+	invocationText, checkpointText := strings.TrimSpace(*delegated), strings.TrimSpace(*restore)
+	if flags.NArg() != 0 || checkpointText == "" && (name == "" || toolName == "") ||
+		checkpointText != "" && invocationText == "" || invocationText == "" && maxSteps <= 0 {
+		return errors.New(usage)
 	}
 	root, err := dataroot.StoreRoot(*repository)
 	if err != nil {
@@ -71,48 +84,78 @@ func run(args []string, output io.Writer) error {
 	if strings.TrimSpace(*steered) != "" {
 		return printSteeredPhase(ctx, store, strings.TrimSpace(*steered), output)
 	}
-	if strings.TrimSpace(*delegated) != "" {
-		return runDelegatedStep(
-			ctx, store, strings.TrimSpace(*delegated), strings.TrimSpace(*sessionID),
-			strings.TrimSpace(*tool), json.RawMessage(*arguments), *preview, output,
-		)
-	}
 	executor := agenttool.NewOperatorExecutor()
 	if err := agenttool.RegisterStandardBuiltins(executor, store); err != nil {
 		return err
 	}
-	coordinator, err := agentloop.New(store, executor, agentloop.Identity{
-		Recipe: recipeID, Model: modelID, Node: recipe.NodeID(strings.TrimSpace(*node)),
-	}, maxSteps)
-	if err != nil {
-		return err
+	var coordinator stepCoordinator
+	var session *agentloop.Session
+	project := func(decision agentloop.DecisionPreview) any { return decision }
+	if invocationText != "" {
+		runtime, err := delegatedRuntime(ctx, store, executor, invocationText)
+		if err != nil {
+			return err
+		}
+		if checkpointText != "" {
+			return restoreCheckpoint(ctx, store, runtime, checkpointText, *preview, strings.TrimSpace(*approve), output)
+		}
+		if session, err = runtime.RestoreSession(ctx, name); err != nil {
+			return err
+		}
+		manuals, err := runtime.SessionManuals()
+		if err != nil {
+			return err
+		}
+		names := make([]string, 0, len(manuals))
+		for _, manual := range manuals {
+			names = append(names, manual.Name)
+		}
+		coordinator, project = runtime.Coordinator, func(decision agentloop.DecisionPreview) any {
+			return struct {
+				Invocation  artifact.ID               `json:"invocation"`
+				Manuals     []string                  `json:"manuals"`
+				Obligations int                       `json:"obligations"`
+				Decision    agentloop.DecisionPreview `json:"decision"`
+			}{runtime.Compiled.Invocation.ID, names, len(runtime.Obligations), decision}
+		}
+	} else {
+		recipeID, err := artifact.ParseID(strings.TrimSpace(*recipeText))
+		if err != nil {
+			return fmt.Errorf("agent-loop: recipe id: %w", err)
+		}
+		modelID, err := artifact.ParseID(strings.TrimSpace(*modelText))
+		if err != nil {
+			return fmt.Errorf("agent-loop: model id: %w", err)
+		}
+		served, err := agentloop.New(store, executor, agentloop.Identity{
+			Recipe: recipeID, Model: modelID, Node: recipe.NodeID(strings.TrimSpace(*node)),
+		}, maxSteps)
+		if err != nil {
+			return err
+		}
+		if session, err = served.RestoreSession(ctx, name); err != nil {
+			return err
+		}
+		coordinator = served
 	}
-	session := &agentloop.Session{ID: strings.TrimSpace(*sessionID)}
 	if *preview {
-		// Approving is a separate invocation: this one only projects the
-		// decision facts -- including the operation identity a later
-		// -approve must name -- and records nothing.
-		projected, err := coordinator.PreviewMutationDecision(ctx, session, strings.TrimSpace(*tool), json.RawMessage(*arguments))
+		// A preview records nothing, and a later run's -approve names the operation identity it prints.
+		projected, err := coordinator.PreviewMutationDecision(ctx, session, toolName, json.RawMessage(*arguments))
 		if err != nil {
 			return err
 		}
-		encoded, err := json.Marshal(projected)
-		if err != nil {
-			return err
-		}
-		_, err = fmt.Fprintf(output, "%s\n", encoded)
-		return err
+		return printJSON(output, project(projected))
 	}
 	if strings.TrimSpace(*approve) != "" {
 		approved, err := artifact.ParseID(strings.TrimSpace(*approve))
 		if err != nil {
 			return fmt.Errorf("agent-loop: approval operation id: %w", err)
 		}
-		if _, err := coordinator.ApproveMutation(ctx, session, strings.TrimSpace(*tool), json.RawMessage(*arguments), approved); err != nil {
+		if _, err := coordinator.ApproveMutation(ctx, session, toolName, json.RawMessage(*arguments), approved); err != nil {
 			return err
 		}
 	}
-	result, err := coordinator.Propose(ctx, session, strings.TrimSpace(*tool), json.RawMessage(*arguments))
+	result, err := coordinator.Propose(ctx, session, toolName, json.RawMessage(*arguments))
 	if err != nil {
 		return err
 	}
@@ -120,74 +163,106 @@ func run(args []string, output io.Writer) error {
 	return err
 }
 
-// runDelegatedStep proposes one step under the exact delegated invocation:
-// the joined delegated capability runtime compiles the grant, wires the
-// coordinator, checkpoints, and grant-admitted proxy, and the step runs
-// only over the invocation's own manual set. With -preview it prints the
-// session's visible manuals and proposes nothing.
-func runDelegatedStep(
-	ctx context.Context,
-	store *overgodb.Store,
-	invocationText, sessionName, toolName string,
-	arguments json.RawMessage,
-	preview bool,
-	output io.Writer,
-) error {
+// delegatedRuntime loads one delegated invocation, its worker and its task, and joins their runtime.
+//   - the workspace = the working directory, under which every checkpoint target resolves
+func delegatedRuntime(ctx context.Context, store *overgodb.Store, executor *agenttool.Executor, invocationText string) (*agentloop.DelegatedCapabilityRuntime, error) {
 	invocationID, err := artifact.ParseID(invocationText)
 	if err != nil {
-		return fmt.Errorf("agent-loop: delegated invocation id: %w", err)
+		return nil, fmt.Errorf("agent-loop: delegated invocation id: %w", err)
 	}
-	invocation, err := recipe.RequireDelegatedAgentInvocation(ctx, store, invocationID)
+	delegation, err := recipe.RequireDelegatedAgentInvocation(ctx, store, invocationID)
+	if err != nil {
+		return nil, err
+	}
+	worker, err := recipe.RequireAgentDefinition(ctx, store, delegation.Worker)
+	if err != nil {
+		return nil, err
+	}
+	task, err := recipe.RequireAgentTaskContract(ctx, store, delegation.Task)
+	if err != nil {
+		return nil, err
+	}
+	return agentloop.NewDelegatedCapabilityRuntime(ctx, store, executor, delegation, worker, task, "agent", ".")
+}
+
+// restoreCheckpoint restores one stored checkpoint of a delegated step's mutation.
+//   - preview prints the restore's approval request and changes nothing
+//   - an approval that names the request's operation records the grant, and any other is refused
+//   - the restore runs only behind a recorded grant, and it binds the effect the checkpointed step recorded
+func restoreCheckpoint(
+	ctx context.Context,
+	store *overgodb.Store,
+	runtime *agentloop.DelegatedCapabilityRuntime,
+	checkpointText string,
+	preview bool,
+	approval string,
+	output io.Writer,
+) error {
+	checkpointID, err := artifact.ParseID(checkpointText)
+	if err != nil {
+		return fmt.Errorf("agent-loop: checkpoint id: %w", err)
+	}
+	checkpoint, err := runrecord.RequireAgentMutationCheckpoint(ctx, store, checkpointID)
 	if err != nil {
 		return err
 	}
-	worker, err := recipe.RequireAgentDefinition(ctx, store, invocation.Worker)
-	if err != nil {
-		return err
-	}
-	task, err := recipe.RequireAgentTaskContract(ctx, store, invocation.Task)
-	if err != nil {
-		return err
-	}
-	executor := agenttool.NewOperatorExecutor()
-	if err := agenttool.RegisterStandardBuiltins(executor, store); err != nil {
-		return err
-	}
-	runtime, err := agentloop.NewDelegatedCapabilityRuntime(
-		ctx, store, executor, invocation, worker, task, "agent", ".",
-	)
+	ceiling := runtime.Compiled.Invocation.ID
+	request, err := agentloop.RestoreApprovalRequest(checkpoint, ceiling)
 	if err != nil {
 		return err
 	}
 	if preview {
-		manuals, manualErr := runtime.SessionManuals()
-		if manualErr != nil {
-			return manualErr
-		}
-		names := make([]string, 0, len(manuals))
-		for _, manual := range manuals {
-			names = append(names, manual.Name)
-		}
-		encoded, encodeErr := json.Marshal(struct {
-			Invocation  artifact.ID `json:"invocation"`
-			Manuals     []string    `json:"manuals"`
-			Obligations int         `json:"obligations"`
-		}{invocation.ID, names, len(runtime.Obligations)})
-		if encodeErr != nil {
-			return encodeErr
-		}
-		_, err = fmt.Fprintf(output, "%s\n", encoded)
-		return err
+		return printJSON(output, request)
 	}
-	if sessionName == "" || toolName == "" {
-		return errors.New("agent-loop: delegated step requires -session and -tool")
+	if approval != "" {
+		approved, err := artifact.ParseID(approval)
+		if err != nil {
+			return fmt.Errorf("agent-loop: approval operation id: %w", err)
+		}
+		if approved != request.Operation {
+			return fmt.Errorf("agent-loop: approval names operation %s, and the restore of checkpoint %s is operation %s, which -preview prints", approved, checkpoint.ID, request.Operation)
+		}
+		// A decision already on record stands, so approving again publishes nothing.
+		_, recorded, err := runrecord.ResolveHumanDecision(ctx, store, request.Operation)
+		if err != nil {
+			return err
+		}
+		if !recorded {
+			decision, err := runrecord.NewHumanDecision(request, operatoraction.AnswerGrant)
+			if err != nil {
+				return err
+			}
+			if err := runrecord.PublishHumanDecision(ctx, store, request, decision); err != nil {
+				return err
+			}
+		}
 	}
-	session := &agentloop.Session{ID: sessionName}
-	result, err := runtime.Coordinator.Propose(ctx, session, toolName, arguments)
+	stimulus, found, err := runrecord.ResolveAttemptStimulus(ctx, store, checkpoint.Operation, uint32(artifact.InitialDocumentVersion))
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(output, "%s\n", result)
+	if !found {
+		return fmt.Errorf("agent-loop: checkpoint %s names operation %s, which has no recorded step", checkpoint.ID, checkpoint.Operation)
+	}
+	effect, err := invocation.RequireEffect(ctx, store, stimulus.Effect)
+	if err != nil {
+		return err
+	}
+	receipt, err := runtime.Checkpoints.RestoreCheckpoint(ctx, checkpoint, effect, ceiling)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(output, "%s\n", receipt)
+	return err
+}
+
+// printJSON writes one value as a line of JSON.
+func printJSON(output io.Writer, value any) error {
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(output, "%s\n", encoded)
 	return err
 }
 

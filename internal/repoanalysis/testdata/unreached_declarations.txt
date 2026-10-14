@@ -238,12 +238,6 @@ test-held internal/trainingdata/image.go medianFloat32
 test-held internal/trainingdata/image.go medianNeighbourRatio
 test-held internal/trainingprogram/objective.go CompileTrainingObjectiveMatrix
 test-held internal/trainingprogram/objective.go ObjectiveAuthority.AtLeast
-wire internal/agentloop/checkpoint.go MutationCheckpointRuntime.RestoreCheckpoint
-wire internal/agentloop/checkpoint.go MutationCheckpointRuntime.effectMatchesCheckpoint
-wire internal/agentloop/checkpoint.go MutationCheckpointRuntime.restoreEntry
-wire internal/agentloop/checkpoint.go MutationCheckpointRuntime.verifyPostimage
-wire internal/agentloop/checkpoint.go RestoreApprovalRequest
-wire internal/agentloop/contract.go NewContractState
 wire internal/inference/cache_state.go Runner.LoadCache
 wire internal/inference/cache_state.go Runner.SaveCache
 wire internal/inference/cache_state.go cacheLayerRecords

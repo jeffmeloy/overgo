@@ -111,6 +111,13 @@
             "shape-reading/analyzer",
             "consumer-checks/sort-unreached"
           ]
+        },
+        {
+          "id": "launch-checks",
+          "title": "Check a device launch's 32-bit limit once when a graph compiles, make attribute types exact, and delete the checks each launch repeats",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestNoLaunchRepeatsACompileCheck$'",
+          "rationale": "From the reading of step kinds-reading (docs/verification/operation-kinds.txt). A table of tensor operations would save at most 142 lines and would not make an operation addable in one place, so no row is filed for it. The repetition the reading found is each case's preamble in the ten switches, 462 lines. Of these, 126 check again the attribute type the builder and the compile already hold, and 336 narrow a shape to 32-bit words at each launch although the shape is fixed when the graph compiles. The step checks the device launch's 32-bit limit once when a graph compiles, makes each operation's attribute type exact (emptyAttributes.validFor also accepts a pointer to an attribute type today), and deletes the per-launch checks those two make unreachable. The same rule bounds 27 conversions of a dimension in the vision and convolution launches that no check bounds today. The low end of the estimate keeps the element-count checks, because a whole-graph count rule would also refuse operands over 2^32 elements that launches accept today.\nServes: failure-rate: a graph that a launch cannot hold is refused when it compiles, with its operation named, and not at a launch.\nDisappears: about 437 lines of production code, within 305 to 447, an estimate by reading.\nEvidence: the kinds-reading record derived again with no rechecks and no unbounded dimension casts left in the ten switches; the CUDA executor's tests and the device test lane unchanged.\nBatch: device; internal/tensor, internal/tensor/reference and internal/cuda/executor are in the inference surface, so it goes in one commit before a full measurement run, or with the groups of step real-repeats there."
         }
       ]
     },

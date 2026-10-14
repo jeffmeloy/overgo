@@ -61,26 +61,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "resume-rules",
-      "title": "Close the gaps the record of resume paths found, a path at a time, where a merge of the paths is not supported",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 1062,
-        "reason": "measured by the preflight of step code-in-keys' change at b3ae5ef4a: the code's name in four command keys, and the binding of the offline merge's stage to its plan and its sources' bytes"
-      },
-      "steps": [
-        {
-          "id": "input-bytes",
-          "title": "Read the four ways the bytes of an input are named, and count what one owner would delete and add",
-          "status": "open",
-          "verify": "go test ./internal/workflowruntime -count=1 -run '^TestInputBytesReadingIsWhole$'",
-          "rationale": "From docs/verification/resume-paths.txt. Four places name the bytes of an input in four ways: the files beside a model by content, the files a measurement cell is given by path, size and time, an adapter by a digest of its modules, and a merge's base by its shards' digests. Four commits of one family each added the bytes of an input to a key that lacked them (26d332f81, 78534ee41, 2ae868219, 8988728ae), so this is what the repairs have in common. Whether one owner would be smaller than the four was not measured. This step is a reading: what each of the four does, what one owner would have to offer each, lines deleted and added, and the net with its range. It changes no code and decides whether a row is filed.\nServes: the loop's upkeep: the next key that needs an input's bytes takes them from one place.\nDisappears: nothing.\nEvidence: the reading, added to docs/verification/resume-paths.txt and held by its test.\nBatch: host."
-        }
-      ]
-    },
-    {
       "id": "consumer-checks",
       "title": "Hold every committed surface to a consumer by a check at every commit, and delete what has none",
       "class": "consolidation",

@@ -401,8 +401,145 @@ The first is a test that shows whether any production path finds a lifecycle rec
 None did, so the operation's own reuse is deleted, and the part on the deleted path states what is kept and what stays in the store.
 The second is a failing test for each of the four command keys that named no code, and one for the offline merge's stage, and it is taken for three of the keys and for the merge.
 The third is one owner for naming the bytes of the files a piece of work reads.
-closing-input-bytes: four places name the bytes of an input in four ways, the files beside a model by content, the files a cell is given by path, size and time, an adapter by a digest of its modules, and an adapter merge's base and an offline merge's sources by their shards' digests | internal/capabilityruntime/runtime.go#Contents cmd/validate/cell_credit.go#consumedFiles internal/peft/merge.go#Adapter.digest internal/safetensors/stream_writer.go#DigestShards
+closing-input-bytes: four ways name the bytes of an input, the files beside a model by content and a video encoder's checkpoint by its archive's record, the files a cell is given by path, size and time, an adapter by a digest of its modules, and an adapter merge's base and an offline merge's sources by their shards' digests | internal/capabilityruntime/runtime.go#Contents internal/latentvideo/prompt_encoder.go#TextConditioningSpec.content cmd/validate/cell_credit.go#consumedFiles internal/peft/merge.go#Adapter.digest internal/safetensors/stream_writer.go#DigestShards
 That step is what the repairs have in common, since four commits of the family added the bytes of an input to a key (26d332f81, 78534ee41, 2ae868219, 8988728ae).
-Whether one owner would be smaller than the four was not measured.
+The part on input bytes estimates that one owner would not be smaller than the four, and supports no row.
 
 closing-retires: when a row that merges paths is filed from this record, or when the lead declines one
+
+== input bytes ==
+
+What was asked.
+The plan's row resume-rules, step input-bytes, asked how the four ways closing-input-bytes names name the bytes of an input, and what one owner of them would delete and add.
+Four commits of one family each added the bytes of an input to a key that lacked them (26d332f81, 78534ee41, 2ae868219, 8988728ae).
+This part was read from the tree at 4e7559aeb, nothing was run for it but its test, and no code changed for it.
+TestInputBytesReadingIsWhole (internal/workflowruntime) finds every place this part cites, counts each way's lines again from the tree, and holds the estimate's sums and its net to the entries.
+
+How to read a way.
+A way opens with the key way, and the test refuses a key this part does not define.
+A content hash reads every byte of an input, a stat triple reads each file's path, size and modification time and no byte, and a structural digest reads values the input is decoded to or a record the input keeps of itself.
+kind opens with the class of the way's name, and names a second class where one input of the way is named otherwise.
+callers are the production declarations that use the way's code, and keyed-in are the declarations that put the name into a key.
+code is the declarations that compute the name, and lines counts them from each one's doc comment to its end.
+offer is what one owner would have to give the way's callers with none of them slower or weaker.
+deletes-whole is the declarations of the code the owner would delete whole, whose lines are counted from the tree.
+estimated-deletes is the further lines the owner's change would delete, and estimated-adds is the lines it would add at the way's files and callers.
+Both are estimates of a change that was not made, counted as a diff counts lines, so a line changed in place counts once each way.
+
+way: beside-by-content
+commit: 26d332f81
+kind: content hash of each small file, and a structural digest of the video text encoder's checkpoint
+names: the files a model reads beside its inventory, a small file by all its bytes and the umT5 encoder checkpoint by its archive's record of each entry's name, length and CRC-32 | internal/capabilityruntime/runtime.go#Contents internal/latentvideo/prompt_encoder.go#TextConditioningSpec.content internal/pytorchzip/pytorchzip.go#Record
+why: the name is computed again for every served request, so only a file small enough to read each time is read whole, and the checkpoint of 11 GB is named from its archive's directory, which reads no entry (26d332f81 timed the three names at 9 ms on the model's own files) | internal/latentvideo/prompt_encoder.go#TextConditioningSpec.content
+notices: other bytes in a small file under the same place, size and time, and a checkpoint written again with other bytes
+ignores: a file's place, size and time, so a copy or a touch keeps the name and a stored answer is given again
+misses: a value changed inside the checkpoint while the archive's directory stays as it was | internal/pytorchzip/pytorchzip.go#Record
+unreadable: a file that cannot be read makes the request a fresh run whose answer answers no other, and an absent file is named as absent | internal/capabilityruntime/runtime.go#Reading
+callers: internal/mediacapability/image_source.go#raeImage internal/mediacapability/video_cuda_windows.go#videoCapability internal/latentvideo/prompt_encoder.go#promptEncoderFor internal/latentvideo/wan_form.go#wanConditioning.contexts
+keyed-in: internal/capabilityruntime/measured.go#measuredRun internal/latentvideo/prompt_encoder.go#promptEncoderFor internal/latentvideo/prompt_encoder.go#promptEncoder.commonRowsName internal/latentvideo/wan_form.go#wanConditioning.contexts
+code: internal/capabilityruntime/runtime.go#Contents internal/latentvideo/wan_form.go#TextPipelineIdentity internal/latentvideo/prompt_encoder.go#TextConditioningSpec.content internal/pytorchzip/pytorchzip.go#Record
+lines: 85
+closing-input-bytes cited Contents alone for this way, and Contents names only the image processor beside an RAE collection.
+Most of 26d332f81 named the video text pipeline, whose checkpoint is named by a structural digest and not by its bytes.
+offer: all the bytes of each listed file at every use, an absent file named as absent and an unreadable one as an error, which is what Contents does at what it costs now
+A content hash cached by stat would be weaker here, because 26d332f81 named these files by their bytes so that other bytes under the same size and time are seen.
+The archive's record stays in internal/pytorchzip, because only that reader reads a checkpoint's archive directory.
+TextConditioningSpec.content keeps its own loop, because it joins that record to two whole files and refuses an absent file where rows are to be made.
+deletes-whole: internal/capabilityruntime/runtime.go#Contents
+estimated-deletes: 4
+estimated-adds: 1
+The four deleted lines are three imports runtime.go would no longer use and the line of raeImage that names Contents, and the one added line is that line naming the owner.
+
+way: cell-files-by-stat
+commit: 78534ee41
+kind: stat triple of every file under each path a cell's command is given
+names: the files a cell's command is given and the cell's weights, each file under a given path by its path, size and modification time, with no file opened | cmd/validate/cell_credit.go#consumedFiles
+why: the name is bound for every cell at every run of the validate command, a cell's paths hold whole model directories and weights files, and a content hash of each at every binding would read again the tens of gigabytes the discovery memo exists to spare | internal/discovery/memo_evidence.go#IdentityEvidence
+notices: a file replaced or changed so that its size or time moved, and a file added or removed under a given directory
+ignores: a relative argument, which is a committed file the credit's commit fixes
+misses: an edit that keeps a file's size and time, and a file whose time moved with the same bytes is taken as changed, so its cell runs again
+unreadable: a path that cannot be read gives a value no later binding repeats, so its cell is never credited | cmd/validate/cell_credit.go#consumedFiles
+callers: cmd/validate/bound_records.go#bindCells
+keyed-in: cmd/validate/cell_credit.go#cellKey cmd/loop/improve.go#obligationsDigest
+code: cmd/validate/cell_credit.go#consumedFiles
+lines: 36
+offer: the path, size and time of every file under a path with no file opened, at what the walk costs now
+The cell's own rules stay in consumedFiles, which are the paths its command is given, a relative argument left to the commit, an unreadable path named by a value no binding repeats, and the map that reads each path once a binding.
+deletes-whole: none
+estimated-deletes: 13
+estimated-adds: 4
+The thirteen deleted lines are the walk that names each file under a path and two imports only it uses, and the four added lines are the call into the owner, its error and an import.
+
+way: adapter-by-values
+commit: 2ae868219
+kind: structural digest of the values an adapter is decoded to
+names: an adapter by its scale rule and, per module in name order, the module's name, rank, widths, alpha and both factors' values | internal/peft/merge.go#Adapter.digest
+why: the adapter merge receives an adapter already decoded and no path, and its values are what the merge adds to a weight, so naming them costs one pass over factors that hold a module's rank times the sum of its two widths where its weight holds their product
+notices: any value that changes what a module adds to its weight, the scale rule among them
+ignores: how and where the adapter is stored, so the same values saved again or elsewhere keep the name
+misses: no value the merge adds, because the merge adds the values the digest names
+unreadable: an adapter that does not decode never reaches the merge, and the merge refuses an invalid adapter before it names one | internal/peft/merge.go#Merge
+callers: internal/peft/merge.go#mergePlan
+keyed-in: internal/peft/merge.go#mergePlan
+code: internal/peft/merge.go#Adapter.digest
+lines: 16
+2ae868219 exported the digest for the change proposer's corpus, which the tree no longer holds, and the adapter merge alone reads it now.
+offer: nothing, because an owner of the bytes of files cannot name values that reach the merge with no file
+A name of the adapter's files would move with a save that changes no value, so a stage the merge could finish would be refused.
+deletes-whole: none
+estimated-deletes: 0
+estimated-adds: 0
+
+way: shards-by-content
+commit: 8988728ae
+kind: content hash of every shard
+names: a merge's base or sources by each shard's name, size and SHA-256 of all its bytes, read through the handles the merge then streams from, in name order | internal/safetensors/source.go#Source.ShardDigests internal/safetensors/stream_writer.go#DigestShards
+why: the name binds a staged merge to the bytes it is computed from, and the merge reads every byte of its sources anyway, so the name costs one more read of them and no new class of cost | internal/peft/merge.go#mergePlan
+notices: any byte of any shard
+ignores: a shard's directory and time, so the same bytes elsewhere keep the name
+misses: no byte of a shard, and a shard whose size or time moves while it is hashed is refused | internal/safetensors/source.go#Source.ShardDigests
+unreadable: a shard that cannot be hashed refuses the merge before any tensor is written | internal/peft/merge.go#mergePlan internal/modelmerge/streaming.go#nameOpenedStreamingShards
+callers: internal/peft/merge.go#mergePlan internal/modelmerge/streaming.go#nameOpenedStreamingShards
+keyed-in: internal/peft/merge.go#mergePlan internal/modelmerge/streaming.go#compileStreamingOutput
+code: internal/safetensors/stream_writer.go#DigestShards internal/safetensors/source.go#Source.ShardDigests
+lines: 41
+8988728ae bound the change proposer's staged candidates to their base, and the proposer is gone, so the shape it gave lives on in the adapter merge and the offline merge.
+200955a39 moved DigestShards from the adapter merge into internal/safetensors, so the two merges take a source's name from one place already.
+Source.ShardDigests also names the weights an input projection and a speaker model load, which an owner would go on serving (internal/adaptertrain/input_projection.go#LoadInputProjection, internal/speechrecognition/speaker.go#loadSpeaker).
+offer: nothing new, because DigestShards is already the one place both merges take a source's name from
+A content hash cached by stat would spare a resumed merge the extra read, and would bind its stage to the bytes as last hashed instead of the bytes read through the handles it streams from, which is weaker.
+Moving DigestShards into the owner would delete its lines and add them again elsewhere, so the move is not counted.
+deletes-whole: none
+estimated-deletes: 0
+estimated-adds: 0
+
+What one owner would be.
+owner: one package that names the bytes of an input for every key, which internal/artifact would be because it names a file by all its bytes already | internal/artifact/content.go#IdentifyFile
+The owner would hold a mode for each naming it can take from a way with no caller slower or weaker.
+Those modes are two, all the bytes of listed files from the files beside a model, and the stat triple of the files under a path from the cells.
+estimated-owner-lines: 40
+The forty lines are the body of Contents as a function of its own, the walk of consumedFiles as a function of its own, their doc comments and five imports, so the owner adds about what the two ways delete.
+
+Where a cached content hash exists.
+stat-cache: a file's content digest reused while its size and modification time hold, kept in the store from one process to the next, exists in internal/discovery, and the validate command loads it already for its registered catalog | internal/discovery/memo.go#Memo internal/discovery/servable.go#identifyLocation internal/discovery/memo_evidence.go#LoadMemo internal/discovery/memo_evidence.go#PublishMemo cmd/validate/main.go#registeredCells
+It could name the cells' files by their bytes at the stat triple's cost while nothing moves, and it misses what the stat triple misses, an edit that keeps size and time.
+It would read again a file whose size or time moved, and it would keep the credit of a cell whose file was only touched.
+That changes what the cells' key ignores and does not make the key smaller, it adds the memo's loading, passing and publication to the binding, and it is the operator's to weigh.
+It could not serve the files beside a model or a merge's sources without weakening them, as the ways' offers say.
+
+The estimate.
+ways-lines: 178
+estimated-deleted: 38
+estimated-added: 45
+estimated-net: -7
+estimated-net-range: -22 10
+estimated-net is estimated-deleted minus estimated-added, so a negative net is lines the tree would gain.
+The high end of the range is a tighter owner that also takes the loop of TextConditioningSpec.content, and the low end adds the stat cache for the cells, about fifteen lines to load, pass and publish the memo.
+No owner was built, so every figure of this part but ways-lines and the lines of deletes-whole is an estimate.
+
+Where the next key takes an input's bytes.
+next-key: a key takes an input's bytes from the owner of its cost, a small file read whole from IdentifyFile, a weights file whose size and time are trusted from the discovery memo, the bytes a merge streams from ShardDigests and DigestShards, and a PyTorch archive's entries from Record | internal/artifact/content.go#IdentifyFile internal/discovery/servable.go#WeightsIdentity internal/safetensors/source.go#Source.ShardDigests internal/safetensors/stream_writer.go#DigestShards internal/pytorchzip/pytorchzip.go#Record
+
+Whether the evidence supports a row.
+input-bytes-row: no, because one owner would add about as many lines as it deletes (an estimated net of -7, between -22 and 10), two of the four ways cannot move into it without becoming weaker, and the merges' way has one place already
+The one change that would buy something is the stat cache for the cells' files, which changes what a key ignores and is no merge.

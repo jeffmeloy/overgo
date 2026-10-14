@@ -17,6 +17,63 @@ import (
 	"overgo/internal/testutil"
 )
 
+// recordPlace is a place the record cites, written file.go#Name or file.go#Type.Name.
+var recordPlace = regexp.MustCompile(`^([A-Za-z0-9_./-]+\.go)#(?:([A-Za-z_][A-Za-z0-9_]*)\.)?([A-Za-z_][A-Za-z0-9_]*)$`)
+
+// receiverName names the type a method is declared on, without its pointer and its type parameters.
+func receiverName(function *ast.FuncDecl) string {
+	if function.Recv == nil || len(function.Recv.List) == 0 {
+		return ""
+	}
+	for expression := function.Recv.List[0].Type; ; {
+		switch typed := expression.(type) {
+		case *ast.StarExpr:
+			expression = typed.X
+		case *ast.IndexExpr:
+			expression = typed.X
+		case *ast.IndexListExpr:
+			expression = typed.X
+		case *ast.Ident:
+			return typed.Name
+		default:
+			return ""
+		}
+	}
+}
+
+// declarationOf finds the declaration of name in file, a method of owner when owner is given.
+//   - a declaration written alone carries its doc comment, so the whole declaration is the node
+//   - a declaration written in a group is its own line of the group
+//   - countable = a function, a method or a package variable
+func declarationOf(file *ast.File, owner, name string) (node ast.Node, countable, found bool) {
+	for _, each := range file.Decls {
+		switch typed := each.(type) {
+		case *ast.FuncDecl:
+			if typed.Name.Name == name && receiverName(typed) == owner {
+				return typed, true, true
+			}
+		case *ast.GenDecl:
+			for _, spec := range typed.Specs {
+				var names []*ast.Ident
+				switch spec := spec.(type) {
+				case *ast.TypeSpec:
+					names = []*ast.Ident{spec.Name}
+				case *ast.ValueSpec:
+					names = spec.Names
+				}
+				if owner != "" || !slices.ContainsFunc(names, func(ident *ast.Ident) bool { return ident.Name == name }) {
+					continue
+				}
+				if typed.Lparen.IsValid() {
+					return spec, typed.Tok == token.VAR, true
+				}
+				return typed, typed.Tok == token.VAR, true
+			}
+		}
+	}
+	return nil, false, false
+}
+
 // TestResumePathRecordIsWhole holds the record of the paths that resume or reuse finished work to the tree.
 //   - path = one of the three the test names, each with its record, identity, retry rule, counted declarations, readers and tests
 //   - counted declaration = a production function, method or package variable its file declares, counted in one path only
@@ -109,64 +166,18 @@ func TestResumePathRecordIsWhole(t *testing.T) {
 		})
 		return nodes
 	}
-	// receiver names the type a method is declared on, without its pointer and its type parameters.
-	receiver := func(function *ast.FuncDecl) string {
-		if function.Recv == nil || len(function.Recv.List) == 0 {
-			return ""
-		}
-		for expression := function.Recv.List[0].Type; ; {
-			switch typed := expression.(type) {
-			case *ast.StarExpr:
-				expression = typed.X
-			case *ast.IndexExpr:
-				expression = typed.X
-			case *ast.IndexListExpr:
-				expression = typed.X
-			case *ast.Ident:
-				return typed.Name
-			default:
-				return ""
-			}
-		}
-	}
 	// declared finds what a place names, and says whether it is a function, a method or a package variable.
-	//   - a declaration written alone carries its doc comment, so the whole declaration is the node
-	//   - a declaration written in a group is its own line of the group
-	place := regexp.MustCompile(`^([A-Za-z0-9_./-]+\.go)#(?:([A-Za-z_][A-Za-z0-9_]*)\.)?([A-Za-z_][A-Za-z0-9_]*)$`)
 	declared := func(what, cited string) (ast.Node, bool) {
 		t.Helper()
-		match := place.FindStringSubmatch(cited)
+		match := recordPlace.FindStringSubmatch(cited)
 		if match == nil {
 			t.Fatalf("the record's %s cites %q, want file.go#Name or file.go#Type.Name", what, cited)
 		}
-		file, owner, name := match[1], match[2], match[3]
-		for _, each := range syntax(what, file).Decls {
-			switch typed := each.(type) {
-			case *ast.FuncDecl:
-				if typed.Name.Name == name && receiver(typed) == owner {
-					return typed, true
-				}
-			case *ast.GenDecl:
-				for _, spec := range typed.Specs {
-					var names []*ast.Ident
-					switch spec := spec.(type) {
-					case *ast.TypeSpec:
-						names = []*ast.Ident{spec.Name}
-					case *ast.ValueSpec:
-						names = spec.Names
-					}
-					if owner != "" || !slices.ContainsFunc(names, func(ident *ast.Ident) bool { return ident.Name == name }) {
-						continue
-					}
-					if typed.Lparen.IsValid() {
-						return spec, typed.Tok == token.VAR
-					}
-					return typed, typed.Tok == token.VAR
-				}
-			}
+		node, countable, found := declarationOf(syntax(what, match[1]), match[2], match[3])
+		if !found {
+			t.Fatalf("the record's %s cites %s, which %s does not declare", what, cited, match[1])
 		}
-		t.Fatalf("the record's %s cites %s, which %s does not declare", what, cited, file)
-		return nil, false
+		return node, countable
 	}
 	// places reads a list of places and holds each to the tree.
 	const absent = "none"

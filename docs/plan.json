@@ -118,16 +118,6 @@
             "shape-reading/analyzer",
             "consumer-checks/sort-unreached"
           ]
-        },
-        {
-          "id": "kinds-reading",
-          "title": "Read what each switch over the tensor operations decides, and count what one table of operations would delete and add",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestKindsReadingRecordIsWhole$'",
-          "rationale": "The owner's expectation is that consolidation exposes the structural refactors. The first reading exposes one: of 146 switches over named constants (5,706 lines, 85 families), the tensor operations are decided in 10 switches of 2,043 lines, in 10 functions across 4 packages, over 65 constants. Adding or changing an operation means ten places. The next families are far smaller: the media codec kinds (9 switches, 658 lines, 3 packages), the GGUF value types (8, 309) and the tensor element types (6 switches, 231 lines, 5 packages). This step is a reading, as the one that judged suites-as-data was: for every operation and every one of the ten switches, what is decided there (its shape, its host arithmetic, its device launch, its cache or layout rule), which of those could be one row of a table, and what the table's machinery would cost. It reports the net with its range, and names what the table would make possible that is not possible now. It decides whether a row is filed; it changes no code. From the lead's review: the reading also says how a table of operations stands to the dense block program that was taken out (docs/verification/dense-block-program.txt), which failed two of its five conditions and named two operations it lacked, so that a row filed from this reading does not repeat that pilot under another name.\nServes: train and serve: one place to add an operation; the loop's upkeep.\nDisappears: nothing.\nEvidence: docs/verification/operation-kinds.txt, derived by the test from the analyzer's listing of the ten switches at the commit it names.\nBatch: host; nothing inside the inference surface changes.",
-          "depends_on": [
-            "shape-reading/analyzer"
-          ]
         }
       ]
     },

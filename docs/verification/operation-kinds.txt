@@ -1,0 +1,241 @@
+overgo operation kinds: what each switch over the tensor operations decides, what one table of operations could hold of it, what the table and the checks each case repeats would delete and add, and how the table stands to the dense block program
+tool: go test ./internal/repoanalysis -count=1 -v -run '^TestKindsReadingRecordIsWhole$'
+code: the tree at 102f4029b with the change this record came in, and each place the reading names is a place in that tree
+taken: 2026-10-14, from the source files alone, with no model loaded, no device used and the store not opened
+read by: TestKindsReadingRecordIsWhole (internal/repoanalysis), which reads the shape reading's largest family again from the tree, holds the part on the switches to it line for line, holds the estimate's sums to the switches and its arithmetic to its own figures, and prints the part as the tree gives it when the two differ
+
+What was asked.
+The plan's row shape-reading, step kinds-reading, asked what each switch over the tensor operations decides, which of it one table of operations could hold, and what such a table would delete and add.
+The shape reading's largest family of switches by kind is the one over the tensor operations, and the part on the switches gives its figures.
+The step asked for the net with its range, for what the table would make possible that is not possible without it, and for how the table stands to the dense block program that was taken out (docs/verification/dense-block-program.txt).
+No production code changed for it.
+
+Where an operation is decided.
+An operation is a constant of internal/tensor/tensor.go and a row of internal/tensor/operation.go#operationDescriptors, which names it, classes it, claims its backends and names the family of device launchers it belongs to.
+Its output shape is decided once, by its method of the graph builder in internal/tensor, and none of the ten switches decides a shape.
+Its attribute type says which values it carries, and that type's validFor method, or the list of operations that carry none, says which operations may carry it.
+Its host arithmetic is a case of the reference executor, and its device launch is a case of one family's launcher in internal/cuda/executor, with its kernel in the kernel manifest.
+An operation whose attributes change at each decode step (a row lookup, a rotary encoding, attention and a cache append) is also a case of the rule for per-step overrides and of the decode session's plan.
+The line operations-by-switches counts, for each number of switches, the operations that many of the ten switches name.
+No operation is named by more than four, and the operations named by four are the ones with per-step attributes.
+An operation with attributes is named by its host case and its device case, and one with none is also named by the list of operations that carry none.
+The exceptions are the two views (reshape and flat_slice), which have no host case, input, which has no arithmetic, and moe, whose device launcher switches on it alone and so falls outside the family.
+So the ten switches split the operations between the host, the device families, the attribute contract and the per-step rules, and an operation is a case of at most four of them.
+The plan's statement that adding or changing an operation means ten places counts the switches and not the places of one operation.
+
+How each switch was read.
+Each switch was read whole, case by case, and its reading is its entry's decides, row and table.
+Its counts are what the test counts again from its syntax.
+A dispatch line is a line a table deletes from a switch outright, which is the line it opens on, a case's header, a default of one statement, or its closing brace.
+A recheck is an if that refuses a failed type assertion of an operation's attributes.
+Every node passes internal/tensor/attributes.go#ValidateOperationAttributes when the builder adds it and again when its program compiles, and both executors run nodes a builder made.
+So the type an executor asserts is the type validFor admits, and a recheck refuses only a pointer to an attribute type, which validFor also admits.
+A dimension check and a count check are an if that returns the error of narrowing a shape to the 32-bit words a kernel takes, the first for a dimension and the second for a count of elements.
+A node's shape is fixed when its graph compiles, and a per-step override that changes a compiled shape is refused, so each launch repeats a check whose answer the compile already has.
+An unchecked dimension is a conversion of a shape's dimension to uint32 with no check, and a dimension rule at compile makes each of them safe.
+
+The table this reading prices.
+Package tensor cannot hold the host or the device entries, because internal/tensor/reference and internal/cuda/executor import it.
+So the table is three tables, one in each of the three packages, each indexed by operation.
+In package tensor, the descriptors gain a column for the attribute type, which replaces the list of operations that carry none and each attribute type's validFor, and refuses a pointer.
+In the reference executor, one entry per operation holds its host arithmetic, a case of one statement folded onto its row and a longer case as a function literal.
+In the CUDA executor, one entry per operation holds its launch and, for an elementwise operation, its kernel.
+Those entries replace the descriptors' launcher-family column, the table of launcher families (internal/cuda/executor/launch.go#nodeLaunchers), the families' switches and the if chains that pick a kernel by operation.
+The five attribute types with per-step values gain one interface in package tensor, whose methods replace the rule for per-step overrides.
+The decode session's switch stays, because its choice of nodes reads the decode graph and its slot kinds are the session's own.
+
+How the estimate was taken.
+table-dispatch-lines sums the dispatch lines of the switches whose table is yes.
+The scaffolding the table deletes beside them was counted by reading each file at the commit above.
+It is the signatures and closing braces of the seven device launchers (the six of the family and internal/cuda/executor/launch_moe.go#launchMoE), the MoE launcher's own switch, the head of the file of the bridge to the host, the six launchers' reads of the output pointer, the launcher-family type and its column, the table of families and its lookup at compile, the if chains that pick a kernel, the frame of the rule for per-step overrides, and the attribute contract's frames and the bodies that admit several operations.
+The rows are one line per operation in the host table and in the device table.
+The frames are a closing brace for each longer host case and each device case of one operation, a signature and a closing brace for each device case several operations share, and three lines for each method of the per-step interface, less the return lines the one-statement host cases fold onto their rows.
+The machinery is the two tables' declarations and lookups, the record a launch is called with and its building, the device entry's type, the kernel reads the chains leave, the attribute column and its comparison, and the per-step interface with its call.
+The range's low end writes every case as a named function, as the tree writes its device launchers.
+Its high end also folds into the per-step interface the two type switches beside the family that write per-step values to the device and resolve them (internal/tensor/attributes.go#RuntimeAttributeWords and internal/cuda/executor/executor.go#resolveRuntimeAttributes).
+The preamble is the rechecks, the dimension checks and the count checks of the ten switches.
+Deleting them adds one rule in the CUDA executor's compile that narrows every node's dimensions and counts once, the refusal of a pointer where validFor admits one, and the error declarations a later statement still needs.
+The preamble range's low end keeps the count checks, because a rule that bounds the elements of every node also refuses an operand of more than 2^32 elements that a launch counting no elements accepts.
+Its high end also removes the narrowing helpers' error returns.
+
+What the reading found.
+The repetition in the ten switches is not their dispatch.
+A table deletes the dispatch and the scaffolding around it and writes a row, and often a frame, for each operation, so its net is a small share of the switches' lines with a range that crosses zero.
+The larger repetition is each case's preamble, which checks again what the builder and the compile already hold, and one compile rule with an exact attribute type removes it with no table.
+The choice of mul_mat's path by the weight's element type and the choice of attention's path are each one operation's own decision, and they stay whole under any table.
+The unchecked dimensions are all in the elementwise and vision launcher, in the convolution, window, pixel shuffle, SAM attention and group norm launches.
+
+How the table stands to the dense block program.
+The dense block program wrote one block as a graph of the tensor program's operations and derived its backward graph from a derivative rule for each operation.
+It was taken out because its time and memory and its production size failed their conditions.
+It named two operations it lacked, a matrix product that contracts over its weight's other width and an attention backward over all heads in one operation.
+A table of operations as priced here reorganizes the forward dispatch and adds no derivative rule, no operation and no trainer.
+So it supplies neither operation the pilot lacked.
+Its size stands where the pilot's failed, as a mechanism whose range of net lines includes growth.
+A table that gained a column of derivative rules would be the pilot's rules under another name, with its two failed conditions, so a row filed from this reading excludes such a column.
+
+What a row would be.
+A row for the table is not worth filing, and the closing field table-row gives the reason.
+A row for the preamble is worth filing, and the lead decides.
+Its shape is to hold the device launch's 32-bit contract once when a graph compiles, to make an attribute type exact, and to delete the per-launch checks the two make unreachable.
+Its check is a test that counts no recheck and no dimension check in the ten switches, with the CUDA executor's tests and the device lane unchanged.
+It changes internal/tensor, internal/tensor/reference and internal/cuda/executor, which are in the inference surface, so it lands in one change before a full measurement run, or gathered with the groups of shape-reading/real-repeats there.
+
+== switches ==
+family: internal/tensor.Op
+switches: 10
+lines: 2043
+functions: 10
+packages: 4
+constants: 65
+operations-by-switches: 1=3 2=31 3=25 4=6
+
+switch: internal/cuda/executor/executor.go#validateRuntimeAttributes
+lines: 57
+constants: 6
+clauses: 6
+dispatch-lines: 9
+recheck-lines: 0
+dimension-check-lines: 0
+count-check-lines: 0
+unchecked-dimensions: 0
+decides: the rule for a per-step override of get_rows, the rotary encodings, attention and cache_append, which keeps the compiled row and position counts and policy and lets rows move within the table, attention's query start and logical tokens within its compiled capacity, and an append's offset within the cache
+row: a method of each of the five attribute types with per-step values, in one interface with the words those types write to the device and their resolution from a pointer
+table: yes
+
+switch: internal/cuda/executor/launch_attention_layout.go#launchAttentionLayout
+lines: 347
+constants: 4
+clauses: 5
+dispatch-lines: 8
+recheck-lines: 3
+dimension-check-lines: 27
+count-check-lines: 21
+unchecked-dimensions: 0
+decides: the device launch of reshape as a copy, of attention by one of five paths (the split single-query decode kernel, the batched matrix products, the tiled kernel, the online kernel and the plain kernel), of concat as an append in place when its output is its left input, and of cache_append as a copy and a write at a device-resident offset
+row: the entry of each operation, while attention's choice of path is attention's own and stays whole in its function
+table: yes
+
+switch: internal/cuda/executor/launch_linear_layout.go#launchLinearLayout
+lines: 496
+constants: 11
+clauses: 12
+dispatch-lines: 15
+recheck-lines: 18
+dimension-check-lines: 39
+count-check-lines: 27
+unchecked-dimensions: 0
+decides: the device launch of the three normalizations, softmax, the two slices, repeat_heads and transpose_2d as one kernel each, of get_rows by the table's element type, and of mul_mat and grouped_mul_mat by the weight's element type (half precision, FP8, quantized or F32) with each path's staging and its cuBLAS or span kernel
+row: the entry of each operation, while mul_mat's choice by element type is a decision over the tensor element types, which is another family of the shape reading, and stays whole
+table: yes
+
+switch: internal/cuda/executor/launch_math_vision.go#launchMathVision
+lines: 310
+constants: 26
+clauses: 15
+dispatch-lines: 18
+recheck-lines: 30
+dimension-check-lines: 21
+count-check-lines: 42
+unchecked-dimensions: 27
+decides: the device launch of lora_merge, of add, multiply and divide as a same-shape or a broadcast kernel, of scale, clamp, bf16_round and xielu, of the unary activations through one launch whose kernel an if chain picks by operation, and of the vision operations (conv_1d_same, conv_2d by cuBLAS over im2col or a direct kernel, the window partitions, pixel_shuffle_2d, sam_attention, group_norm, l2_norm)
+row: the entry of each operation and, as a column, the kernel each elementwise operation launches, which replaces the if chains
+table: yes
+
+switch: internal/cuda/executor/launch_recurrent_selection.go#launchRecurrentSelection
+lines: 402
+constants: 14
+clauses: 15
+dispatch-lines: 18
+recheck-lines: 9
+dimension-check-lines: 114
+count-check-lines: 21
+unchecked-dimensions: 0
+decides: the device launch of the state-space and recurrent operations (ssm_conv, ssm_scan, gated_delta_net, gated_linear_attention, wkv6, wkv7), the row reductions and selections (sum_rows, fwht, the top-k operations, gather_last) and the sparse attention operations (sparse_attention, indexer_score), each by reading its dimensions, narrowing them to 32-bit words and launching its kernel
+row: the entry of each operation, while each body marshals its own kernel's arguments
+table: yes
+
+switch: internal/cuda/executor/launch_reference.go#launchReferenceFamily
+lines: 7
+constants: 5
+clauses: 2
+dispatch-lines: 6
+recheck-lines: 0
+dimension-check-lines: 0
+count-check-lines: 0
+unchecked-dimensions: 0
+decides: that the hyper-connection operations and compressed_attention run on the device through the bridge to the host, which copies the inputs out, runs the reference executor and copies the output back
+row: an entry naming the bridge for each of the operations, so the function and its file go
+table: yes
+
+switch: internal/cuda/executor/launch_rope.go#launchRoPE
+lines: 99
+constants: 3
+clauses: 3
+dispatch-lines: 6
+recheck-lines: 6
+dimension-check-lines: 18
+count-check-lines: 6
+unchecked-dimensions: 0
+decides: the device launch of rope_neox and rope_normal through one launch whose kernel the operation picks, and of rope_multi with its sections and layout, each reading its positions from device-resident words
+row: the entry of each operation and its kernel as a column
+table: yes
+
+switch: internal/inference/device_decode_session.go#compileDecodeSessionPlan
+lines: 37
+constants: 6
+clauses: 6
+dispatch-lines: 9
+recheck-lines: 0
+dimension-check-lines: 0
+count-check-lines: 0
+unchecked-dimensions: 0
+decides: which nodes of a decode graph take new values each step and how each copies its per-step attributes (the token rows and position rows of get_rows, the rotary encodings' positions, attention's view of the cache and cache_append's offset)
+row: none, because the choice of nodes reads the decode graph's token input, per-layer rows and position rows, and its slot kinds are the session's own, which package tensor cannot name
+table: no
+
+switch: internal/tensor/attributes.go#emptyAttributes.validFor
+lines: 10
+constants: 27
+clauses: 2
+dispatch-lines: 9
+recheck-lines: 0
+dimension-check-lines: 0
+count-check-lines: 0
+unchecked-dimensions: 0
+decides: which operations carry no attributes
+row: a column of internal/tensor/operation.go#operationDescriptors naming each operation's attribute type, which also replaces each attribute type's validFor and refuses a pointer to an attribute type
+table: yes
+
+switch: internal/tensor/reference/executor.go#executeNode
+lines: 278
+constants: 62
+clauses: 63
+dispatch-lines: 66
+recheck-lines: 60
+dimension-check-lines: 0
+count-check-lines: 0
+unchecked-dimensions: 0
+decides: the host arithmetic of every operation that is not a view or an input, by an inline loop for scale, clamp, xielu and the unary activations and by a named function for the rest
+row: one entry per operation holding its function or a function literal, with each case of one statement folded onto its row
+table: yes
+
+== estimate ==
+table-dispatch-lines: 155
+estimated-scaffolding-deleted: 192
+table-deleted: 347
+estimated-rows-added: 126
+estimated-frames-added: 65
+estimated-machinery-added: 44
+table-added: 235
+table-net: 112
+table-net-range: -56 142
+preamble-lines: 462
+estimated-preamble-added: 25
+preamble-net: 437
+preamble-net-range: 305 447
+makes-possible: a device operation declared in one place where the tree holds two that must agree (its family in the descriptors and its case in that family's switch), and a test that refuses an operation a descriptor claims for a backend whose table lacks it, with no device and no graph run
+not-made-possible: adding an operation in one place, because the host and the device executors import package tensor, so each keeps its own table and an operation stays a constant, a descriptor, a builder method, a host entry, a device entry and a kernel
+dense-block-program: the table reorganizes the forward dispatch and adds no derivative rule, no operation and no trainer, so it neither supplies what the pilot lacked nor repeats it, and a table that gained a column of derivative rules would be the pilot under another name
+table-row: no, because its net is a small share of the switches' lines with a range that crosses zero, it leaves an operation in as many places as the switches do, and it changes the inference surface for no capability
+preamble-row: yes, because the rechecks and the 32-bit checks are the largest repetition in the switches, one compile rule and an exact attribute type delete them with no table, and the same rule makes the unchecked dimensions safe

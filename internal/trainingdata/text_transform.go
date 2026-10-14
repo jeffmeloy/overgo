@@ -33,7 +33,6 @@ var textTransformCodec = artifact.JSONDocumentCodec(
 	},
 	func(value TextTransform) artifact.ID { return value.ID },
 	func(value *TextTransform, id artifact.ID) { value.ID = id },
-	func(value TextTransform) TextTransform { return value },
 )
 
 // NewTextTransform seals explicit preservation or Unicode lowercase handling.

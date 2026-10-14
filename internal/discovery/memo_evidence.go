@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
-	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -47,7 +46,6 @@ var identityEvidenceCodec = artifact.JSONDocumentCodec(
 	"file identity memo", artifact.KindEvidence, IdentityEvidenceMediaType, IdentityEvidenceSchema,
 	validateIdentityEvidence, func(value IdentityEvidence) artifact.ID { return value.ID },
 	func(value *IdentityEvidence, id artifact.ID) { value.ID = id },
-	func(value IdentityEvidence) IdentityEvidence { value.Rows = slices.Clone(value.Rows); return value },
 )
 
 func validateIdentityEvidence(value *IdentityEvidence) error {

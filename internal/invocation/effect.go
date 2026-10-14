@@ -83,7 +83,6 @@ var effectCodec = artifact.JSONDocumentCodec(
 	canonicalizeEffect,
 	func(value Effect) artifact.ID { return value.ID },
 	func(value *Effect, id artifact.ID) { value.ID = id },
-	cloneEffect,
 )
 
 // NewEffect validates and content-addresses a resolved effect.
@@ -163,13 +162,4 @@ func canonicalizeEffect(value *Effect) error {
 		return errors.New("invocation: mutation must be exactly known or explicitly opaque")
 	}
 	return nil
-}
-
-func cloneEffect(value Effect) Effect {
-	value.Targets = slices.Clone(value.Targets)
-	if value.ObservedResult != nil {
-		result := *value.ObservedResult
-		value.ObservedResult = &result
-	}
-	return value
 }

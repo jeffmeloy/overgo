@@ -87,10 +87,6 @@ var retrievalCaseCodec = artifact.JSONDocumentCodec(
 	canonicalizeRetrievalCase,
 	func(value RetrievalCase) artifact.ID { return value.ID },
 	func(value *RetrievalCase, id artifact.ID) { value.ID = id },
-	func(value RetrievalCase) RetrievalCase {
-		value.Judgments = slices.Clone(value.Judgments)
-		return value
-	},
 )
 
 var retrievalEvaluationCodec = artifact.JSONDocumentCodec(
@@ -98,7 +94,6 @@ var retrievalEvaluationCodec = artifact.JSONDocumentCodec(
 	canonicalizeRetrievalEvaluation,
 	func(value retrievalEvaluation) artifact.ID { return value.ID },
 	func(value *retrievalEvaluation, id artifact.ID) { value.ID = id },
-	func(value retrievalEvaluation) retrievalEvaluation { return value },
 )
 
 // NewRetrievalCase validates and identifies one ranking or abstention case.

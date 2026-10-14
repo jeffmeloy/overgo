@@ -56,10 +56,7 @@ var evaluationCodec = artifact.DocumentCodec[Evaluation]{
 		return nil
 	},
 	Encode: evaluationContent, Canonicalize: canonicalizeEvaluation,
-	Clone: func(value Evaluation) Evaluation {
-		value.Metrics = slices.Clone(value.Metrics)
-		return value
-	},
+	Clone:       artifact.DeepCopy[Evaluation](),
 	Identity:    func(value Evaluation) artifact.ID { return value.ID },
 	SetIdentity: func(value *Evaluation, id artifact.ID) { value.ID = id },
 }
@@ -83,7 +80,7 @@ var runCodec = artifact.DocumentCodec[Run]{
 		}
 		return nil
 	},
-	Encode: runContent, Canonicalize: canonicalizeRun, Clone: cloneRun,
+	Encode: runContent, Canonicalize: canonicalizeRun, Clone: artifact.DeepCopy[Run](),
 	Identity:    func(value Run) artifact.ID { return value.ID },
 	SetIdentity: func(value *Run, id artifact.ID) { value.ID = id },
 }
@@ -547,13 +544,6 @@ func evaluationContent(evaluation Evaluation) ([]byte, error) {
 		return nil, fmt.Errorf("run record: encode evaluation: %w", err)
 	}
 	return content, nil
-}
-
-func cloneRun(run Run) Run {
-	run.Inputs = slices.Clone(run.Inputs)
-	run.Outputs = slices.Clone(run.Outputs)
-	run.Phases = slices.Clone(run.Phases)
-	return run
 }
 
 func runContractForVersion(version uint16) artifact.DocumentContract {

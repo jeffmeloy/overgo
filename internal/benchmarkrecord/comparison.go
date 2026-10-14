@@ -136,7 +136,6 @@ var benchmarkComparisonCodec = artifact.JSONDocumentCodec(
 	canonicalizeBenchmarkComparison,
 	func(value BenchmarkComparisonRecord) artifact.ID { return value.ID },
 	func(value *BenchmarkComparisonRecord, id artifact.ID) { value.ID = id },
-	cloneBenchmarkComparison,
 )
 
 // NewBenchmarkComparisonRecord validates and identifies one lossless paired result.
@@ -167,22 +166,6 @@ func (value BenchmarkComparisonRecord) Lineage() []artifact.Lineage {
 	slices.SortFunc(parents, artifact.CompareID)
 	parents = slices.Compact(parents)
 	return artifact.DependencyLineage(value.ID, parents...)
-}
-
-func cloneBenchmarkComparison(value BenchmarkComparisonRecord) BenchmarkComparisonRecord {
-	value.Identity.PromptDigests = slices.Clone(value.Identity.PromptDigests)
-	value.Baseline.Adapters = slices.Clone(value.Baseline.Adapters)
-	value.Candidate.Adapters = slices.Clone(value.Candidate.Adapters)
-	value.Warmups = slices.Clone(value.Warmups)
-	for index := range value.Warmups {
-		value.Warmups[index].TokenDigests = slices.Clone(value.Warmups[index].TokenDigests)
-	}
-	value.Pairs = slices.Clone(value.Pairs)
-	for index := range value.Pairs {
-		value.Pairs[index].Baseline.TokenDigests = slices.Clone(value.Pairs[index].Baseline.TokenDigests)
-		value.Pairs[index].Candidate.TokenDigests = slices.Clone(value.Pairs[index].Candidate.TokenDigests)
-	}
-	return value
 }
 
 func canonicalizeBenchmarkComparison(value *BenchmarkComparisonRecord) error {

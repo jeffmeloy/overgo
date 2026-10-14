@@ -130,7 +130,6 @@ var observationChunkSummaryCodec = artifact.JSONDocumentCodec(
 	canonicalizeObservationChunkSummary,
 	func(value ObservationChunkSummary) artifact.ID { return value.ID },
 	func(value *ObservationChunkSummary, id artifact.ID) { value.ID = id },
-	cloneObservationChunkSummary,
 )
 
 // NewObservationChunk canonicalizes and identifies one bounded raw chunk.
@@ -601,13 +600,6 @@ func cloneObservationChunk(value ObservationChunk) ObservationChunk {
 			value.Samples[index].Interactions = &work
 		}
 	}
-	return value
-}
-
-func cloneObservationChunkSummary(value ObservationChunkSummary) ObservationChunkSummary {
-	value.Stats.Metrics = slices.Clone(value.Stats.Metrics)
-	value.Stats.Kinds = slices.Clone(value.Stats.Kinds)
-	value.Aggregate = cloneResourceFitness(value.Aggregate)
 	return value
 }
 

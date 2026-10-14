@@ -76,10 +76,6 @@ var experimentLifecycleCodec = artifact.JSONDocumentCodec(
 	canonicalizeExperimentLifecycle,
 	func(value ExperimentLifecycle) artifact.ID { return value.ID },
 	func(value *ExperimentLifecycle, id artifact.ID) { value.ID = id },
-	func(value ExperimentLifecycle) ExperimentLifecycle {
-		value.Causal = cloneCausal(value.Causal)
-		return value
-	},
 )
 
 // NewExperimentLifecycle identifies one transition. prior is nil exactly for

@@ -38,6 +38,8 @@ var modelDefinitionCodec = artifact.DocumentCodec[ModelDefinitionDocument]{
 		return nil
 	},
 	Encode: modelDefinitionContent, Canonicalize: canonicalizeModelDefinition,
+	// Clone shares the value because model.Spec holds an unexported architecture profile pointer that artifact.DeepCopy refuses.
+	Clone:       func(value ModelDefinitionDocument) ModelDefinitionDocument { return value },
 	Identity:    func(value ModelDefinitionDocument) artifact.ID { return value.ID },
 	SetIdentity: func(value *ModelDefinitionDocument, id artifact.ID) { value.ID = id },
 }

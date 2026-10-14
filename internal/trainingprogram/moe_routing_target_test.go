@@ -72,7 +72,7 @@ func TestMoERoutingTargetRequiresDeclaredPriorStrataAndReopenTriggers(t *testing
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
-			spec := cloneMoERoutingTargetSpec(valid)
+			spec := artifact.DeepCopy[moeRoutingTargetSpec]()(valid)
 			mutate(&spec)
 			if _, err := moeRoutingTargetContract.New(moeRoutingTarget{
 				Version: artifact.InitialDocumentVersion, Candidate: candidate.ID(), moeRoutingTargetSpec: spec,
@@ -81,7 +81,7 @@ func TestMoERoutingTargetRequiresDeclaredPriorStrataAndReopenTriggers(t *testing
 			}
 		})
 	}
-	invalidUniform := cloneMoERoutingTargetSpec(valid)
+	invalidUniform := artifact.DeepCopy[moeRoutingTargetSpec]()(valid)
 	invalidUniform.Mode = moeRoutingTargetUniform
 	if _, err := moeRoutingTargetContract.New(moeRoutingTarget{
 		Version: artifact.InitialDocumentVersion, Candidate: candidate.ID(), moeRoutingTargetSpec: invalidUniform,

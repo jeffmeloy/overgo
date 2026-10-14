@@ -18,7 +18,7 @@ const (
 var sftEvaluationViewCodec = artifact.JSONDocumentCodec(
 	"SFT evaluation view", artifact.KindProfile, sftEvaluationViewMediaType, sftEvaluationViewSchema,
 	canonicalizeSFTEvaluationView, func(value SFTEvaluationView) artifact.ID { return value.ID },
-	func(value *SFTEvaluationView, id artifact.ID) { value.ID = id }, cloneSFTEvaluationView,
+	func(value *SFTEvaluationView, id artifact.ID) { value.ID = id },
 )
 
 // SFTEvaluationView binds an objective to its training membership and a disjoint held-out membership.
@@ -123,13 +123,4 @@ func canonicalizeSFTEvaluationView(view *SFTEvaluationView) error {
 		}
 	}
 	return nil
-}
-
-func cloneSFTEvaluationView(view SFTEvaluationView) SFTEvaluationView {
-	view.Processors = slices.Clone(view.Processors)
-	view.Projectors = slices.Clone(view.Projectors)
-	view.Codecs = slices.Clone(view.Codecs)
-	view.Signature = view.Signature.Clone()
-	view.Records = slices.Clone(view.Records)
-	return view
 }

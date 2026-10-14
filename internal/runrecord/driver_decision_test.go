@@ -374,7 +374,7 @@ func TestEvidenceDriverDecisionContract(t *testing.T) {
 		}},
 	} {
 		t.Run("refuses mutation "+test.name, func(t *testing.T) {
-			mutated := cloneDriverDecision(decision)
+			mutated := driverDecisionCodec.Clone(decision)
 			test.mutate(&mutated)
 			if _, err := mutated.Content(); err == nil {
 				t.Fatal("mutated decision retained valid identity")

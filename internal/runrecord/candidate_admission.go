@@ -84,7 +84,7 @@ var candidateAdmissionCodec = artifact.JSONDocumentCodec(
 	CandidateAdmissionMediaType, CandidateAdmissionSchema,
 	canonicalizeCandidateAdmission,
 	func(value CandidateAdmission) artifact.ID { return value.ID },
-	func(value *CandidateAdmission, id artifact.ID) { value.ID = id }, nil,
+	func(value *CandidateAdmission, id artifact.ID) { value.ID = id },
 )
 
 // AdmitCandidate is the single cross-domain eligibility decision owner.

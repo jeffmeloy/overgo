@@ -59,7 +59,7 @@ type EvaluationEvidence struct {
 var evaluationEvidenceCodec = artifact.JSONDocumentCodec(
 	"evaluation evidence", artifact.KindEvidence, evaluationEvidenceMedia, evaluationEvidenceSchema,
 	canonicalizeEvaluationEvidence, func(value EvaluationEvidence) artifact.ID { return value.ID },
-	func(value *EvaluationEvidence, id artifact.ID) { value.ID = id }, cloneEvaluationEvidence,
+	func(value *EvaluationEvidence, id artifact.ID) { value.ID = id },
 )
 
 // ParseEvaluationEvidence decodes canonical evaluation evidence.
@@ -428,25 +428,4 @@ func uniqueArtifactIDs(values []artifact.ID) []artifact.ID {
 	sort.Slice(result, func(i, j int) bool { return result[i].String() < result[j].String() })
 	result = slices.Compact(result)
 	return result
-}
-
-func cloneEvaluationEvidence(value EvaluationEvidence) EvaluationEvidence {
-	value.Shards = slices.Clone(value.Shards)
-	value.Phases = slices.Clone(value.Phases)
-	value.Metrics = slices.Clone(value.Metrics)
-	if value.Resources != nil {
-		resources := *value.Resources
-		resources.Measures = slices.Clone(resources.Measures)
-		if resources.Interactions != nil {
-			interactions := *resources.Interactions
-			resources.Interactions = &interactions
-		}
-		value.Resources = &resources
-	}
-	if value.Causal != nil {
-		cloned := *value.Causal
-		cloned.Motivation = slices.Clone(value.Causal.Motivation)
-		value.Causal = &cloned
-	}
-	return value
 }

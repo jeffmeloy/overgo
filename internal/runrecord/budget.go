@@ -70,21 +70,21 @@ var splitPartitionCodec = artifact.JSONDocumentCodec(
 	"split partition", artifact.KindEvidence, SplitPartitionMediaType, SplitPartitionSchema,
 	canonicalizeSplitPartition,
 	func(value SplitPartition) artifact.ID { return value.ID },
-	func(value *SplitPartition, id artifact.ID) { value.ID = id }, nil,
+	func(value *SplitPartition, id artifact.ID) { value.ID = id },
 )
 
 var budgetCodec = artifact.JSONDocumentCodec(
 	"budget", artifact.KindEvidence, BudgetMediaType, BudgetSchema,
 	canonicalizeBudget,
 	func(value Budget) artifact.ID { return value.ID },
-	func(value *Budget, id artifact.ID) { value.ID = id }, nil,
+	func(value *Budget, id artifact.ID) { value.ID = id },
 )
 
 var budgetChargeCodec = artifact.JSONDocumentCodec(
 	"budget charge", artifact.KindEvidence, BudgetChargeMediaType, BudgetChargeSchema,
 	canonicalizeBudgetCharge,
 	func(value BudgetCharge) artifact.ID { return value.ID },
-	func(value *BudgetCharge, id artifact.ID) { value.ID = id }, nil,
+	func(value *BudgetCharge, id artifact.ID) { value.ID = id },
 )
 
 func ParseSplitPartition(data []byte) (SplitPartition, error) {

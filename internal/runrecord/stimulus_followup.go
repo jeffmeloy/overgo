@@ -34,11 +34,6 @@ var stimulusFollowupCodec = artifact.JSONDocumentCodec(
 	canonicalizeStimulusFollowup,
 	func(value StimulusFollowup) artifact.ID { return value.ID },
 	func(value *StimulusFollowup, id artifact.ID) { value.ID = id },
-	func(value StimulusFollowup) StimulusFollowup {
-		value.Sources = slices.Clone(value.Sources)
-		value.Causal.Motivation = slices.Clone(value.Causal.Motivation)
-		return value
-	},
 )
 
 // StimulusFollowupAuthority owns atomic admission by consumed boundary.

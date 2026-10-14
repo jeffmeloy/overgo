@@ -60,10 +60,6 @@ type Strategy struct {
 var strategyCodec = artifact.JSONDocumentCodec(
 	"agent strategy", artifact.KindProfile, StrategyMediaType, StrategySchema,
 	canonicalizeStrategy, func(v Strategy) artifact.ID { return v.ID }, func(v *Strategy, id artifact.ID) { v.ID = id },
-	func(v Strategy) Strategy {
-		v.Policies = slices.Clone(v.Policies)
-		return v
-	},
 )
 
 // NewStrategy derives a canonical strategy from a validated worker

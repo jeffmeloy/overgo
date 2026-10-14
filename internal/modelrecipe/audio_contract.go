@@ -50,7 +50,6 @@ var audioContractCodec = artifact.JSONDocumentCodec(
 	canonicalizeAudioContract,
 	func(value AudioContractDocument) artifact.ID { return value.ID },
 	func(value *AudioContractDocument, id artifact.ID) { value.ID = id },
-	func(value AudioContractDocument) AudioContractDocument { return value },
 )
 
 // NewAudioContract identifies one immutable decoded-audio execution contract.

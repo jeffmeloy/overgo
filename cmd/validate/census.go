@@ -69,15 +69,6 @@ var capabilityCensusCodec = artifact.JSONDocumentCodec(
 	validateCapabilityCensus,
 	func(value capabilityCensus) artifact.ID { return value.ID },
 	func(value *capabilityCensus, id artifact.ID) { value.ID = id },
-	func(value capabilityCensus) capabilityCensus {
-		value.Models = slices.Clone(value.Models)
-		for index := range value.Models {
-			value.Models[index].Capabilities = slices.Clone(value.Models[index].Capabilities)
-			value.Models[index].KeyEnvironment = artifact.ClonePointer(value.Models[index].KeyEnvironment)
-		}
-		value.Verifications = slices.Clone(value.Verifications)
-		return value
-	},
 )
 
 func validateCapabilityCensus(value *capabilityCensus) error {

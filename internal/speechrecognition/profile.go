@@ -3,7 +3,6 @@ package speechrecognition
 import (
 	"context"
 	"errors"
-	"slices"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -37,7 +36,6 @@ var executionProfileCodec = artifact.JSONDocumentCodec(
 	canonicalizeExecutionProfile,
 	func(value ExecutionProfile) artifact.ID { return value.ID },
 	func(value *ExecutionProfile, id artifact.ID) { value.ID = id },
-	cloneExecutionProfile,
 )
 
 // NewExecutionProfile identifies one immutable speech recognition execution declaration.
@@ -79,22 +77,4 @@ func canonicalizeExecutionProfile(profile *ExecutionProfile) error {
 		}
 	}
 	return nil
-}
-
-func cloneExecutionProfile(profile ExecutionProfile) ExecutionProfile {
-	profile.Frontend = profile.Frontend.Clone()
-	if profile.Transducer != nil {
-		binding := *profile.Transducer
-		binding.Subsampling = slices.Clone(binding.Subsampling)
-		binding.Recurrent = slices.Clone(binding.Recurrent)
-		profile.Transducer = &binding
-	}
-	profile.Encoder.Blocks = slices.Clone(profile.Encoder.Blocks)
-	for i := range profile.Encoder.Blocks {
-		if binding := profile.Encoder.Blocks[i].Attention.ProjectedRelative; binding != nil {
-			value := *binding
-			profile.Encoder.Blocks[i].Attention.ProjectedRelative = &value
-		}
-	}
-	return profile
 }

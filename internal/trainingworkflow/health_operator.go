@@ -56,7 +56,7 @@ var healthOperatorDecisionCodec = artifact.JSONDocumentCodec(
 		return nil
 	},
 	func(value healthOperatorDecision) artifact.ID { return value.ID },
-	func(value *healthOperatorDecision, id artifact.ID) { value.ID = id }, nil,
+	func(value *healthOperatorDecision, id artifact.ID) { value.ID = id },
 )
 
 var buildHealthOperatorDecision = func(

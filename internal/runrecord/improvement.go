@@ -67,7 +67,7 @@ var improvementAdmissionCodec = artifact.JSONDocumentCodec(
 	"improvement admission", artifact.KindEvidence, improvementAdmissionMediaType, improvementAdmissionSchema,
 	canonicalizeImprovementAdmission,
 	func(value improvementAdmission) artifact.ID { return value.ID },
-	func(value *improvementAdmission, id artifact.ID) { value.ID = id }, nil,
+	func(value *improvementAdmission, id artifact.ID) { value.ID = id },
 )
 
 var improvementDecisionCodec = artifact.JSONDocumentCodec(
@@ -75,10 +75,6 @@ var improvementDecisionCodec = artifact.JSONDocumentCodec(
 	canonicalizeImprovementDecision,
 	func(value improvementDecision) artifact.ID { return value.ID },
 	func(value *improvementDecision, id artifact.ID) { value.ID = id },
-	func(value improvementDecision) improvementDecision {
-		value.Causal = cloneCausal(value.Causal)
-		return value
-	},
 )
 
 func AdmitImprovement(

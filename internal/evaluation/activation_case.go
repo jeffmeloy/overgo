@@ -49,7 +49,7 @@ var activationCaseCodec = artifact.JSONDocumentCodec(
 	"activation case", artifact.KindRecipe, activationCaseMediaType, activationCaseSchema,
 	canonicalizeActivationCase,
 	func(value ActivationCase) artifact.ID { return value.ID },
-	func(value *ActivationCase, id artifact.ID) { value.ID = id }, nil,
+	func(value *ActivationCase, id artifact.ID) { value.ID = id },
 )
 
 var activationCaseRegistryCodec = artifact.JSONDocumentCodec(
@@ -57,10 +57,6 @@ var activationCaseRegistryCodec = artifact.JSONDocumentCodec(
 	canonicalizeActivationCaseRegistry,
 	func(value activationCaseRegistry) artifact.ID { return value.ID },
 	func(value *activationCaseRegistry, id artifact.ID) { value.ID = id },
-	func(value activationCaseRegistry) activationCaseRegistry {
-		value.Cases = slices.Clone(value.Cases)
-		return value
-	},
 )
 
 // NewActivationCase validates and identifies one profile-independent case.

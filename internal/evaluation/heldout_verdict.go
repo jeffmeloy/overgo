@@ -26,7 +26,7 @@ const (
 var heldoutVerdictCodec = artifact.JSONDocumentCodec(
 	"held-out verdict", artifact.KindEvaluation, heldoutVerdictMediaType, heldoutVerdictSchema,
 	canonicalizeHeldoutVerdict, func(value heldoutVerdict) artifact.ID { return value.ID },
-	func(value *heldoutVerdict, id artifact.ID) { value.ID = id }, func(value heldoutVerdict) heldoutVerdict { return value },
+	func(value *heldoutVerdict, id artifact.ID) { value.ID = id },
 )
 
 // heldoutNumericScorers maps an objective's declared metric to the numeric

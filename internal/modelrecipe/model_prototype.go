@@ -35,7 +35,7 @@ var modelPrototypeCodec = artifact.JSONDocumentCodec(
 	"model prototype", artifact.KindRecipe, ModelPrototypeMediaType, ModelPrototypeSchema,
 	canonicalizeModelPrototype,
 	func(value modelPrototypeDocument) artifact.ID { return value.ID },
-	func(value *modelPrototypeDocument, id artifact.ID) { value.ID = id }, nil,
+	func(value *modelPrototypeDocument, id artifact.ID) { value.ID = id },
 )
 
 // NewModelPrototype identifies one exact registered architecture profile as a prototype.

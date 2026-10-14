@@ -40,7 +40,7 @@ var moeCapacityPairCodec = artifact.JSONDocumentCodec(
 	"MoE capacity pair", artifact.KindEvidence, moeCapacityPairMediaType, moeCapacityPairSchema,
 	canonicalizeMoECapacityPair,
 	func(value moeCapacityPair) artifact.ID { return value.ID },
-	func(value *moeCapacityPair, id artifact.ID) { value.ID = id }, nil,
+	func(value *moeCapacityPair, id artifact.ID) { value.ID = id },
 )
 
 var moeCapacityPairLineage = func(value moeCapacityPair) []artifact.Lineage {

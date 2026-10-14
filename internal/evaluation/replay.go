@@ -3,7 +3,6 @@ package evaluation
 import (
 	"context"
 	"errors"
-	"slices"
 
 	"overgo/internal/artifact"
 )
@@ -54,7 +53,6 @@ var replayReceiptCodec = artifact.JSONDocumentCodec(
 	},
 	func(value ReplayReceipt) artifact.ID { return value.ID },
 	func(value *ReplayReceipt, id artifact.ID) { value.ID = id },
-	func(value ReplayReceipt) ReplayReceipt { value.Cases = slices.Clone(value.Cases); return value },
 )
 
 // RequireReplayReceipt reads the existing immutable receipt through its typed

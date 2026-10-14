@@ -92,7 +92,6 @@ var routingDecisionCodec = artifact.JSONDocumentCodec(
 	canonicalizeRoutingDecision,
 	func(value RoutingDecision) artifact.ID { return value.ID },
 	func(value *RoutingDecision, id artifact.ID) { value.ID = id },
-	cloneRoutingDecision,
 )
 
 // NewRoutingDecision validates and identifies one route decision.
@@ -259,9 +258,4 @@ func compareRouteRatio(leftNumerator, leftDenominator, rightNumerator, rightDeno
 	leftHigh, leftLow := bits.Mul64(leftNumerator, rightDenominator)
 	rightHigh, rightLow := bits.Mul64(rightNumerator, leftDenominator)
 	return cmp.Or(cmp.Compare(leftHigh, rightHigh), cmp.Compare(leftLow, rightLow))
-}
-
-func cloneRoutingDecision(value RoutingDecision) RoutingDecision {
-	value.Candidates = slices.Clone(value.Candidates)
-	return value
 }

@@ -63,13 +63,13 @@ func TestFirstASRArtifactElection(t *testing.T) {
 		t.Fatalf("replayed election = (%s, %v)", replayed.ID, err)
 	}
 
-	withoutReference := cloneElection(election)
+	withoutReference := electionCodec.Clone(election)
 	withoutReference.Files = slicesWithoutRole(withoutReference.Files, "reference-code")
 	withoutReference.ID = artifact.ID{}
 	if _, err := electionCodec.NewInitial(withoutReference); err == nil {
 		t.Fatal("election accepted without reference execution bytes")
 	}
-	withoutParity := cloneElection(election)
+	withoutParity := electionCodec.Clone(election)
 	withoutParity.Observations[0].Observed = "different transcript"
 	withoutParity.ID = artifact.ID{}
 	if _, err := electionCodec.NewInitial(withoutParity); err == nil {

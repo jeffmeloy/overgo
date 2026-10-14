@@ -545,7 +545,6 @@ var conversationLabelCodec = artifact.JSONDocumentCodec(
 	},
 	func(value conversationLabelRecord) artifact.ID { return value.ID },
 	func(value *conversationLabelRecord, id artifact.ID) { value.ID = id },
-	func(value conversationLabelRecord) conversationLabelRecord { return value },
 )
 
 // publishConversationLabel commits a label for the conversation rooted at

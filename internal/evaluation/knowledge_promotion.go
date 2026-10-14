@@ -98,7 +98,6 @@ var episodeKnowledgeProposalCodec = artifact.JSONDocumentCodec(
 	canonicalizeEpisodeKnowledgeProposal,
 	func(value episodeKnowledgeProposal) artifact.ID { return value.ID },
 	func(value *episodeKnowledgeProposal, id artifact.ID) { value.ID = id },
-	cloneEpisodeKnowledgeProposal,
 )
 
 var knowledgeHygieneCodec = artifact.JSONDocumentCodec(
@@ -107,7 +106,6 @@ var knowledgeHygieneCodec = artifact.JSONDocumentCodec(
 	canonicalizeKnowledgeHygieneReport,
 	func(value knowledgeHygieneReport) artifact.ID { return value.ID },
 	func(value *knowledgeHygieneReport, id artifact.ID) { value.ID = id },
-	cloneKnowledgeHygieneReport,
 )
 
 var knowledgePromotionCodec = artifact.JSONDocumentCodec(
@@ -116,10 +114,6 @@ var knowledgePromotionCodec = artifact.JSONDocumentCodec(
 	canonicalizeKnowledgePromotionEvidence,
 	func(value knowledgePromotionEvidence) artifact.ID { return value.ID },
 	func(value *knowledgePromotionEvidence, id artifact.ID) { value.ID = id },
-	func(value knowledgePromotionEvidence) knowledgePromotionEvidence {
-		value.Benefits = slices.Clone(value.Benefits)
-		return value
-	},
 )
 
 // evaluateKnowledgeHygiene derives transform, policy, scan, and aggregate
@@ -755,19 +749,4 @@ func requireStoredKnowledgeArtifacts(ctx context.Context, reader artifact.Reader
 		}
 	}
 	return nil
-}
-
-func cloneEpisodeKnowledgeProposal(value episodeKnowledgeProposal) episodeKnowledgeProposal {
-	value.EpisodeSources = slices.Clone(value.EpisodeSources)
-	value.SourceShards = slices.Clone(value.SourceShards)
-	value.Citations = slices.Clone(value.Citations)
-	return value
-}
-
-func cloneKnowledgeHygieneReport(value knowledgeHygieneReport) knowledgeHygieneReport {
-	value.InputRecordIDs = slices.Clone(value.InputRecordIDs)
-	value.OutputRecordIDs = slices.Clone(value.OutputRecordIDs)
-	value.ConflictEvidence = slices.Clone(value.ConflictEvidence)
-	value.PromotionRecordIDs = slices.Clone(value.PromotionRecordIDs)
-	return value
 }

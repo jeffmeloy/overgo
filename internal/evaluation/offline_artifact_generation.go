@@ -57,7 +57,6 @@ var offlineArtifactGenerationPolicyCodec = artifact.JSONDocumentCodec(
 	canonicalizeOfflineArtifactGenerationPolicy,
 	func(value offlineArtifactGenerationPolicy) artifact.ID { return value.ID },
 	func(value *offlineArtifactGenerationPolicy, id artifact.ID) { value.ID = id },
-	func(value offlineArtifactGenerationPolicy) offlineArtifactGenerationPolicy { return value },
 )
 
 var offlineArtifactGenerationPromotionCodec = artifact.JSONDocumentCodec(
@@ -66,7 +65,6 @@ var offlineArtifactGenerationPromotionCodec = artifact.JSONDocumentCodec(
 	canonicalizeOfflineArtifactGenerationPromotion,
 	func(value OfflineArtifactGenerationPromotion) artifact.ID { return value.ID },
 	func(value *OfflineArtifactGenerationPromotion, id artifact.ID) { value.ID = id },
-	func(value OfflineArtifactGenerationPromotion) OfflineArtifactGenerationPromotion { return value },
 )
 
 // NewOfflineArtifactGenerationPolicy records explicit acceptance thresholds.

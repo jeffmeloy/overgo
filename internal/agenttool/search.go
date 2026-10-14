@@ -58,7 +58,6 @@ var catalogSnapshotCodec = artifact.JSONDocumentCodec(
 	canonicalizeCatalogSnapshot,
 	func(value CatalogSnapshot) artifact.ID { return value.ID },
 	func(value *CatalogSnapshot, id artifact.ID) { value.ID = id },
-	cloneCatalogSnapshot,
 )
 
 // NewCatalogSnapshot compiles exact manuals into one searchable catalog.
@@ -161,14 +160,6 @@ func canonicalizeCatalogSnapshot(snapshot *CatalogSnapshot) error {
 		seenEntries[entry.Name] = true
 	}
 	return nil
-}
-
-func cloneCatalogSnapshot(snapshot CatalogSnapshot) CatalogSnapshot {
-	snapshot.Entries = slices.Clone(snapshot.Entries)
-	for index := range snapshot.Entries {
-		snapshot.Entries[index].Arguments = slices.Clone(snapshot.Entries[index].Arguments)
-	}
-	return snapshot
 }
 
 func duplicateCatalogFields(fields []Field) bool {

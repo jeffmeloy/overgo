@@ -316,13 +316,13 @@ func TestCommittedVerdictRescoresItsReports(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	omitted := cloneNumericTargetReport(retained)
+	omitted := numericTargetReportCodec.Clone(retained)
 	omitted.Records = omitted.Records[1:]
 	omitted.Metrics[0].Value = 0
 	for _, record := range omitted.Records {
 		omitted.Metrics[0].Value += record.Scores[0].Value / float64(len(omitted.Records))
 	}
-	lowered := cloneNumericTargetReport(retained)
+	lowered := numericTargetReportCodec.Clone(retained)
 	lowered.Metrics[0].Value /= 2
 	for name, report := range map[string]numericTargetReport{"omitted": omitted, "lowered": lowered} {
 		tampered, err := numericTargetReportCodec.New(report)

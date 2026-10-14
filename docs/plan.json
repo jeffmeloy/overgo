@@ -61,26 +61,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "shape-reading",
-      "title": "Keep the reading of repeated structure, consolidate what is truly repeated, and read where the code decides by kind",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 4342,
-        "reason": ""
-      },
-      "steps": [
-        {
-          "id": "clone-default",
-          "title": "Make a deep copy the document codec's default, and delete the clone functions it replaces",
-          "status": "open",
-          "verify": "go test ./internal/artifact -count=1 -run '^TestDefaultCloneMatchesEveryReplacedClone$'",
-          "rationale": "From the lead's reading for step real-repeats at 2de1a501b (scratchpad rows/real-repeats-reading.md). The tree has 117 named clone functions of 1,039 lines, and 13 places copy five or more reference fields in a row (among them internal/dataset/document.go cloneDocument, internal/recipe/program.go cloneProgramDefinition, internal/runrecord/retrieval_receipt.go). artifact.DocumentCodec carries a Clone slot (internal/artifact/document_codec.go), and many of those functions exist only to fill it. The step first measures, then decides. It writes a deep copy as the codec's default, which keeps a nil slice apart from an empty one (a document's identity tells null from []), copies interface and func fields as they are, and refuses a type whose unexported reference fields it cannot copy. A test holds each clone the default would replace to it: equal values, the same nil-ness, and no shared backing array. The step deletes the clones the test passes and states the count. Doing the 13 places alone deletes about 115 lines for about 45 and refactors the latest instances, not the pattern, so the step takes the family. The saving of up to about 900 lines is an estimate by reading.\nServes: the loop's upkeep: a new record type needs no hand-written clone.\nDisappears: the clone functions the default replaces, up to about 900 lines, an estimate.\nEvidence: the equivalence test over every replaced clone, and the count of clone functions before and after.\nBatch: host for the test; internal/artifact, internal/recipe and internal/sampling are in the inference surface and internal/evaluation in the answer scope, so the deletion goes in one commit before a full measurement run."
-        }
-      ]
-    },
-    {
       "id": "governance-retire",
       "title": "Retire the sealed authority, a requirement over artifacts that no longer exist",
       "class": "consolidation",

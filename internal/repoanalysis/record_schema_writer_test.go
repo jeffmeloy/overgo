@@ -69,6 +69,9 @@ const (
 //   - Content, ContentBytes and Batch are none, because each carries a document a maker already made
 var codecMakers = []string{"New", "NewInitial", "Normalize"}
 
+// codecCopyChange is the method of artifact.DocumentCodec that returns the codec it is called on with another copy.
+const codecCopyChange = "WithClone"
+
 // contractWriters are the methods of artifact.DocumentContract that put its schema on bytes.
 var contractWriters = []string{"Content", "ContentBytes", "ContentJSON", "Descriptor", "OwnedContentBytes"}
 
@@ -478,6 +481,9 @@ func (s *schemaScan) call(call *ast.CallExpr) []carried {
 			if value.binding == boundCodec && slices.Contains(codecMakers, typed.Sel.Name) ||
 				value.binding == boundContract && slices.Contains(contractWriters, typed.Sel.Name) {
 				s.use(useWrite, value)
+			}
+			if value.binding == boundCodec && typed.Sel.Name == codecCopyChange {
+				made, _ = include(made, value)
 			}
 		}
 		for _, method := range s.flow.methods[selectionKey(s.file.directory, typed.Sel.Name)] {

@@ -80,10 +80,6 @@ var terminalAttemptCodec = artifact.JSONDocumentCodec(
 	canonicalizeTerminalAttempt,
 	func(value TerminalAttemptReceipt) artifact.ID { return value.ID },
 	func(value *TerminalAttemptReceipt, id artifact.ID) { value.ID = id },
-	func(value TerminalAttemptReceipt) TerminalAttemptReceipt {
-		value.Gaps = slices.Clone(value.Gaps)
-		return value
-	},
 )
 
 // RequireTerminalAttemptReceipt loads one canonical terminal receipt by its

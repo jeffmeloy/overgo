@@ -92,10 +92,6 @@ var moeRouterObservationCoverageCodec = artifact.JSONDocumentCodec(
 	canonicalizeMoERouterObservationCoverage,
 	func(value moERouterObservationCoverage) artifact.ID { return value.ID },
 	func(value *moERouterObservationCoverage, id artifact.ID) { value.ID = id },
-	func(value moERouterObservationCoverage) moERouterObservationCoverage {
-		value.Layers = slices.Clone(value.Layers)
-		return value
-	},
 )
 
 // NewMoERouterObservationChunk identifies one canonical bounded raw chunk.

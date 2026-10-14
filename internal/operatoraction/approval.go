@@ -29,10 +29,6 @@ var approvalCodec = artifact.JSONDocumentCodec(
 	canonicalizeApproval,
 	func(value ApprovalRequest) artifact.ID { return value.ID },
 	func(value *ApprovalRequest, id artifact.ID) { value.ID = id },
-	func(value ApprovalRequest) ApprovalRequest {
-		value.Arguments = slices.Clone(value.Arguments)
-		return value
-	},
 )
 
 // NewApprovalRequest identifies exact operation recovery work.

@@ -31,7 +31,6 @@ var instructionGenerationCodec = artifact.JSONDocumentCodec(
 	},
 	func(value instructionGeneration) artifact.ID { return value.ID },
 	func(value *instructionGeneration, id artifact.ID) { value.ID = id },
-	func(value instructionGeneration) instructionGeneration { return value },
 )
 
 func loadInstructionGeneration(ctx context.Context, repository artifact.Repository, alias string, plan Plan, caseID artifact.ID, testCase instructionRulesCase) (instructionGeneration, bool, error) {

@@ -57,10 +57,6 @@ var moeRoutingBaselineCodec = artifact.JSONDocumentCodec(
 	canonicalizeMoERoutingBaseline,
 	func(value moeRoutingBaselineMatrix) artifact.ID { return value.ID },
 	func(value *moeRoutingBaselineMatrix, id artifact.ID) { value.ID = id },
-	func(value moeRoutingBaselineMatrix) moeRoutingBaselineMatrix {
-		value.Arms = slices.Clone(value.Arms)
-		return value
-	},
 )
 
 var moeRoutingBaselineLineage = func(value moeRoutingBaselineMatrix) []artifact.Lineage {

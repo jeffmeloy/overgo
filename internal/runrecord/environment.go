@@ -18,7 +18,7 @@ const (
 var environmentCodec = artifact.JSONDocumentCodec(
 	"run record environment", artifact.KindEvidence, EnvironmentMediaType, EnvironmentSchema, canonicalizeEnvironment,
 	func(value Environment) artifact.ID { return value.ID },
-	func(value *Environment, id artifact.ID) { value.ID = id }, nil,
+	func(value *Environment, id artifact.ID) { value.ID = id },
 )
 
 // Environment defines immutable execution platform identity.

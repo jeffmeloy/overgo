@@ -85,7 +85,6 @@ var bridgeDefinitionCodec = artifact.JSONDocumentCodec(
 	canonicalizeBridgeDefinition,
 	func(value BridgeDefinition) artifact.ID { return value.ID },
 	func(value *BridgeDefinition, id artifact.ID) { value.ID = id },
-	func(value BridgeDefinition) BridgeDefinition { return value },
 )
 
 var compositionRecipeCodec = artifact.JSONDocumentCodec(
@@ -94,7 +93,6 @@ var compositionRecipeCodec = artifact.JSONDocumentCodec(
 	canonicalizeCompositionRecipe,
 	func(value CompositionRecipe) artifact.ID { return value.ID },
 	func(value *CompositionRecipe, id artifact.ID) { value.ID = id },
-	func(value CompositionRecipe) CompositionRecipe { return value },
 )
 
 // NewBridgeDefinition validates compatibility and identifies a bridge authority.

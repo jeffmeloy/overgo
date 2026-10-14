@@ -56,7 +56,7 @@ var offlineArtifactOutputCodec = artifact.JSONDocumentCodec(
 	OfflineArtifactOutputMediaType, OfflineArtifactOutputSchema,
 	canonicalizeOfflineArtifactOutput,
 	func(value OfflineArtifactOutput) artifact.ID { return value.ID },
-	func(value *OfflineArtifactOutput, id artifact.ID) { value.ID = id }, nil,
+	func(value *OfflineArtifactOutput, id artifact.ID) { value.ID = id },
 )
 
 var offlineArtifactObservationCodec = artifact.JSONDocumentCodec(
@@ -64,7 +64,7 @@ var offlineArtifactObservationCodec = artifact.JSONDocumentCodec(
 	OfflineArtifactObservationMediaType, OfflineArtifactObservationSchema,
 	canonicalizeOfflineArtifactObservation,
 	func(value OfflineArtifactObservation) artifact.ID { return value.ID },
-	func(value *OfflineArtifactObservation, id artifact.ID) { value.ID = id }, nil,
+	func(value *OfflineArtifactObservation, id artifact.ID) { value.ID = id },
 )
 
 // NewOfflineArtifactOutput validates the produced catalog against the exact

@@ -191,7 +191,6 @@ var driverDecisionCodec = artifact.JSONDocumentCodec(
 	canonicalizeDriverDecision,
 	func(value DriverDecision) artifact.ID { return value.ID },
 	func(value *DriverDecision, id artifact.ID) { value.ID = id },
-	cloneDriverDecision,
 )
 
 // NewDriverDecision reloads exact budget authorities, then derives,
@@ -560,13 +559,4 @@ func cloneDriverOptions(values []DriverOption) []DriverOption {
 		cloned[index].Missing = slices.Clone(cloned[index].Missing)
 	}
 	return cloned
-}
-
-func cloneDriverDecision(value DriverDecision) DriverDecision {
-	value.Causal = *cloneCausal(&value.Causal)
-	value.Options = cloneDriverOptions(value.Options)
-	value.Interaction.Charges = slices.Clone(value.Interaction.Charges)
-	value.Resources.Charges = slices.Clone(value.Resources.Charges)
-	value.SaturationEvidence = slices.Clone(value.SaturationEvidence)
-	return value
 }

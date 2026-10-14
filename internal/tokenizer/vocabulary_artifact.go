@@ -87,11 +87,10 @@ var vocabularyArtifactCodec = artifact.JSONDocumentCodec(
 	canonicalizeVocabularyArtifact,
 	func(value VocabularyArtifact) artifact.ID { return value.ID },
 	func(value *VocabularyArtifact, id artifact.ID) { value.ID = id },
-	func(value VocabularyArtifact) VocabularyArtifact {
-		value.Tokens = cloneVocabularyTokens(value.Tokens)
-		return value
-	},
-)
+).WithClone(func(value VocabularyArtifact) VocabularyArtifact {
+	value.Tokens = cloneVocabularyTokens(value.Tokens)
+	return value
+})
 
 // NewVocabularyArtifact seals explicit vocabulary semantics. It is useful for
 // non-GGUF importers; GGUF callers should use Vocab.Artifact.

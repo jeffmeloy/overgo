@@ -28,10 +28,7 @@ var decisionCodec = artifact.DocumentCodec[Decision]{
 	Name: "recipe decision", Contract: decisionContract,
 	Decode: func(data []byte, value *Decision) error { return strictjson.DecodeBytes(data, value) },
 	Encode: decisionBytes, Canonicalize: canonicalizeDecision,
-	Clone: func(value Decision) Decision {
-		value.Evidence = slices.Clone(value.Evidence)
-		return value
-	},
+	Clone:       artifact.DeepCopy[Decision](),
 	Identity:    func(value Decision) artifact.ID { return value.ID },
 	SetIdentity: func(value *Decision, id artifact.ID) { value.ID = id },
 }

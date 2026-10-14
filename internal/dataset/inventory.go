@@ -27,7 +27,7 @@ var inventoryContract = artifact.DocumentContract{
 var inventoryCodec = artifact.JSONDocumentCodec(
 	"dataset inventory", inventoryContract.Kind, inventoryContract.MediaType, inventoryContract.Schema,
 	canonicalizeInventory, func(value Inventory) artifact.ID { return value.ID },
-	func(value *Inventory, id artifact.ID) { value.ID = id }, cloneInventory,
+	func(value *Inventory, id artifact.ID) { value.ID = id },
 )
 
 // InventoryFile records one external dataset file without owning its bytes.
@@ -89,11 +89,6 @@ func canonicalizeInventory(inventory *Inventory) error {
 		}
 	}
 	return nil
-}
-
-func cloneInventory(inventory Inventory) Inventory {
-	inventory.Files = slices.Clone(inventory.Files)
-	return inventory
 }
 
 func validInventoryText(value string) bool {

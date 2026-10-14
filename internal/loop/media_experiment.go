@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"strconv"
 
 	"overgo/internal/artifact"
@@ -79,23 +78,18 @@ var (
 		canonicalizeMediaExperiment,
 		func(v MediaExperiment) artifact.ID { return v.ID },
 		func(v *MediaExperiment, id artifact.ID) { v.ID = id },
-		func(v MediaExperiment) MediaExperiment { v.Cells = slices.Clone(v.Cells); return v },
 	)
 	mediaAcquisitionCodec = artifact.JSONDocumentCodec(
 		"media acquisition", artifact.KindEvidence, mediaAcquisitionMedia, mediaAcquisitionSchema,
 		canonicalizeMediaAcquisition,
 		func(v MediaAcquisition) artifact.ID { return v.ID },
-		func(v *MediaAcquisition, id artifact.ID) { v.ID = id }, nil,
+		func(v *MediaAcquisition, id artifact.ID) { v.ID = id },
 	)
 	mediaReportCodec = artifact.JSONDocumentCodec(
 		"media experiment report", artifact.KindEvidence, mediaReportMedia, mediaReportSchema,
 		canonicalizeMediaReport,
 		func(v MediaExperimentReport) artifact.ID { return v.ID },
 		func(v *MediaExperimentReport, id artifact.ID) { v.ID = id },
-		func(v MediaExperimentReport) MediaExperimentReport {
-			v.Acquisitions = slices.Clone(v.Acquisitions)
-			return v
-		},
 	)
 )
 

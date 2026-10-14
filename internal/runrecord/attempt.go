@@ -83,10 +83,6 @@ var attemptCodec = artifact.JSONDocumentCodec(
 	"run record gate attempt", attemptContract.Kind, attemptContract.MediaType, attemptContract.Schema,
 	canonicalizeAttempt, func(value AttemptRecord) artifact.ID { return value.ID },
 	func(value *AttemptRecord, id artifact.ID) { value.ID = id },
-	func(value AttemptRecord) AttemptRecord {
-		value.Causal = cloneCausal(value.Causal)
-		return value
-	},
 )
 
 func canonicalizeAttempt(value *AttemptRecord) error {

@@ -103,10 +103,6 @@ var poolAcceptanceCodec = artifact.JSONDocumentCodec(
 	},
 	func(value PoolAcceptance) artifact.ID { return value.ID },
 	func(value *PoolAcceptance, id artifact.ID) { value.ID = id },
-	func(value PoolAcceptance) PoolAcceptance {
-		value.Basis = slices.Clone(value.Basis)
-		return value
-	},
 )
 
 // SmallestGain is the smallest gain, in standard deviations of the paired

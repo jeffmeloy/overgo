@@ -112,10 +112,6 @@ var instructionAcceptanceCodec = artifact.JSONDocumentCodec(
 	},
 	func(value InstructionAcceptance) artifact.ID { return value.ID },
 	func(value *InstructionAcceptance, id artifact.ID) { value.ID = id },
-	func(value InstructionAcceptance) InstructionAcceptance {
-		value.Comparisons, value.Basis = slices.Clone(value.Comparisons), slices.Clone(value.Basis)
-		return value
-	},
 )
 
 // InstructionCase is one prompt eligible for the pilot: its record in the

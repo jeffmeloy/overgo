@@ -86,7 +86,6 @@ var streamTerminalCodec = artifact.JSONDocumentCodec(
 	canonicalizeStreamTerminal,
 	func(value StreamTerminal) artifact.ID { return value.ID },
 	func(value *StreamTerminal, id artifact.ID) { value.ID = id },
-	func(value StreamTerminal) StreamTerminal { return value },
 )
 
 // ArtifactContent returns the terminal's canonical evidence bytes.

@@ -300,7 +300,7 @@ func TestObservationChunkPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	forgedBody := cloneObservationChunkSummary(firstSummary)
+	forgedBody := observationChunkSummaryCodec.Clone(firstSummary)
 	forgedBody.Chunk, forgedBody.ID = other.ID, artifact.ID{}
 	forged, err := observationChunkSummaryCodec.New(forgedBody)
 	if err != nil {

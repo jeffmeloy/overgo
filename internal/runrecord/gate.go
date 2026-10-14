@@ -23,10 +23,7 @@ var gateContract = artifact.DocumentContract{
 var gateCodec = artifact.JSONDocumentCodec(
 	"run record gate result", gateContract.Kind, gateContract.MediaType, gateContract.Schema,
 	canonicalizeGateResult, func(value GateResult) artifact.ID { return value.ID },
-	func(value *GateResult, id artifact.ID) { value.ID = id }, func(value GateResult) GateResult {
-		value.Steps = slices.Clone(value.Steps)
-		return value
-	},
+	func(value *GateResult, id artifact.ID) { value.ID = id },
 )
 
 type stepOutcome string

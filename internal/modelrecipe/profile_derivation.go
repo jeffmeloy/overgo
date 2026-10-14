@@ -34,6 +34,7 @@ var catalogProfileDerivationCodec = artifact.DocumentCodec[CatalogProfileDerivat
 	},
 	Encode:       catalogProfileDerivationContent,
 	Canonicalize: func(value *CatalogProfileDerivation) error { return value.validate() },
+	Clone:        artifact.DeepCopy[CatalogProfileDerivation](),
 	Identity:     func(value CatalogProfileDerivation) artifact.ID { return value.ID },
 	SetIdentity:  func(value *CatalogProfileDerivation, id artifact.ID) { value.ID = id },
 }

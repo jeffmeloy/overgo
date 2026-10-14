@@ -32,15 +32,6 @@ var objectiveCompositionCodec = artifact.JSONDocumentCodec(
 	canonicalizeObjectiveComposition,
 	func(value ObjectiveComposition) artifact.ID { return value.ID },
 	func(value *ObjectiveComposition, id artifact.ID) { value.ID = id },
-	func(value ObjectiveComposition) ObjectiveComposition {
-		value.Signature = value.Signature.Clone()
-		value.Processors = slices.Clone(value.Processors)
-		value.Projectors = slices.Clone(value.Projectors)
-		value.Codecs = slices.Clone(value.Codecs)
-		value.Evidence = slices.Clone(value.Evidence)
-		value.Components = slices.Clone(value.Components)
-		return value
-	},
 )
 
 func NewObjectiveComposition(spec ObjectiveCompositionSpec) (ObjectiveComposition, error) {

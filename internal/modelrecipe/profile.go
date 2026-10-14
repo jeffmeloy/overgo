@@ -44,12 +44,9 @@ var profileCodec = artifact.DocumentCodec[ProfileDocument]{
 	},
 	Encode:       profileDocumentContent,
 	Canonicalize: func(value *ProfileDocument) error { return value.validate() },
-	Clone: func(value ProfileDocument) ProfileDocument {
-		value.Provenance = slices.Clone(value.Provenance)
-		return value
-	},
-	Identity:    func(value ProfileDocument) artifact.ID { return value.ID },
-	SetIdentity: func(value *ProfileDocument, id artifact.ID) { value.ID = id },
+	Clone:        artifact.DeepCopy[ProfileDocument](),
+	Identity:     func(value ProfileDocument) artifact.ID { return value.ID },
+	SetIdentity:  func(value *ProfileDocument, id artifact.ID) { value.ID = id },
 }
 
 type profileBody struct {

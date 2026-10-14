@@ -32,10 +32,7 @@ var tensorMeasurementCodec = artifact.JSONDocumentCodec(
 	"model artifact tensor measurement", tensorMeasurementContract.Kind,
 	tensorMeasurementContract.MediaType, tensorMeasurementContract.Schema,
 	canonicalizeTensorMeasurements, func(value TensorMeasurementDocument) artifact.ID { return value.ID },
-	func(value *TensorMeasurementDocument, id artifact.ID) { value.ID = id }, func(value TensorMeasurementDocument) TensorMeasurementDocument {
-		value.Measurements = slices.Clone(value.Measurements)
-		return value
-	},
+	func(value *TensorMeasurementDocument, id artifact.ID) { value.ID = id },
 )
 
 type MeasurementPolicy struct {

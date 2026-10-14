@@ -68,10 +68,6 @@ var residualDirectionCodec = artifact.JSONDocumentCodec(
 	canonicalizeResidualDirection,
 	func(value ResidualDirection) artifact.ID { return value.ID },
 	func(value *ResidualDirection, id artifact.ID) { value.ID = id },
-	func(value ResidualDirection) ResidualDirection {
-		value.Quantiles = slices.Clone(value.Quantiles)
-		return value
-	},
 )
 
 // NewResidualDirection canonicalizes and identifies one direction claim.

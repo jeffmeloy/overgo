@@ -89,10 +89,6 @@ var compositeGenerationEvidenceCodec = artifact.JSONDocumentCodec(
 	canonicalizeCompositeGenerationEvidence,
 	func(value CompositeGenerationEvidence) artifact.ID { return value.ID },
 	func(value *CompositeGenerationEvidence, id artifact.ID) { value.ID = id },
-	func(value CompositeGenerationEvidence) CompositeGenerationEvidence {
-		value.Trials = slices.Clone(value.Trials)
-		return value
-	},
 )
 
 // New validates, canonicalizes, and identifies a

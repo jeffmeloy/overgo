@@ -141,25 +141,6 @@ var modelConfigCodec = artifact.JSONDocumentCodec(
 	canonicalizeModelConfig,
 	func(value ModelConfigDocument) artifact.ID { return value.ID },
 	func(value *ModelConfigDocument, id artifact.ID) { value.ID = id },
-	func(value ModelConfigDocument) ModelConfigDocument {
-		if value.Sequence != nil {
-			sequence := *value.Sequence
-			sequence.SpecialTokens = slices.Clone(sequence.SpecialTokens)
-			value.Sequence = &sequence
-		}
-		if value.Generation != nil {
-			generation := *value.Generation
-			generation.BOSTokens = slices.Clone(generation.BOSTokens)
-			generation.EOSTokens = slices.Clone(generation.EOSTokens)
-			if generation.Sampling != nil {
-				sampling := *generation.Sampling
-				generation.Sampling = &sampling
-			}
-			value.Generation = &generation
-		}
-		value.Sources = slices.Clone(value.Sources)
-		return value
-	},
 )
 
 func NewModelConfigDocument(

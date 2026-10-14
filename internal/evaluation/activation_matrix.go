@@ -79,7 +79,6 @@ var activationProfileCodec = artifact.JSONDocumentCodec(
 	canonicalizeActivationProfile,
 	func(value ActivationProfile) artifact.ID { return value.ID },
 	func(value *ActivationProfile, id artifact.ID) { value.ID = id },
-	func(value ActivationProfile) ActivationProfile { value.Tasks = slices.Clone(value.Tasks); return value },
 )
 
 var activationMatrixCodec = artifact.JSONDocumentCodec(
@@ -87,11 +86,6 @@ var activationMatrixCodec = artifact.JSONDocumentCodec(
 	canonicalizeActivationMatrix,
 	func(value activationMatrix) artifact.ID { return value.ID },
 	func(value *activationMatrix, id artifact.ID) { value.ID = id },
-	func(value activationMatrix) activationMatrix {
-		value.Profiles = slices.Clone(value.Profiles)
-		value.Cells = slices.Clone(value.Cells)
-		return value
-	},
 )
 
 // NewActivationProfile validates and identifies one exact activation surface.

@@ -56,10 +56,6 @@ var sameBaseTaskArithmeticCodec = artifact.JSONDocumentCodec(
 	canonicalizeSameBaseTaskArithmeticSpec,
 	func(value SameBaseTaskArithmeticSpec) artifact.ID { return value.ID },
 	func(value *SameBaseTaskArithmeticSpec, id artifact.ID) { value.ID = id },
-	func(value SameBaseTaskArithmeticSpec) SameBaseTaskArithmeticSpec {
-		value.Deltas = slices.Clone(value.Deltas)
-		return value
-	},
 )
 
 // newSameBaseTaskArithmeticSpec canonicalizes and identifies one bounded

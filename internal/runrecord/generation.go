@@ -47,12 +47,6 @@ var generationCodec = artifact.JSONDocumentCodec(
 	canonicalizeGeneration,
 	func(value GenerationRecord) artifact.ID { return value.ID },
 	func(value *GenerationRecord, id artifact.ID) { value.ID = id },
-	func(value GenerationRecord) GenerationRecord {
-		value.Parents = slices.Clone(value.Parents)
-		value.Components = slices.Clone(value.Components)
-		value.Seeds = slices.Clone(value.Seeds)
-		return value
-	},
 )
 
 // NewGenerationRecord identifies one descendant construction attempt. Its

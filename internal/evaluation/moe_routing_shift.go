@@ -54,10 +54,6 @@ var moeRoutingShiftCodec = artifact.JSONDocumentCodec(
 	canonicalizeMoERoutingShift,
 	func(value moeRoutingShiftEvidence) artifact.ID { return value.ID },
 	func(value *moeRoutingShiftEvidence, id artifact.ID) { value.ID = id },
-	func(value moeRoutingShiftEvidence) moeRoutingShiftEvidence {
-		value.Cases = cloneMoERoutingShiftCases(value.Cases)
-		return value
-	},
 )
 
 var moeRoutingShiftLineage = func(value moeRoutingShiftEvidence) []artifact.Lineage {

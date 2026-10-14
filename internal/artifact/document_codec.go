@@ -25,7 +25,7 @@ type DocumentCodec[T any] struct {
 	SetIdentity  func(*T, ID)
 }
 
-// JSONDocumentCodec returns a strict JSON codec with caller-owned schema and cloning.
+// JSONDocumentCodec returns a strict JSON codec with a caller-owned schema that copies a value by DeepCopy.
 func JSONDocumentCodec[T any](
 	name string,
 	kind Kind,
@@ -33,7 +33,6 @@ func JSONDocumentCodec[T any](
 	canonicalize func(*T) error,
 	identity func(T) ID,
 	setIdentity func(*T, ID),
-	clone func(T) T,
 ) DocumentCodec[T] {
 	return DocumentCodec[T]{
 		Name: name,
@@ -43,10 +42,17 @@ func JSONDocumentCodec[T any](
 		Decode:       func(data []byte, value *T) error { return strictjson.DecodeBytes(data, value) },
 		Encode:       func(value T) ([]byte, error) { return json.Marshal(value) },
 		Canonicalize: canonicalize,
-		Clone:        clone,
+		Clone:        DeepCopy[T](),
 		Identity:     identity,
 		SetIdentity:  setIdentity,
 	}
+}
+
+// WithClone returns the codec with clone in place of its copy.
+//   - clone != DeepCopy <=> the copy also normalizes the value, and that normalization is part of the document's canonical form.
+func (c DocumentCodec[T]) WithClone(clone func(T) T) DocumentCodec[T] {
+	c.Clone = clone
+	return c
 }
 
 // NewInitial identifies a fresh document: the canonical Version field is
@@ -155,7 +161,7 @@ func (c DocumentCodec[T]) RequireVerified(
 	if err != nil {
 		return zero, err
 	}
-	if err := verify(ctx, reader, c.clone(value)); err != nil {
+	if err := verify(ctx, reader, c.Clone(value)); err != nil {
 		return zero, err
 	}
 	return value, nil
@@ -179,7 +185,7 @@ func (c DocumentCodec[T]) RequireExactLineage(
 	if err != nil {
 		return zero, err
 	}
-	expected := lineage(c.clone(value))
+	expected := lineage(c.Clone(value))
 	stored, err := reader.Parents(ctx, id)
 	if err != nil {
 		return zero, err
@@ -281,7 +287,7 @@ func (c DocumentCodec[T]) Batch(key string, value T, lineage []Lineage, aliases 
 }
 
 func (c DocumentCodec[T]) canonical(value T) (T, []byte, DocumentContract, error) {
-	value = c.clone(value)
+	value = c.Clone(value)
 	c.SetIdentity(&value, ID{})
 	if err := c.Canonicalize(&value); err != nil {
 		return value, nil, DocumentContract{}, err
@@ -308,15 +314,8 @@ func (c DocumentCodec[T]) parseCanonical(data []byte) (T, []byte, DocumentContra
 	return value, canonical, contract, nil
 }
 
-func (c DocumentCodec[T]) clone(value T) T {
-	if c.Clone != nil {
-		return c.Clone(value)
-	}
-	return value
-}
-
 func (c DocumentCodec[T]) validate() error {
-	if c.Name == "" || c.Decode == nil || c.Encode == nil || c.Canonicalize == nil ||
+	if c.Name == "" || c.Decode == nil || c.Encode == nil || c.Canonicalize == nil || c.Clone == nil ||
 		c.Identity == nil || c.SetIdentity == nil || c.Contract.Kind == KindInvalid && c.ContractFor == nil {
 		return errors.New("artifact: incomplete document codec")
 	}

@@ -52,7 +52,6 @@ var attemptStimulusCodec = artifact.JSONDocumentCodec(
 	canonicalizeAttemptStimulus,
 	func(value AttemptStimulusBoundary) artifact.ID { return value.ID },
 	func(value *AttemptStimulusBoundary, id artifact.ID) { value.ID = id },
-	cloneAttemptStimulus,
 )
 
 // AttemptArgumentContent binds exact raw argument bytes for source citation.
@@ -148,15 +147,6 @@ func canonicalizeAttemptStimulus(value *AttemptStimulusBoundary) error {
 		return errors.Join(errors.New("run record: invalid attempt stimulus selection"), err)
 	}
 	return nil
-}
-
-func cloneAttemptStimulus(value AttemptStimulusBoundary) AttemptStimulusBoundary {
-	value.Selection.Sources = slices.Clone(value.Selection.Sources)
-	if value.Selection.Cursor != nil {
-		cursor := *value.Selection.Cursor
-		value.Selection.Cursor = &cursor
-	}
-	return value
 }
 
 func attemptStimulusAlias(operation artifact.ID, attempt uint32) string {

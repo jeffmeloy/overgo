@@ -96,7 +96,6 @@ var interactionTraceCodec = artifact.JSONDocumentCodec(
 	canonicalizeInteractionTrace,
 	func(value InteractionTrace) artifact.ID { return value.ID },
 	func(value *InteractionTrace, id artifact.ID) { value.ID = id },
-	cloneInteractionTrace,
 )
 
 // RequireInteractionTrace loads one validated trace manifest.
@@ -237,24 +236,4 @@ func interactionEventKind(message InteractionMessage) InteractionEventKind {
 		return InteractionEventOutput
 	}
 	return InteractionEventRequest
-}
-
-func cloneInteractionTrace(value InteractionTrace) InteractionTrace {
-	value.Events = slices.Clone(value.Events)
-	for index := range value.Events {
-		value.Events[index].Message.Media = slices.Clone(value.Events[index].Message.Media)
-		value.Events[index].Message.ToolCalls = slices.Clone(value.Events[index].Message.ToolCalls)
-	}
-	value.ToolActions = slices.Clone(value.ToolActions)
-	value.Decisions = slices.Clone(value.Decisions)
-	value.FinalArtifacts = slices.Clone(value.FinalArtifacts)
-	value.ToolManuals = slices.Clone(value.ToolManuals)
-	value.InvocationEffects = slices.Clone(value.InvocationEffects)
-	value.Obligations = slices.Clone(value.Obligations)
-	value.Resolutions = slices.Clone(value.Resolutions)
-	value.WorkspaceClaims = slices.Clone(value.WorkspaceClaims)
-	value.Attempts = slices.Clone(value.Attempts)
-	value.BudgetCharges = slices.Clone(value.BudgetCharges)
-	value.Context = slices.Clone(value.Context)
-	return value
 }

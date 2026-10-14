@@ -82,7 +82,6 @@ var capabilityProbeResultCodec = artifact.JSONDocumentCodec(
 	canonicalizeCapabilityProbeResult,
 	func(value capabilityProbeResult) artifact.ID { return value.ID },
 	func(value *capabilityProbeResult, id artifact.ID) { value.ID = id },
-	cloneCapabilityProbeResult,
 )
 
 // publishProductionCapabilityProbe validates every referenced owner at the
@@ -537,13 +536,4 @@ func stageBindingsContain(bindings []runrecord.StageBinding, id artifact.ID) boo
 func (entry productionCapabilityEntry) valid() bool {
 	return entry == productionEntryLocalPlacement || entry == productionEntryPeerPlacement ||
 		entry == productionEntryAgentCoordinator
-}
-
-func cloneCapabilityProbeResult(value capabilityProbeResult) capabilityProbeResult {
-	value.Resources.Measures = slices.Clone(value.Resources.Measures)
-	if value.Resources.Interactions != nil {
-		work := *value.Resources.Interactions
-		value.Resources.Interactions = &work
-	}
-	return value
 }

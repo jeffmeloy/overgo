@@ -95,7 +95,8 @@ func TestRepositoryDocumentDeclarationsResolveKnownAuthorities(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := map[string]bool{
-		"overgo/api-manifest/v1": false,
+		"overgo/api-manifest/v1":        false,
+		"overgo/vocabulary-artifact/v1": false,
 	}
 	seen := map[string]string{}
 	for _, declaration := range declarations {

@@ -44,7 +44,6 @@ var compositeGenerationPromotionCodec = artifact.JSONDocumentCodec(
 	canonicalizeCompositeGenerationPromotion,
 	func(value CompositeGenerationPromotion) artifact.ID { return value.ID },
 	func(value *CompositeGenerationPromotion, id artifact.ID) { value.ID = id },
-	func(value CompositeGenerationPromotion) CompositeGenerationPromotion { return value },
 )
 
 // Promote admits only CUDA evidence for the exact current active plan.

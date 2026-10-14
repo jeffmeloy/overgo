@@ -67,10 +67,6 @@ var offlineArtifactPlanCodec = artifact.JSONDocumentCodec(
 	canonicalizeOfflineArtifactPlan,
 	func(value OfflineArtifactPlan) artifact.ID { return value.ID },
 	func(value *OfflineArtifactPlan, id artifact.ID) { value.ID = id },
-	func(value OfflineArtifactPlan) OfflineArtifactPlan {
-		value.Inputs = slices.Clone(value.Inputs)
-		return value
-	},
 )
 
 // CompileOfflineArtifactPlan resolves exact OvergoDB authorities and refuses any

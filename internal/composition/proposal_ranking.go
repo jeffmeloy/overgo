@@ -42,14 +42,6 @@ var proposalRankerCodec = artifact.JSONDocumentCodec(
 	canonicalizeProposalRanker,
 	func(value ProposalRanker) artifact.ID { return value.ID },
 	func(value *ProposalRanker, id artifact.ID) { value.ID = id },
-	func(value ProposalRanker) ProposalRanker {
-		value.Decisions = slices.Clone(value.Decisions)
-		value.Rows = slices.Clone(value.Rows)
-		for index := range value.Rows {
-			value.Rows[index].Reasons = slices.Clone(value.Rows[index].Reasons)
-		}
-		return value
-	},
 )
 
 func TrainProposalRanker(ctx context.Context, reader artifact.Reader, decisions []artifact.ID) (ProposalRanker, error) {

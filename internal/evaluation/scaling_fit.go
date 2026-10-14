@@ -88,12 +88,6 @@ var scalingFitCodec = artifact.JSONDocumentCodec(
 	canonicalizeScalingFit,
 	func(value scalingFit) artifact.ID { return value.ID },
 	func(value *scalingFit, id artifact.ID) { value.ID = id },
-	func(value scalingFit) scalingFit {
-		value.FitPoints = slices.Clone(value.FitPoints)
-		value.Holdouts = slices.Clone(value.Holdouts)
-		value.Assumptions = slices.Clone(value.Assumptions)
-		return value
-	},
 )
 
 var scalingFitLineage = func(value scalingFit) []artifact.Lineage {

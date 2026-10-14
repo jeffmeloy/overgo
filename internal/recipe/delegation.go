@@ -51,12 +51,6 @@ var delegatedAgentInvocationCodec = artifact.JSONDocumentCodec(
 	"delegated agent invocation", artifact.KindRecipe, DelegatedAgentInvocationMediaType, DelegatedAgentInvocationSchema,
 	canonicalizeDelegatedAgentInvocation,
 	func(v DelegatedAgentInvocation) artifact.ID { return v.ID }, func(v *DelegatedAgentInvocation, id artifact.ID) { v.ID = id },
-	func(v DelegatedAgentInvocation) DelegatedAgentInvocation {
-		v.Grant.Manuals = slices.Clone(v.Grant.Manuals)
-		v.Grant.AllowedEffects = slices.Clone(v.Grant.AllowedEffects)
-		v.StartingContext = slices.Clone(v.StartingContext)
-		return v
-	},
 )
 
 // NewDelegatedAgentInvocation canonicalizes and identifies one immutable

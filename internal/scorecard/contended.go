@@ -39,10 +39,6 @@ var contendedCodec = artifact.JSONDocumentCodec(
 	},
 	func(value contendedReading) artifact.ID { return value.ID },
 	func(value *contendedReading, id artifact.ID) { value.ID = id },
-	func(value contendedReading) contendedReading {
-		value.Competing = slices.Clone(value.Competing)
-		return value
-	},
 )
 
 // errEarlier ends the walk of the serving attempts at the first one the store

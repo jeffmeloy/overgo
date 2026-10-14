@@ -39,7 +39,6 @@ var (
 		canonicalizeQualification,
 		func(value AudioArtifactQualification) artifact.ID { return value.ID },
 		func(value *AudioArtifactQualification, id artifact.ID) { value.ID = id },
-		cloneQualification,
 	)
 	audioRecipeContract = artifact.DocumentContract{
 		Kind: artifact.KindProfile, MediaType: audioRecipeMediaType, Schema: audioRecipeSchema,
@@ -517,10 +516,4 @@ func uniqueStrings(values []string) bool {
 		}
 	}
 	return true
-}
-
-func cloneQualification(value AudioArtifactQualification) AudioArtifactQualification {
-	value.Passed = slices.Clone(value.Passed)
-	value.Refusals = slices.Clone(value.Refusals)
-	return value
 }

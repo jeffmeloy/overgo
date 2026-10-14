@@ -81,6 +81,7 @@ var runtimePolicyCodec = artifact.DocumentCodec[RuntimePolicy]{
 	Decode:       func(data []byte, value *RuntimePolicy) error { return strictjson.DecodeBytes(data, value) },
 	Encode:       func(value RuntimePolicy) ([]byte, error) { return json.Marshal(value) },
 	Canonicalize: canonicalizeRuntimePolicy,
+	Clone:        artifact.DeepCopy[RuntimePolicy](),
 	Identity:     func(value RuntimePolicy) artifact.ID { return value.ID },
 	SetIdentity:  func(value *RuntimePolicy, id artifact.ID) { value.ID = id },
 }

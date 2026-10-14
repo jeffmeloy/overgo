@@ -47,14 +47,9 @@ var trainingTraceCodec = artifact.DocumentCodec[TrainingTrace]{
 		})
 	},
 	Canonicalize: canonicalizeTrainingTrace,
-	Clone: func(value TrainingTrace) TrainingTrace {
-		value.Evaluators = slices.Clone(value.Evaluators)
-		value.DPO = slices.Clone(value.DPO)
-		value.GRPO = slices.Clone(value.GRPO)
-		return value
-	},
-	Identity:    func(value TrainingTrace) artifact.ID { return value.ID },
-	SetIdentity: func(value *TrainingTrace, id artifact.ID) { value.ID = id },
+	Clone:        artifact.DeepCopy[TrainingTrace](),
+	Identity:     func(value TrainingTrace) artifact.ID { return value.ID },
+	SetIdentity:  func(value *TrainingTrace, id artifact.ID) { value.ID = id },
 }
 
 type TrainingTrace struct {

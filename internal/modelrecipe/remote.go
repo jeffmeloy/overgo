@@ -60,7 +60,7 @@ var remoteModelDefinitionCodec = artifact.JSONDocumentCodec(
 		return nil
 	},
 	func(value remoteModelDefinition) artifact.ID { return value.ID },
-	func(value *remoteModelDefinition, id artifact.ID) { value.ID = id }, nil,
+	func(value *remoteModelDefinition, id artifact.ID) { value.ID = id },
 )
 
 func remoteModelDefinitionLineage(value remoteModelDefinition) []artifact.Lineage {

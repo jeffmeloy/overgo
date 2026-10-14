@@ -180,7 +180,6 @@ var capabilityEpisodeProjectionCodec = artifact.JSONDocumentCodec(
 	canonicalizeCapabilityEpisodeProjection,
 	func(value CapabilityEpisodeProjection) artifact.ID { return value.ID },
 	func(value *CapabilityEpisodeProjection, id artifact.ID) { value.ID = id },
-	cloneCapabilityEpisodeProjection,
 )
 
 // CompileCapabilityEpisodeProjection compiles owner-validated source facts into a
@@ -427,12 +426,4 @@ func (value CapabilityEpisodeProjection) Batch(key string) (artifact.Batch, erro
 		return artifact.Batch{}, err
 	}
 	return artifact.NewDocumentBatch(key, []artifact.Content{content}, value.Lineage(), nil)
-}
-
-func cloneCapabilityEpisodeProjection(value CapabilityEpisodeProjection) CapabilityEpisodeProjection {
-	value.Episodes = slices.Clone(value.Episodes)
-	for index := range value.Episodes {
-		value.Episodes[index].References = slices.Clone(value.Episodes[index].References)
-	}
-	return value
 }

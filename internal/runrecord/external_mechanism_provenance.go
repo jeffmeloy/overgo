@@ -48,13 +48,6 @@ var externalMechanismProvenanceCodec = artifact.JSONDocumentCodec(
 	canonicalizeExternalMechanismProvenance,
 	func(value externalMechanismProvenance) artifact.ID { return value.ID },
 	func(value *externalMechanismProvenance, id artifact.ID) { value.ID = id },
-	func(value externalMechanismProvenance) externalMechanismProvenance {
-		value.Sources = slices.Clone(value.Sources)
-		for index := range value.Sources {
-			value.Sources[index].Paths = slices.Clone(value.Sources[index].Paths)
-		}
-		return value
-	},
 )
 
 // NewExternalMechanismProvenance identifies exact research-only source provenance.

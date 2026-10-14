@@ -118,7 +118,6 @@ var retrievalReceiptCodec = artifact.JSONDocumentCodec(
 	canonicalizeRetrievalReceipt,
 	func(value RetrievalReceipt) artifact.ID { return value.ID },
 	func(value *RetrievalReceipt, id artifact.ID) { value.ID = id },
-	cloneRetrievalReceipt,
 )
 
 func newRetrievalReceipt(request retrievalReceiptRequest, search dataset.AgentRetrievalSearchResult) (RetrievalReceipt, error) {
@@ -478,16 +477,4 @@ func validReceiptStructure(value []string) bool {
 		}
 	}
 	return true
-}
-
-func cloneRetrievalReceipt(value RetrievalReceipt) RetrievalReceipt {
-	value.Filters.Datasets = slices.Clone(value.Filters.Datasets)
-	value.Filters.Sources = slices.Clone(value.Filters.Sources)
-	value.Filters.Facets = slices.Clone(value.Filters.Facets)
-	value.Filters.Parents = slices.Clone(value.Filters.Parents)
-	value.Results = slices.Clone(value.Results)
-	for index := range value.Results {
-		value.Results[index].Structure = slices.Clone(value.Results[index].Structure)
-	}
-	return value
 }

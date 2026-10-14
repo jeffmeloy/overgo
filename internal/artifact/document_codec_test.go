@@ -67,10 +67,7 @@ func TestDocumentCodecReadOwnsCanonicalLifecycle(t *testing.T) {
 			slices.Sort(value.Names)
 			return nil
 		},
-		Clone: func(value codecFixture) codecFixture {
-			value.Names = slices.Clone(value.Names)
-			return value
-		},
+		Clone:       DeepCopy[codecFixture](),
 		Identity:    func(value codecFixture) ID { return value.ID },
 		SetIdentity: func(value *codecFixture, id ID) { value.ID = id },
 	}

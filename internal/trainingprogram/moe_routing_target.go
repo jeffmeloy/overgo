@@ -56,10 +56,6 @@ var moeRoutingTargetContract = artifact.JSONDocumentCodec(
 	canonicalizeMoERoutingTarget,
 	func(target moeRoutingTarget) artifact.ID { return target.ID },
 	func(target *moeRoutingTarget, id artifact.ID) { target.ID = id },
-	func(target moeRoutingTarget) moeRoutingTarget {
-		target.moeRoutingTargetSpec = cloneMoERoutingTargetSpec(target.moeRoutingTargetSpec)
-		return target
-	},
 )
 
 var moeRoutingTargetLineage = func(target moeRoutingTarget) []artifact.Lineage {
@@ -117,16 +113,6 @@ func canonicalizeMoERoutingTarget(target *moeRoutingTarget) error {
 		}
 	}
 	return nil
-}
-
-func cloneMoERoutingTargetSpec(spec moeRoutingTargetSpec) moeRoutingTargetSpec {
-	copy := spec
-	copy.Strata = slices.Clone(spec.Strata)
-	for index := range copy.Strata {
-		copy.Strata[index].Masses = slices.Clone(spec.Strata[index].Masses)
-	}
-	copy.Assumptions = slices.Clone(spec.Assumptions)
-	return copy
 }
 
 func allMassesEqual(masses []uint64) bool {

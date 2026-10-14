@@ -101,7 +101,6 @@ var candidateCodec = artifact.JSONDocumentCodec(
 	canonicalizeCandidateDocument,
 	func(value candidateDocument) artifact.ID { return value.ID },
 	func(value *candidateDocument, id artifact.ID) { value.ID = id },
-	cloneCandidateDocument,
 )
 
 // NewCandidate canonicalizes and identifies one cross-domain hypothesis.
@@ -222,11 +221,6 @@ func canonicalizeCandidateReferences(value *candidateDocument) error {
 		}
 	}
 	return nil
-}
-
-func cloneCandidateDocument(value candidateDocument) candidateDocument {
-	value.CandidateSpec = cloneCandidateSpec(value.CandidateSpec)
-	return value
 }
 
 func cloneCandidateSpec(value CandidateSpec) CandidateSpec {

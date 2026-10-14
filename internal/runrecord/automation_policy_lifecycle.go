@@ -60,10 +60,6 @@ type AutomationPolicyLifecycle struct {
 var automationPolicyLifecycleCodec = artifact.JSONDocumentCodec(
 	"automation policy lifecycle", artifact.KindEvidence, automationPolicyLifecycleMediaType, automationPolicyLifecycleSchema,
 	canonicalizeAutomationPolicyLifecycle, func(v AutomationPolicyLifecycle) artifact.ID { return v.ID }, func(v *AutomationPolicyLifecycle, id artifact.ID) { v.ID = id },
-	func(v AutomationPolicyLifecycle) AutomationPolicyLifecycle {
-		v.Trajectories = slices.Clone(v.Trajectories)
-		return v
-	},
 )
 
 // PublishAutomationPolicyTransition advances the lifecycle and active alias in

@@ -51,20 +51,18 @@ var audioSignalProfileCodec = artifact.JSONDocumentCodec(
 	"audio signal profile", artifact.KindEvidence, AudioSignalProfileMediaType, AudioSignalProfileSchema,
 	canonicalizeAudioSignalProfile, func(value AudioSignalProfileDocument) artifact.ID { return value.ID },
 	func(value *AudioSignalProfileDocument, id artifact.ID) { value.ID = id },
-	func(value AudioSignalProfileDocument) AudioSignalProfileDocument { return value },
 )
 
 var audioAdmissionPolicyCodec = artifact.JSONDocumentCodec(
 	"audio admission policy", artifact.KindProfile, AudioAdmissionPolicyMediaType, AudioAdmissionPolicySchema,
 	canonicalizeAudioAdmissionPolicy, func(value AudioAdmissionPolicyDocument) artifact.ID { return value.ID },
 	func(value *AudioAdmissionPolicyDocument, id artifact.ID) { value.ID = id },
-	func(value AudioAdmissionPolicyDocument) AudioAdmissionPolicyDocument { return value },
 )
 
 var audioAdmissionDecisionCodec = artifact.JSONDocumentCodec(
 	"audio admission decision", artifact.KindEvidence, AudioAdmissionDecisionMediaType, AudioAdmissionDecisionSchema,
 	canonicalizeAudioAdmissionDecision, func(value AudioAdmissionDecisionDocument) artifact.ID { return value.ID },
-	func(value *AudioAdmissionDecisionDocument, id artifact.ID) { value.ID = id }, cloneAudioAdmissionDecision,
+	func(value *AudioAdmissionDecisionDocument, id artifact.ID) { value.ID = id },
 )
 
 func canonicalizeAudioSignalProfile(document *AudioSignalProfileDocument) error {
@@ -89,9 +87,4 @@ func canonicalizeAudioAdmissionDecision(document *AudioAdmissionDecisionDocument
 	slices.Sort(document.Decision.Violations)
 	document.Decision.Violations = slices.Compact(document.Decision.Violations)
 	return document.Decision.Validate()
-}
-
-func cloneAudioAdmissionDecision(document AudioAdmissionDecisionDocument) AudioAdmissionDecisionDocument {
-	document.Decision.Violations = slices.Clone(document.Decision.Violations)
-	return document
 }

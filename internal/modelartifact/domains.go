@@ -31,10 +31,6 @@ var evalDomainCodec = artifact.JSONDocumentCodec(
 	"evaluation domains", artifact.KindEvidence, evalDomainsMediaType, evalDomainsSchema,
 	canonicalizeEvalDomains, func(value EvalDomainDeclaration) artifact.ID { return value.ID },
 	func(value *EvalDomainDeclaration, id artifact.ID) { value.ID = id },
-	func(value EvalDomainDeclaration) EvalDomainDeclaration {
-		value.Domains = slices.Clone(value.Domains)
-		return value
-	},
 )
 
 func canonicalizeEvalDomains(value *EvalDomainDeclaration) error {

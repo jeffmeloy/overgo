@@ -17,10 +17,6 @@ var remotePeerCapabilityCodec = artifact.JSONDocumentCodec(
 	canonicalizeRemotePeerCapability,
 	func(value RemotePeerCapability) artifact.ID { return value.ID },
 	func(value *RemotePeerCapability, id artifact.ID) { value.ID = id },
-	func(value RemotePeerCapability) RemotePeerCapability {
-		value.Tasks = slices.Clone(value.Tasks)
-		return value
-	},
 )
 
 // RemotePeerCapability defines one peer's declared task transport.

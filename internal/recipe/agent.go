@@ -36,13 +36,6 @@ var agentDefinitionCodec = artifact.JSONDocumentCodec(
 	canonicalizeAgentDefinition,
 	func(value AgentDefinition) artifact.ID { return value.ID },
 	func(value *AgentDefinition, id artifact.ID) { value.ID = id },
-	func(value AgentDefinition) AgentDefinition {
-		value.ToolManuals = slices.Clone(value.ToolManuals)
-		value.CapabilityBundles = slices.Clone(value.CapabilityBundles)
-		value.Datasets = slices.Clone(value.Datasets)
-		value.Policies = slices.Clone(value.Policies)
-		return value
-	},
 )
 
 // NewAgentDefinition validates and identifies one immutable agent definition.

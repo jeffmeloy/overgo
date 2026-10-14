@@ -177,7 +177,6 @@ var candidateComponentPlanCodec = artifact.JSONDocumentCodec(
 	canonicalizeCandidateComponentPlan,
 	func(value CandidateComponentPlan) artifact.ID { return value.ID },
 	func(value *CandidateComponentPlan, id artifact.ID) { value.ID = id },
-	cloneCandidateComponentPlan,
 )
 
 var candidateAblationCodec = artifact.JSONDocumentCodec(
@@ -185,7 +184,7 @@ var candidateAblationCodec = artifact.JSONDocumentCodec(
 	CandidateAblationMediaType, CandidateAblationSchema,
 	canonicalizeCandidateAblation,
 	func(value CandidateAblation) artifact.ID { return value.ID },
-	func(value *CandidateAblation, id artifact.ID) { value.ID = id }, nil,
+	func(value *CandidateAblation, id artifact.ID) { value.ID = id },
 )
 
 var candidateEvaluationPlanCodec = artifact.JSONDocumentCodec(
@@ -194,7 +193,6 @@ var candidateEvaluationPlanCodec = artifact.JSONDocumentCodec(
 	canonicalizeCandidateEvaluationPlan,
 	func(value CandidateEvaluationPlan) artifact.ID { return value.ID },
 	func(value *CandidateEvaluationPlan, id artifact.ID) { value.ID = id },
-	cloneCandidateEvaluationPlan,
 )
 
 var candidateTrialCodec = artifact.JSONDocumentCodec(
@@ -203,7 +201,6 @@ var candidateTrialCodec = artifact.JSONDocumentCodec(
 	canonicalizeCandidateTrial,
 	func(value CandidateTrial) artifact.ID { return value.ID },
 	func(value *CandidateTrial, id artifact.ID) { value.ID = id },
-	cloneCandidateTrial,
 )
 
 // CompileAdmittedCandidate replays the persisted admission before dispatch,
@@ -961,26 +958,6 @@ func canonicalCandidateIDs(values []artifact.ID, kind artifact.Kind) ([]artifact
 
 func cloneCandidateCompileFacts(value CandidateCompileFacts) CandidateCompileFacts {
 	value.References = slices.Clone(value.References)
-	return value
-}
-
-func cloneCandidateComponentPlan(value CandidateComponentPlan) CandidateComponentPlan {
-	value.Inputs = slices.Clone(value.Inputs)
-	value.Documents = slices.Clone(value.Documents)
-	value.Ablations = slices.Clone(value.Ablations)
-	return value
-}
-
-func cloneCandidateEvaluationPlan(value CandidateEvaluationPlan) CandidateEvaluationPlan {
-	value.ComponentPlans = slices.Clone(value.ComponentPlans)
-	value.Ablations = slices.Clone(value.Ablations)
-	value.CausalReferences = slices.Clone(value.CausalReferences)
-	return value
-}
-
-func cloneCandidateTrial(value CandidateTrial) CandidateTrial {
-	value.Components = slices.Clone(value.Components)
-	value.Ablations = slices.Clone(value.Ablations)
 	return value
 }
 

@@ -22,7 +22,7 @@ var documentContract = artifact.DocumentContract{
 var documentCodec = artifact.JSONDocumentCodec(
 	"dataset", documentContract.Kind, documentContract.MediaType, documentContract.Schema,
 	canonicalize, func(value Document) artifact.ID { return value.ID },
-	func(value *Document, id artifact.ID) { value.ID = id }, cloneDocument,
+	func(value *Document, id artifact.ID) { value.ID = id },
 )
 
 // Type defines canonical dataset document form.
@@ -308,17 +308,6 @@ func canonicalizeMembers(members *[]Member) error {
 
 func datasetID(id *artifact.ID) bool {
 	return id != nil && id.Kind() == artifact.KindDataset
-}
-
-func cloneDocument(document Document) Document {
-	document.Assets = slices.Clone(document.Assets)
-	document.Source = artifact.CloneID(document.Source)
-	document.Selector = artifact.CloneID(document.Selector)
-	document.Fields = slices.Clone(document.Fields)
-	document.Partitions = slices.Clone(document.Partitions)
-	document.Members = slices.Clone(document.Members)
-	document.Catalog = cloneCatalog(document.Catalog)
-	return document
 }
 
 func cloneCatalog(entries []CatalogEntry) []CatalogEntry {

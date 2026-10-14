@@ -44,10 +44,6 @@ var componentDecompositionCodec = artifact.JSONDocumentCodec(
 	canonicalizeComponentDecomposition,
 	func(value ComponentDecompositionDocument) artifact.ID { return value.ID },
 	func(value *ComponentDecompositionDocument, id artifact.ID) { value.ID = id },
-	func(value ComponentDecompositionDocument) ComponentDecompositionDocument {
-		value.Components = slices.Clone(value.Components)
-		return value
-	},
 )
 
 // NewComponentDecomposition classifies every tensor fact across the organ

@@ -29,7 +29,6 @@ var failureObservationCodec = artifact.JSONDocumentCodec(
 	canonicalizeFailureObservation,
 	func(value FailureObservation) artifact.ID { return value.ID },
 	func(value *FailureObservation, id artifact.ID) { value.ID = id },
-	func(value FailureObservation) FailureObservation { return value },
 )
 
 var failureNormalizationCodec = artifact.JSONDocumentCodec(
@@ -37,7 +36,6 @@ var failureNormalizationCodec = artifact.JSONDocumentCodec(
 	canonicalizeFailureNormalization,
 	func(value FailureNormalization) artifact.ID { return value.ID },
 	func(value *FailureNormalization, id artifact.ID) { value.ID = id },
-	func(value FailureNormalization) FailureNormalization { return value },
 )
 
 // FailureObservation preserves one failure's raw evidence exactly as

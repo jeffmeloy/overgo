@@ -58,10 +58,6 @@ var candidateMaterializationCodec = artifact.JSONDocumentCodec(
 	canonicalizeCandidateMaterialization,
 	func(value CandidateMaterialization) artifact.ID { return value.ID },
 	func(value *CandidateMaterialization, id artifact.ID) { value.ID = id },
-	func(value CandidateMaterialization) CandidateMaterialization {
-		value.Arms = slices.Clone(value.Arms)
-		return value
-	},
 )
 
 // NewCandidateMaterialization validates exact decision, compilation, budget,

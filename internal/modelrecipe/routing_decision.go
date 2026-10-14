@@ -72,13 +72,6 @@ var recipeRoutingDecisionCodec = artifact.JSONDocumentCodec(
 	canonicalizeRecipeRoutingDecision,
 	func(value RecipeRoutingDecision) artifact.ID { return value.ID },
 	func(value *RecipeRoutingDecision, id artifact.ID) { value.ID = id },
-	func(value RecipeRoutingDecision) RecipeRoutingDecision {
-		value.Candidates = slices.Clone(value.Candidates)
-		for index, candidate := range value.Candidates {
-			value.Candidates[index].Evidence = slices.Clone(candidate.Evidence)
-		}
-		return value
-	},
 )
 
 func canonicalizeRecipeRoutingDecision(value *RecipeRoutingDecision) error {

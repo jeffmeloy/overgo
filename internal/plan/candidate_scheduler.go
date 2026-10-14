@@ -77,7 +77,6 @@ var candidateSchedulerCodec = artifact.JSONDocumentCodec(
 	canonicalizeCandidateScheduler,
 	func(value CandidateScheduler) artifact.ID { return value.ID },
 	func(value *CandidateScheduler, id artifact.ID) { value.ID = id },
-	cloneCandidateScheduler,
 )
 
 func CompileCandidateScheduler(outcomes []CandidateOutcome, candidates []ScheduledCandidate, budget SchedulerBudget) (CandidateScheduler, error) {
@@ -299,17 +298,6 @@ func canonicalizeCandidateScheduler(value *CandidateScheduler) error {
 	}
 	value.Selected = value.Ranking[0]
 	return nil
-}
-
-func cloneCandidateScheduler(value CandidateScheduler) CandidateScheduler {
-	value.Outcomes = cloneCandidateOutcomes(value.Outcomes)
-	value.Candidates = slices.Clone(value.Candidates)
-	value.EvidenceRows = slices.Clone(value.EvidenceRows)
-	for index := range value.EvidenceRows {
-		value.EvidenceRows[index].Rates = slices.Clone(value.EvidenceRows[index].Rates)
-	}
-	value.Ranking = slices.Clone(value.Ranking)
-	return value
 }
 
 func cloneCandidateOutcomes(source []CandidateOutcome) []CandidateOutcome {

@@ -115,7 +115,7 @@ func newMechanismEvidenceCodec(
 		name, kind, mediaType, schema,
 		func(value *MechanismEvidence) error { return canonicalizeMechanismEvidence(value, role) },
 		func(value MechanismEvidence) artifact.ID { return value.ID },
-		func(value *MechanismEvidence, id artifact.ID) { value.ID = id }, nil,
+		func(value *MechanismEvidence, id artifact.ID) { value.ID = id },
 	)
 }
 

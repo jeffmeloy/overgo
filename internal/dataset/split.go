@@ -24,10 +24,7 @@ var membershipContract = artifact.DocumentContract{
 var membershipCodec = artifact.JSONDocumentCodec(
 	"dataset membership", membershipContract.Kind, membershipContract.MediaType, membershipContract.Schema,
 	canonicalizeMembership, func(value Membership) artifact.ID { return value.ID },
-	func(value *Membership, id artifact.ID) { value.ID = id }, func(value Membership) Membership {
-		value.Records = slices.Clone(value.Records)
-		return value
-	},
+	func(value *Membership, id artifact.ID) { value.ID = id },
 )
 
 type Record struct {

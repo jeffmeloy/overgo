@@ -54,13 +54,6 @@ var moeRouterObservationCodec = artifact.JSONDocumentCodec(
 	canonicalizeMoERouterObservation,
 	func(value MoERouterObservation) artifact.ID { return value.ID },
 	func(value *MoERouterObservation, id artifact.ID) { value.ID = id },
-	func(value MoERouterObservation) MoERouterObservation {
-		value.Selections = slices.Clone(value.Selections)
-		value.CombineWeights = slices.Clone(value.CombineWeights)
-		value.Accepted = slices.Clone(value.Accepted)
-		value.Margins = slices.Clone(value.Margins)
-		return value
-	},
 )
 
 // NewMoERouterObservation validates and identifies one exact layer observation.

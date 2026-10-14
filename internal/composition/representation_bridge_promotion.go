@@ -3,7 +3,6 @@ package composition
 import (
 	"context"
 	"errors"
-	"slices"
 	"sort"
 
 	"overgo/internal/artifact"
@@ -94,10 +93,6 @@ var representationBridgePromotionCodec = artifact.JSONDocumentCodec(
 	canonicalizeRepresentationBridgePromotion,
 	func(value RepresentationBridgePromotion) artifact.ID { return value.ID },
 	func(value *RepresentationBridgePromotion, id artifact.ID) { value.ID = id },
-	func(value RepresentationBridgePromotion) RepresentationBridgePromotion {
-		value.Trials = slices.Clone(value.Trials)
-		return value
-	},
 )
 
 var representationBridgePromotionPolicyCodec = artifact.JSONDocumentCodec(
@@ -106,7 +101,6 @@ var representationBridgePromotionPolicyCodec = artifact.JSONDocumentCodec(
 	func(value *RepresentationBridgePromotionPolicy) error { return value.validate() },
 	func(value RepresentationBridgePromotionPolicy) artifact.ID { return value.ID },
 	func(value *RepresentationBridgePromotionPolicy, id artifact.ID) { value.ID = id },
-	func(value RepresentationBridgePromotionPolicy) RepresentationBridgePromotionPolicy { return value },
 )
 
 // NewRepresentationBridgePromotionPolicy validates and identifies recipe-owned thresholds.

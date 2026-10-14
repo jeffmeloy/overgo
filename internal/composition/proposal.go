@@ -3,7 +3,6 @@ package composition
 import (
 	"errors"
 	"math"
-	"slices"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -46,10 +45,6 @@ var bridgeProposalCodec = artifact.JSONDocumentCodec(
 	canonicalizeBridgeProposal,
 	func(value BridgeProposal) artifact.ID { return value.ID },
 	func(value *BridgeProposal, id artifact.ID) { value.ID = id },
-	func(value BridgeProposal) BridgeProposal {
-		value.Candidates = slices.Clone(value.Candidates)
-		return value
-	},
 )
 
 func NewBridgeProposal(

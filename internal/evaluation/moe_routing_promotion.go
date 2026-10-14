@@ -75,14 +75,14 @@ var moeRoutingPromotionPolicyCodec = artifact.JSONDocumentCodec(
 		return nil
 	},
 	func(value moeRoutingPromotionPolicy) artifact.ID { return value.ID },
-	func(value *moeRoutingPromotionPolicy, id artifact.ID) { value.ID = id }, nil,
+	func(value *moeRoutingPromotionPolicy, id artifact.ID) { value.ID = id },
 )
 
 var moeRoutingPromotionCodec = artifact.JSONDocumentCodec(
 	"MoE routing promotion", artifact.KindEvidence, moeRoutingPromotionMediaType, moeRoutingPromotionSchema,
 	canonicalizeMoERoutingPromotion,
 	func(value moeRoutingPromotion) artifact.ID { return value.ID },
-	func(value *moeRoutingPromotion, id artifact.ID) { value.ID = id }, nil,
+	func(value *moeRoutingPromotion, id artifact.ID) { value.ID = id },
 )
 
 var moeRoutingPromotionPolicyLineage = func(value moeRoutingPromotionPolicy) []artifact.Lineage {

@@ -297,10 +297,6 @@ var agentRetrievalChunkCodec = artifact.JSONDocumentCodec(
 	canonicalizeAgentRetrievalChunk,
 	func(value AgentRetrievalChunk) artifact.ID { return value.ID },
 	func(value *AgentRetrievalChunk, id artifact.ID) { value.ID = id },
-	func(value AgentRetrievalChunk) AgentRetrievalChunk {
-		value.Structure = slices.Clone(value.Structure)
-		return value
-	},
 )
 
 var agentRetrievalEmbeddingCodec = artifact.JSONDocumentCodec(
@@ -308,10 +304,6 @@ var agentRetrievalEmbeddingCodec = artifact.JSONDocumentCodec(
 	canonicalizeAgentRetrievalEmbedding,
 	func(value AgentRetrievalEmbedding) artifact.ID { return value.ID },
 	func(value *AgentRetrievalEmbedding, id artifact.ID) { value.ID = id },
-	func(value AgentRetrievalEmbedding) AgentRetrievalEmbedding {
-		value.Vector = slices.Clone(value.Vector)
-		return value
-	},
 )
 
 var agentRetrievalProjectionCodec = artifact.JSONDocumentCodec(
@@ -319,10 +311,6 @@ var agentRetrievalProjectionCodec = artifact.JSONDocumentCodec(
 	canonicalizeAgentRetrievalProjection,
 	func(value AgentRetrievalProjection) artifact.ID { return value.ID },
 	func(value *AgentRetrievalProjection, id artifact.ID) { value.ID = id },
-	func(value AgentRetrievalProjection) AgentRetrievalProjection {
-		value.Entries = slices.Clone(value.Entries)
-		return value
-	},
 )
 
 var agentRetrievalFileSourceCodec = artifact.JSONDocumentCodec(
@@ -330,7 +318,6 @@ var agentRetrievalFileSourceCodec = artifact.JSONDocumentCodec(
 	canonicalizeAgentRetrievalSource,
 	func(value agentRetrievalSource) artifact.ID { return value.ID },
 	func(value *agentRetrievalSource, id artifact.ID) { value.ID = id },
-	cloneAgentRetrievalSource,
 )
 
 var agentRetrievalShardSourceCodec = artifact.JSONDocumentCodec(
@@ -338,7 +325,6 @@ var agentRetrievalShardSourceCodec = artifact.JSONDocumentCodec(
 	canonicalizeAgentRetrievalSource,
 	func(value agentRetrievalSource) artifact.ID { return value.ID },
 	func(value *agentRetrievalSource, id artifact.ID) { value.ID = id },
-	cloneAgentRetrievalSource,
 )
 
 // PublishAgentRetrievalSource stores exact extracted text and structure, then
@@ -1455,12 +1441,4 @@ func cloneAgentRetrievalResults(values []AgentRetrievalResult) []AgentRetrievalR
 		result[index].Citation.Structure = slices.Clone(result[index].Citation.Structure)
 	}
 	return result
-}
-
-func cloneAgentRetrievalSource(value agentRetrievalSource) agentRetrievalSource {
-	value.Spans = slices.Clone(value.Spans)
-	for index := range value.Spans {
-		value.Spans[index].Structure = slices.Clone(value.Spans[index].Structure)
-	}
-	return value
 }

@@ -63,10 +63,6 @@ var healthClassificationCodec = artifact.JSONDocumentCodec(
 	canonicalizeHealthClassification,
 	func(value healthClassification) artifact.ID { return value.ID },
 	func(value *healthClassification, id artifact.ID) { value.ID = id },
-	func(value healthClassification) healthClassification {
-		value.Facts = slices.Clone(value.Facts)
-		return value
-	},
 )
 
 var healthClassificationLineage = func(value healthClassification) []artifact.Lineage {

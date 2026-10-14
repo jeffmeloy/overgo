@@ -32,7 +32,7 @@ var flowProfileCodec = artifact.JSONDocumentCodec(
 	"flow profile", artifact.KindProfile, flowProfileMediaType, flowProfileSchema,
 	func(profile *FlowProfile) error { return profile.validate() },
 	func(profile FlowProfile) artifact.ID { return profile.ID },
-	func(profile *FlowProfile, id artifact.ID) { profile.ID = id }, nil,
+	func(profile *FlowProfile, id artifact.ID) { profile.ID = id },
 )
 
 // Content returns validated publication bytes.

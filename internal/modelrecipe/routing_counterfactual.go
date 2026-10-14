@@ -40,10 +40,6 @@ var routingCounterfactualCodec = artifact.JSONDocumentCodec(
 	canonicalizeRoutingCounterfactual,
 	func(value RoutingCounterfactual) artifact.ID { return value.ID },
 	func(value *RoutingCounterfactual, id artifact.ID) { value.ID = id },
-	func(value RoutingCounterfactual) RoutingCounterfactual {
-		value.Decisions = slices.Clone(value.Decisions)
-		return value
-	},
 )
 
 func canonicalizeRoutingCounterfactual(value *RoutingCounterfactual) error {

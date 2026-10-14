@@ -34,7 +34,6 @@ var argvPolicyCodec = artifact.JSONDocumentCodec(
 	canonicalizeArgvPolicy,
 	func(value ArgvPolicy) artifact.ID { return value.ID },
 	func(value *ArgvPolicy, id artifact.ID) { value.ID = id },
-	func(value ArgvPolicy) ArgvPolicy { value.Programs = slices.Clone(value.Programs); return value },
 )
 
 func canonicalizeArgvPolicy(value *ArgvPolicy) error {

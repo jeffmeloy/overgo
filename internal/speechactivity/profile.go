@@ -3,7 +3,6 @@ package speechactivity
 import (
 	"context"
 	"errors"
-	"slices"
 
 	"overgo/internal/artifact"
 	"overgo/internal/audiodsp"
@@ -31,20 +30,7 @@ var profileCodec = artifact.JSONDocumentCodec("speech activity profile", artifac
 			return errors.New("speech activity: incomplete profile")
 		}
 		return nil
-	}, func(p Profile) artifact.ID { return p.ID }, func(p *Profile, id artifact.ID) { p.ID = id }, func(p Profile) Profile {
-		p.Frontend = p.Frontend.Clone()
-		p.Network.Blocks = slices.Clone(p.Network.Blocks)
-		p.Network.Dense = slices.Clone(p.Network.Dense)
-		if p.Offline != nil {
-			value := *p.Offline
-			p.Offline = &value
-		}
-		if p.Streaming != nil {
-			value := *p.Streaming
-			p.Streaming = &value
-		}
-		return p
-	})
+	}, func(p Profile) artifact.ID { return p.ID }, func(p *Profile, id artifact.ID) { p.ID = id })
 
 // RequireProfile reads a canonical, content-addressed execution declaration.
 func RequireProfile(ctx context.Context, reader artifact.Reader, id artifact.ID) (Profile, error) {

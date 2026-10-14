@@ -42,7 +42,6 @@ var evaluatorCodec = artifact.JSONDocumentCodec(
 		return nil
 	}, func(value Evaluator) artifact.ID { return value.ID },
 	func(value *Evaluator, id artifact.ID) { value.ID = id },
-	func(value Evaluator) Evaluator { value.Metrics = slices.Clone(value.Metrics); return value },
 )
 
 func NewEvaluator(plan artifact.ID, acceptance AcceptancePolicy) (Evaluator, error) {

@@ -79,7 +79,6 @@ var candidateCatalogCodec = artifact.JSONDocumentCodec(
 	canonicalizeCandidateCatalog,
 	func(value CandidateCatalog) artifact.ID { return value.ID },
 	func(value *CandidateCatalog, id artifact.ID) { value.ID = id },
-	func(value CandidateCatalog) CandidateCatalog { return value },
 )
 
 var candidateVerificationCodec = artifact.JSONDocumentCodec(
@@ -88,10 +87,6 @@ var candidateVerificationCodec = artifact.JSONDocumentCodec(
 	canonicalizeCandidateVerification,
 	func(value CandidateVerification) artifact.ID { return value.ID },
 	func(value *CandidateVerification, id artifact.ID) { value.ID = id },
-	func(value CandidateVerification) CandidateVerification {
-		value.Authorities = slices.Clone(value.Authorities)
-		return value
-	},
 )
 
 // StageManualCandidates commits discovery output and lineage without changing

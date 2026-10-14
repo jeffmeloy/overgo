@@ -49,12 +49,6 @@ var bridgeCheckpointCodec = artifact.JSONDocumentCodec(
 	canonicalizeBridgeTrainingCheckpoint,
 	func(value bridgeTrainingCheckpoint) artifact.ID { return value.ID },
 	func(value *bridgeTrainingCheckpoint, id artifact.ID) { value.ID = id },
-	func(value bridgeTrainingCheckpoint) bridgeTrainingCheckpoint {
-		value.Weights = slices.Clone(value.Weights)
-		value.Optimizer.Momentum = slices.Clone(value.Optimizer.Momentum)
-		value.Metrics = slices.Clone(value.Metrics)
-		return value
-	},
 )
 
 func (trainer Trainer) trainDataset(ctx context.Context, request Request) (Result, error) {

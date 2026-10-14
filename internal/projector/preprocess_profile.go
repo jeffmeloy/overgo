@@ -68,7 +68,7 @@ var mediaPreprocessProfileCodec = artifact.JSONDocumentCodec(
 		return profile.Video.validate()
 	},
 	func(profile MediaPreprocessProfile) artifact.ID { return profile.ID },
-	func(profile *MediaPreprocessProfile, id artifact.ID) { profile.ID = id }, nil,
+	func(profile *MediaPreprocessProfile, id artifact.ID) { profile.ID = id },
 )
 
 // Content returns validated publication bytes.

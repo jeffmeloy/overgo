@@ -80,14 +80,6 @@ var modelVerificationCodec = artifact.JSONDocumentCodec(
 	canonicalizeModelVerification,
 	func(value ModelVerification) artifact.ID { return value.ID },
 	func(value *ModelVerification, id artifact.ID) { value.ID = id },
-	func(value ModelVerification) ModelVerification {
-		value.Claims = slices.Clone(value.Claims)
-		value.Supersedes = slices.Clone(value.Supersedes)
-		for i := range value.Claims {
-			value.Claims[i].Evidence = slices.Clone(value.Claims[i].Evidence)
-		}
-		return value
-	},
 )
 
 func NewModelVerification(model artifact.ID, name string, claims []CapabilityClaim) (ModelVerification, error) {

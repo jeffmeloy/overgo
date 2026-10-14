@@ -101,8 +101,7 @@ var decisionCodec = artifact.JSONDocumentCodec(
 	canonicalizeDecision,
 	func(value Decision) artifact.ID { return value.ID },
 	func(value *Decision, id artifact.ID) { value.ID = id },
-	cloneDecision,
-)
+).WithClone(cloneDecision)
 
 func Decide(spec DecisionSpec) (Decision, error) {
 	if spec.Budget.Split != spec.Split || spec.Evaluator.Kind() != artifact.KindEvidence {

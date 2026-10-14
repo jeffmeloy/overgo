@@ -37,10 +37,6 @@ var humanDecisionCodec = artifact.JSONDocumentCodec(
 	canonicalizeHumanDecision,
 	func(value HumanDecision) artifact.ID { return value.ID },
 	func(value *HumanDecision, id artifact.ID) { value.ID = id },
-	func(value HumanDecision) HumanDecision {
-		value.Arguments = slices.Clone(value.Arguments)
-		return value
-	},
 )
 
 // NewHumanDecision binds an answer to the exact approval request.

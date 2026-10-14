@@ -112,12 +112,12 @@ var (
 	textTargetPlanCodec = artifact.JSONDocumentCodec(
 		"text target plan", artifact.KindProfile, textTargetPlanMediaType, textTargetPlanSchema,
 		canonicalizeTextTargetPlan, func(value textTargetPlan) artifact.ID { return value.ID },
-		func(value *textTargetPlan, id artifact.ID) { value.ID = id }, cloneTextTargetPlan,
+		func(value *textTargetPlan, id artifact.ID) { value.ID = id },
 	)
 	textTargetReportCodec = artifact.JSONDocumentCodec(
 		"text target report", artifact.KindEvaluation, textTargetReportMediaType, textTargetReportSchema,
 		canonicalizeTextTargetReport, func(value textTargetReport) artifact.ID { return value.ID },
-		func(value *textTargetReport, id artifact.ID) { value.ID = id }, cloneTextTargetReport,
+		func(value *textTargetReport, id artifact.ID) { value.ID = id },
 	)
 )
 
@@ -393,20 +393,6 @@ func canonicalizeTextTargetReport(report *textTargetReport) error {
 	return nil
 }
 
-func cloneTextTargetPlan(plan textTargetPlan) textTargetPlan {
-	plan.Signature = plan.Signature.Clone()
-	plan.Scorers = slices.Clone(plan.Scorers)
-	for index := range plan.Scorers {
-		plan.Scorers[index].Normalization = slices.Clone(plan.Scorers[index].Normalization)
-		if plan.Scorers[index].Verifier != nil {
-			value := *plan.Scorers[index].Verifier
-			plan.Scorers[index].Verifier = &value
-		}
-	}
-	plan.Cases = cloneTextTargetCases(plan.Cases)
-	return plan
-}
-
 func cloneTextTargetCases(cases []textTargetCase) []textTargetCase {
 	result := slices.Clone(cases)
 	for index := range result {
@@ -423,10 +409,4 @@ func cloneTextObservations(values []textTargetObservation) []textTargetObservati
 		result[index].Verifiers = slices.Clone(result[index].Verifiers)
 	}
 	return result
-}
-
-func cloneTextTargetReport(report textTargetReport) textTargetReport {
-	report.Observations = cloneTextObservations(report.Observations)
-	report.Metrics = slices.Clone(report.Metrics)
-	return report
 }

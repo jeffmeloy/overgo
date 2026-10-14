@@ -45,15 +45,6 @@ var agentTaskContractCodec = artifact.JSONDocumentCodec(
 	canonicalizeAgentTaskContract,
 	func(value AgentTaskContract) artifact.ID { return value.ID },
 	func(value *AgentTaskContract, id artifact.ID) { value.ID = id },
-	func(value AgentTaskContract) AgentTaskContract {
-		value.Scope = slices.Clone(value.Scope)
-		value.NonGoals = slices.Clone(value.NonGoals)
-		value.AllowedEffects = slices.Clone(value.AllowedEffects)
-		value.Acceptance = slices.Clone(value.Acceptance)
-		value.Verification = slices.Clone(value.Verification)
-		value.PauseConditions = slices.Clone(value.PauseConditions)
-		return value
-	},
 )
 
 // NewAgentTaskContract canonicalizes and identifies one immutable task contract.

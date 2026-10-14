@@ -40,13 +40,13 @@ const (
 var benchmarkRecordCodec = artifact.JSONDocumentCodec(
 	"benchmark record", artifact.KindDatasetShard, benchmarkRecordMediaType, benchmarkRecordSchema,
 	canonicalizeBenchmarkRecord, func(value BenchmarkRecord) artifact.ID { return value.ID },
-	func(value *BenchmarkRecord, id artifact.ID) { value.ID = id }, cloneBenchmarkRecord,
+	func(value *BenchmarkRecord, id artifact.ID) { value.ID = id },
 )
 
 var benchmarkImportCodec = artifact.JSONDocumentCodec(
 	"benchmark import", artifact.KindDataset, benchmarkImportMediaType, benchmarkImportSchema,
 	canonicalizeBenchmarkImport, func(value BenchmarkImport) artifact.ID { return value.ID },
-	func(value *BenchmarkImport, id artifact.ID) { value.ID = id }, cloneBenchmarkImport,
+	func(value *BenchmarkImport, id artifact.ID) { value.ID = id },
 )
 
 type FieldBinding struct {
@@ -244,20 +244,6 @@ func canonicalizeBenchmarkImport(value *BenchmarkImport) error {
 		}
 	}
 	return nil
-}
-
-func cloneBenchmarkRecord(record BenchmarkRecord) BenchmarkRecord {
-	record.Fields = slices.Clone(record.Fields)
-	for index := range record.Fields {
-		record.Fields[index].Value = slices.Clone(record.Fields[index].Value)
-	}
-	return record
-}
-
-func cloneBenchmarkImport(value BenchmarkImport) BenchmarkImport {
-	value.Spec.Fields = slices.Clone(value.Spec.Fields)
-	value.Records = slices.Clone(value.Records)
-	return value
 }
 
 // HashFile digests one file with the same claim the import records:

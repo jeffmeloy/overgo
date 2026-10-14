@@ -136,7 +136,7 @@ type Manifest struct {
 var codec = artifact.JSONDocumentCodec(
 	"API manifest", artifact.KindProfile, MediaType, Schema, canonicalize,
 	func(value Manifest) artifact.ID { return value.ID },
-	func(value *Manifest, id artifact.ID) { value.ID = id }, clone,
+	func(value *Manifest, id artifact.ID) { value.ID = id },
 )
 
 // New canonicalizes and identifies one manifest.
@@ -150,51 +150,6 @@ func (m Manifest) Validate() error { return codec.ValidateIdentity(m) }
 
 // Content returns the canonical committed bytes of the manifest.
 func (m Manifest) Content() (artifact.Content, error) { return codec.Content(m) }
-
-func clone(value Manifest) Manifest {
-	value.BuildContexts = slices.Clone(value.BuildContexts)
-	for index := range value.BuildContexts {
-		value.BuildContexts[index].Tags = slices.Clone(value.BuildContexts[index].Tags)
-	}
-	value.Binaries = slices.Clone(value.Binaries)
-	for index := range value.Binaries {
-		value.Binaries[index].BuildContexts = slices.Clone(value.Binaries[index].BuildContexts)
-		value.Binaries[index].Flags = slices.Clone(value.Binaries[index].Flags)
-		value.Binaries[index].Environment = slices.Clone(value.Binaries[index].Environment)
-		value.Binaries[index].Input = slices.Clone(value.Binaries[index].Input)
-		value.Binaries[index].Output = slices.Clone(value.Binaries[index].Output)
-		value.Binaries[index].ExitCodes = slices.Clone(value.Binaries[index].ExitCodes)
-	}
-	value.Routes = slices.Clone(value.Routes)
-	for index := range value.Routes {
-		value.Routes[index].Request = artifact.ClonePointer(value.Routes[index].Request)
-		value.Routes[index].Responses = slices.Clone(value.Routes[index].Responses)
-		value.Routes[index].Stream = artifact.ClonePointer(value.Routes[index].Stream)
-	}
-	value.Documents = slices.Clone(value.Documents)
-	for index := range value.Documents {
-		value.Documents[index].BuildContexts = slices.Clone(value.Documents[index].BuildContexts)
-	}
-	value.Modules = slices.Clone(value.Modules)
-	for index := range value.Modules {
-		value.Modules[index].Tasks = slices.Clone(value.Modules[index].Tasks)
-		value.Modules[index].Inputs = slices.Clone(value.Modules[index].Inputs)
-		value.Modules[index].Outputs = slices.Clone(value.Modules[index].Outputs)
-	}
-	value.Protocols = slices.Clone(value.Protocols)
-	for index := range value.Protocols {
-		value.Protocols[index].Contracts = slices.Clone(value.Protocols[index].Contracts)
-	}
-	value.Workspaces = slices.Clone(value.Workspaces)
-	value.Authorities = slices.Clone(value.Authorities)
-	for index := range value.Authorities {
-		if value.Authorities[index].Artifact != nil {
-			id := *value.Authorities[index].Artifact
-			value.Authorities[index].Artifact = &id
-		}
-	}
-	return value
-}
 
 func canonicalize(value *Manifest) error {
 	if value == nil {

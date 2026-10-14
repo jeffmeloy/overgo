@@ -61,13 +61,6 @@ var trainingSamplesCodec = artifact.JSONDocumentCodec(
 	canonicalizeTrainingSamples,
 	func(value trainingSamples) artifact.ID { return value.ID },
 	func(value *trainingSamples, id artifact.ID) { value.ID = id },
-	func(value trainingSamples) trainingSamples {
-		value.Strips = slices.Clone(value.Strips)
-		for index := range value.Strips {
-			value.Strips[index].Samples = slices.Clone(value.Strips[index].Samples)
-		}
-		return value
-	},
 )
 
 func canonicalizeTrainingSamples(value *trainingSamples) error {

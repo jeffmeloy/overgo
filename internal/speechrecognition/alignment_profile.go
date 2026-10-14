@@ -31,8 +31,7 @@ var alignmentProfileCodec = artifact.JSONDocumentCodec("CTC alignment profile", 
 		}
 		return nil
 	}, func(profile AlignmentProfile) artifact.ID { return profile.ID },
-	func(profile *AlignmentProfile, id artifact.ID) { profile.ID = id },
-	func(profile AlignmentProfile) AlignmentProfile { return profile })
+	func(profile *AlignmentProfile, id artifact.ID) { profile.ID = id })
 
 // NewAlignmentProfile identifies an explicit supported mapping declaration.
 func NewAlignmentProfile(profile AlignmentProfile) (AlignmentProfile, error) {

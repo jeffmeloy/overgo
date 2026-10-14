@@ -52,10 +52,6 @@ var compositeGenerationCUDAEvidenceCodec = artifact.JSONDocumentCodec(
 	canonicalizeCompositeGenerationCUDAEvidence,
 	func(value CompositeGenerationCUDAEvidence) artifact.ID { return value.ID },
 	func(value *CompositeGenerationCUDAEvidence, id artifact.ID) { value.ID = id },
-	func(value CompositeGenerationCUDAEvidence) CompositeGenerationCUDAEvidence {
-		value.HeldOutInputs = slices.Clone(value.HeldOutInputs)
-		return value
-	},
 )
 
 // New validates, canonicalizes, and identifies exact CUDA comparison evidence.

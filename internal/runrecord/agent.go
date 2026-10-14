@@ -56,7 +56,7 @@ var agentActivationCodec = artifact.JSONDocumentCodec(
 	"agent activation", artifact.KindEvidence, AgentActivationMediaType, AgentActivationSchema,
 	canonicalizeAgentActivation,
 	func(value agentActivation) artifact.ID { return value.ID },
-	func(value *agentActivation, id artifact.ID) { value.ID = id }, nil,
+	func(value *agentActivation, id artifact.ID) { value.ID = id },
 )
 
 // PublishDefinition commits one inactive definition and its exact dependency lineage.

@@ -38,7 +38,7 @@ var derivationProfileCodec = artifact.JSONDocumentCodec(
 	"derivation profile", artifact.KindProfile, derivationProfileMediaType, derivationProfileSchema,
 	func(profile *DerivationProfile) error { return profile.validate() },
 	func(profile DerivationProfile) artifact.ID { return profile.ID },
-	func(profile *DerivationProfile, id artifact.ID) { profile.ID = id }, nil,
+	func(profile *DerivationProfile, id artifact.ID) { profile.ID = id },
 )
 
 // NewDerivationProfile identifies validated policy.

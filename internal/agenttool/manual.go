@@ -164,16 +164,6 @@ var manualCodec = artifact.JSONDocumentCodec(
 	func(manual *Manual) error { return manual.validate() },
 	func(manual Manual) artifact.ID { return manual.ID },
 	func(manual *Manual, id artifact.ID) { manual.ID = id },
-	func(manual Manual) Manual {
-		manual.Arguments = slices.Clone(manual.Arguments)
-		manual.Ceiling.Targets = slices.Clone(manual.Ceiling.Targets)
-		manual.Transport.Args = slices.Clone(manual.Transport.Args)
-		if manual.CapabilityIdentity != nil {
-			identity := *manual.CapabilityIdentity
-			manual.CapabilityIdentity = &identity
-		}
-		return manual
-	},
 )
 
 // NewManual canonicalizes and identifies one manual.

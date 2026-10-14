@@ -42,10 +42,6 @@ var referenceScoreCodec = artifact.JSONDocumentCodec(
 	"evaluation references", artifact.KindEvidence, referenceScoresMediaType, referenceScoresSchema,
 	canonicalizeReferenceScores, func(value referenceScoreDeclaration) artifact.ID { return value.ID },
 	func(value *referenceScoreDeclaration, id artifact.ID) { value.ID = id },
-	func(value referenceScoreDeclaration) referenceScoreDeclaration {
-		value.References = slices.Clone(value.References)
-		return value
-	},
 )
 
 func compareReferenceScores(a, b ReferenceScore) int {

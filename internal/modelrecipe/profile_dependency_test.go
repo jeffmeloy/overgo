@@ -29,7 +29,7 @@ var componentProfileFixtureCodec = artifact.JSONDocumentCodec(
 		return nil
 	},
 	func(value componentProfileFixture) artifact.ID { return value.ID },
-	func(value *componentProfileFixture, id artifact.ID) { value.ID = id }, nil,
+	func(value *componentProfileFixture, id artifact.ID) { value.ID = id },
 )
 
 func TestResolvedComponentProfilesUseTypedRecipeDependencies(t *testing.T) {

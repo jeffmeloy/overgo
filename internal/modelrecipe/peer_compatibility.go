@@ -17,7 +17,7 @@ var remotePeerCompatibilityCodec = artifact.JSONDocumentCodec(
 	"application/vnd.overgo.remote-peer-compatibility+json", "overgo/remote-peer-compatibility/v1",
 	canonicalizeRemotePeerCompatibility,
 	func(value RemotePeerCompatibility) artifact.ID { return value.ID },
-	func(value *RemotePeerCompatibility, id artifact.ID) { value.ID = id }, nil,
+	func(value *RemotePeerCompatibility, id artifact.ID) { value.ID = id },
 )
 
 // RemotePeerCompatibility defines observed parity for one recipe resource plan.

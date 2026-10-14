@@ -85,7 +85,6 @@ var offlineTensorResourcePolicyCodec = artifact.JSONDocumentCodec(
 	canonicalizeOfflineTensorResourcePolicy,
 	func(value OfflineTensorResourcePolicy) artifact.ID { return value.ID },
 	func(value *OfflineTensorResourcePolicy, id artifact.ID) { value.ID = id },
-	func(value OfflineTensorResourcePolicy) OfflineTensorResourcePolicy { return value },
 )
 
 var offlineTensorExecutionPlanCodec = artifact.JSONDocumentCodec(
@@ -94,7 +93,6 @@ var offlineTensorExecutionPlanCodec = artifact.JSONDocumentCodec(
 	canonicalizeOfflineTensorExecutionPlan,
 	func(value OfflineTensorExecutionPlan) artifact.ID { return value.ID },
 	func(value *OfflineTensorExecutionPlan, id artifact.ID) { value.ID = id },
-	cloneOfflineTensorExecutionPlan,
 )
 
 // NewOfflineTensorResourcePolicy records explicit resource limits and their
@@ -342,17 +340,4 @@ func allNonzero(values []uint64) bool {
 		}
 	}
 	return true
-}
-
-func cloneOfflineTensorExecutionPlan(value OfflineTensorExecutionPlan) OfflineTensorExecutionPlan {
-	value.Inputs = slices.Clone(value.Inputs)
-	value.Operations = slices.Clone(value.Operations)
-	for index := range value.Operations {
-		value.Operations[index].SourceBytes = slices.Clone(value.Operations[index].SourceBytes)
-	}
-	value.Shards = slices.Clone(value.Shards)
-	for index := range value.Shards {
-		value.Shards[index].Tensors = slices.Clone(value.Shards[index].Tensors)
-	}
-	return value
 }

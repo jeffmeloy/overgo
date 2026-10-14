@@ -55,10 +55,6 @@ var caseAnswersCodec = artifact.JSONDocumentCodec(
 	},
 	func(value caseAnswers) artifact.ID { return value.ID },
 	func(value *caseAnswers, id artifact.ID) { value.ID = id },
-	func(value caseAnswers) caseAnswers {
-		value.Cases = slices.Clone(value.Cases)
-		return value
-	},
 )
 
 // observed names what a plan's execution is asked: everything a case's answer

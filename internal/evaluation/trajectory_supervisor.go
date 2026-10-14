@@ -41,10 +41,6 @@ var trajectoryHealthDecisionCodec = artifact.JSONDocumentCodec(
 	canonicalizeTrajectoryHealthDecision,
 	func(value trajectoryHealthDecision) artifact.ID { return value.ID },
 	func(value *trajectoryHealthDecision, id artifact.ID) { value.ID = id },
-	func(value trajectoryHealthDecision) trajectoryHealthDecision {
-		value.Progress = slices.Clone(value.Progress)
-		return value
-	},
 )
 
 type trajectoryExchange struct {

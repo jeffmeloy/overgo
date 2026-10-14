@@ -62,7 +62,6 @@ var stageReceiptCodec = artifact.JSONDocumentCodec(
 	canonicalizeStageReceipt,
 	func(value StageReceipt) artifact.ID { return value.ID },
 	func(value *StageReceipt, id artifact.ID) { value.ID = id },
-	cloneStageReceipt,
 )
 
 // stageReceiptEarlierSchema is the contract stage receipts were written under
@@ -256,29 +255,11 @@ func stageTransition(previous, next StageReceipt) bool {
 		next.State == StageAdmitted
 }
 
-func cloneStageReceipt(value StageReceipt) StageReceipt {
-	value.Inputs = cloneStageBindings(value.Inputs)
-	value.Outputs = cloneStageBindings(value.Outputs)
-	if value.Invocation != nil {
-		binding := *value.Invocation
-		value.Invocation = &binding
-	}
-	return value
-}
-
 func sameInvocationBinding(left, right *invocation.ReceiptBinding) bool {
 	if left == nil || right == nil {
 		return left == nil && right == nil
 	}
 	return *left == *right
-}
-
-func cloneStageBindings(values []StageBinding) []StageBinding {
-	values = slices.Clone(values)
-	for index := range values {
-		values[index].Artifacts = slices.Clone(values[index].Artifacts)
-	}
-	return values
 }
 
 func stageReceiptAlias(operation artifact.ID, node recipe.NodeID) string {

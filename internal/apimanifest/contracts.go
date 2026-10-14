@@ -192,6 +192,9 @@ func packageConstants(sources []contractSource) (map[string]constantBinding, err
 func staticContract(expression ast.Expr, source contractSource, constants map[string]constantBinding) (artifact.DocumentContract, string, bool, error) {
 	switch value := expression.(type) {
 	case *ast.CallExpr:
+		if method, ok := value.Fun.(*ast.SelectorExpr); ok && method.Sel.Name == "WithClone" {
+			return staticContract(method.X, source, constants)
+		}
 		owner, name := selectedCall(value.Fun, source.aliases)
 		switch {
 		case owner == artifactImportPath && name == "JSONDocumentCodec":

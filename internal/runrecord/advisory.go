@@ -32,7 +32,7 @@ var advisoryContract = artifact.DocumentContract{
 var advisoryCodec = artifact.JSONDocumentCodec(
 	"run record advisory", advisoryContract.Kind, advisoryContract.MediaType, advisoryContract.Schema,
 	canonicalizeAdvisory, func(value Advisory) artifact.ID { return value.ID },
-	func(value *Advisory, id artifact.ID) { value.ID = id }, cloneAdvisory,
+	func(value *Advisory, id artifact.ID) { value.ID = id },
 )
 
 type Observation struct {
@@ -301,11 +301,4 @@ func canonicalizeAdvisory(advisory *Advisory) error {
 		}
 	}
 	return nil
-}
-
-func cloneAdvisory(advisory Advisory) Advisory {
-	advisory.SourceRuns = slices.Clone(advisory.SourceRuns)
-	advisory.SourceEvaluations = slices.Clone(advisory.SourceEvaluations)
-	advisory.PhaseDeltas = slices.Clone(advisory.PhaseDeltas)
-	return advisory
 }

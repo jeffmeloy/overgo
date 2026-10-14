@@ -3,7 +3,6 @@ package composition
 import (
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -58,13 +57,6 @@ var composedModelCodec = artifact.JSONDocumentCodec(
 	canonicalizeComposedModel,
 	func(value ComposedModelDocument) artifact.ID { return value.ID },
 	func(value *ComposedModelDocument, id artifact.ID) { value.ID = id },
-	func(value ComposedModelDocument) ComposedModelDocument {
-		value.Parents = slices.Clone(value.Parents)
-		value.Components = slices.Clone(value.Components)
-		value.Compatibility = slices.Clone(value.Compatibility)
-		value.Arithmetic = slices.Clone(value.Arithmetic)
-		return value
-	},
 )
 
 // NewComposedModel identifies one composed artifact.

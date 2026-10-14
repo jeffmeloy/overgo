@@ -47,7 +47,7 @@ var candidateEvaluationIntentCodec = artifact.JSONDocumentCodec(
 	CandidateEvaluationIntentMediaType, CandidateEvaluationIntentSchema,
 	canonicalizeCandidateEvaluationIntent,
 	func(value CandidateEvaluationIntent) artifact.ID { return value.ID },
-	func(value *CandidateEvaluationIntent, id artifact.ID) { value.ID = id }, nil,
+	func(value *CandidateEvaluationIntent, id artifact.ID) { value.ID = id },
 )
 
 // NewCandidateEvaluationIntent canonicalizes one typed fail-closed evaluator intent.

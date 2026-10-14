@@ -54,12 +54,6 @@ var trainingBracketCodec = artifact.JSONDocumentCodec(
 	"training bracket", artifact.KindEvidence, trainingBracketMediaType, trainingBracketSchema,
 	validateTrainingBracket, func(value TrainingBracket) artifact.ID { return value.ID },
 	func(value *TrainingBracket, id artifact.ID) { value.ID = id },
-	func(value TrainingBracket) TrainingBracket {
-		value.Pre.Evals = slices.Clone(value.Pre.Evals)
-		value.Post.Evals = slices.Clone(value.Post.Evals)
-		value.Deltas = slices.Clone(value.Deltas)
-		return value
-	},
 )
 
 func validateTrainingBracket(value *TrainingBracket) error {

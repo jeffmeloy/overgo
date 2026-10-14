@@ -200,16 +200,9 @@ var objectiveCodec = artifact.DocumentCodec[ObjectiveDocument]{
 		})
 	},
 	Canonicalize: canonicalizeObjective,
-	Clone: func(value ObjectiveDocument) ObjectiveDocument {
-		value.Signature = value.Signature.Clone()
-		value.Processors = slices.Clone(value.Processors)
-		value.Projectors = slices.Clone(value.Projectors)
-		value.Codecs = slices.Clone(value.Codecs)
-		value.Evidence = slices.Clone(value.Evidence)
-		return value
-	},
-	Identity:    func(value ObjectiveDocument) artifact.ID { return value.ID },
-	SetIdentity: func(value *ObjectiveDocument, id artifact.ID) { value.ID = id },
+	Clone:        artifact.DeepCopy[ObjectiveDocument](),
+	Identity:     func(value ObjectiveDocument) artifact.ID { return value.ID },
+	SetIdentity:  func(value *ObjectiveDocument, id artifact.ID) { value.ID = id },
 }
 
 func NewObjective(spec ObjectiveSpec) (ObjectiveDocument, error) {

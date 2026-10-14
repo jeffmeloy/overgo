@@ -35,11 +35,6 @@ var interactionCodec = artifact.JSONDocumentCodec(
 	canonicalizeInteraction,
 	func(value Interaction) artifact.ID { return value.ID },
 	func(value *Interaction, id artifact.ID) { value.ID = id },
-	func(value Interaction) Interaction {
-		value.Tools = slices.Clone(value.Tools)
-		value.Media = slices.Clone(value.Media)
-		return value
-	},
 )
 
 var interactionTranscriptCodec = artifact.JSONDocumentCodec(
@@ -47,7 +42,6 @@ var interactionTranscriptCodec = artifact.JSONDocumentCodec(
 	canonicalizeInteractionTranscript,
 	func(value interactionTranscript) artifact.ID { return value.ID },
 	func(value *interactionTranscript, id artifact.ID) { value.ID = id },
-	cloneInteractionTranscript,
 )
 
 var interactionContextCodec = artifact.JSONDocumentCodec(
@@ -55,11 +49,6 @@ var interactionContextCodec = artifact.JSONDocumentCodec(
 	canonicalizeInteractionContext,
 	func(value InteractionContext) artifact.ID { return value.ID },
 	func(value *InteractionContext, id artifact.ID) { value.ID = id },
-	func(value InteractionContext) InteractionContext {
-		value.Tokens = slices.Clone(value.Tokens)
-		value.Sampling = slices.Clone(value.Sampling)
-		return value
-	},
 )
 
 // InteractionContext is the token context a generation ended with: the
@@ -199,15 +188,6 @@ func canonicalizeInteractionTranscript(value *interactionTranscript) error {
 		}
 	}
 	return nil
-}
-
-func cloneInteractionTranscript(value interactionTranscript) interactionTranscript {
-	value.Messages = slices.Clone(value.Messages)
-	for index := range value.Messages {
-		value.Messages[index].Media = slices.Clone(value.Messages[index].Media)
-		value.Messages[index].ToolCalls = slices.Clone(value.Messages[index].ToolCalls)
-	}
-	return value
 }
 
 // newInteractionTranscript identifies one immutable message sequence.

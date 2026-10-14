@@ -47,16 +47,11 @@ var agentObligationCodec = artifact.JSONDocumentCodec(
 	"agent obligation", artifact.KindEvidence, agentObligationMediaType, agentObligationSchema,
 	canonicalizeAgentObligation, func(v AgentObligation) artifact.ID { return v.ID },
 	func(v *AgentObligation, id artifact.ID) { v.ID = id },
-	func(v AgentObligation) AgentObligation { v.Sources = slices.Clone(v.Sources); return v },
 )
 var agentObligationResolutionCodec = artifact.JSONDocumentCodec(
 	"agent obligation resolution", artifact.KindEvidence, agentObligationResolutionMediaType, agentObligationResolutionSchema,
 	canonicalizeAgentObligationResolution, func(v AgentObligationResolution) artifact.ID { return v.ID },
 	func(v *AgentObligationResolution, id artifact.ID) { v.ID = id },
-	func(v AgentObligationResolution) AgentObligationResolution {
-		v.Evidence = slices.Clone(v.Evidence)
-		return v
-	},
 )
 
 // NewAgentObligation canonicalizes and identifies one immutable obligation.

@@ -37,12 +37,7 @@ var lifecycleCodec = artifact.DocumentCodec[LifecycleEvent]{
 		return nil
 	},
 	Encode: lifecycleContent, Canonicalize: canonicalizeEvent,
-	Clone: func(value LifecycleEvent) LifecycleEvent {
-		value.PreviousEvent = artifact.CloneID(value.PreviousEvent)
-		value.Supersedes = artifact.CloneID(value.Supersedes)
-		value.Evidence = slices.Clone(value.Evidence)
-		return value
-	},
+	Clone:       artifact.DeepCopy[LifecycleEvent](),
 	Identity:    func(value LifecycleEvent) artifact.ID { return value.ID },
 	SetIdentity: func(value *LifecycleEvent, id artifact.ID) { value.ID = id },
 }

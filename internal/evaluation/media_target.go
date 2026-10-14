@@ -129,12 +129,12 @@ var (
 	mediaTargetPlanCodec = artifact.JSONDocumentCodec(
 		"media target plan", artifact.KindProfile, mediaTargetPlanMedia, mediaTargetPlanSchema,
 		canonicalizeMediaTargetPlan, func(value mediaTargetPlan) artifact.ID { return value.ID },
-		func(value *mediaTargetPlan, id artifact.ID) { value.ID = id }, cloneMediaTargetPlan,
+		func(value *mediaTargetPlan, id artifact.ID) { value.ID = id },
 	)
 	mediaTargetReportCodec = artifact.JSONDocumentCodec(
 		"media target report", artifact.KindEvaluation, mediaTargetReportMedia, mediaTargetReportSchema,
 		canonicalizeMediaTargetReport, func(value mediaTargetReport) artifact.ID { return value.ID },
-		func(value *mediaTargetReport, id artifact.ID) { value.ID = id }, cloneMediaTargetReport,
+		func(value *mediaTargetReport, id artifact.ID) { value.ID = id },
 	)
 )
 
@@ -434,14 +434,6 @@ func cloneMediaCases(values []mediaTargetCase) []mediaTargetCase {
 	return result
 }
 
-func cloneMediaTargetPlan(plan mediaTargetPlan) mediaTargetPlan {
-	plan.Signature = plan.Signature.Clone()
-	plan.Oracles = slices.Clone(plan.Oracles)
-	plan.Scorers = slices.Clone(plan.Scorers)
-	plan.Cases = cloneMediaCases(plan.Cases)
-	return plan
-}
-
 func cloneMediaObservations(values []mediaTargetObservation) []mediaTargetObservation {
 	result := slices.Clone(values)
 	for index := range result {
@@ -449,15 +441,4 @@ func cloneMediaObservations(values []mediaTargetObservation) []mediaTargetObserv
 		result[index].Verifiers = slices.Clone(result[index].Verifiers)
 	}
 	return result
-}
-
-func cloneMediaTargetReport(report mediaTargetReport) mediaTargetReport {
-	report.Records = slices.Clone(report.Records)
-	for index := range report.Records {
-		report.Records[index].Assumptions = slices.Clone(report.Records[index].Assumptions)
-		report.Records[index].Oracles = slices.Clone(report.Records[index].Oracles)
-		report.Records[index].Verifiers = slices.Clone(report.Records[index].Verifiers)
-	}
-	report.Metrics = slices.Clone(report.Metrics)
-	return report
 }

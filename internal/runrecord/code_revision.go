@@ -31,7 +31,7 @@ var codeRevisionCodec = artifact.JSONDocumentCodec(
 		return nil
 	},
 	func(value CodeRevision) artifact.ID { return value.ID },
-	func(value *CodeRevision, id artifact.ID) { value.ID = id }, nil,
+	func(value *CodeRevision, id artifact.ID) { value.ID = id },
 )
 
 // NewCodeRevision validates and identifies an exact source revision.

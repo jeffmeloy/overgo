@@ -28,10 +28,6 @@ var groundedReplaySummaryCodec = artifact.JSONDocumentCodec(
 	canonicalizeGroundedReplaySummary,
 	func(value groundedReplaySummary) artifact.ID { return value.ID },
 	func(value *groundedReplaySummary, id artifact.ID) { value.ID = id },
-	func(value groundedReplaySummary) groundedReplaySummary {
-		value.Artifacts = slices.Clone(value.Artifacts)
-		return value
-	},
 )
 
 // GroundedReplaySource is one exact source document group whose immutable

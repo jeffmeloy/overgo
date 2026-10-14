@@ -108,12 +108,12 @@ var (
 	numericTargetPlanCodec = artifact.JSONDocumentCodec(
 		"numeric target plan", artifact.KindProfile, numericTargetPlanMedia, numericTargetPlanSchema,
 		canonicalizeNumericTargetPlan, func(value numericTargetPlan) artifact.ID { return value.ID },
-		func(value *numericTargetPlan, id artifact.ID) { value.ID = id }, cloneNumericTargetPlan,
+		func(value *numericTargetPlan, id artifact.ID) { value.ID = id },
 	)
 	numericTargetReportCodec = artifact.JSONDocumentCodec(
 		"numeric target report", artifact.KindEvaluation, numericTargetReportMedia, numericTargetReportSchema,
 		canonicalizeNumericTargetReport, func(value numericTargetReport) artifact.ID { return value.ID },
-		func(value *numericTargetReport, id artifact.ID) { value.ID = id }, cloneNumericTargetReport,
+		func(value *numericTargetReport, id artifact.ID) { value.ID = id },
 	)
 )
 
@@ -412,36 +412,10 @@ func cloneNumericCases(values []numericTargetCase) []numericTargetCase {
 	return result
 }
 
-func cloneNumericTargetPlan(plan numericTargetPlan) numericTargetPlan {
-	plan.Signature = plan.Signature.Clone()
-	plan.Scorers = slices.Clone(plan.Scorers)
-	for index := range plan.Scorers {
-		if plan.Scorers[index].Quantile != nil {
-			value := *plan.Scorers[index].Quantile
-			plan.Scorers[index].Quantile = &value
-		}
-	}
-	plan.Cases = cloneNumericCases(plan.Cases)
-	return plan
-}
-
 func cloneNumericObservations(values []numericTargetObservation) []numericTargetObservation {
 	result := slices.Clone(values)
 	for index := range result {
 		result[index].Values = slices.Clone(result[index].Values)
 	}
 	return result
-}
-
-func cloneNumericTargetReport(report numericTargetReport) numericTargetReport {
-	report.Records = slices.Clone(report.Records)
-	for index := range report.Records {
-		record := &report.Records[index]
-		record.Expected = slices.Clone(record.Expected)
-		record.Actual = slices.Clone(record.Actual)
-		record.Assumptions = slices.Clone(record.Assumptions)
-		record.Scores = slices.Clone(record.Scores)
-	}
-	report.Metrics = slices.Clone(report.Metrics)
-	return report
 }

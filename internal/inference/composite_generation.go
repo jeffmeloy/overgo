@@ -35,11 +35,6 @@ var compositeGenerationOutputCodec = artifact.JSONDocumentCodec(
 	canonicalizeCompositeGenerationOutput,
 	func(value compositeGenerationOutput) artifact.ID { return value.ID },
 	func(value *compositeGenerationOutput, id artifact.ID) { value.ID = id },
-	func(value compositeGenerationOutput) compositeGenerationOutput {
-		value.Dimensions = slices.Clone(value.Dimensions)
-		value.Values = slices.Clone(value.Values)
-		return value
-	},
 )
 
 // CompositeGenerationCase binds one held-out input and seed to exact tokenized

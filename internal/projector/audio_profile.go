@@ -42,6 +42,7 @@ var audioProjectionProfileCodec = artifact.DocumentCodec[AudioProjectionProfile]
 		return data, nil
 	},
 	Canonicalize: func(value *AudioProjectionProfile) error { return value.validate() },
+	Clone:        artifact.DeepCopy[AudioProjectionProfile](),
 	Identity:     func(value AudioProjectionProfile) artifact.ID { return value.ID },
 	SetIdentity:  func(value *AudioProjectionProfile, id artifact.ID) { value.ID = id },
 }

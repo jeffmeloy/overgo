@@ -38,7 +38,6 @@ var promptTemplateCodec = artifact.JSONDocumentCodec(
 	},
 	func(value PromptTemplate) artifact.ID { return value.ID },
 	func(value *PromptTemplate, id artifact.ID) { value.ID = id },
-	func(value PromptTemplate) PromptTemplate { return value },
 )
 
 // PublishPromptTemplate commits one model's template and binds its

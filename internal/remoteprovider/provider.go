@@ -54,7 +54,7 @@ type Provider struct {
 var codec = artifact.JSONDocumentCodec(
 	"remote provider", artifact.KindProfile, MediaType, Schema, canonicalize,
 	func(value Provider) artifact.ID { return value.ID },
-	func(value *Provider, id artifact.ID) { value.ID = id }, nil,
+	func(value *Provider, id artifact.ID) { value.ID = id },
 )
 
 func canonicalize(provider *Provider) error {

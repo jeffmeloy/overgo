@@ -54,13 +54,9 @@ var codec = artifact.DocumentCodec[Document]{
 		return json.Marshal(document)
 	},
 	Canonicalize: canonicalize,
-	Clone: func(document Document) Document {
-		document.OwnerSurfaces = slices.Clone(document.OwnerSurfaces)
-		document.Evidence = slices.Clone(document.Evidence)
-		return document
-	},
-	Identity:    func(document Document) artifact.ID { return document.ID },
-	SetIdentity: func(document *Document, id artifact.ID) { document.ID = id },
+	Clone:        artifact.DeepCopy[Document](),
+	Identity:     func(document Document) artifact.ID { return document.ID },
+	SetIdentity:  func(document *Document, id artifact.ID) { document.ID = id },
 }
 
 // Document: one live finding.

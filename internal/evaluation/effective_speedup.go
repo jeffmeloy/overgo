@@ -46,10 +46,6 @@ var effectiveSpeedupCodec = artifact.JSONDocumentCodec(
 	canonicalizeEffectiveSpeedup,
 	func(value effectiveSpeedup) artifact.ID { return value.ID },
 	func(value *effectiveSpeedup, id artifact.ID) { value.ID = id },
-	func(value effectiveSpeedup) effectiveSpeedup {
-		value.Pairs = slices.Clone(value.Pairs)
-		return value
-	},
 )
 
 var buildEffectiveSpeedup = func(baseline, candidate scalingFit) (effectiveSpeedup, error) {

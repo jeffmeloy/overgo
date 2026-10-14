@@ -79,10 +79,6 @@ var capabilityIdentityCodec = artifact.JSONDocumentCodec(
 	canonicalizeCapabilityIdentity,
 	func(value CapabilityIdentity) artifact.ID { return value.ID },
 	func(value *CapabilityIdentity, id artifact.ID) { value.ID = id },
-	func(value CapabilityIdentity) CapabilityIdentity {
-		value.Transport.Args = slices.Clone(value.Transport.Args)
-		return value
-	},
 )
 
 // Identify validates and identifies one exact capability.

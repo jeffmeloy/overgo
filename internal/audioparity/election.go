@@ -127,7 +127,6 @@ var electionCodec = artifact.JSONDocumentCodec(
 	canonicalizeElection,
 	func(value Election) artifact.ID { return value.ID },
 	func(value *Election, id artifact.ID) { value.ID = id },
-	cloneElection,
 )
 
 var fileRoles = map[string]bool{
@@ -445,14 +444,4 @@ func normalizeTranscript(value string) string {
 		}
 	}
 	return strings.Join(strings.Fields(normalized.String()), " ")
-}
-
-func cloneElection(value Election) Election {
-	value.Model = value.Model.Clone()
-	value.Files = slices.Clone(value.Files)
-	value.Runtime.Entrypoints = slices.Clone(value.Runtime.Entrypoints)
-	value.Normalizations = slices.Clone(value.Normalizations)
-	value.Observations = slices.Clone(value.Observations)
-	value.ReopenWhen = slices.Clone(value.ReopenWhen)
-	return value
 }

@@ -28,7 +28,7 @@ var taskModelDefinitionCodec = artifact.JSONDocumentCodec(
 		return nil
 	},
 	func(value taskModelDefinition) artifact.ID { return value.ID },
-	func(value *taskModelDefinition, id artifact.ID) { value.ID = id }, nil,
+	func(value *taskModelDefinition, id artifact.ID) { value.ID = id },
 )
 
 func taskModelDefinitionLineage(value taskModelDefinition) []artifact.Lineage {

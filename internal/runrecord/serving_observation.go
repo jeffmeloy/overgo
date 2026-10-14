@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"math"
-	"slices"
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
@@ -22,12 +21,6 @@ var servingObservationCodec = artifact.JSONDocumentCodec(
 	canonicalizeServingObservation,
 	func(value ServingObservation) artifact.ID { return value.ID },
 	func(value *ServingObservation, id artifact.ID) { value.ID = id },
-	func(value ServingObservation) ServingObservation {
-		value.Phases = slices.Clone(value.Phases)
-		value.Hardware = slices.Clone(value.Hardware)
-		value.Causal = cloneCausal(value.Causal)
-		return value
-	},
 )
 
 type ServingHardwareStage string

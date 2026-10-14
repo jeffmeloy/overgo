@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"slices"
 	"sort"
 	"strings"
 
@@ -26,10 +25,6 @@ var benchmarkCatalogCodec = artifact.JSONDocumentCodec(
 	"benchmark catalog", artifact.KindDataset, benchmarkCatalogMediaType, benchmarkCatalogSchema,
 	canonicalizeBenchmarkCatalog, func(value benchmarkCatalog) artifact.ID { return value.ID },
 	func(value *benchmarkCatalog, id artifact.ID) { value.ID = id },
-	func(value benchmarkCatalog) benchmarkCatalog {
-		value.Entries = slices.Clone(value.Entries)
-		return value
-	},
 )
 
 type benchmarkDeclaration struct {

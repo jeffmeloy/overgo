@@ -252,7 +252,6 @@ var contractCodec = artifact.JSONDocumentCodec(
 	canonicalizeContract,
 	func(value Contract) artifact.ID { return value.ID },
 	func(value *Contract, id artifact.ID) { value.ID = id },
-	cloneContract,
 )
 
 // NewContract validates, canonicalizes, and identifies one representation
@@ -309,18 +308,6 @@ func (c Contract) Lineage() []artifact.Lineage {
 // Batch returns an atomic publication containing the contract and its lineage.
 func (c Contract) Batch(key string) (artifact.Batch, error) {
 	return contractCodec.Batch(key, c, c.Lineage(), nil)
-}
-
-func cloneContract(value Contract) Contract {
-	value.Tensor.Axes = slices.Clone(value.Tensor.Axes)
-	value.Sequence.PositionAxes = slices.Clone(value.Sequence.PositionAxes)
-	value.Sequence.SpecialTokens = slices.Clone(value.Sequence.SpecialTokens)
-	value.Authorities = slices.Clone(value.Authorities)
-	if value.Producer.Layer != nil {
-		layer := *value.Producer.Layer
-		value.Producer.Layer = &layer
-	}
-	return value
 }
 
 func canonicalizeContract(value *Contract) error {

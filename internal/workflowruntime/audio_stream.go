@@ -33,7 +33,6 @@ var audioStreamPolicyCodec = artifact.JSONDocumentCodec(
 	},
 	func(p AudioStreamPolicy) artifact.ID { return p.ID },
 	func(p *AudioStreamPolicy, id artifact.ID) { p.ID = id },
-	func(p AudioStreamPolicy) AudioStreamPolicy { return p },
 )
 
 // Batch identifies and packages a fresh policy with its exact model dependency.
@@ -122,7 +121,6 @@ var audioStreamCheckpointCodec = artifact.JSONDocumentCodec(
 	},
 	func(c audioStreamCheckpoint) artifact.ID { return c.ID },
 	func(c *audioStreamCheckpoint, id artifact.ID) { c.ID = id },
-	func(c audioStreamCheckpoint) audioStreamCheckpoint { return c },
 )
 
 func (c audioStreamCheckpoint) lineage() []artifact.Lineage {

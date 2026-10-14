@@ -62,6 +62,7 @@ var (
 		Decode:       func(data []byte, value *Profile) error { return strictjson.DecodeBytes(data, value) },
 		Encode:       func(value Profile) ([]byte, error) { return json.Marshal(value) },
 		Canonicalize: func(value *Profile) error { return value.validate() },
+		Clone:        artifact.DeepCopy[Profile](),
 		Identity:     func(value Profile) artifact.ID { return value.ID },
 		SetIdentity:  func(value *Profile, id artifact.ID) { value.ID = id },
 	}

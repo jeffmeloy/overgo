@@ -84,12 +84,12 @@ var (
 	unpairedTargetPlanCodec = artifact.JSONDocumentCodec(
 		"unpaired preference target plan", artifact.KindProfile, unpairedTargetPlanMedia, unpairedTargetPlanSchema,
 		canonicalizeUnpairedTargetPlan, func(value unpairedTargetPlan) artifact.ID { return value.ID },
-		func(value *unpairedTargetPlan, id artifact.ID) { value.ID = id }, cloneUnpairedTargetPlan,
+		func(value *unpairedTargetPlan, id artifact.ID) { value.ID = id },
 	)
 	unpairedTargetReportCodec = artifact.JSONDocumentCodec(
 		"unpaired preference target report", artifact.KindEvaluation, unpairedTargetReportMedia, unpairedTargetReportSchema,
 		canonicalizeUnpairedTargetReport, func(value unpairedTargetReport) artifact.ID { return value.ID },
-		func(value *unpairedTargetReport, id artifact.ID) { value.ID = id }, cloneUnpairedTargetReport,
+		func(value *unpairedTargetReport, id artifact.ID) { value.ID = id },
 	)
 )
 
@@ -257,16 +257,4 @@ func canonicalizeUnpairedTargetReport(report *unpairedTargetReport) error {
 		}
 	}
 	return nil
-}
-
-func cloneUnpairedTargetPlan(plan unpairedTargetPlan) unpairedTargetPlan {
-	plan.Signature = plan.Signature.Clone()
-	plan.Records = slices.Clone(plan.Records)
-	return plan
-}
-
-func cloneUnpairedTargetReport(report unpairedTargetReport) unpairedTargetReport {
-	report.Records = slices.Clone(report.Records)
-	report.Metrics = slices.Clone(report.Metrics)
-	return report
 }

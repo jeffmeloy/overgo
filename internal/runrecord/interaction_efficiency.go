@@ -92,7 +92,7 @@ var efficiencyTraceCodec = artifact.JSONDocumentCodec(
 	"interaction efficiency trace", artifact.KindEvidence, efficiencyTraceMediaType, efficiencyTraceSchema,
 	canonicalizeEfficiencyTrace,
 	func(value EfficiencyTrace) artifact.ID { return value.ID },
-	func(value *EfficiencyTrace, id artifact.ID) { value.ID = id }, nil,
+	func(value *EfficiencyTrace, id artifact.ID) { value.ID = id },
 )
 
 func canonicalizeEfficiencyTrace(value *EfficiencyTrace) error {

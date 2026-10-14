@@ -106,7 +106,7 @@ var codec = artifact.DocumentCodec[Snapshot]{
 		return json.Marshal(snapshot)
 	},
 	Canonicalize: canonicalize,
-	Clone:        clone,
+	Clone:        artifact.DeepCopy[Snapshot](),
 	Identity:     func(snapshot Snapshot) artifact.ID { return snapshot.ID },
 	SetIdentity:  func(snapshot *Snapshot, id artifact.ID) { snapshot.ID = id },
 }
@@ -287,20 +287,6 @@ func canonicalReferences(references *[]Reference) error {
 		seen[reference.Name] = struct{}{}
 	}
 	return nil
-}
-
-func clone(snapshot Snapshot) Snapshot {
-	snapshot.Sources = slices.Clone(snapshot.Sources)
-	snapshot.Capabilities = slices.Clone(snapshot.Capabilities)
-	for index := range snapshot.Capabilities {
-		capability := &snapshot.Capabilities[index]
-		capability.Signature = capability.Signature.Clone()
-		capability.Artifacts = slices.Clone(capability.Artifacts)
-		capability.Corpora = slices.Clone(capability.Corpora)
-		capability.Goldens = slices.Clone(capability.Goldens)
-		capability.Measurements = slices.Clone(capability.Measurements)
-	}
-	return snapshot
 }
 
 func validCommit(value string) bool {

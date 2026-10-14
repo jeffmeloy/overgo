@@ -72,7 +72,7 @@ func TestEvaluationEvidenceBindsPlanShardsAndAuthorities(t *testing.T) {
 	if err != nil || verified.ID != evidence.ID || !slices.Equal(verified.Phases, run.Phases) || !slices.Equal(verified.Metrics, record.Metrics) {
 		t.Fatalf("verified evidence = %+v err=%v", verified, err)
 	}
-	forged := cloneEvaluationEvidence(evidence)
+	forged := evaluationEvidenceCodec.Clone(evidence)
 	forged.ID = artifact.ID{}
 	forged.CodeCommit = "fedcba9876543210fedcba9876543210fedcba98"
 	forged, err = evaluationEvidenceCodec.New(forged)

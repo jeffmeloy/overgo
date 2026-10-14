@@ -167,7 +167,6 @@ var crossDomainEvaluationContractCodec = artifact.JSONDocumentCodec(
 	canonicalizeCrossDomainEvaluationContract,
 	func(value crossDomainEvaluationContract) artifact.ID { return value.ID },
 	func(value *crossDomainEvaluationContract, id artifact.ID) { value.ID = id },
-	cloneCrossDomainEvaluationContract,
 )
 
 var crossDomainCandidateEvaluationCodec = artifact.JSONDocumentCodec(
@@ -176,7 +175,6 @@ var crossDomainCandidateEvaluationCodec = artifact.JSONDocumentCodec(
 	canonicalizeCrossDomainCandidateEvaluation,
 	func(value CrossDomainCandidateEvaluation) artifact.ID { return value.ID },
 	func(value *CrossDomainCandidateEvaluation, id artifact.ID) { value.ID = id },
-	cloneCrossDomainCandidateEvaluation,
 )
 
 // NewCrossDomainEvaluationContract derives the complete arm population and
@@ -682,15 +680,6 @@ func uniqueCandidateEvaluationIDs(values []artifact.ID) []artifact.ID {
 	return uniqueArtifactIDs(values)
 }
 
-func cloneCrossDomainEvaluationContract(value crossDomainEvaluationContract) crossDomainEvaluationContract {
-	value.Parents = slices.Clone(value.Parents)
-	value.Ablations = slices.Clone(value.Ablations)
-	value.CandidateDimensions = slices.Clone(value.CandidateDimensions)
-	value.Requirements = slices.Clone(value.Requirements)
-	value.AcceptedTradeoffs = slices.Clone(value.AcceptedTradeoffs)
-	return value
-}
-
 func cloneCandidateEvaluationArms(values []CandidateEvaluationArm) []CandidateEvaluationArm {
 	values = slices.Clone(values)
 	for index := range values {
@@ -698,16 +687,4 @@ func cloneCandidateEvaluationArms(values []CandidateEvaluationArm) []CandidateEv
 		values[index].Fitness = slices.Clone(values[index].Fitness)
 	}
 	return values
-}
-
-func cloneCrossDomainCandidateEvaluation(value CrossDomainCandidateEvaluation) CrossDomainCandidateEvaluation {
-	value.Contract = cloneCrossDomainEvaluationContract(value.Contract)
-	value.Arms = cloneCandidateEvaluationArms(value.Arms)
-	value.Contributions = slices.Clone(value.Contributions)
-	for index := range value.Contributions {
-		value.Contributions[index].Delta = slices.Clone(value.Contributions[index].Delta)
-	}
-	value.Reasons = slices.Clone(value.Reasons)
-	value.AcceptedAuthorities = slices.Clone(value.AcceptedAuthorities)
-	return value
 }

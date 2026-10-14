@@ -70,7 +70,7 @@ var poolConfirmationCodec = artifact.JSONDocumentCodec(
 		return nil
 	},
 	func(value PoolConfirmation) artifact.ID { return value.ID },
-	func(value *PoolConfirmation, id artifact.ID) { value.ID = id }, nil,
+	func(value *PoolConfirmation, id artifact.ID) { value.ID = id },
 )
 
 // chargeAttempts bounds how often a confirmation reads again because the

@@ -167,7 +167,6 @@ var interactionArcCodec = artifact.JSONDocumentCodec(
 	canonicalizeInteractionArc,
 	func(value InteractionArc) artifact.ID { return value.ID },
 	func(value *InteractionArc, id artifact.ID) { value.ID = id },
-	cloneInteractionArc,
 )
 
 var interactionArcProjectionCodec = artifact.JSONDocumentCodec(
@@ -176,11 +175,6 @@ var interactionArcProjectionCodec = artifact.JSONDocumentCodec(
 	canonicalizeInteractionArcProjection,
 	func(value InteractionArcProjection) artifact.ID { return value.ID },
 	func(value *InteractionArcProjection, id artifact.ID) { value.ID = id },
-	func(value InteractionArcProjection) InteractionArcProjection {
-		value.Branches = slices.Clone(value.Branches)
-		value.Arcs = slices.Clone(value.Arcs)
-		return value
-	},
 )
 
 type interactionProtocolFacts struct {
@@ -524,13 +518,6 @@ func canonicalizeInteractionArcProjection(value *InteractionArcProjection) error
 	return nil
 }
 
-func cloneInteractionArc(value InteractionArc) InteractionArc {
-	value.Sequences = slices.Clone(value.Sequences)
-	value.ToolPairs = slices.Clone(value.ToolPairs)
-	value.References = slices.Clone(value.References)
-	return value
-}
-
 // Content returns the canonical interaction-arc document.
 func (value InteractionArc) Content() (artifact.Content, error) {
 	return interactionArcCodec.Content(value)
@@ -639,7 +626,7 @@ var interactionArcMeasurementPolicyCodec = artifact.JSONDocumentCodec(
 		return nil
 	},
 	func(value InteractionArcMeasurementPolicy) artifact.ID { return value.ID },
-	func(value *InteractionArcMeasurementPolicy, id artifact.ID) { value.ID = id }, nil,
+	func(value *InteractionArcMeasurementPolicy, id artifact.ID) { value.ID = id },
 )
 
 // NewInteractionArcMeasurementPolicy identifies the exact tokenizer and counter policy.
@@ -702,10 +689,6 @@ var interactionArcMeasurementCodec = artifact.JSONDocumentCodec(
 	},
 	func(value InteractionArcMeasurement) artifact.ID { return value.ID },
 	func(value *InteractionArcMeasurement, id artifact.ID) { value.ID = id },
-	func(value InteractionArcMeasurement) InteractionArcMeasurement {
-		value.Context = slices.Clone(value.Context)
-		return value
-	},
 )
 
 // NewInteractionArcMeasurement identifies one owner-derived cost result. It is
@@ -760,11 +743,6 @@ var interactionArcSelectionCodec = artifact.JSONDocumentCodec(
 	canonicalizeInteractionArcSelection,
 	func(value InteractionArcSelection) artifact.ID { return value.ID },
 	func(value *InteractionArcSelection, id artifact.ID) { value.ID = id },
-	func(value InteractionArcSelection) InteractionArcSelection {
-		value.Measurements = slices.Clone(value.Measurements)
-		value.Sources = slices.Clone(value.Sources)
-		return value
-	},
 )
 
 // SelectInteractionArcsOnce is the low-level, non-resumable selector used by

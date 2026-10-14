@@ -37,7 +37,7 @@ type OptimizerPolicy struct {
 var optimizerPolicyCodec = artifact.JSONDocumentCodec(
 	"optimizer policy", artifact.KindProfile, optimizerPolicyMedia, optimizerPolicySchema,
 	validateOptimizerPolicy, func(value OptimizerPolicy) artifact.ID { return value.ID },
-	func(value *OptimizerPolicy, id artifact.ID) { value.ID = id }, nil,
+	func(value *OptimizerPolicy, id artifact.ID) { value.ID = id },
 )
 
 //go:embed optimizer_policy.json

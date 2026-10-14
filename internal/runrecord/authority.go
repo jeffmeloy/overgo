@@ -51,7 +51,7 @@ var admissionBindingCodec = artifact.JSONDocumentCodec(
 	"admission binding", artifact.KindEvidence, AdmissionBindingMediaType, AdmissionBindingSchema,
 	canonicalizeAdmissionBinding,
 	func(value AdmissionBinding) artifact.ID { return value.ID },
-	func(value *AdmissionBinding, id artifact.ID) { value.ID = id }, nil,
+	func(value *AdmissionBinding, id artifact.ID) { value.ID = id },
 )
 
 // NewAdmissionBinding identifies one generation's authority binding.

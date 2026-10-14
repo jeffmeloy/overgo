@@ -73,7 +73,6 @@ var resourceFitnessComparisonCodec = artifact.JSONDocumentCodec(
 	canonicalizeResourceFitnessComparison,
 	func(value ResourceFitnessComparison) artifact.ID { return value.ID },
 	func(value *ResourceFitnessComparison, id artifact.ID) { value.ID = id },
-	cloneResourceFitnessComparison,
 )
 
 // newResourceFitnessComparison validates, orders, and identifies one
@@ -481,11 +480,6 @@ func interactionWorkAdvantage(baseline, candidate InteractionWork) (InteractionW
 		Waits:               baseline.Waits - candidate.Waits,
 	}
 	return advantage, advantage != (InteractionWork{}), nil
-}
-
-func cloneResourceFitnessComparison(value ResourceFitnessComparison) ResourceFitnessComparison {
-	value.Lanes = cloneResourceFitnessLanes(value.Lanes)
-	return value
 }
 
 func cloneResourceFitnessLanes(lanes []ResourceFitnessLane) []ResourceFitnessLane {

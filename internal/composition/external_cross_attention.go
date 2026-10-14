@@ -67,10 +67,6 @@ var externalCrossAttentionDefinitionCodec = artifact.JSONDocumentCodec(
 	canonicalizeExternalCrossAttentionDefinition,
 	func(value ExternalCrossAttentionDefinition) artifact.ID { return value.ID },
 	func(value *ExternalCrossAttentionDefinition, id artifact.ID) { value.ID = id },
-	func(value ExternalCrossAttentionDefinition) ExternalCrossAttentionDefinition {
-		value.Layers = slices.Clone(value.Layers)
-		return value
-	},
 )
 
 var externalCrossAttentionPlanCodec = artifact.JSONDocumentCodec(
@@ -79,10 +75,6 @@ var externalCrossAttentionPlanCodec = artifact.JSONDocumentCodec(
 	canonicalizeExternalCrossAttentionPlan,
 	func(value ExternalCrossAttentionPlan) artifact.ID { return value.ID },
 	func(value *ExternalCrossAttentionPlan, id artifact.ID) { value.ID = id },
-	func(value ExternalCrossAttentionPlan) ExternalCrossAttentionPlan {
-		value.Layers = slices.Clone(value.Layers)
-		return value
-	},
 )
 
 // NewExternalCrossAttentionDefinition validates and identifies an immutable

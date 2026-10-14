@@ -4,7 +4,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 
@@ -121,14 +120,6 @@ var changeJudgmentCodec = artifact.JSONDocumentCodec(
 	canonicalizeChangeJudgment,
 	func(value changeJudgment) artifact.ID { return value.ID },
 	func(value *changeJudgment, id artifact.ID) { value.ID = id },
-	func(value changeJudgment) changeJudgment {
-		value.Shown = slices.Clone(value.Shown)
-		value.Candidates = slices.Clone(value.Candidates)
-		for index := range value.Candidates {
-			value.Candidates[index].Weights = slices.Clone(value.Candidates[index].Weights)
-		}
-		return value
-	},
 )
 
 // canonicalizeChangeJudgment refuses a judgment without its proposal, its

@@ -73,12 +73,12 @@ var (
 	preferenceTargetPlanCodec = artifact.JSONDocumentCodec(
 		"preference target plan", artifact.KindProfile, preferenceTargetPlanMedia, preferenceTargetPlanSchema,
 		canonicalizePreferenceTargetPlan, func(value preferenceTargetPlan) artifact.ID { return value.ID },
-		func(value *preferenceTargetPlan, id artifact.ID) { value.ID = id }, clonePreferenceTargetPlan,
+		func(value *preferenceTargetPlan, id artifact.ID) { value.ID = id },
 	)
 	preferenceTargetReportCodec = artifact.JSONDocumentCodec(
 		"preference target report", artifact.KindEvaluation, preferenceTargetReportMedia, preferenceTargetReportSchema,
 		canonicalizePreferenceTargetReport, func(value preferenceTargetReport) artifact.ID { return value.ID },
-		func(value *preferenceTargetReport, id artifact.ID) { value.ID = id }, clonePreferenceTargetReport,
+		func(value *preferenceTargetReport, id artifact.ID) { value.ID = id },
 	)
 )
 
@@ -242,16 +242,4 @@ func canonicalizePreferenceTargetReport(report *preferenceTargetReport) error {
 		return errors.New("evaluation: invalid preference metric direction")
 	}
 	return nil
-}
-
-func clonePreferenceTargetPlan(plan preferenceTargetPlan) preferenceTargetPlan {
-	plan.Signature = plan.Signature.Clone()
-	plan.Records = slices.Clone(plan.Records)
-	return plan
-}
-
-func clonePreferenceTargetReport(report preferenceTargetReport) preferenceTargetReport {
-	report.Records = slices.Clone(report.Records)
-	report.Metrics = slices.Clone(report.Metrics)
-	return report
 }

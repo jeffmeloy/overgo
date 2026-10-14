@@ -56,11 +56,6 @@ var transformCodec = artifact.JSONDocumentCodec(
 	canonicalizeTransform,
 	func(value transform) artifact.ID { return value.ID },
 	func(value *transform, id artifact.ID) { value.ID = id },
-	func(value transform) transform {
-		value.Inputs = slices.Clone(value.Inputs)
-		value.Outputs = slices.Clone(value.Outputs)
-		return value
-	},
 )
 
 var transformLineage = func(value transform) []artifact.Lineage {

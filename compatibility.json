@@ -506,7 +506,7 @@
      "contains": "func CompileObjectiveMatrix(",
      "path": "internal/trainingprogram/objective.go",
      "role": "source",
-     "identity": "file:sha256:9872db83a10180eccf8b336398d8ef844966e502b498ddfa99beb63e315aa3a5"
+     "identity": "file:sha256:0b5c7d93b2cc4b3d1296a6e4a3b966f7d6b25099372afd8eacb2bd08fa4bc72d"
     },
     {
      "contains": "func AudioProcessor(",
@@ -534,7 +534,7 @@
      "contains": "func CompileTrainingObjectiveMatrix(",
      "path": "internal/trainingprogram/objective.go",
      "role": "source",
-     "identity": "file:sha256:9872db83a10180eccf8b336398d8ef844966e502b498ddfa99beb63e315aa3a5"
+     "identity": "file:sha256:0b5c7d93b2cc4b3d1296a6e4a3b966f7d6b25099372afd8eacb2bd08fa4bc72d"
     },
     {
      "contains": "func CompileObjectiveProgram(",
@@ -707,7 +707,7 @@
      "contains": "func NewAudioProjectionProfile(",
      "path": "internal/projector/audio_profile.go",
      "role": "source",
-     "identity": "file:sha256:0acba6ef7a983be18f23d27c3ef59f23ea5ea386ffd18cf9be5488c7efbfb72f"
+     "identity": "file:sha256:7377026c1c1c5f3222c944a15c1e8fbe6b9a1889f56634378a0aba8b0358e959"
     },
     {
      "contains": "func TestAudioProjectionProfileRoundTrip(",
@@ -1178,7 +1178,7 @@
      "contains": "func PublishInteraction(",
      "path": "internal/runrecord/interaction.go",
      "role": "source",
-     "identity": "file:sha256:b87330f8339ca29a58f656b264f1a00276468c6530f60c371d2a407e9545abd5"
+     "identity": "file:sha256:58bcd55e62c4aca87a1862d62e2093a835c099a0c78193a8597d24b08f48cf13"
     },
     {
      "contains": "func TestResponsesContinuationRestart(",

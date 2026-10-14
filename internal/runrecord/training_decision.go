@@ -54,7 +54,7 @@ var trainingDecisionCodec = artifact.JSONDocumentCodec(
 		return nil
 	},
 	func(value TrainingDecision) artifact.ID { return value.ID },
-	func(value *TrainingDecision, id artifact.ID) { value.ID = id }, nil,
+	func(value *TrainingDecision, id artifact.ID) { value.ID = id },
 )
 
 func NewTrainingDecision(run, recipeID, parent, checkpoint, trace artifact.ID) (TrainingDecision, error) {

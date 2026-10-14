@@ -29,7 +29,7 @@ type AcceptancePolicy struct {
 var acceptancePolicyCodec = artifact.JSONDocumentCodec(
 	"evaluation acceptance policy", artifact.KindProfile, acceptancePolicyMedia, acceptancePolicySchema,
 	canonicalizeAcceptancePolicy, func(value AcceptancePolicy) artifact.ID { return value.ID },
-	func(value *AcceptancePolicy, id artifact.ID) { value.ID = id }, cloneAcceptancePolicy,
+	func(value *AcceptancePolicy, id artifact.ID) { value.ID = id },
 )
 
 func newAcceptancePolicy(metrics []runrecord.Metric) (AcceptancePolicy, error) {
@@ -85,9 +85,4 @@ func orderedMetricContractAdmits(contract []MetricContract, metrics []runrecord.
 		}
 	}
 	return true
-}
-
-func cloneAcceptancePolicy(policy AcceptancePolicy) AcceptancePolicy {
-	policy.Metrics = slices.Clone(policy.Metrics)
-	return policy
 }

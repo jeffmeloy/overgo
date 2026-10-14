@@ -26,14 +26,7 @@ var definitionCodec = artifact.DocumentCodec[Definition]{
 	Name: "recipe definition", Contract: DefinitionDocumentContract(),
 	Decode: decodeDefinition,
 	Encode: definitionContent, Canonicalize: canonicalize,
-	Clone: func(value Definition) Definition {
-		value.Dependencies = slices.Clone(value.Dependencies)
-		value.Nodes = slices.Clone(value.Nodes)
-		value.Edges = slices.Clone(value.Edges)
-		value.Inputs = slices.Clone(value.Inputs)
-		value.Outputs = slices.Clone(value.Outputs)
-		return value
-	},
+	Clone:       artifact.DeepCopy[Definition](),
 	Identity:    func(value Definition) artifact.ID { return value.ID },
 	SetIdentity: func(value *Definition, id artifact.ID) { value.ID = id },
 }

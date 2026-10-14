@@ -36,7 +36,7 @@ var gateLifecycleContract = artifact.DocumentContract{
 var gateLifecycleCodec = artifact.JSONDocumentCodec(
 	"gate lifecycle", gateLifecycleContract.Kind, gateLifecycleContract.MediaType, gateLifecycleContract.Schema, canonicalizeGateLifecycle,
 	func(value gateLifecycle) artifact.ID { return value.ID },
-	func(value *gateLifecycle, id artifact.ID) { value.ID = id }, nil,
+	func(value *gateLifecycle, id artifact.ID) { value.ID = id },
 )
 
 // gateLifecycle is an immutable two-phase record. A preparation is committed

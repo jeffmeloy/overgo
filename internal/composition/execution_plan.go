@@ -78,8 +78,7 @@ var compositionExecutionPlanCodec = artifact.JSONDocumentCodec(
 	canonicalizeCompositionExecutionPlan,
 	func(value CompositionExecutionPlan) artifact.ID { return value.ID },
 	func(value *CompositionExecutionPlan, id artifact.ID) { value.ID = id },
-	cloneCompositionExecutionPlan,
-)
+).WithClone(cloneCompositionExecutionPlan)
 
 // CompileCompositionExecutionPlan resolves the scoped active alias and
 // compiles its complete authority graph. No caller-supplied recipe or bridge

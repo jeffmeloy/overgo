@@ -113,7 +113,7 @@ func TestBenchmarkComparisonRecord(t *testing.T) {
 	if _, err := record.Batch("benchmarks/fixture"); err != nil {
 		t.Fatal(err)
 	}
-	negative := cloneBenchmarkComparison(input)
+	negative := benchmarkComparisonCodec.Clone(input)
 	for index := range negative.Pairs {
 		negative.Pairs[index].Candidate.TotalMilliseconds = negative.Pairs[index].Baseline.TotalMilliseconds + 10
 	}
@@ -121,7 +121,7 @@ func TestBenchmarkComparisonRecord(t *testing.T) {
 	if err != nil || regression.Outcome != "all-pairs-slower" || len(regression.Pairs) != 3 {
 		t.Fatalf("negative result was lost: %+v, %v", regression, err)
 	}
-	noGain := cloneBenchmarkComparison(input)
+	noGain := benchmarkComparisonCodec.Clone(input)
 	for index := range noGain.Pairs {
 		noGain.Pairs[index].Candidate.TotalMilliseconds = noGain.Pairs[index].Baseline.TotalMilliseconds
 	}
@@ -129,7 +129,7 @@ func TestBenchmarkComparisonRecord(t *testing.T) {
 	if err != nil || tied.Outcome != "tie" || tied.MedianDeltaMilliseconds != 0 {
 		t.Fatalf("no-gain result was lost: %+v, %v", tied, err)
 	}
-	one := cloneBenchmarkComparison(input)
+	one := benchmarkComparisonCodec.Clone(input)
 	one.Pairs = one.Pairs[:1]
 	one.Baseline.Runs, one.Candidate.Runs = 1, 1
 	single, err := NewBenchmarkComparisonRecord(one)
@@ -146,7 +146,7 @@ func TestBenchmarkComparisonRecord(t *testing.T) {
 		"false cache label": func(v *BenchmarkComparisonRecord) { v.CacheUpperBound = false },
 	} {
 		t.Run(name, func(t *testing.T) {
-			changed := cloneBenchmarkComparison(input)
+			changed := benchmarkComparisonCodec.Clone(input)
 			changed.Pairs = slices.Clone(changed.Pairs)
 			change(&changed)
 			if _, err := NewBenchmarkComparisonRecord(changed); err == nil {

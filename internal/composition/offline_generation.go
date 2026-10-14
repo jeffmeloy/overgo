@@ -51,10 +51,6 @@ var offlineArtifactGenerationEvidenceCodec = artifact.JSONDocumentCodec(
 	canonicalizeOfflineArtifactGenerationEvidence,
 	func(value OfflineArtifactGenerationEvidence) artifact.ID { return value.ID },
 	func(value *OfflineArtifactGenerationEvidence, id artifact.ID) { value.ID = id },
-	func(value OfflineArtifactGenerationEvidence) OfflineArtifactGenerationEvidence {
-		value.Trials = slices.Clone(value.Trials)
-		return value
-	},
 )
 
 // ValidateOfflineArtifactGeneration opens the produced directory, checks its

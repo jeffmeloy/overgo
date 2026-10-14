@@ -56,7 +56,6 @@ var steeringRealizationCodec = artifact.JSONDocumentCodec(
 	},
 	func(value SteeringRealization) artifact.ID { return value.ID },
 	func(value *SteeringRealization, id artifact.ID) { value.ID = id },
-	func(value SteeringRealization) SteeringRealization { return value },
 )
 
 // Content returns the immutable steering realization.
@@ -86,7 +85,6 @@ var steeringResourcePolicyCodec = artifact.JSONDocumentCodec(
 	},
 	func(value SteeringResourcePolicy) artifact.ID { return value.ID },
 	func(value *SteeringResourcePolicy, id artifact.ID) { value.ID = id },
-	func(value SteeringResourcePolicy) SteeringResourcePolicy { return value },
 )
 
 // Content returns the immutable steering resource policy.

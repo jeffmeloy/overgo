@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"math"
-	"slices"
 	"sort"
 
 	"overgo/internal/artifact"
@@ -48,20 +47,6 @@ var agentMutationCheckpointCodec = artifact.JSONDocumentCodec(
 	"agent mutation checkpoint", artifact.KindCheckpoint, agentMutationCheckpointMediaType, agentMutationCheckpointSchema,
 	canonicalizeAgentMutationCheckpoint,
 	func(v AgentMutationCheckpoint) artifact.ID { return v.ID }, func(v *AgentMutationCheckpoint, id artifact.ID) { v.ID = id },
-	func(v AgentMutationCheckpoint) AgentMutationCheckpoint {
-		v.Entries = slices.Clone(v.Entries)
-		for index := range v.Entries {
-			if v.Entries[index].Preimage != nil {
-				id := *v.Entries[index].Preimage
-				v.Entries[index].Preimage = &id
-			}
-			if v.Entries[index].ExpectedPostimage != nil {
-				id := *v.Entries[index].ExpectedPostimage
-				v.Entries[index].ExpectedPostimage = &id
-			}
-		}
-		return v
-	},
 )
 
 // NewAgentMutationCheckpoint canonicalizes and identifies one checkpoint manifest.

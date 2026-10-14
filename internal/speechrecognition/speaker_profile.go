@@ -3,7 +3,6 @@ package speechrecognition
 import (
 	"context"
 	"errors"
-	"slices"
 
 	"overgo/internal/artifact"
 	"overgo/internal/audiodsp"
@@ -73,14 +72,7 @@ var speakerProfileCodec = artifact.JSONDocumentCodec("speaker activity profile",
 			return errors.New("speaker activity: output step differs from declared operations")
 		}
 		return p.Boundary.validate()
-	}, func(p SpeakerProfile) artifact.ID { return p.ID }, func(p *SpeakerProfile, id artifact.ID) { p.ID = id }, func(p SpeakerProfile) SpeakerProfile {
-		p.Frontend = p.Frontend.Clone()
-		// Reuse the recognition declaration's deep-copy owner.
-		p.Encoder = cloneExecutionProfile(ExecutionProfile{Encoder: p.Encoder}).Encoder
-		p.Activity.Subsampling = slices.Clone(p.Activity.Subsampling)
-		p.Activity.Blocks = slices.Clone(p.Activity.Blocks)
-		return p
-	})
+	}, func(p SpeakerProfile) artifact.ID { return p.ID }, func(p *SpeakerProfile, id artifact.ID) { p.ID = id })
 
 // NewSpeakerProfile identifies one immutable speaker execution declaration.
 func NewSpeakerProfile(profile SpeakerProfile) (SpeakerProfile, error) {

@@ -22,6 +22,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/discovery"
 	"overgo/internal/export"
+	"overgo/internal/media"
 	"overgo/internal/mediacapability"
 	"overgo/internal/modelcli"
 	"overgo/internal/overgodb"
@@ -135,7 +136,6 @@ func run() error {
 	projectorCUDA := clioptions.BoolOverride(flag.CommandLine, "mmproj-cuda", "offload projector operations to CUDA; unset follows active inference placement")
 	mediaPolicyPath := flag.String("media-policy", "", "remote-media JSON policy; empty (the default) disables URLs")
 	resourcePolicyPath := flag.String("resource-policy", "", "Responses file-ID JSON policy; empty (the default) disables file IDs")
-	ffmpegPath := flag.String("ffmpeg", os.Getenv("OVERGO_FFMPEG"), "FFmpeg executable for encoded video")
 	videoFPS := clioptions.Float64Override(flag.CommandLine, "video-fps", "video frame sampling rate; unset uses recipe policy")
 	videoMaxFrames := clioptions.IntOverride(flag.CommandLine, "video-max-frames", "maximum decoded video frames; unset uses recipe policy")
 	trainingEnabled := flag.Bool("training", false, "enable active recipe-bound training workspace")
@@ -449,6 +449,12 @@ func run() error {
 			return err
 		}
 	}
+	// The intake decodes video with the FFmpeg the clip runtime writes and
+	// reads clips with, so an MP4 is accepted exactly when one can be served.
+	ffmpegPath, ffmpegErr := media.FFmpeg()
+	if ffmpegErr != nil {
+		log.Printf("MP4 is not accepted: %v", ffmpegErr)
+	}
 	handler, err := llamaserver.New(llamaserver.Config{
 		RuntimePolicy:      policy,
 		ModelID:            *modelID,
@@ -465,7 +471,7 @@ func run() error {
 		ResponseFiles:      resourcePolicy,
 		MaxStoredResponses: *responseStoreEntries,
 		ResponseStoreBytes: *responseStoreBytes,
-		FFmpegPath:         *ffmpegPath,
+		FFmpegPath:         ffmpegPath,
 		VideoFPS:           *videoFPS,
 		VideoMaxFrames:     *videoMaxFrames,
 		OvergoDBPath:       repoPath,

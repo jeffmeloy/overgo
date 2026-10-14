@@ -76,7 +76,7 @@ func TestVideoWorkIsJoinedOnEveryExit(t *testing.T) {
 		encoder, gate, entered, drawn := held()
 		ctx, stop := context.WithCancelCause(t.Context())
 		released(gate, entered, 1)
-		video, err := encoder.clip(ctx, func(sink VideoFrameSink) error {
+		video, err := writeClip(ctx, encoder, func(sink VideoFrameSink) error {
 			if err := sink(0, frame(1), height, width); err != nil {
 				return err
 			}

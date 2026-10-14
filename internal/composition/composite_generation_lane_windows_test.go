@@ -638,7 +638,7 @@ func executeWanGeneration(
 	if err != nil {
 		return generationMeasurement{}, err
 	}
-	content, err := latentvideo.GIFContent(video)
+	content, err := latentvideo.VideoContent(video)
 	return generationMeasurement{Content: content, Result: result, Started: started, Elapsed: elapsed}, err
 }
 

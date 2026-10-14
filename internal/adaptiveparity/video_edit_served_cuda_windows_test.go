@@ -31,8 +31,9 @@ const (
 	referenceEditWidth       = 832
 	referenceEditFPS         = 16
 	// referenceEditBlock is the side of the squares two clips are compared
-	// over. A served clip is a GIF, dithered to a fixed palette, so single
-	// pixels differ by the dither; the mean of a square does not.
+	// over. A served GIF is dithered to a palette and a served MP4 loses
+	// detail to its codec, so single pixels differ by those; the mean of a
+	// square does not.
 	referenceEditBlock = 8
 	// The floors, in dB, a request that carries its source as frames is held
 	// to. The frames reach the editor at the byte they were written at: the
@@ -57,9 +58,10 @@ const (
 // context it resolves, and the clip it serves, which must agree with the
 // clip the earlier implementation drew for the same frames, instruction and
 // seed, square by square, and hold its dark and bright levels. The source is
-// carried both ways a request can carry one: as its frames, which reach the
-// editor as they are, and as the GIF a video model returns, which reaches it
-// in 256 colours a frame and smoothed.
+// carried each way a request can carry one: as its frames, which reach the
+// editor as they are, as the GIF a video model returns, which reaches it in
+// 256 colours a frame and smoothed, and as an MP4, which reaches it through
+// FFmpeg cut for the editor. The edit of the frames is served as an MP4.
 func TestServedEditMatchesTheReferenceEdit(t *testing.T) {
 	cudatest.Require(t)
 	edit := modeltest.Directory(t, "LiveEdit")
@@ -124,13 +126,34 @@ func TestServedEditMatchesTheReferenceEdit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	clip, err := latentvideo.GIFContent(sourceVideo)
+	clip, err := latentvideo.VideoContent(sourceVideo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recording, err := latentvideo.NewMP4Encoder(t.Context(), ffmpeg, referenceEditFPS, latentvideo.UnitPixels)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for frame := range referenceEditFrames {
+		values := make([]float32, media.RGBChannels*plane)
+		for channel := range media.RGBChannels {
+			copy(values[channel*plane:][:plane], recordedSource.Pixels[(channel*referenceEditFrames+frame)*plane:][:plane])
+		}
+		if err := recording.Add(frame, values, referenceEditHeight, referenceEditWidth); err != nil {
+			t.Fatal(err)
+		}
+	}
+	encoded, err := recording.Finish()
+	if err != nil {
+		t.Fatal(err)
+	}
+	movie, err := latentvideo.VideoContent(encoded)
 	if err != nil {
 		t.Fatal(err)
 	}
 	// The frames of this clip are 36 MiB, and the store bounds a batch as it is
 	// written, a third larger: they are committed alone.
-	for key, content := range map[string]artifact.Content{"test/video-edit-reference": clip, "test/video-edit-reference-frames": frames} {
+	for key, content := range map[string]artifact.Content{"test/video-edit-reference": clip, "test/video-edit-reference-frames": frames, "test/video-edit-reference-mp4": movie} {
 		if _, err := store.Commit(t.Context(), artifact.Batch{Key: key, Contents: []artifact.Content{content}}); err != nil {
 			t.Fatal(err)
 		}
@@ -152,6 +175,9 @@ func TestServedEditMatchesTheReferenceEdit(t *testing.T) {
 	// 28 dB, and unsmoothed, with the editor reading the dither as content, at
 	// 17. The GIF is held at what it resolves to, which a source left unsmoothed
 	// or read in another range fails, and its edit is not served a second time.
+	// An MP4 source is held to the GIF's floor, which one read in another range
+	// or cut to other frames fails. The edit of the frames is served as an MP4,
+	// which keeps every colour the GIF's palette does not.
 	for _, carried := range []struct {
 		name        string
 		source      artifact.ID
@@ -159,9 +185,10 @@ func TestServedEditMatchesTheReferenceEdit(t *testing.T) {
 		served      bool
 	}{
 		{"a GIF", clip.Descriptor.ID, gifSourceFloor, false},
+		{"an MP4", movie.Descriptor.ID, gifSourceFloor, false},
 		{"frames", frames.Descriptor.ID, framesSourceFloor, true},
 	} {
-		form := latentvideo.ReferenceEditRequest{Prompt: referenceEditInstruction, Seed: referenceEditSeed, SourceArtifact: carried.source}
+		form := latentvideo.ReferenceEditRequest{Prompt: referenceEditInstruction, Seed: referenceEditSeed, SourceArtifact: carried.source, Format: "mp4"}
 		// What the request resolves to, held to what the earlier run recorded: the
 		// source frames it fed and the text context it conditioned on. A source
 		// read from -1 to 1 misses the first by the whole range, and a context
@@ -196,8 +223,8 @@ func TestServedEditMatchesTheReferenceEdit(t *testing.T) {
 		}
 		video := serve(form)
 		frames := servedSquareMeans(t, video, referenceEditBlock)
-		if video.Frames != referenceEditFrames || video.Height != referenceEditHeight || video.Width != referenceEditWidth || len(frames) != referenceEditFrames {
-			t.Fatalf("source as %s: served edit of %d frames at %dx%d, %d decoded", carried.name, video.Frames, video.Width, video.Height, len(frames))
+		if video.MediaType != media.MP4MediaType || video.Frames != referenceEditFrames || video.Height != referenceEditHeight || video.Width != referenceEditWidth || len(frames) != referenceEditFrames {
+			t.Fatalf("source as %s: served edit as %s of %d frames at %dx%d, %d decoded", carried.name, video.MediaType, video.Frames, video.Width, video.Height, len(frames))
 		}
 		var squared, servedDark, servedBright, wantDark, wantBright float64
 		blocks := 0

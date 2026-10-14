@@ -16,7 +16,7 @@ func TestExternalProcessLifecycle(t *testing.T) {
 		t.Skipf("UNAVAILABLE: %v", err)
 	}
 	const height, width = 16, 16
-	encoder, err := NewMP4Encoder(t.Context(), ffmpeg, 4, height, width, SignedUnitPixels)
+	encoder, err := NewMP4Encoder(t.Context(), ffmpeg, 4, SignedUnitPixels)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,8 +37,12 @@ func TestExternalProcessLifecycle(t *testing.T) {
 		t.Fatalf("encoded video = frames %d bytes %d", video.Frames, len(video.Data))
 	}
 
-	abandoned, err := NewMP4Encoder(t.Context(), ffmpeg, 4, height, width, SignedUnitPixels)
+	// FFmpeg starts at the first frame, so the abandoned encoder takes one.
+	abandoned, err := NewMP4Encoder(t.Context(), ffmpeg, 4, SignedUnitPixels)
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := abandoned.Add(0, frame, height, width); err != nil {
 		t.Fatal(err)
 	}
 	if err := abandoned.Close(); err == nil {

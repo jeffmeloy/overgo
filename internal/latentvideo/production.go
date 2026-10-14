@@ -68,6 +68,9 @@ var (
 	encodedGIFContract = artifact.DocumentContract{
 		Kind: artifact.KindOutput, MediaType: media.GIFMediaType, Schema: "overgo.encoded-video.gif.v1",
 	}
+	encodedMP4Contract = artifact.DocumentContract{
+		Kind: artifact.KindOutput, MediaType: media.MP4MediaType, Schema: "overgo.encoded-video.mp4.v1",
+	}
 )
 
 // Profile owns Wan execution facts absent from checkpoint metadata.
@@ -168,7 +171,7 @@ func IsLiveEdit(path string) bool {
 	return err == nil && !info.IsDir()
 }
 
-// EncodedVideo owns a deterministic GIF artifact.
+// EncodedVideo owns a deterministic clip artifact, a GIF or an MP4.
 type EncodedVideo struct {
 	Data          []byte `json:"data"`
 	MediaType     string `json:"media_type"`
@@ -181,11 +184,94 @@ type EncodedVideo struct {
 	ResidentRun   int    `json:"resident_run"`
 }
 
-func GIFContent(video EncodedVideo) (artifact.Content, error) {
-	if err := media.ValidateEncodedRGBVideo(video.Data, video.MediaType, media.GIFMediaType, video.Frames, video.Channels, video.Height, video.Width, video.FPS); err != nil {
-		return artifact.Content{}, fmt.Errorf("latent video: invalid encoded GIF: %w", err)
+// VideoContent is the artifact a clip is published as, under the contract of
+// its media type.
+//   - a GIF or an MP4 of positive frames, size and rate, three colours a pixel
+//   - an MP4 opens with its file type box, so bytes of another form labelled as one are refused.
+func VideoContent(video EncodedVideo) (artifact.Content, error) {
+	contract := encodedGIFContract
+	if video.MediaType == media.MP4MediaType {
+		contract = encodedMP4Contract
+		if opening := video.Data[:min(len(video.Data), mp4FileTypeEnd)]; len(opening) < mp4FileTypeEnd || string(opening[mp4FileTypeEnd-len(mp4FileType):]) != mp4FileType {
+			return artifact.Content{}, fmt.Errorf("latent video: a clip labelled MP4 opens with %q, where an MP4 opens with its %s box", opening, mp4FileType)
+		}
 	}
-	return encodedGIFContract.OwnedContentBytes(video.Data)
+	if err := media.ValidateEncodedRGBVideo(video.Data, video.MediaType, contract.MediaType, video.Frames, video.Channels, video.Height, video.Width, video.FPS); err != nil {
+		return artifact.Content{}, fmt.Errorf("latent video: invalid encoded clip of %q (a GIF or an MP4 is published): %w", video.MediaType, err)
+	}
+	return contract.OwnedContentBytes(video.Data)
+}
+
+// The box an MP4 opens with (ISO/IEC 14496-12 section 4.3): its type follows
+// the box's 32-bit size, so it ends at byte 8. The format fixes both, so
+// neither is reconsidered.
+const (
+	mp4FileType    = "ftyp"
+	mp4FileTypeEnd = 8
+)
+
+// ClipFormat is the form a served clip is written in.
+//   - "" or "gif" = a GIF, each frame cut to a palette of its own, the default
+//   - "mp4" = H.264 in an MP4 through FFmpeg, at full colour where a GIF frame holds 256, and in fewer bytes
+//   - "gif" marshals as "", so a request that names the default is the request that names none, and keeps its run key.
+type ClipFormat string
+
+const (
+	gifClip ClipFormat = "gif"
+	mp4Clip ClipFormat = "mp4"
+)
+
+// IsZero reports whether the format is the default GIF.
+func (format ClipFormat) IsZero() bool { return format == "" || format == gifClip }
+
+// Choices are the formats a page offers.
+func (ClipFormat) Choices() []string { return []string{string(gifClip), string(mp4Clip)} }
+
+func (format ClipFormat) validate() error {
+	if !format.IsZero() && format != mp4Clip {
+		return fmt.Errorf("latent video: clip format %q, want %q or %q", string(format), gifClip, mp4Clip)
+	}
+	return nil
+}
+
+// clipEncoder writes a served clip from the frames a generation hands it.
+//   - Close releases what an unfinished clip holds and waits for its work, and is a no-op after Finish
+type clipEncoder interface {
+	add(ctx context.Context, index int, frame []float32, height, width int) error
+	Finish() (EncodedVideo, error)
+	Close() error
+}
+
+// newServedEncoder is the encoder a served clip of the format is written by.
+//   - an MP4 is written by the FFmpeg media.FFmpeg resolves, and is refused where none resolves
+func newServedEncoder(ctx context.Context, format ClipFormat, fps int, pixels PixelRange) (clipEncoder, error) {
+	if err := format.validate(); err != nil {
+		return nil, err
+	}
+	if format.IsZero() {
+		return NewClipEncoder(fps, pixels)
+	}
+	ffmpeg, err := media.FFmpeg()
+	if err != nil {
+		return nil, fmt.Errorf("latent video: an MP4 clip is written through FFmpeg: %w", err)
+	}
+	return NewMP4Encoder(ctx, ffmpeg, fps, pixels)
+}
+
+// writeClip runs a generation that hands its frames to the encoder and
+// returns the clip, or what the generation failed with and no clip.
+//   - each frame taken and the clip's writing are timed as parts of the request the context carries a ledger for
+//   - it returns only when the encoder holds no work, so a generation that fails or is cancelled leaves no worker or process behind it
+func writeClip(ctx context.Context, encoder clipEncoder, generate func(VideoFrameSink) error) (video EncodedVideo, err error) {
+	defer func() { err = errors.Join(err, encoder.Close()) }()
+	if err := generate(func(index int, frame []float32, height, width int) error {
+		defer processmeasure.Stage(ctx, "clip frame taken")()
+		return encoder.add(ctx, index, frame, height, width)
+	}); err != nil {
+		return EncodedVideo{}, err
+	}
+	defer processmeasure.Stage(ctx, "clip written")()
+	return encoder.Finish()
 }
 
 // gifEncoder streams borrowed planar frames into one encoded artifact.
@@ -323,29 +409,11 @@ func (s *gifEncoder) add(ctx context.Context, index int, frame []float32, height
 	return nil
 }
 
-// timed is the encoder's taking of a frame for a request, timed as a part of
-// the request the context carries a ledger for. The frames are drawn by
-// workers beside the decoding, and what is left of the drawing when the last
-// frame is in is waited for under the clip's writing.
-func (s *gifEncoder) timed(ctx context.Context) VideoFrameSink {
-	return func(index int, frame []float32, height, width int) error {
-		defer processmeasure.Stage(ctx, "clip frame taken")()
-		return s.add(ctx, index, frame, height, width)
-	}
-}
-
-// clip runs a generation that hands its frames to the encoder and returns
-// the clip, or what the generation failed with and no clip. Either way it
-// returns only when every frame the encoder took has been drawn: a
-// generation that fails or is cancelled leaves no worker drawing behind it,
-// and nothing of a clip.
-func (s *gifEncoder) clip(ctx context.Context, generate func(VideoFrameSink) error) (EncodedVideo, error) {
-	defer s.drawing.Wait()
-	if err := generate(s.timed(ctx)); err != nil {
-		return EncodedVideo{}, err
-	}
-	defer processmeasure.Stage(ctx, "clip written")()
-	return s.Finish()
+// Close waits for the frames still being drawn, so no worker outlives the
+// clip.
+func (s *gifEncoder) Close() error {
+	s.drawing.Wait()
+	return nil
 }
 
 func (p PixelRange) valid() bool { return p == SignedUnitPixels || p == UnitPixels }
@@ -393,6 +461,7 @@ type WanRequest struct {
 	Prompt         string                    `json:"prompt,omitzero"`
 	NegativePrompt string                    `json:"negative_prompt,omitzero"`
 	Seed           uint64                    `json:"seed,omitzero"`
+	Format         ClipFormat                `json:"format,omitzero"`
 	CondContext    []float32                 `json:"cond_context,omitempty"`
 	UncondContext  []float32                 `json:"uncond_context,omitempty"`
 	InitialSample  []float32                 `json:"initial_sample,omitempty"`
@@ -431,6 +500,8 @@ type ReferenceEditCondition struct {
 	Sigmas          []float32 `json:"sigmas"`
 	ContextTimestep int64     `json:"context_timestep"`
 	Seed            int64     `json:"seed"`
+	// Format rides in the condition because the edit recipe reads only its condition and its source.
+	Format ClipFormat `json:"format,omitzero"`
 }
 
 type SourceVideo struct {
@@ -452,10 +523,18 @@ type ReferenceEditRequest struct {
 	Prompt         string                 `json:"prompt,omitzero"`
 	Seed           int64                  `json:"seed,omitzero"`
 	SourceArtifact artifact.ID            `json:"source_artifact,omitzero" label:"source clip" media:"video"`
+	// Format is the clip form's format, which resolving moves into the condition.
+	Format ClipFormat `json:"format,omitzero"`
 }
 
 func ValidateReferenceEditRequest(request ReferenceEditRequest) error {
 	c, s := request.Condition, request.Source
+	if !request.Format.IsZero() {
+		return fmt.Errorf("latent video: a resolved LiveEdit request names format %q beside its condition, which is where it carries one", request.Format)
+	}
+	if err := c.Format.validate(); err != nil {
+		return err
+	}
 	if _, ok := checked.First(c.TextContext); !ok {
 		return errors.New("latent video: incomplete LiveEdit request")
 	}
@@ -513,6 +592,7 @@ type editConditionRecord struct {
 	Sigmas          []float32    `json:"sigmas"`
 	ContextTimestep int64        `json:"context_timestep"`
 	Seed            int64        `json:"seed"`
+	Format          ClipFormat   `json:"format,omitzero"`
 }
 
 type sourceVideoRecord struct {
@@ -542,7 +622,7 @@ func (c ReferenceEditCondition) Record() editConditionRecord {
 	return editConditionRecord{
 		TextContext: recordTensor(c.TextContext), InitialNoise: recordTensor(c.InitialNoise),
 		FramesPerChunk: c.FramesPerChunk, LocalAttention: c.LocalAttention,
-		Timesteps: c.Timesteps, Sigmas: c.Sigmas, ContextTimestep: c.ContextTimestep, Seed: c.Seed,
+		Timesteps: c.Timesteps, Sigmas: c.Sigmas, ContextTimestep: c.ContextTimestep, Seed: c.Seed, Format: c.Format,
 	}
 }
 
@@ -571,7 +651,7 @@ func registerWanRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, g
 		return err
 	}
 	return workflowruntime.RegisterScalarStage(runtime, modelrecipe.ModuleLatentVideoDecode, modelID,
-		func(features wanFeatures) (EncodedVideo, error) { return features.video, nil }, GIFContent)
+		func(features wanFeatures) (EncodedVideo, error) { return features.video, nil }, VideoContent)
 }
 
 func registerReferenceEditRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, generate func(context.Context, ReferenceEditRequest) (EncodedVideo, error)) error {
@@ -596,5 +676,5 @@ func registerReferenceEditRuntime(runtime *workflowruntime.Runtime, modelID arti
 		return err
 	}
 	return workflowruntime.RegisterScalarStage(runtime, modelrecipe.ModuleReferenceVideoDecode, modelID,
-		func(features referenceEditFeatures) (EncodedVideo, error) { return features.video, nil }, GIFContent)
+		func(features referenceEditFeatures) (EncodedVideo, error) { return features.video, nil }, VideoContent)
 }

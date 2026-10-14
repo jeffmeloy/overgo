@@ -184,6 +184,10 @@ func describe(request reflect.Type) ([]Control, string) {
 			controls = append(controls, control)
 			continue
 		}
+		// A field whose type names its values (a clip's format) offers them as choices.
+		if values, named := reflect.Zero(field.Type).Interface().(interface{ Choices() []string }); named {
+			control.Choices = values.Choices()
+		}
 		switch field.Type.Kind() {
 		case reflect.String:
 			control.Type, control.Required = ControlText, !optional

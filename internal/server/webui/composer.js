@@ -24,9 +24,14 @@
   function artifactOf(url) { return new URL(url, location.origin).searchParams.get("id") || ""; }
 
   // media: a generation result whose data[] carries artifact URLs; record names the run and
-  // capability behind them so a card can replay the stored request.
+  // capability behind them so a card can replay the stored request. A clip is shown as its stored
+  // type: a GIF as a picture, which a video element does not play, and an MP4 as a video.
   async function* media(kind, result, caption, record) {
-    for (const item of (result && result.data) || []) yield { type: "media", kind, url: item.url, caption, artifact: artifactOf(item.url), ...record };
+    for (const item of (result && result.data) || []) {
+      const artifact = artifactOf(item.url);
+      const mime = kind === "video" ? await overgo.api.get("/artifacts?id=" + encodeURIComponent(artifact)).then((listed) => listed.artifacts?.[0]?.descriptor?.media_type || "", () => "") : "";
+      yield { type: "media", kind: mime ? mediaKind(mime) : kind, mime, url: item.url, caption, artifact, ...record };
+    }
     yield { type: "done" };
   }
 

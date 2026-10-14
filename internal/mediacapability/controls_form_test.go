@@ -11,7 +11,8 @@ import (
 // requests: Wan's prompts, seed and generation parameters are typed
 // controls with its optional tensors and noise plan omitted rather than
 // refused, and LiveEdit declares its prompt, seed and source clip artifact
-// with its compiled condition and decoded source omitted.
+// with its compiled condition and decoded source omitted. Each offers the
+// formats its clip is written in as an optional choice, unset for a GIF.
 func TestControlsDeclareTheWanPromptForm(t *testing.T) {
 	controls, refusal := Controls(modelrecipe.ModuleLatentVideoPrepare, "")
 	if refusal != "" {
@@ -43,7 +44,12 @@ func TestControlsDeclareTheWanPromptForm(t *testing.T) {
 	for _, control := range edit {
 		names = append(names, control.Name+":"+control.Type)
 	}
-	if joined := strings.Join(names, ","); joined != "prompt:text,seed:integer,source_artifact:artifact" {
+	if joined := strings.Join(names, ","); joined != "prompt:text,seed:integer,source_artifact:artifact,format:text" {
 		t.Fatalf("LiveEdit controls = %s", joined)
+	}
+	for request, format := range map[string]Control{"Wan": byName["format"], "LiveEdit": edit[len(edit)-1]} {
+		if format.Required || strings.Join(format.Choices, ",") != "gif,mp4" {
+			t.Errorf("%s format control = %+v, want an optional choice of gif and mp4", request, format)
+		}
 	}
 }

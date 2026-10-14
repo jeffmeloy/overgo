@@ -51,7 +51,7 @@ func TestDecodeClipSource(t *testing.T) {
 	}
 	ctx := t.Context()
 	const frames, height, width = 5, 32, 48
-	encoder, err := NewMP4Encoder(ctx, ffmpeg, 8, height, width, UnitPixels)
+	encoder, err := NewMP4Encoder(ctx, ffmpeg, 8, UnitPixels)
 	if err != nil {
 		t.Fatal(err)
 	}

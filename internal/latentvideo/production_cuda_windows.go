@@ -148,11 +148,11 @@ func (r *WanRuntime) Generate(ctx context.Context, request WanRequest) (EncodedV
 	if err != nil {
 		return EncodedVideo{}, err
 	}
-	encoder, err := NewClipEncoder(r.profile.SampleFPS, SignedUnitPixels)
+	encoder, err := newServedEncoder(ctx, request.Format, r.profile.SampleFPS, SignedUnitPixels)
 	if err != nil {
 		return EncodedVideo{}, err
 	}
-	video, err := encoder.clip(ctx, func(sink VideoFrameSink) error {
+	video, err := writeClip(ctx, encoder, func(sink VideoFrameSink) error {
 		_, err := r.generator.Generate(ctx, GenerateRequest{
 			Steps: request.Steps, Shift: request.Shift, GuideScale: request.GuideScale,
 			CondContext: request.CondContext, UncondContext: request.UncondContext,
@@ -236,17 +236,17 @@ func (r *LiveEditRuntime) Reset(context.Context, ReferenceEditRequest) error {
 	return nil
 }
 
-// Generate edits the request's source clip and returns the edited clip. The
-// edit works in the range its source arrives in, 0 to 1 (sourceVideoFromGIF),
-// so the frames it decodes are written as that range: read as -1 to 1 they
-// come out washed, every black lifted to grey.
+// Generate edits the request's source clip and returns the edited clip in the
+// condition's format. The edit works in the range its source arrives in, 0 to
+// 1 (sourceVideoFromGIF), so the frames it decodes are written as that range:
+// read as -1 to 1 they come out washed, every black lifted to grey.
 func (r *LiveEditRuntime) Generate(ctx context.Context, request ReferenceEditRequest) (EncodedVideo, error) {
-	encoder, err := NewClipEncoder(r.profile.SampleFPS, UnitPixels)
+	condition := request.Condition
+	encoder, err := newServedEncoder(ctx, condition.Format, r.profile.SampleFPS, UnitPixels)
 	if err != nil {
 		return EncodedVideo{}, err
 	}
-	condition := request.Condition
-	video, err := encoder.clip(ctx, func(sink VideoFrameSink) error {
+	video, err := writeClip(ctx, encoder, func(sink VideoFrameSink) error {
 		_, err := r.runtime.Run(ctx, condition.TextContext, condition.Seed, request.Source.Pixels, condition.InitialNoise, sink)
 		return err
 	})

@@ -61,26 +61,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "consumer-checks",
-      "title": "Hold every committed surface to a consumer by a check at every commit, and delete what has none",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 29418,
-        "reason": ""
-      },
-      "steps": [
-        {
-          "id": "wire-mp4",
-          "title": "Serve an MP4 clip beside the GIF on the video paths",
-          "status": "open",
-          "verify": "go test ./internal/latentvideo -count=1 -run '^TestMP4ClipContent$'",
-          "rationale": "From the reading of step wire-unreached. The served video paths write a GIF cut to a palette and dithered (internal/latentvideo/production.go:266, edit_form.go:275). The MP4 encoder writes through the same frame sink (internal/latentvideo/mp4.go), and FFmpeg is already resolved for decoding (internal/media/video.go:158), so no setup step is added. The step adds a format to the generation and edit requests, the encoder's choice in Generate (production_cuda_windows.go:151) and in the edit runtime, an MP4 content contract and its case in OutputContent (internal/mediacapability/output.go:27), and accepts video/mp4 as an edit's source.\nServes: a person generating or editing video gets a clip at full colour and smaller than the GIF.\nDisappears: nothing; about 140 lines of production code are added, an estimate by reading.\nEvidence: a host test of the MP4 contract through FFmpeg, and the device test of the served video path asking for MP4.\nBatch: device for the served path.\n\nCorrected and widened by the lead on 2026-10-14, from a reading of the code for this step's design (scratchpad rows/mp4-design.md).\n- a ClipFormat field whose zero is GIF keeps every GIF request, condition record, recipe and session key byte-identical, and an edit carries its format inside ReferenceEditCondition, because a third recipe input would change every stored edit's run key\n- the decode stage hard-codes GIFContent where output is first published (internal/latentvideo/production.go), and OutputContent needs no new case\n- the stored-answer decode (DecodeContent in encoded_video_decode.go) reads GIF alone, so a repeated MP4 request needs a reader of the MP4's frame count, size and rate\n- an MP4 edit source is decoded at the profile's frame rate, cropped to the editor's size and cut to a frame count the edit policy admits\n- the server's -ffmpeg flag never reaches the model runtime, so the encoder and the upload intake resolve FFmpeg one way\n- the device test of the served path is TestVideoPromptActivation of internal/mediacapability asked for each format, and TestServedEditMatchesTheReferenceEdit gains MP4 output and an MP4 source, because TestVideoGenerationLeadership calls the encoder directly\n- two failures a person meets today are fixed here, because this step touches their code\n- a repeated GIF request likely fails, because a replayed GIF reads back with a frame rate of 0 and the publish check refuses it, and the rate is computed from the GIF's frame delays\n- a generated GIF does not play on the page, because the page shows it in a video element, so a GIF is shown as an image\n- the estimate is about 180 lines of production code and 110 of tests"
-        }
-      ]
-    },
-    {
       "id": "shape-reading",
       "title": "Keep the reading of repeated structure, consolidate what is truly repeated, and read where the code decides by kind",
       "class": "consolidation",

@@ -135,7 +135,7 @@ func TestSourceFramesKeepEveryPixel(t *testing.T) {
 	if content.Descriptor.MediaType != media.PNGFramesMediaType || content.Descriptor.ID.Kind() != artifact.KindFile {
 		t.Fatalf("source frames are published as %s %s", content.Descriptor.ID.Kind(), content.Descriptor.MediaType)
 	}
-	read, err := sourceVideoFromContent(content)
+	read, err := sourceVideoFromContent(t.Context(), content, editPolicy{}, Profile{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,11 +166,11 @@ func TestSourceFramesKeepEveryPixel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	gifContent, err := GIFContent(video)
+	gifContent, err := VideoContent(video)
 	if err != nil {
 		t.Fatal(err)
 	}
-	smoothed, err := sourceVideoFromContent(gifContent)
+	smoothed, err := sourceVideoFromContent(t.Context(), gifContent, editPolicy{}, Profile{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -213,8 +213,8 @@ func TestSourceFramesKeepEveryPixel(t *testing.T) {
 		}
 	}
 	other := content
-	other.Descriptor.MediaType = media.MP4MediaType
-	if _, err := sourceVideoFromContent(other); err == nil || !strings.Contains(err.Error(), media.MP4MediaType) {
+	other.Descriptor.MediaType = "video/webm"
+	if _, err := sourceVideoFromContent(t.Context(), other, editPolicy{}, Profile{}); err == nil || !strings.Contains(err.Error(), "video/webm") {
 		t.Fatalf("a clip of a form the editor does not read: %v", err)
 	}
 }

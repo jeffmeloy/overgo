@@ -1,27 +1,54 @@
 package server
 
 import (
+	"bytes"
+	"image"
+	"image/color/palette"
+	"image/gif"
 	"net/http/httptest"
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/operation"
 	"overgo/internal/recipe"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
 
 // TestWebUIBrowserGeneratedMedia drives the front page's generation modes
-// over declared image and speech workflows: a speech run lands as a media
-// card stored as its artifact, whose operation's live events the activity
-// dialog lists; an image run's output, used as input while a capability
-// with an image slot is selected, fills that slot with the artifact; and an
-// embeddings and a rerank turn answer in the thread.
+// over declared image, speech and video workflows: a speech run lands as a
+// media card stored as its artifact, whose operation's live events the
+// activity dialog lists; an image run's output, used as input while a
+// capability with an image slot is selected, fills that slot with the
+// artifact; a video run's GIF lands as a picture the browser draws, since a
+// video element does not play a GIF; and an embeddings and a rerank turn
+// answer in the thread.
 func TestWebUIBrowserGeneratedMedia(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "the generated media leg uses Chromium through cmd/webui-lane")
 	handler, workspace, _, _ := nativeMediaProtocolFixture(t)
 	// The speech capability reads its text from the composer, as a synthesizer declares it.
 	workspace.capabilities[1].Controls = []workflowControl{{Name: "text", Type: workflowControlText, Required: true}}
+	// A video capability whose run answers with a GIF of two by two pixels.
+	var clip bytes.Buffer
+	if err := gif.EncodeAll(&clip, &gif.GIF{Image: []*image.Paletted{image.NewPaletted(image.Rect(0, 0, 2, 2), palette.Plan9)}, Delay: []int{6}}); err != nil {
+		t.Fatal(err)
+	}
+	clipID := testutil.ArtifactBytesID(t, artifact.KindOutput, clip.Bytes())
+	clipRecipe := testutil.ArtifactID(t, artifact.KindRecipe, "native-clip-recipe")
+	clipRun := testutil.ArtifactID(t, artifact.KindRun, "native-clip-run")
+	if _, err := handler.config.Repository.Commit(t.Context(), artifact.Batch{
+		Key: "native/media/clip", Artifacts: []artifact.Descriptor{{ID: clipRecipe}, {ID: clipRun}},
+		Contents: []artifact.Content{{Descriptor: artifact.Descriptor{ID: clipID, Size: uint64(clip.Len()), MediaType: "image/gif"}, Data: clip.Bytes()}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	workspace.capabilities = append(workspace.capabilities, WorkflowCapability{
+		Task: recipe.TaskVideoGen, Recipe: clipRecipe, Name: "clip", Outputs: []recipe.Output{{Name: "video", Data: recipe.DataVideo}},
+		Stages:   []recipe.Stage{{Node: recipe.Node{ID: "generate", Module: "test.video"}}},
+		Controls: []workflowControl{{Name: "prompt", Type: workflowControlText, Required: true}},
+	})
+	workspace.completion[recipe.TaskVideoGen] = operation.Completion{Run: clipRun, Outputs: []artifact.ID{clipID}}
 	// An image capability with an image slot, which a reused output fills.
 	editRecipe := testutil.ArtifactID(t, artifact.KindRecipe, "native-image-edit-recipe")
 	workspace.capabilities = append(workspace.capabilities, WorkflowCapability{
@@ -73,10 +100,16 @@ func TestWebUIBrowserGeneratedMedia(t *testing.T) {
 	check(`(() => { [...mediaCards('img')[0].querySelectorAll('button')].find(button => button.textContent === 'use as input').click(); return true; })()`)
 	settle(`(mediaSlot('source image').value || '').startsWith('output:')`)
 
+	// A generated GIF lands as a picture the browser draws, and in no video element.
+	check(`(() => { mediaMode('video-gen'); return true; })()`)
+	settle(`!(document.querySelector('select[aria-label="generation model"]') || { disabled: true }).disabled && !document.querySelector('.send-button').disabled`)
+	check(`(() => { mediaSend('a clip'); return true; })()`)
+	settle(`mediaCards('img').some(card => card.textContent.includes('image/gif') && card.querySelector('img').naturalWidth === 2) && mediaCards('video').length === 0`)
+
 	// Embeddings and rerank turns answer in the thread.
 	check(`(() => { mediaMode('embeddings'); mediaSend('embed me'); return true; })()`)
 	settle(`[...document.querySelectorAll('.msg')].some(message => /embedding · [0-9]+ dimensions · norm /.test(message.textContent))`)
 	check(`(() => { mediaMode('rerank'); mediaSend('query\nfirst document\nsecond document'); return true; })()`)
 	settle(`[...document.querySelectorAll('.msg table')].some(table => table.textContent.includes('first document') && table.textContent.includes('second document'))`)
-	webuilane.Leg(t, "generated media leg", "a speech run landed as a stored media card with its live events, an image output filled an image slot as input, and embeddings and rerank turns answered in the thread")
+	webuilane.Leg(t, "generated media leg", "a speech run landed as a stored media card with its live events, an image output filled an image slot as input, a GIF clip landed as a drawn picture, and embeddings and rerank turns answered in the thread")
 }

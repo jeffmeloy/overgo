@@ -564,13 +564,14 @@ func TestModelJourneyFirstRun(t *testing.T) {
 		t.Log("speech-out leg not taken: the store declares no speech model")
 	}
 	// 11. Clip back in: a clip from the host oscillator video model lands as
-	// a card, and with LiveEdit chosen in the same mode the card's "use as
+	// a card that shows the GIF as a picture, which a video element does not
+	// play, and with LiveEdit chosen in the same mode the card's "use as
 	// input" fills the request's source clip with the card's stored id
 	// instead of attaching bytes.
 	if generationMode("video-gen", "model.oscillator-video-prepare") {
 		say(t, ctx, browser, "a test clip")
 		settle("clip out as an artifact card", `!document.querySelector(".composer .btn").disabled &&
-      !!document.querySelector("#panel-chat .msg.media video") && !!document.querySelector("#panel-chat .msg.media .note a")`)
+      [...document.querySelectorAll("#panel-chat .msg.media")].some((card) => card.textContent.includes("image/gif") && !!card.querySelector("img") && !card.querySelector("video") && !!card.querySelector(".note a"))`)
 		webuilane.Leg(t, "clip-out leg", "a clip landed as an artifact card")
 		// Presets from declared bounds: the Wan prompt form prefills the profile's
 		// geometry, and an aspect chip moves width and height by the stride
@@ -591,7 +592,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 		}
 		if generationMode("video-gen", "model.reference-video-prepare") {
 			assertBrowserPredicate(t, ctx, browser, `(() => {
-      const card = [...document.querySelectorAll("#panel-chat .msg.media")].find((card) => card.querySelector("video"));
+      const card = [...document.querySelectorAll("#panel-chat .msg.media")].find((card) => card.textContent.includes("image/gif"));
       const again = card && [...card.querySelectorAll("button")].find((button) => button.textContent === "use as input");
       if (!again) return false; again.click(); return true; })()`)
 			settle("clip fills the source artifact", `(() => {

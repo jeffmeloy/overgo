@@ -37,10 +37,12 @@ const (
 	PDFMediaType = "application/pdf"
 )
 
+// centisecondsPerSecond is the GIF delay field's unit, from the GIF89a format.
+const centisecondsPerSecond = 100
+
 // GIFFrameDelay quantizes consecutive frame boundaries to GIF centiseconds.
 // Rounding each boundary bounds total duration error to half a centisecond.
 func GIFFrameDelay(framesPerSecond, frameIndex int) (int, error) {
-	const centisecondsPerSecond = 100 // GIF delay field's format unit.
 	if framesPerSecond <= 0 || framesPerSecond > centisecondsPerSecond || frameIndex < 0 {
 		return 0, errors.New("media: frame rate or index cannot be represented by positive GIF delays")
 	}
@@ -219,6 +221,25 @@ func DecodeVideoFileCovering(ctx context.Context, path, configuredFFmpeg string,
 	return decodeVideoFileSized(ctx, path, configuredFFmpeg, fps, maximum, width, height, ":force_original_aspect_ratio=increase:flags=area,crop="+size)
 }
 
+// DecodeEncodedVideoCovering decodes an encoded clip's first frames as
+// DecodeVideoFileCovering decodes a file's.
+//   - the bytes are read from a file of their own, removed after
+//   - a file because an MP4 whose index box follows its media cannot be read from a pipe past FFmpeg's read buffer (FFmpeg refuses it as a "partial file").
+func DecodeEncodedVideoCovering(ctx context.Context, data []byte, configuredFFmpeg string, fps float64, maximum, width, height int) ([]image.Image, error) {
+	file, err := os.CreateTemp("", "overgo-clip-*")
+	if err != nil {
+		return nil, err
+	}
+	defer os.Remove(file.Name())
+	if _, err := file.Write(data); err != nil {
+		return nil, errors.Join(err, file.Close())
+	}
+	if err := file.Close(); err != nil {
+		return nil, err
+	}
+	return DecodeVideoFileCovering(ctx, file.Name(), configuredFFmpeg, fps, maximum, width, height)
+}
+
 // decodeVideoFileSized decodes a clip's first frames through the frame-rate
 // filter and a scale to width by height that ends in fit, the scale's
 // options and any filter after it.
@@ -302,6 +323,14 @@ func decodeFFmpegFiltered(ctx context.Context, ffmpeg, input string, stdin io.Re
 		return nil, errors.New("media: FFmpeg produced no video frames")
 	}
 	return frames, nil
+}
+
+// FFmpeg is the FFmpeg a served clip is written and read with, and an upload
+// of one is accepted for: the one OVERGO_FFMPEG names, else the one
+// ResolveFFmpeg finds.
+//   - one resolution for the clip runtime and the server's intake, so an MP4 is accepted exactly when one can be written and read.
+func FFmpeg() (string, error) {
+	return ResolveFFmpeg(os.Getenv("OVERGO_FFMPEG"))
 }
 
 func ResolveFFmpeg(configured string) (string, error) {

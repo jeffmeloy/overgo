@@ -74,8 +74,11 @@ func (request WanRequest) PromptForm() bool {
 // prompt form: a prompt without contexts, each generation parameter either
 // given or left at zero for the profile's generation policy, and neither
 // an initial sample nor a noise plan, which the runtime compiles from the
-// seed on its device.
+// seed on its device. Either form names a clip format or leaves it to GIF.
 func ValidateWanRequestForm(request WanRequest) error {
+	if err := request.Format.validate(); err != nil {
+		return err
+	}
 	if !request.PromptForm() {
 		return validateWanRequest(request)
 	}

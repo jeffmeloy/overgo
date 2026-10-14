@@ -227,7 +227,3 @@ test-held internal/trainingdata/image.go medianFloat32
 test-held internal/trainingdata/image.go medianNeighbourRatio
 test-held internal/trainingprogram/objective.go CompileTrainingObjectiveMatrix
 test-held internal/trainingprogram/objective.go ObjectiveAuthority.AtLeast
-wire internal/latentvideo/mp4.go NewMP4Encoder
-wire internal/latentvideo/mp4.go mp4Encoder.Add
-wire internal/latentvideo/mp4.go mp4Encoder.Close
-wire internal/latentvideo/mp4.go mp4Encoder.Finish

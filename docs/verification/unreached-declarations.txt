@@ -433,15 +433,6 @@ members: internal/trainingdata/image.go
 reason: SelectStructuredImageCrops builds the corpus of one real-checkpoint test of the live diffusion trainer, and Image decodes the examples of the live image processor for the multimodal training matrix test.
 reason: Each stays where it is, because SelectStructuredImageCrops is called by a test of internal/diffusionimage and reads the unexported normalizedCHW, and Image is called by internal/adaptiveparity/multimodal_training_cuda_windows_test.go, which the claim repodb-multimodal-training-objective-matrix of compatibility.json binds whole to a device test.
 
-group video-mp4-encoder
-class: wire
-surface: outside
-declarations: 4
-lines: 103
-members: internal/latentvideo/mp4.go
-reason: It encodes frames to MP4 through the same frame sink as the GIF encoder, and no command offers MP4, so step consumer-checks/wire-mp4 is the route, an MP4 clip beside the GIF of the served video paths with an MP4 content contract.
-reason: Its input chain is whole and it is no record, so the four conditions do not hold, and two tests of the live edit runtime and the live clip decoder already read clips it wrote.
-
 group wavtokenizer-waveform
 class: prototype
 surface: inside

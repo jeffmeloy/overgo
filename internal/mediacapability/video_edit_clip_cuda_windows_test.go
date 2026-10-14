@@ -133,7 +133,7 @@ func syntheticClipContent(t testing.TB, frames, height, width int) artifact.Cont
 	if err != nil {
 		t.Fatal(err)
 	}
-	content, err := latentvideo.GIFContent(video)
+	content, err := latentvideo.VideoContent(video)
 	if err != nil {
 		t.Fatal(err)
 	}

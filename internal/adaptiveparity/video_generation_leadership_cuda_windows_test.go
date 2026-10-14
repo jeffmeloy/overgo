@@ -83,7 +83,7 @@ func TestVideoGenerationLeadership(t *testing.T) {
 	var coldWall, warmWall time.Duration
 	var peak uint64
 	for run := range 2 {
-		encoder, err := latentvideo.NewMP4Encoder(t.Context(), ffmpeg, profile.SampleFPS, 480, 832, latentvideo.UnitPixels)
+		encoder, err := latentvideo.NewMP4Encoder(t.Context(), ffmpeg, profile.SampleFPS, latentvideo.UnitPixels)
 		if err != nil {
 			t.Fatal(err)
 		}

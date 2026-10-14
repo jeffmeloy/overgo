@@ -15,8 +15,16 @@ import (
 	"overgo/internal/processcontrol"
 )
 
-// mp4Encoder streams planar frames through one FFmpeg process.
+// chromaSubsampling is how many pixels a side of one chroma sample covers in
+// the 4:2:0 frames an MP4 clip is written in (FFmpeg's yuv420p), so a frame's
+// width and height are multiples of it. It holds while clips are written as
+// yuv420p.
+const chromaSubsampling = 2
+
+// mp4Encoder streams planar frames through one FFmpeg process, which starts
+// at the first frame.
 type mp4Encoder struct {
+	ffmpeg                              string
 	supervised                          *processcontrol.Supervised
 	wait                                context.Context
 	input                               io.WriteCloser
@@ -27,51 +35,82 @@ type mp4Encoder struct {
 	fps, height, width, frames, changed int
 }
 
-func NewMP4Encoder(ctx context.Context, ffmpeg string, fps, height, width int, pixels PixelRange) (*mp4Encoder, error) {
+// NewMP4Encoder writes a clip as H.264 in a fragmented MP4 through the FFmpeg
+// at ffmpeg.
+//   - FFmpeg starts at the first frame, whose size every later frame keeps, because a generator's frames are its decoder's size, which a request off the decoder's stride does not name
+//   - a frame of an odd width or height is refused, because each 4:2:0 chroma sample covers two pixels a side.
+func NewMP4Encoder(ctx context.Context, ffmpeg string, fps int, pixels PixelRange) (*mp4Encoder, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if !checked.Nonzero(ffmpeg) || !checked.PositiveInts(fps) || !pixels.valid() {
 		return nil, errors.New("latent video: incomplete MP4 encoder config")
 	}
-	if err := media.ValidateSpatialGeometry(height, width); err != nil {
-		return nil, fmt.Errorf("latent video: MP4 geometry: %w", err)
-	}
 	if _, err := os.Stat(ffmpeg); err != nil {
 		return nil, fmt.Errorf("latent video: FFmpeg: %w", err)
 	}
-	encoder := &mp4Encoder{fps: fps, height: height, width: width, pixels: pixels, raw: make([]byte, media.RGBChannels*height*width), wait: ctx}
+	return &mp4Encoder{ffmpeg: ffmpeg, fps: fps, pixels: pixels, wait: ctx}, nil
+}
+
+// start starts FFmpeg for frames of height by width.
+//   - the frame pipe closes when FFmpeg exits, so a frame offered to an FFmpeg that failed is refused and not left waiting
+func (s *mp4Encoder) start(height, width int) error {
+	if err := media.ValidateSpatialGeometry(height, width); err != nil {
+		return fmt.Errorf("latent video: MP4 geometry: %w", err)
+	}
+	if height%chromaSubsampling != 0 || width%chromaSubsampling != 0 {
+		return fmt.Errorf("latent video: an MP4 frame is %dx%d, and its sides must be multiples of %d", width, height, chromaSubsampling)
+	}
 	frameInput, frameSource := io.Pipe()
-	supervised, err := processcontrol.Start(ctx, processcontrol.Command{
-		Path: ffmpeg,
+	supervised, err := processcontrol.Start(s.wait, processcontrol.Command{
+		Path: s.ffmpeg,
 		Args: []string{
 			"-nostdin", "-hide_banner", "-loglevel", "error", "-threads", "1",
 			"-f", "rawvideo", "-pix_fmt", "rgb24", "-s", fmt.Sprintf("%dx%d", width, height),
-			"-r", strconv.Itoa(fps), "-i", "pipe:0", "-an", "-c:v", "libx264",
+			"-r", strconv.Itoa(s.fps), "-i", "pipe:0", "-an", "-c:v", "libx264",
 			"-preset", "ultrafast", "-crf", "18", "-pix_fmt", "yuv420p",
 			"-movflags", "frag_keyframe+empty_moov", "-f", "mp4", "pipe:1",
 		},
 		Stdin:  frameInput,
-		Stdout: &encoder.output,
-		Stderr: &encoder.errors,
+		Stdout: &s.output,
+		Stderr: &s.errors,
 	})
 	if err != nil {
 		_ = frameSource.Close()
-		return nil, err
+		return err
 	}
-	encoder.supervised = supervised
-	encoder.input = frameSource
-	return encoder, nil
+	go func() {
+		<-supervised.Done()
+		_ = frameInput.CloseWithError(errors.New("latent video: FFmpeg exited before the clip's last frame"))
+	}()
+	s.supervised, s.input = supervised, frameSource
+	s.height, s.width, s.raw = height, width, make([]byte, media.RGBChannels*height*width)
+	return nil
 }
 
-func (s *mp4Encoder) Add(_ int, frame []float32, height, width int) error {
-	if s == nil || s.input == nil {
+// Add takes the next frame of the clip.
+func (s *mp4Encoder) Add(index int, frame []float32, height, width int) error {
+	return s.add(context.Background(), index, frame, height, width)
+}
+
+// add writes the frame to FFmpeg and counts the pixels that changed since the
+// frame before; the first frame starts FFmpeg at its size.
+func (s *mp4Encoder) add(_ context.Context, index int, frame []float32, height, width int) error {
+	if s == nil {
 		return errors.New("latent video: invalid MP4 frame")
 	}
-	if !checked.Equal(height, s.height) {
-		return errors.New("latent video: invalid MP4 frame geometry")
+	if index != s.frames {
+		return errors.New("latent video: frame index is out of order")
 	}
-	if !checked.Equal(width, s.width) {
+	if s.frames == 0 && s.supervised == nil {
+		if err := s.start(height, width); err != nil {
+			return err
+		}
+	}
+	if s.input == nil {
+		return errors.New("latent video: invalid MP4 frame")
+	}
+	if !checked.Equal(height, s.height) || !checked.Equal(width, s.width) {
 		return errors.New("latent video: invalid MP4 frame geometry")
 	}
 	if err := media.EncodePlanarRGB8Into(s.raw, frame, height, width, func(value float32) uint8 {
@@ -87,7 +126,7 @@ func (s *mp4Encoder) Add(_ int, frame []float32, height, width int) error {
 		}
 	}
 	if _, err := s.input.Write(s.raw); err != nil {
-		return err
+		return fmt.Errorf("%w: %s", err, strings.TrimSpace(s.errors.String()))
 	}
 	if s.prior == nil {
 		s.prior = make([]byte, len(s.raw))

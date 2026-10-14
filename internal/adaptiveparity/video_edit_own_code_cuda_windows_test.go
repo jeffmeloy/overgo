@@ -220,11 +220,27 @@ func directoryExtent(t *testing.T, directory string) uint64 {
 }
 
 // servedSquareMeans is a served clip, frame by frame, each as the mean of
-// every colour over squares of side pixels (squareMeans). A served clip is a
-// GIF, dithered to a palette, so single pixels differ by the dither; the mean
-// of a square does not.
+// every colour over squares of side pixels (squareMeans). A served GIF is
+// dithered to a palette and a served MP4 loses detail to its codec, so single
+// pixels differ by those; the mean of a square does not. An MP4 is read
+// through FFmpeg at its own rate.
 func servedSquareMeans(t *testing.T, video latentvideo.EncodedVideo, side int) [][]float64 {
 	t.Helper()
+	if video.MediaType == media.MP4MediaType {
+		ffmpeg, err := media.FFmpeg()
+		if err != nil {
+			t.Fatal(err)
+		}
+		decoded, err := media.DecodeEncodedVideo(t.Context(), video.Data, ffmpeg, float64(video.FPS), video.Frames)
+		if err != nil {
+			t.Fatal(err)
+		}
+		means := make([][]float64, len(decoded))
+		for frame, picture := range decoded {
+			means[frame] = squareMeans(picture, side)
+		}
+		return means
+	}
 	animation, err := gif.DecodeAll(bytes.NewReader(video.Data))
 	if err != nil {
 		t.Fatal(err)

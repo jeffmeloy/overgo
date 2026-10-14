@@ -120,7 +120,8 @@ func (request ReferenceEditRequest) ClipForm() bool {
 }
 
 // validateReferenceEditRequestForm admits the complete request or the clip
-// form: a prompt, a source clip artifact id, and a non-negative seed.
+// form: a prompt, a source clip artifact id, a non-negative seed and a clip
+// format.
 func validateReferenceEditRequestForm(request ReferenceEditRequest) error {
 	if !request.ClipForm() {
 		return ValidateReferenceEditRequest(request)
@@ -128,7 +129,7 @@ func validateReferenceEditRequestForm(request ReferenceEditRequest) error {
 	if request.Seed < 0 {
 		return errors.New("latent video: negative LiveEdit seed")
 	}
-	return nil
+	return request.Format.validate()
 }
 
 // sourceVideoFromGIF decodes an animated GIF into the planar source video
@@ -271,24 +272,61 @@ func planarSource(frames []image.Image) (SourceVideo, error) {
 	return SourceVideo{Pixels: pixels, Channels: media.RGBChannels, Frames: len(frames), Height: height, Width: width}, nil
 }
 
+// admittedFrames is the most frames, at most count, of a clip whose latent
+// frames the policy admits, or zero when it admits none of so few; stride is
+// the autoencoder's temporal stride.
+func (policy editPolicy) admittedFrames(count, stride int) int {
+	latent := min((count-1)/stride+1, policy.LocalAttentionFrames+policy.FramesPerChunk)
+	latent -= latent % policy.FramesPerChunk
+	if latent <= policy.FramesPerChunk {
+		return 0
+	}
+	return (latent-1)*stride + 1
+}
+
+// sourceVideoFromMP4 decodes an MP4 source clip through FFmpeg into the
+// planar source video the reference edit consumes, its values from 0 to 1.
+//   - frames are sampled at the profile's rate, scaled to cover the size the editor was trained at and cut to its middle (media.DecodeVideoFileCovering)
+//   - the clip is cut to the most frames the policy admits, because an MP4 is a recording of any length and the editor takes a bounded one
+//   - nothing is smoothed, because an MP4 frame holds no palette dither
+func sourceVideoFromMP4(ctx context.Context, data []byte, policy editPolicy, profile Profile) (SourceVideo, error) {
+	ffmpeg, err := media.FFmpeg()
+	if err != nil {
+		return SourceVideo{}, fmt.Errorf("latent video: an MP4 source clip is read through FFmpeg: %w", err)
+	}
+	stride := profile.Policy.VAEStride[0]
+	most := policy.admittedFrames(math.MaxInt, stride)
+	frames, err := media.DecodeEncodedVideoCovering(ctx, data, ffmpeg, float64(profile.SampleFPS), most, policy.SourceWidth, policy.SourceHeight)
+	if err != nil {
+		return SourceVideo{}, err
+	}
+	if kept := policy.admittedFrames(len(frames), stride); kept > 0 {
+		frames = frames[:kept]
+	}
+	return planarSource(frames)
+}
+
 // sourceVideoFromContent decodes a source clip by the form it arrives in: PNG
-// frames as they are, or a GIF smoothed over its dither.
-func sourceVideoFromContent(content artifact.Content) (SourceVideo, error) {
+// frames as they are, a GIF smoothed over its dither, or an MP4 cut for the
+// editor.
+func sourceVideoFromContent(ctx context.Context, content artifact.Content, policy editPolicy, profile Profile) (SourceVideo, error) {
 	switch content.Descriptor.MediaType {
 	case media.PNGFramesMediaType:
 		return sourceVideoFromFrames(content.Data)
 	case media.GIFMediaType:
 		return sourceVideoFromGIF(content.Data)
+	case media.MP4MediaType:
+		return sourceVideoFromMP4(ctx, content.Data, policy, profile)
 	}
-	return SourceVideo{}, fmt.Errorf("latent video: source clip %s is %s, neither a GIF nor PNG frames", content.Descriptor.ID, content.Descriptor.MediaType)
+	return SourceVideo{}, fmt.Errorf("latent video: source clip %s is %s, not a GIF, an MP4 or PNG frames", content.Descriptor.ID, content.Descriptor.MediaType)
 }
 
 // ResolveClipRequest completes a clip-form request against the model
 // directory and the store: the source clip decodes from its artifact, PNG
-// frames as they are or a GIF smoothed over its dither, the text context
-// comes from the base model's text pipeline over the prompt, and the
-// condition follows the declared edit policy with sigmas compiled for its
-// timesteps and the request's seed.
+// frames as they are, a GIF smoothed over its dither or an MP4 cut for the
+// editor, the text context comes from the base model's text pipeline over the
+// prompt, and the condition follows the declared edit policy with sigmas
+// compiled for its timesteps, the request's seed and its clip format.
 func ResolveClipRequest(ctx context.Context, reader artifact.Reader, modelDirectory string, request ReferenceEditRequest) (ReferenceEditRequest, error) {
 	if !request.ClipForm() {
 		return ReferenceEditRequest{}, errors.New("latent video: request is not a clip form")
@@ -296,20 +334,8 @@ func ResolveClipRequest(ctx context.Context, reader artifact.Reader, modelDirect
 	if err := validateReferenceEditRequestForm(request); err != nil {
 		return ReferenceEditRequest{}, err
 	}
+	// The policy and the profile say what a source clip is cut to, so they are read with it.
 	read := processmeasure.Stage(ctx, "source clip read")
-	content, found, err := artifact.ReadContent(ctx, reader, request.SourceArtifact)
-	if err != nil {
-		return ReferenceEditRequest{}, err
-	}
-	if !found {
-		return ReferenceEditRequest{}, fmt.Errorf("latent video: source clip %s is absent", request.SourceArtifact)
-	}
-	source, err := sourceVideoFromContent(content)
-	read()
-	if err != nil {
-		return ReferenceEditRequest{}, err
-	}
-	defer processmeasure.Stage(ctx, "edit checkpoint compiled")()
 	policy, err := resolveEditPolicy(modelDirectory)
 	if err != nil {
 		return ReferenceEditRequest{}, err
@@ -319,6 +345,19 @@ func ResolveClipRequest(ctx context.Context, reader artifact.Reader, modelDirect
 	if err != nil {
 		return ReferenceEditRequest{}, err
 	}
+	content, found, err := artifact.ReadContent(ctx, reader, request.SourceArtifact)
+	if err != nil {
+		return ReferenceEditRequest{}, err
+	}
+	if !found {
+		return ReferenceEditRequest{}, fmt.Errorf("latent video: source clip %s is absent", request.SourceArtifact)
+	}
+	source, err := sourceVideoFromContent(ctx, content, policy, profile)
+	read()
+	if err != nil {
+		return ReferenceEditRequest{}, err
+	}
+	defer processmeasure.Stage(ctx, "edit checkpoint compiled")()
 	volume, err := media.DownsampledVolume(source.Frames, source.Height, source.Width, profile.Policy.VAEStride)
 	if err != nil {
 		return ReferenceEditRequest{}, err
@@ -358,6 +397,7 @@ func ResolveClipRequest(ctx context.Context, reader artifact.Reader, modelDirect
 		Condition: ReferenceEditCondition{
 			TextContext: conditioning.Context, FramesPerChunk: policy.FramesPerChunk, LocalAttention: policy.LocalAttentionFrames,
 			Timesteps: policy.DenoisingTimesteps, Sigmas: sigmas, ContextTimestep: policy.ContextTimestep, Seed: request.Seed,
+			Format: request.Format,
 		},
 		Source: source,
 	}

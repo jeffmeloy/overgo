@@ -1,3 +1,14 @@
+dead internal/devicemath/scratch_pool_cuda_windows.go DeriveResidentCapacity
+dead internal/devicemath/scratch_pool_cuda_windows.go MeasureAllocGranularity
+dead internal/devicemath/scratch_pool_cuda_windows.go MeasureFreeBytes
+dead internal/devicemath/scratch_pool_cuda_windows.go ResidentLayerPlanSizes
+dead internal/devicemath/scratch_pool_cuda_windows.go roundUpTo
+dead internal/runrecord/serving_observation.go ServingObservation.AttemptKind
+dead internal/workflowruntime/remote_adapter.go RemoteAdapter.Execute
+dead internal/workflowruntime/remote_adapter.go cloneValues
+dead internal/worklease/worklease.go AssessResources
+dead internal/worklease/worklease.go ClaimPathsOverlap
+dead internal/worklease/worklease.go WorkspaceClaimsConflict
 prototype internal/bridgegraph/graph.go Program.BuildConditionalLoRA
 prototype internal/composition/composite_generation_evidence.go CompositeGenerationEvidenceAuthority.Load
 prototype internal/composition/composite_generation_evidence.go CompositeGenerationEvidenceAuthority.New
@@ -225,6 +236,7 @@ test-held internal/trainingdata/image.go SelectStructuredImageCrops
 test-held internal/trainingdata/image.go medianAbsoluteDeviation
 test-held internal/trainingdata/image.go medianFloat32
 test-held internal/trainingdata/image.go medianNeighbourRatio
+test-held internal/trainingprogram/objective.go CompileTrainingObjectiveMatrix
 test-held internal/trainingprogram/objective.go ObjectiveAuthority.AtLeast
 wire internal/agentloop/checkpoint.go MutationCheckpointRuntime.RestoreCheckpoint
 wire internal/agentloop/checkpoint.go MutationCheckpointRuntime.effectMatchesCheckpoint
@@ -233,11 +245,6 @@ wire internal/agentloop/checkpoint.go MutationCheckpointRuntime.verifyPostimage
 wire internal/agentloop/checkpoint.go RestoreApprovalRequest
 wire internal/agentloop/contract.go NewContractState
 wire internal/agenttool/stream.go InvocationStream.Receive
-wire internal/devicemath/scratch_pool_cuda_windows.go DeriveResidentCapacity
-wire internal/devicemath/scratch_pool_cuda_windows.go MeasureAllocGranularity
-wire internal/devicemath/scratch_pool_cuda_windows.go MeasureFreeBytes
-wire internal/devicemath/scratch_pool_cuda_windows.go ResidentLayerPlanSizes
-wire internal/devicemath/scratch_pool_cuda_windows.go roundUpTo
 wire internal/inference/cache_state.go Runner.LoadCache
 wire internal/inference/cache_state.go Runner.SaveCache
 wire internal/inference/cache_state.go cacheLayerRecords
@@ -251,7 +258,6 @@ wire internal/latentvideo/mp4.go mp4Encoder.Add
 wire internal/latentvideo/mp4.go mp4Encoder.Close
 wire internal/latentvideo/mp4.go mp4Encoder.Finish
 wire internal/model/layer_plan.go ModelPlan.HasCache
-wire internal/runrecord/serving_observation.go ServingObservation.AttemptKind
 wire internal/statecodec/codec.go Decoder.F32
 wire internal/statecodec/codec.go Decoder.I32
 wire internal/statecodec/codec.go Decoder.String32
@@ -261,10 +267,4 @@ wire internal/statecodec/codec.go Encoder.String32
 wire internal/statecodec/codec.go NewEncoderCapacity
 wire internal/tensor/shape.go NewShapePrefix
 wire internal/trainingprogram/objective.go CompileObjectiveMatrix
-wire internal/trainingprogram/objective.go CompileTrainingObjectiveMatrix
 wire internal/trainingprogram/objective.go objectivePairKey
-wire internal/workflowruntime/remote_adapter.go RemoteAdapter.Execute
-wire internal/workflowruntime/remote_adapter.go cloneValues
-wire internal/worklease/worklease.go AssessResources
-wire internal/worklease/worklease.go ClaimPathsOverlap
-wire internal/worklease/worklease.go WorkspaceClaimsConflict

@@ -60,7 +60,7 @@ lines: 139
 members: internal/agentloop/contract.go NewContractState
 members: internal/agentloop/checkpoint.go
 reason: ContractState.Admit (internal/agentloop/contract.go:52) is the only check of a task's allowed effects and RestoreCheckpoint the only undo of an agent's mutation, and neither runs in a command, because cmd/agent-loop builds a session with no contract and no checkpoint runtime (cmd/agent-loop/main.go:185).
-reason: The route is the delegated mode of cmd/agent-loop binding both to its session and offering a restore behind the approval it has, and both compute, so the four conditions do not hold.
+reason: Step consumer-checks/wire-agent-contract is the route, which binds both to the delegated mode's session, restores the command's session so that its approval is ever given, and offers a restore behind that approval.
 
 group agentloop-obligation-ledger
 class: test-held
@@ -81,7 +81,7 @@ declarations: 1
 lines: 22
 members: internal/agenttool/stream.go
 reason: A manual of the streaming HTTP transport registers and cannot be proposed, because the coordinator invokes a tool in one call and never opens the stream this reads (internal/agenttool/stream.go:121).
-reason: The route is the coordinator opening the stream for such a manual, and it is no record, so the four conditions do not hold.
+reason: Step consumer-checks/wire-tool-stream is the route, whose invoke collects the stream into one result, and it makes the whole of stream.go live, which tests alone reach though the walk lists one method of it, because the walk reaches a method by its name.
 
 group composite-generation-evidence
 class: prototype
@@ -204,7 +204,7 @@ declarations: 0
 lines: 0
 schemas: internal/evaluation/ifeval_parameters.go overgo/ifeval-parameters/v1
 reason: The live IFEval suite reads this profile from the store (internal/evaluation/catalog.go:129, internal/evaluation/store_suites.go:206), and nothing in the tree writes it, because d1c353d01 bound the stored one once.
-reason: The route is the publication of the evaluation catalog writing the profile, so that a rebuilt store can hold it.
+reason: Step consumer-checks/wire-ifeval-profile is the route, which keeps the profile in a file the benchmark manifest names and publishes it with the catalog, so that a rebuilt store holds it.
 
 group inference-draft-coordinator
 class: prototype
@@ -307,11 +307,20 @@ reason: The lead keeps it as a prototype, since the review of 2026-10-12 holds t
 group objective-matrix
 class: wire
 surface: outside
-declarations: 3
-lines: 87
-members: internal/trainingprogram/objective.go CompileObjectiveMatrix CompileTrainingObjectiveMatrix objectivePairKey
-reason: It reports which modality pairs are trainable and which objective kinds have a program, two compatibility claims name it as their source, and cmd/training-objective publishes and promotes objectives and never lists them.
-reason: Its route is a matrix listing on cmd/training-objective, and its inputs are stored objective documents, so the four conditions do not hold.
+declarations: 2
+lines: 36
+members: internal/trainingprogram/objective.go CompileObjectiveMatrix objectivePairKey
+reason: It reports which modality pairs have a stored objective, two compatibility claims name it as their source, and cmd/training-objective publishes and promotes objectives and never lists them.
+reason: Step consumer-checks/wire-objective-matrix is the route, a listing on that command over the stored objective aliases.
+
+group objective-training-matrix
+class: test-held
+surface: outside
+declarations: 1
+lines: 51
+members: internal/trainingprogram/objective.go CompileTrainingObjectiveMatrix
+reason: It binds stored objectives to compiled training programs, which exist only inside a training run with a model's optimizer plan, so no listing command can give it its input.
+reason: The claim adaptive-training-objective-program-matrix of compatibility.json binds it through its test, and deleting it edits a file that two claims pin by hash.
 
 group outside-test-accessors
 class: test-held
@@ -334,23 +343,23 @@ reason: RunKey keys a run for a build that counted no identity, over the live Ru
 reason: RequireResourceFitnessComparison and VerifiedBatch are the verified load and the publication of a comparison no command stores, tests of internal/runrecord and internal/audioparity hold the source replay of the live CompareResourceFitness (internal/runrecord/resource_fitness_comparison.go:93) to a forged value through them, and CompareResourceFitness takes no made value, so they stay until a command stores a comparison.
 
 group remote-stage-adapter
-class: wire
+class: dead
 surface: outside
 declarations: 3
 lines: 71
 members: internal/workflowruntime/remote_adapter.go
 members: internal/runrecord/serving_observation.go
-reason: It runs a workflow stage on a remote peer and classifies each attempt as a retry, a reselection or a spillover, 6733d26b1 kept it as an unwired inference path, and nothing implements its transport.
-reason: The route is a transport over the live InvokeRemotePeer (internal/capabilityruntime/peer_invoke.go:64) registered as the workflow runtime's adapter, and three of the four conditions hold, which is one short of deletion.
+reason: A live path does its work, because cmd/recipe runs a spilled request on a peer through InvokeRemotePeer with its own receipts, and nothing implements the transport or the value format this adapter needs.
+reason: A stage-level route would rebind the live adapters to those receipts and not use this second interface, and AttemptKind exists only for it.
 
 group resident-capacity-plan
-class: wire
+class: dead
 surface: outside
 declarations: 5
 lines: 108
 members: internal/devicemath/scratch_pool_cuda_windows.go
-reason: It derives how many layers fit resident from measured free bytes and allocation granularity, and the dense device trainer admits by geometry alone (cmd/train/dense_device_windows.go:19), so the route is that trainer refusing by the derived capacity before it allocates.
-reason: Its inputs are measured where it runs and it is no record, so the four conditions do not hold.
+reason: A live path does its work, because the dense trainer allocates every persistent buffer before its first step and frees them on error (internal/densecausaltrain/train_resident_cuda_windows.go), so the allocator refuses a run that does not fit.
+reason: The plan leaves out the embedding, the head, the final norm and the optimizer's workspaces, and no trainer runs a model partly resident.
 
 group retired-writer-records
 class: shadowed
@@ -401,7 +410,7 @@ members: internal/inference/session_state.go
 members: internal/statecodec/codec.go
 members: internal/tensor/shape.go
 members: internal/model/layer_plan.go ModelPlan.HasCache
-reason: They save and load a KV cache as bytes bound to the model, no command saves or restores one, and no live path does the same, so the route is slot save and restore on the server, which serves GET /slots alone (internal/server/routes.go:133).
+reason: They save and load a KV cache as bytes bound to the model, no command saves or restores one, and no live path does the same, so step consumer-checks/wire-slot-cache is the route, slot save and restore on the server, which serves GET /slots as status alone.
 reason: They compute and are no record, so the four conditions do not hold, though a device session keeps its cache where nothing reads it back yet (internal/inference/device_cache.go:24).
 
 group speech-activity-stream
@@ -490,7 +499,7 @@ surface: outside
 declarations: 4
 lines: 103
 members: internal/latentvideo/mp4.go
-reason: It encodes frames to MP4 through the same frame sink as the GIF encoder, and no command offers MP4, so the route is an MP4 clip beside the GIF of the served video paths (internal/latentvideo/production_cuda_windows.go:151) with an MP4 content contract.
+reason: It encodes frames to MP4 through the same frame sink as the GIF encoder, and no command offers MP4, so step consumer-checks/wire-mp4 is the route, an MP4 clip beside the GIF of the served video paths with an MP4 content contract.
 reason: Its input chain is whole and it is no record, so the four conditions do not hold, and two tests of the live edit runtime and the live clip decoder already read clips it wrote.
 
 group wavtokenizer-waveform
@@ -516,10 +525,10 @@ reason: cmd/webui-lane runs the browser tests as a child, hands them the directo
 reason: The walk lacks the rule that a declaration of a lane's own package named by a test of a package the lane runs (main.go:190) is reached by that lane.
 
 group worklease-capacity-advice
-class: wire
+class: dead
 surface: outside
 declarations: 3
 lines: 73
 members: internal/worklease/worklease.go AssessResources WorkspaceClaimsConflict ClaimPathsOverlap
-reason: AssessResources reports declared reservations against capacity, docs/image_video_resources.json names it as the advisory check, and 5c7d6d9a2 deleted its caller.
-reason: The route is the admission of a media request printing declared demand against device capacity, and it is no record, so the four conditions do not hold.
+reason: AssessResources reports declared reservations against capacity, nothing in production builds a lease, and 5c7d6d9a2 deleted its one caller.
+reason: The four conditions hold, because its input chain is missing, it is advice for the owner by its own comment, it costs a fixture and a stale line of docs/image_video_resources.json, and real admission is the process control and the device's free bytes.

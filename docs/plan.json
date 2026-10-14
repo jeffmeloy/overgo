@@ -72,13 +72,6 @@
       },
       "steps": [
         {
-          "id": "wire-unreached",
-          "title": "Read each capability no command offers, and file its route or reclass it",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestEveryProcessDeclarationIsReachedByACommand$'",
-          "rationale": "From docs/verification/unreached-declarations.txt. Eight groups, 46 declarations of 1,036 lines, are capabilities no command offers, and the record names a route for each: slot save and restore on the server for the session state codecs (433 lines, inside the inference surface), a delegated mode of cmd/agent-loop that binds the task contract and the checkpoint runtime (139), the dense device trainer refusing by derived capacity (108), an MP4 clip beside the served GIF (103), a matrix listing on cmd/training-objective (87), media request admission printing demand against capacity (73), a transport over InvokeRemotePeer (71) and the coordinator opening the tool stream (22). This step reads each: whether the route is one a person would use, what it costs to add, and whether the operator's four conditions for deletion hold instead. It files a step for each route worth adding and reclasses the rest in the record with the reason. It changes no code.\nServes: a route for each capability that has none, or less code where none is worth adding.\nDisappears: nothing yet.\nEvidence: the record's wire groups each with a filed step or a new class and reason, held by the census test.\nBatch: host."
-        },
-        {
           "id": "delete-dead-wire",
           "title": "Delete the three groups the reading of the wire groups found dead outside the inference surface",
           "status": "open",

@@ -75,7 +75,7 @@
           "id": "lifecycle-record",
           "title": "Show by a test whether any production path finds an operation's lifecycle record again, and delete the path if none does",
           "status": "open",
-          "verify": "go test ./internal/workflowruntime -count=1 -run '^TestAnOperationsRecordIsFoundAgainOrIsNotWritten$'",
+          "verify": "go test ./internal/server -count=1 -run '^TestAnOperationsRecordIsFoundAgainOrIsNotWritten$'",
           "rationale": "From docs/verification/resume-paths.txt. The operation's own reuse returns a stored record when its run and outputs are held. By the record's reading the manager's salted id is never repeated, so no production path finds a lifecycle record again and the path is one only a test reaches: 5 counted declarations of 664 syntax nodes in a file of 934, with three readers. The step writes the test that shows it either way. If a production path does find a record again, the test holds that path and the step ends there. If none does, the reuse is deleted with what only it used and its three readers are changed, and the record family is left in the store: taking a family out of the store is a rebuild with the family in the table of retired families, which is the lead's store maintenance.\nServes: the loop's upkeep.\nDisappears: up to 934 lines' worth of a file, by the record's estimate, if no path finds a record again.\nEvidence: the test, and the declarations census with the path's lines gone from its list if they were on it.\nBatch: host."
         },
         {

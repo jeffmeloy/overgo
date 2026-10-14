@@ -70,7 +70,7 @@ type Cell struct {
 	// from what the record keeps: of a share of cases answered right, that of
 	// the share; of a held-out verdict's value, that of the mean of its records'
 	// scores. Zero where it does not, as for an error rate over pooled words. It
-	// is stated beside the reading and does not yet judge a move.
+	// judges a decline of the quality where no outcome of each case is read (Supported).
 	Noise float64 `json:"noise,omitzero"`
 	// Constant is what an answer that reads no input scores on a held-out
 	// quality's measure, where the measure has one: chance for a choice among a
@@ -161,7 +161,8 @@ func shareError(share float64, cases uint64) float64 {
 const wilsonZ = 1.96
 
 // noiseDeviates is how many of its own standard errors a reading must stand
-// above what a constant answer scores before it is read as better than one.
+// above what a constant answer scores before it is read as better than one,
+// and how far a held-out quality must move before its decline stands (Supported).
 const noiseDeviates = 2
 
 // shareAtAnEnd says, of a share that is every case or none, what its standard
@@ -486,7 +487,7 @@ type servingSample struct {
 	took    [timingCount]float64
 }
 
-// half is the quantile that is a median.
+// half is the quantile that is a median, and the share of a normal reading's two tails on one side.
 const half = 0.5
 
 // median sorts values and returns the middle one, or the point midway between the middle two.

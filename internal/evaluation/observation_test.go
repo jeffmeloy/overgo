@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -237,5 +238,77 @@ func TestScoringFixRunsNoCaseAgain(t *testing.T) {
 		return rest
 	}()) || accuracy(resumed) != float64(cases-1)/cases {
 		t.Fatalf("asked again, the model was put %d cases in all and reads %v (%v); want the %d it had not answered and no other, and the candidate's reading", len(interrupted.tally.asked), accuracy(resumed), err, cases-stopped)
+	}
+}
+
+// TestCaseOutcomesAreReadFromTheReportThatScoredThem reads whether each case
+// of a stored reading was answered right, by the case's name, from the report
+// the reading's run wrote. A choice is right when it selected the answer, and
+// a tie that selected the answer is right only under a scorer that takes the
+// first of tied candidates. A generated answer is right when it was accepted.
+// A record the store does not hold names no outcome.
+func TestCaseOutcomesAreReadFromTheReportThatScoredThem(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	identity := modelrecipe.ProgramIdentity{
+		Model: planID(t, artifact.KindModel, "outcomes model"), Definition: planID(t, artifact.KindModelDefinition, "outcomes definition"), Recipe: planID(t, artifact.KindRecipe, "outcomes recipe"),
+	}
+	if _, err := store.Commit(ctx, artifact.Batch{Key: "fixture/outcomes", Artifacts: []artifact.Descriptor{{ID: identity.Model}, {ID: identity.Definition}, {ID: identity.Recipe}}}); err != nil {
+		t.Fatal(err)
+	}
+	environment, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "fixture", Driver: "fixture"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The model scores the answer likelier on the right case, the other candidate on the wrong one, and the two alike on the tied one; it says "ok" to every prompt.
+	tally := &choiceTally{scores: map[string][]sequencescore.Score{
+		"right?": {{LogProbability: -1, Tokens: 1}, {LogProbability: -2, Tokens: 1}},
+		"wrong?": {{LogProbability: -2, Tokens: 1}, {LogProbability: -1, Tokens: 1}},
+		"tied?":  {{LogProbability: -1, Tokens: 1}, {LogProbability: -1, Tokens: 1}},
+	}}
+	campaign, err := newCampaign(store, tally, identity, environment, planTestCommit, LifecycleIsolated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	read := func(suite any) (map[string]bool, bool) {
+		t.Helper()
+		source, err := json.Marshal(suite)
+		if err != nil {
+			t.Fatal(err)
+		}
+		compiled, err := CompileSuite(source, campaign.Authorities())
+		if err != nil {
+			t.Fatal(err)
+		}
+		result, err := campaign.Evaluate(ctx, compiled)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return CaseOutcomes(ctx, store, result.Evaluation)
+	}
+	choices := MultipleChoiceSuite{Kind: MultipleChoiceKind, Schema: "fixture/outcomes/v1", Source: "outcomes", Normalization: sequencescore.NormalizationSum, Aggregation: AggregationAccuracy, TieBreak: TieBreakFirst}
+	for _, name := range []string{"right", "wrong", "tied"} {
+		choices.Cases = append(choices.Cases, MultipleChoiceCase{Name: name, Prompt: name + "?", Candidates: []string{" A", " B"}})
+	}
+	if outcomes, read := read(choices); !read || !maps.Equal(outcomes, map[string]bool{"right": true, "wrong": false, "tied": true}) {
+		t.Fatalf("a choice report scored with the first of tied candidates taken reads %v (%t), want the right and the tied case right and the wrong one wrong", outcomes, read)
+	}
+	choices.TieBreak = ""
+	if outcomes, read := read(choices); !read || !maps.Equal(outcomes, map[string]bool{"right": true, "wrong": false, "tied": false}) {
+		t.Fatalf("a choice report scored with a tie counted wrong reads %v (%t), want only the right case right", outcomes, read)
+	}
+	generated := GeneratedAnswerSuite{Kind: GeneratedAnswerKind, Schema: "fixture/v1", Source: "fixture/outcomes", Transforms: []string{TransformTrimSpace}, Cases: []GeneratedAnswerCase{
+		{Name: "said", Prompt: "say ok", MaxTokens: 2, Answers: []string{"ok"}}, {Name: "unsaid", Prompt: "say no", MaxTokens: 2, Answers: []string{"no"}},
+	}}
+	if outcomes, read := read(generated); !read || !maps.Equal(outcomes, map[string]bool{"said": true, "unsaid": false}) {
+		t.Fatalf("a generated-answer report reads %v (%t), want the accepted answer right and the other wrong", outcomes, read)
+	}
+	if outcomes, read := CaseOutcomes(ctx, store, planID(t, artifact.KindEvaluation, "absent")); read {
+		t.Fatalf("a record the store does not hold reads %v", outcomes)
 	}
 }

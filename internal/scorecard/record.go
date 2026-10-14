@@ -2,6 +2,7 @@ package scorecard
 
 import (
 	"cmp"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -15,10 +16,13 @@ import (
 	"strings"
 	"time"
 
+	"overgo/internal/evaluation"
 	"overgo/internal/jsonfile"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/scorecard/metric"
+	"overgo/internal/tensorstats"
 )
 
 // A published record is named by the time it was published, so the
@@ -482,6 +486,8 @@ type Gap struct {
 	kind               string
 	Target             float64
 	Restore            bool
+	// quality is the comparison a decline of a held-out quality was filed from, which Supported judges by its cases.
+	quality *Comparison
 }
 
 // bar is the worst value in direction that holds a reference's cell: its value,
@@ -526,11 +532,15 @@ func (record Record) Gaps(reference *Record) []Gap {
 			for _, comparison := range pair.Compare(column) {
 				if comparison.Verdict == regressed {
 					target := comparison.Then.bar(cmp.Or(comparison.Now.Direction, columnDirections[column]))
-					declines = append(declines, Gap{
+					decline := Gap{
 						Key: regressionKey(*row, column, comparison.Now), kind: string(regressed), Restore: true, Target: target,
 						Title:  fmt.Sprintf("Restore %s %s %s to %.9g %s", row.Name, row.Task, column, target, comparison.Then.Unit),
 						Detail: fmt.Sprintf("- %s %s, %+v: %s\n", row.Name, column, comparison.Now.Contract, comparison.Why),
-					})
+					}
+					if column == metric.Quality {
+						decline.quality = &comparison
+					}
+					declines = append(declines, decline)
 				}
 			}
 			switch cell := row.Cells[column]; {
@@ -557,6 +567,80 @@ func (record Record) Gaps(reference *Record) []Gap {
 	}
 	slices.SortFunc(gaps, func(left, right Gap) int { return strings.Compare(left.Key, right.Key) })
 	return gaps
+}
+
+// Supported keeps each gap except a decline of a held-out quality that what its two readings rest on does not support, read from the store at root, and returns a line for each decline it drops.
+//   - both readings' reports name each case's outcome (evaluation.CaseOutcomes) => the decline stands <=> the exact paired test over the cases answered differently gives pairedTail or less
+//   - no such outcomes and a standard error stated => the decline stands <=> it moved more than noiseDeviates times the two readings' errors taken as independent
+//   - neither => the decline stands, judged by its value as Gaps judged it
+//   - a decline that stands says in its Detail what judged it
+//   - the store opens read-only and only when a held-out quality declined, because an open replays the whole store.
+func Supported(ctx context.Context, root string, gaps []Gap) (kept []Gap, dropped []string) {
+	if !slices.ContainsFunc(gaps, func(gap Gap) bool { return gap.quality != nil }) {
+		return gaps, nil
+	}
+	store, unopened := overgodb.OpenReadOnly(root)
+	if unopened == nil {
+		defer store.Close()
+	}
+	for _, gap := range gaps {
+		if gap.quality == nil {
+			kept = append(kept, gap)
+			continue
+		}
+		stands, why := judgeQuality(ctx, store, unopened, *gap.quality)
+		if !stands {
+			dropped = append(dropped, gap.Key+" ("+gap.Title+") is not filed because "+why)
+			continue
+		}
+		gap.Detail += "- the decline stands because " + why + "\n"
+		kept = append(kept, gap)
+	}
+	return kept, dropped
+}
+
+// pairedTail is the most chance a decline of a held-out quality may have and stand, by the exact paired test over the cases its two readings answered differently.
+//   - pairedTail = the one-sided tail a normal reading leaves beyond noiseDeviates of its standard errors
+//   - that tail because a share is then judged at the level its stated noise is
+//   - pairedTail moves with noiseDeviates and is reconsidered with it
+var pairedTail = half * math.Erfc(noiseDeviates/math.Sqrt2)
+
+// judgeQuality says whether a decline of a held-out quality stands by what its two readings rest on, and why (Supported).
+func judgeQuality(ctx context.Context, store *overgodb.Store, unopened error, declined Comparison) (bool, string) {
+	then, now := declined.Then, declined.Now
+	var unpaired string
+	switch {
+	case unopened != nil:
+		unpaired = "the store cannot be opened (" + unopened.Error() + ")"
+	case then.Contract.Metric != shareMetric:
+		unpaired = "a " + then.Contract.Metric + " is no share of cases answered right"
+	default:
+		before, beforeRead := evaluation.CaseOutcomes(ctx, store, then.Source)
+		after, afterRead := evaluation.CaseOutcomes(ctx, store, now.Source)
+		var lost, gained, same uint64
+		for name, right := range after {
+			switch was, paired := before[name]; {
+			case !paired:
+			case was && !right:
+				lost++
+			case right && !was:
+				gained++
+			default:
+				same++
+			}
+		}
+		if beforeRead && afterRead && lost+gained+same > 0 {
+			tail := tensorstats.ExactPairedBinary(lost, gained, same).Tail
+			return tail <= pairedTail, fmt.Sprintf("%d of the %d cases both readings answered went from right to wrong and %d from wrong to right, and so many go wrong with chance %.3g where either way is as likely, against the %.3g a decline stands at",
+				lost, lost+gained+same, gained, tail, pairedTail)
+		}
+		unpaired = "the store names no outcome of a case both readings answered"
+	}
+	if noise := math.Hypot(then.Noise, now.Noise); noise > 0 {
+		move := math.Abs(now.Value - then.Value)
+		return move > noiseDeviates*noise, fmt.Sprintf("%s, so its move of %.3g is judged against %d times %.3g, the two readings' standard errors taken as independent", unpaired, move, noiseDeviates, noise)
+	}
+	return true, unpaired + ", and no standard error is stated, so it is judged by its value"
 }
 
 // gapTitle names the work a gap asks for.

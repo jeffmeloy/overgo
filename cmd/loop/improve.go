@@ -32,9 +32,10 @@ import (
 // measures, each cell is judged against what its earlier readings
 // held, and the gaps return as rows of the plan at path
 // plan. root is the checkout whose HEAD is measured and whose plan mutation
-// lock is taken; records is the directory the scorecards are published in.
+// lock is taken; records is the directory the scorecards are published in,
+// beside the store a decline of a held-out quality is judged from.
 type improvement struct {
-	root, plan, records string
+	root, plan, records, store string
 	// measure runs the stale validations the scorecard compares and publishes
 	// it; fill runs the stale ones it does not compare. Each runs
 	// in the cycle checkout it is given.
@@ -114,7 +115,7 @@ func (w *improvement) CycleWorthRunning() (bool, string, error) {
 // the background validations.
 func improvementFor(store string) improvement {
 	return improvement{
-		watch: true, root: loopWorktree, plan: plan.Path, records: scorecard.Directory(store),
+		watch: true, root: loopWorktree, plan: plan.Path, records: scorecard.Directory(store), store: store,
 		measure: func(checkout string, published func() error) error {
 			return measureScorecard(checkout, store, published)
 		},
@@ -192,8 +193,14 @@ func gitWrite(directory string, arguments ...string) error {
 // Propose appends a row for each gap the plan does not hold, owned by the
 // plan's lane and verified by the gap closing on the scorecard the store
 // holds, and reports how many it added. A row that exists is never rewritten,
-// so a decline's row keeps the value it was first to be restored to.
+// so a decline's row keeps the value it was first to be restored to. A
+// decline of a held-out quality its readings' cases do not support is
+// printed and not filed (scorecard.Supported).
 func (w improvement) Propose(published scorecard.Record, gaps []scorecard.Gap) (added int, err error) {
+	gaps, dropped := scorecard.Supported(context.Background(), w.store, gaps)
+	for _, line := range dropped {
+		fmt.Printf("loop: %s\n", line)
+	}
 	lock, err := authoritylock.AcquireContext(context.Background(), w.root)
 	if err != nil {
 		return 0, err

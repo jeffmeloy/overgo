@@ -190,25 +190,6 @@
           ]
         }
       ]
-    },
-    {
-      "id": "trustworthy-measurement",
-      "title": "Make a timing and a quality reading trustworthy before anything is judged by them",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 960,
-        "reason": "measured by the preflight of step paired-quality's change: the reader of each case's outcome beside unreadAnswers, and the judging of a quality decline by the exact paired test, by a stated error, or by its value"
-      },
-      "steps": [
-        {
-          "id": "paired-quality",
-          "title": "Judge a held-out quality move by the exact paired test over the cases answered differently",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestAQualityMoveIsJudgedByTheCasesAnsweredDifferently$'",
-          "rationale": "Split from step reference-and-noise, whose text asks for it. After that step a held-out quality declines by any move the scorecard's four printed digits show, so one case of a suite answered wrong where it was answered right files a row. Over the 32 published records a quality cell was read again by a new source 823 times and 808 of those gave the same value, most of them a result carried forward and not scored again; two were declines, of 0.0024 on an accuracy and of 0.0011 on a word error rate. A move is a decline when, over the cases the two readings answered differently, more went from right to wrong than the exact paired test allows (tensorstats.ExactPairedBinary, as internal/evaluation/instruction_acceptance.go uses it). A cell carries no per-case outcomes: a choice report in the store does, reached from a cell's source through its run (internal/evaluation/evidence_index.go, the path unreadAnswers walks). Decide first where the two readings' outcomes are read: from the store when a record is compared, which Gaps and Compare do not take today, or kept beside the cell when it is published. A metric with a stated standard error and no per-case outcomes is judged by that error, and one with neither reads Unknown once it moves beyond the printed digits. If the owner's amendment row for one table of measurements is ever taken, this reads that table.\nServes: held-out-quality: a row for a model that answers worse, and none for one that answers a few cases differently.\nDisappears: the judging of a quality by its value alone.\nEvidence: two stored readings of one suite, paired case by case, in a temporary store; the published history's two quality declines judged both ways.\nBatch: host; a change to internal/evaluation is in the answer scope and goes just before a full measurement run.\n\nRanked behind policy-search by the lead on 2026-10-13. The reader of a report's per-case outcomes belongs beside unreadAnswers in internal/evaluation, and any file change there asks every case of every suite again (internal/inferencesurface/identity.go:57,276-296). It is taken in the same batch as policy-search/protocol, which changes that package anyway, or after evidence-identity narrows what an answer depends on. Design leaning: Gaps stays a reading of published records; where the loop files a decline of a quality (cmd/loop Propose) it opens the store, reads the two readings' reports, and drops a decline the exact paired test does not support at the tail two standard errors leave, the package's noiseDeviates. A quality with no per-case outcomes is judged by its value as now, so no metric stops filing."
-        }
-      ]
     }
   ],
   "decisions": [

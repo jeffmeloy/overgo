@@ -166,35 +166,114 @@ func recordExecution(ctx context.Context, store *overgodb.Store, record runrecor
 }
 
 // unreadAnswers counts, in the report of the run that scored a record's
-// cases, the generated answers in which no option was read. A run that
-// carried an earlier result forward is followed to the run that scored it. A
-// report that cannot be read, or that holds no generated answer, counts none:
-// the count says what is known and does not stand in the way of a reading.
+// cases, the generated answers in which no option was read. A report that
+// cannot be read, or that holds no generated answer, counts none: the count
+// says what is known and does not stand in the way of a reading.
 func unreadAnswers(ctx context.Context, store *overgodb.Store, bound runrecord.Run) uint64 {
+	_, report, read := scoredReport(ctx, store, bound)
+	if !read {
+		return 0
+	}
+	return countUnread(report.Data)
+}
+
+// scoredReport reads the report of the run that scored a run's cases, and that run.
+//   - run that carried an earlier result forward => followed to the run that scored it
+//   - read = false <=> a link of that chain or the report cannot be read, or the scoring run has no one output
+func scoredReport(ctx context.Context, store *overgodb.Store, bound runrecord.Run) (scoring runrecord.Run, report artifact.Content, read bool) {
 	for {
 		_, earlier, readable := carriedReceipt(ctx, store, bound)
 		if !readable {
-			return 0
+			return runrecord.Run{}, artifact.Content{}, false
 		}
 		if !earlier.Valid() {
 			break
 		}
 		record, err := runrecord.RequireEvaluation(ctx, store, earlier)
 		if err != nil {
-			return 0
+			return runrecord.Run{}, artifact.Content{}, false
 		}
 		if bound, err = runrecord.RequireRun(ctx, store, record.Run); err != nil {
-			return 0
+			return runrecord.Run{}, artifact.Content{}, false
 		}
 	}
 	if len(bound.Outputs) != 1 {
-		return 0
+		return runrecord.Run{}, artifact.Content{}, false
 	}
 	content, found, err := artifact.ReadContent(ctx, store, bound.Outputs[0])
-	if err != nil || !found {
-		return 0
+	return bound, content, err == nil && found
+}
+
+// choiceReportSchemas name the reports each of whose cases selects a candidate against its answer.
+var choiceReportSchemas = []string{multipleChoiceReportContract.Schema, groupedChoiceReportContract.Schema, mmluProReportSchema}
+
+// acceptedReportSchemas name the reports each of whose cases says whether its answer was accepted.
+var acceptedReportSchemas = []string{
+	generatedAnswerReportContract.Schema, functionCallReportContract.Schema, descriptionMatchingReportContract.Schema, structuredGeneratedReportContract.Schema,
+}
+
+// CaseOutcomes reads whether each case an evaluation record's share rests on was answered right, by case name, from the report of the run that scored the cases.
+//   - run that carried an earlier result forward => followed to the run that scored it (scoredReport)
+//   - choice report => right <=> the selected candidate is the answer, a tie counted by the tie break of the scoring plan's scorer (choiceCorrect)
+//   - report that accepts or refuses each answer => right <=> accepted
+//   - read = false <=> the record, a run, the report or a tie's scorer cannot be read, or the report is of another kind or names no case.
+func CaseOutcomes(ctx context.Context, store *overgodb.Store, record artifact.ID) (outcomes map[string]bool, read bool) {
+	evaluated, err := runrecord.RequireEvaluation(ctx, store, record)
+	if err != nil {
+		return nil, false
 	}
-	return countUnread(content.Data)
+	bound, err := runrecord.RequireRun(ctx, store, evaluated.Run)
+	if err != nil {
+		return nil, false
+	}
+	scoring, report, read := scoredReport(ctx, store, bound)
+	choice := slices.Contains(choiceReportSchemas, report.Descriptor.Schema)
+	if !read || !choice && !slices.Contains(acceptedReportSchemas, report.Descriptor.Schema) {
+		return nil, false
+	}
+	type answered struct {
+		choiceObservation
+		Accepted bool `json:"accepted"`
+	}
+	var answers struct {
+		Observations []answered `json:"observations"`
+	}
+	if json.Unmarshal(report.Data, &answers) != nil || len(answers.Observations) == 0 {
+		return nil, false
+	}
+	var tieBreak string
+	if choice && slices.ContainsFunc(answers.Observations, func(answer answered) bool { return answer.Tied }) {
+		if tieBreak, read = scoredTieBreak(ctx, store, scoring); !read {
+			return nil, false
+		}
+	}
+	outcomes = make(map[string]bool, len(answers.Observations))
+	for _, answer := range answers.Observations {
+		outcomes[answer.Name] = answer.Accepted
+		if choice {
+			outcomes[answer.Name] = choiceCorrect(answer.choiceObservation, tieBreak)
+		}
+	}
+	return outcomes, true
+}
+
+// scoredTieBreak reads the tie break the scorer of a run's plan names, which says whether a tie that selected the answer is right.
+func scoredTieBreak(ctx context.Context, store *overgodb.Store, scoring runrecord.Run) (tieBreak string, read bool) {
+	if len(scoring.Inputs) != 1 {
+		return "", false
+	}
+	plan, err := loadEvidencePlan(ctx, store, scoring.Inputs[0])
+	if err != nil {
+		return "", false
+	}
+	scorer, found, err := artifact.ReadContent(ctx, store, plan.body.Scorer)
+	if err != nil || !found {
+		return "", false
+	}
+	var named struct {
+		TieBreak string `json:"tie_break"`
+	}
+	return named.TieBreak, json.Unmarshal(scorer.Data, &named) == nil
 }
 
 // countUnread counts the answers of a report's observations that named no

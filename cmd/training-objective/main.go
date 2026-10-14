@@ -58,6 +58,7 @@ func run(args []string, output io.Writer) error {
 	observationsText := flags.String("observations", "", "comma-separated succeeded training session observation IDs grounding the promotion")
 	approve := flags.String("approve", "", "registered objective alias to promote from adaptive-evidence to approved (with -evaluations)")
 	evaluationsText := flags.String("evaluations", "", "comma-separated committed passed evaluation report IDs grounding the approval; at least one must be a held-out verdict for this objective")
+	matrix := flags.Bool("matrix", false, "list each modality pair with its registered objective, and the pairs that have none")
 	pool := flags.String("pool", "", "registered objective alias to publish a held-out pool for (with -pool-gain, -pool-seq and -pool-weights)")
 	poolSequence := flags.Uint64("pool-seq", 0, "the tokens each document of the pool is read as far as, by every ranking and confirmation on it; a longer document is read to there and no further")
 	poolGain := flags.Float64("pool-gain", 0, "the gain the pool is sized to show, in standard deviations of the paired per-document difference, stated from the gains the objective's verdicts show")
@@ -73,6 +74,9 @@ func run(args []string, output io.Writer) error {
 	flags.Uint64Var(&pilot.memory, "pilot-memory", 0, "the most device memory a training run of the pilot may hold, in GiB")
 	if err := flags.Parse(args); err != nil {
 		return err
+	}
+	if *matrix {
+		return listMatrix(*repository, output)
 	}
 	if strings.TrimSpace(pilot.model) != "" {
 		pilot.weights = *poolWeights
@@ -178,6 +182,48 @@ func promoteObjective(
 	return err
 }
 
+// registeredObjectivePrefix opens the alias that binds one modality pair to its registered objective.
+const registeredObjectivePrefix = "objective.registered."
+
+// listMatrix writes each modality pair with the objective registered for it, then the pairs that have none.
+//   - the rows come from the stored objectives alone (trainingprogram.CompileObjectiveMatrix)
+//   - a registered objective whose corpus or evidence the store lacks fails the listing, because its pair cannot be trained
+//   - the store opens read-only, so the listing changes nothing
+func listMatrix(repository string, output io.Writer) error {
+	root, err := dataroot.StoreRoot(repository)
+	if err != nil {
+		return err
+	}
+	store, err := overgodb.OpenReadOnly(root)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	ctx := context.Background()
+	var objectives []artifact.ID
+	if err := store.VisitAliases(ctx, registeredObjectivePrefix, func(alias overgodb.AliasView) error {
+		objectives = append(objectives, alias.Target)
+		return nil
+	}); err != nil {
+		return err
+	}
+	rows, err := trainingprogram.CompileObjectiveMatrix(ctx, store, objectives)
+	if err != nil {
+		return err
+	}
+	var without []string
+	for _, row := range rows {
+		pair := string(row.Signature.Inputs[0]) + "->" + string(row.Signature.Outputs[0])
+		if row.Disposition != trainingprogram.ObjectiveTrainable {
+			without = append(without, pair)
+		} else if _, err := fmt.Fprintf(output, "pair %s objective %s\n", pair, row.Objective); err != nil {
+			return err
+		}
+	}
+	_, err = fmt.Fprintf(output, "%d pairs without an objective: %s\n", len(without), strings.Join(without, " "))
+	return err
+}
+
 type objectiveRequest struct {
 	Name     string
 	Kind     trainingprogram.ObjectiveKind
@@ -268,7 +314,7 @@ func publishObjective(
 		artifact.Descriptor{ID: evaluationID}, artifact.Descriptor{ID: evidenceID},
 	)
 	batch.Contents = append(batch.Contents, content)
-	registered := "objective.registered." + string(request.Input) + "-" + string(request.Output)
+	registered := registeredObjectivePrefix + string(request.Input) + "-" + string(request.Output)
 	if move, moved, err := artifact.MoveAlias(ctx, store, registered, objective.ID); err != nil {
 		return trainingprogram.ObjectiveDocument{}, err
 	} else if moved {

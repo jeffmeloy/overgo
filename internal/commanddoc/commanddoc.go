@@ -117,6 +117,6 @@ var Declared = map[string]Descriptor{
 		"a worker whose change moves the declared API surface"),
 	"swap": operator("swap", "serve every servable model in the store from one endpoint, swapping the running server",
 		"an operator serving several models"),
-	"training-objective": operator("training-objective", "bind a training objective's contract identities and evidence note",
+	"training-objective": operator("training-objective", "bind a training objective's contract identities and evidence note, or list the modality pairs that have one",
 		"an operator declaring a training objective"),
 }

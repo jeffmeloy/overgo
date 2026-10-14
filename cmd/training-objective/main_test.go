@@ -91,6 +91,64 @@ func TestObjectivePublishesTextToVideoPair(t *testing.T) {
 	}
 }
 
+// TestObjectiveMatrixListsRegisteredPairs holds -matrix to the objectives the store registers.
+//   - each pair with a registered objective is listed with the identity its alias binds
+//   - every other pair of the six modalities is listed once as without an objective
+func TestObjectiveMatrixListsRegisteredPairs(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	repository := registerClipCorpus(t)
+	video := clipObjectiveArgs(repository, "clip-corpus", "record", "train=1,heldout=1")
+	image := append(slices.Clone(video), "-name", "text to image flow matching",
+		"-output", "image", "-metric", string(trainingprogram.MetricImagePSNRSigned))
+	for _, args := range [][]string{video, image} {
+		if err := run(args, io.Discard); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var out bytes.Buffer
+	if err := run([]string{"-repo", repository, "-matrix"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	store, err := overgodb.OpenReadOnly(repository)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	var want []string
+	for _, output := range []recipecontract.Modality{recipecontract.ModalityImage, recipecontract.ModalityVideo} {
+		id, found, err := store.ResolveAlias(ctx, registeredObjectivePrefix+"text-"+string(output))
+		if err != nil || !found {
+			t.Fatalf("objective alias of text-%s = (%t, %v)", output, found, err)
+		}
+		want = append(want, fmt.Sprintf("pair text->%s objective %s", output, id))
+	}
+	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
+	if len(lines) != len(want)+1 || !slices.Equal(lines[:len(want)], want) {
+		t.Fatalf("listing = %q, want %q and then the pairs without an objective", lines, want)
+	}
+	count, pairs, found := strings.Cut(lines[len(want)], " pairs without an objective: ")
+	without := strings.Fields(pairs)
+	if !found || count != fmt.Sprint(len(without)) {
+		t.Fatalf("last line = %q, want the count and the pairs without an objective", lines[len(want)])
+	}
+	modalities := []recipecontract.Modality{
+		recipecontract.ModalityText, recipecontract.ModalityImage, recipecontract.ModalityAudio,
+		recipecontract.ModalityVideo, recipecontract.ModalityTimeSeries, recipecontract.ModalityTable,
+	}
+	var every []string
+	for _, input := range modalities {
+		for _, output := range modalities {
+			if pair := string(input) + "->" + string(output); pair != "text->image" && pair != "text->video" {
+				every = append(every, pair)
+			}
+		}
+	}
+	if !slices.Equal(without, every) {
+		t.Fatalf("pairs without an objective = %q, want every other pair %q", without, every)
+	}
+}
+
 // TestPublishObjectiveBindsTrainingMembership holds publication to a real
 // split: the objective's Split is the committed train membership of a group
 // split of the registered dataset, disjoint from its held-out partition, so

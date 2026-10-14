@@ -265,5 +265,3 @@ wire internal/statecodec/codec.go Encoder.I32
 wire internal/statecodec/codec.go Encoder.String32
 wire internal/statecodec/codec.go NewEncoderCapacity
 wire internal/tensor/shape.go NewShapePrefix
-wire internal/trainingprogram/objective.go CompileObjectiveMatrix
-wire internal/trainingprogram/objective.go objectivePairKey

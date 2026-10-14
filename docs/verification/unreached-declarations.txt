@@ -286,15 +286,6 @@ schemas: internal/trainingprogram/moe_routing_target.go overgo/moe-routing-targe
 reason: They are the records of a promotion of mixture-of-experts routing whose writer would be an experiment harness the tree does not have, and their one reader is a function value that tests alone call (internal/evaluation/moe_routing_promotion.go:94).
 reason: The lead keeps it as a prototype, since the review of 2026-10-12 holds the records and operators of composition, the controller and mixture routing to be model prototypes, and the reason above is what the sort read.
 
-group objective-matrix
-class: wire
-surface: outside
-declarations: 2
-lines: 36
-members: internal/trainingprogram/objective.go CompileObjectiveMatrix objectivePairKey
-reason: It reports which modality pairs have a stored objective, two compatibility claims name it as their source, and cmd/training-objective publishes and promotes objectives and never lists them.
-reason: Step consumer-checks/wire-objective-matrix is the route, a listing on that command over the stored objective aliases.
-
 group objective-training-matrix
 class: test-held
 surface: outside

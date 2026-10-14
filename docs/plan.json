@@ -67,7 +67,7 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 32704,
+        "nodes": 32466,
         "reason": ""
       },
       "steps": [
@@ -84,13 +84,6 @@
           "status": "open",
           "verify": "go test ./cmd/agent-loop -count=1 -run '^TestDelegatedStepAdmitsByContractAndRestores$'",
           "rationale": "From the reading of step wire-unreached. The runtime builds a task's contract and its checkpoints, and cmd/agent-loop drops both (cmd/agent-loop/main.go:185), so a delegated step ignores the task's ceiling of allowed effects (internal/agentloop/coordinator.go:147). The command also builds a new session on every run and never restores one (cmd/agent-loop/main.go:90, coordinator.go:234), so ApproveMutation refuses with no inspection on record (coordinator.go:321) and -approve works in neither mode. The step restores the command's session, forwards preview and approve through DelegatedCoordinator (internal/agentloop/delegation.go:38), binds the contract and the checkpoint runtime (delegated_runtime.go:65) to the session, and adds a -restore flag with a reader for a stored checkpoint (internal/runrecord/agent_checkpoint.go has none). Checkpoints apply only to effects with a workspace target, or checkpoint.go:122 refuses the step.\nServes: failure-rate as an agent's user meets it: a delegated step stays inside the effects its task allows, and a mutation it made can be undone.\nDisappears: nothing; about 140 lines of production code are added, an estimate by reading.\nEvidence: a host test that runs a delegated step whose task allows one effect and refuses another, approves a mutation, and restores it.\nBatch: host."
-        },
-        {
-          "id": "wire-objective-matrix",
-          "title": "List the stored objective matrix on cmd/training-objective",
-          "status": "open",
-          "verify": "go test ./cmd/training-objective -count=1 -run '^TestObjectiveMatrixListsRegisteredPairs$'",
-          "rationale": "From the reading of step wire-unreached. CompileObjectiveMatrix (internal/trainingprogram/objective.go:370) reports which modality pairs have a stored objective, and two compatibility claims name it as their source. cmd/training-objective publishes objectives under the aliases objective.registered.\u003cinput\u003e-\u003coutput\u003e (cmd/training-objective/main.go:271) and never lists them. The step adds a listing to that command, which visits those aliases (internal/overgodb/documents.go:354) and prints the matrix. It does not edit objective.go, so the claims that pin that file by hash stay whole. CompileTrainingObjectiveMatrix needs compiled programs, which exist only inside a training run, so it is not part of this route and the record classes it as held by its claim's test.\nServes: setup-steps: an operator sees which pairs can be trained before starting a run.\nDisappears: nothing; about 35 lines of production code are added, an estimate by reading.\nEvidence: a host test that stores two objectives and lists their pairs and the pairs without one.\nBatch: host."
         },
         {
           "id": "wire-slot-cache",

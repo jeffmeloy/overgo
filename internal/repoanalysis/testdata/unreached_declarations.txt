@@ -1,509 +1,509 @@
-cmd/plan/main.go printPrompt
-internal/adaptertrain/linear_ctc.go LinearCTC.WeightSnapshot
-internal/adaptertrain/model.go Model.WeightSnapshot
-internal/agentloop/attempt_closure.go Coordinator.CloseAttempt
-internal/agentloop/checkpoint.go MutationCheckpointRuntime.RestoreCheckpoint
-internal/agentloop/checkpoint.go MutationCheckpointRuntime.effectMatchesCheckpoint
-internal/agentloop/checkpoint.go MutationCheckpointRuntime.restoreEntry
-internal/agentloop/checkpoint.go MutationCheckpointRuntime.verifyPostimage
-internal/agentloop/checkpoint.go RestoreApprovalRequest
-internal/agentloop/contract.go ContractState.AddResolution
-internal/agentloop/contract.go ContractState.Outstanding
-internal/agentloop/contract.go ContractState.RequireComplete
-internal/agentloop/contract.go NewContractState
-internal/agentloop/delegated_runtime.go DelegatedCapabilityRuntime.ResolveObligation
-internal/agentloop/recovery.go Coordinator.RecoverAgentSession
-internal/agentloop/session_policy.go Coordinator.SessionDisposition
-internal/agentloop/session_policy.go Coordinator.SessionHealth
-internal/agentloop/stimulus_reconciliation.go Coordinator.ReconcileLateStimuli
-internal/agenttool/stream.go InvocationStream.Receive
-internal/atomicfile/swap.go CompareAndSwap
-internal/atomicfile/swap.go RecoverSwap
-internal/atomicfile/swap.go compareAndSwap
-internal/atomicfile/swap.go exactFileState
-internal/atomicfile/swap.go hasSwapNamePrefix
-internal/atomicfile/swap.go publishedSwapName
-internal/atomicfile/swap.go requireEitherExactState
-internal/atomicfile/swap.go reservedSwapName
-internal/atomicfile/swap.go restoreDetached
-internal/atomicfile/swap.go retireSwapEvidence
-internal/atomicfile/swap.go sameFile
-internal/atomicfile/swap.go validateResolvedSwapResidue
-internal/bridgegraph/graph.go Program.BuildConditionalLoRA
-internal/capabilityruntime/run_key.go RunKey
-internal/capabilityruntime/runtime.go Execute
-internal/checked/checked.go AtMost64
-internal/composition/composite_generation_evidence.go CompositeGenerationEvidenceAuthority.Load
-internal/composition/composite_generation_evidence.go CompositeGenerationEvidenceAuthority.New
-internal/composition/composite_generation_evidence.go CompositeGenerationEvidenceAuthority.Parse
-internal/composition/execution_plan.go CompositionExecutionPlan.TransformedRepresentationCacheIdentity
-internal/composition/external_cross_attention.go CompileExternalCrossAttentionPlan
-internal/controllertrain/promotion.go Decide
-internal/controllertrain/promotion.go ObservedNoise
-internal/controllertrain/promotion.go ParseDecision
-internal/controllertrain/train_cuda_windows.go SeedEvidenceFrom
-internal/cuda/driver/driver_unsupported.go Library.ContextSynchronize
-internal/cuda/driver/driver_windows.go Library.ContextSynchronize
-internal/dataset/document.go Parse
-internal/densecausal/backward.go Model.LossAndGradsOf
-internal/densecausal/backward.go Model.MaskedLossAndGrads
-internal/densecausal/backward.go Model.MaskedLossAndGradsOf
-internal/densecausal/load.go NewModel
-internal/densecausal/train.go Model.TrainWithRouterObservations
-internal/densecausaltrain/train_resident_cuda_windows.go TrainDeviceResident
-internal/devicemath/gated_delta_mix_cuda_windows.go gatedDeltaMixBackwardCachedW
-internal/devicemath/gated_delta_mix_cuda_windows.go gatedDeltaMixForwardDeviceW
-internal/devicemath/gated_delta_mix_cuda_windows.go mixShortConvBackTokenMajor
-internal/devicemath/gated_delta_mix_cuda_windows.go mixSoftplus
-internal/devicemath/gated_delta_net_cuda_windows.go GatedDeltaNetBackwardDevice
-internal/devicemath/gated_delta_net_cuda_windows.go cudaScope.allocRaw
-internal/devicemath/gated_mlp_cuda_windows.go gatedMLPBackward
-internal/devicemath/gated_mlp_resident_cuda_windows.go gatedMLPBackwardTW
-internal/devicemath/hybrid_layer_backward_cuda_windows.go attentionMixBackwardDeviceW
-internal/devicemath/hybrid_layer_backward_cuda_windows.go attentionMixForwardDeviceW
-internal/devicemath/hybrid_layer_backward_cuda_windows.go gatherRotary
-internal/devicemath/hybrid_layer_backward_cuda_windows.go hybridLayerBackwardCachedW
-internal/devicemath/hybrid_layer_backward_cuda_windows.go hybridLayerBackwardW
-internal/devicemath/hybrid_layer_backward_cuda_windows.go ropePartial
-internal/devicemath/hybrid_layer_backward_cuda_windows.go scatterRotary
-internal/devicemath/hybrid_layer_forward_cuda_windows.go hybridLayerCacheW
-internal/devicemath/hybrid_layer_forward_cuda_windows.go hybridLayerForwardW
-internal/devicemath/hybrid_layer_resident_cuda_windows.go HybridDecoderLayerBackwardDeviceResident
-internal/devicemath/hybrid_layer_resident_cuda_windows.go HybridDecoderLayerForwardDeviceResident
-internal/devicemath/hybrid_layer_resident_cuda_windows.go HybridLayerResidentMatrices.matW
-internal/devicemath/hybrid_layer_resident_cuda_windows.go HybridLayerResidentMatrices.withGradients
-internal/devicemath/hybrid_layer_resident_cuda_windows.go attnHostMatW
-internal/devicemath/hybrid_layer_resident_cuda_windows.go gdnHostMatW
-internal/devicemath/hybrid_layer_resident_cuda_windows.go hybridHostMatW
-internal/devicemath/l2norm_cuda_windows.go L2NormBackwardDevice
-internal/devicemath/linear_cuda_windows.go LinearBackward
-internal/devicemath/linear_cuda_windows.go LinearBackwardT
-internal/devicemath/linear_cuda_windows.go devW
-internal/devicemath/linear_cuda_windows.go hostW
-internal/devicemath/linear_cuda_windows.go linWeight.allocateGradient
-internal/devicemath/linear_cuda_windows.go linWeight.resolve
-internal/devicemath/linear_cuda_windows.go linearBackward
-internal/devicemath/linear_cuda_windows.go linearBackwardTW
-internal/devicemath/linear_cuda_windows.go linearForwardTW
-internal/devicemath/madnorm_cuda_windows.go MADNormBackward
-internal/devicemath/madnorm_cuda_windows.go MADNormForward
-internal/devicemath/mha_forward_resident_cuda_windows.go MultiHeadAttentionForwardResident
-internal/devicemath/mha_resident_cuda_windows.go MultiHeadAttentionBackwardResident
-internal/devicemath/mha_resident_cuda_windows.go headMajorLayout
-internal/devicemath/resident_ops_cuda_windows.go ResidentOps.AttentionCoreBackward
-internal/devicemath/resident_ops_cuda_windows.go WithResidentOps
-internal/devicemath/rmsnorm_cuda_windows.go RMSNormBackward
-internal/devicemath/rmsnorm_cuda_windows.go RMSNormForward
-internal/devicemath/rope_cuda_windows.go RoPEHalfBackward
-internal/devicemath/rope_cuda_windows.go RoPEHalfForward
-internal/devicemath/rope_cuda_windows.go applyRoPEHalf
-internal/devicemath/scratch_pool_cuda_windows.go DeriveResidentCapacity
-internal/devicemath/scratch_pool_cuda_windows.go MeasureAllocGranularity
-internal/devicemath/scratch_pool_cuda_windows.go MeasureFreeBytes
-internal/devicemath/scratch_pool_cuda_windows.go ResidentLayerPlanSizes
-internal/devicemath/scratch_pool_cuda_windows.go roundUpTo
-internal/devicemath/short_conv_cuda_windows.go ShortConvBackwardDevice
-internal/devicemath/silu_cuda_windows.go SiLUBackward
-internal/devicemath/silu_cuda_windows.go SiLUGateForward
-internal/diffusionimage/training_data.go Trainer.TrainBatch
-internal/diffusionimage/training_data.go imageBatch
-internal/diffusionimage/training_data.go imagePair
-internal/e4btrain/backward.go hostAttention
-internal/evaluation/evidence.go PublishEvaluationEvidence
-internal/evaluation/heldout_confirmation.go ConfirmOnPool
-internal/evaluation/heldout_confirmation.go RequireHeldoutPool
-internal/evaluation/heldout_confirmation.go poolVerdict
-internal/evaluation/plan.go Plan.AgentTrajectoryAuthorities
-internal/gitauthority/history.go RequireRepositoryRoot
-internal/gitauthority/worktree_store.go RequireRegisteredWorktreeStore
-internal/gitauthority/worktree_store.go parseRegisteredWorktrees
-internal/gitauthority/worktree_store.go sameWorktreePath
-internal/gitauthority/writer.go RequireWriterSupport
-internal/gitauthority/writer.go parseVersionNumber
-internal/gitauthority/writer.go requireWriterVersion
-internal/gitauthority/writer.go writerVersionSupported
-internal/graphruntime/feeds.go Feeds.HostBindings
-internal/graphruntime/resident.go ResidentProgram.ProgramBytes
-internal/hfbpe/tokenizer.go Tokenizer.EncodeLiteral
-internal/hostmath/attention_batched.go GroupedCausalAttentionF64
-internal/hostmath/e4b_backward.go ActivationSparsityBackward
-internal/hostmath/e4b_backward.go EmbedInputScaleBackward
-internal/hostmath/e4b_backward.go MatchMagnitudeBackward
-internal/hostmath/e4b_backward.go TanhBackward
-internal/hostmath/e4b_backward.go WindowedCausalAttentionBackward
-internal/hostmath/hostmath.go SparseGateInto
-internal/hostmath/mad_transformer.go MADNormBackward
-internal/hostmath/media_codec.go AddResidualF64Into
-internal/hostmath/media_codec.go NormalizeHeadsRotaryHalfF64
-internal/hostmath/media_codec.go StandardRMSNormF64
-internal/hostmath/sinkhorn.go SinkhornFromLogitsBackward
-internal/hostmath/sinkhorn.go sinkhorn2x2FromLogits
-internal/hostoptimizer/newton_schulz.go NewtonSchulz
-internal/hybridtrain/artifact.go LoadRecurrentLayerArtifact
-internal/hybridtrain/hybrid_train_device_cuda_windows.go Model.TrainDeviceResident
-internal/hybridtrain/hybrid_train_device_cuda_windows.go layerMatrixPlan.residentViews
-internal/hybridtrain/hybrid_train_device_cuda_windows.go residentTraining.Backward
-internal/hybridtrain/hybrid_train_device_cuda_windows.go residentTraining.Forward
-internal/hybridtrain/hybrid_train_device_cuda_windows.go residentTraining.Step
-internal/hybridtrain/stack.go Model.TrainHost
-internal/hybridtrain/stack.go Model.matrixPlans
-internal/hybridtrain/stack.go builder.vec
-internal/hybridtrain/stack.go hostTraining.Step
-internal/hybridtrain/stack.go layerMatrixPlan.slots
-internal/hybridtrain/stack.go validateMatrixTiling
-internal/inference/audio_waveform.go Runner.DecodeAudioWaveform
-internal/inference/audio_waveform.go audioFeaturesToWaveform
-internal/inference/audio_waveform.go newAudioWaveformTables
-internal/inference/cache_state.go Runner.LoadCache
-internal/inference/cache_state.go Runner.SaveCache
-internal/inference/cache_state.go cacheLayerRecords
-internal/inference/cache_state.go marshalCache
-internal/inference/cache_state.go materializeCompressedCachePositions
-internal/inference/cache_state.go unmarshalCache
-internal/inference/cache_state.go writeCacheValue
-internal/inference/composite_generation.go ProductionComposition.GenerateEvidence
-internal/inference/composite_generation.go requireCompositeGenerationDescriptor
-internal/inference/composite_generation.go validateCompositeGenerationExecutionAuthorities
-internal/inference/composite_generation.go validateCompositeGenerationMeasurement
-internal/inference/composite_generation_surface.go ProductionComposition.PromotedGeneration
-internal/inference/continuous_batch.go ContinuousBatch.Fork
-internal/inference/continuous_batch.go cloneDeviceCache
-internal/inference/encoder_decoder_batch.go Runner.DecodeEncoderDecoderBatch
-internal/inference/encoder_decoder_batch.go Runner.NewEncoderDecoderBatchSession
-internal/inference/encoder_decoder_state.go Runner.LoadEncoderDecoderSession
-internal/inference/encoder_decoder_state.go Runner.SaveEncoderDecoderSession
-internal/inference/encoder_decoder_state.go Runner.validateEncoderDecoderSession
-internal/inference/external_cross_attention.go ExternalCrossAttentionProgram.Apply
-internal/inference/external_cross_attention.go ExternalCrossAttentionProgram.Identity
-internal/inference/external_cross_attention.go ExternalCrossAttentionProgram.validateWeights
-internal/inference/external_cross_attention.go OpenExternalCrossAttention
-internal/inference/external_cross_attention.go compileExternalCrossAttentionPlan
-internal/inference/external_cross_attention.go validateExternalMatrix
-internal/inference/feature_draft.go Runner.AdvanceFeatureDraft
-internal/inference/feature_draft.go Runner.NewFeatureDraftSession
-internal/inference/feature_draft.go Runner.remapFeatureDraftLogits
-internal/inference/feature_draft.go Runner.stepFeatureDraft
-internal/inference/feature_draft_sampling.go Runner.DraftFeaturesSampled
-internal/inference/feature_draft_sampling.go Runner.VerifyFeatureDraftSampled
-internal/inference/feature_draft_speculative.go Runner.DraftFeaturesGreedy
-internal/inference/feature_draft_speculative.go Runner.VerifyFeatureDraftGreedy
-internal/inference/feature_draft_speculative.go Runner.advanceFeatureDraftVerification
-internal/inference/feature_draft_speculative.go validFeatureDraftSession
-internal/inference/feature_projection.go Runner.projectFeatures
-internal/inference/greedy_draft.go draftGreedy
-internal/inference/greedy_draft.go greedyLogit
-internal/inference/greedy_draft.go validGreedyDraft
-internal/inference/greedy_draft.go verifyGreedy
-internal/inference/mtp_session_common.go Runner.advanceSingleHeadMTPVerification
-internal/inference/mtp_session_common.go Runner.newSingleHeadMTPSession
-internal/inference/mtp_session_common.go Runner.validateSingleHeadMTPTarget
-internal/inference/mtp_session_common.go Runner.validateSingleHeadMTPVerificationTarget
-internal/inference/mtp_session_common.go advanceTargetVerification
-internal/inference/mtp_session_state_common.go Runner.LoadMTPSession
-internal/inference/mtp_session_state_common.go Runner.SaveMTPSession
-internal/inference/mtp_session_state_common.go decodeHiddenState
-internal/inference/multi_head_mtp.go Runner.AdvanceMultiHeadMTP
-internal/inference/multi_head_mtp.go Runner.NewMultiHeadMTPSession
-internal/inference/multi_head_mtp.go Runner.lookupMultiHeadMTP
-internal/inference/multi_head_mtp.go Runner.multiHeadMTP
-internal/inference/multi_head_mtp.go Runner.runMultiHeadMTPHeadLocked
-internal/inference/multi_head_mtp.go Runner.validateMultiHeadMTPSession
-internal/inference/multi_head_mtp_sampling.go Runner.DraftMultiHeadMTPSampled
-internal/inference/multi_head_mtp_sampling.go Runner.VerifyMultiHeadMTPSampled
-internal/inference/multi_head_mtp_speculative.go Runner.DraftMultiHeadMTPGreedy
-internal/inference/multi_head_mtp_speculative.go Runner.VerifyMultiHeadMTPGreedy
-internal/inference/multi_head_mtp_speculative.go Runner.multiHeadMTPTargetAdvance
-internal/inference/multi_head_mtp_speculative.go Runner.resyncMultiHeadMTPSession
-internal/inference/multi_head_mtp_state.go Runner.LoadMultiHeadMTPSession
-internal/inference/multi_head_mtp_state.go Runner.SaveMultiHeadMTPSession
-internal/inference/nextn_mtp.go Runner.AdvanceNextNMTP
-internal/inference/nextn_mtp.go Runner.NewNextNMTPSession
-internal/inference/nextn_mtp_speculative.go Runner.DraftAppendedSingleGreedy
-internal/inference/nextn_mtp_speculative.go Runner.VerifyNextNMTPGreedy
-internal/inference/paired_features.go Runner.DecodePairedFeatureBlock
-internal/inference/paired_features.go Runner.DraftPairedFeatureBlock
-internal/inference/paired_features.go Runner.InjectPairedFeatures
-internal/inference/paired_features.go Runner.NewPairedFeatureSession
-internal/inference/paired_features.go Runner.SyncPairedFeaturePrefix
-internal/inference/paired_features.go Runner.injectPairedFeatureLayer
-internal/inference/paired_features_sampling.go Runner.DraftPairedFeatureSampled
-internal/inference/paired_features_sampling.go Runner.VerifyPairedFeatureSampled
-internal/inference/paired_features_speculative.go Runner.DraftPairedFeatureGreedy
-internal/inference/paired_features_speculative.go Runner.VerifyPairedFeatureGreedy
-internal/inference/paired_features_speculative.go Runner.advancePairedFeatureVerification
-internal/inference/paired_features_speculative.go pairedFeatureLogitRow
-internal/inference/paired_features_speculative.go validPairedFeatureSession
-internal/inference/paired_projection.go Runner.AdvancePairedProjection
-internal/inference/paired_projection.go Runner.NewPairedProjectionSession
-internal/inference/paired_projection.go Runner.validatePairedProjectionTarget
-internal/inference/paired_projection_sampling.go Runner.DraftPairedProjectionSampled
-internal/inference/paired_projection_sampling.go Runner.VerifyPairedProjectionSampled
-internal/inference/paired_projection_sampling.go Runner.advancePairedProjectionVerification
-internal/inference/paired_projection_speculative.go Runner.DraftPairedProjectionGreedy
-internal/inference/paired_projection_speculative.go Runner.VerifyPairedProjectionGreedy
-internal/inference/prompt_cache.go Runner.ClearPromptCaches
-internal/inference/representation_bridge.go OpenProductionComposition
-internal/inference/representation_bridge.go ProductionComposition.Forward
-internal/inference/representation_bridge.go ProductionComposition.ForwardArm
-internal/inference/representation_bridge.go ProductionComposition.PlanIdentity
-internal/inference/representation_bridge.go ProductionComposition.transformedRepresentationCacheIdentity
-internal/inference/representation_bridge.go materializedZero
-internal/inference/representation_bridge.go representationBridgeSession.capture
-internal/inference/representation_bridge.go representationBridgeSession.captureAndTransform
-internal/inference/representation_bridge.go representationBridgeSession.inject
-internal/inference/representation_bridge.go representationBridgeSession.transform
-internal/inference/runner.go Runner.ForwardCached
-internal/inference/runner.go Runner.ForwardCachedWithEmbeddingOverrides
-internal/inference/runner.go Runner.ForwardCachedWithMultimodalInputs
-internal/inference/runner.go Runner.ForwardCachedWithProjectedInputs
-internal/inference/runner.go Runner.ForwardWithEmbeddingOverrides
-internal/inference/runner.go Runner.forwardCachedPreOutputNormLocked
-internal/inference/runner_generation.go Runner.Greedy
-internal/inference/sampled_draft.go draftSampled
-internal/inference/sampled_draft.go validSampledDraft
-internal/inference/sampled_draft.go validSampledLimits
-internal/inference/sampled_draft.go validVerificationSamplers
-internal/inference/sampled_draft.go verifySampled
-internal/inference/sampling_vocab.go Runner.ExecutionMetrics
-internal/inference/sampling_vocab.go Runner.ResetDeviceMemoryPeak
-internal/inference/sequence_forward.go Runner.DecodeAudioTokens
-internal/inference/sequence_forward.go Runner.DecodeEncoderDecoder
-internal/inference/sequence_forward.go Runner.NewEncoderDecoderSession
-internal/inference/session_state.go Runner.modelStateDecoder
-internal/inference/single_head_mtp.go Runner.AdvanceMTP
-internal/inference/single_head_mtp.go Runner.NewMTPPairedSession
-internal/inference/single_head_mtp.go Runner.NewMTPSession
-internal/inference/single_head_mtp.go Runner.validateMTPTarget
-internal/inference/single_head_mtp_sampling.go Runner.DraftMTPSampled
-internal/inference/single_head_mtp_sampling.go Runner.VerifyMTPSampled
-internal/inference/single_head_mtp_sampling.go Runner.validateMTPVerificationTarget
-internal/inference/single_head_mtp_speculative.go Runner.DraftMTPGreedy
-internal/inference/single_head_mtp_speculative.go Runner.VerifyMTPGreedy
-internal/inference/single_head_mtp_speculative.go Runner.advanceMTPVerification
-internal/inference/single_head_mtp_speculative.go Runner.projectHiddenLogits
-internal/inferencesurface/surface.go Moves
-internal/inferencesurface/surface.go removedEmbed
-internal/inferencesurface/surface.go surfaceKey
-internal/jinja/eval.go Env.SetFilter
-internal/jinja/eval.go jinjaError.Error
-internal/latentimage/denoiser.go DenoiserTensorShapes
-internal/latentimage/denoiser.go DenoiserWitness.Failed
-internal/latentimage/denoiser.go addAttnFF
-internal/latentimage/denoiser.go prod
-internal/latentimage/encoder_program.go EncoderProgram.RunHostFeed
-internal/latentimage/encoder_program.go EncoderProgram.assemble
-internal/latentimage/fusion_program.go FusionProgram.RunHostFeed
-internal/latentimage/fusion_program.go FusionProgram.assemble
-internal/latentimage/fusion_program.go FusionTensorShapes
-internal/latentimage/profile.go supportsPipeline
-internal/latentimage/sampler.go FlowSchedule.EulerStep
-internal/latentimage/spec.go IsPipeline
-internal/latentimage/spec.go RecognizePipeline
-internal/latentimage/textencoder.go EncodeSelectedLayersMasked
-internal/latentimage/textencoder.go EncoderWitness.Failed
-internal/latentimage/textencoder.go encLayerForward
-internal/latentimage/textencoder.go encodeSelected
-internal/latentimage/textencoder.go encoderCheckpointIntermediate
-internal/latentimage/textencoder.go readEncoderLayer
-internal/latentimage/textencoder.go readTensorF32
-internal/latentimage/textencoder.go ropeTableLlama
-internal/latentimage/vae.go VAEDecoder.DecodeImage
-internal/latentimage/vae.go VAEDecoder.runOp
-internal/latentimage/vae.go codecSingleFrameConv
-internal/latentimage/vae_program.go VAEProgram.DecodeGraph
-internal/latentimage/verify.go Witness.SortedChecks
-internal/latentvideo/mp4.go NewMP4Encoder
-internal/latentvideo/mp4.go mp4Encoder.Add
-internal/latentvideo/mp4.go mp4Encoder.Close
-internal/latentvideo/mp4.go mp4Encoder.Finish
-internal/latentvideo/textcond.go TextConditioning
-internal/media/normalize.go ClampNormalizedF32InPlace
-internal/media/normalize.go NormalizedF32ToU8
-internal/model/architecture.go DraftPlan.LastHead
-internal/model/audio_waveform_plan.go AudioWaveformPlan.FrameWidth
-internal/model/layer_plan.go ModelPlan.AudioWaveform
-internal/model/layer_plan.go ModelPlan.CacheProjection
-internal/model/layer_plan.go ModelPlan.HasCache
-internal/model/layer_plan.go ModelPlan.SameExecutionProfile
-internal/model/spec_types.go Spec.CompileSequenceState
-internal/model/tensor_shape_plan.go tensorShapePlan.ExpertDown
-internal/modelmerge/merge.go Compiler.Passthrough
-internal/modelmerge/merge.go Compiler.TaskArithmetic
-internal/modelmerge/vocabulary.go Compiler.VocabularyArtifact
-internal/modelmerge/vocabulary.go VocabularyArtifactResult.ValidateGeneratedArtifact
-internal/modelmerge/vocabulary.go exactEmbeddingTensorNames
-internal/modelmerge/vocabulary.go newEmbeddingProvenance
-internal/modelmerge/vocabulary.go remapEmbeddingWeight
-internal/modelrecipe/lifecycle.go ActiveAlias
-internal/modelrecipe/peer_compatibility.go RemotePeerCompatibility.batch
-internal/operatoraction/action.go Consent.Clone
-internal/operatoraction/action.go Consent.Validate
-internal/operatoraction/action.go Recoverable
-internal/optimizer/muon_step_cuda_windows.go deviceMuonMatrixStep
-internal/optimizer/muon_step_cuda_windows.go deviceOps.muonMatrixGroup
-internal/optimizer/newton_schulz_cuda_windows.go deviceNewtonSchulz
-internal/overgodb/causality.go Store.QueryCausality
-internal/overgodb/causality.go causalityFacet.descendants
-internal/overgodb/causality.go causalityFacet.selectIDs
-internal/overgodb/causality.go validateCausalityQuery
-internal/overgodb/commit_delta.go Store.CommitDeltaAt
-internal/overgodb/storage_classes.go DocumentStorageClass
-internal/overgodb/storage_classes.go LayoutStorageClass
-internal/plan/verification_batch.go VerificationCheckpoint.GateCheckName
-internal/processcontrol/campaign.go RequireCampaign
-internal/processcontrol/supervisor.go Supervised.Interrupt
-internal/processcontrol/supervisor_unix.go processTree.interrupt
-internal/processcontrol/supervisor_windows.go processTree.interrupt
-internal/processmeasure/measure.go Measure
-internal/processmeasure/peak_other.go peakHandle.close
-internal/processmeasure/peak_other.go peakHandle.read
-internal/processmeasure/peak_other.go retainPeak
-internal/processmeasure/peak_windows.go peakHandle.close
-internal/processmeasure/peak_windows.go peakHandle.read
-internal/processmeasure/peak_windows.go retainPeak
-internal/projector/gemma4tower_audio.go Gemma4TowerRunner.EncodeAudioFeaturesTrace
-internal/projector/gemma4tower_audio_frontend.go Gemma4TowerRunner.EncodeAudioTrace
-internal/projector/gemma4tower_vision.go Gemma4TowerRunner.EncodeVisionPatchesTrace
-internal/protection/protection.go Verify
-internal/protection/protection.go safeRelative
-internal/protection/protection.go validSealedPolicy
-internal/quant/catalog.go Types
-internal/rae/decoder_backward.go vitDecoder.newGradients
-internal/recipecontract/audio.go ConvertedAudio.Validate
-internal/recipecontract/audio.go GeneratedAudio.Validate
-internal/recipecontract/audio.go validateAudioOutput
-internal/recipecontract/modality.go CompileModalitySignature
-internal/recipecontract/modality.go semanticModality
-internal/routedlm/flowterminal.go GenerationFinalHidden
-internal/routedlm/flowterminal.go VisionEmbedTokens
-internal/routedlm/positions.go BlockCausalEnds
-internal/routedlm/prompt.go PromptLayerState.ResidentKV
-internal/runrecord/agent_obligation.go NewAgentObligationResolution
-internal/runrecord/attempt.go NewAttemptRecord
-internal/runrecord/record.go Direction.Admits
-internal/runrecord/record.go Direction.Worse
-internal/runrecord/resource_fitness_comparison.go RequireResourceFitnessComparison
-internal/runrecord/resource_fitness_comparison.go ResourceFitnessComparison.VerifiedBatch
-internal/runrecord/serving_observation.go ServingObservation.AttemptKind
-internal/runrecord/trigger_registry.go TriggerContractFor
-internal/safetensors/rows.go TensorRowsF64
-internal/sampling/gbnf.go NewGBNFGrammar
-internal/sampling/gbnf.go NewGBNFGrammarWithOptions
-internal/sampling/gbnf.go NewGBNFGrammarWithTokens
-internal/sampling/sampler.go Sampler.AcceptToken
-internal/sampling/speculative.go Sampler.SpeculativeSample
-internal/sampling/speculative.go Sampler.commitSpeculativeToken
-internal/sampling/speculative.go Sampler.speculativeCandidates
-internal/sampling/speculative.go Sampler.speculativeMirostatCandidates
-internal/sampling/speculative.go sortedTokenProbabilities
-internal/sampling/speculative.go validateDraftDistribution
-internal/scratchmodel/construction.go cloneWeights
-internal/scratchmodel/graph.go ForwardGraph.Feeds
-internal/scratchmodel/memory.go Construction.TrainingMemorySegments
-internal/scratchmodel/memory.go memorySegmentName
-internal/sensenovarecipe/activate.go Activate
-internal/sensenovarecipe/activate.go Derive
-internal/sensenovarecipe/activate.go DerivedFacts.validate
-internal/sensenovarecipe/activate.go Inventory
-internal/sensenovarecipe/activate.go Present
-internal/sensenovarecipe/activate.go Resolve
-internal/seriesforecast/lightcurve.go LightCurveProcessor
-internal/server/composition_runtime.go Handler.OpenExternalCrossAttention
-internal/server/composition_runtime.go Handler.OpenProductionComposition
-internal/speechactivity/execution.go Detector.ProcessStream
-internal/speechactivity/execution.go Detector.restore
-internal/speechsynth/flow.go Model.FlowForward
-internal/speechsynth/generate.go Model.GenerateLatents
-internal/statecodec/codec.go Decoder.F32
-internal/statecodec/codec.go Decoder.I32
-internal/statecodec/codec.go Decoder.String32
-internal/statecodec/codec.go Encoder.F32
-internal/statecodec/codec.go Encoder.I32
-internal/statecodec/codec.go Encoder.String32
-internal/statecodec/codec.go NewEncoderCapacity
-internal/tensor/builder_attention_layout.go Builder.SparseAttention
-internal/tensor/reference/value.go Value.TailRows
-internal/tensor/shape.go NewShapePrefix
-internal/tensor/tensor.go Builder.CacheCapacity
-internal/tensorstats/tensorstats.go ExactLMoments
-internal/testevidence/evidence.go GoTestJSONShortReport
-internal/testevidence/evidence.go GoTestReport.ContentionOnly
-internal/testevidence/verdict.go RepeatAgreement
-internal/testskip/testskip.go NotApplicable
-internal/testskip/testskip.go Short
-internal/testskip/testskip.go StoreAcceptance
-internal/tokenizer/batch.go PaddedBatch.Layout
-internal/tokenizer/batch.go PaddedBatchLayout.Clone
-internal/tokenizer/batch.go PaddedBatchLayout.Valid
-internal/tokenizer/batch.go validPaddedLength
-internal/tokenizer/vocab.go Vocab.MergeCount
-internal/tokenizer/vocabulary_artifact.go ExactVocabularyMapping
-internal/trainingdata/image.go Image
-internal/trainingdata/image.go SelectStructuredImageCrops
-internal/trainingdata/image.go medianAbsoluteDeviation
-internal/trainingdata/image.go medianFloat32
-internal/trainingdata/image.go medianNeighbourRatio
-internal/trainingprogram/improvement.go ImprovementProposal.ProposalKind
-internal/trainingprogram/memory.go CompileMemorySchedule
-internal/trainingprogram/memory.go MemorySchedule.Calibration
-internal/trainingprogram/memory.go MemorySchedule.ConnectorDeviceBytes
-internal/trainingprogram/memory.go MemorySchedule.DoubleBuffered
-internal/trainingprogram/memory.go MemorySchedule.FixedDeviceBytes
-internal/trainingprogram/memory.go MemorySchedule.HostBytes
-internal/trainingprogram/memory.go MemorySchedule.ID
-internal/trainingprogram/memory.go MemorySchedule.ResidentCapacityBytes
-internal/trainingprogram/memory.go MemorySchedule.ResidentPeakBytes
-internal/trainingprogram/memory.go MemorySchedule.Segments
-internal/trainingprogram/memory.go MemorySchedule.Tier
-internal/trainingprogram/memory.go MemorySchedule.Tier1CapacityBytes
-internal/trainingprogram/memory.go MemorySchedule.Tier1PeakBytes
-internal/trainingprogram/memory.go MemorySchedule.UsesActivationCheckpointing
-internal/trainingprogram/memory.go MemorySchedule.UsesLayerMajorAccumulation
-internal/trainingprogram/memory.go MemorySchedule.UsesOptimizerPaging
-internal/trainingprogram/memory.go addMemory
-internal/trainingprogram/memory.go compileMemorySegments
-internal/trainingprogram/memory.go roundedMemory
-internal/trainingprogram/memory.go sumMemory
-internal/trainingprogram/objective.go CompileObjectiveMatrix
-internal/trainingprogram/objective.go CompileTrainingObjectiveMatrix
-internal/trainingprogram/objective.go ObjectiveAuthority.AtLeast
-internal/trainingprogram/objective.go objectivePairKey
-internal/webuilane/browser.go Browser.AwaitDownload
-internal/webuilane/browser.go Browser.Reload
-internal/webuilane/browser.go webSocket.awaitEvent
-internal/webuilane/census.go Review.Add
-internal/webuilane/census.go ReviewMeasures
-internal/webuilane/census.go buttonNamed
-internal/webuilane/census.go controlNamed
-internal/webuilane/census.go insideLabel
-internal/webuilane/census.go jsCursor.step
-internal/webuilane/census.go nestedTernaries
-internal/webuilane/census.go next
-internal/webuilane/census.go silentFallback
-internal/webuilane/jstokens.go arguments
-internal/webuilane/jstokens.go classifyJS
-internal/webuilane/jstokens.go closing
-internal/webuilane/jstokens.go isIdentifierByte
-internal/webuilane/jstokens.go jsToken.is
-internal/webuilane/jstokens.go jsToken.value
-internal/webuilane/jstokens.go regexAllowed
-internal/webuilane/jstokens.go skipRegex
-internal/webuilane/jstokens.go skipTemplate
-internal/webuilane/jstokens.go tokenizeJS
-internal/webuilane/legs.go Leg
-internal/workflowruntime/coalescer.go ReconcileCoalescer.Reconcile
-internal/workflowruntime/delegation.go CompiledDelegation.DeriveCausal
-internal/workflowruntime/delegation.go CompiledDelegation.ManualIDs
-internal/workflowruntime/remote_adapter.go RemoteAdapter.Execute
-internal/workflowruntime/remote_adapter.go cloneValues
-internal/workflowruntime/stimulus_reconciliation.go ReconcileLateStimuli
-internal/worklease/worklease.go Alias
-internal/worklease/worklease.go Aliases
-internal/worklease/worklease.go AssessResources
-internal/worklease/worklease.go ClaimPathsOverlap
-internal/worklease/worklease.go Record
-internal/worklease/worklease.go ResolveOwner
-internal/worklease/worklease.go WorkspaceClaimsConflict
-internal/worklease/worklease.go read
-internal/worklease/worklease.go recordDispatch
-internal/worklease/worklease.go worktreeAlias
+dead internal/agentloop/attempt_closure.go Coordinator.CloseAttempt
+dead internal/agentloop/contract.go ContractState.AddResolution
+dead internal/agentloop/contract.go ContractState.Outstanding
+dead internal/agentloop/contract.go ContractState.RequireComplete
+dead internal/agentloop/delegated_runtime.go DelegatedCapabilityRuntime.ResolveObligation
+dead internal/agentloop/recovery.go Coordinator.RecoverAgentSession
+dead internal/agentloop/session_policy.go Coordinator.SessionDisposition
+dead internal/agentloop/session_policy.go Coordinator.SessionHealth
+dead internal/agentloop/stimulus_reconciliation.go Coordinator.ReconcileLateStimuli
+dead internal/atomicfile/swap.go CompareAndSwap
+dead internal/atomicfile/swap.go RecoverSwap
+dead internal/atomicfile/swap.go compareAndSwap
+dead internal/atomicfile/swap.go exactFileState
+dead internal/atomicfile/swap.go hasSwapNamePrefix
+dead internal/atomicfile/swap.go publishedSwapName
+dead internal/atomicfile/swap.go requireEitherExactState
+dead internal/atomicfile/swap.go reservedSwapName
+dead internal/atomicfile/swap.go restoreDetached
+dead internal/atomicfile/swap.go retireSwapEvidence
+dead internal/atomicfile/swap.go sameFile
+dead internal/atomicfile/swap.go validateResolvedSwapResidue
+dead internal/capabilityruntime/runtime.go Execute
+dead internal/cuda/driver/driver_unsupported.go Library.ContextSynchronize
+dead internal/cuda/driver/driver_windows.go Library.ContextSynchronize
+dead internal/devicemath/gated_mlp_cuda_windows.go gatedMLPBackward
+dead internal/devicemath/linear_cuda_windows.go LinearBackward
+dead internal/devicemath/silu_cuda_windows.go SiLUBackward
+dead internal/diffusionimage/training_data.go Trainer.TrainBatch
+dead internal/diffusionimage/training_data.go imageBatch
+dead internal/diffusionimage/training_data.go imagePair
+dead internal/gitauthority/worktree_store.go RequireRegisteredWorktreeStore
+dead internal/gitauthority/worktree_store.go parseRegisteredWorktrees
+dead internal/gitauthority/worktree_store.go sameWorktreePath
+dead internal/gitauthority/writer.go RequireWriterSupport
+dead internal/gitauthority/writer.go parseVersionNumber
+dead internal/gitauthority/writer.go requireWriterVersion
+dead internal/gitauthority/writer.go writerVersionSupported
+dead internal/graphruntime/feeds.go Feeds.HostBindings
+dead internal/hfbpe/tokenizer.go Tokenizer.EncodeLiteral
+dead internal/hostmath/sinkhorn.go sinkhorn2x2FromLogits
+dead internal/inference/encoder_decoder_batch.go Runner.DecodeEncoderDecoderBatch
+dead internal/inference/encoder_decoder_batch.go Runner.NewEncoderDecoderBatchSession
+dead internal/inference/nextn_mtp.go Runner.AdvanceNextNMTP
+dead internal/inference/nextn_mtp.go Runner.NewNextNMTPSession
+dead internal/inference/nextn_mtp_speculative.go Runner.DraftAppendedSingleGreedy
+dead internal/inference/nextn_mtp_speculative.go Runner.VerifyNextNMTPGreedy
+dead internal/inference/paired_features.go Runner.SyncPairedFeaturePrefix
+dead internal/inference/sequence_forward.go Runner.DecodeEncoderDecoder
+dead internal/inference/sequence_forward.go Runner.NewEncoderDecoderSession
+dead internal/jinja/eval.go Env.SetFilter
+dead internal/jinja/eval.go jinjaError.Error
+dead internal/latentimage/denoiser.go DenoiserWitness.Failed
+dead internal/latentimage/profile.go supportsPipeline
+dead internal/latentimage/spec.go IsPipeline
+dead internal/latentimage/spec.go RecognizePipeline
+dead internal/latentimage/textencoder.go EncoderWitness.Failed
+dead internal/model/architecture.go DraftPlan.LastHead
+dead internal/model/tensor_shape_plan.go tensorShapePlan.ExpertDown
+dead internal/modelmerge/merge.go Compiler.Passthrough
+dead internal/modelmerge/merge.go Compiler.TaskArithmetic
+dead internal/modelmerge/vocabulary.go Compiler.VocabularyArtifact
+dead internal/modelmerge/vocabulary.go VocabularyArtifactResult.ValidateGeneratedArtifact
+dead internal/modelmerge/vocabulary.go exactEmbeddingTensorNames
+dead internal/modelmerge/vocabulary.go newEmbeddingProvenance
+dead internal/modelmerge/vocabulary.go remapEmbeddingWeight
+dead internal/operatoraction/action.go Consent.Clone
+dead internal/operatoraction/action.go Consent.Validate
+dead internal/plan/verification_batch.go VerificationCheckpoint.GateCheckName
+dead internal/processcontrol/supervisor.go Supervised.Interrupt
+dead internal/processcontrol/supervisor_unix.go processTree.interrupt
+dead internal/processcontrol/supervisor_windows.go processTree.interrupt
+dead internal/recipecontract/audio.go ConvertedAudio.Validate
+dead internal/recipecontract/audio.go GeneratedAudio.Validate
+dead internal/recipecontract/audio.go validateAudioOutput
+dead internal/routedlm/prompt.go PromptLayerState.ResidentKV
+dead internal/runrecord/agent_obligation.go NewAgentObligationResolution
+dead internal/runrecord/record.go Direction.Admits
+dead internal/runrecord/record.go Direction.Worse
+dead internal/runrecord/trigger_registry.go TriggerContractFor
+dead internal/scratchmodel/memory.go Construction.TrainingMemorySegments
+dead internal/scratchmodel/memory.go memorySegmentName
+dead internal/server/composition_runtime.go Handler.OpenExternalCrossAttention
+dead internal/server/composition_runtime.go Handler.OpenProductionComposition
+dead internal/tensor/reference/value.go Value.TailRows
+dead internal/testevidence/evidence.go GoTestReport.ContentionOnly
+dead internal/tokenizer/batch.go PaddedBatch.Layout
+dead internal/tokenizer/batch.go PaddedBatchLayout.Clone
+dead internal/tokenizer/batch.go PaddedBatchLayout.Valid
+dead internal/tokenizer/batch.go validPaddedLength
+dead internal/tokenizer/vocabulary_artifact.go ExactVocabularyMapping
+dead internal/trainingprogram/improvement.go ImprovementProposal.ProposalKind
+dead internal/trainingprogram/memory.go CompileMemorySchedule
+dead internal/trainingprogram/memory.go MemorySchedule.Calibration
+dead internal/trainingprogram/memory.go MemorySchedule.ConnectorDeviceBytes
+dead internal/trainingprogram/memory.go MemorySchedule.DoubleBuffered
+dead internal/trainingprogram/memory.go MemorySchedule.FixedDeviceBytes
+dead internal/trainingprogram/memory.go MemorySchedule.HostBytes
+dead internal/trainingprogram/memory.go MemorySchedule.ID
+dead internal/trainingprogram/memory.go MemorySchedule.ResidentCapacityBytes
+dead internal/trainingprogram/memory.go MemorySchedule.ResidentPeakBytes
+dead internal/trainingprogram/memory.go MemorySchedule.Segments
+dead internal/trainingprogram/memory.go MemorySchedule.Tier
+dead internal/trainingprogram/memory.go MemorySchedule.Tier1CapacityBytes
+dead internal/trainingprogram/memory.go MemorySchedule.Tier1PeakBytes
+dead internal/trainingprogram/memory.go MemorySchedule.UsesActivationCheckpointing
+dead internal/trainingprogram/memory.go MemorySchedule.UsesLayerMajorAccumulation
+dead internal/trainingprogram/memory.go MemorySchedule.UsesOptimizerPaging
+dead internal/trainingprogram/memory.go addMemory
+dead internal/trainingprogram/memory.go compileMemorySegments
+dead internal/trainingprogram/memory.go roundedMemory
+dead internal/trainingprogram/memory.go sumMemory
+dead internal/trainingprogram/objective.go ObjectiveAuthority.AtLeast
+dead internal/workflowruntime/coalescer.go ReconcileCoalescer.Reconcile
+dead internal/workflowruntime/delegation.go CompiledDelegation.DeriveCausal
+dead internal/workflowruntime/delegation.go CompiledDelegation.ManualIDs
+dead internal/workflowruntime/stimulus_reconciliation.go ReconcileLateStimuli
+dead internal/worklease/worklease.go Alias
+dead internal/worklease/worklease.go Aliases
+dead internal/worklease/worklease.go Record
+dead internal/worklease/worklease.go ResolveOwner
+dead internal/worklease/worklease.go read
+dead internal/worklease/worklease.go recordDispatch
+dead internal/worklease/worklease.go worktreeAlias
+prototype internal/bridgegraph/graph.go Program.BuildConditionalLoRA
+prototype internal/composition/composite_generation_evidence.go CompositeGenerationEvidenceAuthority.Load
+prototype internal/composition/composite_generation_evidence.go CompositeGenerationEvidenceAuthority.New
+prototype internal/composition/composite_generation_evidence.go CompositeGenerationEvidenceAuthority.Parse
+prototype internal/composition/execution_plan.go CompositionExecutionPlan.TransformedRepresentationCacheIdentity
+prototype internal/composition/external_cross_attention.go CompileExternalCrossAttentionPlan
+prototype internal/controllertrain/promotion.go Decide
+prototype internal/controllertrain/promotion.go ObservedNoise
+prototype internal/controllertrain/promotion.go ParseDecision
+prototype internal/controllertrain/train_cuda_windows.go SeedEvidenceFrom
+prototype internal/devicemath/gated_delta_mix_cuda_windows.go gatedDeltaMixBackwardCachedW
+prototype internal/devicemath/gated_delta_mix_cuda_windows.go gatedDeltaMixForwardDeviceW
+prototype internal/devicemath/gated_delta_mix_cuda_windows.go mixShortConvBackTokenMajor
+prototype internal/devicemath/gated_delta_mix_cuda_windows.go mixSoftplus
+prototype internal/devicemath/gated_delta_net_cuda_windows.go GatedDeltaNetBackwardDevice
+prototype internal/devicemath/gated_delta_net_cuda_windows.go cudaScope.allocRaw
+prototype internal/devicemath/gated_mlp_resident_cuda_windows.go gatedMLPBackwardTW
+prototype internal/devicemath/hybrid_layer_backward_cuda_windows.go attentionMixBackwardDeviceW
+prototype internal/devicemath/hybrid_layer_backward_cuda_windows.go attentionMixForwardDeviceW
+prototype internal/devicemath/hybrid_layer_backward_cuda_windows.go gatherRotary
+prototype internal/devicemath/hybrid_layer_backward_cuda_windows.go hybridLayerBackwardCachedW
+prototype internal/devicemath/hybrid_layer_backward_cuda_windows.go hybridLayerBackwardW
+prototype internal/devicemath/hybrid_layer_backward_cuda_windows.go ropePartial
+prototype internal/devicemath/hybrid_layer_backward_cuda_windows.go scatterRotary
+prototype internal/devicemath/hybrid_layer_forward_cuda_windows.go hybridLayerCacheW
+prototype internal/devicemath/hybrid_layer_forward_cuda_windows.go hybridLayerForwardW
+prototype internal/devicemath/hybrid_layer_resident_cuda_windows.go HybridDecoderLayerBackwardDeviceResident
+prototype internal/devicemath/hybrid_layer_resident_cuda_windows.go HybridDecoderLayerForwardDeviceResident
+prototype internal/devicemath/hybrid_layer_resident_cuda_windows.go HybridLayerResidentMatrices.matW
+prototype internal/devicemath/hybrid_layer_resident_cuda_windows.go HybridLayerResidentMatrices.withGradients
+prototype internal/devicemath/hybrid_layer_resident_cuda_windows.go attnHostMatW
+prototype internal/devicemath/hybrid_layer_resident_cuda_windows.go gdnHostMatW
+prototype internal/devicemath/hybrid_layer_resident_cuda_windows.go hybridHostMatW
+prototype internal/devicemath/l2norm_cuda_windows.go L2NormBackwardDevice
+prototype internal/devicemath/linear_cuda_windows.go devW
+prototype internal/devicemath/linear_cuda_windows.go hostW
+prototype internal/devicemath/linear_cuda_windows.go linWeight.allocateGradient
+prototype internal/devicemath/linear_cuda_windows.go linWeight.resolve
+prototype internal/devicemath/linear_cuda_windows.go linearBackwardTW
+prototype internal/devicemath/linear_cuda_windows.go linearForwardTW
+prototype internal/devicemath/mha_forward_resident_cuda_windows.go MultiHeadAttentionForwardResident
+prototype internal/devicemath/mha_resident_cuda_windows.go MultiHeadAttentionBackwardResident
+prototype internal/devicemath/mha_resident_cuda_windows.go headMajorLayout
+prototype internal/devicemath/rmsnorm_cuda_windows.go RMSNormBackward
+prototype internal/devicemath/rmsnorm_cuda_windows.go RMSNormForward
+prototype internal/devicemath/rope_cuda_windows.go RoPEHalfBackward
+prototype internal/devicemath/rope_cuda_windows.go RoPEHalfForward
+prototype internal/devicemath/rope_cuda_windows.go applyRoPEHalf
+prototype internal/devicemath/short_conv_cuda_windows.go ShortConvBackwardDevice
+prototype internal/devicemath/silu_cuda_windows.go SiLUGateForward
+prototype internal/hostmath/e4b_backward.go ActivationSparsityBackward
+prototype internal/hostmath/e4b_backward.go EmbedInputScaleBackward
+prototype internal/hostmath/e4b_backward.go MatchMagnitudeBackward
+prototype internal/hostmath/e4b_backward.go TanhBackward
+prototype internal/hostmath/hostmath.go SparseGateInto
+prototype internal/hostmath/sinkhorn.go SinkhornFromLogitsBackward
+prototype internal/hybridtrain/artifact.go LoadRecurrentLayerArtifact
+prototype internal/hybridtrain/hybrid_train_device_cuda_windows.go Model.TrainDeviceResident
+prototype internal/hybridtrain/hybrid_train_device_cuda_windows.go layerMatrixPlan.residentViews
+prototype internal/hybridtrain/hybrid_train_device_cuda_windows.go residentTraining.Backward
+prototype internal/hybridtrain/hybrid_train_device_cuda_windows.go residentTraining.Forward
+prototype internal/hybridtrain/hybrid_train_device_cuda_windows.go residentTraining.Step
+prototype internal/hybridtrain/stack.go Model.matrixPlans
+prototype internal/hybridtrain/stack.go layerMatrixPlan.slots
+prototype internal/hybridtrain/stack.go validateMatrixTiling
+prototype internal/inference/audio_waveform.go Runner.DecodeAudioWaveform
+prototype internal/inference/audio_waveform.go audioFeaturesToWaveform
+prototype internal/inference/audio_waveform.go newAudioWaveformTables
+prototype internal/inference/composite_generation.go ProductionComposition.GenerateEvidence
+prototype internal/inference/composite_generation.go requireCompositeGenerationDescriptor
+prototype internal/inference/composite_generation.go validateCompositeGenerationExecutionAuthorities
+prototype internal/inference/composite_generation.go validateCompositeGenerationMeasurement
+prototype internal/inference/composite_generation_surface.go ProductionComposition.PromotedGeneration
+prototype internal/inference/external_cross_attention.go ExternalCrossAttentionProgram.Apply
+prototype internal/inference/external_cross_attention.go ExternalCrossAttentionProgram.Identity
+prototype internal/inference/external_cross_attention.go ExternalCrossAttentionProgram.validateWeights
+prototype internal/inference/external_cross_attention.go OpenExternalCrossAttention
+prototype internal/inference/external_cross_attention.go compileExternalCrossAttentionPlan
+prototype internal/inference/external_cross_attention.go validateExternalMatrix
+prototype internal/inference/feature_draft.go Runner.AdvanceFeatureDraft
+prototype internal/inference/feature_draft.go Runner.NewFeatureDraftSession
+prototype internal/inference/feature_draft.go Runner.remapFeatureDraftLogits
+prototype internal/inference/feature_draft.go Runner.stepFeatureDraft
+prototype internal/inference/feature_draft_sampling.go Runner.DraftFeaturesSampled
+prototype internal/inference/feature_draft_sampling.go Runner.VerifyFeatureDraftSampled
+prototype internal/inference/feature_draft_speculative.go Runner.DraftFeaturesGreedy
+prototype internal/inference/feature_draft_speculative.go Runner.VerifyFeatureDraftGreedy
+prototype internal/inference/feature_draft_speculative.go Runner.advanceFeatureDraftVerification
+prototype internal/inference/feature_draft_speculative.go validFeatureDraftSession
+prototype internal/inference/feature_projection.go Runner.projectFeatures
+prototype internal/inference/greedy_draft.go draftGreedy
+prototype internal/inference/greedy_draft.go greedyLogit
+prototype internal/inference/greedy_draft.go validGreedyDraft
+prototype internal/inference/greedy_draft.go verifyGreedy
+prototype internal/inference/mtp_session_common.go Runner.advanceSingleHeadMTPVerification
+prototype internal/inference/mtp_session_common.go Runner.newSingleHeadMTPSession
+prototype internal/inference/mtp_session_common.go Runner.validateSingleHeadMTPTarget
+prototype internal/inference/mtp_session_common.go Runner.validateSingleHeadMTPVerificationTarget
+prototype internal/inference/mtp_session_common.go advanceTargetVerification
+prototype internal/inference/mtp_session_state_common.go Runner.LoadMTPSession
+prototype internal/inference/mtp_session_state_common.go Runner.SaveMTPSession
+prototype internal/inference/mtp_session_state_common.go decodeHiddenState
+prototype internal/inference/multi_head_mtp.go Runner.AdvanceMultiHeadMTP
+prototype internal/inference/multi_head_mtp.go Runner.NewMultiHeadMTPSession
+prototype internal/inference/multi_head_mtp.go Runner.lookupMultiHeadMTP
+prototype internal/inference/multi_head_mtp.go Runner.multiHeadMTP
+prototype internal/inference/multi_head_mtp.go Runner.runMultiHeadMTPHeadLocked
+prototype internal/inference/multi_head_mtp.go Runner.validateMultiHeadMTPSession
+prototype internal/inference/multi_head_mtp_sampling.go Runner.DraftMultiHeadMTPSampled
+prototype internal/inference/multi_head_mtp_sampling.go Runner.VerifyMultiHeadMTPSampled
+prototype internal/inference/multi_head_mtp_speculative.go Runner.DraftMultiHeadMTPGreedy
+prototype internal/inference/multi_head_mtp_speculative.go Runner.VerifyMultiHeadMTPGreedy
+prototype internal/inference/multi_head_mtp_speculative.go Runner.multiHeadMTPTargetAdvance
+prototype internal/inference/multi_head_mtp_speculative.go Runner.resyncMultiHeadMTPSession
+prototype internal/inference/multi_head_mtp_state.go Runner.LoadMultiHeadMTPSession
+prototype internal/inference/multi_head_mtp_state.go Runner.SaveMultiHeadMTPSession
+prototype internal/inference/paired_features.go Runner.DecodePairedFeatureBlock
+prototype internal/inference/paired_features.go Runner.DraftPairedFeatureBlock
+prototype internal/inference/paired_features.go Runner.InjectPairedFeatures
+prototype internal/inference/paired_features.go Runner.NewPairedFeatureSession
+prototype internal/inference/paired_features.go Runner.injectPairedFeatureLayer
+prototype internal/inference/paired_features_sampling.go Runner.DraftPairedFeatureSampled
+prototype internal/inference/paired_features_sampling.go Runner.VerifyPairedFeatureSampled
+prototype internal/inference/paired_features_speculative.go Runner.DraftPairedFeatureGreedy
+prototype internal/inference/paired_features_speculative.go Runner.VerifyPairedFeatureGreedy
+prototype internal/inference/paired_features_speculative.go Runner.advancePairedFeatureVerification
+prototype internal/inference/paired_features_speculative.go pairedFeatureLogitRow
+prototype internal/inference/paired_features_speculative.go validPairedFeatureSession
+prototype internal/inference/paired_projection.go Runner.AdvancePairedProjection
+prototype internal/inference/paired_projection.go Runner.NewPairedProjectionSession
+prototype internal/inference/paired_projection.go Runner.validatePairedProjectionTarget
+prototype internal/inference/paired_projection_sampling.go Runner.DraftPairedProjectionSampled
+prototype internal/inference/paired_projection_sampling.go Runner.VerifyPairedProjectionSampled
+prototype internal/inference/paired_projection_sampling.go Runner.advancePairedProjectionVerification
+prototype internal/inference/paired_projection_speculative.go Runner.DraftPairedProjectionGreedy
+prototype internal/inference/paired_projection_speculative.go Runner.VerifyPairedProjectionGreedy
+prototype internal/inference/representation_bridge.go OpenProductionComposition
+prototype internal/inference/representation_bridge.go ProductionComposition.Forward
+prototype internal/inference/representation_bridge.go ProductionComposition.ForwardArm
+prototype internal/inference/representation_bridge.go ProductionComposition.PlanIdentity
+prototype internal/inference/representation_bridge.go ProductionComposition.transformedRepresentationCacheIdentity
+prototype internal/inference/representation_bridge.go materializedZero
+prototype internal/inference/representation_bridge.go representationBridgeSession.capture
+prototype internal/inference/representation_bridge.go representationBridgeSession.captureAndTransform
+prototype internal/inference/representation_bridge.go representationBridgeSession.inject
+prototype internal/inference/representation_bridge.go representationBridgeSession.transform
+prototype internal/inference/runner.go Runner.ForwardCached
+prototype internal/inference/runner.go Runner.ForwardCachedWithProjectedInputs
+prototype internal/inference/runner.go Runner.ForwardWithEmbeddingOverrides
+prototype internal/inference/runner.go Runner.forwardCachedPreOutputNormLocked
+prototype internal/inference/sampled_draft.go draftSampled
+prototype internal/inference/sampled_draft.go validSampledDraft
+prototype internal/inference/sampled_draft.go validSampledLimits
+prototype internal/inference/sampled_draft.go validVerificationSamplers
+prototype internal/inference/sampled_draft.go verifySampled
+prototype internal/inference/sequence_forward.go Runner.DecodeAudioTokens
+prototype internal/inference/single_head_mtp.go Runner.AdvanceMTP
+prototype internal/inference/single_head_mtp.go Runner.NewMTPPairedSession
+prototype internal/inference/single_head_mtp.go Runner.NewMTPSession
+prototype internal/inference/single_head_mtp.go Runner.validateMTPTarget
+prototype internal/inference/single_head_mtp_sampling.go Runner.DraftMTPSampled
+prototype internal/inference/single_head_mtp_sampling.go Runner.VerifyMTPSampled
+prototype internal/inference/single_head_mtp_sampling.go Runner.validateMTPVerificationTarget
+prototype internal/inference/single_head_mtp_speculative.go Runner.DraftMTPGreedy
+prototype internal/inference/single_head_mtp_speculative.go Runner.VerifyMTPGreedy
+prototype internal/inference/single_head_mtp_speculative.go Runner.advanceMTPVerification
+prototype internal/inference/single_head_mtp_speculative.go Runner.projectHiddenLogits
+prototype internal/model/audio_waveform_plan.go AudioWaveformPlan.FrameWidth
+prototype internal/model/layer_plan.go ModelPlan.AudioWaveform
+prototype internal/model/layer_plan.go ModelPlan.CacheProjection
+prototype internal/model/layer_plan.go ModelPlan.SameExecutionProfile
+prototype internal/routedlm/positions.go BlockCausalEnds
+prototype internal/sampling/sampler.go Sampler.AcceptToken
+prototype internal/sampling/speculative.go Sampler.SpeculativeSample
+prototype internal/sampling/speculative.go Sampler.commitSpeculativeToken
+prototype internal/sampling/speculative.go Sampler.speculativeCandidates
+prototype internal/sampling/speculative.go Sampler.speculativeMirostatCandidates
+prototype internal/sampling/speculative.go sortedTokenProbabilities
+prototype internal/sampling/speculative.go validateDraftDistribution
+prototype internal/speechactivity/execution.go Detector.ProcessStream
+prototype internal/speechactivity/execution.go Detector.restore
+shadowed internal/testskip/testskip.go NotApplicable
+shadowed internal/testskip/testskip.go Short
+shadowed internal/testskip/testskip.go StoreAcceptance
+shadowed internal/webuilane/browser.go Browser.AwaitDownload
+shadowed internal/webuilane/browser.go Browser.Reload
+shadowed internal/webuilane/browser.go webSocket.awaitEvent
+shadowed internal/webuilane/legs.go Leg
+test-held cmd/plan/main.go printPrompt
+test-held internal/adaptertrain/linear_ctc.go LinearCTC.WeightSnapshot
+test-held internal/adaptertrain/model.go Model.WeightSnapshot
+test-held internal/capabilityruntime/run_key.go RunKey
+test-held internal/checked/checked.go AtMost64
+test-held internal/dataset/document.go Parse
+test-held internal/densecausal/backward.go Model.LossAndGradsOf
+test-held internal/densecausal/backward.go Model.MaskedLossAndGrads
+test-held internal/densecausal/backward.go Model.MaskedLossAndGradsOf
+test-held internal/densecausal/load.go NewModel
+test-held internal/densecausal/train.go Model.TrainWithRouterObservations
+test-held internal/densecausaltrain/train_resident_cuda_windows.go TrainDeviceResident
+test-held internal/devicemath/linear_cuda_windows.go LinearBackwardT
+test-held internal/devicemath/linear_cuda_windows.go linearBackward
+test-held internal/devicemath/madnorm_cuda_windows.go MADNormBackward
+test-held internal/devicemath/madnorm_cuda_windows.go MADNormForward
+test-held internal/devicemath/resident_ops_cuda_windows.go ResidentOps.AttentionCoreBackward
+test-held internal/devicemath/resident_ops_cuda_windows.go WithResidentOps
+test-held internal/e4btrain/backward.go hostAttention
+test-held internal/evaluation/evidence.go PublishEvaluationEvidence
+test-held internal/evaluation/heldout_confirmation.go ConfirmOnPool
+test-held internal/evaluation/heldout_confirmation.go RequireHeldoutPool
+test-held internal/evaluation/heldout_confirmation.go poolVerdict
+test-held internal/evaluation/plan.go Plan.AgentTrajectoryAuthorities
+test-held internal/gitauthority/history.go RequireRepositoryRoot
+test-held internal/graphruntime/resident.go ResidentProgram.ProgramBytes
+test-held internal/hostmath/attention_batched.go GroupedCausalAttentionF64
+test-held internal/hostmath/e4b_backward.go WindowedCausalAttentionBackward
+test-held internal/hostmath/mad_transformer.go MADNormBackward
+test-held internal/hostmath/media_codec.go AddResidualF64Into
+test-held internal/hostmath/media_codec.go NormalizeHeadsRotaryHalfF64
+test-held internal/hostmath/media_codec.go StandardRMSNormF64
+test-held internal/hostoptimizer/newton_schulz.go NewtonSchulz
+test-held internal/hybridtrain/stack.go Model.TrainHost
+test-held internal/hybridtrain/stack.go builder.vec
+test-held internal/hybridtrain/stack.go hostTraining.Step
+test-held internal/inference/continuous_batch.go ContinuousBatch.Fork
+test-held internal/inference/continuous_batch.go cloneDeviceCache
+test-held internal/inference/prompt_cache.go Runner.ClearPromptCaches
+test-held internal/inference/runner.go Runner.ForwardCachedWithEmbeddingOverrides
+test-held internal/inference/runner.go Runner.ForwardCachedWithMultimodalInputs
+test-held internal/inference/runner_generation.go Runner.Greedy
+test-held internal/inference/sampling_vocab.go Runner.ExecutionMetrics
+test-held internal/inference/sampling_vocab.go Runner.ResetDeviceMemoryPeak
+test-held internal/inferencesurface/surface.go Moves
+test-held internal/inferencesurface/surface.go removedEmbed
+test-held internal/inferencesurface/surface.go surfaceKey
+test-held internal/latentimage/denoiser.go DenoiserTensorShapes
+test-held internal/latentimage/denoiser.go addAttnFF
+test-held internal/latentimage/denoiser.go prod
+test-held internal/latentimage/encoder_program.go EncoderProgram.RunHostFeed
+test-held internal/latentimage/encoder_program.go EncoderProgram.assemble
+test-held internal/latentimage/fusion_program.go FusionProgram.RunHostFeed
+test-held internal/latentimage/fusion_program.go FusionProgram.assemble
+test-held internal/latentimage/fusion_program.go FusionTensorShapes
+test-held internal/latentimage/sampler.go FlowSchedule.EulerStep
+test-held internal/latentimage/textencoder.go EncodeSelectedLayersMasked
+test-held internal/latentimage/textencoder.go encLayerForward
+test-held internal/latentimage/textencoder.go encodeSelected
+test-held internal/latentimage/textencoder.go encoderCheckpointIntermediate
+test-held internal/latentimage/textencoder.go readEncoderLayer
+test-held internal/latentimage/textencoder.go readTensorF32
+test-held internal/latentimage/textencoder.go ropeTableLlama
+test-held internal/latentimage/vae.go VAEDecoder.DecodeImage
+test-held internal/latentimage/vae.go VAEDecoder.runOp
+test-held internal/latentimage/vae.go codecSingleFrameConv
+test-held internal/latentimage/vae_program.go VAEProgram.DecodeGraph
+test-held internal/latentimage/verify.go Witness.SortedChecks
+test-held internal/latentvideo/textcond.go TextConditioning
+test-held internal/media/normalize.go ClampNormalizedF32InPlace
+test-held internal/media/normalize.go NormalizedF32ToU8
+test-held internal/modelrecipe/lifecycle.go ActiveAlias
+test-held internal/modelrecipe/peer_compatibility.go RemotePeerCompatibility.batch
+test-held internal/operatoraction/action.go Recoverable
+test-held internal/optimizer/muon_step_cuda_windows.go deviceMuonMatrixStep
+test-held internal/optimizer/muon_step_cuda_windows.go deviceOps.muonMatrixGroup
+test-held internal/optimizer/newton_schulz_cuda_windows.go deviceNewtonSchulz
+test-held internal/overgodb/causality.go Store.QueryCausality
+test-held internal/overgodb/causality.go causalityFacet.descendants
+test-held internal/overgodb/causality.go causalityFacet.selectIDs
+test-held internal/overgodb/causality.go validateCausalityQuery
+test-held internal/overgodb/commit_delta.go Store.CommitDeltaAt
+test-held internal/overgodb/storage_classes.go DocumentStorageClass
+test-held internal/overgodb/storage_classes.go LayoutStorageClass
+test-held internal/processcontrol/campaign.go RequireCampaign
+test-held internal/processmeasure/measure.go Measure
+test-held internal/processmeasure/peak_other.go peakHandle.close
+test-held internal/processmeasure/peak_other.go peakHandle.read
+test-held internal/processmeasure/peak_other.go retainPeak
+test-held internal/processmeasure/peak_windows.go peakHandle.close
+test-held internal/processmeasure/peak_windows.go peakHandle.read
+test-held internal/processmeasure/peak_windows.go retainPeak
+test-held internal/projector/gemma4tower_audio.go Gemma4TowerRunner.EncodeAudioFeaturesTrace
+test-held internal/projector/gemma4tower_audio_frontend.go Gemma4TowerRunner.EncodeAudioTrace
+test-held internal/projector/gemma4tower_vision.go Gemma4TowerRunner.EncodeVisionPatchesTrace
+test-held internal/protection/protection.go Verify
+test-held internal/protection/protection.go safeRelative
+test-held internal/protection/protection.go validSealedPolicy
+test-held internal/quant/catalog.go Types
+test-held internal/rae/decoder_backward.go vitDecoder.newGradients
+test-held internal/recipecontract/modality.go CompileModalitySignature
+test-held internal/recipecontract/modality.go semanticModality
+test-held internal/routedlm/flowterminal.go GenerationFinalHidden
+test-held internal/routedlm/flowterminal.go VisionEmbedTokens
+test-held internal/runrecord/attempt.go NewAttemptRecord
+test-held internal/runrecord/resource_fitness_comparison.go RequireResourceFitnessComparison
+test-held internal/runrecord/resource_fitness_comparison.go ResourceFitnessComparison.VerifiedBatch
+test-held internal/safetensors/rows.go TensorRowsF64
+test-held internal/sampling/gbnf.go NewGBNFGrammar
+test-held internal/sampling/gbnf.go NewGBNFGrammarWithOptions
+test-held internal/sampling/gbnf.go NewGBNFGrammarWithTokens
+test-held internal/scratchmodel/construction.go cloneWeights
+test-held internal/scratchmodel/graph.go ForwardGraph.Feeds
+test-held internal/sensenovarecipe/activate.go Activate
+test-held internal/sensenovarecipe/activate.go Derive
+test-held internal/sensenovarecipe/activate.go DerivedFacts.validate
+test-held internal/sensenovarecipe/activate.go Inventory
+test-held internal/sensenovarecipe/activate.go Present
+test-held internal/sensenovarecipe/activate.go Resolve
+test-held internal/seriesforecast/lightcurve.go LightCurveProcessor
+test-held internal/speechsynth/flow.go Model.FlowForward
+test-held internal/speechsynth/generate.go Model.GenerateLatents
+test-held internal/tensor/builder_attention_layout.go Builder.SparseAttention
+test-held internal/tensor/tensor.go Builder.CacheCapacity
+test-held internal/tensorstats/tensorstats.go ExactLMoments
+test-held internal/testevidence/evidence.go GoTestJSONShortReport
+test-held internal/testevidence/verdict.go RepeatAgreement
+test-held internal/tokenizer/vocab.go Vocab.MergeCount
+test-held internal/trainingdata/image.go Image
+test-held internal/trainingdata/image.go SelectStructuredImageCrops
+test-held internal/trainingdata/image.go medianAbsoluteDeviation
+test-held internal/trainingdata/image.go medianFloat32
+test-held internal/trainingdata/image.go medianNeighbourRatio
+test-held internal/webuilane/census.go Review.Add
+test-held internal/webuilane/census.go ReviewMeasures
+test-held internal/webuilane/census.go buttonNamed
+test-held internal/webuilane/census.go controlNamed
+test-held internal/webuilane/census.go insideLabel
+test-held internal/webuilane/census.go jsCursor.step
+test-held internal/webuilane/census.go nestedTernaries
+test-held internal/webuilane/census.go next
+test-held internal/webuilane/census.go silentFallback
+test-held internal/webuilane/jstokens.go arguments
+test-held internal/webuilane/jstokens.go classifyJS
+test-held internal/webuilane/jstokens.go closing
+test-held internal/webuilane/jstokens.go isIdentifierByte
+test-held internal/webuilane/jstokens.go jsToken.is
+test-held internal/webuilane/jstokens.go jsToken.value
+test-held internal/webuilane/jstokens.go regexAllowed
+test-held internal/webuilane/jstokens.go skipRegex
+test-held internal/webuilane/jstokens.go skipTemplate
+test-held internal/webuilane/jstokens.go tokenizeJS
+wire internal/agentloop/checkpoint.go MutationCheckpointRuntime.RestoreCheckpoint
+wire internal/agentloop/checkpoint.go MutationCheckpointRuntime.effectMatchesCheckpoint
+wire internal/agentloop/checkpoint.go MutationCheckpointRuntime.restoreEntry
+wire internal/agentloop/checkpoint.go MutationCheckpointRuntime.verifyPostimage
+wire internal/agentloop/checkpoint.go RestoreApprovalRequest
+wire internal/agentloop/contract.go NewContractState
+wire internal/agenttool/stream.go InvocationStream.Receive
+wire internal/devicemath/scratch_pool_cuda_windows.go DeriveResidentCapacity
+wire internal/devicemath/scratch_pool_cuda_windows.go MeasureAllocGranularity
+wire internal/devicemath/scratch_pool_cuda_windows.go MeasureFreeBytes
+wire internal/devicemath/scratch_pool_cuda_windows.go ResidentLayerPlanSizes
+wire internal/devicemath/scratch_pool_cuda_windows.go roundUpTo
+wire internal/inference/cache_state.go Runner.LoadCache
+wire internal/inference/cache_state.go Runner.SaveCache
+wire internal/inference/cache_state.go cacheLayerRecords
+wire internal/inference/cache_state.go marshalCache
+wire internal/inference/cache_state.go materializeCompressedCachePositions
+wire internal/inference/cache_state.go unmarshalCache
+wire internal/inference/cache_state.go writeCacheValue
+wire internal/inference/encoder_decoder_state.go Runner.LoadEncoderDecoderSession
+wire internal/inference/encoder_decoder_state.go Runner.SaveEncoderDecoderSession
+wire internal/inference/encoder_decoder_state.go Runner.validateEncoderDecoderSession
+wire internal/inference/session_state.go Runner.modelStateDecoder
+wire internal/latentvideo/mp4.go NewMP4Encoder
+wire internal/latentvideo/mp4.go mp4Encoder.Add
+wire internal/latentvideo/mp4.go mp4Encoder.Close
+wire internal/latentvideo/mp4.go mp4Encoder.Finish
+wire internal/model/layer_plan.go ModelPlan.HasCache
+wire internal/model/spec_types.go Spec.CompileSequenceState
+wire internal/runrecord/serving_observation.go ServingObservation.AttemptKind
+wire internal/statecodec/codec.go Decoder.F32
+wire internal/statecodec/codec.go Decoder.I32
+wire internal/statecodec/codec.go Decoder.String32
+wire internal/statecodec/codec.go Encoder.F32
+wire internal/statecodec/codec.go Encoder.I32
+wire internal/statecodec/codec.go Encoder.String32
+wire internal/statecodec/codec.go NewEncoderCapacity
+wire internal/tensor/shape.go NewShapePrefix
+wire internal/trainingprogram/objective.go CompileObjectiveMatrix
+wire internal/trainingprogram/objective.go CompileTrainingObjectiveMatrix
+wire internal/trainingprogram/objective.go objectivePairKey
+wire internal/workflowruntime/remote_adapter.go RemoteAdapter.Execute
+wire internal/workflowruntime/remote_adapter.go cloneValues
+wire internal/worklease/worklease.go AssessResources
+wire internal/worklease/worklease.go ClaimPathsOverlap
+wire internal/worklease/worklease.go WorkspaceClaimsConflict

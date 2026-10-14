@@ -1,0 +1,842 @@
+overgo unreached declarations: every production function and method no command reaches, and every record schema no command writes, sorted into groups that each state a class and a reason
+tool: go test ./internal/repoanalysis -count=1 -v -run '^TestEveryProcess(DeclarationIsReachedByACommand|RecordSchemaHasAProductionWriter)$'
+code: the tree at 3d98adb9d, and each place a reason names is a place in that tree
+taken: 2026-10-13, from the source files and the history alone, with no model loaded and the store not opened
+read by: TestEveryProcessDeclarationIsReachedByACommand and TestEveryProcessRecordSchemaHasAProductionWriter (internal/repoanalysis), which hold every group to the two lists of internal/repoanalysis/testdata, to the walk and to the inference surface
+
+What was asked.
+The plan's row consumer-checks, step sort-unreached, asked for a class and a reason on every line of the two lists.
+A later commit then deletes, wires or moves a group from this record, and judges nothing again.
+The first list is the census of step declarations, which walks names from every command and keeps each production function and method the walk does not enter.
+The second list keeps each record schema that no declaration the walk enters writes.
+This record sorts the 509 declarations and the 24 schemas into groups.
+A group is the declarations and schemas of one file or one feature that share a class and a reason.
+No production code changed for it and nothing was deleted.
+
+The classes.
+  dead       Nothing reaches it and nothing should, and a later commit deletes it with the tests that exist for it alone.
+  wire       A capability that a command, a route or a lane should offer and does not, and the reason names the route.
+  prototype  Part of a model family's own path, whose family has no active model or whose path no command serves yet, and it stays under the family the reason names.
+  test-held  Only tests use it and those tests hold live behaviour, so it moves beside its tests or its tests take the live path, and the reason says which.
+  shadowed   The walk lists it wrongly, and the reason names the rule the walk lacks.
+
+The rule applied.
+A path that only tests reach is unwired, and the operator's rule is to add its route, its lane or its command.
+Such a path is deleted only when four conditions hold together.
+Its input chain is half missing, it is record ceremony, it costs now, and a rebuild would redesign it.
+A model prototype stays, and a family without an active model is no ground to delete one.
+A prototype is a whole path, so a helper that nothing calls inside a family that serves is dead.
+A group is dead here for one of three reasons its statement gives.
+A live path does its work, or the commit named deleted its caller, or the four conditions hold.
+
+How a group was sorted.
+A scratch probe under tmp/consumer-checks, which is not in the tree, repeated the walk and listed, for each kept declaration, the production declarations and the test declarations that name it.
+A second walk took every test file as a root beside the commands.
+It entered 478 of the 509 declarations, and 31 are named by no test either.
+Each group's callers and tests were then read, and the history was searched for the commit that removed a caller.
+A test that calls a declaration to check that declaration alone holds nothing live, and it goes with the declaration.
+A test that compares a live path against a declaration, or reaches a live path through it, holds live behaviour, and the declaration is test-held.
+The walk reads names and never types, so both lists are lower bounds.
+
+How to read a group.
+A group opens with the word group and its name, and an empty line ends it.
+class is one of the five classes, and every line of a list that the group holds opens with the same word.
+surface is inside when the group's files lie in a package of the inference surface (internal/inferencesurface/surface.go:31), and outside when none does.
+A deletion inside the surface moves the keys that stored answers are kept under, so those deletions go in one commit before a measurement run.
+declarations counts the kept declarations the group holds, and lines counts their source lines with their comments.
+A members line names a file and the declarations of it that the group holds, and a file alone stands for every kept declaration of it.
+A schemas line names a file and the record schemas of it that the group holds.
+reason gives one or two statements.
+A group that holds schemas alone states no declaration and no line.
+The first test logs each class's declarations and lines on each side of the surface, so this record states no total that a deletion would leave stale.
+A commit that deletes, wires or moves a group takes its lines off the lists and its block out of this record.
+
+== groups ==
+group agentloop-delegated-session
+class: wire
+surface: outside
+declarations: 6
+lines: 139
+members: internal/agentloop/contract.go NewContractState
+members: internal/agentloop/checkpoint.go
+reason: ContractState.Admit (internal/agentloop/contract.go:52) is the only check of a task's allowed effects and RestoreCheckpoint the only undo of an agent's mutation, and neither runs in a command, because cmd/agent-loop builds a session with no contract and no checkpoint runtime (cmd/agent-loop/main.go:185).
+reason: The route is the delegated mode of cmd/agent-loop binding both to its session and offering a restore behind the approval it has, and both compute, so the four conditions do not hold.
+
+group agentloop-recovery
+class: dead
+surface: outside
+declarations: 19
+lines: 373
+members: internal/agentloop/recovery.go
+members: internal/agentloop/contract.go ContractState.AddResolution ContractState.Outstanding ContractState.RequireComplete
+members: internal/agentloop/delegated_runtime.go
+members: internal/agentloop/session_policy.go
+members: internal/agentloop/attempt_closure.go
+members: internal/agentloop/stimulus_reconciliation.go
+members: internal/workflowruntime/stimulus_reconciliation.go
+members: internal/workflowruntime/coalescer.go
+members: internal/worklease/worklease.go Record read ResolveOwner worktreeAlias Aliases Alias recordDispatch
+members: internal/runrecord/agent_obligation.go
+schemas: internal/runrecord/agent_obligation.go overgo/agent-obligation-resolution/v1
+schemas: internal/worklease/worklease.go overgo/work-lease/v1 overgo/work-lease/v2
+reason: It is a second recovery path beside the live Coordinator.RestoreSession (internal/agentloop/coordinator.go:239), with its obligation ledger, its failure policy, its late-stimulus reconciliation and its lease, and 8150c8461, 5c7d6d9a2 and 6733d26b1 deleted what wrote the lease and delivered the stimuli.
+reason: All four conditions hold, since no command writes the lease, the checkpoints, the obligations or the mutation epoch it reads, and its tests check it alone.
+
+group agenttool-stream-receive
+class: wire
+surface: outside
+declarations: 1
+lines: 22
+members: internal/agenttool/stream.go
+reason: A manual of the streaming HTTP transport registers and cannot be proposed, because the coordinator invokes a tool in one call and never opens the stream this reads (internal/agenttool/stream.go:121).
+reason: The route is the coordinator opening the stream for such a manual, and it is no record, so the four conditions do not hold.
+
+group atomic-swap
+class: dead
+surface: inside
+declarations: 12
+lines: 451
+members: internal/atomicfile/swap.go
+reason: Its only callers were the commit and the recovery of the old gate, which d80326076 deleted, and live writers replace a file through atomicfile.Write (internal/atomicfile/write.go:18).
+reason: Its twelve tests check the swap alone.
+
+group composite-generation-evidence
+class: prototype
+surface: inside
+declarations: 9
+lines: 290
+members: internal/inference/composite_generation.go
+members: internal/inference/representation_bridge.go ProductionComposition.ForwardArm materializedZero
+members: internal/composition/composite_generation_evidence.go
+schemas: internal/composition/composite_generation_evidence.go overgo/composite-generation-evidence/v2
+schemas: internal/inference/composite_generation.go overgo/composite-generation-output/v1
+reason: It writes a four-arm evidence matrix whose only reader 91dedffd8 deleted, and promotion takes the plan and the CUDA evidence alone (internal/composition/composite_generation_promotion.go:51).
+reason: The lead keeps it as a prototype, since the review of 2026-10-12 holds the records and operators of composition, the controller and mixture routing to be model prototypes, and the reason above is what the sort read.
+
+group composition-injection-runtime
+class: prototype
+surface: inside
+declarations: 9
+lines: 239
+members: internal/inference/representation_bridge.go OpenProductionComposition ProductionComposition.PlanIdentity ProductionComposition.Forward ProductionComposition.transformedRepresentationCacheIdentity representationBridgeSession.captureAndTransform representationBridgeSession.capture representationBridgeSession.inject representationBridgeSession.transform
+members: internal/inference/runner.go Runner.ForwardWithEmbeddingOverrides
+reason: It is the run path of a composed model, which captures a source model's representation, bridges it and injects it into a target model, and the composition routes of the server return stored identities and run nothing.
+reason: No command builds a composition recipe or the resources it opens with, so it runs on test fixtures alone, and it is the only caller of bridgegraph.Program.Build (internal/inference/representation_bridge.go:356).
+
+group composition-unapplied
+class: prototype
+surface: inside
+declarations: 10
+lines: 356
+members: internal/inference/composite_generation_surface.go
+members: internal/composition/execution_plan.go
+members: internal/inference/external_cross_attention.go
+members: internal/composition/external_cross_attention.go
+members: internal/bridgegraph/graph.go
+schemas: internal/composition/external_cross_attention.go overgo/external-cross-attention-plan/v1
+reason: PromotedGeneration and TransformedRepresentationCacheIdentity repeat the live functions beside them (internal/inference/composite_generation_surface.go:28, internal/inference/representation_bridge.go:250) and have no caller.
+reason: The lead keeps it as a prototype, since the review of 2026-10-12 holds the records and operators of composition, the controller and mixture routing to be model prototypes, and the reason above is what the sort read.
+
+group controller-promotion
+class: prototype
+surface: outside
+declarations: 4
+lines: 60
+members: internal/controllertrain/promotion.go
+members: internal/controllertrain/train_cuda_windows.go
+schemas: internal/controllertrain/promotion.go overgo/controller-promotion/v1
+reason: It is a champion and challenger decision record over several seeds, and all four conditions hold, since its evaluator and budget authority are identities made from strings, the live route trains one seed and judges it itself (cmd/train/route_controller_windows.go:91), and its test runs three CUDA trainings to feed it.
+reason: The lead keeps it as a prototype, since the review of 2026-10-12 holds the records and operators of composition, the controller and mixture routing to be model prototypes, and the reason above is what the sort read.
+
+group dense-old-entries
+class: test-held
+surface: outside
+declarations: 10
+lines: 156
+members: internal/densecausal/backward.go
+members: internal/densecausal/load.go
+members: internal/densecausal/train.go
+members: internal/densecausaltrain/train_resident_cuda_windows.go
+members: internal/optimizer/muon_step_cuda_windows.go
+members: internal/optimizer/newton_schulz_cuda_windows.go
+members: internal/hostoptimizer/newton_schulz.go
+reason: Each is a thin entry over a live core, such as TrainDeviceResidentWeighted, which cmd/train calls (cmd/train/dense_device_windows.go:27), and muonMatrixGroupResident (internal/optimizer/muon_step_cuda_windows.go:29), and tests of those cores still enter through it.
+reason: The tests call the live functions, and the entries are deleted then.
+
+group device-per-op-operators
+class: dead
+surface: outside
+declarations: 3
+lines: 96
+members: internal/devicemath/linear_cuda_windows.go LinearBackward
+members: internal/devicemath/gated_mlp_cuda_windows.go
+members: internal/devicemath/silu_cuda_windows.go SiLUBackward
+reason: The fused resident layer operators (internal/devicemath/layer_resident_ops_cuda_windows.go:162, :322) replaced these operators, which open one device context for each operation.
+reason: Their callers are their own gradient checks and two test helpers that compose them into a layer only a test builds.
+
+group device-shared-oracles
+class: test-held
+surface: outside
+declarations: 6
+lines: 168
+members: internal/devicemath/linear_cuda_windows.go LinearBackwardT linearBackward
+members: internal/devicemath/madnorm_cuda_windows.go
+members: internal/devicemath/resident_ops_cuda_windows.go
+reason: They are the forms that take host slices, and tests hold the live resident operators (internal/devicemath/resident_ops_cuda_windows.go:216) to them with no difference allowed.
+reason: The tests compare the live operators with internal/hostmath or finite differences directly, and these are deleted then.
+
+group diffusionimage-pair-batch
+class: dead
+surface: outside
+declarations: 3
+lines: 80
+members: internal/diffusionimage/training_data.go
+reason: The optimal-transport batch that the route trains on (internal/diffusionimage/training_data.go:41, cmd/train/route_diffusionimage.go:99) replaced this paired input and target batch.
+reason: Its one test builds pairs by hand and checks that one loss is finite.
+
+group encoder-decoder-step-and-batch
+class: dead
+surface: inside
+declarations: 8
+lines: 163
+members: internal/inference/sequence_forward.go Runner.NewEncoderDecoderSession Runner.DecodeEncoderDecoder
+members: internal/inference/encoder_decoder_batch.go
+members: internal/tokenizer/batch.go
+reason: Runner.GenerateEncoderDecoder (internal/inference/encoder_decoder_generate.go:17) decodes a served sequence-to-sequence model through the two locked functions these wrap, and the batch form loops over them a row at a time.
+reason: The step pair and the batch opener have no caller and no test, and the three tests of the rest check one argument and the padded layout alone.
+
+group gemma3n-backward-leaves
+class: prototype
+surface: inside
+declarations: 5
+lines: 150
+members: internal/hostmath/e4b_backward.go ActivationSparsityBackward MatchMagnitudeBackward TanhBackward EmbedInputScaleBackward
+members: internal/hostmath/hostmath.go
+reason: They are the backward leaves of the gemma3n family's training, and no route trains that family, since the live E4B route trains gemma4 and calls none of them.
+reason: Finite-difference tests and a layer backward assembled in a test file (internal/inference/gemma3n_backward_helpers_test.go) hold them.
+
+group gemma4-tower-trace
+class: test-held
+surface: inside
+declarations: 3
+lines: 38
+members: internal/projector/gemma4tower_audio.go
+members: internal/projector/gemma4tower_audio_frontend.go
+members: internal/projector/gemma4tower_vision.go
+reason: They run the live tower graphs with every stage traced, and two parity tests of internal/adaptiveparity check each stage against goldens through them.
+reason: Those two tests move into internal/projector, and the wrappers move beside them.
+
+group gitauthority-old-gate-checks
+class: dead
+surface: inside
+declarations: 7
+lines: 200
+members: internal/gitauthority/worktree_store.go
+members: internal/gitauthority/writer.go
+reason: d80326076, e3cfa4eff and 8150c8461 deleted their callers, which were the old gate's run, the plan's sync and the plan's dispatch, and their two tests check a parser each.
+reason: The landing passes WriterArguments (internal/landing/landing.go:748) with no proof that the installed Git honors them, which RequireWriterSupport gave the old gate.
+
+group heldout-pool-confirmation
+class: test-held
+surface: outside
+declarations: 3
+lines: 76
+members: internal/evaluation/heldout_confirmation.go
+reason: 3e3980f5f deleted the route that confirmed a candidate on a pool, and five tests hold the charged budget it shares with the live ConfirmInstruction (internal/evaluation/instruction_acceptance.go:352) through it.
+reason: Those tests take ConfirmInstruction, and these are deleted then.
+
+group hostmath-device-oracles
+class: test-held
+surface: inside
+declarations: 2
+lines: 77
+members: internal/hostmath/e4b_backward.go WindowedCausalAttentionBackward
+members: internal/hostmath/mad_transformer.go
+reason: They are the host references that tests hold the live device gradients to, the windowed attention of the E4B trainer (internal/devicegrad/windowed_attention_backward_cuda_windows.go:64) and the resident MAD norm.
+reason: Tests of several packages call them, so they move to a test-support package those tests import.
+
+group hybrid-device-resident-lane
+class: prototype
+surface: outside
+declarations: 49
+lines: 2127
+members: internal/devicemath/gated_delta_mix_cuda_windows.go
+members: internal/devicemath/gated_delta_net_cuda_windows.go
+members: internal/devicemath/gated_mlp_resident_cuda_windows.go
+members: internal/devicemath/hybrid_layer_backward_cuda_windows.go
+members: internal/devicemath/hybrid_layer_forward_cuda_windows.go
+members: internal/devicemath/hybrid_layer_resident_cuda_windows.go
+members: internal/devicemath/l2norm_cuda_windows.go
+members: internal/devicemath/mha_forward_resident_cuda_windows.go
+members: internal/devicemath/mha_resident_cuda_windows.go
+members: internal/devicemath/rmsnorm_cuda_windows.go
+members: internal/devicemath/rope_cuda_windows.go
+members: internal/devicemath/short_conv_cuda_windows.go
+members: internal/devicemath/silu_cuda_windows.go SiLUGateForward
+members: internal/devicemath/linear_cuda_windows.go hostW devW linWeight.resolve linWeight.allocateGradient linearForwardTW linearBackwardTW
+members: internal/hybridtrain/hybrid_train_device_cuda_windows.go
+members: internal/hybridtrain/stack.go Model.matrixPlans layerMatrixPlan.slots validateMatrixTiling
+members: internal/hybridtrain/artifact.go
+reason: It is the trainer of the Qwen3.5 hybrid family that runs the layer forward and backward on the device, and no route of cmd/train serves it, because the two live lanes run that math on the host (internal/hostmath/hybrid_stack.go:10) and only Muon on the device.
+reason: No live function of internal/devicemath does this math, and the claim qwen35-real-recurrent-layer-training is held through it by TestQwen35RealTraining.
+
+group hybrid-host-oracle
+class: test-held
+surface: outside
+declarations: 3
+lines: 36
+members: internal/hybridtrain/stack.go Model.TrainHost hostTraining.Step builder.vec
+reason: TrainHost is the host oracle that tests hold the live streamed trainer (internal/hybridtrain/hybrid_train_device_cuda_windows.go:122) against, and builder.vec builds their random model.
+reason: They move beside those tests.
+
+group ifeval-parameters-record
+class: wire
+surface: outside
+declarations: 0
+lines: 0
+schemas: internal/evaluation/ifeval_parameters.go overgo/ifeval-parameters/v1
+reason: The live IFEval suite reads this profile from the store (internal/evaluation/catalog.go:129, internal/evaluation/store_suites.go:206), and nothing in the tree writes it, because d1c353d01 bound the stored one once.
+reason: The route is the publication of the evaluation catalog writing the profile, so that a rebuilt store can hold it.
+
+group inference-draft-coordinator
+class: prototype
+surface: inside
+declarations: 20
+lines: 549
+members: internal/inference/greedy_draft.go
+members: internal/inference/sampled_draft.go
+members: internal/inference/mtp_session_common.go advanceTargetVerification
+members: internal/inference/single_head_mtp_speculative.go Runner.projectHiddenLogits
+members: internal/inference/runner.go Runner.ForwardCached Runner.ForwardCachedWithProjectedInputs
+members: internal/sampling/speculative.go
+members: internal/sampling/sampler.go Sampler.AcceptToken
+reason: It is the draft and verify loops, the cached forward they enter and the ratio-acceptance sampler that the five host draft families share, and it has no caller apart from them.
+reason: The live device loop takes the greedy token itself (internal/inference/nextn_device_speculation.go:51) and uses no sampler, so nothing replaced the sampled acceptance.
+
+group inference-draft-session-state
+class: prototype
+surface: inside
+declarations: 5
+lines: 284
+members: internal/inference/mtp_session_state_common.go
+members: internal/inference/multi_head_mtp_state.go
+reason: They are the saved form of a single-head and a multi-head draft session, which compatibility.json lists among the features of the qwen35, qwen35moe, cohere2moe, step35 and hy_v3 families.
+reason: They stand on the cache codec of group session-state-codecs and stay or go with their sessions, which no command opens.
+
+group inference-feature-draft
+class: prototype
+surface: inside
+declarations: 11
+lines: 342
+members: internal/inference/feature_draft.go
+members: internal/inference/feature_draft_sampling.go
+members: internal/inference/feature_draft_speculative.go
+members: internal/inference/feature_projection.go
+reason: It is the only path that runs the family eagle3, because a plain forward of that model answers that it requires a feature-draft session (internal/inference/runner.go:416).
+reason: A real-model test with a llama target holds it, and the dflash session shares its feature projection.
+
+group inference-multi-head-mtp
+class: prototype
+surface: inside
+declarations: 13
+lines: 547
+members: internal/inference/multi_head_mtp.go
+members: internal/inference/multi_head_mtp_sampling.go
+members: internal/inference/multi_head_mtp_speculative.go
+members: internal/inference/runner.go Runner.forwardCachedPreOutputNormLocked
+reason: It is the draft-head path of the families step35 and hy_v3, whose profiles are registered (internal/model/architecture_profiles.json) and whose real-model validation is pending a fixture.
+reason: The live device loop admits a plan of one draft session only, so no other code runs these heads.
+
+group inference-nextn-host-session
+class: dead
+surface: inside
+declarations: 4
+lines: 98
+members: internal/inference/nextn_mtp.go
+members: internal/inference/nextn_mtp_speculative.go
+reason: generateDeviceSpeculativeGreedy (internal/inference/nextn_device_speculation.go:119) has run the next-n speculation on the device since 4d0e141fc, and this host session does the same job with one target forward a token.
+reason: No command and no test has called it since eef22e285 added it.
+
+group inference-paired-features
+class: prototype
+surface: inside
+declarations: 13
+lines: 342
+members: internal/inference/paired_features.go Runner.DecodePairedFeatureBlock Runner.DraftPairedFeatureBlock Runner.InjectPairedFeatures Runner.NewPairedFeatureSession Runner.injectPairedFeatureLayer
+members: internal/inference/paired_features_sampling.go
+members: internal/inference/paired_features_speculative.go
+members: internal/model/layer_plan.go ModelPlan.CacheProjection
+reason: It is the only path that runs the family dflash, a block drafter paired with a target model (internal/inference/runner.go:415).
+reason: A real-model test with a qwen3 target holds it, and no command opens a paired session yet.
+
+group inference-paired-projection
+class: prototype
+surface: inside
+declarations: 8
+lines: 283
+members: internal/inference/paired_projection.go
+members: internal/inference/paired_projection_sampling.go
+members: internal/inference/paired_projection_speculative.go
+reason: It is the only path that runs the family gemma4-assistant, a drafter that reads the hidden states of a gemma4 target (internal/inference/runner.go:417).
+reason: A real-model test holds it, and no command opens a paired session yet.
+
+group inference-single-head-mtp
+class: prototype
+surface: inside
+declarations: 15
+lines: 250
+members: internal/inference/single_head_mtp.go
+members: internal/inference/single_head_mtp_sampling.go
+members: internal/inference/single_head_mtp_speculative.go Runner.DraftMTPGreedy Runner.VerifyMTPGreedy Runner.advanceMTPVerification
+members: internal/inference/mtp_session_common.go Runner.advanceSingleHeadMTPVerification Runner.newSingleHeadMTPSession Runner.validateSingleHeadMTPTarget Runner.validateSingleHeadMTPVerificationTarget
+members: internal/model/layer_plan.go ModelPlan.SameExecutionProfile
+reason: It is the host draft session of the single-head draft families qwen35, qwen35moe and cohere2moe, with the paired form for a head kept in its own file, which the live loop refuses (internal/inference/nextn_device_speculation.go:38).
+reason: The live device loop serves only its greedy half for a bundled head, so sampled verification and the paired form have no other path, and two real-model tests hold the sampled verification.
+
+group inside-test-wrappers
+class: test-held
+surface: inside
+declarations: 11
+lines: 90
+members: internal/quant/catalog.go
+members: internal/tensorstats/tensorstats.go
+members: internal/checked/checked.go
+members: internal/tensor/builder_attention_layout.go
+members: internal/tensor/tensor.go
+members: internal/tokenizer/vocab.go
+members: internal/graphruntime/resident.go
+members: internal/gitauthority/history.go
+members: internal/modelrecipe/lifecycle.go
+members: internal/modelrecipe/peer_compatibility.go
+members: internal/processcontrol/campaign.go
+reason: Each is a thin wrapper, a getter or a guard that tests alone call, over a live function such as exactLMomentsSorted (internal/tensorstats/tensorstats.go:42), SparseAttentionWithOffset, RepositoryRoot (internal/gitauthority/history.go:20) and CampaignRunning.
+reason: The tests take the live function, and each of these is deleted then, or moves beside the one test that needs it.
+
+group krea-host-references
+class: test-held
+surface: outside
+declarations: 21
+lines: 609
+members: internal/latentimage/textencoder.go ropeTableLlama encLayerForward encodeSelected EncodeSelectedLayersMasked encoderCheckpointIntermediate readEncoderLayer readTensorF32
+members: internal/latentimage/vae.go
+members: internal/latentimage/sampler.go
+members: internal/latentimage/encoder_program.go
+members: internal/latentimage/fusion_program.go
+members: internal/latentimage/vae_program.go
+members: internal/latentimage/denoiser.go DenoiserTensorShapes addAttnFF prod
+members: internal/latentimage/verify.go
+reason: They are the f64 host references, the host-fed runs of the compiled programs and the shape manifests of the Krea image pipeline, and tests compare the served resident pipeline (internal/latentimage/resident_pipeline_cuda_windows.go:66) against them.
+reason: They move beside those tests, as 22b5d515d and 39934bd80 moved their siblings.
+
+group krea-oracle-primitives
+class: test-held
+surface: inside
+declarations: 7
+lines: 165
+members: internal/hostmath/attention_batched.go
+members: internal/hostmath/media_codec.go
+members: internal/safetensors/rows.go
+members: internal/media/normalize.go
+reason: Their only production callers are the unreached host references of internal/latentimage, and their other callers are their own unit tests and the decoder tests of internal/latentimage and internal/latentvideo.
+reason: They move with those references into test files, and the tests that call NormalizedF32ToU8 take the live SignedUnitF32ToU8 (internal/media/normalize.go:34).
+
+group krea-pipeline-recognition
+class: dead
+surface: outside
+declarations: 3
+lines: 43
+members: internal/latentimage/spec.go
+members: internal/latentimage/profile.go
+reason: ResolveProfile (internal/latentimage/profile.go:93) recognizes a pipeline for every command since the recipe's source resolution replaced discovery, and f5c860c2e deleted the last production caller of IsPipeline.
+reason: Only internal/latentimage/spec_test.go calls them, and it checks the recognizer and a discovery listing that says the pipeline is not served.
+
+group memory-schedule
+class: dead
+surface: outside
+declarations: 22
+lines: 202
+members: internal/trainingprogram/memory.go
+members: internal/scratchmodel/memory.go
+reason: It is a plan record that chooses a device or a host tier and that no trainer executes, and all four conditions hold, since no production code supplies its budget, it mints an identity nothing stores, a CUDA test runs for it, and the live bounded lane budgets from compiled plans (internal/hybridtrain/stack.go:422).
+reason: Its two tests check the schedule alone.
+
+group modelmerge-in-memory
+class: dead
+surface: outside
+declarations: 7
+lines: 255
+members: internal/modelmerge/merge.go
+members: internal/modelmerge/vocabulary.go
+schemas: internal/modelmerge/vocabulary.go overgo/embedding-provenance/v1
+reason: Passthrough and TaskArithmetic merge whole models held in memory, and the commands that merge run MergeGGUF (internal/modelmerge/gguf.go:49) and ExecuteStreaming (internal/modelmerge/streaming.go:51) a tensor at a time.
+reason: The vocabulary artifact reorders embeddings in memory inside row provenance that nothing produces inputs for and nothing publishes, so all four conditions hold, and the tests of both check them alone.
+
+group moe-routing-records
+class: prototype
+surface: outside
+declarations: 0
+lines: 0
+schemas: internal/evaluation/moe_capacity_pair.go overgo/moe-capacity-pair/v1
+schemas: internal/evaluation/moe_routing_baseline.go overgo/moe-routing-baseline-matrix/v1
+schemas: internal/evaluation/moe_routing_promotion.go overgo/moe-routing-promotion-policy/v1
+schemas: internal/evaluation/moe_routing_shift.go overgo/moe-routing-shift-evidence/v1
+schemas: internal/trainingprogram/moe_routing_target.go overgo/moe-routing-target/v1
+reason: They are the records of a promotion of mixture-of-experts routing whose writer would be an experiment harness the tree does not have, and their one reader is a function value that tests alone call (internal/evaluation/moe_routing_promotion.go:94).
+reason: The lead keeps it as a prototype, since the review of 2026-10-12 holds the records and operators of composition, the controller and mixture routing to be model prototypes, and the reason above is what the sort read.
+
+group objective-matrix
+class: wire
+surface: outside
+declarations: 3
+lines: 87
+members: internal/trainingprogram/objective.go CompileObjectiveMatrix CompileTrainingObjectiveMatrix objectivePairKey
+reason: It reports which modality pairs are trainable and which objective kinds have a program, two compatibility claims name it as their source, and cmd/training-objective publishes and promotes objectives and never lists them.
+reason: Its route is a matrix listing on cmd/training-objective, and its inputs are stored objective documents, so the four conditions do not hold.
+
+group operator-blocked-operation
+class: test-held
+surface: inside
+declarations: 1
+lines: 12
+members: internal/operatoraction/action.go Recoverable
+reason: The readers of a blocked operation are live (internal/operation/runtime.go:246), nothing in production blocks one since 6733d26b1 deleted the producers, and tests of internal/operation and internal/server hold those readers through it.
+reason: It moves to a test-support package those tests import.
+
+group orphans-inside
+class: dead
+surface: inside
+declarations: 15
+lines: 146
+members: internal/inference/paired_features.go Runner.SyncPairedFeaturePrefix
+members: internal/model/architecture.go
+members: internal/model/tensor_shape_plan.go
+members: internal/jinja/eval.go
+members: internal/cuda/driver/driver_windows.go
+members: internal/cuda/driver/driver_unsupported.go
+members: internal/hostmath/sinkhorn.go sinkhorn2x2FromLogits
+members: internal/tensor/reference/value.go
+members: internal/graphruntime/feeds.go
+members: internal/processcontrol/supervisor.go
+members: internal/processcontrol/supervisor_unix.go
+members: internal/processcontrol/supervisor_windows.go
+members: internal/operatoraction/action.go Consent.Validate Consent.Clone
+reason: Each is a helper of a live package that no production declaration calls, and a test that names one checks it alone.
+reason: 75752433d, 606cc4f63, 422c9c848, 15148dacd and 7512353c8 deleted the callers of five, and the history shows no caller for the other ten.
+
+group orphans-outside
+class: dead
+surface: outside
+declarations: 16
+lines: 124
+members: internal/latentimage/denoiser.go DenoiserWitness.Failed
+members: internal/latentimage/textencoder.go EncoderWitness.Failed
+members: internal/trainingprogram/objective.go ObjectiveAuthority.AtLeast
+members: internal/trainingprogram/improvement.go
+members: internal/routedlm/prompt.go
+members: internal/workflowruntime/delegation.go
+members: internal/runrecord/record.go
+members: internal/runrecord/trigger_registry.go
+members: internal/plan/verification_batch.go
+members: internal/capabilityruntime/runtime.go
+members: internal/testevidence/evidence.go GoTestReport.ContentionOnly
+members: internal/server/composition_runtime.go
+members: internal/hfbpe/tokenizer.go
+reason: Each is a helper of a live package that no production declaration calls, and a test that names one checks it alone.
+reason: 91dedffd8, 3952a0bdc, 90769e0ed, 1bd0fe06f, d80326076 and da5247db5 deleted the callers of eight, and the other eight never had one.
+
+group outside-test-analyzers
+class: test-held
+surface: outside
+declarations: 7
+lines: 175
+members: internal/protection/protection.go
+members: internal/inferencesurface/surface.go
+members: internal/evaluation/evidence.go
+reason: d80326076, 50330d7a8 and d13261575 deleted the callers of protection.Verify, inferencesurface.Moves and PublishEvaluationEvidence, and tests of their own packages hold the repository's protection files, the membership of the inference surface and evidence verification through them.
+reason: They move into test files of their packages, as 33b81eaf5 moved the repository analyzers.
+
+group outside-test-entries
+class: test-held
+surface: outside
+declarations: 8
+lines: 71
+members: internal/testevidence/verdict.go
+members: internal/testevidence/evidence.go GoTestJSONShortReport
+members: internal/capabilityruntime/run_key.go
+members: internal/dataset/document.go
+members: cmd/plan/main.go
+members: internal/evaluation/plan.go
+members: internal/runrecord/resource_fitness_comparison.go
+reason: Each is an entry that tests alone call, over a live function such as RepeatAgreementForCommand, GoTestJSONReader, RunKeyOf (internal/capabilityruntime/run_key.go:71), printPromptStep and CompareResourceFitness.
+reason: The tests take the live function, and these are deleted then.
+
+group processmeasure-child-peak
+class: test-held
+surface: inside
+declarations: 7
+lines: 74
+members: internal/processmeasure/measure.go
+members: internal/processmeasure/peak_windows.go
+members: internal/processmeasure/peak_other.go
+reason: A command measures its own peak alone (internal/processmeasure/peak_windows.go:58), and the measured child is used by the test-support internal/testprocess (process.go:81) and the model memory tests of three packages.
+reason: It moves into internal/testprocess.
+
+group recipecontract-audio-outputs
+class: dead
+surface: inside
+declarations: 3
+lines: 23
+members: internal/recipecontract/audio.go
+reason: They validate the record types ConvertedAudio and GeneratedAudio, which nothing constructs, because the audio conversion and generation tasks have ports and no executor.
+reason: Generated speech is published as WAV content (internal/mediacapability/output.go:34), and only internal/recipecontract/audio_test.go calls the validators.
+
+group recipecontract-modality-signature
+class: test-held
+surface: inside
+declarations: 2
+lines: 49
+members: internal/recipecontract/modality.go
+reason: Its only caller outside tests is the test-support matrix of internal/adaptiveparity (matrix.go:72), which derives the modality matrix of the live recipe definitions through it.
+reason: It moves into internal/adaptiveparity beside that caller.
+
+group remote-stage-adapter
+class: wire
+surface: outside
+declarations: 3
+lines: 71
+members: internal/workflowruntime/remote_adapter.go
+members: internal/runrecord/serving_observation.go
+reason: It runs a workflow stage on a remote peer and classifies each attempt as a retry, a reselection or a spillover, 6733d26b1 kept it as an unwired inference path, and nothing implements its transport.
+reason: The route is a transport over the live InvokeRemotePeer (internal/capabilityruntime/peer_invoke.go:64) registered as the workflow runtime's adapter, and three of the four conditions hold, which is one short of deletion.
+
+group resident-capacity-plan
+class: wire
+surface: outside
+declarations: 5
+lines: 108
+members: internal/devicemath/scratch_pool_cuda_windows.go
+reason: It derives how many layers fit resident from measured free bytes and allocation granularity, and the dense device trainer admits by geometry alone (cmd/train/dense_device_windows.go:19), so the route is that trainer refusing by the derived capacity before it allocates.
+reason: Its inputs are measured where it runs and it is no record, so the four conditions do not hold.
+
+group retired-writer-records
+class: shadowed
+surface: outside
+declarations: 0
+lines: 0
+schemas: internal/evaluation/replay.go overgo/evaluation-replay/v1
+schemas: internal/runrecord/attempt.go overgo/gate-attempt/v1
+schemas: internal/runrecord/lifecycle.go overgo/gate-lifecycle/v1
+schemas: internal/runrecord/stage_receipt.go overgo/stage-receipt/v1
+reason: A reached declaration reads the documents of each that the store holds (cmd/benchmark-report/main.go:145, internal/runrecord/dataset_projection_adapter.go:37, internal/runrecord/attempt_verification.go:21, internal/runrecord/stage_receipt.go:104), and the writers were the old gate, the replay that 8b7defa1c deleted and an earlier version of the receipt.
+reason: The reading lacks the rule that a reached reader of stored documents keeps a schema whose writer is retired, and each leaves the list when its reader does.
+
+group routedlm-block-causal
+class: prototype
+surface: outside
+declarations: 1
+lines: 28
+members: internal/routedlm/positions.go
+reason: It is a piece of the SenseNova family's image-edit prefix path, which cmd/validate/parity_sensenova.go:369 states is not yet wired into a layer stack.
+reason: Its own tests hold it.
+
+group routedlm-host-flow-terminal
+class: test-held
+surface: outside
+declarations: 2
+lines: 55
+members: internal/routedlm/flowterminal.go
+reason: They are the host reference of the live device peripheral session (internal/routedlm/flowperipheral_cuda_windows.go:188, :282), and the SenseNova generation tests compose them around the device body.
+reason: They move beside those tests.
+
+group runner-test-instruments
+class: test-held
+surface: inside
+declarations: 5
+lines: 112
+members: internal/inference/continuous_batch.go
+members: internal/inference/prompt_cache.go
+members: internal/inference/sampling_vocab.go
+reason: No command calls ContinuousBatch.Fork, Runner.ClearPromptCaches, Runner.ExecutionMetrics or Runner.ResetDeviceMemoryPeak, and tests of the live continuous cache, the live prompt cache and device memory recovery set up or read through them.
+reason: Those tests take the live path, which is Step for a second sequence and Runner.DeviceMemory (internal/inference/sampling_vocab.go:50) for the figures, and ClearPromptCaches moves beside its tests.
+
+group sensenova-activation-wrappers
+class: test-held
+surface: outside
+declarations: 6
+lines: 126
+members: internal/sensenovarecipe/activate.go
+reason: They are wrappers named for one family over the recipe lifecycle that the served family already uses (internal/modelrecipe/generation_source.go:73, internal/mediacapability/image_source.go:57), and two tests hold that live lifecycle through them.
+reason: The tests call the live functions, and the wrappers are deleted then.
+
+group session-state-codecs
+class: wire
+surface: inside
+declarations: 21
+lines: 433
+members: internal/inference/cache_state.go
+members: internal/inference/encoder_decoder_state.go
+members: internal/inference/session_state.go
+members: internal/statecodec/codec.go
+members: internal/tensor/shape.go
+members: internal/model/layer_plan.go ModelPlan.HasCache
+members: internal/model/spec_types.go
+reason: They save and load a KV cache and an encoder-decoder session as bytes bound to the model, no command saves or restores either, and no live path does the same, so the route is slot save and restore on the server, which serves GET /slots alone (internal/server/routes.go:133).
+reason: They compute and are no record, so the four conditions do not hold, though a device session keeps its cache where nothing reads it back yet (internal/inference/device_cache.go:24).
+
+group speech-activity-stream
+class: prototype
+surface: outside
+declarations: 2
+lines: 140
+members: internal/speechactivity/execution.go
+schemas: internal/speechactivity/execution.go overgo/audio-activity-state/v1
+schemas: internal/speechactivity/profile.go overgo/speech-activity-profile/v1
+reason: It is the streaming processor of the causal speech-activity family (FireRed VAD), and the served detector is the offline one (internal/mediacapability/capabilities.go:169).
+reason: No command opens an activity stream and nothing but a test publishes its profile, so its route is a streaming activity session beside streaming transcription (internal/speechrecognition/session.go:172).
+
+group store-test-observers
+class: test-held
+surface: outside
+declarations: 8
+lines: 129
+members: internal/overgodb/causality.go
+members: internal/overgodb/commit_delta.go
+members: internal/overgodb/storage_classes.go
+members: internal/runrecord/attempt.go
+reason: Tests of rebuild, release, write admission and audio recovery in four packages observe or make live store state through them, and 3952a0bdc, be70f7c1c and d80326076 deleted their production callers.
+reason: The storage-class functions and NewAttemptRecord move to a test-support package, and the causality query and CommitDeltaAt read unexported store state, so their tests take a live read once cmd/overgodb query gives one.
+
+group test-written-records
+class: dead
+surface: outside
+declarations: 0
+lines: 0
+schemas: internal/evaluation/scaling_fit.go overgo/scaling-fit/v1
+schemas: internal/trainingprogram/dataset_pipeline_candidate.go overgo/dataset-pipeline-candidate/v1
+schemas: internal/trainingworkflow/health_classifier.go overgo/training-health-classification/v1
+reason: No production declaration writes any of the three, and tests alone make their documents.
+reason: Two have a function value that tests alone call as their one reader (internal/evaluation/effective_speedup.go:55, internal/trainingworkflow/health_operator.go:62), and the third has no reader.
+
+group testskip-helpers
+class: shadowed
+surface: outside
+declarations: 3
+lines: 22
+members: internal/testskip/testskip.go
+reason: Each takes a testing.TB and skips a test, and commands import the package for its environment name alone (cmd/webui-lane/main.go:74, internal/landing/lanes.go:113), which keeps the walk from counting the package as test support.
+reason: The walk lacks the rule that a function with a testing.TB parameter is test support in whatever package declares it.
+
+group text-old-entry-points
+class: test-held
+surface: inside
+declarations: 6
+lines: 90
+members: internal/inference/runner.go Runner.ForwardCachedWithEmbeddingOverrides Runner.ForwardCachedWithMultimodalInputs
+members: internal/inference/runner_generation.go Runner.Greedy
+members: internal/sampling/gbnf.go
+reason: Commands enter through Runner.Generate (internal/inference/runner_generation.go:36), the locked cached forward (internal/inference/runner.go:556) and GBNFVocabulary.Compile (internal/sampling/gbnf.go:210), and only tests of live decoding, input admission and grammar behaviour still enter through these.
+reason: Those tests take the live functions, and these are deleted then.
+
+group thoughtbank-sinkhorn-backward
+class: prototype
+surface: inside
+declarations: 1
+lines: 132
+members: internal/hostmath/sinkhorn.go SinkhornFromLogitsBackward
+reason: It is the gradient of the live Sinkhorn forward (internal/hostmath/sinkhorn.go:45) for training the hyper-connections of the thought-bank family, and the live thought-bank route trains a bank read only.
+reason: Finite-difference tests and a hyper-connection backward assembled in a test file hold it.
+
+group tokenizer-vocabulary-mapping
+class: dead
+surface: inside
+declarations: 1
+lines: 32
+members: internal/tokenizer/vocabulary_artifact.go
+schemas: internal/tokenizer/vocabulary_artifact.go overgo/vocabulary-mapping/v1
+reason: Its only production caller is the vocabulary artifact of group modelmerge-in-memory, and its input, Vocab.Artifact, has test callers alone.
+reason: The live merge refuses models whose tokenizers differ (internal/modelmerge/gguf.go:87), and one live test borrows a single refusal from it.
+
+group training-test-entries
+class: test-held
+surface: outside
+declarations: 9
+lines: 98
+members: internal/adaptertrain/linear_ctc.go
+members: internal/adaptertrain/model.go
+members: internal/scratchmodel/construction.go
+members: internal/scratchmodel/graph.go
+members: internal/rae/decoder_backward.go
+members: internal/speechsynth/flow.go
+members: internal/speechsynth/generate.go
+members: internal/seriesforecast/lightcurve.go
+members: internal/e4btrain/backward.go
+reason: Each is an accessor or an entry that only tests of live trainers and generators use, such as WeightSnapshot in the resume tests of five packages and GenerateLatents over the live generation loop (internal/speechsynth/generate.go:67).
+reason: The ones a single package's tests use move beside them, and the tests of other packages take the live entry.
+
+group trainingdata-image-test-inputs
+class: test-held
+surface: outside
+declarations: 5
+lines: 118
+members: internal/trainingdata/image.go
+reason: SelectStructuredImageCrops builds the corpus of one real-checkpoint test of the live diffusion trainer, and Image decodes the examples of the live image processor for the multimodal training matrix test.
+reason: Each moves beside the test that calls it.
+
+group video-mp4-encoder
+class: wire
+surface: outside
+declarations: 4
+lines: 103
+members: internal/latentvideo/mp4.go
+reason: It encodes frames to MP4 through the same frame sink as the GIF encoder, and no command offers MP4, so the route is an MP4 clip beside the GIF of the served video paths (internal/latentvideo/production_cuda_windows.go:151) with an MP4 content contract.
+reason: Its input chain is whole and it is no record, so the four conditions do not hold, and two tests of the live edit runtime and the live clip decoder already read clips it wrote.
+
+group video-single-prompt-conditioning
+class: test-held
+surface: outside
+declarations: 1
+lines: 13
+members: internal/latentvideo/textcond.go
+reason: Production conditions prompts through promptContexts (internal/latentvideo/wan_form.go:161), and two integration tests hold the live encoder and projection through this one-prompt wrapper.
+reason: Those tests take the live function, and the wrapper is deleted then.
+
+group wavtokenizer-waveform
+class: prototype
+surface: inside
+declarations: 6
+lines: 141
+members: internal/inference/audio_waveform.go
+members: internal/inference/sequence_forward.go Runner.DecodeAudioTokens
+members: internal/model/audio_waveform_plan.go
+members: internal/model/layer_plan.go ModelPlan.AudioWaveform
+reason: It is the generator of the wavtokenizer-dec family, from audio tokens through feature frames to samples, and compatibility.json states that family's real-model fixture is pending.
+reason: Served speech is another family (internal/mediacapability/capabilities.go:167), so no live path does this work.
+
+group webui-lane-harness
+class: shadowed
+surface: outside
+declarations: 4
+lines: 94
+members: internal/webuilane/legs.go
+members: internal/webuilane/browser.go
+reason: cmd/webui-lane runs the browser tests as a child, hands them the directory Leg writes to (cmd/webui-lane/main.go:169) and requires the records it reads back (main.go:182), so a lane reaches Leg and the browser waits those tests call.
+reason: The walk lacks the rule that a declaration of a lane's own package named by a test of a package the lane runs (main.go:190) is reached by that lane.
+
+group webui-source-review
+class: test-held
+surface: outside
+declarations: 19
+lines: 373
+members: internal/webuilane/census.go
+members: internal/webuilane/jstokens.go
+reason: ReviewMeasures and the JavaScript tokens it reads are called by one ratchet test of internal/server and two tests of internal/webuilane, which hold the served page's source to the review measures.
+reason: The ratchet test moves into internal/webuilane, and both files become test files.
+
+group worklease-capacity-advice
+class: wire
+surface: outside
+declarations: 3
+lines: 73
+members: internal/worklease/worklease.go AssessResources WorkspaceClaimsConflict ClaimPathsOverlap
+reason: AssessResources reports declared reservations against capacity, docs/image_video_resources.json names it as the advisory check, and 5c7d6d9a2 deleted its caller.
+reason: The route is the admission of a media request printing declared demand against device capacity, and it is no record, so the four conditions do not hold.

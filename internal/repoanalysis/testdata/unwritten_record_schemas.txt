@@ -1,24 +1,24 @@
-internal/composition/composite_generation_evidence.go overgo/composite-generation-evidence/v2
-internal/composition/external_cross_attention.go overgo/external-cross-attention-plan/v1
-internal/controllertrain/promotion.go overgo/controller-promotion/v1
-internal/evaluation/ifeval_parameters.go overgo/ifeval-parameters/v1
-internal/evaluation/moe_capacity_pair.go overgo/moe-capacity-pair/v1
-internal/evaluation/moe_routing_baseline.go overgo/moe-routing-baseline-matrix/v1
-internal/evaluation/moe_routing_promotion.go overgo/moe-routing-promotion-policy/v1
-internal/evaluation/moe_routing_shift.go overgo/moe-routing-shift-evidence/v1
-internal/evaluation/replay.go overgo/evaluation-replay/v1
-internal/evaluation/scaling_fit.go overgo/scaling-fit/v1
-internal/inference/composite_generation.go overgo/composite-generation-output/v1
-internal/modelmerge/vocabulary.go overgo/embedding-provenance/v1
-internal/runrecord/agent_obligation.go overgo/agent-obligation-resolution/v1
-internal/runrecord/attempt.go overgo/gate-attempt/v1
-internal/runrecord/lifecycle.go overgo/gate-lifecycle/v1
-internal/runrecord/stage_receipt.go overgo/stage-receipt/v1
-internal/speechactivity/execution.go overgo/audio-activity-state/v1
-internal/speechactivity/profile.go overgo/speech-activity-profile/v1
-internal/tokenizer/vocabulary_artifact.go overgo/vocabulary-mapping/v1
-internal/trainingprogram/dataset_pipeline_candidate.go overgo/dataset-pipeline-candidate/v1
-internal/trainingprogram/moe_routing_target.go overgo/moe-routing-target/v1
-internal/trainingworkflow/health_classifier.go overgo/training-health-classification/v1
-internal/worklease/worklease.go overgo/work-lease/v1
-internal/worklease/worklease.go overgo/work-lease/v2
+dead internal/evaluation/scaling_fit.go overgo/scaling-fit/v1
+dead internal/modelmerge/vocabulary.go overgo/embedding-provenance/v1
+dead internal/runrecord/agent_obligation.go overgo/agent-obligation-resolution/v1
+dead internal/tokenizer/vocabulary_artifact.go overgo/vocabulary-mapping/v1
+dead internal/trainingprogram/dataset_pipeline_candidate.go overgo/dataset-pipeline-candidate/v1
+dead internal/trainingworkflow/health_classifier.go overgo/training-health-classification/v1
+dead internal/worklease/worklease.go overgo/work-lease/v1
+dead internal/worklease/worklease.go overgo/work-lease/v2
+prototype internal/composition/composite_generation_evidence.go overgo/composite-generation-evidence/v2
+prototype internal/composition/external_cross_attention.go overgo/external-cross-attention-plan/v1
+prototype internal/controllertrain/promotion.go overgo/controller-promotion/v1
+prototype internal/evaluation/moe_capacity_pair.go overgo/moe-capacity-pair/v1
+prototype internal/evaluation/moe_routing_baseline.go overgo/moe-routing-baseline-matrix/v1
+prototype internal/evaluation/moe_routing_promotion.go overgo/moe-routing-promotion-policy/v1
+prototype internal/evaluation/moe_routing_shift.go overgo/moe-routing-shift-evidence/v1
+prototype internal/inference/composite_generation.go overgo/composite-generation-output/v1
+prototype internal/speechactivity/execution.go overgo/audio-activity-state/v1
+prototype internal/speechactivity/profile.go overgo/speech-activity-profile/v1
+prototype internal/trainingprogram/moe_routing_target.go overgo/moe-routing-target/v1
+shadowed internal/evaluation/replay.go overgo/evaluation-replay/v1
+shadowed internal/runrecord/attempt.go overgo/gate-attempt/v1
+shadowed internal/runrecord/lifecycle.go overgo/gate-lifecycle/v1
+shadowed internal/runrecord/stage_receipt.go overgo/stage-receipt/v1
+wire internal/evaluation/ifeval_parameters.go overgo/ifeval-parameters/v1

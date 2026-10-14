@@ -102,13 +102,6 @@
       },
       "steps": [
         {
-          "id": "sort-unreached",
-          "title": "Sort the rest of the unreached declarations into wired, deleted and kept as a prototype",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestEveryProcessDeclarationIsReachedByACommand$'",
-          "rationale": "From the census of step declarations. The operator's rule for a path only tests reach is to add its route, lane or command, and to delete it only when its input chain is half missing, it is record ceremony, it costs now and a rebuild would redesign it. A model prototype stays. Four groups outside the model families need that rule applied one by one: the recovery and checkpoint restore of internal/agentloop (15 declarations, 356 lines), speculative sampling (6, 226, inside the inference surface), the MP4 encoder of internal/latentvideo (4, 103; the prepared note finds a flag on cmd/latentvideo-run the smaller route) and inferencesurface.Moves (3, 86), which the surface-moves record found has no caller. The model families hold 341 unreached declarations of 9,565 lines by the builder's reading, internal/inference 130 of 4,054 and internal/devicemath 54 of 2,099 among them. Those are not all prototypes: a helper nothing calls inside a family that serves is dead code, and a whole unreached path of a family with no active model is a prototype and stays. This step sorts the list into wired, deleted and kept as a prototype, each with its reason beside its line, and files the deletions and the routes as steps with their sizes. It changes no code itself.\nServes: the loop's upkeep, and a route for each capability that has none.\nDisappears: nothing yet; the steps it files say what.\nEvidence: the census list with a class and a reason on every remaining line, held by the census test.\nBatch: host."
-        },
-        {
           "id": "delete-unreached-surface",
           "title": "Delete what stands alone of the two unreached groups inside the inference surface, in one commit before a run",
           "status": "open",

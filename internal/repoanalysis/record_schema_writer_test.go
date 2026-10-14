@@ -619,9 +619,10 @@ func JSONContent(contract DocumentContract, value any) []byte { return contract.
 `
 
 // TestEveryProcessRecordSchemaHasAProductionWriter holds every record schema production code names to a writer a command reaches.
-//   - the checkout's unwritten record schemas = the lines of schemaList, both ways
+//   - the checkout's unwritten record schemas = the entries of schemaList, both ways
 //   - an unwritten schema the list lacks is refused, because the list only shrinks
 //   - a listed schema that a command writes, or that production code no longer binds, is refused
+//   - every entry carries one of sortClasses, and belongs to one group of sortRecord of that class
 //   - each fixture row pins one rule of the reading on invented files
 func TestEveryProcessRecordSchemaHasAProductionWriter(t *testing.T) {
 	t.Parallel()
@@ -719,12 +720,20 @@ func TestEveryProcessRecordSchemaHasAProductionWriter(t *testing.T) {
 	if records == 0 || records == len(found) {
 		t.Fatalf("the reading found %d record schemas and a writer for %d, want some of each", records, records-len(found))
 	}
-	missing, stale := listDrift(found, keptList(t, schemaList))
+	kept, classOf, err := sortedEntries(keptList(t, schemaList))
+	if err != nil {
+		t.Fatalf("%s: %v", schemaList, err)
+	}
+	missing, stale := listDrift(found, kept)
 	for _, key := range missing {
 		t.Errorf("no command reaches a writer of %s, so reach its writer from a command or delete its type, validator and codec, because %s only shrinks", key, schemaList)
 	}
 	for _, key := range stale {
-		t.Errorf("%s lists %s, which a command writes or production code no longer binds, so delete its line", schemaList, key)
+		t.Errorf("%s lists %s, which a command writes or production code no longer binds, so delete its line and take it out of its group in %s", schemaList, key, sortRecord)
+	}
+	_, differs := heldEntries(recordGroups(t), func(group sortGroup) []string { return group.schemas }, kept, classOf)
+	for _, differ := range differs {
+		t.Errorf("%s: %s", sortRecord, differ)
 	}
 	t.Logf("schemas=%d records=%d unwritten=%d", named, records, len(found))
 }

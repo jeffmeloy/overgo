@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"overgo/internal/gosyntax"
+	"overgo/internal/inferencesurface"
 	"overgo/internal/processcontrol"
 )
 
@@ -475,14 +476,243 @@ func keptList(t *testing.T, name string) []string {
 	return kept
 }
 
+// sortClasses are the classes a kept entry is sorted into, in byte order.
+//   - dead = nothing should reach it, and a later commit deletes it
+//   - prototype = part of a model family's own path, which stays
+//   - shadowed = the walk lists it wrongly, and a rule of the walk takes it off the list
+//   - test-held = only tests of live behaviour use it, and it moves beside them or they take the live path
+//   - wire = a capability no command offers, which a later commit gives a route
+var sortClasses = []string{"dead", "prototype", "shadowed", "test-held", "wire"}
+
+// sortedEntries splits the lines of a kept list into its entries and the class each is sorted into.
+//   - line = class + space + entry
+//   - a class outside sortClasses is refused
+//   - an entry under two classes is refused, because a later commit acts on one
+//   - the entries come back in byte order
+func sortedEntries(lines []string) ([]string, map[string]string, error) {
+	classOf := map[string]string{}
+	var entries []string
+	for _, line := range lines {
+		class, entry, found := strings.Cut(line, " ")
+		if !found || !slices.Contains(sortClasses, class) {
+			return nil, nil, fmt.Errorf("the line %q opens with no class, want one of %q", line, sortClasses)
+		}
+		if earlier, twice := classOf[entry]; twice {
+			return nil, nil, fmt.Errorf("%s is sorted as %s and as %s, want one class", entry, earlier, class)
+		}
+		classOf[entry] = class
+		entries = append(entries, entry)
+	}
+	slices.Sort(entries)
+	return entries, classOf, nil
+}
+
+// sortRecord is the document that gives every group of kept entries its class and its reason.
+const sortRecord = "docs/verification/unreached-declarations.txt"
+
+// groupsPart opens the part of sortRecord the tests read, and the text before it is for a person.
+const groupsPart = "== groups =="
+
+// The words of a group in sortRecord.
+const (
+	groupWord         = "group "
+	classField        = "class"
+	surfaceField      = "surface"
+	declarationsField = "declarations"
+	linesField        = "lines"
+	membersField      = "members"
+	schemasField      = "schemas"
+	reasonField       = "reason"
+	insideSurface     = "inside"
+	outsideSurface    = "outside"
+)
+
+// reasonLimit is the most statements a group gives as its reason.
+//   - source = the plan's step sort-unreached, which asks for a reason in one or two statements
+//   - scope = sortRecord
+//   - reconsider when a group needs a third statement to name what replaced it
+const reasonLimit = 2
+
+// sortGroup is one group of sortRecord, kept entries that share a class and a reason.
+//   - members select kept declarations and schemas select kept record schemas
+//   - selector = a file, for every kept entry of it, or a file and one entry of it
+//   - declarations and lines count the kept declarations, never the schemas
+type sortGroup struct {
+	name, class, surface      string
+	declarations, lines       int
+	members, schemas, reasons []string
+}
+
+// sortGroups reads the groups of a record's text.
+//   - a group opens with groupWord and its name, and ends at an empty line
+//   - every other line of a group is a field, a colon, a space and a value
+//   - a group states its class, surface, declarations and lines once, and a reason up to reasonLimit times
+//   - a members or schemas line names a file, and after it the entries of the file the group holds, or none for all of them
+//   - a name stated twice, a field stated twice, an unknown field, a count that is no number and a group that selects nothing are refused
+func sortGroups(text string) ([]sortGroup, error) {
+	_, part, found := strings.Cut(strings.ReplaceAll(text, "\r\n", "\n"), groupsPart+"\n")
+	if !found {
+		return nil, fmt.Errorf("the record has no part %q", groupsPart)
+	}
+	var groups []sortGroup
+	seen := map[string]bool{}
+	for block := range strings.SplitSeq(part, "\n\n") {
+		lines := strings.Split(strings.TrimSpace(block), "\n")
+		if lines[0] == "" {
+			continue
+		}
+		name, opened := strings.CutPrefix(lines[0], groupWord)
+		if !opened || name == "" || strings.Contains(name, " ") || seen[name] {
+			return nil, fmt.Errorf("a group opens with %q, want %q and a name of one word the record gives once", lines[0], groupWord)
+		}
+		seen[name] = true
+		group := sortGroup{name: name}
+		stated := map[string]bool{}
+		for _, line := range lines[1:] {
+			field, value, found := strings.Cut(line, ": ")
+			if !found || value == "" {
+				return nil, fmt.Errorf("group %s holds the line %q, want a field, a colon, a space and a value", name, line)
+			}
+			once := true
+			var err error
+			switch field {
+			case classField:
+				group.class = value
+			case surfaceField:
+				group.surface = value
+			case declarationsField:
+				group.declarations, err = strconv.Atoi(value)
+			case linesField:
+				group.lines, err = strconv.Atoi(value)
+			case membersField, schemasField:
+				once = false
+				file, entries, _ := strings.Cut(value, " ")
+				selectors := []string{file}
+				if entries != "" {
+					selectors = nil
+					for entry := range strings.FieldsSeq(entries) {
+						selectors = append(selectors, file+" "+entry)
+					}
+				}
+				if field == membersField {
+					group.members = append(group.members, selectors...)
+				} else {
+					group.schemas = append(group.schemas, selectors...)
+				}
+			case reasonField:
+				once = false
+				group.reasons = append(group.reasons, value)
+			default:
+				return nil, fmt.Errorf("group %s states the field %q, which the record does not have", name, field)
+			}
+			if err != nil || once && stated[field] {
+				return nil, fmt.Errorf("group %s states %s as %q, want it once and its counts as numbers", name, field, value)
+			}
+			stated[field] = true
+		}
+		whole := stated[classField] && stated[surfaceField] && stated[declarationsField] && stated[linesField]
+		if !whole || len(group.reasons) == 0 || len(group.reasons) > reasonLimit || len(group.members)+len(group.schemas) == 0 {
+			return nil, fmt.Errorf("group %s lacks a field, a reason or a selector, or gives more than %d reasons", name, reasonLimit)
+		}
+		if !slices.Contains(sortClasses, group.class) || group.surface != insideSurface && group.surface != outsideSurface {
+			return nil, fmt.Errorf("group %s is of class %q and surface %q, want one of %q and %s or %s", name, group.class, group.surface, sortClasses, insideSurface, outsideSurface)
+		}
+		groups = append(groups, group)
+	}
+	return groups, nil
+}
+
+// heldEntries gives each group the kept entries its selectors name, and says where the groups and the list differ.
+//   - every kept entry is held by one group and by no second
+//   - a selector that names no kept entry is refused
+//   - a group's class is the class of each entry it holds
+func heldEntries(groups []sortGroup, selectors func(sortGroup) []string, entries []string, classOf map[string]string) (map[string][]string, []string) {
+	held, holder := map[string][]string{}, map[string]string{}
+	var differs []string
+	for _, group := range groups {
+		for _, selector := range selectors(group) {
+			named := []string{selector}
+			if !strings.Contains(selector, " ") {
+				named = nil
+				for _, entry := range entries {
+					if strings.HasPrefix(entry, selector+" ") {
+						named = append(named, entry)
+					}
+				}
+			} else if classOf[selector] == "" {
+				named = nil
+			}
+			if len(named) == 0 {
+				differs = append(differs, fmt.Sprintf("group %s selects %s, which names no kept entry", group.name, selector))
+			}
+			for _, entry := range named {
+				switch {
+				case holder[entry] != "":
+					differs = append(differs, fmt.Sprintf("%s is in group %s and in group %s, want one group", entry, holder[entry], group.name))
+				case classOf[entry] != group.class:
+					differs = append(differs, fmt.Sprintf("%s is sorted as %s and its group %s as %s", entry, classOf[entry], group.name, group.class))
+				}
+				holder[entry] = group.name
+				held[group.name] = append(held[group.name], entry)
+			}
+		}
+	}
+	for _, entry := range entries {
+		if holder[entry] == "" {
+			differs = append(differs, fmt.Sprintf("%s is in no group of %s", entry, sortRecord))
+		}
+	}
+	return held, differs
+}
+
+// groupFigures says where a group's stated figures differ from what the walk and the surface give.
+//   - declarations = the kept declarations the group holds
+//   - lines = the source lines of those declarations
+//   - surface = inside when every file the group selects lies in a package of the inference surface, outside when none does, and no group lies on both sides
+func groupFigures(groups []sortGroup, held map[string][]string, lines map[string]int, inside func(directory string) bool) []string {
+	var differs []string
+	for _, group := range groups {
+		total := 0
+		for _, entry := range held[group.name] {
+			total += lines[entry]
+		}
+		if group.declarations != len(held[group.name]) || group.lines != total {
+			differs = append(differs, fmt.Sprintf("group %s states %d declarations of %d lines, and the walk gives %d of %d", group.name, group.declarations, group.lines, len(held[group.name]), total))
+		}
+		for _, selector := range slices.Concat(group.members, group.schemas) {
+			file, _, _ := strings.Cut(selector, " ")
+			if inside(path.Dir(file)) != (group.surface == insideSurface) {
+				differs = append(differs, fmt.Sprintf("group %s states its surface as %s, and %s lies on the other side", group.name, group.surface, file))
+			}
+		}
+	}
+	return differs
+}
+
+// recordGroups reads the groups of sortRecord from the checkout.
+func recordGroups(t *testing.T) []sortGroup {
+	t.Helper()
+	text, err := os.ReadFile(filepath.Join("..", "..", filepath.FromSlash(sortRecord)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	groups, err := sortGroups(string(text))
+	if err != nil {
+		t.Fatalf("%s: %v", sortRecord, err)
+	}
+	return groups
+}
+
 // unreachedList is the file that keeps the census of declarations no command reaches.
 const unreachedList = "unreached_declarations.txt"
 
 // TestEveryProcessDeclarationIsReachedByACommand holds every production function and method outside test support to a command that reaches it.
-//   - the checkout's unreached declarations = the lines of unreachedList, both ways
+//   - the checkout's unreached declarations = the entries of unreachedList, both ways
 //   - an unreached declaration the list lacks is refused, because the list only shrinks
 //   - a listed declaration that a command reaches, or that the tree no longer declares, is refused
-//   - each fixture row pins one rule of the walk on invented files
+//   - every entry carries one of sortClasses, and belongs to one group of sortRecord of that class
+//   - every group states the declarations it holds, their lines and its side of the inference surface as the walk and inferencesurface.Packages give them
+//   - each fixture row pins one rule of the walk, of the list or of the record on invented files
 func TestEveryProcessDeclarationIsReachedByACommand(t *testing.T) {
 	t.Parallel()
 	const command = "package main\n\nimport \"overgo/internal/lib\"\n\nfunc main() { lib.Use() }\n"
@@ -559,6 +789,79 @@ func TestEveryProcessDeclarationIsReachedByACommand(t *testing.T) {
 		t.Errorf("the comparison names %q as unreached and unlisted and %q as listed and reached, want a and c", missing, stale)
 	}
 
+	// fixtureLines is the source lines the record rows give every kept declaration, and fixtureInside the one directory they put inside the surface.
+	const fixtureLines, fixtureInside = 3, "internal/in"
+	block := func(name, class, surface string, declarations, lines int, rest ...string) string {
+		return fmt.Sprintf("%s%s\n%s: %s\n%s: %s\n%s: %d\n%s: %d\n%s\n\n", groupWord, name, classField, class, surfaceField, surface,
+			declarationsField, declarations, linesField, lines, strings.Join(rest, "\n"))
+	}
+	const reason = reasonField + ": Nothing calls it."
+	for _, row := range []struct {
+		rule   string
+		list   []string
+		record string
+		want   []string
+	}{
+		{"a group holds every kept declaration of a file, or the ones it names, and states their count, their lines and its side of the surface",
+			[]string{"dead internal/in/a.go Old", "dead internal/in/a.go Older", "wire internal/out/b.go Box.Open"},
+			block("old", "dead", insideSurface, 2, 2*fixtureLines, membersField+": internal/in/a.go", reason) +
+				block("open", "wire", outsideSurface, 1, fixtureLines, membersField+": internal/out/b.go Box.Open", reason, reason), nil},
+		{"a kept declaration in two groups, and one in no group, are refused",
+			[]string{"dead internal/in/a.go Old", "dead internal/in/a.go Older", "dead internal/in/c.go Lost"},
+			block("one", "dead", insideSurface, 1, fixtureLines, membersField+": internal/in/a.go Old", reason) +
+				block("two", "dead", insideSurface, 2, 2*fixtureLines, membersField+": internal/in/a.go", reason),
+			[]string{"internal/in/a.go Old is in group one and in group two", "internal/in/c.go Lost is in no group"}},
+		{"a group of another class than its declaration, and a selector that names no kept declaration, are refused",
+			[]string{"dead internal/in/a.go Old"},
+			block("old", "wire", insideSurface, 1, fixtureLines, membersField+": internal/in/a.go Old Gone", reason),
+			[]string{"sorted as dead and its group old as wire", "selects internal/in/a.go Gone, which names no kept entry"}},
+		{"a count the walk does not give, and a side of the surface a file is not on, are refused",
+			[]string{"dead internal/in/a.go Old", "dead internal/out/b.go Odd"},
+			block("old", "dead", insideSurface, 1, 2*fixtureLines, membersField+": internal/in/a.go", membersField+": internal/out/b.go", reason),
+			[]string{"states 1 declarations of 6 lines, and the walk gives 2 of 6", "internal/out/b.go lies on the other side"}},
+		{"lines the walk does not give are refused",
+			[]string{"dead internal/in/a.go Old"},
+			block("old", "dead", insideSurface, 1, 2*fixtureLines, membersField+": internal/in/a.go", reason),
+			[]string{"states 1 declarations of 6 lines, and the walk gives 1 of 3"}},
+		{"a group that holds record schemas alone states no declaration, and its side is its schemas' side",
+			nil, block("kept", "dead", outsideSurface, 0, 0, schemasField+": internal/in/a.go overgo/kept/v1", reason),
+			[]string{"internal/in/a.go lies on the other side"}},
+		{"a class outside the classes is refused", []string{"gone internal/in/a.go Old"}, "", []string{"opens with no class"}},
+		{"an entry under two classes is refused", []string{"dead internal/in/a.go Old", "wire internal/in/a.go Old"}, "", []string{"sorted as dead and as wire"}},
+		{"a group the record gives twice is refused", nil,
+			strings.Repeat(block("old", "dead", insideSurface, 0, 0, membersField+": internal/in/a.go", reason), 2), []string{"a name of one word the record gives once"}},
+		{"a field the record does not have is refused", nil,
+			block("old", "dead", insideSurface, 0, 0, membersField+": internal/in/a.go", reason, "owner: nobody"), []string{"states the field \"owner\""}},
+		{"a group with more reasons than reasonLimit is refused", nil,
+			block("old", "dead", insideSurface, 0, 0, membersField+": internal/in/a.go", reason, reason, reason), []string{"lacks a field, a reason or a selector"}},
+		{"a class or a side the record does not have is refused", nil,
+			block("old", "dead", "beside", 0, 0, membersField+": internal/in/a.go", reason), []string{"surface \"beside\""}},
+	} {
+		var got []string
+		entries, classOf, err := sortedEntries(row.list)
+		groups, recordErr := sortGroups(groupsPart + "\n" + row.record)
+		for _, failure := range []error{err, recordErr} {
+			if failure != nil {
+				got = append(got, failure.Error())
+			}
+		}
+		if len(got) == 0 {
+			sizes := map[string]int{}
+			for _, entry := range entries {
+				sizes[entry] = fixtureLines
+			}
+			held, differs := heldEntries(groups, func(group sortGroup) []string { return group.members }, entries, classOf)
+			got = append(differs, groupFigures(groups, held, sizes, func(directory string) bool { return directory == fixtureInside })...)
+		}
+		matched := len(got) == len(row.want)
+		for index := 0; matched && index < len(got); index++ {
+			matched = strings.Contains(got[index], row.want[index])
+		}
+		if !matched {
+			t.Errorf("%s: refusals = %q, want one for each of %q", row.rule, got, row.want)
+		}
+	}
+
 	snapshot, outside := checkoutSource(t)
 	found, universe, err := unreachedDeclarations(snapshot, outside)
 	if err != nil {
@@ -567,18 +870,66 @@ func TestEveryProcessDeclarationIsReachedByACommand(t *testing.T) {
 	if universe == 0 || len(outside) == 0 {
 		t.Fatalf("the walk read %d declarations and %d interface methods outside the module, want some of each", universe, len(outside))
 	}
-	kept := keptList(t, unreachedList)
+	kept, classOf, err := sortedEntries(keptList(t, unreachedList))
+	if err != nil {
+		t.Fatalf("%s: %v", unreachedList, err)
+	}
 	var keys []string
-	lines := 0
+	lines, sizes := 0, map[string]int{}
 	for _, declaration := range found {
 		keys, lines = append(keys, declaration.key), lines+declaration.lines
+		sizes[declaration.key] += declaration.lines
 	}
 	missing, stale := listDrift(slices.Compact(keys), kept)
 	for _, key := range missing {
 		t.Errorf("no command reaches %s, so wire it to a command, move it beside its tests or delete it, because %s only shrinks", key, unreachedList)
 	}
 	for _, key := range stale {
-		t.Errorf("%s lists %s, which a command reaches or the tree no longer declares, so delete its line", unreachedList, key)
+		t.Errorf("%s lists %s, which a command reaches or the tree no longer declares, so delete its line and take it out of its group in %s", unreachedList, key, sortRecord)
 	}
-	t.Logf("declarations=%d unreached=%d lines=%d", universe, len(found), lines)
+	inside := surfaceDirectories(t)
+	groups := recordGroups(t)
+	held, differs := heldEntries(groups, func(group sortGroup) []string { return group.members }, kept, classOf)
+	for _, differ := range append(differs, groupFigures(groups, held, sizes, func(directory string) bool { return inside[directory] })...) {
+		t.Errorf("%s: %s", sortRecord, differ)
+	}
+	for _, class := range sortClasses {
+		var within, beyond struct{ declarations, lines int }
+		for _, entry := range kept {
+			if classOf[entry] != class {
+				continue
+			}
+			file, _, _ := strings.Cut(entry, " ")
+			side := &beyond
+			if inside[path.Dir(file)] {
+				side = &within
+			}
+			side.declarations++
+			side.lines += sizes[entry]
+		}
+		t.Logf("class=%s inside=%d of %d lines outside=%d of %d lines", class, within.declarations, within.lines, beyond.declarations, beyond.lines)
+	}
+	t.Logf("declarations=%d unreached=%d lines=%d groups=%d", universe, len(found), lines, len(groups))
+}
+
+// surfaceDirectories returns the package directories of the inference surface, as inferencesurface.Packages lists them.
+func surfaceDirectories(t *testing.T) map[string]bool {
+	t.Helper()
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	packages, err := inferencesurface.Packages(t.Context(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inside := map[string]bool{}
+	for _, pkg := range packages {
+		directory, err := filepath.Rel(root, pkg.Dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		inside[filepath.ToSlash(directory)] = true
+	}
+	return inside
 }

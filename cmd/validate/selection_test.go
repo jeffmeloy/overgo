@@ -308,7 +308,7 @@ func TestEveryComparedContractHasACell(t *testing.T) {
 			"-family", sel.Validation, "-budget", benchmarkBudget.String(),
 		}
 		if contract.Protocol == chat {
-			want = append(want, "-chat-protocol")
+			want = append(want, "-protocol", chat)
 		}
 		if err != nil || name != "go" || !slices.Equal(args, want) {
 			t.Fatalf("%s's %s re-runs as (%q, %v, %v), want go %v", row.Name, sel.Validation, name, args, err, want)

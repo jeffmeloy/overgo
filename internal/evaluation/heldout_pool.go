@@ -302,17 +302,25 @@ func containContents(batch *artifact.Batch, memberships []dataset.Membership, co
 		if at := slices.Index(PoolParts[:], membership.Partition); at != poolPromotion && at != poolAudit {
 			continue
 		}
-		for _, record := range membership.Records {
-			if contents[record.ID] == "" {
-				continue
-			}
-			named, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte(poolContent+contents[record.ID]))
-			if err != nil {
-				return err
-			}
-			batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: named})
-			batch.Lineage = append(batch.Lineage, artifact.Lineage{Child: named, Parent: membership.ID, Relation: artifact.RelationContains})
+		if err := contain(batch, membership, contents); err != nil {
+			return err
 		}
+	}
+	return nil
+}
+
+// contain says, in batch, that a part holds the content of each of its records that has one recorded.
+func contain(batch *artifact.Batch, membership dataset.Membership, contents map[string]string) error {
+	for _, record := range membership.Records {
+		if contents[record.ID] == "" {
+			continue
+		}
+		named, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte(poolContent+contents[record.ID]))
+		if err != nil {
+			return err
+		}
+		batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: named})
+		batch.Lineage = append(batch.Lineage, artifact.Lineage{Child: named, Parent: membership.ID, Relation: artifact.RelationContains})
 	}
 	return nil
 }

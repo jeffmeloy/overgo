@@ -390,8 +390,8 @@ func TestInstructionAcceptanceBindsProtocolGroupsAndComparisons(t *testing.T) {
 	}
 
 	// By the group alone: a record no part holds, of a group that answered, and one of a group no part holds.
-	answered, _, _, err := exposure(ctx, store, apart, artifact.ID{}, dataset.Membership{Records: []dataset.Record{{ID: "a prompt no part holds", Group: promoted.Group}}})
-	if fresh, _, _, freshErr := exposure(ctx, store, apart, artifact.ID{}, dataset.Membership{Records: []dataset.Record{{ID: "a prompt no part holds", Group: "a group no part holds"}}}); err != nil || freshErr != nil || answered != 3 || fresh != 0 {
+	answered, _, _, _, err := exposure(ctx, store, apart, artifact.ID{}, dataset.Membership{Records: []dataset.Record{{ID: "a prompt no part holds", Group: promoted.Group}}})
+	if fresh, _, _, _, freshErr := exposure(ctx, store, apart, artifact.ID{}, dataset.Membership{Records: []dataset.Record{{ID: "a prompt no part holds", Group: "a group no part holds"}}}); err != nil || freshErr != nil || answered != 3 || fresh != 0 {
 		t.Fatalf("a new prompt of a group that answered three comparisons has answered %d, and one of a new group %d (%v, %v); want three and none", answered, fresh, err, freshErr)
 	}
 

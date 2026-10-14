@@ -45,7 +45,7 @@ type templateShaper struct {
 // every chat-template question in.
 func (s templateShaper) ShapeChatPrompt(prompt string) (string, error) {
 	*s.user = prompt
-	return userTurn(s.reader, prompt)
+	return userTurn(s.reader, prompt, false)
 }
 
 // readPrompts reads each multiple-choice case of a file as the model file at

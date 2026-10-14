@@ -137,21 +137,22 @@ func Record(
 	if err != nil {
 		return ExactResult{}, err
 	}
+	return record(ctx, generator, name, prompt, inference.GenerateOptions{MaxNewTokens: maxTokens, Sampler: greedy, DeviceGreedy: true})
+}
+
+// record generates one case under options and returns its complete text and token counts.
+func record(ctx context.Context, generator Generator, name, prompt string, options inference.GenerateOptions) (ExactResult, error) {
 	var generated strings.Builder
 	promptTokens := 0
 	started := processmeasure.NewStopwatch()
-	ids, _, err := generator.Generate(ctx, prompt, inference.GenerateOptions{
-		MaxNewTokens: maxTokens,
-		Sampler:      greedy,
-		DeviceGreedy: true,
-		OnToken: func(event inference.TokenEvent) error {
-			generated.WriteString(event.Piece)
-			return nil
-		},
-		OnPromptEvaluated: func(result inference.PromptEvaluation) {
-			promptTokens = result.Tokens
-		},
-	})
+	options.OnToken = func(event inference.TokenEvent) error {
+		generated.WriteString(event.Piece)
+		return nil
+	}
+	options.OnPromptEvaluated = func(result inference.PromptEvaluation) {
+		promptTokens = result.Tokens
+	}
+	ids, _, err := generator.Generate(ctx, prompt, options)
 	if err != nil {
 		return ExactResult{}, fmt.Errorf("evaluation: generated case %q: %w", name, err)
 	}

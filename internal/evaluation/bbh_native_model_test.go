@@ -205,7 +205,7 @@ func TestBBHNativeProtocolAcceptance(t *testing.T) {
 	for _, prompting := range []prompting{PromptingRawCompletion, PromptingChatTemplate} {
 		authorities.Execution.Prompting = prompting
 		// The retained identities are the whole family's; a measurement run scores a part of it.
-		derived, dropped, err := DeriveStoreSuiteFamily(t.Context(), store, authorities, "bbh"+WholeFamily)
+		derived, dropped, err := DeriveStoreSuiteFamily(t.Context(), store, authorities, "bbh"+wholeFamily)
 		if err != nil || len(derived) != 1 || len(dropped) != 0 || derived[0].Descriptor().Cases != 5761 {
 			t.Fatalf("BBH protocol dispatch failed: %v drops=%v", err, dropped)
 		}

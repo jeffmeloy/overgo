@@ -159,7 +159,7 @@ func recordExecution(ctx context.Context, store *overgodb.Store, record runrecor
 	if policy.Prompting == PromptingRawCompletion && scoredGlued(ctx, store, plan) {
 		summary.Prompting += protocolSeparator + gluedLetters
 	}
-	if policy.Prompting == PromptingChatTemplate {
+	if policy.Prompting == PromptingChatTemplate || policy.Prompting == PromptingReasoning {
 		summary.Unread = unreadAnswers(ctx, store, bound)
 	}
 	return summary

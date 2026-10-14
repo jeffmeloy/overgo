@@ -208,10 +208,10 @@ func TestConfirmationProtocolAndExposureSurviveReplacement(t *testing.T) {
 	if holds(moved, copied) {
 		owed++
 	}
-	if answered, _, _, err := exposure(ctx, store, original.Partition, artifact.ID{}, dataset.Membership{Records: []dataset.Record{{ID: copied, Group: copied}}}); err != nil || answered != owed {
+	if answered, _, _, _, err := exposure(ctx, store, original.Partition, artifact.ID{}, dataset.Membership{Records: []dataset.Record{{ID: copied, Group: copied}}}); err != nil || answered != owed {
 		t.Fatalf("a part holding a copy of a charged document has answered %d confirmations (%v), want the %d its content has", answered, err, owed)
 	}
-	answered, all, scope, err := exposure(ctx, store, original.Partition, artifact.ID{}, dataset.Membership{Records: []dataset.Record{{ID: fresh, Group: fresh}}})
+	answered, all, scope, _, err := exposure(ctx, store, original.Partition, artifact.ID{}, dataset.Membership{Records: []dataset.Record{{ID: fresh, Group: fresh}}})
 	if err != nil || answered != 0 || all != spent+1 || scope != objective.Dataset {
 		t.Fatalf("a part of a document no charged part holds has answered %d confirmations of the %d numbered under %s (%v), want none of the dataset's own %d", answered, all, scope, err, spent+1)
 	}

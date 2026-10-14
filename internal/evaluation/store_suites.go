@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -52,9 +53,9 @@ const (
 	// and the case's name, so the part drawn is the same on every machine and
 	// moves only when this does.
 	suiteDraw = "overgo/evaluation/suite-share/v1/"
-	// WholeFamily is the ending of a family's name that asks for every case of
+	// wholeFamily is the ending of a family's name that asks for every case of
 	// a family a measurement run scores a part of: "mmlu-pro/whole".
-	WholeFamily = "/whole"
+	wholeFamily = "/whole"
 )
 
 // suiteShares are the families a measurement run scores a part of, each
@@ -89,6 +90,39 @@ func drawShare(cases []storeCase, field string) {
 	}
 }
 
+// spacedFamily reads a family's name ending in "/N" as the family and N, and
+// another name as itself and none.
+func spacedFamily(name string) (string, int, error) {
+	family, count, cut := strings.Cut(name, "/")
+	if !cut {
+		return name, 0, nil
+	}
+	spaced, err := strconv.Atoi(count)
+	if err != nil || spaced <= 0 {
+		return "", 0, fmt.Errorf("evaluation: family %q ends in %q; a family's name ends in %s or in a count of its cases", name, count, wholeFamily)
+	}
+	return family, spaced, nil
+}
+
+// drawSpaced marks undrawn every case of a family but count of them taken
+// evenly through it in its order.
+//   - kept = case i*len/count for each i below count (mmlu-pro/40 keeps cases 0, 300 and 601 of 12,032 first)
+//   - sized = the family's assembler reads the draw (suiteShares)
+//   - refused for a family whose assembler would score every case anyway
+//   - refused for more cases than the family holds
+func drawSpaced(cases []storeCase, count int, sized bool) error {
+	if !sized || count > len(cases) {
+		return fmt.Errorf("a family scores %d of its %d cases taken evenly through it when it is one a measurement run scores a part of (%t) and holds that many", count, len(cases), sized)
+	}
+	for index := range cases {
+		cases[index].undrawn = true
+	}
+	for taken := range count {
+		cases[taken*len(cases)/count].undrawn = false
+	}
+	return nil
+}
+
 // DeriveStoreSuites compiles evaluation suites from the store's active
 // benchmark catalog: every imported lm_eval dataset becomes cases of
 // the suite kind its family was ported to, mirroring the conventions
@@ -109,7 +143,8 @@ func DeriveStoreSuites(
 // for a hundred-case family does not spend minutes assembling the whole
 // catalog first. An empty family derives every suite. A family a
 // measurement run scores a part of (suiteShares) is compiled as that part,
-// and whole when its name ends in WholeFamily.
+// whole when its name ends in wholeFamily, and as N of its cases taken
+// evenly through the whole when its name ends in "/N" (drawSpaced).
 func DeriveStoreSuiteFamily(
 	ctx context.Context,
 	reader artifact.Reader,
@@ -125,7 +160,11 @@ func deriveStoreSuites(
 	authorities ExactAuthorities,
 	wanted string,
 ) ([]CompiledSuite, map[string]int, error) {
-	wanted, whole := strings.CutSuffix(wanted, WholeFamily)
+	wanted, whole := strings.CutSuffix(wanted, wholeFamily)
+	wanted, spaced, err := spacedFamily(wanted)
+	if err != nil {
+		return nil, nil, err
+	}
 	families, _, err := storeFamilies(ctx, reader, wanted)
 	if err != nil {
 		return nil, nil, err
@@ -149,7 +188,13 @@ func deriveStoreSuites(
 	skipped := map[string]int{}
 	for _, name := range names {
 		assemble := assemblers[name]
-		if field, sized := suiteShares[name]; sized && !whole {
+		field, sized := suiteShares[name]
+		switch {
+		case spaced > 0:
+			if err := drawSpaced(families[name], spaced, sized); err != nil {
+				return nil, nil, fmt.Errorf("evaluation: %s/%d: %w", name, spaced, err)
+			}
+		case sized && !whole:
 			drawShare(families[name], field)
 		}
 		source, dropped, err := assemble(families[name])

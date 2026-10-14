@@ -103,7 +103,7 @@ func reacquireCommand(cell ModelValidation, store string) (string, []string, err
 		"-family", cell.Validation, "-budget", benchmarkBudget.String(),
 	}
 	if cell.Protocol == evaluation.PromptingChatTemplate.Label() {
-		args = append(args, "-chat-protocol")
+		args = append(args, "-protocol", cell.Protocol)
 	}
 	return "go", args, nil
 }

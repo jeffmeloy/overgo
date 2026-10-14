@@ -146,7 +146,7 @@ func confirmOnPart(ctx context.Context, store artifact.Repository, head artifact
 		return PoolConfirmation{}, 0, err
 	}
 	// What other grants have charged for on these documents is spent here too.
-	earlier, charged, scope, err := exposure(ctx, store, partition, budget.ID, membership)
+	earlier, charged, scope, developed, err := exposure(ctx, store, partition, budget.ID, membership)
 	if err != nil {
 		return PoolConfirmation{}, 0, err
 	}
@@ -162,6 +162,10 @@ func confirmOnPart(ctx context.Context, store artifact.Repository, head artifact
 			}
 		}
 	} else {
+		if developed.Valid() {
+			return PoolConfirmation{}, 0, fmt.Errorf("evaluation: the promotion part of pool %s holds what a case of development part %s asks, which was read as development evidence and is not held out; nothing was charged or read, and a partition without it is held out",
+				acceptance, developed)
+		}
 		if remaining == 0 {
 			return PoolConfirmation{}, 0, fmt.Errorf("evaluation: the promotion part of pool %s has answered the %d confirmations its %d documents allow, %d of them under other acceptances; a further one needs a fresh partition",
 				acceptance, issued, documents, earlier)
@@ -240,10 +244,14 @@ func confirmOnPart(ctx context.Context, store artifact.Repository, head artifact
 // whichever of those datasets they are read, so two confirmations that would
 // each be the next on parts that share documents, under one dataset or under
 // two, ask the store for one key.
-func exposure(ctx context.Context, reader artifact.Reader, partition runrecord.SplitPartition, own artifact.ID, promotion dataset.Membership) (earlier, charged uint64, scope artifact.ID, err error) {
+//
+// developed names a development part published as containing what a document
+// of the part asks (exposeDevelopment), none when no such part holds one.
+//   - a development part numbers no charge because it is granted no confirmation
+func exposure(ctx context.Context, reader artifact.Reader, partition runrecord.SplitPartition, own artifact.ID, promotion dataset.Membership) (earlier, charged uint64, scope, developed artifact.ID, err error) {
 	contents, err := recordContents(ctx, reader, partition.Dataset)
 	if err != nil {
-		return 0, 0, scope, err
+		return 0, 0, scope, developed, err
 	}
 	// held are the documents by record, group and content; names are their contents as every dataset names them.
 	held, names := map[string]bool{}, map[artifact.ID]bool{}
@@ -254,7 +262,7 @@ func exposure(ctx context.Context, reader artifact.Reader, partition runrecord.S
 		}
 		named, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte(poolContent+contents[record.ID]))
 		if err != nil {
-			return 0, 0, scope, err
+			return 0, 0, scope, developed, err
 		}
 		names[named] = true
 	}
@@ -262,7 +270,7 @@ func exposure(ctx context.Context, reader artifact.Reader, partition runrecord.S
 	if promotion.ID.Valid() {
 		published, err := partContents(ctx, reader, promotion.ID)
 		if err != nil {
-			return 0, 0, scope, err
+			return 0, 0, scope, developed, err
 		}
 		for _, named := range published {
 			names[named] = true
@@ -274,26 +282,26 @@ func exposure(ctx context.Context, reader artifact.Reader, partition runrecord.S
 	for at := 0; at < len(datasets); at++ {
 		partitions, err := reader.Children(ctx, datasets[at])
 		if err != nil {
-			return 0, 0, scope, err
+			return 0, 0, scope, developed, err
 		}
 		for _, edge := range partitions {
 			if descriptor, _, err := reader.Artifact(ctx, edge.Child); err != nil {
-				return 0, 0, scope, err
+				return 0, 0, scope, developed, err
 			} else if descriptor.MediaType != runrecord.SplitPartitionMediaType {
 				continue
 			}
 			content, _, err := artifact.ReadContent(ctx, reader, edge.Child)
 			if err != nil {
-				return 0, 0, scope, err
+				return 0, 0, scope, developed, err
 			}
 			other, err := runrecord.ParseSplitPartition(content.Data)
 			if err != nil {
-				return 0, 0, scope, err
+				return 0, 0, scope, developed, err
 			}
 			for _, shard := range []artifact.ID{other.Promotion, other.Audit} {
 				membership, found, err := dataset.LoadMembership(ctx, reader, shard)
 				if err != nil || !found {
-					return 0, 0, scope, errors.Join(fmt.Errorf("evaluation: the pool's part %s is not committed", shard), err)
+					return 0, 0, scope, developed, errors.Join(fmt.Errorf("evaluation: the pool's part %s is not committed", shard), err)
 				}
 				numbered[shard] = true
 				if datasets[at] == partition.Dataset && slices.ContainsFunc(membership.Records, func(record dataset.Record) bool {
@@ -303,7 +311,7 @@ func exposure(ctx context.Context, reader artifact.Reader, partition runrecord.S
 				}
 				published, err := partContents(ctx, reader, shard)
 				if err != nil {
-					return 0, 0, scope, err
+					return 0, 0, scope, developed, err
 				}
 				for _, named := range published {
 					if names[named] {
@@ -312,7 +320,7 @@ func exposure(ctx context.Context, reader artifact.Reader, partition runrecord.S
 					// Whoever else holds the content brings its dataset into the count.
 					holders, err := reader.Parents(ctx, named)
 					if err != nil {
-						return 0, 0, scope, err
+						return 0, 0, scope, developed, err
 					}
 					for _, holder := range holders {
 						if holder.Relation != artifact.RelationContains || numbered[holder.Parent] {
@@ -320,7 +328,13 @@ func exposure(ctx context.Context, reader artifact.Reader, partition runrecord.S
 						}
 						part, found, err := dataset.LoadMembership(ctx, reader, holder.Parent)
 						if err != nil || !found {
-							return 0, 0, scope, errors.Join(fmt.Errorf("evaluation: the part %s that holds a document of the pool is not committed", holder.Parent), err)
+							return 0, 0, scope, developed, errors.Join(fmt.Errorf("evaluation: the part %s that holds a document of the pool is not committed", holder.Parent), err)
+						}
+						if part.Partition == PoolParts[poolDevelopment] {
+							if names[named] {
+								developed = holder.Parent
+							}
+							continue
 						}
 						if !slices.Contains(datasets, part.Source) {
 							datasets = append(datasets, part.Source)
@@ -333,17 +347,17 @@ func exposure(ctx context.Context, reader artifact.Reader, partition runrecord.S
 	for shard := range numbered {
 		grants, err := reader.Children(ctx, shard)
 		if err != nil {
-			return 0, 0, scope, err
+			return 0, 0, scope, developed, err
 		}
 		for _, grant := range grants {
 			if descriptor, _, err := reader.Artifact(ctx, grant.Child); err != nil {
-				return 0, 0, scope, err
+				return 0, 0, scope, developed, err
 			} else if descriptor.MediaType != runrecord.BudgetMediaType {
 				continue
 			}
 			budget, charges, err := runrecord.BudgetCharges(ctx, reader, grant.Child)
 			if err != nil {
-				return 0, 0, scope, err
+				return 0, 0, scope, developed, err
 			}
 			for _, charge := range charges {
 				if budget.Unit != poolUnit {
@@ -356,7 +370,7 @@ func exposure(ctx context.Context, reader artifact.Reader, partition runrecord.S
 			}
 		}
 	}
-	return earlier, charged, slices.MinFunc(datasets, func(left, right artifact.ID) int { return cmp.Compare(left.String(), right.String()) }), nil
+	return earlier, charged, slices.MinFunc(datasets, func(left, right artifact.ID) int { return cmp.Compare(left.String(), right.String()) }), developed, nil
 }
 
 // partContents are the names a part was published as containing: its

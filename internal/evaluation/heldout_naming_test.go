@@ -145,7 +145,7 @@ func TestMaterialChargedUnnamedIsNotFreshWhenImportedAgain(t *testing.T) {
 	}
 	answered := func() uint64 {
 		t.Helper()
-		spent, _, _, err := exposure(ctx, store, later.Partition, artifact.ID{}, membership)
+		spent, _, _, _, err := exposure(ctx, store, later.Partition, artifact.ID{}, membership)
 		if err != nil {
 			t.Fatal(err)
 		}

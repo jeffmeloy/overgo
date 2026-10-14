@@ -35,12 +35,10 @@ type manifest struct {
 	CodeCommit string         `json:"code_commit"`
 	Device     int            `json:"device"`
 	Models     []modelRequest `json:"models"`
-	// ChatProtocol scores multiple-choice prompts through each model's
-	// declared chat template instead of the raw base-style completion.
-	// The raw protocol stays the recorded anchor: template presence does
-	// not distinguish base from instruct artifacts, so the shaped
-	// protocol is an explicit measurement choice.
-	ChatProtocol bool `json:"chat_protocol,omitzero"`
+	// Protocol names how each model is asked (evaluation.PromptingNamed),
+	// raw completion when empty.
+	//   - raw completion = the recorded anchor because template presence does not distinguish base from instruct artifacts
+	Protocol string `json:"protocol,omitzero"`
 }
 
 type modelRequest struct {
@@ -75,9 +73,9 @@ func run() error {
 	listSuites := flag.Bool("list-derived-suites", false, "compile the store's benchmark catalog into suites and list their descriptors")
 	repository := flag.String("repo", "overgodb-store", "OvergoDB root for -import-hf-cache, -list-derived-suites, and -all")
 	allModels := flag.Bool("all", false, "evaluate every servable local model against the store's derived suites")
-	chatProtocol := flag.Bool("chat-protocol", false, "score multiple-choice suites through each model's declared chat template; the raw completion protocol stays the recorded anchor")
+	protocol := flag.String("protocol", evaluation.PromptingRawCompletion.Label(), "how each model is asked: raw-completion scores the plain prompt's options by likelihood and stays the recorded anchor; chat-template asks a multiple-choice question through the model's declared chat template for its letter at once; exploratory-reasoning asks it there with thinking on and a long sampled answer, and publishes every question it asks as development evidence")
 	device := flag.Int("device", 0, "CUDA device ordinal for -all")
-	family := flag.String("family", "", "restrict -all and -list-derived-suites to one derived suite family (e.g. mmlu); only that family's records are read and compiled. A family a measurement run scores a part of, mmlu-pro, bbh and ifeval, is that part; append /whole for every case of it (mmlu-pro/whole)")
+	family := flag.String("family", "", "restrict -all and -list-derived-suites to one derived suite family (e.g. mmlu); only that family's records are read and compiled. A family a measurement run scores a part of, mmlu-pro, bbh and ifeval, is that part; append /whole for every case of it (mmlu-pro/whole), or /N for N of its cases taken evenly through the whole (mmlu-pro/40)")
 	catalogLimit := flag.Int("catalog-limit", 256, "servable model listing bound for -all")
 	declareDomains := flag.String("declare-domain", "", "comma-separated eval domains to declare for the positional model path (e.g. dna)")
 	declareReferences := flag.String("declare-references", "", "JSON spec of published or externally measured reference scores per model location ({declarations:[{model, references:[{suite, metric, value, protocol, source}]}]})")
@@ -117,10 +115,14 @@ func run() error {
 	documentsParquet := flag.String("build-carried-documents", "", "write the carried-continuation suite of this WikiText-2 test parquet file to -suite-out: the start of every article long enough for a model to write four chunks into its memory and be asked, shown nothing, for the opening of the fifth")
 	tabularParquet := flag.String("build-tabular-requests", "", "write the held-out classification requests of this credit-g parquet table to the directory -requests-out names: disjoint requests of context rows with their classes and query rows to answer")
 	requestsOut := flag.String("requests-out", "", "with -build-tabular-requests: the directory the request files are written to")
-	promptCases := flag.String("read-prompts", "", "print, as JSON, each multiple-choice case of this file as the model file -model-path names is given it, read from that file's chat template and vocabulary without loading the model: under -chat-protocol the question as one user turn with the answer opened, and the tokens a generation starts from; else the prompt's tokens and each candidate's continuation, as raw completion scores them; a case that is a bare sequence, as a sequence-scoring suite holds, is read whole after the prefix the vocabulary declares")
+	promptCases := flag.String("read-prompts", "", "print, as JSON, each multiple-choice case of this file as the model file -model-path names is given it, read from that file's chat template and vocabulary without loading the model: under -protocol chat-template the question as one user turn with the answer opened, and the tokens a generation starts from; else the prompt's tokens and each candidate's continuation, as raw completion scores them; a case that is a bare sequence, as a sequence-scoring suite holds, is read whole after the prefix the vocabulary declares")
 	suiteOut := flag.String("suite-out", "", "with a -build- flag: the suite file to write")
 	cpuProfile := flag.String("cpuprofile", "", "write a Go CPU profile of this process to the file (the host side of a pass; a worker's file is its own)")
 	flag.Parse()
+	asked, err := evaluation.PromptingNamed(*protocol)
+	if err != nil {
+		return err
+	}
 	analysisPath := cmp.Or(strings.TrimSpace(*alignmentManifest), strings.TrimSpace(*diarizationManifest))
 	if path := analysisPath; path != "" {
 		if flag.NArg() != 0 || *worker || *allModels || *manifestPath != "" || *transcriptionManifest != "" || *transcriptionResourceManifest != "" || *cpuProfile != "" || *importCache != "" || *listSuites || *importDNA != "" || *declareDomains != "" || *declareReferences != "" {
@@ -163,10 +165,10 @@ func run() error {
 		return evaluateTranscriptionManifest(context.Background(), *repository, path)
 	}
 	if cases := strings.TrimSpace(*promptCases); cases != "" {
-		if flag.NArg() != 0 || *worker || *allModels || strings.TrimSpace(*modelPath) == "" {
-			return errors.New("usage: evaluate -read-prompts <cases.json> -model-path <model.gguf> [-chat-protocol]")
+		if flag.NArg() != 0 || *worker || *allModels || strings.TrimSpace(*modelPath) == "" || asked == evaluation.PromptingReasoning {
+			return errors.New("usage: evaluate -read-prompts <cases.json> -model-path <model.gguf> [-protocol raw-completion|chat-template]")
 		}
-		return writePrompts(strings.TrimSpace(*modelPath), cases, *chatProtocol)
+		return writePrompts(strings.TrimSpace(*modelPath), cases, asked == evaluation.PromptingChatTemplate)
 	}
 	if path := strings.TrimSpace(*transcriptionResourceManifest); path != "" {
 		if flag.NArg() != 0 || *worker || strings.TrimSpace(*manifestPath) != "" || *allModels {
@@ -291,9 +293,9 @@ func run() error {
 			return errors.New("usage: evaluate -all [-repo <store>] [-device N] [-family name]")
 		}
 		if *worker {
-			return runAllWorker(context.Background(), *repository, *device, *family, *modelPath, *chatProtocol, *budget)
+			return runAllWorker(context.Background(), *repository, *device, *family, *modelPath, *protocol, *budget)
 		}
-		return runAllParent(context.Background(), *repository, *device, *family, *catalogLimit, *chatProtocol, *budget)
+		return runAllParent(context.Background(), *repository, *device, *family, *catalogLimit, *protocol, *budget)
 	}
 	if *listSuites {
 		if flag.NArg() != 0 || *worker || strings.TrimSpace(*manifestPath) != "" {

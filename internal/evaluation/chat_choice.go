@@ -62,12 +62,16 @@ const chatAnswerTokens = 8
 // drift from what is done. Under the chat template the model answers at once:
 // its turn is opened for it and a letter is read from the few tokens that
 // follow, which is not how a model published with a thinking-mode figure was
-// measured. It reports false for a label that names neither protocol.
+// measured. It reports false for a label that names no protocol it describes.
 func ChoiceProtocol(label string) (string, bool) {
 	switch label {
 	case PromptingChatTemplate.Label():
 		return fmt.Sprintf("the question is asked through the model's own chat template, with thinking switched off where the template has the switch and %q added; the model's turn is opened with %q, and its answer is the first option letter in the %d tokens it writes next; an answer that names no letter in them is counted wrong, and a reading says how many of its answers did not. The model answers at once, with no room to reason first, so a figure its maker measured in a thinking mode is not this measure",
 			strings.TrimSpace(chatChoiceInstruction), chatAnswerOpener, chatAnswerTokens), true
+	case PromptingReasoning.Label():
+		policy := exploratoryReasoning()
+		return fmt.Sprintf("the question is asked through the model's own chat template, with thinking left on where the template has the switch and %q added; the model writes up to %d tokens, sampled at temperature %g, top-p %g, top-k %d, min-p %g and a presence penalty of %g over the last %d tokens, with a seed for each question; its answer is read from what it says after its thought closes, as the letter of the last \"answer is\" there and else the last option letter standing alone, and an answer whose thought never closes is counted wrong. The protocol is exploratory: every question it asks is published as development evidence, and a held-out part that holds one is refused a confirmation",
+			strings.TrimSpace(policy.Wording), policy.MaxTokens, policy.Temperature, policy.TopP, policy.TopK, policy.MinP, policy.PresencePenalty, policy.PenaltyWindow), true
 	case PromptingRawCompletion.Label():
 		return "the question is given as plain text with no chat template, and the model's answer is the option it finds likeliest to come next; no text is generated, so a model trained only to converse is asked in a form it was not trained on", true
 	case PromptingRawCompletion.Label() + protocolSeparator + gluedLetters:
@@ -81,18 +85,23 @@ func ChoiceProtocol(label string) (string, bool) {
 // carry the suite's leading space; the comparison ignores it.
 func matchChoiceLetter(text string, candidates []string) (int, bool) {
 	runes := []rune(text)
-	for position, char := range runes {
-		if position > 0 && unicode.IsLetter(runes[position-1]) {
-			continue
+	for position := range runes {
+		if index, matched := choiceLetterAt(runes, position, candidates); matched {
+			return index, true
 		}
-		if position+1 < len(runes) && unicode.IsLetter(runes[position+1]) {
-			continue
-		}
-		for index, candidate := range candidates {
-			letter := []rune(strings.TrimSpace(candidate))
-			if len(letter) == 1 && letter[0] == char {
-				return index, true
-			}
+	}
+	return 0, false
+}
+
+// choiceLetterAt reads the candidate letter at position of runes where it stands alone, not part of a longer word.
+func choiceLetterAt(runes []rune, position int, candidates []string) (int, bool) {
+	if position > 0 && unicode.IsLetter(runes[position-1]) || position+1 < len(runes) && unicode.IsLetter(runes[position+1]) {
+		return 0, false
+	}
+	for index, candidate := range candidates {
+		letter := []rune(strings.TrimSpace(candidate))
+		if len(letter) == 1 && letter[0] == runes[position] {
+			return index, true
 		}
 	}
 	return 0, false
@@ -127,7 +136,7 @@ type ChatShaper interface {
 // follows. The evaluation generates from exactly this, so a reader of what a
 // model is asked reads it here and nowhere else.
 func ChatChoicePrompt(shaper ChatShaper, testCase MultipleChoiceCase) (string, error) {
-	prompt, _, err := chatChoicePrompt(testCase)
+	prompt, _, err := chatChoicePrompt(testCase, chatChoiceInstruction)
 	if err != nil {
 		return "", err
 	}
@@ -141,7 +150,7 @@ func ChatChoicePrompt(shaper ChatShaper, testCase MultipleChoiceCase) (string, e
 // chatChoiceLetters returns the letters the extractor reads for a case,
 // the same ones answerChoiceByGeneration asked for.
 func chatChoiceLetters(testCase MultipleChoiceCase) []string {
-	_, letters, err := chatChoicePrompt(testCase)
+	_, letters, err := chatChoicePrompt(testCase, chatChoiceInstruction)
 	if err != nil {
 		return testCase.Candidates
 	}
@@ -152,17 +161,17 @@ func chatChoiceLetters(testCase MultipleChoiceCase) []string {
 // carry: one letter per option through Z.
 const chatOptionLetters = 26
 
-// chatChoicePrompt renders the case for the chat protocol and returns the
-// letter candidates the extractor reads. A suite whose candidates are
-// already letters (MMLU's " A".." D") asks for the letter directly. A
-// suite whose candidates are answer texts (BBH's " False"/" True",
-// MuSR's option sentences) lists them as lettered options after the
-// prompt and asks for the letter, so the model answers a choice question
-// the way an instruct model is prompted to, and the letter maps back to
-// the candidate index.
-func chatChoicePrompt(testCase MultipleChoiceCase) (string, []string, error) {
+// chatChoicePrompt renders the case for the chat protocol, closed by
+// instruction, and returns the letter candidates the extractor reads. A
+// suite whose candidates are already letters (MMLU's " A".." D") asks for
+// the letter directly. A suite whose candidates are answer texts (BBH's
+// " False"/" True", MuSR's option sentences) lists them as lettered options
+// after the prompt and asks for the letter, so the model answers a choice
+// question the way an instruct model is prompted to, and the letter maps
+// back to the candidate index.
+func chatChoicePrompt(testCase MultipleChoiceCase, instruction string) (string, []string, error) {
 	if choiceCandidatesAreLetters(testCase.Candidates) {
-		return testCase.Prompt + chatChoiceInstruction, testCase.Candidates, nil
+		return testCase.Prompt + instruction, testCase.Candidates, nil
 	}
 	if len(testCase.Candidates) > chatOptionLetters {
 		return "", nil, fmt.Errorf("evaluation: case %s has %d options, more than the %d letters a chat prompt can list",
@@ -180,7 +189,7 @@ func chatChoicePrompt(testCase MultipleChoiceCase) (string, []string, error) {
 		prompt.WriteString(". ")
 		prompt.WriteString(strings.TrimSpace(candidate))
 	}
-	prompt.WriteString(chatChoiceInstruction)
+	prompt.WriteString(instruction)
 	return prompt.String(), letters, nil
 }
 
@@ -209,7 +218,7 @@ func validateChatChoiceSuite(cases []MultipleChoiceCase) error {
 		if len(testCase.Candidates) == 0 {
 			return fmt.Errorf("evaluation: case %s has no candidates for the chat-template protocol", testCase.Name)
 		}
-		if _, _, err := chatChoicePrompt(testCase); err != nil {
+		if _, _, err := chatChoicePrompt(testCase, chatChoiceInstruction); err != nil {
 			return err
 		}
 	}

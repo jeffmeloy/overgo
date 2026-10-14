@@ -107,11 +107,14 @@ func openEvaluationSession(ctx context.Context, value manifest, request modelReq
 		_ = runner.Close()
 		return fail(err)
 	}
+	prompting, err := evaluation.PromptingNamed(cmp.Or(value.Protocol, evaluation.PromptingRawCompletion.Label()))
+	if err != nil {
+		_ = runner.Close()
+		return fail(err)
+	}
 	runtime := evaluation.Runtime(runner)
-	prompting := evaluation.PromptingRawCompletion
-	if value.ChatProtocol {
+	if prompting != evaluation.PromptingRawCompletion {
 		runtime = chatShapedRuntime{runner}
-		prompting = evaluation.PromptingChatTemplate
 	}
 	campaign, err := evaluation.NewIsolatedCampaign(store, runtime, identity, environment, value.CodeCommit)
 	if err != nil {
@@ -141,19 +144,36 @@ type chatFormatter interface {
 }
 
 // userTurn renders the prompt as one user turn with the model turn
-// opened, thinking disabled where the template offers the switch: the
-// evaluation asks for the answer letter, not a reasoning trace.
-func userTurn(formatter chatFormatter, prompt string) (string, error) {
+// opened, thinking switched on or off where the template offers the switch.
+//   - off for the chat-template protocol because it asks for the answer letter, not a reasoning trace
+func userTurn(formatter chatFormatter, prompt string, thinking bool) (string, error) {
 	return formatter.FormatChatWithOptions(
 		[]inference.ChatMessage{{Role: inference.ChatRoleUser, Content: prompt}},
-		inference.ChatFormatOptions{AddGenerationPrompt: true, EnableThinking: false},
+		inference.ChatFormatOptions{AddGenerationPrompt: true, EnableThinking: thinking},
 	)
 }
 
 // ShapeChatPrompt renders the prompt as the user turn the evaluation asks
 // every chat-template question in.
 func (r chatShapedRuntime) ShapeChatPrompt(prompt string) (string, error) {
-	return userTurn(r.Runner, prompt)
+	return userTurn(r.Runner, prompt, false)
+}
+
+// ShapeChatTurn renders the prompt as one user turn with the model turn
+// opened and thinking as the reasoning protocol asks.
+func (r chatShapedRuntime) ShapeChatTurn(prompt string, thinking bool) (string, error) {
+	return userTurn(r.Runner, prompt, thinking)
+}
+
+// AfterThought is what a generation said after its thought closed, by the
+// reasoning markers the model's template declares.
+//   - closed = false <=> no marker closed a thought in the text, or the markers do not parse.
+func (r chatShapedRuntime) AfterThought(text string) (string, bool) {
+	message, err := r.Runner.ParseChatOutput(text, nil)
+	if err != nil {
+		return "", false
+	}
+	return message.Content, message.Content != text
 }
 
 // Generate parses the template's special tokens out of the shaped

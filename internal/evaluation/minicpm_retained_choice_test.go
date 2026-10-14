@@ -158,7 +158,7 @@ func checkRetainedGeneratedChoices(cases []MultipleChoiceCase, report GroupedCho
 			return fmt.Errorf("retained choices: case %d identity, target or generated method differs", index)
 		}
 		seen[row.Name] = true
-		_, letters, err := chatChoicePrompt(c)
+		_, letters, err := chatChoicePrompt(c, chatChoiceInstruction)
 		if err != nil {
 			return err
 		}

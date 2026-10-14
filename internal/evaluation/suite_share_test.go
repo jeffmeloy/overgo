@@ -31,9 +31,11 @@ import (
 // answers still offers the four its whole task has.
 //
 // The store: a family a run scores a part of is derived as that part, the
-// same part each time, and whole when its name ends in /whole; the part's
-// cases are cases of the whole, and it is a suite of its own, so its readings
-// are compared with each other and not with the whole suite's.
+// same part each time, whole when its name ends in /whole, and as N cases
+// taken evenly through the whole when it ends in /N; the part's cases are
+// cases of the whole, and it is a suite of its own, so its readings are
+// compared with each other and not with the whole suite's. A count the family
+// cannot give, or no count, is refused.
 func TestEvaluationSuitesAreSizedForTheirDecisions(t *testing.T) {
 	t.Parallel()
 	sizes := map[string]int{"physics": 30, "law": 7, "history": 1, "math": 100}
@@ -191,7 +193,7 @@ func TestEvaluationSuitesAreSizedForTheirDecisions(t *testing.T) {
 	}
 	part, partCases := derive("ifeval")
 	again, againCases := derive("ifeval")
-	all, allCases := derive("ifeval" + WholeFamily)
+	all, allCases := derive("ifeval" + wholeFamily)
 	if want := (prompts + suiteShare - 1) / suiteShare; part.Cases != uint64(want) || len(partCases) != want || all.Cases != prompts {
 		t.Fatalf("a run scores %d of IFEval's %d prompts and the whole family is %d, want %d and %d", part.Cases, prompts, all.Cases, want, prompts)
 	}
@@ -204,6 +206,15 @@ func TestEvaluationSuitesAreSizedForTheirDecisions(t *testing.T) {
 	for _, name := range partCases {
 		if !slices.Contains(allCases, name) {
 			t.Fatalf("the part scores %s, which is no case of the whole family", name)
+		}
+	}
+	// A count of a family's cases is taken evenly through the whole: five of twenty-five are every fifth.
+	if _, spacedCases := derive("ifeval/5"); !slices.Equal(spacedCases, []string{allCases[0], allCases[5], allCases[10], allCases[15], allCases[20]}) {
+		t.Fatalf("five cases taken evenly through the family are %v, want every fifth of %v", spacedCases, allCases)
+	}
+	for _, refused := range []string{"ifeval/26", "ifeval/0", "ifeval/some"} {
+		if _, _, err := DeriveStoreSuiteFamily(ctx, store, authorities, refused); err == nil {
+			t.Errorf("family %s was derived, want it refused", refused)
 		}
 	}
 }

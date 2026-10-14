@@ -188,17 +188,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 2103,
+        "nodes": 0,
         "reason": "measured by the preflight of step protocol's change: a protocol of the evaluation command whose identity holds every input that decides an answer, the parser of a reasoned answer, and the refusal of exposed cases as held-out evidence"
       },
       "steps": [
-        {
-          "id": "protocol",
-          "title": "Make the exploratory request protocol a named, fully identified protocol of the evaluation command",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestEvaluationProtocolCapturesAllPolicyInputs$'",
-          "rationale": "From the proposal, kept. The largest quality effect on record, 34 correct answers against 20 on the same 40 questions for Qwen3.5-4B, came from a scratch program the evaluation tools cannot run (finding 69b4c1ed, by the proposal). It changed the thinking switch, the wording, the sampling settings, the token limit and the answer parser together, so the gain belongs to the whole protocol until ablations separate them. Identify all of those with the model, the cases and the scorer; mark the 40 cases as exposed development evidence.\nServes: held-out-quality.\nDisappears: a result only a scratch program can produce.\nEvidence: host fixtures show the command expresses and records the whole protocol.\nBatch: host."
-        },
         {
           "id": "reproduce",
           "title": "Reproduce the result once with the named protocol, and state the difference a search must detect",

@@ -215,18 +215,25 @@ func BindMultipleChoice(compiled multipleChoicePlan, authorities ExactAuthoritie
 		Version: artifact.InitialDocumentVersion, Kind: MultipleChoiceKind,
 		Normalization: compiled.suite.Normalization, TieBreak: compiled.suite.TieBreak, Aggregation: compiled.suite.Aggregation,
 	}
-	if prompting := authorities.Execution.Prompting; prompting == PromptingChatTemplate || prompting == PromptingHostedChat {
+	if prompting := authorities.Execution.Prompting; prompting == PromptingChatTemplate || prompting == PromptingHostedChat || prompting == PromptingReasoning {
 		if err := validateChatChoiceSuite(compiled.suite.Cases); err != nil {
 			return Plan{}, err
 		}
 		scorer.Method = chatChoiceMethod
-		if prompting == PromptingHostedChat {
+		switch prompting {
+		case PromptingHostedChat:
 			scorer.Method = hostedChoiceMethod
+		case PromptingReasoning:
+			// parser = the scorer's method, so another parser reads answers already given without asking again.
+			scorer.Method = authorities.Execution.Reasoning.Parser
+			if _, known := reasonedParsers[scorer.Method]; !known {
+				return Plan{}, fmt.Errorf("evaluation: the %s protocol reads answers by parser %q, which is none of the %d this code holds", prompting.Label(), scorer.Method, len(reasonedParsers))
+			}
 		}
 	} else if compiled.delimiter != "" {
 		scorer.Method = delimitedChoiceMethod
 	}
-	return bindPlan(compiled.dataset, compiled.split, compiled.identity, compiled.suite, scorer, authorities)
+	return bindAsked(compiled.dataset, compiled.split, compiled.identity, compiled.suite, scorer, authorities)
 }
 
 func evaluateMultipleChoice(
@@ -288,6 +295,7 @@ type askedChoice struct {
 // (loadAnswers): a suite scored again, under another normalization or
 // tie-break or against corrected answers, puts no case to the model, and one
 // that stopped part way resumes after the cases it answered.
+//   - plan under the reasoning protocol => its cases are published as development evidence before any is asked
 func scoreMultipleChoice(
 	ctx context.Context,
 	repository artifact.Repository,
@@ -308,9 +316,23 @@ func scoreMultipleChoice(
 	progress := trackProgress(ctx, suite.Source, len(suite.Cases))
 	held.said(progress, len(suite.Cases))
 	chat, generative := scorer.(chatChoiceRuntime)
+	reasoner, _ := scorer.(reasoningRuntime)
+	reasons := plan.reasoning != reasoningPolicy{}
+	if reasons && reasoner == nil {
+		return nil, artifact.ID{}, 0, fmt.Errorf("evaluation: the %s protocol asks a runtime that shapes a turn with thinking switched and reads what follows a thought, and %T does neither", PromptingReasoning.Label(), scorer)
+	}
+	if reasons {
+		if err := exposeDevelopment(ctx, repository, plan, suite.Cases); err != nil {
+			return nil, artifact.ID{}, 0, err
+		}
+	}
 	var probe chatProbe
 	for index, testCase := range suite.Cases {
 		answer, err := held.answer(ctx, index, func() (choiceAnswer, error) {
+			if reasons {
+				written, err := answerChoiceByReasoning(ctx, reasoner, plan.reasoning, testCase)
+				return choiceAnswer{Written: &written}, err
+			}
 			if generative {
 				written, err := answerChoiceByGeneration(ctx, chat, testCase)
 				return choiceAnswer{Written: &written}, err
@@ -324,7 +346,12 @@ func scoreMultipleChoice(
 		if err != nil {
 			return nil, artifact.ID{}, 0, err
 		}
-		if observations[index], err = scoreChoice(testCase, answer, suite.Normalization); err != nil {
+		if reasons {
+			observations[index], err = readReasonedChoice(testCase, answer, plan.reasoning, reasoner)
+		} else {
+			observations[index], err = scoreChoice(testCase, answer, suite.Normalization)
+		}
+		if err != nil {
 			return nil, artifact.ID{}, 0, errors.Join(err, held.write(ctx))
 		}
 		if answer.Written != nil {

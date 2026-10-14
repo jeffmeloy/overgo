@@ -119,11 +119,14 @@ func (campaign *Campaign) Authorities() ExactAuthorities {
 	if campaign == nil {
 		return ExactAuthorities{}
 	}
+	execution := ExecutionPolicy{Lifecycle: campaign.lifecycle, Prompting: campaign.prompting}
+	if campaign.prompting == PromptingReasoning {
+		execution.Reasoning = exploratoryReasoning()
+	}
 	return ExactAuthorities{
 		ModelDefinition: campaign.identity.Definition, RuntimeRecipe: campaign.identity.Recipe,
 		CodeCommit: campaign.commit, Environment: campaign.environment.ID,
-		Execution:   ExecutionPolicy{Lifecycle: campaign.lifecycle, Prompting: campaign.prompting},
-		AnswerScope: campaign.answered,
+		Execution: execution, AnswerScope: campaign.answered,
 	}
 }
 

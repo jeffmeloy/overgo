@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"sort"
 
@@ -58,12 +59,18 @@ type ExecutionPolicy struct {
 	// chat template. Two protocols are two plans, so their records
 	// never collapse into one "latest" score.
 	Prompting prompting `json:"prompting,omitzero"`
+	// Reasoning is every setting the reasoning protocol asks under.
+	//   - zero under every other protocol => absent from its execution document
+	Reasoning reasoningPolicy `json:"reasoning,omitzero"`
 }
 
 // valid accepts only the lifecycle and prompting contracts the runtime owns.
+//   - Reasoning set <=> Prompting = PromptingReasoning
 func (policy ExecutionPolicy) valid() bool {
+	reasons := policy.Prompting == PromptingReasoning
 	return (policy.Lifecycle == LifecycleIsolated || policy.Lifecycle == LifecycleResident) &&
-		(policy.Prompting == PromptingRawCompletion || policy.Prompting == PromptingChatTemplate || policy.Prompting == PromptingHostedChat)
+		(policy.Prompting == PromptingRawCompletion || policy.Prompting == PromptingChatTemplate || policy.Prompting == PromptingHostedChat || reasons) &&
+		reasons == (policy.Reasoning != reasoningPolicy{}) && (!reasons || policy.Reasoning.valid())
 }
 
 // prompting is the prompt-shaping protocol an execution policy binds.
@@ -80,6 +87,10 @@ const (
 	// so the answer opener rides the user message and no likelihood is
 	// observable; suites score generatively.
 	PromptingHostedChat prompting = "hosted-chat"
+	// PromptingReasoning asks each choice question through the model's
+	// declared chat template and lets the model write up to a long limit
+	// before an answer parser reads its choice (exploratoryReasoning).
+	PromptingReasoning prompting = "exploratory-reasoning"
 )
 
 // Label names the protocol for reports; the raw default reads as such.
@@ -88,6 +99,19 @@ func (prompting prompting) Label() string {
 		return "raw-completion"
 	}
 	return string(prompting)
+}
+
+// PromptingNamed returns the protocol a local model is asked under by its label.
+//   - accepted = raw-completion, chat-template, exploratory-reasoning
+//   - hosted-chat is refused because a hosted model's location decides it.
+func PromptingNamed(label string) (prompting, error) {
+	for _, known := range []prompting{PromptingRawCompletion, PromptingChatTemplate, PromptingReasoning} {
+		if known.Label() == label {
+			return known, nil
+		}
+	}
+	return "", fmt.Errorf("evaluation: protocol %q is not one a local model is asked under; accepted are %s, %s and %s",
+		label, PromptingRawCompletion.Label(), PromptingChatTemplate.Label(), PromptingReasoning.Label())
 }
 
 type ExactAuthorities struct {
@@ -109,6 +133,9 @@ type Plan struct {
 	// answered is the authorities' AnswerScope: what the plan's answers are
 	// kept under in place of its commit (observed).
 	answered string
+	// reasoning is the bound execution policy's Reasoning, which a choice
+	// suite is answered and parsed by.
+	reasoning reasoningPolicy
 }
 
 type planBody struct {
@@ -211,7 +238,22 @@ func bindKindPlan[C any](dataset, split, caseProfileID artifact.ID, caseProfile 
 	return bindPlan(dataset, split, caseProfileID, caseProfile, scorer, authorities)
 }
 
+// bindPlan binds a suite of any kind but a choice suite.
+//   - PromptingReasoning refused because only a choice suite's answers are parsed by it
 func bindPlan[C, S any](
+	dataset, split, caseProfileID artifact.ID,
+	caseProfile C,
+	scorer S,
+	authorities ExactAuthorities,
+) (Plan, error) {
+	if authorities.Execution.Prompting == PromptingReasoning {
+		return Plan{}, fmt.Errorf("evaluation: the %s protocol asks choice suites alone, and this suite's cases are not choices", PromptingReasoning.Label())
+	}
+	return bindAsked(dataset, split, caseProfileID, caseProfile, scorer, authorities)
+}
+
+// bindAsked binds a suite under any protocol its kind's binder admits.
+func bindAsked[C, S any](
 	dataset, split, caseProfileID artifact.ID,
 	caseProfile C,
 	scorer S,
@@ -253,7 +295,7 @@ func bindPlan[C, S any](
 	return Plan{
 		identity: identity, body: body,
 		authorities: []artifact.Content{caseContent, scorerContent, executionContent},
-		answered:    authorities.AnswerScope,
+		answered:    authorities.AnswerScope, reasoning: authorities.Execution.Reasoning,
 	}, nil
 }
 

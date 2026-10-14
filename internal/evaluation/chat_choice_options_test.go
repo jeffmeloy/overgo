@@ -17,7 +17,7 @@ func TestChatChoicePromptListsTextCandidatesAsLetteredOptions(t *testing.T) {
 		Name: "bbh/boolean_expressions/test/0", Prompt: "Q: not ( True ) is\nA:",
 		Candidates: []string{" False", " True"}, Answer: 0,
 	}
-	prompt, letters, err := chatChoicePrompt(textCase)
+	prompt, letters, err := chatChoicePrompt(textCase, chatChoiceInstruction)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,7 +33,7 @@ func TestChatChoicePromptListsTextCandidatesAsLetteredOptions(t *testing.T) {
 	letterCase := MultipleChoiceCase{
 		Name: "mmlu/x/0", Prompt: "Q\nA. one\nB. two\nAnswer:", Candidates: []string{" A", " B"}, Answer: 1,
 	}
-	prompt, letters, err = chatChoicePrompt(letterCase)
+	prompt, letters, err = chatChoicePrompt(letterCase, chatChoiceInstruction)
 	if err != nil || prompt != letterCase.Prompt+chatChoiceInstruction || len(letters) != 2 || letters[1] != " B" {
 		t.Fatalf("letter case prompt = %q letters = %q err = %v", prompt, letters, err)
 	}
@@ -49,7 +49,7 @@ func TestChatChoicePromptListsTextCandidatesAsLetteredOptions(t *testing.T) {
 	for index := range wide.Candidates {
 		wide.Candidates[index] = " option"
 	}
-	if _, _, err := chatChoicePrompt(wide); err == nil {
+	if _, _, err := chatChoicePrompt(wide, chatChoiceInstruction); err == nil {
 		t.Fatal("more options than letters was accepted")
 	}
 }

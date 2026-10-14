@@ -76,7 +76,7 @@ var errEvaluationSliceElapsed = errors.New("evaluate: the model's evaluation-bud
 // runAllParent fans one worker process out per servable model, the
 // same isolation the manifest path uses: a model that dies cannot take
 // the remaining evaluations with it.
-func runAllParent(ctx context.Context, repository string, device int, family string, limit int, chatProtocol bool, budget time.Duration) error {
+func runAllParent(ctx context.Context, repository string, device int, family string, limit int, protocol string, budget time.Duration) error {
 	if budget <= 0 {
 		return errors.New("evaluate: the evaluation budget must be positive")
 	}
@@ -115,13 +115,10 @@ func runAllParent(ctx context.Context, repository string, device int, family str
 		// again would hash the whole catalog before loading one model.
 		arguments := []string{
 			"-all", "-worker", "-repo", repository,
-			"-device", strconv.Itoa(device), "-model-path", model,
+			"-device", strconv.Itoa(device), "-model-path", model, "-protocol", protocol,
 		}
 		if family != "" {
 			arguments = append(arguments, "-family", family)
-		}
-		if chatProtocol {
-			arguments = append(arguments, "-chat-protocol")
 		}
 		// The remaining budget bounds this one worker: a single model that
 		// would run past the ceiling is terminated and recorded as
@@ -159,12 +156,12 @@ func runAllParent(ctx context.Context, repository string, device int, family str
 // worker's own pass: a worker launched by hand is the same bounded
 // pass the parent runs, not an unbounded one (the 12B BBH chat pass
 // ran 2h18m past a 2h ceiling the worker accepted and ignored).
-func runAllWorker(ctx context.Context, repository string, device int, family, modelPath string, chatProtocol bool, budget time.Duration) error {
+func runAllWorker(ctx context.Context, repository string, device int, family, modelPath, protocol string, budget time.Duration) error {
 	if strings.TrimSpace(modelPath) == "" {
 		return errors.New("evaluate: worker model path is required")
 	}
 	return runBudgetedPass(ctx, budget, modelPath, func(ctx context.Context) error {
-		return runAllWorkerPass(ctx, repository, device, family, modelPath, chatProtocol)
+		return runAllWorkerPass(ctx, repository, device, family, modelPath, protocol)
 	})
 }
 
@@ -189,12 +186,12 @@ func runBudgetedPass(ctx context.Context, budget time.Duration, model string, pa
 
 // runAllWorkerPass opens the session and campaigns the derived suites
 // under the already-bounded context.
-func runAllWorkerPass(ctx context.Context, repository string, device int, family, modelPath string, chatProtocol bool) error {
+func runAllWorkerPass(ctx context.Context, repository string, device int, family, modelPath, protocol string) error {
 	commit, err := runrecord.VerifyingCommit(".")
 	if err != nil {
 		return err
 	}
-	shared := manifest{Repository: repository, CodeCommit: commit, Device: device, ChatProtocol: chatProtocol}
+	shared := manifest{Repository: repository, CodeCommit: commit, Device: device, Protocol: protocol}
 	session, err := openEvaluationSession(ctx, shared, modelRequest{Path: modelPath, Suites: []string{"derived"}})
 	if err != nil {
 		return err
@@ -302,8 +299,8 @@ func campaignDerivedSuites(ctx context.Context, campaign *evaluation.Campaign, s
 	selected := 0
 	for _, suite := range suites {
 		descriptor := suite.Descriptor()
-		// A family asked for whole is the family: its suite is named as the part's is.
-		if family != "" && !strings.HasSuffix(descriptor.Source, "/"+strings.TrimSuffix(family, evaluation.WholeFamily)) {
+		// A family asked for whole or as a count of its cases = the family, so its suite is named as the part's is.
+		if name, _, _ := strings.Cut(family, "/"); family != "" && !strings.HasSuffix(descriptor.Source, "/"+name) {
 			continue
 		}
 		if admit != nil {

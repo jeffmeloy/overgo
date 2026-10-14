@@ -67,17 +67,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 33779,
+        "nodes": 29418,
         "reason": ""
       },
       "steps": [
-        {
-          "id": "wire-slot-cache",
-          "title": "Save and restore a slot's prompt cache on the server, from host and device",
-          "status": "open",
-          "verify": "go test ./internal/server -count=1 -run '^TestSlotSaveRestoresPromptCache$'",
-          "rationale": "From the reading of step wire-unreached. The session state codecs save and load a KV cache as bytes bound to the model (internal/inference/cache_state.go, session_state.go, internal/statecodec), and the server serves GET /slots as status alone (internal/server/server_admin.go:333-375). The step adds slot save and restore to the server, as llama-server offers them, so a long prompt prefix is restored after a restart or a model swap without its prefill. Nothing reads a device cache back to the host today (internal/inference/device_cache.go:24, and cloneDeviceCache copies device to device, continuous_batch.go:386), so the step adds a paged download and upload, which is most of its cost. The draft-session prototypes call the same codec (mtp_session_state_common.go:35, :118).\nServes: first-output for a prompt whose prefix was saved: the prefill is skipped.\nDisappears: nothing; about 350 lines of production code are added, an estimate by reading, 200 of them for the device read-back.\nEvidence: a host test of the server's save and restore over a host cache, and a device test of a cache round trip in internal/inference.\nBatch: device; the read-back is inside the inference surface, so it goes in one commit before a full measurement run.\n\nCorrection by the lead on 2026-10-14, from a reading of the code for this step's design (scratchpad rows/slot-cache-design.md).\n- no paged download is needed, because a device cache's pages are views over one allocation a sequence with tokens as the outermost axis, so a read-back is one copy a tensor\n- the upload is most of the device cost, because it must allocate at cachePageCapacity(tokens), which the parameterized decode reads (internal/inference/device_cache.go)\n- cloneDeviceCache does not exist, and the device copy is compactDeviceCacheForAppend through Executor.CopyDeviceValues\n- SaveCache and LoadCache check the cache's shape alone, so the saved slot binds the model's signature, the model and the recipe itself, as the draft-session state does\n- the prompt cache belongs to the runner, and the continuous scheduler refuses cache_prompt with more than one concurrent slot, so save and restore serve max_concurrent 1 and answer that they are not offered otherwise\n- the route table matches exact paths, so /slots/{id} needs a prefix route\n- a saved state lives as an object of internal/objectstore under a per-model alias, because a store record holds at most 64 MiB of content\n- the estimate is about 410 lines of production code and 190 of tests"
-        },
         {
           "id": "wire-mp4",
           "title": "Serve an MP4 clip beside the GIF on the video paths",

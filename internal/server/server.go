@@ -13,6 +13,7 @@ import (
 	_ "image/png"
 	"math"
 	"net/http"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -30,6 +31,7 @@ import (
 	"overgo/internal/discovery"
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/objectstore"
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
 	"overgo/internal/projector"
@@ -460,6 +462,8 @@ type servingWorkspace struct {
 	mediaFetcher        *remoteMediaFetcher
 	responseFiles       responseFileResolver
 	thinkingSigner      *anthropicThinkingSigner
+	// slotStates holds saved prompt states, nil without a writable store.
+	slotStates *objectstore.Store
 }
 
 // operatorWorkspace is the operator and workflow API dependency set: durable
@@ -638,6 +642,12 @@ func New(config Config, generator Generator) (*Handler, error) {
 			return nil, fmt.Errorf("server browse repository: %w", err)
 		}
 	}
+	var slotStates *objectstore.Store
+	if repository != nil && config.OvergoDBPath != "" {
+		if slotStates, err = objectstore.New(filepath.Join(config.OvergoDBPath, objectstore.Directory), repository); err != nil {
+			return nil, fmt.Errorf("server slot states: %w", err)
+		}
+	}
 	generation := generator
 	if config.MaxConcurrent > 1 {
 		if factory, ok := generator.(continuousGeneratorFactory); ok {
@@ -687,6 +697,7 @@ func New(config Config, generator Generator) (*Handler, error) {
 			mediaFetcher:        mediaFetcher,
 			responseFiles:       config.ResponseFiles,
 			thinkingSigner:      thinkingSigner,
+			slotStates:          slotStates,
 		},
 		operatorWorkspace: operatorWorkspace{
 			issuedCalls: newIssuedCallRegistry(config.MaxTokens),

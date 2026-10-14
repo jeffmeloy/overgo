@@ -1,10 +1,13 @@
 package executor
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"math"
 
 	"overgo/internal/checked"
+	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
@@ -177,4 +180,90 @@ func (v DeviceValue) copySegment(storage dtype.Type, start, count uint64) (Devic
 	}
 	bytes, err := view.Shape.Bytes(storage)
 	return DeviceCopySegment{Source: view.Pointer, Bytes: bytes}, err
+}
+
+// ReadDeviceValues copies F32 device values to the host in one worker transaction.
+//   - each value's shape names the elements read from its pointer
+//   - a zero pointer, or a shape larger than a known capacity, is refused before any copy.
+func (e *Executor) ReadDeviceValues(ctx context.Context, values []DeviceValue) ([][]float32, error) {
+	host := make([][]float32, len(values))
+	for index, value := range values {
+		elements, err := transferElements(value)
+		if err != nil {
+			return nil, fmt.Errorf("CUDA device read %d: %w", index, err)
+		}
+		host[index] = make([]float32, elements)
+	}
+	err := e.transfer(ctx, func(state *device.State) error {
+		for index, value := range values {
+			if err := state.Driver.MemcpyDtoH(driver.Bytes(host[index]), value.Pointer); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return host, nil
+}
+
+// WriteDeviceValues copies host F32 data into device values in one worker transaction.
+//   - data[i] holds exactly the elements values[i]'s shape names
+//   - a zero pointer, a count mismatch, or a shape larger than a known capacity is refused before any copy.
+func (e *Executor) WriteDeviceValues(ctx context.Context, values []DeviceValue, data [][]float32) error {
+	if len(values) != len(data) {
+		return fmt.Errorf("CUDA device write has %d values and %d host slices", len(values), len(data))
+	}
+	for index, value := range values {
+		elements, err := transferElements(value)
+		if err != nil {
+			return fmt.Errorf("CUDA device write %d: %w", index, err)
+		}
+		if len(data[index]) != elements {
+			return fmt.Errorf("CUDA device write %d has %d host values, its shape holds %d", index, len(data[index]), elements)
+		}
+	}
+	return e.transfer(ctx, func(state *device.State) error {
+		for index, value := range values {
+			if err := state.Driver.MemcpyHtoD(value.Pointer, driver.Bytes(data[index])); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func transferElements(value DeviceValue) (int, error) {
+	if value.Pointer == 0 {
+		return 0, errors.New("device value pointer is zero")
+	}
+	bytes, err := value.Shape.Bytes(dtype.F32)
+	if err != nil {
+		return 0, err
+	}
+	if value.CapacityBytes != 0 && bytes > value.CapacityBytes {
+		return 0, fmt.Errorf("device value shape holds %d bytes, its capacity is %d", bytes, value.CapacityBytes)
+	}
+	elements, err := value.Shape.Elements()
+	if err != nil {
+		return 0, err
+	}
+	count, ok := checked.Int(elements)
+	if !ok {
+		return 0, fmt.Errorf("device value holds %d elements, more than the host addresses", elements)
+	}
+	return count, nil
+}
+
+func (e *Executor) transfer(ctx context.Context, copies func(*device.State) error) error {
+	if e == nil {
+		return errors.New("CUDA executor is closed")
+	}
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.closed || e.worker == nil {
+		return errors.New("CUDA executor is closed")
+	}
+	return e.worker.Do(ctx, copies)
 }

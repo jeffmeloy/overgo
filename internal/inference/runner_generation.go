@@ -89,8 +89,7 @@ func (r *Runner) Generate(
 	if options.ProjectedInputs != nil {
 		projectionSignature = projectedInputsSignature(*options.ProjectedInputs)
 	}
-	useDeviceCache := options.ProjectedInputs == nil && aloraID < 0 &&
-		r.hasPreloadedWeights() && r.forwardProgram().PersistentDeviceCache()
+	useDeviceCache := options.ProjectedInputs == nil && aloraID < 0 && r.persistentDeviceCache()
 	// deviceGreedy: raw-greedy decode selects on device; only the winning
 	// token id crosses PCIe. Callbacks receive TokenEvent without Logits, so
 	// callback users must opt in via options.DeviceGreedy.
@@ -227,15 +226,17 @@ func (r *Runner) Generate(
 			if selectedPromptCache == nil {
 				hidden, cache, err = r.forwardCachedLocked(ctx, ids, nil)
 			} else {
-				if cached > 0 &&
-					cached < len(selectedPromptCache.Tokens) &&
-					r.hasRecurrentCache() {
+				// A restored entry keeps no hidden row, so a prompt equal to its
+				// tokens trims like a shorter one.
+				trim := cached < len(selectedPromptCache.Tokens) ||
+					(cached == len(ids) && len(selectedPromptCache.Hidden.Data) == 0)
+				if cached > 0 && trim && r.hasRecurrentCache() {
 					cached = 0
 				}
 				if cached > 0 {
 					hidden = selectedPromptCache.Hidden
 					cache = selectedPromptCache.Cache
-					if cached < len(selectedPromptCache.Tokens) && selectedPromptCache.Decoded {
+					if trim && selectedPromptCache.Decoded {
 						// A decoded entry keeps only its last hidden row: keep the
 						// shared KV and recompute at least the final requested token.
 						if cached == len(ids) {
@@ -245,7 +246,7 @@ func (r *Runner) Generate(
 						if cached > 0 {
 							cache, err = r.trimHostPromptKV(selectedPromptCache.Cache, uint32(cached))
 						}
-					} else if cached < len(selectedPromptCache.Tokens) {
+					} else if trim {
 						hidden, cache, err = r.trimHostPromptCache(
 							hidden,
 							cache,

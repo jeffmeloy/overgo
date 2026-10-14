@@ -29,7 +29,7 @@ func importStream(flags *flag.FlagSet, args []string, input io.Reader, output io
 		return err
 	}
 	defer store.Close()
-	objects, err := objectstore.New(filepath.Join(*repositoryPath, "objects"), store)
+	objects, err := objectstore.New(filepath.Join(*repositoryPath, objectstore.Directory), store)
 	if err != nil {
 		return err
 	}

@@ -201,7 +201,7 @@ lines: 284
 members: internal/inference/mtp_session_state_common.go
 members: internal/inference/multi_head_mtp_state.go
 reason: They are the saved form of a single-head and a multi-head draft session, which compatibility.json lists among the features of the qwen35, qwen35moe, cohere2moe, step35 and hy_v3 families.
-reason: They stand on the cache codec of group session-state-codecs and stay or go with their sessions, which no command opens.
+reason: They stand on the cache codec that slot save and restore serve (internal/inference/cache_state.go), and stay or go with their sessions, which no command opens.
 
 group inference-feature-draft
 class: prototype
@@ -352,19 +352,6 @@ lines: 13
 members: internal/runrecord/serving_observation.go
 reason: TestServingAttemptChainClassifiesRetryReselectionAndSpillover reads ServingObservation.AttemptKind in the one function that holds the live PublishServingObservation to accept a retry and to refuse a second attempt of the same ordinal (internal/runrecord/serving_observation.go:271), and no other test holds that refusal.
 reason: The remote stage adapter that classed its attempts by it is deleted, so the test is to assert on the attempt chain alone, and AttemptKind is deleted then.
-
-group session-state-codecs
-class: wire
-surface: inside
-declarations: 17
-lines: 318
-members: internal/inference/cache_state.go
-members: internal/inference/session_state.go
-members: internal/statecodec/codec.go
-members: internal/tensor/shape.go
-members: internal/model/layer_plan.go ModelPlan.HasCache
-reason: They save and load a KV cache as bytes bound to the model, no command saves or restores one, and no live path does the same, so step consumer-checks/wire-slot-cache is the route, slot save and restore on the server, which serves GET /slots as status alone.
-reason: They compute and are no record, so the four conditions do not hold, though a device session keeps its cache where nothing reads it back yet (internal/inference/device_cache.go:24).
 
 group speech-activity-stream
 class: prototype

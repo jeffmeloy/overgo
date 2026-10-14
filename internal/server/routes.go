@@ -131,6 +131,7 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/requests", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).requestLog, Unrecorded: true},
 	{Path: "/runtime/peers", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).remotePeerAuthority},
 	{Path: "/slots", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).slotStatus},
+	{Path: "/slots/{id_slot}", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).slotAction},
 	{Path: "/lora-adapters", Authentication: routeBearer, Methods: []string{http.MethodGet, http.MethodPost}, Handler: (*Handler).loraAdapters, Inventory: true},
 	{Path: "/catalog/models", Authentication: routePublic, Methods: []string{http.MethodGet}, Handler: (*Handler).catalogModels},
 	// Hub search reaches outward and downloads mutate local disk; agent
@@ -172,8 +173,13 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/agents/evidence", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: agentRoute((*Handler).agentObservables)},
 }
 
-var routesByPath = compileRouteIndex(routeCatalog)
+var routesByPath, routesByParent = compileRouteIndex(routeCatalog)
 var versionedRouteFallback = routeDescriptor{Path: "/v1/", Authentication: routeBearer, Handler: (*Handler).serveWebUI}
+
+// routeParameter opens a route's last segment as a parameter (/slots/{id_slot}).
+//   - such a route serves every path of one more segment under its parent
+//   - the manifest keeps the template, as llama-server documents the route
+const routeParameter = "{"
 
 // APIManifestRoutes projects the runtime route authority into release metadata.
 func APIManifestRoutes() []apimanifest.Route {
@@ -188,22 +194,37 @@ func APIManifestRoutes() []apimanifest.Route {
 	return routes
 }
 
-func compileRouteIndex(routes []routeDescriptor) map[string]routeDescriptor {
+func compileRouteIndex(routes []routeDescriptor) (map[string]routeDescriptor, map[string]routeDescriptor) {
 	index := make(map[string]routeDescriptor, len(routes))
+	parents := make(map[string]routeDescriptor)
 	for _, route := range routes {
 		if route.Path == "" || len(route.Methods) == 0 || route.Handler == nil || index[route.Path].Path != "" {
 			panic("server: invalid or duplicate route")
 		}
 		index[route.Path] = route
+		if parent, segment := splitRoutePath(route.Path); strings.HasPrefix(segment, routeParameter) {
+			parents[parent] = route
+		}
 	}
-	return index
+	return index, parents
 }
 
 func resolveRoute(path string) (routeDescriptor, bool) {
 	if route, found := routesByPath[path]; found {
 		return route, true
 	}
+	if parent, segment := splitRoutePath(path); segment != "" {
+		if route, found := routesByParent[parent]; found {
+			return route, true
+		}
+	}
 	return versionedRouteFallback, strings.HasPrefix(path, versionedRouteFallback.Path)
+}
+
+// splitRoutePath parts a path at its last slash into the parent, slash included, and the last segment.
+func splitRoutePath(path string) (string, string) {
+	slash := strings.LastIndex(path, "/") + 1
+	return path[:slash], path[slash:]
 }
 
 func (r routeDescriptor) accepts(method string) bool {

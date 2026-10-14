@@ -9,12 +9,17 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"overgo/internal/artifact"
+	"overgo/internal/binaryschema"
 	"overgo/internal/fsatomic"
 )
 
 const stagingDirectory = ".staging"
+
+// Directory names the object root inside an OvergoDB directory.
+const Directory = "objects"
 
 type Store struct {
 	root       string
@@ -27,6 +32,9 @@ type PublishRequest struct {
 	MediaType string
 	Schema    string
 	Reader    io.Reader
+	// Lineage and Aliases commit with the object, so they name it by Expected.
+	Lineage []artifact.Lineage
+	Aliases []artifact.AliasBinding
 }
 
 type Publication struct {
@@ -57,6 +65,9 @@ func (store *Store) Publish(ctx context.Context, request PublishRequest) (Public
 	}
 	if request.Expected != nil && (!request.Expected.Valid() || request.Expected.Kind() != request.Kind) {
 		return Publication{}, errors.New("object store: invalid expected identity")
+	}
+	if request.Expected == nil && len(request.Lineage)+len(request.Aliases) != 0 {
+		return Publication{}, errors.New("object store: lineage and aliases need the expected identity they name")
 	}
 	if err := ctx.Err(); err != nil {
 		return Publication{}, err
@@ -103,12 +114,49 @@ func (store *Store) Publish(ctx context.Context, request PublishRequest) (Public
 		Key:       "objectstore/publish/" + id.String(),
 		Artifacts: []artifact.Descriptor{descriptor},
 		Locations: []artifact.LocationEvent{{Location: location, Action: artifact.LocationAdd}},
+		Lineage:   request.Lineage,
+		Aliases:   request.Aliases,
+	}
+	if len(request.Aliases) != 0 {
+		batch.Key = store.transitionKey(batch.Key)
 	}
 	commit, err := artifact.CommitBatch(ctx, store.repository, batch)
 	if err != nil {
 		return Publication{}, err
 	}
 	return Publication{Descriptor: descriptor, Path: target, Commit: commit}, nil
+}
+
+// Retire removes a published object's location, then its file, and keeps its descriptor and lineage.
+//   - the caller holds that no alias names the object, because Open answers an alias target from its file
+//   - a failure between the two leaves a file no location names, never a location without its file.
+func (store *Store) Retire(ctx context.Context, id artifact.ID) error {
+	if store == nil || store.repository == nil || ctx == nil || !id.Valid() {
+		return errors.New("object store: invalid retirement")
+	}
+	path := store.objectPath(id)
+	location, err := artifact.CanonicalLocalLocation(id, artifact.LocationFile, path)
+	if err != nil {
+		return err
+	}
+	if _, err := artifact.CommitBatch(ctx, store.repository, artifact.Batch{
+		Key:       store.transitionKey("objectstore/retire/" + id.String()),
+		Locations: []artifact.LocationEvent{{Location: location, Action: artifact.LocationRemove}},
+	}); err != nil {
+		return err
+	}
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("object store: remove retired object: %w", err)
+	}
+	return nil
+}
+
+// transitionKey names a batch by the head it was built at.
+//   - a retirement can undo a publication, and the same publication made again must commit again
+//   - a repeated key replays its first commit and changes nothing, so a transition's key never repeats
+func (store *Store) transitionKey(base string) string {
+	_, sequence := store.repository.Head()
+	return base + "/at/" + strconv.FormatUint(sequence, binaryschema.DecimalRadix)
 }
 
 // Open returns a streaming reader only for an object whose descriptor and

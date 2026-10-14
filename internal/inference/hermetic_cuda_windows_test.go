@@ -10,6 +10,9 @@ import (
 	"testing"
 
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/sampling"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/reference"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -130,6 +133,160 @@ func TestHermeticCUDAContinuousCacheParity(t *testing.T) {
 		first.session.program.identity.branches != 2 {
 		t.Fatalf("multi-branch decode sessions = %+v/%+v", first.session, second.session)
 	}
+}
+
+// TestHermeticCUDADeviceCacheRoundTrip reads a prefilled device cache back to
+// the host and puts it on the device again, for a dense model and for one whose
+// last layers share earlier layers' KV. The read-back matches the host cache;
+// save, load and upload return it bit for bit; the uploaded cache appends
+// across its 8-token page with the original's logits bit for bit; and a prompt
+// state saved from one runner and restored into a fresh one serves its prefix
+// from the cache with the greedy tokens of an uncached run.
+func TestHermeticCUDADeviceCacheRoundTrip(t *testing.T) {
+	// Serial: each case holds the device for runners it opens one after another.
+	requireIntegration(t)
+	cudatest.Require(t)
+	prompt := []tokenizer.TokenID{1, 4, 5, 6, 7}
+	appended := []tokenizer.TokenID{4, 5, 6, 7}
+	const generated = 3
+	for _, fixture := range []struct {
+		name string
+		path string
+	}{
+		{"llama", testutil.HermeticLlamaGGUF(t, hermeticContext)},
+		{"shared-kv", testutil.HermeticGemma4SharedKVGGUF(t, sharedKVFixtureContext)},
+	} {
+		t.Run(fixture.name, func(t *testing.T) {
+			open := func() *Runner {
+				t.Helper()
+				runner, err := openF32FixtureRunner(fixture.path, OpenOptions{})
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { _ = runner.Close() })
+				return runner
+			}
+			runner := open()
+			deviceCacheRoundTrip(t, runner, prompt, appended)
+
+			greedy, err := sampling.New(sampling.Config{Temperature: 0})
+			if err != nil {
+				t.Fatal(err)
+			}
+			generate := func(runner *Runner, ids []tokenizer.TokenID, evaluation *PromptEvaluation) []tokenizer.TokenID {
+				t.Helper()
+				result, _, err := runner.Generate(t.Context(), "", GenerateOptions{
+					MaxNewTokens: generated, Sampler: greedy, PromptTokenIDs: ids, CachePrompt: true, ContinueAfterEOG: true,
+					OnPromptEvaluated: func(measured PromptEvaluation) { *evaluation = measured },
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				return result
+			}
+			var evaluation PromptEvaluation
+			served := generate(runner, prompt, &evaluation)
+			payload, count, err := runner.SavePromptState(t.Context())
+			if err != nil || count != len(served)-1 {
+				t.Fatalf("saved %d tokens of %v: %v", count, served, err)
+			}
+			restoredRunner := open()
+			if restored, err := restoredRunner.RestorePromptState(t.Context(), payload); err != nil || restored != count {
+				t.Fatalf("restored %d tokens, saved %d: %v", restored, count, err)
+			}
+			extended := slices.Concat(served[:count], appended)
+			restoredIDs := generate(restoredRunner, extended, &evaluation)
+			if evaluation.Cached != count {
+				t.Fatalf("the restored run cached %d tokens, want %d", evaluation.Cached, count)
+			}
+			if freshIDs := generate(open(), extended, &evaluation); evaluation.Cached != 0 || !slices.Equal(restoredIDs, freshIDs) {
+				t.Fatalf("restored run %v, uncached run %v cached %d", restoredIDs, freshIDs, evaluation.Cached)
+			}
+		})
+	}
+}
+
+// deviceCacheRoundTrip prefills the prompt on the device and on the host, and
+// holds the read-back, the saved round trip and the appends across a page.
+func deviceCacheRoundTrip(t *testing.T, runner *Runner, prompt, appended []tokenizer.TokenID) {
+	t.Helper()
+	ctx := t.Context()
+	runner.mu.Lock()
+	defer runner.mu.Unlock()
+	_, original, err := runner.forwardDeviceCachedLocked(ctx, prompt, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, host, err := runner.forwardCachedLocked(ctx, prompt, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	downloaded, err := runner.downloadDeviceCache(ctx, original)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if downloaded.Tokens != host.Tokens || downloaded.Position != host.Position || len(downloaded.Layers) != len(host.Layers) {
+		t.Fatalf("read-back holds %d tokens at %d in %d layers, host %d at %d in %d",
+			downloaded.Tokens, downloaded.Position, len(downloaded.Layers), host.Tokens, host.Position, len(host.Layers))
+	}
+	for layer := range host.Layers {
+		for _, pair := range [][2]reference.Value{
+			{downloaded.Layers[layer].Key, host.Layers[layer].Key},
+			{downloaded.Layers[layer].Value, host.Layers[layer].Value},
+		} {
+			if !pair[0].Shape.Equal(pair[1].Shape) || len(pair[0].Data) != len(pair[1].Data) {
+				t.Fatalf("layer %d read-back shape %v, host %v", layer, pair[0].Shape.Slice(), pair[1].Shape.Slice())
+			}
+			for index := range pair[1].Data {
+				if delta := math.Abs(float64(pair[0].Data[index] - pair[1].Data[index])); delta > 2e-4 {
+					t.Fatalf("layer %d element %d read-back %g host %g", layer, index, pair[0].Data[index], pair[1].Data[index])
+				}
+			}
+		}
+	}
+	saved, err := runner.SaveCache(downloaded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := runner.LoadCache(saved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	uploaded, err := runner.uploadDeviceCache(ctx, loaded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	capacity := uint64(cachePageCapacity(uint32(len(prompt)), runner.spec.ContextLength, runner.program.Decode.Session))
+	if extent, _, _ := tensor.FinalExtent(uploaded.storage.keys[0].Shape); extent != capacity {
+		t.Fatalf("uploaded key storage holds %d tokens, the page holds %d", extent, capacity)
+	}
+	again, err := runner.downloadDeviceCache(ctx, uploaded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resaved, err := runner.SaveCache(again); err != nil || !slices.Equal(resaved, saved) {
+		t.Fatalf("the uploaded cache reads back other bytes: %v", err)
+	}
+	for step, token := range appended {
+		var next [2]*deviceKVCache
+		for index, past := range []*deviceKVCache{original, uploaded} {
+			if _, next[index], err = runner.forwardDeviceCachedLocked(ctx, []tokenizer.TokenID{token}, past); err != nil {
+				t.Fatalf("append %d: %v", step, err)
+			}
+			_ = past.Release(ctx)
+		}
+		original, uploaded = next[0], next[1]
+		if !slices.EqualFunc(original.Logits, uploaded.Logits, func(left, right float32) bool {
+			return math.Float32bits(left) == math.Float32bits(right)
+		}) || len(original.Logits) == 0 {
+			t.Fatalf("append %d at %d tokens: uploaded logits %v, original %v", step, original.Tokens, uploaded.Logits, original.Logits)
+		}
+	}
+	if original.Tokens <= uint32(capacity) {
+		t.Fatalf("the appends end at %d tokens, inside the %d-token page", original.Tokens, capacity)
+	}
+	_ = original.Release(ctx)
+	_ = uploaded.Release(ctx)
 }
 
 // TestHermeticCUDACapacityCachePageBoundary drives the capacity decode session

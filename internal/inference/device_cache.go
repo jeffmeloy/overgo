@@ -1533,6 +1533,181 @@ func rebuildDeviceCachePages(
 	return nil
 }
 
+// downloadDeviceCache reads a device cache back into the host cache layout.
+//   - each tensor's active tokens are one block from its pointer because the token axis is outermost, so a read is one copy per tensor
+//   - a shared-KV layer holds its source layer's key and value, as the host forward stores them
+func (r *Runner) downloadDeviceCache(ctx context.Context, cache *deviceKVCache) (*KVCache, error) {
+	if cache == nil || len(cache.Keys) != len(r.weights.Layers) || len(cache.Values) != len(cache.Keys) {
+		return nil, errors.New("inference: device cache layer count differs")
+	}
+	reads := make([]executor.DeviceValue, 0, tensor.PairedExtent*len(cache.Keys))
+	for layer := range cache.Keys {
+		if !r.layerProgram(layer).Layer().SharedKV {
+			reads = append(reads, cache.Keys[layer], cache.Values[layer])
+		}
+	}
+	type stateSlot struct {
+		layer int
+		name  model.CacheStateName
+		mode  CacheStateMode
+	}
+	primaries := len(reads)
+	var states []stateSlot
+	for layer, layerStates := range cache.States {
+		for _, name := range layerStates.SortedNames() {
+			states = append(states, stateSlot{layer: layer, name: name, mode: layerStates[name].Mode})
+			reads = append(reads, layerStates[name].Value)
+		}
+	}
+	data, err := r.cuda.ReadDeviceValues(ctx, reads)
+	if err != nil {
+		return nil, err
+	}
+	host := &KVCache{Layers: make([]LayerCache, len(cache.Keys)), Tokens: cache.Tokens, Position: cache.Position}
+	read := 0
+	for layer := range host.Layers {
+		if plan := r.layerProgram(layer).Layer(); plan.SharedKV {
+			host.Layers[layer].Key, host.Layers[layer].Value = host.Layers[plan.KVSource].Key, host.Layers[plan.KVSource].Value
+			continue
+		}
+		host.Layers[layer].Key = reference.Value{Shape: reads[read].Shape, Data: data[read]}
+		host.Layers[layer].Value = reference.Value{Shape: reads[read+1].Shape, Data: data[read+1]}
+		read += tensor.PairedExtent
+	}
+	for index, slot := range states {
+		if host.Layers[slot.layer].States == nil {
+			host.Layers[slot.layer].States = make(LayerStates)
+		}
+		value := reference.Value{Shape: reads[primaries+index].Shape, Data: data[primaries+index]}
+		host.Layers[slot.layer].States[slot.name] = LayerState{Mode: slot.mode, Value: value}
+	}
+	return host, nil
+}
+
+// uploadDeviceCache places a host cache on the device as a cache a decode appends to.
+//   - one buffer holds every tensor, and the cache's storage owns it
+//   - a token-aligned key or value gets cachePageCapacity rows because the capacity decode reads that many rows from its past's storage
+//   - a fixed key or value and every named state get their exact shapes
+//   - a shared-KV layer aliases its source layer, as a device forward does
+func (r *Runner) uploadDeviceCache(ctx context.Context, host *KVCache) (*deviceKVCache, error) {
+	if host == nil || len(host.Layers) != len(r.weights.Layers) {
+		return nil, errors.New("inference: host cache layer count differs from the device layers")
+	}
+	capacity := uint64(cachePageCapacity(host.Tokens, r.spec.ContextLength, r.program.Decode.Session))
+	layers := len(host.Layers)
+	cache := &deviceKVCache{
+		Keys: make([]executor.DeviceValue, layers), Values: make([]executor.DeviceValue, layers),
+		States: make([]deviceLayerStates, layers), Tokens: host.Tokens, Position: effectiveCachePosition(host),
+	}
+	storage := &deviceCacheStorage{
+		refs: 1, keys: make([]executor.DeviceValue, layers), values: make([]executor.DeviceValue, layers),
+	}
+	// placement holds one host tensor, its allocated shape and offset, and where its views go.
+	type placement struct {
+		value     reference.Value
+		allocated tensor.Shape
+		offset    uint64
+		assign    func(active, allocated executor.DeviceValue)
+	}
+	var placements []placement
+	var elements uint64
+	place := func(value reference.Value, allocated tensor.Shape, assign func(active, allocated executor.DeviceValue)) error {
+		count, err := allocated.Elements()
+		if err != nil {
+			return err
+		}
+		placements = append(placements, placement{value: value, allocated: allocated, offset: elements, assign: assign})
+		var fits bool
+		if elements, fits = checked.Add64(elements, count); !fits {
+			return errors.New("inference: uploaded cache extent overflows")
+		}
+		return nil
+	}
+	for layer, layerCache := range host.Layers {
+		if r.layerProgram(layer).Layer().SharedKV {
+			continue
+		}
+		_, schema, err := r.cacheSchema(layer, host.Tokens)
+		if err != nil {
+			return nil, err
+		}
+		for _, primary := range []struct {
+			value          reference.Value
+			schema         model.CacheState[model.CacheValueSchema]
+			active, stored *executor.DeviceValue
+		}{
+			{layerCache.Key, schema.Primary.Key, &cache.Keys[layer], &storage.keys[layer]},
+			{layerCache.Value, schema.Primary.Value, &cache.Values[layer], &storage.values[layer]},
+		} {
+			allocated, target := primary.value.Shape, primary.schema.Value.AcceptsTokenTarget(primary.schema.Mode, primary.value.Shape)
+			if target {
+				allocated, _ = tensor.WithTrailingExtent(allocated, capacity)
+			}
+			if err := place(primary.value, allocated, func(active, allocated executor.DeviceValue) {
+				*primary.active = active
+				if target {
+					*primary.stored = allocated
+				}
+			}); err != nil {
+				return nil, err
+			}
+		}
+		if len(layerCache.States) != 0 {
+			cache.States[layer] = make(deviceLayerStates, len(layerCache.States))
+		}
+		for _, name := range layerCache.States.SortedNames() {
+			state := layerCache.States[name]
+			if err := place(state.Value, state.Value.Shape, func(active, _ executor.DeviceValue) {
+				cache.States[layer][name] = deviceLayerState{Mode: state.Mode, Value: active}
+			}); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if elements == 0 {
+		return nil, errors.New("inference: host cache holds no device tensor")
+	}
+	shape, err := tensor.NewShape(elements)
+	if err != nil {
+		return nil, err
+	}
+	bytes, err := shape.Bytes(dtype.F32)
+	if err != nil {
+		return nil, err
+	}
+	if storage.buffer, err = r.cuda.AllocateDeviceBuffer(ctx, bytes); err != nil {
+		return nil, err
+	}
+	cache.storage = storage
+	group, err := storage.buffer.Value(shape)
+	writes := make([]executor.DeviceValue, len(placements))
+	data := make([][]float32, len(placements))
+	for index := 0; err == nil && index < len(placements); index++ {
+		item := placements[index]
+		var allocated executor.DeviceValue
+		if allocated, err = deviceCacheStorageView(group, item.offset, item.allocated); err == nil {
+			writes[index], data[index] = allocated, item.value.Data
+			writes[index].Shape = item.value.Shape
+			item.assign(writes[index], allocated)
+		}
+	}
+	if err == nil {
+		err = r.cuda.WriteDeviceValues(ctx, writes, data)
+	}
+	if err != nil {
+		return nil, errors.Join(err, cache.Release(context.Background()))
+	}
+	for layer := range cache.Keys {
+		if plan := r.layerProgram(layer).Layer(); plan.SharedKV {
+			cache.Keys[layer], cache.Values[layer] = cache.Keys[plan.KVSource], cache.Values[plan.KVSource]
+		}
+	}
+	if err := rebuildDeviceCachePages(cache, r.program.Decode.Session); err != nil {
+		return nil, errors.Join(err, cache.Release(context.Background()))
+	}
+	return cache, nil
+}
+
 func resizeDeviceValues(values []executor.DeviceValue, count int) []executor.DeviceValue {
 	if cap(values) < count {
 		return make([]executor.DeviceValue, count)

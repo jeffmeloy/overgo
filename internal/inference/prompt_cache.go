@@ -10,9 +10,12 @@ import (
 	"math"
 	"slices"
 
+	"overgo/internal/binaryschema"
+	"overgo/internal/checked"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/model"
 	"overgo/internal/recipe"
+	"overgo/internal/statecodec"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
@@ -21,6 +24,141 @@ import (
 // SupportsPromptCache reports whether an initialized runner supports the bounded,
 // signature-checked pool used by Generate. Schedulers declare their own support.
 func (r *Runner) SupportsPromptCache() bool { return r != nil && r.vocab != nil }
+
+const (
+	promptStateMagic = "L2GSLT01"
+	promptStateLabel = "prompt"
+)
+
+// ErrPromptStateRefused marks a prompt state the runner refuses to save or restore.
+//   - an empty pool has nothing to save
+//   - an entry computed under other LoRA scales is refused because the payload binds the current ones
+//   - a projected entry is refused because its state depends on inputs its tokens do not name
+//   - an encoder-only entry and a context-shifted cache are refused because their tokens do not name their cache
+//   - a malformed payload, or one bound to another model, recipe or LoRA scale set, is refused because its cache would decode wrong tokens.
+var ErrPromptStateRefused = errors.New("inference: prompt state refused")
+
+// SavePromptState encodes the most recent prompt-cache entry and answers the payload and its token count.
+//   - payload = magic, model signature, model ID, recipe ID, token count, token IDs, then the SaveCache bytes
+//   - the recipe ID binds placement, residency and the numeric path, because SaveCache checks shape alone
+//   - a device entry is read back to the host first.
+func (r *Runner) SavePromptState(ctx context.Context) ([]byte, int, error) {
+	if err := r.lockOpen(); err != nil {
+		return nil, 0, err
+	}
+	defer r.mu.Unlock()
+	if len(r.promptCaches) == 0 || r.promptCaches[0] == nil {
+		return nil, 0, fmt.Errorf("%w: the prompt cache is empty", ErrPromptStateRefused)
+	}
+	entry := r.promptCaches[0]
+	if entry.HasProjection || (entry.Cache == nil && entry.Device == nil) {
+		return nil, 0, fmt.Errorf("%w: the latest entry is projected or encoder-only", ErrPromptStateRefused)
+	}
+	if entry.LoRASignature != r.currentLoRASignature() {
+		return nil, 0, fmt.Errorf("%w: the latest entry was computed under other LoRA scales", ErrPromptStateRefused)
+	}
+	cache := entry.Cache
+	if entry.Device != nil {
+		var err error
+		if cache, err = r.downloadDeviceCache(ctx, entry.Device); err != nil {
+			return nil, 0, err
+		}
+	}
+	if cache.Tokens != uint32(len(entry.Tokens)) || effectiveCachePosition(cache) != cache.Tokens {
+		return nil, 0, fmt.Errorf("%w: the cache holds %d tokens at position %d for %d prompt tokens",
+			ErrPromptStateRefused, cache.Tokens, effectiveCachePosition(cache), len(entry.Tokens))
+	}
+	cacheData, err := r.SaveCache(cache)
+	if err != nil {
+		return nil, 0, err
+	}
+	signature, err := r.sessionModelSignature()
+	if err != nil {
+		return nil, 0, err
+	}
+	modelID, recipeID := r.ModelID().String(), r.program.Identity.Recipe.String()
+	size, fits := checked.Add64(
+		uint64(len(promptStateMagic)), uint64(len(signature)),
+		binaryschema.Uint32Bytes, uint64(len(modelID)), binaryschema.Uint32Bytes, uint64(len(recipeID)),
+		binaryschema.Uint32Bytes, uint64(len(entry.Tokens))*binaryschema.Uint32Bytes, uint64(len(cacheData)),
+	)
+	if !fits {
+		return nil, 0, errors.New("inference: prompt state size overflows")
+	}
+	encoder := statecodec.NewEncoderCapacity(uint64(math.MaxInt), size)
+	encoder.Raw([]byte(promptStateMagic))
+	encoder.Raw(signature[:])
+	encoder.String32(modelID)
+	encoder.String32(recipeID)
+	encoder.U32(uint32(len(entry.Tokens)))
+	for _, token := range entry.Tokens {
+		encoder.I32(int32(token))
+	}
+	encoder.Raw(cacheData)
+	payload, err := encoder.Data()
+	return payload, len(entry.Tokens), err
+}
+
+// RestorePromptState decodes a SavePromptState payload into the prompt-cache pool and answers its token count.
+//   - a payload decodePromptState refuses is refused with ErrPromptStateRefused
+//   - the entry keeps no hidden row and no logits, so a prompt equal to its tokens recomputes the last token
+//   - the cache goes to the device when the runner keeps prompt caches there.
+func (r *Runner) RestorePromptState(ctx context.Context, data []byte) (int, error) {
+	if err := r.lockOpen(); err != nil {
+		return 0, err
+	}
+	defer r.mu.Unlock()
+	tokens, cache, err := r.decodePromptState(data)
+	if err != nil {
+		return 0, fmt.Errorf("%w: %w", ErrPromptStateRefused, err)
+	}
+	entry := &cachedPrompt{Tokens: tokens, Cache: cache, LoRASignature: r.currentLoRASignature(), Decoded: true}
+	if r.persistentDeviceCache() {
+		if entry.Device, err = r.uploadDeviceCache(ctx, cache); err != nil {
+			return 0, err
+		}
+		entry.Cache = nil
+	}
+	return len(tokens), r.storePromptCache(ctx, entry)
+}
+
+// decodePromptState checks a SavePromptState payload against the runner and answers its tokens and cache.
+func (r *Runner) decodePromptState(data []byte) ([]tokenizer.TokenID, *KVCache, error) {
+	decoder, err := r.modelStateDecoder(data, promptStateMagic, promptStateLabel)
+	if err != nil {
+		return nil, nil, err
+	}
+	modelID, recipeID := decoder.String32(decoder.Remaining()), decoder.String32(decoder.Remaining())
+	count := decoder.U32()
+	if decoder.Err() != nil || uint64(count)*binaryschema.Uint32Bytes > decoder.Remaining() {
+		return nil, nil, fmt.Errorf("inference: %s state is truncated", promptStateLabel)
+	}
+	if modelID != r.ModelID().String() || recipeID != r.program.Identity.Recipe.String() {
+		return nil, nil, fmt.Errorf("inference: %s state binds model %s and recipe %s, the runner serves %s and %s",
+			promptStateLabel, modelID, recipeID, r.ModelID(), r.program.Identity.Recipe)
+	}
+	tokens := make([]tokenizer.TokenID, count)
+	for index := range tokens {
+		tokens[index] = tokenizer.TokenID(decoder.I32())
+		if _, known := r.vocab.Token(tokens[index]); !known {
+			return nil, nil, fmt.Errorf("inference: %s state token %d has out-of-range ID %d", promptStateLabel, index, tokens[index])
+		}
+	}
+	cache, err := r.LoadCache(decoder.Raw(decoder.Remaining()))
+	if err != nil {
+		return nil, nil, err
+	}
+	if cache.Tokens != count || effectiveCachePosition(cache) != count {
+		return nil, nil, fmt.Errorf("inference: %s state cache holds %d tokens at position %d for %d prompt tokens",
+			promptStateLabel, cache.Tokens, effectiveCachePosition(cache), count)
+	}
+	return tokens, cache, nil
+}
+
+// persistentDeviceCache reports whether prompt caches live on the device.
+func (r *Runner) persistentDeviceCache() bool {
+	return r.hasPreloadedWeights() && r.forwardProgram().PersistentDeviceCache()
+}
 
 func (r *Runner) promotePromptCache(index int) *cachedPrompt {
 	if index < 0 || index >= len(r.promptCaches) {

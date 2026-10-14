@@ -1,11 +1,13 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"mime"
 	"net/http"
 	"slices"
@@ -15,13 +17,17 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"overgo/internal/artifact"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/inference"
+	"overgo/internal/objectstore"
+	"overgo/internal/overgodb"
 	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/sampling"
 	"overgo/internal/strictjson"
+	"overgo/internal/textcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -337,6 +343,229 @@ func (h *Handler) slotStatus(response http.ResponseWriter, request *http.Request
 		return
 	}
 	writeJSON(response, http.StatusOK, h.sessionStatus(includeText))
+}
+
+const (
+	slotActionSave    = "save"
+	slotActionRestore = "restore"
+	// slotStateSchema and slotStateMediaType are the stored form of a saved prompt state, the bytes SavePromptState writes.
+	slotStateSchema    = "overgo/prompt-state/v1"
+	slotStateMediaType = "application/octet-stream"
+	// slotStateAliasRoot opens a saved state's name, slot-state/<model id>/<filename>, so a state is found under its model alone.
+	slotStateAliasRoot = "slot-state/"
+	// slotFilenameBytes bounds a saved state's filename.
+	//   - source = the 255-byte name limit of the filesystems llama-server writes its slot files to
+	//   - scope = the filename of POST /slots/{id_slot}
+	//   - reconsider when a client needs longer names, within the store's alias bound
+	slotFilenameBytes = 255
+)
+
+// slotStateAPI saves and restores the prompt state a served model keeps.
+type slotStateAPI interface {
+	SavePromptState(context.Context) ([]byte, int, error)
+	RestorePromptState(context.Context, []byte) (int, error)
+}
+
+type slotActionRequest struct {
+	Filename string `json:"filename"`
+}
+
+type slotSaveResponse struct {
+	IDSlot   int    `json:"id_slot"`
+	Filename string `json:"filename"`
+	ID       string `json:"id"`
+	NSaved   int    `json:"n_saved"`
+	NWritten int    `json:"n_written"`
+	Timings  struct {
+		SaveMS float64 `json:"save_ms"`
+	} `json:"timings"`
+}
+
+type slotRestoreResponse struct {
+	IDSlot    int    `json:"id_slot"`
+	Filename  string `json:"filename"`
+	ID        string `json:"id"`
+	NRestored int    `json:"n_restored"`
+	NRead     int    `json:"n_read"`
+	Timings   struct {
+		RestoreMS float64 `json:"restore_ms"`
+	} `json:"timings"`
+}
+
+// slotAction saves or restores a slot's prompt state in llama-server's shape (POST /slots/{id_slot}?action=save|restore).
+//   - the state is a stored object under a per-model alias, so another model never finds it
+//   - it serves max_concurrent 1 alone, because the prompt cache belongs to the runner and the continuous scheduler keeps none
+//   - a slot running a task is refused, never waited for
+func (h *Handler) slotAction(response http.ResponseWriter, request *http.Request) {
+	text := request.URL.Path[strings.LastIndex(request.URL.Path, "/")+1:]
+	id, err := strconv.Atoi(text)
+	if err != nil || id < 0 || id >= len(h.slotBusy) {
+		writeInvalidRequestMessage(response, fmt.Sprintf("id_slot %q must be in [0,%d]", text, len(h.slotBusy)-1))
+		return
+	}
+	action := request.URL.Query().Get("action")
+	if action != slotActionSave && action != slotActionRestore {
+		writeInvalidRequestMessage(response, fmt.Sprintf("action %q must be %s or %s", action, slotActionSave, slotActionRestore))
+		return
+	}
+	var body slotActionRequest
+	if !h.decodeBoundedJSON(response, request, &body) {
+		return
+	}
+	if !textcheck.BoundedToken(body.Filename, slotFilenameBytes, `/\`) || strings.Contains(body.Filename, "..") {
+		writeInvalidRequestMessage(response, fmt.Sprintf(
+			"filename %q must be one name of at most %d bytes with no space, separator or ..", body.Filename, slotFilenameBytes))
+		return
+	}
+	if h.slotStates == nil {
+		writeError(response, http.StatusServiceUnavailable, "repository_unavailable", "no artifact repository is configured")
+		return
+	}
+	if len(h.slotBusy) != 1 {
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, fmt.Sprintf(
+			"slot save and restore serve max_concurrent 1, the server runs %d", len(h.slotBusy)))
+		return
+	}
+	modelID, recipeID, identified := h.servingIdentity(recipe.TaskInference)
+	if !identified {
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "the served model has no stored identity")
+		return
+	}
+	lease, leased := h.sessions.TryLease(id)
+	if !leased {
+		writeError(response, http.StatusConflict, "slot_busy", fmt.Sprintf("slot %d is running a task", id))
+		return
+	}
+	h.slotBusy[id].Store(true)
+	defer func() {
+		h.slotBusy[id].Store(false)
+		_ = lease.Release()
+	}()
+	api, ok := lease.Model().(slotStateAPI)
+	if !ok {
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "the served model keeps no prompt state")
+		return
+	}
+	call := slotCall{
+		slot: id, filename: body.Filename, model: modelID, recipe: recipeID, api: api,
+		clock: processmeasure.NewStopwatch(),
+	}
+	if action == slotActionSave {
+		h.saveSlot(request.Context(), response, call)
+		return
+	}
+	h.restoreSlot(request.Context(), response, call)
+}
+
+// slotCall holds one admitted slot action's slot, filename and serving model.
+type slotCall struct {
+	slot          int
+	filename      string
+	model, recipe artifact.ID
+	api           slotStateAPI
+	clock         processmeasure.Stopwatch
+}
+
+// names is the alias prefix of every saved name of the call's model.
+func (c slotCall) names() string { return slotStateAliasRoot + c.model.String() + "/" }
+
+// milliseconds reports the time since the call was admitted, zero when the clock cannot be read.
+func (c slotCall) milliseconds() float64 {
+	elapsed, _ := c.clock.Elapsed()
+	return float64(elapsed) / float64(time.Millisecond)
+}
+
+// saveSlot stores the served model's prompt state and moves its name to it in one commit.
+//   - the state depends on the model and the recipe, and its lineage says so
+//   - a state the name held before is retired unless another name of the model still holds it
+func (h *Handler) saveSlot(ctx context.Context, response http.ResponseWriter, call slotCall) {
+	data, tokens, err := call.api.SavePromptState(ctx)
+	if errors.Is(err, inference.ErrPromptStateRefused) {
+		writeError(response, http.StatusConflict, "prompt_state_refused", err.Error())
+		return
+	}
+	if err != nil {
+		writeGenerationError(response, err)
+		return
+	}
+	id, err := artifact.IdentifyBytes(artifact.KindOutput, data)
+	if err != nil {
+		writeGenerationError(response, err)
+		return
+	}
+	// A name that holds this state already holds a published object: nothing is written.
+	move, moved, err := artifact.MoveAlias(ctx, h.repository, call.names()+call.filename, id)
+	if err == nil && moved {
+		_, err = h.slotStates.Publish(ctx, objectstore.PublishRequest{
+			Kind: artifact.KindOutput, Expected: &id, MediaType: slotStateMediaType, Schema: slotStateSchema,
+			Reader: bytes.NewReader(data), Lineage: artifact.DependencyLineage(id, call.model, call.recipe),
+			Aliases: []artifact.AliasBinding{move},
+		})
+	}
+	if errors.Is(err, overgodb.ErrAliasConflict) {
+		writeError(response, http.StatusConflict, "slot_state_conflict", err.Error())
+		return
+	}
+	if err == nil && moved && move.Previous != nil {
+		err = h.retireSlotState(ctx, call, *move.Previous)
+	}
+	if err != nil {
+		writeError(response, http.StatusInternalServerError, "overgodb_error", err.Error())
+		return
+	}
+	result := slotSaveResponse{IDSlot: call.slot, Filename: call.filename, ID: id.String(), NSaved: tokens, NWritten: len(data)}
+	result.Timings.SaveMS = call.milliseconds()
+	writeJSON(response, http.StatusOK, result)
+}
+
+// retireSlotState retires a state no saved name of the model holds any more.
+func (h *Handler) retireSlotState(ctx context.Context, call slotCall, state artifact.ID) error {
+	held := false
+	if err := h.repository.VisitAliases(ctx, call.names(), func(alias overgodb.AliasView) error {
+		held = held || alias.Target == state
+		return nil
+	}); err != nil || held {
+		return err
+	}
+	return h.slotStates.Retire(ctx, state)
+}
+
+// restoreSlot reads the state the model's name holds into the served model's prompt cache.
+//   - a name the model never saved answers 404
+//   - a state the runner refuses answers 409
+func (h *Handler) restoreSlot(ctx context.Context, response http.ResponseWriter, call slotCall) {
+	id, found, err := artifact.ResolveAlias(ctx, h.repository, call.names()+call.filename)
+	if err != nil {
+		writeError(response, http.StatusInternalServerError, "overgodb_error", err.Error())
+		return
+	}
+	if !found {
+		writeError(response, http.StatusNotFound, "not_found", fmt.Sprintf("no prompt state %q is saved for model %s", call.filename, call.model))
+		return
+	}
+	descriptor, reader, err := h.slotStates.Open(ctx, id)
+	if err != nil {
+		writeError(response, http.StatusInternalServerError, "overgodb_error", err.Error())
+		return
+	}
+	data, err := io.ReadAll(io.LimitReader(reader, int64(descriptor.Size)))
+	err = errors.Join(err, reader.Close())
+	if err != nil {
+		writeError(response, http.StatusInternalServerError, "overgodb_error", err.Error())
+		return
+	}
+	tokens, err := call.api.RestorePromptState(ctx, data)
+	if errors.Is(err, inference.ErrPromptStateRefused) {
+		writeError(response, http.StatusConflict, "prompt_state_refused", err.Error())
+		return
+	}
+	if err != nil {
+		writeGenerationError(response, err)
+		return
+	}
+	result := slotRestoreResponse{IDSlot: call.slot, Filename: call.filename, ID: id.String(), NRestored: tokens, NRead: len(data)}
+	result.Timings.RestoreMS = call.milliseconds()
+	writeJSON(response, http.StatusOK, result)
 }
 
 func (h *Handler) sessionStatus(includeText bool) []slotStatusItem {

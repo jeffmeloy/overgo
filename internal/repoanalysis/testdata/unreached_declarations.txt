@@ -1,14 +1,3 @@
-dead internal/devicemath/scratch_pool_cuda_windows.go DeriveResidentCapacity
-dead internal/devicemath/scratch_pool_cuda_windows.go MeasureAllocGranularity
-dead internal/devicemath/scratch_pool_cuda_windows.go MeasureFreeBytes
-dead internal/devicemath/scratch_pool_cuda_windows.go ResidentLayerPlanSizes
-dead internal/devicemath/scratch_pool_cuda_windows.go roundUpTo
-dead internal/runrecord/serving_observation.go ServingObservation.AttemptKind
-dead internal/workflowruntime/remote_adapter.go RemoteAdapter.Execute
-dead internal/workflowruntime/remote_adapter.go cloneValues
-dead internal/worklease/worklease.go AssessResources
-dead internal/worklease/worklease.go ClaimPathsOverlap
-dead internal/worklease/worklease.go WorkspaceClaimsConflict
 prototype internal/bridgegraph/graph.go Program.BuildConditionalLoRA
 prototype internal/composition/composite_generation_evidence.go CompositeGenerationEvidenceAuthority.Load
 prototype internal/composition/composite_generation_evidence.go CompositeGenerationEvidenceAuthority.New
@@ -228,6 +217,7 @@ test-held internal/runrecord/agent_obligation.go NewAgentObligationResolution
 test-held internal/runrecord/attempt.go NewAttemptRecord
 test-held internal/runrecord/resource_fitness_comparison.go RequireResourceFitnessComparison
 test-held internal/runrecord/resource_fitness_comparison.go ResourceFitnessComparison.VerifiedBatch
+test-held internal/runrecord/serving_observation.go ServingObservation.AttemptKind
 test-held internal/runrecord/trigger_registry.go TriggerContractFor
 test-held internal/sampling/gbnf.go NewGBNFGrammar
 test-held internal/speechsynth/generate.go Model.GenerateLatents

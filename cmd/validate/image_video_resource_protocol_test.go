@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/cuda/driver"
@@ -26,7 +25,7 @@ import (
 )
 
 // The resource criteria remain fixed while later steps collect measurements.
-const imageVideoResourceProtocolSHA256 = "2e7b7bfb8e8d308a498ea5b54572b0dedf3dccfa9ec12731f31758775cc7cc02"
+const imageVideoResourceProtocolSHA256 = "d75233237231070ff172cdb447ace65b22c62276eb38aeaf9f05a87f96c144d4"
 
 type imageVideoResourceProtocol struct {
 	Version               uint16                     `json:"version"`
@@ -158,28 +157,8 @@ func TestImageVideoResourceProtocolAcceptance(t *testing.T) {
 		t.Logf("current GPU metadata=%v; memory unit=MiB; no allocation reservation", row)
 	}
 
-	// Exercise the existing admission and metric owners with boundary fixtures.
-	// OS-level exclusion and process-death checks run as separate named owners.
-	now := time.Now()
-	capacity := worklease.Resources{CPUThreads: 2, HostRAMGiB: 2, VRAMGiB: 2}
-	lease := worklease.Lease{Task: "media/resource-fixture", Worktree: "media-fixture", ExpiresAt: now.Add(time.Hour).Format(time.RFC3339Nano), Resources: capacity}
-	if !worklease.AssessResources(now, capacity, []worklease.Lease{lease}).Fits {
-		t.Fatal("exact capacity refused")
-	}
-	for _, name := range []string{"cpu", "host", "device"} {
-		reduced := capacity
-		switch name {
-		case "cpu":
-			reduced.CPUThreads--
-		case "host":
-			reduced.HostRAMGiB--
-		case "device":
-			reduced.VRAMGiB--
-		}
-		if worklease.AssessResources(now, reduced, []worklease.Lease{lease}).Fits {
-			t.Fatalf("unsupported reduced %s capacity admitted", name)
-		}
-	}
+	// The resource metric owner keeps an observed zero apart from an absent measure.
+	// The tests of processcontrol hold admission, exclusion and process death.
 	id := func(kind artifact.Kind, label string) artifact.ID {
 		return testutil.ArtifactID(t, kind, "media resources "+label)
 	}

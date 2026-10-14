@@ -3,10 +3,10 @@
   "quality_protocol_sha256": "9a270a1847acc8b478fb2b7595fb254f9d89d315bf0dfc23e6a0d97a9ceb3eb2",
   "admission": [
     "Read current available host RAM, logical CPU capacity and load, free disk, GPU UUID, driver/kernel identity, free VRAM and current ownership before each acquisition group. Recheck after waiting. Installed capacity and earlier discovery are not an allocation grant.",
-    "Use processcontrol shared admission for correctness and exclusive physical-device admission for measurements. Resource names remain hardware identities across worktrees. Expired advisory leases do not release an OS-owned resource.",
+    "Use processcontrol shared admission for correctness and exclusive physical-device admission for measurements. Resource names remain hardware identities across worktrees.",
     "Resolve exact component identities and request-scoped lifetimes with modelrecipe.CompileDefinitionSessionPlan. Artifact extent is a storage measurement, not a host or device peak estimate. Include dtype conversion, transient tensors, retained caches, source preparation and export in the live-range estimate.",
     "Compare the selected workload's known live ranges and retained observations with current available capacity. Use the maximum known applicable requirement, including decode. Unknown required capacity remains unavailable until a bounded probe or source-derived bound resolves it. Do not infer sufficiency from weight size alone.",
-    "Account for allocations already reflected in free memory separately from declared work that has not allocated yet; do not subtract the same reservation twice. plan.AssessResources supplies advisory overlap and capacity checks; the OS resource owner and CUDA allocator enforce actual admission.",
+    "Account for allocations already reflected in free memory separately from declared work that has not allocated yet; do not subtract the same reservation twice. Actual admission is the processcontrol resource admission and the device's current free bytes, which the CUDA allocator enforces.",
     "Retain exact model policy, precision, sampler and requested output. Use existing supported tiling, streaming and bounded concurrency when they fit. If no supported execution fits, retain the obligation and report unavailable rather than silently shrinking the quality request.",
     "The user supplied no additional numeric time or memory ceiling. Preserve supported command deadlines and existing device-lane package/admission bounds. Select the first baseline and candidate acquisitions from the affected-consumer profile before execution; this protocol does not authorize an unbounded sweep or invented exploration grant."
   ],
@@ -56,7 +56,6 @@
     "internal/processcontrol:TestGPUExclusiveMeasurementAdmission",
     "internal/processcontrol:TestGPUCapacityAdmissionConcurrent",
     "internal/processcontrol:TestGPUCapacityAdmissionProcessExit",
-    "internal/plan:TestResourceAdvisory",
     "internal/runrecord:TestResourceFitnessContract",
     "internal/runrecord:TestImprovementFitnessRejectsTransferredCost",
     "internal/capabilityruntime:TestBoundedSessionAdmission"
@@ -64,8 +63,7 @@
   "known_gaps": [
     "Historical generation runs lack source, environment and elapsed-time bindings; activation verifier timings do not identify their generated output.",
     "Whole-process host peak and pinned-host lifetime measurements are not supplied by capabilityruntime.Measured. Use the existing processmeasure owner for host peak; required comparison rows must publish scoped observations or remain incomplete.",
-    "The common ResourceMetric vocabulary includes HtoD/DtoH byte counts but not DtoD bytes, transfer call counts, retained memory or per-boundary classification. Existing driver counters hold the transfer details; do not discard them during publication.",
-    "Work-lease RAM and VRAM are advisory integer GiB. CUDA allocation checks use current free bytes. Unknown advisory capacity is not a positive fit decision for this campaign."
+    "The common ResourceMetric vocabulary includes HtoD/DtoH byte counts but not DtoD bytes, transfer call counts, retained memory or per-boundary classification. Existing driver counters hold the transfer details; do not discard them during publication."
   ]
 }
 

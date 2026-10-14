@@ -27,6 +27,10 @@ import (
 // The completed acquisition is frozen before the decoder migration.
 const imageVideoBaselineSHA256 = "d652708aa03884476c4cdc8a7e37d56780394bc001db90eeb5150397a5a0e124"
 
+// imageVideoAcquiredResourceProtocolSHA256 is the identity of the resource protocol the loader baseline and the cost profile were acquired under.
+//   - a record of an acquisition names the protocol it was acquired under, and a later correction of the protocol's text never moves it
+const imageVideoAcquiredResourceProtocolSHA256 = "2e7b7bfb8e8d308a498ea5b54572b0dedf3dccfa9ec12731f31758775cc7cc02"
+
 type mediaLoaderBaseline struct {
 	Version         uint16                   `json:"version"`
 	Source          string                   `json:"source"`
@@ -47,7 +51,7 @@ type mediaLoaderBaseline struct {
 
 func checkMediaLoaderBaseline(b mediaLoaderBaseline, inventory imageVideoInventory) error {
 	consumers := []string{"denoiser", "projection"}
-	if b.Version != artifact.InitialDocumentVersion || !gitauthority.ValidObjectID(b.Source) || b.Quality != imageVideoProtocolSHA256 || b.Resources != imageVideoResourceProtocolSHA256 || b.Scope == "" || b.Limitations == "" || len(b.Acquisitions) != len(consumers) {
+	if b.Version != artifact.InitialDocumentVersion || !gitauthority.ValidObjectID(b.Source) || b.Quality != imageVideoProtocolSHA256 || b.Resources != imageVideoAcquiredResourceProtocolSHA256 || b.Scope == "" || b.Limitations == "" || len(b.Acquisitions) != len(consumers) {
 		return errors.New("loader baseline identity, scope or coverage differs")
 	}
 	if !slices.ContainsFunc(inventory.Cells, func(c imageVideoInventoryCell) bool {

@@ -74,7 +74,7 @@ type mediaCostProfile struct {
 }
 
 func checkMediaCostCoverage(cost mediaCostProfile, inventory imageVideoInventory) error {
-	if cost.Version != 1 || cost.Census != inventory.Census || cost.Quality != imageVideoProtocolSHA256 || cost.Resources != imageVideoResourceProtocolSHA256 || len(cost.Source) != 40 || len(cost.Pipelines) != len(inventory.Cells) {
+	if cost.Version != 1 || cost.Census != inventory.Census || cost.Quality != imageVideoProtocolSHA256 || cost.Resources != imageVideoAcquiredResourceProtocolSHA256 || len(cost.Source) != 40 || len(cost.Pipelines) != len(inventory.Cells) {
 		return errors.New("cost profile identity or denominator differs")
 	}
 	seen := map[artifact.ID]bool{}

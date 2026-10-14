@@ -305,25 +305,6 @@ members: internal/runrecord/resource_fitness_comparison.go
 reason: RunKey keys a run for a build that counted no identity, over the live RunKeyOf (internal/capabilityruntime/run_key.go:71), and tests of four packages enter through it, among them internal/speechsynth/recovery_test.go, whose bytes docs/verification/specialized-coverage.json pins, so those tests take RunKeyOf, and RunKey is deleted, in the commit that pins that record again.
 reason: RequireResourceFitnessComparison and VerifiedBatch are the verified load and the publication of a comparison no command stores, tests of internal/runrecord and internal/audioparity hold the source replay of the live CompareResourceFitness (internal/runrecord/resource_fitness_comparison.go:93) to a forged value through them, and CompareResourceFitness takes no made value, so they stay until a command stores a comparison.
 
-group remote-stage-adapter
-class: dead
-surface: outside
-declarations: 3
-lines: 71
-members: internal/workflowruntime/remote_adapter.go
-members: internal/runrecord/serving_observation.go
-reason: A live path does its work, because cmd/recipe runs a spilled request on a peer through InvokeRemotePeer with its own receipts, and nothing implements the transport or the value format this adapter needs.
-reason: A stage-level route would rebind the live adapters to those receipts and not use this second interface, and AttemptKind exists only for it.
-
-group resident-capacity-plan
-class: dead
-surface: outside
-declarations: 5
-lines: 108
-members: internal/devicemath/scratch_pool_cuda_windows.go
-reason: A live path does its work, because the dense trainer allocates every persistent buffer before its first step and frees them on error (internal/densecausaltrain/train_resident_cuda_windows.go), so the allocator refuses a run that does not fit.
-reason: The plan leaves out the embedding, the head, the final norm and the optimizer's workspaces, and no trainer runs a model partly resident.
-
 group retired-writer-records
 class: shadowed
 surface: outside
@@ -362,6 +343,15 @@ lines: 20
 members: internal/inference/sampling_vocab.go
 reason: No command calls Runner.ExecutionMetrics or Runner.ResetDeviceMemoryPeak, and two device tests of live recovery read through them, TestE4BResourceRecovery (cmd/longform/e4b_recovery_windows_test.go) the retained bytes of the buffer pool against its limit and TestE4BMediaResourceRecovery (internal/server/e4b_resource_windows_test.go) the peak device memory of each request alone.
 reason: They stay, because Runner.DeviceMemory (internal/inference/sampling_vocab.go:50) reports neither the retained bytes of the pool nor a peak, so either test would lose what it holds.
+
+group serving-attempt-kind
+class: test-held
+surface: outside
+declarations: 1
+lines: 13
+members: internal/runrecord/serving_observation.go
+reason: TestServingAttemptChainClassifiesRetryReselectionAndSpillover reads ServingObservation.AttemptKind in the one function that holds the live PublishServingObservation to accept a retry and to refuse a second attempt of the same ordinal (internal/runrecord/serving_observation.go:271), and no other test holds that refusal.
+reason: The remote stage adapter that classed its attempts by it is deleted, so the test is to assert on the attempt chain alone, and AttemptKind is deleted then.
 
 group session-state-codecs
 class: wire
@@ -486,12 +476,3 @@ members: internal/webuilane/legs.go
 members: internal/webuilane/browser.go
 reason: cmd/webui-lane runs the browser tests as a child, hands them the directory Leg writes to (cmd/webui-lane/main.go:169) and requires the records it reads back (main.go:182), so a lane reaches Leg and the browser waits those tests call.
 reason: The walk lacks the rule that a declaration of a lane's own package named by a test of a package the lane runs (main.go:190) is reached by that lane.
-
-group worklease-capacity-advice
-class: dead
-surface: outside
-declarations: 3
-lines: 73
-members: internal/worklease/worklease.go AssessResources WorkspaceClaimsConflict ClaimPathsOverlap
-reason: AssessResources reports declared reservations against capacity, nothing in production builds a lease, and 5c7d6d9a2 deleted its one caller.
-reason: The four conditions hold, because its input chain is missing, it is advice for the owner by its own comment, it costs a fixture and a stale line of docs/image_video_resources.json, and real admission is the process control and the device's free bytes.

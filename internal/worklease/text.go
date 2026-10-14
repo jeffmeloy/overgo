@@ -3,7 +3,7 @@ package worklease
 import "overgo/internal/textcheck"
 
 const (
-	// AutomationTextMaxBytes bounds every lease, role and plan identifier field.
+	// AutomationTextMaxBytes bounds every role, worker and plan identifier field.
 	AutomationTextMaxBytes = 2048
 	// UnassignedRole selects work without an explicit owner; a dispatch claim never carries it as its worker.
 	UnassignedRole = "unassigned"

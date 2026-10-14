@@ -67,17 +67,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 31732,
+        "nodes": 33779,
         "reason": ""
       },
       "steps": [
-        {
-          "id": "delete-dead-wire",
-          "title": "Delete the three groups the reading of the wire groups found dead outside the inference surface",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestEveryProcessDeclarationIsReachedByACommand$'",
-          "rationale": "From the reading of step wire-unreached, which reclassed three of its groups as dead. Each stands outside the inference surface.\n- remote-stage-adapter (71 lines): cmd/recipe already runs a spilled request on a peer through InvokeRemotePeer with its own receipts (cmd/recipe/main.go:465). A stage-level route would need a transport and a value format that do not exist, and it would rebind the live adapters to those receipts rather than use this second interface. AttemptKind (internal/runrecord/serving_observation.go:209) exists only for it.\n- resident-capacity-plan (108 lines): the dense trainer allocates every persistent buffer before its first step and frees them on error (internal/densecausaltrain/train_resident_cuda_windows.go:212-305), so the allocator already refuses a run that does not fit. The plan leaves out the embedding, the head, the final norm and the optimizer's workspaces, and no trainer runs a model partly resident.\n- worklease-capacity-advice (73 lines): nothing in production builds a lease, and its only caller was deleted by 5c7d6d9a2. The line of docs/image_video_resources.json that names it is corrected, and the two records that pin that file by hash are derived again.\nEach is deleted with the tests that exist for it alone and the types only it used, by the proof step dead-outside used.\nServes: the loop's upkeep.\nDisappears: about 252 lines of production code and their tests.\nEvidence: the census test with those lines gone from its list, and every package built with and without the model tags.\nBatch: host."
-        },
         {
           "id": "wire-slot-cache",
           "title": "Save and restore a slot's prompt cache on the server, from host and device",

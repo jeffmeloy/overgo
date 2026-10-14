@@ -95,13 +95,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "analyzer",
-          "title": "Keep the three readings as one test helper beside the declarations walk: repeated runs by class, call-and-test chains, and switches by kind",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestShapeReadingFindsPlantedFamilies$'",
-          "rationale": "The proposal's figures came from scratch programs that are gone. The walk that holds every declaration to a command already lives in internal/repoanalysis's tests (90b1ca10c); this reading joins it, in test code, and adds no production code. It reads a tree and lists: runs of five statements whose shape repeats in two or more functions, each classed as flag definitions, call-and-test pairs or other; chains of three or more call-and-test pairs on one receiver; and switches over three or more named constants, grouped into families by the constants they share. The test plants one of each in a fixture and holds the listing to it; run with -v on the repository it prints the listing and asserts nothing, so no figure is pinned.\nServes: the loop's upkeep: the next consolidation is chosen from a reading and not from a guess.\nDisappears: nothing.\nEvidence: the fixture's families found, and each class told from the others; the repository's listing reproduces the first reading's figures within what has changed since a534ff310.\nBatch: host; internal/repoanalysis reaches no longer test run."
-        },
-        {
           "id": "real-repeats",
           "title": "Read each group of truly repeated logic, and give a common component to those that shrink",
           "status": "open",

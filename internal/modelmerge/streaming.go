@@ -74,10 +74,11 @@ func ExecuteStreaming(
 	if err != nil {
 		return StreamingResult{}, err
 	}
-	if err := validateOpenedStreamingShards(plan, sources, opened); err != nil {
+	written, err := nameOpenedStreamingShards(plan, sources, opened)
+	if err != nil {
 		return StreamingResult{}, errors.Join(err, closeStreamingSources(opened))
 	}
-	result, executeErr := executeOpenedStreaming(ctx, plan, opened, destination)
+	result, executeErr := executeOpenedStreaming(ctx, plan, opened, written, destination)
 	return result, errors.Join(executeErr, closeStreamingSources(opened))
 }
 
@@ -85,9 +86,9 @@ func executeOpenedStreaming(
 	ctx context.Context,
 	plan composition.OfflineTensorExecutionPlan,
 	opened []*safetensors.Source,
-	destination string,
+	written, destination string,
 ) (StreamingResult, error) {
-	outputPlan, err := compileStreamingOutput(plan, opened)
+	outputPlan, err := compileStreamingOutput(plan, opened, written)
 	if err != nil {
 		return StreamingResult{}, err
 	}
@@ -172,11 +173,15 @@ func openStreamingSources(
 	return opened, nil
 }
 
-func validateOpenedStreamingShards(
+// nameOpenedStreamingShards names the bytes of every opened source, in the plan's input order, and holds each source its caller bound to its shards.
+//   - name of a source = the digest of the shards it opened (safetensors.DigestShards)
+//   - a source bound to shards whose names or bytes differ from the opened ones is refused
+//   - a source with no binding is named and not compared
+func nameOpenedStreamingShards(
 	plan composition.OfflineTensorExecutionPlan,
 	provided []StreamingSource,
 	opened []*safetensors.Source,
-) error {
+) (string, error) {
 	byModel := make(map[artifact.ID][]StreamingShard, len(provided))
 	for _, source := range provided {
 		bindings := slices.Clone(source.Shards)
@@ -185,35 +190,42 @@ func validateOpenedStreamingShards(
 		})
 		byModel[source.Model] = bindings
 	}
+	written := make([]string, len(plan.Inputs))
 	for index, input := range plan.Inputs {
+		actual, err := opened[index].ShardDigests()
+		if err != nil {
+			return "", err
+		}
+		written[index] = safetensors.DigestShards(actual)
 		expected := byModel[input.Model]
 		if len(expected) == 0 {
 			continue
 		}
-		actual, err := opened[index].ShardDigests()
-		if err != nil {
-			return err
-		}
 		if len(actual) != len(expected) {
-			return fmt.Errorf("model merge: source %d shard closure differs", index)
+			return "", fmt.Errorf("model merge: source %d shard closure differs", index)
 		}
 		for shardIndex, digest := range actual {
 			binding := expected[shardIndex]
 			id, err := artifact.NewID(artifact.KindTensorSet, digest.Digest)
 			if err != nil || binding.Name != digest.Name || binding.Artifact != id {
-				return errors.Join(fmt.Errorf("model merge: source %d shard %q bytes differ", index, digest.Name), err)
+				return "", errors.Join(fmt.Errorf("model merge: source %d shard %q bytes differ", index, digest.Name), err)
 			}
 			if shardIndex > 0 && binding.Name == expected[shardIndex-1].Name {
-				return fmt.Errorf("model merge: source %d shard binding is duplicated", index)
+				return "", fmt.Errorf("model merge: source %d shard binding is duplicated", index)
 			}
 		}
 	}
-	return nil
+	return strings.Join(written, ","), nil
 }
 
+// compileStreamingOutput declares the output catalog of plan over the opened sources, bound to what the output is computed from.
+//   - binding = the plan's identity and written, the name of the bytes of every source
+//   - a stage another plan or sources of other bytes left has another binding, so the writer refuses it
+//   - refused because going on from it would publish a checkpoint mixed from two requests
 func compileStreamingOutput(
 	plan composition.OfflineTensorExecutionPlan,
 	sources []*safetensors.Source,
+	written string,
 ) (safetensors.StreamingPlan, error) {
 	if len(sources) != len(plan.Inputs) {
 		return safetensors.StreamingPlan{}, errors.New("model merge: opened source count differs")
@@ -242,7 +254,7 @@ func compileStreamingOutput(
 			}
 		}
 	}
-	return safetensors.StreamingPlan{Shards: shards}, nil
+	return safetensors.StreamingPlan{Shards: shards, Binding: plan.ID.String() + "," + written}, nil
 }
 
 func validateStreamingTensor(

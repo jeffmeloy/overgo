@@ -13,6 +13,7 @@ import (
 	"os"
 
 	"overgo/internal/artifact"
+	"overgo/internal/capabilityruntime"
 	"overgo/internal/clioptions"
 	"overgo/internal/modelbuilder"
 	"overgo/internal/overgodb"
@@ -55,11 +56,13 @@ func run(args []string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
+	// The operation names the code that builds the model, so a repeat of one request by other code builds it again.
 	operation, err := artifact.JSONID(artifact.KindEvidence, struct {
 		Documents []string `json:"documents"`
 		Seed      int64    `json:"seed"`
 		Steps     int      `json:"steps"`
-	}{Documents: documents, Seed: *seed, Steps: *steps})
+		Code      string   `json:"code"`
+	}{Documents: documents, Seed: *seed, Steps: *steps, Code: capabilityruntime.AnswerScope[modelbuilder.ScratchSession]()})
 	if err != nil {
 		return err
 	}

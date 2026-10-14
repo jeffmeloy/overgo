@@ -2,6 +2,7 @@ package safetensors
 
 import (
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -45,6 +46,7 @@ type streamShardSpec struct {
 type streamPlan struct {
 	Shards   []streamShardSpec `json:"shards"`
 	Metadata map[string]string `json:"metadata,omitempty"`
+	Binding  string            `json:"binding,omitempty"`
 }
 
 // StreamingTensorSpec declares one tensor whose extent is derived from dtype
@@ -65,6 +67,24 @@ type StreamingShardSpec struct {
 type StreamingPlan struct {
 	Shards   []StreamingShardSpec
 	Metadata map[string]string
+	// Binding names what the output is computed from, which the catalog does not say.
+	//   - it joins the plan's identity, so a stage left under another binding is refused
+	//   - it joins no output file, so plans that differ only in it publish the same bytes
+	Binding string
+}
+
+// DigestShards names the bytes of opened shards as one digest, for a plan to be bound to them.
+//   - digest = each shard's name, size and digest, in the order given
+//   - Source.ShardDigests gives a source's shards in name order, so the bytes of one source have one name
+//   - a hash never fails a write, so no write is checked.
+func DigestShards(digests []ShardDigest) string {
+	hash := sha256.New()
+	for _, shard := range digests {
+		_ = binary.Write(hash, binary.LittleEndian, []uint64{uint64(len(shard.Name)), shard.Size})
+		_, _ = io.WriteString(hash, shard.Name)
+		_, _ = hash.Write(shard.Digest[:])
+	}
+	return hex.EncodeToString(hash.Sum(nil))
 }
 
 // StreamingWriter stages exact tensor extents and atomically publishes the
@@ -76,7 +96,7 @@ type StreamingWriter struct {
 // NewStreamingWriter compiles a complete output catalog before creating its
 // private staging directory.
 func NewStreamingWriter(destination string, plan StreamingPlan) (*StreamingWriter, error) {
-	internal := streamPlan{Metadata: plan.Metadata, Shards: make([]streamShardSpec, len(plan.Shards))}
+	internal := streamPlan{Metadata: plan.Metadata, Binding: plan.Binding, Shards: make([]streamShardSpec, len(plan.Shards))}
 	for shardIndex, shard := range plan.Shards {
 		internal.Shards[shardIndex].Name = shard.Name
 		internal.Shards[shardIndex].Tensors = make([]streamTensorSpec, len(shard.Tensors))

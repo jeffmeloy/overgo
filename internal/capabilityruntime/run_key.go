@@ -45,15 +45,15 @@ var codeScope = sync.OnceValue(func() string {
 // (inferencesurface.Execution); a test stands a build's count in for it.
 var execution = inferencesurface.Execution
 
-// answerScope names the code a capability's stored answer is given again by,
-// for a capability whose model is a Model. The model's type says which
-// package computes the answer, and a build that counted that package's
-// execution identity keeps the answer under it: the sources, embedded files,
-// kernels, modules and build settings the result depends on, with the
-// libraries and settings of the process. A commit that changes none of them
-// leaves the answer good, and one that changes any asks again. A build that
-// counted none for the package keeps the scope of its code as a whole.
-func answerScope[Model any]() string {
+// AnswerScope names the code a stored answer is given again by, for work a value of type Model computes.
+//   - Model's package = the package that computes the answer
+//   - a pointer to a type names the package of the type it points to
+//   - a build that counted that package's execution identity => the scope is that identity
+//   - execution identity = the sources, embedded files, kernels, modules and build settings the result depends on, with the libraries and settings of the process
+//   - a commit that changes none of them leaves the answer good, and a commit that changes any asks again
+//   - a build that counted none for the package => the scope of its code as a whole (codeScope)
+//   - a capability's served key and a command's replay key take their code part here, because two ways of naming code could disagree.
+func AnswerScope[Model any]() string {
 	model := reflect.TypeFor[Model]()
 	if model.Kind() == reflect.Pointer {
 		model = model.Elem()
@@ -69,7 +69,7 @@ func answerScope[Model any]() string {
 // the same code replays the same run. A run a store kept from before a key
 // named its code is keyed on the recipe and the request alone.
 func RunKeyOf[Model any](definition recipe.Definition, request artifact.Content) string {
-	return runKeyPrefix + definition.ID.String() + "/" + request.Descriptor.ID.String() + "/" + answerScope[Model]()
+	return runKeyPrefix + definition.ID.String() + "/" + request.Descriptor.ID.String() + "/" + AnswerScope[Model]()
 }
 
 // RunKey is the key of a run by a build that counted no identity, as every

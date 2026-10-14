@@ -16,6 +16,7 @@ import (
 
 	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
+	"overgo/internal/capabilityruntime"
 	"overgo/internal/clioptions"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
@@ -66,8 +67,10 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	// The key names the code that runs the tools, so a repeat of one key by other code runs them again.
 	result, err := workflowruntime.ExecuteToolWorkflow(
-		ctx, store, workflow, agenttool.NewOperatorExecutor(), *key, request.Arguments,
+		ctx, store, workflow, agenttool.NewOperatorExecutor(),
+		*key+"/"+capabilityruntime.AnswerScope[agenttool.Executor](), request.Arguments,
 	)
 	if err != nil {
 		return err

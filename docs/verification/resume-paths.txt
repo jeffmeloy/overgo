@@ -39,12 +39,13 @@ The test does not look for a reader or a site the record does not name.
 
 What was read and not run.
 Every statement here was read from the code, and only the sizes and the figures were counted.
-Four statements are the ones most likely to be acted on, and none was reproduced.
+Four statements are the ones most likely to be acted on.
+Two were not reproduced, and each needs a failing test of its own before anything is changed.
 No production path finds the operation's lifecycle record again.
-Four command keys into the workflow replay name no code.
 A tool call's stage receipts are never read again by the replay.
-The offline merge's staged output is bound to nothing it was staged from.
-Each needs a failing test of its own before anything is changed.
+Two were reproduced by a failing test, the code was changed, and the entries below state what holds.
+Four command keys into the workflow replay named no code, and three now name it (TestAReplayKeyNamesTheCodeThatComputesIt, in the package of each of the three).
+The offline merge's staged output was bound to nothing it was staged from (the same test, in internal/modelmerge).
 
 == paths ==
 
@@ -57,20 +58,20 @@ The caller chooses the operation, so the path's identity is whatever its caller 
 identity-derived: an operation is the hash of a recipe and a key, except where a caller hands an id of its own | internal/workflowruntime/runtime.go#ExecutionID
 Callers choose the key or the id in four ways.
 identity-served: a served capability derives it from the recipe, the exact request document and the code that answers | internal/capabilityruntime/run_key.go#RunKeyOf internal/capabilityruntime/measured.go#measuredRun
-identity-code: the code is named by the build's execution identity for the model's package, else by the commit of an unchanged build, else by the process | internal/capabilityruntime/run_key.go#answerScope internal/capabilityruntime/run_key.go#codeScope
+identity-code: the code is named by the build's execution identity for the model's package, else by the commit of an unchanged build, else by the process | internal/capabilityruntime/run_key.go#AnswerScope internal/capabilityruntime/run_key.go#codeScope
 The execution identity is the dependency execution-identity that docs/verification/surface-moves.txt defines, and this record does not define it again.
 identity-beside: the served key also takes the bytes of the files a model reads beside its inventory, and a file among them that cannot be read makes the run a fresh one | internal/capabilityruntime/runtime.go#Reading internal/capabilityruntime/runtime.go#Contents
-identity-command: four commands give a key that names no code, which is a key from the command line, a protocol with a window's number, a hash of a corpus with a seed and a step count, and a fixed tag | cmd/tool-workflow/main.go#run internal/trainingworkflow/chain.go#RunChainViability cmd/model-build/main.go#run cmd/validate/parity_vqa_recipe_serve.go#executeVQAProgram
+identity-command: three commands give a key of their own with the code's name the served key takes, which is a key from the command line, a protocol with a window's number and a hash of a corpus with a seed and a step count, and a fourth gives a fixed tag that names no code | cmd/tool-workflow/main.go#run internal/trainingworkflow/chain.go#RunChainViability cmd/model-build/main.go#run cmd/validate/parity_vqa_recipe_serve.go#executeVQAProgram internal/capabilityruntime/run_key.go#AnswerScope
 identity-manager: the server hands the operation manager's own id for a tool call and for a model build | internal/workflowruntime/tool.go#ToolExecutor.ExecuteToolOperation internal/server/model_builder_workspace.go#modelBuilderWorkspace.ExecuteWorkflow
 identity-fresh: a measurement asks for a run of its own, by a scope drawn for its context or by the time its evaluation began | internal/capabilityruntime/measured.go#FreshRun cmd/recipe/main.go#measureCapability cmd/evaluate/render.go#renderMedia cmd/evaluate/vqa.go#vqaRunKey cmd/evaluate/vqa.go#openVQASession
-So one model build has two keys, the manager's id from the server and the hash of its corpus, seed and step count from the command.
+So one model build has two keys, the manager's id from the server and the hash of its corpus, seed, step count and code from the command.
 retry: a stage is taken from the store only when its newest receipt is completed and every output port left artifacts | internal/workflowruntime/runtime.go#Runtime.recoverStage
 retry-drift: a receipt of another recipe, of a port its module lacks or of an artifact the store no longer holds is refused, as an error of an execution and as no answer of a replay | internal/workflowruntime/runtime.go#Runtime.recoverStage internal/workflowruntime/runtime.go#Runtime.beginStage internal/workflowruntime/runtime.go#Runtime.executePlan
 retry-again: a stage whose receipt is not completed, left a value and no artifact, or no longer fits its module runs again as the next attempt | internal/workflowruntime/runtime.go#Runtime.recoverStage internal/workflowruntime/runtime.go#Runtime.beginStage internal/runrecord/stage_receipt.go#stageTransition
 retry-unasked: a stage that only feeds recovered stages does not run | internal/workflowruntime/runtime.go#Runtime.planReplay
 retry-replay: a replay runs no stage, and it publishes nothing and reports false when a stage would have to run | internal/workflowruntime/runtime.go#Runtime.Replay internal/workflowruntime/runtime.go#Runtime.executePlan
 A served capability asks for a replay before it loads a model, so a request the store answers costs neither a load nor a stage.
-code: internal/workflowruntime/runtime.go#errStagesMustRun internal/workflowruntime/runtime.go#Runtime.Replay internal/workflowruntime/runtime.go#ExecutionID internal/workflowruntime/runtime.go#Runtime.planReplay internal/workflowruntime/runtime.go#Runtime.recoverStage internal/workflowruntime/runtime.go#recoveredDatum internal/workflowruntime/runtime.go#Runtime.beginStage internal/workflowruntime/runtime.go#Runtime.finishStage internal/workflowruntime/runtime.go#withStageState internal/runrecord/stage_receipt.go#requireStageReceipt internal/runrecord/stage_receipt.go#ResolveStageReceipt internal/runrecord/stage_receipt.go#PublishStageReceipt internal/runrecord/stage_receipt.go#PrepareStageReceipt internal/runrecord/stage_receipt.go#stageTransition internal/runrecord/stage_receipt.go#stageReceiptAlias internal/capabilityruntime/run_key.go#codeScope internal/capabilityruntime/run_key.go#execution internal/capabilityruntime/run_key.go#answerScope internal/capabilityruntime/run_key.go#RunKeyOf internal/capabilityruntime/run_key.go#RunKey internal/capabilityruntime/measured.go#FreshRun internal/capabilityruntime/measured.go#measuredRun internal/capabilityruntime/runtime.go#Reading internal/capabilityruntime/runtime.go#Contents
+code: internal/workflowruntime/runtime.go#errStagesMustRun internal/workflowruntime/runtime.go#Runtime.Replay internal/workflowruntime/runtime.go#ExecutionID internal/workflowruntime/runtime.go#Runtime.planReplay internal/workflowruntime/runtime.go#Runtime.recoverStage internal/workflowruntime/runtime.go#recoveredDatum internal/workflowruntime/runtime.go#Runtime.beginStage internal/workflowruntime/runtime.go#Runtime.finishStage internal/workflowruntime/runtime.go#withStageState internal/runrecord/stage_receipt.go#requireStageReceipt internal/runrecord/stage_receipt.go#ResolveStageReceipt internal/runrecord/stage_receipt.go#PublishStageReceipt internal/runrecord/stage_receipt.go#PrepareStageReceipt internal/runrecord/stage_receipt.go#stageTransition internal/runrecord/stage_receipt.go#stageReceiptAlias internal/capabilityruntime/run_key.go#codeScope internal/capabilityruntime/run_key.go#execution internal/capabilityruntime/run_key.go#AnswerScope internal/capabilityruntime/run_key.go#RunKeyOf internal/capabilityruntime/run_key.go#RunKey internal/capabilityruntime/measured.go#FreshRun internal/capabilityruntime/measured.go#measuredRun internal/capabilityruntime/runtime.go#Reading internal/capabilityruntime/runtime.go#Contents
 nodes: 2804
 whole-files: internal/capabilityruntime/run_key.go
 whole-nodes: 283
@@ -80,9 +81,10 @@ entered-by: ExecuteProgram Replay
 readers: internal/capabilityruntime/measured.go#measuredRun internal/trainingworkflow/chain.go#executeChainArm internal/workflowruntime/model_builder.go#ExecuteModelBuild internal/workflowruntime/tool.go#ToolExecutor.ExecuteToolOperation internal/workflowruntime/tool_workflow.go#ExecuteToolWorkflow
 reached-from: the capability executors and the visual question runner reach the served entry, and four commands and two places of the server reach the others | internal/capabilityruntime/runtime.go#JSONScalar internal/capabilityruntime/session_director.go#ModelSessionDirector.serve internal/capabilityruntime/session_director.go#executeScalar internal/vqaserve/execute.go#RunProgram internal/mediacapability/vqa.go#executeVQA cmd/train/route_graft.go#runChain cmd/model-build/main.go#run cmd/tool-workflow/main.go#run cmd/validate/parity_vqa_recipe_serve.go#executeVQAProgram internal/server/model_builder_workspace.go#modelBuilderWorkspace.ExecuteWorkflow internal/server/tool_execution.go#Handler.executePendingTools
 A fixture of internal/modelrecipetest enters it too, as test support.
-held-by: internal/workflowruntime/replay_test.go#TestReplayRunsNoStageItsOutputDoesNotNeed internal/workflowruntime/runtime_test.go#TestWorkflowRestartSkipsCompletedStages internal/workflowruntime/runtime_test.go#TestWorkflowRecoveryRejectsRecipeDrift internal/workflowruntime/earlier_receipt_test.go#TestOperationRunsOnFromAnEarlierFormReceipt internal/capabilityruntime/replay_test.go#TestReplayDoesNotCrossACodeChange internal/capabilityruntime/reuse_test.go#TestStoredResultIsReusedOnlyUnderItsOwnIdentity
-By reading, a repeat of one of the four commands after its code changed is answered from the store, because its key names no code.
-No test holds that either way.
+held-by: internal/workflowruntime/replay_test.go#TestReplayRunsNoStageItsOutputDoesNotNeed internal/workflowruntime/runtime_test.go#TestWorkflowRestartSkipsCompletedStages internal/workflowruntime/runtime_test.go#TestWorkflowRecoveryRejectsRecipeDrift internal/workflowruntime/earlier_receipt_test.go#TestOperationRunsOnFromAnEarlierFormReceipt internal/capabilityruntime/replay_test.go#TestReplayDoesNotCrossACodeChange internal/capabilityruntime/reuse_test.go#TestStoredResultIsReusedOnlyUnderItsOwnIdentity cmd/tool-workflow/replay_key_test.go#TestAReplayKeyNamesTheCodeThatComputesIt cmd/model-build/replay_key_test.go#TestAReplayKeyNamesTheCodeThatComputesIt internal/trainingworkflow/chain_replay_key_test.go#TestAReplayKeyNamesTheCodeThatComputesIt
+A repeat of the tool workflow, the model build or the training chain by other code runs its stages again, which the three tests of those commands hold.
+A process whose build counted no identity for the command's package and carries no commit names only itself, so what it stored answers no later process, which is every run of such a command under go run.
+The recipe-serve parity still keys its run on a fixed tag, because its file is bound by a device claim whose test records a verification and refuses a tree with changes, so a commit's checks cannot verify the claim again.
 
 path: operation-reuse
 The operation's own reuse wraps a server workflow or evaluation and keeps one record of its completion.
@@ -269,11 +271,11 @@ keeps: the safetensors streaming writer keeps a stage beside its destination tha
 read: to the places cited
 
 site: adapter-merge
-keeps: the adapter merge puts a digest of the adapter and of the base into the plan, so a stage of another adapter or base is refused | internal/peft/merge.go#mergePlan internal/peft/merge.go#Adapter.digest internal/peft/merge.go#baseDigest
+keeps: the adapter merge puts a digest of the adapter and of the base into the plan, so a stage of another adapter or base is refused | internal/peft/merge.go#mergePlan internal/peft/merge.go#Adapter.digest internal/safetensors/stream_writer.go#DigestShards
 read: to the places cited
 
 site: offline-merge
-keeps: the offline merge's plan names shards, tensors, storage and shapes, and nothing of the sources a stage was written from | internal/modelmerge/streaming.go#compileStreamingOutput internal/modelmerge/streaming.go#ExecuteStreaming internal/controlleraction/action.go#ExecuteOfflineArtifact
+keeps: the offline merge binds its stage to its execution plan and to the digest of each source's shards, beside the shards, tensors, storage and shapes, so a stage of another plan or of other bytes is refused | internal/modelmerge/streaming.go#compileStreamingOutput internal/modelmerge/streaming.go#nameOpenedStreamingShards internal/modelmerge/streaming.go#ExecuteStreaming internal/controlleraction/action.go#ExecuteOfflineArtifact internal/safetensors/stream_writer.go#DigestShards
 read: to the places cited
 
 site: candidate-materialization
@@ -340,9 +342,10 @@ states: a model build runs its training as one stage of the workflow runtime, so
 basis: read, not run
 
 connection: adapter-merge offline-merge
-states: two callers of one streaming writer bind its stage differently, the adapter merge to its adapter and base and the offline merge to nothing it was staged from | internal/peft/merge.go#mergePlan internal/modelmerge/streaming.go#compileStreamingOutput internal/safetensors/stream_writer.go#streamWriter.resume
-basis: read, not run
-That is the shape the repair 8988728ae mended for the proposer's candidates.
+states: two callers of one streaming writer bind its stage to what it was staged from, the adapter merge to its adapter and base in metadata its output carries, and the offline merge to its plan and its sources' bytes in a binding no output carries | internal/peft/merge.go#mergePlan internal/modelmerge/streaming.go#compileStreamingOutput internal/safetensors/stream_writer.go#streamWriter.resume internal/safetensors/stream_writer.go#StreamingPlan
+basis: read for the adapter merge, and run for the offline merge by TestAReplayKeyNamesTheCodeThatComputesIt of internal/modelmerge
+Both have the shape the repair 8988728ae gave the proposer's candidates.
+The offline merge's binding joins the staged plan's identity and no output file, so a merge publishes the bytes it published without it.
 A candidate materialization stages into a new temporary directory each time.
 The offline artifact command stages at the destination its caller gives, so only it can meet a stage an earlier run left (cmd/controller-action/main.go#run).
 
@@ -398,7 +401,7 @@ The workflow replay is the one path whose record is in the store for each unit o
 Its retry rule is the rule's last part already, since a finished unit is reused only while the store holds its outputs.
 Its served key already names the request, the code and the bytes beside a model.
 It is short of the rule in three ways.
-Four command keys name no code.
+One command key, the recipe-serve parity's, names no code.
 An entry under the manager's id is not repeated.
 A stage is its only unit, so nothing inside a stage is resumed.
 The record docs/verification/checkpoint-families.txt, measured today, found the stage receipts among the store's larger live record families.
@@ -413,9 +416,9 @@ The first is a test that shows whether any production path finds a lifecycle rec
 If none does, the operation's own reuse is a path only a test reaches.
 By estimate, deleting it takes out the nodes of its whole file, which its entry gives, and changes its three readers.
 Removing the record's family from the store would be the operator's to weigh.
-The second is a failing test for each of the four command keys that name no code, and one for the offline merge's stage.
+The second is a failing test for each of the four command keys that named no code, and one for the offline merge's stage, and it is taken for three of the keys and for the merge.
 The third is one owner for naming the bytes of the files a piece of work reads.
-closing-input-bytes: four places name the bytes of an input in four ways, the files beside a model by content, the files a cell is given by path, size and time, an adapter by a digest of its modules, and a merge's base by its shards' digests | internal/capabilityruntime/runtime.go#Contents cmd/validate/cell_credit.go#consumedFiles internal/peft/merge.go#Adapter.digest internal/peft/merge.go#baseDigest
+closing-input-bytes: four places name the bytes of an input in four ways, the files beside a model by content, the files a cell is given by path, size and time, an adapter by a digest of its modules, and an adapter merge's base and an offline merge's sources by their shards' digests | internal/capabilityruntime/runtime.go#Contents cmd/validate/cell_credit.go#consumedFiles internal/peft/merge.go#Adapter.digest internal/safetensors/stream_writer.go#DigestShards
 That step is what the repairs have in common, since four commits of the family added the bytes of an input to a key (26d332f81, 78534ee41, 2ae868219, 8988728ae).
 Whether one owner would be smaller than the four was not measured.
 

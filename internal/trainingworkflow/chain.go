@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/capabilityruntime"
 	"overgo/internal/densecausal"
 	"overgo/internal/hfbpe"
 	"overgo/internal/hostmath"
@@ -129,8 +130,9 @@ func RunChainViability(store *overgodb.Store, config ChainConfig) (ChainResult, 
 		// pair; prefix/draft/target and window fix the data), so distinct
 		// configurations sharing one store never collide and identical
 		// replays deduplicate.
-		protocol := fmt.Sprintf("%s/p%d-d%d-t%d/w%d",
-			result.ChainRecipe, config.Prefix, config.Draft, config.Target, index)
+		// The key names the code that drafts and tokenizes, so a repeat by other code runs both arms again.
+		protocol := fmt.Sprintf("%s/p%d-d%d-t%d/w%d/%s",
+			result.ChainRecipe, config.Prefix, config.Draft, config.Target, index, capabilityruntime.AnswerScope[chainModel]())
 		chainCtx, chainText, err := executeChainArm(
 			ctx, runtime, chainProgram, "tier0-chain/chain/"+protocol, prefixText)
 		if err != nil {

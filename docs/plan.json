@@ -67,17 +67,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 131,
+        "nodes": 13,
         "reason": "measured by the preflight of step code-in-keys' change at b3ae5ef4a: the code's name in four command keys, and the binding of the offline merge's stage to its plan and its sources' bytes"
       },
       "steps": [
-        {
-          "id": "code-in-keys",
-          "title": "Name the code in the four command keys of the workflow replay that name none, and bind the offline merge's stage",
-          "status": "open",
-          "verify": "go test ./cmd/tool-workflow ./cmd/model-build ./internal/trainingworkflow ./internal/modelmerge -count=1 -run '^TestAReplayKeyNamesTheCodeThatComputesIt$'",
-          "rationale": "From docs/verification/resume-paths.txt. The workflow replay reuses a finished stage when its receipt is completed with artifacts, under an operation the caller derives. The served key names the recipe, the request, the code and the bytes beside the model. Four command keys name no code, by the record's reading and not by a run, so a command repeated after a change to the code that computes its stage is answered with what the earlier code left. The offline merge's stage is bound to nothing that names its inputs. The step first writes a failing test for each of the five, which settles what was read: the same request under changed code must run again, and does not. It then names the code in each key the way the served key does, and binds the merge's stage. A key that turns out to name its code already is reported and its test kept.\nServes: failure-rate as a person meets it: a repeated command is never answered by code that is gone.\nDisappears: nothing; four keys gain a part.\nEvidence: the five tests, each failing before its key is changed and passing after.\nBatch: host; internal/capabilityruntime is inside the inference surface, so the change goes just before a full measurement run."
-        },
         {
           "id": "lifecycle-record",
           "title": "Show by a test whether any production path finds an operation's lifecycle record again, and delete the path if none does",

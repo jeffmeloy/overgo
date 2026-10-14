@@ -74,15 +74,6 @@ schemas: internal/runrecord/agent_obligation.go overgo/agent-obligation-resoluti
 reason: TestAgentContractEnforcement holds ContractState.ObserveMutation, which Coordinator.propose calls once a mutation ran, through the three methods of the contract, TestDelegatedCapabilityRuntimeConsumesStagedOwners resolves through ResolveObligation the obligations that NewDelegatedCapabilityRuntime opens for cmd/agent-loop (cmd/agent-loop/main.go:156), and the tests of the trajectory supervisor make with NewAgentObligationResolution the resolutions it reads (internal/evaluation/trajectory_supervisor.go:228).
 reason: The recovery that called them is deleted and no command writes a resolution, so each test reads the state it holds directly or makes its document in a test file, and the five are deleted then.
 
-group agenttool-stream-receive
-class: wire
-surface: outside
-declarations: 1
-lines: 22
-members: internal/agenttool/stream.go
-reason: A manual of the streaming HTTP transport registers and cannot be proposed, because the coordinator invokes a tool in one call and never opens the stream this reads (internal/agenttool/stream.go:121).
-reason: Step consumer-checks/wire-tool-stream is the route, whose invoke collects the stream into one result, and it makes the whole of stream.go live, which tests alone reach though the walk lists one method of it, because the walk reaches a method by its name.
-
 group composite-generation-evidence
 class: prototype
 surface: inside

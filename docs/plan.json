@@ -67,7 +67,7 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 32772,
+        "nodes": 32704,
         "reason": ""
       },
       "steps": [
@@ -84,13 +84,6 @@
           "status": "open",
           "verify": "go test ./cmd/agent-loop -count=1 -run '^TestDelegatedStepAdmitsByContractAndRestores$'",
           "rationale": "From the reading of step wire-unreached. The runtime builds a task's contract and its checkpoints, and cmd/agent-loop drops both (cmd/agent-loop/main.go:185), so a delegated step ignores the task's ceiling of allowed effects (internal/agentloop/coordinator.go:147). The command also builds a new session on every run and never restores one (cmd/agent-loop/main.go:90, coordinator.go:234), so ApproveMutation refuses with no inspection on record (coordinator.go:321) and -approve works in neither mode. The step restores the command's session, forwards preview and approve through DelegatedCoordinator (internal/agentloop/delegation.go:38), binds the contract and the checkpoint runtime (delegated_runtime.go:65) to the session, and adds a -restore flag with a reader for a stored checkpoint (internal/runrecord/agent_checkpoint.go has none). Checkpoints apply only to effects with a workspace target, or checkpoint.go:122 refuses the step.\nServes: failure-rate as an agent's user meets it: a delegated step stays inside the effects its task allows, and a mutation it made can be undone.\nDisappears: nothing; about 140 lines of production code are added, an estimate by reading.\nEvidence: a host test that runs a delegated step whose task allows one effect and refuses another, approves a mutation, and restores it.\nBatch: host."
-        },
-        {
-          "id": "wire-tool-stream",
-          "title": "Invoke a streaming tool manual by collecting its stream into one result",
-          "status": "open",
-          "verify": "go test ./internal/agenttool -count=1 -run '^TestHTTPJSONStreamManualInvokesCollected$'",
-          "rationale": "From the reading of step wire-unreached. A tool manual of the streaming HTTP transport registers, and every call to it is refused (internal/agenttool/transport.go:84), because the coordinator invokes a tool in one call and never opens the stream (internal/agenttool/stream.go:121). Peer manuals declare this transport too (internal/agenttool/peer_manual.go:25). The step makes the adapter's invoke open the stream, read its events with Receive until the stream ends, and return them as one JSON array bounded by the manual's output limit. The whole of stream.go, 356 lines, is reached by tests alone today. The census counts 22 of them, because it reaches a method by its name and commands call other methods of the same names.\nServes: a person who registers an endpoint that streams, such as a local generation server, can run it as a tool from the web UI's agent steps.\nDisappears: nothing; about 30 lines of production code are added, an estimate by reading.\nEvidence: a host test with an httptest server that streams events to a registered manual and receives them as one result.\nBatch: host."
         },
         {
           "id": "wire-objective-matrix",

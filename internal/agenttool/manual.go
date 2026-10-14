@@ -148,7 +148,7 @@ type Manual struct {
 	Name        string        `json:"name"`
 	Description string        `json:"description"`
 	Effect      Effect        `json:"effect"`
-	Ceiling     EffectCeiling `json:"ceiling,omitempty"`
+	Ceiling     EffectCeiling `json:"ceiling"`
 	Arguments   []Field       `json:"arguments,omitempty"`
 	Transport   Transport     `json:"transport"`
 	Capability  artifact.ID   `json:"capability,omitzero"`

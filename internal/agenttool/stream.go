@@ -95,12 +95,11 @@ func (terminal StreamTerminal) ArtifactContent() (artifact.Content, error) {
 }
 
 // InvocationStream receives a bounded sequence and owns its cancellation,
-// transport body, per-manual entry lease, and terminal evidence lifecycle.
+// transport body, and terminal evidence lifecycle.
 type InvocationStream struct {
 	ctx        context.Context
 	cancel     context.CancelFunc
 	body       io.ReadCloser
-	release    func()
 	policy     StreamPolicy
 	invocation artifact.ID
 	manual     artifact.ID
@@ -113,30 +112,63 @@ type InvocationStream struct {
 	finalErr error
 }
 
-type streamTransportAdapter interface {
-	open(context.Context, Manual, json.RawMessage) (io.ReadCloser, error)
+// invoke returns a stream's events as one JSON array in sequence order.
+//   - the stream's bytes are bounded by artifact.MaxContentBytes, the bound boundedResult holds every transport's result to
+//   - the array's brackets and commas are not stream bytes, so boundedResult refuses an array they carry past that bound
+//   - a stream that fails, passes its admission bound or is cancelled is refused with its state, its counts and its error
+//   - no partial array is returned
+//   - each event reaches the context's output observer as it arrives, one line per event
+//   - the terminal is not stored because the coordinator stores the array, and a refusal carries the terminal's state, counts and error
+func (adapter *httpJSONStreamAdapter) invoke(ctx context.Context, manual Manual, arguments json.RawMessage) (json.RawMessage, error) {
+	stream, err := adapter.openStream(ctx, manual, arguments, StreamPolicy{
+		MaxEvents: streamMaxEvents, MaxEventBytes: artifact.MaxContentBytes, MaxBytes: artifact.MaxContentBytes,
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer stream.Close()
+	observe, _ := ctx.Value(outputObserverKey{}).(func([]byte))
+	collected := json.RawMessage{'['}
+	var received uint64
+	for {
+		event, err := stream.Receive(ctx)
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("stream cancelled after %d events: %w", received, context.Cause(ctx))
+		}
+		if received != 0 {
+			collected = append(collected, ',')
+		}
+		collected, received = append(collected, event.Value...), event.Sequence
+		if observe != nil {
+			observe(append(event.Value, '\n'))
+		}
+	}
+	terminal, err := stream.Terminal()
+	switch {
+	case err != nil:
+		return nil, err
+	case terminal.State == StreamCancelled:
+		return nil, fmt.Errorf("stream cancelled after %d events: %w", terminal.Events, context.Cause(ctx))
+	case terminal.State != StreamCompleted:
+		return nil, fmt.Errorf("stream %s after %d events of %d bytes: %s", terminal.State, terminal.Events, terminal.Bytes, terminal.Error)
+	}
+	return append(collected, ']'), nil
 }
 
-// OpenStream admits one stream and starts a bounded backpressure pump.
-func (e *Executor) OpenStream(
+// openStream admits one stream and starts a bounded backpressure pump.
+//   - the caller holds the manual's entry for the stream's whole life (Executor.InvokeWithEffect)
+//   - the caller has validated the arguments against the manual
+func (adapter *httpJSONStreamAdapter) openStream(
 	ctx context.Context,
 	manual Manual,
 	arguments json.RawMessage,
 	policy StreamPolicy,
 ) (*InvocationStream, error) {
-	if e == nil || ctx == nil {
-		return nil, errors.New("agent tool: stream executor or context is absent")
-	}
-	if err := validateArguments(manual, arguments); err != nil {
-		return nil, err
-	}
 	if err := policy.validate(); err != nil {
 		return nil, err
-	}
-	adapter, found := e.adapters[manual.Transport.Kind]
-	streamAdapter, supported := adapter.(streamTransportAdapter)
-	if !found || !supported {
-		return nil, fmt.Errorf("agent tool: transport %q is not streamable", manual.Transport.Kind)
 	}
 	invocation, err := artifact.JSONID(artifact.KindRun, struct {
 		Manual    artifact.ID     `json:"manual"`
@@ -148,22 +180,13 @@ func (e *Executor) OpenStream(
 	}
 	bounded, cancelCause := context.WithCancelCause(ctx)
 	cancel := func() { cancelCause(context.Canceled) }
-	entry := e.manualEntry(manual.Name)
-	select {
-	case entry <- struct{}{}:
-	case <-bounded.Done():
-		cancel()
-		return nil, fmt.Errorf("agent tool: %q timed out waiting for stream entry: %w", manual.Name, context.Cause(bounded))
-	}
-	release := func() { <-entry }
-	body, err := streamAdapter.open(bounded, manual, arguments)
+	body, err := adapter.open(bounded, manual, arguments)
 	if err != nil {
-		release()
 		cancel()
 		return nil, fmt.Errorf("agent tool: %q stream failed: %w", manual.Name, err)
 	}
 	stream := &InvocationStream{
-		ctx: bounded, cancel: cancel, body: body, release: release, policy: policy,
+		ctx: bounded, cancel: cancel, body: body, policy: policy,
 		invocation: invocation, manual: manual.ID,
 		events: make(chan StreamEvent, streamEventQueueDepth), done: make(chan struct{}),
 	}
@@ -223,7 +246,6 @@ func (stream *InvocationStream) pump() {
 	defer func() {
 		_ = stream.body.Close()
 		stream.cancel()
-		stream.release()
 		close(stream.done)
 		close(stream.events)
 	}()
@@ -243,7 +265,9 @@ func (stream *InvocationStream) pump() {
 		}
 		nextCount, nextTotal := count+1, total+uint64(len(line))
 		if nextCount > stream.policy.MaxEvents || nextTotal > stream.policy.MaxBytes {
-			stream.finish(StreamFailed, count, total, errors.New("stream admission bound exceeded"))
+			stream.finish(StreamFailed, count, total, fmt.Errorf(
+				"stream admission bound exceeded at event %d with %d bytes, and the policy admits %d events of %d bytes",
+				nextCount, nextTotal, stream.policy.MaxEvents, stream.policy.MaxBytes))
 			return
 		}
 		event := StreamEvent{

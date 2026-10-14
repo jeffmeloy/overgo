@@ -96,7 +96,7 @@ func auditCapabilityInvocationBoundaries(sources []productionAuthoritySource, re
 
 func isCapabilityInvocation(source productionAuthoritySource, selector *ast.SelectorExpr) bool {
 	switch selector.Sel.Name {
-	case "Invoke", "InvokeWithEffect", "OpenStream":
+	case "Invoke", "InvokeWithEffect":
 		return source.Package == agentToolPackage || sourceImportsAuthority(source, agentToolImport)
 	default:
 		return false

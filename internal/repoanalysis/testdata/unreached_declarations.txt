@@ -244,7 +244,6 @@ wire internal/agentloop/checkpoint.go MutationCheckpointRuntime.restoreEntry
 wire internal/agentloop/checkpoint.go MutationCheckpointRuntime.verifyPostimage
 wire internal/agentloop/checkpoint.go RestoreApprovalRequest
 wire internal/agentloop/contract.go NewContractState
-wire internal/agenttool/stream.go InvocationStream.Receive
 wire internal/inference/cache_state.go Runner.LoadCache
 wire internal/inference/cache_state.go Runner.SaveCache
 wire internal/inference/cache_state.go cacheLayerRecords

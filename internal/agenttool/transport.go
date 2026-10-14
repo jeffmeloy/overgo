@@ -81,10 +81,6 @@ func newExecutor(client *http.Client) *Executor {
 	return executor
 }
 
-func (adapter *httpJSONStreamAdapter) invoke(context.Context, Manual, json.RawMessage) (json.RawMessage, error) {
-	return nil, errors.New("stream transport requires OpenStream")
-}
-
 func (e *Executor) manualEntry(name string) chan struct{} {
 	digest := sha256.Sum256([]byte(name))
 	return e.entries[int(digest[0])%len(e.entries)]
@@ -187,8 +183,8 @@ func (adapter *httpAdapter) invoke(ctx context.Context, manual Manual, arguments
 type outputObserverKey struct{}
 
 // WithOutputObserver returns a context under which an argv tool reports each piece
-// of stdout it retains as the process writes it; the result stays the
-// whole output.
+// of stdout it retains as the process writes it, and a stream tool each event
+// as it arrives; the result stays the whole output.
 func WithOutputObserver(ctx context.Context, observe func([]byte)) context.Context {
 	return context.WithValue(ctx, outputObserverKey{}, observe)
 }

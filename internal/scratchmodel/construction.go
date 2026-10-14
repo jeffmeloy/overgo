@@ -522,11 +522,3 @@ func cloneConfig(config Config) Config {
 func cloneSplit(split Split) Split {
 	return Split{Train: slices.Clone(split.Train), Validation: slices.Clone(split.Validation), Test: slices.Clone(split.Test)}
 }
-
-func cloneWeights(source map[string][]float64) map[string][]float64 {
-	result := make(map[string][]float64, len(source))
-	for name, values := range source {
-		result[name] = slices.Clone(values)
-	}
-	return result
-}

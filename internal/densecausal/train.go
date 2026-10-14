@@ -55,19 +55,6 @@ func (m *Model) TrainWith(batches [][]int, baseLR, mu float64, resume *TrainStat
 	return m.train(batches, baseLR, mu, resume, observe, options)
 }
 
-// TrainWithRouterObservations executes the host/reference trainer while
-// exposing the already-computed MoE routes. No routing policy or numeric path
-// changes when an observer is present.
-func (m *Model) TrainWithRouterObservations(
-	batches [][]int,
-	baseLR, mu float64,
-	resume *TrainState,
-	observe TrainObserver,
-	observeRouter MoERouterObserver,
-) ([]float64, TrainState, error) {
-	return m.train(batches, baseLR, mu, resume, observe, TrainOptions{ObserveRouter: observeRouter})
-}
-
 func (m *Model) train(batches [][]int, baseLR, mu float64, resume *optimizer.State, observe TrainObserver, options TrainOptions) ([]float64, optimizer.State, error) {
 	if err := validateTokenBatches(batches); err != nil {
 		return nil, optimizer.State{}, err

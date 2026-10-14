@@ -2,63 +2,10 @@
 
 package devicemath
 
-import (
-	"fmt"
-
-	"overgo/internal/cuda/device"
-)
-
 // GatedMLPGrads holds the gradients of a SwiGLU/gated-MLP block.
 type GatedMLPGrads struct {
 	DX     []float32 // [rows, d]
 	DWGate []float32 // [d, inter]
 	DWUp   []float32 // [d, inter]
 	DWDown []float32 // [inter, d]
-}
-
-type linearBackwardOperator func(
-	worker *device.Worker,
-	x, weight, gradient []float32,
-	rows, in, out int,
-) (inputGradient, weightGradient []float32, err error)
-
-func gatedMLPBackward(
-	worker *device.Worker,
-	operator string,
-	linear linearBackwardOperator,
-	x, wGate, wUp, wDown, g, a, u, h, dY []float32,
-	rows, d, inter int,
-) (GatedMLPGrads, error) {
-	if rows <= 0 || d <= 0 || inter <= 0 ||
-		len(x) != rows*d || len(wGate) != inter*d || len(wUp) != inter*d || len(wDown) != d*inter ||
-		len(g) != rows*inter || len(a) != rows*inter || len(u) != rows*inter || len(h) != rows*inter || len(dY) != rows*d {
-		return GatedMLPGrads{}, fmt.Errorf("%s: shape mismatch (rows=%d d=%d inter=%d)", operator, rows, d, inter)
-	}
-	dh, dWDown, err := linear(worker, h, wDown, dY, rows, inter, d)
-	if err != nil {
-		return GatedMLPGrads{}, err
-	}
-	da := make([]float32, rows*inter)
-	du := make([]float32, rows*inter)
-	for i := range dh {
-		da[i] = dh[i] * u[i]
-		du[i] = dh[i] * a[i]
-	}
-	dg, err := SiLUBackward(worker, g, da)
-	if err != nil {
-		return GatedMLPGrads{}, err
-	}
-	dXGate, dWGate, err := linear(worker, x, wGate, dg, rows, d, inter)
-	if err != nil {
-		return GatedMLPGrads{}, err
-	}
-	dXUp, dWUp, err := linear(worker, x, wUp, du, rows, d, inter)
-	if err != nil {
-		return GatedMLPGrads{}, err
-	}
-	dX := make([]float32, rows*d)
-	for i := range dX {
-		dX[i] = dXGate[i] + dXUp[i]
-	}
-	return GatedMLPGrads{DX: dX, DWGate: dWGate, DWUp: dWUp, DWDown: dWDown}, nil
 }

@@ -123,11 +123,6 @@ func NewCatalog(entries []CatalogEntry) (Document, error) {
 	return newDocument(Document{Version: artifact.InitialDocumentVersion, Type: TypeCatalog, Catalog: cloneCatalog(entries)})
 }
 
-// Parse decodes and validates a dataset document.
-func Parse(content []byte) (Document, error) {
-	return documentCodec.Parse(content)
-}
-
 func (d Document) ValidateIdentity() error {
 	return documentCodec.ValidateIdentity(d)
 }

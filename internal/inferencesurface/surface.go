@@ -12,11 +12,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
-	"path"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -151,101 +148,6 @@ func kernelFiles(root string) ([]string, error) {
 		}
 	}
 	return files, nil
-}
-
-// Moves returns, of the repository-relative paths a change touches, the
-// ones that move the inference surface: a non-test Go source in a package of
-// the closure, a file one of them embeds, a kernel source, or go.mod, which
-// pins the versions of the other modules the closure compiles. A record keyed
-// to the surface expires when one of them changes, so a landing can name what
-// it is about to expire before it commits rather than learn it from a review
-// candidate afterwards. A path in the closure counts whether the change adds,
-// edits or removes it; a removed file counts when an embed pattern of a
-// closure package reached it.
-func Moves(ctx context.Context, root string, paths []string) ([]string, error) {
-	root, err := filepath.Abs(root)
-	if err != nil {
-		return nil, err
-	}
-	packages, _, err := closure(ctx, root)
-	if err != nil {
-		return nil, err
-	}
-	directories := map[string]bool{}
-	embedded := map[string]bool{}
-	var patterns []embedPattern
-	for _, pkg := range packages {
-		directory, err := filepath.Rel(root, pkg.Dir)
-		if err != nil {
-			return nil, err
-		}
-		directories[surfaceKey(directory)] = true
-		for _, name := range pkg.EmbedFiles {
-			embedded[surfaceKey(filepath.Join(directory, name))] = true
-		}
-		for _, pattern := range pkg.EmbedPatterns {
-			patterns = append(patterns, embedPattern{directory: surfaceKey(directory), pattern: surfaceKey(strings.TrimPrefix(pattern, "all:"))})
-		}
-	}
-	var moves []string
-	for _, changed := range paths {
-		key := surfaceKey(changed)
-		if key == "." || filepath.IsAbs(changed) || key == ".." || strings.HasPrefix(key, "../") || strings.Contains(key, ":") {
-			return nil, fmt.Errorf("inference surface: changed path %q is not repository-relative", changed)
-		}
-		kernel := slices.ContainsFunc(surfaceKernels, func(source string) bool {
-			return key == surfaceKey(source) || strings.HasPrefix(key, surfaceKey(source)+"/")
-		})
-		source := strings.HasSuffix(key, ".go") && !strings.HasSuffix(key, "_test.go") && directories[surfaceKey(filepath.Dir(key))]
-		removed, err := removedEmbed(root, changed, key, patterns)
-		if err != nil {
-			return nil, err
-		}
-		if kernel || source || embedded[key] || removed || key == surfaceKey("go.mod") {
-			moves = append(moves, filepath.ToSlash(changed))
-		}
-	}
-	slices.Sort(moves)
-	return slices.Compact(moves), nil
-}
-
-// embedPattern is one //go:embed pattern of a closure package, relative to
-// the package directory, both in surfaceKey form.
-type embedPattern struct {
-	directory, pattern string
-}
-
-// removedEmbed reports whether a path the tree no longer holds was an input a
-// closure package embedded. A directory or glob pattern names no file, so
-// deleting one edits no source, and the Go tool lists only the files that
-// remain: the pattern is matched against the path and each directory above it
-// within the package, as the Go tool matches it.
-func removedEmbed(root, changed, key string, patterns []embedPattern) (bool, error) {
-	if _, err := os.Stat(filepath.Join(root, changed)); !errors.Is(err, fs.ErrNotExist) {
-		return false, err
-	}
-	for _, candidate := range patterns {
-		rest, found := strings.CutPrefix(key, candidate.directory+"/")
-		for found {
-			if matched, _ := path.Match(candidate.pattern, rest); matched {
-				return true, nil
-			}
-			rest = path.Dir(rest)
-			found = rest != "."
-		}
-	}
-	return false, nil
-}
-
-// surfaceKey is the one form a path is compared in: slash-separated and
-// clean, either separator accepted, and case-folded where the filesystem
-// folds case, so a spelling cannot evade the surface.
-func surfaceKey(path string) string {
-	key := filepath.ToSlash(filepath.Clean(strings.ReplaceAll(path, `\`, "/")))
-	if runtime.GOOS == "windows" {
-		key = strings.ToLower(key)
-	}
-	return key
 }
 
 // Package is one module-local package of the inference closure: its directory

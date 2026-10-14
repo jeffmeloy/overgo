@@ -393,3 +393,71 @@ func VerifyDenoiserCheckpoint(modelDir string) (*DenoiserWitness, error) {
 	}
 	return w, nil
 }
+
+// DenoiserTensorShapes returns the complete name -> torch shape ([out,in] for
+// Linear weights) manifest the forward consumes, derived entirely from spec.
+// This is the capability-retention contract: every listed tensor must exist in
+// the checkpoint with this shape, and the forward touches every one.
+func DenoiserTensorShapes(t TransformerSpec) map[string][]int {
+	h := t.Hidden
+	shapes := map[string][]int{
+		"img_in.weight":                 {h, t.InChannels},
+		"img_in.bias":                   {h},
+		"time_embed.linear_1.weight":    {h, t.TimestepEmbed},
+		"time_embed.linear_1.bias":      {h},
+		"time_embed.linear_2.weight":    {h, h},
+		"time_embed.linear_2.bias":      {h},
+		"time_mod_proj.weight":          {media.PairedShiftScaleGateWidth(h), h},
+		"time_mod_proj.bias":            {media.PairedShiftScaleGateWidth(h)},
+		"txt_in.norm.weight":            {t.TextHidden},
+		"txt_in.linear_1.weight":        {h, t.TextHidden},
+		"txt_in.linear_1.bias":          {h},
+		"txt_in.linear_2.weight":        {h, h},
+		"txt_in.linear_2.bias":          {h},
+		"text_fusion.projector.weight":  {tensor.SingletonExtent, t.TextLayers},
+		"final_layer.scale_shift_table": {tensor.PairedExtent, h},
+		"final_layer.norm.weight":       {h},
+		"final_layer.linear.weight":     {t.InChannels, h},
+		"final_layer.linear.bias":       {t.InChannels},
+	}
+	// text-fusion blocks operate at TextHidden with TextHeads/TextKVHeads.
+	th := t.TextHidden
+	addFusionBlocks := func(kind string, n int) {
+		for i := range n {
+			p := fmt.Sprintf("text_fusion.%s.%d.", kind, i)
+			addAttnFF(shapes, p, th, t.TextHeads*t.HeadDim, t.TextKVHeads*t.HeadDim, t.HeadDim, t.TextIntermediate, false)
+		}
+	}
+	addFusionBlocks("layerwise_blocks", t.LayerwiseTextBlocks)
+	addFusionBlocks("refiner_blocks", t.RefinerTextBlocks)
+	// the 28 image/text co-attention blocks at Hidden with GQA.
+	for i := 0; i < t.Layers; i++ {
+		p := fmt.Sprintf("transformer_blocks.%d.", i)
+		shapes[p+"scale_shift_table"] = []int{t.ModFieldsOr6(), h}
+		addAttnFF(shapes, p, h, h, t.KVDim, t.HeadDim, t.Intermediate, true)
+	}
+	return shapes
+}
+
+// addAttnFF appends the shared attention + norm + SwiGLU tensor shapes for one
+// pre-norm block. qDim = heads*head_dim, kvDim = kv_heads*head_dim. withTable is
+// informational only (the table is added by the caller for image blocks).
+func addAttnFF(shapes map[string][]int, p string, dim, qDim, kvDim, headDim, inter int, _ bool) {
+	shapes[p+"norm1.weight"] = []int{dim}
+	shapes[p+"norm2.weight"] = []int{dim}
+	shapes[p+"attn.norm_q.weight"] = []int{headDim}
+	shapes[p+"attn.norm_k.weight"] = []int{headDim}
+	shapes[p+"attn.to_q.weight"] = []int{qDim, dim}
+	shapes[p+"attn.to_k.weight"] = []int{kvDim, dim}
+	shapes[p+"attn.to_v.weight"] = []int{kvDim, dim}
+	shapes[p+"attn.to_gate.weight"] = []int{dim, dim}
+	shapes[p+"attn.to_out.0.weight"] = []int{dim, dim}
+	shapes[p+"ff.gate.weight"] = []int{inter, dim}
+	shapes[p+"ff.up.weight"] = []int{inter, dim}
+	shapes[p+"ff.down.weight"] = []int{dim, inter}
+}
+
+func prod(shape []int) int {
+	product, _ := checked.ProductInt(shape...)
+	return product
+}

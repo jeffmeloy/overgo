@@ -43,13 +43,6 @@ func (te *timeEmbed) forwardInto(out []float32, t float64, flowDim int, rmsEpsil
 	}
 }
 
-// FlowForward computes F(cond, s, t, x): cond [d], x [latent] -> [latent].
-func (m *Model) FlowForward(cond []float32, s, t float64, x []float32) []float32 {
-	out := make([]float32, m.Dims.LatentDim)
-	m.flowForwardInto(out, cond, s, t, x)
-	return out
-}
-
 func (m *Model) flowForwardInto(out, cond []float32, s, t float64, x []float32) {
 	fn := &m.flow
 	dim, latent := m.Dims.FlowDim, m.Dims.LatentDim

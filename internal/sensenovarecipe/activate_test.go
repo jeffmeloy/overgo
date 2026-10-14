@@ -21,7 +21,7 @@ const activationReason = "SenseNova compiled text request, retained prefix/body,
 // discovery/status round-trip WITHOUT the 35GB checkpoint, so it runs in CI:
 // a synthetic model artifact is activated through the verified-promotion
 // lifecycle, then resolved back through the SAME predicate the sibling VQA
-// capability uses (Resolve => ActiveRecord + CompileCapability).
+// capability uses (modelrecipe.ResolveActiveCapability => ActiveRecord + CompileCapability).
 func TestSenseNovaImageGenRoundTripSynthetic(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
@@ -49,8 +49,7 @@ func TestSenseNovaImageGenRoundTripSynthetic(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	definition, err = Activate(ctx, store, modelID, flowProfile.ID, verification, activationReason)
-	if err != nil {
+	if err := modelrecipe.ActivateCapability(ctx, store, definition, verification, EvidenceTier, activationReason); err != nil {
 		t.Fatalf("activate: %v", err)
 	}
 	if definition.Task != recipe.TaskImageGen {
@@ -64,7 +63,7 @@ func TestSenseNovaImageGenRoundTripSynthetic(t *testing.T) {
 
 	// Re-activation is an idempotent resume (already active => no-op), so the
 	// status round-trip is stable across repeated activations.
-	if _, err := Activate(ctx, store, modelID, flowProfile.ID, verification, activationReason); err != nil {
+	if err := modelrecipe.ActivateCapability(ctx, store, definition, verification, EvidenceTier, activationReason); err != nil {
 		t.Fatalf("re-activate (idempotent resume): %v", err)
 	}
 	assertRoundTrip(t, ctx, store, modelID, definition)
@@ -104,7 +103,7 @@ func assertRoundTrip(
 	definition recipe.Definition,
 ) {
 	t.Helper()
-	activation, program, err := Resolve(ctx, store, modelID)
+	activation, program, err := modelrecipe.ResolveActiveCapability(ctx, store, modelID, Task)
 	if err != nil {
 		t.Fatalf("resolve round-trip: %v", err)
 	}
@@ -121,3 +120,12 @@ func assertRoundTrip(
 		t.Fatalf("compiled program recipe = %s, want %s", program.Definition().ID, definition.ID)
 	}
 }
+
+// Task: SenseNova serves a generation-only image-gen recipe (not inference,
+// not VQA). The linear image-gen topology is the recipe.CapabilityDefinition
+// contract; production binding remains separate from activation truth.
+const Task = recipe.TaskImageGen
+
+// EvidenceTier: the measured activation tier -- the sensenovaparity ladder
+// establishes that verification evidence stands, not a ship-bar oracle.
+const EvidenceTier = recipe.EvidenceVerified

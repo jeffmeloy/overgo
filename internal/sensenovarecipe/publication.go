@@ -1,3 +1,8 @@
+// Package sensenovarecipe runs the SenseNova-U1-8B MoT image-generation recipe.
+//   - the recipe = generation only (task image-gen), activated and resolved through internal/modelrecipe as every generation recipe is
+//   - Generator answers one GenerationRequest from the routed model's resident state
+//   - DecodeGeneratedImage publishes the terminal state as an encoded image
+//   - every dimension is owned by a tensor or the configuration, read through internal/routedlm
 package sensenovarecipe
 
 import (

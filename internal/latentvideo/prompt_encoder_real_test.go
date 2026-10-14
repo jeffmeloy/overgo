@@ -42,11 +42,11 @@ func TestPromptAlreadyEncodedIsNotEncodedAgain(t *testing.T) {
 		"rain begins on the reeds, held for this test",
 	}
 	before := passes()
-	first, err := TextConditioning(t.Context(), spec, prompts[0])
+	first, err := textConditioningWithWeights(t.Context(), spec, prompts[0], weights, sourceBytes)
 	if err != nil {
 		t.Fatal(err)
 	}
-	again, err := TextConditioning(t.Context(), spec, prompts[0])
+	again, err := textConditioningWithWeights(t.Context(), spec, prompts[0], weights, sourceBytes)
 	if err != nil {
 		t.Fatal(err)
 	}

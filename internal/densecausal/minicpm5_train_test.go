@@ -35,7 +35,7 @@ func TestUntiedHeadGradsSplitTiedGolden(t *testing.T) {
 	head := append([]float32(nil), weights[embeddingName]...)
 	weights[headName] = head
 	shapes[headName] = append([]int(nil), shapes[embeddingName]...)
-	untied, err := NewModel(weights, shapes, g.Config.NumAttentionHeads, g.Config.HeadDim, g.Config.RopeTheta, g.Config.RMSNormEps)
+	untied, err := NewMixtureModel(weights, shapes, g.Config.NumAttentionHeads, g.Config.HeadDim, g.Config.RopeTheta, g.Config.RMSNormEps, MoERouterPolicy{}, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +87,7 @@ func TestUntiedHeadGradsSplitTiedGolden(t *testing.T) {
 
 func TestUntiedHeadWithoutTensorRejected(t *testing.T) {
 	const headName = "lm_head.weight"
-	// NewModel derives tied-vs-untied from tensor presence; a malformed
+	// NewMixtureModel derives tied-vs-untied from tensor presence; a malformed
 	// lm_head shape must fail loudly.
 	g := readTinyGolden(t)
 	weights := make(map[string][]float32, len(g.Params)+1)
@@ -102,7 +102,7 @@ func TestUntiedHeadWithoutTensorRejected(t *testing.T) {
 	}
 	weights[headName] = make([]float32, g.Config.HiddenSize)
 	shapes[headName] = []int{1, g.Config.HiddenSize}
-	if _, err := NewModel(weights, shapes, g.Config.NumAttentionHeads, g.Config.HeadDim, g.Config.RopeTheta, g.Config.RMSNormEps); err == nil {
+	if _, err := NewMixtureModel(weights, shapes, g.Config.NumAttentionHeads, g.Config.HeadDim, g.Config.RopeTheta, g.Config.RMSNormEps, MoERouterPolicy{}, 0); err == nil {
 		t.Fatal("mis-shaped lm_head.weight accepted; want loud failure")
 	} else {
 		t.Logf("rejected as expected: %v", err)

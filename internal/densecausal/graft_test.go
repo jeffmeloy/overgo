@@ -15,7 +15,7 @@ func graftFixtureModels(t *testing.T) (*Model, *Model) {
 		Vocab: 32, Hidden: 16, Heads: 2, HeadDim: 8,
 		KVHeads: 2, Intermediate: 32, Layers: 2, Seed: 1,
 	})
-	target, err := NewModel(targetWeights, targetShapes, 2, 8, 10000, 1e-6)
+	target, err := NewMixtureModel(targetWeights, targetShapes, 2, 8, 10000, 1e-6, MoERouterPolicy{}, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -23,7 +23,7 @@ func graftFixtureModels(t *testing.T) (*Model, *Model) {
 		Vocab: 32, Hidden: 12, Heads: 2, HeadDim: 6,
 		KVHeads: 2, Intermediate: 24, Layers: 1, Seed: 2,
 	})
-	donor, err := NewModel(donorWeights, donorShapes, 2, 6, 10000, 1e-6)
+	donor, err := NewMixtureModel(donorWeights, donorShapes, 2, 6, 10000, 1e-6, MoERouterPolicy{}, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

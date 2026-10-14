@@ -1,11 +1,15 @@
 package latentimage
 
 import (
+	"fmt"
 	"hash/fnv"
 	"math"
 	"testing"
 
+	"overgo/internal/checked"
+	"overgo/internal/graphruntime"
 	"overgo/internal/media"
+	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
 )
@@ -159,4 +163,48 @@ func TestVAEProgramReferenceMatchesHost(t *testing.T) {
 	if u8Diff != 0 {
 		t.Fatalf("graph/host u8 mismatch on %d pixels (must be bit-exact)", u8Diff)
 	}
+}
+
+// DecodeGraph runs the compiled decode through run (reference.Execute for the
+// host golden, the CUDA executor closure for the device). z is the CHW latent
+// [ZDim][h][w] vae.go consumes; the returned pixels are planar CHW
+// [OutChannels][OutH][OutW] in [-1,1], identical in shape to
+// VAEDecoder.DecodeImage. mean/std are the per-channel denorm stats.
+func (p *VAEProgram) DecodeGraph(run graphruntime.Runner, mean, std []float32, z []float32) (pixels []float32, outH, outW int, err error) {
+	plane := p.H * p.W
+	if err := checked.Length(z, p.ZDim, plane); err != nil {
+		return nil, 0, 0, fmt.Errorf("vae program: latent: %w", err)
+	}
+	if err := media.ValidateChannelMoments(mean, std, p.ZDim); err != nil {
+		return nil, 0, 0, fmt.Errorf("vae program: latent normalization: %w", err)
+	}
+	// denorm + CHW->HWC transpose: hwc[pos*ZDim+ch] = z[ch*plane+pos]*std+mean.
+	hwc := make([]float32, len(z))
+	for ch := range p.ZDim {
+		m, s := mean[ch], std[ch]
+		for pos := range plane {
+			hwc[pos*p.ZDim+ch] = z[ch*plane+pos]*s + m
+		}
+	}
+	feeds := make(map[*tensor.Tensor]reference.Value, len(p.feeds)+tensor.SingletonExtent)
+	for _, f := range p.feeds {
+		elements, _ := f.node.Shape.Elements()
+		if !checked.Equal(uint64(len(f.data)), elements) {
+			return nil, 0, 0, fmt.Errorf("vae program: feed len=%d want %d", len(f.data), elements)
+		}
+		feeds[f.node] = reference.Value{Shape: f.node.Shape, Data: f.data}
+	}
+	feeds[p.Latent] = reference.Value{Shape: p.Latent.Shape, Data: hwc}
+
+	results, err := run([]*tensor.Tensor{p.Output}, feeds)
+	if err != nil {
+		return nil, 0, 0, fmt.Errorf("vae program: run: %w", err)
+	}
+	out := results[p.Output].Data
+	// HWC->CHW transpose back to the planar [C][H][W] vae.go returns.
+	chw, err := media.UnpackPlanar(out, p.OutChannels, p.OutH, p.OutW, tensor.SingletonExtent, media.PatchChannelsLast)
+	if err != nil {
+		return nil, 0, 0, fmt.Errorf("vae program: output: %w", err)
+	}
+	return chw, p.OutH, p.OutW, nil
 }

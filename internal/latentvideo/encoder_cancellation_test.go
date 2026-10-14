@@ -25,7 +25,7 @@ func TestTextConditioningCancellationBeforeIO(t *testing.T) {
 	cancel(context.Canceled)
 	// Missing artifact paths make any attempted acquisition observable as a
 	// different error; cancellation must be returned before those reads.
-	if _, err := TextConditioning(ctx, TextConditioningSpec{}, "prompt"); !errors.Is(err, context.Canceled) {
+	if _, err := textConditioningWithWeights(ctx, TextConditioningSpec{}, "prompt", projectionWeights{}, 0); !errors.Is(err, context.Canceled) {
 		t.Fatal("text conditioning attempted I/O after cancellation", err)
 	}
 	if _, _, err := promptContexts(ctx, TextConditioningSpec{}, WanRequest{}); !errors.Is(err, context.Canceled) {

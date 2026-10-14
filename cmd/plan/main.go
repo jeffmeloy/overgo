@@ -516,17 +516,6 @@ func nextAction(document plan.Plan, role string) (string, bool) {
 	return dispatch.Line, true
 }
 
-// printPrompt emits the self-contained, non-negotiable task for the current
-// step. The loop feeds THIS to the agent; the agent does not author it.
-func printPrompt(document plan.Plan, role string, output io.Writer) {
-	it, st, ok := plan.Current(document, role)
-	if !ok {
-		fmt.Fprintln(output, "PLAN COMPLETE: every item is done. Stop and tell the user.")
-		return
-	}
-	printPromptStep(it, st, output)
-}
-
 // locateStep finds the dispatched row in the document; a complete dispatch
 // or a row the document no longer holds is not found.
 func locateStep(document plan.Plan, dispatch plan.Dispatch) (plan.Item, plan.Step, bool) {

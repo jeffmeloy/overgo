@@ -3,6 +3,7 @@ package testevidence
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 
 	"overgo/internal/processcontrol"
@@ -47,4 +48,20 @@ func TestGoTestJSONReportNamesRefusedResourceClaims(t *testing.T) {
 	if report, err := GoTestJSONReport("{\"Action\":\"run\",\"Package\":\"x\",\"Test\":\"TestA\"}\n{\"Action\":\"pass\",\"Package\":\"x\",\"Test\":\"TestA\"}\n"); err != nil || report.ContentionOnly() || len(report.Contended) != 0 {
 		t.Fatalf("a passing run reported contention: %+v, %v", report, err)
 	}
+}
+
+// ContentionOnly reports a failed run whose every failure was a refused
+// resource claim and nothing was left unfinished: the packages named in
+// Contended may pass once admitted.
+func (report GoTestReport) ContentionOnly() bool {
+	if len(report.Failed) == 0 || len(report.Unfinished) != 0 || len(report.Contended) == 0 {
+		return false
+	}
+	for _, failed := range report.Failed {
+		failedPackage, _, _ := strings.Cut(failed, ": ")
+		if !slices.Contains(report.Contended, failedPackage) {
+			return false
+		}
+	}
+	return true
 }

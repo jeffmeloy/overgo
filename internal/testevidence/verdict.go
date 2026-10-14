@@ -9,14 +9,6 @@ import (
 	"overgo/internal/runrecord"
 )
 
-// RepeatAgreement requires two evidence outputs of the same bitwise-
-// deterministic go test command to reach identical per-test verdicts. It
-// reports the first disagreement by test identity and both observed actions;
-// tests appearing in only one run disagree with the absent action.
-func RepeatAgreement(first, second string) error {
-	return repeatAgreement(first, second, false)
-}
-
 // RepeatAgreementForCommand permits ordinary output only when the verifier is
 // explicitly mixed, matching VerifyGoTestEvidence's evidence boundary.
 func RepeatAgreementForCommand(command, first, second string) error {
@@ -27,6 +19,10 @@ func RepeatAgreementForCommand(command, first, second string) error {
 	return repeatAgreement(first, second, auxiliaryOutput(parsed))
 }
 
+// repeatAgreement requires two evidence outputs of the same bitwise-
+// deterministic go test command to reach identical per-test verdicts. It
+// reports the first disagreement by test identity and both observed actions;
+// tests appearing in only one run disagree with the absent action.
 func repeatAgreement(first, second string, allowAuxiliary bool) error {
 	firstReport, err := goTestInvocationReports(first, false, allowAuxiliary)
 	if err != nil {

@@ -24,7 +24,7 @@ var scaleModelSpec = testutil.DenseCausalSpec{
 func syntheticCausalModel(t *testing.T, spec testutil.DenseCausalSpec) *Model {
 	t.Helper()
 	weights, shapes := testutil.DenseCausalWeights(t, spec)
-	model, err := NewModel(weights, shapes, spec.Heads, spec.HeadDim, 10000, 1e-6)
+	model, err := NewMixtureModel(weights, shapes, spec.Heads, spec.HeadDim, 10000, 1e-6, MoERouterPolicy{}, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

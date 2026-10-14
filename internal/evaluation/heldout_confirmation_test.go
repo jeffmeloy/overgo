@@ -1,7 +1,9 @@
 package evaluation
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"math"
 	"slices"
 	"strings"
@@ -168,4 +170,99 @@ func TestConfirmationIsChargedBeforeThePromotionPartIsRead(t *testing.T) {
 	if _, _, err := ConfirmOnPool(ctx, store, blinded.Acceptance.ID, candidate("better"), unread); err == nil || !strings.Contains(err.Error(), "blinded") {
 		t.Fatalf("a pool whose promotion part the proposer charged = %v, want its confirmations refused", err)
 	}
+}
+
+// poolChargePurpose is what a confirmation's charge is for, before the
+// candidate it names.
+const poolChargePurpose = "confirmation of "
+
+// CommittedPool is a held-out pool as the store holds it, for whoever fits
+// and ranks candidates on it: the acceptance its confirmations are judged by,
+// the partition that binds its parts, and the documents of its development
+// and selection parts, each in its membership's order. The promotion part's
+// documents are handed out by ConfirmOnPool alone.
+type CommittedPool struct {
+	Acceptance  PoolAcceptance
+	Partition   runrecord.SplitPartition
+	Development []string
+	Selection   []string
+}
+
+// RequireHeldoutPool loads the pool an acceptance was fixed for.
+func RequireHeldoutPool(ctx context.Context, reader artifact.Reader, acceptance artifact.ID) (CommittedPool, error) {
+	var pool CommittedPool
+	var err error
+	if pool.Acceptance, err = poolAcceptanceCodec.Require(ctx, reader, acceptance); err != nil {
+		return CommittedPool{}, err
+	}
+	content, found, err := artifact.ReadContent(ctx, reader, pool.Acceptance.Split)
+	if err != nil || !found {
+		return CommittedPool{}, errors.Join(fmt.Errorf("evaluation: the partition of pool %s is not committed", acceptance), err)
+	}
+	if pool.Partition, err = runrecord.ParseSplitPartition(content.Data); err != nil {
+		return CommittedPool{}, err
+	}
+	if pool.Development, err = partDocuments(ctx, reader, pool.Partition.Development); err != nil {
+		return CommittedPool{}, err
+	}
+	if pool.Selection, err = partDocuments(ctx, reader, pool.Partition.Selection); err != nil {
+		return CommittedPool{}, err
+	}
+	return pool, nil
+}
+
+// ConfirmOnPool has the promotion part of a pool answer for one candidate. The
+// candidate and the acceptance are named by identity before anything is read,
+// and without both the confirmation is refused. A confirmation is charged to
+// the promotion part's budget before its documents are handed to read, which
+// returns the pool's measure for each of them, the candidate less the base; the
+// verdict is read from those by the acceptance's rule and published, and it
+// returns with what the budget has left and nothing else of the reading.
+//
+// What is left is counted from the charges the store holds, so it is the same
+// in any process. A candidate charged for before is not charged again: its
+// recorded verdict is returned, or read now when the reading that owed it did
+// not finish. When nothing is left a confirmation is refused, and the pool
+// answers again only as a fresh partition.
+func ConfirmOnPool(ctx context.Context, store artifact.Repository, acceptanceID, candidate artifact.ID, read func(documents []string) ([]float64, error)) (PoolConfirmation, uint64, error) {
+	return oneDecision(store, func(head artifact.CommitID) (PoolConfirmation, uint64, error) {
+		pool, err := RequireHeldoutPool(ctx, store, acceptanceID)
+		if err != nil || !candidate.Valid() {
+			return PoolConfirmation{}, 0, errors.Join(errors.New("evaluation: a confirmation names its candidate and the acceptance it is judged by before it reads anything"), err)
+		}
+		acceptance := pool.Acceptance
+		if acceptance.Sequence == 0 {
+			return PoolConfirmation{}, 0, fmt.Errorf("evaluation: pool %s fixed no tokens to read each document as far as, so nothing is confirmed on it; build a pool that does", acceptance.ID)
+		}
+		return confirmOnPart(ctx, store, head, pool.Partition, acceptance.ID, acceptance.Objective, candidate, acceptance.Documents, acceptance.Confirmations, poolChargePurpose+candidate.String(),
+			func(promotion []string) (string, error) {
+				differences, err := read(promotion)
+				if err != nil || len(differences) != len(promotion) {
+					return "", errors.Join(fmt.Errorf("evaluation: the candidate was read on %d of the promotion part's %d documents; its confirmation is charged and its verdict is owed", len(differences), len(promotion)), err)
+				}
+				return poolVerdict(differences, acceptance.Critical), nil
+			})
+	})
+}
+
+// poolVerdict reads a confirmation from the measure's paired differences, one
+// a document of the promotion part: a gain when their mean over its standard
+// error passes the acceptance's statistic, a loss when it passes it downward,
+// and otherwise not enough evidence. Differences that do not vary have no
+// error to divide by: the statistic is then without bound on the mean's side,
+// and undefined, passing neither way, when the mean is zero.
+func poolVerdict(differences []float64, critical float64) string {
+	scores := make([]RecordScore, len(differences))
+	var mean float64
+	for index, difference := range differences {
+		scores[index].Value = difference
+		mean += difference / float64(len(differences))
+	}
+	switch statistic := mean / meanError(scores); {
+	case statistic > critical:
+		return poolGain
+	case statistic < -critical:
+		return poolLoss
+	}
+	return poolUndecided
 }

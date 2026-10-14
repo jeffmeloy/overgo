@@ -184,19 +184,6 @@ func BindAgentTrajectoryPlan(base Plan, trajectories, advisoryJudges []artifact.
 	return Plan{identity: identity, body: body, authorities: slices.Clone(base.authorities)}, nil
 }
 
-// AgentTrajectoryAuthorities returns a deep copy of the plan's agent
-// trajectory extension; ok is false when the plan carries none.
-func (p Plan) AgentTrajectoryAuthorities() (agentTrajectoryAuthorities, bool) {
-	if p.body.Agent == nil {
-		return agentTrajectoryAuthorities{}, false
-	}
-	copy := *p.body.Agent
-	copy.Trajectories = slices.Clone(copy.Trajectories)
-	copy.Deterministic = slices.Clone(copy.Deterministic)
-	copy.AdvisoryJudges = slices.Clone(copy.AdvisoryJudges)
-	return copy, true
-}
-
 func BindExact(exact ExactPlan, authorities ExactAuthorities) (Plan, error) {
 	if !exact.identity.Valid() || exact.dataset.Kind() != artifact.KindDataset ||
 		exact.split.Kind() != artifact.KindDatasetShard ||

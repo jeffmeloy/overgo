@@ -61,7 +61,7 @@ func TestKimiLiteralControlText(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, err := encoder.EncodeLiteral(reference.LiteralText); err != nil || !slices.Equal(got, reference.LiteralIDs) {
+	if got, err := encoder.encode(reference.LiteralText, false); err != nil || !slices.Equal(got, reference.LiteralIDs) {
 		t.Errorf("literal Encode = %v, %v; want %v", got, err, reference.LiteralIDs)
 	}
 	if got, err := encoder.Encode(reference.LiteralText); err != nil || !slices.Equal(got, reference.StructuralIDs) {
@@ -79,7 +79,7 @@ func TestKimiLiteralControlText(t *testing.T) {
 	if got, err := encoder.Encode(reference.OrdinaryAddedText); err != nil || !slices.Equal(got, []int{reference.OrdinaryAddedID}) {
 		t.Errorf("ordinary added structural Encode = %v, %v", got, err)
 	}
-	ordinary, err := encoder.EncodeLiteral(reference.OrdinaryAddedText)
+	ordinary, err := encoder.encode(reference.OrdinaryAddedText, false)
 	if err != nil || slices.Contains(ordinary, reference.OrdinaryAddedID) {
 		t.Fatalf("ordinary added literal Encode = %v, %v", ordinary, err)
 	}

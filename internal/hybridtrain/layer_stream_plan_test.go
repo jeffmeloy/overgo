@@ -2,10 +2,11 @@ package hybridtrain
 
 import (
 	"math/rand"
-	"overgo/internal/hostmath"
-)
+	"testing"
 
-import "testing"
+	"overgo/internal/hostmath"
+	"overgo/internal/optimizer"
+)
 
 // TestLayerStreamPlansPartitionSlabs proves the per-layer stream plans are an
 // exact partition of the compiled matrix and vector plans: contiguous windows
@@ -142,4 +143,12 @@ func BuildModel(cfg StackConfig, seed int64) (*Model, error) {
 		return nil, err
 	}
 	return m, nil
+}
+
+// vec appends one host vector group.
+func (b *builder) vec(dst *[]float32, name string, n int) {
+	off := len(b.m.vecW)
+	b.randn(&b.m.vecW, n)
+	b.vecSpecs = append(b.vecSpecs, optimizer.GroupSpec{Name: name, Start: off, End: off + n, Rows: 1, Cols: n})
+	b.fixups = append(b.fixups, aliasFixup{dst: dst, mat: false, off: off, size: n})
 }

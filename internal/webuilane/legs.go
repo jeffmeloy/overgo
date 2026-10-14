@@ -119,3 +119,16 @@ func LaneVerdict(report testevidence.GoTestReport, records []LegRecord, required
 	}
 	return nil
 }
+
+// BrowserTestPrefix names the browser acceptance tests: the lane runs them
+// by this prefix, and a plan verify naming one without the lane is refused.
+const BrowserTestPrefix = "TestWebUIBrowser"
+
+// ModelJourneyPrefix names the browser journeys that build, serve or hash a
+// model: the lane runs them only in its -journeys mode, so the page
+// acceptances run against retained receipts alone.
+const ModelJourneyPrefix = "TestModelJourney"
+
+// ModelJourneyEnvironment is set by the lane's -journeys mode; a journey
+// skips without it, since outside the lane it proves nothing.
+const ModelJourneyEnvironment = "OVERGO_MODEL_JOURNEY"

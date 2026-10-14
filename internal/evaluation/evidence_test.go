@@ -2,6 +2,7 @@ package evaluation
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"slices"
 	"testing"
@@ -156,4 +157,29 @@ func TestEvaluationEvidenceBindsPlanShardsAndAuthorities(t *testing.T) {
 			}
 		})
 	}
+}
+
+func PublishEvaluationEvidence(
+	ctx context.Context,
+	repository artifact.Repository,
+	plan Plan,
+	acceptance AcceptancePolicy,
+	evaluator Evaluator,
+	report artifact.ID,
+	run runrecord.Run,
+	record runrecord.Evaluation,
+	causal ...runrecord.CausalContext,
+) (EvaluationEvidence, error) {
+	evidence, err := newEvaluationEvidence(
+		ctx, repository, plan, acceptance, evaluator, report, run, record, nil, causal...,
+	)
+	if err != nil {
+		return EvaluationEvidence{}, err
+	}
+	batch := artifact.Batch{Key: "evaluation/evidence/" + evidence.ID.String()}
+	if err := appendEvaluationEvidence(&batch, acceptance, evaluator, evidence); err != nil {
+		return EvaluationEvidence{}, err
+	}
+	_, err = artifact.CommitBatch(ctx, repository, batch)
+	return evidence, err
 }

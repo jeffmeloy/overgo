@@ -14,12 +14,6 @@ import (
 	"overgo/internal/trainingdata"
 )
 
-// LightCurveProcessor converts (time, wavelength, flux, error) tuples into a
-// forecast pair. Band selection is data-derived; the boundary is model-derived.
-func LightCurveProcessor(patchLen, horizon int) (trainingdata.Processor, error) {
-	return lightCurveProcessor(patchLen, horizon, patchLen)
-}
-
 // LightCurveTrainingProcessor pairs like LightCurveProcessor but reserves at
 // least TWO patches of context. A single-patch context degenerates attention
 // to one position, where the softmax is constant and the q/k projections,

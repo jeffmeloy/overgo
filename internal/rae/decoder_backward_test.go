@@ -150,3 +150,20 @@ func TestDecoderBackwardMatchesFiniteDifferences(t *testing.T) {
 		t.Fatal("a pixel gradient of another size was carried back")
 	}
 }
+
+// newGradients allocates zero gradients for every weight of the decoder.
+func (d *vitDecoder) newGradients() *decoderGradients {
+	zero := func(like []float32) []float32 { return make([]float32, len(like)) }
+	gradients := &decoderGradients{
+		embedWeight: zero(d.embedWeight), embedBias: zero(d.embedBias), class: zero(d.class),
+		normWeight: zero(d.normWeight), normBias: zero(d.normBias), predWeight: zero(d.predWeight), predBias: zero(d.predBias),
+	}
+	for _, l := range d.layers {
+		var g layer
+		for index, target := range g.tensors() {
+			*target = zero(*l.tensors()[index])
+		}
+		gradients.layers = append(gradients.layers, g)
+	}
+	return gradients
+}

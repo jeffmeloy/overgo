@@ -38,12 +38,12 @@ func TestMoETrainingPublishesRouterObservationsWithoutChangingNumerics(t *testin
 		t.Fatal(err)
 	}
 	var routes []MoERouterObservation
-	gotLosses, gotState, err := observed.TrainWithRouterObservations(
+	gotLosses, gotState, err := observed.TrainWith(
 		batches, learningRate, 0.9, nil, nil,
-		func(_ int, observation MoERouterObservation) error {
+		TrainOptions{ObserveRouter: func(_ int, observation MoERouterObservation) error {
 			routes = append(routes, observation)
 			return nil
-		},
+		}},
 	)
 	if err != nil {
 		t.Fatal(err)

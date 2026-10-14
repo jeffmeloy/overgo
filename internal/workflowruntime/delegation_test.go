@@ -53,8 +53,8 @@ func TestDelegatedAgentInvocation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(compiled.ManualIDs()) != 1 || compiled.ManualIDs()[0] != manual.ID {
-		t.Fatalf("compiled manuals = %v", compiled.ManualIDs())
+	if len(compiled.Manuals) != 1 || compiled.Manuals[0].ID != manual.ID {
+		t.Fatalf("compiled manuals = %v", compiled.Manuals)
 	}
 	mutation, _ := agenttool.NewManual(agenttool.Manual{Name: "repo.write", Description: "Write state.", Effect: agenttool.EffectMutation, Transport: agenttool.Transport{Kind: agenttool.TransportBuiltin}})
 	worker.ToolManuals = append(worker.ToolManuals, mutation.ID)

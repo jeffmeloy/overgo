@@ -2,10 +2,13 @@ package latentimage
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/checked"
 )
 
 // g2 schedule golden shape (only the fields this test asserts).
@@ -150,4 +153,19 @@ func ulpDistance(a, b float64) int64 {
 		d = -d
 	}
 	return d
+}
+
+// EulerStep advances sample in place.
+func (s FlowSchedule) EulerStep(sample, velocity []float64, step int) error {
+	if !checked.ValidIndex(step, s.Steps) {
+		return fmt.Errorf("flow euler: step %d out of range [0,%d)", step, s.Steps)
+	}
+	if !checked.Equal(len(sample), len(velocity)) {
+		return fmt.Errorf("flow euler: sample len=%d velocity len=%d differ", len(sample), len(velocity))
+	}
+	delta := s.Deltas[step]
+	for i := range sample {
+		sample[i] += delta * velocity[i]
+	}
+	return nil
 }

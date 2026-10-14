@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"overgo/internal/tokenizer"
@@ -53,11 +54,11 @@ func TestKimiLiteralReferenceFixture(t *testing.T) {
 		reference.OrdinaryAddedText != "<|open|>" || reference.OrdinaryAddedID != 163587 {
 		t.Fatal("Kimi literal source or published vector changed")
 	}
-	text := ""
+	var text strings.Builder
 	for _, piece := range reference.LiteralPieces {
-		text += piece
+		text.WriteString(piece)
 	}
-	if text != reference.LiteralText {
+	if text.String() != reference.LiteralText {
 		t.Fatal("Kimi literal split does not reconstruct text")
 	}
 	if len(reference.AddedTokens) != 2 || reference.AddedTokens[0].ID != 163586 || !reference.AddedTokens[0].Special ||

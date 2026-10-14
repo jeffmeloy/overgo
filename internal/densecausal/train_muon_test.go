@@ -16,7 +16,7 @@ func tinyMuonModel(t *testing.T) *Model {
 		KVHeads: 2, Intermediate: 32, Layers: 2, Seed: 1,
 	}
 	weights, shapes := testutil.DenseCausalWeights(t, spec)
-	m, err := NewModel(weights, shapes, spec.Heads, spec.HeadDim, 10000, 1e-6)
+	m, err := NewMixtureModel(weights, shapes, spec.Heads, spec.HeadDim, 10000, 1e-6, MoERouterPolicy{}, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

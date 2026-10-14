@@ -1,6 +1,13 @@
 package webuilane
 
-import "testing"
+import (
+	"io/fs"
+	"os"
+	"path"
+	"path/filepath"
+	"strings"
+	"testing"
+)
 
 // TestReviewMeasures pins each criterion on a synthetic source: a swallow
 // with a reviewed comment is not counted, a control inside a label or
@@ -48,4 +55,75 @@ setTimeout(tick, 1000); setInterval(poll, interval);
 	if (ReviewMeasures("const x = el(\"input\", { \"aria-label\": \"name\" });") != Review{}) {
 		t.Fatal("a named input counted")
 	}
+}
+
+// webuiReviewCeiling: the review criteria ReviewMeasures counts, each at its
+// measured value when the census landed (webui-quality-census); they only tighten.
+var webuiReviewCeiling = Review{
+	SilentFallbacks: 0, WindowDialogs: 0, UnnamedControls: 0, UnnamedButtons: 0,
+	InlineStyles: 0, NestedTernaries: 0, TimerLiterals: 0, DebtMarkers: 0,
+}
+
+// clientJavaScript returns every JavaScript source of the served client by its path under the client's directory.
+//   - the client's directory = the directory of StylesheetPath, which internal/server embeds whole
+//   - a directory that holds no JavaScript is refused, because a ratchet over nothing holds nothing
+func clientJavaScript(t *testing.T) map[string]string {
+	t.Helper()
+	client := os.DirFS(filepath.Join("..", "..", filepath.FromSlash(path.Dir(StylesheetPath))))
+	sources := map[string]string{}
+	if err := fs.WalkDir(client, ".", func(name string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !entry.IsDir() && strings.HasSuffix(name, ".js") {
+			data, err := fs.ReadFile(client, name)
+			if err != nil {
+				return err
+			}
+			sources[name] = string(data)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(sources) == 0 {
+		t.Fatalf("%s holds no JavaScript source", path.Dir(StylesheetPath))
+	}
+	return sources
+}
+
+// TestWebUIReviewRatchet holds the client to the review criteria at their
+// measured values: a source that adds a silent fallback, a dialog, an
+// unnamed control, inline styling, a nested ternary, a timer literal or a
+// debt marker fails here, and each ceiling only tightens as rows pay it.
+func TestWebUIReviewRatchet(t *testing.T) {
+	t.Parallel()
+	var review Review
+	largest := 0
+	for name, source := range clientJavaScript(t) {
+		measured := ReviewMeasures(source)
+		if measured.SilentFallbacks+measured.WindowDialogs+measured.UnnamedControls+measured.UnnamedButtons > 0 {
+			t.Logf("%s: %+v", name, measured)
+		}
+		review.Add(measured)
+		largest = max(largest, strings.Count(source, "\n"))
+	}
+	for _, check := range []struct {
+		name           string
+		value, ceiling int
+	}{
+		{"silent fallbacks", review.SilentFallbacks, webuiReviewCeiling.SilentFallbacks},
+		{"window dialogs", review.WindowDialogs, webuiReviewCeiling.WindowDialogs},
+		{"unnamed controls", review.UnnamedControls, webuiReviewCeiling.UnnamedControls},
+		{"unnamed buttons", review.UnnamedButtons, webuiReviewCeiling.UnnamedButtons},
+		{"inline styles", review.InlineStyles, webuiReviewCeiling.InlineStyles},
+		{"nested ternaries", review.NestedTernaries, webuiReviewCeiling.NestedTernaries},
+		{"timer literals", review.TimerLiterals, webuiReviewCeiling.TimerLiterals},
+		{"debt markers", review.DebtMarkers, webuiReviewCeiling.DebtMarkers},
+	} {
+		if check.value > check.ceiling {
+			t.Errorf("%s = %d, ceiling %d", check.name, check.value, check.ceiling)
+		}
+	}
+	t.Logf("review ratchet: %+v largest=%d", review, largest)
 }

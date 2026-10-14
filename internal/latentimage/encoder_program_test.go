@@ -1,9 +1,12 @@
 package latentimage
 
 import (
+	"fmt"
 	"math"
 	"testing"
 
+	"overgo/internal/graphruntime"
+	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
 )
@@ -92,3 +95,62 @@ func TestEncoderProgramMatchesHostReference(t *testing.T) {
 		}
 	}
 }
+
+// RunHostFeed executes the encoder graph through run with F32 weights supplied by
+// weightAt and the per-token embedding rows embedRows ([seq*Hidden], token-major
+// F32). This is the exact-parity path (F32 weights): reference.Execute gives the
+// host golden, the CUDA generic executor gives the device match. Returns the
+// tapped hidden states in the [Seq, LayerCount, Hidden] layout Denoiser.
+// textConditioning consumes.
+func (p *EncoderProgram) RunHostFeed(run graphruntime.Runner, weightAt EncoderFeed, embedRows []float32) (*SelectedHiddenStates, error) {
+	if p.MatmulType != dtype.F32 {
+		return nil, fmt.Errorf("encoder RunHostFeed: needs F32 weights, program compiled %s", p.MatmulType)
+	}
+	embedValue, err := reference.BorrowedValue(p.Embed.Shape, embedRows)
+	if err != nil {
+		return nil, fmt.Errorf("encoder RunHostFeed: embed rows: %w", err)
+	}
+	feeds := make(map[*tensor.Tensor]reference.Value, len(p.weightInputs)+1)
+	if err := graphruntime.AddHostWeights(feeds, p.weightInputs, weightAt); err != nil {
+		return nil, fmt.Errorf("encoder RunHostFeed: %w", err)
+	}
+	feeds[p.Embed] = embedValue
+	if p.keyBias != nil {
+		feeds[p.keyBias] = reference.Value{Shape: p.keyBias.Shape, Data: p.keyBiasData}
+	}
+
+	results, err := run(append([]*tensor.Tensor(nil), p.Selected...), feeds)
+	if err != nil {
+		return nil, fmt.Errorf("encoder RunHostFeed: %w", err)
+	}
+	return p.assemble(results)
+}
+
+// assemble gathers the per-slot [Hidden, seq] outputs into a single
+// [Seq, LayerCount, Hidden] SelectedHiddenStates (token-major, then tapped-layer,
+// then feature) -- the layout Denoiser.textConditioning consumes.
+func (p *EncoderProgram) assemble(results map[*tensor.Tensor]reference.Value) (*SelectedHiddenStates, error) {
+	h := p.E.Hidden
+	L := len(p.Selected)
+	out := &SelectedHiddenStates{Seq: p.Seq, LayerCount: L, Hidden: h, Data: make([]float64, p.Seq*L*h)}
+	for slot, node := range p.Selected {
+		val, ok := results[node]
+		if !ok {
+			return nil, fmt.Errorf("encoder assemble: missing selected slot %d output", slot)
+		}
+		if len(val.Data) != p.Seq*h {
+			return nil, fmt.Errorf("encoder assemble: slot %d len=%d want %d", slot, len(val.Data), p.Seq*h)
+		}
+		for tok := 0; tok < p.Seq; tok++ {
+			src := val.Data[tok*h : tok*h+h]
+			dst := out.Data[(tok*L+slot)*h : (tok*L+slot)*h+h]
+			for c := range h {
+				dst[c] = float64(src[c])
+			}
+		}
+	}
+	return out, nil
+}
+
+// EncoderFeed is a name->F32 weight lookup for the host-feed reference/CUDA path.
+type EncoderFeed func(name string) ([]float32, error)

@@ -2,7 +2,6 @@ package latentimage
 
 import (
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -223,11 +222,4 @@ func failedCheckCount(checks []Check) int {
 		}
 	}
 	return count
-}
-
-// SortedChecks returns the checks in stable name order for reporting.
-func (w *Witness) SortedChecks() []Check {
-	out := append([]Check(nil), w.Checks...)
-	sort.SliceStable(out, func(i, j int) bool { return out[i].Name < out[j].Name })
-	return out
 }

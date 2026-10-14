@@ -1,4 +1,4 @@
-package workflowruntime
+package runrecord
 
 import (
 	"sync"
@@ -9,7 +9,6 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/invocation"
 	"overgo/internal/overgodb"
-	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 )
 
@@ -26,7 +25,7 @@ func TestLateStimulusReconciliation(t *testing.T) {
 		t.Fatal(err)
 	}
 	operation := testutil.ArtifactID(t, artifact.KindEvidence, "followup-operation")
-	arguments, err := runrecord.AttemptArgumentContent([]byte(`{"initial":true}`))
+	arguments, err := AttemptArgumentContent([]byte(`{"initial":true}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +50,7 @@ func TestLateStimulusReconciliation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	boundary, err := runrecord.PublishAttemptStimulus(ctx, store, runrecord.AttemptStimulusBoundary{
+	boundary, err := PublishAttemptStimulus(ctx, store, AttemptStimulusBoundary{
 		Operation: operation, Attempt: 1, Manual: manual, Class: invocation.ClassInspection,
 		Arguments: arguments.Descriptor.ID, Effect: effect.ID, Ceiling: ceiling, Selection: selection,
 	}, []artifact.Content{arguments, effectContent})
@@ -67,11 +66,11 @@ func TestLateStimulusReconciliation(t *testing.T) {
 	}
 	var won atomic.Uint32
 	var wait sync.WaitGroup
-	results := make(chan runrecord.StimulusFollowup, 8)
+	results := make(chan StimulusFollowup, 8)
 	errors := make(chan error, 8)
 	for range cap(results) {
 		wait.Go(func() {
-			admission, admitted, reconcileErr := ReconcileLateStimuli(ctx, store, boundary.ID, []artifact.ID{late[1], late[0], late[1]})
+			admission, admitted, reconcileErr := (StimulusFollowupAuthority{Repository: store}).Admit(ctx, boundary.ID, []artifact.ID{late[1], late[0], late[1]})
 			if reconcileErr != nil {
 				errors <- reconcileErr
 				return
@@ -94,7 +93,7 @@ func TestLateStimulusReconciliation(t *testing.T) {
 			identity = result.ID
 		}
 		if result.ID != identity || result.Boundary != boundary.ID || len(result.Sources) != len(late) ||
-			result.Causal.Trigger != runrecord.TriggerFollowup || result.Causal.FollowupOf != boundary.ID {
+			result.Causal.Trigger != TriggerFollowup || result.Causal.FollowupOf != boundary.ID {
 			t.Fatalf("follow-up differs: %+v", result)
 		}
 	}

@@ -26,13 +26,12 @@ func TestDirectionRelations(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			advantage, ok := test.direction.Advantage(test.candidate, test.baseline)
-			if !ok || advantage <= 0 || !test.direction.Admits(test.candidate, test.baseline) ||
-				test.direction.Worse(test.candidate, test.baseline) != test.baseline {
+			if !ok || advantage <= 0 {
 				t.Fatalf("direction relation = (%g, %t)", advantage, ok)
 			}
 		})
 	}
-	if _, ok := DirectionNeutral.Advantage(higher, lower); ok || DirectionNeutral.Admits(higher, lower) {
+	if _, ok := DirectionNeutral.Advantage(higher, lower); ok {
 		t.Fatal("neutral direction defines ordering")
 	}
 }

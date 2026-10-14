@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/clioptions"
 	"overgo/internal/testevidence"
 	"overgo/internal/testskip"
 )
@@ -22,7 +23,7 @@ func TestCIRequiredEvidenceCommand(t *testing.T) {
 	)
 	var output bytes.Buffer
 	err := runTests([]string{"./..."}, &output, func([]string) (testevidence.GoTestReport, error) {
-		return testevidence.GoTestJSONShortReport(events)
+		return testevidence.GoTestJSONReader(strings.NewReader(events), true, clioptions.DiagnosticTailBytes, nil)
 	})
 	if err != nil || !strings.Contains(output.String(), "tests=1 classified_short_skips=1") {
 		t.Fatalf("err=%v output=%q", err, output.String())
@@ -30,7 +31,7 @@ func TestCIRequiredEvidenceCommand(t *testing.T) {
 
 	output.Reset()
 	err = runTests(nil, &output, func([]string) (testevidence.GoTestReport, error) {
-		report, err := testevidence.GoTestJSONShortReport("{\"Action\":\"skip\",\"Package\":\"x\",\"Test\":\"TestMystery\"}\n")
+		report, err := testevidence.GoTestJSONReader(strings.NewReader("{\"Action\":\"skip\",\"Package\":\"x\",\"Test\":\"TestMystery\"}\n"), true, clioptions.DiagnosticTailBytes, nil)
 		return report, errors.Join(err, errors.New("exit status 1"))
 	})
 	if err == nil || !strings.Contains(output.String(), "evidence rejected") {

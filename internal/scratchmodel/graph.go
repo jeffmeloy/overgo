@@ -9,7 +9,6 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
-	"overgo/internal/tensor/reference"
 )
 
 // ForwardGraph is one token-batch scratch forward through shared tensor ops.
@@ -170,31 +169,6 @@ func (g ForwardGraph) CacheOutputs() []*tensor.Tensor {
 		}
 	}
 	return outputs
-}
-
-// Feeds materializes graph feeds from one flat parameter slab.
-func (g ForwardGraph) Feeds(c Construction, slab []float32) (map[*tensor.Tensor]reference.Value, error) {
-	if g.Output == nil || g.Mask == nil || g.Positions <= 0 || len(g.Parameters) != len(c.parameters) || len(slab) != len(c.weights) {
-		return nil, errors.New("scratch model: forward graph or slab differs")
-	}
-	feeds := make(map[*tensor.Tensor]reference.Value, len(g.Parameters)+1)
-	for name, input := range g.Parameters {
-		binding, ok := c.bindings[name]
-		if !ok {
-			return nil, fmt.Errorf("scratch model: graph parameter %q has no slab binding", name)
-		}
-		value, err := reference.NewValue(input.Shape, slab[binding.start:binding.end])
-		if err != nil {
-			return nil, err
-		}
-		feeds[input] = value
-	}
-	mask, err := reference.NewValue(g.Mask.Shape, g.MaskValues)
-	if err != nil {
-		return nil, err
-	}
-	feeds[g.Mask] = mask
-	return feeds, nil
 }
 
 // InitialWeights copies the constructed parameter slab, each parameter at

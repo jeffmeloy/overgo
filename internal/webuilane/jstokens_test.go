@@ -143,16 +143,6 @@ func regexAllowed(tokens []jsToken) bool {
 	return true
 }
 
-func skipQuoted(source string, index int) int {
-	quote := source[index]
-	for index++; index < len(source) && source[index] != quote && source[index] != '\n'; index++ {
-		if source[index] == '\\' {
-			index++
-		}
-	}
-	return min(index+1, len(source))
-}
-
 // skipTemplate passes a template literal and its substitutions, whose
 // braces, strings and nested templates are balanced.
 func skipTemplate(source string, index int) int {

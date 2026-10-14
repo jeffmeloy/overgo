@@ -68,3 +68,9 @@ func TestLightCurveTrainingProcessorReservesTwoPatches(t *testing.T) {
 		t.Fatal("four-sample curve was not refused at the two-patch floor")
 	}
 }
+
+// LightCurveProcessor converts (time, wavelength, flux, error) tuples into a
+// forecast pair. Band selection is data-derived; the boundary is model-derived.
+func LightCurveProcessor(patchLen, horizon int) (trainingdata.Processor, error) {
+	return lightCurveProcessor(patchLen, horizon, patchLen)
+}

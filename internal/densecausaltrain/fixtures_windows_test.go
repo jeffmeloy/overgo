@@ -39,7 +39,7 @@ func tinyMuonModelWith(t *testing.T, untied bool) *densecausal.Model {
 		slices.Reverse(head)
 		weights[headName], shapes[headName] = head, slices.Clone(shapes[embeddingName])
 	}
-	m, err := densecausal.NewModel(weights, shapes, spec.Heads, spec.HeadDim, 10000, 1e-6)
+	m, err := densecausal.NewMixtureModel(weights, shapes, spec.Heads, spec.HeadDim, 10000, 1e-6, densecausal.MoERouterPolicy{}, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func modelFromGolden(t *testing.T, g *qwen2Golden) *densecausal.Model {
 		weights[name] = values
 		shapes[name] = p.Shape
 	}
-	m, err := densecausal.NewModel(weights, shapes, g.Config.NumAttentionHeads, g.Config.HeadDim, g.Config.RopeTheta, g.Config.RMSNormEps)
+	m, err := densecausal.NewMixtureModel(weights, shapes, g.Config.NumAttentionHeads, g.Config.HeadDim, g.Config.RopeTheta, g.Config.RMSNormEps, densecausal.MoERouterPolicy{}, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

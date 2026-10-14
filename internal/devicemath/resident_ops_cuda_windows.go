@@ -124,20 +124,6 @@ type ResidentArena struct {
 	pointer          driver.DevicePtr
 }
 
-// WithResidentOps runs one composed resident program and synchronizes once.
-func WithResidentOps(worker *device.Worker, run func(*ResidentOps) error) error {
-	if worker == nil || run == nil {
-		return errors.New("resident ops: worker or program absent")
-	}
-	return withCUDABLAS(worker, func(session *cudaBLAS) error {
-		ops := &ResidentOps{session: session, functions: map[string]driver.Function{}}
-		if err := run(ops); err != nil {
-			return err
-		}
-		return session.finish()
-	})
-}
-
 func (o *ResidentOps) function(name string) (driver.Function, error) {
 	if function := o.functions[name]; function != 0 {
 		return function, nil
@@ -235,21 +221,6 @@ func (o *ResidentOps) MADNormBackward(incoming, input, output, gradient driver.D
 	return o.session.launch1D(function, rowsU,
 		unsafe.Pointer(&incoming), unsafe.Pointer(&input), unsafe.Pointer(&output), unsafe.Pointer(&gradient),
 		unsafe.Pointer(&widthU), unsafe.Pointer(&rowsU), unsafe.Pointer(&epsilonF))
-}
-
-func (o *ResidentOps) AttentionCoreBackward(
-	q, k, v, probability, dOut, dQ, dK, dV, dScores driver.DevicePtr,
-	sequence, headDim int,
-	scale float64,
-) error {
-	if q == 0 || k == 0 || v == 0 || probability == 0 || dOut == 0 || dQ == 0 || dK == 0 || dV == 0 || dScores == 0 || sequence <= 0 || headDim <= 0 || math.IsNaN(scale) || math.IsInf(scale, 0) {
-		return errors.New("resident ops: invalid attention VJP")
-	}
-	dProbability, err := o.AllocF32(sequence * sequence)
-	if err != nil {
-		return err
-	}
-	return o.AttentionCoreBackwardWithScratch(q, k, v, probability, dOut, dQ, dK, dV, dScores, dProbability, sequence, headDim, scale)
 }
 
 func (o *ResidentOps) AttentionCoreBackwardWithScratch(

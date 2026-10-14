@@ -89,7 +89,7 @@ func TestDelegatedCapabilityRuntimeConsumesStagedOwners(t *testing.T) {
 		t.Fatal(err)
 	}
 	if runtime.Coordinator == nil || runtime.Checkpoints == nil ||
-		len(runtime.Compiled.ManualIDs()) != 1 || runtime.Compiled.ManualIDs()[0] != manual.ID {
+		len(runtime.Compiled.Manuals) != 1 || runtime.Compiled.Manuals[0].ID != manual.ID {
 		t.Fatalf("runtime join = %+v", runtime)
 	}
 	if len(runtime.Obligations) != 2 {

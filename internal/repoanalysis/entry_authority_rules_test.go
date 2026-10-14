@@ -243,7 +243,7 @@ func EntryAuthorityRules() []EntryAuthorityRule {
 				"internal/processcontrol/resource_shared_windows.go": "OS-ABI owner: shell32 resolves the machine-wide resource admission directory",
 				"internal/processlock/lock_windows.go":               "OS-ABI owner: kernel32 LockFileEx for the exclusive process lock",
 				"internal/processmeasure/peak_windows.go":            "OS-ABI owner: psapi peak-memory measurement",
-				"internal/protection/protection.go":                  "protection guard verifies the harness hook configuration; it grants no capability from it",
+				"internal/protection/protection.go":                  "protection guard names the harness configuration directory, and its tests verify the hook configuration; it grants no capability from it",
 			},
 			Detect: func(file *ast.File) int {
 				sites := 0

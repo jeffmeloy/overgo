@@ -142,22 +142,6 @@ func (d Direction) Advantage(candidate, baseline float64) (float64, bool) {
 	}
 }
 
-// Admits reports whether value satisfies threshold.
-func (d Direction) Admits(value, threshold float64) bool {
-	advantage, ok := d.Advantage(value, threshold)
-	var neutral float64
-	return ok && advantage >= neutral
-}
-
-// Worse returns the weaker value under d.
-func (d Direction) Worse(left, right float64) float64 {
-	var neutral float64
-	if advantage, ok := d.Advantage(left, right); ok && advantage > neutral {
-		return right
-	}
-	return left
-}
-
 type Run struct {
 	Version     uint16
 	ID          artifact.ID

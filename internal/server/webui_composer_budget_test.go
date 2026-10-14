@@ -4,16 +4,7 @@ import (
 	"io/fs"
 	"strings"
 	"testing"
-
-	"overgo/internal/webuilane"
 )
-
-// webuiReviewCeiling: the review criteria webuilane.ReviewMeasures counts, each at its
-// measured value when the census landed (webui-quality-census); they only tighten.
-var webuiReviewCeiling = webuilane.Review{
-	SilentFallbacks: 0, WindowDialogs: 0, UnnamedControls: 0, UnnamedButtons: 0,
-	InlineStyles: 0, NestedTernaries: 0, TimerLiterals: 0, DebtMarkers: 0,
-}
 
 func webuiJavaScript(t *testing.T) map[string]string {
 	t.Helper()
@@ -50,40 +41,4 @@ func TestWebUIComposerBudget(t *testing.T) {
 			t.Errorf("composer.js does not render stream event %q", event)
 		}
 	}
-}
-
-// TestWebUIReviewRatchet holds the client to the review criteria at their
-// measured values: a source that adds a silent fallback, a dialog, an
-// unnamed control, inline styling, a nested ternary, a timer literal or a
-// debt marker fails here, and each ceiling only tightens as rows pay it.
-func TestWebUIReviewRatchet(t *testing.T) {
-	t.Parallel()
-	var review webuilane.Review
-	largest := 0
-	for name, source := range webuiJavaScript(t) {
-		measured := webuilane.ReviewMeasures(source)
-		if measured.SilentFallbacks+measured.WindowDialogs+measured.UnnamedControls+measured.UnnamedButtons > 0 {
-			t.Logf("%s: %+v", name, measured)
-		}
-		review.Add(measured)
-		largest = max(largest, strings.Count(source, "\n"))
-	}
-	for _, check := range []struct {
-		name           string
-		value, ceiling int
-	}{
-		{"silent fallbacks", review.SilentFallbacks, webuiReviewCeiling.SilentFallbacks},
-		{"window dialogs", review.WindowDialogs, webuiReviewCeiling.WindowDialogs},
-		{"unnamed controls", review.UnnamedControls, webuiReviewCeiling.UnnamedControls},
-		{"unnamed buttons", review.UnnamedButtons, webuiReviewCeiling.UnnamedButtons},
-		{"inline styles", review.InlineStyles, webuiReviewCeiling.InlineStyles},
-		{"nested ternaries", review.NestedTernaries, webuiReviewCeiling.NestedTernaries},
-		{"timer literals", review.TimerLiterals, webuiReviewCeiling.TimerLiterals},
-		{"debt markers", review.DebtMarkers, webuiReviewCeiling.DebtMarkers},
-	} {
-		if check.value > check.ceiling {
-			t.Errorf("%s = %d, ceiling %d", check.name, check.value, check.ceiling)
-		}
-	}
-	t.Logf("review ratchet: %+v largest=%d", review, largest)
 }

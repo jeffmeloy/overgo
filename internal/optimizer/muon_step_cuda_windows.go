@@ -13,18 +13,6 @@ import (
 	"overgo/internal/hostoptimizer"
 )
 
-// deviceMuonMatrixStep: staged single-matrix Muon update.
-func deviceMuonMatrixStep(worker *device.Worker, weights, gradient, momentum []float32, rows, cols int, mu, rate float64) error {
-	return worker.Do(context.Background(), func(state *device.State) error {
-		ops, err := newDeviceOps(state)
-		if err != nil {
-			return err
-		}
-		defer ops.close()
-		return ops.muonMatrixGroup(weights, gradient, momentum, rows, cols, mu, rate)
-	})
-}
-
 // muonMatrixGroupResident: transfer-free update on resident W/G/M.
 func (o *deviceOps) muonMatrixGroupResident(dW, dG, dM driver.DevicePtr, rows, cols int, mu, rate float64) error {
 	n, valid := hostoptimizer.MatrixElements(rows, cols)
@@ -119,31 +107,6 @@ func (o *deviceOps) muonMatrixGroupWithScratch(
 		return err
 	}
 	return o.add(dW, scratch.tmp, dW, n)
-}
-
-// muonMatrixGroup: stage, update, return weights and momentum.
-func (o *deviceOps) muonMatrixGroup(weights, gradient, momentum []float32, rows, cols int, mu, rate float64) error {
-	n, valid := hostoptimizer.MatrixElements(rows, cols)
-	if !valid || len(weights) != n || len(gradient) != n || len(momentum) != n {
-		return fmt.Errorf("muonMatrixGroup: shape mismatch (n=%d w=%d g=%d m=%d)", n, len(weights), len(gradient), len(momentum))
-	}
-	buffers, err := o.uploadF32Set(weights, gradient, momentum)
-	if err != nil {
-		return err
-	}
-	defer freeDevicePointers(o.lib, buffers...)
-	dW, dG, dM := buffers[0], buffers[1], buffers[2]
-
-	if err := o.muonMatrixGroupResident(dW, dG, dM, rows, cols, mu, rate); err != nil {
-		return err
-	}
-	if err := o.lib.StreamSynchronize(o.stream); err != nil {
-		return err
-	}
-	if err := o.lib.MemcpyDtoH(driver.Bytes(weights), dW); err != nil {
-		return err
-	}
-	return o.lib.MemcpyDtoH(driver.Bytes(momentum), dM)
 }
 
 // ResidentMatrix is one Muon matrix update target whose weights, gradient and

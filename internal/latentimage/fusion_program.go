@@ -10,10 +10,8 @@ import (
 	"slices"
 
 	"overgo/internal/checked"
-	"overgo/internal/graphruntime"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
-	"overgo/internal/tensor/reference"
 )
 
 // FusionProgram: the compiled text-fusion graph for one prompt length. Weight
@@ -37,34 +35,6 @@ type FusionProgram struct {
 	// Fused (Hidden, TextSeq): the text conditioning feeding the denoiser text
 	// stream (image-token co-attention).
 	Fused *tensor.Tensor
-}
-
-// FusionTensorShapes returns the name -> torch shape ([out,in] for Linear
-// weights) manifest the fusion forward consumes: the layerwise + refiner blocks
-// at TextHidden, the layer projector, and txt_in. Derived entirely from spec.
-// This is the capability-retention contract for the text-fusion stream (a subset
-// of DenoiserTensorShapes -- the same blocks, minus the 28 image co-attention
-// blocks and the timestep/img_in/final tensors the denoiser step owns).
-func FusionTensorShapes(t TransformerSpec) map[string][]int {
-	h := t.Hidden
-	th := t.TextHidden
-	shapes := map[string][]int{
-		"text_fusion.projector.weight": {tensor.SingletonExtent, t.TextLayers},
-		"txt_in.norm.weight":           {th},
-		"txt_in.linear_1.weight":       {h, th},
-		"txt_in.linear_1.bias":         {h},
-		"txt_in.linear_2.weight":       {h, h},
-		"txt_in.linear_2.bias":         {h},
-	}
-	addFusionBlocks := func(kind string, n int) {
-		for i := range n {
-			p := fmt.Sprintf("text_fusion.%s.%d.", kind, i)
-			addAttnFF(shapes, p, th, t.TextHeads*t.HeadDim, t.TextKVHeads*t.HeadDim, t.HeadDim, t.TextIntermediate, false)
-		}
-	}
-	addFusionBlocks("layerwise_blocks", t.LayerwiseTextBlocks)
-	addFusionBlocks("refiner_blocks", t.RefinerTextBlocks)
-	return shapes
 }
 
 // CompileFusionProgram builds the text-fusion graph for a sequence of textSeq
@@ -215,49 +185,4 @@ func fusionAttnFF(
 	u := b.MulMat(bind.Input(prefix+"ff.up.weight", th, inter), n2)
 	ff := b.MulMat(bind.Input(prefix+"ff.down.weight", inter, th), b.SwiGLU(g, u))
 	return b.Add(hidden, ff)
-}
-
-// FusionFeed is a name->F32 weight lookup for the host-feed reference/CUDA path.
-type FusionFeed func(name string) ([]float32, error)
-
-// RunHostFeed executes the fusion graph through run with F32 weights supplied by
-// weightAt and the selected hiddens encoderHidden ([textSeq*TextLayers*TextHidden],
-// the SelectedHiddenStates.Data layout, token-major then layer then feature). This
-// is the exact-parity path (F32 weights): reference.Execute gives the host golden,
-// the CUDA generic executor gives the device match. Returns the fused conditioning
-// [textSeq*Hidden] (token-major), the layout the denoiser text stream consumes.
-func (p *FusionProgram) RunHostFeed(run graphruntime.Runner, weightAt FusionFeed, encoderHidden []float32) ([]float32, error) {
-	if p.MatmulType != dtype.F32 {
-		return nil, fmt.Errorf("fusion RunHostFeed: needs F32 weights, program compiled %s", p.MatmulType)
-	}
-	if want := p.TextSeq * p.T.TextLayers * p.T.TextHidden; len(encoderHidden) != want {
-		return nil, fmt.Errorf("fusion RunHostFeed: encoder hidden len=%d want %d", len(encoderHidden), want)
-	}
-	feeds := make(map[*tensor.Tensor]reference.Value, len(p.weightInputs)+2)
-	if err := graphruntime.AddHostWeights(feeds, p.weightInputs, weightAt); err != nil {
-		return nil, fmt.Errorf("fusion RunHostFeed: %w", err)
-	}
-	feeds[p.InEncoder] = reference.Value{Shape: p.InEncoder.Shape, Data: encoderHidden}
-	if p.keyBias != nil {
-		feeds[p.keyBias] = reference.Value{Shape: p.keyBias.Shape, Data: p.keyData}
-	}
-
-	results, err := run([]*tensor.Tensor{p.Fused}, feeds)
-	if err != nil {
-		return nil, fmt.Errorf("fusion RunHostFeed: %w", err)
-	}
-	return p.assemble(results)
-}
-
-// assemble extracts the fused conditioning [textSeq*Hidden] (token-major) from the
-// graph outputs.
-func (p *FusionProgram) assemble(results map[*tensor.Tensor]reference.Value) ([]float32, error) {
-	val, ok := results[p.Fused]
-	if !ok {
-		return nil, fmt.Errorf("fusion assemble: missing fused output")
-	}
-	if want := p.TextSeq * p.T.Hidden; len(val.Data) != want {
-		return nil, fmt.Errorf("fusion assemble: fused len=%d want %d", len(val.Data), want)
-	}
-	return append([]float32(nil), val.Data...), nil
 }

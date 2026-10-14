@@ -182,12 +182,6 @@ func (t *Tokenizer) Encode(text string) ([]int, error) {
 	return t.encode(text, true)
 }
 
-// EncodeLiteral treats text as data, even when it spells an added token.
-// Callers assembling prompts should insert intended control IDs separately.
-func (t *Tokenizer) EncodeLiteral(text string) ([]int, error) {
-	return t.encode(text, false)
-}
-
 func (t *Tokenizer) encode(text string, parseAdded bool) ([]int, error) {
 	if t.decodeMarker != "" {
 		return nil, fmt.Errorf("metaspace decoding is supported; its normalization and encoding pipeline is not compiled")

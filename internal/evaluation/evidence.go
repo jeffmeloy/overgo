@@ -165,31 +165,6 @@ func verifyEvaluationEvidence(ctx context.Context, reader artifact.Reader, value
 	return run.Phases, record.Metrics, nil
 }
 
-func PublishEvaluationEvidence(
-	ctx context.Context,
-	repository artifact.Repository,
-	plan Plan,
-	acceptance AcceptancePolicy,
-	evaluator Evaluator,
-	report artifact.ID,
-	run runrecord.Run,
-	record runrecord.Evaluation,
-	causal ...runrecord.CausalContext,
-) (EvaluationEvidence, error) {
-	evidence, err := newEvaluationEvidence(
-		ctx, repository, plan, acceptance, evaluator, report, run, record, nil, causal...,
-	)
-	if err != nil {
-		return EvaluationEvidence{}, err
-	}
-	batch := artifact.Batch{Key: "evaluation/evidence/" + evidence.ID.String()}
-	if err := appendEvaluationEvidence(&batch, acceptance, evaluator, evidence); err != nil {
-		return EvaluationEvidence{}, err
-	}
-	_, err = artifact.CommitBatch(ctx, repository, batch)
-	return evidence, err
-}
-
 func newEvaluationEvidence(
 	ctx context.Context,
 	repository artifact.Reader,

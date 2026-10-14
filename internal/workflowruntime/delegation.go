@@ -55,12 +55,3 @@ func CompileDelegatedAgentInvocation(ctx context.Context, reader artifact.Reader
 	}
 	return CompiledDelegation{Invocation: invocation, Manuals: manuals}, nil
 }
-
-// ManualIDs returns the compiled manuals' identities in grant order.
-func (compiled CompiledDelegation) ManualIDs() []artifact.ID {
-	result := make([]artifact.ID, len(compiled.Manuals))
-	for index, manual := range compiled.Manuals {
-		result[index] = manual.ID
-	}
-	return result
-}

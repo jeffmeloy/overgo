@@ -291,3 +291,11 @@ func cloneIntMap(source map[string]int) map[string]int {
 	maps.Copy(result, source)
 	return result
 }
+
+func cloneWeights(source map[string][]float64) map[string][]float64 {
+	result := make(map[string][]float64, len(source))
+	for name, values := range source {
+		result[name] = slices.Clone(values)
+	}
+	return result
+}

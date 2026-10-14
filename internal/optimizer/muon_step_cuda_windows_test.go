@@ -3,8 +3,8 @@
 package optimizer
 
 import (
+	"context"
 	"fmt"
-
 	"math"
 	"math/rand"
 	"testing"
@@ -13,6 +13,7 @@ import (
 	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/devicemath"
+	"overgo/internal/hostoptimizer"
 )
 
 // TestDeviceMuonMatrixStepMatchesHost gates one device (fp32) Muon matrix update
@@ -244,4 +245,41 @@ func DeviceMuonPlanResident(
 	}
 	defer session.Close()
 	return session.Step(weights, gradients, momentum, step)
+}
+
+// deviceMuonMatrixStep: staged single-matrix Muon update.
+func deviceMuonMatrixStep(worker *device.Worker, weights, gradient, momentum []float32, rows, cols int, mu, rate float64) error {
+	return worker.Do(context.Background(), func(state *device.State) error {
+		ops, err := newDeviceOps(state)
+		if err != nil {
+			return err
+		}
+		defer ops.close()
+		return ops.muonMatrixGroup(weights, gradient, momentum, rows, cols, mu, rate)
+	})
+}
+
+// muonMatrixGroup: stage, update, return weights and momentum.
+func (o *deviceOps) muonMatrixGroup(weights, gradient, momentum []float32, rows, cols int, mu, rate float64) error {
+	n, valid := hostoptimizer.MatrixElements(rows, cols)
+	if !valid || len(weights) != n || len(gradient) != n || len(momentum) != n {
+		return fmt.Errorf("muonMatrixGroup: shape mismatch (n=%d w=%d g=%d m=%d)", n, len(weights), len(gradient), len(momentum))
+	}
+	buffers, err := o.uploadF32Set(weights, gradient, momentum)
+	if err != nil {
+		return err
+	}
+	defer freeDevicePointers(o.lib, buffers...)
+	dW, dG, dM := buffers[0], buffers[1], buffers[2]
+
+	if err := o.muonMatrixGroupResident(dW, dG, dM, rows, cols, mu, rate); err != nil {
+		return err
+	}
+	if err := o.lib.StreamSynchronize(o.stream); err != nil {
+		return err
+	}
+	if err := o.lib.MemcpyDtoH(driver.Bytes(weights), dW); err != nil {
+		return err
+	}
+	return o.lib.MemcpyDtoH(driver.Bytes(momentum), dM)
 }

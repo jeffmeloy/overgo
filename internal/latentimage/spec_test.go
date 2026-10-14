@@ -3,6 +3,8 @@ package latentimage
 import (
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 
 	"overgo/internal/testutil"
@@ -55,4 +57,11 @@ func TestVerifyCheckpoint(t *testing.T) {
 	}
 	t.Logf("STRUCTURAL ORACLE PASS: %d dims cross-checked vs real checkpoint (mod_fields derived=%d)",
 		len(witness.Checks), witness.ModField)
+}
+
+// SortedChecks returns the checks in stable name order for reporting.
+func (w *Witness) SortedChecks() []Check {
+	out := append([]Check(nil), w.Checks...)
+	slices.SortStableFunc(out, func(a, b Check) int { return strings.Compare(a.Name, b.Name) })
+	return out
 }

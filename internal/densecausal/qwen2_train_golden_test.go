@@ -54,7 +54,7 @@ func TestQwen2PartialBiasTripleRejected(t *testing.T) {
 		weights[name] = values
 		shapes[name] = p.Shape
 	}
-	if _, err := NewModel(weights, shapes, g.Config.NumAttentionHeads, g.Config.HeadDim, g.Config.RopeTheta, g.Config.RMSNormEps); err == nil {
+	if _, err := NewMixtureModel(weights, shapes, g.Config.NumAttentionHeads, g.Config.HeadDim, g.Config.RopeTheta, g.Config.RMSNormEps, MoERouterPolicy{}, 0); err == nil {
 		t.Fatal("partial bias triple accepted; want loud failure")
 	} else {
 		t.Logf("rejected as expected: %v", err)

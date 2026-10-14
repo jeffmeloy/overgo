@@ -143,39 +143,13 @@ reason: The lead keeps it as a prototype, since the review of 2026-10-12 holds t
 group dense-old-entries
 class: test-held
 surface: outside
-declarations: 10
-lines: 156
+declarations: 5
+lines: 55
 members: internal/densecausal/backward.go
-members: internal/densecausal/load.go
-members: internal/densecausal/train.go
 members: internal/densecausaltrain/train_resident_cuda_windows.go
-members: internal/optimizer/muon_step_cuda_windows.go
-members: internal/optimizer/newton_schulz_cuda_windows.go
 members: internal/hostoptimizer/newton_schulz.go
-reason: Each is a thin entry over a live core, such as TrainDeviceResidentWeighted, which cmd/train calls (cmd/train/dense_device_windows.go:27), and muonMatrixGroupResident (internal/optimizer/muon_step_cuda_windows.go:29), and tests of those cores still enter through it.
-reason: The tests call the live functions, and the entries are deleted then.
-
-group device-per-op-operators
-class: test-held
-surface: outside
-declarations: 3
-lines: 96
-members: internal/devicemath/linear_cuda_windows.go LinearBackward
-members: internal/devicemath/gated_mlp_cuda_windows.go
-members: internal/devicemath/silu_cuda_windows.go SiLUBackward
-reason: TestGatedMLPBackwardTResidentMatchesPerOp holds the resident gated MLP backward of group hybrid-device-resident-lane (internal/devicemath/gated_mlp_resident_cuda_windows.go:18) to gatedMLPBackward and SiLUBackward, and TestLayerBackwardGradCheck checks against finite differences a layer backward that composes LinearBackward with RMSNormBackward and MultiHeadAttentionBackward (internal/devicemath/rmsnorm_cuda_windows.go:69, internal/devicemath/mha_cuda_windows.go:42).
-reason: The resident test compares with finite differences or internal/hostmath directly, as group device-shared-oracles states for its own, and the three are deleted then with the layer a test builds.
-
-group device-shared-oracles
-class: test-held
-surface: outside
-declarations: 6
-lines: 168
-members: internal/devicemath/linear_cuda_windows.go LinearBackwardT linearBackward
-members: internal/devicemath/madnorm_cuda_windows.go
-members: internal/devicemath/resident_ops_cuda_windows.go
-reason: They are the forms that take host slices, and tests hold the live resident operators (internal/devicemath/resident_ops_cuda_windows.go:216) to them with no difference allowed.
-reason: The tests compare the live operators with internal/hostmath or finite differences directly, and these are deleted then.
+reason: Each is an entry over a live core that tests of several packages enter through, TrainDeviceResident over TrainDeviceResidentWeighted, which cmd/train calls (cmd/train/dense_device_windows.go:27), the masked loss entries over the loss of the trainer, and NewtonSchulz over the host stepper's orthogonalization, which a device test of internal/optimizer compares with.
+reason: The tests call the live functions, and the entries are deleted then, the call to TrainDeviceResident of internal/adaptiveparity/qwen35_training_cuda_windows_test.go in a commit that verifies the claim qwen35-real-recurrent-layer-training of compatibility.json again, because that claim binds the test whole.
 
 group encoder-decoder-step-and-batch
 class: dead
@@ -219,15 +193,6 @@ members: internal/gitauthority/writer.go
 reason: d80326076, e3cfa4eff and 8150c8461 deleted their callers, which were the old gate's run, the plan's sync and the plan's dispatch, and their two tests check a parser each.
 reason: The landing passes WriterArguments (internal/landing/landing.go:748) with no proof that the installed Git honors them, which RequireWriterSupport gave the old gate.
 
-group heldout-pool-confirmation
-class: test-held
-surface: outside
-declarations: 3
-lines: 76
-members: internal/evaluation/heldout_confirmation.go
-reason: 3e3980f5f deleted the route that confirmed a candidate on a pool, and five tests hold the charged budget it shares with the live ConfirmInstruction (internal/evaluation/instruction_acceptance.go:352) through it.
-reason: Those tests take ConfirmInstruction, and these are deleted then.
-
 group hostmath-device-oracles
 class: test-held
 surface: inside
@@ -262,15 +227,6 @@ members: internal/hybridtrain/stack.go Model.matrixPlans layerMatrixPlan.slots v
 members: internal/hybridtrain/artifact.go
 reason: It is the trainer of the Qwen3.5 hybrid family that runs the layer forward and backward on the device, and no route of cmd/train serves it, because the two live lanes run that math on the host (internal/hostmath/hybrid_stack.go:10) and only Muon on the device.
 reason: No live function of internal/devicemath does this math, and the claim qwen35-real-recurrent-layer-training is held through it by TestQwen35RealTraining.
-
-group hybrid-host-oracle
-class: test-held
-surface: outside
-declarations: 3
-lines: 36
-members: internal/hybridtrain/stack.go Model.TrainHost hostTraining.Step builder.vec
-reason: TrainHost is the host oracle that tests hold the live streamed trainer (internal/hybridtrain/hybrid_train_device_cuda_windows.go:122) against, and builder.vec builds their random model.
-reason: They move beside those tests.
 
 group ifeval-parameters-record
 class: wire
@@ -395,22 +351,6 @@ members: internal/processcontrol/campaign.go
 reason: Each is a thin wrapper, a getter or a guard that tests alone call, over a live function such as exactLMomentsSorted (internal/tensorstats/tensorstats.go:42), SparseAttentionWithOffset, RepositoryRoot (internal/gitauthority/history.go:20) and CampaignRunning.
 reason: The tests take the live function, and each of these is deleted then, or moves beside the one test that needs it.
 
-group krea-host-references
-class: test-held
-surface: outside
-declarations: 21
-lines: 609
-members: internal/latentimage/textencoder.go ropeTableLlama encLayerForward encodeSelected EncodeSelectedLayersMasked encoderCheckpointIntermediate readEncoderLayer readTensorF32
-members: internal/latentimage/vae.go
-members: internal/latentimage/sampler.go
-members: internal/latentimage/encoder_program.go
-members: internal/latentimage/fusion_program.go
-members: internal/latentimage/vae_program.go
-members: internal/latentimage/denoiser.go DenoiserTensorShapes addAttnFF prod
-members: internal/latentimage/verify.go
-reason: They are the f64 host references, the host-fed runs of the compiled programs and the shape manifests of the Krea image pipeline, and tests compare the served resident pipeline (internal/latentimage/resident_pipeline_cuda_windows.go:66) against them.
-reason: They move beside those tests, as 22b5d515d and 39934bd80 moved their siblings.
-
 group krea-oracle-primitives
 class: test-held
 surface: inside
@@ -478,42 +418,22 @@ reason: 75752433d, 606cc4f63, 422c9c848, 15148dacd and 7512353c8 deleted the cal
 group outside-test-accessors
 class: test-held
 surface: outside
-declarations: 7
-lines: 59
+declarations: 2
+lines: 17
 members: internal/trainingprogram/objective.go ObjectiveAuthority.AtLeast
-members: internal/workflowruntime/delegation.go
-members: internal/runrecord/record.go
 members: internal/runrecord/trigger_registry.go
-members: internal/testevidence/evidence.go GoTestReport.ContentionOnly
-members: internal/hfbpe/tokenizer.go
-reason: Each is an accessor that a test reads in one function with reached code, which are ValidObjectiveAuthority (internal/trainingprogram/objective_test.go:390), the manuals that CompileDelegatedAgentInvocation compiles, Direction.Advantage, the trigger registry in tests of two packages, the Contended list of GoTestJSONReport and the published Kimi token ids that Tokenizer.Encode is held to.
-reason: Each test reads the reached value itself, and the accessor is deleted then.
-
-group outside-test-analyzers
-class: test-held
-surface: outside
-declarations: 7
-lines: 175
-members: internal/protection/protection.go
-members: internal/inferencesurface/surface.go
-members: internal/evaluation/evidence.go
-reason: d80326076, 50330d7a8 and d13261575 deleted the callers of protection.Verify, inferencesurface.Moves and PublishEvaluationEvidence, and tests of their own packages hold the repository's protection files, the membership of the inference surface and evidence verification through them.
-reason: They move into test files of their packages, as 33b81eaf5 moved the repository analyzers.
+reason: AtLeast is read by a test in one function with the reached ValidObjectiveAuthority (internal/trainingprogram/objective_test.go:390), and the claim repodb-multimodal-training-objective-matrix of compatibility.json binds its whole file to a device test, so the test reads the levels itself, and AtLeast is deleted, in a commit that verifies that claim again.
+reason: TriggerContractFor is how tests of internal/runrecord and of internal/workflowruntime read the trigger registry, which is no exported value, so it stays until the test of internal/workflowruntime holds its triggers to the registry from internal/runrecord.
 
 group outside-test-entries
 class: test-held
 surface: outside
-declarations: 8
-lines: 71
-members: internal/testevidence/verdict.go
-members: internal/testevidence/evidence.go GoTestJSONShortReport
+declarations: 3
+lines: 32
 members: internal/capabilityruntime/run_key.go
-members: internal/dataset/document.go
-members: cmd/plan/main.go
-members: internal/evaluation/plan.go
 members: internal/runrecord/resource_fitness_comparison.go
-reason: Each is an entry that tests alone call, over a live function such as RepeatAgreementForCommand, GoTestJSONReader, RunKeyOf (internal/capabilityruntime/run_key.go:71), printPromptStep and CompareResourceFitness.
-reason: The tests take the live function, and these are deleted then.
+reason: RunKey keys a run for a build that counted no identity, over the live RunKeyOf (internal/capabilityruntime/run_key.go:71), and tests of four packages enter through it, among them internal/speechsynth/recovery_test.go, whose bytes docs/verification/specialized-coverage.json pins, so those tests take RunKeyOf, and RunKey is deleted, in the commit that pins that record again.
+reason: RequireResourceFitnessComparison and VerifiedBatch are the verified load and the publication of a comparison no command stores, tests of internal/runrecord and internal/audioparity hold the source replay of the live CompareResourceFitness (internal/runrecord/resource_fitness_comparison.go:93) to a forged value through them, and CompareResourceFitness takes no made value, so they stay until a command stores a comparison.
 
 group processmeasure-child-peak
 class: test-held
@@ -591,7 +511,7 @@ declarations: 2
 lines: 55
 members: internal/routedlm/flowterminal.go
 reason: They are the host reference of the live device peripheral session (internal/routedlm/flowperipheral_cuda_windows.go:188, :282), and the SenseNova generation tests compose them around the device body.
-reason: They move beside those tests.
+reason: They stay, because the test that composes them is a device test of internal/sensenovarecipe (generation_leadership_cuda_windows_test.go), which sees no test file of internal/routedlm, and they read unexported helpers of internal/routedlm, so no test-support package can hold them.
 
 group runner-test-instruments
 class: test-held
@@ -603,15 +523,6 @@ members: internal/inference/prompt_cache.go
 members: internal/inference/sampling_vocab.go
 reason: No command calls ContinuousBatch.Fork, Runner.ClearPromptCaches, Runner.ExecutionMetrics or Runner.ResetDeviceMemoryPeak, and tests of the live continuous cache, the live prompt cache and device memory recovery set up or read through them.
 reason: Those tests take the live path, which is Step for a second sequence and Runner.DeviceMemory (internal/inference/sampling_vocab.go:50) for the figures, and ClearPromptCaches moves beside its tests.
-
-group sensenova-activation-wrappers
-class: test-held
-surface: outside
-declarations: 6
-lines: 126
-members: internal/sensenovarecipe/activate.go
-reason: They are wrappers named for one family over the recipe lifecycle that the served family already uses (internal/modelrecipe/generation_source.go:73, internal/mediacapability/image_source.go:57), and two tests hold that live lifecycle through them.
-reason: The tests call the live functions, and the wrappers are deleted then.
 
 group session-state-codecs
 class: wire
@@ -638,15 +549,6 @@ schemas: internal/speechactivity/execution.go overgo/audio-activity-state/v1
 schemas: internal/speechactivity/profile.go overgo/speech-activity-profile/v1
 reason: It is the streaming processor of the causal speech-activity family (FireRed VAD), and the served detector is the offline one (internal/mediacapability/capabilities.go:169).
 reason: No command opens an activity stream and nothing but a test publishes its profile, so its route is a streaming activity session beside streaming transcription (internal/speechrecognition/session.go:172).
-
-group stimulus-followup-wrapper
-class: test-held
-surface: outside
-declarations: 1
-lines: 5
-members: internal/workflowruntime/stimulus_reconciliation.go
-reason: It is one line over StimulusFollowupAuthority.Admit (internal/runrecord/stimulus_followup.go:61), and TestLateStimulusReconciliation of internal/workflowruntime, the only test of that admission, holds it to one winner among eight callers through this wrapper.
-reason: The test moves to internal/runrecord and calls Admit, and the wrapper is deleted then, and no command admits a follow-up either, which the walk cannot see because it reads the name Admit and never its type.
 
 group store-test-observers
 class: test-held
@@ -712,19 +614,13 @@ reason: The live merge refuses models whose tokenizers differ (internal/modelmer
 group training-test-entries
 class: test-held
 surface: outside
-declarations: 9
-lines: 98
+declarations: 3
+lines: 35
 members: internal/adaptertrain/linear_ctc.go
 members: internal/adaptertrain/model.go
-members: internal/scratchmodel/construction.go
-members: internal/scratchmodel/graph.go
-members: internal/rae/decoder_backward.go
-members: internal/speechsynth/flow.go
 members: internal/speechsynth/generate.go
-members: internal/seriesforecast/lightcurve.go
-members: internal/e4btrain/backward.go
-reason: Each is an accessor or an entry that only tests of live trainers and generators use, such as WeightSnapshot in the resume tests of five packages and GenerateLatents over the live generation loop (internal/speechsynth/generate.go:67).
-reason: The ones a single package's tests use move beside them, and the tests of other packages take the live entry.
+reason: WeightSnapshot of the two adapter trainers is read by the resume tests of internal/adaptertrain, internal/audioparity and internal/adaptiveparity, and GenerateLatents is the entry of tests over the live generation loop (internal/speechsynth/generate.go:67).
+reason: The tests take the live entry in a commit that verifies the claims again and pins the tests again, because the claims gemma-e4b-real-adapter-training and pocket-tts-production-oracle of compatibility.json bind internal/adaptertrain/model.go and internal/speechsynth/generate.go whole, the second by the name GenerateLatents, and docs/verification/specialized-coverage.json pins four tests that call GenerateLatents.
 
 group trainingdata-image-test-inputs
 class: test-held
@@ -733,7 +629,7 @@ declarations: 5
 lines: 118
 members: internal/trainingdata/image.go
 reason: SelectStructuredImageCrops builds the corpus of one real-checkpoint test of the live diffusion trainer, and Image decodes the examples of the live image processor for the multimodal training matrix test.
-reason: Each moves beside the test that calls it.
+reason: Each stays where it is, because SelectStructuredImageCrops is called by a test of internal/diffusionimage and reads the unexported normalizedCHW, and Image is called by internal/adaptiveparity/multimodal_training_cuda_windows_test.go, which the claim repodb-multimodal-training-objective-matrix of compatibility.json binds whole to a device test.
 
 group video-mp4-encoder
 class: wire
@@ -743,15 +639,6 @@ lines: 103
 members: internal/latentvideo/mp4.go
 reason: It encodes frames to MP4 through the same frame sink as the GIF encoder, and no command offers MP4, so the route is an MP4 clip beside the GIF of the served video paths (internal/latentvideo/production_cuda_windows.go:151) with an MP4 content contract.
 reason: Its input chain is whole and it is no record, so the four conditions do not hold, and two tests of the live edit runtime and the live clip decoder already read clips it wrote.
-
-group video-single-prompt-conditioning
-class: test-held
-surface: outside
-declarations: 1
-lines: 13
-members: internal/latentvideo/textcond.go
-reason: Production conditions prompts through promptContexts (internal/latentvideo/wan_form.go:161), and two integration tests hold the live encoder and projection through this one-prompt wrapper.
-reason: Those tests take the live function, and the wrapper is deleted then.
 
 group wavtokenizer-waveform
 class: prototype
@@ -775,16 +662,6 @@ members: internal/webuilane/browser.go
 reason: cmd/webui-lane runs the browser tests as a child, hands them the directory Leg writes to (cmd/webui-lane/main.go:169) and requires the records it reads back (main.go:182), so a lane reaches Leg and the browser waits those tests call.
 reason: The walk lacks the rule that a declaration of a lane's own package named by a test of a package the lane runs (main.go:190) is reached by that lane.
 
-group webui-source-review
-class: test-held
-surface: outside
-declarations: 19
-lines: 373
-members: internal/webuilane/census.go
-members: internal/webuilane/jstokens.go
-reason: ReviewMeasures and the JavaScript tokens it reads are called by one ratchet test of internal/server and two tests of internal/webuilane, which hold the served page's source to the review measures.
-reason: The ratchet test moves into internal/webuilane, and both files become test files.
-
 group worklease-capacity-advice
 class: wire
 surface: outside
@@ -793,13 +670,3 @@ lines: 73
 members: internal/worklease/worklease.go AssessResources WorkspaceClaimsConflict ClaimPathsOverlap
 reason: AssessResources reports declared reservations against capacity, docs/image_video_resources.json names it as the advisory check, and 5c7d6d9a2 deleted its caller.
 reason: The route is the admission of a media request printing declared demand against device capacity, and it is no record, so the four conditions do not hold.
-
-group worklease-lease-codec
-class: test-held
-surface: outside
-declarations: 2
-lines: 8
-members: internal/worklease/worklease.go worktreeAlias Alias
-schemas: internal/worklease/worklease.go overgo/work-lease/v1 overgo/work-lease/v2
-reason: The tests of group worklease-capacity-advice make every lease through Codec.New and canonicalizeClaims (internal/worklease/worklease_test.go:13, internal/worklease/workspace_claim_test.go:53), so the codec and its two schemas stay though nothing writes a lease, and TestWorkLease holds that codec's round trip in one condition with the worktree alias.
-reason: Those tests make a lease as a plain value, and the codec, its schemas and the alias are deleted then.

@@ -3,15 +3,21 @@
 package sensenovarecipe
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
 	"slices"
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
 	"overgo/internal/routedlm"
+	"overgo/internal/safetensors"
 	"overgo/internal/testskip"
 )
 
@@ -31,7 +37,7 @@ func TestSenseNovaImageGenActiveOnCheckpoint(t *testing.T) {
 	}
 	assertSenseNovaFacts(t, facts)
 
-	inventory, err := Inventory(modelDir)
+	inventory, err := modelartifact.FromHFPath(modelDir)
 	if err != nil {
 		t.Fatalf("inventory: %v", err)
 	}
@@ -77,8 +83,7 @@ func TestSenseNovaImageGenActiveOnCheckpoint(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	definition, err = Activate(ctx, store, modelID, flowProfile.ID, verification, activationReason)
-	if err != nil {
+	if err := modelrecipe.ActivateCapability(ctx, store, definition, verification, EvidenceTier, activationReason); err != nil {
 		t.Fatalf("register + activate: %v", err)
 	}
 
@@ -125,4 +130,99 @@ func assertSenseNovaFacts(t *testing.T, facts DerivedFacts) {
 	if facts.FlowDim <= 0 || facts.ImageMerge <= 0 || facts.FrequencyDim <= 0 {
 		t.Fatalf("degenerate flow facts %+v", facts)
 	}
+}
+
+// DerivedFacts: recipe-relevant model facts derived from the checkpoint via
+// routedlm. Every field is tensor- or config-owned (cited in sensenovaparity's
+// rope_plan_derive / flow_plan_derive stages), never invented.
+type DerivedFacts struct {
+	Layers       int                    // llm_config.num_hidden_layers
+	Hidden       int                    // fork-branch hidden width
+	VisionHidden int                    // conv-embedder hidden width
+	HeadDim      int                    // q_norm+q_norm_hw section widths sum
+	ImageMerge   int                    // dense_embedding kernel (tensor-owned)
+	FlowDim      int                    // fm_head output = channels*(patch*merge)^2
+	FrequencyDim int                    // timestep mlp.0 input width
+	NormSections []int                  // checkpoint QK norm spans [64,64]
+	RopeSections []routedlm.RopeSection // [64/5e6/T, 32/1e4/H, 32/1e4/W]
+}
+
+// Derive reads the SenseNova checkpoint's recipe-relevant facts through
+// routedlm only. It streams tensor headers (never the 35GB of weight bytes),
+// so it is cheap enough to run inside activation and verification.
+func Derive(modelDir string) (DerivedFacts, error) {
+	binding := routedlm.SenseNovaBinding()
+	flowProfile, err := routedlm.InspectFlowProfile(modelDir)
+	if err != nil {
+		return DerivedFacts{}, fmt.Errorf("sensenova recipe: inspect flow profile: %w", err)
+	}
+	cfg, err := routedlm.LoadConfig(modelDir, binding)
+	if err != nil {
+		return DerivedFacts{}, fmt.Errorf("sensenova recipe: load llm config: %w", err)
+	}
+	flowCfg, err := routedlm.LoadFlowConfig(modelDir)
+	if err != nil {
+		return DerivedFacts{}, fmt.Errorf("sensenova recipe: load flow config: %w", err)
+	}
+	src, err := safetensors.OpenSource(modelDir)
+	if err != nil {
+		return DerivedFacts{}, fmt.Errorf("sensenova recipe: open checkpoint: %w", err)
+	}
+	defer src.Close()
+	rope, err := routedlm.CompileRopePlan(src, cfg, binding)
+	if err != nil {
+		return DerivedFacts{}, fmt.Errorf("sensenova recipe: rope plan: %w", err)
+	}
+	flow, err := routedlm.CompileFlowPlan(src, cfg, flowCfg, flowProfile)
+	if err != nil {
+		return DerivedFacts{}, fmt.Errorf("sensenova recipe: flow plan: %w", err)
+	}
+	facts := DerivedFacts{
+		Layers:       cfg.NumHiddenLayers,
+		Hidden:       flow.Hidden,
+		VisionHidden: flow.VisionHidden,
+		HeadDim:      cfg.HeadDim,
+		ImageMerge:   flow.ImageMerge,
+		FlowDim:      flow.FlowDim,
+		FrequencyDim: flow.FrequencyDim,
+		NormSections: append([]int(nil), rope.NormWidths...),
+		RopeSections: rope.Sections,
+	}
+	return facts, facts.validate()
+}
+
+func (f DerivedFacts) validate() error {
+	if f.Layers <= 0 || f.Hidden <= 0 || f.HeadDim <= 0 || f.FlowDim <= 0 {
+		return fmt.Errorf("sensenova recipe: degenerate derived facts %+v", f)
+	}
+	// flow_dim = channels*(patch*merge)^2 is enforced inside CompileFlowPlan;
+	// here we only assert the pixel-space head is non-trivial.
+	if f.ImageMerge <= 0 || f.FrequencyDim <= 0 || len(f.NormSections) == 0 {
+		return fmt.Errorf("sensenova recipe: degenerate flow facts %+v", f)
+	}
+	return nil
+}
+
+// Present stats the recorded model location, mirroring the discovery servable
+// presence predicate (recorded-and-present, false when unrecorded or
+// missing). It returns the location backing the servable claim.
+func Present(ctx context.Context, store artifact.Reader, modelID artifact.ID) (string, bool, error) {
+	locations, err := store.Locations(ctx, modelID)
+	if err != nil {
+		return "", false, err
+	}
+	recorded := ""
+	for _, location := range locations {
+		if location.Kind != artifact.LocationFile && location.Kind != artifact.LocationDirectory {
+			continue
+		}
+		recorded = location.Value
+		if _, err := os.Stat(location.Value); err == nil {
+			return location.Value, true, nil
+		}
+	}
+	if recorded == "" {
+		return "", false, errors.New("sensenova recipe: model location is unrecorded")
+	}
+	return recorded, false, nil
 }

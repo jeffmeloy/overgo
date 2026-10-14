@@ -11,12 +11,6 @@ import (
 // prefix. q is [seq, heads*headDim]; k and v are [seq, kvHeads*headDim].
 type attentionVJP func(dq, dk, dv, q, k, v, dOut []float32, seq, heads, kvHeads, headDim, window int) error
 
-// hostAttention is the host kit's windowed attention VJP.
-func hostAttention(dq, dk, dv, q, k, v, dOut []float32, seq, heads, kvHeads, headDim, window int) error {
-	hostmath.WindowedCausalAttentionBackward(dq, dk, dv, q, k, v, dOut, seq, heads, kvHeads, headDim, window)
-	return nil
-}
-
 // linearBackward is the VJP of dst = x·wᵀ for a row-major [out, in] w: dW
 // accumulates dyᵀ·x, and dx is set, or accumulated when add.
 func linearBackward(dx, dW, x, w, dy []float32, rows, inDim, outDim int, add bool) {

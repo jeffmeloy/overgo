@@ -180,7 +180,7 @@ func TestCIRequiredEvidence(t *testing.T) {
 			"{\"Action\":\"pass\",\"Package\":\"x\"}\n",
 		testskip.Key, testskip.KindShort,
 	)
-	report, err := GoTestJSONShortReport(out)
+	report, err := goTestJSONReport(out, true, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -190,7 +190,7 @@ func TestCIRequiredEvidence(t *testing.T) {
 	if len(report.Skipped) != 0 {
 		t.Fatalf("required evidence unexpectedly incomplete: %+v", report)
 	}
-	mystery, err := GoTestJSONShortReport(out + "{\"Action\":\"skip\",\"Package\":\"x\",\"Test\":\"TestMystery\"}\n")
+	mystery, err := goTestJSONReport(out+"{\"Action\":\"skip\",\"Package\":\"x\",\"Test\":\"TestMystery\"}\n", true, false)
 	if err == nil && RequireComplete(mystery) == nil {
 		t.Fatal("CI evidence accepted an unclassified skip")
 	}

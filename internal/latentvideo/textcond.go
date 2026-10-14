@@ -60,20 +60,6 @@ type projectionWeights struct {
 	Linear2W, Linear2B []float32
 }
 
-// TextConditioning tokenizes prompt, streams the encoder, projects, and pads
-// to SequenceLength rows (pad rows repeat the first inactive projected row,
-// the reference's padding convention).
-func TextConditioning(ctx context.Context, spec TextConditioningSpec, prompt string) (textConditioningResult, error) {
-	if err := ctx.Err(); err != nil {
-		return textConditioningResult{}, err
-	}
-	weights, sourceBytes, err := loadProjectionWeights(spec.ProjectionDir)
-	if err != nil {
-		return textConditioningResult{}, err
-	}
-	return textConditioningWithWeights(ctx, spec, prompt, weights, sourceBytes)
-}
-
 func textConditioningWithWeights(ctx context.Context, spec TextConditioningSpec, prompt string, weights projectionWeights, sourceBytes int64) (textConditioningResult, error) {
 	conditioned, err := textConditioningsWithWeights(ctx, spec, weights, sourceBytes, prompt)
 	if err != nil {

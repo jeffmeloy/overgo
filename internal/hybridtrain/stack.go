@@ -2,7 +2,6 @@
 package hybridtrain
 
 import (
-	"errors"
 	"fmt"
 	"math/rand"
 	"strings"
@@ -213,14 +212,6 @@ func (b *builder) matValues(dst *[]float32, name string, rows, cols int, values 
 	b.matSpecs = append(b.matSpecs, optimizer.GroupSpec{Name: name, Start: off, End: off + len(values), Rows: rows, Cols: cols})
 	b.fixups = append(b.fixups, aliasFixup{dst: dst, mat: true, off: off, size: len(values)})
 	return nil
-}
-
-// vec appends one host vector group.
-func (b *builder) vec(dst *[]float32, name string, n int) {
-	off := len(b.m.vecW)
-	b.randn(&b.m.vecW, n)
-	b.vecSpecs = append(b.vecSpecs, optimizer.GroupSpec{Name: name, Start: off, End: off + n, Rows: 1, Cols: n})
-	b.fixups = append(b.fixups, aliasFixup{dst: dst, mat: false, off: off, size: n})
 }
 
 func (b *builder) vecValues(dst *[]float32, name string, values []float32) error {
@@ -532,40 +523,4 @@ func (pass *hostBackwardPass) Backward(dTop []float32) error {
 	pass.grads, _ = hostmath.HybridStackBackward(pass.trace, model.Weights, model.Dims, model.States, dTop, pass.grads)
 	model.packGradients(pass.grads, pass.matGrad, pass.vecGrad)
 	return nil
-}
-
-type hostTraining struct {
-	hostBackwardPass
-	matOpt, vecOpt *optimizer.Optimizer
-}
-
-func (training *hostTraining) Step(_ int) error {
-	training.matOpt.Step()
-	training.vecOpt.Step()
-	return nil
-}
-
-// TrainHost runs the host parity lane.
-func (m *Model) TrainHost(steps int, cfg optimizer.Config, options TrainingOptions) ([]float64, error) {
-	mat, vec, err := m.resumeParts(steps, cfg, options, false)
-	if err != nil {
-		return nil, err
-	}
-	training := &hostTraining{hostBackwardPass: newHostBackwardPass(m)}
-	training.matOpt, err = optimizer.New(m.matW, training.matGrad, m.matPlan, cfg)
-	if err != nil {
-		return nil, err
-	}
-	training.vecOpt, err = optimizer.New(m.vecW, training.vecGrad, m.vecPlan, cfg)
-	if err != nil {
-		return nil, err
-	}
-	if err := errors.Join(restoreOptimizer(training.matOpt, mat), restoreOptimizer(training.vecOpt, vec)); err != nil {
-		return nil, err
-	}
-	trajectory, err := runTrainingObserved(m.program, training, m.Target, steps, mat.Step, options.Observe)
-	if trajectory != nil && options.Checkpoint != nil {
-		err = errors.Join(err, m.checkpoint(options, training.matOpt.Snapshot(), training.vecOpt))
-	}
-	return trajectory, err
 }

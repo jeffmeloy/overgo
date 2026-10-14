@@ -25,8 +25,8 @@ func TestAgentTrajectoryEvaluationPlan(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	authorities, found := plan.AgentTrajectoryAuthorities()
-	if !found || len(authorities.Deterministic) != len(requiredAgentTrajectoryScores) || authorities.AdvisoryJudges[0] != judge {
+	authorities := plan.body.Agent
+	if authorities == nil || len(authorities.Deterministic) != len(requiredAgentTrajectoryScores) || authorities.AdvisoryJudges[0] != judge {
 		t.Fatalf("agent plan = %+v", authorities)
 	}
 	content, err := plan.Content()

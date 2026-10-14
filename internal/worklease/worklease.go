@@ -1,13 +1,10 @@
-// Package worklease owns work leases and dispatch claims: the immutable lane
-// assignment records, their CAS aliases and the workspace claims that decide
-// whether two leases collide. It sits below the plan so that operation
-// runtimes consume leases without compiling the plan's readers.
+// Package worklease owns work leases and dispatch claims: the lane
+// assignments and the workspace claims that decide whether two leases
+// collide. It sits below the plan so that operation runtimes consume leases
+// without compiling the plan's readers.
 package worklease
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"errors"
 	"fmt"
 	"path/filepath"
 	"slices"
@@ -18,32 +15,12 @@ import (
 	"overgo/internal/artifact"
 )
 
-const (
-	// Version is the advisory lease schema version.
-	Version uint16 = 1
-	// DispatchVersion is the dispatch-claim schema version; legacy retirement only sees v1.
-	DispatchVersion uint16 = 2
-	dispatchSchema         = "overgo/work-lease/v2"
-	// MediaType identifies work leases.
-	MediaType = "application/vnd.overgo.work-lease+json"
-	// Schema identifies the work-lease schema.
-	Schema = "overgo/work-lease/v1"
-	// AliasRoot scopes current worktree leases.
-	AliasRoot = "automation/worktree/"
-)
-
 // Resources is advisory capacity metadata; it never acquires hardware.
 type Resources struct {
 	CPUThreads   int  `json:"cpu_threads"`
 	HostRAMGiB   int  `json:"host_ram_gib"`
 	VRAMGiB      int  `json:"vram_gib"`
 	GPUExclusive bool `json:"gpu_exclusive"`
-}
-
-// ValidResources accepts a positive CPU and RAM reservation with a non-negative VRAM one.
-func ValidResources(resources Resources) bool {
-	return resources.CPUThreads > 0 && resources.HostRAMGiB > 0 && resources.VRAMGiB >= 0 &&
-		(!resources.GPUExclusive || resources.VRAMGiB > 0)
 }
 
 // WorkspaceClaims declares exact path access. WholeWorktree is the
@@ -54,7 +31,7 @@ type WorkspaceClaims struct {
 	Write         []string `json:"write,omitempty"`
 }
 
-// Lease is one immutable lane assignment held through a CAS alias.
+// Lease is one lane assignment and what it reserves.
 type Lease struct {
 	Version       uint16          `json:"version"`
 	Task          string          `json:"task"`
@@ -78,106 +55,6 @@ type Lease struct {
 	Retry           uint32      `json:"retry,omitzero"`
 	PredictedWallNS uint64      `json:"predicted_wall_ns,omitzero"`
 	ID              artifact.ID `json:"-"`
-}
-
-// Codec is the lease document codec: canonical form, identity and contracts.
-var Codec = func() artifact.DocumentCodec[Lease] {
-	codec := artifact.JSONDocumentCodec("work lease", artifact.KindEvidence, MediaType, Schema,
-		canonicalize, func(value Lease) artifact.ID { return value.ID },
-		func(value *Lease, id artifact.ID) { value.ID = id }, func(value Lease) Lease {
-			value.ConflictsWith = slices.Clone(value.ConflictsWith)
-			value.Claims.Read = slices.Clone(value.Claims.Read)
-			value.Claims.Write = slices.Clone(value.Claims.Write)
-			return value
-		})
-	codec.ContractFor = contractFor
-	return codec
-}()
-
-func contractFor(value Lease) artifact.DocumentContract {
-	schema := Schema
-	if value.Version == DispatchVersion {
-		schema = dispatchSchema
-	}
-	return artifact.DocumentContract{Kind: artifact.KindEvidence, MediaType: MediaType, Schema: schema}
-}
-
-func worktreeAlias(worktree string) string {
-	return Alias(AliasRoot, strings.ToLower(strings.TrimSpace(worktree)))
-}
-
-func canonicalize(value *Lease) error {
-	if value == nil || value.Version != Version && value.Version != DispatchVersion || !ValidAutomationText(value.Task) ||
-		!ValidAutomationText(value.Worktree) || strings.Contains(value.Worktree, NonCanonicalPathSeparator) ||
-		!ValidAutomationText(value.Branch) || !ValidAutomationText(value.Role) || !ValidCommit(value.TargetHead) {
-		return errors.New("work lease: invalid work lease")
-	}
-	if !ValidResources(value.Resources) && !(value.Worker != "" && value.Resources == (Resources{})) {
-		return errors.New("work lease: invalid work lease resources")
-	}
-	if value.Worker == "" {
-		if value.Version != Version {
-			return errors.New("work lease: dispatch schema requires a worker")
-		}
-		if value.Contract != "" || value.Acquisition != "" || value.Previous.Valid() {
-			return errors.New("work lease: dispatch metadata requires a worker")
-		}
-		parsed, err := time.Parse(time.RFC3339Nano, value.ExpiresAt)
-		if err != nil {
-			return errors.New("work lease: invalid work lease expiry")
-		}
-		value.ExpiresAt = parsed.UTC().Format(time.RFC3339Nano)
-	} else {
-		if value.Version != DispatchVersion {
-			return errors.New("work lease: dispatch ownership requires the v2 schema")
-		}
-		item, step, found := strings.Cut(value.Task, "/")
-		if !ValidAutomationText(value.Worker) || value.Worker == UnassignedRole ||
-			!found || !ValidPlanID(item) || !ValidPlanID(step) || value.ExpiresAt != "" ||
-			value.Previous.Valid() && value.Previous.Kind() != artifact.KindEvidence {
-			return errors.New("work lease: invalid dispatch claim")
-		}
-		for _, digest := range []string{value.Contract, value.Acquisition} {
-			decoded, err := hex.DecodeString(digest)
-			if err != nil || len(decoded) != sha256.Size || digest != strings.ToLower(digest) {
-				return errors.New("work lease: dispatch claim requires exact contract and acquisition digests")
-			}
-		}
-	}
-	if value.ConflictsWith == nil {
-		return errors.New("work lease: work lease conflicts must not be nil")
-	}
-	slices.Sort(value.ConflictsWith)
-	value.ConflictsWith = slices.Compact(value.ConflictsWith)
-	for _, item := range value.ConflictsWith {
-		if !ValidAutomationText(item) {
-			return errors.New("work lease: invalid work lease conflict")
-		}
-	}
-	if slices.Contains(value.ConflictsWith, value.Task) {
-		return errors.New("work lease: work lease cannot conflict with itself")
-	}
-	canonicalizeClaims(&value.Claims)
-	return nil
-}
-
-func canonicalizeClaims(claims *WorkspaceClaims) {
-	if claims == nil {
-		return
-	}
-	for _, values := range []*[]string{&claims.Read, &claims.Write} {
-		for index, value := range *values {
-			(*values)[index] = filepath.ToSlash(filepath.Clean(value))
-		}
-		sort.Slice(*values, func(i, j int) bool { return strings.ToLower((*values)[i]) < strings.ToLower((*values)[j]) })
-		*values = slices.CompactFunc(*values, strings.EqualFold)
-	}
-	if len(claims.Read)+len(claims.Write) == 0 {
-		claims.WholeWorktree = true
-	}
-	if claims.WholeWorktree {
-		claims.Read, claims.Write = nil, nil
-	}
 }
 
 // WorkspaceClaimsConflict reports write/read or write/write overlap.
@@ -275,12 +152,6 @@ func ValidCommit(value string) bool {
 		}
 	}
 	return true
-}
-
-// Alias derives the alias of one identity under a root.
-func Alias(prefix, identity string) string {
-	digest := sha256.Sum256([]byte(identity))
-	return fmt.Sprintf("%s%x", prefix, digest)
 }
 
 // NonCanonicalPathSeparator is the separator persisted worktree paths never carry; they use forward slashes on every host.

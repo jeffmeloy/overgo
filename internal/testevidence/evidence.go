@@ -46,22 +46,6 @@ type GoTestReport struct {
 	packages   map[string]packageEvidence
 }
 
-// ContentionOnly reports a failed run whose every failure was a refused
-// resource claim and nothing was left unfinished: the packages named in
-// Contended may pass once admitted.
-func (report GoTestReport) ContentionOnly() bool {
-	if len(report.Failed) == 0 || len(report.Unfinished) != 0 || len(report.Contended) == 0 {
-		return false
-	}
-	for _, failed := range report.Failed {
-		failedPackage, _, _ := strings.Cut(failed, ": ")
-		if !slices.Contains(report.Contended, failedPackage) {
-			return false
-		}
-	}
-	return true
-}
-
 type packageEvidence struct {
 	passed, tested, incomplete bool
 }
@@ -109,13 +93,6 @@ func RequireComplete(report GoTestReport) error {
 		return fmt.Errorf("%s skipped", report.Skipped[0])
 	}
 	return nil
-}
-
-// GoTestJSONShortReport decodes a hermetic short-mode lane. Only short-mode
-// skips (testskip.Short, or its message) are classified exclusions; they remain
-// visible in the report and are never counted as passing evidence.
-func GoTestJSONShortReport(out string) (GoTestReport, error) {
-	return goTestJSONReport(out, true, false)
 }
 
 // GoTestJSONReader streams test evidence, retaining bounded failure

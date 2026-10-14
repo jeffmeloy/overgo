@@ -45,20 +45,20 @@ func TestVerdictClassificationAndRepeatAgreement(t *testing.T) {
 		t.Fatal("unknown future verify classifier policy accepted")
 	}
 
-	if err := RepeatAgreement(verdictEvidence("pass"), verdictEvidence("pass")); err != nil {
+	if err := repeatAgreement(verdictEvidence("pass"), verdictEvidence("pass"), false); err != nil {
 		t.Fatalf("identical runs disagreed: %v", err)
 	}
-	err := RepeatAgreement(verdictEvidence("pass"), verdictEvidence("fail"))
+	err := repeatAgreement(verdictEvidence("pass"), verdictEvidence("fail"), false)
 	if err == nil || !strings.Contains(err.Error(), "TestWatched") ||
 		!strings.Contains(err.Error(), "pass") || !strings.Contains(err.Error(), "fail") {
 		t.Fatalf("flipped verdict not named: %v", err)
 	}
 	missing := strings.ReplaceAll(verdictEvidence("pass"), `"Test":"TestWatched"`, `"Test":"TestStable"`)
-	if err := RepeatAgreement(verdictEvidence("pass"), missing); err == nil ||
+	if err := repeatAgreement(verdictEvidence("pass"), missing, false); err == nil ||
 		!strings.Contains(err.Error(), "absent") {
 		t.Fatalf("vanished test not reported as absent: %v", err)
 	}
-	if err := RepeatAgreement("not json", verdictEvidence("pass")); err == nil {
+	if err := repeatAgreement("not json", verdictEvidence("pass"), false); err == nil {
 		t.Fatal("undecodable first evidence accepted")
 	}
 }

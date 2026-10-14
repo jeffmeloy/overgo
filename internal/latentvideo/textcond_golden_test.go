@@ -115,6 +115,10 @@ func TestTextConditioningGoldenParity(t *testing.T) {
 	if _, err := os.Stat(spec.EncoderCheckpoint); err != nil {
 		t.Skipf("UNAVAILABLE: encoder checkpoint absent: %v", err)
 	}
+	weights, sourceBytes, err := loadProjectionWeights(spec.ProjectionDir)
+	if err != nil {
+		t.Fatal(err)
+	}
 	// The streaming measures below are of a pass over the checkpoint: a prompt
 	// another test of this process conditioned would be given its kept rows.
 	promptEncoders.Lock()
@@ -129,7 +133,7 @@ func TestTextConditioningGoldenParity(t *testing.T) {
 		{"unconditional", g.NegativePrompt, g.Unconditional},
 	} {
 		want := loadG1Tensor(t, fixtureDir, branch.golden.Tensor)
-		got, err := TextConditioning(t.Context(), spec, branch.prompt)
+		got, err := textConditioningWithWeights(t.Context(), spec, branch.prompt, weights, sourceBytes)
 		if err != nil {
 			t.Fatalf("%s: %v", branch.name, err)
 		}

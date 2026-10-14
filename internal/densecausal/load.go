@@ -199,15 +199,10 @@ func decoderTensor(name string) bool {
 		name == "lm_head.weight" || strings.HasPrefix(name, "model.layers.")
 }
 
-// NewModel derives dims from shapes and validates the geometry; weights map
-// is adopted, not copied. headDim zero falls back to hidden/heads.
-func NewModel(weights map[string][]float32, shapes map[string][]int, heads, headDim int, ropeTheta, rmsEps float64) (*Model, error) {
-	return NewMixtureModel(weights, shapes, heads, headDim, ropeTheta, rmsEps, MoERouterPolicy{}, 0)
-}
-
-// NewMixtureModel is NewModel with a declared router policy for artifacts
-// whose layers carry routed mixtures; per-layer FFN kind still derives from
-// each layer's own tensors.
+// NewMixtureModel derives dims from shapes and validates the geometry, with a
+// declared router policy for artifacts whose layers carry routed mixtures;
+// per-layer FFN kind still derives from each layer's own tensors. The weights
+// map is adopted, not copied, and headDim zero falls back to hidden/heads.
 func NewMixtureModel(weights map[string][]float32, shapes map[string][]int, heads, headDim int, ropeTheta, rmsEps float64, policy MoERouterPolicy, window int) (*Model, error) {
 	const (
 		embeddingName  = "model.embed_tokens.weight"

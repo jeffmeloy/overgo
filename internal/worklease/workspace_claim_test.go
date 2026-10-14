@@ -1,6 +1,7 @@
 package worklease
 
 import (
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -54,9 +55,9 @@ func TestWorkspaceClaims(t *testing.T) {
 		return value
 	}
 	firstClaims := claims([]string{worktree + "/docs"}, []string{worktree + "/internal"})
-	first := leaseFixture(t, "first", worktree)
+	first := leaseFixture("first", worktree)
 	first.Claims = firstClaims
-	second := leaseFixture(t, "second", worktree)
+	second := leaseFixture("second", worktree)
 	second.Claims = claims(nil, []string{worktree + "/internal/agentloop"})
 	if !WorkspaceClaimsConflict(first, second) {
 		t.Fatal("nested write claims did not conflict")
@@ -73,5 +74,24 @@ func TestWorkspaceClaims(t *testing.T) {
 	order := workspaceClaimOrder(firstClaims)
 	if len(order) != 2 || order[0].Path > order[1].Path {
 		t.Fatalf("claim order = %+v", order)
+	}
+}
+
+func canonicalizeClaims(claims *WorkspaceClaims) {
+	if claims == nil {
+		return
+	}
+	for _, values := range []*[]string{&claims.Read, &claims.Write} {
+		for index, value := range *values {
+			(*values)[index] = filepath.ToSlash(filepath.Clean(value))
+		}
+		slices.SortFunc(*values, func(left, right string) int { return strings.Compare(strings.ToLower(left), strings.ToLower(right)) })
+		*values = slices.CompactFunc(*values, strings.EqualFold)
+	}
+	if len(claims.Read)+len(claims.Write) == 0 {
+		claims.WholeWorktree = true
+	}
+	if claims.WholeWorktree {
+		claims.Read, claims.Write = nil, nil
 	}
 }

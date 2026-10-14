@@ -65,18 +65,3 @@ func CompileFlowSchedule(steps, numTrainTimesteps int, mu float64) (FlowSchedule
 		Deltas:            deltas,
 	}, nil
 }
-
-// EulerStep advances sample in place.
-func (s FlowSchedule) EulerStep(sample, velocity []float64, step int) error {
-	if !checked.ValidIndex(step, s.Steps) {
-		return fmt.Errorf("flow euler: step %d out of range [0,%d)", step, s.Steps)
-	}
-	if !checked.Equal(len(sample), len(velocity)) {
-		return fmt.Errorf("flow euler: sample len=%d velocity len=%d differ", len(sample), len(velocity))
-	}
-	delta := s.Deltas[step]
-	for i := range sample {
-		sample[i] += delta * velocity[i]
-	}
-	return nil
-}

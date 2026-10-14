@@ -71,7 +71,7 @@ func modelFromGolden(t *testing.T, g *tinyGolden) *Model {
 		weights[name] = values
 		shapes[name] = p.Shape
 	}
-	m, err := NewModel(weights, shapes, g.Config.NumAttentionHeads, g.Config.HeadDim, g.Config.RopeTheta, g.Config.RMSNormEps)
+	m, err := NewMixtureModel(weights, shapes, g.Config.NumAttentionHeads, g.Config.HeadDim, g.Config.RopeTheta, g.Config.RMSNormEps, MoERouterPolicy{}, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

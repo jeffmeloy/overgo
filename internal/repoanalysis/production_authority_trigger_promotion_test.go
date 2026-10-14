@@ -91,9 +91,7 @@ func auditTriggerAndPromotionAuthorities(sources []productionAuthoritySource, re
 		{File: "internal/runrecord/causal_context.go", Function: "NewCausalRoot", Count: oneAuthoritySite},
 		{File: "internal/runrecord/causal_context.go", Function: "CausalContext.Derive", Count: oneAuthoritySite},
 	})
-	verifyAuthoritySites(report, "trigger", "runrecord.StimulusFollowupAuthority.Admit", stimulusAdmissions, []authorityAllowance{
-		{File: "internal/workflowruntime/stimulus_reconciliation.go", Function: "ReconcileLateStimuli", Count: oneAuthoritySite},
-	})
+	verifyAuthoritySites(report, "trigger", "runrecord.StimulusFollowupAuthority.Admit", stimulusAdmissions, nil)
 	verifyAuthoritySites(report, "promotion", "composition.ActiveCompositeGeneration", activeCompositeResolutions, []authorityAllowance{
 		{File: "internal/inference/composite_generation_surface.go", Function: "ResolveCompositeGenerationSurface", Count: oneAuthoritySite},
 		{File: "internal/inference/composite_generation_surface.go", Function: "ProductionComposition.PromotedGeneration", Count: oneAuthoritySite},

@@ -55,7 +55,7 @@ func TestDatasetDocumentsRoundTripAndPublish(t *testing.T) {
 		if contentErr != nil {
 			t.Fatal(contentErr)
 		}
-		parsed, parseErr := Parse(content.Data)
+		parsed, parseErr := documentCodec.Parse(content.Data)
 		if parseErr != nil {
 			t.Fatal(parseErr)
 		}
@@ -121,7 +121,7 @@ func TestDatasetDocumentsRejectInvalidAndNonCanonicalContent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Parse(modified); err == nil {
+	if _, err := documentCodec.Parse(modified); err == nil {
 		t.Fatal("unknown dataset field accepted")
 	}
 }

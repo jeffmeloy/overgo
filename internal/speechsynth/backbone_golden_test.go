@@ -122,3 +122,10 @@ func TestFlowOneStepGolden(t *testing.T) {
 	g3 := loadFixture[g3Golden](t, "g3_stage_traces.json")
 	assertSummary(t, "g3 flow_net", g3.Traces["flow_net"], out, tolFlowOut)
 }
+
+// FlowForward computes F(cond, s, t, x): cond [d], x [latent] -> [latent].
+func (m *Model) FlowForward(cond []float32, s, t float64, x []float32) []float32 {
+	out := make([]float32, m.Dims.LatentDim)
+	m.flowForwardInto(out, cond, s, t, x)
+	return out
+}

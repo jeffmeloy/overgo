@@ -197,8 +197,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "measured by the preflight of step reference-and-noise's change at 3e3980f5f: the reference built from a cell's own readings, the printed-digits floor, and the earlier-measurement reader the printed moves keep, less the frozen allowances and the float32 comparison"
+        "nodes": 960,
+        "reason": "measured by the preflight of step paired-quality's change: the reader of each case's outcome beside unreadAnswers, and the judging of a quality decline by the exact paired test, by a stated error, or by its value"
       },
       "steps": [
         {

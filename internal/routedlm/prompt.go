@@ -264,18 +264,6 @@ type ResidentKV struct {
 	HeadDim      int
 }
 
-// ResidentKVFromState: keys are the roped+normed KHeads, values the rounded
-// V projections — identical to the reference prompt KV pack.
-func (s *PromptLayerState) ResidentKV() *ResidentKV {
-	return &ResidentKV{
-		Keys:    append([]float32(nil), s.KHeads...),
-		Values:  append([]float32(nil), s.VProj...),
-		Tokens:  len(s.mask),
-		KVHeads: s.cfg.NumKeyValueHeads,
-		HeadDim: s.cfg.HeadDim,
-	}
-}
-
 // PromptResidentKV: K/V for one layer from its input hidden rows without the
 // attention/output work (the decode ladder builds per-layer caches from the
 // previous layer's golden boundary).

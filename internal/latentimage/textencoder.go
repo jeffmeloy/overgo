@@ -348,5 +348,3 @@ type EncoderWitness struct {
 	Intermediate int
 	Tensors      int
 }
-
-func (w EncoderWitness) Failed() bool { return checked.Nonzero(failedCheckCount(w.Checks)) }

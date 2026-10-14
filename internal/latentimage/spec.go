@@ -167,40 +167,7 @@ type textEncoderConfig struct {
 	} `json:"text_config"`
 }
 
-// ---- recognition + config-level derivation ---------------------------------
-
-// RecognizePipeline reports whether dir holds this pipeline (model_index.json
-// _class_name == PipelineClass). A directory without model_index.json, or with
-// a different class, reports (nil,false,nil) -- not an error, so discovery can
-// probe any directory. Malformed JSON reports an error.
-func RecognizePipeline(dir string) (*Spec, bool, error) {
-	recognized, err := IsPipeline(dir)
-	if err != nil || !recognized {
-		return nil, recognized, err
-	}
-	spec, err := Derive(dir)
-	if err != nil {
-		return nil, false, err
-	}
-	return spec, true, nil
-}
-
-// IsPipeline: bounded class probe without config derivation.
-func IsPipeline(dir string) (bool, error) {
-	path := filepath.Join(dir, "model_index.json")
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return false, nil
-		}
-		return false, fmt.Errorf("latentimage: read model_index: %w", err)
-	}
-	var index modelIndex
-	if err := json.Unmarshal(raw, &index); err != nil {
-		return false, fmt.Errorf("latentimage: parse model_index: %w", err)
-	}
-	return supportsPipeline(index.ClassName)
-}
+// ---- config-level derivation ------------------------------------------------
 
 // Derive reads model_index.json + the three sub-configs and builds the Spec,
 // running every CONFIG-vs-CONFIG cross-check (the ones that need no checkpoint):

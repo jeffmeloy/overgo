@@ -1,11 +1,8 @@
 package latentimage
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
-	"strings"
 	"testing"
 
 	"overgo/internal/testutil"
@@ -37,42 +34,6 @@ func kreaProfileOrSkip(t *testing.T) Profile {
 	return profile
 }
 
-// TestRecognizePipeline: the recognizer classifies the real artifact by
-// model_index.json class and returns a fully config-cross-checked spec.
-func TestRecognizePipeline(t *testing.T) {
-	dir := kreaDirOrSkip(t)
-	profile := kreaProfileOrSkip(t)
-	spec, ok, err := RecognizePipeline(dir)
-	if err != nil {
-		t.Fatalf("RecognizePipeline: %v", err)
-	}
-	if !ok {
-		t.Fatal("RecognizePipeline: not recognized")
-	}
-	if spec.Pipeline != profile.Classes.Pipeline || spec.Profile != profile.ID || spec.Family != FamilyTag || !spec.ServingOnly {
-		t.Fatalf("tags: pipeline=%q family=%q servingOnly=%v", spec.Pipeline, spec.Family, spec.ServingOnly)
-	}
-	if spec.Tokenizer != TokenizerKind(profile.Classes.Tokenizer) {
-		t.Fatalf("tokenizer=%q", spec.Tokenizer)
-	}
-	t.Logf("recognized: pipeline=%s family=%s scheduler=%s distilled=%v patch=%d serving_only=%v tokenizer=%s",
-		spec.Pipeline, spec.Family, spec.Scheduler, spec.Distilled, spec.PatchSize, spec.ServingOnly, spec.Tokenizer)
-	t.Logf("transformer: layers=%d heads=%d kv=%d head_dim=%d hidden=%d kv_dim=%d in_ch=%d ffn=%d rope=%v theta=%g tstep=%d",
-		spec.Transformer.Layers, spec.Transformer.Heads, spec.Transformer.KVHeads, spec.Transformer.HeadDim,
-		spec.Transformer.Hidden, spec.Transformer.KVDim, spec.Transformer.InChannels, spec.Transformer.Intermediate,
-		spec.Transformer.RopeAxes, spec.Transformer.RopeTheta, spec.Transformer.TimestepEmbed)
-	t.Logf("text-stream: text_layers=%d text_hidden=%d text_ffn=%d text_heads=%d layerwise=%d refiner=%d",
-		spec.Transformer.TextLayers, spec.Transformer.TextHidden, spec.Transformer.TextIntermediate,
-		spec.Transformer.TextHeads, spec.Transformer.LayerwiseTextBlocks, spec.Transformer.RefinerTextBlocks)
-	t.Logf("vae: z_dim=%d base_dim=%d dim_mult=%v deepest=%d quant_ch=%d spatial=%dx res_blocks=%d in_ch=%d mean/std_len=%d/%d",
-		spec.VAE.ZDim, spec.VAE.BaseDim, spec.VAE.DimMult, spec.VAE.DeepestDim, spec.VAE.QuantChannels,
-		spec.VAE.SpatialScale, spec.VAE.ResBlocks, spec.VAE.InputChannels, len(spec.VAE.LatentsMean), len(spec.VAE.LatentsStd))
-	t.Logf("text-encoder: type=%s layers=%d hidden=%d heads=%d kv=%d head_dim=%d vocab=%d theta=%g select=%v",
-		spec.TextEncoder.ModelType, spec.TextEncoder.HiddenLayers, spec.TextEncoder.Hidden, spec.TextEncoder.Heads,
-		spec.TextEncoder.KVHeads, spec.TextEncoder.HeadDim, spec.TextEncoder.VocabSize, spec.TextEncoder.RopeTheta,
-		spec.TextEncoder.SelectLayers)
-}
-
 // TestVerifyCheckpoint: the CPU structural oracle -- every derived dim asserted
 // against the real tensor shapes (safetensors headers only, no payload, no
 // forward), and the cross-checks agree. Fails on any single disagreement.
@@ -94,77 +55,4 @@ func TestVerifyCheckpoint(t *testing.T) {
 	}
 	t.Logf("STRUCTURAL ORACLE PASS: %d dims cross-checked vs real checkpoint (mod_fields derived=%d)",
 		len(witness.Checks), witness.ModField)
-}
-
-// TestEnumerate: scanning the models root surfaces the artifact as a
-// serving-in-progress image-diffusion media model (serving path not yet built).
-func TestEnumerate(t *testing.T) {
-	root := filepath.Dir(kreaDirOrSkip(t))
-	profile := kreaProfileOrSkip(t)
-	models, err := Enumerate(root)
-	if err != nil {
-		t.Fatalf("Enumerate: %v", err)
-	}
-	var found *MediaModel
-	for i := range models {
-		if models[i].Spec.Pipeline == profile.Classes.Pipeline {
-			found = &models[i]
-		}
-		t.Logf("enumerated: dir=%s family=%s kind=%s status=%q serving=%v",
-			models[i].Dir, models[i].Family, models[i].Kind, models[i].Status, models[i].Serving)
-	}
-	if found == nil {
-		t.Fatal("Krea-2-Turbo not enumerated from models root")
-	}
-	if found.Serving || found.Status != StatusRecognized || found.Kind != mediaKind || found.Family != FamilyTag {
-		t.Fatalf("bad descriptor: %+v", *found)
-	}
-}
-
-// TestRecognizeNonPipeline: a directory without model_index.json is not
-// recognized and is not an error (discovery may probe any directory).
-func TestRecognizeNonPipeline(t *testing.T) {
-	tmp := t.TempDir()
-	spec, ok, err := RecognizePipeline(tmp)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if ok || spec != nil {
-		t.Fatalf("empty dir recognized: ok=%v spec=%v", ok, spec)
-	}
-}
-
-// Enumerate scans the immediate subdirectories of root and returns a
-// MediaModel for each that RecognizePipeline classifies. Directories that are
-// not this pipeline are skipped silently (discovery may probe anything); a
-// malformed matching artifact is a hard error. Results are dir-sorted.
-func Enumerate(root string) ([]MediaModel, error) {
-	entries, err := os.ReadDir(root)
-	if err != nil {
-		return nil, fmt.Errorf("latentimage: enumerate %s: %w", root, err)
-	}
-	var models []MediaModel
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		dir := filepath.Join(root, entry.Name())
-		spec, ok, err := RecognizePipeline(dir)
-		if err != nil {
-			return nil, fmt.Errorf("latentimage: enumerate %s: %w", entry.Name(), err)
-		}
-		if !ok {
-			continue
-		}
-		models = append(models, MediaModel{
-			Dir:     dir,
-			Family:  spec.Family,
-			Kind:    mediaKind,
-			Status:  StatusRecognized,
-			Serving: false,
-			Spec:    spec,
-		})
-	}
-	slices.SortFunc(models, func(left, right MediaModel) int { return strings.Compare(left.Dir, right.Dir) })
-	return models, nil
 }

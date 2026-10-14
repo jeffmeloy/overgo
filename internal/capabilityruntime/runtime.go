@@ -147,20 +147,6 @@ var (
 	errorProgramOutputArity  = errors.New("capability runtime: program requires one output")
 )
 
-// Execute binds adapters and runs a program with one typed output.
-func Execute[Output any](
-	ctx context.Context,
-	store artifact.Repository,
-	modelID artifact.ID,
-	program recipe.Program,
-	key string,
-	inputs map[recipe.PortName]workflowruntime.Value,
-	bind func(*workflowruntime.Runtime) error,
-) (Output, error) {
-	value, _, err := ExecuteMeasured[Output](ctx, store, modelID, program, key, inputs, bind)
-	return value, err
-}
-
 // ContentDecoder is an output type that rebuilds itself from its recorded
 // artifact: a request the store already answered replays from the
 // recorded document, and a media output (PNG, GIF, WAV) is not JSON.

@@ -94,17 +94,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1054,
+        "nodes": 8825,
         "reason": ""
       },
       "steps": [
-        {
-          "id": "dead-outside",
-          "title": "Delete the groups the record classes as dead outside the inference surface",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestEveryProcessDeclarationIsReachedByACommand$'",
-          "rationale": "From docs/verification/unreached-declarations.txt. The groups it classes as dead outside the inference surface hold about 1,170 lines: the recovery of internal/agentloop (373 lines; Coordinator.RestoreSession does the job), the in-memory model merge (255; MergeGGUF and ExecuteStreaming), the memory schedule (202; LayerStreamedBudget), the orphans outside the surface (124), the device operators made one a call (96), the diffusion image pair batch (80), the recognition of a Krea pipeline (43), and the groups that are a schema alone. Each is deleted with the tests that exist only for it, and its lines leave the lists and its group the record. The sort was a reading, so each group is first proved dead: after its deletion every package builds with and without the model tags, and no test of live behaviour is changed. A group that fails that proof stays, and its class and reason in the record are corrected. The model merge and the orphans go before the deletions inside the surface, since they hold the callers of two functions there.\nServes: the loop's upkeep.\nDisappears: about 1,170 lines of production code and their tests.\nEvidence: the two census tests with those lines gone; every package builds; the packages' tests.\nBatch: host."
-        },
         {
           "id": "delete-unreached-surface",
           "title": "Delete what stands alone of the two unreached groups inside the inference surface, in one commit before a run",

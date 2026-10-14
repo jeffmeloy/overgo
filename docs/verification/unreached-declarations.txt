@@ -62,25 +62,17 @@ members: internal/agentloop/checkpoint.go
 reason: ContractState.Admit (internal/agentloop/contract.go:52) is the only check of a task's allowed effects and RestoreCheckpoint the only undo of an agent's mutation, and neither runs in a command, because cmd/agent-loop builds a session with no contract and no checkpoint runtime (cmd/agent-loop/main.go:185).
 reason: The route is the delegated mode of cmd/agent-loop binding both to its session and offering a restore behind the approval it has, and both compute, so the four conditions do not hold.
 
-group agentloop-recovery
-class: dead
+group agentloop-obligation-ledger
+class: test-held
 surface: outside
-declarations: 19
-lines: 373
-members: internal/agentloop/recovery.go
+declarations: 5
+lines: 83
 members: internal/agentloop/contract.go ContractState.AddResolution ContractState.Outstanding ContractState.RequireComplete
 members: internal/agentloop/delegated_runtime.go
-members: internal/agentloop/session_policy.go
-members: internal/agentloop/attempt_closure.go
-members: internal/agentloop/stimulus_reconciliation.go
-members: internal/workflowruntime/stimulus_reconciliation.go
-members: internal/workflowruntime/coalescer.go
-members: internal/worklease/worklease.go Record read ResolveOwner worktreeAlias Aliases Alias recordDispatch
 members: internal/runrecord/agent_obligation.go
 schemas: internal/runrecord/agent_obligation.go overgo/agent-obligation-resolution/v1
-schemas: internal/worklease/worklease.go overgo/work-lease/v1 overgo/work-lease/v2
-reason: It is a second recovery path beside the live Coordinator.RestoreSession (internal/agentloop/coordinator.go:239), with its obligation ledger, its failure policy, its late-stimulus reconciliation and its lease, and 8150c8461, 5c7d6d9a2 and 6733d26b1 deleted what wrote the lease and delivered the stimuli.
-reason: All four conditions hold, since no command writes the lease, the checkpoints, the obligations or the mutation epoch it reads, and its tests check it alone.
+reason: TestAgentContractEnforcement holds ContractState.ObserveMutation, which Coordinator.propose calls once a mutation ran, through the three methods of the contract, TestDelegatedCapabilityRuntimeConsumesStagedOwners resolves through ResolveObligation the obligations that NewDelegatedCapabilityRuntime opens for cmd/agent-loop (cmd/agent-loop/main.go:156), and the tests of the trajectory supervisor make with NewAgentObligationResolution the resolutions it reads (internal/evaluation/trajectory_supervisor.go:228).
+reason: The recovery that called them is deleted and no command writes a resolution, so each test reads the state it holds directly or makes its document in a test file, and the five are deleted then.
 
 group agenttool-stream-receive
 class: wire
@@ -164,15 +156,15 @@ reason: Each is a thin entry over a live core, such as TrainDeviceResidentWeight
 reason: The tests call the live functions, and the entries are deleted then.
 
 group device-per-op-operators
-class: dead
+class: test-held
 surface: outside
 declarations: 3
 lines: 96
 members: internal/devicemath/linear_cuda_windows.go LinearBackward
 members: internal/devicemath/gated_mlp_cuda_windows.go
 members: internal/devicemath/silu_cuda_windows.go SiLUBackward
-reason: The fused resident layer operators (internal/devicemath/layer_resident_ops_cuda_windows.go:162, :322) replaced these operators, which open one device context for each operation.
-reason: Their callers are their own gradient checks and two test helpers that compose them into a layer only a test builds.
+reason: TestGatedMLPBackwardTResidentMatchesPerOp holds the resident gated MLP backward of group hybrid-device-resident-lane (internal/devicemath/gated_mlp_resident_cuda_windows.go:18) to gatedMLPBackward and SiLUBackward, and TestLayerBackwardGradCheck checks against finite differences a layer backward that composes LinearBackward with RMSNormBackward and MultiHeadAttentionBackward (internal/devicemath/rmsnorm_cuda_windows.go:69, internal/devicemath/mha_cuda_windows.go:42).
+reason: The resident test compares with finite differences or internal/hostmath directly, as group device-shared-oracles states for its own, and the three are deleted then with the layer a test builds.
 
 group device-shared-oracles
 class: test-held
@@ -184,15 +176,6 @@ members: internal/devicemath/madnorm_cuda_windows.go
 members: internal/devicemath/resident_ops_cuda_windows.go
 reason: They are the forms that take host slices, and tests hold the live resident operators (internal/devicemath/resident_ops_cuda_windows.go:216) to them with no difference allowed.
 reason: The tests compare the live operators with internal/hostmath or finite differences directly, and these are deleted then.
-
-group diffusionimage-pair-batch
-class: dead
-surface: outside
-declarations: 3
-lines: 80
-members: internal/diffusionimage/training_data.go
-reason: The optimal-transport batch that the route trains on (internal/diffusionimage/training_data.go:41, cmd/train/route_diffusionimage.go:99) replaced this paired input and target batch.
-reason: Its one test builds pairs by hand and checks that one loss is finite.
 
 group encoder-decoder-step-and-batch
 class: dead
@@ -440,37 +423,6 @@ members: internal/media/normalize.go
 reason: Their only production callers are the unreached host references of internal/latentimage, and their other callers are their own unit tests and the decoder tests of internal/latentimage and internal/latentvideo.
 reason: They move with those references into test files, and the tests that call NormalizedF32ToU8 take the live SignedUnitF32ToU8 (internal/media/normalize.go:34).
 
-group krea-pipeline-recognition
-class: dead
-surface: outside
-declarations: 3
-lines: 43
-members: internal/latentimage/spec.go
-members: internal/latentimage/profile.go
-reason: ResolveProfile (internal/latentimage/profile.go:93) recognizes a pipeline for every command since the recipe's source resolution replaced discovery, and f5c860c2e deleted the last production caller of IsPipeline.
-reason: Only internal/latentimage/spec_test.go calls them, and it checks the recognizer and a discovery listing that says the pipeline is not served.
-
-group memory-schedule
-class: dead
-surface: outside
-declarations: 22
-lines: 202
-members: internal/trainingprogram/memory.go
-members: internal/scratchmodel/memory.go
-reason: It is a plan record that chooses a device or a host tier and that no trainer executes, and all four conditions hold, since no production code supplies its budget, it mints an identity nothing stores, a CUDA test runs for it, and the live bounded lane budgets from compiled plans (internal/hybridtrain/stack.go:422).
-reason: Its two tests check the schedule alone.
-
-group modelmerge-in-memory
-class: dead
-surface: outside
-declarations: 7
-lines: 255
-members: internal/modelmerge/merge.go
-members: internal/modelmerge/vocabulary.go
-schemas: internal/modelmerge/vocabulary.go overgo/embedding-provenance/v1
-reason: Passthrough and TaskArithmetic merge whole models held in memory, and the commands that merge run MergeGGUF (internal/modelmerge/gguf.go:49) and ExecuteStreaming (internal/modelmerge/streaming.go:51) a tensor at a time.
-reason: The vocabulary artifact reorders embeddings in memory inside row provenance that nothing produces inputs for and nothing publishes, so all four conditions hold, and the tests of both check them alone.
-
 group moe-routing-records
 class: prototype
 surface: outside
@@ -523,26 +475,19 @@ members: internal/operatoraction/action.go Consent.Validate Consent.Clone
 reason: Each is a helper of a live package that no production declaration calls, and a test that names one checks it alone.
 reason: 75752433d, 606cc4f63, 422c9c848, 15148dacd and 7512353c8 deleted the callers of five, and the history shows no caller for the other ten.
 
-group orphans-outside
-class: dead
+group outside-test-accessors
+class: test-held
 surface: outside
-declarations: 16
-lines: 124
-members: internal/latentimage/denoiser.go DenoiserWitness.Failed
-members: internal/latentimage/textencoder.go EncoderWitness.Failed
+declarations: 7
+lines: 59
 members: internal/trainingprogram/objective.go ObjectiveAuthority.AtLeast
-members: internal/trainingprogram/improvement.go
-members: internal/routedlm/prompt.go
 members: internal/workflowruntime/delegation.go
 members: internal/runrecord/record.go
 members: internal/runrecord/trigger_registry.go
-members: internal/plan/verification_batch.go
-members: internal/capabilityruntime/runtime.go
 members: internal/testevidence/evidence.go GoTestReport.ContentionOnly
-members: internal/server/composition_runtime.go
 members: internal/hfbpe/tokenizer.go
-reason: Each is a helper of a live package that no production declaration calls, and a test that names one checks it alone.
-reason: 91dedffd8, 3952a0bdc, 90769e0ed, 1bd0fe06f, d80326076 and da5247db5 deleted the callers of eight, and the other eight never had one.
+reason: Each is an accessor that a test reads in one function with reached code, which are ValidObjectiveAuthority (internal/trainingprogram/objective_test.go:390), the manuals that CompileDelegatedAgentInvocation compiles, Direction.Advantage, the trigger registry in tests of two packages, the Contended list of GoTestJSONReport and the published Kimi token ids that Tokenizer.Encode is held to.
+reason: Each test reads the reached value itself, and the accessor is deleted then.
 
 group outside-test-analyzers
 class: test-held
@@ -694,6 +639,15 @@ schemas: internal/speechactivity/profile.go overgo/speech-activity-profile/v1
 reason: It is the streaming processor of the causal speech-activity family (FireRed VAD), and the served detector is the offline one (internal/mediacapability/capabilities.go:169).
 reason: No command opens an activity stream and nothing but a test publishes its profile, so its route is a streaming activity session beside streaming transcription (internal/speechrecognition/session.go:172).
 
+group stimulus-followup-wrapper
+class: test-held
+surface: outside
+declarations: 1
+lines: 5
+members: internal/workflowruntime/stimulus_reconciliation.go
+reason: It is one line over StimulusFollowupAuthority.Admit (internal/runrecord/stimulus_followup.go:61), and TestLateStimulusReconciliation of internal/workflowruntime, the only test of that admission, holds it to one winner among eight callers through this wrapper.
+reason: The test moves to internal/runrecord and calls Admit, and the wrapper is deleted then, and no command admits a follow-up either, which the walk cannot see because it reads the name Admit and never its type.
+
 group store-test-observers
 class: test-held
 surface: outside
@@ -707,15 +661,14 @@ reason: Tests of rebuild, release, write admission and audio recovery in four pa
 reason: The storage-class functions and NewAttemptRecord move to a test-support package, and the causality query and CommitDeltaAt read unexported store state, so their tests take a live read once cmd/overgodb query gives one.
 
 group test-written-records
-class: dead
+class: test-held
 surface: outside
 declarations: 0
 lines: 0
 schemas: internal/evaluation/scaling_fit.go overgo/scaling-fit/v1
-schemas: internal/trainingprogram/dataset_pipeline_candidate.go overgo/dataset-pipeline-candidate/v1
 schemas: internal/trainingworkflow/health_classifier.go overgo/training-health-classification/v1
-reason: No production declaration writes any of the three, and tests alone make their documents.
-reason: Two have a function value that tests alone call as their one reader (internal/evaluation/effective_speedup.go:55, internal/trainingworkflow/health_operator.go:62), and the third has no reader.
+reason: A function value that a package variable holds takes each schema's type (internal/evaluation/effective_speedup.go:55, internal/trainingworkflow/health_operator.go:62), and tests alone call it and make the documents it reads.
+reason: The walk enters every package variable, so it counts both readers and the records they write (overgo/effective-speedup/v1, overgo/training-health-operator-decision/v1) as reached, and each schema is deleted with its reader and that record once a group holds them.
 
 group testskip-helpers
 class: shadowed
@@ -840,3 +793,13 @@ lines: 73
 members: internal/worklease/worklease.go AssessResources WorkspaceClaimsConflict ClaimPathsOverlap
 reason: AssessResources reports declared reservations against capacity, docs/image_video_resources.json names it as the advisory check, and 5c7d6d9a2 deleted its caller.
 reason: The route is the admission of a media request printing declared demand against device capacity, and it is no record, so the four conditions do not hold.
+
+group worklease-lease-codec
+class: test-held
+surface: outside
+declarations: 2
+lines: 8
+members: internal/worklease/worklease.go worktreeAlias Alias
+schemas: internal/worklease/worklease.go overgo/work-lease/v1 overgo/work-lease/v2
+reason: The tests of group worklease-capacity-advice make every lease through Codec.New and canonicalizeClaims (internal/worklease/worklease_test.go:13, internal/worklease/workspace_claim_test.go:53), so the codec and its two schemas stay though nothing writes a lease, and TestWorkLease holds that codec's round trip in one condition with the worktree alias.
+reason: Those tests make a lease as a plain value, and the codec, its schemas and the alias are deleted then.

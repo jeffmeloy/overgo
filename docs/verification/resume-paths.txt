@@ -262,10 +262,6 @@ site: other-stage-receipts
 keeps: the agent loop's mutations, a remote peer's invocation and a recipe's verification each publish stage receipts under an operation of their own derivation, and a production probe reads one back | internal/agentloop/coordinator.go#Coordinator.admitMutationReceipt internal/agentloop/coordinator.go#MutationReceiptOperation internal/capabilityruntime/peer_invoke.go#InvokeRemotePeer internal/modelrecipe/lifecycle_invocation.go#verifiedTransition internal/evaluation/production_probe.go#requireCurrentStageReceipt
 read: to the places cited
 
-site: agent-session-step
-keeps: an agent session's interrupted step is found by the stage receipt of its next mutation, and resumes only from the exact checkpoint of that operation | internal/agentloop/recovery.go#Coordinator.RecoverAgentSession
-read: to the places cited
-
 site: stream-writer-stage
 keeps: the safetensors streaming writer keeps a stage beside its destination that names a plan's identity and the sealed tensors, and goes on only from a stage of the same plan | internal/safetensors/stream_writer.go#newStreamWriter internal/safetensors/stream_writer.go#streamWriter.resume internal/safetensors/stream_writer.go#compileStreamPlan
 read: to the places cited
@@ -367,7 +363,7 @@ repairs-workflow-replay: 0
 repairs-operation-reuse: 0
 repairs-measurement-cells: 2
 repairs-trainer-checkpoints: 0
-sites: 19
+sites: 18
 connections: 6
 
 == closing ==

@@ -23,7 +23,6 @@ import (
 	"overgo/internal/operatoraction"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
-	"overgo/internal/workflowruntime"
 )
 
 // Identity names the serving authorities every recorded step binds to.
@@ -62,9 +61,6 @@ type Coordinator struct {
 	executor *agenttool.Executor
 	identity Identity
 	maxSteps int
-	// wakeups coalesces repeated late-stimulus notifications into one
-	// pending reconciliation per consumed boundary.
-	wakeups *workflowruntime.ReconcileCoalescer
 }
 
 // New binds a coordinator to the store, the transport executor, and
@@ -78,7 +74,6 @@ func New(store artifact.Repository, executor *agenttool.Executor, identity Ident
 	}
 	return &Coordinator{
 		store: store, executor: executor, identity: identity, maxSteps: maxSteps,
-		wakeups: workflowruntime.NewReconcileCoalescer(),
 	}, nil
 }
 

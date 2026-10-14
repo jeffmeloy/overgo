@@ -33,11 +33,6 @@ type VerificationCheckpoint struct {
 	DependsOn []string `json:"depends_on,omitempty"`
 }
 
-// GateCheckName is the checkpoint's subordinate full-gate acceptance name.
-func (checkpoint VerificationCheckpoint) GateCheckName() string {
-	return "acceptance-" + checkpoint.ID
-}
-
 func validateVerificationBatch(batch *VerificationBatch) error {
 	if batch == nil {
 		return nil

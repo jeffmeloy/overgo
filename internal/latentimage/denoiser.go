@@ -406,5 +406,3 @@ type DenoiserWitness struct {
 	NormEps   float64
 	ModFields int
 }
-
-func (w DenoiserWitness) Failed() bool { return checked.Nonzero(failedCheckCount(w.Checks)) }

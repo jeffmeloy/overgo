@@ -101,7 +101,6 @@ func CompileImprovementProposal(spec ImprovementSpec) (ImprovementProposal, erro
 }
 
 func (p ImprovementProposal) ID() artifact.ID               { return p.id }
-func (p ImprovementProposal) ProposalKind() ImprovementKind { return p.kind }
 func (p ImprovementProposal) ParentModel() artifact.ID      { return p.parentModel }
 func (p ImprovementProposal) Incumbent() artifact.ID        { return p.incumbent }
 func (p ImprovementProposal) Candidate() artifact.ID        { return p.candidate }

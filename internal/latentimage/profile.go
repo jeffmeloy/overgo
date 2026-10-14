@@ -147,19 +147,6 @@ func lookupCatalogProfile(pipeline string) (catalogProfile, error) {
 	return catalogProfile{}, fmt.Errorf("latent image: unsupported pipeline class %q", pipeline)
 }
 
-func supportsPipeline(pipeline string) (bool, error) {
-	catalog, err := profileCatalog()
-	if err != nil {
-		return false, err
-	}
-	for _, profile := range catalog {
-		if profile.Pipeline == pipeline {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
 func profileCatalog() ([]catalogProfile, error) {
 	var catalog []catalogProfile
 	if err := strictjson.DecodeBytes(profileCatalogJSON, &catalog); err != nil {

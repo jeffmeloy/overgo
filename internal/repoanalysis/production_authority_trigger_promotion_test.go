@@ -86,7 +86,6 @@ func auditTriggerAndPromotionAuthorities(sources []productionAuthoritySource, re
 	})
 	verifyAuthoritySites(report, "trigger", "runrecord.CausalContext.Derive", causalDerivations, []authorityAllowance{
 		{File: "internal/runrecord/stimulus_followup.go", Function: "StimulusFollowupAuthority.Admit", Count: oneAuthoritySite},
-		{File: "internal/workflowruntime/delegation.go", Function: "CompiledDelegation.DeriveCausal", Count: oneAuthoritySite},
 	})
 	verifyAuthoritySites(report, "trigger", "runrecord.CausalContext construction", causalConstructions, []authorityAllowance{
 		{File: "internal/runrecord/causal_context.go", Function: "NewCausalRoot", Count: oneAuthoritySite},

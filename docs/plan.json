@@ -88,6 +88,43 @@
       ]
     },
     {
+      "id": "shape-reading",
+      "title": "Keep the reading of repeated structure, consolidate what is truly repeated, and read where the code decides by kind",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "analyzer",
+          "title": "Keep the three readings as one test helper beside the declarations walk: repeated runs by class, call-and-test chains, and switches by kind",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestShapeReadingFindsPlantedFamilies$'",
+          "rationale": "The proposal's figures came from scratch programs that are gone. The walk that holds every declaration to a command already lives in internal/repoanalysis's tests (90b1ca10c); this reading joins it, in test code, and adds no production code. It reads a tree and lists: runs of five statements whose shape repeats in two or more functions, each classed as flag definitions, call-and-test pairs or other; chains of three or more call-and-test pairs on one receiver; and switches over three or more named constants, grouped into families by the constants they share. The test plants one of each in a fixture and holds the listing to it; run with -v on the repository it prints the listing and asserts nothing, so no figure is pinned.\nServes: the loop's upkeep: the next consolidation is chosen from a reading and not from a guess.\nDisappears: nothing.\nEvidence: the fixture's families found, and each class told from the others; the repository's listing reproduces the first reading's figures within what has changed since a534ff310.\nBatch: host; internal/repoanalysis reaches no longer test run."
+        },
+        {
+          "id": "real-repeats",
+          "title": "Read each group of truly repeated logic, and give a common component to those that shrink",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestConsolidatedGroupsNoLongerRepeat$'",
+          "rationale": "The first reading's real repeats are 231 groups covering 2,571 lines, and 63 call-and-test chains worth about 590. The largest it printed: the device upload helper written twice in cmd/validate (runDeviceMerger and runDeviceVision, 78 lines in 2 places); the checkpoint-to-model tensor name tables in internal/hfgguf (80 lines in 8 places); the sampling flags declared in both cmd/generate and cmd/latentvideo-run (75 lines in 15 places); field-by-field clone functions in seven packages (70 lines in 14 places); dimension reads in internal/tensor/reference (60 lines in 12 places); the identity, dataset and split triple in ten suite compilers of internal/evaluation; and the chains on the device scope in internal/devicemath (282 lines). Each group is read before it is touched, and the count is written down: lines deleted, lines the component adds, net. A group that does not shrink is left and named. The one conversion measured so far, a training route onto an objective, added 87 lines (c84a7d7b7), so no saving is assumed. From the lead's review: the reading is taken after the declarations the census classes as dead are deleted, because a repeat inside code no command reaches is deleted and not consolidated, and internal/devicemath alone holds 54 unreached declarations of 2,099 lines.\nServes: the loop's upkeep; nothing a person runs changes.\nDisappears: the repeats of each group consolidated. The whole step is expected to remove under 1% of production code; that is an estimate.\nEvidence: the reading before and after; each consolidated group absent from the listing; every changed package's tests unchanged.\nBatch: host for most groups. internal/evaluation is in the identity stored answers are kept under, and internal/tensor/reference is in the inference surface, so groups there are gathered into one change before a full measurement run, or left.",
+          "depends_on": [
+            "shape-reading/analyzer",
+            "consumer-checks/sort-unreached"
+          ]
+        },
+        {
+          "id": "kinds-reading",
+          "title": "Read what each switch over the tensor operations decides, and count what one table of operations would delete and add",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestKindsReadingRecordIsWhole$'",
+          "rationale": "The owner's expectation is that consolidation exposes the structural refactors. The first reading exposes one: of 146 switches over named constants (5,706 lines, 85 families), the tensor operations are decided in 10 switches of 2,043 lines, in 10 functions across 4 packages, over 65 constants. Adding or changing an operation means ten places. The next families are far smaller: the media codec kinds (9 switches, 658 lines, 3 packages), the GGUF value types (8, 309) and the tensor element types (6 switches, 231 lines, 5 packages). This step is a reading, as the one that judged suites-as-data was: for every operation and every one of the ten switches, what is decided there (its shape, its host arithmetic, its device launch, its cache or layout rule), which of those could be one row of a table, and what the table's machinery would cost. It reports the net with its range, and names what the table would make possible that is not possible now. It decides whether a row is filed; it changes no code. From the lead's review: the reading also says how a table of operations stands to the dense block program that was taken out (docs/verification/dense-block-program.txt), which failed two of its five conditions and named two operations it lacked, so that a row filed from this reading does not repeat that pilot under another name.\nServes: train and serve: one place to add an operation; the loop's upkeep.\nDisappears: nothing.\nEvidence: docs/verification/operation-kinds.txt, derived by the test from the analyzer's listing of the ten switches at the commit it names.\nBatch: host; nothing inside the inference surface changes.",
+          "depends_on": [
+            "shape-reading/analyzer"
+          ]
+        }
+      ]
+    },
+    {
       "id": "governance-retire",
       "title": "Retire the sealed authority, a requirement over artifacts that no longer exist",
       "class": "consolidation",

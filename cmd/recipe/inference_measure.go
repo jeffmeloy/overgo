@@ -215,10 +215,15 @@ func observeInference(ctx context.Context, open func(context.Context) (servedMod
 		observation.Outcome, observation.Failure = runrecord.OutcomeFailed, failure
 	}
 	prefill := min(generation.prefill, total)
+	// Decode runs from the moment the prompt was evaluated, so what the request
+	// did before its prefill (the memory sample, tokenizing, a wait) counts in
+	// first output alone and never in decode; a prompt never evaluated leaves
+	// decode the request past its prefill.
+	decode := total - min(cmp.Or(generation.evaluated, prefill), total)
 	observation.MeasuredNS, observation.Hardware = load+total, generation.samples
 	observation.Usage.OutputTokens = uint64(max(result.GeneratedTokens, 0))
 	observation.Phases = slices.DeleteFunc([]runrecord.PhaseMetric{
-		{Phase: runrecord.PhaseLoad, DurationNS: load}, {Phase: runrecord.PhasePrefill, DurationNS: prefill}, {Phase: runrecord.PhaseDecode, DurationNS: total - prefill},
+		{Phase: runrecord.PhaseLoad, DurationNS: load}, {Phase: runrecord.PhasePrefill, DurationNS: prefill}, {Phase: runrecord.PhaseDecode, DurationNS: decode},
 	}, func(phase runrecord.PhaseMetric) bool { return phase.DurationNS == 0 })
 	// A model that served its request but did not release is no failed
 	// attempt; its release failure is still the command's.

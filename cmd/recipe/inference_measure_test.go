@@ -33,10 +33,13 @@ const (
 
 // servedFixture is a loaded model off the device: it evaluates every prompt as
 // servedPromptTokens tokens and answers servedOutput, taking time the clock can
-// measure, and reports fixed device memory.
+// measure, and reports fixed device memory. Given a stall, it first waits that
+// long before its prefill, and keeps the wait it took in stalled.
 type servedFixture struct {
 	t       *testing.T
 	prompts []string
+	stall   time.Duration
+	stalled time.Duration
 }
 
 // tick waits on the clock's own progress until its counter passes since, so
@@ -57,6 +60,10 @@ func tick(t *testing.T, since time.Duration) time.Duration {
 // each step taking a tick of the clock.
 func (fixture *servedFixture) Generate(_ context.Context, prompt string, options inference.GenerateOptions) ([]tokenizer.TokenID, string, error) {
 	fixture.prompts = append(fixture.prompts, prompt)
+	if fixture.stall > 0 {
+		waited := tick(fixture.t, 0)
+		fixture.stalled = tick(fixture.t, waited+fixture.stall) - waited
+	}
 	started := tick(fixture.t, 0)
 	evaluated := tick(fixture.t, started)
 	options.OnPromptEvaluated(inference.PromptEvaluation{Tokens: servedPromptTokens, Duration: evaluated - started})
@@ -201,5 +208,36 @@ func TestInferenceMeasurementFillsTheServingCells(t *testing.T) {
 	}
 	if !phases[runrecord.PhaseLoad] || !phases[runrecord.PhaseDecode] || !prefilled || peak != servedPeakBytes {
 		t.Fatalf("attempt phases %+v, prefill sampled %t, peak %d bytes; want timed load and decode, a prefill sample and %d bytes", observed[0].Phases, prefilled, peak, servedPeakBytes)
+	}
+}
+
+// TestInferenceMeasurementKeepsAWaitBeforePrefillOutOfDecode holds the decode
+// phase the throughput cell divides by to the request after its prompt was
+// evaluated.
+//   - a request that waits before its prefill keeps that wait out of decode
+//   - the wait still counts in the request's measured time
+func TestInferenceMeasurementKeepsAWaitBeforePrefillOutOfDecode(t *testing.T) {
+	t.Parallel()
+	directory, path, model, _, _ := measuredFixture(t)
+	model.stall = time.Millisecond
+	if _, err := measureInference(t.Context(), directory, path, func(context.Context) (servedModel, error) { return model, nil }); err != nil {
+		t.Fatal(err)
+	}
+	observed := servingAttempts(t, directory)
+	if len(observed) != 1 {
+		t.Fatalf("serving attempts = %+v; want one", observed)
+	}
+	var load, decode uint64
+	for _, phase := range observed[0].Phases {
+		switch phase.Phase {
+		case runrecord.PhaseLoad:
+			load = phase.DurationNS
+		case runrecord.PhaseDecode:
+			decode = phase.DurationNS
+		}
+	}
+	request := observed[0].MeasuredNS - load
+	if decode == 0 || request < uint64(model.stalled) || decode > request-uint64(model.stalled) {
+		t.Fatalf("decode %d ns of a %d ns request that waited %d ns before its prefill; want the wait outside decode", decode, request, model.stalled)
 	}
 }

@@ -98,25 +98,6 @@
           ]
         }
       ]
-    },
-    {
-      "id": "scorecard-regressed-4e5c0e493f3de0de",
-      "title": "Restore Unlimited-OCR-bf16 inference throughput to 84.5805257 tok/s",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 13,
-        "reason": "measured by the preflight of the fix: decode taken from the moment the prompt was evaluated"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Unlimited-OCR-bf16 inference throughput to 84.5805257 tok/s",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-4e5c0e493f3de0de -target 84.58052570063626",
-          "rationale": "- Unlimited-OCR-bf16 throughput, {Metric:output tokens over decode time Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:53c17a9fabd7fe64203ddf7136b7e23763ca0b59d67c54deadf6ea54350188f3}: 89.1749423 to 82.6313115 (-6.5436308, -7.3%, allowed 4.59441659; serving output tokens over decode time, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261014T165413Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
     }
   ],
   "decisions": [

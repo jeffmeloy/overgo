@@ -101,6 +101,7 @@ func Execute(outputs []*tensor.Tensor, feeds map[*tensor.Tensor]Value) (map[*ten
 }
 
 // ExecuteOperation: single-node correctness bridge.
+//   - attributes ValidateOperationAttributes refuses are refused, because executeNode asserts each operation's attributes by type
 func ExecuteOperation(node *tensor.Tensor, inputs []Value) (Value, error) {
 	if node == nil {
 		return Value{}, errors.New("reference operation is nil")
@@ -108,6 +109,9 @@ func ExecuteOperation(node *tensor.Tensor, inputs []Value) (Value, error) {
 	descriptor, ok := tensor.DescribeOperation(node.Op)
 	if !ok || descriptor.Backends&tensor.BackendReference == 0 {
 		return Value{}, fmt.Errorf("unsupported reference operation %s", node.Op)
+	}
+	if err := tensor.ValidateOperationAttributes(node.Op, node.Attrs); err != nil {
+		return Value{}, err
 	}
 	view, aliases, err := tensor.ResolveStorageView(node)
 	if err != nil {
@@ -139,20 +143,14 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 	case tensor.OpDivide:
 		return elementwiseBroadcast(node.Shape, inputs[0], inputs[1], func(a, b float32) float32 { return a / b })
 	case tensor.OpScale:
-		attributes, ok := node.Attrs.(tensor.ScaleAttributes)
-		if !ok {
-			return Value{}, errors.New("invalid scale attributes")
-		}
+		attributes := node.Attrs.(tensor.ScaleAttributes)
 		output := make([]float32, len(inputs[0].Data))
 		for i, value := range inputs[0].Data {
 			output[i] = value * attributes.Value
 		}
 		return Value{Shape: node.Shape, Data: output}, nil
 	case tensor.OpClamp:
-		attributes, ok := node.Attrs.(tensor.ClampAttributes)
-		if !ok {
-			return Value{}, errors.New("invalid clamp attributes")
-		}
+		attributes := node.Attrs.(tensor.ClampAttributes)
 		output := make([]float32, len(inputs[0].Data))
 		for i, value := range inputs[0].Data {
 			output[i] = min(max(value, attributes.Minimum), attributes.Maximum)
@@ -161,23 +159,11 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 	case tensor.OpBF16Round:
 		return mapValues(node.Shape, inputs[0], dtype.RoundBF16), nil
 	case tensor.OpRMSNorm:
-		attributes, ok := node.Attrs.(tensor.RMSNormAttributes)
-		if !ok {
-			return Value{}, errors.New("invalid RMSNorm attributes")
-		}
-		return rmsNorm(node.Shape, inputs[0], attributes.Epsilon)
+		return rmsNorm(node.Shape, inputs[0], node.Attrs.(tensor.RMSNormAttributes).Epsilon)
 	case tensor.OpMADNorm:
-		attributes, ok := node.Attrs.(tensor.MADNormAttributes)
-		if !ok {
-			return Value{}, errors.New("invalid MADNorm attributes")
-		}
-		return madNorm(node.Shape, inputs[0], attributes.Epsilon)
+		return madNorm(node.Shape, inputs[0], node.Attrs.(tensor.MADNormAttributes).Epsilon)
 	case tensor.OpLayerNorm:
-		attributes, ok := node.Attrs.(tensor.LayerNormAttributes)
-		if !ok {
-			return Value{}, errors.New("invalid LayerNorm attributes")
-		}
-		return layerNorm(node.Shape, inputs[0], attributes.Epsilon)
+		return layerNorm(node.Shape, inputs[0], node.Attrs.(tensor.LayerNormAttributes).Epsilon)
 	case tensor.OpSoftmax:
 		return softmax(node.Shape, inputs[0])
 	case tensor.OpSiLU:
@@ -198,16 +184,9 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 			return 0
 		}), nil
 	case tensor.OpConv1DSame:
-		attributes, ok := node.Attrs.(tensor.Conv1DAttributes)
-		if !ok {
-			return Value{}, errors.New("invalid same Conv1D attributes")
-		}
-		return conv1DSame(node.Shape, inputs[0], inputs[1], inputs[2], attributes.Depthwise)
+		return conv1DSame(node.Shape, inputs[0], inputs[1], inputs[2], node.Attrs.(tensor.Conv1DAttributes).Depthwise)
 	case tensor.OpConv2D:
-		attributes, ok := node.Attrs.(tensor.Conv2DAttributes)
-		if !ok {
-			return Value{}, errors.New("invalid Conv2D attributes")
-		}
+		attributes := node.Attrs.(tensor.Conv2DAttributes)
 		var bias Value
 		if attributes.HasBias {
 			bias = inputs[2]
@@ -222,10 +201,7 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 	case tensor.OpSAMAttention:
 		return samAttention(node.Shape, inputs, node.Attrs.(tensor.SAMAttentionAttributes))
 	case tensor.OpGroupNorm:
-		attributes, ok := node.Attrs.(tensor.GroupNormAttributes)
-		if !ok {
-			return Value{}, errors.New("invalid group norm attributes")
-		}
+		attributes := node.Attrs.(tensor.GroupNormAttributes)
 		return groupNorm(node.Shape, inputs[0], inputs[1], inputs[2], attributes.Groups, attributes.Epsilon)
 	case tensor.OpHyperConnectionInit:
 		return hyperConnectionInit(node.Shape, inputs, node.Attrs.(tensor.HyperConnectionAttributes))
@@ -238,10 +214,7 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 	case tensor.OpCompressedAttention:
 		return compressedAttention(node.Shape, inputs, node.Attrs.(tensor.CompressedAttentionAttributes))
 	case tensor.OpXIELU:
-		attributes, ok := node.Attrs.(tensor.XIELUAttributes)
-		if !ok {
-			return Value{}, errors.New("invalid xIELU attributes")
-		}
+		attributes := node.Attrs.(tensor.XIELUAttributes)
 		output := make([]float32, len(inputs[0].Data))
 		for i, value := range inputs[0].Data {
 			if value > 0 {
@@ -282,11 +255,7 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 			return float32(math.Exp(float64(value)))
 		}), nil
 	case tensor.OpL2Norm:
-		attributes, ok := node.Attrs.(tensor.L2NormAttributes)
-		if !ok {
-			return Value{}, errors.New("invalid L2Norm attributes")
-		}
-		return l2Norm(node.Shape, inputs[0], attributes.Epsilon)
+		return l2Norm(node.Shape, inputs[0], node.Attrs.(tensor.L2NormAttributes).Epsilon)
 	case tensor.OpSSMConv:
 		return ssmConv(node.Shape, inputs[0], inputs[1])
 	case tensor.OpSSMScan:
@@ -316,64 +285,32 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 	case tensor.OpIndexerScore:
 		return indexerScore(node.Shape, inputs, node.Attrs.(tensor.IndexerScoreAttributes))
 	case tensor.OpMoE:
-		attributes, ok := node.Attrs.(tensor.MoEAttributes)
-		if !ok {
-			return Value{}, errors.New("invalid MoE attributes")
-		}
-		return moe(node.Shape, inputs, attributes)
+		return moe(node.Shape, inputs, node.Attrs.(tensor.MoEAttributes))
 	case tensor.OpLoRAMerge:
-		attributes, ok := node.Attrs.(tensor.LoRAMergeAttributes)
-		if !ok {
-			return Value{}, errors.New("invalid LoRA merge attributes")
-		}
-		return loraMerge(node.Shape, inputs, attributes)
+		return loraMerge(node.Shape, inputs, node.Attrs.(tensor.LoRAMergeAttributes))
 	case tensor.OpRepeatHeads:
-		attributes, ok := node.Attrs.(tensor.RepeatHeadsAttributes)
-		if !ok || attributes.Heads == 0 {
+		if node.Attrs.(tensor.RepeatHeadsAttributes).Heads == 0 {
 			return Value{}, errors.New("invalid RepeatHeads attributes")
 		}
 		return repeatHeads(node.Shape, inputs[0]), nil
 	case tensor.OpTranspose2D:
 		return transpose2D(node.Shape, inputs[0])
 	case tensor.OpGroupSlice:
-		attributes, ok := node.Attrs.(tensor.GroupSliceAttributes)
-		if !ok {
-			return Value{}, errors.New("invalid GroupSlice attributes")
-		}
-		return groupSlice(node.Shape, inputs[0], attributes)
+		return groupSlice(node.Shape, inputs[0], node.Attrs.(tensor.GroupSliceAttributes))
 	case tensor.OpMulMat:
 		return mulMat(node.Shape, inputs[0], inputs[1])
 	case tensor.OpGroupedMulMat:
 		return groupedMulMat(node.Shape, inputs[0], inputs[1])
 	case tensor.OpGetRows:
-		attributes, ok := node.Attrs.(tensor.GetRowsAttributes)
-		if !ok {
-			return Value{}, errors.New("invalid get_rows attributes")
-		}
-		return getRows(node.Shape, inputs[0], attributes.Rows)
+		return getRows(node.Shape, inputs[0], node.Attrs.(tensor.GetRowsAttributes).Rows)
 	case tensor.OpRoPENeoX:
-		attributes, ok := node.Attrs.(tensor.RoPEAttributes)
-		if !ok {
-			return Value{}, errors.New("invalid rope_neox attributes")
-		}
-		return ropeNeoX(node.Shape, inputs, attributes)
+		return ropeNeoX(node.Shape, inputs, node.Attrs.(tensor.RoPEAttributes))
 	case tensor.OpRoPENormal:
-		attributes, ok := node.Attrs.(tensor.RoPEAttributes)
-		if !ok {
-			return Value{}, errors.New("invalid rope_normal attributes")
-		}
-		return ropeNormal(node.Shape, inputs, attributes)
+		return ropeNormal(node.Shape, inputs, node.Attrs.(tensor.RoPEAttributes))
 	case tensor.OpRoPEMulti:
-		attributes, ok := node.Attrs.(tensor.RoPEMultiAttributes)
-		if !ok {
-			return Value{}, errors.New("invalid rope_multi attributes")
-		}
-		return ropeMulti(node.Shape, inputs[0], attributes)
+		return ropeMulti(node.Shape, inputs[0], node.Attrs.(tensor.RoPEMultiAttributes))
 	case tensor.OpAttention:
-		attributes, ok := node.Attrs.(tensor.AttentionAttributes)
-		if !ok {
-			return Value{}, errors.New("invalid attention attributes")
-		}
+		attributes := node.Attrs.(tensor.AttentionAttributes)
 		// Optional inputs follow q/k/v from index 3 in a fixed order:
 		// (bias|sinks), blockIDs, keyBias -- each present per its attribute flag.
 		var bias, sinks, blockIDs, keyBias *Value
@@ -395,17 +332,9 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 		}
 		return attention(node.Shape, inputs[0], inputs[1], inputs[2], bias, sinks, blockIDs, keyBias, attributes)
 	case tensor.OpConcat:
-		attributes, ok := node.Attrs.(tensor.ConcatAttributes)
-		if !ok {
-			return Value{}, errors.New("invalid concat attributes")
-		}
-		return concat(node.Shape, inputs[0], inputs[1], attributes.Axis)
+		return concat(node.Shape, inputs[0], inputs[1], node.Attrs.(tensor.ConcatAttributes).Axis)
 	case tensor.OpCacheAppend:
-		attributes, ok := node.Attrs.(tensor.CacheAppendAttributes)
-		if !ok {
-			return Value{}, errors.New("invalid cache append attributes")
-		}
-		return cacheAppend(node.Shape, inputs[0], inputs[1], attributes)
+		return cacheAppend(node.Shape, inputs[0], inputs[1], node.Attrs.(tensor.CacheAppendAttributes))
 	default:
 		return Value{}, fmt.Errorf("unsupported operation %s", node.Op)
 	}

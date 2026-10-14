@@ -532,6 +532,7 @@ func (c *CompiledGraph) NewRuntimeAttributes() *RuntimeAttributes {
 }
 
 // Set: validated runtime attribute override.
+//   - a pointer to a per-step attribute type is checked by the value it points to and kept, so its owner changes the value between executions
 func (a *RuntimeAttributes) Set(node *tensor.Tensor, attributes tensor.Attributes) error {
 	if a == nil || a.compiled == nil {
 		return errors.New("CUDA runtime attributes are unavailable")
@@ -1281,6 +1282,12 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 		compiled.nodes[index] = frame
 		_, elided := compiled.elided[node]
 		if node.Op != tensor.OpInput && !skipped && !elided {
+			// A view that is no graph output aliases its input and never launches.
+			if _, output := compiled.outputIndexes[node]; output || !aliases {
+				if err := checkLaunchWords(node); err != nil {
+					return nil, err
+				}
+			}
 			compiled.launches = append(compiled.launches, index)
 		}
 	}

@@ -194,14 +194,96 @@ func uint32Checked(value uint64, name string) (uint32, error) {
 	return uint32(value), nil
 }
 
-func shapeDimensions32(shape tensor.Shape) ([tensor.MaxDimensions]uint32, error) {
-	var result [tensor.MaxDimensions]uint32
-	for axis := range tensor.MaxDimensions {
-		value, err := uint32Checked(shape.Dims[axis], fmt.Sprintf("tensor dimension %d", axis))
-		if err != nil {
-			return result, err
-		}
-		result[axis] = value
+// The largest values the words of a launch hold, which checkLaunchWords holds each launch's shape to when its graph compiles.
+const (
+	// launchWordLimit is the largest dimension or element count a kernel takes.
+	//   - source = the kernels' arguments, which pass each dimension and count as a 32-bit unsigned word
+	//   - scope = every launch checkLaunchWords reaches
+	//   - reconsider when a kernel takes a 64-bit count
+	launchWordLimit = math.MaxUint32
+
+	// cublasDimensionLimit is the largest dimension of an operation of cublasLaunches.
+	//   - source = the cuBLAS GEMM calls, which take each dimension and leading dimension as a signed 32-bit int
+	//   - scope = the operations of cublasLaunches
+	//   - reconsider when those calls take 64-bit dimensions
+	cublasDimensionLimit = math.MaxInt32
+)
+
+// cublasLaunches are the operations whose launch may pass a dimension to cuBLAS (the F32 matrix products, conv_2d's im2col product and attention's batched products).
+var cublasLaunches = map[tensor.Op]bool{
+	tensor.OpMulMat: true, tensor.OpGroupedMulMat: true, tensor.OpConv2D: true, tensor.OpAttention: true,
+}
+
+// uncountedLaunches are the operations whose launch narrows no element count, so checkLaunchWords bounds their dimensions alone.
+//   - their launches count rows, heads or sequences and bound those products themselves
+//   - a count rule would refuse an output of more than launchWordLimit elements that these launches hold (a mul_mat over a vocabulary)
+var uncountedLaunches = map[tensor.Op]bool{
+	tensor.OpMulMat: true, tensor.OpGroupedMulMat: true, tensor.OpSSMScan: true, tensor.OpGatedDeltaNet: true,
+	tensor.OpGatedLinearAttention: true, tensor.OpWKV6: true, tensor.OpWKV7: true, tensor.OpSumRows: true,
+}
+
+// inputCountedLaunches are the operations whose launch counts the rows of input 0 and not the elements of its output.
+var inputCountedLaunches = map[tensor.Op]bool{tensor.OpFWHT: true, tensor.OpTopK: true, tensor.OpTopKPartials: true}
+
+// checkLaunchWords refuses a launch whose shape the 32-bit words of its kernel cannot hold, naming the operation.
+//   - each operand's shape counts its elements without overflow, and each of its dimensions <= launchWordLimit, or <= cublasDimensionLimit for an operation of cublasLaunches
+//   - the counted operand's elements <= launchWordLimit, the counted operand = the output, or input 0 for an operation of inputCountedLaunches, and none for an operation of uncountedLaunches
+//   - an input a launch counts beside these (concat's right input, cache_append's inputs) holds no more elements than the output, because the builder joins it into the output
+//   - the host bridge passes no kernel word and the mixture-of-experts launch keeps its own checks, so both pass
+//   - so a launch narrows its dimensions and counts with conversions that cannot fail
+func checkLaunchWords(node *tensor.Tensor) error {
+	if descriptor, _ := tensor.DescribeOperation(node.Op); descriptor.CUDA == tensor.CUDAProgramReference || descriptor.CUDA == tensor.CUDAProgramMoE {
+		return nil
 	}
-	return result, nil
+	limit := uint64(launchWordLimit)
+	if cublasLaunches[node.Op] {
+		limit = cublasDimensionLimit
+	}
+	counted := node.Shape
+	if inputCountedLaunches[node.Op] {
+		counted = node.Inputs[0].Shape
+	}
+	operands := append([]*tensor.Tensor{node}, node.Inputs...)
+	for index, operand := range operands {
+		name := "output"
+		if index > 0 {
+			name = fmt.Sprintf("input %d", index-1)
+		}
+		if _, err := operand.Shape.Elements(); err != nil {
+			return fmt.Errorf("CUDA %s (tensor %d) %s: %w", node.Op, node.ID, name, err)
+		}
+		for axis, dimension := range operand.Shape.Dims {
+			if dimension > limit {
+				return fmt.Errorf("CUDA %s (tensor %d) %s dimension %d is %d, past the %d a kernel word holds", node.Op, node.ID, name, axis, dimension, limit)
+			}
+		}
+	}
+	if elements, _ := counted.Elements(); !uncountedLaunches[node.Op] && elements > launchWordLimit {
+		return fmt.Errorf("CUDA %s (tensor %d) counts %d elements, past the %d a kernel word holds", node.Op, node.ID, elements, uint64(launchWordLimit))
+	}
+	return nil
+}
+
+// shapeCount32 narrows a launched operand's element count to a kernel word.
+//   - checkLaunchWords bounds the count when the graph compiles, so the narrowing cannot fail
+func shapeCount32(shape tensor.Shape) uint32 {
+	elements, _ := shape.Elements()
+	return uint32(elements)
+}
+
+// rowWords narrows a launched operand's row width and row count to kernel words.
+//   - checkLaunchWords bounds both when the graph compiles, so neither narrowing can fail
+func rowWords(shape tensor.Shape) (uint32, uint32) {
+	width := uint32(shape.Dims[0])
+	return width, shapeCount32(shape) / width
+}
+
+// shapeDimensions32 narrows a launched operand's dimensions to kernel words.
+//   - checkLaunchWords bounds each when the graph compiles, so no narrowing can fail
+func shapeDimensions32(shape tensor.Shape) [tensor.MaxDimensions]uint32 {
+	var result [tensor.MaxDimensions]uint32
+	for axis, dimension := range shape.Dims {
+		result[axis] = uint32(dimension)
+	}
+	return result
 }

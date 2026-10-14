@@ -1,6 +1,7 @@
 package tensor
 
 import (
+	"strings"
 	"testing"
 
 	"overgo/internal/tensor/dtype"
@@ -103,6 +104,23 @@ func TestOperationAttributesRejectMismatches(t *testing.T) {
 	}
 	if _, err := Topological(malformed); err == nil {
 		t.Fatal("mismatched graph attributes passed validation")
+	}
+}
+
+// TestOperationAttributesRefuseAPointer holds an operation's attributes to their value type.
+//   - the value passes
+//   - a pointer to it, and a typed nil pointer, are refused with the value type wanted
+func TestOperationAttributesRefuseAPointer(t *testing.T) {
+	t.Parallel()
+	const fixtureEpsilon = 1e-5
+	value := RMSNormAttributes{Epsilon: fixtureEpsilon}
+	if err := ValidateOperationAttributes(OpRMSNorm, value); err != nil {
+		t.Fatalf("value attributes refused: %v", err)
+	}
+	for _, pointer := range []Attributes{&value, (*RMSNormAttributes)(nil)} {
+		if err := ValidateOperationAttributes(OpRMSNorm, pointer); err == nil || !strings.Contains(err.Error(), "want its value type") {
+			t.Errorf("attributes %T = %v, want a refusal of the pointer", pointer, err)
+		}
 	}
 }
 

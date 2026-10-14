@@ -21,26 +21,9 @@ func launchRoPE(
 	output := pointers.output()
 	switch node.Op {
 	case tensor.OpRoPENeoX, tensor.OpRoPENormal:
-		attributes, ok := runtimeAttributes.(tensor.RoPEAttributes)
-		if !ok {
-			return errors.New("invalid RoPE attributes")
-		}
-		count, err := elementCount32(node.Shape)
-		if err != nil {
-			return err
-		}
-		width, err := uint32Checked(node.Shape.Dims[0], "RoPE width")
-		if err != nil {
-			return err
-		}
-		heads, err := uint32Checked(node.Shape.Dims[1], "RoPE heads")
-		if err != nil {
-			return err
-		}
-		tokens, err := uint32Checked(node.Shape.Dims[2], "RoPE tokens")
-		if err != nil {
-			return err
-		}
+		attributes := runtimeAttributes.(tensor.RoPEAttributes)
+		count := shapeCount32(node.Shape)
+		width, heads, tokens := uint32(node.Shape.Dims[0]), uint32(node.Shape.Dims[1]), uint32(node.Shape.Dims[2])
 		input := pointers.input(0)
 		var frequencyFactors driver.DevicePtr
 		if len(node.Inputs) == 2 {
@@ -69,26 +52,9 @@ func launchRoPE(
 			&betaFast, &betaSlow, &count,
 		)
 	case tensor.OpRoPEMulti:
-		attributes, ok := runtimeAttributes.(tensor.RoPEMultiAttributes)
-		if !ok {
-			return errors.New("invalid rope_multi attributes")
-		}
-		count, err := elementCount32(node.Shape)
-		if err != nil {
-			return err
-		}
-		width, err := uint32Checked(node.Shape.Dims[0], "RoPE multi width")
-		if err != nil {
-			return err
-		}
-		heads, err := uint32Checked(node.Shape.Dims[1], "RoPE multi heads")
-		if err != nil {
-			return err
-		}
-		tokens, err := uint32Checked(node.Shape.Dims[2], "RoPE multi tokens")
-		if err != nil {
-			return err
-		}
+		attributes := runtimeAttributes.(tensor.RoPEMultiAttributes)
+		count := shapeCount32(node.Shape)
+		width, heads, tokens := uint32(node.Shape.Dims[0]), uint32(node.Shape.Dims[1]), uint32(node.Shape.Dims[2])
 		input := pointers.input(0)
 		positions := pointers.attribute
 		if positions == 0 {

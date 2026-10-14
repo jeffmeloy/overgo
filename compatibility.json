@@ -814,13 +814,13 @@
      "contains": "func Compile(",
      "path": "internal/cuda/executor/executor.go",
      "role": "source",
-     "identity": "file:sha256:cfe12eaed66b28755f86f2b3bc2bf7c9df32c0d693d1a4657992752c43236bba"
+     "identity": "file:sha256:8fe1564200202a533cb992459242e72aa23bdd662e33157eaed26084913ed597"
     },
     {
      "contains": "func TestIndexedGraphOwnsCompilation(",
      "path": "internal/cuda/executor/compile_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:b3b14a335acdd9e562b003bb0f17e41a11fe6cfcbc29eb2dde5fb224bbdab61e"
+     "identity": "evidence:sha256:cb97a545e63de95fe6c9f735dd7412a33f850d839a49c3eb76e3ea6541dbc778"
     }
    ],
    "id": "compiled-cuda-graph",
@@ -841,7 +841,7 @@
      "contains": "func TestOperationCatalogIsDenseAndUnique(",
      "path": "internal/tensor/operation_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:62f5d1071a9ae96a654b22ee82ad59d9f9a2bb6a3e45c4351ef32f7d62506563"
+     "identity": "evidence:sha256:bcdc9c8ec8693a6d95b04721f241eea33012cf62d2ebad70bd56aba0f5dac700"
     }
    ],
    "id": "tensor-operation-catalog",

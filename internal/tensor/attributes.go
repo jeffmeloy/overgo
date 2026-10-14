@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"reflect"
 )
 
 // Attributes: closed operation-attribute contract.
@@ -124,12 +125,16 @@ func RuntimeAttributeWords(node *Tensor, attributes Attributes, destination []ui
 }
 
 // ValidateOperationAttributes checks one operation/descriptor pair.
+//   - a pointer to an attribute type is refused, because each executor asserts an operation's attributes by their value type.
 func ValidateOperationAttributes(op Op, attributes Attributes) error {
 	if _, ok := DescribeOperation(op); !ok {
 		return fmt.Errorf("operation %d is invalid", op)
 	}
 	if attributes == nil {
 		attributes = emptyAttributes{}
+	}
+	if reflect.TypeOf(attributes).Kind() == reflect.Pointer {
+		return fmt.Errorf("%s attributes are the pointer %T, want its value type", op, attributes)
 	}
 	if attributes.validFor(op) {
 		return nil

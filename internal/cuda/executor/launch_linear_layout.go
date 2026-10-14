@@ -28,56 +28,26 @@ func launchLinearLayout(
 	output := pointers.output()
 	switch node.Op {
 	case tensor.OpRepeatHeads:
-		attributes, ok := runtimeAttributes.(tensor.RepeatHeadsAttributes)
-		if !ok || attributes.Heads == 0 || len(node.Inputs) != 1 {
+		heads := runtimeAttributes.(tensor.RepeatHeadsAttributes).Heads
+		if heads == 0 || len(node.Inputs) != 1 {
 			return errors.New("invalid RepeatHeads attributes")
 		}
-		count, err := elementCount32(node.Shape)
-		if err != nil {
-			return err
-		}
-		width, err := uint32Checked(node.Shape.Dims[0], "RepeatHeads width")
-		if err != nil {
-			return err
-		}
-		tokens, err := uint32Checked(node.Shape.Dims[2], "RepeatHeads token count")
-		if err != nil {
-			return err
-		}
+		count := shapeCount32(node.Shape)
+		width, tokens := uint32(node.Shape.Dims[0]), uint32(node.Shape.Dims[2])
 		input := pointers.input(0)
-		heads := attributes.Heads
 		return launch1DABI(
 			state, functions[kernelRepeatHeadsF32], count,
 			&input, &output, &width, &heads, &tokens, &count,
 		)
 	case tensor.OpTranspose2D:
-		count, err := elementCount32(node.Shape)
-		if err != nil {
-			return err
-		}
-		width, err := uint32Checked(node.Inputs[0].Shape.Dims[0], "Transpose2D width")
-		if err != nil {
-			return err
-		}
-		rows, err := uint32Checked(node.Inputs[0].Shape.Dims[1], "Transpose2D rows")
-		if err != nil {
-			return err
-		}
+		count := shapeCount32(node.Shape)
+		width, rows := uint32(node.Inputs[0].Shape.Dims[0]), uint32(node.Inputs[0].Shape.Dims[1])
 		input := pointers.input(0)
 		return launch1DABI(state, functions[kernelTranspose2dF32], count, &input, &output, &width, &rows, &count)
 	case tensor.OpGroupSlice:
-		attributes, ok := runtimeAttributes.(tensor.GroupSliceAttributes)
-		if !ok {
-			return errors.New("invalid GroupSlice attributes")
-		}
-		count, err := elementCount32(node.Shape)
-		if err != nil {
-			return err
-		}
-		inputWidth, err := uint32Checked(node.Inputs[0].Shape.Dims[0], "GroupSlice input width")
-		if err != nil {
-			return err
-		}
+		attributes := runtimeAttributes.(tensor.GroupSliceAttributes)
+		count := shapeCount32(node.Shape)
+		inputWidth := uint32(node.Inputs[0].Shape.Dims[0])
 		offset, err := uint32Checked(attributes.Offset, "GroupSlice offset")
 		if err != nil {
 			return err
@@ -100,78 +70,37 @@ func launchLinearLayout(
 			&input, &output, &inputWidth, &offset, &width, &groups, &stride, &count,
 		)
 	case tensor.OpFlatSlice:
-		attributes, ok := runtimeAttributes.(tensor.FlatSliceAttributes)
-		if !ok {
-			return errors.New("invalid FlatSlice attributes")
-		}
-		count, err := elementCount32(node.Shape)
-		if err != nil {
-			return err
-		}
-		offset, err := uint32Checked(attributes.Offset, "FlatSlice offset")
+		count := shapeCount32(node.Shape)
+		offset, err := uint32Checked(runtimeAttributes.(tensor.FlatSliceAttributes).Offset, "FlatSlice offset")
 		if err != nil {
 			return err
 		}
 		input := pointers.input(0)
 		return launch1DABI(state, functions[kernelFlatSliceF32], count, &input, &output, &offset, &count)
 	case tensor.OpRMSNorm:
-		attributes, ok := runtimeAttributes.(tensor.RMSNormAttributes)
-		if !ok {
-			return errors.New("invalid RMSNorm attributes")
-		}
-		width, rows, err := rowDimensions32(node.Shape)
-		if err != nil {
-			return err
-		}
+		width, rows := rowWords(node.Shape)
 		input := pointers.input(0)
-		epsilon := attributes.Epsilon
+		epsilon := runtimeAttributes.(tensor.RMSNormAttributes).Epsilon
 		return launchNormalizationABI(state, functions[kernelRmsNormF32], rows, &input, &output, &width, &rows, &epsilon)
 	case tensor.OpMADNorm:
-		attributes, ok := runtimeAttributes.(tensor.MADNormAttributes)
-		if !ok {
-			return errors.New("invalid MADNorm attributes")
-		}
-		width, rows, err := rowDimensions32(node.Shape)
-		if err != nil {
-			return err
-		}
+		width, rows := rowWords(node.Shape)
 		input := pointers.input(0)
-		epsilon := attributes.Epsilon
+		epsilon := runtimeAttributes.(tensor.MADNormAttributes).Epsilon
 		return launch1DABI(state, functions[kernelMadNormF32], rows, &input, &output, &width, &rows, &epsilon)
 	case tensor.OpLayerNorm:
-		attributes, ok := runtimeAttributes.(tensor.LayerNormAttributes)
-		if !ok {
-			return errors.New("invalid LayerNorm attributes")
-		}
-		width, rows, err := rowDimensions32(node.Shape)
-		if err != nil {
-			return err
-		}
+		width, rows := rowWords(node.Shape)
 		input := pointers.input(0)
-		epsilon := attributes.Epsilon
+		epsilon := runtimeAttributes.(tensor.LayerNormAttributes).Epsilon
 		return launchNormalizationABI(state, functions[kernelLayerNormF32], rows, &input, &output, &width, &rows, &epsilon)
 	case tensor.OpSoftmax:
-		width, rows, err := rowDimensions32(node.Shape)
-		if err != nil {
-			return err
-		}
+		width, rows := rowWords(node.Shape)
 		input := pointers.input(0)
 		return launch1DABI(state, functions[kernelSoftmaxF32], rows, &input, &output, &width, &rows)
 	case tensor.OpMulMat:
 		leftNode := node.Inputs[0]
 		rightNode := node.Inputs[1]
-		inner, err := uint32Checked(leftNode.Shape.Dims[0], "mul_mat inner dimension")
-		if err != nil {
-			return err
-		}
-		leftRows, err := uint32Checked(leftNode.Shape.Dims[1], "mul_mat left rows")
-		if err != nil {
-			return err
-		}
-		rightRows, err := uint32Checked(rightNode.Shape.Dims[1], "mul_mat right rows")
-		if err != nil {
-			return err
-		}
+		inner, leftRows := uint32(leftNode.Shape.Dims[0]), uint32(leftNode.Shape.Dims[1])
+		rightRows := uint32(rightNode.Shape.Dims[1])
 		left := pointers.input(0)
 		right := pointers.input(1)
 		if leftNode.Type == dtype.F16 || leftNode.Type == dtype.BF16 {
@@ -394,7 +323,7 @@ func launchLinearLayout(
 		) {
 			return nil
 		}
-		err = blas.library.SGEMM(
+		err := blas.library.SGEMM(
 			blas.handle,
 			cublas.OperationTranspose,
 			cublas.OperationNone,
@@ -417,22 +346,9 @@ func launchLinearLayout(
 	case tensor.OpGroupedMulMat:
 		leftNode := node.Inputs[0]
 		rightNode := node.Inputs[1]
-		inner, err := uint32Checked(leftNode.Shape.Dims[0], "grouped_mul_mat inner dimension")
-		if err != nil {
-			return err
-		}
-		leftRows, err := uint32Checked(leftNode.Shape.Dims[1], "grouped_mul_mat left rows")
-		if err != nil {
-			return err
-		}
-		groups, err := uint32Checked(leftNode.Shape.Dims[2], "grouped_mul_mat groups")
-		if err != nil {
-			return err
-		}
-		tokens, err := uint32Checked(rightNode.Shape.Dims[2], "grouped_mul_mat tokens")
-		if err != nil {
-			return err
-		}
+		weightDimensions := shapeDimensions32(leftNode.Shape)
+		inner, leftRows, groups := weightDimensions[0], weightDimensions[1], weightDimensions[2]
+		tokens := uint32(rightNode.Shape.Dims[2])
 		leftMatrixBytes, err := leftNode.Type.StorageBytes(uint64(inner)*uint64(leftRows), uint64(inner))
 		if err != nil {
 			return fmt.Errorf("%s grouped_mul_mat storage: %w", leftNode.Type, err)
@@ -488,24 +404,14 @@ func launchLinearLayout(
 		runtime.KeepAlive(output)
 		return nil
 	case tensor.OpGetRows:
-		attributes, ok := runtimeAttributes.(tensor.GetRowsAttributes)
-		if !ok {
-			return errors.New("invalid get_rows attributes")
-		}
-		count, err := elementCount32(node.Shape)
-		if err != nil {
-			return err
-		}
-		width, err := uint32Checked(node.Shape.Dims[0], "get_rows width")
-		if err != nil {
-			return err
-		}
+		count := shapeCount32(node.Shape)
+		width := uint32(node.Shape.Dims[0])
 		table := pointers.input(0)
 		rows := pointers.attribute
 		if rows == 0 {
 			return errors.New("get_rows row storage is unavailable")
 		}
-		if len(attributes.Rows) == 0 {
+		if len(runtimeAttributes.(tensor.GetRowsAttributes).Rows) == 0 {
 			return errors.New("get_rows row list is empty")
 		}
 		function := functions[kernelGetRowsF32]

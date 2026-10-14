@@ -25,22 +25,9 @@ func launchRecurrentSelection(
 	output := pointers.output()
 	switch node.Op {
 	case tensor.OpSSMConv:
-		count, err := elementCount32(node.Shape)
-		if err != nil {
-			return err
-		}
-		window, err := uint32Checked(node.Inputs[0].Shape.Dims[0], "SSMConv window")
-		if err != nil {
-			return err
-		}
-		channels, err := uint32Checked(node.Shape.Dims[0], "SSMConv channels")
-		if err != nil {
-			return err
-		}
-		tokens, err := uint32Checked(node.Shape.Dims[1], "SSMConv tokens")
-		if err != nil {
-			return err
-		}
+		count := shapeCount32(node.Shape)
+		window := uint32(node.Inputs[0].Shape.Dims[0])
+		channels, tokens := uint32(node.Shape.Dims[0]), uint32(node.Shape.Dims[1])
 		input := pointers.input(0)
 		weights := pointers.input(1)
 		return launch1DABI(
@@ -48,37 +35,14 @@ func launchRecurrentSelection(
 			&input, &weights, &output, &window, &channels, &tokens, &count,
 		)
 	case tensor.OpSSMScan:
-		stateWidth, err := uint32Checked(node.Inputs[0].Shape.Dims[0], "SSMScan state width")
-		if err != nil {
-			return err
-		}
-		dimension, err := uint32Checked(node.Inputs[0].Shape.Dims[1], "SSMScan head width")
-		if err != nil {
-			return err
-		}
-		heads, err := uint32Checked(node.Inputs[0].Shape.Dims[2], "SSMScan heads")
-		if err != nil {
-			return err
-		}
-		tokens, err := uint32Checked(node.Inputs[1].Shape.Dims[2], "SSMScan tokens")
-		if err != nil {
-			return err
-		}
-		sequences, err := uint32Checked(node.Inputs[0].Shape.Dims[3], "SSMScan sequences")
-		if err != nil {
-			return err
-		}
-		groups, err := uint32Checked(node.Inputs[4].Shape.Dims[1], "SSMScan groups")
-		if err != nil {
-			return err
-		}
+		stateDimensions := shapeDimensions32(node.Inputs[0].Shape)
+		stateWidth, dimension, heads, sequences := stateDimensions[0], stateDimensions[1], stateDimensions[2], stateDimensions[3]
+		tokens := uint32(node.Inputs[1].Shape.Dims[2])
+		groups := uint32(node.Inputs[4].Shape.Dims[1])
 		if uint64(heads)*uint64(sequences) > uint64(^uint32(0)) {
 			return errors.New("SSMScan launch count exceeds uint32")
 		}
-		aWidth, err := uint32Checked(node.Inputs[3].Shape.Dims[0], "SSMScan A width")
-		if err != nil {
-			return err
-		}
+		aWidth := uint32(node.Inputs[3].Shape.Dims[0])
 		inputState := pointers.input(0)
 		x := pointers.input(1)
 		dt := pointers.input(2)
@@ -92,34 +56,10 @@ func launchRecurrentSelection(
 		)
 	case tensor.OpGatedDeltaNet:
 		attributes := node.Attrs.(tensor.GatedDeltaNetAttributes)
-		size, err := uint32Checked(node.Inputs[2].Shape.Dims[0], "GatedDeltaNet state width")
-		if err != nil {
-			return err
-		}
-		qHeads, err := uint32Checked(node.Inputs[0].Shape.Dims[1], "GatedDeltaNet Q heads")
-		if err != nil {
-			return err
-		}
-		kHeads, err := uint32Checked(node.Inputs[1].Shape.Dims[1], "GatedDeltaNet K heads")
-		if err != nil {
-			return err
-		}
-		heads, err := uint32Checked(node.Inputs[2].Shape.Dims[1], "GatedDeltaNet value heads")
-		if err != nil {
-			return err
-		}
-		tokens, err := uint32Checked(node.Inputs[2].Shape.Dims[2], "GatedDeltaNet tokens")
-		if err != nil {
-			return err
-		}
-		sequences, err := uint32Checked(node.Inputs[2].Shape.Dims[3], "GatedDeltaNet sequences")
-		if err != nil {
-			return err
-		}
-		gateWidth, err := uint32Checked(node.Inputs[3].Shape.Dims[0], "GatedDeltaNet gate width")
-		if err != nil {
-			return err
-		}
+		valueDimensions := shapeDimensions32(node.Inputs[2].Shape)
+		size, heads, tokens, sequences := valueDimensions[0], valueDimensions[1], valueDimensions[2], valueDimensions[3]
+		qHeads, kHeads := uint32(node.Inputs[0].Shape.Dims[1]), uint32(node.Inputs[1].Shape.Dims[1])
+		gateWidth := uint32(node.Inputs[3].Shape.Dims[0])
 		if uint64(heads)*uint64(sequences) > uint64(^uint32(0)) {
 			return errors.New("GatedDeltaNet launch count exceeds uint32")
 		}
@@ -140,30 +80,9 @@ func launchRecurrentSelection(
 			&size, &qHeads, &kHeads, &heads, &tokens, &sequences, &gateWidth, &repeatInterleave,
 		)
 	case tensor.OpGatedLinearAttention:
-		attributes, ok := node.Attrs.(tensor.GatedLinearAttentionAttributes)
-		if !ok {
-			return errors.New("invalid GatedLinearAttention attributes")
-		}
-		width, err := uint32Checked(node.Inputs[0].Shape.Dims[0], "GatedLinearAttention width")
-		if err != nil {
-			return err
-		}
-		keyHeads, err := uint32Checked(node.Inputs[0].Shape.Dims[1], "GatedLinearAttention key heads")
-		if err != nil {
-			return err
-		}
-		heads, err := uint32Checked(node.Inputs[2].Shape.Dims[1], "GatedLinearAttention heads")
-		if err != nil {
-			return err
-		}
-		tokens, err := uint32Checked(node.Inputs[0].Shape.Dims[2], "GatedLinearAttention tokens")
-		if err != nil {
-			return err
-		}
-		sequences, err := uint32Checked(node.Inputs[0].Shape.Dims[3], "GatedLinearAttention sequences")
-		if err != nil {
-			return err
-		}
+		keyDimensions := shapeDimensions32(node.Inputs[0].Shape)
+		width, keyHeads, tokens, sequences := keyDimensions[0], keyDimensions[1], keyDimensions[2], keyDimensions[3]
+		heads := uint32(node.Inputs[2].Shape.Dims[1])
 		if uint64(heads)*uint64(sequences) > uint64(^uint32(0)) {
 			return errors.New("GatedLinearAttention launch count exceeds uint32")
 		}
@@ -172,17 +91,14 @@ func launchRecurrentSelection(
 		receptance := pointers.input(2)
 		decay := pointers.input(3)
 		inputState := pointers.input(4)
-		scale := attributes.Scale
+		scale := node.Attrs.(tensor.GatedLinearAttentionAttributes).Scale
 		return launch1DABI(
 			state, functions[kernelGatedLinearAttentionF32], heads*sequences,
 			&key, &value, &receptance, &decay, &inputState, &output,
 			&width, &keyHeads, &heads, &tokens, &sequences, &scale,
 		)
 	case tensor.OpWKV6:
-		dimensions, err := shapeDimensions32(node.Inputs[0].Shape)
-		if err != nil {
-			return err
-		}
+		dimensions := shapeDimensions32(node.Inputs[0].Shape)
 		width, heads, tokens, sequences := dimensions[0], dimensions[1], dimensions[2], dimensions[3]
 		if uint64(heads)*uint64(sequences) > uint64(^uint32(0)) {
 			return errors.New("WKV6 launch count exceeds uint32")
@@ -199,10 +115,7 @@ func launchRecurrentSelection(
 			&width, &heads, &tokens, &sequences,
 		)
 	case tensor.OpSumRows:
-		width, err := uint32Checked(node.Inputs[0].Shape.Dims[0], "SumRows width")
-		if err != nil {
-			return err
-		}
+		width := uint32(node.Inputs[0].Shape.Dims[0])
 		elements, err := node.Inputs[0].Shape.Elements()
 		if err != nil || elements/uint64(width) > uint64(^uint32(0)) {
 			return errors.New("SumRows row count exceeds uint32")
@@ -211,21 +124,15 @@ func launchRecurrentSelection(
 		input := pointers.input(0)
 		return launch1DABI(state, functions[kernelSumRowsF32], rows, &input, &output, &width, &rows)
 	case tensor.OpFWHT:
-		width, rows, err := rowDimensions32(node.Inputs[0].Shape)
-		if err != nil {
-			return err
-		}
+		width, rows := rowWords(node.Inputs[0].Shape)
 		input := pointers.input(0)
 		return launch1DABI(state, functions[kernelFwhtF32], rows, &input, &output, &width, &rows)
 	case tensor.OpTopK:
-		attributes, ok := node.Attrs.(tensor.TopKAttributes)
-		if !ok || attributes.K == 0 {
+		attributes := node.Attrs.(tensor.TopKAttributes)
+		if attributes.K == 0 {
 			return errors.New("invalid TopK attributes")
 		}
-		width, rows, err := rowDimensions32(node.Inputs[0].Shape)
-		if err != nil {
-			return err
-		}
+		width, rows := rowWords(node.Inputs[0].Shape)
 		input := pointers.input(0)
 		k := attributes.K
 		if k == 1 {
@@ -238,14 +145,11 @@ func launchRecurrentSelection(
 		}
 		return launch1DABI(state, functions[kernelTopKF32], rows, &input, &output, &width, &k, &rows)
 	case tensor.OpTopKPairs:
-		attributes, ok := node.Attrs.(tensor.TopKAttributes)
-		if !ok || attributes.K == 0 {
+		attributes := node.Attrs.(tensor.TopKAttributes)
+		if attributes.K == 0 {
 			return errors.New("invalid TopKPairs attributes")
 		}
-		chunks, err := uint32Checked(node.Inputs[0].Shape.Dims[2], "TopKPairs chunk count")
-		if err != nil {
-			return err
-		}
+		chunks := uint32(node.Inputs[0].Shape.Dims[2])
 		outputElements, err := node.Shape.Elements()
 		if err != nil || outputElements%(uint64(attributes.K)*topKPairWidth) != 0 {
 			return errors.New("TopKPairs output dimensions are invalid")
@@ -260,16 +164,13 @@ func launchRecurrentSelection(
 			&input, &output, &candidates, &k, &rows,
 		)
 	case tensor.OpTopKPartials:
-		attributes, ok := node.Attrs.(tensor.TopKAttributes)
-		if !ok || attributes.K == 0 || attributes.Chunk == 0 {
+		attributes := node.Attrs.(tensor.TopKAttributes)
+		if attributes.K == 0 || attributes.Chunk == 0 {
 			return errors.New("invalid TopKPartials attributes")
 		}
-		width, rows, err := rowDimensions32(node.Inputs[0].Shape)
-		if err != nil {
-			return err
-		}
-		chunks, err := uint32Checked(node.Shape.Dims[2], "TopKPartials chunk count")
-		if err != nil || uint64(chunks)*uint64(rows) > uint64(^uint32(0)) {
+		width, rows := rowWords(node.Inputs[0].Shape)
+		chunks := uint32(node.Shape.Dims[2])
+		if uint64(chunks)*uint64(rows) > uint64(^uint32(0)) {
 			return errors.New("TopKPartials launch count exceeds uint32")
 		}
 		input := pointers.input(0)
@@ -282,12 +183,7 @@ func launchRecurrentSelection(
 		)
 	case tensor.OpGatherLast:
 		inputNode, indicesNode := node.Inputs[0], node.Inputs[1]
-		inputRows, err := uint32Checked(
-			inputNode.Shape.Dims[inputNode.Shape.Rank-1], "GatherLast input rows",
-		)
-		if err != nil {
-			return err
-		}
+		inputRows := uint32(inputNode.Shape.Dims[inputNode.Shape.Rank-1])
 		inputElements, err := inputNode.Shape.Elements()
 		if err != nil || inputElements%uint64(inputRows) != 0 {
 			return errors.New("GatherLast input dimensions are invalid")
@@ -304,10 +200,7 @@ func launchRecurrentSelection(
 		if err != nil {
 			return err
 		}
-		count, err := elementCount32(node.Shape)
-		if err != nil {
-			return err
-		}
+		count := shapeCount32(node.Shape)
 		input, indices := pointers.input(0), pointers.input(1)
 		function := functions[kernelGatherLastF32]
 		if inputNode.Type == dtype.Q8_0 {
@@ -322,42 +215,12 @@ func launchRecurrentSelection(
 			&input, &indices, &output, &inner, &indexCount, &inputRows, &count,
 		)
 	case tensor.OpSparseAttention:
-		attributes, ok := node.Attrs.(tensor.SparseAttentionAttributes)
-		if !ok {
-			return errors.New("invalid SparseAttention attributes")
-		}
-		keyWidth, err := uint32Checked(node.Inputs[0].Shape.Dims[0], "SparseAttention key width")
-		if err != nil {
-			return err
-		}
-		valueWidth, err := uint32Checked(node.Inputs[2].Shape.Dims[0], "SparseAttention value width")
-		if err != nil {
-			return err
-		}
-		queryHeads, err := uint32Checked(node.Inputs[0].Shape.Dims[1], "SparseAttention query heads")
-		if err != nil {
-			return err
-		}
-		keyValueHeads, err := uint32Checked(node.Inputs[1].Shape.Dims[1], "SparseAttention KV heads")
-		if err != nil {
-			return err
-		}
-		queryTokens, err := uint32Checked(node.Inputs[0].Shape.Dims[2], "SparseAttention query tokens")
-		if err != nil {
-			return err
-		}
-		keyValueTokens, err := uint32Checked(node.Inputs[1].Shape.Dims[2], "SparseAttention KV tokens")
-		if err != nil {
-			return err
-		}
-		selected, err := uint32Checked(node.Inputs[3].Shape.Dims[0], "SparseAttention selected tokens")
-		if err != nil {
-			return err
-		}
-		count, err := elementCount32(node.Shape)
-		if err != nil {
-			return err
-		}
+		attributes := node.Attrs.(tensor.SparseAttentionAttributes)
+		keyWidth, valueWidth := uint32(node.Inputs[0].Shape.Dims[0]), uint32(node.Inputs[2].Shape.Dims[0])
+		queryHeads, keyValueHeads := uint32(node.Inputs[0].Shape.Dims[1]), uint32(node.Inputs[1].Shape.Dims[1])
+		queryTokens, keyValueTokens := uint32(node.Inputs[0].Shape.Dims[2]), uint32(node.Inputs[1].Shape.Dims[2])
+		selected := uint32(node.Inputs[3].Shape.Dims[0])
+		count := shapeCount32(node.Shape)
 		query, key := pointers.input(0), pointers.input(1)
 		value, indices := pointers.input(2), pointers.input(3)
 		scale := attributes.Scale
@@ -370,30 +233,10 @@ func launchRecurrentSelection(
 			&scale, &causal, &queryStart, &count,
 		)
 	case tensor.OpIndexerScore:
-		attributes, ok := node.Attrs.(tensor.IndexerScoreAttributes)
-		if !ok {
-			return errors.New("invalid IndexerScore attributes")
-		}
-		width, err := uint32Checked(node.Inputs[0].Shape.Dims[0], "IndexerScore width")
-		if err != nil {
-			return err
-		}
-		heads, err := uint32Checked(node.Inputs[0].Shape.Dims[1], "IndexerScore heads")
-		if err != nil {
-			return err
-		}
-		queryTokens, err := uint32Checked(node.Inputs[0].Shape.Dims[2], "IndexerScore query tokens")
-		if err != nil {
-			return err
-		}
-		keyTokens, err := uint32Checked(node.Inputs[1].Shape.Dims[2], "IndexerScore key tokens")
-		if err != nil {
-			return err
-		}
-		count, err := elementCount32(node.Shape)
-		if err != nil {
-			return err
-		}
+		attributes := node.Attrs.(tensor.IndexerScoreAttributes)
+		width, heads := uint32(node.Inputs[0].Shape.Dims[0]), uint32(node.Inputs[0].Shape.Dims[1])
+		queryTokens, keyTokens := uint32(node.Inputs[0].Shape.Dims[2]), uint32(node.Inputs[1].Shape.Dims[2])
+		count := shapeCount32(node.Shape)
 		query, key, weights := pointers.input(0), pointers.input(1), pointers.input(2)
 		scale, queryStart := attributes.Scale, attributes.QueryStart
 		return launch1DABI(
@@ -402,10 +245,7 @@ func launchRecurrentSelection(
 			&keyTokens, &scale, &queryStart, &count,
 		)
 	case tensor.OpWKV7:
-		dimensions, err := shapeDimensions32(node.Inputs[0].Shape)
-		if err != nil {
-			return err
-		}
+		dimensions := shapeDimensions32(node.Inputs[0].Shape)
 		width, heads, tokens, sequences := dimensions[0], dimensions[1], dimensions[2], dimensions[3]
 		if uint64(heads)*uint64(sequences) > uint64(^uint32(0)) {
 			return errors.New("WKV7 launch count exceeds uint32")

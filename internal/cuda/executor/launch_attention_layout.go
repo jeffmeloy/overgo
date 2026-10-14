@@ -426,48 +426,18 @@ func launchAttentionLayout(
 	output := pointers.output()
 	switch node.Op {
 	case tensor.OpReshape:
-		count, err := elementCount32(node.Shape)
-		if err != nil {
-			return err
-		}
+		count := shapeCount32(node.Shape)
 		input := pointers.input(0)
 		return launch1DABI(state, functions[kernelCopyF32], count, &input, &output, &count)
 	case tensor.OpAttention:
-		attributes, ok := runtimeAttributes.(tensor.AttentionAttributes)
-		if !ok {
-			return errors.New("invalid attention attributes")
-		}
-		count, err := elementCount32(node.Shape)
-		if err != nil {
-			return err
-		}
+		attributes := runtimeAttributes.(tensor.AttentionAttributes)
+		count := shapeCount32(node.Shape)
 		queryNode := node.Inputs[0]
 		keyNode := node.Inputs[1]
 		valueNode := node.Inputs[2]
-		keyWidth, err := uint32Checked(queryNode.Shape.Dims[0], "attention key width")
-		if err != nil {
-			return err
-		}
-		valueWidth, err := uint32Checked(valueNode.Shape.Dims[0], "attention value width")
-		if err != nil {
-			return err
-		}
-		queryHeads, err := uint32Checked(queryNode.Shape.Dims[1], "attention query heads")
-		if err != nil {
-			return err
-		}
-		keyValueHeads, err := uint32Checked(keyNode.Shape.Dims[1], "attention KV heads")
-		if err != nil {
-			return err
-		}
-		queryTokens, err := uint32Checked(queryNode.Shape.Dims[2], "attention query tokens")
-		if err != nil {
-			return err
-		}
-		keyCapacityTokens, err := uint32Checked(keyNode.Shape.Dims[2], "attention KV capacity")
-		if err != nil {
-			return err
-		}
+		keyWidth, valueWidth := uint32(queryNode.Shape.Dims[0]), uint32(valueNode.Shape.Dims[0])
+		queryHeads, keyValueHeads := uint32(queryNode.Shape.Dims[1]), uint32(keyNode.Shape.Dims[1])
+		queryTokens, keyCapacityTokens := uint32(queryNode.Shape.Dims[2]), uint32(keyNode.Shape.Dims[2])
 		keyValueTokens := keyCapacityTokens
 		if attributes.KeyValueTokens != 0 {
 			keyValueTokens = attributes.KeyValueTokens
@@ -477,10 +447,7 @@ func launchAttentionLayout(
 		}
 		sequences := uint32(1)
 		if queryNode.Shape.Rank == 4 {
-			sequences, err = uint32Checked(queryNode.Shape.Dims[3], "attention sequences")
-			if err != nil {
-				return err
-			}
+			sequences = uint32(queryNode.Shape.Dims[3])
 		}
 		if sequences > 1 && keyValueTokens != keyCapacityTokens {
 			return errors.New("parameterized attention capacity requires one sequence")
@@ -668,25 +635,19 @@ func launchAttentionLayout(
 			&relativeBuckets, &relativeBidirectional, &count,
 		)
 	case tensor.OpConcat:
-		attributes, ok := runtimeAttributes.(tensor.ConcatAttributes)
-		if !ok || attributes.Axis >= uint32(node.Shape.Rank) {
+		axis := runtimeAttributes.(tensor.ConcatAttributes).Axis
+		if axis >= uint32(node.Shape.Rank) {
 			return errors.New("invalid concat attributes")
 		}
-		count, err := elementCount32(node.Shape)
-		if err != nil {
-			return err
-		}
+		count := shapeCount32(node.Shape)
 		left := pointers.input(0)
 		right := pointers.input(1)
-		if output == left && attributes.Axis+1 == uint32(node.Shape.Rank) {
+		if output == left && axis+1 == uint32(node.Shape.Rank) {
 			leftBytes, sizeErr := node.Inputs[0].Shape.Bytes(dtype.F32)
 			if sizeErr != nil || uint64(output) > math.MaxUint64-leftBytes {
 				return errors.New("concat append offset overflows")
 			}
-			rightCount, countErr := elementCount32(node.Inputs[1].Shape)
-			if countErr != nil {
-				return countErr
-			}
+			rightCount := shapeCount32(node.Inputs[1].Shape)
 			destination := output + driver.DevicePtr(leftBytes)
 			return launch1DABI(
 				state, functions[kernelCopyF32], rightCount,
@@ -694,45 +655,27 @@ func launchAttentionLayout(
 			)
 		}
 		var inner uint64 = 1
-		for dimension := uint32(0); dimension < attributes.Axis; dimension++ {
+		for dimension := uint32(0); dimension < axis; dimension++ {
 			inner *= node.Shape.Dims[dimension]
 		}
 		innerSize, err := uint32Checked(inner, "concat inner size")
 		if err != nil {
 			return err
 		}
-		leftAxis, err := uint32Checked(node.Inputs[0].Shape.Dims[attributes.Axis], "concat left axis")
-		if err != nil {
-			return err
-		}
-		rightAxis, err := uint32Checked(node.Inputs[1].Shape.Dims[attributes.Axis], "concat right axis")
-		if err != nil {
-			return err
-		}
-		axis := attributes.Axis
+		leftAxis, rightAxis := uint32(node.Inputs[0].Shape.Dims[axis]), uint32(node.Inputs[1].Shape.Dims[axis])
 		return launch1DABI(
 			state, functions[kernelConcatF32], count,
 			&left, &right, &output, &innerSize, &leftAxis, &rightAxis, &axis, &count,
 		)
 	case tensor.OpCacheAppend:
-		attributes, ok := runtimeAttributes.(tensor.CacheAppendAttributes)
-		if !ok || attributes.Axis+1 != uint32(node.Shape.Rank) {
+		attributes := runtimeAttributes.(tensor.CacheAppendAttributes)
+		if attributes.Axis+1 != uint32(node.Shape.Rank) {
 			return errors.New("invalid cache append attributes")
 		}
 		left := pointers.input(0)
 		right := pointers.input(1)
-		leftCount, err := elementCount32(node.Inputs[0].Shape)
-		if err != nil {
-			return err
-		}
-		rightCount, err := elementCount32(node.Inputs[1].Shape)
-		if err != nil {
-			return err
-		}
-		outputCount, err := elementCount32(node.Shape)
-		if err != nil {
-			return err
-		}
+		leftCount, rightCount := shapeCount32(node.Inputs[0].Shape), shapeCount32(node.Inputs[1].Shape)
+		outputCount := shapeCount32(node.Shape)
 		if output != left {
 			if err := launch1DABI(
 				state, functions[kernelCopyF32], leftCount, &left, &output, &leftCount,

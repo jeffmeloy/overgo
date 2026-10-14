@@ -46,6 +46,21 @@ func TestRoPEMultiNativePairing(t *testing.T) {
 	}
 }
 
+// TestExecuteOperationRefusesInvalidAttributes holds the one-node bridge to the attribute contract a compiled graph holds.
+//   - another operation's attributes and a pointer to the operation's own are refused before any arithmetic reads them
+func TestExecuteOperationRefusesInvalidAttributes(t *testing.T) {
+	t.Parallel()
+	const fixtureWidth = 4
+	shape := tensor.MustShape(fixtureWidth)
+	input := Value{Shape: shape, Data: make([]float32, fixtureWidth)}
+	for _, attributes := range []tensor.Attributes{tensor.ClampAttributes{}, &tensor.ScaleAttributes{}} {
+		node := &tensor.Tensor{Type: dtype.F32, Shape: shape, Op: tensor.OpScale, Attrs: attributes}
+		if _, err := ExecuteOperation(node, []Value{input}); err == nil {
+			t.Errorf("scale with attributes %T executed, want a refusal", attributes)
+		}
+	}
+}
+
 func TestBorrowedValueValidatesShapeWithoutCopy(t *testing.T) {
 	shape := tensor.MustShape(2)
 	data := []float32{1, 2}

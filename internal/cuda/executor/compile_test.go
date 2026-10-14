@@ -43,6 +43,73 @@ func TestIndexedGraphOwnsCompilation(t *testing.T) {
 	}
 }
 
+// TestCompileHoldsLaunchWords holds a compiled graph's launches to the 32-bit words their kernels take, with shapes alone and no device.
+//   - refused = a dimension or a counted element total past a kernel word, and a dimension past a signed word on an operation cuBLAS may take, each naming its operation
+//   - compiled = a dimension past a signed word on an operation cuBLAS never takes, a mul_mat output past a kernel word, which its launch never counts, and a view past it that is no graph output and so never launches
+func TestCompileHoldsLaunchWords(t *testing.T) {
+	t.Parallel()
+	const (
+		wordPast    = uint64(1) << 32
+		signedPast  = uint64(1) << 31
+		wideRows    = uint64(1) << 17
+		wideColumns = uint64(1) << 16
+		inner       = 2
+	)
+	wide := tensor.MustShape(wideRows, wideColumns)
+	// Each case's refusal is the operation the error opens on and what it says of the shape, and none means the graph compiles.
+	for _, test := range []struct {
+		name    string
+		output  func(*tensor.Builder) *tensor.Tensor
+		refusal []string
+	}{
+		{"a dimension past a word", func(b *tensor.Builder) *tensor.Tensor {
+			input := b.Input("input", dtype.F32, tensor.MustShape(wordPast))
+			return b.Add(input, input)
+		}, []string{"CUDA add (tensor ", "output dimension 0 is 4294967296, past the 4294967295"}},
+		{"a count past a word", func(b *tensor.Builder) *tensor.Tensor {
+			return b.Scale(b.Input("input", dtype.F32, wide), 1)
+		}, []string{"CUDA scale (tensor ", "counts 8589934592 elements, past the 4294967295"}},
+		{"an output view past a word", func(b *tensor.Builder) *tensor.Tensor {
+			return b.Reshape(b.Input("input", dtype.F32, wide), wideColumns, wideRows)
+		}, []string{"CUDA reshape (tensor ", "counts 8589934592 elements, past the 4294967295"}},
+		{"a cuBLAS dimension past a signed word", func(b *tensor.Builder) *tensor.Tensor {
+			shape := tensor.MustShape(signedPast, 1)
+			return b.MulMat(b.Input("weight", dtype.F32, shape), b.Input("input", dtype.F32, shape))
+		}, []string{"CUDA mul_mat (tensor ", "input 0 dimension 0 is 2147483648, past the 2147483647"}},
+		{"an elementwise dimension past a signed word", func(b *tensor.Builder) *tensor.Tensor {
+			input := b.Input("input", dtype.F32, tensor.MustShape(signedPast))
+			return b.Add(input, input)
+		}, nil},
+		{"a mul_mat output past a word", func(b *tensor.Builder) *tensor.Tensor {
+			weight := b.Input("weight", dtype.F32, tensor.MustShape(inner, wideRows))
+			return b.MulMat(weight, b.Input("input", dtype.F32, tensor.MustShape(inner, wideColumns)))
+		}, nil},
+		{"a view past a word that is no output", func(b *tensor.Builder) *tensor.Tensor {
+			view := b.Reshape(b.Input("input", dtype.F32, wide), wideColumns, wideRows)
+			return b.MulMat(b.Input("weight", dtype.F32, tensor.MustShape(wideColumns, 1)), view)
+		}, nil},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			builder := tensor.NewBuilder()
+			output := test.output(builder)
+			if err := builder.Err(); err != nil {
+				t.Fatal(err)
+			}
+			_, err := Compile(output)
+			if test.refusal == nil {
+				if err != nil {
+					t.Fatalf("compile refused %s: %v", output.Op, err)
+				}
+				return
+			}
+			if err == nil || !strings.HasPrefix(err.Error(), test.refusal[0]) || !strings.Contains(err.Error(), test.refusal[1]) {
+				t.Fatalf("compile of %s = %v, want a refusal opening %q and holding %q", output.Op, err, test.refusal[0], test.refusal[1])
+			}
+		})
+	}
+}
+
 func TestCUDAOperationProgramsCoverRegistry(t *testing.T) {
 	for operation := tensor.OpInput + 1; ; operation++ {
 		descriptor, ok := tensor.DescribeOperation(operation)

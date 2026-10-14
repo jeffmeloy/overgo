@@ -23,44 +23,24 @@ func launchMathVision(
 	output := pointers.output()
 	switch node.Op {
 	case tensor.OpLoRAMerge:
-		attributes, ok := node.Attrs.(tensor.LoRAMergeAttributes)
-		if !ok || len(node.Inputs) != 3 {
-			return errors.New("invalid LoRA merge attributes")
+		if len(node.Inputs) != 3 {
+			return fmt.Errorf("LoRA merge has %d inputs, want 3", len(node.Inputs))
 		}
-		count, err := elementCount32(node.Shape)
-		if err != nil {
-			return err
-		}
-		inner, err := uint32Checked(node.Shape.Dims[0], "LoRA merge inner width")
-		if err != nil {
-			return err
-		}
-		rows, err := uint32Checked(node.Shape.Dims[1], "LoRA merge row count")
-		if err != nil {
-			return err
-		}
-		rank, err := uint32Checked(node.Inputs[1].Shape.Dims[1], "LoRA merge rank")
-		if err != nil {
-			return err
-		}
+		count := shapeCount32(node.Shape)
+		inner, rows := uint32(node.Shape.Dims[0]), uint32(node.Shape.Dims[1])
+		rank := uint32(node.Inputs[1].Shape.Dims[1])
 		groups := uint32(1)
 		if node.Shape.Rank == 3 {
-			groups, err = uint32Checked(node.Shape.Dims[2], "LoRA merge group count")
-			if err != nil {
-				return err
-			}
+			groups = uint32(node.Shape.Dims[2])
 		}
 		base, a, b := pointers.input(0), pointers.input(1), pointers.input(2)
-		scale := attributes.Scale
+		scale := node.Attrs.(tensor.LoRAMergeAttributes).Scale
 		return launch1DABI(
 			state, functions[kernelLoraMergeF32], count,
 			&base, &a, &b, &output, &inner, &rows, &rank, &groups, &scale, &count,
 		)
 	case tensor.OpAdd, tensor.OpMultiply, tensor.OpDivide:
-		count, err := elementCount32(node.Shape)
-		if err != nil {
-			return err
-		}
+		count := shapeCount32(node.Shape)
 		left := pointers.input(0)
 		right := pointers.input(1)
 		if node.Inputs[0].Shape.Equal(node.Shape) && node.Inputs[1].Shape.Equal(node.Shape) {
@@ -72,18 +52,9 @@ func launchMathVision(
 			}
 			return launch1DABI(state, function, count, &left, &right, &output, &count)
 		}
-		leftDimensions, err := shapeDimensions32(node.Inputs[0].Shape)
-		if err != nil {
-			return err
-		}
-		rightDimensions, err := shapeDimensions32(node.Inputs[1].Shape)
-		if err != nil {
-			return err
-		}
-		outputDimensions, err := shapeDimensions32(node.Shape)
-		if err != nil {
-			return err
-		}
+		leftDimensions := shapeDimensions32(node.Inputs[0].Shape)
+		rightDimensions := shapeDimensions32(node.Inputs[1].Shape)
+		outputDimensions := shapeDimensions32(node.Shape)
 		function := functions[kernelBroadcastAddF32]
 		if node.Op == tensor.OpMultiply {
 			function = functions[kernelBroadcastMultiplyF32]
@@ -97,43 +68,24 @@ func launchMathVision(
 			&outputDimensions[0], &outputDimensions[1], &outputDimensions[2],
 		)
 	case tensor.OpScale:
-		count, err := elementCount32(node.Shape)
-		if err != nil {
-			return err
-		}
-		attributes, ok := node.Attrs.(tensor.ScaleAttributes)
-		if !ok {
-			return errors.New("invalid scale attributes")
-		}
+		count := shapeCount32(node.Shape)
 		input := pointers.input(0)
-		scale := attributes.Value
+		scale := node.Attrs.(tensor.ScaleAttributes).Value
 		return launch1DABI(state, functions[kernelScaleF32], count, &input, &output, &scale, &count)
 	case tensor.OpClamp:
-		count, err := elementCount32(node.Shape)
-		if err != nil {
-			return err
-		}
-		attributes, ok := node.Attrs.(tensor.ClampAttributes)
-		if !ok {
-			return errors.New("invalid clamp attributes")
-		}
+		count := shapeCount32(node.Shape)
+		attributes := node.Attrs.(tensor.ClampAttributes)
 		input := pointers.input(0)
 		minimum, maximum := attributes.Minimum, attributes.Maximum
 		return launch1DABI(
 			state, functions[kernelClampF32], count, &input, &output, &minimum, &maximum, &count,
 		)
 	case tensor.OpBF16Round:
-		count, err := elementCount32(node.Shape)
-		if err != nil {
-			return err
-		}
+		count := shapeCount32(node.Shape)
 		input := pointers.input(0)
 		return launch1DABI(state, functions[kernelBf16RoundF32], count, &input, &output, &count)
 	case tensor.OpSiLU, tensor.OpGELU, tensor.OpGELUErf, tensor.OpReLU, tensor.OpReLUSquared, tensor.OpSigmoid, tensor.OpSoftplus, tensor.OpTanh, tensor.OpAtan, tensor.OpExp:
-		count, err := elementCount32(node.Shape)
-		if err != nil {
-			return err
-		}
+		count := shapeCount32(node.Shape)
 		input := pointers.input(0)
 		function := functions[kernelSiluF32]
 		if node.Op == tensor.OpGELU {
@@ -157,14 +109,8 @@ func launchMathVision(
 		}
 		return launch1DABI(state, function, count, &input, &output, &count)
 	case tensor.OpXIELU:
-		count, err := elementCount32(node.Shape)
-		if err != nil {
-			return err
-		}
-		attributes, ok := node.Attrs.(tensor.XIELUAttributes)
-		if !ok {
-			return errors.New("invalid xIELU attributes")
-		}
+		count := shapeCount32(node.Shape)
+		attributes := node.Attrs.(tensor.XIELUAttributes)
 		input := pointers.input(0)
 		alphaN := attributes.AlphaN
 		alphaP := attributes.AlphaP
@@ -175,34 +121,21 @@ func launchMathVision(
 			&input, &output, &alphaN, &alphaP, &beta, &epsilon, &count,
 		)
 	case tensor.OpConv1DSame:
-		attributes, ok := node.Attrs.(tensor.Conv1DAttributes)
-		if !ok {
-			return errors.New("invalid same Conv1D attributes")
-		}
-		count, err := elementCount32(node.Shape)
-		if err != nil {
-			return err
-		}
+		count := shapeCount32(node.Shape)
 		input, weight, bias := pointers.input(0), pointers.input(1), pointers.input(2)
 		channelsIn := uint32(node.Inputs[0].Shape.Dims[0])
 		tokens := uint32(node.Inputs[0].Shape.Dims[1])
 		kernelWidth := uint32(node.Inputs[1].Shape.Dims[0])
 		channelsOut := uint32(node.Shape.Dims[0])
-		depthwise := kernelBool(attributes.Depthwise)
+		depthwise := kernelBool(node.Attrs.(tensor.Conv1DAttributes).Depthwise)
 		return launch1DABI(
 			state, functions[kernelConv1dSameF32], count,
 			&input, &weight, &bias, &output, &channelsIn, &tokens, &kernelWidth,
 			&channelsOut, &depthwise, &count,
 		)
 	case tensor.OpConv2D:
-		attributes, ok := node.Attrs.(tensor.Conv2DAttributes)
-		if !ok {
-			return errors.New("invalid Conv2D attributes")
-		}
-		count, err := elementCount32(node.Shape)
-		if err != nil {
-			return err
-		}
+		attributes := node.Attrs.(tensor.Conv2DAttributes)
+		count := shapeCount32(node.Shape)
 		input, weight := pointers.input(0), pointers.input(1)
 		bias := input
 		if attributes.HasBias {
@@ -236,14 +169,8 @@ func launchMathVision(
 			&strideX, &strideY, &padLeft, &padTop, &depthwise, &hasBias, &count,
 		)
 	case tensor.OpWindowPartition2D, tensor.OpWindowUnpartition2D:
-		attributes, ok := node.Attrs.(tensor.Window2DAttributes)
-		if !ok {
-			return errors.New("invalid window 2D attributes")
-		}
-		count, err := elementCount32(node.Shape)
-		if err != nil {
-			return err
-		}
+		attributes := node.Attrs.(tensor.Window2DAttributes)
+		count := shapeCount32(node.Shape)
 		input := pointers.input(0)
 		channels := uint32(node.Shape.Dims[0])
 		width, height, window := attributes.Width, attributes.Height, attributes.Window
@@ -255,31 +182,18 @@ func launchMathVision(
 			state, function, count, &input, &output, &channels, &width, &height, &window, &count,
 		)
 	case tensor.OpPixelShuffle2D:
-		attributes, ok := node.Attrs.(tensor.PixelShuffle2DAttributes)
-		if !ok {
-			return errors.New("invalid pixel shuffle 2D attributes")
-		}
-		count, err := elementCount32(node.Shape)
-		if err != nil {
-			return err
-		}
+		count := shapeCount32(node.Shape)
 		input := pointers.input(0)
 		channels := uint32(node.Shape.Dims[0])
 		inputW, inputH := uint32(node.Inputs[0].Shape.Dims[1]), uint32(node.Inputs[0].Shape.Dims[2])
-		scale := attributes.Scale
+		scale := node.Attrs.(tensor.PixelShuffle2DAttributes).Scale
 		return launch1DABI(
 			state, functions[kernelPixelShuffle2dF32], count,
 			&input, &output, &channels, &inputW, &inputH, &scale, &count,
 		)
 	case tensor.OpSAMAttention:
-		attributes, ok := node.Attrs.(tensor.SAMAttentionAttributes)
-		if !ok {
-			return errors.New("invalid SAM attention attributes")
-		}
-		count, err := elementCount32(node.Shape)
-		if err != nil {
-			return err
-		}
+		attributes := node.Attrs.(tensor.SAMAttentionAttributes)
+		count := shapeCount32(node.Shape)
 		query, key, value := pointers.input(0), pointers.input(1), pointers.input(2)
 		relativeW, relativeH := pointers.input(3), pointers.input(4)
 		keyWidth := uint32(node.Inputs[0].Shape.Dims[0])
@@ -299,14 +213,8 @@ func launchMathVision(
 			&spatialSize, &relativeWLength, &relativeHLength, &scale, &relativeScale, &count,
 		)
 	case tensor.OpGroupNorm:
-		attributes, ok := node.Attrs.(tensor.GroupNormAttributes)
-		if !ok {
-			return errors.New("invalid group norm attributes")
-		}
-		count, err := elementCount32(node.Shape)
-		if err != nil {
-			return err
-		}
+		attributes := node.Attrs.(tensor.GroupNormAttributes)
+		count := shapeCount32(node.Shape)
 		input, weight, bias := pointers.input(0), pointers.input(1), pointers.input(2)
 		channels := uint32(node.Shape.Dims[0])
 		tokens := uint32(node.Shape.Dims[1])
@@ -317,16 +225,9 @@ func launchMathVision(
 			&input, &weight, &bias, &output, &channels, &tokens, &groups, &epsilon, &count,
 		)
 	case tensor.OpL2Norm:
-		attributes, ok := node.Attrs.(tensor.L2NormAttributes)
-		if !ok {
-			return errors.New("invalid L2Norm attributes")
-		}
-		width, rows, err := rowDimensions32(node.Shape)
-		if err != nil {
-			return err
-		}
+		width, rows := rowWords(node.Shape)
 		input := pointers.input(0)
-		epsilon := attributes.Epsilon
+		epsilon := node.Attrs.(tensor.L2NormAttributes).Epsilon
 		return launchNormalizationABI(state, functions[kernelL2NormF32], rows, &input, &output, &width, &rows, &epsilon)
 	default:
 		return fmt.Errorf("unsupported CUDA operation %s", node.Op)
@@ -343,7 +244,7 @@ func launchBlasConv2D(
 ) error {
 	inner64 := uint64(channelsIn) * uint64(kernelW) * uint64(kernelH)
 	positions64 := uint64(outputW) * uint64(outputH)
-	if inner64 == 0 || positions64 == 0 || inner64 > math.MaxUint32 || positions64 > math.MaxUint32 {
+	if inner64 == 0 || positions64 == 0 || inner64 > cublasDimensionLimit || positions64 > cublasDimensionLimit {
 		return errors.New("Conv2D cuBLAS geometry overflows")
 	}
 	capacity := blas.stagingBytes / (inner64 * 4)

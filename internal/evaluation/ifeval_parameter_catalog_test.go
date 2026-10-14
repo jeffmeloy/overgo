@@ -1,6 +1,7 @@
 package evaluation
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -12,7 +13,97 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
+	"overgo/internal/strictjson"
 )
+
+// TestIFEvalProfileIsPublishedFromItsFile holds the catalog's IFEval parameter profile to the identity the live suite binds.
+//   - the file publishes into an empty store as profile ifevalParameterFileProfile and the reference it names, byte for byte
+//   - a catalog whose IFEval import is another dataset binds no profile and writes none
+//   - a changed profile or a changed reference is refused
+func TestIFEvalProfileIsPublishedFromItsFile(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	open := func() *overgodb.Store {
+		t.Helper()
+		store, err := overgodb.Open(filepath.Join(t.TempDir(), "store"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { store.Close() })
+		return store
+	}
+	var records ifevalParameterRecords
+	var profile ifevalParameters
+	if err := strictjson.DecodeBytes(ifevalParameterFile, &records); err != nil {
+		t.Fatal(err)
+	}
+	if err := strictjson.DecodeBytes(records.Profile, &profile); err != nil {
+		t.Fatal(err)
+	}
+	store := open()
+	bound := dataset.BenchmarkImport{ID: profile.Dataset}
+	id, err := publishIFEvalParameterFile(ctx, store, ifevalParameterFile, bound, artifact.ID{})
+	if err != nil || id.String() != ifevalParameterFileProfile {
+		t.Fatalf("published profile = %s, %v, want %s", id, err, ifevalParameterFileProfile)
+	}
+	for _, record := range []struct {
+		id       artifact.ID
+		contract artifact.DocumentContract
+		data     []byte
+	}{{id, ifevalParameterContract, records.Profile}, {profile.Reference, ifevalReferenceContract, records.Reference}} {
+		content, err := artifact.RequireTypedContent(ctx, store, record.id)
+		if err != nil || record.contract.ValidateContent(content, record.id) != nil || !bytes.Equal(content.Data, record.data) {
+			t.Fatalf("record %s read back differs from the file: %v", record.id, err)
+		}
+	}
+	if again, err := publishIFEvalParameterFile(ctx, store, ifevalParameterFile, bound, id); err != nil || again != id {
+		t.Fatalf("republished profile = %s, %v, want %s", again, err, id)
+	}
+	other, _ := artifact.JSONID(artifact.KindProfile, "another profile")
+	if kept, err := publishIFEvalParameterFile(ctx, open(), ifevalParameterFile, bound, other); err != nil || kept != other {
+		t.Fatalf("declared profile = %s, %v, want %s", kept, err, other)
+	}
+
+	root := t.TempDir()
+	raw := []byte(`{"prompt":"Count letters.","instruction_id_list":["keywords:letter_frequency"],"kwargs":[{"letter":"a","let_frequency":2,"let_relation":"at least"}]}` + "\n")
+	if err := os.WriteFile(filepath.Join(root, "source.jsonl"), raw, 0600); err != nil {
+		t.Fatal(err)
+	}
+	digest := sha256.Sum256(raw)
+	spec := dataset.BenchmarkImportSpec{Source: "parameter-file-fixture", Revision: "v1", SHA256: hex.EncodeToString(digest[:]), Split: "train", Format: dataset.BenchmarkFormatJSONL, Conversion: "lm-eval/ifeval/v1", Fields: []dataset.FieldBinding{{Source: "prompt", Target: "prompt"}, {Source: "instruction_id_list", Target: "instruction_id_list"}, {Source: "kwargs", Target: "kwargs"}}}
+	manifest, err := json.Marshal(benchmarkManifest{Datasets: []benchmarkDeclaration{{Name: "ifeval/default/train", Path: "source.jsonl", Spec: spec}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "manifest.json"), manifest, 0600); err != nil {
+		t.Fatal(err)
+	}
+	fixture := open()
+	catalogID, err := CatalogLocalBenchmarks(ctx, fixture, filepath.Join(root, "manifest.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog, found, err := benchmarkCatalogCodec.Read(ctx, fixture, catalogID)
+	if err != nil || !found || len(catalog.Entries) != 1 || catalog.Entries[0].Parameters.Kind() != artifact.KindInvalid {
+		t.Fatalf("a catalog of another IFEval dataset bound parameters: %+v %v", catalog.Entries, err)
+	}
+	if _, found, err := artifact.ReadContent(ctx, fixture, id); err != nil || found {
+		t.Fatalf("a catalog of another IFEval dataset wrote the profile: %v", err)
+	}
+
+	for _, change := range []struct{ old, new string }{
+		{`"letter":"y"`, `"letter":"z"`},
+		{`"prompts":541`, `"prompts":542`},
+	} {
+		if bytes.Count(ifevalParameterFile, []byte(change.old)) != 1 {
+			t.Fatalf("the file holds %q other than once", change.old)
+		}
+		changed := bytes.Replace(ifevalParameterFile, []byte(change.old), []byte(change.new), 1)
+		if _, err := publishIFEvalParameterFile(ctx, open(), changed, bound, artifact.ID{}); err == nil {
+			t.Fatalf("a file with %s in place of %s was published", change.new, change.old)
+		}
+	}
+}
 
 type interleavedCatalogRepository struct {
 	artifact.Repository

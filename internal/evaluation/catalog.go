@@ -125,6 +125,10 @@ func catalogBenchmarkDeclarations(
 		if prior, present := standing[name]; present && prior.Dataset == imported.ID && parameters.Kind() == artifact.KindInvalid {
 			parameters = prior.Parameters
 		}
+		parameters, err = publishIFEvalParameterFile(ctx, repository, ifevalParameterFile, imported, parameters)
+		if err != nil {
+			return artifact.ID{}, err
+		}
 		if parameters.Kind() != artifact.KindInvalid {
 			if _, err := readIFEvalParameters(ctx, repository, imported, parameters); err != nil {
 				return artifact.ID{}, err

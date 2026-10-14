@@ -2,8 +2,10 @@ package evaluation
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 
 	"overgo/internal/artifact"
@@ -13,6 +15,25 @@ import (
 
 var ifevalParameterContract = artifact.DocumentContract{
 	Kind: artifact.KindProfile, MediaType: "application/json", Schema: "overgo/ifeval-parameters/v1",
+}
+
+var ifevalReferenceContract = artifact.DocumentContract{
+	Kind: artifact.KindEvidence, MediaType: "application/json", Schema: "overgo/ifeval-resolved-reference/v1",
+}
+
+//go:embed testdata/ifeval_parameters.json
+var ifevalParameterFile []byte
+
+// ifevalParameterFileProfile is the identity of the profile ifevalParameterFile holds.
+//   - source = the profile the store's active catalog binds to ifeval/default/train
+//   - scope = the native operands of the IFEval letter-frequency instructions in that one import
+//   - reconsider <=> the native operands are captured again
+const ifevalParameterFileProfile = "profile:sha256:78fff5aa9eb2bc5015aadba767afe49003cb813117422ecfbfa4fb65a19b8a4f"
+
+// ifevalParameterRecords holds a parameter profile and the reference it names, each as its stored bytes.
+type ifevalParameterRecords struct {
+	Profile   json.RawMessage `json:"profile"`
+	Reference json.RawMessage `json:"reference"`
 }
 
 // Parameters bind native constructor results to existing immutable records.
@@ -28,6 +49,49 @@ type ifevalParameterBinding struct {
 	Instruction string                     `json:"instruction"`
 	Strict      map[string]json.RawMessage `json:"strict"`
 	Loose       map[string]json.RawMessage `json:"loose"`
+}
+
+// publishIFEvalParameterFile publishes the file's profile and its reference for the import of the dataset the profile names, and returns the parameters the catalog binds.
+//   - imported is another dataset, or declared names another profile => declared returns and nothing is written
+//   - the file's profile != ifevalParameterFileProfile => refused, because the live suite binds that identity
+//   - the file's reference != the reference the profile names => refused
+func publishIFEvalParameterFile(ctx context.Context, repository artifact.Repository, file []byte, imported dataset.BenchmarkImport, declared artifact.ID) (artifact.ID, error) {
+	var records ifevalParameterRecords
+	if err := strictjson.DecodeBytes(file, &records); err != nil {
+		return artifact.ID{}, err
+	}
+	profile, err := ifevalParameterContract.ContentBytes(records.Profile)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	if profile.Descriptor.ID.String() != ifevalParameterFileProfile {
+		return artifact.ID{}, fmt.Errorf("evaluation: IFEval parameter file holds profile %s, want %s", profile.Descriptor.ID, ifevalParameterFileProfile)
+	}
+	var parameters ifevalParameters
+	if err := strictjson.DecodeBytes(profile.Data, &parameters); err != nil {
+		return artifact.ID{}, err
+	}
+	if parameters.Dataset != imported.ID || (declared.Kind() != artifact.KindInvalid && declared != profile.Descriptor.ID) {
+		return declared, nil
+	}
+	reference, err := ifevalReferenceContract.ContentBytes(records.Reference)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	if reference.Descriptor.ID != parameters.Reference {
+		return artifact.ID{}, fmt.Errorf("evaluation: IFEval parameter file holds reference %s, want %s the profile names", reference.Descriptor.ID, parameters.Reference)
+	}
+	batch, err := artifact.NewDocumentBatch(
+		"evaluation/ifeval-parameters/"+profile.Descriptor.ID.String(), []artifact.Content{reference, profile},
+		artifact.DependencyLineage(profile.Descriptor.ID, reference.Descriptor.ID), nil,
+	)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	if _, err := artifact.Publish(ctx, repository, batch); err != nil {
+		return artifact.ID{}, err
+	}
+	return profile.Descriptor.ID, nil
 }
 
 func readIFEvalParameters(ctx context.Context, reader artifact.Reader, imported dataset.BenchmarkImport, id artifact.ID) (map[artifact.ID]map[string]ifevalParameterBinding, error) {

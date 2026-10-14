@@ -197,15 +197,6 @@ members: internal/hybridtrain/artifact.go
 reason: It is the trainer of the Qwen3.5 hybrid family that runs the layer forward and backward on the device, and no route of cmd/train serves it, because the two live lanes run that math on the host (internal/hostmath/hybrid_stack.go:10) and only Muon on the device.
 reason: No live function of internal/devicemath does this math, and the claim qwen35-real-recurrent-layer-training is held through it by TestQwen35RealTraining.
 
-group ifeval-parameters-record
-class: wire
-surface: outside
-declarations: 0
-lines: 0
-schemas: internal/evaluation/ifeval_parameters.go overgo/ifeval-parameters/v1
-reason: The live IFEval suite reads this profile from the store (internal/evaluation/catalog.go:129, internal/evaluation/store_suites.go:206), and nothing in the tree writes it, because d1c353d01 bound the stored one once.
-reason: Step consumer-checks/wire-ifeval-profile is the route, which keeps the profile in a file the benchmark manifest names and publishes it with the catalog, so that a rebuilt store holds it.
-
 group inference-draft-coordinator
 class: prototype
 surface: inside

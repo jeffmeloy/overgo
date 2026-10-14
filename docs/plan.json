@@ -67,7 +67,7 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 33151,
+        "nodes": 32772,
         "reason": ""
       },
       "steps": [
@@ -91,13 +91,6 @@
           "status": "open",
           "verify": "go test ./internal/agenttool -count=1 -run '^TestHTTPJSONStreamManualInvokesCollected$'",
           "rationale": "From the reading of step wire-unreached. A tool manual of the streaming HTTP transport registers, and every call to it is refused (internal/agenttool/transport.go:84), because the coordinator invokes a tool in one call and never opens the stream (internal/agenttool/stream.go:121). Peer manuals declare this transport too (internal/agenttool/peer_manual.go:25). The step makes the adapter's invoke open the stream, read its events with Receive until the stream ends, and return them as one JSON array bounded by the manual's output limit. The whole of stream.go, 356 lines, is reached by tests alone today. The census counts 22 of them, because it reaches a method by its name and commands call other methods of the same names.\nServes: a person who registers an endpoint that streams, such as a local generation server, can run it as a tool from the web UI's agent steps.\nDisappears: nothing; about 30 lines of production code are added, an estimate by reading.\nEvidence: a host test with an httptest server that streams events to a registered manual and receives them as one result.\nBatch: host."
-        },
-        {
-          "id": "wire-ifeval-profile",
-          "title": "Publish the IFEval parameter profile from a file the benchmark manifest names",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestIFEvalProfileIsPublishedFromItsFile$'",
-          "rationale": "From the reading of step wire-unreached. The live IFEval suite reads its parameter profile from the store (internal/evaluation/catalog.go:124-131, store_suites.go:203-208). The profile holds the strict and loose operands of the 33 letter-frequency instructions, which d1c353d01 says bring retained parity to 650 of 834. Nothing in the tree writes it, because d1c353d01 bound the stored one once. A fresh or rebuilt store therefore refuses the declared parameters, or the instructions lose their native operands. The step exports the profile and its reference once from the store (overgodb query -content), keeps them in a file the benchmark manifest names, and lets the catalog's publication (benchmarkDeclaration, catalog.go:35, through CatalogLocalBenchmarks, cmd/evaluate/main.go:466) write them. The records are content-addressed, so the file reproduces the stored identities exactly.\nServes: held-out-quality: a rebuilt store keeps the IFEval reading it has now.\nDisappears: a record that no command can make again.\nEvidence: a host test that publishes the catalog into an empty store and reads the profile back with the identity the live suite binds.\nBatch: host; internal/evaluation is in the identity stored answers are kept under, so it goes with the other changes to that package before a full measurement run."
         },
         {
           "id": "wire-objective-matrix",

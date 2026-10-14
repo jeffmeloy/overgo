@@ -16,4 +16,3 @@ shadowed internal/runrecord/stage_receipt.go overgo/stage-receipt/v1
 test-held internal/evaluation/scaling_fit.go overgo/scaling-fit/v1
 test-held internal/runrecord/agent_obligation.go overgo/agent-obligation-resolution/v1
 test-held internal/trainingworkflow/health_classifier.go overgo/training-health-classification/v1
-wire internal/evaluation/ifeval_parameters.go overgo/ifeval-parameters/v1

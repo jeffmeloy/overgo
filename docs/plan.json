@@ -65,6 +65,10 @@
       "title": "Qualify reuse through existing declared input owners",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 81,
+        "reason": "Built preflight counts 81 production AST nodes for producer identity and the no-cache path. Existing cache functions own the change. Test growth is necessary changed and unknown producer coverage in the existing fixture. No new schemas or fixtures."
+      },
       "steps": [
         {
           "id": "credits",

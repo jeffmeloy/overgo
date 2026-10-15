@@ -66,8 +66,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "Built preflight measures 192 production AST nodes and 180 test nodes. Native Go-list JSON names current embedded files. Declared patterns retain conservative missing-input coverage. Git NUL-delimited paths preserve exact names. Existing fixtures own the cases. No new selector, schema or fixture file."
+        "nodes": 303,
+        "reason": "Built preflight measures 303 production AST nodes and 539 test nodes after seven one-caller helpers are removed. Existing manifests, artifact hashing and stamped execution qualify cell credits. Same-size/time replacements and unresolved directory inputs miss. One matched 108-cell dry run grows from 4.7113973s to 54.9624679s; 84 cells qualify and 24 remain unknown. This is necessary correctness growth with added read cost, no speed claim or new selector."
       },
       "steps": [
         {

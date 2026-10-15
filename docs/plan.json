@@ -85,15 +85,15 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 110,
-        "reason": "Measured built patch adds 110 production AST nodes for active directory retention, receipt acquisition before commit, independent receipt writes and shared metadata error handling"
+        "nodes": 129,
+        "reason": "Measured built patch adds 129 production AST nodes for active directory retention, receipt acquisition before commit, independent receipt writes and shared metadata error handling while preserving an absent sampled cache bucket"
       },
       "steps": [
         {
           "id": "locations",
           "title": "Retain active model directories and acquire receipts before mutation",
           "status": "open",
-          "verify": "go test ./cmd/loop -run '^(TestWithdrawalTakesOnlyARunsCheckpointRegistrations|TestLeftoversDeletesOnlyWhatItsTableMarksFinished)$'",
+          "verify": "go test ./cmd/loop -run '^(TestWithdrawalTakesOnlyARunsCheckpointRegistrations|TestLeftoversDeletesOnlyWhatItsTableMarksFinished|TestLeftoversListsEveryDeclaredPlaceWithItsRule)$'",
           "rationale": "SQA-142, SQA-143 and SQA-146 share the leftovers owner. Protect the last required model directory even when components remain elsewhere. Open the durable receipt before Commit and attempt it independently of a broken output writer. Handle DirEntry.Info failure before Size and classify it conservatively. Extend the existing sandbox for receipt-open failure, postcommit output failure, active own-directory removal and deterministic metadata failure.\nServes: availability and recovery\nDisappears: component-only availability, postcommit receipt acquisition and unchecked metadata dereference\nEvidence: go test ./cmd/loop -run '^(TestWithdrawalTakesOnlyARunsCheckpointRegistrations|TestLeftoversDeletesOnlyWhatItsTableMarksFinished)$' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
         }
       ]

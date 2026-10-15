@@ -3,8 +3,13 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"os"
 	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -13,8 +18,7 @@ import (
 )
 
 // A cycle measures what the commands its cells run execute, so a commit moves what it measures
-// only when it changes a Go package in the closure of one of them, a file such a package embeds
-// by name, or a file the kernels live in. The closure is what go list reports, not a list kept by hand.
+// only when it changes a Go package in the closure of one of them, a file such a package embeds, or a file the kernels live in. The closure is what go list reports, not a list kept by hand.
 var (
 	// surfaceCommands are the commands a cycle's cells run.
 	surfaceCommands = []string{"./cmd/evaluate", "./cmd/train", "./cmd/longform", "./cmd/recipe", "./cmd/server", "./cmd/validate"}
@@ -22,17 +26,34 @@ var (
 	surfacePrefixes = []string{"kernels/"}
 )
 
-// surfaceClosure is the repository's packages a cycle's commands depend on, as directories, and the files those embed by name.
+// surfaceClosure lists cycle packages and resolved embedded files through the Go tool.
+//   - declared patterns retain conservative coverage for deleted inputs
 func surfaceClosure(ctx context.Context, root string) (map[string]bool, error) {
 	var listed, diagnostics bytes.Buffer
-	command := append([]string{"go", "-C", root, "list", "-deps", "-f", "{{.ImportPath}}{{range .EmbedPatterns}} {{$.ImportPath}}/{{.}}{{end}}"}, surfaceCommands...)
+	command := append([]string{"go", "-C", root, "list", "-deps", "-json=ImportPath,EmbedFiles,EmbedPatterns"}, surfaceCommands...)
 	if err := runToolEnv(loopEnvironment(), nil, &listed, &diagnostics, command...); err != nil {
 		return nil, fmt.Errorf("go list the cycle's commands: %w: %s", err, strings.TrimSpace(diagnostics.String()))
 	}
 	closure := map[string]bool{}
-	for listing := range strings.FieldsSeq(listed.String()) {
-		if inside, found := strings.CutPrefix(listing, "overgo/"); found {
+	decoder := json.NewDecoder(&listed)
+	for {
+		var pkg struct {
+			ImportPath                string
+			EmbedFiles, EmbedPatterns []string
+		}
+		if err := decoder.Decode(&pkg); errors.Is(err, io.EOF) {
+			break
+		} else if err != nil {
+			return nil, err
+		}
+		if inside, found := strings.CutPrefix(pkg.ImportPath, "overgo/"); found {
 			closure[inside] = true
+			for _, file := range pkg.EmbedFiles {
+				closure[path.Join(inside, file)] = true
+			}
+			for _, pattern := range pkg.EmbedPatterns {
+				closure["embed:"+path.Join(inside, strings.TrimPrefix(pattern, "all:"))] = true
+			}
 		}
 	}
 	return closure, nil
@@ -40,14 +61,30 @@ func surfaceClosure(ctx context.Context, root string) (map[string]bool, error) {
 
 // touchesSurface reports whether a changed file moves what a cycle measures: a non-test Go file of a
 // package in the closure, a file the closure names as embedded, or a path under a surface prefix.
-func touchesSurface(file string, closure map[string]bool) bool {
+func touchesSurface(root, file string, closure map[string]bool) bool {
 	switch {
 	case closure[file], slices.ContainsFunc(surfacePrefixes, func(prefix string) bool { return strings.HasPrefix(file, prefix) }):
 		return true
-	case !strings.HasSuffix(file, ".go") || strings.HasSuffix(file, "_test.go") || strings.Contains(file, "/testdata/"):
-		return false
+	case strings.HasSuffix(file, ".go") && !strings.HasSuffix(file, "_test.go") && !strings.Contains(file, "/testdata/") && closure[path.Dir(file)]:
+		return true
 	}
-	return closure[path.Dir(file)]
+	// Existing files use the resolved list. Missing files may have matched a
+	// directory or glob before deletion, so retain that coverage conservatively.
+	if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(file))); !errors.Is(err, os.ErrNotExist) {
+		return err != nil
+	}
+	for key := range closure {
+		pattern, embedded := strings.CutPrefix(key, "embed:")
+		if !embedded {
+			continue
+		}
+		for candidate := file; candidate != "."; candidate = path.Dir(candidate) {
+			if matched, _ := path.Match(pattern, candidate); matched {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // commitAbbreviation is how many hex digits of a commit a decision's reason shows.
@@ -84,13 +121,13 @@ func landingsThatMovedTheSurface(ctx context.Context, root, records string, clos
 		return "", 0, err
 	}
 	last = published[len(published)-1].Commit
-	log, err := gitauthority.Query(ctx, root, "log", "--name-only", "--format=%x00%H", last+"..HEAD")
+	log, err := gitauthority.Query(ctx, root, "log", "--name-only", "-z", "--format=%x00%H", last+"..HEAD")
 	if err != nil {
 		return last, 0, err
 	}
-	for commit := range strings.SplitSeq(string(log), "\x00") {
-		_, files, _ := strings.Cut(commit, "\n")
-		if slices.ContainsFunc(strings.Fields(files), func(file string) bool { return touchesSurface(file, closure) }) {
+	for commit := range strings.SplitSeq(strings.TrimPrefix(string(log), "\x00"), "\x00\x00") {
+		_, files, _ := strings.Cut(commit, "\x00")
+		if slices.ContainsFunc(strings.Split(strings.TrimPrefix(files, "\n"), "\x00"), func(file string) bool { return file != "" && touchesSurface(root, file, closure) }) {
 			moved++
 		}
 	}

@@ -45,7 +45,7 @@ func TestLoopStartsACycleWhenTheMeasuredSurfaceMoved(t *testing.T) {
 	surface := func(context.Context, string) (map[string]bool, error) {
 		return map[string]bool{
 			"internal/evaluation": true, "cmd/train": true,
-			"internal/model": true, "internal/model/architecture_profiles.json": true, "internal/model/architectures.json": true,
+			"internal/model": true, "internal/model/architecture_profiles.json": true, "internal/model/architectures.json": true, "internal/model/space name.json": true,
 			"internal/trainingprogram": true, "internal/trainingprogram/optimizer_policy.json": true,
 		}, nil
 	}
@@ -107,6 +107,11 @@ func TestLoopStartsACycleWhenTheMeasuredSurfaceMoved(t *testing.T) {
 	git("mv", "internal/model/architecture_profiles.json", "internal/model/architectures.json")
 	git("commit", "-q", "-m", "the architecture catalog is renamed")
 	check("the rename is the fourth landing that moved it", true, true)
+	land("internal/model/space name.json", "an embedded path containing spaces")
+	closure, _ := surface(t.Context(), repository)
+	if _, moved, err := landingsThatMovedTheSurface(t.Context(), repository, records, closure); err != nil || moved != 5 {
+		t.Fatalf("embedded paths must remain whole: moved %d landings, want 5 (%v)", moved, err)
+	}
 }
 
 // TestCycleSurfaceNamesTheFilesItsCommandsEmbed holds the closure go list reports to name, beside each
@@ -122,9 +127,9 @@ func TestCycleSurfaceNamesTheFilesItsCommandsEmbed(t *testing.T) {
 	}
 	// Both sources import embed: the Go tool reads a directive only in a file that does, so a
 	// test file without it would keep its embed out for the wrong reason.
-	testutil.WriteTextFile(t, root, "internal/model/catalog.go", "package model\n\nimport _ \"embed\"\n\n//go:embed architecture_profiles.json\nvar catalog []byte\n\n//go:embed testdata/profile.json\nvar profile []byte\n")
+	testutil.WriteTextFile(t, root, "internal/model/catalog.go", "package model\n\nimport \"embed\"\n\n//go:embed architecture_profiles.json\nvar catalog []byte\n\n//go:embed webui\nvar webui embed.FS\n\n//go:embed assets/*.json\nvar assets embed.FS\n\n//go:embed all:private\nvar private embed.FS\n\n//go:embed testdata/profile.json\nvar profile []byte\n")
 	testutil.WriteTextFile(t, root, "internal/model/catalog_test.go", "package model\n\nimport _ \"embed\"\n\n//go:embed testdata/oracle.json\nvar oracle []byte\n")
-	for _, name := range []string{"architecture_profiles.json", "testdata/profile.json", "testdata/oracle.json", "notes.md"} {
+	for _, name := range []string{"architecture_profiles.json", "testdata/profile.json", "testdata/oracle.json", "webui/composer.js", "webui/keep.js", "webui/space name.js", "webui/_ignored.js", "assets/old.json", "assets/keep.json", "assets/notes.md", "private/_kept.js", "notes.md"} {
 		testutil.WriteTextFile(t, root, "internal/model/"+name, "{}\n")
 	}
 	closure, err := surfaceClosure(t.Context(), root)
@@ -132,6 +137,7 @@ func TestCycleSurfaceNamesTheFilesItsCommandsEmbed(t *testing.T) {
 		t.Fatal(err)
 	}
 	for file, want := range map[string]bool{
+		"internal/model/webui/composer.js":          true,
 		"internal/model/catalog.go":                 true,
 		"kernels/cuda/ops.cu":                       true,
 		"internal/model/architecture_profiles.json": true,
@@ -141,10 +147,33 @@ func TestCycleSurfaceNamesTheFilesItsCommandsEmbed(t *testing.T) {
 		"internal/model/notes.md":                   false,
 		"docs/notes.md":                             false,
 	} {
-		if got := touchesSurface(file, closure); got != want {
+		if got := touchesSurface(root, file, closure); got != want {
 			t.Errorf("%s moves what a cycle measures = %t, want %t (closure %v)", file, got, want, closure)
 		}
 	}
+	for _, change := range []struct{ name, old, next string }{
+		{"delete", "webui/composer.js", ""},
+		{"rename", "webui/keep.js", "webui/renamed.js"},
+		{"glob deletion", "assets/old.json", ""},
+	} {
+		old := filepath.Join(root, "internal/model", change.old)
+		if change.next == "" {
+			err = os.Remove(old)
+		} else {
+			err = os.Rename(old, filepath.Join(root, "internal/model", change.next))
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		closure, err = surfaceClosure(t.Context(), root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !touchesSurface(root, "internal/model/"+change.old, closure) {
+			t.Errorf("%s of an embedded directory child was excluded", change.name)
+		}
+	}
+
 }
 
 // TestDecideCycleNamesItsReason holds the decision's words: each outcome says why, for the

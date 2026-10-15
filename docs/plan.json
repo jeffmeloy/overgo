@@ -66,7 +66,7 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 192,
+        "nodes": 0,
         "reason": "Built preflight measures 192 production AST nodes and 180 test nodes. Native Go-list JSON names current embedded files. Declared patterns retain conservative missing-input coverage. Git NUL-delimited paths preserve exact names. Existing fixtures own the cases. No new selector, schema or fixture file."
       },
       "steps": [
@@ -90,13 +90,6 @@
           "status": "open",
           "verify": "go test ./internal/pytorchzip ./internal/latentvideo -run '^(TestRecordNamesWhatAnArchiveRecords|TestPromptRowsFollowTheBytesTheyAreMadeFrom)$'",
           "rationale": "SQA-129. Archive directory metadata alone cannot authorize reuse after a payload mutation. Trace the actual immutable inventory/admission owner and verify or refuse unqualified content there. Preserve cheap request reuse and avoid hashing the model per request. The raw mutation fixture must be refused or named differently before reuse. Count one-time reads and existing model admission coverage before choosing the change.\nServes: video correctness and reuse\nDisappears: unverified directory-record identity as sufficient payload authority\nEvidence: go test ./internal/pytorchzip ./internal/latentvideo -run '^(TestRecordNamesWhatAnArchiveRecords|TestPromptRowsFollowTheBytesTheyAreMadeFrom)$' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
-        },
-        {
-          "id": "embeds",
-          "title": "Use resolved embedded files at the existing cycle trigger",
-          "status": "open",
-          "verify": "go test ./cmd/loop -run '^(TestCycleSurfaceNamesTheFilesItsCommandsEmbed|TestLoopStartsACycleWhenTheMeasuredSurfaceMoved|TestDecideCycleNamesItsReason)$'",
-          "rationale": "SQA-101. Served browser assets are inside the required journey scope. Use native go-list resolved embed files and account for deleted or renamed inputs from the relevant revision. Preserve independently sufficient Go and kernel reasons and conservative unknowns. Extend the existing real-go-list fixture for a directory child, deletion and rename. Do not add a selector.\nServes: served UI correctness\nDisappears: exact embed-pattern spelling treated as a concrete file\nEvidence: go test ./cmd/loop -run '^(TestCycleSurfaceNamesTheFilesItsCommandsEmbed|TestLoopStartsACycleWhenTheMeasuredSurfaceMoved|TestDecideCycleNamesItsReason)$' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
         }
       ]
     },

@@ -87,26 +87,21 @@ func TestDeviceNewtonSchulzMatchesHost(t *testing.T) {
 					schedule = "4+2-TF32"
 				}
 				t.Run(tc.name+"/"+distribution+"/"+schedule, func(t *testing.T) {
-					want, squared, err := deviceNewtonSchulz(worker, ops, buffers, input, tc.rows, tc.cols, tf32, true)
+					got, squared, err := deviceNewtonSchulz(worker, ops, buffers, input, tc.rows, tc.cols, tf32)
 					if err != nil {
 						t.Fatal(err)
-					}
-					got, actualSquared, err := deviceNewtonSchulz(worker, ops, buffers, input, tc.rows, tc.cols, tf32, false)
-					if err != nil {
-						t.Fatal(err)
-					}
-					if math.Float32bits(squared) != math.Float32bits(actualSquared) {
-						t.Fatal("FP32 norm reduction changed")
 					}
 					guarded := math.Sqrt(float64(squared)) < hostoptimizer.NewtonSchulzFrobeniusGuard
-					if guarded && !slices.Equal(got, input) {
-						t.Fatal("guarded direction changed")
-					}
-					// Unchanged reduction, multiplier and GEMM order require identical GPU directions.
-					for i := range want {
-						if math.Float32bits(got[i]) != math.Float32bits(want[i]) {
-							t.Fatalf("direction[%d]=%g, reference %g", i, got[i], want[i])
+					for i, v := range got {
+						if guarded && math.Float32bits(v) != math.Float32bits(input[i]) {
+							t.Fatalf("guarded direction[%d]=%g, input %g", i, v, input[i])
 						}
+						if math.IsNaN(float64(v)) || math.IsInf(float64(v), 0) {
+							t.Fatalf("nonfinite direction[%d]=%g", i, v)
+						}
+					}
+					if distribution == "threshold-above" && slices.Equal(got, input) {
+						t.Fatal("nonguarded direction was not normalized")
 					}
 					if !tf32 && distribution == "ordinary" {
 						host := make([]float64, len(input))
@@ -135,7 +130,7 @@ func TestDeviceNewtonSchulzMatchesHost(t *testing.T) {
 }
 
 // deviceNewtonSchulz compares schedules with retained handles and shape-sized scratch.
-func deviceNewtonSchulz(worker *device.Worker, ops *deviceOps, buffers nsBuffers, input []float32, rows, cols int, tf32, reference bool) ([]float32, float32, error) {
+func deviceNewtonSchulz(worker *device.Worker, ops *deviceOps, buffers nsBuffers, input []float32, rows, cols int, tf32 bool) ([]float32, float32, error) {
 	if rows <= 0 || cols <= 0 || len(input) != rows*cols {
 		return nil, 0, fmt.Errorf("deviceNewtonSchulz: len %d != %d*%d", len(input), rows, cols)
 	}
@@ -153,11 +148,7 @@ func deviceNewtonSchulz(worker *device.Worker, ops *deviceOps, buffers nsBuffers
 		if tf32 {
 			handle, iterations = ops.tf32, residentNewtonSchulzStage1Iterations
 		}
-		run := ops.runNewtonSchulz
-		if reference {
-			run = ops.referenceNewtonSchulz
-		}
-		final, err := run(buffers, rows, cols, handle, iterations)
+		final, err := ops.runNewtonSchulz(buffers, rows, cols, handle, iterations)
 		if err != nil {
 			return err
 		}

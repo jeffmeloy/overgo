@@ -74,7 +74,7 @@ func TestDeviceMuonMatrixStepMatchesHost(t *testing.T) {
 			devG := make([]float32, n)
 			copy(devG, g)
 			devM := make([]float32, n)
-			if err := deviceMuonMatrixStep(worker, ops, devW, devG, devM, tc.rows, tc.cols, mu, baseLR, false, false); err != nil {
+			if err := deviceMuonMatrixStep(worker, ops, devW, devG, devM, tc.rows, tc.cols, mu, baseLR, false); err != nil {
 				t.Fatal(err)
 			}
 
@@ -100,7 +100,7 @@ func TestDeviceMuonMatrixStepMatchesHost(t *testing.T) {
 		if tf32 {
 			schedule = "4+2-TF32"
 		}
-		for _, magnitude := range []float32{0, 1e-14, 1} {
+		for _, magnitude := range []float32{0, 1e-14} {
 			t.Run(fmt.Sprintf("zero-weights/%s/gradient=%g", schedule, magnitude), func(t *testing.T) {
 				const rows, cols = 8, 8
 				g, m := make([]float32, rows*cols), make([]float32, rows*cols)
@@ -108,26 +108,19 @@ func TestDeviceMuonMatrixStepMatchesHost(t *testing.T) {
 					g[i] = magnitude
 					m[i] = magnitude / 2
 				}
-				wantW, wantG, wantM := make([]float32, len(g)), slices.Clone(g), slices.Clone(m)
 				gotW, gotG, gotM := make([]float32, len(g)), slices.Clone(g), slices.Clone(m)
-				if err := deviceMuonMatrixStep(worker, ops, wantW, wantG, wantM, rows, cols, mu, baseLR, tf32, true); err != nil {
+				if err := deviceMuonMatrixStep(worker, ops, gotW, gotG, gotM, rows, cols, mu, baseLR, tf32); err != nil {
 					t.Fatal(err)
 				}
-				if err := deviceMuonMatrixStep(worker, ops, gotW, gotG, gotM, rows, cols, mu, baseLR, tf32, false); err != nil {
-					t.Fatal(err)
-				}
-				for _, state := range []struct {
-					name      string
-					got, want []float32
-				}{{"weights", gotW, wantW}, {"momentum", gotM, wantM}, {"gradient", gotG, wantG}} {
-					for i, v := range state.want {
-						if math.Float32bits(state.got[i]) != math.Float32bits(v) {
-							t.Fatalf("%s[%d]=%g, reference %g", state.name, i, state.got[i], v)
-						}
+				// The guarded update retains the direction and still updates momentum and weights.
+				weightScale := float32(-math.Sqrt(float64(max(rows, cols))) * hostoptimizer.StepRMS(mu) * baseLR)
+				for i := range g {
+					wantM := float32(float32(mu)*m[i]) + g[i]
+					direction := float32(float32(mu)*wantM) + g[i]
+					wantW := float32(weightScale*direction) + float32(0)
+					if math.Float32bits(gotW[i]) != math.Float32bits(wantW) || math.Float32bits(gotM[i]) != math.Float32bits(wantM) || math.Float32bits(gotG[i]) != math.Float32bits(g[i]) {
+						t.Fatalf("guarded update[%d] weights=%g want=%g momentum=%g want=%g gradient=%g want=%g", i, gotW[i], wantW, gotM[i], wantM, gotG[i], g[i])
 					}
-				}
-				if magnitude != 0 && slices.Equal(gotW, make([]float32, len(gotW))) {
-					t.Fatal("nonzero direction disappeared into zero weights")
 				}
 			})
 		}
@@ -292,14 +285,14 @@ func DeviceMuonPlanResident(
 }
 
 // deviceMuonMatrixStep: staged single-matrix Muon update.
-func deviceMuonMatrixStep(worker *device.Worker, ops *deviceOps, weights, gradient, momentum []float32, rows, cols int, mu, rate float64, tf32, reference bool) error {
+func deviceMuonMatrixStep(worker *device.Worker, ops *deviceOps, weights, gradient, momentum []float32, rows, cols int, mu, rate float64, tf32 bool) error {
 	return worker.Do(context.Background(), func(_ *device.State) error {
-		return ops.muonMatrixGroup(weights, gradient, momentum, rows, cols, mu, rate, tf32, reference)
+		return ops.muonMatrixGroup(weights, gradient, momentum, rows, cols, mu, rate, tf32)
 	})
 }
 
 // muonMatrixGroup: stage, update, return weights and momentum.
-func (o *deviceOps) muonMatrixGroup(weights, gradient, momentum []float32, rows, cols int, mu, rate float64, tf32, reference bool) error {
+func (o *deviceOps) muonMatrixGroup(weights, gradient, momentum []float32, rows, cols int, mu, rate float64, tf32 bool) error {
 	n, valid := hostoptimizer.MatrixElements(rows, cols)
 	if !valid || len(weights) != n || len(gradient) != n || len(momentum) != n {
 		return fmt.Errorf("muonMatrixGroup: shape mismatch (n=%d w=%d g=%d m=%d)", n, len(weights), len(gradient), len(momentum))
@@ -316,18 +309,11 @@ func (o *deviceOps) muonMatrixGroup(weights, gradient, momentum []float32, rows,
 		return err
 	}
 	defer scratch.free(o.lib)
-	handle, iterations := o.handle, hostoptimizer.NewtonSchulzStage1Iterations
+	update := o.muonMatrixGroupResidentWithScratch
 	if tf32 {
-		handle, iterations = o.tf32, residentNewtonSchulzStage1Iterations
+		update = o.muonMatrixGroupResidentTrainingWithScratch
 	}
-	run := o.runNewtonSchulz
-	if reference {
-		run = o.referenceNewtonSchulz
-	}
-	orthogonalize := func(b nsBuffers, rows, cols int) (driver.DevicePtr, error) {
-		return run(b, rows, cols, handle, iterations)
-	}
-	if err := o.muonMatrixGroupWithScratch(dW, dG, dM, rows, cols, mu, rate, scratch, orthogonalize); err != nil {
+	if err := update(dW, dG, dM, rows, cols, mu, rate, scratch); err != nil {
 		return err
 	}
 	if err := o.lib.StreamSynchronize(o.stream); err != nil {

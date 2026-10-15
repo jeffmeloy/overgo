@@ -65,6 +65,10 @@
       "title": "Prove current census consumers before replacing a store",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 263,
+        "reason": "Built consumer wiring measured 263 production AST nodes, including one shared process runner and one validate invocation for both accepted bindings. Existing rebuilt census fixture plus the small pre-swap proof fixture add 594 test nodes. No schema or new fixture file."
+      },
       "steps": [
         {
           "id": "census",
@@ -152,6 +156,10 @@
       "title": "Serialize public workflow results through canonical run ownership",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 41,
+        "reason": "Built canonical run projection measured 41 production AST nodes. The existing two-child command fixture adds 152 test nodes for successful exit, JSON parsing and run/output/commit identity."
+      },
       "steps": [
         {
           "id": "json",
@@ -237,6 +245,10 @@
       "title": "Remove duplicate document validation and copies",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": -105,
+        "reason": "Built cleanup removes 20 production AST nodes of repeated content validation and 85 of dataset pre-copying. Codec ownership test consolidation saves 44 test nodes including the corruption regression. Dataset ordering, exact bytes/ID, refusal isolation and nil/empty coverage adds 392 test nodes to the existing fixture. This correctness coverage growth is not a net test saving."
+      },
       "steps": [
         {
           "id": "codec",
@@ -249,8 +261,8 @@
           "id": "constructors",
           "title": "Let the codec own constructor copies",
           "status": "open",
-          "verify": "go test ./internal/dataset -run '^(TestDatasetDocumentsRoundTripAndPublish|TestDatasetRejectsInvalidDocuments)$'",
-          "rationale": "SQA-088 dataset group. Remove constructor pre-copies and cloneCatalog only where DeepCopy already owns input independence. Extend the existing catalog cases for unsorted input, exact JSON/ID, refusal without mutation and nil/empty distinctions. Count necessary test growth honestly.\nServes: memory and maintenance\nDisappears: five constructor pre-copy paths and redundant nested pointer copies\nEvidence: go test ./internal/dataset -run '^(TestDatasetDocumentsRoundTripAndPublish|TestDatasetRejectsInvalidDocuments)$' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
+          "verify": "go test ./internal/dataset -run '^(TestDatasetDocumentsRoundTripAndPublish|TestDatasetDocumentsRejectInvalidAndNonCanonicalContent)$'",
+          "rationale": "SQA-088 dataset group. Remove constructor pre-copies and cloneCatalog only where DeepCopy already owns input independence. Extend the existing catalog cases for unsorted input, exact JSON/ID, refusal without mutation and nil/empty distinctions. Count necessary test growth honestly.\nServes: memory and maintenance\nDisappears: five constructor pre-copy paths and redundant nested pointer copies\nEvidence: go test ./internal/dataset -run '^(TestDatasetDocumentsRoundTripAndPublish|TestDatasetDocumentsRejectInvalidAndNonCanonicalContent)$' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
         }
       ]
     },

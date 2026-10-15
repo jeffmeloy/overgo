@@ -61,6 +61,25 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "media-request-completeness",
+      "title": "Require the whole producing request at render reuse",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 33,
+        "reason": "Go AST comparison measures +33 production and +171 test nodes for complete request equality with exact JSON numbers and omitted numeric zeros. Existing render fixtures reproduce the missing-prompt defect before the fix. The partial field loop and redundant method request hash disappear. No performance improvement is claimed."
+      },
+      "steps": [
+        {
+          "id": "close",
+          "title": "Bind the measured request and reject missing fields",
+          "status": "open",
+          "verify": "go test ./cmd/evaluate -run '^(TestAPictureIsJudgedOnlyWhenTheEvaluatedRecipeDrewIt|TestAJudgedRuntimeAnswersOnlyAboutAVerifiedPicture)$'",
+          "rationale": "Serves: trustworthy generated media evidence\nDisappears: partial request equality and a second request authority\nEvidence: existing render fixture rejects a rekeyed request missing the producer prompt and retains omitted-zero semantics\nBatch: command-only follow-up before final protocol measurement"
+        }
+      ]
+    },
+    {
       "id": "policy-search",
       "title": "Make the exploratory request protocol a protocol of the evaluation command, and reproduce its one result",
       "owner": "master-lead",
@@ -74,8 +93,8 @@
           "id": "reproduce",
           "title": "Reproduce the result once with the named protocol, and state the difference a search must detect",
           "status": "open",
-          "verify": "go test ./cmd/evaluate -count=1 -run '^TestProtocolReproductionRecordIsWhole$'",
-          "rationale": "The lead's, in place of the proposal's freeze, search and pilot, which are a hypothesis until this reports: an enumeration with restart and fault tests is a mechanism with no second case while one result exists and has not been repeated. Run the 40 questions on Qwen3.5-4B under the protocol of the step before and under the default, a few device-minutes, and record both with the paired test over the cases answered differently. The record states the difference a bounded search would have to detect and what device time that takes, which is the figure the owner's question about an unattended allowance needs; that question, and rows for the search, are filed from this record or not at all. The candidate owners (cmd/loop/evidence.go, internal/plan/candidate_scheduler.go) are not touched: they serve model prototypes.\nServes: held-out-quality.\nDisappears: nothing; a result that does not reproduce closes the question.\nEvidence: docs/verification/protocol-reproduction.txt, derived by the test from the store's records.\nBatch: host for the test; the two evaluations on the quiet machine outside a commit.\n\nCorrection by the lead on 2026-10-13, from the check of this step's preparation.\n\n- the step's text says \"a few device-minutes\"\n- the only measured figure = commit 642b3943c's message: \"40 questions took three hours\" for both ways of asking\n- so the two evaluations of this step take about three device hours, unless the sample is cut",
+          "verify": "go test ./cmd/validate ./internal/scorecard ./internal/tensorstats ./internal/evaluation -run '^(TestScorecardSetsASampleAskedAnotherWayBesideItsReading|TestAQualityMoveIsJudgedByTheCasesAnsweredDifferently|TestExactPairedBinaryVerdictAndBounds|TestEvaluationProtocolCapturesAllPolicyInputs)$'",
+          "rationale": "Run the historical 40 Qwen3.5-4B questions once under exploratory-reasoning and chat-template, the original direct-answer baseline. The retained estimate is about three GPU hours for both arms. Validate the same names and targets against the existing sample before measurement. Every current sampler and parser input remains bound by the evaluation command. The old scratch run did not retain an exact seed derivation, so this tests its reported advantage and does not promise identical text. Report paired outcomes with tensorstats.ExactPairedBinary and the smallest favorable count under the scorecard's existing paired tail. Report the actual time and unknown power rather than invent a search allowance. No unattended search is adopted from this exposed sample alone.\nServes: held-out-quality interpretation\nDisappears: the scratch-only sample is replaced through the existing scorecard sample reader and no duplicate reproduction test or report framework is added\nEvidence: docs/verification/protocol-reproduction.txt names both stored evaluations and their producer commit and derives outcomes through evaluation.CaseOutcomes; internal/scorecard/protocol_samples.json retains the current paired sample for its existing scorecard consumer\nBatch: complete source changes first, measure both arms serially on the quiet machine, retain full evidence in the store, and run existing protocol, paired-outcome and presentation tests for the record landing",
           "depends_on": [
             "policy-search/protocol",
             "trustworthy-measurement/exclusive",

@@ -173,7 +173,7 @@ func (r chatShapedRuntime) AfterThought(text string) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	return message.Content, message.Content != text
+	return message.Content, message.ReasoningClosed
 }
 
 // Generate parses the template's special tokens out of the shaped

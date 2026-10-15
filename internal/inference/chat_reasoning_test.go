@@ -54,23 +54,23 @@ func TestChatReasoningDeclaredChannels(t *testing.T) {
 	})
 	for _, test := range []struct {
 		name, template, output, reasoning, content string
-		invalid                                    bool
+		closed, invalid                            bool
 	}{
-		{"declared_thought", string(gemma), "<|channel>thought\ncheck facts\n<channel|>answer", "check facts", "answer", false},
-		{"unicode_bytes", string(gemma), "<|channel>thought\n確認 🙂\n<channel|>réponse π", "確認 🙂", "réponse π", false},
-		{"thought_prompt_open", string(gemma), "check facts\n<channel|>answer", "check facts", "answer", false},
-		{"declared_content_channel", inkling, "<|content_thinking|>check facts<|content_text|>answer", "check facts", "answer", false},
-		{"content_channel_prompt_open", inkling, "check facts<|content_text|>answer", "check facts", "answer", false},
-		{"legacy_think", "", "<think>\ncheck facts\n</think>\nanswer", "check facts", "answer", false},
-		{"legacy_prompt_open", "", "check facts</think>answer", "check facts", "answer", false},
-		{"undeclared_channel", "", "<|channel>thought\ntext<channel|>answer", "", "<|channel>thought\ntext<channel|>answer", false},
-		{"plain_bytes", string(gemma), "  ordinary answer\n", "", "  ordinary answer\n", false},
-		{"foreign_marker_literal", string(gemma), "<think>ordinary literal</think>", "", "<think>ordinary literal</think>", false},
-		{"empty_thought", string(gemma), "<|channel>thought\n<channel|>answer", "", "answer", false},
-		{"unterminated", string(gemma), "<|channel>thought\nunfinished", "", "", true},
-		{"text_before_thought", string(gemma), "prefix<|channel>thought\ntext<channel|>answer", "", "", true},
-		{"repeated_channel", string(gemma), "<|channel>thought\ntext<channel|>answer<channel|>", "", "", true},
-		{"ambiguous_declaration", string(gemma) + inkling, "ordinary", "", "", true},
+		{"declared_thought", string(gemma), "<|channel>thought\ncheck facts\n<channel|>answer", "check facts", "answer", true, false},
+		{"unicode_bytes", string(gemma), "<|channel>thought\n確認 🙂\n<channel|>réponse π", "確認 🙂", "réponse π", true, false},
+		{"thought_prompt_open", string(gemma), "check facts\n<channel|>answer", "check facts", "answer", true, false},
+		{"declared_content_channel", inkling, "<|content_thinking|>check facts<|content_text|>answer", "check facts", "answer", true, false},
+		{"content_channel_prompt_open", inkling, "check facts<|content_text|>answer", "check facts", "answer", true, false},
+		{"legacy_think", "", "<think>\ncheck facts\n</think>\nanswer", "check facts", "answer", true, false},
+		{"legacy_prompt_open", "", "check facts</think>answer", "check facts", "answer", true, false},
+		{"undeclared_channel", "", "<|channel>thought\ntext<channel|>answer", "", "<|channel>thought\ntext<channel|>answer", false, false},
+		{"plain_bytes", string(gemma), "  ordinary answer\n", "", "  ordinary answer\n", false, false},
+		{"foreign_marker_literal", string(gemma), "<think>ordinary literal</think>", "", "<think>ordinary literal</think>", false, false},
+		{"empty_thought", string(gemma), "<|channel>thought\n<channel|>answer", "", "answer", true, false},
+		{"unterminated", string(gemma), "<|channel>thought\nunfinished", "", "", false, true},
+		{"text_before_thought", string(gemma), "prefix<|channel>thought\ntext<channel|>answer", "", "", false, true},
+		{"repeated_channel", string(gemma), "<|channel>thought\ntext<channel|>answer<channel|>", "", "", false, true},
+		{"ambiguous_declaration", string(gemma) + inkling, "ordinary", "", "", false, true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			runner := &Runner{preparedModel: preparedModel{file: &gguf.File{Metadata: []gguf.Metadata{
@@ -86,7 +86,7 @@ func TestChatReasoningDeclaredChannels(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if message.ReasoningContent != test.reasoning || message.Content != test.content || len(message.ToolCalls) != 0 {
+			if message.ReasoningClosed != test.closed || message.ReasoningContent != test.reasoning || message.Content != test.content || len(message.ToolCalls) != 0 {
 				t.Fatalf("reasoning=%q content=%q calls=%v; want %q / %q", message.ReasoningContent, message.Content, message.ToolCalls, test.reasoning, test.content)
 			}
 			for split := range len(test.output) + 1 {
@@ -103,7 +103,7 @@ func TestChatReasoningDeclaredChannels(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if got.ReasoningContent != test.reasoning || got.Content != test.content || len(got.ToolCalls) != 0 {
+				if got.ReasoningClosed != test.closed || got.ReasoningContent != test.reasoning || got.Content != test.content || len(got.ToolCalls) != 0 {
 					t.Fatalf("split %d disagrees with buffered result: %+v", split, got)
 				}
 			}

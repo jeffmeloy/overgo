@@ -87,25 +87,6 @@
       ]
     },
     {
-      "id": "reasoning-closure",
-      "title": "Carry declared reasoning closure through the evaluation adapter",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 40,
-        "reason": "Built preflight measures 40 production AST nodes for explicit buffered and streaming reasoning closure through the existing parser and evaluation adapter. The real adapter fixture fails before and passes after. Existing channel tables retain malformed, empty, prompt-open and thinking-off behavior."
-      },
-      "steps": [
-        {
-          "id": "facts",
-          "title": "Use parser closure facts rather than changed output text",
-          "status": "open",
-          "verify": "go test ./internal/inference ./internal/evaluation ./cmd/evaluate -run '^(TestChatReasoningDeclaredChannels|TestEvaluationProtocolCapturesAllPolicyInputs|TestReasoningAdapterUsesDeclaredClosure)$'",
-          "rationale": "SQA-149. Extend the existing reasoning marker parser with explicit closure information. Exercise the real adapter with no-close plus a valid tool block, close plus tool, closed empty thought and prompt-open closure. Keep malformed tools, declared templates and thinking-off behavior. Land before protocol reproduction and preserve current scorer/source qualification.\nServes: held-out-quality\nDisappears: content-inequality as a thought-closure fact\nEvidence: go test ./internal/inference ./internal/evaluation ./cmd/evaluate -run '^(TestChatReasoningDeclaredChannels|TestEvaluationProtocolCapturesAllPolicyInputs|TestReasoningAdapterUsesDeclaredClosure)$' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
-        }
-      ]
-    },
-    {
       "id": "model-check-ownership",
       "title": "Give required model checks one executing owner",
       "owner": "master-lead",
@@ -141,17 +122,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 9,
+        "nodes": -40,
         "reason": "Built preflight measures 9 additional production AST nodes for refusing integer overflow and propagating failed tool-object conversion through the existing JSON and chat owners. Existing fixtures retain signed bounds, ordering, floats and malformed cases. No approximate fallback remains."
       },
       "steps": [
-        {
-          "id": "integers",
-          "title": "Refuse unsupported integer ranges without rounding",
-          "status": "open",
-          "verify": "go test ./internal/jinja ./internal/inference -run 'Test.*(JSON|Tool|Chat)'",
-          "rationale": "SQA-123. Preserve supported integers or return explicit range refusal through the existing parser. Never fall through overflowing integers to Float64 or quote a failed object as fallback. Keep signed boundaries, nested ordering, floats, null and malformed input behavior.\nServes: tool correctness\nDisappears: silent integer rounding\nEvidence: go test ./internal/jinja ./internal/inference -run 'Test.*(JSON|Tool|Chat)' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
-        },
         {
           "id": "descriptions",
           "title": "Correct confidence, activation and storage descriptions",

@@ -13,6 +13,7 @@ type reasoningChannelStream struct {
 	pending   string
 	atStart   bool
 	thinking  bool
+	closed    bool
 	trimStart bool
 }
 
@@ -65,7 +66,7 @@ func (s *reasoningChannelStream) accept(piece string, final bool) (reasoning, co
 		if index := strings.Index(s.pending, s.markers.close); index >= 0 {
 			reasoning = strings.TrimRight(s.pending[:index], "\r\n")
 			s.pending = s.pending[index+len(s.markers.close):]
-			s.thinking, s.trimStart = false, true
+			s.thinking, s.trimStart, s.closed = false, true, true
 		} else {
 			end := len(s.pending)
 			if !final {

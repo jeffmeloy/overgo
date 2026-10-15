@@ -150,7 +150,7 @@ func (s *chatOutputStream) Accept(
 		return nil, s.markerErr
 	}
 	s.output.WriteString(piece)
-	reasoning, body, ready, err := s.markers.split(s.output.String(), false)
+	reasoning, body, ready, _, err := s.markers.split(s.output.String(), false)
 	if err != nil || !ready {
 		return nil, err
 	}
@@ -220,6 +220,7 @@ func (s *chatOutputStream) Finish() (ChatMessage, error) {
 			}
 		}
 		message.ReasoningContent = s.reasoning.String()
+		message.ReasoningClosed = s.channel.closed
 		return message, nil
 	}
 	return parseChatOutput(s.template, s.output.String(), s.tools)

@@ -50,7 +50,7 @@ func parseChatOutput(
 	if err != nil {
 		return ChatMessage{}, err
 	}
-	reasoning, body, _, err := markers.split(output, true)
+	reasoning, body, _, closed, err := markers.split(output, true)
 	if err != nil {
 		return ChatMessage{}, err
 	}
@@ -59,6 +59,7 @@ func parseChatOutput(
 		return ChatMessage{}, err
 	}
 	message.ReasoningContent = reasoning
+	message.ReasoningClosed = closed
 	if len(message.ToolCalls) != 0 {
 		message.Content = strings.TrimSpace(message.Content)
 	}
@@ -148,23 +149,23 @@ func chatReasoningMarkers(template string) (reasoningMarkers, error) {
 
 // split withholds an explicitly opened reasoning block until its closing marker
 // arrives. Only the following content is exposed to the tool scanner.
-func (markers reasoningMarkers) split(output string, complete bool) (reasoning, content string, ready bool, err error) {
+func (markers reasoningMarkers) split(output string, complete bool) (reasoning, content string, ready, closed bool, err error) {
 	open, close := markers.open, markers.close
 	openIndex := strings.Index(output, open)
 	closeIndex := strings.Index(output, close)
 	switch {
 	case openIndex >= 0:
 		if closeIndex < 0 && !complete {
-			return "", "", false, nil
+			return "", "", false, false, nil
 		}
 		if closeIndex < openIndex {
-			return "", "", false, errors.New(
+			return "", "", false, false, errors.New(
 				"inference: reasoning output has an unterminated block",
 			)
 		}
 		prefix := output[:openIndex]
 		if strings.TrimSpace(prefix) != "" {
-			return "", "", false, errors.New(
+			return "", "", false, false, errors.New(
 				"inference: text before a reasoning block is not supported",
 			)
 		}
@@ -179,11 +180,11 @@ func (markers reasoningMarkers) split(output string, complete bool) (reasoning, 
 		content = output
 	}
 	if strings.Contains(content, open) || strings.Contains(content, close) {
-		return "", "", false, errors.New(
+		return "", "", false, false, errors.New(
 			"inference: reasoning output contains unmatched markers",
 		)
 	}
-	return reasoning, content, true, nil
+	return reasoning, content, true, closeIndex >= 0, nil
 }
 
 func parseJSONToolCall(

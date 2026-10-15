@@ -1094,7 +1094,7 @@
      "contains": "func (s *chatOutputStream) Accept(",
      "path": "internal/inference/chat_stream.go",
      "role": "source",
-     "identity": "file:sha256:9a9ed33fdb1048ceaeb2766ce0fce83b9f5d4873762825cb65a84076b6a7a746"
+     "identity": "file:sha256:80a5b75dfe0b6b3bc8877740c8ae310369630c49054efde63f2f7c657712dbaf"
     },
     {
      "contains": "func TestStreamingResponsesFunctionCallLifecycle(",

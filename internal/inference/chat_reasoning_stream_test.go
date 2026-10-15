@@ -42,7 +42,7 @@ func TestChatReasoningStreamPromptState(t *testing.T) {
 			}
 		}
 		message, err := stream.Finish()
-		if err != nil || message.ReasoningContent != "secret" || message.Content != "answer" {
+		if err != nil || !message.ReasoningClosed || message.ReasoningContent != "secret" || message.Content != "answer" {
 			t.Fatalf("native token delivery: %+v %v", message, err)
 		}
 	})
@@ -76,7 +76,7 @@ func TestChatReasoningStreamPromptState(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if starts != 1 || reasoning.String() != thought || content.String() != " Hello " || arguments.String() != `{"city":"東京"}` || message.ReasoningContent != reasoning.String() || message.Content != content.String() || len(message.ToolCalls) != 1 || message.ToolCalls[0].Function.Arguments != arguments.String() {
+		if !message.ReasoningClosed || starts != 1 || reasoning.String() != thought || content.String() != " Hello " || arguments.String() != `{"city":"東京"}` || message.ReasoningContent != reasoning.String() || message.Content != content.String() || len(message.ToolCalls) != 1 || message.ToolCalls[0].Function.Arguments != arguments.String() {
 			t.Fatalf("stream/final mismatch: starts=%d reasoning=%q content=%q args=%q final=%+v", starts, reasoning.String(), content.String(), arguments.String(), message)
 		}
 	})
@@ -148,19 +148,22 @@ func TestChatReasoningStreamPromptState(t *testing.T) {
 			t.Fatalf("reasoning withheld: %q / %q", r, c)
 		}
 	})
-	for _, test := range []struct{ name, template, prompt, output, reasoning, content string }{
-		{"explicit", template, "assistant", "<|channel>thought\n確認 🙂\n<channel|>réponse π", "確認 🙂", "réponse π"},
-		{"unicode_leading_space", template, "assistant", "\u2003<|channel>thought\nreason<channel|>answer", "reason", "answer"},
-		{"think", "<think></think>", "assistant", "<think>reason</think>answer", "reason", "answer"},
-		{"inkling", "<|content_thinking|><|content_text|>", "assistant", "<|content_thinking|>reason<|content_text|>answer", "reason", "answer"},
-		{"prompt_open", template, "assistant<|channel>thought\n", "example <tool_call>{}</tool_call>\n<channel|>answer", "example <tool_call>{}</tool_call>", "answer"},
-		{"plain", template, "assistant", "  answer 🙂\n", "", "  answer 🙂\n"},
-		{"prompt_closed", template, "assistant<|channel>thought\n<channel|>\n", "\nanswer", "", "\nanswer"},
-		{"literal", template, "assistant", "guide: <|channel>thought\nquoted<channel|>text", "", "guide: <|channel>thought\nquoted<channel|>text"},
-		{"undeclared", "", "assistant", "<think>literal</think>", "", "<think>literal</think>"},
-		{"historical_marker", template, "user <|channel>thought\ntext\nassistant", "answer", "", "answer"},
-		{"budget_in_thought", template, "assistant<|channel>thought\n", "unfinished thought", "unfinished thought", ""},
-		{"partial_open_literal", template, "assistant", "<|chan", "", "<|chan"},
+	for _, test := range []struct {
+		name, template, prompt, output, reasoning, content string
+		closed                                             bool
+	}{
+		{"explicit", template, "assistant", "<|channel>thought\n確認 🙂\n<channel|>réponse π", "確認 🙂", "réponse π", true},
+		{"unicode_leading_space", template, "assistant", "\u2003<|channel>thought\nreason<channel|>answer", "reason", "answer", true},
+		{"think", "<think></think>", "assistant", "<think>reason</think>answer", "reason", "answer", true},
+		{"inkling", "<|content_thinking|><|content_text|>", "assistant", "<|content_thinking|>reason<|content_text|>answer", "reason", "answer", true},
+		{"prompt_open", template, "assistant<|channel>thought\n", "example <tool_call>{}</tool_call>\n<channel|>answer", "example <tool_call>{}</tool_call>", "answer", true},
+		{"plain", template, "assistant", "  answer 🙂\n", "", "  answer 🙂\n", false},
+		{"prompt_closed", template, "assistant<|channel>thought\n<channel|>\n", "\nanswer", "", "\nanswer", false},
+		{"literal", template, "assistant", "guide: <|channel>thought\nquoted<channel|>text", "", "guide: <|channel>thought\nquoted<channel|>text", false},
+		{"undeclared", "", "assistant", "<think>literal</think>", "", "<think>literal</think>", false},
+		{"historical_marker", template, "user <|channel>thought\ntext\nassistant", "answer", "", "answer", false},
+		{"budget_in_thought", template, "assistant<|channel>thought\n", "unfinished thought", "unfinished thought", "", false},
+		{"partial_open_literal", template, "assistant", "<|chan", "", "<|chan", false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			check := func(pieces []string) {
@@ -180,7 +183,7 @@ func TestChatReasoningStreamPromptState(t *testing.T) {
 				r, c := stream.accept("", true)
 				reasoning.WriteString(r)
 				content.WriteString(c)
-				if reasoning.String() != test.reasoning || content.String() != test.content {
+				if stream.closed != test.closed || reasoning.String() != test.reasoning || content.String() != test.content {
 					t.Fatalf("pieces=%q: got %q / %q; want %q / %q", pieces, reasoning.String(), content.String(), test.reasoning, test.content)
 				}
 			}

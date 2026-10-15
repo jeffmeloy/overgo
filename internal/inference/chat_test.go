@@ -262,6 +262,14 @@ func TestFormatJinjaChatSuppliesToolsAndToolCalls(t *testing.T) {
 	if got != want {
 		t.Fatalf("tool-aware Jinja prompt = %q, want %q", got, want)
 	}
+	// Integer-shaped JSON must not become an approximate float or quoted text.
+	for _, args := range []string{"{\"n\":9223372036854775808}", "{\"n\":-9223372036854775809}", "{\"n\":[9223372036854775808]}", "{\"n\":}"} {
+		_, err := runner.FormatChatWithOptions([]ChatMessage{{Role: ChatRoleAssistant, ToolCalls: []ChatToolCall{{Type: ChatToolTypeFunction, Function: ChatToolFunction{Name: "number", Arguments: args}}}}}, ChatFormatOptions{})
+		if err == nil {
+			t.Errorf("accepted unsupported tool arguments %s", args)
+		}
+	}
+
 }
 
 func TestFormatChatSelectsNamedToolUseTemplate(t *testing.T) {

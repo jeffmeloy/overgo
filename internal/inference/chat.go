@@ -37,6 +37,8 @@ func (role ChatRole) Valid() bool {
 }
 
 type ChatMessage struct {
+	// ReasoningClosed reports a closing marker parsed from generated output.
+	ReasoningClosed  bool            `json:"-"`
 	Role             ChatRole        `json:"role"`
 	Content          string          `json:"content"`
 	Media            []ChatMediaPart `json:"-"`
@@ -300,6 +302,7 @@ func (m *ChatMessage) UnmarshalJSON(data []byte) error {
 			}
 		}
 	}
+	m.ReasoningClosed = false
 	m.Role = wire.Role
 	m.Content = content
 	m.Media = media
@@ -436,7 +439,8 @@ func (r *Runner) buildChatContext(
 		if len(message.ToolCalls) != 0 {
 			calls := make([]any, len(message.ToolCalls))
 			for callIndex, call := range message.ToolCalls {
-				if err := validateChatToolCall(call); err != nil {
+				described, err := templateToolCall(call)
+				if err != nil {
 					return nil, fmt.Errorf(
 						"inference: chat message %d tool_call %d: %w",
 						index,
@@ -444,7 +448,7 @@ func (r *Runner) buildChatContext(
 						err,
 					)
 				}
-				calls[callIndex] = templateToolCall(call)
+				calls[callIndex] = described
 			}
 			wire["tool_calls"] = calls
 		}
@@ -532,14 +536,19 @@ func templateTool(tool ChatTool) (any, error) {
 // transformers' documentation tells a caller to pass and what the models'
 // templates read: they walk the arguments' items. Arguments that are not a
 // JSON object are handed over as the text they are.
-func templateToolCall(call ChatToolCall) any {
+func templateToolCall(call ChatToolCall) (any, error) {
+	if err := validateChatToolCall(call); err != nil {
+		return nil, err
+	}
+	decoded, err := jinja.DecodeJSON([]byte(call.Function.Arguments))
+	if err != nil {
+		return nil, err
+	}
 	function := jinja.NewDict()
 	function.Set("name", call.Function.Name)
 	arguments := any(call.Function.Arguments)
-	if decoded, err := jinja.DecodeJSON([]byte(call.Function.Arguments)); err == nil {
-		if _, mapping := decoded.(*jinja.Dict); mapping {
-			arguments = decoded
-		}
+	if _, mapping := decoded.(*jinja.Dict); mapping {
+		arguments = decoded
 	}
 	function.Set("arguments", arguments)
 	described := jinja.NewDict()
@@ -548,7 +557,7 @@ func templateToolCall(call ChatToolCall) any {
 	}
 	described.Set("type", string(call.Type))
 	described.Set("function", function)
-	return described
+	return described, nil
 }
 
 func formatChatML(messages []ChatMessage) (string, error) {

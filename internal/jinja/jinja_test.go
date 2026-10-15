@@ -3,8 +3,10 @@ package jinja
 import (
 	"encoding/json"
 	"errors"
+	"math"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 )
 
@@ -93,9 +95,21 @@ func TestRendersAsPythonJinjaDoes(t *testing.T) {
 // to refusing what is not one value: nothing, a value cut short, and a value
 // with another after it.
 func TestDecodeJSONRefusesWhatIsNotOneValue(t *testing.T) {
-	for _, text := range []string{``, `{"a": `, `[1, 2`, `{"a": 1} {"b": 2}`, `{1: 2}`} {
+	high := strconv.FormatUint(uint64(math.MaxInt)+1, 10)
+	low := "-" + strconv.FormatUint(uint64(math.MaxInt)+2, 10)
+	for _, text := range []string{high, low, `{"a":[` + high + `]}`, ``, `{"a": `, `[1, 2`, `{"a": 1} {"b": 2}`, `{1: 2}`} {
 		if value, err := DecodeJSON([]byte(text)); err == nil {
 			t.Errorf("%q was read as %v", text, value)
 		}
 	}
+	valid := "{\"z\": [" + strconv.Itoa(math.MaxInt) + ", " + strconv.Itoa(math.MinInt) + ", null, 1.25], \"a\": true}"
+	value, err := DecodeJSON([]byte(valid))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := filterToJSON(value, nil, nil)
+	if err != nil || got != valid {
+		t.Fatalf("ordered boundary round trip = %v, %v; want %s", got, err, valid)
+	}
+
 }

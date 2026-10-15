@@ -19,6 +19,7 @@ import (
 // an object as a Dict in the order its keys arrive, an array as a list, a
 // number as an integer where it is written as one and as a float otherwise,
 // and null as None.
+// Integers outside the native int range are refused rather than rounded.
 func DecodeJSON(data []byte) (any, error) {
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.UseNumber()
@@ -71,9 +72,7 @@ func decodeJSONValue(decoder *json.Decoder) (any, error) {
 		return list, err
 	case json.Number:
 		if text := typed.String(); !strings.ContainsAny(text, ".eE") {
-			if whole, err := strconv.Atoi(text); err == nil {
-				return whole, nil
-			}
+			return strconv.Atoi(text)
 		}
 		return typed.Float64()
 	case nil:

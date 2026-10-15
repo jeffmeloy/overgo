@@ -61,25 +61,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "media-request-completeness",
-      "title": "Require the whole producing request at render reuse",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 33,
-        "reason": "Go AST comparison measures +33 production and +171 test nodes for complete request equality with exact JSON numbers and omitted numeric zeros. Existing render fixtures reproduce the missing-prompt defect before the fix. The partial field loop and redundant method request hash disappear. No performance improvement is claimed."
-      },
-      "steps": [
-        {
-          "id": "close",
-          "title": "Bind the measured request and reject missing fields",
-          "status": "open",
-          "verify": "go test ./cmd/evaluate -run '^(TestAPictureIsJudgedOnlyWhenTheEvaluatedRecipeDrewIt|TestAJudgedRuntimeAnswersOnlyAboutAVerifiedPicture)$'",
-          "rationale": "Serves: trustworthy generated media evidence\nDisappears: partial request equality and a second request authority\nEvidence: existing render fixture rejects a rekeyed request missing the producer prompt and retains omitted-zero semantics\nBatch: command-only follow-up before final protocol measurement"
-        }
-      ]
-    },
-    {
       "id": "policy-search",
       "title": "Make the exploratory request protocol a protocol of the evaluation command, and reproduce its one result",
       "owner": "master-lead",

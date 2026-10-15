@@ -106,18 +106,44 @@ func TestAPictureIsJudgedOnlyWhenTheEvaluatedRecipeDrewIt(t *testing.T) {
 			t.Errorf("%s was qualified", label)
 		}
 	}
-	forged := held
-	forged.Request = json.RawMessage(`{"prompt":"not what the producer consumed","seed":1}`)
-	forgedKey, err := artifact.JSONID(artifact.KindFile, forged.Request)
+	for label, raw := range map[string]json.RawMessage{
+		"changed prompt": json.RawMessage(`{"prompt":"not what the producer consumed","seed":1}`),
+		"missing prompt": json.RawMessage(`{"seed":1}`),
+	} {
+		forged := held
+		forged.Request = raw
+		forgedKey, err := artifact.JSONID(artifact.KindFile, forged.Request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		manifest.Draws = map[string]renderedMedia{forgedKey.DigestHex(): forged}
+		if err := jsonfile.Write(filepath.Join(directory, renderManifestFile), manifest, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := verifyRendered(t.Context(), store, directory, model, recipeID, forgedKey.DigestHex()); err == nil {
+			t.Errorf("%s borrowed another producer", label)
+		}
+	}
+	zero := held
+	var zeroFields map[string]any
+	if err := json.Unmarshal(held.Request, &zeroFields); err != nil {
+		t.Fatal(err)
+	}
+	zeroFields["steps"] = 0
+	zero.Request, err = json.Marshal(zeroFields)
 	if err != nil {
 		t.Fatal(err)
 	}
-	manifest.Draws = map[string]renderedMedia{forgedKey.DigestHex(): forged}
+	zeroKey, err := artifact.JSONID(artifact.KindFile, zero.Request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest.Draws = map[string]renderedMedia{zeroKey.DigestHex(): zero}
 	if err := jsonfile.Write(filepath.Join(directory, renderManifestFile), manifest, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := verifyRendered(t.Context(), store, directory, model, recipeID, forgedKey.DigestHex()); err == nil {
-		t.Fatal("changed request and key borrowed another producer")
+	if _, err := verifyRendered(t.Context(), store, directory, model, recipeID, zeroKey.DigestHex()); err != nil {
+		t.Fatalf("omitted numeric zero changed request semantics: %v", err)
 	}
 	manifest.Draws = nil
 	if err := jsonfile.Write(filepath.Join(directory, renderManifestFile), manifest, 0o600); err != nil {

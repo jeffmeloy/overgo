@@ -115,11 +115,7 @@ func (r judgedRuntime) ResolveMedia(ctx context.Context, kind evaluation.MediaKi
 	if err != nil {
 		return evaluation.MediaInput{}, err
 	}
-	request, err := artifact.JSONID(artifact.KindFile, held.Request)
-	if err != nil {
-		return evaluation.MediaInput{}, err
-	}
-	return r.bindMedia(ctx, kind, filepath.Join(r.root, held.File), evaluation.MediaInput{Content: held.Output, Request: request, Producer: held.Run})
+	return r.bindMedia(ctx, kind, filepath.Join(r.root, held.File), evaluation.MediaInput{Content: held.Output, Request: held.Input, Producer: held.Run})
 }
 
 // ResolveMedia binds image content to the admitted VQA workflow.

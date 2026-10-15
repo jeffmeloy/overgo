@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -476,14 +477,25 @@ func verifyRendered(ctx context.Context, store artifact.Reader, directory string
 		return renderedMedia{}, errors.Join(err, errors.New("evaluate: producing request is absent"))
 	}
 	retained, known := capabilityruntime.RetainedRequest(input)
-	var requested, consumed map[string]any
-	if !known || json.Unmarshal(held.Request, &requested) != nil || json.Unmarshal([]byte(retained), &consumed) != nil {
+	if !known {
 		return renderedMedia{}, errors.New("evaluate: producing request is not retained JSON")
 	}
-	for field, value := range requested {
-		if !reflect.DeepEqual(value, consumed[field]) {
-			return renderedMedia{}, fmt.Errorf("evaluate: producing request differs at %s", field)
+	documents := []map[string]any{{}, {}}
+	for index, raw := range [][]byte{held.Request, []byte(retained)} {
+		decoder := json.NewDecoder(bytes.NewReader(raw))
+		decoder.UseNumber()
+		if err := decoder.Decode(&documents[index]); err != nil {
+			return renderedMedia{}, err
 		}
+		// Numeric zero is the omitted scalar value of a typed capability request.
+		for field, value := range documents[index] {
+			if value == json.Number("0") || value == json.Number("-0") {
+				delete(documents[index], field)
+			}
+		}
+	}
+	if !reflect.DeepEqual(documents[0], documents[1]) {
+		return renderedMedia{}, errors.New("evaluate: complete producing request differs")
 	}
 	return held, nil
 }

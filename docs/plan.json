@@ -76,6 +76,20 @@
           "status": "open",
           "verify": "go test ./cmd/validate ./internal/scorecard -run '^(TestAContendedCellIsMeasuredOnceMoreAfterTheOthers|TestAContendedAttemptGivesTheScorecardNoReading)$'",
           "rationale": "SQA-144. Carry serving-attempt identities through the existing command result. Remove the global after-sequence scan. Retain failed attempts and exclude only the successful contended attempt. Seed unrelated observations before admission, during execution and after completion plus late content fill. Preserve retry order and idempotence.\nServes: throughput and failure-rate measurement\nDisappears: unbounded sequence attribution and descriptor-order early stop\nEvidence: go test ./cmd/validate ./internal/scorecard -run '^(TestAContendedCellIsMeasuredOnceMoreAfterTheOthers|TestAContendedAttemptGivesTheScorecardNoReading)$' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
+        },
+        {
+          "id": "phases",
+          "title": "Give API and CLI decode phases the same time boundary",
+          "status": "open",
+          "verify": "go test ./internal/server ./cmd/recipe -run '^(TestServingHardwareEvidenceUsesLifecycleBounds|TestCancelledGenerationStillReadsItsFinishSample|TestInferenceMeasurementFillsTheServingCells|TestMeasurementSeparatesLoadPrefillAndVisibleOutput)$'",
+          "rationale": "SQA-152 and the CLI group of SQA-088. Capture server prompt-evaluated time before hardware sampling. Reuse a small existing servingattempt boundary only if both phase builders disappear with a net benefit. Move the separate CLI wait regression into its serving-cells fixture. Keep total and first-output time, absent callback, failure, cancellation and exact output.\nServes: truthful throughput and first-output measurement\nDisappears: server duration-only decode subtraction and duplicate CLI fixture body\nEvidence: go test ./internal/server ./cmd/recipe -run '^(TestServingHardwareEvidenceUsesLifecycleBounds|TestCancelledGenerationStillReadsItsFinishSample|TestInferenceMeasurementFillsTheServingCells|TestMeasurementSeparatesLoadPrefillAndVisibleOutput)$' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
+        },
+        {
+          "id": "references",
+          "title": "Select complete compatible baselines with distinct reading identities",
+          "status": "open",
+          "verify": "go test ./internal/scorecard -run '^(TestScorecardUsesCompatibleFixedReferencesAndMetricSpecificEvidence|TestEarlierIsEachCellsNewestEarlierMeasurement|TestOneBusyAttemptCannotMaskADecline)$'",
+          "rationale": "SQA-102. Extend Reference and Earlier for absent rows, Heldout and incompatible intervening readings. Deduplicate Source/Value identities throughout the retained window. The 110,90,100,50,150 median sequence must not count repeated 100/C twice. Keep unknowns, noise, window expiry and fixed restoration targets.\nServes: evidence validity\nDisappears: previous-row-only baseline seeding and adjacent-only identity suppression\nEvidence: go test ./internal/scorecard -run '^(TestScorecardUsesCompatibleFixedReferencesAndMetricSpecificEvidence|TestEarlierIsEachCellsNewestEarlierMeasurement|TestOneBusyAttemptCannotMaskADecline)$' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
         }
       ]
     },

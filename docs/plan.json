@@ -61,25 +61,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "store-lifecycle",
-      "title": "Keep store cleanup independent of optional maintenance",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "Preflight measured 15 production AST nodes for nonblocking optional checkpoint admission and direct unpublished-log cleanup. Existing owners retain checkpoint and transaction behavior. Necessary regression coverage adds tests."
-      },
-      "steps": [
-        {
-          "id": "release",
-          "title": "Retry released-blob cleanup without another logical release",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestReleaseKeepsChainAuthority$'",
-          "rationale": "SQA-140. Reuse sweepReleasedBlobs under writer exclusion when a retry has no new release facts. Seed durable release with pending loose bytes in the existing fixture. Reintroduction and rooted claims remain protected.\nServes: recovery and storage\nDisappears: the early return that bypasses pending cleanup\nEvidence: go test ./internal/overgodb -run '^TestReleaseKeepsChainAuthority$' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
-        }
-      ]
-    },
-    {
       "id": "checkpoint-ownership",
       "title": "Keep registered model paths through checkpoint cleanup",
       "owner": "master-lead",
@@ -261,14 +242,11 @@
       "title": "Remove duplicated Go tests through retained behavior owners",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 13,
+        "reason": ""
+      },
       "steps": [
-        {
-          "id": "store",
-          "title": "Consolidate store payload and fallback fixtures",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^(TestProjectionCheckpointAnchorAndFallback|TestForeignSnapshotFallsBackToLog|TestSnapshotAnchorsReplayAndRetainsTail|TestSmallBlobsArePacked|TestBlobStorePublicationContract)$'",
-          "rationale": "SQA-088 store groups. Remove SnapshotFallbackReport through retained projection corruption coverage. Move VerifyBlobs live-count and payload corruption into SmallBlobsArePacked while keeping independent index corruption. Move both observation-chunk kinds into BlobStorePublicationContract. Retain foreign-generation, captured extent, writer release, cancellation and resume coverage. Report net test nodes and setup counts.\nServes: development velocity\nDisappears: three displaced standalone test bodies and their repeated temporary store or blob roots\nEvidence: go test ./internal/overgodb -run '^(TestProjectionCheckpointAnchorAndFallback|TestForeignSnapshotFallsBackToLog|TestSnapshotAnchorsReplayAndRetainsTail|TestSmallBlobsArePacked|TestBlobStorePublicationContract)$' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
-        },
         {
           "id": "operations",
           "title": "Merge operation recovery and publishing lifecycles",

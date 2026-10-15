@@ -56,55 +56,6 @@ func TestSnapshotAnchorsReplayAndRetainsTail(t *testing.T) {
 	}
 }
 
-func TestSnapshotFallbackReport(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	store, err := Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	batch := fixtureBatch(t)
-	if _, err := store.Commit(t.Context(), batch); err != nil {
-		t.Fatal(err)
-	}
-	snapshot, err := store.Snapshot(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
-	file, err := os.OpenFile(filepath.Join(snapshot.Path, "aliases"+checkpointExtension), os.O_RDWR, storeFileMode)
-	if err != nil {
-		t.Fatal(err)
-	}
-	info, err := file.Stat()
-	if err != nil {
-		t.Fatal(err)
-	}
-	value := []byte{0}
-	if _, err := file.ReadAt(value, info.Size()-1); err != nil {
-		t.Fatal(err)
-	}
-	value[0] ^= 0xff
-	if _, err := file.WriteAt(value, info.Size()-1); err != nil {
-		t.Fatal(err)
-	}
-	_ = file.Close()
-	store, err = OpenReadOnly(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	status := store.SnapshotReplay()
-	if status.Loaded || status.Fallback == "" {
-		t.Fatalf("snapshot fallback = %+v", status)
-	}
-	if _, ok, err := store.Artifact(t.Context(), batch.Artifacts[0].ID); err != nil || !ok {
-		t.Fatalf("rebuilt artifact = (%v, %v)", ok, err)
-	}
-}
-
 func TestForeignSnapshotFallsBackToLog(t *testing.T) {
 	t.Parallel()
 	sourceRoot := t.TempDir()

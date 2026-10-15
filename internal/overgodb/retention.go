@@ -224,19 +224,48 @@ func Release(ctx context.Context, store *Store, admit StoreLocalAdmission, polic
 	}
 	slices.SortFunc(releases, artifact.CompareID)
 	report.Released = len(releases)
-	if len(releases) == 0 {
-		return report, nil
-	}
 	writer := releaseWriter{ctx: ctx, store: store, head: report.HeadBefore, sequence: report.SequenceBefore}
-	if err := writer.commit(releases); err != nil {
-		return report, err
+	if len(releases) != 0 {
+		if err := writer.commit(releases); err != nil {
+			return report, err
+		}
 	}
 	report.Commits = writer.commits
-	if err := sweepReleasedBlobs(store, &report); err != nil {
+	// Writer ownership keeps a reintroduced identity out of pending cleanup.
+	if err := store.writeTransaction(ctx, func() error {
+		var blobs []artifact.ID
+		for id, locator := range store.state.contents.locators {
+			switch {
+			case locator.released == 0:
+			case locator.blob:
+				blobs = append(blobs, id)
+			default:
+				report.Inline++
+			}
+		}
+		slices.SortFunc(blobs, artifact.CompareID)
+		for _, id := range blobs {
+			if err := contextError(ctx); err != nil {
+				return err
+			}
+			removed, err := store.blobs.remove(id)
+			if err != nil {
+				return err
+			}
+			if removed {
+				report.BlobsRemoved++
+			} else {
+				report.BlobsAbsent++
+			}
+		}
+		return nil
+	}); err != nil {
 		return report, err
 	}
-	if _, err := store.Snapshot(ctx); err != nil {
-		return report, err
+	if report.Commits != 0 {
+		if _, err := store.Snapshot(ctx); err != nil {
+			return report, err
+		}
 	}
 	report.HeadAfter, report.SequenceAfter = store.Head()
 	return report, nil
@@ -282,39 +311,6 @@ func (writer *releaseWriter) commit(releases []artifact.ID) error {
 		return err
 	}
 	return writer.commit(releases[middle:])
-}
-
-// sweepReleasedBlobs deletes the blob file of every released content, this
-// run's and any earlier run's. Bytes leave the disk only after the chain
-// says they are released, so a crash between commit and sweep leaves files
-// the next sweep removes, never a committed descriptor whose durable bytes
-// are missing. Inline legacy content has no file to remove.
-func sweepReleasedBlobs(store *Store, report *ReleaseReport) error {
-	var blobs []artifact.ID
-	store.mu.RLock()
-	for id, locator := range store.state.contents.locators {
-		switch {
-		case locator.released == 0:
-		case locator.blob:
-			blobs = append(blobs, id)
-		default:
-			report.Inline++
-		}
-	}
-	store.mu.RUnlock()
-	slices.SortFunc(blobs, artifact.CompareID)
-	for _, id := range blobs {
-		removed, err := store.blobs.remove(id)
-		if err != nil {
-			return err
-		}
-		if removed {
-			report.BlobsRemoved++
-		} else {
-			report.BlobsAbsent++
-		}
-	}
-	return nil
 }
 
 // String renders the report.

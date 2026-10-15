@@ -106,12 +106,33 @@ func TestReleaseKeepsChainAuthority(t *testing.T) {
 	}
 	assertReleased(t, store, fixture, introduction)
 
+	// Restore the original loose bytes to model interruption after the durable release fact.
+	if err := store.blobs.prepare(orphan, fixture.orphan.Data); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	store, err = Open(fixture.root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
 	again, err := Release(ctx, store, nil, RetentionPolicy{}, releasable)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if again.Unreachable != 1 || again.Released != 0 || again.Commits != 0 || again.SequenceAfter != report.SequenceAfter {
-		t.Fatalf("second release changed the store: %+v", again)
+	if again.Unreachable != 1 || again.Released != 0 || again.Commits != 0 ||
+		again.HeadAfter != report.HeadAfter || again.SequenceAfter != report.SequenceAfter || again.BlobsRemoved != 1 {
+		t.Fatalf("retry did not finish committed cleanup without changing the chain: %+v", again)
+	}
+	assertReleased(t, store, fixture, introduction)
+	if _, err := os.Stat(blob); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("retried cleanup left the released blob: %v", err)
+	}
+	if done, err := Release(ctx, store, nil, RetentionPolicy{}, releasable); err != nil ||
+		done.BlobsRemoved != 0 || done.BlobsAbsent != 1 || done.HeadAfter != report.HeadAfter {
+		t.Fatalf("completed cleanup was not idempotent: %+v, %v", done, err)
 	}
 }
 
@@ -256,8 +277,7 @@ func TestReleaseThenBackupAndRebuild(t *testing.T) {
 	}
 }
 
-// TestReleasedContentReintroduces commits the released bytes again: the
-// content is durable once more under a fresh introduction.
+// TestReleasedContentReintroduces preserves content introduced after cleanup captures its view.
 func TestReleasedContentReintroduces(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
@@ -265,10 +285,35 @@ func TestReleasedContentReintroduces(t *testing.T) {
 	if _, err := Release(ctx, fixture.store, nil, RetentionPolicy{}, releasable); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := fixture.store.Commit(ctx, artifact.Batch{
-		Key: "release/reintroduce", Contents: []artifact.Content{fixture.orphan},
-	}); err != nil {
+	writer, err := Open(fixture.root)
+	if err != nil {
 		t.Fatal(err)
+	}
+	defer writer.Close()
+	var introduced bool
+	var introduceErr error
+	policy := RetentionPolicy{FollowChildren: func(descriptor artifact.Descriptor) bool {
+		if descriptor.ID == fixture.orphan.Descriptor.ID {
+			_, introduceErr = writer.Commit(ctx, artifact.Batch{
+				Key: "release/reintroduce", Contents: []artifact.Content{fixture.orphan},
+				Aliases: []artifact.AliasBinding{{Name: "release/reintroduced", Target: descriptor.ID}},
+			})
+			introduced = true
+		}
+		return false
+	}}
+	if _, err := Release(ctx, fixture.store, nil, policy, releasable); err != nil || introduceErr != nil || !introduced {
+		t.Fatalf("cleanup beside reintroduction: release=%v, introduce=%v, introduced=%t", err, introduceErr, introduced)
+	}
+	_, reader, found, err := fixture.store.OpenContent(ctx, fixture.orphan.Descriptor.ID)
+	if err != nil || !found {
+		t.Fatalf("cleanup removed reintroduced bytes: found=%t, err=%v", found, err)
+	}
+	if data, err := io.ReadAll(reader); err != nil || string(data) != string(fixture.orphan.Data) {
+		t.Fatalf("reintroduced bytes differ: %q, %v", data, err)
+	}
+	if target, found, err := fixture.store.ResolveAlias(ctx, "release/reintroduced"); err != nil || !found || target != fixture.orphan.Descriptor.ID {
+		t.Fatalf("reintroduced alias = %s, %t, %v", target, found, err)
 	}
 	_, sequence := fixture.store.Head()
 	introduction, found, err := fixture.store.ArtifactIntroduction(ctx, fixture.orphan.Descriptor.ID)

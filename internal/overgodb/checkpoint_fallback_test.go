@@ -71,7 +71,7 @@ func TestProjectionCheckpointAnchorAndFallback(t *testing.T) {
 		data[len(data)-2] ^= 0xFF
 		return data
 	})
-	if digest := openAndDigest(t, false, "aliases"); digest != baseline {
+	if digest := openAndDigest(t, false, "checkpoint aliases payload digest differs"); digest != baseline {
 		t.Fatal("payload-corrupt fallback answered differently")
 	}
 	restore(t)

@@ -10,21 +10,6 @@ import (
 	"overgo/internal/processlock"
 )
 
-// cancelAtJournal cancels startup once replay has created the journal.
-type cancelAtJournal struct {
-	context.Context
-	journal string
-	cancel  context.CancelCauseFunc
-	cause   error
-}
-
-func (c cancelAtJournal) Err() error {
-	if _, err := os.Stat(c.journal); err == nil {
-		c.cancel(c.cause)
-	}
-	return c.Context.Err()
-}
-
 func TestOpenContextWriterAdmission(t *testing.T) {
 	t.Parallel()
 	for _, cancelWait := range []bool{false, true} {
@@ -98,7 +83,8 @@ func TestOpenContextWriterAdmission(t *testing.T) {
 		ctx, cancel := context.WithCancelCause(t.Context())
 		defer cancel(context.Canceled)
 		cause := errors.New("cancel after journal creation")
-		store, err := OpenContext(cancelAtJournal{ctx, filepath.Join(root, storeFilename), cancel, cause}, root)
+		boundary := &fileBoundary{Context: ctx, path: filepath.Join(root, storeFilename), check: func() { cancel(cause) }}
+		store, err := OpenContext(boundary, root)
 		if store != nil || !errors.Is(err, cause) {
 			if store != nil {
 				store.Close()

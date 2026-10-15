@@ -49,7 +49,7 @@ func TestTransactionWriter(t *testing.T) {
 			defer cancel(context.Canceled)
 			superseded := fmt.Sprintf("%s.superseded-%.12s", live, original)
 			observed := false
-			boundary := &replacementBoundary{Context: ctx, moved: superseded}
+			boundary := &fileBoundary{Context: ctx, path: superseded}
 			boundary.check = sync.OnceFunc(func() {
 				observed = true
 				// Startup must share exclusion even while live does not exist.
@@ -460,16 +460,15 @@ func TestTransactionWriter(t *testing.T) {
 	})
 }
 
-// Observe the real rename gap through the existing cancellation boundary.
-// This keeps the comparison deterministic without production hooks or sleeps.
-type replacementBoundary struct {
+// fileBoundary observes a created file at an existing cancellation check.
+type fileBoundary struct {
 	context.Context
-	moved string
+	path  string
 	check func()
 }
 
-func (c *replacementBoundary) Err() error {
-	if _, err := os.Stat(c.moved); err == nil {
+func (c *fileBoundary) Err() error {
+	if _, err := os.Stat(c.path); err == nil {
 		c.check()
 	}
 	return c.Context.Err()

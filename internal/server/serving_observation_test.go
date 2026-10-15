@@ -4,8 +4,11 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"overgo/internal/processmeasure"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
@@ -183,7 +186,7 @@ func TestServingHardwareEvidenceUsesLifecycleBounds(t *testing.T) {
 		t.Fatal(err)
 	}
 	generator := &recipeInspectorGenerator{
-		fakeGenerator: &fakeGenerator{},
+		fakeGenerator: &fakeGenerator{started: make(chan struct{}), release: make(chan struct{}), promptDuration: time.Nanosecond},
 		description: modelrecipe.RuntimeDescription{
 			Task:     recipe.TaskInference,
 			Identity: modelrecipe.ProgramIdentity{Model: modelID, Recipe: recipeID},
@@ -194,7 +197,21 @@ func TestServingHardwareEvidenceUsesLifecycleBounds(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer handler.Close()
-	response := serveTestRequest(handler, http.MethodPost, "/v1/completions", `{"prompt":"hardware","max_tokens":1}`)
+	responses := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		responses <- serveTestRequest(handler, http.MethodPost, "/v1/completions", `{"prompt":"hardware","max_tokens":1}`)
+	}()
+	<-generator.started
+	wait := processmeasure.NewStopwatch()
+	waited, err := wait.Elapsed()
+	for waited == 0 && err == nil {
+		waited, err = wait.Elapsed()
+	}
+	close(generator.release)
+	response := <-responses
+	if err != nil {
+		t.Fatal(err)
+	}
 	if response.Code != http.StatusOK {
 		t.Fatalf("completion status=%d body=%s", response.Code, response.Body.String())
 	}
@@ -211,6 +228,11 @@ func TestServingHardwareEvidenceUsesLifecycleBounds(t *testing.T) {
 		t.Fatalf("observations=%d err=%v", len(observations), err)
 	}
 	observation := observations[0]
+	for _, phase := range observation.Phases {
+		if phase.Phase == runrecord.PhaseDecode && phase.DurationNS > observation.MeasuredNS-waited {
+			t.Errorf("decode %d includes the %d ns wait before prompt evaluation (request %d)", phase.DurationNS, waited, observation.MeasuredNS)
+		}
+	}
 	wantStages := []runrecord.ServingHardwareStage{
 		runrecord.ServingHardwareStart,
 		runrecord.ServingHardwarePrefill,
@@ -229,6 +251,21 @@ func TestServingHardwareEvidenceUsesLifecycleBounds(t *testing.T) {
 			t.Fatalf("sample[%d]=%+v", index, sample)
 		}
 	}
+	for _, test := range []struct {
+		prompt, evaluated, total uint64
+		want                     []runrecord.PhaseMetric
+	}{
+		{0, 0, 0, nil},
+		{0, 0, 10, []runrecord.PhaseMetric{{Phase: runrecord.PhaseDecode, DurationNS: 10}}},
+		{5, 0, 10, []runrecord.PhaseMetric{{Phase: runrecord.PhasePrefill, DurationNS: 5}, {Phase: runrecord.PhaseDecode, DurationNS: 5}}},
+		{5, 8, 10, []runrecord.PhaseMetric{{Phase: runrecord.PhasePrefill, DurationNS: 5}, {Phase: runrecord.PhaseDecode, DurationNS: 2}}},
+		{12, 15, 10, []runrecord.PhaseMetric{{Phase: runrecord.PhasePrefill, DurationNS: 10}}},
+	} {
+		if got := servingPhases(test.prompt, test.evaluated, test.total); !slices.Equal(got, test.want) {
+			t.Errorf("phases(%d, %d, %d) = %+v, want %+v", test.prompt, test.evaluated, test.total, got, test.want)
+		}
+	}
+
 }
 
 type countingRecorder struct {

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"time"
@@ -140,13 +141,14 @@ func executionOutcome(err error) (runrecord.Outcome, string) {
 	}
 }
 
-func servingPhases(prompt, total time.Duration) []runrecord.PhaseMetric {
+func servingPhases(prompt, evaluated, total uint64) []runrecord.PhaseMetric {
+	prompt = min(prompt, total)
 	var metrics []runrecord.PhaseMetric
 	if prompt > 0 {
-		metrics = append(metrics, runrecord.PhaseMetric{Phase: runrecord.PhasePrefill, DurationNS: uint64(prompt)})
+		metrics = append(metrics, runrecord.PhaseMetric{Phase: runrecord.PhasePrefill, DurationNS: prompt})
 	}
-	if decode := total - prompt; decode > 0 {
-		metrics = append(metrics, runrecord.PhaseMetric{Phase: runrecord.PhaseDecode, DurationNS: uint64(decode)})
+	if decode := total - min(cmp.Or(evaluated, prompt), total); decode > 0 {
+		metrics = append(metrics, runrecord.PhaseMetric{Phase: runrecord.PhaseDecode, DurationNS: decode})
 	}
 	return metrics
 }

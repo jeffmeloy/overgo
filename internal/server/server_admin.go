@@ -979,7 +979,7 @@ func (h *Handler) generate(
 	clock := processmeasure.NewStopwatch()
 	hardware := newServingHardwareCollector(h.generator, clock)
 	hardware.sample(ctx, runrecord.ServingHardwareStart)
-	var promptTokens, outputTokens atomic.Uint64
+	var promptTokens, outputTokens, promptEvaluated atomic.Uint64
 	var promptDuration atomic.Int64
 	before := driver.ExecutionStats{}
 	if api, ok := h.generator.(deviceExecutionAPI); ok {
@@ -997,6 +997,9 @@ func (h *Handler) generate(
 	}
 	onPromptEvaluated := options.OnPromptEvaluated
 	options.OnPromptEvaluated = func(evaluation inference.PromptEvaluation) {
+		if promptEvaluated.Load() == 0 {
+			promptEvaluated.CompareAndSwap(0, hardware.walls.Elapsed(clock))
+		}
 		hardware.sample(ctx, runrecord.ServingHardwarePrefill)
 		promptTokens.Add(uint64(max(evaluation.Tokens, 0)))
 		promptDuration.Add(max(evaluation.Duration.Nanoseconds(), 0))
@@ -1049,7 +1052,6 @@ func (h *Handler) generate(
 		if wallErr = errors.Join(wallErr, hardware.walls.Err); wallErr != nil {
 			return ids, text, errors.Join(err, wallErr)
 		}
-		elapsed := time.Duration(wall)
 		outcome, failure := executionOutcome(err)
 		h.publishServing(ctx, runrecord.ServingObservation{
 			Model: modelID, Recipe: recipeID, Task: recipe.TaskInference,
@@ -1060,7 +1062,7 @@ func (h *Handler) generate(
 				HostToDeviceBytes: servingTransferDelta(before.HostToDeviceBytes, after.HostToDeviceBytes),
 				DeviceToHostBytes: servingTransferDelta(before.DeviceToHostBytes, after.DeviceToHostBytes),
 			},
-			Phases: servingPhases(time.Duration(promptDuration.Load()), elapsed), Hardware: hardware.samples,
+			Phases: servingPhases(uint64(promptDuration.Load()), promptEvaluated.Load(), wall), Hardware: hardware.samples,
 		})
 	}
 	return ids, text, err

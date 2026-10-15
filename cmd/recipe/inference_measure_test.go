@@ -184,6 +184,7 @@ func TestInferenceMeasurementFillsTheServingCells(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	directory, path, model, active, first := measuredFixture(t)
+	model.stall = time.Millisecond
 	result, err := measureInference(ctx, directory, path, func(context.Context) (servedModel, error) {
 		tick(t, tick(t, 0))
 		return model, nil
@@ -197,47 +198,21 @@ func TestInferenceMeasurementFillsTheServingCells(t *testing.T) {
 	}
 	// The scorecard's serving cells read these facts: the load and decode
 	// phases, the prefill sample's elapsed time, and the peak device memory.
-	phases := map[runrecord.Phase]bool{}
+	phases := map[runrecord.Phase]uint64{}
 	for _, phase := range observed[0].Phases {
-		phases[phase.Phase] = phase.DurationNS != 0
+		phases[phase.Phase] = phase.DurationNS
 	}
 	prefilled, peak := false, uint64(0)
 	for _, sample := range observed[0].Hardware {
 		prefilled = prefilled || sample.Stage == runrecord.ServingHardwarePrefill && sample.ElapsedNS != 0
 		peak = max(peak, sample.DevicePeakBytes)
 	}
-	if !phases[runrecord.PhaseLoad] || !phases[runrecord.PhaseDecode] || !prefilled || peak != servedPeakBytes {
+	if phases[runrecord.PhaseLoad] == 0 || phases[runrecord.PhaseDecode] == 0 || !prefilled || peak != servedPeakBytes {
 		t.Fatalf("attempt phases %+v, prefill sampled %t, peak %d bytes; want timed load and decode, a prefill sample and %d bytes", observed[0].Phases, prefilled, peak, servedPeakBytes)
 	}
-}
 
-// TestInferenceMeasurementKeepsAWaitBeforePrefillOutOfDecode holds the decode
-// phase the throughput cell divides by to the request after its prompt was
-// evaluated.
-//   - a request that waits before its prefill keeps that wait out of decode
-//   - the wait still counts in the request's measured time
-func TestInferenceMeasurementKeepsAWaitBeforePrefillOutOfDecode(t *testing.T) {
-	t.Parallel()
-	directory, path, model, _, _ := measuredFixture(t)
-	model.stall = time.Millisecond
-	if _, err := measureInference(t.Context(), directory, path, func(context.Context) (servedModel, error) { return model, nil }); err != nil {
-		t.Fatal(err)
-	}
-	observed := servingAttempts(t, directory)
-	if len(observed) != 1 {
-		t.Fatalf("serving attempts = %+v; want one", observed)
-	}
-	var load, decode uint64
-	for _, phase := range observed[0].Phases {
-		switch phase.Phase {
-		case runrecord.PhaseLoad:
-			load = phase.DurationNS
-		case runrecord.PhaseDecode:
-			decode = phase.DurationNS
-		}
-	}
-	request := observed[0].MeasuredNS - load
-	if decode == 0 || request < uint64(model.stalled) || decode > request-uint64(model.stalled) {
-		t.Fatalf("decode %d ns of a %d ns request that waited %d ns before its prefill; want the wait outside decode", decode, request, model.stalled)
+	request := observed[0].MeasuredNS - phases[runrecord.PhaseLoad]
+	if request < uint64(model.stalled) || phases[runrecord.PhaseDecode] > request-uint64(model.stalled) {
+		t.Fatalf("decode %d ns of a %d ns request that waited %d ns before prefill", phases[runrecord.PhaseDecode], request, model.stalled)
 	}
 }

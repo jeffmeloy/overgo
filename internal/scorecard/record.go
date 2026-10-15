@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"maps"
 	"math"
 	"os"
 	"path/filepath"
@@ -16,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
@@ -134,16 +134,18 @@ func Reference(records []Record) *Record {
 				continue
 			}
 			var readings []float64
-			var read Cell
+			seen := make(map[artifact.ID][]float64)
 			for _, record := range earlier {
 				at := slices.IndexFunc(record.Rows, func(candidate Row) bool { return candidate.Model == row.Model && candidate.Task == row.Task })
 				if at < 0 {
 					continue
 				}
-				// The value a later record carries from the same source is the same reading.
-				if one := record.Rows[at].Cells[column]; one.Measured() && one.Contract == cell.Contract && one.Environment == cell.Environment && one.Direction == cell.Direction &&
-					(len(readings) == 0 || !one.Source.Valid() || one.Source != read.Source || one.Value != read.Value) {
-					readings, read = append(readings, one.Value), one
+				one := record.Rows[at].Cells[column]
+				if one.Measured() && one.Contract == cell.Contract && one.Environment == cell.Environment && one.Direction == cell.Direction && (!one.Source.Valid() || !slices.Contains(seen[one.Source], one.Value)) {
+					readings = append(readings, one.Value)
+					if one.Source.Valid() {
+						seen[one.Source] = append(seen[one.Source], one.Value)
+					}
 				}
 			}
 			readings = readings[max(0, len(readings)-referenceWindow):]
@@ -203,34 +205,56 @@ const (
 	noiseMultiple = 8
 )
 
-// Earlier is each cell's newest earlier measurement, which what moved since the
-// previous record is read against: the cells of the newest earlier record, each one
-// that record did not measure taken from the newest older record that did, so a cell
-// is compared with its newest earlier complete measurement and never with nothing. A
-// value is never carried forward in place of a missing current one: it only ever
-// answers a cell the newest record has. Nil when no record is earlier.
+// Earlier selects each cell's newest earlier measurement compatible with a current
+// value, retaining the newest measured fallback when none is compatible. It keeps
+// historical rows and held-out contracts absent from the previous record so lost
+// current measurements remain Unknown. It never fills a current value. Nil when no
+// record is earlier.
 func Earlier(records []Record) *Record {
 	if len(records) <= 1 {
 		return nil
 	}
-	earlier := records[:len(records)-1]
+	earlier, current := records[:len(records)-1], records[len(records)-1]
 	newest := earlier[len(earlier)-1]
-	reference := Record{Commit: newest.Commit, Name: newest.Name, Rows: slices.Clone(newest.Rows)}
-	for index := range reference.Rows {
-		reference.Rows[index].Cells = maps.Clone(reference.Rows[index].Cells)
+	reference := Record{Commit: newest.Commit, Name: newest.Name}
+	prefer := func(kept, candidate Cell, targets []Cell) bool {
+		return candidate.Measured() && (!kept.Measured() && !kept.NotApplicable || slices.ContainsFunc(targets, func(now Cell) bool {
+			return now.Measured() && candidate.Contract == now.Contract && candidate.Environment == now.Environment && candidate.Direction == now.Direction &&
+				(!kept.Measured() || kept.Contract != now.Contract || kept.Environment != now.Environment || kept.Direction != now.Direction)
+		}))
 	}
-	for _, older := range slices.Backward(earlier[:len(earlier)-1]) {
-		for _, row := range older.Rows {
+	for _, record := range slices.Backward(earlier) {
+		for _, row := range record.Rows {
 			at := slices.IndexFunc(reference.Rows, func(candidate Row) bool { return candidate.Model == row.Model && candidate.Task == row.Task })
 			if at < 0 {
-				continue
+				at = len(reference.Rows)
+				copy := row
+				copy.Cells, copy.Heldout = make(map[metric.Name]Cell), nil
+				reference.Rows = append(reference.Rows, copy)
+			}
+			kept := &reference.Rows[at]
+			var now Row
+			if currentAt := slices.IndexFunc(current.Rows, func(candidate Row) bool { return candidate.Model == row.Model && candidate.Task == row.Task }); currentAt >= 0 {
+				now = current.Rows[currentAt]
 			}
 			for column, cell := range row.Cells {
-				if kept := reference.Rows[at].Cells[column]; !kept.Measured() && !kept.NotApplicable && cell.Measured() {
-					reference.Rows[at].Cells[column] = cell
+				if prior, exists := kept.Cells[column]; !exists || prefer(prior, cell, []Cell{now.Cells[column]}) {
+					kept.Cells[column] = cell
+				}
+			}
+			for _, cell := range row.Measured(metric.Quality) {
+				qualityAt := slices.IndexFunc(kept.Heldout, func(prior Cell) bool { return prior.Contract == cell.Contract })
+				if qualityAt < 0 {
+					kept.Heldout = append(kept.Heldout, cell)
+				} else if prefer(kept.Heldout[qualityAt], cell, now.Measured(metric.Quality)) {
+					kept.Heldout[qualityAt] = cell
 				}
 			}
 		}
+	}
+	for index := range reference.Rows {
+		row := &reference.Rows[index]
+		row.Heldout = slices.DeleteFunc(row.Heldout, func(cell Cell) bool { return cell.Contract == row.Cells[metric.Quality].Contract })
 	}
 	return &reference
 }

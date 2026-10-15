@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"cmp"
 	"runtime"
 
 	"context"
@@ -116,6 +117,7 @@ type fakeGenerator struct {
 	discardTokens   int
 	minCacheReuse   int
 	promptCached    int
+	promptDuration  time.Duration
 	pieces          []string
 	infillPrefix    []tokenizer.TokenID
 	infillSuffix    []tokenizer.TokenID
@@ -469,7 +471,7 @@ func (f *fakeGenerator) Generate(
 		options.OnPromptEvaluated(inference.PromptEvaluation{
 			Tokens:   len(ids),
 			Cached:   f.promptCached,
-			Duration: time.Millisecond,
+			Duration: cmp.Or(f.promptDuration, time.Millisecond),
 		})
 	}
 	pieces := f.pieces

@@ -381,6 +381,35 @@ func TestEarlierIsEachCellsNewestEarlierMeasurement(t *testing.T) {
 			t.Fatalf("a cell with no current value is filed as a decline: %+v", gap)
 		}
 	}
+	for _, middle := range []Record{{Commit: "absent"}, {Commit: "incompatible", Rows: []Row{measuredFixture(model, map[metric.Name]Cell{metric.Throughput: {Value: 1, Contract: Contract{Metric: "other"}}})}}} {
+		prior := Earlier([]Record{older, middle, current})
+		if len(prior.Rows) != 1 || prior.Rows[0].Cells[metric.Throughput].Value != 40 {
+			t.Errorf("reference through %s = %+v, want the older compatible throughput", middle.Commit, prior)
+		}
+	}
+	quality := Cell{Value: 90, Direction: runrecord.DirectionMaximize, Contract: Contract{Metric: "accuracy", Origin: originEvaluation, Comparison: testutil.ArtifactID(t, artifact.KindProfile, "prior-quality")}}
+	older.Rows[0].Heldout = []Cell{quality}
+	quality.Value = 80
+	current.Rows[0].Heldout = []Cell{quality}
+	prior := Earlier([]Record{older, incomplete, current})
+	if compared := (Pair{Before: &prior.Rows[0], After: &current.Rows[0]}).Compare(metric.Quality); len(compared) != 1 || compared[0].Verdict != regressed || compared[0].Then.Value != 90 {
+		t.Errorf("older non-headline quality = %+v, want its decline from 90", compared)
+	}
+	if len(incomplete.Rows[0].Heldout) != 0 || older.Rows[0].Heldout[0].Value != 90 || current.Rows[0].Heldout[0].Value != 80 {
+		t.Fatal("reference selection changed source rows")
+	}
+
+	older.Rows[0].Cells[metric.Quality], older.Rows[0].Heldout = older.Rows[0].Heldout[0], nil
+	newHeadline := quality
+	newHeadline.Contract.Metric, newHeadline.Value = "second accuracy", 50
+	incomplete.Rows[0].Cells[metric.Quality] = newHeadline
+	newHeadline.Value = 40
+	current.Rows[0].Cells[metric.Quality] = newHeadline
+	prior = Earlier([]Record{older, incomplete, current})
+	if headline := prior.Rows[0].Cells[metric.Quality]; headline.Contract != newHeadline.Contract || headline.Value != 50 || len(prior.Rows[0].Measured(metric.Quality)) != 2 {
+		t.Errorf("headline changed by older secondary contract: %+v", prior.Rows[0])
+	}
+
 }
 
 // TestADeclineMustPassWhatItsReferenceAllows holds each column to what a decline is in it. A

@@ -117,6 +117,18 @@ func TestScorecardUsesCompatibleFixedReferencesAndMetricSpecificEvidence(t *test
 		t.Errorf("300 ms after nine records that carry three readings = %+v and %+v, want it unknown for three readings", filed, compared)
 	}
 
+	// Nonadjacent publications of the same source and value remain one reading.
+	interleaved := []Record{carried[0], carried[3], carried[6], carried[0], carried[3], carried[6]}
+	if filed, compared := judged(metric.Load, append(interleaved, timed(300)...)); len(filed) != 0 || len(compared) != 1 || !strings.Contains(compared[0].Why, "3 earlier readings") {
+		t.Errorf("interleaved carried readings = %+v and %+v, want unknown for three distinct readings", filed, compared)
+	}
+	// The newest prior contract must not hide enough older readings on the current one.
+	compatible := timed(100, 100, 100, 100, 100)
+	compatible = append(compatible, read(metric.Load, Cell{Value: 5, Contract: Contract{Metric: "different"}}), timed(300)[0])
+	if filed, compared := judged(metric.Load, compatible); len(filed) != 1 || len(compared) != 1 || compared[0].Verdict != regressed {
+		t.Errorf("compatible history behind another contract = %+v and %+v, want the measured decline", filed, compared)
+	}
+
 	// Readings on another recipe, or under another environment, are not this cell's.
 	other := load
 	other.Scope = testutil.ArtifactID(t, artifact.KindRecipe, "another-recipe")

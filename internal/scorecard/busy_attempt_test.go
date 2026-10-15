@@ -2,6 +2,7 @@ package scorecard
 
 import (
 	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -157,6 +158,24 @@ func TestOneBusyAttemptCannotMaskADecline(t *testing.T) {
 	newest := attempt(moved, here, 100)
 	if cell := published(moved); !near(cell.Value, 95) || !near(cell.Spread, 5.0/95) || cell.Source != newest || cell.Environment != here {
 		t.Errorf("attempts of 90 ms here, 400 and 410 ms under another environment, then 100 ms here = %v with spread %v from %s under %s, want the 95 ms midway between the two taken here, spread 5/95, from the newer, %s", cell.Value, cell.Spread, cell.Source, cell.Environment, newest)
+	}
+
+	// A rolling median can return to an older source after another publication.
+	var recurring []Record
+	var sources []artifact.ID
+	for index, step := range []struct {
+		value, median float64
+		source        int
+	}{{110, 110, 0}, {90, 100, 1}, {100, 100, 2}, {50, 90, 1}, {150, 100, 2}} {
+		sources = append(sources, attempt(stepped, here, step.value))
+		cell := published(stepped)
+		if cell.Value != step.median || cell.Source != sources[step.source] {
+			t.Fatalf("median publication %d = %+v, want %v from %s", index, cell, step.median, sources[step.source])
+		}
+		recurring = append(recurring, Record{Rows: []Row{measuredFixture(stepped, map[metric.Name]Cell{metric.FirstOutput: cell})}})
+	}
+	if cell := Reference(append(recurring, Record{})).Rows[0].Cells[metric.FirstOutput]; !strings.Contains(cell.unjudged, "4 earlier readings") {
+		t.Errorf("recurring median reference = %+v, want unknown for four source/value readings", cell)
 	}
 
 	// A step that stays: the first slow attempt is one of three, the second moves the median.

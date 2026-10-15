@@ -66,15 +66,15 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "Built preflight measures 364 production AST nodes for full archive identity and process-owned Windows write exclusion. The directory-only Record implementation disappears. Existing prompt fixtures gain raw payload mutation and admission lifetime cases. First 11 GB admission takes 10.4982954 seconds and the next twelve pipeline identities average about 7.8 ms, versus about 7.7 ms before. This is necessary correctness growth with a cold-load cost, not a speed claim. Retained comparison evidence:sha256:8074c3dde17ee5d7e11c772b5aa1755270bcabc6fc2bef6deb04d82f3ecfc4bb"
+        "nodes": 3146,
+        "reason": "Built preflight measures 3146 production and 3012 test AST nodes for consumed media bytes, decoder and admitted judge identity, full render requests and original producer lineage. Existing suite, render, workflow, artifact and atomic-file owners replace locator-only and caption-only authority. This is necessary correctness growth. One encoded-payload snapshot and one seekable non-GIF temporary copy can worsen host memory, disk and load cost. No elapsed improvement is claimed. Retained source and failing old-comparison overlay evidence:sha256:012bf6fc184b90b141b56b8d4062797704721af885175b56bf15bfeee049eee7"
       },
       "steps": [
         {
           "id": "media",
           "title": "Keep judge method, fixed input bytes and producer distinct",
           "status": "open",
-          "verify": "go test ./cmd/evaluate -run '^(TestARenderReusesOnlyWhatTheSameRecipeAndSettingsDrew|TestAPictureIsJudgedOnlyWhenTheEvaluatedRecipeDrewIt)$'",
+          "verify": "go test ./cmd/evaluate ./internal/evaluation -run '^(TestARenderReusesOnlyWhatTheSameRecipeAndSettingsDrew|TestAPictureIsJudgedOnlyWhenTheEvaluatedRecipeDrewIt|TestAJudgedRuntimeAnswersOnlyAboutAVerifiedPicture|TestMediaEvidenceNamesConsumedInputsAndKeepsItsMethod)$'",
           "rationale": "SQA-107. Extend existing suite/scorer/session owners for fixed input content, judge/settings, render request and producing run. Candidate output does not name the method. Changed questions may reuse one exact render. Preserve legacy Unknown and producer identities through tiny controlled media fixtures.\nServes: held-out-quality and evidence validity\nDisappears: basename authority, output-dependent method identity and discarded producer identity\nEvidence: go test ./cmd/evaluate -run '^(TestARenderReusesOnlyWhatTheSameRecipeAndSettingsDrew|TestAPictureIsJudgedOnlyWhenTheEvaluatedRecipeDrewIt)$' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
         }
       ]

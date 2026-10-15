@@ -162,7 +162,7 @@ func TestModelsAnswerAsTransformersDoes(t *testing.T) {
 			}
 			model := roots.ResolveModelPath(reference.File)
 			if _, err := os.Stat(model); err != nil {
-				t.Skipf("the scored file %s is not on this machine", reference.File)
+				t.Skipf("UNAVAILABLE: the scored file %s cannot be read: %v", reference.File, err)
 			}
 			runner, err := modelcli.OpenRunner(t.Context(), roots.Store, model, inference.OpenOptions{})
 			if err != nil {

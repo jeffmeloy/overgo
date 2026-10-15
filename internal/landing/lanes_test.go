@@ -296,6 +296,10 @@ func TestReachInvariants(t *testing.T) {
 		{"cmd/evaluate/transcription_projected_windows_test.go", gateLanes, false, "models", "projected transcription serves the real E4B"},
 		{"cmd/longform/e4b_recovery_windows_test.go", gateLanes, false, "models", "long-form recovery serves the real E4B at 32768 tokens"},
 		{"cmd/recipe/projection_execution_windows_test.go", gateLanes, false, "models", "projection execution serves the real E4B"},
+		{"internal/vitencoder/encoder_test.go", gateLanes, false, "models", "the DINO reference loads installed weights"},
+		{"internal/seriesforecast/native_declaration_test.go", gateLanes, false, "models", "forecast declaration parity loads installed weights"},
+		{"internal/rae/autoencoder_test.go", gateLanes, false, "models", "autoencoder parity loads the installed encoder and decoder"},
+		{"internal/seq2seq/upstream_calls_model_test.go", gateLanes, false, "needle-reference", "the needle reference compares 400 cases without selecting training experiments"},
 	}
 	gateReaches, err := discover(repo, lanes...)
 	if err != nil {

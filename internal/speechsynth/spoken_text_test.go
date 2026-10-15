@@ -47,10 +47,6 @@ func TestSpokenTextMatchesUpstream(t *testing.T) {
 	if len(fixture.Cases) == 0 {
 		t.Fatal("the fixture holds no text")
 	}
-	tokenizer, err := LoadTokenizer(filepath.Join(artifactDir(t), "tokenizer.model"))
-	if err != nil {
-		t.Skipf("UNAVAILABLE: pocket-tts tokenizer unavailable: %v; parity NOT verified", err)
-	}
 	short, long := 0, 0
 	for _, reference := range fixture.Cases {
 		spoken, frames, err := spokenText(reference.Text)
@@ -60,13 +56,6 @@ func TestSpokenTextMatchesUpstream(t *testing.T) {
 		if spoken != reference.Spoken || frames != reference.FramesAfterEnd {
 			t.Errorf("%q is prepared as %q with %d frames after the end, and the model's own code prepares %q with %d", reference.Text, spoken, frames, reference.Spoken, reference.FramesAfterEnd)
 			continue
-		}
-		ids, err := tokenizer.Encode(spoken)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !slices.Equal(ids, reference.IDs) {
-			t.Errorf("%q is read as %v, and the model's own tokenizer reads %v", spoken, ids, reference.IDs)
 		}
 		if frames == shortTextGuess+framesBeyondGuess {
 			short++
@@ -80,5 +69,21 @@ func TestSpokenTextMatchesUpstream(t *testing.T) {
 	if _, _, err := spokenText(" \n "); err == nil {
 		t.Error("a text of spaces was prepared to be spoken")
 	}
-	t.Logf("%d texts, %d of them short: a served request prepares each, reads its ids and speaks on after its end as the model's own code does", len(fixture.Cases), short)
+	t.Logf("%d texts, %d of them short: preparation, post-EOS budget and blank refusal checked before tokenizer admission", len(fixture.Cases), short)
+	t.Run("tokenizer", func(t *testing.T) {
+		tokenizer, err := LoadTokenizer(filepath.Join(artifactDir(t), "tokenizer.model"))
+		if err != nil {
+			t.Skipf("UNAVAILABLE: pocket-tts tokenizer unavailable: %v; parity NOT verified", err)
+		}
+		for _, reference := range fixture.Cases {
+			ids, err := tokenizer.Encode(reference.Spoken)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Equal(ids, reference.IDs) {
+				t.Errorf("%q is read as %v, and the model's own tokenizer reads %v", reference.Spoken, ids, reference.IDs)
+			}
+		}
+	})
+
 }

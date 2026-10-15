@@ -119,6 +119,13 @@ var cycleLanes = []lane{
 		// minutes, past go test's default timeout.
 		name: "models", packages: modelPackages, tags: CycleTags,
 		command:     func(string) []string { return append([]string{"test", "-p=1", "-timeout=0"}, modelPackages...) },
+		environment: []string{cudaTestEnvironment, "OVERGO_WAN_FULL=1"},
+	},
+	{
+		name: "needle-reference", packages: []string{"./internal/seq2seq"}, tags: CycleTags,
+		command: func(string) []string {
+			return []string{"test", "-timeout=0", "./internal/seq2seq", "-run", "^TestNeedleCallsMatchUpstreamOnEvaluationCases$"}
+		},
 		environment: []string{cudaTestEnvironment},
 	},
 }
@@ -189,7 +196,7 @@ var modelPackages = []string{
 	"./internal/mediacapability", "./internal/sensenovarecipe", "./internal/routedlm", "./internal/inference", "./internal/adaptiveparity",
 	"./internal/composition", "./internal/speechsynth", "./internal/tabularicl", "./internal/modelintake", "./internal/server",
 	"./cmd/evaluate", "./cmd/longform", "./cmd/recipe", "./cmd/train", "./cmd/validate", "./cmd/benchmark-report",
-	"./internal/evaluation", "./internal/dataset",
+	"./internal/evaluation", "./internal/dataset", "./internal/rae", "./internal/vitencoder", "./internal/seriesforecast",
 }
 
 // CycleLane is one lane of the improvement cycle: the go command's arguments

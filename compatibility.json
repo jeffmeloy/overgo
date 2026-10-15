@@ -685,13 +685,13 @@
      "contains": "func executeVQAProgram(",
      "path": "cmd/validate/parity_vqa_recipe_serve.go",
      "role": "source",
-     "identity": "file:sha256:1dd6be5e75185486c0bc87d2f3ec48932c1036bddd44bf78fb48d53d17625b0b"
+     "identity": "file:sha256:922e8d7102a5ef941125de236c54923ff53853365c1310d684a053a4dbf99ac2"
     },
     {
      "contains": "func TestRxBrainProductionParity(",
      "path": "cmd/validate/parity_vqa_recipe_verify_windows_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:b8f448d1d77b71ecb9d57d7dd54a0a6d7aad1ddf8b7a4c29612ee946d96ebad1"
+     "identity": "evidence:sha256:1293c29037c1554b6cf619827f4be5ae1c288cba35625d8984033a849b11c491"
     }
    ],
    "id": "rxbrain-vqa-production-oracle",

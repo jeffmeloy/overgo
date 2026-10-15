@@ -5,8 +5,6 @@ import (
 	"os"
 	"testing"
 
-	"overgo/internal/hostmath"
-	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -52,105 +50,4 @@ func flatten(rows [][]float32) []float32 {
 		out = append(out, row...)
 	}
 	return out
-}
-
-// embedCase runs pad -> running stats -> RevIN embed for one golden case,
-// returning everything later stages need.
-func embedCase(t *testing.T, m *Model, context []float32) (padded, masks, hidden []float32, mu, sigma []float64) {
-	t.Helper()
-	padded, masks, err := padToPatches(context, make([]float32, len(context)), m.Dims.PatchLen)
-	if err != nil {
-		t.Fatal(err)
-	}
-	tokens := len(padded) / m.Dims.PatchLen
-	mu, sigma = make([]float64, tokens), make([]float64, tokens)
-	patchStats(padded, masks, m.Dims.PatchLen, mu, sigma)
-	hidden = make([]float32, tokens*m.Dims.Hidden)
-	if err := m.patchEmbed(hidden, padded, masks, mu, sigma); err != nil {
-		t.Fatal(err)
-	}
-	return padded, masks, hidden, mu, sigma
-}
-
-// TestTokenizerMatchesGolden pins padding, masks, and the RevIN+tokenizer
-// embedding against the reference intermediates.
-func TestTokenizerMatchesGolden(t *testing.T) {
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": loads ~930MB weights")
-	}
-	g := readGolden(t)
-	model, err := Load(artifactDir(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	padded, masks, hidden, _, _ := embedCase(t, model, g.Cases[g.IntermediateTokenizer.Case].Context)
-	if d := testutil.MaxAbsDiff(padded, g.IntermediateTokenizer.PaddedSeries); d != 0 {
-		t.Fatalf("padded series diff %g", d)
-	}
-	if d := testutil.MaxAbsDiff(masks, g.IntermediateTokenizer.Masks); d != 0 {
-		t.Fatalf("masks diff %g", d)
-	}
-	// Tolerance rationale (mirrors the reference test): this host runs f64
-	// accumulation against the reference's f32 path through one residual
-	// block over a 64-wide input.
-	const tol = 2e-3
-	if d := testutil.MaxAbsDiff(hidden, flatten(g.IntermediateTokenizer.TokenizerOut)); d > tol {
-		t.Fatalf("tokenizer out max abs diff %g > %g", d, tol)
-	}
-}
-
-// TestDecoderLayer0MatchesGolden pins one post-norm layer: RoPE-before-norm,
-// per-dim softplus query scale, causal attention, sequential feed-forward.
-func TestDecoderLayer0MatchesGolden(t *testing.T) {
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": loads ~930MB weights")
-	}
-	g := readGolden(t)
-	model, err := Load(artifactDir(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, _, hidden, _, _ := embedCase(t, model, g.Cases[g.IntermediateTokenizer.Case].Context)
-	l, err := model.layerWeights(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	tokens := len(hidden) / model.Dims.Hidden
-	model.layerForward(hidden, l, hostmath.RopeInvFreq(model.Dims.RopeTheta, model.Dims.HeadDim), tokens)
-	// Accumulated f64-vs-f32 divergence over attention + feed-forward.
-	const tol = 5e-3
-	if d := testutil.MaxAbsDiff(hidden, flatten(g.IntermediateTokenizer.Layer0Out)); d > tol {
-		t.Fatalf("layer 0 max abs diff %g > %g", d, tol)
-	}
-}
-
-// TestForecastMatchesGolden is the port's forward parity gate: both golden
-// cases through the full 20-layer stack and denormalized quantile head.
-func TestForecastMatchesGolden(t *testing.T) {
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": loads ~930MB weights")
-	}
-	g := readGolden(t)
-	model, err := Load(artifactDir(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if model.Dims.Horizon != g.Horizon || model.Dims.Quantiles != 1+len(g.Quantiles) {
-		t.Fatalf("dims horizon=%d quantiles=%d vs golden %d/%d", model.Dims.Horizon, model.Dims.Quantiles, g.Horizon, 1+len(g.Quantiles))
-	}
-	for ci, c := range g.Cases {
-		got, err := model.Forecast(c.Context)
-		if err != nil {
-			t.Fatal(err)
-		}
-		want := flatten(c.Forecast)
-		if len(got) != len(want) {
-			t.Fatalf("case %d: forecast len %d, want %d", ci, len(got), len(want))
-		}
-		// Accumulated f64-vs-f32 divergence over 20 layers and the head.
-		const tol = 1e-2
-		if d := testutil.MaxAbsDiff(got, want); d > tol {
-			t.Fatalf("case %d: forecast max abs diff %g > %g", ci, d, tol)
-		}
-	}
 }

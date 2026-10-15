@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"testing"
 
 	"overgo/internal/capabilityruntime"
@@ -108,7 +109,7 @@ func TestSpeechReadsWholeText(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !whole.Complete || !bytes.Equal(published, want.Data) || measured.Load <= 0 {
+	if !whole.Complete || !direct.Complete || !reflect.DeepEqual(whole, direct) || !bytes.Equal(published, want.Data) || measured.Load <= 0 {
 		t.Fatalf("a request with no frame limit gave %d samples (ended on its own: %v) after a load of %v; Speak gives %d for its %d segments",
 			len(whole.PCM), whole.Complete, measured.Load, len(direct.PCM), len(plan.Segments))
 	}

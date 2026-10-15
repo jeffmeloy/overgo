@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/capabilityruntime"
 	"overgo/internal/dataroot"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
@@ -36,6 +37,9 @@ type vqaExecution struct {
 	walls  []workflowruntime.NodeWall
 }
 
+// prepareVQA and answerVQA supply the processor and decoder for parity execution.
+var prepareVQA, answerVQA = vqaserve.Prepare, vqaserve.Answer
+
 func executeVQAProgram(
 	l *campaignContext, ctx context.Context,
 	store artifact.Repository,
@@ -56,9 +60,9 @@ func executeVQAProgram(
 	}
 	var execution vqaExecution
 	answer, result, err := vqaserve.RunProgram(
-		ctx, store, modelID, program, "recipe/vqa/"+strings.ToLower(tag), image, question,
+		capabilityruntime.FreshRun(ctx), store, modelID, program, "recipe/vqa/"+strings.ToLower(tag), image, question,
 		func(image []byte, question string) (vqaserve.Prepared, error) {
-			prepared, prepareErr := vqaserve.Prepare(l.modelDir, image, question)
+			prepared, prepareErr := prepareVQA(l.modelDir, image, question)
 			if prepareErr == nil {
 				l.Log(fmt.Sprintf("RECIPE serve %s PROCESSOR image=%s grid=[%d,%d,%d] promptLen=%d imageTokens=%d question=%q",
 					tag, filepath.Base(imagePath), prepared.GridT, prepared.GridH, prepared.GridW,
@@ -67,7 +71,7 @@ func executeVQAProgram(
 			return prepared, prepareErr
 		},
 		func(executeContext context.Context, prepared vqaserve.Prepared) (string, error) {
-			result, text, answerErr := vqaserve.Answer(executeContext, l.modelDir, prepared, vqaserve.Policy.DecodeMaxSteps, l.Log)
+			result, text, answerErr := answerVQA(executeContext, l.modelDir, prepared, vqaserve.Policy.DecodeMaxSteps, l.Log)
 			if answerErr != nil {
 				return "", answerErr
 			}

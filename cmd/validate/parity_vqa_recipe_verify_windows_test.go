@@ -5,6 +5,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"overgo/internal/dataroot"
@@ -15,6 +16,11 @@ import (
 )
 
 func TestRxBrainProductionParity(t *testing.T) {
+	// The isolated store tests publication with a synthetic build identity.
+	// Production commands still require the actual clean executable revision.
+	resolveCommit := vqaCodeCommit
+	t.Cleanup(func() { vqaCodeCommit = resolveCommit })
+	vqaCodeCommit = func(string) (string, error) { return strings.Repeat("ef", 20), nil }
 	testskip.Short(t)
 	if os.Getenv("OVERGO_CUDA_TEST") != "1" {
 		testskip.NotApplicable(t, "set OVERGO_CUDA_TEST=1 for real RxBrain parity")

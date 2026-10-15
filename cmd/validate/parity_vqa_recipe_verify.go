@@ -45,6 +45,9 @@ func cudaEnvironment() (runrecord.Environment, error) {
 	})
 }
 
+// vqaCodeCommit resolves the build identity recorded by the verification command.
+var vqaCodeCommit = runrecord.ExecutableCodeCommit
+
 func publishVQAVerification(
 	ctx context.Context,
 	store artifact.Repository,
@@ -56,7 +59,7 @@ func publishVQAVerification(
 	if err != nil {
 		return modelrecipe.Verification{}, err
 	}
-	revision, err := runrecord.ExecutableCodeCommit(".")
+	revision, err := vqaCodeCommit(".")
 	if err != nil {
 		return modelrecipe.Verification{}, err
 	}

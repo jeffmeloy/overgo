@@ -8,9 +8,11 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"testing"
 
+	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/trainingprogram"
@@ -21,6 +23,9 @@ import (
 // dataset of text pairs and holds the route to publishing the trained model
 // as a checkpoint recorded in the store, one tensor per trained parameter.
 func TestSeq2SeqRoutePublishesCheckpoint(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		cudatest.Require(t)
+	}
 	root := t.TempDir()
 	model := writeTinySeq2Seq(t, filepath.Join(root, "model"))
 	dataset := filepath.Join(root, "pairs.jsonl")

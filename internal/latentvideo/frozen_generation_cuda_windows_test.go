@@ -1,4 +1,4 @@
-//go:build windows
+//go:build windows && modeltest
 
 package latentvideo
 
@@ -35,9 +35,6 @@ import (
 // cadence and LiveEdit's signed pixel range without changing model arithmetic.
 func TestFrozenLatentVideoGeneration(t *testing.T) {
 	cudatest.Require(t)
-	if os.Getenv("OVERGO_WAN_FULL") != "1" {
-		t.Skip(testskip.Inapplicable + ": set OVERGO_WAN_FULL=1 for the complete frozen 81-frame clip")
-	}
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)
 	if err != nil {
@@ -90,6 +87,9 @@ func TestFrozenLatentVideoGeneration(t *testing.T) {
 			})
 			for index, tc := range cases {
 				t.Run(fmt.Sprintf("case-%d", index+1), func(t *testing.T) {
+					if !edit && index == 2 && os.Getenv("OVERGO_WAN_FULL") != "1" {
+						testskip.NotApplicable(t, "set OVERGO_WAN_FULL=1 for the complete frozen 81-frame clip")
+					}
 					inputs := make([]artifact.Content, len(tc.inputs))
 					for index, hash := range tc.inputs {
 						id, err := artifact.ParseID("file:sha256:" + hash)

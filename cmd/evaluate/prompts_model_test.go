@@ -94,74 +94,75 @@ func TestPromptsReachEachModelAsItsOwnTokenizerGivesThem(t *testing.T) {
 		if err := json.Unmarshal(raw, &reference); err != nil || len(reference.Cases) == 0 {
 			t.Fatalf("%s holds no case: %v", fixture, err)
 		}
-		model := roots.ResolveModelPath(reference.File)
-		if _, err := os.Stat(model); err != nil {
-			t.Logf("%s: the scored file %s is not on this machine; its questions are not read", reference.Model, reference.File)
-			continue
-		}
-		// The cases as their suite holds them: a question with its candidates,
-		// or the bare sequence of a sequence-scoring suite.
-		type listed struct {
-			evaluation.MultipleChoiceCase
-			Text string `json:"text,omitempty"`
-		}
-		cases := struct {
-			Cases []listed `json:"cases"`
-		}{}
-		for _, own := range reference.Cases {
-			held := listed{MultipleChoiceCase: own.MultipleChoiceCase}
-			if reference.Protocol == promptSequence {
-				held.Text = own.Text
+		t.Run(strings.TrimSuffix(filepath.Base(fixture), filepath.Ext(fixture)), func(t *testing.T) {
+			model := roots.ResolveModelPath(reference.File)
+			if _, err := os.Stat(model); err != nil {
+				t.Skipf("UNAVAILABLE: %s scored file %s cannot be read: %v", reference.Model, reference.File, err)
 			}
-			cases.Cases = append(cases.Cases, held)
-		}
-		encoded, err := json.Marshal(cases)
-		if err != nil {
-			t.Fatal(err)
-		}
-		path := filepath.Join(t.TempDir(), "cases.json")
-		if err := os.WriteFile(path, encoded, 0o600); err != nil {
-			t.Fatal(err)
-		}
-		chat := reference.Protocol == promptChat
-		read, err := readPrompts(model, path, chat)
-		if err != nil || len(read) != len(reference.Cases) {
-			t.Fatalf("%s: %d of %d cases were read: %v", reference.Model, len(read), len(reference.Cases), err)
-		}
-		differ, first := 0, -1
-		for index, own := range reference.Cases {
-			ours := read[index]
-			same := slices.Equal(ours.IDs, own.IDs) && len(ours.Continuations) == len(own.Continuations)
-			for candidate := 0; same && candidate < len(own.Continuations); candidate++ {
-				same = slices.Equal(ours.Continuations[candidate], own.Continuations[candidate])
+			// The cases as their suite holds them: a question with its candidates,
+			// or the bare sequence of a sequence-scoring suite.
+			type listed struct {
+				evaluation.MultipleChoiceCase
+				Text string `json:"text,omitempty"`
 			}
-			if !same {
-				differ++
-				if first < 0 {
-					first = index
+			cases := struct {
+				Cases []listed `json:"cases"`
+			}{}
+			for _, own := range reference.Cases {
+				held := listed{MultipleChoiceCase: own.MultipleChoiceCase}
+				if reference.Protocol == promptSequence {
+					held.Text = own.Text
+				}
+				cases.Cases = append(cases.Cases, held)
+			}
+			encoded, err := json.Marshal(cases)
+			if err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(t.TempDir(), "cases.json")
+			if err := os.WriteFile(path, encoded, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			chat := reference.Protocol == promptChat
+			read, err := readPrompts(model, path, chat)
+			if err != nil || len(read) != len(reference.Cases) {
+				t.Fatalf("%s: %d of %d cases were read: %v", reference.Model, len(read), len(reference.Cases), err)
+			}
+			differ, first := 0, -1
+			for index, own := range reference.Cases {
+				ours := read[index]
+				same := slices.Equal(ours.IDs, own.IDs) && len(ours.Continuations) == len(own.Continuations)
+				for candidate := 0; same && candidate < len(own.Continuations); candidate++ {
+					same = slices.Equal(ours.Continuations[candidate], own.Continuations[candidate])
+				}
+				if !same {
+					differ++
+					if first < 0 {
+						first = index
+					}
 				}
 			}
-		}
-		name := strings.TrimSuffix(filepath.Base(fixture), filepath.Ext(fixture))
-		fault, known := knownPromptFaults[name]
-		switch {
-		case known && differ == 0:
-			t.Errorf("%s is given its own tokens on every case: its fault is mended, so remove its entry (%s)", name, fault)
-		case known:
-			faulted[name] = true
-			t.Logf("%s (%s): %d of %d cases reach it as other tokens than its own files give: %s", reference.Model, reference.Protocol, differ, len(read), fault)
-		case differ != 0:
-			ours, own := read[first], reference.Cases[first]
-			at := 0
-			for at < len(ours.IDs) && at < len(own.IDs) && ours.IDs[at] == own.IDs[at] {
-				at++
+			name := strings.TrimSuffix(filepath.Base(fixture), filepath.Ext(fixture))
+			fault, known := knownPromptFaults[name]
+			switch {
+			case known && differ == 0:
+				t.Errorf("%s is given its own tokens on every case: its fault is mended, so remove its entry (%s)", name, fault)
+			case known:
+				faulted[name] = true
+				t.Logf("%s (%s): %d of %d cases reach it as other tokens than its own files give: %s", reference.Model, reference.Protocol, differ, len(read), fault)
+			case differ != 0:
+				ours, own := read[first], reference.Cases[first]
+				at := 0
+				for at < len(ours.IDs) && at < len(own.IDs) && ours.IDs[at] == own.IDs[at] {
+					at++
+				}
+				t.Errorf("%s (%s): %d of %d cases reach it as other tokens than its own files give; %s parts at token %d of %d and %d, and the text given is\n%q\nwhere its own files give\n%q",
+					reference.Model, reference.Protocol, differ, len(read), own.Name, at, len(ours.IDs), len(own.IDs), ours.Text, own.Text)
+			default:
+				held++
+				t.Logf("%s (%s): %d cases reach it as the tokens its own files give%s", reference.Model, reference.Protocol, len(read), noted(reference.Note))
 			}
-			t.Errorf("%s (%s): %d of %d cases reach it as other tokens than its own files give; %s parts at token %d of %d and %d, and the text given is\n%q\nwhere its own files give\n%q",
-				reference.Model, reference.Protocol, differ, len(read), own.Name, at, len(ours.IDs), len(own.IDs), ours.Text, own.Text)
-		default:
-			held++
-			t.Logf("%s (%s): %d cases reach it as the tokens its own files give%s", reference.Model, reference.Protocol, len(read), noted(reference.Note))
-		}
+		})
 	}
 	for name := range knownPromptFaults {
 		if !faulted[name] && held+len(faulted) == len(fixtures) {

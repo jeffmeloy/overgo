@@ -88,7 +88,7 @@ func TestChatModesReachAModelAsItsOwnTemplateGivesThem(t *testing.T) {
 		t.Run(reference.Model, func(t *testing.T) {
 			model := roots.ResolveModelPath(reference.File)
 			if _, err := os.Stat(model); err != nil {
-				t.Skipf("the scored file %s is not on this machine", reference.File)
+				t.Skipf("UNAVAILABLE: the scored file %s cannot be read: %v", reference.File, err)
 			}
 			reader, err := inference.OpenPromptReader(model)
 			if err != nil {

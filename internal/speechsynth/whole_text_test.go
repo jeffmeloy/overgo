@@ -19,6 +19,9 @@ import (
 	"overgo/internal/workflowruntime"
 )
 
+// speakOrderTemperature differs from the model default to exercise the request override.
+const speakOrderTemperature = 0.5
+
 // wholeTextRun is one speech program on one store, run as a served request
 // with no frame limit is: under the key such a request is kept under, with
 // the binding a test hands in.
@@ -202,58 +205,5 @@ func TestWholeTextBinding(t *testing.T) {
 	}
 	if err := RegisterWholeText(runtime, run.model, nil); err == nil {
 		t.Fatal("a binding with no synthesizer to read was accepted")
-	}
-}
-
-// TestWholeTextStagesReadAsSpeak holds the binding a served request with no
-// frame limit runs to the reading it is meant to be: on the real model, a text
-// too long for one segment gives through the three stages, sample for sample,
-// the recording Speak gives for the same text, voice, seed and temperature,
-// and it ended on its own.
-func TestWholeTextStagesReadAsSpeak(t *testing.T) {
-	synth := loadArtifactSynthesizer(t)
-	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		if err := store.Close(); err != nil {
-			t.Error(err)
-		}
-	}()
-	run := newWholeTextRun(t, store, "speech-whole-text-stages-fixture")
-	request := SynthesisRequest{Text: speakOrderText, Voice: "alba", Seed: 7, Temperature: speakOrderTemperature}
-	reading := DocumentRequest{Text: request.Text, Voice: request.Voice, Seed: request.Seed, Temperature: request.Temperature}
-	plan, err := synth.PlanDocument(t.Context(), reading)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(plan.Segments) < 2 {
-		t.Fatalf("the text is planned as %d segments, and a whole reading needs more than one to differ from a clip", len(plan.Segments))
-	}
-	staged, stored, err := run.execute(t.Context(), t, request, func(runtime *workflowruntime.Runtime) error {
-		return RegisterWholeText(runtime, run.model, synth)
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	direct, err := synth.Speak(t.Context(), reading)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !staged.Complete || !direct.Complete || !reflect.DeepEqual(staged, direct) {
-		same := 0
-		for same < min(len(staged.PCM), len(direct.PCM)) && staged.PCM[same] == direct.PCM[same] {
-			same++
-		}
-		t.Fatalf("the stages read %d segments as %d samples (ended on its own: %v), and Speak gives %d (%v); the first %d are the same",
-			len(plan.Segments), len(staged.PCM), staged.Complete, len(direct.PCM), direct.Complete, same)
-	}
-	want, err := WAVContent(direct)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if stored == nil || !bytes.Equal(stored.Data, want.Data) {
-		t.Fatal("the stages stored other bytes than the WAV of what Speak gives")
 	}
 }

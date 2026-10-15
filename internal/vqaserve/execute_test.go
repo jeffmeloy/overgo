@@ -59,6 +59,16 @@ func TestRunProgramBindsDescriptorInputsAndOutput(t *testing.T) {
 	if err != nil || questionErr != nil || outputErr != nil || run.Recipe != definition.ID || !slices.Contains(run.Inputs, image.Descriptor.ID) || !slices.Contains(run.Inputs, question.Descriptor.ID) || !slices.Equal(run.Outputs, []artifact.ID{output.Descriptor.ID}) || len(result.NodeWalls) != 2 {
 		t.Fatalf("VQA result run %+v, walls %+v (%v, %v, %v); want the persisted image, question, answer and both stages", run, result.NodeWalls, err, questionErr, outputErr)
 	}
+	replayed, replay, err := RunProgram(t.Context(), store, modelID, program, "vqa/runtime", image, "where?",
+		func([]byte, string) (string, error) { t.Fatal("ordinary replay prepared again"); return "", nil },
+		func(context.Context, string) (string, error) {
+			t.Fatal("ordinary replay answered again")
+			return "", nil
+		},
+	)
+	if err != nil || replayed != answer || replay.Run.ID != result.Run.ID || len(replay.NodeWalls) != 0 {
+		t.Fatalf("ordinary replay = %q, %+v, %v", replayed, replay, err)
+	}
 	head, sequence := store.Head()
 	retained, err := ReadImage(t.Context(), store, image.Descriptor.ID)
 	if err != nil || retained.Descriptor != image.Descriptor || string(retained.Data) != string(image.Data) {

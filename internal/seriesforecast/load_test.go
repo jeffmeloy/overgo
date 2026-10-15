@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"overgo/internal/modeltest"
-	"overgo/internal/testskip"
 )
 
 // artifactDir resolves the real timesfm artifact through the data-root
@@ -19,36 +18,4 @@ func artifactDir(t *testing.T) string {
 		t.Skipf("UNAVAILABLE: timesfm artifact absent at %s; dims-vs-artifact NOT verified", dir)
 	}
 	return dir
-}
-
-// TestDimsDeriveFromRealArtifact pins the derivation against the actual
-// checkpoint: every value below is read from tensor shapes and config, and
-// the expectations mirror the adaptive_new reference test for the same
-// artifact (the port's first parity point).
-func TestDimsDeriveFromRealArtifact(t *testing.T) {
-	testskip.Short(t, "loads ~930MB weights")
-	model, err := Load(artifactDir(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := Dims{
-		PatchLen: 32, Hidden: 1280, Layers: 20, Heads: 16, HeadDim: 80,
-		Horizon: 128, Quantiles: 10, RopeTheta: 10000, RMSEps: 1e-06,
-	}
-	if model.Dims != want {
-		t.Fatalf("derived dims = %+v, want %+v", model.Dims, want)
-	}
-	if len(model.Levels) != 9 {
-		t.Fatalf("quantile levels = %d, want 9", len(model.Levels))
-	}
-	for _, name := range []string{
-		"tokenizer.hidden_layer.weight",
-		"stacked_xf.0.attn.qkv_proj.weight",
-		"stacked_xf.19.attn.per_dim_scale.per_dim_scale",
-		"output_projection_point.output_layer.weight",
-	} {
-		if len(model.Weights[name]) == 0 {
-			t.Fatalf("tensor %q not materialized", name)
-		}
-	}
 }

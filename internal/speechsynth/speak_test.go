@@ -1,3 +1,5 @@
+//go:build modeltest
+
 package speechsynth
 
 import (
@@ -13,10 +15,6 @@ import (
 // in it repeats, so a recording that read the segments in another order, or
 // left one out, could not hold the same samples.
 const speakOrderText = "The tide went out before dawn. A grey heron stood at the edge of the harbour and watched the fishing boats leave one after another, each with a lamp swinging at its bow and a dog asleep on its nets."
-
-// speakOrderTemperature is not the temperature the model declares for itself,
-// so a reading that dropped the request's own could not hold the same samples.
-const speakOrderTemperature = 0.5
 
 // overLongReadings is how many times speakOrderText is repeated to make a text
 // whose segments are budgeted past what one recording may hold.

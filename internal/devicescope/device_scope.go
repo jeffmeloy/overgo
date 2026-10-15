@@ -19,7 +19,12 @@ var deviceLaneScopes = []TestScope{
 	{Package: "./internal/cuda/..."},
 	{Package: "./internal/model"},
 	{Package: "./internal/projector"},
-	{Package: "./internal/optimizer"},
+	{Package: "./internal/optimizer", Tests: []string{
+		"TestDeviceNewtonSchulzMatchesHost",
+		"TestDeviceMuonMatrixStepMatchesHost",
+		"TestDeviceMuonPlanResidentMatchesShared",
+		"TestDeviceMuonStepPlanMatchesHost",
+	}},
 	{Package: "./internal/devicemath"},
 	{Package: "./internal/densecausal", Run: "Device"},
 	{Package: "./internal/inference", Tests: []string{

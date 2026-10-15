@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"slices"
 	"testing"
 
 	"overgo/internal/cuda/device"
@@ -24,6 +25,11 @@ func TestDeviceNewtonSchulzMatchesHost(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer worker.Close()
+	var ops *deviceOps
+	if err := worker.Do(context.Background(), func(state *device.State) error { var err error; ops, err = newDeviceOps(state); return err }); err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Do(context.Background(), func(_ *device.State) error { ops.close(); return nil })
 
 	cases := []struct {
 		name       string
@@ -34,87 +40,137 @@ func TestDeviceNewtonSchulzMatchesHost(t *testing.T) {
 		{"wide", 16, 64},
 		{"small", 8, 8},
 	}
+
 	rng := rand.New(rand.NewSource(1))
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			n := tc.rows * tc.cols
-			host := make([]float64, n)
-			dev := make([]float32, n)
-			for i := range host {
-				v := rng.NormFloat64()
-				host[i] = v
-				dev[i] = float32(v)
-			}
-			hostoptimizer.NewtonSchulz(host, tc.rows, tc.cols)
-
-			got, err := deviceNewtonSchulz(worker, dev, tc.rows, tc.cols)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var maxAbs float64
-			for i := range host {
-				if d := math.Abs(float64(got[i]) - host[i]); d > maxAbs {
-					maxAbs = d
+		var buffers nsBuffers
+		if err := worker.Do(context.Background(), func(_ *device.State) error {
+			var err error
+			buffers, err = ops.allocBuffers(tc.rows*tc.cols, gramDim(tc.rows, tc.cols)*gramDim(tc.rows, tc.cols))
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		defer worker.Do(context.Background(), func(_ *device.State) error { buffers.free(ops.lib); return nil })
+		for _, distribution := range []string{"ordinary", "rank-one", "zero", "below-guard", "threshold-below", "threshold-above", "underflow"} {
+			input := make([]float32, tc.rows*tc.cols)
+			switch distribution {
+			case "ordinary":
+				for i := range input {
+					input[i] = float32(rng.NormFloat64())
 				}
+			case "rank-one":
+				for i := range input {
+					input[i] = float32(i%tc.cols + 1)
+				}
+			case "below-guard":
+				input[0] = float32(hostoptimizer.NewtonSchulzFrobeniusGuard / 2)
+			case "threshold-below", "threshold-above":
+				guard := hostoptimizer.NewtonSchulzFrobeniusGuard
+				value := float32(guard)
+				below := distribution == "threshold-below"
+				// The old branch consumes the rounded FP32 reduction, not a FP64 sum.
+				for (math.Sqrt(float64(value*value)) < guard) != below {
+					toward := float32(math.Inf(1))
+					if below {
+						toward = 0
+					}
+					value = math.Nextafter32(value, toward)
+				}
+				input[0] = value
+			case "underflow":
+				input[0] = math.SmallestNonzeroFloat32
 			}
-			t.Logf("%s (%dx%d): max abs device(fp32)-vs-host(fp64) = %.3e", tc.name, tc.rows, tc.cols, maxAbs)
-			// Observed ~1e-7..7e-7 (fp32 precision; Newton-Schulz is contractive
-			// so error does not accumulate). 1e-5 keeps a wide margin while
-			// still catching a real regression.
-			const tolerance = 1e-5
-			if maxAbs > tolerance {
-				t.Fatalf("%s: max abs error %.3e > %.1e", tc.name, maxAbs, tolerance)
+			for _, tf32 := range []bool{false, true} {
+				schedule := "8+2-FP32"
+				if tf32 {
+					schedule = "4+2-TF32"
+				}
+				t.Run(tc.name+"/"+distribution+"/"+schedule, func(t *testing.T) {
+					want, squared, err := deviceNewtonSchulz(worker, ops, buffers, input, tc.rows, tc.cols, tf32, true)
+					if err != nil {
+						t.Fatal(err)
+					}
+					got, actualSquared, err := deviceNewtonSchulz(worker, ops, buffers, input, tc.rows, tc.cols, tf32, false)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if math.Float32bits(squared) != math.Float32bits(actualSquared) {
+						t.Fatal("FP32 norm reduction changed")
+					}
+					guarded := math.Sqrt(float64(squared)) < hostoptimizer.NewtonSchulzFrobeniusGuard
+					if guarded && !slices.Equal(got, input) {
+						t.Fatal("guarded direction changed")
+					}
+					// Unchanged reduction, multiplier and GEMM order require identical GPU directions.
+					for i := range want {
+						if math.Float32bits(got[i]) != math.Float32bits(want[i]) {
+							t.Fatalf("direction[%d]=%g, reference %g", i, got[i], want[i])
+						}
+					}
+					if !tf32 && distribution == "ordinary" {
+						host := make([]float64, len(input))
+						for i, v := range input {
+							host[i] = float64(v)
+						}
+						hostoptimizer.NewtonSchulz(host, tc.rows, tc.cols)
+						// Retain the established FP32 versus FP64 host-oracle bound.
+						const tolerance = 1e-5
+						for i, v := range got {
+							if math.IsNaN(float64(v)) || math.Abs(float64(v)-host[i]) > tolerance {
+								t.Fatalf("host-oracle direction[%d]=%g, GPU %g", i, host[i], v)
+							}
+						}
+					}
+					if guarded {
+						t.Logf("FP32 squared norm=%08x guard=true; multiplier undefined", math.Float32bits(squared))
+					} else {
+						multiplier := float32(1 / math.Sqrt(float64(squared)))
+						t.Logf("FP32 squared norm=%08x guard=false; reference multiplier=%08x", math.Float32bits(squared), math.Float32bits(multiplier))
+					}
+				})
 			}
-		})
+		}
 	}
 }
 
-// deviceNewtonSchulz runs the Muon Newton-Schulz iteration on the GPU in fp32,
-// reproducing host newtonSchulz (fp64 oracle) within tolerance. Every matmul is
-// a cuBLAS GEMM; the c0*I term folds into the final matmul
-// (X*(c0*I + R) = c0*X + X*R), so no diagonal kernel is needed -- only cuBLAS
-// plus the existing ops_f32 scale/add. The Frobenius norm reuses a GEMM
-// dot-product. Buffers/handles are per-call (correctness-first; the device Muon
-// step reuses the same primitives on resident state).
-func deviceNewtonSchulz(worker *device.Worker, input []float32, rows, cols int) ([]float32, error) {
+// deviceNewtonSchulz compares schedules with retained handles and shape-sized scratch.
+func deviceNewtonSchulz(worker *device.Worker, ops *deviceOps, buffers nsBuffers, input []float32, rows, cols int, tf32, reference bool) ([]float32, float32, error) {
 	if rows <= 0 || cols <= 0 || len(input) != rows*cols {
-		return nil, fmt.Errorf("deviceNewtonSchulz: len %d != %d*%d", len(input), rows, cols)
+		return nil, 0, fmt.Errorf("deviceNewtonSchulz: len %d != %d*%d", len(input), rows, cols)
 	}
 	if uint64(len(input)) > math.MaxUint32 {
-		return nil, fmt.Errorf("deviceNewtonSchulz: matrix too large for a 32-bit element count")
+		return nil, 0, fmt.Errorf("deviceNewtonSchulz: matrix too large for a 32-bit element count")
 	}
+	normSquared := make([]float32, 1)
 	result := make([]float32, len(input))
 	copy(result, input)
-	err := worker.Do(context.Background(), func(state *device.State) error {
-		ops, err := newDeviceOps(state)
-		if err != nil {
-			return err
-		}
-		defer ops.close()
-
-		n := rows * cols
-		gramN := gramDim(rows, cols)
-		gramN *= gramN
-		buffers, err := ops.allocBuffers(n, gramN)
-		if err != nil {
-			return err
-		}
-		defer buffers.free(ops.lib)
-
+	err := worker.Do(context.Background(), func(_ *device.State) error {
 		if err := ops.lib.MemcpyHtoD(buffers.dX, driver.Bytes(result)); err != nil {
 			return err
 		}
-		final, err := ops.newtonSchulz(buffers, rows, cols)
+		handle, iterations := ops.handle, hostoptimizer.NewtonSchulzStage1Iterations
+		if tf32 {
+			handle, iterations = ops.tf32, residentNewtonSchulzStage1Iterations
+		}
+		run := ops.runNewtonSchulz
+		if reference {
+			run = ops.referenceNewtonSchulz
+		}
+		final, err := run(buffers, rows, cols, handle, iterations)
 		if err != nil {
 			return err
 		}
 		if err := ops.lib.StreamSynchronize(ops.stream); err != nil {
 			return err
 		}
+		if err := ops.lib.MemcpyDtoH(driver.Bytes(normSquared), buffers.dNorm); err != nil {
+			return err
+		}
 		return ops.lib.MemcpyDtoH(driver.Bytes(result), final)
 	})
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	return result, nil
+	return result, normSquared[0], nil
 }

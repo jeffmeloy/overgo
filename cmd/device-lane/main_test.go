@@ -20,15 +20,19 @@ func TestDeviceLaneProgress(t *testing.T) {
 
 func TestDevicePlan(t *testing.T) {
 	steps := deviceSteps(devicescope.VerificationPlan{Packages: []string{"./internal/cuda/kernel", "./internal/optimizer"}})
-	if len(steps) != 2 || !slices.Equal(steps[0], []string{"go", "run", "./cmd/cuda-smoke"}) {
+	if len(steps) != 3 || !slices.Equal(steps[0], []string{"go", "run", "./cmd/cuda-smoke"}) {
 		t.Fatalf("scoped steps = %v", steps)
 	}
-	want := []string{"go", "test", "-json", "-p=1", "-timeout=0", "./internal/cuda/kernel", "./internal/optimizer", "-count=1"}
+	want := []string{"go", "test", "-json", "-p=1", "-timeout=0", "./internal/cuda/kernel", "-count=1"}
 	if !slices.Equal(steps[1], want) {
 		t.Fatalf("selected packages = %v, want %v", steps[1], want)
 	}
+	optimizer := []string{"go", "test", "-json", "-p=1", "-timeout=0", "-run", "^(TestDeviceNewtonSchulzMatchesHost|TestDeviceMuonMatrixStepMatchesHost|TestDeviceMuonPlanResidentMatchesShared|TestDeviceMuonStepPlanMatchesHost)$", "./internal/optimizer", "-count=1"}
+	if !slices.Equal(steps[2], optimizer) {
+		t.Fatalf("optimizer contracts = %v, want %v", steps[2], optimizer)
+	}
 	full := deviceSteps(devicescope.VerificationPlan{Full: true})
-	if len(full) != 4 {
+	if len(full) != 5 {
 		t.Fatalf("full steps=%v", full)
 	}
 	for _, step := range full[1:] {

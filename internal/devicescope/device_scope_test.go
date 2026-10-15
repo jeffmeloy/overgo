@@ -38,7 +38,7 @@ func TestDeviceDeclaredConsumers(t *testing.T) {
 			if slices.Contains(plan.Packages, "./internal/optimizer") || slices.Contains(plan.Packages, "./internal/projector") {
 				t.Fatalf("non-production consumer selected: %+v", plan)
 			}
-			assertInferenceDeviceScope(t, Scopes(plan))
+			assertRequiredDeviceScopes(t, Scopes(plan), plan.Full)
 		})
 	}
 	for _, path := range []string{"internal/cuda/executor/unknown.go", "kernels/cuda/unknown.cu", "kernels/manifest.json"} {
@@ -46,7 +46,7 @@ func TestDeviceDeclaredConsumers(t *testing.T) {
 		if err != nil || !plan.Full {
 			t.Fatalf("fallback = %+v, %v", plan, err)
 		}
-		assertInferenceDeviceScope(t, Scopes(plan))
+		assertRequiredDeviceScopes(t, Scopes(plan), plan.Full)
 	}
 	plan, err := PlanFor(root, []string{"internal/unrelated/host.go"})
 	if err != nil || plan.Full || len(plan.Packages) != 0 {
@@ -59,7 +59,7 @@ func TestDeviceFullScopeOwnsInference(t *testing.T) {
 	if err != nil || !plan.Full {
 		t.Fatalf("full plan = %+v, %v", plan, err)
 	}
-	assertInferenceDeviceScope(t, Scopes(plan))
+	assertRequiredDeviceScopes(t, Scopes(plan), plan.Full)
 	if !slices.Contains(Packages(), "internal/inference") {
 		t.Fatal("impact ownership omitted inference")
 	}
@@ -69,24 +69,38 @@ func TestDeviceFullScopeOwnsInference(t *testing.T) {
 			scope.Tests[0] = "mutated caller copy"
 		}
 	}
-	assertInferenceDeviceScope(t, Scopes(plan))
+	assertRequiredDeviceScopes(t, Scopes(plan), plan.Full)
 }
 
-func assertInferenceDeviceScope(t *testing.T, scopes []TestScope) {
+func assertRequiredDeviceScopes(t *testing.T, scopes []TestScope, full bool) {
 	t.Helper()
-	for _, scope := range scopes {
-		if scope.Package != "./internal/inference" {
+	for _, required := range []struct {
+		packagePath string
+		tests       []string
+	}{
+		{"./internal/inference", []string{"TestRecurrentCheckpoint", "TestNextNMTPDeviceSpeculationLossless", "TestHermeticCUDAContinuousCacheParity"}},
+		{"./internal/optimizer", []string{"TestDeviceNewtonSchulzMatchesHost", "TestDeviceMuonMatrixStepMatchesHost", "TestDeviceMuonPlanResidentMatchesShared", "TestDeviceMuonStepPlanMatchesHost"}},
+	} {
+		if !full && required.packagePath == "./internal/optimizer" {
 			continue
 		}
-		for _, name := range []string{"TestRecurrentCheckpoint", "TestNextNMTPDeviceSpeculationLossless", "TestHermeticCUDAContinuousCacheParity"} {
-			if !slices.Contains(scope.Tests, name) {
-				t.Fatalf("inference contract %s absent from %+v", name, scope)
+		found := false
+		for _, scope := range scopes {
+			if scope.Package != required.packagePath {
+				continue
+			}
+			found = true
+			for _, name := range required.tests {
+				if !slices.Contains(scope.Tests, name) {
+					t.Fatalf("%s contract %s absent from %+v", scope.Package, name, scope)
+				}
+			}
+			if scope.Run != "" {
+				t.Fatalf("%s uses a broad test pattern: %+v", scope.Package, scope)
 			}
 		}
-		if scope.Run != "" {
-			t.Fatalf("inference uses a broad test pattern: %+v", scope)
+		if !found {
+			t.Fatalf("device scope %s missing", required.packagePath)
 		}
-		return
 	}
-	t.Fatal("inference device scope missing")
 }

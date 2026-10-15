@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"slices"
 	"testing"
 
 	"overgo/internal/cuda/device"
@@ -26,6 +27,11 @@ func TestDeviceMuonMatrixStepMatchesHost(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer worker.Close()
+	var ops *deviceOps
+	if err := worker.Do(context.Background(), func(state *device.State) error { var err error; ops, err = newDeviceOps(state); return err }); err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Do(context.Background(), func(_ *device.State) error { ops.close(); return nil })
 
 	const mu, baseLR = 0.9, 0.1
 	cases := []struct {
@@ -68,7 +74,7 @@ func TestDeviceMuonMatrixStepMatchesHost(t *testing.T) {
 			devG := make([]float32, n)
 			copy(devG, g)
 			devM := make([]float32, n)
-			if err := deviceMuonMatrixStep(worker, devW, devG, devM, tc.rows, tc.cols, mu, baseLR); err != nil {
+			if err := deviceMuonMatrixStep(worker, ops, devW, devG, devM, tc.rows, tc.cols, mu, baseLR, false, false); err != nil {
 				t.Fatal(err)
 			}
 
@@ -89,6 +95,44 @@ func TestDeviceMuonMatrixStepMatchesHost(t *testing.T) {
 			}
 		})
 	}
+	for _, tf32 := range []bool{false, true} {
+		schedule := "8+2-FP32"
+		if tf32 {
+			schedule = "4+2-TF32"
+		}
+		for _, magnitude := range []float32{0, 1e-14, 1} {
+			t.Run(fmt.Sprintf("zero-weights/%s/gradient=%g", schedule, magnitude), func(t *testing.T) {
+				const rows, cols = 8, 8
+				g, m := make([]float32, rows*cols), make([]float32, rows*cols)
+				for i := range g {
+					g[i] = magnitude
+					m[i] = magnitude / 2
+				}
+				wantW, wantG, wantM := make([]float32, len(g)), slices.Clone(g), slices.Clone(m)
+				gotW, gotG, gotM := make([]float32, len(g)), slices.Clone(g), slices.Clone(m)
+				if err := deviceMuonMatrixStep(worker, ops, wantW, wantG, wantM, rows, cols, mu, baseLR, tf32, true); err != nil {
+					t.Fatal(err)
+				}
+				if err := deviceMuonMatrixStep(worker, ops, gotW, gotG, gotM, rows, cols, mu, baseLR, tf32, false); err != nil {
+					t.Fatal(err)
+				}
+				for _, state := range []struct {
+					name      string
+					got, want []float32
+				}{{"weights", gotW, wantW}, {"momentum", gotM, wantM}, {"gradient", gotG, wantG}} {
+					for i, v := range state.want {
+						if math.Float32bits(state.got[i]) != math.Float32bits(v) {
+							t.Fatalf("%s[%d]=%g, reference %g", state.name, i, state.got[i], v)
+						}
+					}
+				}
+				if magnitude != 0 && slices.Equal(gotW, make([]float32, len(gotW))) {
+					t.Fatal("nonzero direction disappeared into zero weights")
+				}
+			})
+		}
+	}
+
 }
 
 func TestDeviceMuonPlanResidentMatchesShared(t *testing.T) {
@@ -248,19 +292,14 @@ func DeviceMuonPlanResident(
 }
 
 // deviceMuonMatrixStep: staged single-matrix Muon update.
-func deviceMuonMatrixStep(worker *device.Worker, weights, gradient, momentum []float32, rows, cols int, mu, rate float64) error {
-	return worker.Do(context.Background(), func(state *device.State) error {
-		ops, err := newDeviceOps(state)
-		if err != nil {
-			return err
-		}
-		defer ops.close()
-		return ops.muonMatrixGroup(weights, gradient, momentum, rows, cols, mu, rate)
+func deviceMuonMatrixStep(worker *device.Worker, ops *deviceOps, weights, gradient, momentum []float32, rows, cols int, mu, rate float64, tf32, reference bool) error {
+	return worker.Do(context.Background(), func(_ *device.State) error {
+		return ops.muonMatrixGroup(weights, gradient, momentum, rows, cols, mu, rate, tf32, reference)
 	})
 }
 
 // muonMatrixGroup: stage, update, return weights and momentum.
-func (o *deviceOps) muonMatrixGroup(weights, gradient, momentum []float32, rows, cols int, mu, rate float64) error {
+func (o *deviceOps) muonMatrixGroup(weights, gradient, momentum []float32, rows, cols int, mu, rate float64, tf32, reference bool) error {
 	n, valid := hostoptimizer.MatrixElements(rows, cols)
 	if !valid || len(weights) != n || len(gradient) != n || len(momentum) != n {
 		return fmt.Errorf("muonMatrixGroup: shape mismatch (n=%d w=%d g=%d m=%d)", n, len(weights), len(gradient), len(momentum))
@@ -272,7 +311,23 @@ func (o *deviceOps) muonMatrixGroup(weights, gradient, momentum []float32, rows,
 	defer freeDevicePointers(o.lib, buffers...)
 	dW, dG, dM := buffers[0], buffers[1], buffers[2]
 
-	if err := o.muonMatrixGroupResident(dW, dG, dM, rows, cols, mu, rate); err != nil {
+	scratch, err := o.allocMuonScratch(n, min(rows, cols)*min(rows, cols))
+	if err != nil {
+		return err
+	}
+	defer scratch.free(o.lib)
+	handle, iterations := o.handle, hostoptimizer.NewtonSchulzStage1Iterations
+	if tf32 {
+		handle, iterations = o.tf32, residentNewtonSchulzStage1Iterations
+	}
+	run := o.runNewtonSchulz
+	if reference {
+		run = o.referenceNewtonSchulz
+	}
+	orthogonalize := func(b nsBuffers, rows, cols int) (driver.DevicePtr, error) {
+		return run(b, rows, cols, handle, iterations)
+	}
+	if err := o.muonMatrixGroupWithScratch(dW, dG, dM, rows, cols, mu, rate, scratch, orthogonalize); err != nil {
 		return err
 	}
 	if err := o.lib.StreamSynchronize(o.stream); err != nil {

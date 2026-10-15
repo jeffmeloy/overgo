@@ -61,6 +61,22 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "governance-retire",
+      "title": "Retire the sealed authority, a requirement over artifacts that no longer exist",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Remove the sealed-authority command, its record and the protection requirement",
+          "status": "open",
+          "verify": "go test ./internal/protection -run '^(TestProtectionContract|TestGPUWorkflowContract)$'",
+          "rationale": "From the proposal, narrowed to what is the owner's. .github/protection.json requires a sealed authority over promotion-policy and champion-alias (lines 18 to 25 at cc82ed097), artifacts of a promotion removed on 2026-10-05, and the store has never held a record of the family (by the proposal). The protection file states a security requirement, so the decision retire-sealed-authority blocks this row and asks about that alone; if the answer keeps it, the lead retires this row with plan -retire. Not in this row: mechanism-census, a lead of consumer-checks/record-schemas under the lead's rule; and offline-artifact-validate, whose records serve model prototypes and stay.\nServes: the loop's upkeep.\nDisappears: the command, its record family and the requirement.\nEvidence: no command, schema or requirement of the set remains; the commands kept still pass.\nBatch: host; the API manifest and the SBOM are regenerated.\n\nOwner authorization = retire the sealed-authority requirement and related code\nThe existing TestProtectionContract accepts the retained policy without a sealed service\nThe existing TestGPUWorkflowContract checks the repository policy\nGolden references and evaluators remain under their existing owners\nHistorical classifier V1 and frozen guard-corpus text retain their replay inputs\nNo new absence test is added"
+        }
+      ]
+    },
+    {
       "id": "consumed-inputs",
       "title": "Qualify reuse through existing declared input owners",
       "owner": "master-lead",
@@ -157,22 +173,6 @@
           "status": "open",
           "verify": "go test ./internal/scorecard ./internal/trainingworkflow ./cmd/overgodb -run '^(TestScorecardReadingStatesItsStanding|TestObserverReportsActualActivation|TestRecordCensus)$'",
           "rationale": "SQA-125 and SQA-119. Keep observed numerator/denominator and ceiling warning without unconditional independent-binomial population precision. Report actual activation, logical held bytes and shared payload accounting. Correct the named codec, palette, speech and held-out comments without changing algorithms to fit stale prose. Retain provenance and numerical rationale. Retain the existing scorecard tables and census fixture; extend the observer fixture for inactive eligible recipes.\nServes: truthful reporting and maintenance\nDisappears: unsupported confidence wording and misleading current-state descriptions\nEvidence: go test ./internal/scorecard ./internal/trainingworkflow ./cmd/overgodb -run 'Test' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
-        }
-      ]
-    },
-    {
-      "id": "governance-retire",
-      "title": "Retire the sealed authority, a requirement over artifacts that no longer exist",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Remove the sealed-authority command, its record and the protection requirement",
-          "status": "open",
-          "verify": "go test ./internal/protection -count=1 -run '^TestRetiredSealedAuthorityLeavesNoCommandRecordOrRequirement$'",
-          "rationale": "From the proposal, narrowed to what is the owner's. .github/protection.json requires a sealed authority over promotion-policy and champion-alias (lines 18 to 25 at cc82ed097), artifacts of a promotion removed on 2026-10-05, and the store has never held a record of the family (by the proposal). The protection file states a security requirement, so the decision retire-sealed-authority blocks this row and asks about that alone; if the answer keeps it, the lead retires this row with plan -retire. Not in this row: mechanism-census, a lead of consumer-checks/record-schemas under the lead's rule; and offline-artifact-validate, whose records serve model prototypes and stay.\nServes: the loop's upkeep.\nDisappears: the command, its record family and the requirement.\nEvidence: no command, schema or requirement of the set remains; the commands kept still pass.\nBatch: host; the API manifest and the SBOM are regenerated."
         }
       ]
     },
@@ -546,7 +546,8 @@
       "blocks": [
         "governance-retire"
       ],
-      "asked": "2026-10-13"
+      "asked": "2026-10-13",
+      "answer": "remove the requirement and the command"
     }
   ]
 }

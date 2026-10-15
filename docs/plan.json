@@ -65,6 +65,10 @@
       "title": "Keep store cleanup independent of optional maintenance",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 15,
+        "reason": "Preflight measured 15 production AST nodes for nonblocking optional checkpoint admission and direct unpublished-log cleanup. Existing owners retain checkpoint and transaction behavior. Necessary regression coverage adds tests."
+      },
       "steps": [
         {
           "id": "close",

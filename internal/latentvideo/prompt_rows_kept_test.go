@@ -43,9 +43,7 @@ func TestCommonPromptRowsAreKeptForTheNextProcess(t *testing.T) {
 	// nextProcess forgets every row this process's encoders keep, as a process that has just started holds none.
 	nextProcess := func() *promptEncoder {
 		t.Helper()
-		promptEncoders.Lock()
-		clear(promptEncoders.byKey)
-		promptEncoders.Unlock()
+		forgetPromptEncoders(t)
 		encoder, err := promptEncoderFor(spec)
 		if err != nil {
 			t.Fatal(err)

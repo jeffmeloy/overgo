@@ -46,7 +46,8 @@ func TextPipelineIdentity(modelDirectory string) (string, error) {
 	if IsLiveEdit(modelDirectory) {
 		modelDirectory, _ = LiveEditArtifacts(modelDirectory)
 	}
-	return WanTextConditioningSpec(modelDirectory, 1).content(true)
+	identity, _, err := WanTextConditioningSpec(modelDirectory, 1).content(true)
+	return identity, err
 }
 
 // WanTextConditioningSpec locates the text pipeline inside a Wan model
@@ -143,7 +144,7 @@ type wanConditioning struct {
 // otherwise the pipeline's own, which the memo then holds.
 func (memo *wanConditioning) contexts(ctx context.Context, spec TextConditioningSpec, request WanRequest) (cond, uncond []float32, err error) {
 	naming := processmeasure.Stage(ctx, "text pipeline named")
-	content, err := spec.content(false)
+	content, _, err := spec.content(false)
 	naming()
 	if err != nil {
 		return nil, nil, err

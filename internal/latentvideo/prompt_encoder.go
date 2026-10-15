@@ -14,6 +14,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/binaryschema"
 	"overgo/internal/checked"
+	"overgo/internal/pathidentity"
 	"overgo/internal/processmeasure"
 	"overgo/internal/pytorchzip"
 )
@@ -30,11 +31,12 @@ const keptPrompts = 64
 // seed, or the negative prompt every clip of a model shares, is encoded once
 // by a process and not once a request.
 type promptEncoder struct {
-	mu        sync.Mutex
-	key       promptEncoderKey
-	tokenizer *fixedUnigramTokenizer
-	plan      encoderPlan
-	rows      map[string][]float32
+	mu         sync.Mutex
+	key        promptEncoderKey
+	checkpoint string
+	tokenizer  *fixedUnigramTokenizer
+	plan       encoderPlan
+	rows       map[string][]float32
 	// recent is the kept prompts, the one encoded longest ago first.
 	recent []string
 	// passes counts the passes made over the checkpoint.
@@ -49,42 +51,62 @@ type promptEncoderKey struct {
 	normEps                     float64
 }
 
-// content names the bytes a prompt's rows are made from, so that whatever
-// keeps rows, or an answer drawn from them, keeps them under those bytes and
-// not under a place, a size and a time, which other bytes can have. The
-// tokenizer's table and its special tokens are read whole. The encoder
-// checkpoint, eleven gigabytes that cannot be read for every request, is
-// named by what its archive records of its entries (pytorchzip.Record). On
-// the model's own files the three take nine milliseconds. A file that is not
-// there is named as absent where that is admitted, for a model served without
-// its text pipeline, and is refused where rows are to be made.
-func (spec TextConditioningSpec) content(admitAbsent bool) (string, error) {
-	whole := func(name string) func() (string, error) {
-		return func() (string, error) {
-			id, err := artifact.IdentifyFile(artifact.KindFile, filepath.Join(spec.TokenizerDir, name))
-			return id.String(), err
-		}
-	}
+// content names the admitted checkpoint and the current tokenizer bytes.
+// The canonical checkpoint path keeps subsequent reads on the admitted file.
+func (spec TextConditioningSpec) content(admitAbsent bool) (identity, checkpoint string, err error) {
 	named := sha256.New()
-	for _, part := range [...]func() (string, error){
-		func() (string, error) { return pytorchzip.Record(spec.EncoderCheckpoint) }, whole(tokenizerTable), whole(tokenizerRoles),
-	} {
-		content, err := part()
+	archive, err := admitCheckpoint(spec.EncoderCheckpoint)
+	if admitAbsent && errors.Is(err, fs.ErrNotExist) {
+		fmt.Fprintln(named, "absent")
+	} else if err != nil {
+		return "", "", err
+	} else {
+		fmt.Fprintln(named, archive.Identity)
+		checkpoint = archive.File.Name()
+	}
+	for _, name := range []string{tokenizerTable, tokenizerRoles} {
+		id, err := artifact.IdentifyFile(artifact.KindFile, filepath.Join(spec.TokenizerDir, name))
 		if admitAbsent && errors.Is(err, fs.ErrNotExist) {
-			content, err = "absent", nil
+			fmt.Fprintln(named, "absent")
+			continue
 		}
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
-		fmt.Fprintln(named, content)
+		fmt.Fprintln(named, id)
 	}
-	return hex.EncodeToString(named.Sum(nil)), nil
+	return hex.EncodeToString(named.Sum(nil)), checkpoint, nil
+}
+
+// admitCheckpoint keeps immutable archives with the process's existing prompt cache.
+// A platform without write exclusion rehashes before reuse instead of trusting metadata.
+func admitCheckpoint(path string) (*pytorchzip.Admission, error) {
+	canonical, err := pathidentity.Canonical(path)
+	if err != nil {
+		return nil, err
+	}
+	promptEncoders.Lock()
+	defer promptEncoders.Unlock()
+	if held := promptEncoders.archives[canonical]; held != nil {
+		return held, nil
+	}
+	admitted, err := pytorchzip.Admit(canonical)
+	if err != nil {
+		return nil, err
+	}
+	if admitted.Immutable {
+		promptEncoders.archives[canonical] = admitted
+	} else if err := admitted.File.Close(); err != nil {
+		return nil, err
+	}
+	return admitted, nil
 }
 
 var promptEncoders = struct {
 	sync.Mutex
-	byKey map[promptEncoderKey]*promptEncoder
-}{byKey: map[promptEncoderKey]*promptEncoder{}}
+	byKey    map[promptEncoderKey]*promptEncoder
+	archives map[string]*pytorchzip.Admission
+}{byKey: map[promptEncoderKey]*promptEncoder{}, archives: map[string]*pytorchzip.Admission{}}
 
 // promptEncoderFor gives the encoder of a text pipeline, reading its
 // tokenizer and compiling its checkpoint's plan the first time it is asked
@@ -93,7 +115,7 @@ func promptEncoderFor(spec TextConditioningSpec) (*promptEncoder, error) {
 	if !checked.PositiveInts(spec.SequenceLength) {
 		return nil, fmt.Errorf("text conditioning: positive sequence length required")
 	}
-	content, err := spec.content(false)
+	content, checkpoint, err := spec.content(false)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +132,7 @@ func promptEncoderFor(spec TextConditioningSpec) (*promptEncoder, error) {
 	if err != nil {
 		return nil, err
 	}
-	catalog, err := pytorchzip.ReadCatalog(spec.EncoderCheckpoint)
+	catalog, err := pytorchzip.ReadCatalog(checkpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +143,7 @@ func promptEncoderFor(spec TextConditioningSpec) (*promptEncoder, error) {
 	if !plan.OK {
 		return nil, fmt.Errorf("text conditioning encoder contract: missing=%v unexpected=%v dtype=%v shape=%v", plan.Missing, plan.Unexpected, plan.DTypeMismatches, plan.ShapeMismatches)
 	}
-	encoder := &promptEncoder{key: key, tokenizer: table, plan: plan, rows: map[string][]float32{}}
+	encoder := &promptEncoder{key: key, checkpoint: checkpoint, tokenizer: table, plan: plan, rows: map[string][]float32{}}
 	promptEncoders.byKey[key] = encoder
 	return encoder, nil
 }
@@ -170,7 +192,7 @@ func encodePrompts(ctx context.Context, spec TextConditioningSpec, prompts ...st
 	}
 	if len(missing) > 0 {
 		run := processmeasure.Stage(ctx, "text encoder run")
-		encoded, passed, err := encodeSequencesStreamed(ctx, spec.EncoderCheckpoint, encoder.plan, sequences)
+		encoded, passed, err := encodeSequencesStreamed(ctx, encoder.checkpoint, encoder.plan, sequences)
 		run()
 		if err != nil {
 			return nil, 0, passed, err

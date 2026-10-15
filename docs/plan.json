@@ -66,7 +66,7 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 364,
+        "nodes": 0,
         "reason": "Built preflight measures 364 production AST nodes for full archive identity and process-owned Windows write exclusion. The directory-only Record implementation disappears. Existing prompt fixtures gain raw payload mutation and admission lifetime cases. First 11 GB admission takes 10.4982954 seconds and the next twelve pipeline identities average about 7.8 ms, versus about 7.7 ms before. This is necessary correctness growth with a cold-load cost, not a speed claim. Retained comparison evidence:sha256:8074c3dde17ee5d7e11c772b5aa1755270bcabc6fc2bef6deb04d82f3ecfc4bb"
       },
       "steps": [
@@ -76,13 +76,6 @@
           "status": "open",
           "verify": "go test ./cmd/evaluate -run '^(TestARenderReusesOnlyWhatTheSameRecipeAndSettingsDrew|TestAPictureIsJudgedOnlyWhenTheEvaluatedRecipeDrewIt)$'",
           "rationale": "SQA-107. Extend existing suite/scorer/session owners for fixed input content, judge/settings, render request and producing run. Candidate output does not name the method. Changed questions may reuse one exact render. Preserve legacy Unknown and producer identities through tiny controlled media fixtures.\nServes: held-out-quality and evidence validity\nDisappears: basename authority, output-dependent method identity and discarded producer identity\nEvidence: go test ./cmd/evaluate -run '^(TestARenderReusesOnlyWhatTheSameRecipeAndSettingsDrew|TestAPictureIsJudgedOnlyWhenTheEvaluatedRecipeDrewIt)$' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
-        },
-        {
-          "id": "archives",
-          "title": "Enforce archive integrity at immutable admission",
-          "status": "open",
-          "verify": "go test ./internal/pytorchzip ./internal/latentvideo -run '^(TestRecordNamesWhatAnArchiveRecords|TestPromptRowsFollowTheBytesTheyAreMadeFrom)$'",
-          "rationale": "SQA-129. Archive directory metadata alone cannot authorize reuse after a payload mutation. Trace the actual immutable inventory/admission owner and verify or refuse unqualified content there. Preserve cheap request reuse and avoid hashing the model per request. The raw mutation fixture must be refused or named differently before reuse. Count one-time reads and existing model admission coverage before choosing the change.\nServes: video correctness and reuse\nDisappears: unverified directory-record identity as sufficient payload authority\nEvidence: go test ./internal/pytorchzip ./internal/latentvideo -run '^(TestRecordNamesWhatAnArchiveRecords|TestPromptRowsFollowTheBytesTheyAreMadeFrom)$' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
         }
       ]
     },

@@ -173,25 +173,20 @@ func TestSyntheticCheckpointRoundTrip(t *testing.T) {
 	}
 }
 
-// TestRecordNamesWhatAnArchiveRecords holds the name a checkpoint is given by
-// what its archive records of its entries. A checkpoint written again with
-// the same values has the same record, and one written with another value has
-// another, at the same length: what a size and a time would not show. A file
-// that is no archive has no record, and one that is not there is refused as
-// not there.
-//
-// The record's limit is held too, so that it is stated and not hoped away: a
-// value changed in place, with the archive's directory left as it was, keeps
-// the record, and the reader gives the changed value.
+// TestRecordNamesWhatAnArchiveRecords binds reuse to full archive bytes under admission.
+// Writes are refused while an immutable admission is held, and changed bytes name another record after release.
 func TestRecordNamesWhatAnArchiveRecords(t *testing.T) {
 	values := []float32{-2.5, 0, 1.25, 255, -0.375, 8}
 	record := func(path string) string {
 		t.Helper()
-		recorded, err := Record(path)
+		admission, err := Admit(path)
 		if err != nil {
 			t.Fatal(err)
 		}
-		return recorded
+		if err := admission.File.Close(); err != nil {
+			t.Fatal(err)
+		}
+		return admission.Identity
 	}
 	first, _ := syntheticCheckpoint(t, values)
 	again, _ := syntheticCheckpoint(t, values)
@@ -207,6 +202,23 @@ func TestRecordNamesWhatAnArchiveRecords(t *testing.T) {
 		t.Fatalf("the same values written again have the first's record: %t; another value has it too: %t", record(again) == record(first), record(other) == record(first))
 	}
 
+	admitted, err := Admit(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if admitted.Immutable {
+		writer, err := os.OpenFile(first, os.O_WRONLY, 0)
+		if err == nil {
+			writer.Close()
+			t.Error("admitted archive allowed a writer")
+		}
+	}
+	if admitted.Identity != record(first) {
+		t.Fatal("admission identity differs")
+	}
+	if err := admitted.File.Close(); err != nil {
+		t.Fatal(err)
+	}
 	// The last value, 8, where it lies in the file, made 4 with the directory untouched.
 	stored := make([]byte, 2)
 	binary.LittleEndian.PutUint16(stored, dtype.Float32ToBF16(8))
@@ -235,18 +247,19 @@ func TestRecordNamesWhatAnArchiveRecords(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if record(first) != record(again) || got[len(got)-1] != 4 {
-		t.Fatalf("a value changed in place: the record moved: %t, and the reader gives %g; the limit as stated is the record kept and 4 read", record(first) != record(again), got[len(got)-1])
+	if record(first) == record(again) || got[len(got)-1] != 4 {
+		t.Fatalf("a value changed in place: the record moved: %t, and the reader gives %g; want changed payload identity and 4 read", record(first) != record(again), got[len(got)-1])
 	}
 
 	plain := filepath.Join(t.TempDir(), "plain.pth")
 	if err := os.WriteFile(plain, []byte("no archive"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if recorded, err := Record(plain); err == nil {
-		t.Fatalf("a file that is no archive has the record %q", recorded)
+	if admitted, err := Admit(plain); err == nil {
+		admitted.File.Close()
+		t.Fatalf("a file that is no archive was admitted")
 	}
-	if _, err := Record(filepath.Join(t.TempDir(), "absent.pth")); !errors.Is(err, fs.ErrNotExist) {
+	if _, err := Admit(filepath.Join(t.TempDir(), "absent.pth")); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("a checkpoint that is not there = %v, want it refused as not there", err)
 	}
 }

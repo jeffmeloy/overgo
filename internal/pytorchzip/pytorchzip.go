@@ -71,24 +71,36 @@ func ReadCatalog(filename string) (Catalog, error) {
 	return Catalog{}, fmt.Errorf("pytorchzip: data.pkl not found in %s", filename)
 }
 
-// Record names what a checkpoint's archive records of its contents, every
-// entry's name, length and CRC-32, as one digest. It reads the archive's
-// directory and no entry, so a checkpoint of gigabytes is named in the time
-// one of bytes is, and a checkpoint written again with other bytes has
-// another record under the same place, size and time. Bytes changed in place
-// under an unchanged directory keep the record: nothing short of reading
-// every entry would see them, and the reader here does not.
-func Record(filename string) (string, error) {
-	archive, err := zip.OpenReader(filename)
+// Admission binds an archive's full bytes while its file remains open.
+// Immutable means the operating system refuses writes and replacement until Close.
+type Admission struct {
+	File      *os.File
+	Identity  string
+	Immutable bool
+}
+
+// Admit reads every archive byte once and holds the platform's read-only admission.
+// Platforms without enforced immutability require a fresh admission before reuse.
+func Admit(filename string) (*Admission, error) {
+	file, immutable, err := openAdmission(filename)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	defer archive.Close()
-	recorded := sha256.New()
-	for _, entry := range archive.File {
-		fmt.Fprintf(recorded, "%q %d %d\n", entry.Name, entry.UncompressedSize64, entry.CRC32)
+	fail := func(err error) (*Admission, error) { return nil, errors.Join(err, file.Close()) }
+	info, err := file.Stat()
+	if err != nil {
+		return fail(err)
 	}
-	return hex.EncodeToString(recorded.Sum(nil)), nil
+	if _, err := zip.NewReader(file, info.Size()); err != nil {
+		return fail(err)
+	}
+	digest := sha256.New()
+	if n, err := io.Copy(digest, io.NewSectionReader(file, 0, info.Size())); err != nil {
+		return fail(err)
+	} else if n != info.Size() {
+		return fail(io.ErrUnexpectedEOF)
+	}
+	return &Admission{File: file, Identity: hex.EncodeToString(digest.Sum(nil)), Immutable: immutable}, nil
 }
 
 const (

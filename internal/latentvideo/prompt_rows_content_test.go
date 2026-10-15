@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -159,11 +160,7 @@ func TestPromptRowsFollowTheBytesTheyAreMadeFrom(t *testing.T) {
 	request := WanRequest{Prompt: "hello world", NegativePrompt: spec.Common}
 
 	// forget drops every row and tokenizer this process's encoders keep, as a process that has just started holds none.
-	forget := func() {
-		promptEncoders.Lock()
-		clear(promptEncoders.byKey)
-		promptEncoders.Unlock()
-	}
+	forget := func() { forgetPromptEncoders(t) }
 	forget()
 	t.Cleanup(forget)
 	passes := func() (made int) {
@@ -219,6 +216,23 @@ func TestPromptRowsFollowTheBytesTheyAreMadeFrom(t *testing.T) {
 		if len(now) != len(was) || bytes.Equal(now, was) {
 			t.Fatalf("%s: %d other bytes for %d, the same bytes: %t; want other bytes of the same length", filepath.Base(path), len(now), len(was), bytes.Equal(now, was))
 		}
+		if path == spec.EncoderCheckpoint {
+			promptEncoders.Lock()
+			for key, held := range promptEncoders.archives {
+				if held.Immutable {
+					writer, err := os.OpenFile(path, os.O_WRONLY, 0)
+					if err == nil {
+						writer.Close()
+						t.Error("admitted checkpoint allowed a writer")
+					}
+				}
+				if err := held.File.Close(); err != nil {
+					t.Error(err)
+				}
+				delete(promptEncoders.archives, key)
+			}
+			promptEncoders.Unlock()
+		}
 		if err := os.WriteFile(path, now, 0o644); err != nil {
 			t.Fatal(err)
 		}
@@ -265,6 +279,25 @@ func TestPromptRowsFollowTheBytesTheyAreMadeFrom(t *testing.T) {
 		other      func(was []byte) []byte
 	}{
 		{"the checkpoint written again with other weights", spec.EncoderCheckpoint, func([]byte) []byte { return syntheticEncoder(t, 2) }},
+		{"raw storage changed under the same ZIP directory", spec.EncoderCheckpoint, func(was []byte) []byte {
+			was = bytes.Clone(was)
+			other := syntheticEncoder(t, 3)
+			archive, err := zip.NewReader(bytes.NewReader(was), int64(len(was)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, entry := range archive.File {
+				if strings.HasPrefix(entry.Name, "archive/data/") {
+					offset, err := entry.DataOffset()
+					if err != nil {
+						t.Fatal(err)
+					}
+					end := offset + int64(entry.UncompressedSize64)
+					copy(was[offset:end], other[offset:end])
+				}
+			}
+			return was
+		}},
 		{"the tokenizer's table with two scores exchanged", table, exchanged(`["▁hello",1]`, `["▁hello",-1]`, `["▁",-1]`, `["▁",1]`)},
 		{"the special tokens alone, with another end token", roles, exchanged(`"eos_token":"</s>",`, `"eos_token":"<s>", `)},
 	} {
@@ -322,13 +355,28 @@ func TestPromptRowsFollowTheBytesTheyAreMadeFrom(t *testing.T) {
 	if name, err := TextPipelineIdentity(filepath.Dir(absent.EncoderCheckpoint)); err != nil || name == "" || name == named() {
 		t.Fatalf("a model with no text pipeline is named %q (%v); want a name of its own, for a request that brings its contexts", name, err)
 	}
-	if _, err := absent.content(false); !errors.Is(err, fs.ErrNotExist) {
+	if _, _, err := absent.content(false); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("rows asked of a pipeline that is not there = %v, want it refused as not there", err)
 	}
+	forget()
 	if err := os.WriteFile(spec.EncoderCheckpoint, []byte("no archive"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if name, err := TextPipelineIdentity(directory); err == nil {
 		t.Fatalf("a checkpoint that is no archive is named %q; want no name, and so no answer kept under one", name)
 	}
+}
+
+// forgetPromptEncoders releases the process-owned admissions and cached rows for a cold fixture.
+func forgetPromptEncoders(t *testing.T) {
+	t.Helper()
+	promptEncoders.Lock()
+	defer promptEncoders.Unlock()
+	clear(promptEncoders.byKey)
+	for _, held := range promptEncoders.archives {
+		if err := held.File.Close(); err != nil {
+			t.Error(err)
+		}
+	}
+	clear(promptEncoders.archives)
 }

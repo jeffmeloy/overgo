@@ -11,12 +11,14 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
 	"overgo/internal/clioptions"
+	"overgo/internal/inferencesurface"
 	"overgo/internal/latentvideo"
 	"overgo/internal/optimizer"
 	"overgo/internal/overgodb"
@@ -168,7 +170,8 @@ func (run codecRun) load() (codecParts, error) {
 	// bridge or statistics leaves them good. A proof has no cache and keeps none.
 	parts := codecParts{pair: pair, source: source, collection: collection}
 	if run.cache != "" {
-		parts.tokens, err = tokenCache(run.cache, run.resolved.SourceEncoder)
+		producer, _ := inferencesurface.Execution(reflect.TypeFor[rae.Autoencoder]().PkgPath())
+		parts.tokens, err = tokenCache(run.cache, producer, run.resolved.SourceEncoder)
 	}
 	return parts, err
 }
@@ -242,7 +245,7 @@ func (run codecRun) observed(ctx context.Context, manifest string) (err error) {
 		if err != nil {
 			return err
 		}
-		tokens, err := pictureSourceTokens(parts.source, picture, side, filepath.Join(parts.tokens, pictureDigest(picture)+codecTokenExtension))
+		tokens, err := pictureSourceTokens(parts.source, picture, side, parts.tokens, pictureDigest(picture)+codecTokenExtension)
 		if err != nil {
 			return err
 		}
@@ -300,8 +303,8 @@ func (run codecRun) judged(ctx context.Context, alias string, recipeID artifact.
 	tokens := make(map[string][]float32, len(data.Examples))
 	if !proof {
 		for record, example := range data.Examples {
-			cached := filepath.Join(parts.tokens, digests[record]+codecTokenExtension)
-			if tokens[record], err = pictureSourceTokens(parts.source, dtype.ConvertSlice[float32](example.Target), side, cached); err != nil {
+			cached := digests[record] + codecTokenExtension
+			if tokens[record], err = pictureSourceTokens(parts.source, dtype.ConvertSlice[float32](example.Target), side, parts.tokens, cached); err != nil {
 				return err
 			}
 			fmt.Fprintf(os.Stderr, "  tokens %d/%d\n", len(tokens), len(data.Examples))
@@ -401,16 +404,16 @@ func codecPictures(ctx context.Context, store *overgodb.Store, objective trainin
 
 // pictureSourceTokens is the source encoder's tokens for one picture, read
 // from cached when a run before this one kept them there.
-func pictureSourceTokens(source *vitencoder.Encoder, picture []float32, side int, cached string) ([]float32, error) {
+func pictureSourceTokens(source *vitencoder.Encoder, picture []float32, side int, cache, cached string) ([]float32, error) {
 	_, grid, width := source.Shape()
-	if tokens, kept := readTokens(cached, grid*grid*width); kept {
+	if tokens, kept := readTokens(cache, cached, grid*grid*width); kept {
 		return tokens, nil
 	}
 	tokens, err := rae.BridgeSourceTokens(source, picture, side)
 	if err != nil {
 		return nil, err
 	}
-	return tokens, writeTokens(cached, tokens)
+	return tokens, writeTokens(cache, cached, tokens)
 }
 
 // cutCodecPictures writes the first frame of each clip a manifest names, cut

@@ -14,11 +14,13 @@ import (
 	"math/rand/v2"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 
 	"overgo/internal/composition"
 	"overgo/internal/evaluation"
+	"overgo/internal/inferencesurface"
 	"overgo/internal/jsonfile"
 	"overgo/internal/latentvideo"
 	"overgo/internal/media"
@@ -240,22 +242,25 @@ func clipBridgeFrame(ctx context.Context, pair *rae.Autoencoder, source *vitenco
 	_, sourceGrid, sourceWidth := source.Shape()
 	targetWidth, targetGrid := pair.Latent()
 	sourceValues, targetValues := sourceGrid*sourceGrid*sourceWidth, targetGrid*targetGrid*targetWidth
-	cached := filepath.Join(cache, pictureDigest(picture)+".tokens")
-	if values, kept := readTokens(cached, sourceValues+targetValues); kept {
+	cached := pictureDigest(picture) + ".tokens"
+	if values, kept := readTokens(cache, cached, sourceValues+targetValues); kept {
 		return bridgeFrame{picture: picture, source: values[:sourceValues], target: values[sourceValues:]}, nil
 	}
 	frame, err := bridgeTokens(ctx, pair, source, picture)
 	if err != nil {
 		return bridgeFrame{}, err
 	}
-	return frame, writeTokens(cached, slices.Concat(frame.source, frame.target))
+	return frame, writeTokens(cache, cached, slices.Concat(frame.source, frame.target))
 }
 
-// tokenCache is the directory under cache that keeps the tokens the encoders
-// in the given directories make, made if it is absent. It is named by the
-// bytes of each encoder's weights, configuration and image processor, so
-// tokens are read back only by the encoders that made them, wherever they sit.
-func tokenCache(cache string, encoders ...string) (string, error) {
+// tokenCache names persisted tokens by their producing implementation and encoder bytes.
+//   - unknown producer => no persistent cache
+//   - encoder relocation preserves the identity
+func tokenCache(cache, producer string, encoders ...string) (string, error) {
+	if producer == "" {
+		return "", nil
+	}
+	cache = filepath.Join(cache, producer)
 	for _, encoder := range encoders {
 		inventory, err := modelartifact.FromHFPath(encoder)
 		if err != nil {
@@ -274,10 +279,13 @@ func pictureDigest(picture []float32) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// readTokens reads count token values a run before this one kept at path; kept is
-// false when the file is absent or holds another count.
-func readTokens(path string, count int) (values []float32, kept bool) {
-	raw, err := os.ReadFile(path)
+// readTokens reads exactly count values from a qualified cache.
+//   - absent cache or file or another count => miss
+func readTokens(cache, name string, count int) (values []float32, kept bool) {
+	if cache == "" {
+		return nil, false
+	}
+	raw, err := os.ReadFile(filepath.Join(cache, name))
 	if err != nil || len(raw) != count*binary.Size(float32(0)) {
 		return nil, false
 	}
@@ -297,9 +305,12 @@ func tokenBytes(values []float32) []byte {
 	return raw
 }
 
-// writeTokens keeps token values at path for the runs after this one.
-func writeTokens(path string, values []float32) error {
-	return os.WriteFile(path, tokenBytes(values), bridgeCacheFileMode)
+// writeTokens persists values only in a qualified cache.
+func writeTokens(cache, name string, values []float32) error {
+	if cache == "" {
+		return nil
+	}
+	return os.WriteFile(filepath.Join(cache, name), tokenBytes(values), bridgeCacheFileMode)
 }
 
 // trainEncoderBridge is the encoder-bridge route: it fits the affine map that lets one
@@ -366,7 +377,8 @@ func trainEncoderBridge(ctx context.Context, flags *flag.FlagSet, args []string)
 	if err != nil {
 		return err
 	}
-	cacheDirectory, err := tokenCache(*cache, *sourceDir, collection.EncoderDirectory())
+	producer, _ := inferencesurface.Execution(reflect.TypeFor[rae.Autoencoder]().PkgPath())
+	cacheDirectory, err := tokenCache(*cache, producer, *sourceDir, collection.EncoderDirectory())
 	if err != nil {
 		return err
 	}

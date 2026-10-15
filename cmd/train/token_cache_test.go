@@ -40,11 +40,12 @@ func writeTinyEncoder(t *testing.T, directory string, weight float32, config, pr
 func TestTokensAreKeptUnderTheBytesOfTheEncodersThatMadeThem(t *testing.T) {
 	t.Parallel()
 	root, cache := t.TempDir(), filepath.Join(t.TempDir(), "cache")
+	producer := "known-producing-implementation"
 	const config, processor = `{"hidden_size":3}`, `{"size":8}`
 	first := writeTinyEncoder(t, filepath.Join(root, "a", "enc"), 1, config, processor)
 	kept := func(encoders ...string) string {
 		t.Helper()
-		directory, err := tokenCache(cache, encoders...)
+		directory, err := tokenCache(cache, producer, encoders...)
 		if err != nil {
 			t.Fatalf("no token directory for %v: %v", encoders, err)
 		}
@@ -69,14 +70,37 @@ func TestTokensAreKeptUnderTheBytesOfTheEncodersThatMadeThem(t *testing.T) {
 		t.Errorf("the same encoder under another root keeps its tokens in %s, not in %s where it kept them before", same, own)
 	}
 	tokens := []float32{0.25, -1.5, 3}
-	if err := writeTokens(filepath.Join(own, "picture.source"), tokens); err != nil {
+	if err := writeTokens(own, "picture.source", tokens); err != nil {
 		t.Fatal(err)
 	}
-	if read, found := readTokens(filepath.Join(same, "picture.source"), len(tokens)); !found || !slices.Equal(read, tokens) {
+	if read, found := readTokens(same, "picture.source", len(tokens)); !found || !slices.Equal(read, tokens) {
 		t.Errorf("tokens kept as %v were read back as %v (found %t)", tokens, read, found)
 	}
-	if _, found := readTokens(filepath.Join(same, "picture.source"), len(tokens)+1); found {
+	if _, found := readTokens(same, "picture.source", len(tokens)+1); found {
 		t.Error("tokens of another count were read back")
+	}
+
+	for _, changed := range []string{"changed-producing-implementation", ""} {
+		directory, err := tokenCache(cache, changed, first)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if changed == "" {
+			if err := writeTokens(directory, filepath.Join(own, "picture.source"), []float32{9}); err != nil {
+				t.Fatal(err)
+			}
+			if _, found := readTokens(directory, filepath.Join(own, "picture.source"), len(tokens)); found {
+				t.Error("unknown producer read persisted tokens")
+			}
+			if read, found := readTokens(own, "picture.source", len(tokens)); !found || !slices.Equal(read, tokens) {
+				t.Error("unknown producer overwrote persisted tokens")
+			}
+			if directory != "" {
+				t.Errorf("unknown producer admitted persistent tokens under %q", directory)
+			}
+		} else if directory == own {
+			t.Error("changed producing implementation reused the old tokens")
+		}
 	}
 
 	// Each file the encoder loads by names the directory.
@@ -117,7 +141,7 @@ func TestTokensAreKeptUnderTheBytesOfTheEncodersThatMadeThem(t *testing.T) {
 		if err := os.Remove(filepath.Join(broken, file)); err != nil {
 			t.Fatal(err)
 		}
-		if directory, err := tokenCache(cache, broken); err == nil {
+		if directory, err := tokenCache(cache, producer, broken); err == nil {
 			t.Errorf("an encoder with no %s was given the token directory %s", name, directory)
 		}
 	}

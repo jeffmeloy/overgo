@@ -66,7 +66,7 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 81,
+        "nodes": 0,
         "reason": "Built preflight counts 81 production AST nodes for producer identity and the no-cache path. Existing cache functions own the change. Test growth is necessary changed and unknown producer coverage in the existing fixture. No new schemas or fixtures."
       },
       "steps": [
@@ -76,13 +76,6 @@
           "status": "open",
           "verify": "go test ./cmd/validate ./cmd/loop -run '^(TestCellCreditSurvivesAKilledRun|TestResumedRunStartsAgainACellWhoseWeightsChanged|TestCycleCreditFollowsTheInputsARunConsumes)$'",
           "rationale": "SQA-089. Use declared manifest/content and execution authority where available. Unknown directory links or unqualified bytes must miss. The existing tiny fixtures cover equal-size/equal-time replacements and unresolved links. Preserve original-pin resumption and native Go caching. Count bounded input reads and remove metadata-only admission. No custom dependency graph or recurring store census.\nServes: correct interrupted-cycle reuse\nDisappears: path-size-time as sufficient content authority\nEvidence: go test ./cmd/validate ./cmd/loop -run '^(TestCellCreditSurvivesAKilledRun|TestResumedRunStartsAgainACellWhoseWeightsChanged|TestCycleCreditFollowsTheInputsARunConsumes)$' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
-        },
-        {
-          "id": "tokens",
-          "title": "Bind persisted bridge tokens to the producing implementation",
-          "status": "open",
-          "verify": "go test ./cmd/train -run '^(TestTokensAreKeptUnderTheBytesOfTheEncodersThatMadeThem|TestAClipsTokensAreKeptUnderItsCut)$'",
-          "rationale": "SQA-114. Confirm the existing execution identity covers resize, normalization and encoder code. Include it in token-cache identity and treat unknown as a miss. Extend existing token fixtures with changed and unknown producer while retaining file, relocation, cut and count cases. Decoder-only invalidation must follow actual declared producer dependencies.\nServes: training correctness and reuse\nDisappears: producer-blind persisted token admission\nEvidence: go test ./cmd/train -run '^(TestTokensAreKeptUnderTheBytesOfTheEncodersThatMadeThem|TestAClipsTokensAreKeptUnderItsCut)$' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
         },
         {
           "id": "media",

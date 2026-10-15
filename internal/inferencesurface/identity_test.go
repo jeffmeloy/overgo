@@ -26,7 +26,7 @@ func TestRepositoryCountsEveryCapabilityPackage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, entry := range []string{"overgo/internal/mediacapability", "overgo/internal/latentvideo", "overgo/internal/speechsynth", "overgo/internal/vqaserve", "overgo/" + textRunner, evaluationCount} {
+	for _, entry := range []string{"overgo/internal/rae", "overgo/internal/mediacapability", "overgo/internal/latentvideo", "overgo/internal/speechsynth", "overgo/internal/vqaserve", "overgo/" + textRunner, evaluationCount} {
 		if identity := counted[entry]; identity == "" || !strings.Contains(flag, entry+"="+identity) {
 			t.Errorf("%s is counted %q, and the linker flag does not name it so", entry, identity)
 		}

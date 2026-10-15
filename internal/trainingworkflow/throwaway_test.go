@@ -207,6 +207,36 @@ func TestExperimentRemovesItsCheckpointsOnceItsRecordIsKept(t *testing.T) {
 		if _, err := artifact.Publish(ctx, store, registration); err != nil {
 			t.Fatal(err)
 		}
+		protected := map[string]artifact.ID{prototype: byHand.Manifest.ID}
+		weights, err := os.ReadFile(filepath.Join(prototype, trainingprogram.CheckpointModel))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, name := range []string{"parent-root", "component-only"} {
+			directory := filepath.Join(root, "models", name)
+			if err := os.CopyFS(directory, os.DirFS(prototype)); err != nil {
+				t.Fatal(err)
+			}
+			component := artifact.Component{Role: artifact.ComponentWeightsShard, Name: "ownership.dat", Artifact: testutil.ArtifactID(t, artifact.KindTensorSet, name)}
+			if err := os.WriteFile(filepath.Join(directory, component.Name), []byte(name), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{component})
+			if err != nil {
+				t.Fatal(err)
+			}
+			batch := artifact.Batch{Key: "fixture/" + name, Manifests: []artifact.Manifest{manifest}, Artifacts: []artifact.Descriptor{{ID: component.Artifact, Size: uint64(len(name))}}, Locations: []artifact.LocationEvent{
+				{Location: artifact.Location{Artifact: component.Artifact, Kind: artifact.LocationFile, Value: filepath.Join(directory, component.Name)}, Action: artifact.LocationAdd},
+			}}
+			if name == "parent-root" {
+				batch.Locations = append(batch.Locations, artifact.LocationEvent{Location: artifact.Location{Artifact: manifest.ID, Kind: artifact.LocationDirectory, Value: filepath.Dir(directory)}, Action: artifact.LocationAdd})
+			}
+			if _, err := artifact.Publish(ctx, store, batch); err != nil {
+				t.Fatal(err)
+			}
+			protected[directory] = manifest.ID
+			directories = append(directories, directory)
+		}
 		// A model whose bytes are with a provider is recorded at an address no directory holds, which is no path to look under.
 		served := testutil.ArtifactID(t, artifact.KindModel, "a model a provider serves")
 		if _, err := artifact.Publish(ctx, store, artifact.Batch{
@@ -230,8 +260,10 @@ func TestExperimentRemovesItsCheckpointsOnceItsRecordIsKept(t *testing.T) {
 		// A store whose models cannot be listed, or are listed cut short, is not a store that registers none: nothing goes.
 		errListing := errors.New("the models cannot be listed")
 		for name, listing := range map[string]unlisted{
-			"cannot be listed":     {Store: store, err: errListing},
-			"are listed cut short": {Store: store, cut: overgodb.QueryResult{Truncated: true}},
+			"cannot be listed":      {Store: store, err: errListing},
+			"are listed cut short":  {Store: store, cut: overgodb.QueryResult{Truncated: true}},
+			"local manifest absent": {Store: store, cut: overgodb.QueryResult{Artifacts: []artifact.Descriptor{{ID: byHand.Manifest.ID}}}},
+			"ownership unknown":     {Store: store, cut: overgodb.QueryResult{Artifacts: []artifact.Descriptor{{ID: testutil.ArtifactID(t, artifact.KindModel, "unknown")}}}},
 		} {
 			receipt.Reset()
 			err := RemoveCheckpoints(ctx, listing, &receipt, "", directories...)
@@ -273,16 +305,27 @@ func TestExperimentRemovesItsCheckpointsOnceItsRecordIsKept(t *testing.T) {
 		for _, directory := range directories {
 			line := lines[directory]
 			_, err := os.Stat(directory)
-			switch directory {
-			case held:
+			switch {
+			case directory == held:
 				if _, err := trainingprogram.LoadCheckpoint(held); err != nil || line == nil || line[0] != "kept" || !strings.Contains(line[4], "the store records this checkpoint") {
 					t.Fatalf("the checkpoint the store records at %s loads as %v with the line %q, want it whole and kept for the store's record of it", held, err, line)
 				}
-			case prototype:
-				if _, err := trainingprogram.LoadCheckpoint(prototype); err != nil || line == nil || line[0] != "kept" || !strings.Contains(line[4], byHand.Manifest.ID.String()) || !strings.Contains(line[4], "never") {
-					t.Fatalf("the directory %s, from a file of which model %s is registered, loads as %v with the line %q, want it whole and kept for that model, which is never a run's to throw away", prototype, byHand.Manifest.ID, err, line)
+			case protected[directory].Valid():
+				if _, err := trainingprogram.LoadCheckpoint(directory); err != nil || line == nil || line[0] != "kept" || !strings.Contains(line[4], "never") {
+					t.Fatalf("the directory %s, from a file of which model %s is registered, loads as %v with the line %q, want it whole and kept for a registered model", directory, protected[directory], err, line)
 				}
-			case empty:
+				got, err := os.ReadFile(filepath.Join(directory, trainingprogram.CheckpointModel))
+				if err != nil || !bytes.Equal(got, weights) || !strings.Contains(line[4], protected[directory].String()) {
+					t.Fatalf("registered component at %s = %v with receipt %q, want exact bytes and model owner", directory, err, line)
+				}
+				if directory != prototype {
+					got, err := os.ReadFile(filepath.Join(directory, "ownership.dat"))
+					id := testutil.ArtifactID(t, artifact.KindTensorSet, filepath.Base(directory))
+					if err != nil || string(got) != filepath.Base(directory) || !strings.Contains(line[4], id.String()) {
+						t.Fatalf("component-only bytes at %s = %q, %v with receipt %q", directory, got, err, line)
+					}
+				}
+			case directory == empty:
 				if err != nil || line != nil {
 					t.Fatalf("the folder %s, which holds no checkpoint, is %v with the line %q, want it passed over", empty, err, line)
 				}

@@ -123,7 +123,7 @@ func RemoveCheckpoints(ctx context.Context, store modelCatalog, receipt io.Write
 		_, err := fmt.Fprintf(receipt, "%s\t%d\trun-checkpoint\t%s\t%s\n", verb, bytes, path, rule)
 		failed = errors.Join(failed, err)
 	}
-	var models []artifact.Location
+	var models []modelLocation
 	if kept == "" {
 		var err error
 		if models, err = registeredModels(ctx, store); err != nil {
@@ -180,28 +180,47 @@ type modelCatalog interface {
 	Query(context.Context, overgodb.Query) (overgodb.QueryResult, error)
 }
 
+type modelLocation struct {
+	artifact.Location
+	model artifact.ID
+}
+
 // registeredModels reads every place on this machine the store records a
 // model at, a page of its catalog at a time, as the model listings of
 // internal/modeltest and cmd/loop read it. Any read that fails fails the
 // whole, and so does a listing cut short with nowhere to go on from: what is
 // decided from this is what may be removed, and a listing that did not come
 // whole must never read as a store that registers no model.
-func registeredModels(ctx context.Context, store modelCatalog) ([]artifact.Location, error) {
-	var recorded []artifact.Location
-	query := overgodb.Query{Kind: artifact.KindModel, MaxResults: modelPage, Projection: overgodb.ProjectArtifacts}
+func registeredModels(ctx context.Context, store modelCatalog) ([]modelLocation, error) {
+	var recorded []modelLocation
+	query := overgodb.Query{Kind: artifact.KindModel, MaxResults: modelPage, Projection: overgodb.ProjectArtifacts | overgodb.ProjectManifests}
 	for {
 		page, err := store.Query(ctx, query)
 		if err != nil {
 			return nil, err
 		}
+		manifests := make(map[artifact.ID]artifact.Manifest, len(page.Manifests))
+		for _, manifest := range page.Manifests {
+			manifests[manifest.ID] = manifest
+		}
 		for _, model := range page.Artifacts {
-			locations, err := store.Locations(ctx, model.ID)
-			if err != nil {
-				return nil, err
-			}
-			for _, location := range locations {
-				if location.Kind != artifact.LocationRemote {
-					recorded = append(recorded, location)
+			manifest, known := manifests[model.ID]
+			for _, component := range append(manifest.Components, artifact.Component{Artifact: model.ID}) {
+				locations, err := store.Locations(ctx, component.Artifact)
+				if err != nil {
+					return nil, err
+				}
+				if !known && len(locations) == 0 {
+					return nil, fmt.Errorf("training workflow: model %s has neither a manifest nor locations, so no checkpoint is removed", model.ID)
+				}
+				for _, location := range locations {
+					if location.Kind == artifact.LocationRemote {
+						continue
+					}
+					if !known {
+						return nil, fmt.Errorf("training workflow: local model %s has no manifest, so no checkpoint is removed", model.ID)
+					}
+					recorded = append(recorded, modelLocation{Location: location, model: model.ID})
 				}
 			}
 		}
@@ -221,7 +240,7 @@ func registeredModels(ctx context.Context, store modelCatalog) ([]artifact.Locat
 // it records neither there, the rule is empty and bytes is how much the
 // directory's files hold. The checkpoint's own record is looked for first, so
 // a recorded checkpoint that holds its trained model is kept as a checkpoint.
-func throwawayBytes(ctx context.Context, store modelCatalog, models []artifact.Location, directory string, data []byte) (bytes int64, held string, err error) {
+func throwawayBytes(ctx context.Context, store modelCatalog, models []modelLocation, directory string, data []byte) (bytes int64, held string, err error) {
 	checkpoint, err := trainingprogram.ParseCheckpoint(data)
 	if err != nil {
 		return 0, "", err
@@ -230,7 +249,14 @@ func throwawayBytes(ctx context.Context, store modelCatalog, models []artifact.L
 	if err != nil {
 		return 0, "", err
 	}
-	for _, location := range slices.Concat(locations, models) {
+	all := make([]modelLocation, len(locations), len(locations)+len(models))
+	for i, location := range locations {
+		all[i].Location = location
+	}
+	for _, location := range append(all, models...) {
+		if location.Kind == artifact.LocationRemote {
+			continue
+		}
 		inside, err := pathidentity.Contains(directory, location.Value)
 		if err != nil {
 			return 0, "", err
@@ -239,7 +265,7 @@ func throwawayBytes(ctx context.Context, store modelCatalog, models []artifact.L
 			return 0, "the store records this checkpoint at this path, so it is not a run's to throw away", nil
 		}
 		if inside {
-			return 0, fmt.Sprintf("the store records %s at %s, and a registered model is never a run's to throw away", location.Artifact, location.Value), nil
+			return 0, fmt.Sprintf("the store records %s for model %s at %s, and a registered model is never a run's to throw away", location.Artifact, location.model, location.Value), nil
 		}
 	}
 	err = filepath.WalkDir(directory, func(_ string, entry fs.DirEntry, err error) error {

@@ -237,10 +237,9 @@ func weighed(entry leftover, measure bool) leftover {
 		case deletable && item.Name() == processlock.OutputLock && runHolds(path):
 			state, err = stateHeld, errors.New("a run holds it: its lock "+path+" is taken, or cannot be")
 		case item.Type().IsRegular():
-			var info fs.FileInfo
-			if info, err = item.Info(); err == nil {
-				entry.bytes += info.Size()
-			}
+			var size int64
+			size, err = entrySize(item)
+			entry.bytes += size
 		}
 		return err
 	})
@@ -249,6 +248,14 @@ func weighed(entry leftover, measure bool) leftover {
 	}
 	entry.measured = measure && err == nil
 	return entry
+}
+
+func entrySize(item fs.DirEntry) (int64, error) {
+	info, err := item.Info()
+	if err != nil {
+		return 0, err
+	}
+	return info.Size(), nil
 }
 
 // holdsStore reports whether a directory is a store or a backup of one: by
@@ -788,18 +795,22 @@ func buildCache(f *facts, line place) []leftover {
 		return nil
 	}
 	var part int64
-	walkErr := filepath.WalkDir(filepath.Join(directory, cachePart), func(_ string, item fs.DirEntry, err error) error {
+	sample := filepath.Join(directory, cachePart)
+	walkErr := filepath.WalkDir(sample, func(path string, item fs.DirEntry, err error) error {
+		if path == sample && errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
 		if err != nil || !item.Type().IsRegular() {
 			return err
 		}
-		info, err := item.Info()
-		part += info.Size()
+		size, err := entrySize(item)
+		part += size
 		return err
 	})
 	entry := leftover{path: directory, state: stateFinished, rule: line.finished}
 	holds, allowed := part*cacheParts, int64(len(f.trees))*f.checkoutCache
 	switch running, err := f.processes(); {
-	case walkErr != nil && !errors.Is(walkErr, fs.ErrNotExist):
+	case walkErr != nil:
 		entry.state, entry.rule = stateUnknown, walkErr.Error()
 	case holds <= allowed:
 		entry.state, entry.rule = stateHeld, fmt.Sprintf("it holds about %d bytes, no more than the %d that the builds of %d registered checkouts come to", holds, allowed, len(f.trees))
@@ -1183,10 +1194,15 @@ func (h hygiene) removing() (*processlock.Lock, error) {
 // path, so that no line says an entry stands that does not: its directory is
 // gone, or stands under the other name the failure gives. A failure goes on
 // to the next entry; the failures are returned together.
-func (h hygiene) removeFinished(remove func(h hygiene, path string) error, done string, found []leftover, output io.Writer) error {
+func (h hygiene) removeFinished(remove func(h hygiene, path string) error, commit func() error, done string, found []leftover, output io.Writer) error {
 	receipt, err := os.OpenFile(filepath.Join(h.checkout, processlock.StateDirectory, removalReceipt), os.O_APPEND|os.O_CREATE|os.O_WRONLY, clioptions.PrivateFileMode)
 	if err != nil {
 		return err
+	}
+	if commit != nil {
+		if err := commit(); err != nil {
+			return errors.Join(err, receipt.Close())
+		}
 	}
 	for _, entry := range found {
 		if entry.state != stateFinished {
@@ -1200,8 +1216,9 @@ func (h hygiene) removeFinished(remove func(h hygiene, path string) error, done 
 			}
 			did, err = entry.said(verb, failure.Error()), errors.Join(err, fmt.Errorf("%s: %w", entry.path, failure))
 		}
-		_, writeErr := io.WriteString(io.MultiWriter(output, receipt), did)
-		err = errors.Join(err, writeErr)
+		_, receiptErr := io.WriteString(receipt, did)
+		_, outputErr := io.WriteString(output, did)
+		err = errors.Join(err, receiptErr, outputErr)
 	}
 	return errors.Join(err, receipt.Close())
 }
@@ -1231,7 +1248,7 @@ func deleteLeftovers(h hygiene, name, token string, output io.Writer) error {
 	if agreed, err := confirmed(found, token, "remove", "removed", "the place "+name, output); !agreed {
 		return err
 	}
-	return h.removeFinished(leftoverPlaces[at].remove, "removed", found, output)
+	return h.removeFinished(leftoverPlaces[at].remove, nil, "removed", found, output)
 }
 
 // deletingPlaces names, in the table's order, the places whose finished
@@ -1268,7 +1285,7 @@ func clearFinished(h hygiene) string {
 		}
 		found, failure := listLeftovers(h, true, line.name)
 		if failure == nil {
-			failure = h.removeFinished(line.remove, "removed", found, &said)
+			failure = h.removeFinished(line.remove, nil, "removed", found, &said)
 		}
 		err = errors.Join(err, failure)
 	}
@@ -1423,8 +1440,13 @@ func withdrawRegistrations(h hygiene, directory, token string, output io.Writer)
 		if slices.ContainsFunc(owned[location.Artifact], func(folder string) bool { return under(folder, location.Value) }) {
 			entry.state, entry.rule = stateFinished, "a location of "+location.Artifact.String()+", which a checkpoint in the folder accounts for"
 			withdrawn = append(withdrawn, artifact.LocationEvent{Location: location, Action: artifact.LocationRemove})
-		} else if staying[location.Artifact]++; !under(directory, location.Value) {
-			continue
+		} else {
+			if location.Artifact.Kind() != artifact.KindModel || location.Kind == artifact.LocationDirectory {
+				staying[location.Artifact]++
+			}
+			if !under(directory, location.Value) {
+				continue
+			}
 		}
 		found = append(found, entry)
 	}
@@ -1437,6 +1459,9 @@ func withdrawRegistrations(h hygiene, directory, token string, output io.Writer)
 		return nil
 	})
 	for _, event := range withdrawn {
+		if event.Kind == artifact.LocationDirectory && served[event.Artifact] && staying[event.Artifact] == 0 {
+			err = errors.Join(err, fmt.Errorf("the model %s is served and the withdrawal would leave it no directory on this machine: nothing is withdrawn", event.Artifact))
+		}
 		holders, holdersErr := store.Children(ctx, event.Artifact)
 		err = errors.Join(err, holdersErr)
 		for _, edge := range holders {
@@ -1452,11 +1477,10 @@ func withdrawRegistrations(h hygiene, directory, token string, output io.Writer)
 		return err
 	}
 	head, _ := store.Head()
-	if _, err := store.Commit(ctx, artifact.Batch{Key: withdrawalKey + head.String(), ExpectedHead: &head, Locations: withdrawn}); err != nil {
+	return h.removeFinished(func(hygiene, string) error { return nil }, func() error {
+		_, err := store.Commit(ctx, artifact.Batch{Key: withdrawalKey + head.String(), ExpectedHead: &head, Locations: withdrawn})
 		return err
-	}
-	// The one commit withdrew every location, so what is left for each is its line.
-	return h.removeFinished(func(hygiene, string) error { return nil }, "withdrawn", found, output)
+	}, "withdrawn", found, output)
 }
 
 // realMachine reads, for the repository the current directory is a worktree

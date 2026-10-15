@@ -1570,6 +1570,9 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 	})
 
 	t.Run("the build cache goes only once it holds more than the checkouts' own builds, and while no go command runs", func(t *testing.T) {
+		if size, err := entrySize(missingMetadata{}); size != 0 || !errors.Is(err, fs.ErrNotExist) {
+			t.Fatalf("missing entry size = %d, %v, want zero and missing metadata", size, err)
+		}
 		// Its size is read from one part in 256: the 27 bytes of that part's one entry stand for 6,912.
 		roomy := h
 		roomy.checkoutCache = 1 << 20
@@ -2315,6 +2318,10 @@ type written func(line []byte) (int, error)
 
 func (w written) Write(line []byte) (int, error) { return w(line) }
 
+type missingMetadata struct{ fs.DirEntry }
+
+func (missingMetadata) Info() (fs.FileInfo, error) { return nil, fs.ErrNotExist }
+
 // commit commits one batch of a fixture to its store.
 func (s sandbox) commit(store *overgodb.Store, batch artifact.Batch) {
 	s.t.Helper()
@@ -2595,6 +2602,18 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 	s.activate(store, leaning)
 	adopted := s.recordCheckpoint(store, adoptedRun+"/reward/groups-001", "the shard of the arm that was adopted", 4)
 	s.activate(store, adopted.model)
+	for _, shard := range []struct {
+		id   artifact.ID
+		name string
+	}{{adopted.own, "model-00001-of-00002.gguf"}, {adopted.shared, "model-00002-of-00002.gguf"}} {
+		data, err := os.ReadFile(s.at(adopted.slash + "/" + shard.name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		copy := "data/models/adopted-components/" + shard.name
+		s.write(copy, string(data))
+		s.commit(store, artifact.Batch{Key: "withdrawal-fixture/alternative/" + shard.name, Locations: []artifact.LocationEvent{s.location(shard.id, artifact.LocationFile, copy)}})
+	}
 	lone := s.recordCheckpoint(store, loneRun+"/reward/groups-001", "the shard only the checkpoint of lone has on disk", 5)
 	s.write("data/models/borrowing/own.gguf", "the weights of a prototype that borrows a run's shard")
 	borrowing := s.registerModel(store, "borrowing", artifact.ID{}, "data/models/borrowing/own.gguf", lone.slash+"/model-00002-of-00002.gguf")
@@ -2765,6 +2784,16 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 		if now, head := registered(t); !slices.Equal(now, first) || head != firstHead {
 			t.Fatalf("the listings and the refusals changed the store: it registers\n%s\nat the head %s, want what it registered before them at %s:\n%s", strings.Join(now, "\n"), head, firstHead, strings.Join(first, "\n"))
 		}
+		if err := os.Mkdir(receipt, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		_, _, receiptErr := withdraw(pilotRun, token)
+		if err := os.Remove(receipt); err != nil {
+			t.Fatal(err)
+		}
+		if now, head := registered(t); receiptErr == nil || head != firstHead || !slices.Equal(now, first) {
+			t.Fatalf("unavailable receipt changed registrations: error=%v head=%s want %s", receiptErr, head, firstHead)
+		}
 		// The withdrawal is held to the store its listing read. Another process commits between that
 		// reading and the withdrawal's own commit, here at the moment the command prints what it
 		// keeps: the withdrawal is refused and nothing is withdrawn. What that process registered has
@@ -2789,16 +2818,25 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 		if now, head := registered(t); !slices.Equal(now, first) || head == firstHead {
 			t.Fatalf("after the refused withdrawal the store registers\n%s\nat the head %s, want what it registered before at a head the other process moved from %s", strings.Join(now, "\n"), head, firstHead)
 		}
-		if _, err := os.Stat(receipt); !errors.Is(err, fs.ErrNotExist) {
-			t.Errorf("the listings and the refusals left a receipt (%v), and they withdraw nothing", err)
+		if data, err := os.ReadFile(receipt); len(data) != 0 || err != nil && !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("the listings and refusals recorded effects %q (%v), want none", data, err)
 		}
 		unmoved(t)
 	})
 
 	t.Run("the token withdraws the locations of the run's checkpoint, and no other", func(t *testing.T) {
-		lines, _, err := withdraw(pilotRun, token)
+		var printed bytes.Buffer
+		outputFailure := errors.New("console disconnected")
+		err := withdrawRegistrations(h, s.at(pilotRun), token, written(func(line []byte) (int, error) {
+			printed.Write(line)
+			if bytes.HasPrefix(line, []byte("withdrawn\t")) {
+				return 0, outputFailure
+			}
+			return len(line), nil
+		}))
+		lines, _ := removalLines(printed.String())
 		want := said(map[string][]string{"withdrawn": pilot.files(), "kept": kept})
-		if err != nil || !slices.Equal(s.verbs(lines), want) {
+		if !errors.Is(err, outputFailure) || !slices.Equal(s.verbs(lines), want) {
 			t.Fatalf("the withdrawal said (%v)\n%s\nwant\n%s", err, strings.Join(s.verbs(lines), "\n"), strings.Join(want, "\n"))
 		}
 		var receipted strings.Builder

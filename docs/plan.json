@@ -61,44 +61,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "checkpoint-ownership",
-      "title": "Keep registered model paths through checkpoint cleanup",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 149,
-        "reason": "Measured built patch adds 149 production AST nodes for model component ownership and conservative incomplete-catalog refusal"
-      },
-      "steps": [
-        {
-          "id": "components",
-          "title": "Protect component locations as well as model roots",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow -run '^TestExperimentRemovesItsCheckpointsOnceItsRecordIsKept$'",
-          "rationale": "SQA-141. Extend registeredModels through ProjectManifests and Locations. A model rooted above a checkpoint and a component-only registration both protect the component beneath it. Unknown or truncated ownership refuses removal. Preserve unregistered sibling removal and exact receipt reasons.\nServes: model availability and recovery\nDisappears: model-root-only ownership inference\nEvidence: go test ./internal/trainingworkflow -run '^TestExperimentRemovesItsCheckpointsOnceItsRecordIsKept$' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
-        }
-      ]
-    },
-    {
-      "id": "withdrawal-safety",
-      "title": "Make withdrawal preserve availability and report committed effects",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 129,
-        "reason": "Measured built patch adds 129 production AST nodes for active directory retention, receipt acquisition before commit, independent receipt writes and shared metadata error handling while preserving an absent sampled cache bucket"
-      },
-      "steps": [
-        {
-          "id": "locations",
-          "title": "Retain active model directories and acquire receipts before mutation",
-          "status": "open",
-          "verify": "go test ./cmd/loop -run '^(TestWithdrawalTakesOnlyARunsCheckpointRegistrations|TestLeftoversDeletesOnlyWhatItsTableMarksFinished|TestLeftoversListsEveryDeclaredPlaceWithItsRule)$'",
-          "rationale": "SQA-142, SQA-143 and SQA-146 share the leftovers owner. Protect the last required model directory even when components remain elsewhere. Open the durable receipt before Commit and attempt it independently of a broken output writer. Handle DirEntry.Info failure before Size and classify it conservatively. Extend the existing sandbox for receipt-open failure, postcommit output failure, active own-directory removal and deterministic metadata failure.\nServes: availability and recovery\nDisappears: component-only availability, postcommit receipt acquisition and unchecked metadata dereference\nEvidence: go test ./cmd/loop -run '^(TestWithdrawalTakesOnlyARunsCheckpointRegistrations|TestLeftoversDeletesOnlyWhatItsTableMarksFinished)$' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
-        }
-      ]
-    },
-    {
       "id": "checkpoint-restore",
       "title": "Resume an exact approved restore after partial completion",
       "owner": "master-lead",

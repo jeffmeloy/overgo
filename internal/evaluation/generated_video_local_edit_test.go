@@ -18,9 +18,9 @@ import (
 // four captions that tell the change and the rest apart: the clip's own with
 // the new colour in the old one's place, which alone is the right answer; its
 // own as it is, which is true of a clip given back unchanged; and two other
-// videos' captions, which are true of a clip that no longer shows what it
-// showed, and are never another scene of the clip's own source video. The same
-// seed picks the same clips with the same questions.
+// videos' captions as distractors, never another scene of the clip's own source video.
+// Caption matching does not measure preservation of unmentioned scene details.
+// The same seed picks the same clips with the same questions.
 //
 // A caption that names no worn thing by a colour, that names two, that names
 // one by two colours or a shade, that already holds the new colour, or whose

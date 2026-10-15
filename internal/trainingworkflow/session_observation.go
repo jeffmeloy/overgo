@@ -295,8 +295,9 @@ const trainingVerificationReason = "a training run under the recipe succeeded an
 const VerificationOutputEnvironment = "OVERGO_TRAIN_VERIFICATION"
 
 // Verify records the finished session's success under recipeID as the
-// recipe's verification and activates the recipe on it, or reverifies the
-// active recipe: a gate bound to the code revision the run executed, the
+// recipe's verification without reclaiming a superseded recipe's slot.
+// Activation follows RecipeEligibility and the lifecycle owner.
+// The gate binds the code revision the run executed, the
 // environment the session observed and the session's wall, whose run
 // depends on evidence, the session's observation and what the run
 // published. A run whose code revision cannot be named, as from a modified
@@ -340,7 +341,9 @@ func (o *Observer) Verify(ctx context.Context, recipeID artifact.ID, evidence ..
 	if err != nil {
 		return err
 	}
+	status := "active"
 	if eligibility.Status == recipe.StatusSuperseded && eligibility.Refusal == "" {
+		status = "inactive"
 		fmt.Printf("training recipe %s verified by its run; it lost the model's active training slot to another recipe's activation and does not take it back\n", recipeID)
 	} else if err := modelrecipe.ActivateCapability(ctx, o.store, definition, verification, recipe.EvidenceVerified, trainingVerificationReason); err != nil {
 		return err
@@ -354,7 +357,7 @@ func (o *Observer) Verify(ctx context.Context, recipeID artifact.ID, evidence ..
 			return fmt.Errorf("training verification handoff: %w", err)
 		}
 	}
-	fmt.Printf("training recipe verified and active: %s (run %s at %.12s)\n", recipeID, record.Run.ID, revision)
+	fmt.Printf("training recipe verified and %s: %s (run %s at %.12s)\n", status, recipeID, record.Run.ID, revision)
 	return nil
 }
 

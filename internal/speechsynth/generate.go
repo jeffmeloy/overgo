@@ -10,9 +10,9 @@ import (
 	"overgo/internal/tensor"
 )
 
-// GenerateParams: explicit loop policy. NoiseAt supplies the per-step noise
-// (test injection or a caller-owned RNG); serving-policy defaults belong to
-// a later slice.
+// GenerateParams declares the loop policy selected by the caller.
+// NoiseAt supplies per-step noise from test injection or a caller-owned RNG.
+// Session runtime resolves serving defaults before constructing these parameters.
 type GenerateParams struct {
 	MaxFrames      int
 	EOSThreshold   float64

@@ -110,7 +110,7 @@ func poolObjectiveOver(t *testing.T, store *overgodb.Store, name string, documen
 // states. The pool divides an objective's held-out documents into the four
 // parts of a split partition: no document of the training membership is in
 // it, no two of its documents have the same content, each is in one part, and
-// the documents a verdict has already read are all development data. Its
+// the documents a verdict has already read are excluded from every part. Its
 // acceptance is fixed with it: the promotion part answers as many
 // confirmations as its documents can show the stated gain for at the two
 // error rates, and one more would need more documents than it has; the

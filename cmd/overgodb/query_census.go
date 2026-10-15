@@ -13,12 +13,11 @@ import (
 )
 
 // schemaCensus is what the store holds of one schema, read from the catalog.
-// Records and Bytes count descriptors, which a released record keeps; Held
-// and HeldBytes count the records whose bytes are still on disk. Small counts
-// the records smaller than one page, the unit a filesystem allocates, so each
-// costs a whole allocation for a fraction of its bytes. Modal is the most
-// common record size and how many records share it: records stamped from one
-// template cluster at one size.
+// Records and Bytes count descriptors retained after logical content release.
+// Held and HeldBytes count logically available content by descriptor size.
+// Shared blobs and journal retention prevent those counts from measuring physical storage.
+// Small counts descriptors smaller than an OS page, not separate filesystem allocations.
+// ModalSize and ModalRecords report the most common descriptor size and its count.
 type schemaCensus struct {
 	Schema       string `json:"schema"`
 	Records      int    `json:"records"`

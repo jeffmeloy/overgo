@@ -102,40 +102,6 @@
       ]
     },
     {
-      "id": "streaming-passthrough",
-      "title": "Use the existing writer for unchanged tensor bytes",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "reader",
-          "title": "Pass unchanged tensors directly to StreamingWriter",
-          "status": "open",
-          "verify": "go test ./internal/modelmerge ./internal/safetensors ./internal/composition -run '^(TestStreamingPassthrough|TestStreamingTaskArithmetic|TestStreamingBoundedResidency|TestStreamingRefusal|TestStreamingRefusesSameGeometrySourceShardByteSubstitution|TestStreamingWriterAtomicFinalize|TestStreamingWriterResume|TestStreamingWriterDerivedBounds|TestOfflinePlanDerivesResourcePolicy)$'",
-          "rationale": "SQA-088 streaming group. Follow peft.Merge for exact passthrough readers. Remove full-tensor allocation and intermediate copy while keeping arithmetic buffers. PeakResidentBytes includes writer buffers. Preserve short-read no-publication, exact bound-plan resume, source lifetime and cancellation. Decide from exact small-fixture bytes and native allocation measurements without a permanent performance threshold.\nServes: memory and development velocity\nDisappears: passthrough full-tensor buffer and copy\nEvidence: go test ./internal/modelmerge ./internal/safetensors -run '^(TestStreamingPassthrough|TestStreamingTaskArithmetic|TestStreamingBoundedResidency|TestStreamingRefusal|TestStreamingRefusesSameGeometrySourceShardByteSubstitution|TestStreamingWriterAtomicFinalize|TestStreamingWriterResume|TestStreamingWriterDerivedBounds)$' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
-        }
-      ]
-    },
-    {
-      "id": "output-contracts",
-      "title": "Keep tool numbers and reported evidence exact",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "The remaining reporting step removes the endpoint confidence helper. The preceding combined parser landing charged its entire 49-node change against this row, whose own integer change was 9 nodes. Restore a flat allowance for the remaining reporting work. Built preflight measures the combined reporting and bounded-streaming change below the parent production node count. No net production growth is authorized."
-      },
-      "steps": [
-        {
-          "id": "descriptions",
-          "title": "Correct confidence, activation and storage descriptions",
-          "status": "open",
-          "verify": "go test ./internal/scorecard ./internal/trainingworkflow ./cmd/overgodb -run '^(TestHeldoutShareAtAnEndReportsObservedCases|TestObserverReportsActualActivation|TestRecordCensus)$'",
-          "rationale": "SQA-125 and SQA-119. Keep observed numerator/denominator and ceiling warning without unconditional independent-binomial population precision. Report actual activation, logical held bytes and shared payload accounting. Correct the named codec, palette, speech and held-out comments without changing algorithms to fit stale prose. Retain provenance and numerical rationale. Retain the existing scorecard table and census fixture. Reuse the lifecycle fixture for active and inactive eligible recipes.\nServes: truthful reporting and maintenance\nDisappears: unsupported confidence wording and misleading current-state descriptions\nEvidence: go test ./internal/scorecard ./internal/trainingworkflow ./cmd/overgodb -run 'Test' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
-        }
-      ]
-    },
-    {
       "id": "device-newton-schulz-normalization",
       "title": "Remove the per-matrix norm round trip only after measured acceptance",
       "owner": "master-lead",

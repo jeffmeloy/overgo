@@ -20,5 +20,4 @@ not trained weights. `olmoe_tiny.json` records every tensor's shape, payload
 hash, and a small Q-data sum probe. The GGUF SHA-256 is
 `191e65fe8477cd1e50a9d14ee832aa6bf10b39980b61189831f2f44f2a05a5d1`.
 The tests require all files and compare Overgo's parser and writer against
-those independent bytes. Real OLMoE validation remains in the
-`colibri-moe-oracle/do` plan step.
+those independent bytes. These tiny fixtures do not establish real-model OLMoE parity.

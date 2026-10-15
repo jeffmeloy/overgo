@@ -32,8 +32,8 @@ const (
 	referenceEditFPS         = 16
 	// referenceEditBlock is the side of the squares two clips are compared
 	// over. A served GIF is dithered to a palette and a served MP4 loses
-	// detail to its codec, so single pixels differ by those; the mean of a
-	// square does not.
+	// detail to its codec, so averaging reduces sensitivity to individual pixels.
+	// Square means can still differ and are checked against the declared floors.
 	referenceEditBlock = 8
 	// The floors, in dB, a request that carries its source as frames is held
 	// to. The frames reach the editor at the byte they were written at: the

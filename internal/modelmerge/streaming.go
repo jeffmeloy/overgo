@@ -40,8 +40,9 @@ type StreamingShard struct {
 // StreamingResult reports the derived execution envelope of a published
 // offline model directory.
 type StreamingResult struct {
-	Destination       string
-	TensorCount       int
+	Destination string
+	TensorCount int
+	// PeakResidentBytes counts live tensor payload and writer buffers, excluding metadata.
 	PeakResidentBytes uint64
 }
 
@@ -104,32 +105,31 @@ func executeOpenedStreaming(
 		if writer.Completed(operation.Name) {
 			continue
 		}
+		var payload io.Reader
 		switch plan.Operator {
 		case composition.OfflineArtifactExactPassthrough:
-			payload, allocateErr := tracker.allocate(operation.OutputBytes)
-			if allocateErr != nil {
-				return StreamingResult{}, allocateErr
-			}
-			_, readErr := io.ReadFull(opened[tensor.FirstOffset].Tensors[operation.Name].Reader(), payload)
-			if readErr == nil {
-				readErr = writer.WriteTensor(operation.Name, operation.OutputBytes, bytes.NewReader(payload))
-			}
-			tracker.release(operation.OutputBytes)
-			if readErr != nil {
-				return StreamingResult{}, readErr
-			}
+			payload = opened[tensor.FirstOffset].Tensors[operation.Name].Reader()
 		case composition.OfflineArtifactTaskArithmetic:
-			payload, combineErr := combineStreamingF32(plan, opened, operation, &tracker)
-			if combineErr != nil {
-				return StreamingResult{}, combineErr
-			}
-			if err := writer.WriteTensor(operation.Name, operation.OutputBytes, bytes.NewReader(payload)); err != nil {
+			combined, err := combineStreamingF32(plan, opened, operation, &tracker)
+			if err != nil {
 				return StreamingResult{}, err
 			}
-			tracker.release(operation.OutputBytes)
+			payload = bytes.NewReader(combined)
 		default:
 			return StreamingResult{}, errors.New("model merge: streaming operator is unsupported")
 		}
+		resident, ok := checked.Add64(tracker.current, safetensors.StreamingBufferBytes(operation.OutputBytes))
+		if !ok || resident > tracker.limit {
+			return StreamingResult{}, errors.New("model merge: writer residency exceeds compiled plan")
+		}
+		tracker.peak = max(tracker.peak, resident)
+		if err := writer.WriteTensor(operation.Name, operation.OutputBytes, payload); err != nil {
+			return StreamingResult{}, err
+		}
+		tracker.release(tracker.current)
+	}
+	if err := ctx.Err(); err != nil {
+		return StreamingResult{}, err
 	}
 	if err := writer.Finalize(); err != nil {
 		return StreamingResult{}, err

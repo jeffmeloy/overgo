@@ -33,9 +33,9 @@ type paletteBox struct {
 // furthest, counted by pixels times its longest side, is cut across that side
 // where half its pixels lie to each hand, until there are colors boxes or no
 // box holds more than one cell. Each box gives the mean colour of its pixels.
-// A palette cut from the picture it will draw keeps a dithered frame far
-// closer to the picture than a fixed palette does, and a picture of no more
-// than colors colours keeps every one of them. The cut is deterministic.
+// Colours sharing a five-bit channel bucket are represented by their mean.
+// Exact colours are retained only when they occupy distinct buckets and fit the palette.
+// The cut is deterministic.
 func AdaptivePalette(picture *image.RGBA, colors int) color.Palette {
 	counts := make([]int, paletteCells)
 	sums := make([][RGBChannels]int, paletteCells)

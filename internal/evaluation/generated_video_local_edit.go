@@ -87,9 +87,9 @@ func recoloured(caption, colour, thing, changed string) string {
 // what it is not told to change is for. The one question about the edited clip
 // offers four captions: the clip's own with the new colour, which is true of a
 // right edit; its own as it is, true of a clip given back unchanged; and those
-// of two other videos nearest it in wording, true of a clip that no longer
-// shows what it showed. An editor that changes nothing is wrong on every clip,
-// and so is one that recolours the thing and redraws the scene. The other
+// of two other videos nearest it in wording as distractors.
+// An unchanged clip does not satisfy the requested colour caption.
+// Redrawn details outside the captions are not measured. The other
 // captions are never of another scene of the clip's own source video, which
 // shows the same people in the same place and could be true of a right edit.
 //

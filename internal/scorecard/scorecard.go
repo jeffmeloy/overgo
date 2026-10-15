@@ -66,11 +66,11 @@ type Cell struct {
 	// held-out verdict's records, a transcription report's utterances. Zero
 	// where no record counts them.
 	Cases uint64 `json:"cases,omitzero"`
-	// Noise is a held-out quality's standard error where it follows soundly
-	// from what the record keeps: of a share of cases answered right, that of
-	// the share; of a held-out verdict's value, that of the mean of its records'
-	// scores. Zero where it does not, as for an error rate over pooled words. It
-	// judges a decline of the quality where no outcome of each case is read (Supported).
+	// Noise is the standard error supplied or estimated from the measurement's records.
+	// Share estimates use a binomial model, whose independence is not established by case counts.
+	// Verdict means use record scores and pooled word-error rates use utterance observations.
+	// Zero means no estimate or an estimated error of zero.
+	// Supported uses Noise where per-case outcomes are absent.
 	Noise float64 `json:"noise,omitzero"`
 	// Constant is what an answer that reads no input scores on a held-out
 	// quality's measure, where the measure has one: chance for a choice among a
@@ -122,7 +122,15 @@ func (c Cell) QualityText() string {
 		text += fmt.Sprintf(" vs base %.4g", *c.Base)
 	}
 	if c.Cases > 0 {
-		text += fmt.Sprintf(" on %d cases", c.Cases) + shareAtAnEnd(c)
+		text += fmt.Sprintf(" on %d cases", c.Cases)
+		if c.Contract.Metric == shareMetric {
+			switch c.Value {
+			case 1:
+				text += ", every one right, at the observed ceiling; generalization is unknown"
+			case 0:
+				text += ", none right; generalization is unknown"
+			}
+		}
 	}
 	if c.Unread > 0 {
 		text += fmt.Sprintf(", %d of them answered with no option named and counted wrong", c.Unread)
@@ -157,29 +165,10 @@ func shareError(share float64, cases uint64) float64 {
 	return math.Sqrt(share * (1 - share) / float64(cases))
 }
 
-// wilsonZ is the normal deviate of a two-sided 95 in 100 interval.
-const wilsonZ = 1.96
-
 // noiseDeviates is how many of its own standard errors a reading must stand
 // above what a constant answer scores before it is read as better than one,
 // and how far a held-out quality must move before its decline stands (Supported).
 const noiseDeviates = 2
-
-// shareAtAnEnd says, of a share that is every case or none, what its standard
-// error cannot: that error is zero there, and the reading would look exact. A
-// suite every case of which is answered right is at its ceiling, and says
-// only how near the ceiling the true share must be: the Wilson score bound,
-// cases over cases plus the deviate squared, at 95 in 100.
-func shareAtAnEnd(c Cell) string {
-	if c.Contract.Metric != shareMetric || c.Cases == 0 || c.Value != 0 && c.Value != 1 {
-		return ""
-	}
-	margin := wilsonZ * wilsonZ / (float64(c.Cases) + wilsonZ*wilsonZ)
-	if c.Value == 1 {
-		return fmt.Sprintf(", every one right, which at 95 in 100 puts the true share at %.3g or more", 1-margin)
-	}
-	return fmt.Sprintf(", none right, which at 95 in 100 puts the true share at %.3g or less", margin)
-}
 
 // Contract is what a measured value is, so two cells compare only when both
 // measure the same thing: the metric, the kind of record it comes from, and

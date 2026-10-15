@@ -11,6 +11,7 @@ import (
 	"overgo/internal/checked"
 	"overgo/internal/modelartifact"
 	"overgo/internal/recipe"
+	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
 )
 
@@ -256,7 +257,7 @@ func deriveOfflineTensorOperations(
 func offlineTensorExtents(operator OfflineArtifactOperator, fact modelartifact.TensorFact, inputs int) (uint64, uint64, error) {
 	switch operator {
 	case OfflineArtifactExactPassthrough:
-		return fact.Bytes, fact.Bytes, nil
+		return fact.Bytes, safetensors.StreamingBufferBytes(fact.Bytes), nil
 	case OfflineArtifactTaskArithmetic:
 		if inputs < tensor.PairedExtent || fact.Storage != "f32" {
 			return 0, 0, errors.New("task arithmetic requires paired F32 inputs")

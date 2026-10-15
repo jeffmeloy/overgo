@@ -714,3 +714,39 @@ func TestEveryRetiredLifecycleFailureIsStillCaught(t *testing.T) {
 		}
 	}
 }
+
+func TestObserverReportsActualActivation(t *testing.T) {
+	stubExecutableCodeCommit(t, strings.Repeat("e1", 20))
+	lifecycle := newRecipeLifecycle(t)
+	defer lifecycle.close()
+	for _, step := range []struct {
+		recipe int
+		active int
+		status string
+	}{{0, 0, "active"}, {1, 1, "active"}, {0, 1, "inactive"}} {
+		t.Run(step.status+recipeName(step.recipe), func(t *testing.T) {
+			output, err := os.CreateTemp(t.TempDir(), "verification")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer output.Close()
+			previous := os.Stdout
+			os.Stdout = output
+			t.Cleanup(func() { os.Stdout = previous })
+			lifecycle.session(step.recipe, nil)
+			os.Stdout = previous
+			data, err := os.ReadFile(output.Name())
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := fmt.Sprintf("training recipe verified and %s: %s", step.status, lifecycle.recipes[step.recipe].ID)
+			if !strings.Contains(string(data), want) {
+				t.Fatalf("verification says %q, want %q", data, want)
+			}
+			active, found, err := modelrecipe.ActiveRecord(t.Context(), lifecycle.store, lifecycle.model, recipe.TaskTraining)
+			if err != nil || !found || active.Definition.ID != lifecycle.recipes[step.active].ID {
+				t.Fatalf("activation = %s, found %t, error %v", active.Definition.ID, found, err)
+			}
+		})
+	}
+}

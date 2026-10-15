@@ -3,6 +3,7 @@ package modelmerge
 import (
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -18,28 +19,33 @@ import (
 )
 
 func TestStreamingPassthrough(t *testing.T) {
-	model := testutil.ArtifactID(t, artifact.KindModel, "stream passthrough model")
-	source := writeStreamingFixture(t, map[string][]float32{
-		"layer.0": {1, 2},
-		"layer.1": {3, 4},
-	})
-	plan := sealStreamingPlan(t, composition.OfflineArtifactExactPassthrough, []artifact.ID{model}, []float64{1}, []streamingFixtureTensor{
-		{name: "layer.0", shape: []uint64{2}},
-		{name: "layer.1", shape: []uint64{2}},
-	})
-	destination := filepath.Join(t.TempDir(), "output")
-	result, err := ExecuteStreaming(t.Context(), plan, []StreamingSource{{Model: model, Directory: source}}, destination)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.TensorCount != len(plan.Operations) || result.PeakResidentBytes != plan.PeakResidentBytes {
-		t.Fatalf("streaming result = %+v", result)
-	}
-	if values := readStreamingTensor(t, destination, "layer.0"); !slices.Equal(values, []float32{1, 2}) {
-		t.Fatalf("passthrough layer.0 = %v", values)
-	}
-	if values := readStreamingTensor(t, destination, "layer.1"); !slices.Equal(values, []float32{3, 4}) {
-		t.Fatalf("passthrough layer.1 = %v", values)
+	// The larger tensor exceeds io.Copy's 32 KiB transfer buffer.
+	for _, count := range []int{2, 1 << 16} {
+		t.Run(fmt.Sprint(count), func(t *testing.T) {
+			values := make([]float32, count)
+			for i := range values {
+				values[i] = float32(i)
+			}
+			model := testutil.ArtifactID(t, artifact.KindModel, "stream passthrough model")
+			source := writeStreamingFixture(t, map[string][]float32{"layer.0": values, "layer.1": values})
+			plan := sealStreamingPlan(t, composition.OfflineArtifactExactPassthrough, []artifact.ID{model}, []float64{1}, []streamingFixtureTensor{
+				{name: "layer.0", shape: []uint64{uint64(count)}}, {name: "layer.1", shape: []uint64{uint64(count)}},
+			})
+			destination := filepath.Join(t.TempDir(), "output")
+			result, err := ExecuteStreaming(t.Context(), plan, []StreamingSource{{Model: model, Directory: source}}, destination)
+			if err != nil {
+				t.Fatal(err)
+			}
+			wantResident := safetensors.StreamingBufferBytes(uint64(count * binary.Size(float32(0))))
+			if result.TensorCount != len(plan.Operations) || result.PeakResidentBytes != wantResident {
+				t.Fatalf("streaming result = %+v, want %d resident payload bytes", result, wantResident)
+			}
+			for _, name := range []string{"layer.0", "layer.1"} {
+				if got := readStreamingTensor(t, destination, name); !slices.Equal(got, values) {
+					t.Fatalf("passthrough %s differs", name)
+				}
+			}
+		})
 	}
 }
 
@@ -161,7 +167,7 @@ type streamingFixtureTensor struct {
 }
 
 func sealStreamingPlan(
-	t *testing.T,
+	t testing.TB,
 	operator composition.OfflineArtifactOperator,
 	models []artifact.ID,
 	coefficients []float64,
@@ -186,9 +192,9 @@ func sealStreamingPlan(
 		if err != nil {
 			t.Fatal(err)
 		}
-		resident := bytes
+		resident := safetensors.StreamingBufferBytes(bytes)
 		if operator == composition.OfflineArtifactTaskArithmetic {
-			resident *= uint64(tensor.PairedExtent)
+			resident = bytes * uint64(tensor.PairedExtent)
 		}
 		if resident > peak {
 			peak = resident
@@ -228,7 +234,7 @@ func sealStreamingPlan(
 	return plan
 }
 
-func writeStreamingFixture(t *testing.T, values map[string][]float32) string {
+func writeStreamingFixture(t testing.TB, values map[string][]float32) string {
 	t.Helper()
 	directory := t.TempDir()
 	shapes := make(map[string][]int, len(values))
@@ -261,4 +267,23 @@ func readStreamingTensor(t *testing.T, directory, name string) []float32 {
 		values[index] = math.Float32frombits(binary.LittleEndian.Uint32(data[index*binary.Size(float32(0)):]))
 	}
 	return values
+}
+
+func BenchmarkStreamingPassthrough(b *testing.B) {
+	// Four MiB exposes the displaced tensor allocation without a model dependency.
+	values := make([]float32, 1<<20)
+	model := testutil.ArtifactID(b, artifact.KindModel, "passthrough benchmark")
+	source := writeStreamingFixture(b, map[string][]float32{"weight": values})
+	plan := sealStreamingPlan(b, composition.OfflineArtifactExactPassthrough, []artifact.ID{model}, []float64{1}, []streamingFixtureTensor{{name: "weight", shape: []uint64{uint64(len(values))}}})
+	destination := filepath.Join(b.TempDir(), "output")
+	b.SetBytes(int64(len(values) * binary.Size(float32(0))))
+	b.ReportAllocs()
+	for b.Loop() {
+		if _, err := ExecuteStreaming(b.Context(), plan, []StreamingSource{{Model: model, Directory: source}}, destination); err != nil {
+			b.Fatal(err)
+		}
+		if err := os.RemoveAll(destination); err != nil {
+			b.Fatal(err)
+		}
+	}
 }

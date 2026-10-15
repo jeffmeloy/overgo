@@ -1,12 +1,14 @@
 package composition
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
 	"overgo/internal/testutil"
 )
@@ -54,27 +56,33 @@ func TestOfflineTensorExecutionPlan(t *testing.T) {
 }
 
 func TestOfflinePlanDerivesResourcePolicy(t *testing.T) {
-	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
+	// The wider inventory exceeds the bounded writer buffer.
+	for _, width := range []uint64{offlineTensorWidth, 256} {
+		t.Run(fmt.Sprint(width), func(t *testing.T) {
+			store, err := overgodb.Open(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer store.Close()
 
-	definition := publishOfflineModel(t, store, "resource-derived", offlineTensorWidth, false)
-	artifactPlan := publishOfflineArtifactPlan(t, store, OfflineArtifactExactPassthrough, []OfflineArtifactInput{
-		{Definition: definition, Coefficient: 1},
-	})
-	tensorBytes := offlineTensorWidth * offlineTensorWidth * offlineFloatBytes
-	policy := publishOfflineTensorPolicy(t, store, tensorBytes, tensorBytes)
-	execution, err := CompileOfflineTensorExecutionPlan(t.Context(), store, artifactPlan, policy)
-	if err != nil {
-		t.Fatal(err)
-	}
-	operation := execution.Operations[tensor.FirstOffset]
-	if execution.PeakResidentBytes != tensorBytes || operation.ResidentBytes != tensorBytes ||
-		execution.Shards[tensor.FirstOffset].Bytes != tensorBytes {
-		t.Fatalf("derived extents = peak %d operation %d shard %d", execution.PeakResidentBytes,
-			operation.ResidentBytes, execution.Shards[tensor.FirstOffset].Bytes)
+			definition := publishOfflineModel(t, store, "resource-derived", width, false)
+			artifactPlan := publishOfflineArtifactPlan(t, store, OfflineArtifactExactPassthrough, []OfflineArtifactInput{
+				{Definition: definition, Coefficient: 1},
+			})
+			tensorBytes := width * width * offlineFloatBytes
+			policy := publishOfflineTensorPolicy(t, store, safetensors.StreamingBufferBytes(tensorBytes), tensorBytes)
+			execution, err := CompileOfflineTensorExecutionPlan(t.Context(), store, artifactPlan, policy)
+			if err != nil {
+				t.Fatal(err)
+			}
+			operation := execution.Operations[tensor.FirstOffset]
+			if execution.PeakResidentBytes != safetensors.StreamingBufferBytes(tensorBytes) || operation.ResidentBytes != safetensors.StreamingBufferBytes(tensorBytes) ||
+				execution.Shards[tensor.FirstOffset].Bytes != tensorBytes {
+				t.Fatalf("derived extents = peak %d operation %d shard %d", execution.PeakResidentBytes,
+					operation.ResidentBytes, execution.Shards[tensor.FirstOffset].Bytes)
+			}
+
+		})
 	}
 }
 

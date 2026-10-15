@@ -71,6 +71,9 @@ func TestStreamingWriterAtomicFinalize(t *testing.T) {
 	if _, err := os.Stat(destination); !os.IsNotExist(err) {
 		t.Fatalf("destination visible before finalization: %v", err)
 	}
+	if err := writer.writeTensor("weight", 2, bytes.NewReader([]byte{1})); err == nil || len(writer.completed) != 0 {
+		t.Fatalf("short payload accepted or sealed: %v", err)
+	}
 	if err := writer.finalize(); err == nil {
 		t.Fatal("finalized an incomplete streaming artifact")
 	}
@@ -141,10 +144,13 @@ func TestStreamingWriterResume(t *testing.T) {
 func TestStreamingWriterDerivedBounds(t *testing.T) {
 	destination := filepath.Join(t.TempDir(), "model")
 	plan := streamPlan{Shards: []streamShardSpec{{
-		Name: "model.safetensors", Tensors: []streamTensorSpec{{Name: "matrix", DType: "F32", Shape: []uint64{2, 2}}},
+		Name: "model.safetensors", Tensors: []streamTensorSpec{{Name: "matrix", DType: "F32", Shape: []uint64{2, 2}}, {Name: "empty", DType: "U8", Shape: []uint64{0}}},
 	}}}
 	writer, err := newStreamWriter(destination, plan)
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.writeTensor("empty", 0, bytes.NewReader(nil)); err != nil {
 		t.Fatal(err)
 	}
 	payload := floatPayload(1, 2, 3, 4)

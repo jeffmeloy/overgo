@@ -1310,7 +1310,7 @@
      "contains": "func (m *Model) GenerateLatents(",
      "path": "internal/speechsynth/generate.go",
      "role": "source",
-     "identity": "file:sha256:829b6b36c354ac012f3d3c4c4e9a887a3c39cd8eca2f52232e12e96dcb15fb1a"
+     "identity": "file:sha256:74cf10f003129867e9968362858b7587656debcdcc966b004fde2814bc074a61"
     },
     {
      "contains": "func (m *Model) LatentsToPCM(",

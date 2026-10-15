@@ -20,6 +20,9 @@ import (
 )
 
 const (
+	// streamCopyBufferBytes matches io.Copy's 32 KiB default for tensor writes.
+	// Reconsider with matched I/O measurements and the planner/executor residency contract.
+	streamCopyBufferBytes                  = 32 << 10
 	streamStagingSuffix                    = ".partial"
 	streamArtifactName                     = "artifact"
 	streamResumeName                       = "resume.json"
@@ -111,6 +114,13 @@ func NewStreamingWriter(destination string, plan StreamingPlan) (*StreamingWrite
 		return nil, err
 	}
 	return &StreamingWriter{inner: writer}, nil
+}
+
+// StreamingBufferBytes bounds a tensor write's temporary payload buffer.
+// The 32 KiB ceiling matches Go io.Copy's default transfer chunk.
+// Reconsider the ceiling only with matched I/O measurements and update residency callers with it.
+func StreamingBufferBytes(payloadBytes uint64) uint64 {
+	return max(1, min(payloadBytes, streamCopyBufferBytes))
 }
 
 // WriteTensor streams exactly payloadBytes into the planned tensor extent.
@@ -216,7 +226,8 @@ func (writer *streamWriter) writeTensor(name string, payloadBytes uint64, payloa
 	if err != nil {
 		return err
 	}
-	written, copyErr := io.CopyN(io.NewOffsetWriter(file, location.offset), payload, int64(payloadBytes))
+	buffer := make([]byte, StreamingBufferBytes(payloadBytes))
+	written, copyErr := io.CopyBuffer(io.NewOffsetWriter(file, location.offset), io.LimitReader(payload, int64(payloadBytes)), buffer)
 	syncErr := file.Sync()
 	closeErr := file.Close()
 	if copyErr != nil || uint64(written) != payloadBytes || syncErr != nil || closeErr != nil {

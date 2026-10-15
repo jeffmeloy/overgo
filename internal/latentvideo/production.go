@@ -345,11 +345,8 @@ func NewGIFEncoder(fps int, pixels PixelRange) (*gifEncoder, error) {
 	return encoder, nil
 }
 
-// NewClipEncoder writes a clip whose every frame is drawn in a palette cut
-// from that frame. A fixed palette's dither is noise a fifth of the range
-// deep: a clip comes back from it at 22 dB, and a clip handed to an editor
-// carries that grain into the edit. Drawn in its own colours it comes back
-// at 33 dB.
+// NewClipEncoder writes each GIF frame with an adaptive palette from that frame.
+// Quantization and dithering depend on the frame and do not promise a fixed reconstruction error.
 func NewClipEncoder(fps int, pixels PixelRange) (*gifEncoder, error) {
 	encoder, err := NewGIFEncoder(fps, pixels)
 	if err != nil {

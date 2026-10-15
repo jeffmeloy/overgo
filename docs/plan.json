@@ -158,8 +158,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": -186,
-        "reason": ""
+        "nodes": 0,
+        "reason": "The built remaining operations/repository/video-waits batch measures zero production growth. Earlier combined landings charged their complete production deltas to this row, leaving -186. Remaining test-only consolidation adds no production mechanism; retain a zero production allowance, with the test reduction counted separately."
       },
       "steps": [
         {
@@ -173,7 +173,7 @@
           "id": "repository",
           "title": "Share existing repository discovery and retain synthetic cases",
           "status": "open",
-          "verify": "go test ./internal/repoanalysis ./internal/artifact -run '^(TestEveryProcessDeclarationIsReachedByACommand|TestEveryProcessRecordSchemaHasAProductionWriter|TestShapeReadingFindsPlantedFamilies|TestKindsReadingRecordIsWhole|TestDefaultCloneMatchesEveryReplacedClone)$'",
+          "verify": "go test ./internal/repoanalysis ./internal/artifact -run '^(TestEveryProcessDeclarationIsReachedByACommand|TestEveryProcessRecordSchemaHasAProductionWriter|TestShapeReadingFindsPlantedFamilies|TestDefaultCloneMatchesEveryReplacedClone)$'",
           "rationale": "SQA-088 repository group. One real-checkout Snapshot and shape reading serve the existing assertions. Move the six-clone inventory only if its policy still has a consumer. Preserve both synthetic fixture forms, planted near misses, diagnostics and exact group checks. Delete displaced standalone bodies and source walks without a new cache or analyzer.\nServes: development velocity\nDisappears: six repeated repository discoveries and four repeated real shape reads\nEvidence: go test ./internal/repoanalysis ./internal/artifact -run '^(TestEveryProcessDeclarationIsReachedByACommand|TestEveryProcessRecordSchemaHasAProductionWriter|TestShapeReadingFindsPlantedFamilies|TestKindsReadingRecordIsWhole|TestDefaultCloneMatchesEveryReplacedClone)$' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
         },
         {

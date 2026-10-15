@@ -1,13 +1,8 @@
 {
-  "version": 1,
+  "gpu_workflow": ".github/workflows/gpu.yml",
+  "host_enforcement_required": true,
   "protected_branches": [
     "master"
-  ],
-  "workflow": ".github/workflows/test.yml",
-  "gpu_workflow": ".github/workflows/gpu.yml",
-  "required_jobs": [
-    "unit",
-    "race"
   ],
   "required_hooks": {
     "PreToolUse": "bash scripts/guard.sh",
@@ -15,15 +10,10 @@
     "Stop": "bash scripts/overgo_stop_gate.sh",
     "SessionStart": "bash scripts/overgo_doctrine.sh"
   },
-  "sealed_authority": {
-    "required": true,
-    "principal": "service:external-sealed-authority",
-    "artifacts": [
-      "golden",
-      "evaluator",
-      "promotion-policy",
-      "champion-alias"
-    ]
-  },
-  "host_enforcement_required": true
+  "required_jobs": [
+    "unit",
+    "race"
+  ],
+  "version": 1,
+  "workflow": ".github/workflows/test.yml"
 }

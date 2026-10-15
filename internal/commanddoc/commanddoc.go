@@ -85,8 +85,6 @@ var Declared = map[string]Descriptor{
 		"an operator migrating dataset records into the store"),
 	"remote-provider": operator("remote-provider", "declare hosted OpenAI-compatible models in the store and list them",
 		"an operator connecting hosted models"),
-	"sealed-authority": operator("sealed-authority", "serve a signed-request authority over its own OvergoDB",
-		"an operator running the sealed authority service"),
 	"tool-workflow": operator("tool-workflow", "compile and execute one closed-world tool workflow whose manuals resolve from the store",
 		"an operator running an agent tool workflow from the command line"),
 	"model-config": operator("model-config", "record a model's provided generation configuration and recommended sampling in the store",

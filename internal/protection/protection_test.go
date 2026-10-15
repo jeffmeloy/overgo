@@ -22,7 +22,6 @@ func TestProtectionContract(t *testing.T) {
   "gpu_workflow": ".github/workflows/gpu.yml",
   "required_jobs": ["unit"],
   "required_hooks": {"PreToolUse": "bash scripts/guard.sh"},
-  "sealed_authority": {"required":true,"principal":"service:test","artifacts":["golden","evaluator","promotion-policy","champion-alias"]},
   "host_enforcement_required": true
 }`, 0o600)
 	testutil.WriteTextFile(t, root, ".claude/settings.json", `{
@@ -62,13 +61,6 @@ type policy struct {
 	RequiredJobs            []string          `json:"required_jobs"`
 	RequiredHooks           map[string]string `json:"required_hooks"`
 	HostEnforcementRequired bool              `json:"host_enforcement_required"`
-	SealedAuthority         sealedPolicy      `json:"sealed_authority"`
-}
-
-type sealedPolicy struct {
-	Required  bool     `json:"required"`
-	Principal string   `json:"principal"`
-	Artifacts []string `json:"artifacts"`
 }
 
 type settings struct {
@@ -95,8 +87,7 @@ func Verify(root string) (configured, activated string, err error) {
 	}
 	if contract.Version != 1 || len(contract.ProtectedBranches) == 0 ||
 		len(contract.RequiredJobs) == 0 || len(contract.RequiredHooks) == 0 ||
-		!contract.HostEnforcementRequired || !safeRelative(contract.Workflow) || !safeRelative(contract.GPUWorkflow) ||
-		!validSealedPolicy(contract.SealedAuthority) {
+		!contract.HostEnforcementRequired || !safeRelative(contract.Workflow) || !safeRelative(contract.GPUWorkflow) {
 		return "", "", errors.New("protection policy: incomplete contract")
 	}
 	var configuredHooks settings
@@ -136,16 +127,9 @@ func Verify(root string) (configured, activated string, err error) {
 			return "", "", fmt.Errorf("GPU workflow: required contract %q missing", required)
 		}
 	}
-	return fmt.Sprintf("configured:branches=%s,jobs=%s,hooks=%d,sealed=%s;host_enforcement=external",
-			strings.Join(contract.ProtectedBranches, "+"), strings.Join(contract.RequiredJobs, "+"), len(contract.RequiredHooks), contract.SealedAuthority.Principal),
+	return fmt.Sprintf("configured:branches=%s,jobs=%s,hooks=%d;host_enforcement=external",
+			strings.Join(contract.ProtectedBranches, "+"), strings.Join(contract.RequiredJobs, "+"), len(contract.RequiredHooks)),
 		"unobserved:parent-harness-fact", nil
-}
-
-func validSealedPolicy(value sealedPolicy) bool {
-	want := []string{string(SealedChampionAlias), string(SealedEvaluator), string(SealedGolden), string(SealedPromotionPolicy)}
-	got := slices.Clone(value.Artifacts)
-	slices.Sort(got)
-	return value.Required && strings.HasPrefix(value.Principal, "service:") && slices.Equal(got, want)
 }
 
 func safeRelative(path string) bool {

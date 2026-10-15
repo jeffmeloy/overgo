@@ -66,8 +66,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "Built preflight measures 303 production AST nodes and 539 test nodes after seven one-caller helpers are removed. Existing manifests, artifact hashing and stamped execution qualify cell credits. Same-size/time replacements and unresolved directory inputs miss. One matched 108-cell dry run grows from 4.7113973s to 54.9624679s; 84 cells qualify and 24 remain unknown. This is necessary correctness growth with added read cost, no speed claim or new selector."
+        "nodes": 364,
+        "reason": "Built preflight measures 364 production AST nodes for full archive identity and process-owned Windows write exclusion. The directory-only Record implementation disappears. Existing prompt fixtures gain raw payload mutation and admission lifetime cases. First 11 GB admission takes 10.4982954 seconds and the next twelve pipeline identities average about 7.8 ms, versus about 7.7 ms before. This is necessary correctness growth with a cold-load cost, not a speed claim. Retained comparison evidence:sha256:8074c3dde17ee5d7e11c772b5aa1755270bcabc6fc2bef6deb04d82f3ecfc4bb"
       },
       "steps": [
         {

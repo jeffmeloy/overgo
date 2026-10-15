@@ -91,13 +91,17 @@
       "title": "Give required model checks one executing owner",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 64,
+        "reason": "Built preflight measures 64 production AST nodes for the missing needle cycle invocation, existing model-lane admission and narrow parity fixture boundaries. The complete batch adds 303 test AST nodes after removing the duplicate whole-text speech execution and timing ceilings. Required current-token and ordinary-replay regression coverage accounts for the net growth. No fixture payload, record schema, test selector or framework is added."
+      },
       "steps": [
         {
           "id": "lanes",
           "title": "Declare external inputs and fresh invocation at the actual model checks",
           "status": "open",
-          "verify": "go test ./internal/landing ./cmd/validate -run '^(TestCUDATestsNeedALane|TestLaneSelectionUsesTheLaneBuildContext|TestValidateRunCycleLanes|TestParityCommandsRequireFreshExecution)$'",
-          "rationale": "SQA-103. Trace each named speech, needle, video and training comparison to its executing lane. Move untagged real-model/device work behind the existing model or CUDA admission and preserve package-qualified outcomes. Use FreshRun for the fixed-tag parity commands that require new execution. Keep installed-resource misses pending. Remove unestablished elapsed ceilings and duplicate speech execution only after exact retained PCM/Complete checks move. Pin actual descriptor rows and exercise both parity command consumers with fake executions.\nServes: development velocity and numerical correctness\nDisappears: ordinary-package model/device work, stale parity replay and unsupported timing ceilings\nEvidence: go test ./internal/landing ./cmd/validate -run 'Test' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
+          "verify": "go test ./internal/landing ./cmd/validate -run '^(TestReachInvariants|TestCUDATestsNeedALane|TestLaneSelectionUsesTheLaneBuildContext|TestValidateRunCycleLanes|TestParityCommandsRequireFreshExecution)$'",
+          "rationale": "SQA-103. Trace each named speech, needle, video and training comparison to its executing lane. Move untagged real-model/device work behind the existing model or CUDA admission and preserve package-qualified outcomes. Use FreshRun for the fixed-tag parity commands that require new execution. Keep installed-resource misses pending. Remove unestablished elapsed ceilings and duplicate speech execution only after exact retained PCM/Complete checks move. Pin actual descriptor rows and exercise both parity command consumers with fake executions.\nServes: development velocity and numerical correctness\nDisappears: ordinary-package model/device work, stale parity replay and unsupported timing ceilings\nEvidence: go test ./internal/landing ./cmd/validate -run 'Test' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry\nThe numerical RxBrain verification uses its isolated test store and an explicit synthetic build identity.\nProduction activation continues to require the actual clean executable revision.\nThe existing cycle models invocation enables the complete frozen video comparison.\nThe needle reference has a dedicated native Go test invocation selecting only its existing 400-case comparison.\nMoved RAE and forecasting bodies retain their assertions and pure fixture consumers."
         }
       ]
     },

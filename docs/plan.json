@@ -66,15 +66,15 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "Built measurement repair measured by preflight: 309 production AST nodes for complete compatible baselines and source/value uniqueness, plus 28 for API prompt-evaluated timing. Existing fixture extensions and CLI consolidation net +741 test nodes; the CLI group alone removes 119 test nodes and one model/store setup. No new schema, fixture file, package, instrumentation or selector. This is necessary correctness growth, not net simplification."
+        "nodes": 293,
+        "reason": "Built contention-attribution preflight measures +293 production AST nodes after deleting the global after-sequence scan and early-stop sentinel. Exact producer IDs cross one invocation-owned result file, read after process completion, including failure/cancellation. Existing fixtures add +1003 test nodes for unrelated writers, late fill, identity propagation and child handoff errors. No schemas, fixture files, selector or persistent ledger; necessary correctness growth, no elapsed gain claimed."
       },
       "steps": [
         {
           "id": "attempts",
           "title": "Attribute contention to returned attempt identities",
           "status": "open",
-          "verify": "go test ./cmd/validate ./internal/scorecard -run '^(TestAContendedCellIsMeasuredOnceMoreAfterTheOthers|TestAContendedAttemptGivesTheScorecardNoReading)$'",
+          "verify": "go test ./cmd/validate ./internal/scorecard ./cmd/recipe -run '^(TestAContendedCellIsMeasuredOnceMoreAfterTheOthers|TestAContendedAttemptGivesTheScorecardNoReading|TestMeasurementNeedsExecutableInput|TestInferenceMeasurementFillsTheServingCells)$'",
           "rationale": "SQA-144. Carry serving-attempt identities through the existing command result. Remove the global after-sequence scan. Retain failed attempts and exclude only the successful contended attempt. Seed unrelated observations before admission, during execution and after completion plus late content fill. Preserve retry order and idempotence.\nServes: throughput and failure-rate measurement\nDisappears: unbounded sequence attribution and descriptor-order early stop\nEvidence: go test ./cmd/validate ./internal/scorecard -run '^(TestAContendedCellIsMeasuredOnceMoreAfterTheOthers|TestAContendedAttemptGivesTheScorecardNoReading)$' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
         }
       ]

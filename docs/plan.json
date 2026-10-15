@@ -65,6 +65,10 @@
       "title": "Keep registered model paths through checkpoint cleanup",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 149,
+        "reason": "Measured built patch adds 149 production AST nodes for model component ownership and conservative incomplete-catalog refusal"
+      },
       "steps": [
         {
           "id": "components",
@@ -80,6 +84,10 @@
       "title": "Make withdrawal preserve availability and report committed effects",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 110,
+        "reason": "Measured built patch adds 110 production AST nodes for active directory retention, receipt acquisition before commit, independent receipt writes and shared metadata error handling"
+      },
       "steps": [
         {
           "id": "locations",

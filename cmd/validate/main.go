@@ -33,6 +33,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/discovery"
 	"overgo/internal/gitauthority"
+	"overgo/internal/inferencesurface"
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
@@ -265,7 +266,8 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 		return err
 	}
 	registered = compareContracts(registered, compared)
-	if err := bindCells(ctx, *root, store, registered); err != nil {
+	execution, _ := inferencesurface.Execution("overgo/internal/mediacapability")
+	if err := bindCells(ctx, *root, store, registered, execution); err != nil {
 		return err
 	}
 	if *inventory != "" {

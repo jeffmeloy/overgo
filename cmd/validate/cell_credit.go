@@ -1,21 +1,25 @@
 package main
 
 import (
-	"cmp"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
+	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/gitauthority"
 	"overgo/internal/jsonfile"
+	"overgo/internal/overgodb"
+	"overgo/internal/pathidentity"
 )
 
 // cellCreditMode keeps a cycle's credit private to the checkout's owner.
@@ -64,41 +68,100 @@ func cellKey(cell ModelValidation) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// consumedFiles says, without reading them, what the files a cell's command is given and its
-// weights are: the path, size and time of each, and of every file under a directory. The
-// catalog checks by content only what a manifest lists, so this tells a location-only model's
-// replaced weights, or a changed file beside a model, from those a run measured; a change that
-// keeps a file's size and time is not seen. A relative argument is a committed file, which the
-// credit's commit fixes. A path that cannot be read, a remote model's address among them, gives a
-// value no later binding repeats: unknown bytes are never credited. A cell with no command has none.
-// listed keeps what one binding found each path to be, so a path many cells are given is read once.
-func consumedFiles(cell ModelValidation, listed map[string]string) string {
+// consumedFiles qualifies resume credit by declared model components and explicit file inputs.
+//   - Every component is read through artifact identity once per binding
+//   - A directory containing undeclared files or directory links authorizes no credit
+//   - Missing content or execution authority authorizes no credit
+//   - Relative command inputs belong to the pinned commit
+func consumedFiles(ctx context.Context, store *overgodb.Store, cell ModelValidation, listed map[string]string, execution string) string {
 	_, given, err := reacquireCommand(cell, "")
 	if err != nil {
 		return ""
 	}
-	found := sha256.New()
+	if store == nil || execution == "" {
+		return rand.Text()
+	}
+	manifest, found, err := store.Manifest(ctx, cell.Model)
+	if err != nil || !found {
+		return rand.Text()
+	}
+	inputs := map[string]string{}
+	for _, component := range manifest.Components {
+		path, err := artifact.AvailablePath(ctx, store, component.Artifact, artifact.LocationFile)
+		if err != nil {
+			return rand.Text()
+		}
+		inputs[path] = component.Artifact.DigestHex()
+	}
 	for _, path := range append(given, cell.Location) {
 		if path != cell.Location && !filepath.IsAbs(path) {
 			continue
 		}
-		if _, read := listed[path]; !read {
-			under := sha256.New()
-			listed[path] = rand.Text()
-			// Walk reports a link as the link; Stat reads the file it leads to.
-			if filepath.Walk(path, func(file string, _ fs.FileInfo, walkErr error) error {
-				info, err := os.Stat(file)
-				if err = cmp.Or(walkErr, err); err == nil && !info.IsDir() {
-					fmt.Fprintln(under, file, info.Size(), info.ModTime().UnixNano())
+		info, err := os.Stat(path)
+		if err != nil {
+			return rand.Text()
+		}
+		if info.IsDir() {
+			err = filepath.Walk(path, func(file string, entry fs.FileInfo, walkErr error) error {
+				if walkErr != nil {
+					return walkErr
 				}
-				return err
-			}) == nil {
-				listed[path] = hex.EncodeToString(under.Sum(nil))
+				if entry.IsDir() {
+					return nil
+				}
+				target, err := os.Stat(file)
+				if err != nil || !target.Mode().IsRegular() {
+					return errors.New("consumed input has no regular file authority")
+				}
+				canonical, err := pathidentity.Canonical(file)
+				if err != nil || inputs[canonical] == "" {
+					return errors.New("consumed directory has an undeclared input")
+				}
+				return nil
+			})
+			if err != nil {
+				return rand.Text()
+			}
+		} else {
+			if !info.Mode().IsRegular() {
+				return rand.Text()
+			}
+			canonical, err := pathidentity.Canonical(path)
+			if err != nil {
+				return rand.Text()
+			}
+			if _, known := inputs[canonical]; !known {
+				inputs[canonical] = ""
 			}
 		}
-		fmt.Fprintln(found, listed[path])
 	}
-	return hex.EncodeToString(found.Sum(nil))
+	paths := make([]string, 0, len(inputs))
+	for path := range inputs {
+		paths = append(paths, path)
+	}
+	slices.Sort(paths)
+	named := sha256.New()
+	fmt.Fprintln(named, execution)
+	for _, path := range paths {
+		if ctx.Err() != nil {
+			return rand.Text()
+		}
+		identity, read := listed[path]
+		if !read {
+			content, err := artifact.IdentifyFile(artifact.KindFile, path)
+			if err != nil {
+				identity = rand.Text()
+			} else {
+				identity = content.DigestHex()
+			}
+			listed[path] = identity
+		}
+		if expected := inputs[path]; expected != "" && identity != expected {
+			return rand.Text()
+		}
+		fmt.Fprintln(named, path, identity)
+	}
+	return hex.EncodeToString(named.Sum(nil))
 }
 
 // has says the cell was acquired by an earlier run of this commit and store.

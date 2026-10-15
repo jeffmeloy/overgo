@@ -66,17 +66,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 303,
+        "nodes": 0,
         "reason": "Built preflight measures 303 production AST nodes and 539 test nodes after seven one-caller helpers are removed. Existing manifests, artifact hashing and stamped execution qualify cell credits. Same-size/time replacements and unresolved directory inputs miss. One matched 108-cell dry run grows from 4.7113973s to 54.9624679s; 84 cells qualify and 24 remain unknown. This is necessary correctness growth with added read cost, no speed claim or new selector."
       },
       "steps": [
-        {
-          "id": "credits",
-          "title": "Refuse stale cell and phase credits for changed or unknown consumed inputs",
-          "status": "open",
-          "verify": "go test ./cmd/validate ./cmd/loop -run '^(TestCellCreditSurvivesAKilledRun|TestResumedRunStartsAgainACellWhoseWeightsChanged|TestCycleCreditFollowsTheInputsARunConsumes)$'",
-          "rationale": "SQA-089. Use declared manifest/content and execution authority where available. Unknown directory links or unqualified bytes must miss. The existing tiny fixtures cover equal-size/equal-time replacements and unresolved links. Preserve original-pin resumption and native Go caching. Count bounded input reads and remove metadata-only admission. No custom dependency graph or recurring store census.\nServes: correct interrupted-cycle reuse\nDisappears: path-size-time as sufficient content authority\nEvidence: go test ./cmd/validate ./cmd/loop -run '^(TestCellCreditSurvivesAKilledRun|TestResumedRunStartsAgainACellWhoseWeightsChanged|TestCycleCreditFollowsTheInputsARunConsumes)$' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry\nThe lead declines a shared recovery owner because cells, workflows and checkpoints have distinct records, identities and recovery units.\nThe explicit retirement condition in docs/verification/resume-paths.txt is met.\nRetire that survey and TestResumePathRecordIsWhole and TestInputBytesReadingIsWhole with their private parsing helpers.\nThese checks maintain historical source counts and merger estimates rather than recovery behavior.\nRetain the workflow replay, checkpoint resume and cell/phase invalidation regressions in their existing owners.\nNo replacement census or absence test is needed."
-        },
         {
           "id": "media",
           "title": "Keep judge method, fixed input bytes and producer distinct",

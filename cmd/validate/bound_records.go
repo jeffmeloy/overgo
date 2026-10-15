@@ -115,7 +115,7 @@ func proofCost(ctx context.Context, store *overgodb.Store, cell ModelValidation)
 // training and projection routes take, then what the files its command is given
 // are (consumedFiles). A read of a record that fails fails the command:
 // an unread record is no reason to spend a device re-acquiring blind.
-func bindCells(ctx context.Context, root string, store *overgodb.Store, cells []ModelValidation) error {
+func bindCells(ctx context.Context, root string, store *overgodb.Store, cells []ModelValidation, execution string) error {
 	var benchmarks *benchmarkEvidence
 	for index, cell := range cells {
 		var err error
@@ -142,7 +142,7 @@ func bindCells(ctx context.Context, root string, store *overgodb.Store, cells []
 	// Last, since the grounding decides which paths a cell's command is given.
 	listed := map[string]string{}
 	for index, cell := range cells {
-		cells[index].Consumed = consumedFiles(cell, listed)
+		cells[index].Consumed = consumedFiles(ctx, store, cell, listed, execution)
 	}
 	return nil
 }

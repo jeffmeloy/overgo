@@ -91,6 +91,10 @@
       "title": "Carry declared reasoning closure through the evaluation adapter",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 40,
+        "reason": "Built preflight measures 40 production AST nodes for explicit buffered and streaming reasoning closure through the existing parser and evaluation adapter. The real adapter fixture fails before and passes after. Existing channel tables retain malformed, empty, prompt-open and thinking-off behavior."
+      },
       "steps": [
         {
           "id": "facts",
@@ -136,6 +140,10 @@
       "title": "Keep tool numbers and reported evidence exact",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 9,
+        "reason": "Built preflight measures 9 additional production AST nodes for refusing integer overflow and propagating failed tool-object conversion through the existing JSON and chat owners. Existing fixtures retain signed bounds, ordering, floats and malformed cases. No approximate fallback remains."
+      },
       "steps": [
         {
           "id": "integers",

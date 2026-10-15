@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
@@ -24,13 +23,16 @@ import (
 // picture it checks that the model and recipe being evaluated drew it.
 type judgedRuntime struct {
 	projectionRuntime
-	judge  string
 	model  artifact.ID
 	recipe artifact.ID
+	store  artifact.Reader
 }
 
 // Judge names the model that answers.
-func (r judgedRuntime) Judge() string { return r.judge }
+func (r judgedRuntime) Judge() string {
+	id, _ := artifact.JSONID(artifact.KindProfile, r.identity)
+	return id.String()
+}
 
 // Generate answers the prompt's question about its picture once the picture is
 // shown to be one the evaluated recipe drew.
@@ -39,8 +41,12 @@ func (r judgedRuntime) Generate(ctx context.Context, prompt string, options infe
 	if !named {
 		return nil, "", errors.New("evaluate: a judged case names the picture its question asks about")
 	}
-	if err := verifyRendered(r.root, r.model, r.recipe, name); err != nil {
-		return nil, "", err
+	if r.mediaFiles == nil {
+		return nil, "", errors.New("evaluate: media was not bound")
+	}
+	bound, found := r.files[name]
+	if !found || !bound.input.Producer.Valid() {
+		return nil, "", errors.New("evaluate: rendered provenance was not bound")
 	}
 	return r.projectionRuntime.Generate(ctx, prompt, options)
 }
@@ -79,9 +85,14 @@ func openJudgedSession(ctx context.Context, store *overgodb.Store, value manifes
 		if err != nil {
 			return nil, nil, errors.Join(err, runner.Close())
 		}
+		runtime := projectionRuntime{runner: runner, vision: vision, mediaFiles: &mediaFiles{root: request.MediaRoot}, ffmpeg: os.Getenv("OVERGO_FFMPEG")}
+		runtime.identity, err = projectionIdentity(ctx, store, runtime)
+		if err != nil {
+			return nil, nil, errors.Join(err, vision.Close(), runner.Close())
+		}
 		return judgedRuntime{
-				projectionRuntime: projectionRuntime{runner: runner, vision: vision, root: request.MediaRoot, ffmpeg: os.Getenv("OVERGO_FFMPEG")},
-				judge:             filepath.Base(request.Judge), model: modelID, recipe: activation.Definition.ID,
+				projectionRuntime: runtime,
+				model:             modelID, recipe: activation.Definition.ID, store: store,
 			}, func(context.Context) error {
 				return errors.Join(vision.Close(), runner.Close())
 			}, nil

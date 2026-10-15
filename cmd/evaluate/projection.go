@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
 	"overgo/internal/media"
@@ -29,8 +31,9 @@ import (
 type projectionRuntime struct {
 	runner *inference.Runner
 	vision projector.Session
-	root   string
-	ffmpeg string
+	*mediaFiles
+	ffmpeg   string
+	identity evaluation.MediaRuntime
 }
 
 // ShapeChatPrompt returns the prompt itself: the projector shapes it.
@@ -47,7 +50,7 @@ func (r projectionRuntime) Generate(ctx context.Context, prompt string, options 
 	if !named {
 		return nil, "", errors.New("evaluate: a projection case names the video or image its question asks about")
 	}
-	path, err := mediaPath(r.root, name)
+	raw, err := r.mediaFiles.read(name)
 	if err != nil {
 		return nil, "", err
 	}
@@ -55,18 +58,24 @@ func (r projectionRuntime) Generate(ctx context.Context, prompt string, options 
 	switch kind {
 	case evaluation.MediaVideo:
 		video := r.runner.RuntimePolicy().Interactive.Video
-		frames, decodeErr := media.DecodeVideoFile(ctx, path, r.ffmpeg, video.FPS, video.MaxFrames)
+		if expected := r.files[name].input.Decode.Tool; expected.Valid() {
+			path, err := media.ResolveFFmpeg(r.ffmpeg)
+			if err != nil {
+				return nil, "", err
+			}
+			actual, err := artifact.IdentifyFile(artifact.KindFile, path)
+			if err != nil || actual != expected {
+				return nil, "", errors.Join(err, errors.New("evaluate: video decoder changed after binding"))
+			}
+		}
+		frames, decodeErr := media.DecodeEncodedVideo(ctx, raw, r.ffmpeg, video.FPS, video.MaxFrames)
 		if decodeErr != nil {
 			return nil, "", fmt.Errorf("evaluate: decode video %s: %w", name, decodeErr)
 		}
 		built, err = r.vision.BuildVideoPrompt(ctx, r.runner, frames, "", question, video.FPS, false)
 	case evaluation.MediaImage:
-		file, openErr := os.Open(path)
-		if openErr != nil {
-			return nil, "", openErr
-		}
-		picture, _, decodeErr := image.Decode(file)
-		if err := errors.Join(decodeErr, file.Close()); err != nil {
+		picture, _, decodeErr := image.Decode(bytes.NewReader(raw))
+		if err := decodeErr; err != nil {
 			return nil, "", fmt.Errorf("evaluate: decode image %s: %w", name, err)
 		}
 		built, err = r.vision.BuildImagePrompt(ctx, r.runner, picture, "", question, false)
@@ -169,7 +178,11 @@ func openProjectionSession(ctx context.Context, store *overgodb.Store, value man
 	if err != nil {
 		return fail(err)
 	}
-	runtime := projectionRuntime{runner: runner, vision: vision, root: request.MediaRoot, ffmpeg: os.Getenv("OVERGO_FFMPEG")}
+	runtime := projectionRuntime{runner: runner, vision: vision, mediaFiles: &mediaFiles{root: request.MediaRoot}, ffmpeg: os.Getenv("OVERGO_FFMPEG")}
+	runtime.identity, err = projectionIdentity(ctx, store, runtime)
+	if err != nil {
+		return fail(errors.Join(err, vision.Close()))
+	}
 	campaign, err := evaluation.NewIsolatedCampaign(store, runtime, identity, environment, value.CodeCommit)
 	if err != nil {
 		return fail(errors.Join(err, vision.Close()))

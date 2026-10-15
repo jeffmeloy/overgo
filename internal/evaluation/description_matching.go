@@ -77,10 +77,11 @@ type descriptionMatchingPlan struct {
 }
 
 type descriptionMatchingObservation struct {
-	Name     string `json:"name"`
-	Raw      string `json:"raw"`
-	Chosen   int    `json:"chosen"`
-	Accepted bool   `json:"accepted"`
+	Name     string      `json:"name"`
+	Raw      string      `json:"raw"`
+	Chosen   int         `json:"chosen"`
+	Accepted bool        `json:"accepted"`
+	Producer artifact.ID `json:"producer,omitzero"`
 }
 
 type descriptionMatchingReport struct {
@@ -147,6 +148,7 @@ func evaluateDescriptionMatching(
 		Version: artifact.InitialDocumentVersion, Plan: plan.identity, Dataset: compiled.dataset,
 		Observations: make([]descriptionMatchingObservation, len(compiled.suite.Cases)),
 	}
+	var producers []artifact.ID
 	correct := 0
 	progress := trackProgress(ctx, compiled.suite.Source, len(compiled.suite.Cases))
 	for index, testCase := range compiled.suite.Cases {
@@ -159,7 +161,10 @@ func evaluateDescriptionMatching(
 		if accepted {
 			correct++
 		}
-		report.Observations[index] = descriptionMatchingObservation{Name: testCase.Name, Raw: strings.ToValidUTF8(text, string(unicode.ReplacementChar)), Chosen: chosen, Accepted: accepted}
+		report.Observations[index] = descriptionMatchingObservation{Name: testCase.Name, Raw: strings.ToValidUTF8(text, string(unicode.ReplacementChar)), Chosen: chosen, Accepted: accepted, Producer: producingRun(generator)}
+		if producer := report.Observations[index].Producer; producer.Valid() {
+			producers = append(producers, producer)
+		}
 		progress.hit(accepted)
 	}
 	report.Accuracy = float64(correct) / float64(len(report.Observations))
@@ -169,7 +174,7 @@ func evaluateDescriptionMatching(
 	}
 	report.ID = id
 	if err := publishCampaignDocument(
-		ctx, repository, report.Plan, report.Dataset, report.ID, descriptionMatchingReportContract, report,
+		ctx, repository, report.Plan, report.Dataset, report.ID, descriptionMatchingReportContract, report, producers...,
 	); err != nil {
 		return descriptionMatchingReport{}, err
 	}

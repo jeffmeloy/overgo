@@ -2,21 +2,22 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
+	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/atomicfile"
 	"overgo/internal/capabilityruntime"
 	"overgo/internal/evaluation"
-	"overgo/internal/latentimage"
+	"overgo/internal/jsonfile"
 	"overgo/internal/latentvideo"
 	"overgo/internal/media"
 	"overgo/internal/mediacapability"
@@ -39,44 +40,48 @@ const (
 	clipExtensionGIF = ".gif"
 )
 
-// renderManifest binds a directory of pictures or clips to the model and recipe that drew
-// them, the commit of the code that ran them, the settings that replaced fields of the
-// recipe's verified request, and the caption each was drawn from, by the file name, which
-// is the digest of its bytes and its extension.
+// renderManifest binds full requests to their producing runs and content-addressed files.
 type renderManifest struct {
-	Model      artifact.ID        `json:"model"`
-	Recipe     artifact.ID        `json:"recipe"`
-	Task       recipe.Task        `json:"task"`
-	CodeCommit string             `json:"code_commit"`
-	Settings   map[string]float64 `json:"settings,omitempty"`
-	Files      map[string]string  `json:"files"`
+	Model      artifact.ID              `json:"model"`
+	Recipe     artifact.ID              `json:"recipe"`
+	Task       recipe.Task              `json:"task"`
+	CodeCommit string                   `json:"code_commit"`
+	Settings   map[string]float64       `json:"settings,omitempty"`
+	Draws      map[string]renderedMedia `json:"draws"`
 }
 
-// alreadyDrawn is what a directory's manifest lets a render reuse: the file of each
-// caption it has drawn, when the manifest binds the directory to the same model, recipe,
-// task and settings. A directory with no manifest has nothing to reuse; one drawn by
-// another model, recipe or settings is refused, since its media are not this render's.
-func alreadyDrawn(directory string, want renderManifest) (renderManifest, map[string]string, error) {
+// renderedMedia retains the request and original workflow that produced one payload.
+// Several requests may share one physical file when their output bytes agree.
+type renderedMedia struct {
+	File    string          `json:"file"`
+	Request json.RawMessage `json:"request"`
+	Input   artifact.ID     `json:"input"`
+	Output  artifact.ID     `json:"output"`
+	Run     artifact.ID     `json:"run,omitzero"`
+}
+
+// alreadyDrawn admits a directory only for its declared model, recipe, task and settings.
+// Legacy manifests lack request and producer authority and cannot authorize reuse.
+func alreadyDrawn(directory string, want renderManifest) (renderManifest, error) {
 	data, err := os.ReadFile(filepath.Join(directory, renderManifestFile))
 	if errors.Is(err, os.ErrNotExist) {
-		return want, map[string]string{}, nil
+		return want, nil
 	}
 	if err != nil {
-		return renderManifest{}, nil, err
+		return renderManifest{}, err
 	}
 	var held renderManifest
 	if err := json.Unmarshal(data, &held); err != nil {
-		return renderManifest{}, nil, fmt.Errorf("evaluate: read the render manifest of %s: %w", directory, err)
+		return renderManifest{}, fmt.Errorf("evaluate: read the render manifest of %s: %w", directory, err)
 	}
 	if held.Model != want.Model || held.Recipe != want.Recipe || held.Task != want.Task || !maps.Equal(held.Settings, want.Settings) {
-		return renderManifest{}, nil, fmt.Errorf("evaluate: %s holds media drawn by %s under %s with settings %v, not by %s under %s with %v: draw into another directory",
+		return renderManifest{}, fmt.Errorf("evaluate: %s holds media drawn by %s under %s with settings %v, not by %s under %s with %v: draw into another directory",
 			directory, held.Model, held.Recipe, held.Settings, want.Model, want.Recipe, want.Settings)
 	}
-	drawn := make(map[string]string, len(held.Files))
-	for name, id := range held.Files {
-		drawn[id] = name
+	if held.Draws == nil {
+		return renderManifest{}, errors.New("evaluate: legacy render provenance is unknown; draw into another directory")
 	}
-	return held, drawn, nil
+	return held, nil
 }
 
 // renderPrompt is one caption to draw and the identity the suite refers to it by.
@@ -85,6 +90,27 @@ type renderPrompt struct {
 	Prompt string
 	// Source is the clip an editor is given to change; a generator draws from the prompt alone.
 	Source artifact.ID
+}
+
+// renderRequest binds every consumed rendering field before a reuse lookup.
+func renderRequest(template map[string]any, settings map[string]float64, item renderPrompt, index int) ([]byte, string, error) {
+	request := maps.Clone(template)
+	for name, value := range settings {
+		request[name] = value
+	}
+	request["prompt"] = item.Prompt
+	if item.Source.Valid() {
+		request["source_artifact"] = item.Source
+	}
+	if seed, seeded := request["seed"].(float64); seeded {
+		request["seed"] = seed + float64(index)
+	}
+	encoded, err := json.Marshal(request)
+	if err != nil {
+		return nil, "", err
+	}
+	id, err := artifact.IdentifyBytes(artifact.KindFile, encoded)
+	return encoded, id.DigestHex(), err
 }
 
 // verifiedTemplate is the request a recipe's accepted verification ran, which the media
@@ -128,17 +154,18 @@ func parseSettings(text string) (map[string]float64, error) {
 
 // drawn is what a generation capability returned: the bytes to write and the extension
 // that names their format.
-func drawn(output any) ([]byte, string, error) {
-	switch result := capabilityruntime.Unwrap(output).(type) {
-	case latentimage.EncodedImage:
-		return result.Data, ".png", nil
-	case latentvideo.EncodedVideo:
-		if result.MediaType != media.GIFMediaType {
-			return nil, "", fmt.Errorf("evaluate: a clip of %s is not the GIF the judge reads", result.MediaType)
-		}
-		return result.Data, clipExtensionGIF, nil
+func drawn(output any) (artifact.Content, string, error) {
+	content, err := mediacapability.OutputContent(capabilityruntime.Unwrap(output))
+	if err != nil {
+		return artifact.Content{}, "", err
+	}
+	switch content.Descriptor.MediaType {
+	case media.PNGMediaType:
+		return content, ".png", nil
+	case media.GIFMediaType:
+		return content, clipExtensionGIF, nil
 	default:
-		return nil, "", fmt.Errorf("evaluate: the model drew %T, not an encoded picture or clip", result)
+		return artifact.Content{}, "", fmt.Errorf("evaluate: output %s is not a PNG or GIF", content.Descriptor.MediaType)
 	}
 }
 
@@ -146,7 +173,7 @@ func drawn(output any) ([]byte, string, error) {
 // active recipe for task, on the request that recipe's verification ran with the prompt
 // and settings put in and the seed advanced for each, writes each to directory named by
 // the digest of its bytes, and writes the manifest that binds them to the recipe. It
-// returns the file name of each prompt's media. A model whose verified request takes no
+// returns the request key of each prompt's media. A model whose verified request takes no
 // prompt draws nothing from a caption and is refused.
 func renderMedia(ctx context.Context, repository, path string, task recipe.Task, directory string, prompts []renderPrompt, settings map[string]float64, commit string) (map[string]string, error) {
 	store, err := overgodb.OpenContext(ctx, repository)
@@ -174,62 +201,50 @@ func renderMedia(ctx context.Context, repository, path string, task recipe.Task,
 	if err := os.MkdirAll(directory, renderDirectoryMode); err != nil {
 		return nil, err
 	}
-	manifest, held, err := alreadyDrawn(directory, renderManifest{
-		Model: modelID, Recipe: selected.Activation.Definition.ID, Task: task, CodeCommit: commit, Settings: settings, Files: map[string]string{},
+	manifest, err := alreadyDrawn(directory, renderManifest{
+		Model: modelID, Recipe: selected.Activation.Definition.ID, Task: task, CodeCommit: commit, Settings: settings, Draws: map[string]renderedMedia{},
 	})
 	if err != nil {
 		return nil, err
 	}
 	// The manifest is written after every draw, so a render that is cut short resumes.
 	save := func() error {
-		data, err := json.MarshalIndent(manifest, "", "  ")
-		if err != nil {
-			return err
-		}
-		return os.WriteFile(filepath.Join(directory, renderManifestFile), data, renderFileMode)
+		return jsonfile.Write(filepath.Join(directory, renderManifestFile), manifest, renderFileMode)
 	}
 	names := map[string]string{}
 	for index, item := range prompts {
-		if name, drawn := held[item.ID]; drawn {
-			if err := verifyRendered(directory, manifest.Model, manifest.Recipe, name); err != nil {
+		encoded, key, err := renderRequest(template, settings, item, index)
+		if err != nil {
+			return nil, err
+		}
+		if _, exists := manifest.Draws[key]; exists {
+			if _, err := verifyRendered(ctx, store, directory, manifest.Model, manifest.Recipe, key); err != nil {
 				return nil, err
 			}
-			names[item.ID] = name
+			names[item.ID] = key
 			continue
 		}
 		if manifest.CodeCommit != commit {
-			return nil, fmt.Errorf("evaluate: the media of %s were drawn at commit %.12s and this build is %.12s: draw the rest with that build, or into another directory", directory, manifest.CodeCommit, commit)
-		}
-		request := make(map[string]any, len(template)+len(settings))
-		maps.Copy(request, template)
-		for name, value := range settings {
-			request[name] = value
-		}
-		request["prompt"] = item.Prompt
-		if item.Source.Valid() {
-			request["source_artifact"] = item.Source
-		}
-		if seed, seeded := template["seed"].(float64); seeded {
-			request["seed"] = seed + float64(index)
-		}
-		encoded, err := json.Marshal(request)
-		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("evaluate: media were drawn at %.12s, this build is %.12s; finish with the producing build or use another directory", manifest.CodeCommit, commit)
 		}
 		output, err := capability.Execute(capabilityruntime.FreshRun(ctx), store, path, selected, string(encoded))
 		if err != nil {
 			return nil, fmt.Errorf("evaluate: draw %s: %w", item.ID, err)
 		}
-		data, extension, err := drawn(output)
-		if err != nil || len(data) == 0 {
+		content, extension, err := drawn(output)
+		if err != nil || len(content.Data) == 0 {
 			return nil, errors.Join(err, fmt.Errorf("evaluate: %s drew nothing for %s", path, item.ID))
 		}
-		sum := sha256.Sum256(data)
-		name := hex.EncodeToString(sum[:]) + extension
-		if err := os.WriteFile(filepath.Join(directory, name), data, renderFileMode); err != nil {
+		measured, known := output.(capabilityruntime.Measured)
+		if !known || measured.Run.Kind() != artifact.KindRun || !measured.Input.Descriptor.ID.Valid() {
+			return nil, errors.New("evaluate: rendered output has unknown producing run or request")
+		}
+		name := content.Descriptor.ID.DigestHex() + extension
+		if err := atomicfile.Write(filepath.Join(directory, name), content.Data, renderFileMode); err != nil {
 			return nil, err
 		}
-		manifest.Files[name], names[item.ID] = item.ID, name
+		manifest.Draws[key] = renderedMedia{File: name, Request: encoded, Input: measured.Input.Descriptor.ID, Output: content.Descriptor.ID, Run: measured.Run}
+		names[item.ID] = key
 		if err := save(); err != nil {
 			return nil, err
 		}
@@ -431,28 +446,44 @@ func writeVideoEdits(ctx context.Context, clips, captions, model, repository, ju
 // to the model and recipe being evaluated: a name the manifest does not list, a
 // manifest of another model or recipe, or bytes that are not the digest the file
 // is named for.
-func verifyRendered(directory string, model, recipeID artifact.ID, name string) error {
-	data, err := os.ReadFile(filepath.Join(directory, renderManifestFile))
-	if err != nil {
-		return fmt.Errorf("evaluate: %s holds no render manifest: %w", directory, err)
-	}
+func verifyRendered(ctx context.Context, store artifact.Reader, directory string, model, recipeID artifact.ID, key string) (renderedMedia, error) {
 	var manifest renderManifest
-	if err := json.Unmarshal(data, &manifest); err != nil {
-		return fmt.Errorf("evaluate: read the render manifest of %s: %w", directory, err)
+	if err := jsonfile.Decode(filepath.Join(directory, renderManifestFile), &manifest); err != nil {
+		return renderedMedia{}, err
 	}
 	if manifest.Model != model || manifest.Recipe != recipeID {
-		return fmt.Errorf("evaluate: the media of %s were drawn by %s under %s, not by %s under %s", directory, manifest.Model, manifest.Recipe, model, recipeID)
+		return renderedMedia{}, errors.New("evaluate: render model or recipe differs")
 	}
-	if _, listed := manifest.Files[name]; !listed {
-		return fmt.Errorf("evaluate: the render manifest of %s does not list %s", directory, name)
+	held, found := manifest.Draws[key]
+	request, err := artifact.JSONID(artifact.KindFile, held.Request)
+	if !found || err != nil || request.DigestHex() != key || held.Run.Kind() != artifact.KindRun || held.Output.Kind() != artifact.KindOutput || !held.Input.Valid() {
+		return renderedMedia{}, errors.New("evaluate: render request or producer provenance is unknown")
 	}
-	content, err := os.ReadFile(filepath.Join(directory, name))
+	path, err := mediaPath(directory, held.File)
 	if err != nil {
-		return err
+		return renderedMedia{}, err
 	}
-	sum := sha256.Sum256(content)
-	if digest, _, _ := strings.Cut(name, "."); hex.EncodeToString(sum[:]) != digest {
-		return errors.New("evaluate: " + name + " is not the media its digest names")
+	content, err := artifact.IdentifyFile(artifact.KindOutput, path)
+	if err != nil || content != held.Output {
+		return renderedMedia{}, errors.Join(err, errors.New("evaluate: rendered payload differs"))
 	}
-	return nil
+	produced, err := runrecord.RequireRun(ctx, store, held.Run)
+	if err != nil || produced.Outcome != runrecord.OutcomeSucceeded || produced.Recipe != recipeID || produced.CodeCommit != manifest.CodeCommit || !slices.Contains(produced.Inputs, held.Input) || !slices.Contains(produced.Outputs, held.Output) {
+		return renderedMedia{}, errors.Join(err, errors.New("evaluate: producing run does not bind this request and output"))
+	}
+	input, found, err := artifact.ReadContent(ctx, store, held.Input)
+	if err != nil || !found {
+		return renderedMedia{}, errors.Join(err, errors.New("evaluate: producing request is absent"))
+	}
+	retained, known := capabilityruntime.RetainedRequest(input)
+	var requested, consumed map[string]any
+	if !known || json.Unmarshal(held.Request, &requested) != nil || json.Unmarshal([]byte(retained), &consumed) != nil {
+		return renderedMedia{}, errors.New("evaluate: producing request is not retained JSON")
+	}
+	for field, value := range requested {
+		if !reflect.DeepEqual(value, consumed[field]) {
+			return renderedMedia{}, fmt.Errorf("evaluate: producing request differs at %s", field)
+		}
+	}
+	return held, nil
 }

@@ -63,11 +63,12 @@ var (
 )
 
 type ExactResult struct {
-	Name            string `json:"name"`
-	PromptTokens    int    `json:"prompt_tokens"`
-	GeneratedTokens int    `json:"generated_tokens"`
-	Text            string `json:"text"`
-	WallNS          uint64 `json:"wall_ns,omitzero"`
+	Name            string      `json:"name"`
+	PromptTokens    int         `json:"prompt_tokens"`
+	GeneratedTokens int         `json:"generated_tokens"`
+	Text            string      `json:"text"`
+	WallNS          uint64      `json:"wall_ns,omitzero"`
+	Producer        artifact.ID `json:"producer,omitzero"`
 }
 
 type Generator interface {
@@ -156,9 +157,18 @@ func record(ctx context.Context, generator Generator, name, prompt string, optio
 	result := ExactResult{
 		Name: name, PromptTokens: promptTokens,
 		GeneratedTokens: len(ids) - promptTokens, Text: strings.ToValidUTF8(generated.String(), string(utf8.RuneError)),
-		WallNS: wall,
+		WallNS:   wall,
+		Producer: producingRun(generator),
 	}
 	return result, nil
+}
+
+// producingRun retains a workflow-backed answer's original producer.
+func producingRun(generator Generator) artifact.ID {
+	if producer, ok := generator.(interface{ ProducingRun() artifact.ID }); ok {
+		return producer.ProducingRun()
+	}
+	return artifact.ID{}
 }
 
 // recordInstruction applies declared conversation framing once before recording

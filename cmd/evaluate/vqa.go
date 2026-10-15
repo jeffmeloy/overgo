@@ -45,7 +45,8 @@ type vqaRuntime struct {
 	modelID  artifact.ID
 	modelDir string
 	program  recipe.Program
-	root     string
+	*mediaFiles
+	producer artifact.ID
 	// attempt names this evaluation run: the workflow stores each answer under
 	// its key, so a key that did not change between runs would replay the last
 	// run's answers instead of asking the model again.
@@ -67,11 +68,7 @@ func (r *vqaRuntime) Generate(ctx context.Context, prompt string, options infere
 	if !named || kind != evaluation.MediaImage {
 		return nil, "", errors.New("evaluate: a vqa case names the image its question asks about")
 	}
-	path, err := mediaPath(r.root, name)
-	if err != nil {
-		return nil, "", err
-	}
-	raw, err := os.ReadFile(path)
+	raw, err := r.mediaFiles.read(name)
 	if err != nil {
 		return nil, "", err
 	}
@@ -79,11 +76,11 @@ func (r *vqaRuntime) Generate(ctx context.Context, prompt string, options infere
 	if err != nil {
 		return nil, "", err
 	}
-	key, err := vqaRunKey(r.attempt, name, question, options.MaxNewTokens)
+	key, err := vqaRunKey(r.attempt, image.Descriptor.ID.String(), question, options.MaxNewTokens)
 	if err != nil {
 		return nil, "", err
 	}
-	text, _, err := vqaserve.RunProgram(ctx, r.store, r.modelID, r.program, key, image, question,
+	text, result, err := vqaserve.RunProgram(ctx, r.store, r.modelID, r.program, key, image, question,
 		func(image []byte, question string) (vqaserve.Prepared, error) {
 			prepared, err := vqaserve.Prepare(r.modelDir, image, question)
 			if err == nil && options.OnPromptEvaluated != nil {
@@ -98,6 +95,7 @@ func (r *vqaRuntime) Generate(ctx context.Context, prompt string, options infere
 	if err != nil {
 		return nil, "", err
 	}
+	r.producer = result.Run.ID
 	if options.OnToken != nil {
 		if err := options.OnToken(inference.TokenEvent{Piece: text}); err != nil {
 			return nil, "", err
@@ -106,14 +104,17 @@ func (r *vqaRuntime) Generate(ctx context.Context, prompt string, options infere
 	return nil, text, nil
 }
 
+// ProducingRun names the persisted workflow that supplied the last answer.
+func (r *vqaRuntime) ProducingRun() artifact.ID { return r.producer }
+
 // vqaRunKey names the workflow run of one question about one image in one
 // evaluation attempt, under one decode budget: the run's stored answer is
 // replayed for the same key, so each of these changes it.
-func vqaRunKey(attempt, name, question string, steps int) (string, error) {
+func vqaRunKey(attempt, content, question string, steps int) (string, error) {
 	key, err := artifact.JSONID(artifact.KindProfile, struct {
-		Attempt, Name, Question string
-		Steps                   int
-	}{attempt, name, question, steps})
+		Attempt, Content, Question string
+		Steps                      int
+	}{attempt, content, question, steps})
 	if err != nil {
 		return "", err
 	}
@@ -130,7 +131,7 @@ func openVQASession(ctx context.Context, store *overgodb.Store, value manifest, 
 	modelID := source.Inventory.Manifest.ID
 	return openCapabilitySession(ctx, store, value, source, recipe.TaskVQA, func() (evaluation.Runtime, func(context.Context) error, error) {
 		_, program, err := modelrecipe.ResolveActiveCapability(ctx, store, modelID, recipe.TaskVQA)
-		return &vqaRuntime{store: store, modelID: modelID, modelDir: request.Path, program: program, root: request.MediaRoot, attempt: time.Now().UTC().Format(time.RFC3339Nano)},
+		return &vqaRuntime{store: store, modelID: modelID, modelDir: request.Path, program: program, mediaFiles: &mediaFiles{root: request.MediaRoot}, attempt: time.Now().UTC().Format(time.RFC3339Nano)},
 			func(context.Context) error { return nil }, err
 	})
 }

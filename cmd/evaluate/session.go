@@ -225,7 +225,7 @@ func evaluateSuiteFile(ctx context.Context, campaign *evaluation.Campaign, path 
 	if err != nil {
 		return err
 	}
-	compiled, err := evaluation.CompileSuite(data, campaign.Authorities())
+	compiled, err := campaign.CompileSuite(ctx, data)
 	if err != nil {
 		return fmt.Errorf("evaluate: compile suite %q: %w", path, err)
 	}

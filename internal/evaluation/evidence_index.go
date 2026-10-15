@@ -151,6 +151,16 @@ func recordExecution(ctx context.Context, store *overgodb.Store, record runrecor
 	if err != nil {
 		return summary
 	}
+	if plan.body.Media == nil {
+		profile, found, err := artifact.ReadContent(ctx, store, plan.body.CaseProfile)
+		if err != nil || !found {
+			return summary
+		}
+		named, err := namesMedia(profile.Data)
+		if err != nil || named {
+			return summary
+		}
+	}
 	summary.Comparison, summary.Environment, summary.CodeCommit = comparison, bound.Environment, bound.CodeCommit
 	summary.Prompting, summary.Reproducible, summary.ExecutionKnown = policy.Prompting.Label(), environment.Reproducible(), true
 	if counting := namedCounting(ctx, store, plan); len(counting) != 0 {

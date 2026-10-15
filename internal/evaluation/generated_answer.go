@@ -46,9 +46,8 @@ type GeneratedAnswerSuite struct {
 	Kind   string `json:"kind"`
 	Schema string `json:"schema"`
 	Source string `json:"source"`
-	// Judge names the model that answers the cases about media another model
-	// made, when the suite scores that other model: the score depends on it, so a
-	// session whose judge differs is refused.
+	// Judge is a descriptive label in an unbound media suite.
+	// Campaign.CompileSuite replaces it with the admitted judge authority.
 	Judge      string                `json:"judge,omitzero"`
 	Transforms []string              `json:"transforms"`
 	Cases      []GeneratedAnswerCase `json:"cases"`
@@ -62,12 +61,13 @@ type generatedAnswerPlan struct {
 }
 
 type generatedAnswerObservation struct {
-	Name      string `json:"name"`
-	Raw       string `json:"raw"`
-	Scored    string `json:"scored"`
-	Accepted  bool   `json:"accepted"`
-	Prompt    int    `json:"prompt_tokens"`
-	Generated int    `json:"generated_tokens"`
+	Name      string      `json:"name"`
+	Raw       string      `json:"raw"`
+	Scored    string      `json:"scored"`
+	Accepted  bool        `json:"accepted"`
+	Prompt    int         `json:"prompt_tokens"`
+	Generated int         `json:"generated_tokens"`
+	Producer  artifact.ID `json:"producer,omitzero"`
 }
 
 type generatedAnswerReport struct {
@@ -156,6 +156,7 @@ func evaluateGeneratedAnswer(
 		Version: artifact.InitialDocumentVersion, Plan: plan.identity, Dataset: compiled.dataset,
 		Observations: make([]generatedAnswerObservation, len(compiled.suite.Cases)),
 	}
+	var producers []artifact.ID
 	correct := 0
 	progress := trackProgress(ctx, compiled.suite.Source, len(compiled.suite.Cases))
 	for index, testCase := range compiled.suite.Cases {
@@ -177,6 +178,10 @@ func evaluateGeneratedAnswer(
 		report.Observations[index] = generatedAnswerObservation{
 			Name: testCase.Name, Raw: result.Text, Scored: scored, Accepted: accepted,
 			Prompt: result.PromptTokens, Generated: result.GeneratedTokens,
+			Producer: result.Producer,
+		}
+		if producer := report.Observations[index].Producer; producer.Valid() {
+			producers = append(producers, producer)
 		}
 		progress.hit(accepted)
 	}
@@ -190,7 +195,7 @@ func evaluateGeneratedAnswer(
 	}
 	report.ID = id
 	if err := publishCampaignDocument(
-		ctx, repository, report.Plan, report.Dataset, report.ID, generatedAnswerReportContract, report,
+		ctx, repository, report.Plan, report.Dataset, report.ID, generatedAnswerReportContract, report, producers...,
 	); err != nil {
 		return generatedAnswerReport{}, err
 	}

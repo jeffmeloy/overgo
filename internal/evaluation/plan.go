@@ -123,7 +123,9 @@ type ExactAuthorities struct {
 	// AnswerScope names the code a case's answer is kept under where the
 	// build counted an identity for it (AnsweredBy); empty keeps an answer
 	// under CodeCommit. It is no part of a plan's identity.
-	AnswerScope string
+	AnswerScope  string
+	media        *mediaAuthority
+	mediaProfile artifact.Content
 }
 
 type Plan struct {
@@ -150,6 +152,7 @@ type planBody struct {
 	CodeCommit      string                      `json:"code_commit"`
 	Environment     artifact.ID                 `json:"environment"`
 	Agent           *agentTrajectoryAuthorities `json:"agent,omitempty"`
+	Media           *mediaAuthority             `json:"media,omitempty"`
 }
 
 // agentTrajectoryScore names one deterministic, code-owned trajectory scorer.
@@ -286,17 +289,21 @@ func bindAsked[C, S any](
 		ModelDefinition: authorities.ModelDefinition, RuntimeRecipe: authorities.RuntimeRecipe,
 		Dataset: dataset, Split: split, CaseProfile: caseProfileID,
 		Scorer: scorerContent.Descriptor.ID, Execution: executionContent.Descriptor.ID, CodeCommit: authorities.CodeCommit,
-		Environment: authorities.Environment,
+		Environment: authorities.Environment, Media: authorities.media,
 	}
 	identity, err := artifact.JSONID(artifact.KindProfile, body)
 	if err != nil {
 		return Plan{}, err
 	}
-	return Plan{
+	bound := Plan{
 		identity: identity, body: body,
 		authorities: []artifact.Content{caseContent, scorerContent, executionContent},
 		answered:    authorities.AnswerScope, reasoning: authorities.Execution.Reasoning,
-	}, nil
+	}
+	if authorities.media != nil {
+		bound.authorities = append(bound.authorities, authorities.mediaProfile)
+	}
+	return bound, nil
 }
 
 func (p Plan) Identity() artifact.ID { return p.identity }
@@ -311,6 +318,12 @@ func (p Plan) Execution() artifact.ID { return p.body.Execution }
 // again only to what the plan's execution was asked, by the code that gave it
 // (observed).
 func (p Plan) comparisonIdentity() (artifact.ID, error) {
+	if p.body.Media != nil {
+		return artifact.JSONID(artifact.KindProfile, struct {
+			Method, Scorer, Execution, Environment artifact.ID
+			Agent                                  *agentTrajectoryAuthorities `json:"agent,omitempty"`
+		}{p.body.Media.Method, p.body.Scorer, p.body.Execution, p.body.Environment, p.body.Agent})
+	}
 	return artifact.JSONID(artifact.KindProfile, struct {
 		Version     uint16                      `json:"version"`
 		Dataset     artifact.ID                 `json:"dataset"`
@@ -362,6 +375,16 @@ func ParsePlan(content []byte) (Plan, error) {
 }
 
 func (p Plan) ValidateIdentity() error {
+	if p.body.Media != nil {
+		if p.body.Media.Method.Kind() != artifact.KindProfile || len(p.body.Media.Inputs) == 0 {
+			return errors.New("evaluation: media method is incomplete")
+		}
+		for _, input := range p.body.Media.Inputs {
+			if !input.valid() {
+				return errors.New("evaluation: media input is incomplete")
+			}
+		}
+	}
 	if p.body.Version != artifact.InitialDocumentVersion ||
 		p.body.ModelDefinition.Kind() != artifact.KindModelDefinition ||
 		p.body.RuntimeRecipe.Kind() != artifact.KindRecipe ||
@@ -393,6 +416,14 @@ func (p Plan) Lineage() []artifact.Lineage {
 	if p.body.Agent != nil {
 		parents = append(parents, p.body.Agent.Trajectories...)
 		parents = append(parents, p.body.Agent.AdvisoryJudges...)
+	}
+	if p.body.Media != nil {
+		parents = append(parents, p.body.Media.Method)
+		for _, input := range p.body.Media.Inputs {
+			if input.Producer.Valid() {
+				parents = append(parents, input.Producer)
+			}
+		}
 	}
 	return artifact.DependencyLineage(p.identity, parents...)
 }

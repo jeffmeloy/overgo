@@ -171,7 +171,9 @@ func DecodeEncodedVideo(ctx context.Context, data []byte, configuredFFmpeg strin
 	if err != nil {
 		return nil, err
 	}
-	return decodeFFmpegFrames(ctx, ffmpeg, "pipe:0", bytes.NewReader(data), fps, maximum)
+	return decodeEncodedFile(data, func(path string) ([]image.Image, error) {
+		return decodeFFmpegFrames(ctx, ffmpeg, path, nil, fps, maximum)
+	})
 }
 
 func DecodeVideoFile(ctx context.Context, path, configuredFFmpeg string, fps float64, maximum int) ([]image.Image, error) {
@@ -226,6 +228,13 @@ func DecodeVideoFileCovering(ctx context.Context, path, configuredFFmpeg string,
 //   - the bytes are read from a file of their own, removed after
 //   - a file because an MP4 whose index box follows its media cannot be read from a pipe past FFmpeg's read buffer (FFmpeg refuses it as a "partial file").
 func DecodeEncodedVideoCovering(ctx context.Context, data []byte, configuredFFmpeg string, fps float64, maximum, width, height int) ([]image.Image, error) {
+	return decodeEncodedFile(data, func(path string) ([]image.Image, error) {
+		return DecodeVideoFileCovering(ctx, path, configuredFFmpeg, fps, maximum, width, height)
+	})
+}
+
+// decodeEncodedFile provides a seekable snapshot for formats whose index follows their payload.
+func decodeEncodedFile(data []byte, decode func(string) ([]image.Image, error)) ([]image.Image, error) {
 	file, err := os.CreateTemp("", "overgo-clip-*")
 	if err != nil {
 		return nil, err
@@ -237,7 +246,7 @@ func DecodeEncodedVideoCovering(ctx context.Context, data []byte, configuredFFmp
 	if err := file.Close(); err != nil {
 		return nil, err
 	}
-	return DecodeVideoFileCovering(ctx, file.Name(), configuredFFmpeg, fps, maximum, width, height)
+	return decode(file.Name())
 }
 
 // decodeVideoFileSized decodes a clip's first frames through the frame-rate

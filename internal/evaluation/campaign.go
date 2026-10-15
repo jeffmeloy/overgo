@@ -148,6 +148,17 @@ func (campaign *Campaign) Evaluate(ctx context.Context, suite CompiledSuite) (Ca
 	if err := campaign.publishEnvironment(ctx); err != nil {
 		return CampaignResult{}, err
 	}
+	if suite.plan.body.Media == nil {
+		for _, content := range suite.plan.authorities {
+			if content.Descriptor.ID != suite.plan.body.CaseProfile {
+				continue
+			}
+			named, err := namesMedia(content.Data)
+			if err != nil || named {
+				return CampaignResult{}, errors.Join(err, errors.New("evaluation: media inputs must be resolved before execution"))
+			}
+		}
+	}
 	result, evaluateErr := executeSuite(ctx, campaign.repository, campaign.runtime, suite)
 	measured, err := stopwatch.Elapsed()
 	if err != nil {

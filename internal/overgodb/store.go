@@ -276,7 +276,7 @@ func open(ctx context.Context, root string, readOnly bool) (*Store, error) {
 	}
 	if ctx != nil {
 		if err := contextError(ctx); err != nil {
-			return nil, errors.Join(err, store.Close())
+			return nil, errors.Join(err, store.log.Close())
 		}
 	}
 	return store, nil
@@ -917,27 +917,23 @@ func (s *Store) Head() (artifact.CommitID, uint64) {
 }
 
 // Close releases the record log; further calls are no-ops.
+//   - Checkpoint maintenance is best effort and never waits for writer admission.
 func (s *Store) Close() error {
 	if s == nil {
 		return nil
-	}
-	if !s.readOnly {
-		// A writer that would leave more than its tail of records past the
-		// checkpoint writes one first, so an open's replay stays bounded. The
-		// checkpoint is acceleration: a handle that cannot write it, because it
-		// is closed already, is faulted or lost its store, closes as before.
-		_ = s.writeTransaction(context.Background(), func() error {
-			if s.sequence-s.anchored <= s.tail {
-				return nil
-			}
-			_, err := s.snapshotLocked()
-			return err
-		})
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
 		return nil
+	}
+	if s.ready(true) == nil {
+		if lock, err := processlock.Acquire(writerLockPath(s.root), storeFileMode); err == nil {
+			defer lock.Close()
+			if s.refreshLocked() == nil && s.sequence-s.anchored > s.tail {
+				_, _ = s.snapshotLocked()
+			}
+		}
 	}
 	s.closed = true
 	return s.log.Close()

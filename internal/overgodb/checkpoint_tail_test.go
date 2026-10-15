@@ -10,20 +10,9 @@ import (
 	"overgo/internal/testutil"
 )
 
-// TestAnOpenReplaysNoMoreThanTheBound holds the journal an open replays to
-// the tail a writer may leave. The tail is three records here in place of the
-// store's own, which is set on every handle an open returns.
-//
-// A writer that closes with no more than its tail past the checkpoint writes
-// none: the store has no checkpoint generation and an open replays the whole
-// journal. One that closes with more writes a checkpoint at its head first,
-// so the next open is anchored there and replays nothing. A writer after it
-// that leaves two more records writes none, and an open replays those two.
-// A handle that only reads never writes one, however long the tail.
-//
-// A reader that held the store open across the checkpoint, whose journal was
-// sealed under it, rebuilds from the checkpoint and not from the first
-// record, and holds the same catalog as a fresh open.
+// TestAnOpenReplaysNoMoreThanTheBound checks checkpoint maintenance on uncontended close.
+//   - Read-only handles never write checkpoints.
+//   - A reader held across rotation must match a fresh reader.
 func TestAnOpenReplaysNoMoreThanTheBound(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()

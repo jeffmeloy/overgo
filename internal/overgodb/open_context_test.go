@@ -3,10 +3,27 @@ package overgodb
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"overgo/internal/processlock"
 )
+
+// cancelAtJournal cancels startup once replay has created the journal.
+type cancelAtJournal struct {
+	context.Context
+	journal string
+	cancel  context.CancelCauseFunc
+	cause   error
+}
+
+func (c cancelAtJournal) Err() error {
+	if _, err := os.Stat(c.journal); err == nil {
+		c.cancel(c.cause)
+	}
+	return c.Context.Err()
+}
 
 func TestOpenContextWriterAdmission(t *testing.T) {
 	t.Parallel()
@@ -76,6 +93,26 @@ func TestOpenContextWriterAdmission(t *testing.T) {
 			}
 		})
 	}
+	t.Run("cancel after replay releases startup resources", func(t *testing.T) {
+		root := t.TempDir()
+		ctx, cancel := context.WithCancelCause(t.Context())
+		defer cancel(context.Canceled)
+		cause := errors.New("cancel after journal creation")
+		store, err := OpenContext(cancelAtJournal{ctx, filepath.Join(root, storeFilename), cancel, cause}, root)
+		if store != nil || !errors.Is(err, cause) {
+			if store != nil {
+				store.Close()
+			}
+			t.Fatalf("cancelled replay = %v, %v; want no store and caller cause", store, err)
+		}
+		store, err = Open(root)
+		if err != nil {
+			t.Fatalf("cancelled replay retained writer admission: %v", err)
+		}
+		if err := store.Close(); err != nil {
+			t.Fatal(err)
+		}
+	})
 	t.Run("invalid context and path", func(t *testing.T) {
 		if _, err := OpenContext(nil, t.TempDir()); err == nil {
 			t.Fatal("nil context admitted")
@@ -89,4 +126,48 @@ func TestOpenContextWriterAdmission(t *testing.T) {
 			t.Fatalf("pre-cancelled startup: %v", err)
 		}
 	})
+}
+
+func TestStoreCloseReleasesWithoutWriterAdmission(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	store, err := Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	batch := fixtureBatch(t)
+	if _, err := store.Commit(t.Context(), batch); err != nil {
+		t.Fatal(err)
+	}
+	store.tail = 0
+	journal := store.log.file
+	lock, err := processlock.Acquire(writerLockPath(root), storeFileMode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lock.Close()
+	for range 2 {
+		if err := store.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := journal.ReadAt(make([]byte, 1), 0); !errors.Is(err, os.ErrClosed) {
+			t.Fatalf("close retained journal handle: %v", err)
+		}
+		if other, err := processlock.Acquire(writerLockPath(root), storeFileMode); !errors.Is(err, processlock.ErrBusy) {
+			other.Close()
+			t.Fatalf("close changed foreign ownership: %v", err)
+		}
+	}
+	if err := lock.Close(); err != nil {
+		t.Fatal(err)
+	}
+	reader, err := OpenReadOnly(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	if _, found, err := reader.Artifact(t.Context(), batch.Artifacts[0].ID); err != nil || !found {
+		t.Fatalf("closing without a checkpoint lost committed data: %v, %v", found, err)
+	}
 }

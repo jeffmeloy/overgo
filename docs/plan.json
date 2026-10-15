@@ -66,17 +66,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 15,
+        "nodes": 0,
         "reason": "Preflight measured 15 production AST nodes for nonblocking optional checkpoint admission and direct unpublished-log cleanup. Existing owners retain checkpoint and transaction behavior. Necessary regression coverage adds tests."
       },
       "steps": [
-        {
-          "id": "close",
-          "title": "Release cancelled and closed store handles without waiting for another writer",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^(TestOpenContextWriterAdmission|TestStoreCloseReleasesWithoutWriterAdmission|TestAnOpenReplaysNoMoreThanTheBound)$'",
-          "rationale": "SQA-145. Cancelled startup closes its unpublished log under the existing startup lock. Close skips optional checkpoint work when admission is unavailable and repeated Close takes no writer admission. A controlled post-replay cancellation and contended close must return and release resources. Keep exact replay, checkpoint thresholds, reader refresh and transaction exclusion.\nServes: failure-rate and interrupted-cycle recovery\nDisappears: public checkpoint-capable Close during failed startup and blocking optional close admission\nEvidence: go test ./internal/overgodb -run '^(TestOpenContextWriterAdmission|TestStoreCloseReleasesWithoutWriterAdmission|TestAnOpenReplaysNoMoreThanTheBound)$' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
-        },
         {
           "id": "release",
           "title": "Retry released-blob cleanup without another logical release",

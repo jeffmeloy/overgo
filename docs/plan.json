@@ -59,32 +59,7 @@
     }
   ],
   "lane": "master-lead",
-  "items": [
-    {
-      "id": "policy-search",
-      "title": "Make the exploratory request protocol a protocol of the evaluation command, and reproduce its one result",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 994,
-        "reason": "measured by the preflight of step protocol's change: a protocol of the evaluation command whose identity holds every input that decides an answer, the parser of a reasoned answer, and the refusal of exposed cases as held-out evidence"
-      },
-      "steps": [
-        {
-          "id": "reproduce",
-          "title": "Reproduce the result once with the named protocol, and state the difference a search must detect",
-          "status": "open",
-          "verify": "go test ./cmd/validate ./internal/scorecard ./internal/tensorstats ./internal/evaluation -run '^(TestScorecardSetsASampleAskedAnotherWayBesideItsReading|TestAQualityMoveIsJudgedByTheCasesAnsweredDifferently|TestExactPairedBinaryVerdictAndBounds|TestEvaluationProtocolCapturesAllPolicyInputs)$'",
-          "rationale": "Run the historical 40 Qwen3.5-4B questions once under exploratory-reasoning and chat-template, the original direct-answer baseline. The retained estimate is about three GPU hours for both arms. Validate the same names and targets against the existing sample before measurement. Every current sampler and parser input remains bound by the evaluation command. The old scratch run did not retain an exact seed derivation, so this tests its reported advantage and does not promise identical text. Report paired outcomes with tensorstats.ExactPairedBinary and the smallest favorable count under the scorecard's existing paired tail. Report the actual time and unknown power rather than invent a search allowance. No unattended search is adopted from this exposed sample alone.\nServes: held-out-quality interpretation\nDisappears: the scratch-only sample is replaced through the existing scorecard sample reader and no duplicate reproduction test or report framework is added\nEvidence: docs/verification/protocol-reproduction.txt names both stored evaluations and their producer commit and derives outcomes through evaluation.CaseOutcomes; internal/scorecard/protocol_samples.json retains the current paired sample for its existing scorecard consumer\nBatch: complete source changes first, measure both arms serially on the quiet machine, retain full evidence in the store, and run existing protocol, paired-outcome and presentation tests for the record landing",
-          "depends_on": [
-            "policy-search/protocol",
-            "trustworthy-measurement/exclusive",
-            "reasoning-closure/facts"
-          ]
-        }
-      ]
-    }
-  ],
+  "items": [],
   "decisions": [
     {
       "id": "gemma-12b-bf16-download",

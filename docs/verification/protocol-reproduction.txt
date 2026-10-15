@@ -1,0 +1,39 @@
+Qwen3.5-4B protocol reproduction
+
+Producer commit: 05675f0195626de5deddc71d2e988c7d605b4168
+Executable SHA-256: 2119923873d32240772d1bd9d45787b06004e7c48be6930657165c6357467f10
+Retained execution/comparison evidence: evidence:sha256:ad39c61b892a660f439311c384662ec442e3af77c6f25cdd62103bbd81bcfa57
+Model: model:sha256:887f41243686e101a314013a168b6bad5df19f8bee5df3e45d942ff79455413b
+Weights: tensor-set:sha256:c4e8dc8f885d590f146d96919562960a5d040ccc366623e986df8656539419ec
+Runtime recipe: recipe:sha256:49d1ed7c41e45abcc9c10ff13ec247ab775f7054123d5507caa1f63c0a19f803
+Derived dataset: dataset:sha256:3780551de14f861981fdeaa0a6a5e6ecea931fd61efb02d07ab65c53b0ffce56
+Environment: evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633 (windows/amd64, device cuda:0, backend cuda, driver process, runtime go1.26.2)
+
+Command: cmd/evaluate -all -worker -family mmlu-pro/40 with chat-template, then exploratory-reasoning, on the same Qwen3.5-4B f16 file and clean commit. Both commands ran serially under landing.Measuring, within one three-hour budget. The packet retains full arguments, binary hash, harness sources and logs.
+Quiet-machine reading: waited 0s; competing work [].
+
+chat-template: 20/40 correct, 1 unmatched, 4 at the generated-token limit; command wall 9.1509949s; scored execution 3.9447678s.
+  evaluation evaluation:sha256:75dbdb6ca94a8e7b8e91c56ed4da391e735fe035b8acdb35739ee860a50b5f14
+  run run:sha256:668658cf29db4895dfcba581631dc0cd6b314d3660f4ff940f776fa6bce54475
+  plan profile:sha256:27bf69657e5bb0a6cd0f02c640f83c26194048e3db003d5ce5d41713e40b222e
+  report evaluation:sha256:8642fbcd22367856ce89c1fdb1a33900e5cb05e0eacf7f60f60a59e73c4e3333
+  observed answers profile:sha256:e761174610368d969a1e437279ae32dd6fda04bc0e3526c91742cb4c94e990c9
+exploratory-reasoning: 30/40 correct, 1 unmatched, 0 at the generated-token limit; command wall 2h28m23.9517008s; scored execution 2h28m18.7822804s.
+  evaluation evaluation:sha256:88e2b78ca41e1b9d3381a19dfdc244d366568d92fad8b2716825ee3112e9701c
+  run run:sha256:f7003d17f8818504b49c6f7552a2e2d43699ade2eef541e65770642dc97044b4
+  plan profile:sha256:58c3b2d4a0d63b67f32463aaaca11f36e433171346da4ec397bb392bb01ce5a1
+  report evaluation:sha256:22df84b121072817dfe834356d6fd282db51698fd99de7af45ef510dbc2ca0e4
+  observed answers profile:sha256:72701617380cf092e7683a8e43d3112ec28260062b5db519f510e0d5dfacc138
+
+Paired outcomes from evaluation.CaseOutcomes: 15 reasoning-only correct, 5 direct-only correct, 20 tied outcomes. ExactPairedBinary one-sided tail = 0.020694732666. The scorecard paired threshold is 0.0227501319482 (0.5 * erfc(2/sqrt(2)), inclusive).
+The observed advantage crosses the existing paired threshold under its stated assumptions. This does not reproduce the exact historical score or establish an independent held-out improvement.
+Historical sample: direct 20/40, reasoning 34/40. Current selected options differ on 0 direct cases and 9 reasoning cases. The historical sample has names and targets but no stored evaluation with complete source, environment and seed provenance. Its case names and targets were checked before this run; equality of the historical execution or generated text is not claimed.
+Reasoning prompt plus answer tokens average 6502. 0 combined token counts reach the display limit; 0 generations reach the actual new-token limit. The full per-case prompt and generation counts and identities are retained in the packet, while generated text remains in the original answer records.
+
+Smallest favorable counts among forty pairs at the existing threshold:
+  0 losses -> at least 6 wins, net gain 15.0 percentage points, tail 0.015625
+  5 losses -> at least 15 wins, net gain 25.0 percentage points, tail 0.020694732666
+
+This boundary describes the scorecard's existing exact paired decision under independent pairs with equally likely discordant directions. It is not a power calculation. These forty deterministically spaced, already exposed questions are not an independent confirmation set; the result does not establish full-suite quality, population precision, an unattended search allowance, or a causal effect of any one setting. No search or policy adoption follows from this sample alone.
+
+Existing consumers and checks: internal/scorecard/protocol_samples.json, scorecard.ProtocolSamples, scorecard.ProtocolSample.Tally, cmd/validate.TestScorecardSetsASampleAskedAnotherWayBesideItsReading, scorecard.TestAQualityMoveIsJudgedByTheCasesAnsweredDifferently, tensorstats.TestExactPairedBinaryVerdictAndBounds, evaluation.TestEvaluationProtocolCapturesAllPolicyInputs. No new test framework, selector, production path or schema is introduced.

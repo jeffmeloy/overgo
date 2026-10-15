@@ -66,8 +66,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "Built preflight counts 81 production AST nodes for producer identity and the no-cache path. Existing cache functions own the change. Test growth is necessary changed and unknown producer coverage in the existing fixture. No new schemas or fixtures."
+        "nodes": 192,
+        "reason": "Built preflight measures 192 production AST nodes and 180 test nodes. Native Go-list JSON names current embedded files. Declared patterns retain conservative missing-input coverage. Git NUL-delimited paths preserve exact names. Existing fixtures own the cases. No new selector, schema or fixture file."
       },
       "steps": [
         {

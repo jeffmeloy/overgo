@@ -5,14 +5,21 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os"
 	"slices"
 	"strings"
 	"testing"
 
+	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
+	"overgo/internal/jsonfile"
 	"overgo/internal/landing"
+	"overgo/internal/overgodb"
 	"overgo/internal/quietmachine"
 	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
+	"overgo/internal/servingattempt"
+	"overgo/internal/testutil"
 )
 
 // TestOnlyTheCellsThatReadTimesTakeTheQuietMachine holds which cells a cycle runs with no
@@ -49,6 +56,31 @@ func TestOnlyTheCellsThatReadTimesTakeTheQuietMachine(t *testing.T) {
 // quiet, and the fourth is beside other work again, which the run says. A cell that failed is not
 // measured again. The run ends with three cells acquired and the one failure named.
 func TestAContendedCellIsMeasuredOnceMoreAfterTheOthers(t *testing.T) {
+	// The same fixture is the isolated producer for the result-file boundary.
+	if result := os.Getenv("OVERGO_TEST_SERVING_RESULT"); result != "" {
+		if result == "missing" {
+			return
+		}
+		path := os.Getenv(servingattempt.OutputEnvironment)
+		if result == "malformed" {
+			if err := os.WriteFile(path, []byte("{} {}"), clioptions.PrivateFileMode); err != nil {
+				t.Fatal(err)
+			}
+			return
+		}
+		id, err := artifact.ParseID(result)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := jsonfile.Write(path, id, clioptions.PrivateFileMode); err != nil {
+			t.Fatal(err)
+		}
+		if os.Getenv("OVERGO_TEST_SERVING_FAILED") != "" {
+			t.Fatal("producer failed after publication")
+		}
+		return
+	}
+
 	// Serial: it clears the name of the cycle's credit file in the process environment, so no cell of
 	// this fixture is credited to a measurement run that started the test.
 	t.Setenv(clioptions.CycleCreditEnvironment, "")
@@ -98,4 +130,71 @@ func TestAContendedCellIsMeasuredOnceMoreAfterTheOthers(t *testing.T) {
 			t.Errorf("the run's output holds %q, which it must not: only a contended success is measured again, and no store is selected here\n%s", absent, said)
 		}
 	}
+	t.Run("publication survives cancellation", func(t *testing.T) {
+		root := t.TempDir()
+		store, err := overgodb.Open(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer store.Close()
+		model := testutil.ArtifactID(t, artifact.KindModel, "measured")
+		environment := testutil.ArtifactID(t, artifact.KindEvidence, "environment")
+		recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "recipe")
+		if _, err := store.Commit(t.Context(), artifact.Batch{Key: "authorities", Artifacts: []artifact.Descriptor{{ID: model}, {ID: environment}, {ID: recipeID}}}); err != nil {
+			t.Fatal(err)
+		}
+		publish := func(start int64) artifact.ID {
+			observation, err := runrecord.PublishServingObservation(t.Context(), store, runrecord.ServingObservation{Model: model, Recipe: recipeID, Environment: environment, Task: recipe.TaskInference, StartedUnixNS: start, MeasuredNS: 1, Outcome: runrecord.OutcomeSucceeded})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return observation.ID
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		var before, actual, after artifact.ID
+		measured := func(_ context.Context, _ io.Writer, run func() error) (landing.Reading, error) {
+			before = publish(1)
+			err := run()
+			after = publish(3)
+			cancel()
+			return landing.Reading{Competing: busy}, errors.Join(err, ctx.Err())
+		}
+		contended, err := measureCell(ctx, io.Discard, root, store, measured, func() (artifact.ID, error) { actual = publish(2); return actual, nil })
+		if !contended || !errors.Is(err, context.Canceled) {
+			t.Fatalf("canceled measurement = %t, %v", contended, err)
+		}
+		if err := store.Refresh(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		for _, id := range []artifact.ID{before, actual, after} {
+			children, err := store.Children(t.Context(), id)
+			if err != nil || (len(children) != 0) != (id == actual) {
+				t.Errorf("attempt %s exclusion children=%v (%v), actual=%s", id, children, err, actual)
+			}
+		}
+	})
+
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := testutil.ArtifactID(t, artifact.KindEvidence, "child observation")
+	for _, mode := range []string{"missing", "malformed", "success", "failed"} {
+		t.Run("handoff "+mode, func(t *testing.T) {
+			result := mode
+			if mode == "success" || mode == "failed" {
+				result = id.String()
+			}
+			environment := []string{"OVERGO_TEST_SERVING_RESULT=" + result}
+			if mode == "failed" {
+				environment = append(environment, "OVERGO_TEST_SERVING_FAILED=1")
+			}
+			got, err := acquireServing(t.Context(), io.Discard, ".", executable, []string{"-test.run=^TestAContendedCellIsMeasuredOnceMoreAfterTheOthers$"}, environment...)
+			if (err == nil) != (mode == "success") || got.Valid() != (mode == "success" || mode == "failed") || got.Valid() && got != id {
+				t.Fatalf("%s producer returned %s (%v)", mode, got, err)
+			}
+		})
+	}
+
 }

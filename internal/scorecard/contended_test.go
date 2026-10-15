@@ -1,6 +1,7 @@
 package scorecard
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -13,17 +14,12 @@ import (
 	"overgo/internal/testutil"
 )
 
-// TestAContendedAttemptGivesTheScorecardNoReading holds what the scorecard reads once a measurement
-// that saw other work on its machine has set its attempts aside.
-//
-// A recipe has three quiet attempts of 100 ms. A measurement beside other work then writes two
-// slow successes and a failure. Read as they stand, the two slow attempts are most of the newest
-// three and the cell reads the slower of them. Set aside from the store's sequence before that
-// measurement, both successes give no reading: the cell reads 100 ms again, from the quiet
-// attempts, and names one of them. The failure is not set aside and still counts.
-//
-// Setting the same attempts aside again changes nothing, a sequence nothing came after records
-// nothing, and a record that names no competing work is refused.
+// TestAContendedAttemptGivesTheScorecardNoReading preserves quiet evidence and
+// failed-attempt accounting while excluding exact successful producer IDs.
+// Unrelated observations arrive before admission, during work and after it.
+// A measured observation declared bare before quiet evidence is filled later;
+// its original descriptor order must not hide it. Replaying the exclusions is
+// idempotent, and an empty identity list records nothing.
 func TestAContendedAttemptGivesTheScorecardNoReading(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
@@ -35,18 +31,22 @@ func TestAContendedAttemptGivesTheScorecardNoReading(t *testing.T) {
 	model := testutil.ArtifactID(t, artifact.KindModel, "contended-model")
 	environment := testutil.ArtifactID(t, artifact.KindEvidence, "contended-environment")
 	served := testutil.ArtifactID(t, artifact.KindRecipe, "contended-recipe")
-	if _, err := store.Commit(ctx, artifact.Batch{Key: "contended/authorities", Artifacts: []artifact.Descriptor{{ID: model}, {ID: environment}, {ID: served}}}); err != nil {
+	other := testutil.ArtifactID(t, artifact.KindRecipe, "unrelated-recipe")
+	producer := served
+	if _, err := store.Commit(ctx, artifact.Batch{Key: "contended/authorities", Artifacts: []artifact.Descriptor{{ID: model}, {ID: environment}, {ID: served}, {ID: other}}}); err != nil {
 		t.Fatal(err)
 	}
 	const millisecond = uint64(time.Millisecond)
 	started := int64(0)
+	var deferred artifact.Batch
+	deferContent := false
 	// attempt commits one serving attempt of the recipe, newer than every one before it: a success
 	// that timed its load and took so many milliseconds to its first output, or, given none, a failure.
 	attempt := func(prefill uint64) artifact.ID {
 		t.Helper()
 		started++
 		observation := runrecord.ServingObservation{
-			Model: model, Recipe: served, Environment: environment, Task: recipe.TaskInference,
+			Model: model, Recipe: producer, Environment: environment, Task: recipe.TaskInference,
 			Outcome: runrecord.OutcomeFailed, Failure: "device-lost", StartedUnixNS: started, MeasuredNS: millisecond,
 		}
 		if prefill != 0 {
@@ -61,6 +61,10 @@ func TestAContendedAttemptGivesTheScorecardNoReading(t *testing.T) {
 		batch, err := observation.Batch("contended/" + observation.ID.String())
 		if err != nil {
 			t.Fatal(err)
+		}
+		if deferContent {
+			deferred = batch
+			batch = artifact.Batch{Key: "bare/" + observation.ID.String(), Artifacts: []artifact.Descriptor{{ID: observation.ID}}}
 		}
 		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
@@ -77,27 +81,39 @@ func TestAContendedAttemptGivesTheScorecardNoReading(t *testing.T) {
 		return firstOutputCell(recipe.TaskInference, evaluation.BenchmarkSummary{}, false, summaries[served]), summaries[served].failures
 	}
 
+	deferContent = true
+	late := attempt(975)
+	deferContent = false
 	quiet := []artifact.ID{attempt(100), attempt(100), attempt(100)}
-	_, before := store.Head()
-	attempt(900)
+	waiting := attempt(100)
+	slow := attempt(900)
+	concurrent := attempt(100)
 	slower := attempt(950)
-	attempt(0)
+	failed := attempt(0)
 	if cell, failures := read(); cell.Value != 900 || failures != 1 {
 		t.Fatalf("before anything is set aside the cell reads %v ms with %d failures, want 900, the median of 950, 900 and 100, and the one failure", cell.Value, failures)
 	}
 
+	producer = other
+	after := attempt(100)
+	producer = served
+	if _, err := store.Commit(ctx, deferred); err != nil {
+		t.Fatal(err)
+	}
+	quiet = append(quiet, waiting, concurrent, after)
+	attempts := []artifact.ID{slow, slower, late, failed}
 	competing := []string{"compile.exe", "go.exe"}
-	if recorded, err := SetAsideContended(ctx, store, before, nil); err == nil || !strings.Contains(err.Error(), "invalid contended reading") {
+	if recorded, err := SetAsideContended(ctx, store, attempts, nil); err == nil || !strings.Contains(err.Error(), "invalid contended reading") {
 		t.Fatalf("a record that names no competing work answered (%d, %v), want it refused", recorded, err)
 	}
-	if recorded, err := SetAsideContended(ctx, store, before, competing); err != nil || recorded != 2 {
-		t.Fatalf("setting aside what came after the quiet attempts recorded %d (%v), want the two successes and not the failure", recorded, err)
+	if recorded, err := SetAsideContended(ctx, store, attempts, competing); err != nil || recorded != 3 {
+		t.Errorf("setting aside the exact measured attempts recorded %d (%v), want the three measured successes and not the failure", recorded, err)
 	}
 	cell, failures := read()
 	if cell.Value != 100 || failures != 1 {
 		t.Fatalf("with the contended attempts set aside the cell reads %v ms with %d failures, want 100 from the quiet attempts and the failure still counted", cell.Value, failures)
 	}
-	if named := cell.Source; named == slower || named != quiet[0] && named != quiet[1] && named != quiet[2] {
+	if named := cell.Source; named == slower || !slices.Contains(quiet, named) {
 		t.Fatalf("the cell names the attempt %s, want one of the quiet attempts %v", named, quiet)
 	}
 	if aside, err := setAside(ctx, store, slower); err != nil || !aside {
@@ -107,14 +123,21 @@ func TestAContendedAttemptGivesTheScorecardNoReading(t *testing.T) {
 		t.Fatalf("a quiet attempt reads as set aside: %v (%v), want false", aside, err)
 	}
 
-	if recorded, err := SetAsideContended(ctx, store, before, competing); err != nil || recorded != 2 {
-		t.Fatalf("setting the same attempts aside again recorded %d (%v), want the same two and no failure", recorded, err)
+	for _, id := range append(slices.Clone(quiet), attempts...) {
+		aside, err := setAside(ctx, store, id)
+		want := slices.Contains(attempts, id) && id != failed
+		if err != nil || aside != want {
+			t.Errorf("attempt %s set aside = %t (%v), want %t", id, aside, err, want)
+		}
+	}
+
+	if recorded, err := SetAsideContended(ctx, store, attempts, competing); err != nil || recorded != 3 {
+		t.Fatalf("setting the same attempts aside again recorded %d (%v), want the same three and no failure", recorded, err)
 	}
 	if again, _ := read(); again.Value != cell.Value || again.Source != cell.Source {
 		t.Fatalf("after the second setting aside the cell reads %v ms from %s, want it unchanged", again.Value, again.Source)
 	}
-	_, now := store.Head()
-	if recorded, err := SetAsideContended(ctx, store, now, competing); err != nil || recorded != 0 {
-		t.Fatalf("a sequence nothing came after recorded %d (%v), want none", recorded, err)
+	if recorded, err := SetAsideContended(ctx, store, nil, competing); err != nil || recorded != 0 {
+		t.Fatalf("an empty attempt list recorded %d (%v), want none", recorded, err)
 	}
 }

@@ -24,6 +24,7 @@ import (
 	"overgo/internal/quietmachine"
 	"overgo/internal/runrecord"
 	"overgo/internal/scorecard"
+	"overgo/internal/servingattempt"
 	"overgo/internal/testevidence"
 	"overgo/internal/trainingworkflow"
 )
@@ -226,11 +227,14 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 		}
 		fmt.Fprintf(output, "validate -run %d/%d: %s %s (%s; %s)\n", index+1, len(cells), sel.Validation, displayName(sel.ModelValidation), sel.Reason, sel.Promotion)
 		environment = cellEnvironment(sel.Validation, environment)
-		acquireCell := func() error {
+		acquireCell := func() (artifact.ID, error) {
 			if sel.Validation == trainingProof {
-				return acquireTraining(ctx, output, root, store, sel.ModelValidation, name, args, environment...)
+				return artifact.ID{}, acquireTraining(ctx, output, root, store, sel.ModelValidation, name, args, environment...)
 			}
-			return acquire(ctx, output, root, name, args, environment...)
+			if timedValidation(sel.Validation) && sel.Validation != projectionProof {
+				return acquireServing(ctx, output, root, name, args, environment...)
+			}
+			return artifact.ID{}, acquire(ctx, output, root, name, args, environment...)
 		}
 		subject := fmt.Sprintf("%s %s", displayName(sel.ModelValidation), sel.Validation)
 		settle := func(err error) {
@@ -242,7 +246,8 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 			}
 		}
 		if !timedValidation(sel.Validation) {
-			settle(acquireCell())
+			_, err := acquireCell()
+			settle(err)
 			continue
 		}
 		contended, err := measureCell(ctx, output, storeRoot, store, measure, acquireCell)
@@ -284,30 +289,24 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 	return nil
 }
 
-// measureCell runs one timed cell under measure and reports whether the
-// measurement saw other work on the machine. When it did, the serving
-// attempts the store first held after the cell began are set aside
-// (scorecard.SetAsideContended), so the scorecard reads no time from them.
-// The store is opened for writing only for that. With no store selected
-// nothing is set aside, and the reading is still reported.
-func measureCell(ctx context.Context, output io.Writer, storeRoot string, store *overgodb.Store, measure timedMeasurement, acquireCell func() error) (contended bool, err error) {
-	var before uint64
-	if store != nil {
-		if err := store.Refresh(ctx); err != nil {
-			return false, err
-		}
-		_, before = store.Head()
-	}
-	reading, err := measure(ctx, output, acquireCell)
-	if len(reading.Competing) == 0 || store == nil {
+// measureCell excludes only the successful observation the admitted command
+// returns. Failed attempts stay counted, including when cancellation follows
+// publication. Training/projection cells produce no serving observation.
+func measureCell(ctx context.Context, output io.Writer, storeRoot string, store *overgodb.Store, measure timedMeasurement, acquireCell func() (artifact.ID, error)) (contended bool, err error) {
+	var attempt artifact.ID
+	reading, err := measure(ctx, output, func() error {
+		var cause error
+		attempt, cause = acquireCell()
+		return cause
+	})
+	if len(reading.Competing) == 0 || store == nil || !attempt.Valid() {
 		return len(reading.Competing) != 0, err
 	}
 	writable, openErr := overgodb.Open(storeRoot)
 	if openErr != nil {
 		return true, errors.Join(err, openErr)
 	}
-	// The attempts are set aside also when the run was cancelled meanwhile: they are in the store.
-	recorded, asideErr := scorecard.SetAsideContended(context.WithoutCancel(ctx), writable, before, reading.Competing)
+	recorded, asideErr := scorecard.SetAsideContended(context.WithoutCancel(ctx), writable, []artifact.ID{attempt}, reading.Competing)
 	fmt.Fprintf(output, "validate -run: set aside %d serving attempt(s) measured beside %s\n", recorded, strings.Join(reading.Competing, ", "))
 	return true, errors.Join(err, asideErr, writable.Close())
 }
@@ -465,6 +464,31 @@ func runCell(ctx context.Context, output io.Writer, root, name string, args []st
 		return fmt.Errorf("exit=%d: %s", receipt.ExitCode, strings.TrimSpace(stderr.String()))
 	}
 	return nil
+}
+
+// acquireServing owns the producer's result file until actual child completion.
+// A failed command may still have published an attempt, so read its handoff
+// before returning the execution error. A successful command must name one.
+func acquireServing(ctx context.Context, output io.Writer, root, name string, args []string, environment ...string) (attempt artifact.ID, err error) {
+	scratch, err := os.MkdirTemp("", "overgo-validate-serving-")
+	if err != nil {
+		return attempt, err
+	}
+	defer func() { err = errors.Join(err, os.RemoveAll(scratch)) }()
+	path := filepath.Join(scratch, "attempt.json")
+	environment = append(slices.Clone(environment), servingattempt.OutputEnvironment+"="+path)
+	err = runCell(ctx, output, root, name, args, environment...)
+	readErr := jsonfile.DecodeStrict(path, &attempt)
+	if errors.Is(readErr, os.ErrNotExist) && err != nil {
+		return attempt, err
+	}
+	if readErr == nil && attempt.Kind() != artifact.KindEvidence {
+		readErr = errors.New("producer named no serving observation")
+	}
+	if readErr != nil {
+		return artifact.ID{}, errors.Join(err, fmt.Errorf("serving attempt handoff: %w", readErr))
+	}
+	return attempt, err
 }
 
 // acquireTraining owns this invocation's scratch until actual child completion,

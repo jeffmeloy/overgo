@@ -258,7 +258,7 @@ func (workspace *storeGenerationWorkspace) observe(ctx context.Context, model, r
 	if measured.Run.Valid() {
 		run = measured.Run
 	}
-	_ = servingattempt.RecordWholeOutput(context.WithoutCancel(ctx), workspace.store, servingattempt.WholeOutput{
+	_, _ = servingattempt.RecordWholeOutput(context.WithoutCancel(ctx), workspace.store, servingattempt.WholeOutput{
 		Model: model, Recipe: recipeID, Run: run, Task: task, Started: started, Wall: wall,
 		Load: measured.Load, Decode: measured.Decode, OutputTokens: measured.OutputTokens,
 		// The server's process holds other models, so the executor's own peak is the attempt's, and a zero of it is a

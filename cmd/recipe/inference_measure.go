@@ -54,8 +54,8 @@ func measureRunner(repository, path string, journey bool) error {
 	if journey {
 		return journeyInference(context.Background(), repository, path, open, os.Stdout)
 	}
-	result, err := measureInference(context.Background(), repository, path, open)
-	if err != nil {
+	result, attempt, err := measureInference(context.Background(), repository, path, open)
+	if err = errors.Join(err, handoffAttempt(attempt)); err != nil {
 		return err
 	}
 	return json.NewEncoder(os.Stdout).Encode(result)
@@ -129,19 +129,19 @@ func journeyInference(ctx context.Context, repository, path string, open func(co
 // written only once the model is closed, so the writer never spans model
 // execution. Where the load's time went, and when the first token came, goes
 // beside the result on the other stream.
-func measureInference(ctx context.Context, repository, path string, open func(context.Context) (servedModel, error)) (evaluation.ExactResult, error) {
+func measureInference(ctx context.Context, repository, path string, open func(context.Context) (servedModel, error)) (evaluation.ExactResult, artifact.ID, error) {
 	model, active, requests, err := measuredRequest(ctx, repository, path)
 	if err != nil {
-		return evaluation.ExactResult{}, err
+		return evaluation.ExactResult{}, artifact.ID{}, err
 	}
 	observation, result, cause := observeInference(ctx, open, requests[0], os.Stderr)
 	observation.Model, observation.Recipe = model, active
 	store, err := overgodb.Open(repository)
 	if err != nil {
-		return result, errors.Join(cause, err)
+		return result, artifact.ID{}, errors.Join(cause, err)
 	}
-	recorded := errors.Join(recordInference(context.WithoutCancel(ctx), store, observation), store.Close())
-	return result, errors.Join(cause, recorded)
+	recorded, recordErr := recordInference(context.WithoutCancel(ctx), store, observation)
+	return result, recorded.ID, errors.Join(cause, recordErr, store.Close())
 }
 
 // verifiedCase finds the requests an active inference recipe's verification
@@ -295,21 +295,20 @@ func (generation *observedGeneration) sample(ctx context.Context, stage runrecor
 // recordInference publishes the attempt under the environment it ran in, the
 // one the server's attempts run under, through the owner that also parks a
 // failed attempt as a finding.
-func recordInference(ctx context.Context, store artifact.Repository, observation runrecord.ServingObservation) error {
+func recordInference(ctx context.Context, store artifact.Repository, observation runrecord.ServingObservation) (runrecord.ServingObservation, error) {
 	environment, err := runrecord.CurrentEnvironment("process", "go")
 	if err != nil {
-		return err
+		return runrecord.ServingObservation{}, err
 	}
 	batch, err := environment.Batch("serving/environment/" + environment.ID.String())
 	if err != nil {
-		return err
+		return runrecord.ServingObservation{}, err
 	}
 	// The environment of an earlier attempt on this machine is already the
 	// stored fact.
 	if _, err := artifact.Publish(ctx, store, batch); err != nil {
-		return err
+		return runrecord.ServingObservation{}, err
 	}
 	observation.Environment = environment.ID
-	_, err = servingattempt.Record(ctx, store, observation)
-	return err
+	return servingattempt.Record(ctx, store, observation)
 }

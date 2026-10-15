@@ -18,6 +18,10 @@ import (
 	"overgo/internal/runrecord"
 )
 
+// OutputEnvironment names an invocation-owned file that recipe measure writes
+// with its exact published serving observation identity, also on failure.
+const OutputEnvironment = "OVERGO_SERVING_ATTEMPT_OUTPUT"
+
 // WholeOutput is one execution of a capability that returns its
 // output whole: the model and recipe it ran, the run it recorded if any,
 // when it started, how long its output took, how long of that its model
@@ -44,20 +48,21 @@ const failureCode = "generation_failed"
 
 // RecordWholeOutput publishes the attempt as the serving observation
 // the scorecard counts, under the environment it ran in: a cancel as
-// cancelled, any other error as a failure.
-func RecordWholeOutput(ctx context.Context, store artifact.Repository, attempt WholeOutput) error {
+// cancelled, any other error as a failure. The published observation is returned
+// even when parking its failure as a finding fails.
+func RecordWholeOutput(ctx context.Context, store artifact.Repository, attempt WholeOutput) (runrecord.ServingObservation, error) {
 	environment, err := runrecord.CurrentEnvironment("process", "go")
 	if err != nil {
-		return err
+		return runrecord.ServingObservation{}, err
 	}
 	batch, err := environment.Batch("serving/environment/" + environment.ID.String())
 	if err != nil {
-		return err
+		return runrecord.ServingObservation{}, err
 	}
 	// The environment of an earlier attempt on this machine is already the
 	// stored fact.
 	if _, err := artifact.Publish(ctx, store, batch); err != nil {
-		return err
+		return runrecord.ServingObservation{}, err
 	}
 	observation := runrecord.ServingObservation{
 		Version: artifact.InitialDocumentVersion, Model: attempt.Model, Recipe: attempt.Recipe, Environment: environment.ID,
@@ -82,8 +87,7 @@ func RecordWholeOutput(ctx context.Context, store artifact.Repository, attempt W
 	case attempt.Cause != nil:
 		observation.Outcome, observation.Failure = runrecord.OutcomeFailed, failureCode
 	}
-	_, err = Record(ctx, store, observation)
-	return err
+	return Record(ctx, store, observation)
 }
 
 // Record publishes one serving observation, the attempt the scorecard's

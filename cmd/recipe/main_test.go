@@ -16,6 +16,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
 	"overgo/internal/gguf"
+	"overgo/internal/jsonfile"
 	"overgo/internal/mediacapability"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelintake"
@@ -24,6 +25,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/servingattempt"
 	"overgo/internal/testutil"
 	"overgo/internal/textgeneration"
 	"overgo/internal/workflowruntime"
@@ -316,14 +318,18 @@ func TestMeasurementNeedsExecutableInput(t *testing.T) {
 	for name, test := range map[string]struct {
 		accepted artifact.Content
 		want     string
+		cause    error
 	}{
-		"whole request":  {accepted: whole, want: string(whole.Data)},
-		"digest only":    {accepted: measuredContent(t, "overgo.fixture-input-digest.v1", `{"request_sha256":"x","request_bytes":2000000}`)},
-		"not a request":  {accepted: measuredContent(t, "overgo.fixture-output.v1", `{"prompt":"output"}`)},
-		"nothing at all": {},
+		"failed execution": {accepted: whole, want: string(whole.Data), cause: errors.New("executor failed")},
+		"whole request":    {accepted: whole, want: string(whole.Data)},
+		"digest only":      {accepted: measuredContent(t, "overgo.fixture-input-digest.v1", `{"request_sha256":"x","request_bytes":2000000}`)},
+		"not a request":    {accepted: measuredContent(t, "overgo.fixture-output.v1", `{"prompt":"output"}`)},
+		"nothing at all":   {},
 	} {
 		t.Run(name, func(t *testing.T) {
 			directory := t.TempDir()
+			handoff := filepath.Join(directory, "attempt.json")
+			t.Setenv(servingattempt.OutputEnvironment, handoff)
 			// Another run of the recipe retained a whole request; it is not
 			// the accepted verification's.
 			head, sequence := activateMeasured(t, directory, recipe.TaskSeq2Seq, inventory, unrelated, test.accepted)
@@ -334,7 +340,7 @@ func TestMeasurementNeedsExecutableInput(t *testing.T) {
 				},
 				Execute: func(_ context.Context, _ artifact.Repository, _ string, _ modelrecipe.CapabilityEvidenceSelection, input string) (any, error) {
 					ran = append(ran, input)
-					return "measured", nil
+					return "measured", test.cause
 				},
 			}
 			err := measureCapability(directory, "fixture-path", recipe.TaskSeq2Seq, capability)
@@ -345,8 +351,20 @@ func TestMeasurementNeedsExecutableInput(t *testing.T) {
 			defer reopened.Close()
 			after, afterSequence := reopened.Head()
 			if test.want != "" {
-				if err != nil || !slices.Equal(ran, []string{test.want}) || afterSequence == sequence {
+				if !errors.Is(err, test.cause) || !slices.Equal(ran, []string{test.want}) || afterSequence == sequence {
 					t.Fatalf("measurement ran %q (%v), recorded attempt %v; want the verified request once, recorded", ran, err, afterSequence != sequence)
+				}
+				var id artifact.ID
+				if err := jsonfile.DecodeStrict(handoff, &id); err != nil {
+					t.Fatal(err)
+				}
+				observation, err := runrecord.RequireServingObservation(t.Context(), reopened, id)
+				wantOutcome := runrecord.OutcomeSucceeded
+				if test.cause != nil {
+					wantOutcome = runrecord.OutcomeFailed
+				}
+				if err != nil || observation.Model != inventory.Manifest.ID || observation.Outcome != wantOutcome {
+					t.Fatalf("handoff %s: %+v (%v)", id, observation, err)
 				}
 				return
 			}

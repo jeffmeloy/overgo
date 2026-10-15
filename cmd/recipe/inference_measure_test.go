@@ -185,7 +185,7 @@ func TestInferenceMeasurementFillsTheServingCells(t *testing.T) {
 	ctx := t.Context()
 	directory, path, model, active, first := measuredFixture(t)
 	model.stall = time.Millisecond
-	result, err := measureInference(ctx, directory, path, func(context.Context) (servedModel, error) {
+	result, attempt, err := measureInference(ctx, directory, path, func(context.Context) (servedModel, error) {
 		tick(t, tick(t, 0))
 		return model, nil
 	})
@@ -193,7 +193,7 @@ func TestInferenceMeasurementFillsTheServingCells(t *testing.T) {
 		t.Fatalf("measurement = %+v, %v after prompts %q; want the first verified case answered", result, err, model.prompts)
 	}
 	observed := servingAttempts(t, directory)
-	if len(observed) != 1 || observed[0].Recipe != active || observed[0].Outcome != runrecord.OutcomeSucceeded || observed[0].Usage.OutputTokens == 0 {
+	if len(observed) != 1 || observed[0].ID != attempt || observed[0].Recipe != active || observed[0].Outcome != runrecord.OutcomeSucceeded || observed[0].Usage.OutputTokens == 0 {
 		t.Fatalf("serving attempts = %+v; want one succeeded attempt of the recipe with output tokens", observed)
 	}
 	// The scorecard's serving cells read these facts: the load and decode

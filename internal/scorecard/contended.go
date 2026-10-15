@@ -41,50 +41,32 @@ var contendedCodec = artifact.JSONDocumentCodec(
 	func(value *contendedReading, id artifact.ID) { value.ID = id },
 )
 
-// errEarlier ends the walk of the serving attempts at the first one the store
-// held before the measurement began.
-var errEarlier = errors.New("an attempt the store held before the measurement")
-
-// SetAsideContended records, for each serving attempt that succeeded and that
-// the store first held after the sequence given, that it was measured beside
-// the work named, and returns how many it recorded. A measurement that saw
-// other work on its machine gives the store's sequence from before it began,
-// so the attempts it wrote give the scorecard no reading. A failed attempt is
-// not recorded, and counts as the failure it is.
-func SetAsideContended(ctx context.Context, store *overgodb.Store, after uint64, competing []string) (int, error) {
+// SetAsideContended excludes timing only from the named successful attempts.
+// Failed attempts remain counted. All records are read and validated before
+// exclusions are published; replay uses the same immutable record identities.
+func SetAsideContended(ctx context.Context, store *overgodb.Store, attempts []artifact.ID, competing []string) (int, error) {
 	if err := store.Refresh(ctx); err != nil {
 		return 0, err
 	}
 	var batches []artifact.Batch
-	_, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
-		Contracts: []artifact.DocumentContract{{
-			Kind: artifact.KindEvidence, MediaType: runrecord.ServingObservationMediaType, Schema: runrecord.ServingObservationSchema,
-		}},
-		Order: overgodb.DocumentNewestFirst,
-	}, runrecord.ParseServingObservation, func(view overgodb.DocumentView, observation runrecord.ServingObservation) error {
-		attempt := view.Content.Descriptor.ID
-		introduced, found, err := store.ArtifactIntroduction(ctx, attempt)
-		switch {
-		case err != nil:
-			return err
-		case !found || introduced.Sequence <= after:
-			return errEarlier
-		case observation.Outcome != runrecord.OutcomeSucceeded:
-			return nil
+	for _, attempt := range attempts {
+		observation, err := runrecord.RequireServingObservation(ctx, store, attempt)
+		if err != nil {
+			return 0, err
+		}
+		if observation.Outcome != runrecord.OutcomeSucceeded {
+			continue
 		}
 		reading, err := contendedCodec.New(contendedReading{Version: artifact.InitialDocumentVersion, Attempt: attempt, Competing: slices.Clone(competing)})
 		if err != nil {
-			return err
+			return 0, err
 		}
-		batch, err := contendedCodec.Batch("scorecard/contended/"+reading.ID.String(), reading,
-			[]artifact.Lineage{{Child: reading.ID, Parent: attempt, Relation: artifact.RelationDependsOn}}, nil)
+		batch, err := contendedCodec.Batch("scorecard/contended/"+reading.ID.String(), reading, []artifact.Lineage{{Child: reading.ID, Parent: attempt, Relation: artifact.RelationDependsOn}}, nil)
+		if err != nil {
+			return 0, err
+		}
 		batches = append(batches, batch)
-		return err
-	})
-	if err != nil && !errors.Is(err, errEarlier) {
-		return 0, err
 	}
-	// The walk has ended, so the store is written only now.
 	for recorded, batch := range batches {
 		if _, err := artifact.Publish(ctx, store, batch); err != nil {
 			return recorded, err

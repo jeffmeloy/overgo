@@ -486,7 +486,7 @@ func executeCapability(
 			return err
 		}
 	}
-	output, err := attemptCapability(ctx, store, path, modelID, task, selected, capability, input)
+	output, _, err := attemptCapability(ctx, store, path, modelID, task, selected, capability, input)
 	if err != nil {
 		return err
 	}
@@ -510,7 +510,7 @@ func attemptCapability(
 	selected modelrecipe.CapabilityEvidenceSelection,
 	capability mediacapability.Capability,
 	input string,
-) (any, error) {
+) (any, artifact.ID, error) {
 	started := time.Now()
 	begin, _ := processmeasure.Counter()
 	output, err := capability.Execute(ctx, store, path, selected, input)
@@ -518,12 +518,12 @@ func attemptCapability(
 	measured, _ := output.(capabilityruntime.Measured)
 	peak, peakMeasured := devicePeak(processDevicePeak(), measured, err)
 	defer processmeasure.Stage(ctx, "serving attempt recorded")()
-	recordErr := servingattempt.RecordWholeOutput(context.WithoutCancel(ctx), store, servingattempt.WholeOutput{
+	recorded, recordErr := servingattempt.RecordWholeOutput(context.WithoutCancel(ctx), store, servingattempt.WholeOutput{
 		Model: modelID, Recipe: selected.Activation.Definition.ID, Run: measured.Run, Task: task, Started: started, Wall: end - begin,
 		Load: measured.Load, Decode: measured.Decode, OutputTokens: measured.OutputTokens,
 		PeakDeviceBytes: peak, PeakMeasured: peakMeasured, Cause: err,
 	})
-	return output, errors.Join(err, recordErr)
+	return output, recorded.ID, errors.Join(err, recordErr)
 }
 
 // processDevicePeak reads the device memory the process has peaked at; a
@@ -574,8 +574,8 @@ func measureCapability(repository, path string, task recipe.Task, capability med
 	}
 	ctx, stages := processmeasure.WithStages(capabilityruntime.FreshRun(ctx))
 	clock := processmeasure.NewStopwatch()
-	output, err := attemptCapability(ctx, store, path, modelID, task, selected, capability, request)
-	if err != nil {
+	output, attempt, err := attemptCapability(ctx, store, path, modelID, task, selected, capability, request)
+	if err = errors.Join(err, handoffAttempt(attempt)); err != nil {
 		return err
 	}
 	// Where the measured request's time went goes beside its output, on the
@@ -801,4 +801,19 @@ func registerModels(args []string) error {
 	}
 	fmt.Printf("registered=%d source_declaration=%s; exact model, tensor, source and license identities checked; model bytes copied=0; runtime execution and activation did not run\n", len(batch.Manifests), batch.Contents[0].Descriptor.ID)
 	return nil
+}
+
+// handoffAttempt preserves the public output while returning the exact published
+// observation to this command's parent. The parent owns this unique path until
+// child completion; exclusive creation refuses stale or repeated handoffs.
+func handoffAttempt(attempt artifact.ID) error {
+	path := os.Getenv(servingattempt.OutputEnvironment)
+	if path == "" || !attempt.Valid() {
+		return nil
+	}
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, clioptions.PrivateFileMode)
+	if err != nil {
+		return fmt.Errorf("serving attempt handoff: %w", err)
+	}
+	return errors.Join(clioptions.WriteJSON(file, attempt), file.Close())
 }

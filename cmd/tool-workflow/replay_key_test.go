@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"net/http"
@@ -16,7 +17,9 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
+	"overgo/internal/workflowruntime"
 )
 
 // commandEnvironment marks a child process a test started as the tool-workflow command.
@@ -91,8 +94,27 @@ func TestAReplayKeyNamesTheCodeThatComputesIt(t *testing.T) {
 			command := exec.CommandContext(t.Context(), executable, "-key", "replay-key", "-repo", repository, requestPath)
 			// The child's refusal is this test's to read, and goes to no error file a caller of the tests named.
 			command.Env = append(os.Environ(), commandEnvironment+"=1", clioptions.ErrorFileEnvironment+"=")
-			// The command's exit is not judged, because the tool's count alone says whether the stage ran.
 			output, exit := command.CombinedOutput()
+			if exit != nil {
+				t.Fatalf("workflow command failed: %v: %s", exit, output)
+			}
+			var result struct {
+				Outputs map[recipe.PortName]workflowruntime.Value
+				Run     json.RawMessage
+				RunID   artifact.ID
+				Commit  artifact.CommitID
+			}
+			if err := json.Unmarshal(output, &result); err != nil {
+				t.Fatalf("workflow result: %v: %s", err, output)
+			}
+			var canonical bytes.Buffer
+			if err := json.Compact(&canonical, result.Run); err != nil {
+				t.Fatal(err)
+			}
+			run, err := runrecord.ParseRun(canonical.Bytes())
+			if err != nil || run.ID != result.RunID || process == 1 && !result.Commit.Valid() || len(result.Outputs) == 0 {
+				t.Fatalf("workflow identities or outputs: %+v, %v", result, err)
+			}
 			if ran := calls.Load(); ran != process {
 				t.Fatalf("after process %d ran the command with one key and one request, the tool had run %d times, want %d: a repeat by other code was answered from the stage receipt the first process left (the command ended with %v: %s)", process, ran, process, exit, output)
 			}

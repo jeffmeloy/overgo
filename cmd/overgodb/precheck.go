@@ -37,16 +37,11 @@ type receipt struct {
 	Superseded string `json:"superseded,omitzero"`
 }
 
-// precheckStore is overgodb precheck: it proves a store maintenance operation on
-// a candidate before it goes into service. It clones the sealed backup of
-// the live store with hard-linked blobs, releases the unreachable derived
-// caches on the clone, and runs the checks that bind to the store against
-// it: blob identity and the published recipe chains. It prints a typed
-// receipt and, with -swap, renames the candidate into service only when
-// every check passed, keeping the superseded store beside it. Two stores
-// that passed hand-picked checks went into service and broke their readers
-// within minutes; this is the check that would have refused them, run by
-// the operation rather than chosen by its operator.
+// precheckStore proves derived-cache release before replacing the live store.
+//   - a sealed current-head backup supplies the candidate's immutable blobs.
+//   - blob, recipe-chain and accepted census checks must all pass.
+//   - a passing candidate carries its proof and failed checks leave no proof.
+//   - replacement retains the superseded store and refuses a changed live head.
 func precheckStore(flags *flag.FlagSet, args []string) error {
 	repository := flags.String("repo", "overgodb-store", "OvergoDB store in service")
 	backup := flags.String("backup", "", "published backup whose seal names the store's current head (default: this command seals one under -backups)")
@@ -175,7 +170,12 @@ func precheck(ctx context.Context, repository, backup, checkout, candidate strin
 func prove(ctx context.Context, result *receipt, store *overgodb.Store, checkout string) error {
 	result.Checks = runChecks([]namedCheck{
 		{"blob-identity", func() error { _, err := store.VerifyBlobs(ctx); return err }},
-		{"published-chains", func() error { return checkPublishedChains(ctx, checkout, result.Candidate) }},
+		{"published-chains", func() error { return checkStoreCommand(ctx, checkout, result.Candidate, "./cmd/overgodb", "check") }},
+		{"accepted-censuses", func() error {
+			return checkStoreCommand(ctx, checkout, result.Candidate, "./cmd/validate",
+				"-check-census-binding", "cmd/validate/testdata/accepted_census.json",
+				"-check-census-binding", "cmd/validate/testdata/media_census.json")
+		}},
 	})
 	if !result.Verdict() {
 		return nil
@@ -219,20 +219,19 @@ func conclude(result *receipt, swap bool, swapStores func() (string, error)) err
 	return err
 }
 
-// checkPublishedChains runs overgodb check, which refuses every broken
-// chain, against the candidate, as its own process.
-func checkPublishedChains(ctx context.Context, checkout, candidate string) error {
+// checkStoreCommand runs a checkout's read-only consumer against the candidate.
+func checkStoreCommand(ctx context.Context, checkout, candidate string, args ...string) error {
 	absolute, err := filepath.Abs(candidate)
 	if err != nil {
 		return err
 	}
 	var output bytes.Buffer
 	outcome, err := processcontrol.Run(ctx, processcontrol.Command{
-		Path: "go", Args: []string{"run", "./cmd/overgodb", "check", "-repo", absolute}, Dir: checkout,
+		Path: "go", Args: append(append([]string{"run"}, args...), "-repo", absolute), Dir: checkout,
 		Env: os.Environ(), Stdout: &output, Stderr: &output,
 	})
 	if err == nil && outcome.ExitCode != 0 {
-		err = fmt.Errorf("overgodb check: %s", strings.TrimSpace(output.String()))
+		err = fmt.Errorf("store consumer %s: %s", args[0], strings.TrimSpace(output.String()))
 	}
 	return err
 }

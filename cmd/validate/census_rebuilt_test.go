@@ -36,6 +36,7 @@ func TestACensusIsTakenAgainOnARebuiltStore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = source.Close() })
 	commit := strings.Repeat("c", 40)
 	registerCensusModel(t, source, "frozen", true, true)
 	base, err := buildCapabilityCensus(ctx, source, commit, catalogLimit, discovery.NewMemo())
@@ -51,6 +52,16 @@ func TestACensusIsTakenAgainOnARebuiltStore(t *testing.T) {
 	}
 	path := filepath.Join(t.TempDir(), "binding.json")
 	if err := os.WriteFile(path, []byte(`{"Base": "`+base.ID.String()+`"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := runArgs(ctx, []string{"-repo", sourcePath, "-check-census-binding", path}, io.Discard); err != nil {
+		t.Fatalf("original census binding: %v", err)
+	}
+	if err := runArgs(ctx, []string{"-repo", sourcePath, "-check-census-binding", path, "-check-census-binding", path + ".missing"}, io.Discard); err == nil {
+		t.Fatal("second missing census binding was ignored")
+	}
+	beforeBinding, err := os.ReadFile(path)
+	if err != nil {
 		t.Fatal(err)
 	}
 	rebuiltPath := filepath.Join(t.TempDir(), "rebuilt")
@@ -74,12 +85,22 @@ func TestACensusIsTakenAgainOnARebuiltStore(t *testing.T) {
 	if err := rebuilt.Close(); err != nil {
 		t.Fatal(err)
 	}
+	if err := runArgs(ctx, []string{"-repo", rebuiltPath, "-check-census-binding", path}, io.Discard); !errors.Is(err, errCensusCheckpointAbsent) {
+		t.Fatalf("candidate binding: %v, want absent checkpoint", err)
+	}
+	afterBinding, err := os.ReadFile(path)
+	if err != nil || string(afterBinding) != string(beforeBinding) {
+		t.Fatalf("read-only binding check changed the file: %v", err)
+	}
 	var printed strings.Builder
 	if err := acceptCensus(rebuiltPath, commit, path, "", &printed); err != nil || !strings.Contains(printed.String(), "nothing written") {
 		t.Fatalf("a call with no reason on the rebuilt store = %v, printing %q, want nothing written and no refusal", err, printed.String())
 	}
 	if err := acceptCensus(rebuiltPath, commit, path, "the store was rebuilt", io.Discard); err != nil {
 		t.Fatalf("accepting the census again on the rebuilt store: %v", err)
+	}
+	if err := runArgs(ctx, []string{"-repo", rebuiltPath, "-check-census-binding", path}, io.Discard); err != nil {
+		t.Fatalf("reaccepted candidate binding: %v", err)
 	}
 	var binding acceptedCensus
 	if err := jsonfile.DecodeStrict(path, &binding); err != nil {

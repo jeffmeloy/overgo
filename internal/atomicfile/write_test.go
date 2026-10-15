@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestFailedReplacementPreservesExistingFile(t *testing.T) {
+func TestWriteReplacesExistingFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "document")
 	original := []byte("before")
 	if err := os.WriteFile(path, original, 0o600); err != nil {
@@ -25,17 +25,10 @@ func TestFailedReplacementPreservesExistingFile(t *testing.T) {
 	if string(got) != string(original) {
 		t.Fatalf("failed replacement changed target: got %q want %q", got, original)
 	}
-}
-
-func TestWriteReplacesExistingFile(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "document")
-	if err := os.WriteFile(path, []byte("before"), 0o600); err != nil {
-		t.Fatal(err)
-	}
 	if err := Write(path, []byte("after"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	got, err := os.ReadFile(path)
+	got, err = os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}

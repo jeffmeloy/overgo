@@ -10,6 +10,8 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/runrecord"
+	"overgo/internal/testutil"
 )
 
 // TestFailedCheckNeverSwaps holds the verdict to its rule: every check runs
@@ -176,4 +178,66 @@ func textContent(t *testing.T, text string) artifact.Content {
 		t.Fatal(err)
 	}
 	return artifact.Content{Descriptor: artifact.Descriptor{ID: id, Size: uint64(len(data)), MediaType: "text/plain"}, Data: data}
+}
+
+func TestRebuiltStoreRefusesMissingAcceptedCensus(t *testing.T) {
+	ctx := t.Context()
+	sourcePath := filepath.Join(t.TempDir(), "source")
+	source, err := overgodb.Open(sourcePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := source.Commit(ctx, artifact.Batch{Key: "census/fixture", Contents: []artifact.Content{textContent(t, "retained content")}}); err != nil {
+		t.Fatal(err)
+	}
+	head, sequence := source.Head()
+	candidate := filepath.Join(t.TempDir(), "candidate")
+	if _, err := overgodb.Rebuild(ctx, source, candidate, nil, runrecord.RetiredGateAliasesAtRest, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := source.Close(); err != nil {
+		t.Fatal(err)
+	}
+	checkout := testutil.RepoRoot(t)
+	bindings := map[string][]byte{}
+	for _, name := range []string{"accepted_census.json", "media_census.json"} {
+		path := filepath.Join(checkout, "cmd", "validate", "testdata", name)
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		bindings[path] = data
+	}
+	result := receipt{OperationProof: overgodb.OperationProof{HeadBefore: head.String(), SequenceBefore: sequence}, Candidate: candidate}
+	if err := proveRebuilt(ctx, &result, checkout); err != nil {
+		t.Fatal(err)
+	}
+	rejected := false
+	for _, check := range result.Checks {
+		if check.Name == "accepted-censuses" {
+			rejected = !check.Passed && check.Detail != ""
+		} else if !check.Passed {
+			t.Fatalf("unrelated consumer failed: %+v", check)
+		}
+	}
+	if !rejected {
+		t.Fatalf("missing accepted census did not refuse proof: %+v", result.Checks)
+	}
+	if err := conclude(&result, true, func() (string, error) { t.Fatal("refused candidate reached swap"); return "", nil }); err == nil {
+		t.Fatal("refused proof admitted swap")
+	}
+	source, err = overgodb.OpenReadOnly(sourcePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	if after, _ := source.Head(); after != head {
+		t.Fatalf("source head moved: %s != %s", after, head)
+	}
+	for path, want := range bindings {
+		got, err := os.ReadFile(path)
+		if err != nil || !bytes.Equal(got, want) {
+			t.Fatalf("binding changed: %s: %v", path, err)
+		}
+	}
 }

@@ -40,6 +40,16 @@ func TestDocumentContractBuildsAndValidatesContent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	owned, err := contract.OwnedContentBytes(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if &owned.Data[0] != &data[0] {
+		t.Fatal("owned content cloned caller buffer")
+	}
+	if err := owned.Validate(); err != nil {
+		t.Fatal(err)
+	}
 	id := content.Descriptor.ID
 	data[0] = 'x'
 	if content.Data[0] != '{' {

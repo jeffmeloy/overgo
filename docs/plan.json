@@ -61,25 +61,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "rebuild-consumers",
-      "title": "Prove current census consumers before replacing a store",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 263,
-        "reason": "Built consumer wiring measured 263 production AST nodes, including one shared process runner and one validate invocation for both accepted bindings. Existing rebuilt census fixture plus the small pre-swap proof fixture add 594 test nodes. No schema or new fixture file."
-      },
-      "steps": [
-        {
-          "id": "census",
-          "title": "Refuse swap with a missing accepted current census checkpoint",
-          "status": "open",
-          "verify": "go test ./cmd/overgodb ./cmd/validate -run '^(TestACensusIsTakenAgainOnARebuiltStore|TestRebuiltStoreRefusesMissingAcceptedCensus)$'",
-          "rationale": "SQA-147. Extend existing precheck proof with the exact current census consumer. The small rebuilt fixture must refuse before swap while source and binding remain intact. Explicit reacceptance may pass with historical Base retained. Preserve blob and active-chain proof and head race refusal.\nServes: recovery and evidence validity\nDisappears: consumer proof that checks only blobs and active recipe chains\nEvidence: go test ./cmd/overgodb ./cmd/validate -run '^(TestACensusIsTakenAgainOnARebuiltStore|TestRebuiltStoreRefusesMissingAcceptedCensus)$' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
-        }
-      ]
-    },
-    {
       "id": "measurement-evidence",
       "title": "Bind measurements to actual attempts and compatible readings",
       "owner": "master-lead",
@@ -152,25 +133,6 @@
       ]
     },
     {
-      "id": "workflow-output",
-      "title": "Serialize public workflow results through canonical run ownership",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 41,
-        "reason": "Built canonical run projection measured 41 production AST nodes. The existing two-child command fixture adds 152 test nodes for successful exit, JSON parsing and run/output/commit identity."
-      },
-      "steps": [
-        {
-          "id": "json",
-          "title": "Return valid JSON after successful tool execution",
-          "status": "open",
-          "verify": "go test ./cmd/tool-workflow -run '^TestAReplayKeyNamesTheCodeThatComputesIt$'",
-          "rationale": "SQA-148. Reuse canonical optional-environment run encoding in the result projection and keep output/run/commit identity. Extend the existing two-child HTTP fixture to require exit zero and parse stdout. Preserve changed-code execution counts and refusal behavior. Zero artifact IDs remain invalid.\nServes: failure-rate and command usability\nDisappears: direct encoding of an initial Run with an invalid absent ID\nEvidence: go test ./cmd/tool-workflow -run 'Test' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
-        }
-      ]
-    },
-    {
       "id": "reasoning-closure",
       "title": "Carry declared reasoning closure through the evaluation adapter",
       "owner": "master-lead",
@@ -206,7 +168,7 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 13,
+        "nodes": -186,
         "reason": ""
       },
       "steps": [
@@ -216,13 +178,6 @@
           "status": "open",
           "verify": "go test ./internal/operation -run '^(TestTerminalTransitionIsAtomic|TestOperationRuntimeLifecycle|TestBlockedOperationResumesAfterDecision|TestReporterTextStaysBounded)$'",
           "rationale": "SQA-088 operation groups. Move exact recovered ID and Run checks plus a real nonnil-executor mismatch into TerminalTransitionIsAtomic. Move publishing visibility into RuntimeLifecycle with cancellation-aware cleanup. Delete the two displaced bodies and setup in the same change.\nServes: development velocity and recovery coverage\nDisappears: duplicate manager and executor lifecycles\nEvidence: go test ./internal/operation -run '^(TestTerminalTransitionIsAtomic|TestOperationRuntimeLifecycle|TestBlockedOperationResumesAfterDecision|TestReporterTextStaysBounded)$' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
-        },
-        {
-          "id": "publications",
-          "title": "Consolidate publication, file replacement and browse lifetimes",
-          "status": "open",
-          "verify": "go test ./internal/objectstore ./internal/atomicfile ./internal/server -run '^(TestStreamPublicationContract|TestWriteReplacesExistingFile|TestWriteRequiresExistingParent|TestArtifactGalleryProjectedPageIsBoundedAndStreamsPayloads)$'",
-          "rationale": "SQA-088 publication groups. Merge only the two small objectstore subtests, keep four calls and the independent large stream. Merge failed-then-successful atomic replacement with both byte assertions. Move browse reuse/Close checks into the populated gallery fixture before context cancellation. Remove displaced bodies and unused setup in the same change.\nServes: development velocity\nDisappears: duplicate small publication, seeded file and empty gallery lifecycles\nEvidence: go test ./internal/objectstore ./internal/atomicfile ./internal/server -run '^(TestStreamPublicationContract|TestWriteReplacesExistingFile|TestWriteRequiresExistingParent|TestArtifactGalleryProjectedPageIsBoundedAndStreamsPayloads)$' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
         },
         {
           "id": "repository",
@@ -237,32 +192,6 @@
           "status": "open",
           "verify": "go test ./internal/latentvideo -run '^(TestVideoWorkIsJoinedOnEveryExit|TestFailedLoadEndsItsPromptPass)$'",
           "rationale": "SQA-087. Use testing/synctest and local completion gates for injected Go work. Remove the fixed 4096-yield helpers. Keep actual completion before release, overlap, capacity, cancellation, error recovery and platform distinctions. No production instrumentation.\nServes: reliable verification\nDisappears: scheduler-yield counts used as completion evidence\nEvidence: go test ./internal/latentvideo -run '^(TestVideoWorkIsJoinedOnEveryExit|TestFailedLoadEndsItsPromptPass)$' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
-        }
-      ]
-    },
-    {
-      "id": "document-ownership",
-      "title": "Remove duplicate document validation and copies",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": -105,
-        "reason": "Built cleanup removes 20 production AST nodes of repeated content validation and 85 of dataset pre-copying. Codec ownership test consolidation saves 44 test nodes including the corruption regression. Dataset ordering, exact bytes/ID, refusal isolation and nil/empty coverage adds 392 test nodes to the existing fixture. This correctness coverage growth is not a net test saving."
-      },
-      "steps": [
-        {
-          "id": "codec",
-          "title": "Reuse the validated owned-content boundary and merge duplicate checks",
-          "status": "open",
-          "verify": "go test ./internal/artifact -run '^(TestDocumentCodecReadOwnsCanonicalLifecycle|TestDocumentContractBuildsAndValidatesContent|TestDocumentContractRejectsInvalidIdentityAndBounds|TestCanonicalDocumentPublicationOwners)$'",
-          "rationale": "SQA-088 document group. Remove the second Content.Validate after ReadContentFrom. Merge successful verifier calls while retaining incoming/returned identity and mutation isolation. Move owned-buffer pointer/validation checks into the defensive-copy fixture before mutation and delete the displaced test body. Keep rejecting/nil callbacks and corrupt-reader coverage.\nServes: development velocity and memory\nDisappears: duplicate content hash, verifier read and ownership fixture setup\nEvidence: go test ./internal/artifact -run '^(TestDocumentCodecReadOwnsCanonicalLifecycle|TestDocumentContractBuildsAndValidatesContent|TestDocumentContractRejectsInvalidIdentityAndBounds|TestCanonicalDocumentPublicationOwners)$' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
-        },
-        {
-          "id": "constructors",
-          "title": "Let the codec own constructor copies",
-          "status": "open",
-          "verify": "go test ./internal/dataset -run '^(TestDatasetDocumentsRoundTripAndPublish|TestDatasetDocumentsRejectInvalidAndNonCanonicalContent)$'",
-          "rationale": "SQA-088 dataset group. Remove constructor pre-copies and cloneCatalog only where DeepCopy already owns input independence. Extend the existing catalog cases for unsorted input, exact JSON/ID, refusal without mutation and nil/empty distinctions. Count necessary test growth honestly.\nServes: memory and maintenance\nDisappears: five constructor pre-copy paths and redundant nested pointer copies\nEvidence: go test ./internal/dataset -run '^(TestDatasetDocumentsRoundTripAndPublish|TestDatasetDocumentsRejectInvalidAndNonCanonicalContent)$' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
         }
       ]
     },

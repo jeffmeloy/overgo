@@ -119,9 +119,6 @@ func (c DocumentCodec[T]) Read(ctx context.Context, reader Reader, id ID) (T, bo
 	if err != nil || !ok {
 		return zero, ok, err
 	}
-	if err := content.Validate(); err != nil {
-		return zero, false, fmt.Errorf("artifact: read document: %w", err)
-	}
 	value, _, contract, err := c.parseCanonical(content.Data)
 	if err != nil {
 		return zero, false, err

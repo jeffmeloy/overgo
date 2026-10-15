@@ -99,6 +99,10 @@ func TestDocumentCodecReadOwnsCanonicalLifecycle(t *testing.T) {
 	if err != nil || !ok || loaded.ID != document.ID || !slices.Equal(loaded.Names, document.Names) {
 		t.Fatalf("read document = %+v/%v/%v", loaded, ok, err)
 	}
+	corrupt := Content{Descriptor: content.Descriptor, Data: []byte(`{"names":["first","xxxxxx"]}`)}
+	if _, _, err := codec.Read(t.Context(), documentReader{content: corrupt}, document.ID); err == nil {
+		t.Fatal("canonical bytes with a different content identity were accepted")
+	}
 	required, err := codec.Require(t.Context(), documentReader{content: content}, document.ID)
 	if err != nil || required.ID != document.ID {
 		t.Fatalf("required document = %+v/%v", required, err)
@@ -109,21 +113,12 @@ func TestDocumentCodecReadOwnsCanonicalLifecycle(t *testing.T) {
 			if value.ID != document.ID {
 				return errors.New("unexpected verified document")
 			}
-			return nil
-		},
-	)
-	if err != nil || verified.ID != document.ID {
-		t.Fatalf("verified document = %+v/%v", verified, err)
-	}
-	verified, err = codec.RequireVerified(
-		t.Context(), documentReader{content: content}, document.ID,
-		func(_ context.Context, _ Reader, value codecFixture) error {
 			value.Names[0] = "mutated"
 			return nil
 		},
 	)
-	if err != nil || !slices.Equal(verified.Names, document.Names) {
-		t.Fatalf("verifier mutated returned document = %+v/%v", verified, err)
+	if err != nil || verified.ID != document.ID || !slices.Equal(verified.Names, document.Names) {
+		t.Fatalf("verified document = %+v/%v", verified, err)
 	}
 	verified, err = codec.RequireVerified(
 		t.Context(), documentReader{content: content}, document.ID,

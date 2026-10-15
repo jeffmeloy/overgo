@@ -95,7 +95,7 @@ func TestStreamPublicationContract(t *testing.T) {
 		assertStagingEmpty(t, objectRoot)
 	})
 
-	t.Run("retry is content idempotent", func(t *testing.T) {
+	t.Run("small streams preserve idempotence and refuse failed publication", func(t *testing.T) {
 		ctx := t.Context()
 		root := t.TempDir()
 		repository, err := overgodb.Open(filepath.Join(root, "repodb"))
@@ -103,7 +103,8 @@ func TestStreamPublicationContract(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer repository.Close()
-		store, err := New(filepath.Join(root, "objects"), repository)
+		objectRoot := filepath.Join(root, "objects")
+		store, err := New(objectRoot, repository)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -118,21 +119,7 @@ func TestStreamPublicationContract(t *testing.T) {
 		if err != nil || first != second {
 			t.Fatalf("idempotent publications differ: first=%+v second=%+v err=%v", first, second, err)
 		}
-	})
 
-	t.Run("failed and mismatched streams stay unpublished", func(t *testing.T) {
-		ctx := t.Context()
-		root := t.TempDir()
-		repository, err := overgodb.Open(filepath.Join(root, "repodb"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer repository.Close()
-		objectRoot := filepath.Join(root, "objects")
-		store, err := New(objectRoot, repository)
-		if err != nil {
-			t.Fatal(err)
-		}
 		if _, err := store.Publish(ctx, PublishRequest{
 			Kind: artifact.KindCheckpoint, Reader: &failingReader{remaining: len("partial")},
 		}); !errors.Is(err, errStreamFixture) {

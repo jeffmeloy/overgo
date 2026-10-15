@@ -77,6 +77,11 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	mediaScope := flags.String("media-scope", "all", "with -export-samples: the tasks exported, all or image-video; the media report always renders every media task")
 	publishCensus := flags.Bool("publish-census", false, "publish the complete registered capability denominator from clean code")
 	checkCensus := flags.String("check-census", "", "check one exact immutable capability census against the live registered denominator")
+	var censusBindings []string
+	flags.Func("check-census-binding", "check a binding's exact accepted census checkpoint and disposition without changing it or checking a new denominator; repeat for multiple binding files", func(path string) error {
+		censusBindings = append(censusBindings, path)
+		return nil
+	})
 	acceptPath := flags.String("accept-census", "", "a census binding file, cmd/validate/testdata/accepted_census.json or media_census.json: print what the registered models add to, remove from or change in the census it accepts; with -reason, from clean code, publish the live census with a finding closed for that reason and bind the file to them")
 	reason := flags.String("reason", "", "with -accept-census: why the changed census is accepted; without it nothing is written")
 	recordVerification := flags.String("record-verification", "", "commit a typed model-verification record from a JSON spec (model, name, evidenced capability claims) into the store")
@@ -100,7 +105,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 			"-scorecard reads the store and the serving source: it loads no model and opens no device",
 			"-onboard runs on a clean tree: the activation binds the commit it validated under",
 			"-claims reads the checkout only; a claim is rebound only by its own verify passing, never by hand",
-			"-models, -media and -check-census read the store; -export-samples writes only under docs/media_samples; -publish-census and -record-verification write the store; -accept-census reads it, and with -reason writes it and the binding file",
+			"-models, -media, -check-census and -check-census-binding read the store; -export-samples writes only under docs/media_samples; -publish-census and -record-verification write the store; -accept-census reads it, and with -reason writes it and the binding file",
 			"-smoke loads each selected model on the device and, without -diagnostic, records its run at the checked-out commit into the store",
 			"-parity, -tests and -receipt take their arguments after the flags; -receipt alone writes the store",
 			"help opens no store and reads nothing",
@@ -162,12 +167,25 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	if *media != "" && *media != "markdown" && *media != "json" || *mediaScope != "all" && !*exportSamples {
 		return errors.New("-media renders markdown or json, and -media-scope narrows -export-samples alone; the media report always renders every media task")
 	}
-	if *models || *media != "" || *exportSamples || *publishCensus || *checkCensus != "" || *acceptPath != "" || *recordVerification != "" {
+	if *models || *media != "" || *exportSamples || *publishCensus || *checkCensus != "" || len(censusBindings) != 0 || *acceptPath != "" || *recordVerification != "" {
 		storeRoot, err := dataroot.StoreRoot(*repository)
 		if err != nil {
 			return err
 		}
 		switch {
+		case len(censusBindings) != 0:
+			store, err := overgodb.OpenReadOnly(storeRoot)
+			if err != nil {
+				return err
+			}
+			defer store.Close()
+			var failures []error
+			for _, path := range censusBindings {
+				if err := checkCensusBinding(ctx, store, path); err != nil {
+					failures = append(failures, fmt.Errorf("census binding %s requires explicit reacceptance before replacement: %w", path, err))
+				}
+			}
+			return errors.Join(failures...)
 		case *publishCensus || *checkCensus != "":
 			return runCapabilityCensus(storeRoot, *publishCensus, *checkCensus, output)
 		case *acceptPath != "":

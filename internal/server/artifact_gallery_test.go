@@ -11,34 +11,6 @@ import (
 	"overgo/internal/overgodb"
 )
 
-// TestHandlerClosesBrowseStore: the handler opens its browse store once,
-// answers every read from it, and closes it when the handler closes.
-func TestHandlerClosesBrowseStore(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	store, err := overgodb.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
-	handler, err := New(Config{OvergoDBPath: root}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	browse := handler.browseRepository
-	if again, err := handler.browseStore(t.Context()); err != nil || again != browse {
-		t.Fatalf("browse store reopened: (%p, %p, %v)", browse, again, err)
-	}
-	if err := handler.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if err := browse.Refresh(t.Context()); !errors.Is(err, overgodb.ErrClosed) {
-		t.Fatalf("refresh after handler close = %v", err)
-	}
-}
-
 func TestArtifactGalleryProjectedPageIsBoundedAndStreamsPayloads(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -129,5 +101,16 @@ func TestArtifactGalleryProjectedPageIsBoundedAndStreamsPayloads(t *testing.T) {
 	if content.Code != http.StatusOK || content.Header().Get("Content-Type") != payloadDescriptor.MediaType ||
 		!bytes.Equal(content.Body.Bytes(), payload) {
 		t.Fatalf("content status=%d type=%q body=%q", content.Code, content.Header().Get("Content-Type"), content.Body.Bytes())
+	}
+	browse := handler.browseRepository
+	t.Cleanup(func() { _ = browse.Close() })
+	if again, err := handler.browseStore(t.Context()); err != nil || again != browse {
+		t.Fatalf("browse store reopened: (%p, %p, %v)", browse, again, err)
+	}
+	if err := handler.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := browse.Refresh(t.Context()); !errors.Is(err, overgodb.ErrClosed) {
+		t.Fatalf("refresh after handler close = %v", err)
 	}
 }

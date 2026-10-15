@@ -75,7 +75,15 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	encoded, err := json.MarshalIndent(result, "", "  ")
+	content, err := result.Run.Content()
+	if err != nil {
+		return err
+	}
+	encoded, err := json.MarshalIndent(struct {
+		workflowruntime.Result
+		Run   json.RawMessage
+		RunID artifact.ID
+	}{result, content.Data, result.Run.ID}, "", "  ")
 	if err != nil {
 		return err
 	}

@@ -321,6 +321,31 @@ type acceptedCensus struct {
 	Base, Current, Finding, Disposition artifact.ID
 }
 
+// checkCensusBinding requires the accepted checkpoint and its exact disposition.
+//   - the historical base remains readable without its pre-rebuild checkpoint.
+//   - capability and media consumers retain their distinct denominator checks.
+func checkCensusBinding(ctx context.Context, store *overgodb.Store, path string) error {
+	var binding acceptedCensus
+	if err := jsonfile.DecodeStrict(path, &binding); err != nil {
+		return err
+	}
+	value, err := capabilityCensusCodec.Require(ctx, store, binding.Base)
+	if err != nil {
+		return err
+	}
+	if binding.Current.Valid() || binding.Finding.Valid() || binding.Disposition.Valid() {
+		if err := checkCensusDisposition(ctx, store, binding); err != nil {
+			return err
+		}
+		value, err = capabilityCensusCodec.Require(ctx, store, binding.Current)
+		if err != nil {
+			return err
+		}
+	}
+	_, err = readCensusVerifications(ctx, store, value)
+	return err
+}
+
 // checkCensusDisposition holds a binding to the store: the current census is
 // not the base, the finding is open and names both, and the finding's
 // disposition is the bound one, closed, citing the finding.

@@ -49,7 +49,62 @@ func TestDatasetDocumentsRoundTripAndPublish(t *testing.T) {
 		t.Fatalf("normalized mixture = %+v", mixture.Members)
 	}
 
-	documents := []Document{version, viewA, viewB, split, mixture}
+	entries := []CatalogEntry{
+		{Name: "second", Dataset: split.ID, Inventory: assetA, StorageKind: "file", Source: "fixture", Modality: "mixed", Formats: []string{"txt", "json", "txt"}, Modalities: []string{"text", "audio", "text"}},
+		{Name: "first", Dataset: version.ID, Inventory: assetA, StorageKind: "file", Source: "fixture", Modality: "text"},
+	}
+	before, err := json.Marshal(entries)
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog, err := NewCatalog(entries)
+	if err != nil {
+		t.Fatal(err)
+	}
+	after, err := json.Marshal(entries)
+	if err != nil || string(after) != string(before) {
+		t.Fatalf("catalog mutated its input: %s, %v", after, err)
+	}
+	expected := []CatalogEntry{entries[1], entries[0]}
+	expected[1].Formats = []string{"json", "txt"}
+	expected[1].Modalities = []string{"audio", "text"}
+	expectedJSON, err := json.Marshal(Document{Version: artifact.InitialDocumentVersion, Type: TypeCatalog, Catalog: expected})
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedID, err := artifact.IdentifyBytes(artifact.KindDataset, expectedJSON)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, err := catalog.Content()
+	if err != nil || string(content.Data) != string(expectedJSON) || catalog.ID != expectedID {
+		t.Fatalf("catalog bytes or identity differ: %s, %v", content.Data, err)
+	}
+	for _, formats := range [][]string{nil, {}} {
+		entry := entries[1]
+		entry.Formats = formats
+		value, err := NewCatalog([]CatalogEntry{entry})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if (value.Catalog[0].Formats == nil) != (formats == nil) {
+			t.Fatal("catalog changed nil/empty input state")
+		}
+	}
+	duplicate := []CatalogEntry{entries[0], entries[0]}
+	before, err = json.Marshal(duplicate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewCatalog(duplicate); err == nil {
+		t.Fatal("duplicate catalog entry accepted")
+	}
+	after, err = json.Marshal(duplicate)
+	if err != nil || string(after) != string(before) {
+		t.Fatalf("refused catalog mutated its input: %s, %v", after, err)
+	}
+
+	documents := []Document{version, viewA, viewB, split, mixture, catalog}
 	for _, document := range documents {
 		content, contentErr := document.Content()
 		if contentErr != nil {

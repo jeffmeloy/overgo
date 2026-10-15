@@ -96,31 +96,31 @@ type Document struct {
 }
 
 func NewVersion(assets []Asset) (Document, error) {
-	return newDocument(Document{Version: artifact.InitialDocumentVersion, Type: TypeVersion, Assets: slices.Clone(assets)})
+	return newDocument(Document{Version: artifact.InitialDocumentVersion, Type: TypeVersion, Assets: assets})
 }
 
 func NewView(source artifact.ID, selector *artifact.ID, fields []string) (Document, error) {
 	return newDocument(Document{
 		Version: artifact.InitialDocumentVersion, Type: TypeView, Source: artifact.IDPointer(source),
-		Selector: artifact.CloneID(selector), Fields: slices.Clone(fields),
+		Selector: selector, Fields: fields,
 	})
 }
 
 func NewSplit(source artifact.ID, partitions []Partition) (Document, error) {
 	return newDocument(Document{
 		Version: artifact.InitialDocumentVersion, Type: TypeSplit, Source: artifact.IDPointer(source),
-		Partitions: slices.Clone(partitions),
+		Partitions: partitions,
 	})
 }
 
 // NewMixture returns a normalized weighted dataset composition.
 func NewMixture(members []Member) (Document, error) {
-	return newDocument(Document{Version: artifact.InitialDocumentVersion, Type: TypeMixture, Members: slices.Clone(members)})
+	return newDocument(Document{Version: artifact.InitialDocumentVersion, Type: TypeMixture, Members: members})
 }
 
 // NewCatalog returns a named dataset inventory index.
 func NewCatalog(entries []CatalogEntry) (Document, error) {
-	return newDocument(Document{Version: artifact.InitialDocumentVersion, Type: TypeCatalog, Catalog: cloneCatalog(entries)})
+	return newDocument(Document{Version: artifact.InitialDocumentVersion, Type: TypeCatalog, Catalog: entries})
 }
 
 func (d Document) ValidateIdentity() error {
@@ -165,8 +165,6 @@ func canonicalize(document *Document) error {
 	if document == nil || document.Version != artifact.InitialDocumentVersion {
 		return errors.New("dataset: invalid document version")
 	}
-	document.Source = artifact.CloneID(document.Source)
-	document.Selector = artifact.CloneID(document.Selector)
 	switch document.Type {
 	case TypeVersion:
 		if document.Source != nil || document.Selector != nil || len(document.Fields)+len(document.Partitions)+len(document.Members)+len(document.Catalog) != 0 {
@@ -308,14 +306,6 @@ func canonicalizeMembers(members *[]Member) error {
 
 func datasetID(id *artifact.ID) bool {
 	return id != nil && id.Kind() == artifact.KindDataset
-}
-
-func cloneCatalog(entries []CatalogEntry) []CatalogEntry {
-	result := slices.Clone(entries)
-	for index := range result {
-		result[index].Formats = slices.Clone(result[index].Formats)
-	}
-	return result
 }
 
 func validName(value string) bool {

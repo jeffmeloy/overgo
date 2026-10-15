@@ -1,10 +1,10 @@
 package repoanalysis
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
 	"go/types"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -179,11 +179,7 @@ func Compile(kind string, data []byte) (int, error) {
 //   - a repeated run repeats a group <=> the places that serve the group lie in runFunctions or more functions
 //   - a chain repeats a group <=> its place serves the group
 //   - an undeclared function or case is listed because a group none of whose places exist is checked against nothing
-func consolidatedRepeats(snapshot gosyntax.Snapshot, groups []consolidatedGroup) ([]string, error) {
-	reading, err := readShapes(snapshot)
-	if err != nil {
-		return nil, err
-	}
+func consolidatedRepeats(snapshot gosyntax.Snapshot, reading shapeReading, groups []consolidatedGroup) ([]string, error) {
 	files, err := shapeFiles(snapshot)
 	if err != nil {
 		return nil, err
@@ -304,62 +300,62 @@ func fixtureSnapshot(t *testing.T, fixtures ...map[string]string) gosyntax.Snaps
 	return snapshot
 }
 
-// holdConsolidated holds planted groups to the repeats want in a fixture, then groups to no repeat in the repository.
-func holdConsolidated(t *testing.T, fixture gosyntax.Snapshot, planted []consolidatedGroup, want []string, groups []consolidatedGroup) {
+// holdConsolidated holds planted groups to the expected repeats in a fixture.
+func holdConsolidated(t *testing.T, fixture gosyntax.Snapshot, reading shapeReading, planted []consolidatedGroup, want []string) {
 	t.Helper()
-	repeats, err := consolidatedRepeats(fixture, planted)
+	repeats, err := consolidatedRepeats(fixture, reading, planted)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !slices.Equal(repeats, want) {
 		t.Errorf("the fixture's repeats =\n%s\nwant\n%s", strings.Join(repeats, "\n"), strings.Join(want, "\n"))
 	}
-
-	snapshot, err := gosyntax.DiscoverGo(filepath.Join("..", ".."), "cmd", "internal")
-	if err != nil {
-		t.Fatal(err)
-	}
-	repeats, err = consolidatedRepeats(snapshot, groups)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(repeats) > 0 {
-		t.Errorf("a consolidated group repeats again, want its places served by the common component:\n%s", strings.Join(repeats, "\n"))
-	}
 }
 
-// TestConsolidatedGroupsNoLongerRepeat holds each group in consolidatedGroups to no repeat in the shape reading of the repository.
-//   - fixture = shapeFixture with a planted run, a planted chain, and a near miss whose places call none of its calls
-//   - a group whose functions the repository no longer declares is refused, because a check of nothing earns no pass
-func TestConsolidatedGroupsNoLongerRepeat(t *testing.T) {
-	t.Parallel()
-	planted := []consolidatedGroup{
-		{name: "planted run", functions: []string{"internal/store/store.go Import", "internal/archive/archive.go Restore"}, calls: []string{"load", "fetch"}},
-		{name: "planted chain", functions: []string{"internal/device/device.go runner.Upload"}, calls: []string{"upload"}},
-		{name: "near miss", functions: []string{"internal/store/store.go Import", "internal/archive/archive.go Restore"}, calls: []string{"launch"}},
-	}
-	holdConsolidated(t, fixtureSnapshot(t, shapeFixture), planted, []string{
-		`group "planted run" repeats in run call-and-test lines=20 places=2 internal/archive/archive.go:10-19 Restore, internal/store/store.go:10-19 Import`,
-		`group "planted chain" repeats in chain receiver=device pairs=3 lines=12 internal/device/device.go:12-23 runner.Upload`,
-	}, consolidatedGroups)
+// keptClones names each codec whose copy stays hand-written, with the reason DeepCopy cannot replace it.
+var keptClones = map[string]string{
+	"internal/adaptiveparity/scratch_oracle.go":  "the copy makes a nil token list empty, and identity tells null from []",
+	"internal/composition/execution_plan.go":     "the copy makes empty bridge, operator and session lists nil, and identity tells null from []",
+	"internal/controllertrain/promotion.go":      "the copy trims each challenger's refusal",
+	"internal/modelartifact/tensor_inventory.go": "the copy makes a nil tensor list empty, and identity tells null from []",
+	"internal/modelrecipe/model_definition.go":   "model.Spec holds an unexported profile pointer, which DeepCopy refuses",
+	"internal/tokenizer/vocabulary_artifact.go":  "the copy makes a nil token list empty, and identity tells null from []",
 }
 
-// TestConsolidatedSurfaceGroupsNoLongerRepeat holds each group in consolidatedSurfaceGroups to no repeat in the shape reading of the repository.
-//   - fixture = caseFixture with a planted repeat inside one switch, a near miss of a clause of one statement, and a case no clause names
-//   - fixture = shapeFixture with a planted run named by its files alone
-//   - a group whose functions or cases the repository no longer declares is refused, because a check of nothing earns no pass
-func TestConsolidatedSurfaceGroupsNoLongerRepeat(t *testing.T) {
-	t.Parallel()
-	compile := []string{"internal/suites/suites.go Compile"}
-	planted := []consolidatedGroup{
-		{name: "planted cases", functions: compile, cases: []string{`"a"`, `"b"`}, calls: []string{"decode"}},
-		{name: "near miss", functions: compile, cases: []string{`"a"`, `"c"`}, calls: []string{"decode"}},
-		{name: "absent case", functions: compile, cases: []string{`"d"`}, calls: []string{"decode"}},
-		{name: "planted files", functions: []string{"internal/store/store.go", "internal/archive/archive.go"}, calls: []string{"load", "fetch"}},
+// handWrittenClones reuses the snapshot's parse to find codec copies other than DeepCopy.
+func handWrittenClones(t *testing.T, snapshot gosyntax.Snapshot) map[string]bool {
+	t.Helper()
+	found := map[string]bool{}
+	for _, source := range snapshot.Files {
+		if strings.HasSuffix(source.Path, "_test.go") || !bytes.Contains(source.Data, []byte("Clone")) {
+			continue
+		}
+		file, err := source.Syntax()
+		if err != nil {
+			t.Fatal(err)
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			var clone ast.Expr
+			switch node := node.(type) {
+			case *ast.CallExpr:
+				if method, ok := node.Fun.(*ast.SelectorExpr); ok && method.Sel.Name == "WithClone" && len(node.Args) == 1 {
+					clone = node.Args[0]
+				}
+			case *ast.KeyValueExpr:
+				if key, ok := node.Key.(*ast.Ident); ok && key.Name == "Clone" {
+					clone = node.Value
+				}
+			}
+			if call, ok := clone.(*ast.CallExpr); ok {
+				if index, ok := call.Fun.(*ast.IndexExpr); ok && strings.TrimPrefix(types.ExprString(index.X), "artifact.") == "DeepCopy" {
+					clone = nil
+				}
+			}
+			if clone != nil {
+				found[source.Path] = true
+			}
+			return true
+		})
 	}
-	holdConsolidated(t, fixtureSnapshot(t, shapeFixture, caseFixture), planted, []string{
-		`group "planted cases" repeats in run call-and-test lines=18 places=2 internal/suites/suites.go:12-20 Compile case "a", internal/suites/suites.go:22-30 Compile case "b"`,
-		`group "absent case" names case "d", which no clause of its functions holds`,
-		`group "planted files" repeats in run call-and-test lines=20 places=2 internal/archive/archive.go:10-19 Restore, internal/store/store.go:10-19 Import`,
-	}, consolidatedSurfaceGroups)
+	return found
 }

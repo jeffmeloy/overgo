@@ -17,14 +17,25 @@ func TestOperationRuntimeLifecycle(t *testing.T) {
 	runID := testutil.ArtifactID(t, artifact.KindRun, "operation-lifecycle-run")
 	outputID := testutil.ArtifactID(t, artifact.KindOutput, "operation-lifecycle-output")
 	started, release := make(chan struct{}), make(chan struct{})
+	publishing, commit := make(chan struct{}), make(chan struct{})
 	id, err := manager.Submit(t.Context(), Request{Task: recipe.TaskGeneration, Recipe: recipeID},
-		func(_ context.Context, reporter Reporter) (Completion, error) {
+		func(ctx context.Context, reporter Reporter) (Completion, error) {
 			total := uint64(2)
 			reporter.Progress(1, &total)
 			reporter.Metric(Metric{Name: "steps", Value: 1, Unit: "count"})
 			close(started)
-			<-release
+			select {
+			case <-release:
+			case <-ctx.Done():
+				return Completion{Run: runID}, ctx.Err()
+			}
 			reporter.Publishing()
+			close(publishing)
+			select {
+			case <-commit:
+			case <-ctx.Done():
+				return Completion{Run: runID}, ctx.Err()
+			}
 			return Completion{Run: runID, Outputs: []artifact.ID{outputID}}, nil
 		})
 	if err != nil {
@@ -36,6 +47,12 @@ func TestOperationRuntimeLifecycle(t *testing.T) {
 		t.Fatalf("running status = %+v, present=%t", status, ok)
 	}
 	close(release)
+	<-publishing
+	status, ok = manager.Status(id)
+	if !ok || status.State != StatePublishing || status.Run != nil || len(status.Outputs) != 0 {
+		t.Fatalf("pre-commit status = %+v, present=%t", status, ok)
+	}
+	close(commit)
 	status, err = manager.Wait(t.Context(), id)
 	if err != nil {
 		t.Fatal(err)
@@ -260,37 +277,6 @@ func TestOperationCancellationReleasesResources(t *testing.T) {
 	<-released
 	if status.State != StateCancelled || status.Run == nil || *status.Run != runID {
 		t.Fatalf("cancelled status = %+v", status)
-	}
-}
-
-func TestOperationPublicationIsAtomic(t *testing.T) {
-	manager := newTestManager(t)
-	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "operation-publication-recipe")
-	runID := testutil.ArtifactID(t, artifact.KindRun, "operation-publication-run")
-	outputID := testutil.ArtifactID(t, artifact.KindOutput, "operation-publication-output")
-	publishing, commit := make(chan struct{}), make(chan struct{})
-	id, err := manager.Submit(t.Context(), Request{Task: recipe.TaskGeneration, Recipe: recipeID},
-		func(_ context.Context, reporter Reporter) (Completion, error) {
-			reporter.Publishing()
-			close(publishing)
-			<-commit
-			return Completion{Run: runID, Outputs: []artifact.ID{outputID}}, nil
-		})
-	if err != nil {
-		t.Fatal(err)
-	}
-	<-publishing
-	status, ok := manager.Status(id)
-	if !ok || status.State != StatePublishing || status.Run != nil || len(status.Outputs) != 0 {
-		t.Fatalf("pre-commit status = %+v, present=%t", status, ok)
-	}
-	close(commit)
-	status, err = manager.Wait(t.Context(), id)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if status.State != StateCompleted || status.Run == nil || *status.Run != runID || len(status.Outputs) != 1 {
-		t.Fatalf("published status = %+v", status)
 	}
 }
 

@@ -1,15 +1,7 @@
 package artifact
 
 import (
-	"bytes"
 	"encoding/json"
-	"go/ast"
-	"go/parser"
-	"go/token"
-	"go/types"
-	"io/fs"
-	"os"
-	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -41,16 +33,6 @@ var probeStates = []probeState{
 	{probeAbsent, probePopulated},
 	{probePopulated, probeEmpty},
 	{probePopulated, probeAbsent},
-}
-
-// keptClones names each codec whose copy stays hand-written, with the reason DeepCopy cannot replace it.
-var keptClones = map[string]string{
-	"internal/adaptiveparity/scratch_oracle.go":  "the copy makes a nil token list empty, and identity tells null from []",
-	"internal/composition/execution_plan.go":     "the copy makes empty bridge, operator and session lists nil, and identity tells null from []",
-	"internal/controllertrain/promotion.go":      "the copy trims each challenger's refusal",
-	"internal/modelartifact/tensor_inventory.go": "the copy makes a nil tensor list empty, and identity tells null from []",
-	"internal/modelrecipe/model_definition.go":   "model.Spec holds an unexported profile pointer, which DeepCopy refuses",
-	"internal/tokenizer/vocabulary_artifact.go":  "the copy makes a nil token list empty, and identity tells null from []",
 }
 
 type cloneProbe struct {
@@ -192,7 +174,6 @@ func filledProbe(states probeState) cloneProbe {
 //   - changing every value the copy reaches leaves its original unchanged
 //   - interface and func values are copied as they are
 //   - a codec of a type with an unexported reference is refused when it is constructed
-//   - every hand-written clone left is named in keptClones with its reason
 func TestDefaultCloneMatchesEveryReplacedClone(t *testing.T) {
 	t.Parallel()
 	copyProbe := DeepCopy[cloneProbe]()
@@ -224,65 +205,4 @@ func TestDefaultCloneMatchesEveryReplacedClone(t *testing.T) {
 		t.Fatalf("codec of a type with an unexported slice was constructed, panic = %v", refused)
 	}
 
-	found := handWrittenClones(t)
-	for file, reason := range keptClones {
-		if !found[file] {
-			t.Errorf("%s keeps no hand-written clone, so its entry (%s) is stale", file, reason)
-		}
-	}
-	for file := range found {
-		if keptClones[file] == "" {
-			t.Errorf("%s holds a hand-written clone that keptClones does not name; DeepCopy is the codec's copy", file)
-		}
-	}
-}
-
-// handWrittenClones returns the production files whose document codec copies by other than DeepCopy.
-func handWrittenClones(t *testing.T) map[string]bool {
-	t.Helper()
-	root := filepath.Join("..", "..")
-	found := map[string]bool{}
-	for _, tree := range []string{"internal", "cmd"} {
-		err := filepath.WalkDir(filepath.Join(root, tree), func(path string, entry fs.DirEntry, err error) error {
-			if err != nil || entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-				return err
-			}
-			source, err := os.ReadFile(path)
-			if err != nil || !bytes.Contains(source, []byte("Clone")) {
-				return err
-			}
-			file, err := parser.ParseFile(token.NewFileSet(), path, source, 0)
-			if err != nil {
-				return err
-			}
-			ast.Inspect(file, func(node ast.Node) bool {
-				var clone ast.Expr
-				switch node := node.(type) {
-				case *ast.CallExpr:
-					if method, ok := node.Fun.(*ast.SelectorExpr); ok && method.Sel.Name == "WithClone" && len(node.Args) == 1 {
-						clone = node.Args[0]
-					}
-				case *ast.KeyValueExpr:
-					if key, ok := node.Key.(*ast.Ident); ok && key.Name == "Clone" {
-						clone = node.Value
-					}
-				}
-				if call, ok := clone.(*ast.CallExpr); ok {
-					if index, ok := call.Fun.(*ast.IndexExpr); ok && strings.TrimPrefix(types.ExprString(index.X), "artifact.") == "DeepCopy" {
-						clone = nil
-					}
-				}
-				if clone != nil {
-					relative, _ := filepath.Rel(root, path)
-					found[filepath.ToSlash(relative)] = true
-				}
-				return true
-			})
-			return nil
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	return found
 }

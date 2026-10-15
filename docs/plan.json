@@ -153,39 +153,6 @@
       ]
     },
     {
-      "id": "test-surface",
-      "title": "Remove duplicated Go tests through retained behavior owners",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "The built remaining operations/repository/video-waits batch measures zero production growth. Earlier combined landings charged their complete production deltas to this row, leaving -186. Remaining test-only consolidation adds no production mechanism; retain a zero production allowance, with the test reduction counted separately."
-      },
-      "steps": [
-        {
-          "id": "operations",
-          "title": "Merge operation recovery and publishing lifecycles",
-          "status": "open",
-          "verify": "go test ./internal/operation -run '^(TestTerminalTransitionIsAtomic|TestOperationRuntimeLifecycle|TestBlockedOperationResumesAfterDecision|TestReporterTextStaysBounded)$'",
-          "rationale": "SQA-088 operation groups. Move exact recovered ID and Run checks plus a real nonnil-executor mismatch into TerminalTransitionIsAtomic. Move publishing visibility into RuntimeLifecycle with cancellation-aware cleanup. Delete the two displaced bodies and setup in the same change.\nServes: development velocity and recovery coverage\nDisappears: duplicate manager and executor lifecycles\nEvidence: go test ./internal/operation -run '^(TestTerminalTransitionIsAtomic|TestOperationRuntimeLifecycle|TestBlockedOperationResumesAfterDecision|TestReporterTextStaysBounded)$' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
-        },
-        {
-          "id": "repository",
-          "title": "Share existing repository discovery and retain synthetic cases",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis ./internal/artifact -run '^(TestEveryProcessDeclarationIsReachedByACommand|TestEveryProcessRecordSchemaHasAProductionWriter|TestShapeReadingFindsPlantedFamilies|TestDefaultCloneMatchesEveryReplacedClone)$'",
-          "rationale": "SQA-088 repository group. One real-checkout Snapshot and shape reading serve the existing assertions. Move the six-clone inventory only if its policy still has a consumer. Preserve both synthetic fixture forms, planted near misses, diagnostics and exact group checks. Delete displaced standalone bodies and source walks without a new cache or analyzer.\nServes: development velocity\nDisappears: six repeated repository discoveries and four repeated real shape reads\nEvidence: go test ./internal/repoanalysis ./internal/artifact -run '^(TestEveryProcessDeclarationIsReachedByACommand|TestEveryProcessRecordSchemaHasAProductionWriter|TestShapeReadingFindsPlantedFamilies|TestKindsReadingRecordIsWhole|TestDefaultCloneMatchesEveryReplacedClone)$' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
-        },
-        {
-          "id": "video-waits",
-          "title": "Use controlled completion in existing video lifetime fixtures",
-          "status": "open",
-          "verify": "go test ./internal/latentvideo -run '^(TestVideoWorkIsJoinedOnEveryExit|TestFailedLoadEndsItsPromptPass)$'",
-          "rationale": "SQA-087. Use testing/synctest and local completion gates for injected Go work. Remove the fixed 4096-yield helpers. Keep actual completion before release, overlap, capacity, cancellation, error recovery and platform distinctions. No production instrumentation.\nServes: reliable verification\nDisappears: scheduler-yield counts used as completion evidence\nEvidence: go test ./internal/latentvideo -run '^(TestVideoWorkIsJoinedOnEveryExit|TestFailedLoadEndsItsPromptPass)$' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
-        }
-      ]
-    },
-    {
       "id": "streaming-passthrough",
       "title": "Use the existing writer for unchanged tensor bytes",
       "owner": "master-lead",

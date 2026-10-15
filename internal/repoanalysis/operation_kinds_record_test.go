@@ -282,10 +282,15 @@ const (
 	fixtureCheckLines = 3
 )
 
-// kindsFamilyOfTree requires the counters to find what kindsFixture plants, then reads the tree and returns the family kindsFamily labels.
-//   - the planted counts come first, so a zero the counters give the tree means none found and not a reading that matches nothing
-//   - a tree with no such family, or a family of no switch, fails the test
-func kindsFamilyOfTree(t *testing.T) (gosyntax.Snapshot, switchFamily) {
+// checkKindsReadingRecord holds the record of the reading of the switches over the tensor operations to the tree.
+//   - family = the family kindsFamily labels, with its counts as the reading's listing gives them
+//   - operations-by-switches = for each number of the family's switches, how many of its operations that many switches name
+//   - switch entry = one switch of the family, cited as file#function, with its lines and its constants as the listing gives them and its clauses and dispatch lines as switchCounts counts them
+//   - a switch's reading keys are its own, and the test requires each, refusing a table other than yes or no
+//   - a part that differs from the tree is printed as the tree gives it, the readings of the switches it still holds carried, so the fix is to replace the part and read again each switch whose figures moved
+//   - estimate = the sum the switches give, the estimates the reading states, and the arithmetic that joins them, the net inside its range
+//   - the closing row = yes or no and the reason
+func checkKindsReadingRecord(t *testing.T, snapshot gosyntax.Snapshot, reading shapeReading) {
 	t.Helper()
 	const fixtureFile = "internal/fixture/launch.go"
 	planted, err := gosyntax.Snapshot{}.Overlay(map[string][]byte{fixtureFile: []byte(kindsFixture)})
@@ -297,51 +302,12 @@ func kindsFamilyOfTree(t *testing.T) (gosyntax.Snapshot, switchFamily) {
 	if err != nil || counts != plantedCounts {
 		t.Fatalf("the planted switch counts %+v (%v), want %+v", counts, err, plantedCounts)
 	}
-	snapshot, err := gosyntax.DiscoverGo(filepath.Join("..", ".."), "cmd", "internal")
-	if err != nil {
-		t.Fatal(err)
-	}
-	reading, err := readShapes(snapshot)
-	if err != nil {
-		t.Fatal(err)
-	}
+
 	index := slices.IndexFunc(reading.families, func(family switchFamily) bool { return family.label == kindsFamily })
 	if index < 0 || len(reading.families[index].switches) == 0 {
-		t.Fatalf("the shape reading finds no switch of the family %s, want the switches over the tensor operations", kindsFamily)
+		t.Fatalf("the shape reading finds no switch of the family %s", kindsFamily)
 	}
-	return snapshot, reading.families[index]
-}
-
-// TestNoLaunchRepeatsACompileCheck holds each switch over the tensor operations free of a check that a compiled graph already holds.
-//   - recheck = the refusal of a failed type assertion of an operation's attributes, which tensor.ValidateOperationAttributes holds when a graph is built, when it compiles and when one host operation runs
-//   - dimension and count check = the refusal of a failed narrowing of a shape to 32-bit words, which internal/cuda/executor/fallback.go#checkLaunchWords holds when a graph compiles for the device
-//   - the counters are the record's, first required to find what kindsFixture plants
-func TestNoLaunchRepeatsACompileCheck(t *testing.T) {
-	t.Parallel()
-	snapshot, family := kindsFamilyOfTree(t)
-	for _, kind := range family.switches {
-		counts, err := countSwitch(snapshot, kind.place)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if repeated := counts.recheck + counts.dimension + counts.count; repeated != 0 {
-			t.Errorf("%s holds %d lines that check again what a compiled graph holds (%d recheck, %d dimension check, %d count check), want 0",
-				kind.place, repeated, counts.recheck, counts.dimension, counts.count)
-		}
-	}
-}
-
-// TestKindsReadingRecordIsWhole holds the record of the reading of the switches over the tensor operations to the tree.
-//   - family = the family kindsFamily labels, with its counts as the reading's listing gives them
-//   - operations-by-switches = for each number of the family's switches, how many of its operations that many switches name
-//   - switch entry = one switch of the family, cited as file#function, with its lines and its constants as the listing gives them and its clauses and dispatch lines as switchCounts counts them
-//   - a switch's reading keys are its own, and the test requires each, refusing a table other than yes or no
-//   - a part that differs from the tree is printed as the tree gives it, the readings of the switches it still holds carried, so the fix is to replace the part and read again each switch whose figures moved
-//   - estimate = the sum the switches give, the estimates the reading states, and the arithmetic that joins them, the net inside its range
-//   - the closing row = yes or no and the reason
-func TestKindsReadingRecordIsWhole(t *testing.T) {
-	t.Parallel()
-	snapshot, family := kindsFamilyOfTree(t)
+	family := reading.families[index]
 	raw, err := os.ReadFile(filepath.Join("..", "..", filepath.FromSlash(kindsRecord)))
 	if err != nil {
 		t.Fatal(err)
@@ -380,6 +346,9 @@ func TestKindsReadingRecordIsWhole(t *testing.T) {
 		counts, err := countSwitch(snapshot, kind.place)
 		if err != nil {
 			t.Fatal(err)
+		}
+		if repeated := counts.recheck + counts.dimension + counts.count; repeated != 0 {
+			t.Errorf("%s holds %d lines that check again what a compiled graph holds (%d recheck, %d dimension check, %d count check), want 0", kind.place, repeated, counts.recheck, counts.dimension, counts.count)
 		}
 		place := kind.place.file + "#" + kind.place.function
 		entry := []string{

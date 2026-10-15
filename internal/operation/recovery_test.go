@@ -73,35 +73,6 @@ func TestRecoverableOperationStatus(t *testing.T) {
 	}
 }
 
-func TestOperationRecoveryReusesIdentity(t *testing.T) {
-	manager := newTestManager(t)
-	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "operation recovery recipe")
-	runID := testutil.ArtifactID(t, artifact.KindRun, "operation recovery run")
-	request := Request{Task: recipe.TaskTraining, Recipe: recipeID}
-	id, err := manager.Submit(t.Context(), request, func(context.Context, Reporter) (Completion, error) {
-		return Completion{Run: runID}, errors.New("interrupted")
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if status, err := manager.Wait(t.Context(), id); err != nil || status.State != StateFailed {
-		t.Fatalf("initial status = (%+v, %v)", status, err)
-	}
-	if _, err := manager.Recover(t.Context(), id, Request{Task: recipe.TaskInference, Recipe: recipeID}, nil); err == nil {
-		t.Fatal("mismatched recovery was admitted")
-	}
-	recovered, err := manager.Recover(t.Context(), id, request, func(context.Context, Reporter) (Completion, error) {
-		return Completion{Run: runID}, nil
-	})
-	if err != nil || recovered != id {
-		t.Fatalf("recovery = (%s, %v)", recovered, err)
-	}
-	status, err := manager.Wait(t.Context(), id)
-	if err != nil || status.State != StateCompleted || status.Run == nil || *status.Run != runID {
-		t.Fatalf("recovered status = (%+v, %v)", status, err)
-	}
-}
-
 // TestTerminalTransitionIsAtomic holds an attempt's terminal transition to one
 // locked step: when the observer sees the terminal status, the attempt's
 // cancellation is spent and its waiters are released, and that status is
@@ -147,12 +118,19 @@ func TestTerminalTransitionIsAtomic(t *testing.T) {
 		if status := <-terminals; status.State != StateFailed {
 			t.Fatalf("first terminal status = %+v", status)
 		}
+		if _, err := manager.Recover(t.Context(), id, Request{Task: recipe.TaskInference, Recipe: recipeID}, func(context.Context, Reporter) (Completion, error) { return Completion{Run: runID}, nil }); err == nil {
+			t.Fatal("mismatched recovery was admitted")
+		}
 		finish := make(chan struct{})
-		if _, err := manager.Recover(t.Context(), id, request, func(ctx context.Context, _ Reporter) (Completion, error) {
-			<-finish
+		recovered, err := manager.Recover(t.Context(), id, request, func(ctx context.Context, _ Reporter) (Completion, error) {
+			select {
+			case <-finish:
+			case <-ctx.Done():
+			}
 			return Completion{Run: runID}, ctx.Err()
-		}); err != nil {
-			t.Fatal(err)
+		})
+		if err != nil || recovered != id {
+			t.Fatalf("recovery = (%s, %v), want %s", recovered, err, id)
 		}
 		second := waitInBackground(manager, id)
 		synctest.Wait()
@@ -163,7 +141,7 @@ func TestTerminalTransitionIsAtomic(t *testing.T) {
 			t.Fatalf("the recovery is %s before it finished", status.State)
 		}
 		close(finish)
-		if outcome := <-second; outcome.err != nil || outcome.status.State != StateCompleted {
+		if outcome := <-second; outcome.err != nil || outcome.status.State != StateCompleted || outcome.status.ID != id || outcome.status.Run == nil || *outcome.status.Run != runID {
 			t.Fatalf("the recovery's waiter = (%+v, %v)", outcome.status, outcome.err)
 		}
 		if status := <-terminals; status.State != StateCompleted || len(terminals) != 0 {

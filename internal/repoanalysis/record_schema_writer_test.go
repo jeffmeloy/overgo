@@ -718,28 +718,4 @@ func TestEveryProcessRecordSchemaHasAProductionWriter(t *testing.T) {
 		}
 	}
 
-	snapshot, outside := checkoutSource(t)
-	found, named, records, err := unwrittenRecordSchemas(snapshot, outside)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if records == 0 || records == len(found) {
-		t.Fatalf("the reading found %d record schemas and a writer for %d, want some of each", records, records-len(found))
-	}
-	kept, classOf, err := sortedEntries(keptList(t, schemaList))
-	if err != nil {
-		t.Fatalf("%s: %v", schemaList, err)
-	}
-	missing, stale := listDrift(found, kept)
-	for _, key := range missing {
-		t.Errorf("no command reaches a writer of %s, so reach its writer from a command or delete its type, validator and codec, because %s only shrinks", key, schemaList)
-	}
-	for _, key := range stale {
-		t.Errorf("%s lists %s, which a command writes or production code no longer binds, so delete its line and take it out of its group in %s", schemaList, key, sortRecord)
-	}
-	_, differs := heldEntries(recordGroups(t), func(group sortGroup) []string { return group.schemas }, kept, classOf)
-	for _, differ := range differs {
-		t.Errorf("%s: %s", sortRecord, differ)
-	}
-	t.Logf("schemas=%d records=%d unwritten=%d", named, records, len(found))
 }

@@ -1034,7 +1034,8 @@ func Warm(color Color) bool {
 //   - a repository read of no production file is refused, because a reading of nothing earns no pass
 func TestShapeReadingFindsPlantedFamilies(t *testing.T) {
 	t.Parallel()
-	reading, err := readShapes(fixtureSnapshot(t, shapeFixture))
+	fixture := fixtureSnapshot(t, shapeFixture)
+	reading, err := readShapes(fixture)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1051,6 +1052,36 @@ func TestShapeReadingFindsPlantedFamilies(t *testing.T) {
 		t.Errorf("the fixture's listing =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 
+	{
+		planted := []consolidatedGroup{
+			{name: "planted run", functions: []string{"internal/store/store.go Import", "internal/archive/archive.go Restore"}, calls: []string{"load", "fetch"}},
+			{name: "planted chain", functions: []string{"internal/device/device.go runner.Upload"}, calls: []string{"upload"}},
+			{name: "near miss", functions: []string{"internal/store/store.go Import", "internal/archive/archive.go Restore"}, calls: []string{"launch"}},
+		}
+		holdConsolidated(t, fixture, reading, planted, []string{
+			`group "planted run" repeats in run call-and-test lines=20 places=2 internal/archive/archive.go:10-19 Restore, internal/store/store.go:10-19 Import`,
+			`group "planted chain" repeats in chain receiver=device pairs=3 lines=12 internal/device/device.go:12-23 runner.Upload`,
+		})
+	}
+	{
+		fixture := fixtureSnapshot(t, shapeFixture, caseFixture)
+		reading, err := readShapes(fixture)
+		if err != nil {
+			t.Fatal(err)
+		}
+		compile := []string{"internal/suites/suites.go Compile"}
+		planted := []consolidatedGroup{
+			{name: "planted cases", functions: compile, cases: []string{`"a"`, `"b"`}, calls: []string{"decode"}},
+			{name: "near miss", functions: compile, cases: []string{`"a"`, `"c"`}, calls: []string{"decode"}},
+			{name: "absent case", functions: compile, cases: []string{`"d"`}, calls: []string{"decode"}},
+			{name: "planted files", functions: []string{"internal/store/store.go", "internal/archive/archive.go"}, calls: []string{"load", "fetch"}},
+		}
+		holdConsolidated(t, fixture, reading, planted, []string{
+			`group "planted cases" repeats in run call-and-test lines=18 places=2 internal/suites/suites.go:12-20 Compile case "a", internal/suites/suites.go:22-30 Compile case "b"`,
+			`group "absent case" names case "d", which no clause of its functions holds`,
+			`group "planted files" repeats in run call-and-test lines=20 places=2 internal/archive/archive.go:10-19 Restore, internal/store/store.go:10-19 Import`,
+		})
+	}
 	snapshot, err := gosyntax.DiscoverGo(filepath.Join("..", ".."), "cmd", "internal")
 	if err != nil {
 		t.Fatal(err)
@@ -1092,5 +1123,25 @@ func TestShapeReadingFindsPlantedFamilies(t *testing.T) {
 	t.Logf("switches over named constants=%d lines=%d families=%d", switches, switchLines, len(reading.families))
 	for _, family := range reading.families[:min(largestShown, len(reading.families))] {
 		t.Log(family)
+	}
+	repeats, err := consolidatedRepeats(snapshot, reading, slices.Concat(consolidatedGroups, consolidatedSurfaceGroups))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(repeats) > 0 {
+		t.Errorf("a consolidated group repeats again, want its places served by the common component:\n%s", strings.Join(repeats, "\n"))
+	}
+	checkKindsReadingRecord(t, snapshot, reading)
+
+	found := handWrittenClones(t, snapshot)
+	for file, reason := range keptClones {
+		if !found[file] {
+			t.Errorf("%s keeps no hand-written clone, so its entry (%s) is stale", file, reason)
+		}
+	}
+	for file := range found {
+		if keptClones[file] == "" {
+			t.Errorf("%s holds a hand-written clone that keptClones does not name; DeepCopy is the codec's copy", file)
+		}
 	}
 }

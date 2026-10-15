@@ -1441,8 +1441,16 @@ func withdrawRegistrations(h hygiene, directory, token string, output io.Writer)
 			entry.state, entry.rule = stateFinished, "a location of "+location.Artifact.String()+", which a checkpoint in the folder accounts for"
 			withdrawn = append(withdrawn, artifact.LocationEvent{Location: location, Action: artifact.LocationRemove})
 		} else {
-			if location.Artifact.Kind() != artifact.KindModel || location.Kind == artifact.LocationDirectory {
+			if location.Artifact.Kind() != artifact.KindModel {
 				staying[location.Artifact]++
+			} else {
+				root := location.Value
+				if location.Kind == artifact.LocationFile {
+					root = filepath.Dir(root)
+				}
+				if _, err := artifact.CanonicalLocalLocation(location.Artifact, artifact.LocationDirectory, root); err == nil {
+					staying[location.Artifact]++
+				}
 			}
 			if !under(directory, location.Value) {
 				continue
@@ -1459,7 +1467,7 @@ func withdrawRegistrations(h hygiene, directory, token string, output io.Writer)
 		return nil
 	})
 	for _, event := range withdrawn {
-		if event.Kind == artifact.LocationDirectory && served[event.Artifact] && staying[event.Artifact] == 0 {
+		if served[event.Artifact] && staying[event.Artifact] == 0 {
 			err = errors.Join(err, fmt.Errorf("the model %s is served and the withdrawal would leave it no directory on this machine: nothing is withdrawn", event.Artifact))
 		}
 		holders, holdersErr := store.Children(ctx, event.Artifact)
@@ -1477,10 +1485,18 @@ func withdrawRegistrations(h hygiene, directory, token string, output io.Writer)
 		return err
 	}
 	head, _ := store.Head()
-	return h.removeFinished(func(hygiene, string) error { return nil }, func() error {
-		_, err := store.Commit(ctx, artifact.Batch{Key: withdrawalKey + head.String(), ExpectedHead: &head, Locations: withdrawn})
+	var committed artifact.CommitID
+	err = h.removeFinished(func(hygiene, string) error { return nil }, func() error {
+		id, err := store.Commit(ctx, artifact.Batch{Key: withdrawalKey + head.String(), ExpectedHead: &head, Locations: withdrawn})
+		if err == nil {
+			committed = id
+		}
 		return err
 	}, "withdrawn", found, output)
+	if err != nil && committed.Valid() {
+		return fmt.Errorf("withdrawal committed at %s; receipt or output failed: %w", committed, err)
+	}
+	return err
 }
 
 // realMachine reads, for the repository the current directory is a worktree

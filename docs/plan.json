@@ -61,44 +61,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "withdrawal-recovery",
-      "title": "Finish usable-location and committed-effect withdrawal recovery",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 67,
-        "reason": "Built follow-up measured by go/parser adds 67 production AST nodes for usable remaining roots and committed-head attribution. Existing withdrawal coverage grows by 204 test nodes. Combined gate preflight measures 495 production nodes."
-      },
-      "steps": [
-        {
-          "id": "effects",
-          "title": "Validate remaining roots and name a committed head on reporting failure",
-          "status": "open",
-          "verify": "go test ./cmd/loop -run '^TestWithdrawalTakesOnlyARunsCheckpointRegistrations$'",
-          "rationale": "SQA-142 and SQA-143 retain two closure details after receipt acquisition and directory ownership protection.\nServes: availability and recovery\nDisappears: stale alternate directories counted as usable and unqualified output failures after committed withdrawal\nEvidence: the retained withdrawal sandbox checks a stale alternate, a usable replacement and the committed head on output failure\nBatch: the existing host regression and full landing gate share the recovery batch"
-        }
-      ]
-    },
-    {
-      "id": "checkpoint-restore",
-      "title": "Resume an exact approved restore after partial completion",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 428,
-        "reason": "Built repair measured by gate preflight and go/parser adds 428 production AST nodes for exact durable retry using the existing StageReceipt and atomicfile owners. Existing lifecycle coverage grows by 713 test nodes for two injected interruptions, modes, empty/absent files and refusal of drift. No new record schema or fixture file."
-      },
-      "steps": [
-        {
-          "id": "retry",
-          "title": "Use recorded identities and atomic file replacement for restore retry",
-          "status": "open",
-          "verify": "go test ./internal/agentloop ./cmd/agent-loop -run '^(TestAgentMutationCheckpointLifecycle|TestDelegatedStepAdmitsByContractAndRestores)$'",
-          "rationale": "SQA-150. Reuse StageReceipt and preimage/postimage identities to distinguish untouched, restored and unrelated drift. Preflight required content where bounded. Use atomicfile for each file and retain recorded mode, absent and empty states. Inject later-target and final receipt failures in the existing fixture. No whole-multifile atomicity claim or new recovery ledger.\nServes: failure-rate and interrupted work recovery\nDisappears: raw truncating writes and postimage-only retry admission\nEvidence: go test ./internal/agentloop ./cmd/agent-loop -run '^(TestAgentMutationCheckpointLifecycle|TestDelegatedStepAdmitsByContractAndRestores)$' exercises the retained owner and the added regression cases\nBatch: host fixtures before the full landing gate; actual lane and inference-surface reach comes from the diff; no new media registry"
-        }
-      ]
-    },
-    {
       "id": "rebuild-consumers",
       "title": "Prove current census consumers before replacing a store",
       "owner": "master-lead",

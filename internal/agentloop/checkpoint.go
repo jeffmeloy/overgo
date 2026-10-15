@@ -12,6 +12,7 @@ import (
 
 	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
+	"overgo/internal/atomicfile"
 	"overgo/internal/operatoraction"
 	"overgo/internal/pathidentity"
 	"overgo/internal/recipe"
@@ -195,10 +196,16 @@ func RestoreApprovalRequest(checkpoint runrecord.AgentMutationCheckpoint, recipe
 	return operatoraction.NewApprovalRequest(operation, recipeID, operatoraction.Action{Code: restoreToolName, Summary: "restore agent mutation checkpoint", Argv: []string{checkpoint.ID.String()}}, artifact.ID{})
 }
 
-// RestoreCheckpoint verifies all postimages before changing any target.
+// RestoreCheckpoint resumes an approved restore from exact checkpoint states.
+//   - a running receipt permits original postimages and restored preimages.
+//   - a completed receipt is reused only while every restored state still matches.
+//   - each file is replaced durably and the set of files is not one atomic write.
 func (runtime *MutationCheckpointRuntime) RestoreCheckpoint(ctx context.Context, checkpoint runrecord.AgentMutationCheckpoint, effect agenttool.InvocationEffect, recipeID artifact.ID) (artifact.ID, error) {
-	if runtime == nil || checkpoint.Gaps != 0 || effect.Class != agenttool.EffectMutation || !effect.Known || effect.OpaqueMutation {
+	if runtime == nil || ctx == nil || checkpoint.Gaps != 0 || effect.Class != agenttool.EffectMutation || !effect.Known || effect.OpaqueMutation {
 		return artifact.ID{}, errors.New("agent loop: checkpoint restore is not admissible")
+	}
+	if err := checkpoint.ValidateIdentity(); err != nil {
+		return artifact.ID{}, err
 	}
 	if !runtime.effectMatchesCheckpoint(effect, checkpoint) {
 		return artifact.ID{}, errors.New("agent loop: restore effect differs from checkpoint targets")
@@ -219,44 +226,95 @@ func (runtime *MutationCheckpointRuntime) RestoreCheckpoint(ctx context.Context,
 	runtime.active = true
 	runtime.mu.Unlock()
 	defer runtime.AbortCheckpoint()
-	for _, entry := range checkpoint.Entries {
-		if err := runtime.verifyPostimage(entry); err != nil {
-			return artifact.ID{}, err
-		}
-	}
-	for _, entry := range checkpoint.Entries {
-		if err := runtime.restoreEntry(ctx, entry); err != nil {
-			return artifact.ID{}, err
-		}
-	}
-	receipt := runrecord.StageReceipt{Recipe: decision.Recipe, Node: recipe.NodeID(restoreToolName), Operation: request.Operation, Attempt: uint32(artifact.InitialDocumentVersion), State: runrecord.StageCompleted,
+	receipt := runrecord.StageReceipt{Recipe: decision.Recipe, Node: recipe.NodeID(restoreToolName), Operation: request.Operation, Attempt: uint32(artifact.InitialDocumentVersion), State: runrecord.StageRunning,
 		Inputs:  []runrecord.StageBinding{{Port: recipe.PortName("effect"), Artifacts: []artifact.ID{effect.ID}}},
 		Outputs: []runrecord.StageBinding{{Port: recipe.PortName("checkpoint"), Artifacts: []artifact.ID{checkpoint.ID}}}}
-	published, err := runrecord.PublishStageReceipt(context.WithoutCancel(ctx), runtime.store, receipt, nil,
-		[]artifact.Descriptor{{ID: decision.Recipe}, {ID: request.Operation}, {ID: effect.ID}})
+	previous, found, err := runrecord.ResolveStageReceipt(ctx, runtime.store, request.Operation, receipt.Node)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	var state runrecord.StageState
+	if found {
+		receipt.State, receipt.Previous = previous.State, previous.Previous
+		bound, err := runrecord.NewStageReceipt(receipt)
+		if err != nil || bound.ID != previous.ID || previous.State != runrecord.StageRunning && previous.State != runrecord.StageCompleted {
+			return artifact.ID{}, errors.Join(errors.New("agent loop: restore receipt differs from the approved checkpoint and effect"), err)
+		}
+		state = previous.State
+	}
+	restored := make([]bool, len(checkpoint.Entries))
+	for i, entry := range checkpoint.Entries {
+		if restored[i], err = runtime.verifyCheckpointEntry(entry, state); err != nil {
+			return artifact.ID{}, err
+		}
+		if !entry.Absent && !restored[i] {
+			if _, _, err := runtime.checkpointPreimage(ctx, entry); err != nil {
+				return artifact.ID{}, err
+			}
+		}
+	}
+	if state == runrecord.StageCompleted {
+		return previous.ID, nil
+	}
+	if !found {
+		if _, err := runrecord.PublishStageReceipt(ctx, runtime.store, receipt, nil, []artifact.Descriptor{{ID: decision.Recipe}, {ID: request.Operation}, {ID: effect.ID}}); err != nil {
+			return artifact.ID{}, err
+		}
+	}
+	for i, entry := range checkpoint.Entries {
+		if !restored[i] {
+			if err := runtime.restoreEntry(ctx, entry); err != nil {
+				return artifact.ID{}, err
+			}
+		}
+	}
+	receipt.State = runrecord.StageCompleted
+	published, err := runrecord.PublishStageReceipt(context.WithoutCancel(ctx), runtime.store, receipt, nil, nil)
 	return published.ID, err
 }
 
-func (runtime *MutationCheckpointRuntime) verifyPostimage(entry runrecord.AgentCheckpointEntry) error {
+func (runtime *MutationCheckpointRuntime) verifyCheckpointEntry(entry runrecord.AgentCheckpointEntry, state runrecord.StageState) (bool, error) {
 	path, err := runtime.targetPath(entry.Target)
 	if err != nil {
-		return err
+		return false, err
 	}
 	data, readErr := os.ReadFile(path)
-	if entry.ExpectedAbsent {
-		if errors.Is(readErr, os.ErrNotExist) {
-			return nil
+	if errors.Is(readErr, os.ErrNotExist) {
+		if state != "" && entry.Absent {
+			return true, nil
 		}
-		return errors.New("agent loop: checkpoint postimage drifted")
+		if state != runrecord.StageCompleted && entry.ExpectedAbsent {
+			return false, nil
+		}
+		return false, errors.New("agent loop: checkpoint target drifted")
 	}
-	if readErr != nil || entry.ExpectedPostimage == nil {
-		return errors.New("agent loop: checkpoint postimage is unavailable")
+	if readErr != nil {
+		return false, readErr
+	}
+	info, err := os.Lstat(path)
+	if err != nil || !info.Mode().IsRegular() {
+		return false, errors.Join(errors.New("agent loop: checkpoint target must be a regular file"), err)
 	}
 	id, err := artifact.IdentifyBytes(artifact.KindFile, data)
-	if err != nil || id != *entry.ExpectedPostimage {
-		return errors.New("agent loop: checkpoint postimage drifted")
+	if err != nil {
+		return false, err
 	}
-	return nil
+	if state != "" && (entry.Empty && len(data) == 0 || entry.Preimage != nil && id == *entry.Preimage) {
+		var mode os.FileMode
+		if _, err := fmt.Sscanf(entry.Mode, "%o", &mode); err != nil {
+			return false, err
+		}
+		if info.Mode().Perm() == mode {
+			return true, nil
+		}
+		if state != runrecord.StageCompleted {
+			return false, nil
+		}
+	}
+	if state != runrecord.StageCompleted && entry.ExpectedPostimage != nil && id == *entry.ExpectedPostimage {
+		return false, nil
+	}
+	return false, errors.New("agent loop: checkpoint target drifted")
 }
 
 func (runtime *MutationCheckpointRuntime) restoreEntry(ctx context.Context, entry runrecord.AgentCheckpointEntry) error {
@@ -270,25 +328,30 @@ func (runtime *MutationCheckpointRuntime) restoreEntry(ctx context.Context, entr
 		}
 		return nil
 	}
-	data := []byte{}
-	if entry.Preimage != nil {
-		content, found, readErr := artifact.ReadContent(ctx, runtime.store, *entry.Preimage)
-		if readErr != nil || !found {
-			return errors.Join(errors.New("agent loop: checkpoint preimage is absent"), readErr)
-		}
-		data = content.Data
+	data, mode, err := runtime.checkpointPreimage(ctx, entry)
+	if err != nil {
+		return err
 	}
 	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
 		return err
 	}
+	return atomicfile.Write(path, data, mode)
+}
+
+func (runtime *MutationCheckpointRuntime) checkpointPreimage(ctx context.Context, entry runrecord.AgentCheckpointEntry) ([]byte, os.FileMode, error) {
 	var mode os.FileMode
 	if _, err := fmt.Sscanf(entry.Mode, "%o", &mode); err != nil {
-		return err
+		return nil, 0, err
 	}
-	if err := os.WriteFile(path, data, mode); err != nil {
-		return err
+	data := []byte{}
+	if entry.Preimage != nil {
+		content, found, readErr := artifact.ReadContent(ctx, runtime.store, *entry.Preimage)
+		if readErr != nil || !found {
+			return nil, 0, errors.Join(errors.New("agent loop: checkpoint preimage is absent"), readErr)
+		}
+		data = content.Data
 	}
-	return os.Chmod(path, mode)
+	return data, mode, nil
 }
 
 func (runtime *MutationCheckpointRuntime) effectMatchesCheckpoint(effect agenttool.InvocationEffect, checkpoint runrecord.AgentMutationCheckpoint) bool {

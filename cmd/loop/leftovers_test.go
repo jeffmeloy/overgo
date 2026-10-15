@@ -2602,6 +2602,12 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 	s.activate(store, leaning)
 	adopted := s.recordCheckpoint(store, adoptedRun+"/reward/groups-001", "the shard of the arm that was adopted", 4)
 	s.activate(store, adopted.model)
+	const alternateRoot = "data/models/adopted-root"
+	s.folder(alternateRoot)
+	s.commit(store, artifact.Batch{Key: "withdrawal-fixture/alternate-root", Locations: []artifact.LocationEvent{s.location(adopted.model, artifact.LocationDirectory, alternateRoot)}})
+	if err := os.Remove(s.at(alternateRoot)); err != nil {
+		t.Fatal(err)
+	}
 	for _, shard := range []struct {
 		id   artifact.ID
 		name string
@@ -2836,7 +2842,7 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 		}))
 		lines, _ := removalLines(printed.String())
 		want := said(map[string][]string{"withdrawn": pilot.files(), "kept": kept})
-		if !errors.Is(err, outputFailure) || !slices.Equal(s.verbs(lines), want) {
+		if !errors.Is(err, outputFailure) || !strings.Contains(err.Error(), "withdrawal committed at") || !slices.Equal(s.verbs(lines), want) {
 			t.Fatalf("the withdrawal said (%v)\n%s\nwant\n%s", err, strings.Join(s.verbs(lines), "\n"), strings.Join(want, "\n"))
 		}
 		var receipted strings.Builder
@@ -2858,7 +2864,7 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 			}
 			left = slices.Delete(left, at, at+1)
 		}
-		if now, _ := registered(t); !slices.Equal(now, left) {
+		if now, head := registered(t); !slices.Equal(now, left) || !strings.Contains(err.Error(), head.String()) {
 			t.Fatalf("after the withdrawal the store registers\n%s\nwant all it registered but the checkpoint's own:\n%s", strings.Join(now, "\n"), strings.Join(left, "\n"))
 		}
 		prototype := func(content string) artifact.ID { return testutil.ArtifactID(t, artifact.KindTensorSet, content) }
@@ -2986,5 +2992,21 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 				t.Errorf("the flags %+v are answered %v, want refused: %v", flags, err, flags.refused)
 			}
 		}
+	})
+	t.Run("an active model keeps a usable alternative root", func(t *testing.T) {
+		s.folder(alternateRoot)
+		_, token, err := withdraw(adoptedRun, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := withdraw(adoptedRun, token); err != nil {
+			t.Fatal(err)
+		}
+		read(t, func(store *overgodb.Store) {
+			got, err := artifact.AvailablePath(ctx, store, adopted.model, artifact.LocationDirectory)
+			if err != nil || got != s.at(alternateRoot) {
+				t.Fatalf("active model root = %q, %v, want %s", got, err, s.at(alternateRoot))
+			}
+		})
 	})
 }

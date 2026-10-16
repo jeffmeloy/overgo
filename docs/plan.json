@@ -1,5 +1,5 @@
 {
-  "campaign": "Improve shared audio processing, streaming speech, synthesis training and existing ASR execution from pinned audio.cpp references",
+  "campaign": "Restore measured load times and complete checkpoint publication",
   "paragraphs": [
     {
       "governs": "standing",
@@ -61,28 +61,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "scorecard-regressed-7432e7f80e336e4f",
-      "title": "Restore Wan2.1-T2V-1.3B video-gen load-time to 4872.3347 ms",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": -405,
-        "reason": ""
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Wan2.1-T2V-1.3B video-gen load-time to 4872.3347 ms",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-7432e7f80e336e4f -target 4872.334699999999",
-          "rationale": "- Wan2.1-T2V-1.3B load-time, {Metric:load phase Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:bff12bb8946afe0d8ca84d635e0ff275855c94a22a99df91e03d319c32ed54b4}: 3770.2035 to 6049.8777 (+2279.6742, +60.5%, allowed 1102.1312; load phase, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261016T043647Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it.",
-          "depends_on": [
-            "scorecard-regressed-7432e7f80e336e4f/pack"
-          ]
-        }
-      ]
-    },
-    {
       "id": "scorecard-regressed-89865f5144d7f17f",
       "title": "Restore Qwen3.5-4B training load-time to 6532.2922 ms",
       "owner": "master-lead",
@@ -93,13 +71,21 @@
       },
       "steps": [
         {
+          "id": "publish",
+          "title": "Use the existing durable replacement owner for streaming checkpoint sidecars",
+          "status": "open",
+          "verify": "go test -timeout=0 ./internal/safetensors ./internal/fsatomic",
+          "rationale": "Serves: Completed training reaches checkpoint publication on Windows.\nDisappears: replaceSyncedFile delegates the namespace move to fsatomic.Replace instead of raw os.Rename.\nEvidence: The third Qwen proof at 93d19be2 completed all updates and failed replacing resume.json with Access is denied. The failed observation and load-closeout-93d19be2-qwen-3 logs remain retained. The external holder was not identified.\nBatch: Reuse the existing mapped-reader and denying-holder tests in fsatomic and streaming resume tests in safetensors. No new retry loop, test framework or duplicate holder fixture is introduced.\nThe checkpoint owner removed the failed staging directory, so the completed training cannot resume.\nRetain the two successful load samples because this repair changes publication only.\nTake one bounded recovery attempt after the repair and retain the original failure.\nThe load target remains 6532.2922 ms and unknown locking causes remain reported failures."
+        },
+        {
           "id": "do",
           "title": "Restore Qwen3.5-4B training load-time to 6532.2922 ms",
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-89865f5144d7f17f -target 6532.2922",
           "rationale": "- Qwen3.5-4B load-time, {Metric:load phase Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:c14b1d781a838e780e085a07e52ec7fd2ae992c00a91553613103a391eeb86da}: 5065.7454 to 6608.1204 (+1542.375, +30.4%, allowed 1466.5468; load phase, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261016T043647Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it.",
           "depends_on": [
-            "scorecard-regressed-89865f5144d7f17f/decode"
+            "scorecard-regressed-89865f5144d7f17f/decode",
+            "scorecard-regressed-89865f5144d7f17f/publish"
           ]
         }
       ]

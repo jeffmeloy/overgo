@@ -5,7 +5,9 @@ import (
 	"errors"
 
 	"overgo/internal/artifact"
+	"overgo/internal/media"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/recipecontract"
 	"overgo/internal/workflowruntime"
 )
 
@@ -14,7 +16,14 @@ import (
 // segment is generated and decoded, and their samples follow one another. The
 // recording is complete only when every segment ended on its own.
 func (s *Synthesizer) Speak(ctx context.Context, request DocumentRequest) (Audio, error) {
-	return collectSpeech(func(emit func(Audio) error) (Audio, error) { return s.SpeakStream(ctx, request, emit) })
+	return collectSpeech(func(emit func(Audio) error) (Audio, error) {
+		return s.SpeakStream(ctx, request, func(chunk Audio) error {
+			if err := media.EmitAudio(ctx, media.DecodedAudio{Samples: chunk.PCM, Format: recipecontract.AudioFormat{SampleRate: uint64(chunk.SampleRate), Channels: uint32(chunk.Channels), Encoding: "pcm-f32le"}}); err != nil {
+				return err
+			}
+			return emit(chunk)
+		})
+	})
 }
 
 func collectSpeech(stream func(func(Audio) error) (Audio, error)) (Audio, error) {

@@ -437,7 +437,7 @@
           activeTurn.stopRequested = true;
           updateBusy();
           cancelTurn(activeTurn);
-        } else if (activeOperation) { activeOperation.stopRequested = true; updateBusy(); cancelBackgroundOperation(activeOperation); }
+        } else if (activeOperation) { activeOperation.stopRequested = true; activeOperation.stopPlayback?.(); updateBusy(); cancelBackgroundOperation(activeOperation); }
         else if (controller) controller.abort();
       };
       overgo.onRelease(() => { if (window.overgo.stopTurn === stopTurn) window.overgo.stopTurn = null; });
@@ -455,6 +455,8 @@
         const work = activeOperation = { id: '', status, row };
         thread.node.appendChild(row);
         work.lifecycle = {
+          streaming: stop => { work.stopPlayback = stop; if (work.stopRequested) stop?.(); },
+          audio: () => { if (!overgo.signal.aborted) status.textContent = 'Playing speech…'; },
           accepted: async id => {
             work.id = id;
             if (!overgo.signal.aborted) row.append(' ', el('button', { class: 'link-button', text: 'View activity', onclick: () => overgo.showOperation(id) }));

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -69,6 +70,7 @@ type stalledResponseWriter struct {
 	blocked     chan struct{}
 	interrupted chan struct{}
 	unblock     func()
+	event       string
 }
 
 func (w *stalledResponseWriter) WriteString(value string) (int, error) {
@@ -76,7 +78,7 @@ func (w *stalledResponseWriter) WriteString(value string) (int, error) {
 }
 
 func (w *stalledResponseWriter) Write(value []byte) (int, error) {
-	if strings.Contains(string(value), "event: response.output_text.delta\n") {
+	if strings.Contains(string(value), cmp.Or(w.event, "event: response.output_text.delta\n")) {
 		close(w.blocked)
 		<-w.interrupted
 		return 0, io.ErrClosedPipe

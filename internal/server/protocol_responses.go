@@ -419,19 +419,7 @@ func (h *Handler) streamResponses(
 		return
 	}
 	if store {
-		// A mobile connection can stall without closing. Cancellation must
-		// interrupt its write as well as generation, then join the callback
-		// before net/http can reuse this response's connection.
-		writeInterrupted := make(chan struct{})
-		stopInterrupt := context.AfterFunc(plan.context(), func() {
-			_ = http.NewResponseController(response).SetWriteDeadline(time.Now())
-			close(writeInterrupted)
-		})
-		defer func() {
-			if !stopInterrupt() {
-				<-writeInterrupted
-			}
-		}()
+		defer interruptResponseWrite(plan.context(), response)()
 	}
 	stream := newSSEEmitter(request.Context(), response, flusher)
 	disconnected := false

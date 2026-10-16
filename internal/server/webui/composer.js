@@ -40,6 +40,7 @@
   // request number, as a Run button's does: the same request sent again after an answer was lost is
   // answered with the run the server already started, where it was a second run.
   async function run(capability, input, signal, sources, lifecycle) {
+    if (capability.task === 'speech') return runSpeech(capability, input, signal, sources, lifecycle);
     let accepted;
     try { accepted = await overgo.api.submit("/generation/run", { task: capability.task, recipe: capability.recipe, input, sources: sources || [] }, { signal }); }
     catch (err) { err.operationUnconfirmed = !err.status && err.name !== 'AbortError'; throw err; }
@@ -50,13 +51,82 @@
     return { run: completed.run, data: (completed.outputs || []).map((id) => ({ url: overgo.contentURL(id) })) };
   }
 
+  // speechPlayer keeps only the playing chunk and its successor scheduled.
+  // Completion drains both buffers; cancellation stops them before closing the context.
+  function speechPlayer(signal) {
+    const context = new AudioContext(), ready = context.resume(), pending = new Set();
+    let end = 0, played = false, stopped = false;
+    const stop = () => { stopped = true; for (const item of pending) { item.source.stop(); item.finish(); } };
+    signal.addEventListener('abort', stop, { once: true });
+    function check() { signal.throwIfAborted(); if (stopped) throw new DOMException('Speech playback stopped', 'AbortError'); }
+    // Two buffers permit one to play while its immediate successor is prepared.
+    const scheduledChunks = 2;
+    return {
+      get played() { return played; },
+      async append(chunk) {
+        await ready; check();
+        if (chunk.channels !== 1 || !Number.isInteger(chunk.sample_rate) || chunk.sample_rate <= 0 || typeof chunk.pcm_f32le !== 'string' || !chunk.pcm_f32le.length) throw new Error('Speech stream returned invalid provisional audio.');
+        while (pending.size >= scheduledChunks) { await pending.values().next().value.ended; check(); }
+        const bytes = Uint8Array.from(atob(chunk.pcm_f32le), value => value.charCodeAt(0)), width = Float32Array.BYTES_PER_ELEMENT;
+        if (bytes.length % width) throw new Error('Speech stream returned a partial sample.');
+        const buffer = context.createBuffer(chunk.channels, bytes.length / width, chunk.sample_rate), samples = buffer.getChannelData(0), view = new DataView(bytes.buffer);
+        for (let at = 0; at < samples.length; at++) { const value = view.getFloat32(at * width, true); if (!Number.isFinite(value)) throw new Error('Speech stream returned a non-finite sample.'); samples[at] = value; }
+        const source = context.createBufferSource(); source.buffer = buffer; source.connect(context.destination);
+        let finish, finished = false;
+        const ended = new Promise(resolve => { finish = () => { if (finished) return; finished = true; source.disconnect(); pending.delete(item); resolve(); }; });
+        const item = { source, ended, finish }; pending.add(item); source.onended = finish;
+        const start = Math.max(context.currentTime, end); end = start + buffer.duration;
+        source.start(start); played = true;
+      },
+      async drain() { await Promise.all([...pending].map(item => item.ended)); check(); },
+      async close() { signal.removeEventListener('abort', stop); stop(); await context.close(); },
+    };
+  }
+
+  async function runSpeech(capability, input, parent, sources, lifecycle) {
+    const halt = new AbortController(), signal = parent ? AbortSignal.any([parent, halt.signal]) : halt.signal;
+    const player = speechPlayer(signal);
+    if (lifecycle?.streaming) lifecycle.streaming(() => halt.abort());
+    let accepted = false, completed, sequence = 0;
+    try {
+      const response = await overgo.api.submit('/generation/run', { task: capability.task, recipe: capability.recipe, input, sources: sources || [] }, { signal, events: true });
+      const id = response.headers.get('X-Overgo-Operation');
+      if (!id) throw new Error('The speech operation was submitted without a receipt. Check Activity before trying again.');
+      accepted = true;
+      if (lifecycle?.accepted) await lifecycle.accepted(id);
+      for await (const { event, data } of overgo.sseEvents(response)) {
+        signal.throwIfAborted();
+        if (event === 'created' && data?.operation !== id) throw new Error('Speech operation identity changed.');
+        if (event === 'audio') {
+          if (data.sequence !== sequence++) throw new Error('Speech chunks arrived out of order.');
+          await player.append(data);
+          if (lifecycle?.audio) lifecycle.audio();
+        } else if (['completed', 'failed', 'cancelled'].includes(event)) {
+          if (data?.id !== id || data.state !== event) throw new Error('Speech completion identity changed.');
+          completed = data;
+          if (lifecycle?.observe) lifecycle.observe(data);
+          break;
+        }
+      }
+      signal.throwIfAborted();
+      if (!completed) throw new Error('The connection ended before speech completion was confirmed. Check Activity for its result.');
+      if (completed.state !== 'completed') { const err = new Error(completed.failure || completed.state); err.operationState = completed.state; throw err; }
+      await player.drain();
+      return { run: completed.run, played: player.played, data: (completed.outputs || []).map(id => ({ url: overgo.contentURL(id) })) };
+    } catch (err) {
+      if (!err.status && err.name !== 'AbortError' && !err.operationState) err.operationUnconfirmed = true;
+      if (!accepted && err.status) err.operationUnconfirmed = false;
+      throw err;
+    } finally { halt.abort(); await player.close(); if (lifecycle?.streaming) lifecycle.streaming(null); }
+  }
+
   // replay: the stored request of a record resubmitted (unchanged, or varied by the page) as a new
   // run; each output names its parent, and one identical to the parent says the store memoized it.
   async function* replay(capability, input, signal, parent, label, lifecycle) {
     let completed;
     try { completed = await run(capability, input, signal, null, lifecycle); }
     catch (err) { if (err.operationState === 'cancelled') { yield { type: 'cancelled' }; return; } throw err; }
-    for await (const event of media(outputKind(capability), completed, label + " of " + fmt.shortID(parent), { run: completed.run, recipe: capability.recipe })) {
+    for await (const event of media(outputKind(capability), completed, label + " of " + fmt.shortID(parent), { run: completed.run, recipe: capability.recipe, autoplay: completed.played === false })) {
       if (event.type === "media" && event.artifact === parent) event.caption += " — the same output: the store memoized the unchanged request";
       yield event;
     }
@@ -83,12 +153,12 @@
     if (missing.size) { yield { type: "error", message: [...missing].join(", ") + " required" }; return; }
     let completed;
     try { completed = await run(capability, input, signal, selection.sources, selection.lifecycle); } catch (err) {
-      if (err.name === "AbortError") throw err;
+      if (err.name === "AbortError") { if (capability.task === 'speech') { yield { type: 'cancelled' }; return; } throw err; }
       if (err.operationState === 'cancelled') yield { type: 'cancelled' };
       else yield { type: "error", message: err.message, status: err.operationUnconfirmed ? 'unknown' : 'failed' };
       return;
     }
-    if (outputKind(capability) !== "text") { yield* media(outputKind(capability), completed, text, { run: completed.run, recipe: capability.recipe }); return; }
+    if (outputKind(capability) !== "text") { yield* media(outputKind(capability), completed, text, { run: completed.run, recipe: capability.recipe, autoplay: completed.played === false }); return; }
     // Text outputs only: a run's document outputs (a transcription record) stay stored beside them.
     for (const output of completed.data) { const blob = await overgo.api.blob(output.url); if (blob.type.startsWith("text/")) yield { type: "token", text: await blob.text() }; }
     yield { type: "done" };
@@ -259,6 +329,7 @@
 
     function mediaCard(event) {
       const player = mediaPlayer(event.kind, event.url, event.caption);
+      if (event.kind === 'audio' && event.autoplay) player.autoplay = true;
       player.addEventListener("load", scroll, true);
       player.addEventListener("loadedmetadata", scroll, true);
       const facts = [];

@@ -26,6 +26,21 @@ func beginSSE(response http.ResponseWriter) (http.Flusher, bool) {
 	return flusher, true
 }
 
+// interruptResponseWrite interrupts a stalled write when its execution stops.
+// The returned function joins the interrupt before the connection can be reused.
+func interruptResponseWrite(ctx context.Context, response http.ResponseWriter) func() {
+	interrupted := make(chan struct{})
+	stop := context.AfterFunc(ctx, func() {
+		_ = http.NewResponseController(response).SetWriteDeadline(time.Now())
+		close(interrupted)
+	})
+	return func() {
+		if !stop() {
+			<-interrupted
+		}
+	}
+}
+
 type sseEmitter struct {
 	ctx     context.Context
 	writer  io.Writer
@@ -127,6 +142,10 @@ func (stream *synchronizedSSE) startHeartbeat(ctx context.Context, interval time
 }
 
 func writeGenerationError(response http.ResponseWriter, err error) {
+	if errors.Is(err, errRequestIDReused) {
+		writeError(response, http.StatusConflict, "request_id_reused", err.Error())
+		return
+	}
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, errRequestTimeoutCause) {
 		writeError(response, http.StatusRequestTimeout, "request_cancelled", err.Error())
 		return

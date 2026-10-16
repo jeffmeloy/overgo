@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
+	"math"
 	"slices"
 	"testing"
 
@@ -24,6 +25,27 @@ func TestAudioDecodeConsolidationAcceptance(t *testing.T) {
 	if err != nil || status != recipecontract.AudioDecodeComplete || wave.Format.SampleRate != 16000 || wave.Format.Channels != 1 || !slices.Equal(wave.Samples, want) {
 		t.Fatalf("wave = %+v, status=%s error=%v", wave, status, err)
 	}
+	t.Run("provisional-output", func(t *testing.T) {
+		var delivered []float32
+		cause := errors.New("output closed")
+		ctx := WithAudioOutput(t.Context(), func(_ context.Context, chunk DecodedAudio) error { delivered = chunk.Samples; return cause })
+		if err := EmitAudio(ctx, wave); !errors.Is(err, cause) || !slices.Equal(delivered, want) {
+			t.Fatalf("consumer: samples=%v err=%v", delivered, err)
+		}
+		for _, samples := range [][]float32{nil, {float32(math.NaN())}, {float32(math.Inf(1))}} {
+			delivered = nil
+			invalid := wave
+			invalid.Samples = samples
+			if err := EmitAudio(ctx, invalid); err == nil || delivered != nil {
+				t.Fatalf("invalid output reached consumer: %v %v", samples, err)
+			}
+		}
+		cancelled, cancel := context.WithCancel(ctx)
+		cancel()
+		if err := EmitAudio(cancelled, wave); !errors.Is(err, context.Canceled) {
+			t.Fatalf("cancelled output: %v", err)
+		}
+	})
 	flac, err := hex.DecodeString(stereoFLACHex)
 	if err != nil {
 		t.Fatal(err)

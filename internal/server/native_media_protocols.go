@@ -113,6 +113,10 @@ func (h *Handler) nativeAudioSpeech(response http.ResponseWriter, request *http.
 		writeInvalidRequest(response, err)
 		return
 	}
+	if request.Header.Get("Accept") == "text/event-stream" {
+		h.speechOutputStream(response, request, capability, workflowRequest{Task: capability.Task, Recipe: capability.Recipe, Input: input})
+		return
+	}
 	status, ok := h.runNativeWorkflow(response, request, capability, input)
 	if !ok {
 		return

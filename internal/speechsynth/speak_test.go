@@ -5,6 +5,7 @@ package speechsynth
 import (
 	"context"
 	"errors"
+	"overgo/internal/media"
 	"slices"
 	"strings"
 	"testing"
@@ -67,7 +68,14 @@ func TestSpeakReadsSegmentsInOrder(t *testing.T) {
 		t.Logf("%d tokens, at most %d frames, %d samples: %q", segment.Tokens, segment.MaxFrames, len(audio.PCM), text)
 		want = append(want, audio.PCM...)
 	}
-	whole, err := synth.Speak(t.Context(), request)
+	var emitted []float32
+	whole, err := synth.Speak(media.WithAudioOutput(t.Context(), func(_ context.Context, chunk media.DecodedAudio) error {
+		if chunk.Format.Channels != 1 || chunk.Format.SampleRate != uint64(synth.model.Codec.SampleRate) {
+			t.Fatalf("invalid provisional format: %+v", chunk.Format)
+		}
+		emitted = append(emitted, chunk.Samples...)
+		return nil
+	}), request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,6 +85,15 @@ func TestSpeakReadsSegmentsInOrder(t *testing.T) {
 			same++
 		}
 		t.Fatalf("the whole text is read as %d samples (ended on its own: %v), and its %d segments read one after another give %d; the first %d are the same", len(whole.PCM), whole.Complete, len(plan.Segments), len(want), same)
+	}
+	if !slices.Equal(emitted, whole.PCM) {
+		t.Fatal("provisional output differs from completed recording")
+	}
+	consumerFailure := errors.New("speech output consumer closed")
+	chunks := 0
+	consumerStopped, err := synth.Speak(media.WithAudioOutput(t.Context(), func(context.Context, media.DecodedAudio) error { chunks++; return consumerFailure }), request)
+	if !errors.Is(err, consumerFailure) || chunks != 1 || len(consumerStopped.PCM) != 0 {
+		t.Fatalf("consumer failure: chunks=%d samples=%d err=%v", chunks, len(consumerStopped.PCM), err)
 	}
 
 	ctx, cancel := context.WithCancelCause(t.Context())

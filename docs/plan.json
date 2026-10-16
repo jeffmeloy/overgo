@@ -109,28 +109,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "audio-speech-stream",
-      "title": "Produce playable speech before the complete recording finishes",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 2794,
-        "reason": "Planning estimate of net production AST growth = 1900 nodes for retained codec state + 700 for incremental generation + 1000 for serving/output ownership after replacement code is removed. Browser JS and test growth are additional declared costs. This buys streaming output and is not a code-reduction claim."
-      },
-      "steps": [
-        {
-          "id": "serve",
-          "title": "Stream speech through the existing API and browser with complete-output publication",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestSpeechOutputStream$' \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowserSpeechPlayback$' -leg 'speech playback lifecycle'",
-          "rationale": "Add TestSpeechOutputStream for ordered chunks, backpressure, disconnect and completion publication using a hermetic generator.\nAdd TestWebUIBrowserSpeechPlayback with the speech playback lifecycle leg for first playback, stop, stale completion, final drain and player cleanup.\nReuse the active recipe session, operation events, native audio route and browser player owners rather than another service.\nPreserve nonstreaming API compatibility through collection of the same output.\nPersist the final recording through the current WAV/blob owner and identify every partial stream separately from completed content.\nInterrupted playback never publishes a completed recording or earns replay credit.\nCancellation releases resources on actual completion and bounded backpressure prevents unbounded PCM queues.\nCompare submit-to-first-playable audio, total completion and peak memory on the same short and multi-segment texts.\nKeep output streaming distinct from the ASR input-stream checkpoint contract.\nServes: A speech request becomes usable before full recording publication.\nDisappears: The complete-recording wait in the served path and redundant output conversion or buffering are removed where the shared output owner replaces them.\nEvidence: Existing TestNativeAudioProtocolUsesActiveRecipeSession, TestWholeTextBinding, TestSpeechRecovery and TestServedSpeechMatchesUpstream retain their unique contracts.\nBatch: Serving and browser changes share one coherent landing with small fixtures while real-model playback remains cycle evidence.",
-          "depends_on": [
-            "audio-speech-stream/decode"
-          ]
-        }
-      ]
-    },
-    {
       "id": "audio-speech-training",
       "title": "Train and publish synthesis from identified datasets rather than one trace",
       "owner": "master-lead",

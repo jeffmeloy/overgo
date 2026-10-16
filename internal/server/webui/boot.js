@@ -95,8 +95,9 @@
       requestNumbers.set(signature, request);
       if (requestNumbers.size > unansweredSubmissionLimit) requestNumbers.delete(requestNumbers.keys().next().value);
       try {
-        const answer = await api.post(path, Object.assign({}, body, { request }), opts);
-        requestNumbers.delete(signature);
+        const submit = opts?.events ? api.stream.bind(api) : api.post.bind(api);
+        const answer = await submit(path, Object.assign({}, body, { request }), opts);
+        if (!opts?.events || answer.headers.get('X-Overgo-Operation')) requestNumbers.delete(signature);
         return answer;
       } catch (err) {
         if (err.status && !gatewayStatuses.includes(err.status)) requestNumbers.delete(signature);
@@ -111,6 +112,7 @@
     async stream(path, body, opts) {
       const method = (opts && opts.method) || "POST", raw = opts && opts.mediaType, form = body instanceof FormData;
       const contentType = raw ? { "Content-Type": raw } : form ? {} : { "Content-Type": "application/json" };
+      if (opts?.events) contentType.Accept = 'text/event-stream';
       const response = await tracked(fetch(path, { method, headers: authHeaders(method === "POST" ? contentType : {}), body: method !== "POST" ? undefined : raw || form ? body : JSON.stringify(body), signal: opts && opts.signal }));
       if (!response.ok) await readJSON(response);
       return response;
@@ -132,6 +134,7 @@
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffered = "";
+    try {
     for (;;) {
       const chunk = await reader.read();
       buffered += decoder.decode(chunk.value || new Uint8Array(), { stream: !chunk.done });
@@ -151,6 +154,7 @@
       }
       if (chunk.done) return;
     }
+    } finally { try { await reader.cancel(); } finally { reader.releaseLock(); } }
   }
 
   // /analyze/model serves the Model tab and the lens; one cached promise per

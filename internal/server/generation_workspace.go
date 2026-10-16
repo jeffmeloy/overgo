@@ -12,7 +12,9 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/binaryschema"
 	"overgo/internal/checked"
+	"overgo/internal/media"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
@@ -341,43 +343,50 @@ func (h *Handler) workflowRun(response http.ResponseWriter, request *http.Reques
 	if !admitted {
 		return
 	}
-	if body.Request == "" {
-		id, err := h.submitWorkflow(context.WithoutCancel(request.Context()), kind, capability, body.Input, body.Sources)
-		if err != nil {
-			writeGenerationError(response, err)
-			return
-		}
-		writeJSON(response, http.StatusAccepted, workflowResponse{Operation: id})
-		return
-	}
-	if !validRequestID(body.Request) {
+	if body.Request != "" && !validRequestID(body.Request) {
 		writeInvalidRequestMessage(response, "request must be 1 to 64 letters, digits, hyphens or underscores")
 		return
 	}
-	fingerprint, err := submissionFingerprint(body)
-	if err != nil {
-		writeGenerationError(response, err)
+	if request.Header.Get("Accept") == "text/event-stream" {
+		if kind != workflowGeneration || capability.Task != recipe.TaskSpeech {
+			writeInvalidRequestMessage(response, "streaming output requires a speech generation capability")
+			return
+		}
+		h.speechOutputStream(response, request, capability, body)
 		return
 	}
-	key := string(kind) + "/" + body.Request
-	entry, owner, err := h.runs.begin(key, fingerprint)
-	if err != nil {
-		writeError(response, http.StatusConflict, "request_id_reused", err.Error())
-		return
-	}
-	var id artifact.ID
-	if owner {
-		id, err = h.runs.run(key, entry, func() (artifact.ID, error) {
-			return h.submitWorkflow(context.WithoutCancel(request.Context()), kind, capability, body.Input, body.Sources)
-		})
-	} else {
-		id, err = entry.wait(request.Context())
-	}
+	id, _, err := h.startWorkflow(context.WithoutCancel(request.Context()), request.Context(), kind, capability, body)
 	if err != nil {
 		writeGenerationError(response, err)
 		return
 	}
 	writeJSON(response, http.StatusAccepted, workflowResponse{Operation: id})
+}
+
+// startWorkflow submits once under the request number and identifies its owner.
+// Only the owner binds execution cancellation and provisional output.
+func (h *Handler) startWorkflow(ctx, wait context.Context, kind WorkflowKind, capability WorkflowCapability, body workflowRequest) (artifact.ID, bool, error) {
+	submit := func() (artifact.ID, error) { return h.submitWorkflow(ctx, kind, capability, body.Input, body.Sources) }
+	if body.Request == "" {
+		id, err := submit()
+		return id, true, err
+	}
+	fingerprint, err := submissionFingerprint(body)
+	if err != nil {
+		return artifact.ID{}, false, err
+	}
+	key := string(kind) + "/" + body.Request
+	entry, owner, err := h.runs.begin(key, fingerprint)
+	if err != nil {
+		return artifact.ID{}, false, err
+	}
+	var id artifact.ID
+	if owner {
+		id, err = h.runs.run(key, entry, submit)
+	} else {
+		id, err = entry.wait(wait)
+	}
+	return id, owner, err
 }
 
 // workflowCommand is one way to reproduce a submission outside the page:
@@ -616,4 +625,71 @@ func validateWorkflowValue(controlType workflowControlType, raw json.RawMessage)
 		return errors.New("number must be finite")
 	}
 	return nil
+}
+
+// speechOutputStream delivers provisional chunks through the selected operation.
+// One synchronous write bounds producer progress and preserves chunk order.
+// Only a stored final output establishes completion or replay eligibility.
+// Accept text/event-stream selects created, audio and terminal operation events.
+// Audio carries a zero-based sequence and base64 little-endian FP32 pcm_f32le.
+func (h *Handler) speechOutputStream(response http.ResponseWriter, request *http.Request, capability WorkflowCapability, body workflowRequest) {
+	if _, ok := response.(http.Flusher); !ok {
+		writeError(response, http.StatusInternalServerError, "server_error", "streaming is unavailable")
+		return
+	}
+	ctx, cancel := context.WithCancel(request.Context())
+	defer cancel()
+	ready := make(chan struct{})
+	var stream sseEmitter
+	sequence := 0
+	ctx = media.WithAudioOutput(ctx, func(execution context.Context, audio media.DecodedAudio) error {
+		select {
+		case <-ready:
+		case <-execution.Done():
+			return context.Cause(execution)
+		}
+		defer interruptResponseWrite(execution, response)()
+		err := stream.named("audio", struct {
+			Sequence   int    `json:"sequence"`
+			SampleRate uint64 `json:"sample_rate"`
+			Channels   uint32 `json:"channels"`
+			PCM        []byte `json:"pcm_f32le"`
+		}{sequence, audio.Format.SampleRate, audio.Format.Channels, binaryschema.LittleEndian.Float32s(audio.Samples)})
+		sequence++
+		return err
+	})
+	id, owner, err := h.startWorkflow(ctx, ctx, workflowGeneration, capability, body)
+	if err != nil {
+		writeGenerationError(response, err)
+		return
+	}
+	defer func() {
+		cancel()
+		if owner {
+			_, _ = h.operations.Wait(context.WithoutCancel(ctx), id)
+		}
+	}()
+	response.Header().Set("X-Overgo-Operation", id.String())
+	flusher, _ := beginSSE(response)
+	stream = newSSEEmitter(ctx, response, flusher)
+	defer interruptResponseWrite(ctx, response)()
+	if stream.named("created", workflowResponse{Operation: id}) != nil {
+		return
+	}
+	close(ready)
+	status, err := h.operations.Wait(ctx, id)
+	if err != nil {
+		return
+	}
+	if status.State == operation.StateCompleted {
+		valid := false
+		if len(status.Outputs) == 1 {
+			descriptor, found, err := h.repository.Artifact(ctx, status.Outputs[0])
+			valid = err == nil && found && strings.HasPrefix(descriptor.MediaType, "audio/")
+		}
+		if !valid {
+			status.State, status.Failure = operation.StateFailed, "speech output requires one stored audio artifact"
+		}
+	}
+	_ = stream.named(string(status.State), status)
 }

@@ -3,11 +3,44 @@
 package media
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
 )
+
+type audioOutputKey struct{}
+
+// WithAudioOutput binds a synchronous provisional-output consumer to an execution.
+// The consumer never publishes a completed recording.
+func WithAudioOutput(ctx context.Context, emit func(context.Context, DecodedAudio) error) context.Context {
+	return context.WithValue(ctx, audioOutputKey{}, emit)
+}
+
+// EmitAudio delivers provisional samples before the execution advances.
+// A consumer error refuses the execution and its completed output.
+// A provisional output requires finite samples in its declared interleaved format.
+func EmitAudio(ctx context.Context, chunk DecodedAudio) error {
+	if err := context.Cause(ctx); err != nil {
+		return err
+	}
+	if emit, ok := ctx.Value(audioOutputKey{}).(func(context.Context, DecodedAudio) error); ok && emit != nil {
+		if err := chunk.Format.Validate(); err != nil {
+			return err
+		}
+		if chunk.Format.Encoding != "pcm-f32le" || len(chunk.Samples) == 0 || uint64(len(chunk.Samples))%uint64(chunk.Format.Channels) != 0 {
+			return errors.New("media: provisional audio requires whole nonempty frames in pcm-f32le format")
+		}
+		for _, sample := range chunk.Samples {
+			if math.IsNaN(float64(sample)) || math.IsInf(float64(sample), 0) {
+				return errors.New("media: provisional audio requires finite samples")
+			}
+		}
+		return emit(ctx, chunk)
+	}
+	return nil
+}
 
 const (
 	// WAVMediaType names RIFF/WAVE audio, the form synthesized speech is published in.

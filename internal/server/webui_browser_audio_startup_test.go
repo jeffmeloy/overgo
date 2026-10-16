@@ -118,15 +118,15 @@ func TestWebUIBrowserAudioStartup(t *testing.T) {
 	check(`(()=>{location.hash='#chat';return true;})()`)
 	settle(`document.querySelector('#model-pill').hidden && document.querySelector('.task-model-selector select')===taskHeaderPicker && document.querySelector('.composer textarea').value==='Speech without loading chat.'`)
 	check(`(()=>{
-   window.taskHeaderPost=overgo.api.post;
-   overgo.api.post=function(path,body,options){if(path!=='/generation/run')return taskHeaderPost.call(this,path,body,options);return new Promise(resolve=>{window.taskHeaderSubmission={body,release:()=>resolve(taskHeaderPost.call(overgo.api,path,body,options))};});};
+   window.taskHeaderSubmit=overgo.api.submit;
+   overgo.api.submit=function(path,body,options){if(path!=='/generation/run')return taskHeaderSubmit.call(this,path,body,options);return new Promise(resolve=>{window.taskHeaderSubmission={body,release:()=>resolve(taskHeaderSubmit.call(overgo.api,path,body,options))};});};
    document.querySelector('.composer .send-button').focus();return true;
  })()`)
 	pressKey(t, ctx, browser, "Enter", 13)
 	settle(`!!window.taskHeaderSubmission && !document.querySelector('.composer .stop-button').hidden`)
 	check(`(()=>{document.querySelector('.mode-controls select[aria-label="voice"]').focus();return true;})()`)
 	pressKey(t, ctx, browser, "ArrowDown", 40)
-	check(`(()=>{if(taskHeaderSubmission.body.input.voice!=='alba' || document.querySelector('.mode-controls select[aria-label="voice"]').value!=='marius')return false;overgo.api.post=taskHeaderPost;taskHeaderSubmission.release();return true;})()`)
+	check(`(()=>{if(taskHeaderSubmission.body.input.voice!=='alba' || document.querySelector('.mode-controls select[aria-label="voice"]').value!=='marius')return false;overgo.api.submit=taskHeaderSubmit;taskHeaderSubmission.release();return true;})()`)
 	settle(`document.body.textContent.includes('speech fixture stopped before synthesis') && document.querySelector('.composer textarea').value==='Speech without loading chat.'`)
 	generator.mu.Lock()
 	defer generator.mu.Unlock()

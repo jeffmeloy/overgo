@@ -110,7 +110,10 @@ func (e *Encoder) normalize(dst, x []float32, n norm, rows int) {
 	hostmath.LayerNormInto(dst, x, n.weight, n.bias, rows, e.input.out, e.lnEpsilon)
 }
 
-func (e *Encoder) feedForward(ctx context.Context, x []float32, rows int, f feedForward, w *Workspace) error {
+func (e *Encoder) feedForward(ctx context.Context, x []float32, rows int, f *feedForward, w *Workspace) error {
+	if e.resident != nil {
+		return e.resident.forward(ctx, e, f, x, rows)
+	}
 	e.normalize(w.normalized, x, f.norm, rows)
 	f.in.forward(w.expanded, w.normalized, rows)
 	if err := ctx.Err(); err != nil {
@@ -207,7 +210,7 @@ func (e *Encoder) encode(ctx context.Context, features []float32, frames int, w 
 		if stream != nil {
 			history, convHistory = &stream.attention[i], stream.convolution[i]
 		}
-		if err := e.feedForward(ctx, x, frames, b.first, w); err != nil {
+		if err := e.feedForward(ctx, x, frames, &e.blocks[i].first, w); err != nil {
 			return nil, 0, err
 		}
 		e.normalize(w.normalized, x, b.attention.norm, frames)
@@ -235,7 +238,7 @@ func (e *Encoder) encode(ctx context.Context, features []float32, frames int, w 
 		}
 		frames = outFrames
 		x = x[:frames*h]
-		if err := e.feedForward(ctx, x, frames, b.second, w); err != nil {
+		if err := e.feedForward(ctx, x, frames, &e.blocks[i].second, w); err != nil {
 			return nil, 0, err
 		}
 		e.normalize(x, x, b.out, frames)

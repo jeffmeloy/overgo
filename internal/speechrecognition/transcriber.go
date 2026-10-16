@@ -88,6 +88,10 @@ func loadTranscriber(ctx context.Context, repository artifact.Repository, defini
 	expectedDefinition, err := modelrecipe.TranscriptionDefinition(modelID, contractID, profileID, tokenizerID, inventoryID)
 	baseDefinition := expectedDefinition
 	checkpointID, adapted := definition.PrimaryDependency(recipe.DependencyCheckpoint)
+	device := len(definition.Nodes) == 1 && definition.Nodes[0].Placement == recipe.PlacementHybrid
+	if err == nil && device {
+		expectedDefinition, err = modelrecipe.DeviceTranscriptionDefinition(baseDefinition)
+	}
 	if err == nil && adapted {
 		expectedDefinition, err = modelrecipe.AdaptedTranscriptionDefinition(baseDefinition, checkpointID)
 	}
@@ -175,6 +179,11 @@ func loadTranscriber(ctx context.Context, repository artifact.Repository, defini
 	tokenizer, err := hfbpe.Load(modelPath)
 	if err != nil {
 		return nil, err
+	}
+	if device {
+		if err := encoder.BindDevice(ctx, 0); err != nil {
+			return nil, err
+		}
 	}
 	return &transcriptionModel{
 		repository: repository, model: modelID, recipe: definition, contract: contract, profile: profile,

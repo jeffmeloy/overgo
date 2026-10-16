@@ -157,6 +157,21 @@ func TestTranscriptionRecipeBindsArtifactLineage(t *testing.T) {
 	if _, err := AdaptedTranscriptionDefinition(altered, checkpoint.Descriptor.ID); err == nil {
 		t.Fatal("mutated base topology accepted")
 	}
+	resident, err := DeviceTranscriptionDefinition(definition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := CompileCapability(resident); err != nil {
+		t.Fatal(err)
+	}
+	if resident.ID == definition.ID || resident.Nodes[0].Placement != recipe.PlacementHybrid || definition.Nodes[0].Placement != recipe.PlacementHost {
+		t.Fatal("device binding lost separate host authority")
+	}
+	for _, invalid := range []recipe.Definition{adapted, altered, resident} {
+		if _, err := DeviceTranscriptionDefinition(invalid); err == nil {
+			t.Fatal("noncanonical device base accepted")
+		}
+	}
 }
 
 func TestAudioTaskDefinitionRejectsUnprovedContractLineage(t *testing.T) {

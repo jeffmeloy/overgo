@@ -155,17 +155,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 3200,
+        "nodes": 1442,
         "reason": "Planning estimate of net production AST growth = 1800 nodes for shared execution bindings + 900 for resident state/lifetime integration + 500 for capability and lane registration after displaced staging is removed. Kernel and test growth are counted separately. This is an execution capability rather than a promised speedup."
       },
       "steps": [
-        {
-          "id": "bind",
-          "title": "Bind profiled feed-forward execution to the existing device runtime",
-          "status": "open",
-          "verify": "go run ./cmd/device-lane -paths internal/speechrecognition/forward.go,internal/speechrecognition/transducer.go",
-          "rationale": "Bind complete feed-forward blocks through graphruntime.ResidentSession.\nExisting CPU transcription recipes retain their execution contract.\nAn explicit hybrid recipe owns resident execution and device release.\nThe existing component director owns admission and cancellation.\nTiny TestASRResidentCUDA cases use the existing independent encoder fixture and compare every boundary.\nThe device lane requires Windows CUDA and OVERGO_CUDA_TEST=1.\nMissing or skipped device cases earn no pass.\nThe resident acceptance step remains open until complete-model numerical and resource comparisons pass.\nServes: A declared device recipe executes through the existing recognizer and session owners.\nDisappears: Resident blocks remove repeated host projections and intermediate transfers from their selected execution path.\nEvidence: The separate profiles and matched first-block QPC probe select the operation boundary.\nBatch: Device implementation and hermetic lifetime coverage land together before final model measurements."
-        },
         {
           "id": "resident",
           "title": "Bind a profiled ASR sequence and accept it on complete transcription cost",

@@ -59,6 +59,7 @@ type Encoder struct {
 	lnEpsilon, bnEpsilon     float64
 	weightBytes, memoryBytes uint64
 	inputProjection          []float32
+	resident                 *residentEncoder
 }
 
 // InputWidth returns the declared feature width consumed by each frame.

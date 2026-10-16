@@ -81,6 +81,12 @@ func SpeechComponents(definition recipe.Definition) (base, activity recipe.Defin
 	if err != nil {
 		return base, activity, err
 	}
+	if definition.Task == recipe.TaskTranscription && len(definition.Nodes) == 1 && definition.Nodes[0].Placement == recipe.PlacementHybrid {
+		base, err = DeviceTranscriptionDefinition(base)
+		if err != nil {
+			return base, activity, err
+		}
+	}
 	expected := base
 	if definition.Task == recipe.TaskAlignment {
 		profile, _ := definition.PrimaryDependency(recipe.DependencyDerivationProfile)

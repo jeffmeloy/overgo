@@ -109,8 +109,10 @@ var cycleLanes = []lane{
 		// cmd/evaluate and cmd/recipe are the producers the acceptances
 		// build and run as their own processes.
 		name: "audio", packages: []string{"./internal/audioparity", "./cmd/evaluate", "./cmd/recipe"},
-		command:     func(string) []string { return []string{"test", "./internal/audioparity"} },
-		environment: []string{testskip.StoreAcceptanceEnv + "=1"},
+		tags: CycleTags,
+		// Device acceptance executes against external weights and kernels each cycle.
+		command:     func(string) []string { return []string{"test", "-count=1", "./internal/audioparity"} },
+		environment: []string{testskip.StoreAcceptanceEnv + "=1", cudaTestEnvironment},
 	},
 	{
 		// The real-model suites: tests behind the cycle's tags, and the

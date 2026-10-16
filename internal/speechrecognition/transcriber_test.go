@@ -29,6 +29,11 @@ import (
 const transcriptionTestCommit = "0123456789abcdef0123456789abcdef01234567"
 
 func TestTranscriptionRecipeLineage(t *testing.T) {
+	testTranscriptionRecipeLineage(t, false)
+}
+
+func testTranscriptionRecipeLineage(t *testing.T, device bool) {
+	t.Helper()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -94,6 +99,12 @@ func TestTranscriptionRecipeLineage(t *testing.T) {
 	)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if device {
+		definition, err = modelrecipe.DeviceTranscriptionDefinition(definition)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 	if _, _, err = modelrecipe.PublishCandidate(t.Context(), store, "fixture/transcription/candidate", definition); err != nil {
 		t.Fatal(err)
@@ -170,6 +181,25 @@ func TestTranscriptionRecipeLineage(t *testing.T) {
 	_, afterCancel := store.Head()
 	if !errors.Is(err, context.Canceled) || cancelledRun.ID.Valid() || afterCancel != beforeCancel {
 		t.Fatalf("cancelled run = %+v, %v; commits %d -> %d", cancelledRun, err, beforeCancel, afterCancel)
+	}
+	if device {
+		component := transcriber.components[0].Model()
+		if component.transcriber.encoder.resident == nil {
+			t.Fatal("hybrid recipe used the CPU path")
+		}
+		if _, err := transcriber.NewOutputAdapter(t.Context(), uint64(len(testWave(128))), trainingprogram.BuiltinOptimizerPolicy()); err == nil {
+			t.Fatal("inference device recipe admitted adapter training")
+		}
+		if err := transcriber.Release(); err != nil {
+			t.Fatal(err)
+		}
+		if err := session.Close(context.WithoutCancel(t.Context())); err != nil {
+			t.Fatal(err)
+		}
+		if snapshot := session.Snapshot(); snapshot.Active != 0 || snapshot.Waiting != 0 {
+			t.Fatalf("hybrid lease leaked: %+v", snapshot)
+		}
+		return
 	}
 	t.Run("alignment-lease", func(t *testing.T) {
 		testAlignmentLease(t, store, definition, wave, result.Source, policy, binding)

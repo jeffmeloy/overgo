@@ -54,7 +54,22 @@ func tinyTransducer(t *testing.T) (*safetensors.Source, Declaration, TransducerB
 }
 
 func TestTransducerCheckpointRestart(t *testing.T) {
+	testTransducerCheckpointRestart(t, false)
+}
+
+func testTransducerCheckpointRestart(t *testing.T, device bool) {
+	t.Helper()
 	_, _, _, model := tinyTransducer(t)
+	if device {
+		if err := model.encoder.BindDevice(t.Context(), 0); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := model.encoder.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+	}
 	// Exercise nonzero prediction state, including reuse after a blank. This is
 	// a restart-equivalence assertion, not a replacement for native model parity.
 	for i := range model.embedding {

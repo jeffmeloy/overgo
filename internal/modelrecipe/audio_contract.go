@@ -3,6 +3,7 @@ package modelrecipe
 import (
 	"context"
 	"errors"
+	"slices"
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelartifact"
@@ -156,11 +157,15 @@ func audioTaskModules() []recipe.Module {
 	modules := make([]recipe.Module, 0, len(audioTaskSpecs))
 	for task, spec := range audioTaskSpecs {
 		tasks := []recipe.Task{task}
+		placements := []recipe.Placement{recipe.PlacementHost}
+		if task == recipe.TaskTranscription {
+			placements = append(placements, recipe.PlacementHybrid)
+		}
 		if task == recipe.TaskActivityDetection {
 			tasks = append(tasks, recipe.TaskTranscription)
 		}
 		modules = append(modules, recipe.Module{
-			ID: spec.module, Tasks: tasks, Placements: []recipe.Placement{recipe.PlacementHost},
+			ID: spec.module, Tasks: tasks, Placements: placements,
 			Inputs: spec.inputs, Outputs: []recipe.Port{spec.output},
 		})
 	}
@@ -176,6 +181,26 @@ func audioTaskModules() []recipe.Module {
 // decoded-audio contract, processor declaration, tokenizer, and tensor catalog.
 func TranscriptionDefinition(modelID, contractID, processorID, tokenizerID, tensorInventoryID artifact.ID) (recipe.Definition, error) {
 	return transcriptionDefinition(modelID, contractID, processorID, tokenizerID, tensorInventoryID, artifact.ID{})
+}
+
+// DeviceTranscriptionDefinition binds the canonical base to resident feed-forward execution.
+// The host definition remains independently executable without a device.
+func DeviceTranscriptionDefinition(base recipe.Definition) (recipe.Definition, error) {
+	if err := base.ValidateIdentity(); err != nil {
+		return recipe.Definition{}, err
+	}
+	model, _ := base.PrimaryDependency(recipe.DependencyModel)
+	contract, _ := base.PrimaryDependency(recipe.DependencyProfile)
+	processor, _ := base.PrimaryDependency(recipe.DependencyProcessorProfile)
+	tokenizer, _ := base.PrimaryDependency(recipe.DependencyTokenizer)
+	inventory, _ := base.PrimaryDependency(recipe.DependencyTensorInventory)
+	expected, err := TranscriptionDefinition(model, contract, processor, tokenizer, inventory)
+	if err != nil || expected.ID != base.ID {
+		return recipe.Definition{}, errors.New("device transcription: canonical unadapted host base required")
+	}
+	nodes := slices.Clone(base.Nodes)
+	nodes[0].Placement, nodes[0].Residency = recipe.PlacementHybrid, recipe.ResidencyHybridNative
+	return recipe.NewDefinitionWithDependencies(base.Task, base.Dependencies, nodes, base.Edges, base.Inputs, base.Outputs)
 }
 
 // transcriptionTokenizerFile is the tokenizer a speech recognizer reads.

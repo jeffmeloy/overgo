@@ -1,6 +1,7 @@
 package audioparity
 
 import (
+	"context"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
@@ -31,6 +32,10 @@ import (
 // Python and GPU execution are not prerequisites: the pinned CPU capture is.
 func TestCPUASRReference(t *testing.T) {
 	t.Parallel()
+	testASRReference(t, false)
+}
+
+func testASRReference(t *testing.T, device bool) {
 	storeRoot := resolveReferenceRoots(t).store
 	store, err := overgodb.OpenReadOnly(storeRoot)
 	if err != nil {
@@ -102,6 +107,12 @@ func TestCPUASRReference(t *testing.T) {
 	encoder, err := speechrecognition.LoadEncoder(t.Context(), weights, declaration, referenceMemoryBytes)
 	if err != nil {
 		t.Fatal(err)
+	}
+	defer encoder.Close(context.Background())
+	if device {
+		if err := encoder.BindDevice(t.Context(), 0); err != nil {
+			t.Fatal(err)
+		}
 	}
 	tokenizer, err := hfbpe.Load(modelRoot)
 	if err != nil {
@@ -225,7 +236,7 @@ func TestCPUASRReference(t *testing.T) {
 	if completed != len(capture.Cases) || totalFrames == 0 || totalTokens == 0 {
 		t.Fatal("incomplete real-artifact acceptance")
 	}
-	t.Logf("CPU ASR: %d/%d recordings, %d CTC frames, %d transcript tokens; full processor, every layer, logits, IDs and text checked; no training, serving, streaming, WER suite or GPU execution", completed, len(capture.Cases), totalFrames, totalTokens)
+	t.Logf("ASR device=%t: %d/%d recordings, %d CTC frames, %d transcript tokens; full processor, every layer, logits, IDs and text checked", device, completed, len(capture.Cases), totalFrames, totalTokens)
 }
 
 func verifyASRFile(t *testing.T, path string, want artifact.ID, size uint64) {

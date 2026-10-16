@@ -79,5 +79,8 @@ func (lease *SpeechLease) trainingComponent() (*transcriptionComponent, error) {
 	if component.transcriber.transducer != nil {
 		return nil, errors.New("transcription training: CTC adapter does not support recurrent decoding")
 	}
+	if component.transcriber.encoder.resident != nil {
+		return nil, errors.New("transcription training: adapter requires a host recipe")
+	}
 	return component, nil
 }

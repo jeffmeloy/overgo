@@ -263,12 +263,23 @@ func OpenRecognizer(ctx context.Context, path string, memoryBytes uint64) (*spee
 }
 
 // loadRecognizer loads the checkpoint against its reviewed declarations.
-func loadRecognizer(ctx context.Context, _ artifact.Repository, path string, _ recipe.Program, request speechrecognition.TranscriptionRequest) (*speechrecognition.Recognizer, error) {
+func loadRecognizer(ctx context.Context, _ artifact.Repository, path string, program recipe.Program, request speechrecognition.TranscriptionRequest) (*speechrecognition.Recognizer, error) {
 	spec, err := reviewedRecognizer(path)
 	if err != nil {
 		return nil, err
 	}
-	return speechrecognition.LoadRecognizer(ctx, path, spec, request.MemoryBytes)
+	recognizer, err := speechrecognition.LoadRecognizer(ctx, path, spec, request.MemoryBytes)
+	if err != nil {
+		return nil, err
+	}
+	for _, node := range program.Definition().Nodes {
+		if node.Placement == recipe.PlacementHybrid {
+			if err := recognizer.BindDevice(ctx, 0); err != nil {
+				return nil, errors.Join(err, recognizer.Close(context.WithoutCancel(ctx)))
+			}
+		}
+	}
+	return recognizer, nil
 }
 
 // activityInventory is a whole-recording activity checkpoint: its weights and

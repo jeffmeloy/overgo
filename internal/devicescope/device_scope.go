@@ -27,6 +27,7 @@ var deviceLaneScopes = []TestScope{
 	}},
 	{Package: "./internal/devicemath"},
 	{Package: "./internal/densecausal", Run: "Device"},
+	{Package: "./internal/speechrecognition", Tests: []string{"TestASRResidentCUDA"}},
 	{Package: "./internal/inference", Tests: []string{
 		"TestHermeticCUDAContinuousCacheParity",
 		"TestHermeticCUDACapacityCachePageBoundary",

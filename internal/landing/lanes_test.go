@@ -468,4 +468,7 @@ func TestAudioLaneOptsIntoTheStoreAcceptance(t *testing.T) {
 	if !slices.Contains(cycleLanes[index].environment, testskip.StoreAcceptanceEnv+"=1") {
 		t.Fatalf("lane %s runs internal/audioparity without %s=1; its acceptances would skip", cycleLanes[index].name, testskip.StoreAcceptanceEnv)
 	}
+	if !slices.Contains(cycleLanes[index].environment, cudaTestEnvironment) || cycleLanes[index].tags != CycleTags || !slices.Contains(cycleLanes[index].command(""), "-count=1") {
+		t.Fatal("audio cycle must build and freshly execute the resident device reference")
+	}
 }

@@ -287,10 +287,22 @@ func transducerObserver(t *testing.T, f *transducerFixture, oracle *safetensors.
 
 func TestSecondASROfflineAcceptance(t *testing.T) {
 	t.Parallel()
+	testSecondASROffline(t, false)
+	t.Run("first-architecture-preserved", TestCPUASRReference)
+	t.Run("native-artifact-registration", TestCanonicalAudioModelRegistration)
+}
+
+func testSecondASROffline(t *testing.T, device bool) {
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": exact second-ASR acceptance requires registered native traces")
 	}
 	f := loadTransducerFixture(t)
+	defer f.model.Close(context.Background())
+	if device {
+		if err := f.model.BindDevice(t.Context(), 0); err != nil {
+			t.Fatal(err)
+		}
+	}
 	for _, id := range f.captures {
 		capture := f.capture(t, id)
 		t.Run(capture.Fixture, func(t *testing.T) {
@@ -313,8 +325,6 @@ func TestSecondASROfflineAcceptance(t *testing.T) {
 			t.Logf("%d source samples; %d encoder boundaries; %d exact emissions and frame advances; all recurrent states and joint logits compared", capture.Samples, seen, len(tokens))
 		})
 	}
-	t.Run("first-architecture-preserved", TestCPUASRReference)
-	t.Run("native-artifact-registration", TestCanonicalAudioModelRegistration)
 }
 
 func requireTransducerResult(t *testing.T, f *transducerFixture, oracle *safetensors.Source, capture transducerCapture, mode string, tokens, durations []int) {
@@ -340,10 +350,20 @@ func requireTransducerResult(t *testing.T, f *transducerFixture, oracle *safeten
 
 func TestSecondASRStreamingAcceptance(t *testing.T) {
 	t.Parallel()
+	testSecondASRStreaming(t, false)
+}
+
+func testSecondASRStreaming(t *testing.T, device bool) {
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": exact second-ASR acceptance requires cache-aware streaming traces")
 	}
 	f := loadTransducerFixture(t)
+	defer f.model.Close(context.Background())
+	if device {
+		if err := f.model.BindDevice(t.Context(), 0); err != nil {
+			t.Fatal(err)
+		}
+	}
 	for _, id := range f.captures {
 		capture := f.capture(t, id)
 		t.Run(capture.Fixture, func(t *testing.T) {

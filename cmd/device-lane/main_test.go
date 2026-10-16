@@ -32,8 +32,12 @@ func TestDevicePlan(t *testing.T) {
 		t.Fatalf("optimizer contracts = %v, want %v", steps[2], optimizer)
 	}
 	full := deviceSteps(devicescope.VerificationPlan{Full: true})
-	if len(full) != 5 {
+	if len(full) != 6 {
 		t.Fatalf("full steps=%v", full)
+	}
+	asr := []string{"go", "test", "-json", "-p=1", "-timeout=0", "-run", "^(TestASRResidentCUDA)$", "./internal/speechrecognition", "-count=1"}
+	if !slices.ContainsFunc(full, func(step []string) bool { return slices.Equal(step, asr) }) {
+		t.Fatalf("full lane omits required ASR execution: %v", full)
 	}
 	for _, step := range full[1:] {
 		if !slices.Contains(step, "-p=1") {

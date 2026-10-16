@@ -31,7 +31,7 @@ type InputRequirements struct {
 	MaximumSamples      uint64                     `json:"maximum_samples"`
 }
 
-// Session owns the compiled component lifetimes for one CPU speech
+// Session owns the compiled component lifetimes for one speech
 // recipe. Evaluation and serving share this owner, its exclusive workspaces and
 // cancellation behavior. Memory is a per-component numeric ceiling, not RSS.
 type Session struct {
@@ -56,9 +56,13 @@ type transcriptionComponent struct {
 }
 
 // Close releases the component's model and numeric workspace references.
-func (component *transcriptionComponent) Close(context.Context) error {
+func (component *transcriptionComponent) Close(ctx context.Context) error {
+	var err error
+	if component.transcriber != nil {
+		err = component.transcriber.encoder.Close(ctx)
+	}
 	*component = transcriptionComponent{}
-	return nil
+	return err
 }
 
 // LoadSession validates one complete recipe and preloads its declared model
@@ -106,7 +110,13 @@ func LoadSession(ctx context.Context, repository artifact.Repository, id artifac
 			return nil, errors.Join(errors.New("transcription session: activity and recognizer formats or offline policy differ"), err)
 		}
 	}
-	director, err := capabilityruntime.NewComponentSessionDirector[*transcriptionComponent](string(definition.Task), "cpu", len(resources.Components))
+	device := "cpu"
+	for _, node := range base.Nodes {
+		if node.Placement == recipe.PlacementHybrid {
+			device = "cuda0"
+		}
+	}
+	director, err := capabilityruntime.NewComponentSessionDirector[*transcriptionComponent](string(definition.Task), device, len(resources.Components))
 	if err != nil {
 		return nil, err
 	}

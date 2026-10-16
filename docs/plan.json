@@ -1,5 +1,5 @@
 {
-  "campaign": "Restore measured load times and complete checkpoint publication",
+  "campaign": "Deliver multimodal Qwen3.8-Flash-Next UD-IQ4_XS and meet native Strata performance",
   "paragraphs": [
     {
       "governs": "standing",
@@ -56,10 +56,261 @@
     {
       "governs": "standing",
       "text": "An experiment is frozen before it trains: a protocol missing a numerical gain or resource criterion is not dispatched, and a pilot does not change the acceptance of the objective it is compared with. Completing an experiment and adopting its model are separate: a complete negative or inconclusive record closes the experiment and activates nothing."
+    },
+    {
+      "governs": "campaign",
+      "text": "The target is unsloth/Qwen3.8-Flash-Next-GGUF at revision 766911a6b7369840a91dbcd95f9f997acaab6cd6 with UD-IQ4_XS and the same-revision mmproj-BF16.gguf.\nThe source URL is https://huggingface.co/unsloth/Qwen3.8-Flash-Next-GGUF/tree/766911a6b7369840a91dbcd95f9f997acaab6cd6/UD-IQ4_XS.\nThe three language shards total 93682584224 bytes according to the repository metadata.\nThe shard SHA256 identities in ordinal order are 5ce89370720f8bf90890f439361282104c1aa1482d4013bb9a50923e758e71a4, 577a38a2392b40ca2193cea502e1d92f60b8cd370675d308e0ec21885d9daaa7 and d4634e6d84f0ebb0940be15c90d3790bf6464e3dea3a1cddc567dc0e83ad8833.\nThe projector metadata reports 907542944 bytes and its checksum must be retained on acquisition.\nThe source model is Qwen/Qwen3.8-Flash-Next with model_type qwen4_exp and GGUF architecture qwen4exp.\nThe initial reference source is C:/Users/jeffm/Strata at 296b59d2f73c8f04a805df29c2fa97655adace78.\nThe Overgo source assessment is bdc9d47ea9432c155a33f436ff83177b6c4ed95b.\nSource inspection establishes integration gaps and does not establish runtime support, numerical agreement, throughput or peak memory."
+    },
+    {
+      "governs": "campaign",
+      "text": "The target PC has a Ryzen 9 9950X with 16 cores and 32 threads, 96 GiB installed RAM, and an RTX 4090 D reporting 49140 MiB VRAM through the installed driver.\nThe observed OS is Windows 11 and the NVIDIA driver is 616.64.\nThe machine has NVMe storage but its model-volume bandwidth has not been measured.\nAdmission uses current available memory and existing reservations rather than installed capacity.\nThe model does not fit entirely in VRAM.\nStrata's UD-IQ4_XS inventory estimates about 55.4 GiB of expert data and 26.8 GiB of n-gram rows.\nActual GGUF tensor metadata must replace these estimates before placement is chosen.\nThe storage budget includes immutable shards, the projector, Strata's derived pack, acquisition staging, retained evidence and peak temporary space.\nReuse local artifacts before downloading and never create a second full model copy merely to benchmark another engine.\nThe initial native Strata installation uses its documented UD-IQ4_XS, image encoder and MTP draft layer.\nReuse these artifacts for later comparisons instead of acquiring another full model copy.\nNew optional artifacts require a demonstrated remaining gap and a derived capacity budget."
+    },
+    {
+      "governs": "campaign",
+      "text": "The goal is a Go-native multimodal Overgo implementation that meets or exceeds native Strata performance on this PC without reducing the accepted quality or changing the workload.\nIncremental delivery proceeds through native text chat, image conversations, video understanding and composition with existing speech input and output.\nEvery increment exposes its supported behavior through the existing web GUI and APIs.\nAn incomplete modality stays explicitly unavailable until its acceptance is established.\nFlash-Next supplies language and visual understanding.\nSpeech recognition, speech synthesis and image or video generation remain compositions of Overgo's existing capability owners.\nStrata's inspected server supports images but declares no video.\nVideo and audio therefore have independent quality and responsiveness acceptance rather than an invented Strata parity result."
+    },
+    {
+      "governs": "campaign",
+      "text": "The primary optimization is less processing and less memory.\nBefore adding a faster path, identify repeated decoding, serialization, hashing, allocation, copies, synchronization, model loads, prompt work or duplicated resident bytes that an existing owner can remove.\nDistinguish logical expert bytes from physical copies in a full host arena and GPU cache.\nA host complement layout must be observed rather than inferred from source support.\nCount mapped bytes, resident working set, pinned RAM and physical disk copies separately.\nKeep the n-gram table on storage and fetch required rows rather than materializing the full table.\nReuse buffers only when their lifetime permits it and count the bandwidth of preservation copies.\nSimpler scheduling and fewer representations are preferred over another cache, pack, framework or background service.\nOverlap or fusion is adopted only when the remaining dependency and resource costs justify it.\nEach change states the removed work and bytes, added production and test surface, retained behavioral owner and measured user-visible result."
+    },
+    {
+      "governs": "campaign",
+      "text": "The first row runs native Strata through its README workflow to understand usable behavior and actual resource placement.\nIts baseline step freezes the comparison after this exploration and before Overgo performance implementation.\nRun native Strata and Overgo sequentially on the same PC with identical model and projector source artifacts, workload assets, rendered prompts, tokenizer, context semantics, output policy, reasoning settings and quality contract.\nPin each engine's source, binary, compiler options, launch configuration, derived weights, KV precision and speculative policy separately.\nDifferent placement and worker choices are allowed within the same resource envelope because the comparison concerns each engine's best accepted implementation.\nQuality-changing routing bias, steering, arbitrary context truncation and undocumented precision conversions cannot buy a speed pass.\nRecord Strata's compat-bf16 conversion and test the original Q8 hyperconnection path where supported before choosing the quality-eligible reference.\nA same-quant pinned upstream implementation owns numerical and multimodal correctness independently of Strata's timings.\nNumerical tolerances come from the arithmetic contract and never from timing noise."
+    },
+    {
+      "governs": "campaign",
+      "text": "The required common workloads include short chat, a real document or code prefill, a longer-context case that fits the declared budget, a cached follow-up, OCR or screenshot understanding and a multiple-image conversation.\nThe protocol fixes exact inputs, token counts, image geometry and preprocessing, state resets, warm-up policy, reasoning and sampling before comparing candidates.\nSynthetic repeated text cannot stand in for real expert-routing distributions.\nSeparate fresh process activation, warm execution, warmed expert placement and reused prompt prefixes.\nMeasure client-visible first usable output and total completion alongside prefill and accepted decode throughput, peak process RAM, peak VRAM and temporary disk use.\nReport reasoning tokens separately from first usable answer when reasoning is enabled.\nReport the vision encode, admission wait and rendering components only where existing measurements or a targeted profile can explain an end-to-end gap.\nRecord EOS and actual output counts rather than timing different amounts of work as equivalent.\nUse alternating engine order and retain all runs, failures and exclusions.\nChoose the bounded repetition count, statistical rule and equivalence margin from Strata baseline repeatability and the smallest useful difference before inspecting candidate results.\nThe target ratio is 1 or better for each required latency, throughput and resource comparison after normalizing the direction of improvement.\nA match requires a sufficiently precise equivalence comparison under that frozen margin.\nA broad interval or an insignificant difference alone is inconclusive.\nOne fast workload cannot hide a required regression."
+    },
+    {
+      "governs": "campaign",
+      "text": "The Strata baseline remains pinned through the campaign so the target does not move silently.\nA source or configuration refresh requires a new identified comparison and an explicit reason.\nThe final common text and image workloads must meet the frozen Strata acceptance and quality requirements.\nMemory must remain within the declared host and device envelopes with the projector, context state and scratch accounted for.\nA production optimization may land when it establishes a useful local gain with no required end-to-end regression and acceptable total maintenance cost.\nA local kernel or optimizer gain alone cannot close the campaign.\nProfile only a measured residual gap and run profiles separately from acceptance timings.\nAfter each accepted increment, update the remaining rows from the measured bottleneck and continue until parity is established or a concrete external limit requires an owner decision.\nAn inconclusive comparison remains open and does not become a completed performance claim."
+    },
+    {
+      "governs": "campaign",
+      "text": "Existing owners hold the implementation and evidence.\nExtend internal/model, internal/tensor, internal/cuda/executor, internal/modeldevice, internal/inference, internal/projector and the existing resource admission owners.\nUse cmd/benchmark, internal/benchmarkrecord, internal/evaluation, internal/runrecord and OvergoDB for measurements and their consumers.\nBenchmarkComparisonRecord currently requires a single producer identity and lossless output equality.\nRetain initial native observations as content in the existing artifact store with exact inputs and per-engine identities.\nUse Strata's native client and benchmark before proposing additional comparison code.\nAdd a cross-engine comparison contract within the existing owner only when actual result consumers demonstrate the need.\nDo not weaken the same-producer lossless contract or pretend Strata is Overgo.\nStrata remains an external benchmark executable and source reference.\nPort only justified algorithms or kernels with MIT attribution and retain the separate model license and artifact provenance.\nDo not import Strata's Python server, C++ runtime, mtmd sidecar, temporary embedding-file protocol, multi-GPU machinery or model-specific tuning flags into Overgo."
+    },
+    {
+      "governs": "campaign",
+      "text": "Use native Go tests and extend existing tables before adding test functions.\nEvery implementation step first introduces the missing behavioral case and demonstrates its failure against the prior implementation.\nTest names beginning TestFlashNext or TestExternalEngine below are planned acceptance targets and are not claims that tests already exist.\nRefine those targets to existing tests where their contracts fit and record the exact runnable command before implementation.\nA target that is absent, skipped or unmatched earns no acceptance under the existing plan evidence verifier.\nSmall CUDA checks require supported Windows CUDA, OVERGO_CUDA_TEST=1 and package-qualified execution evidence.\nOnly real-model, subprocess-dependent or explicitly fresh measurement invocations use -count=1 and declared external inputs.\nLive-store and real-model checks belong to the existing models cycle and never become broad landing checks.\nBrowser checks use cmd/webui-lane with the changed journey and required legs.\nOne compatible run satisfies matching obligations.\nDo not add performance ratchets, a second selector, recurring dependency analysis, duplicate fixture frameworks or tests whose only purpose is proving that code disappeared.\nDelete displaced tests and helpers only after their unique behavior has a retained owner."
+    },
+    {
+      "governs": "campaign",
+      "text": "Each row starts with its named callers and source evidence, then freezes its smallest behavioral and cost comparison.\nZero declared growth is the starting allowance rather than an assertion that the new model requires no code.\nBefore a production landing that must grow, measure the bounded candidate AST delta and record the justified remaining node budget in a plan-only change read by the landing.\nDo not invent an allowance before the design is known.\nReport test, fixture, CUDA, browser, setup and maintenance growth even where the production budget does not count it.\nNecessary new architecture and multimodal behavior may grow code honestly.\nDelete replaced generic-owner branches in the same landing and do not remove other model support to fund this campaign.\nCompleted steps and rows leave this plan through its existing completion owner.\nKeep only remaining obligations and remove campaign-only paragraphs at closeout."
+    },
+    {
+      "governs": "campaign",
+      "text": "Each usable increment publishes its supported capability, scoped GUI behavior, quality evidence and the relevant subset of the frozen performance comparison.\nDo not wait until the entire multimodal stack is complete to find a text, image or memory regression.\nThe efficiency row is interleaved by dependencies with text, images and video delivery.\nMeasure both engines through the same client transport for common API latency.\nMeasure browser rendering separately through existing browser fixtures and never subtract Strata server overhead from one arm while retaining Overgo overhead in the other.\nAn image-capable reference keeps its vision memory reservation even during common text measurements.\nThe initial implementation is capability growth and any optimization beyond it remains provisional until its bounded numerical, resource and performance comparison is accepted."
     }
   ],
   "lane": "master-lead",
-  "items": [],
+  "items": [
+    {
+      "id": "flashnext-reference",
+      "title": "Understand native Strata and establish the matched multimodal baseline",
+      "status": "open",
+      "steps": [
+        {
+          "id": "baseline",
+          "title": "Freeze matched acceptance and measure representative native Strata behavior",
+          "status": "open",
+          "verify": "go test -tags models ./internal/evaluation -run '^TestFlashNextRetainedEvidence$/strata-baseline' -count=1",
+          "rationale": "Serves: Build the comparison from retained native observations evidence:sha256:057fb6060494cf74e4cd0c51ad8ab10e5e63ba56e958ddca8e4e30f44edb432b.\nThe initial requests are exploratory and cannot close benchmark, quality or peak-memory acceptance.\nFreeze exact common inputs, tokenizer and rendered prompts, output and reasoning policy, context, native MTP policy, arithmetic eligibility, memory envelope and timing decision before Overgo candidate measurements.\nAlign the projector with the campaign's pinned Unsloth artifact or explicitly revise both arms to the identified native projector before comparison.\nVerify transformed dense weights actually consumed by each engine rather than assuming every pack conversion runs.\nDisappears: Reuse BENCH.bat or tools/strata_bench.py, native timing output and the existing artifact store.\nAdd comparison code only for a demonstrated consumer gap and keep same-producer lossless records unchanged.\nThe planned retained-evidence test must be replaced by an existing owner where possible and must never reload the model merely to verify a report.\nEvidence: The standard setup enables STRATA_HC_Q8=1 and STRATA_ROUTE_TAIL_SKIP=0.\nThe initial engine retains a full host expert arena plus a GPU cache rather than a host complement.\nRepresentative measurement must account for both physical copies, the MTP layer, the projector, RAM-backed KV state and Windows commit availability.\nThe initial 142-151 tokens/s short responses do not predict sustained speed or prove parity.\nClosure requires retained representative text and image measurements, cold activation, resource peaks, repeatability-derived timing parameters and independently justified numerical tolerances.\nBatch: Model measurements run sequentially without builds, broad gates or other device work.\nRefine the planned verification target to the smallest retained-evidence check before implementation.",
+          "depends_on": [
+            "flashnext-reference/native"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "flashnext-mixed-quant",
+      "title": "Preserve the model's mixed expert formats through the existing MoE path",
+      "status": "open",
+      "steps": [
+        {
+          "id": "banks",
+          "title": "Carry each expert bank's storage type through graph and CUDA execution",
+          "status": "open",
+          "verify": "go test ./internal/tensor ./internal/model -run '^TestFlashNextMixedExpertStorage$' \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestExecutorMoEOutputBitsArePinned$'",
+          "rationale": "Serves: Support independently typed gate, up and down expert banks while preserving routing, scaling, activation and accumulation contracts.\nInspect tensor metadata before selecting supported kernels and reject unsupported combinations explicitly.\nPreserve original quantized expert bytes rather than expanding the banks to F32.\nDisappears: Replace the same-type restriction in internal/tensor/builder_moe.go and the single expertStorage assumption in internal/cuda/executor/launch_moe.go.\nExtend the existing executor pinned-case table and keep its existing homogeneous-format coverage.\nUse one small mixed-bank fixture for graph and device cases instead of a parallel quantization suite.\nEvidence: Strata docs/UNSLOTH_Q4.md identifies IQ3_S or IQ4_XS gate/up, IQ4_NL down and selected Q8_0 banks.\nThe existing Overgo builder rejects up.Type != down.Type and the executor passes one type to all banks.\nCompare routing indices, intermediate values and returned output against a pinned independent dequantization and arithmetic reference.\nThe planned TestFlashNextMixedExpertStorage cases must fail on the prior contract.\nBatch: Change tensor, model bindings, executor and only required manifest kernels together.\nUse the existing small device lane with actual matched tests.\nReport production, test and CUDA growth and batch the inference-surface change before the next real-model evaluation.",
+          "depends_on": [
+            "flashnext-reference/baseline"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "flashnext-architecture",
+      "title": "Add the missing qwen4exp behavior through existing model and tensor owners",
+      "status": "open",
+      "steps": [
+        {
+          "id": "gated-blocks",
+          "title": "Bind qwen4exp metadata and gated residual and recurrent blocks",
+          "status": "open",
+          "verify": "go test ./internal/model ./internal/tensor/reference -run '^(TestArchitectureRegistryProfiles|TestFlashNextGatedBlocks)$'",
+          "rationale": "Serves: Bind exact artifact metadata to qwen4exp and implement its gated residual branches and GatedDeltaNet behavior through the existing forward program.\nInspect tensor layouts, residual ordering, normalization, convolution and recurrent state semantics against the original model implementation before reusing related operators.\nTreat the existing qwen3next profile and DeepSeek hyperconnections as reusable plumbing rather than equivalent architectures.\nDisappears: Extend internal/model/architecture_profiles.json, spec metadata and block owners instead of creating a second inference engine or model-name branches in the server.\nRetain qwen3next and DeepSeek behavior and reuse their applicable tensor operations.\nAdd the qwen4exp registry row and one fixture-driven TestFlashNextGatedBlocks table for unique arithmetic and state cases.\nEvidence: internal/model/weights_compressed_hyper.go and block_specialized.go contain a different hyperconnection formula.\nThe official Qwen configuration declares Qwen4ExpForConditionalGeneration, 48 layers and four residual branches.\nClosure requires independently produced tiny forward and recurrent-state goldens with source, dtype, shape and compiler assumptions recorded.\nBatch: Land metadata and the consumed block implementation together.\nKeep unimplemented model capability unavailable.\nDerive CUDA lane reach from actual kernels and reuse ordinary cached Go checks for host-only fixtures.",
+          "depends_on": [
+            "flashnext-reference/baseline"
+          ]
+        },
+        {
+          "id": "sparse-attention",
+          "title": "Implement Qwen sparse attention and complete the forward program",
+          "status": "open",
+          "verify": "go test ./internal/model ./internal/tensor/reference -run '^TestFlashNextSparseAttention$' \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestFlashNextSparseAttention$'",
+          "rationale": "Serves: Implement the model's QSA block indexer, selection, causal visibility and position semantics using existing attention and recurrent cache owners.\nBind the declared recurrent and sparse-attention cadence rather than inferring it from layer names.\nInspect whether existing sparse primitives can express the model's selection before adding a kernel.\nDisappears: Replace duplicated indexing, gather or materialization inside the chosen existing attention owner where the new path subsumes it.\nDo not replace unrelated sparse-attention contracts or materialize full dense attention merely to avoid the block indexer.\nShare one small reference fixture between host and CUDA TestFlashNextSparseAttention cases.\nEvidence: internal/tensor/operation.go and kernels/cuda/ops_f32.cu provide sparse-attention primitives but do not establish qwen4exp QSA equivalence.\nStrata src/core/verify.cpp provides a second implementation to trace.\nClosure compares selected blocks, masking, state continuation and output against the independent model reference across boundary positions and chunked continuation.\nBatch: Batch model and attention ABI changes with required manifest updates.\nProve the unique masking and resource-lifetime boundaries once in the owning tests.\nDo not run the full model until bounded storage and execution are wired.",
+          "depends_on": [
+            "flashnext-architecture/gated-blocks",
+            "flashnext-mixed-quant/banks"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "flashnext-ngram",
+      "title": "Read only required n-gram content through existing GGUF storage",
+      "status": "open",
+      "steps": [
+        {
+          "id": "rows",
+          "title": "Bind n-gram hashing and bounded row reads without loading the full table",
+          "status": "open",
+          "verify": "go test ./internal/model ./internal/gguf -run '^(TestLoadHostRowsAndDotRows|TestFlashNextNGram)$'",
+          "rationale": "Serves: Derive token-history hashing, row mapping, convolution and injection from the exact model contract.\nExtend the existing range reader and LoadHostRows for ordered batched requests that deduplicate identical rows or pages without changing returned values.\nKeep resident cache bounded by admission and introduce asynchronous issue and collect only when measured overlap exceeds its complexity.\nDisappears: Remove repeated reads and decoding of identical requested rows within a batch and avoid the whole-table F32 representation.\nReuse internal/gguf ReadTensorRange and internal/model/host_weights.go rather than another storage format, compactor or SSD service.\nExtend TestLoadHostRowsAndDotRows for read boundaries and cancellation and use one TestFlashNextNGram table for the unique token-history and injection contract.\nEvidence: Strata src/ngram/ple_reader.cpp overlaps selective row reads with early layers and deduplicates pages.\nOvergo LoadHostRows currently allocates one output and reads and decodes rows in a loop.\nThe bounded comparison reports requested and physical bytes, decode count, allocation and peak residency plus first-output latency on the frozen workload.\nClosure requires exact n-gram and injection agreement and bounded memory, including interrupted read cleanup.\nBatch: Keep required semantic row access separate from optional asynchronous optimization.\nReuse existing file identity and lifecycle contracts.\nNo live-store census, periodic SSD keepalive or permanent row telemetry is added.",
+          "depends_on": [
+            "flashnext-reference/baseline"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "flashnext-residency",
+      "title": "Fit the model and projector by eliminating duplicated resident content",
+      "status": "open",
+      "steps": [
+        {
+          "id": "tiers",
+          "title": "Add bounded expert residency to the existing device weight and resource owners",
+          "status": "open",
+          "verify": "go test ./internal/modeldevice ./internal/inference -run '^TestFlashNextExpertResidency$' \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestFlashNextExpertResidency$'",
+          "rationale": "Serves: Reserve dense weights, vision, KV and recurrent state and scratch before sizing expert storage.\nKeep frequent experts on the device and only the required complement in RAM, with explicit ownership during migration.\nChoose the simplest correct miss path from existing staging and quantized execution before implementing a CPU expert pool.\nRelease buffers only after the actual dependent work finishes and preserve cancellation and concurrent-reader safety.\nDisappears: Extend internal/modeldevice/device_weights.go, internal/cuda/executor and existing inference admission rather than introducing another resource manager.\nAvoid routing the quantized bank through HostTensorStore's persistent F32 materialization.\nRemove redundant host copies after device placement only when the authoritative file or complementary residency permits exact reconstruction.\nOne TestFlashNextExpertResidency table owns hit, miss, eviction, cancellation and failed-copy lifetime behavior.\nEvidence: Strata make_cache_complement_plan and exchange_cache_complement in src/core/expert_source.cpp identify the subtraction opportunity.\nOvergo internal/capabilityruntime/placement.go, internal/modelrecipe/session_resources.go and internal/server/resident_fit.go already own resource facts.\nCompare peak process working set, pinned memory, VRAM, read and transfer bytes and execution latency at matching context and image reservations.\nClosure requires the complete target to fit with explicit headroom and no duplicate accounting or quality-changing expert routing.\nBatch: Implement the minimal fit path first and defer CPU SIMD work, VMM resizing and adaptive policy until their measured necessity.\nDerive budgets and worker counts from current resources.\nReport retained file backing, transient copies and test cost honestly.",
+          "depends_on": [
+            "flashnext-mixed-quant/banks",
+            "flashnext-ngram/rows"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "flashnext-chat",
+      "title": "Deliver native Flash-Next text chat through existing APIs and web GUI",
+      "status": "open",
+      "steps": [
+        {
+          "id": "serve",
+          "title": "Wire full execution, activation, reasoning and tool use into the existing chat flow",
+          "status": "open",
+          "verify": "go test ./internal/server ./internal/inference -run '^(TestChatJinjaQwen38Template|TestReasoningLevelDeclared|TestProtocolToolExecutionParity|TestFlashNextServing)$' \u0026\u0026 go run ./cmd/webui-lane -run '^(TestWebUIBrowserModelPicker|TestWebUIBrowserReasoningLevel|TestWebUIBrowserServingStream)$' -leg flashnext-text",
+          "rationale": "Serves: Serve the exact model through current chat, Responses and Messages owners and expose the supported text increment in the existing model picker.\nKeep reasoning and tools bound to declared capabilities and the model's template.\nShow activation, unavailable resource reasons, first output and explicit stop behavior through existing UI states.\nRetain full native text quality and timing evidence before claiming the model supported.\nDisappears: Reuse internal/inference/chat_jinja_qwen38_test.go, existing protocol handlers, webui/boot.js, webui/mod/chat.js and composer.js.\nDelete any provisional model-specific adapter after normal recipe routing works.\nExtend existing protocol and browser fixtures with the model capability case and required flashnext-text leg.\nDo not copy Strata's Python server, MCP runtime or chat application.\nEvidence: Strata serve/web/app.js provides reasoning controls, streamed answers, tool-call display and model state.\nOvergo already has those owners plus TestProtocolToolExecutionParity, TestWebUIBrowserModelPicker and TestWebUIBrowserReasoningLevel.\nThe planned TestFlashNextServing covers only missing full-model binding and protocol behavior.\nA models-tagged flashnext text evidence case must name the real native run and external numerical or quality oracle before capability publication.\nBatch: Hermetic protocol and browser acceptance share existing fixtures.\nReal-model quality and performance stay in the models cycle and reuse a single identified run.\nDo not treat the browser fixture as proof that the full model executed.",
+          "depends_on": [
+            "flashnext-architecture/sparse-attention",
+            "flashnext-ngram/rows",
+            "flashnext-residency/tiers"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "flashnext-efficiency",
+      "title": "Remove the measured work and memory gaps until native Strata parity is established",
+      "status": "open",
+      "steps": [
+        {
+          "id": "processing",
+          "title": "Reduce repeated execution, expert movement and prefill work at the measured bottleneck",
+          "status": "open",
+          "verify": "go test -tags models ./internal/evaluation -run '^TestFlashNextRetainedEvidence$/processing-comparison' -count=1",
+          "rationale": "Serves: Read the retained per-workload comparison before selecting a change.\nTrace the slowest material path through routing, resident hits, missing experts, n-gram reads, prefill, device scheduling and publication.\nPrefer removing duplicate copies, conversions, allocations, loads and synchronizations before adding concurrency or custom kernels.\nCompare GPU staging with CPU quantized miss execution only if profiles show expert misses dominate.\nCompare batched expert prefill and bounded copy-compute overlap only if the real-document workload exposes that cost.\nDisappears: Reuse Strata src/core/verify.cpp, expert_source.cpp and src/prefill/prefill.cpp as algorithm references and Overgo's existing execution owners as the implementation home.\nA CPU expert pool is conditional because Overgo's F32 host reference is not a competitive quantized kernel.\nDelete displaced loops, scratch representations and wrappers with the accepted change.\nAvoid Strata route-prior or resident-biased expert selection because they change the computation.\nEvidence: The smallest deciding experiment uses the frozen short, real-prefill and image workloads plus the retained memory envelope.\nA candidate records removed operations and bytes, peak memory, elapsed differences and total production, test and maintenance cost.\nRun profiles separately and reuse unchanged numerical evidence only when its identity permits it.\nClosure requires a complete supported bottleneck comparison and adoption of beneficial changes or an evidence-based retirement of an unnecessary candidate.\nBatch: Split this row into additional bounded steps only when a measured residual gap requires them.\nBind each implementation step to its specific native Go regression table before coding.\nDo not expand into speculative kernel work, continuous profiling, new cache formats or all-platform portability.",
+          "depends_on": [
+            "flashnext-chat/serve"
+          ]
+        },
+        {
+          "id": "reuse",
+          "title": "Reduce follow-up and streaming cost and adopt speculation only when beneficial",
+          "status": "open",
+          "verify": "go test -tags models ./internal/evaluation -run '^TestFlashNextRetainedEvidence$/reuse-comparison' -count=1",
+          "rationale": "Serves: Measure follow-up prefill, model reactivation, first visible output and browser work before changing them.\nReuse current prompt and recurrent state with exact model, recipe, history, image and preprocessing identity.\nAdd only the missing qwen4exp integration to existing MTP or prompt-lookup verification if the common decode gap remains.\nDerive speculative choices from accepted-token benefit and measured total cost rather than porting Strata's policy constants.\nDisappears: Reuse internal/inference/prompt_cache.go, single_head_mtp_speculative.go, nextn_device_speculation.go and device_recurrent_checkpoint owners.\nRetain TestRecurrentCheckpoint and TestProjectedPromptCacheRequiresExactMediaSignature and move new cases into those owners.\nRemove repeated full-prefix work or reloads only where profiling establishes them.\nFor webui/composer.js prefer existing frame-coalesced updates and remove proven redundant reconstruction rather than adding a new renderer or telemetry stream.\nEvidence: Strata src/spec/controller.cpp and serve/web/app.js illustrate speculation, cache reporting and request timing but do not establish an Overgo gap.\nPrompt reuse, MTP, sampled rejection, terminal flush, accessibility, user scroll position and actual cancellation release keep their distinct contracts.\nMeasure accepted output tokens rather than proposed tokens.\nClosure requires matched follow-up and user-visible results and the smallest retained implementation.\nBatch: Acquire MTP only if this comparison requires it and account for draft weights and cache in the same resource envelope.\nA no-change outcome is valid when existing owners already meet the target.\nAn engine-only gain does not excuse a required end-to-end or memory regression.",
+          "depends_on": [
+            "flashnext-efficiency/processing",
+            "flashnext-vision/images"
+          ]
+        },
+        {
+          "id": "parity",
+          "title": "Confirm all required common workloads and expose the results through existing GUI views",
+          "status": "open",
+          "verify": "go test -tags models ./internal/evaluation -run '^TestFlashNextRetainedEvidence$/final-parity' -count=1",
+          "rationale": "Serves: Run the frozen common text and image comparison on the accepted native implementation and confirm held-out quality independently.\nShow model readiness, measured memory, first-output and throughput results in existing runtime, request and scorecard views where those facts already exist.\nAdd only a missing decision-relevant field or leg rather than cloning Strata's Monitor page.\nRetain independently judged video and composed speech results alongside the common performance verdict.\nDisappears: Reuse webui/mod/runtime.js, requests.js and scorecard.js plus the model picker memory display and existing request records.\nRemove temporary comparative routes, diagnostic wrappers and duplicate benchmark fixtures after publishing the authoritative records.\nThe single TestFlashNextRetainedEvidence table is reused for baseline and final record checks instead of one policy suite per optimization.\nEvidence: Strata serve/web/app.js renderMonitor and renderConvCache show source capabilities to compare with existing Overgo views.\nThe final record binds both engine identities and every required workload, quality outcome, runtime configuration and resource limit.\nClosure requires matched or better common performance under the frozen equivalence rule and no required quality or memory regression.\nA missing or inconclusive cell keeps this step open and causes a concrete next bottleneck step.\nBatch: Run native model comparisons sequentially with no concurrent build, profiling or training.\nReuse one final observation set across scorecard, GUI and campaign acceptance.\nRun a browser check only for UI behavior actually changed and use the existing lane rather than new polling infrastructure.",
+          "depends_on": [
+            "flashnext-efficiency/reuse",
+            "flashnext-video-audio/journeys"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "flashnext-vision",
+      "title": "Deliver image understanding and its web GUI as the next native increment",
+      "status": "open",
+      "steps": [
+        {
+          "id": "images",
+          "title": "Reuse the vision projector and composer for image, OCR and multi-image conversations",
+          "status": "open",
+          "verify": "go test ./internal/projector ./internal/server -run '^(TestFlashNextVision|TestChatMultimodalAttachments|TestPreprocessQwen3VLImageMergedOrder)$' \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/projector -run '^TestFlashNextVisionCUDAMatchesReference$' \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowserMediaCapture$' -leg flashnext-image",
+          "rationale": "Serves: Inspect the exact projector metadata and tensor mapping before extending Qwen3VLRunner.\nVerify the 27-layer, width-1152 visual backbone, width-2560 merger, spatial and temporal patch geometry, empty deepstack configuration and language insertion semantics from source artifacts.\nExpose image upload, paste, preview, multiple images and OCR or screenshot questions through the existing composer.\nBind exact image bytes and preprocessing to prompt reuse.\nDisappears: Reuse internal/projector/qwen3vl.go, prompt.go, preprocess_profiles.json and existing tensor operations.\nKeep images in the native artifact and projector flow instead of Strata's mtmd subprocess and temporary SVE1 embedding files.\nReuse image attachment and capture fixtures and consolidate duplicate setup into their retained owner.\nRetain existing Qwen3VL numerical and deepstack tests because their contracts remain distinct.\nEvidence: Strata tools/vision/strata_vision.cpp is an image encoder sidecar reference rather than a mandatory runtime dependency.\nOvergo already provides image prompt construction and multiple-image coverage.\nTestFlashNextVision and its CUDA case are planned independent-reference tables for geometry, embeddings, positions and prompt insertion.\nClosure requires held-out image and OCR quality, missing-projector refusal and common image performance under the frozen Strata baseline.\nBatch: Image support is a required campaign increment.\nMatch image dimensions, resize and token budgets when measuring.\nDo not reduce OCR resolution or use an unverified projector quant to improve timings.\nThe browser leg and real-model evidence remain separate obligations with shared assets.",
+          "depends_on": [
+            "flashnext-chat/serve"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "flashnext-video-audio",
+      "title": "Complete multimodal journeys with native video and existing speech composition",
+      "status": "open",
+      "steps": [
+        {
+          "id": "journeys",
+          "title": "Add temporal video acceptance and compose speech around the model in the GUI",
+          "status": "open",
+          "verify": "go test ./internal/projector ./internal/server -run '^(TestPreprocessQwen3VLFramesTemporalOrder|TestFlashNextVideo|TestChatMultimodalAttachments|TestFlashNextSpeechComposition)$' \u0026\u0026 go run ./cmd/webui-lane -run '^(TestWebUIBrowserVideoCapture|TestWebUIBrowserAudioInput|TestWebUIBrowserAudioOutput)$' -leg flashnext-video -leg flashnext-speech",
+          "rationale": "Serves: Bind frame selection, temporal patching, timestamps, position construction and context accounting to the model's declared video contract.\nUse the existing video upload or capture path and expose processing and cancellation states in the same composer.\nCompose existing ASR input, Flash-Next reasoning and existing TTS output without claiming that the GGUF natively processes audio.\nAdmit speech and vision resources beside the resident model or release and reacquire through existing owners when they cannot coexist.\nDisappears: Reuse internal/projector video preprocessing, internal/server/webui/media_capture.js, composer.js and the current speech services and capability composition.\nAvoid a second media UI, video frame store, ASR or TTS implementation and duplicate model loads per turn.\nExtend existing temporal-order and browser fixtures.\nPlanned TestFlashNextVideo and TestFlashNextSpeechComposition cover only new model-specific wiring, temporal semantics and resource handoff.\nEvidence: Strata docs/DETAILS.md explicitly excludes video from the inspected server.\nVideo quality uses the original model or another independently pinned implementation with matching frames and timestamps.\nSpeech quality keeps existing ASR and TTS acceptance and measures the composed submit-to-answer and answer-to-audio journey.\nClosure requires retained real image and video observations, ordered-frame failure coverage, cancellation to actual release and recovery without losing the user draft.\nBatch: Video and speech measurements are Overgo capability results and never presented as Strata parity.\nReuse a bounded clip and existing audio fixtures across protocol and browser checks.\nKeep live-model runs in the models cycle and scoped UI checks in the webui lane.",
+          "depends_on": [
+            "flashnext-vision/images"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "campaign-closeout",
+      "title": "Retain the accepted evidence and remove completed campaign work",
+      "status": "open",
+      "steps": [
+        {
+          "id": "close",
+          "title": "Close only after multimodal delivery and Strata parity are established",
+          "status": "open",
+          "verify": "go test -tags models ./internal/evaluation -run '^TestFlashNextRetainedEvidence$/complete' -count=1 \u0026\u0026 go run ./cmd/validate -claims",
+          "rationale": "Serves: Require the identified final performance comparison, independent quality outcomes and all delivered GUI and modality obligations.\nRemove completed steps and campaign-only paragraphs through the existing completion workflow.\nLeave no unsupported model capability, unowned temporary implementation or unmeasured parity claim.\nDisappears: Keep only immutable artifacts, necessary independently generated fixtures and retained run records.\nDelete disposable acquisition and experiment scratch after confirming its authoritative copies and active writers.\nKeep the immutable model source and required recovery data.\nDo not create a campaign history, second plan or resolved-item ledger.\nEvidence: The complete case of the shared TestFlashNextRetainedEvidence table checks the protocol's denominator and exact accepted identities without rerunning models.\nAll required common cells must establish parity and all distinct video and speech contracts must be met.\nA negative experiment may be complete while this campaign remains open.\nMeasured limitations requiring a changed target are reported to the owner rather than silently waived.\nBatch: Use the existing claims and closeout owners.\nNo broad confidence rerun or additional performance ratchet is added.\nThe plan shrinks as accepted increments land.",
+          "depends_on": [
+            "flashnext-efficiency/parity"
+          ]
+        }
+      ]
+    }
+  ],
   "decisions": [
     {
       "id": "gemma-12b-bf16-download",

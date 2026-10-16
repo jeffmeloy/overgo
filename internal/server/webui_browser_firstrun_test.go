@@ -462,7 +462,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
       for (const label of document.querySelectorAll('.mode-controls label.control, [aria-label="Speech options"] label.control')) {
         const input = label.querySelector("input, select, textarea");
         if (input.tagName === "SELECT" && !input.value) input.value = [...input.options].map((option) => option.value).find(Boolean) || "";
-        else if (input.type === "number" && !input.value) input.value = label.textContent.trim().startsWith("seed") ? String(Date.now() % 100000) : "1";
+        else if (input.type === "number" && !input.value && (!speechOptions || input.required || label.textContent.trim().startsWith("seed"))) input.value = label.textContent.trim().startsWith("seed") ? String(Date.now() % 100000) : "1";
       }
       if (speechOptions) document.getElementById('settings-dialog').close();
       return true;
@@ -558,7 +558,9 @@ func TestModelJourneyFirstRun(t *testing.T) {
 	}
 	if generationMode("speech", "") {
 		say(t, ctx, browser, "hello from the lane")
-		settle("speech out as an artifact card", `!!document.querySelector("#panel-chat .msg.media audio") && !document.querySelector(".composer .btn").disabled`)
+		const speechReady = `!!document.querySelector("#panel-chat .msg.media audio") && !document.querySelector(".composer .send-button").disabled`
+		settle("speech request completes", `(`+speechReady+`) || [...document.querySelectorAll("#panel-chat .msg")].at(-1)?.classList.contains("error")`)
+		assertBrowserPredicate(t, ctx, browser, speechReady)
 		webuilane.Leg(t, "speech-out leg", "a clip landed as an artifact card")
 	} else {
 		t.Log("speech-out leg not taken: the store declares no speech model")
@@ -570,8 +572,10 @@ func TestModelJourneyFirstRun(t *testing.T) {
 	// instead of attaching bytes.
 	if generationMode("video-gen", "model.oscillator-video-prepare") {
 		say(t, ctx, browser, "a test clip")
-		settle("clip out as an artifact card", `!document.querySelector(".composer .btn").disabled &&
-      [...document.querySelectorAll("#panel-chat .msg.media")].some((card) => card.textContent.includes("image/gif") && !!card.querySelector("img") && !card.querySelector("video") && !!card.querySelector(".note a"))`)
+		const clipReady = `!document.querySelector(".composer .send-button").disabled &&
+      [...document.querySelectorAll("#panel-chat .msg.media")].some((card) => card.textContent.includes("image/gif") && !!card.querySelector("img") && !card.querySelector("video") && !!card.querySelector(".note a"))`
+		settle("clip request completes", `(`+clipReady+`) || [...document.querySelectorAll("#panel-chat .msg")].at(-1)?.classList.contains("error")`)
+		assertBrowserPredicate(t, ctx, browser, clipReady)
 		webuilane.Leg(t, "clip-out leg", "a clip landed as an artifact card")
 		// Presets from declared bounds: the Wan prompt form prefills the profile's
 		// geometry, and an aspect chip moves width and height by the stride

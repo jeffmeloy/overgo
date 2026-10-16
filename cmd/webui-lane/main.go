@@ -172,7 +172,8 @@ func runLane(ctx context.Context, stdout io.Writer, run string, extra, required 
 	// No go test timeout, as the gate's other lanes run: a limit on the whole run had no derivation.
 	// What is bounded is each wait for the page's answer (waitBudget), in the wait's owner, where the
 	// failure can say what the page showed; a clock on the run could only kill it.
-	args = append(args, "-run", run, "-count=1", "-timeout=0", "-json")
+	// Browser processes share host transport buffers, so test packages and bodies run serially.
+	args = append(args, "-run", run, "-count=1", "-timeout=0", "-json", "-p=1", "-parallel=1")
 	report, runErr := testevidence.RunGoTestCommand(ctx, processcontrol.Command{Path: "go", Args: args, Env: env}, testevidence.GoTestOptions{
 		DiagnosticBytes: clioptions.DiagnosticTailBytes,
 		Progress: func(done testevidence.PackageProgress) {

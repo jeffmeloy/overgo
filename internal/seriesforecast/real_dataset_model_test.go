@@ -3,7 +3,6 @@
 package seriesforecast
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"math"
@@ -14,23 +13,20 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
 	"overgo/internal/modeltest"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingdata"
 )
 
 func TestRealSupernovaForecastStream(t *testing.T) {
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
 	modelDir := modeltest.Directory(t, "timesfm-2.5-200m-transformers")
-	datasetPath := filepath.Join(roots.Datasets, "supernova-timeseries", "test.jsonl")
+	datasetPath := supernovaDataset(t, "test")
 	model, err := Load(modelDir)
 	if err != nil {
 		t.Fatalf("TimesFM artifact unavailable: %v", err)
 	}
-	record := firstRecord(t, datasetPath)
+	record := leadingRecords(t, datasetPath, 1)[0]
 	datasetID := identifyDataset(t, datasetPath)
 	splitID, err := artifact.IdentifyBytes(artifact.KindDatasetShard, []byte(datasetID.String()+"/heldout"))
 	if err != nil {
@@ -51,7 +47,7 @@ func TestRealSupernovaForecastStream(t *testing.T) {
 			Outputs: []recipecontract.Modality{recipecontract.ModalityTimeSeries},
 		},
 	}
-	materialized, err := trainingdata.MaterializeDocuments(authority, processorID, []string{string(record)}, trainingdata.ProcessorBinding{
+	materialized, err := trainingdata.MaterializeDocuments(authority, processorID, []string{record}, trainingdata.ProcessorBinding{
 		Artifact: processorID, Modalities: []recipecontract.Modality{recipecontract.ModalityTimeSeries}, Process: processor,
 	})
 	if err != nil {
@@ -112,19 +108,24 @@ func identifyDataset(t *testing.T, path string) artifact.ID {
 	return id
 }
 
-func firstRecord(t *testing.T, path string) []byte {
+func supernovaDataset(t *testing.T, split string) string {
 	t.Helper()
-	file, err := os.Open(path)
+	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
-		t.Fatalf("Supernova test dataset unavailable: %v", err)
+		t.Fatal(err)
 	}
-	defer file.Close()
-	scanner := bufio.NewScanner(file)
-	if !scanner.Scan() {
-		if err := scanner.Err(); err != nil {
-			t.Fatal(err)
-		}
-		t.Fatal("Supernova test dataset is empty")
+	store, err := overgodb.OpenReadOnly(roots.Store)
+	if err != nil {
+		t.Fatal(err)
 	}
-	return append([]byte(nil), scanner.Bytes()...)
+	defer store.Close()
+	id, found, err := store.ResolveAlias(t.Context(), "dataset.registered.supernova-timeseries")
+	if err != nil || !found {
+		t.Fatalf("Supernova dataset registration unavailable: found=%t, error=%v", found, err)
+	}
+	directory, err := artifact.AvailablePath(t.Context(), store, id, artifact.LocationDirectory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return filepath.Join(directory, split+".jsonl")
 }

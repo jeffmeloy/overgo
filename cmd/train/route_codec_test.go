@@ -232,7 +232,11 @@ func TestCodecRouteJudgesATrainedBridgeOnHeldOutFrames(t *testing.T) {
 	}
 	kept := func() int {
 		var files int
-		if err := filepath.WalkDir(filepath.Join(work, "cache"), func(_ string, entry fs.DirEntry, err error) error {
+		cache := filepath.Join(work, "cache")
+		if err := filepath.WalkDir(cache, func(path string, entry fs.DirEntry, err error) error {
+			if path == cache && os.IsNotExist(err) {
+				return nil
+			}
 			if err == nil && !entry.IsDir() {
 				files++
 			}

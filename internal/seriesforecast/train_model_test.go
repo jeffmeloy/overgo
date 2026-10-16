@@ -8,15 +8,12 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"overgo/internal/artifact"
-	"overgo/internal/dataroot"
 	"overgo/internal/modeltest"
 	"overgo/internal/recipecontract"
-	"overgo/internal/testutil"
 	"overgo/internal/trainingdata"
 )
 
@@ -46,7 +43,7 @@ func leadingRecords(t *testing.T, path string, limit int) []string {
 	t.Helper()
 	file, err := os.Open(path)
 	if err != nil {
-		t.Fatalf("Supernova train dataset unavailable: %v", err)
+		t.Fatalf("Supernova dataset unavailable: %v", err)
 	}
 	defer file.Close()
 	var records []string
@@ -59,7 +56,7 @@ func leadingRecords(t *testing.T, path string, limit int) []string {
 		t.Fatal(err)
 	}
 	if len(records) == 0 {
-		t.Fatal("Supernova train dataset is empty")
+		t.Fatal("Supernova dataset is empty")
 	}
 	return records
 }
@@ -72,12 +69,8 @@ func TestTimesFMRealSupernovaTrainingSmoke(t *testing.T) {
 	// evaluating the same pair's loss before and after the observed steps.
 	const steps = 3
 	const maxWall = 25 * time.Minute
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
 	modelDir := modeltest.Directory(t, "timesfm-2.5-200m-transformers")
-	datasetPath := filepath.Join(roots.Datasets, "supernova-timeseries", "train.jsonl")
+	datasetPath := supernovaDataset(t, "train")
 	model, err := Load(modelDir)
 	if err != nil {
 		t.Fatalf("TimesFM artifact unavailable: %v", err)

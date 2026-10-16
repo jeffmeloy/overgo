@@ -4,7 +4,6 @@ package latentvideo
 import (
 	"cmp"
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
 
@@ -188,11 +187,11 @@ func encodeWeightPayload(data []float32, storage dtype.Type) ([]byte, error) {
 	case dtype.F32:
 		return driver.Bytes(data), nil
 	case dtype.BF16:
-		payload := make([]byte, 2*len(data))
+		payload := make([]uint16, len(data))
 		for i, value := range data {
-			binary.LittleEndian.PutUint16(payload[2*i:], dtype.Float32ToBF16(value))
+			payload[i] = dtype.Float32ToBF16(value)
 		}
-		return payload, nil
+		return driver.Bytes(payload), nil
 	default:
 		return nil, fmt.Errorf("weight storage %s is unsupported", storage)
 	}

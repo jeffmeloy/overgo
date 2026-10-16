@@ -5,9 +5,12 @@ import (
 	"errors"
 	"fmt"
 
+	"overgo/internal/checked"
 	"overgo/internal/gguf"
 	"overgo/internal/hostmath"
 	"overgo/internal/model"
+	"overgo/internal/quant"
+	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 )
 
@@ -20,6 +23,57 @@ type stackGeometry struct {
 	ropeTheta                        float64
 	// Gated-delta mix.
 	gdnKeyHeads, gdnValueHeads, gdnHeadDim, gdnConvK int
+}
+
+// loadStackLayer decodes feed-forward matrices into their final master slots.
+//   - binders consume gate, up and down in this order before other matrices
+func loadStackLayer(ctx context.Context, file *gguf.File, info model.LayerWeights, masters []float32, elements int, storage *[]byte) (model.HostLayer, error) {
+	matrices := [...]*gguf.TensorInfo{info.FeedForwardGate, info.FeedForwardUp, info.FeedForwardDown}
+	info.FeedForwardGate, info.FeedForwardUp, info.FeedForwardDown = nil, nil, nil
+	host, err := model.LoadHostLayer(ctx, file, info)
+	if err != nil {
+		return model.HostLayer{}, err
+	}
+	outputs := [...]**reference.Value{&host.FeedForwardGate, &host.FeedForwardUp, &host.FeedForwardDown}
+	for index, info := range matrices {
+		if info == nil {
+			continue
+		}
+		if err := ctx.Err(); err != nil {
+			return model.HostLayer{}, err
+		}
+		shape, err := tensor.NewShape(info.Extents()...)
+		if err != nil {
+			return model.HostLayer{}, fmt.Errorf("hybrid stack tensor %q shape: %w", info.Name, err)
+		}
+		count, err := shape.Elements()
+		if err != nil {
+			return model.HostLayer{}, fmt.Errorf("hybrid stack tensor %q elements: %w", info.Name, err)
+		}
+		if count != uint64(elements) {
+			return model.HostLayer{}, fmt.Errorf("hybrid stack tensor %q has %d elements, need %d", info.Name, count, elements)
+		}
+		size, ok := checked.Int(info.Size)
+		if !ok {
+			return model.HostLayer{}, fmt.Errorf("hybrid stack tensor %q storage exceeds addressable memory", info.Name)
+		}
+		if cap(*storage) < size {
+			*storage = make([]byte, size)
+		}
+		raw := (*storage)[:size]
+		if err := file.ReadTensorData(*info, raw); err != nil {
+			return model.HostLayer{}, fmt.Errorf("read hybrid stack tensor %q: %w", info.Name, err)
+		}
+		if err := ctx.Err(); err != nil {
+			return model.HostLayer{}, err
+		}
+		values := masters[index*elements : (index+1)*elements]
+		if err := quant.DequantizeInto(info.Type, raw, values); err != nil {
+			return model.HostLayer{}, fmt.Errorf("decode hybrid stack tensor %q: %w", info.Name, err)
+		}
+		*outputs[index] = &reference.Value{Shape: shape, Data: values}
+	}
+	return host, nil
 }
 
 func readStackGeometry(spec model.Spec) (stackGeometry, error) {
@@ -344,8 +398,9 @@ func LoadStackArtifact(ctx context.Context, path string, tokenIDs []uint32) (*Mo
 	m.vecW = make([]float32, 0, vecTotal)
 	b := &builder{m: m}
 
+	var storage []byte
 	for li, kind := range types {
-		host, err := model.LoadHostLayer(ctx, file, weights.Layers[li])
+		host, err := loadStackLayer(ctx, file, weights.Layers[li], m.matW[len(m.matW):cap(m.matW)], geometry.hidden*geometry.inter, &storage)
 		if err != nil {
 			return nil, fmt.Errorf("hybrid stack: load layer %d: %w", li, err)
 		}

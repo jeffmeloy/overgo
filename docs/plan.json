@@ -65,14 +65,11 @@
       "title": "Restore Wan2.1-T2V-1.3B video-gen load-time to 4872.3347 ms",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": -405,
+        "reason": ""
+      },
       "steps": [
-        {
-          "id": "pack",
-          "title": "Pack BF16 upload weights through the existing typed byte view",
-          "status": "open",
-          "verify": "go test -timeout=0 ./internal/latentvideo",
-          "rationale": "Serves: Video activation removes per-element byte serialization while retaining Float32ToBF16 arithmetic.\nDisappears: encodeWeightPayload no longer uses binary.LittleEndian.PutUint16 for each weight.\nEvidence: The retained Wan profile attributes 1.75 aggregate CPU seconds to encodeWeightPayload while the normal-path median is 5727.827 ms against the unchanged 4872.3347 ms target.\nBatch: Reuse driver.Bytes for the uint16 buffer on the supported CUDA platforms and retain existing numerical coverage before normal-route measurement.\nAggregate CPU time is not elapsed load time and this source change has no presumed speed benefit.\nThe do step remains open until the normal scorecard meets its target."
-        },
         {
           "id": "do",
           "title": "Restore Wan2.1-T2V-1.3B video-gen load-time to 4872.3347 ms",
@@ -95,13 +92,6 @@
         "reason": "Estimated net production growth = at most 600 AST nodes for direct feed-forward decoding into the existing optimizer master slab.\nThe private loader reuses quant.DequantizeInto and one source-byte buffer.\nThree temporary FP32 matrices per layer and their master-slab copies disappear.\nFocused fixture coverage adds test code for destination aliasing, tensor order, malformed geometry and cancellation.\nNo new model loader API, cache, storage representation or recurring analyzer is introduced."
       },
       "steps": [
-        {
-          "id": "decode",
-          "title": "Decode feed-forward weights directly into the training master slab",
-          "status": "open",
-          "verify": "go test -timeout=0 ./internal/hybridtrain",
-          "rationale": "Serves: Training load avoids repeated allocation and copying for the largest shared matrix groups.\nDisappears: LoadStackArtifact no longer allocates separate decoded gate, up and down arrays before copying them into matW.\nEvidence: Retained Qwen load profile attributes 2.35 CPU seconds to builder.matValues across all matrix groups while the published normal-path median is 6795.4967 ms against the unchanged 6532.2922 ms target.\nBatch: Land the private loader and native fixture coverage together before matched normal-route load measurements.\nCanonical matrix and vector order, optional convolution bias, fused-query handling, exact values and cancellation remain unchanged.\nThe implementation step earns no speed claim and the do step remains open until the normal scorecard meets its target."
-        },
         {
           "id": "do",
           "title": "Restore Qwen3.5-4B training load-time to 6532.2922 ms",

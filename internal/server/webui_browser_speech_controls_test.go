@@ -76,7 +76,12 @@ func TestWebUIBrowserSpeechControls(t *testing.T) {
 			{Name: "text", Type: workflowControlText, Required: true},
 			{Name: "max_frames", Type: workflowControlInteger},
 			{Name: "seed", Type: workflowControlInteger, Required: true},
-			{Name: "voice", Type: workflowControlText, Required: true, Choices: []string{"alba", "marius"}},
+			{Name: "voice", Type: workflowControlText, Choices: []string{"alba", "marius"}},
+			{Name: "prepared_voice", Type: workflowControlArtifact, Label: "Prepared voice"},
+			{Name: "reference_audio", Type: workflowControlArtifact, Label: "Reference recording", Media: "audio"},
+			{Name: "reference_start_sample", Type: workflowControlInteger},
+			{Name: "reference_end_sample", Type: workflowControlInteger},
+			{Name: "voice_memory_bytes", Type: workflowControlInteger},
 			{Name: "temperature", Type: workflowControlNumber},
 		},
 	}}}
@@ -134,6 +139,10 @@ func TestWebUIBrowserSpeechControls(t *testing.T) {
 	check(`(()=>{document.querySelector('.mode-controls select[aria-label="voice"]').focus();return true;})()`)
 	pressKey(t, ctx, browser, "ArrowDown", 40)
 	settle(`document.querySelector('.mode-controls select[aria-label="voice"]').value==='alba'`)
+	voiceID := testutil.ArtifactID(t, artifact.KindFile, "browser voice source").String()
+	check(`(()=>{const recording=speechControl('Reference recording');recording.value=` + strconv.Quote(voiceID) + `;recording.dispatchEvent(new Event('intake'));speechControl('reference end sample').value='24000';speechControl('voice memory bytes').value='1048576';return document.querySelector('.mode-controls select[aria-label="voice"]').value==='' && speechControl('Prepared voice').value==='';})()`)
+	check(`(()=>{const prepared=speechControl('Prepared voice');prepared.value=` + strconv.Quote(voiceID) + `;prepared.dispatchEvent(new Event('change'));return speechControl('Reference recording').value==='' && speechControl('reference end sample').value==='' && speechControl('voice memory bytes').value==='';})()`)
+	check(`(()=>{const voice=document.querySelector('.mode-controls select[aria-label="voice"]');voice.value='alba';voice.dispatchEvent(new Event('change'));return speechControl('Prepared voice').value==='';})()`)
 	check(`(()=>{const mode=document.querySelector('.composer select[aria-label="mode"]');mode.value='chat';mode.dispatchEvent(new Event('change'));mode.value='speech';mode.dispatchEvent(new Event('change'));return true;})()`)
 	settle(`document.querySelector('.mode-controls select[aria-label="voice"]')?.value==='alba'`)
 	check(`!speechControl('max frames') && speechControl('seed').value==='7' && speechControl('temperature').value==='0.7'`)

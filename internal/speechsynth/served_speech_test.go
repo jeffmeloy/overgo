@@ -8,8 +8,14 @@ import (
 	"encoding/json"
 	"math"
 	"os"
+	"path/filepath"
 	"testing"
 
+	"overgo/internal/artifact"
+	"overgo/internal/media"
+	"overgo/internal/modelrecipe"
+	"overgo/internal/overgodb"
+	"overgo/internal/recipe"
 	"overgo/internal/testutil"
 )
 
@@ -51,25 +57,44 @@ func packedFloats(t *testing.T, packed string) []float32 {
 // What it does not reach is the drawing of the noise: a served request draws
 // normal values from its seed with Go's generator, and that code with torch's.
 func TestServedSpeechMatchesUpstream(t *testing.T) {
-	raw, err := os.ReadFile(testutil.FixturePath(t, "pockettts_served_speech.json"))
+	t.Run("English preset and prepared voice", func(t *testing.T) {
+		testServedSpeech(t, "pockettts_served_speech.json", artifactDir(t), true)
+	})
+	t.Run("German preset", func(t *testing.T) {
+		testServedSpeech(t, "pockettts_german_speech.json", filepath.Join(artifactDir(t), "languages", "german"), false)
+	})
+}
+
+func testServedSpeech(t *testing.T, fixtureName, directory string, prepareVoice bool) {
+	t.Helper()
+	raw, err := os.ReadFile(testutil.FixturePath(t, fixtureName))
 	if err != nil {
 		t.Fatalf("the upstream recordings are absent (%v); write them with %s", err, servedSpeechScript)
 	}
 	var fixture struct {
-		Voice        string  `json:"voice"`
-		Seed         int64   `json:"seed"`
-		Temperature  float64 `json:"temperature"`
-		EndThreshold float64 `json:"end_threshold"`
-		SampleRate   int     `json:"sample_rate"`
-		FrameSamples int     `json:"frame_samples"`
-		NoiseWidth   int     `json:"noise_width"`
-		Cases        []struct {
+		Voice              string  `json:"voice"`
+		Seed               int64   `json:"seed"`
+		Temperature        float64 `json:"temperature"`
+		EndThreshold       float64 `json:"end_threshold"`
+		SampleRate         int     `json:"sample_rate"`
+		FrameSamples       int     `json:"frame_samples"`
+		NoiseWidth         int     `json:"noise_width"`
+		WeightsSHA256      string  `json:"weights_sha256"`
+		TokenizerSHA256    string  `json:"tokenizer_sha256"`
+		VoiceSHA256        string  `json:"voice_sha256"`
+		ReferenceRecording string  `json:"reference_recording"`
+		ReferenceState     []struct {
+			Frames     int
+			Key, Value string
+		} `json:"reference_state"`
+		Cases []struct {
 			Text            string  `json:"text"`
 			Frames          int     `json:"frames"`
 			EndSeenAt       int     `json:"end_seen_at"`
 			NearestEndLogit float64 `json:"nearest_end_logit"`
 			Noise           string  `json:"noise"`
 			Samples         string  `json:"samples"`
+			ReferenceVoice  bool    `json:"reference_voice"`
 		} `json:"cases"`
 	}
 	if err := json.Unmarshal(raw, &fixture); err != nil {
@@ -78,14 +103,109 @@ func TestServedSpeechMatchesUpstream(t *testing.T) {
 	if len(fixture.Cases) == 0 {
 		t.Fatal("the fixture holds no text")
 	}
-	synth := loadArtifactSynthesizer(t)
+	synth, err := LoadSynthesizer(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inventory, err := Inventory(synth.directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	weightMatch := false
+	for _, component := range inventory.Manifest.Components {
+		if component.Role == artifact.ComponentWeights && component.Artifact.DigestHex() == fixture.WeightsSHA256 {
+			weightMatch = true
+		}
+	}
+	if !weightMatch {
+		t.Fatal("independent voice fixture weights differ from served inventory")
+	}
+	voicePath, err := ResolveVoicePath(directory, fixture.Voice)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for path, expected := range map[string]string{filepath.Join(directory, "tokenizer.model"): fixture.TokenizerSHA256, voicePath: fixture.VoiceSHA256} {
+		id, err := artifact.IdentifyFile(artifact.KindFile, path)
+		if err != nil || id.DigestHex() != expected {
+			t.Fatalf("independent input %s differs: %v", path, err)
+		}
+	}
+	var preparedID artifact.ID
+	if prepareVoice {
+		store, err := overgodb.Open(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer store.Close()
+		batch, err := inventory.Batch("voice-reference-model")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := artifact.Publish(t.Context(), store, batch); err != nil {
+			t.Fatal(err)
+		}
+		definition, err := modelrecipe.CapabilityDefinition(recipe.TaskSpeech, inventory.Manifest.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := modelrecipe.PublishCandidate(t.Context(), store, "voice-reference-recipe", definition); err != nil {
+			t.Fatal(err)
+		}
+		if err := synth.RestoreRecipe(t.Context(), store, definition); err != nil {
+			t.Fatal(err)
+		}
+		recording, err := base64.StdEncoding.DecodeString(fixture.ReferenceRecording)
+		if err != nil || len(recording) == 0 {
+			t.Fatalf("independent recording absent: %v", err)
+		}
+		content, err := (artifact.DocumentContract{Kind: artifact.KindFile, MediaType: media.WAVMediaType, Schema: "fixture/reference-voice"}).ContentBytes(recording)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := artifact.Publish(t.Context(), store, artifact.Batch{Key: "voice-reference-recording", Contents: []artifact.Content{content}}); err != nil {
+			t.Fatal(err)
+		}
+		decoded, _, err := media.DecodeAudio(t.Context(), recording, uint64(len(recording)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Two complete model payloads bound this fixture's additional preparation tensors.
+		var voiceBudget int64
+		for _, component := range inventory.Components {
+			voiceBudget += 2 * int64(component.Size)
+		}
+		preparedID, err = synth.BindVoice(t.Context(), store, definition, SynthesisRequest{ReferenceAudio: content.Descriptor.ID, ReferenceEndSample: len(decoded.Samples), VoiceMemoryBytes: voiceBudget})
+		if err != nil {
+			t.Fatal(err)
+		}
+		prepared, err := synth.voiceState(preparedID.String())
+		if err != nil || len(fixture.ReferenceState) != synth.model.Dims.Layers {
+			t.Fatalf("independent state absent: %v", err)
+		}
+		for layer, state := range fixture.ReferenceState {
+			if prepared.Frames != state.Frames {
+				t.Fatalf("reference voice offset differs at layer %d", layer)
+			}
+			for index, want := range [][]float32{packedFloats(t, state.Key), packedFloats(t, state.Value)} {
+				got := [][]float32{prepared.K[layer], prepared.V[layer]}[index]
+				if len(got) != len(want) {
+					t.Fatal("reference voice state geometry differs")
+				}
+				for j := range want {
+					if math.Abs(float64(got[j]-want[j])) > tolTransformer {
+						t.Fatalf("voice layer %d state %d sample %d differs by %g", layer, index, j, got[j]-want[j])
+					}
+				}
+			}
+		}
+	}
 	if fixture.Temperature != synth.defaultTemperature || fixture.EndThreshold != referenceEOSThreshold ||
 		fixture.SampleRate != synth.model.Codec.SampleRate || fixture.NoiseWidth != synth.model.Dims.LatentDim {
 		t.Fatalf("the model's own code spoke at temperature %g, ending above %g, at %d Hz from noise of %d values, and a served request speaks at %g, %g, %d and %d",
 			fixture.Temperature, fixture.EndThreshold, fixture.SampleRate, fixture.NoiseWidth,
 			synth.defaultTemperature, referenceEOSThreshold, synth.model.Codec.SampleRate, synth.model.Dims.LatentDim)
 	}
-	short, long, worst := 0, 0, 0.0
+	short, long, preparedCases, worst := 0, 0, 0, 0.0
 	for _, reference := range fixture.Cases {
 		noise, samples := packedFloats(t, reference.Noise), packedFloats(t, reference.Samples)
 		if len(noise) != (reference.Frames+1)*fixture.NoiseWidth || len(samples) != reference.Frames*fixture.FrameSamples {
@@ -93,7 +213,12 @@ func TestServedSpeechMatchesUpstream(t *testing.T) {
 		}
 		var plans []generationPlan
 		beyond := false
-		audio, err := synth.speakFrom(t.Context(), DocumentRequest{Text: reference.Text, Voice: fixture.Voice, Seed: fixture.Seed}, func(plan generationPlan) frameNoise {
+		request := DocumentRequest{Text: reference.Text, Voice: fixture.Voice, Seed: fixture.Seed}
+		if reference.ReferenceVoice {
+			request.Voice, request.PreparedVoice = "", preparedID
+			preparedCases++
+		}
+		audio, err := synth.speakFrom(t.Context(), request, func(plan generationPlan) frameNoise {
 			plans = append(plans, plan)
 			return func(step int, values []float32) {
 				// The noise of the frame that code stopped at is the last it drew: a
@@ -134,6 +259,9 @@ func TestServedSpeechMatchesUpstream(t *testing.T) {
 		} else {
 			long++
 		}
+	}
+	if prepareVoice && preparedCases == 0 {
+		t.Error("independent prepared-voice speech case is absent")
 	}
 	if !t.Failed() && (short == 0 || long == 0) {
 		t.Fatalf("the fixture holds %d short texts and %d longer ones, and both rules need a text", short, long)

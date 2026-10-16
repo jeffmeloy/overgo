@@ -7,6 +7,7 @@ import (
 	"math"
 	"path/filepath"
 
+	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
 	"overgo/internal/media"
@@ -36,6 +37,7 @@ type speechRuntime struct {
 	synthesizer *speechsynth.Synthesizer
 	recognizer  *speechrecognition.Recognizer
 	judge       string
+	judgeRecipe artifact.ID
 }
 
 // RoundTrip has the model read the text aloud in the voice, and returns the
@@ -104,6 +106,9 @@ func resampleTo(ctx context.Context, samples []float32, from, to int) ([]float32
 // Judge names the recognizer that listens.
 func (r speechRuntime) Judge() string { return r.judge }
 
+// JudgeRecipe identifies the exact recognizer weights, input processing and decoder.
+func (r speechRuntime) JudgeRecipe() artifact.ID { return r.judgeRecipe }
+
 // Generate refuses: a speech model writes no text.
 func (speechRuntime) Generate(context.Context, string, inference.GenerateOptions) ([]tokenizer.TokenID, string, error) {
 	return nil, "", errors.New("evaluate: a speech model generates no text")
@@ -120,6 +125,10 @@ func openSpeechSession(ctx context.Context, store *overgodb.Store, value manifes
 	if request.Judge == "" {
 		return nil, fmt.Errorf("evaluate: %s is a speech model, which a recognizer judges, and the request names none", request.Path)
 	}
+	judgeRecipe, err := speechJudgeRecipe(request.Judge)
+	if err != nil {
+		return nil, err
+	}
 	source, err := mediacapability.Catalog[recipe.TaskSpeech].Resolve(request.Path)
 	if err != nil {
 		return nil, fmt.Errorf("evaluate: %s is no speech model: %w", request.Path, err)
@@ -133,7 +142,7 @@ func openSpeechSession(ctx context.Context, store *overgodb.Store, value manifes
 			return nil, nil, err
 		}
 		recognizer, err := mediacapability.OpenRecognizer(ctx, request.Judge, speechJudgeMemoryBytes)
-		return speechRuntime{synthesizer: synthesizer, recognizer: recognizer, judge: filepath.Base(request.Judge)},
+		return speechRuntime{synthesizer: synthesizer, recognizer: recognizer, judge: filepath.Base(request.Judge), judgeRecipe: judgeRecipe},
 			func(context.Context) error { return nil }, err
 	})
 }
@@ -141,11 +150,24 @@ func openSpeechSession(ctx context.Context, store *overgodb.Store, value manifes
 // writeSpeechRoundTrip builds the round-trip suite of LibriSpeech test-clean's
 // transcripts and writes it to out.
 func writeSpeechRoundTrip(ctx context.Context, parquet, judge, voice, out string, cases int, seed uint64) error {
+	identity, err := speechJudgeRecipe(judge)
+	if err != nil {
+		return err
+	}
 	suite, err := evaluation.BuildLibriSpeechRoundTrip(ctx, evaluation.SpeechRoundTripSpec{
-		Parquet: parquet, Cases: cases, Seed: seed, Voice: voice, SynthesisSeed: defaultSpeechSeed, Judge: filepath.Base(judge),
+		Parquet: parquet, Cases: cases, Seed: seed, Voice: voice, SynthesisSeed: defaultSpeechSeed, Judge: filepath.Base(judge), JudgeRecipe: identity,
 	})
 	if err != nil {
 		return err
 	}
 	return writeSuite(out, suite, len(suite.Cases), "speech round-trip")
+}
+
+func speechJudgeRecipe(path string) (artifact.ID, error) {
+	source, err := mediacapability.Catalog[recipe.TaskTranscription].Resolve(path)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	definition, _, err := source.Define(source.Inventory.Manifest.ID)
+	return definition.ID, err
 }

@@ -161,11 +161,15 @@ func BootstrapObjectiveRecipe(ctx context.Context, store *overgodb.Store, modelP
 	if err != nil {
 		return artifact.ID{}, err
 	}
-	return bootstrapRegisteredObjective(ctx, store, modelID, objective)
+	return BootstrapObjectiveForModel(ctx, store, modelID, objective)
 }
 
-// bootstrapRegisteredObjective uses the model and objective already resolved by the run.
-func bootstrapRegisteredObjective(ctx context.Context, store *overgodb.Store, modelID artifact.ID, objective trainingprogram.ObjectiveDocument) (artifact.ID, error) {
+// BootstrapObjectiveForModel publishes a training candidate under the caller's exact model and registered objective.
+//   - Callers retain model inventory ownership so non-Hugging-Face layouts keep their serving identity.
+func BootstrapObjectiveForModel(ctx context.Context, store *overgodb.Store, modelID artifact.ID, objective trainingprogram.ObjectiveDocument) (artifact.ID, error) {
+	if modelID.Kind() != artifact.KindModel {
+		return artifact.ID{}, errors.New("training workflow: objective bootstrap requires a model artifact")
+	}
 	profile := func(name string) (artifact.ID, error) {
 		return artifact.IdentifyBytes(artifact.KindProfile, []byte("overgo/training-bootstrap/"+name))
 	}

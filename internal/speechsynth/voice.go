@@ -9,16 +9,12 @@ import (
 	"sort"
 	"strings"
 
+	"overgo/internal/checked"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
 )
 
-// VoiceState holds one voice's per-layer attention rows. The artifact
-// ships each voice as a precomputed transformer attention state -- the
-// upstream voice-cloning encoder is amputated, so these rows are the
-// only voice representation that exists; loading one seeds the decode
-// state and generation continues at the voice's frame offset, exactly
-// as the reference decode path does.
+// VoiceState holds one voice's per-layer attention rows and rotary frame offset.
 type VoiceState struct {
 	Frames int
 	K, V   [][]float32 // per layer, [Frames * DModel], [row][heads][headDim]
@@ -69,21 +65,41 @@ func LoadVoiceState(path string, dims Dims) (*VoiceState, error) {
 		voice.K[layer] = values[: offset*dims.DModel : width]
 		voice.V[layer] = values[width : width+offset*dims.DModel : 2*width]
 	}
-	return voice, nil
+	return voice, voice.validate(dims)
+}
+
+func (voice *VoiceState) validate(dims Dims) error {
+	if voice == nil || voice.Frames <= 0 || len(voice.K) != dims.Layers || len(voice.V) != dims.Layers {
+		return fmt.Errorf("speechsynth: incomplete voice state")
+	}
+	count, ok := checked.MulInt(voice.Frames, dims.DModel)
+	if !ok {
+		return fmt.Errorf("speechsynth: voice geometry overflows")
+	}
+	for layer := range voice.K {
+		for _, values := range [][]float32{voice.K[layer], voice.V[layer]} {
+			if len(values) != count {
+				return fmt.Errorf("speechsynth: voice layer %d rows differ from frame count", layer)
+			}
+			for _, value := range values {
+				if !checked.Finite32(value) {
+					return fmt.Errorf("speechsynth: voice layer %d contains nonfinite state", layer)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // VoiceDecodeState seeds a decode state with the voice's attention
 // rows; the next appended row continues at the voice's frame offset
 // with the rotary positions the cache was built under.
 func (m *Model) VoiceDecodeState(voice *VoiceState, capacity int) (*DecodeState, error) {
-	if voice == nil || voice.Frames <= tensor.FirstOffset || len(voice.K) != m.Dims.Layers || len(voice.V) != m.Dims.Layers {
-		return nil, fmt.Errorf("speechsynth: incomplete voice state")
+	if err := voice.validate(m.Dims); err != nil {
+		return nil, err
 	}
 	st := m.NewDecodeState(voice.Frames + capacity)
 	for layer := range m.Dims.Layers {
-		if len(voice.K[layer]) != voice.Frames*m.Dims.DModel || len(voice.V[layer]) != voice.Frames*m.Dims.DModel {
-			return nil, fmt.Errorf("speechsynth: voice layer %d rows differ from frame count", layer)
-		}
 		st.k[layer] = append(st.k[layer], voice.K[layer]...)
 		st.v[layer] = append(st.v[layer], voice.V[layer]...)
 	}

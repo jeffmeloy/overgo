@@ -15,11 +15,16 @@ import (
 // DocumentRequest preserves edited text independently of the optional original
 // file artifact. Unlike SynthesisRequest, it never asks for a truncated preview.
 type DocumentRequest struct {
-	Text        string      `json:"text"`
-	Voice       string      `json:"voice"`
-	Seed        int64       `json:"seed"`
-	Temperature float64     `json:"temperature,omitzero"`
-	Source      artifact.ID `json:"source,omitzero"`
+	Text                 string      `json:"text"`
+	Voice                string      `json:"voice"`
+	PreparedVoice        artifact.ID `json:"prepared_voice,omitzero"`
+	ReferenceAudio       artifact.ID `json:"reference_audio,omitzero"`
+	ReferenceStartSample int         `json:"reference_start_sample,omitzero"`
+	ReferenceEndSample   int         `json:"reference_end_sample,omitzero"`
+	VoiceMemoryBytes     int64       `json:"voice_memory_bytes,omitzero"`
+	Seed                 int64       `json:"seed"`
+	Temperature          float64     `json:"temperature,omitzero"`
+	Source               artifact.ID `json:"source,omitzero"`
 }
 
 // DocumentSegment identifies an exact, contiguous UTF-8 source span.
@@ -65,11 +70,20 @@ func (s *Synthesizer) PlanDocument(ctx context.Context, request DocumentRequest)
 	if request.Source != (artifact.ID{}) && request.Source.Kind() != artifact.KindFile {
 		return DocumentPlan{}, errors.New("speech document: original source must be a file artifact")
 	}
-	if strings.TrimSpace(request.Voice) == "" || request.Temperature < 0 || math.IsNaN(request.Temperature) || math.IsInf(request.Temperature, 0) {
-		return DocumentPlan{}, errors.New("speech document: a voice and finite nonnegative temperature are required")
-	}
-	if _, err := ResolveVoicePath(s.directory, request.Voice); err != nil {
+	if err := request.synthesis().validateVoice(); err != nil {
 		return DocumentPlan{}, err
+	}
+	if request.Temperature < 0 || math.IsNaN(request.Temperature) || math.IsInf(request.Temperature, 0) {
+		return DocumentPlan{}, errors.New("speech document: temperature must be finite and nonnegative")
+	}
+	if strings.TrimSpace(request.Voice) != "" {
+		if _, err := ResolveVoicePath(s.directory, request.Voice); err != nil {
+			return DocumentPlan{}, err
+		}
+	} else {
+		if _, err := s.voiceState(request.synthesis().voiceKey()); err != nil {
+			return DocumentPlan{}, err
+		}
 	}
 	if s.model.Codec.FrameRate <= 0 || math.IsNaN(s.model.Codec.FrameRate) || math.IsInf(s.model.Codec.FrameRate, 0) {
 		return DocumentPlan{}, errors.New("speech document: invalid codec frame rate")
@@ -99,6 +113,12 @@ func (s *Synthesizer) PlanDocument(ctx context.Context, request DocumentRequest)
 		remaining -= samples
 	}
 	return DocumentPlan{Request: request, Segments: segments}, nil
+}
+
+func (r DocumentRequest) synthesis() SynthesisRequest {
+	return SynthesisRequest{Text: r.Text, Voice: r.Voice, Seed: r.Seed, Temperature: r.Temperature,
+		PreparedVoice: r.PreparedVoice, ReferenceAudio: r.ReferenceAudio, ReferenceStartSample: r.ReferenceStartSample,
+		ReferenceEndSample: r.ReferenceEndSample, VoiceMemoryBytes: r.VoiceMemoryBytes}
 }
 
 func splitDocument(ctx context.Context, tokenizer *Unigram, text string, limit int) ([]DocumentSegment, error) {

@@ -89,7 +89,9 @@ func (s *Synthesizer) speakStream(ctx context.Context, request DocumentRequest, 
 }
 
 func documentSegmentRequest(plan DocumentPlan, part DocumentSegment) SynthesisRequest {
-	return SynthesisRequest{Text: plan.Request.Text[part.Start:part.End], Voice: plan.Request.Voice, Seed: plan.Request.Seed, Temperature: plan.Request.Temperature, MaxFrames: part.MaxFrames}
+	request := plan.Request.synthesis()
+	request.Text, request.MaxFrames = request.Text[part.Start:part.End], part.MaxFrames
+	return request
 }
 
 // RegisterWholeText binds one synthesizer to the speech recipe's three stages
@@ -113,7 +115,9 @@ func RegisterWholeText(runtime *workflowruntime.Runtime, modelID artifact.ID, sy
 func registerWholeText(runtime *workflowruntime.Runtime, modelID artifact.ID, speak func(context.Context, DocumentRequest) (Audio, error)) error {
 	return workflowruntime.RegisterContextPipeline(runtime, modelID,
 		modelrecipe.ModuleSpeechTokenize, func(_ context.Context, request SynthesisRequest) (DocumentRequest, error) {
-			return DocumentRequest{Text: request.Text, Voice: request.Voice, Seed: request.Seed, Temperature: request.Temperature}, nil
+			return DocumentRequest{Text: request.Text, Voice: request.Voice, Seed: request.Seed, Temperature: request.Temperature,
+				PreparedVoice: request.PreparedVoice, ReferenceAudio: request.ReferenceAudio, ReferenceStartSample: request.ReferenceStartSample,
+				ReferenceEndSample: request.ReferenceEndSample, VoiceMemoryBytes: request.VoiceMemoryBytes}, nil
 		},
 		modelrecipe.ModuleSpeechGenerate, speak,
 		// A whole reading is not published short. Every segment has been read by

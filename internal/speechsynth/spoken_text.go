@@ -32,12 +32,15 @@ const (
 // stop, since the model ends a sentence it can see the end of. That code also
 // pads a short text with spaces and then strips them before the model reads
 // it, so no padding is written here.
-func spokenText(text string) (string, int, error) {
+func spokenText(text string, removeSemicolons bool) (string, int, error) {
 	text = strings.TrimSpace(text)
 	if text == "" {
 		return "", 0, errors.New("speechsynth: a text to speak is not empty")
 	}
 	text = strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(text, "\n", " "), "\r", " "), "  ", " ")
+	if removeSemicolons {
+		text = strings.ReplaceAll(text, ";", ",")
+	}
 	frames := longTextGuess + framesBeyondGuess
 	if len(strings.Fields(text)) <= shortTextWords {
 		frames = shortTextGuess + framesBeyondGuess

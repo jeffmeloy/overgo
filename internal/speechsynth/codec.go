@@ -7,11 +7,6 @@
 // restatements of shape facts are cross-checked. The vendor code facts:
 // transpose kernels are 2*stride; SEANet residual blocks have one residual
 // layer (dilation 1); the decoder transformer carries LayerScale.
-//
-// The mimi ENCODER (PCM -> voice latent) is NOT ported: the reference decode
-// path never calls it, and the artifact's voice-cloning encoder is amputated
-// (all-zero latents are artifact truth). Voice conditioning enters from the
-// golden ladder instead.
 package speechsynth
 
 import (
@@ -47,6 +42,7 @@ type codecAttnLayer struct {
 
 // CodecDecoder: the latent-to-PCM half of the mimi codec.
 type CodecDecoder struct {
+	codecTransformer
 	SampleRate int
 	FrameRate  float64
 
@@ -55,15 +51,18 @@ type CodecDecoder struct {
 	upsampleW []float32 // depthwise ConvTranspose1d [outerDim][1][k]
 	upsampleK int       // kernel; stride = k/2 (vendor code fact)
 
+	convs   []codecConv
+	resnets [][2]codecConv
+}
+
+// codecTransformer owns the shared causal attention geometry and weights of both Mimi directions.
+type codecTransformer struct {
 	layers        []codecAttnLayer
 	d, h, hd      int
 	ff, window    int
 	invFreq       []float64
 	scoreScale    float32
 	normalization media.NormalizationProgram
-
-	convs   []codecConv    // SEANet chain in execution order
-	resnets [][2]codecConv // one residual block after each transpose conv
 }
 
 // seanetConvSpec / seanetResnetSpec: config-derived vendor tensor numbering.
@@ -117,27 +116,9 @@ func loadCodecDecoder(read func(name string, want ...int) ([]float32, error), sh
 		return nil, fmt.Errorf("speechsynth: upsample kernel %d not 2*stride", upsampleK)
 	}
 
-	norm1, err := tensorcatalog.Dimensions(shapes, codecLayerPrefix+"0.norm1.weight", tensor.SingletonExtent)
-	if err != nil || !checked.Equal(norm1[tensor.FirstOffset], outerDim) {
-		return nil, fmt.Errorf("speechsynth: decoder transformer width %v != outer dim %d", norm1, outerDim)
-	}
-	d := norm1[tensor.FirstOffset]
-	nLayers, err := tensorcatalog.IndexedCount(shapes, codecLayerPrefix, ".norm1.weight")
+	transform, err := loadCodecTransformer(read, shapes, config, codecLayerPrefix, outerDim, normalization)
 	if err != nil {
 		return nil, err
-	}
-	lin1, err := tensorcatalog.Dimensions(shapes, codecLayerPrefix+"0.linear1.weight", tensor.PairedExtent)
-	if err != nil || !checked.Equal(lin1[tensor.SingletonExtent], d) {
-		return nil, fmt.Errorf("speechsynth: decoder transformer linear1 incompatible with d %d", d)
-	}
-	ff := lin1[tensor.FirstOffset]
-
-	tr := mimi.Transformer
-	if !checked.PositiveInts(tr.NumHeads, tr.Context) || !checked.PositiveFinite64(tr.MaxPeriod) {
-		return nil, fmt.Errorf("speechsynth: config lacks positive mimi.transformer num_heads/max_period/context")
-	}
-	if _, ok := checked.DivExactInt(d, tr.NumHeads); !ok {
-		return nil, fmt.Errorf("speechsynth: codec heads %d do not partition d %d", tr.NumHeads, d)
 	}
 	if !checked.PositiveInts(mimi.SampleRate) || !checked.PositiveFinite64(mimi.FrameRate) {
 		return nil, fmt.Errorf("speechsynth: config lacks positive mimi sample_rate/frame_rate")
@@ -147,7 +128,6 @@ func loadCodecDecoder(read func(name string, want ...int) ([]float32, error), sh
 		sn.LastKernelSize, sn.Channels, sn.Compress, sn.ResidualKernelSize) {
 		return nil, fmt.Errorf("speechsynth: config lacks a complete mimi.seanet layout")
 	}
-	// Config restatements of shape facts: agree or refuse (0 = unstated).
 	for _, check := range []struct {
 		name             string
 		derived, claimed int
@@ -156,6 +136,77 @@ func loadCodecDecoder(read func(name string, want ...int) ([]float32, error), sh
 		{"quantizer.dimension", latentDim, mimi.Quantizer.Dimension},
 		{"quantizer.output_dimension", outerDim, mimi.Quantizer.OutputDimension},
 		{"seanet.dimension", outerDim, sn.Dimension},
+	} {
+		if checked.Nonzero(check.claimed) && !checked.Equal(check.claimed, check.derived) {
+			return nil, fmt.Errorf("speechsynth: config mimi.%s=%d contradicts derived %d", check.name, check.claimed, check.derived)
+		}
+	}
+	c := &CodecDecoder{codecTransformer: *transform, SampleRate: mimi.SampleRate, FrameRate: mimi.FrameRate,
+		outerDim: outerDim, upsampleK: upsampleK}
+	if c.quantW, err = read(quantizerProjName, outerDim, latentDim, tensor.SingletonExtent); err != nil {
+		return nil, err
+	}
+	if c.upsampleW, err = read(upsampleName, outerDim, tensor.SingletonExtent, upsampleK); err != nil {
+		return nil, err
+	}
+	chain, resnetStages := seanetDecoderLayout(sn)
+	for _, s := range chain {
+		kind := "conv"
+		if s.transpose {
+			kind = "convtr"
+		}
+		shape := []int{s.cOut, s.cIn, s.k}
+		if s.transpose {
+			shape[0], shape[1] = shape[1], shape[0]
+		}
+		w, err := read(fmt.Sprintf("%s%d.%s.weight", codecModelPrefix, s.idx, kind), shape...)
+		if err != nil {
+			return nil, err
+		}
+		b, err := read(fmt.Sprintf("%s%d.%s.bias", codecModelPrefix, s.idx, kind), s.cOut)
+		if err != nil {
+			return nil, err
+		}
+		c.convs = append(c.convs, codecConv{w: w, b: b, cIn: s.cIn, cOut: s.cOut, k: s.k, strd: s.strd, transpose: s.transpose})
+	}
+	for _, ri := range resnetStages {
+		block, err := loadCodecResidual(read, codecModelPrefix, ri.idx, ri.dim, sn)
+		if err != nil {
+			return nil, err
+		}
+		c.resnets = append(c.resnets, block)
+	}
+	return c, nil
+}
+
+func loadCodecTransformer(read func(string, ...int) ([]float32, error), shapes map[string][]int, config artifactConfig, prefix string, outerDim int, normalization media.NormalizationProgram) (*codecTransformer, error) {
+	norm1, err := tensorcatalog.Dimensions(shapes, prefix+"0.norm1.weight", tensor.SingletonExtent)
+	if err != nil || !checked.Equal(norm1[tensor.FirstOffset], outerDim) {
+		return nil, fmt.Errorf("speechsynth: codec transformer width %v != outer dim %d", norm1, outerDim)
+	}
+	d := norm1[tensor.FirstOffset]
+	nLayers, err := tensorcatalog.IndexedCount(shapes, prefix, ".norm1.weight")
+	if err != nil {
+		return nil, err
+	}
+	lin1, err := tensorcatalog.Dimensions(shapes, prefix+"0.linear1.weight", tensor.PairedExtent)
+	if err != nil || !checked.Equal(lin1[tensor.SingletonExtent], d) {
+		return nil, fmt.Errorf("speechsynth: codec transformer linear1 incompatible with d %d", d)
+	}
+	ff := lin1[tensor.FirstOffset]
+
+	tr := config.Mimi.Transformer
+	if !checked.PositiveInts(tr.NumHeads, tr.Context) || !checked.PositiveFinite64(tr.MaxPeriod) {
+		return nil, fmt.Errorf("speechsynth: config lacks positive mimi.transformer num_heads/max_period/context")
+	}
+	if _, ok := checked.DivExactInt(d, tr.NumHeads); !ok {
+		return nil, fmt.Errorf("speechsynth: codec heads %d do not partition d %d", tr.NumHeads, d)
+	}
+	// Config restatements of shape facts: agree or refuse (0 = unstated).
+	for _, check := range []struct {
+		name             string
+		derived, claimed int
+	}{
 		{"transformer.d_model", d, tr.DModel},
 		{"transformer.num_layers", nLayers, tr.NumLayers},
 		{"transformer.dim_feedforward", ff, tr.DimFeedforward},
@@ -165,23 +216,15 @@ func loadCodecDecoder(read func(name string, want ...int) ([]float32, error), sh
 		}
 	}
 
-	c := &CodecDecoder{
-		SampleRate: mimi.SampleRate, FrameRate: mimi.FrameRate,
-		outerDim: outerDim, upsampleK: upsampleK,
+	c := &codecTransformer{
 		d: d, h: tr.NumHeads, hd: d / tr.NumHeads, ff: ff, window: tr.Context,
 		invFreq:       hostmath.RopeInvFreq(tr.MaxPeriod, d/tr.NumHeads),
 		scoreScale:    float32(float64(tensor.SingletonExtent) / math.Sqrt(float64(d/tr.NumHeads))),
 		normalization: normalization,
 	}
-	if c.quantW, err = read(quantizerProjName, outerDim, latentDim, tensor.SingletonExtent); err != nil {
-		return nil, err
-	}
-	if c.upsampleW, err = read(upsampleName, outerDim, tensor.SingletonExtent, upsampleK); err != nil {
-		return nil, err
-	}
 	c.layers = make([]codecAttnLayer, nLayers)
 	for i := range c.layers {
-		p := fmt.Sprintf("%s%d.", codecLayerPrefix, i)
+		p := fmt.Sprintf("%s%d.", prefix, i)
 		l := &c.layers[i]
 		for _, f := range []struct {
 			dst  *[]float32
@@ -205,47 +248,27 @@ func loadCodecDecoder(read func(name string, want ...int) ([]float32, error), sh
 		}
 	}
 
-	chain, resnetStages := seanetDecoderLayout(sn)
-	for _, s := range chain {
-		kind := "conv"
-		if s.transpose {
-			kind = "convtr"
-		}
-		var w, b []float32
-		if s.transpose {
-			// ConvTranspose1d weight layout [cIn][cOut][k].
-			w, err = read(fmt.Sprintf("%s%d.%s.weight", codecModelPrefix, s.idx, kind), s.cIn, s.cOut, s.k)
-		} else {
-			w, err = read(fmt.Sprintf("%s%d.%s.weight", codecModelPrefix, s.idx, kind), s.cOut, s.cIn, s.k)
-		}
-		if err != nil {
-			return nil, err
-		}
-		if b, err = read(fmt.Sprintf("%s%d.%s.bias", codecModelPrefix, s.idx, kind), s.cOut); err != nil {
-			return nil, err
-		}
-		c.convs = append(c.convs, codecConv{w: w, b: b, cIn: s.cIn, cOut: s.cOut, k: s.k, strd: s.strd, transpose: s.transpose})
-	}
-	for _, ri := range resnetStages {
-		hidden := ri.dim / sn.Compress
-		var blk [tensor.PairedExtent]codecConv
-		for bi, bs := range []struct{ sub, cIn, cOut, k int }{
-			{tensor.SingletonExtent, ri.dim, hidden, sn.ResidualKernelSize},
-			{tensor.TripleExtent, hidden, ri.dim, tensor.SingletonExtent},
-		} {
-			w, err := read(fmt.Sprintf("%s%d.block.%d.conv.weight", codecModelPrefix, ri.idx, bs.sub), bs.cOut, bs.cIn, bs.k)
-			if err != nil {
-				return nil, err
-			}
-			b, err := read(fmt.Sprintf("%s%d.block.%d.conv.bias", codecModelPrefix, ri.idx, bs.sub), bs.cOut)
-			if err != nil {
-				return nil, err
-			}
-			blk[bi] = codecConv{w: w, b: b, cIn: bs.cIn, cOut: bs.cOut, k: bs.k, strd: tensor.SingletonExtent}
-		}
-		c.resnets = append(c.resnets, blk)
-	}
 	return c, nil
+}
+
+func loadCodecResidual(read func(string, ...int) ([]float32, error), prefix string, index, width int, sn seanetConfig) ([tensor.PairedExtent]codecConv, error) {
+	hidden := width / sn.Compress
+	var blk [tensor.PairedExtent]codecConv
+	for bi, bs := range []struct{ sub, cIn, cOut, k int }{
+		{tensor.SingletonExtent, width, hidden, sn.ResidualKernelSize},
+		{tensor.TripleExtent, hidden, width, tensor.SingletonExtent},
+	} {
+		w, err := read(fmt.Sprintf("%s%d.block.%d.conv.weight", prefix, index, bs.sub), bs.cOut, bs.cIn, bs.k)
+		if err != nil {
+			return blk, err
+		}
+		b, err := read(fmt.Sprintf("%s%d.block.%d.conv.bias", prefix, index, bs.sub), bs.cOut)
+		if err != nil {
+			return blk, err
+		}
+		blk[bi] = codecConv{w: w, b: b, cIn: bs.cIn, cOut: bs.cOut, k: bs.k, strd: tensor.SingletonExtent}
+	}
+	return blk, nil
 }
 
 // LatentsToPCM crosses the codec boundary: normalized frame latents ->

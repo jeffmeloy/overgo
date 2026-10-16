@@ -135,7 +135,7 @@ func speechDatasetFixture(t *testing.T) (*overgodb.Store, Request, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	trainingRecipe, err := bootstrapRegisteredObjective(t.Context(), store, base.Model, objective)
+	trainingRecipe, err := BootstrapObjectiveForModel(t.Context(), store, base.Model, objective)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -338,10 +338,19 @@ func TestSpeechDatasetCommand(t *testing.T) {
 	if err := os.WriteFile(manifest, data, 0o600); err != nil {
 		t.Fatal(err)
 	}
+	definition, err := recipe.RequireDefinition(t.Context(), store, request.Recipe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	objective, _ := definition.PrimaryDependency(recipe.DependencyObjective)
+	const alias = "objective.fixture.speech"
+	if _, err := artifact.Publish(t.Context(), store, artifact.Batch{Key: "speech-command-objective", Aliases: []artifact.AliasBinding{{Name: alias, Target: objective}}}); err != nil {
+		t.Fatal(err)
+	}
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	command := exec.CommandContext(t.Context(), "go", "run", "./cmd/train", "-route", "speech", "-recipe", request.Recipe.String(), "-manifest", manifest, "-out", request.OutputDirectory, "-store", storePath, "-host", "-steps", "2")
+	command := exec.CommandContext(t.Context(), "go", "run", "./cmd/train", "-route", "speech", "-objective", alias, "-manifest", manifest, "-out", request.OutputDirectory, "-store", storePath, "-host", "-steps", "2")
 	command.Dir = testutil.RepoRoot(t)
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("speech command: %v\n%s", err, output)

@@ -32,8 +32,19 @@ func TestControlsOfferExportedVoices(t *testing.T) {
 			voice = &controls[index]
 		}
 	}
-	if voice == nil || voice.Type != ControlText || !voice.Required || len(voice.Choices) != 2 || voice.Choices[0] != "alba" || voice.Choices[1] != "anna" {
+	if voice == nil || voice.Type != ControlText || voice.Required || len(voice.Choices) != 2 || voice.Choices[0] != "alba" || voice.Choices[1] != "anna" {
 		t.Fatalf("voice control = %+v", voice)
+	}
+	for _, name := range []string{"reference_audio", "prepared_voice"} {
+		found := false
+		for _, control := range controls {
+			if control.Name == name {
+				found = control.Type == ControlArtifact && !control.Required && (name != "reference_audio" || control.Media == "audio")
+			}
+		}
+		if !found {
+			t.Fatalf("missing optional voice source %s", name)
+		}
 	}
 	plain, refusal := Controls(modelrecipe.ModuleSpeechTokenize, "")
 	if refusal != "" || len(plain) != len(controls) {

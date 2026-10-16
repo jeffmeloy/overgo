@@ -1,11 +1,10 @@
 // Package speechsynth owns the speech-synthesis capability (ladder rung 7):
 // the flow-LM conditioner transformer, the conditional flow head, the
-// frame-latent generation loop, and the mimi codec DECODER (latent -> PCM),
+// frame-latent generation loop, and the Mimi codec,
 // judged against the imported pockettts golden ladder (fixtures/pockettts).
 //
-// The mimi ENCODER (PCM -> voice latent) is not ported: the decode path
-// never calls it and the artifact's voice-cloning encoder is amputated;
-// voice conditioning enters from the golden ladder (codec.go).
+// Voice conditioning accepts exported states or admitted reference recordings.
+// Reference preparation requires usable encoder weights rather than placeholder tensors.
 //
 // Architecture (all ported behavior, written fresh against overgo owners):
 // pre-norm causal transformer — LayerNorm(norm1) -> fused qkv -> interleaved
@@ -143,7 +142,8 @@ type Model struct {
 // this slice consumes.
 type artifactConfig struct {
 	FlowLM struct {
-		Flow struct {
+		InsertBOSBeforeVoice bool `json:"insert_bos_before_voice"`
+		Flow                 struct {
 			Depth int `json:"depth"`
 			Dim   int `json:"dim"`
 		} `json:"flow"`
@@ -242,26 +242,7 @@ func Load(directory string) (*Model, error) {
 		return nil, fmt.Errorf("speechsynth: inventory: %w", err)
 	}
 
-	read := func(name string, wantShape ...int) ([]float32, error) {
-		tensor, ok := source.Tensors[name]
-		if !ok {
-			return nil, fmt.Errorf("speechsynth: tensor %q missing", name)
-		}
-		dimensions, err := tensorcatalog.Dimensions(shapes, name, len(wantShape))
-		if err != nil {
-			return nil, fmt.Errorf("speechsynth: %w", err)
-		}
-		for i, want := range wantShape {
-			if checked.PositiveInts(want) && !checked.Equal(dimensions[i], want) {
-				return nil, fmt.Errorf("speechsynth: tensor %q shape %v, want dim %d = %d", name, dimensions, i, want)
-			}
-		}
-		values, err := safetensors.ReadF32(tensor)
-		if err != nil {
-			return nil, fmt.Errorf("speechsynth: tensor %q payload: %w", name, err)
-		}
-		return values, nil
-	}
+	read := speechTensorReader(source, shapes)
 
 	dims, err := deriveDims(shapes, config)
 	if err != nil {
@@ -473,4 +454,27 @@ func deriveDims(shapes map[string][]int, config artifactConfig) (Dims, error) {
 		}
 	}
 	return d, nil
+}
+
+func speechTensorReader(source *safetensors.Source, shapes map[string][]int) func(string, ...int) ([]float32, error) {
+	return func(name string, wantShape ...int) ([]float32, error) {
+		tensor, ok := source.Tensors[name]
+		if !ok {
+			return nil, fmt.Errorf("speechsynth: tensor %q missing", name)
+		}
+		dimensions, err := tensorcatalog.Dimensions(shapes, name, len(wantShape))
+		if err != nil {
+			return nil, fmt.Errorf("speechsynth: %w", err)
+		}
+		for i, want := range wantShape {
+			if checked.PositiveInts(want) && !checked.Equal(dimensions[i], want) {
+				return nil, fmt.Errorf("speechsynth: tensor %q shape %v, want dim %d = %d", name, dimensions, i, want)
+			}
+		}
+		values, err := safetensors.ReadF32(tensor)
+		if err != nil {
+			return nil, fmt.Errorf("speechsynth: tensor %q payload: %w", name, err)
+		}
+		return values, nil
+	}
 }

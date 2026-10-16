@@ -132,7 +132,7 @@ func resolveHeldoutAuthority(ctx context.Context, store *overgodb.Store, modelPa
 		return modelID, objective, SessionAuthority{}, err
 	}
 	if !recipeID.Valid() {
-		if recipeID, err = bootstrapRegisteredObjective(ctx, store, modelID, objective); err != nil {
+		if recipeID, err = BootstrapObjectiveForModel(ctx, store, modelID, objective); err != nil {
 			return modelID, objective, SessionAuthority{}, err
 		}
 	}

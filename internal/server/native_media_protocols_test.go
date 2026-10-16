@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -30,6 +31,7 @@ type nativeMediaWorkspace struct {
 	completion   map[recipe.Task]operation.Completion
 	mu           sync.Mutex
 	executed     []recipe.Task
+	inputs       []json.RawMessage
 	// root is the directory of the store the outputs are committed to.
 	root string
 }
@@ -42,11 +44,12 @@ func (workspace *nativeMediaWorkspace) ExecuteWorkflow(
 	_ context.Context,
 	_ WorkflowKind,
 	capability WorkflowCapability,
-	_ json.RawMessage,
+	input json.RawMessage,
 	reporter operation.Reporter,
 ) (operation.Completion, error) {
 	workspace.mu.Lock()
 	workspace.executed = append(workspace.executed, capability.Task)
+	workspace.inputs = append(workspace.inputs, bytes.Clone(input))
 	workspace.mu.Unlock()
 	reporter.Publishing()
 	return workspace.completion[capability.Task], nil
@@ -138,14 +141,36 @@ func TestNativeAudioProtocolUsesActiveRecipeSession(t *testing.T) {
 	t.Parallel()
 	handler, workspace, _, audio := nativeMediaProtocolFixture(t)
 	recipeID := workspace.capabilities[1].Recipe
-	response := serveTestRequest(handler, http.MethodPost, "/v1/audio/speech",
-		`{"model":"`+recipeID.String()+`","input":"test"}`)
-	if response.Code != http.StatusOK || response.Header().Get("Content-Type") != "audio/wav" ||
-		!bytes.Equal(response.Body.Bytes(), audio) {
-		t.Fatalf("status=%d type=%q body=%q", response.Code, response.Header().Get("Content-Type"), response.Body.Bytes())
-	}
-	if len(workspace.executed) != 1 || workspace.executed[0] != recipe.TaskSpeech {
-		t.Fatalf("executed=%v", workspace.executed)
+	workspace.capabilities[1].Controls = append(workspace.capabilities[1].Controls,
+		workflowControl{Name: "voice", Type: workflowControlText},
+		workflowControl{Name: "prepared_voice", Type: workflowControlArtifact},
+		workflowControl{Name: "reference_audio", Type: workflowControlArtifact, Media: "audio"},
+		workflowControl{Name: "reference_start_sample", Type: workflowControlInteger},
+		workflowControl{Name: "reference_end_sample", Type: workflowControlInteger},
+		workflowControl{Name: "voice_memory_bytes", Type: workflowControlInteger})
+	voice := testutil.ArtifactID(t, artifact.KindFile, "voice-input")
+	for index, fields := range []string{
+		`"voice":"alba"`,
+		`"prepared_voice":"` + voice.String() + `"`,
+		`"reference_audio":"` + voice.String() + `","reference_start_sample":1,"reference_end_sample":24000,"voice_memory_bytes":1048576`,
+	} {
+		response := serveTestRequest(handler, http.MethodPost, "/v1/audio/speech", `{"model":"`+recipeID.String()+`","input":"test",`+fields+`}`)
+		if response.Code != http.StatusOK || response.Header().Get("Content-Type") != "audio/wav" || !bytes.Equal(response.Body.Bytes(), audio) {
+			t.Fatalf("status=%d type=%q body=%q", response.Code, response.Header().Get("Content-Type"), response.Body.Bytes())
+		}
+		if len(workspace.executed) != index+1 || workspace.executed[index] != recipe.TaskSpeech {
+			t.Fatalf("executed=%v", workspace.executed)
+		}
+		var got, want map[string]any
+		if err := json.Unmarshal(workspace.inputs[index], &got); err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal([]byte(`{"input":"test",`+fields+`}`), &want); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("voice selection changed: %v != %v", got, want)
+		}
 	}
 }
 

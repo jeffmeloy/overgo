@@ -10,9 +10,14 @@ import (
 // codecState retains one recording's bounded convolution and attention history.
 // A failed decode poisons the state because its layers may have advanced unevenly.
 type codecState struct {
-	codec                            *CodecDecoder
-	history                          [][]float32
-	workspace                        [][]float32
+	*codecTransformState
+	codec     *CodecDecoder
+	history   [][]float32
+	workspace [][]float32
+}
+
+type codecTransformState struct {
+	transformer                      *codecTransformer
 	k, v                             [][]float32
 	position                         int
 	qkv, xn, attn, proj, hidden, cur []float32
@@ -20,8 +25,13 @@ type codecState struct {
 }
 
 func newCodecState(c *CodecDecoder) *codecState {
-	s := &codecState{codec: c, history: make([][]float32, 1+len(c.convs)+tensor.PairedExtent*len(c.resnets)), k: make([][]float32, len(c.layers)), v: make([][]float32, len(c.layers)), qkv: make([]float32, tensor.TripleExtent*c.d), xn: make([]float32, c.d), attn: make([]float32, c.d), proj: make([]float32, c.d), hidden: make([]float32, c.ff)}
+	s := &codecState{codecTransformState: newCodecTransformState(&c.codecTransformer), codec: c, history: make([][]float32, 1+len(c.convs)+tensor.PairedExtent*len(c.resnets))}
 	s.workspace = make([][]float32, len(s.history))
+	return s
+}
+
+func newCodecTransformState(c *codecTransformer) *codecTransformState {
+	s := &codecTransformState{transformer: c, k: make([][]float32, len(c.layers)), v: make([][]float32, len(c.layers)), qkv: make([]float32, tensor.TripleExtent*c.d), xn: make([]float32, c.d), attn: make([]float32, c.d), proj: make([]float32, c.d), hidden: make([]float32, c.ff)}
 	s.cur = make([]float32, c.d)
 	for i := range s.k {
 		// Mirrored rings expose each chronological window without shifting it.
@@ -31,7 +41,7 @@ func newCodecState(c *CodecDecoder) *codecState {
 	return s
 }
 
-func (s *codecState) cause(ctx context.Context) error {
+func (s *codecTransformState) cause(ctx context.Context) error {
 	if s.err == nil {
 		s.err = context.Cause(ctx)
 	}
@@ -79,8 +89,8 @@ func (s *codecState) convolve(index int, cv codecConv, groups int, x []float32, 
 	return out, count
 }
 
-func (s *codecState) transform(ctx context.Context, x []float32, frames int) error {
-	c := s.codec
+func (s *codecTransformState) transform(ctx context.Context, x []float32, frames int) error {
+	c := s.transformer
 	d := c.d
 	cur := s.cur
 	for frame := range frames {

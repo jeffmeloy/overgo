@@ -688,6 +688,19 @@
           if (mode === 'speech') {
             speechFields.replaceChildren();
             for (const [name, field] of generation.fields) if (name !== 'voice') speechFields.appendChild(field.input.closest('label'));
+            const sources = ['voice', 'prepared_voice', 'reference_audio'];
+            for (const name of sources) {
+              const field = generation.fields.get(name);
+              if (!field) continue;
+              const selectVoice = () => {
+                if (!field.input.value) return;
+                for (const other of sources) if (other !== name && generation.fields.has(other)) generation.fields.get(other).input.value = '';
+                if (name !== 'reference_audio') for (const bound of ['reference_start_sample', 'reference_end_sample', 'voice_memory_bytes']) {
+                  if (generation.fields.has(bound)) generation.fields.get(bound).input.value = '';
+                }
+              };
+              for (const event of ['input', 'change', 'intake']) field.input.addEventListener(event, selectVoice);
+            }
             if (generation.capability) controlsHost.appendChild(el('button', { class: 'link-button', text: 'Options', 'aria-label': 'Open speech options', onclick: () => openSpeechOptions() }));
           }
           filterRail();

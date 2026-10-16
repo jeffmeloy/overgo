@@ -26,12 +26,14 @@ type SynthesisRequest struct {
 	Text string `json:"text"`
 	// MaxFrames stops a bounded preview after that many frames. Zero, which
 	// is how an absent limit reads, asks for the whole text read aloud.
-	MaxFrames int   `json:"max_frames"`
-	Seed      int64 `json:"seed"`
-	// Voice names an exported artifact voice; the model was trained to
-	// speak behind a voice prompt, and generating without one drifts
-	// into noise, so a voice is required.
-	Voice string `json:"voice"`
+	MaxFrames            int         `json:"max_frames"`
+	Seed                 int64       `json:"seed"`
+	Voice                string      `json:"voice,omitempty"`
+	PreparedVoice        artifact.ID `json:"prepared_voice,omitzero" label:"Prepared voice"`
+	ReferenceAudio       artifact.ID `json:"reference_audio,omitzero" label:"Reference recording" media:"audio"`
+	ReferenceStartSample int         `json:"reference_start_sample,omitzero"`
+	ReferenceEndSample   int         `json:"reference_end_sample,omitzero"`
+	VoiceMemoryBytes     int64       `json:"voice_memory_bytes,omitzero" label:"Voice preparation memory budget (bytes)"`
 	// Temperature scales the flow noise variance (std = sqrt(temp));
 	// zero defers to the artifact's declared default.
 	Temperature float64 `json:"temperature,omitzero"`
@@ -63,11 +65,11 @@ func ValidateSynthesisRequest(request SynthesisRequest) error {
 	if strings.TrimSpace(request.Text) == "" || request.MaxFrames < tensor.FirstOffset {
 		return errors.New("speechsynth: synthesis requires text, and a frame limit may not be negative")
 	}
-	if strings.TrimSpace(request.Voice) == "" {
-		return errors.New("speechsynth: synthesis requires a voice; the model speaks behind a voice prompt")
+	if err := request.validateVoice(); err != nil {
+		return err
 	}
-	if request.Temperature < 0 {
-		return errors.New("speechsynth: negative temperature")
+	if request.Temperature < 0 || math.IsNaN(request.Temperature) || math.IsInf(request.Temperature, 0) {
+		return errors.New("speechsynth: temperature must be finite and nonnegative")
 	}
 	return nil
 }
@@ -77,12 +79,14 @@ func ValidateSynthesisRequest(request SynthesisRequest) error {
 const referenceEOSThreshold = -4.0
 
 type Synthesizer struct {
-	model     *Model
-	tokenizer *Unigram
-	directory string
+	model       *Model
+	tokenizer   *Unigram
+	directory   string
+	boundRecipe artifact.ID
 	// defaultTemperature is the artifact-declared flow noise variance
 	// used when a request does not state one.
 	defaultTemperature float64
+	removeSemicolons   bool
 	// voices caches loaded voice states by name.
 	voices  map[string]*VoiceState
 	voiceMu sync.Mutex
@@ -99,6 +103,7 @@ func LoadSynthesizer(directory string) (*Synthesizer, error) {
 	}
 	var config struct {
 		DefaultTemperature float64 `json:"default_temperature"`
+		RemoveSemicolons   bool    `json:"remove_semicolons"`
 	}
 	if err := jsonfile.Decode(filepath.Join(directory, "pockettts_config.json"), &config); err != nil {
 		return nil, fmt.Errorf("speechsynth: artifact config: %w", err)
@@ -108,7 +113,7 @@ func LoadSynthesizer(directory string) (*Synthesizer, error) {
 	}
 	return &Synthesizer{
 		model: model, tokenizer: tokenizer, directory: directory,
-		defaultTemperature: config.DefaultTemperature, voices: map[string]*VoiceState{},
+		defaultTemperature: config.DefaultTemperature, removeSemicolons: config.RemoveSemicolons, voices: map[string]*VoiceState{},
 	}, nil
 }
 
@@ -117,6 +122,12 @@ func LoadSynthesizer(directory string) (*Synthesizer, error) {
 func (s *Synthesizer) RestoreRecipe(ctx context.Context, repository artifact.Repository, definition recipe.Definition) error {
 	id, found := definition.PrimaryDependency(recipe.DependencyCheckpoint)
 	if !found {
+		if s != nil && s.boundRecipe.Valid() && s.boundRecipe != definition.ID {
+			return errors.New("speechsynth: changing to a base recipe requires a fresh model load")
+		}
+		if s != nil {
+			s.boundRecipe = definition.ID
+		}
 		return nil
 	}
 	if err := definition.ValidateIdentity(); err != nil {
@@ -181,6 +192,10 @@ func (s *Synthesizer) RestoreRecipe(ctx context.Context, repository artifact.Rep
 	for name, values := range targets {
 		copy(values, weights[name])
 	}
+	s.voiceMu.Lock()
+	clear(s.voices)
+	s.boundRecipe = definition.ID
+	s.voiceMu.Unlock()
 	return nil
 }
 
@@ -195,7 +210,7 @@ func (s *Synthesizer) tokenize(request SynthesisRequest) (generationPlan, error)
 	if err := ValidateSynthesisRequest(request); err != nil {
 		return generationPlan{}, err
 	}
-	text, framesAfterEnd, err := spokenText(request.Text)
+	text, framesAfterEnd, err := spokenText(request.Text, s.removeSemicolons)
 	if err != nil {
 		return generationPlan{}, err
 	}
@@ -209,7 +224,7 @@ func (s *Synthesizer) tokenize(request SynthesisRequest) (generationPlan, error)
 	}
 	return generationPlan{
 		tokens: tokens, maxFrames: request.MaxFrames, framesAfterEnd: framesAfterEnd, seed: request.Seed,
-		voice: strings.TrimSpace(request.Voice), temperature: temperature,
+		voice: request.voiceKey(), temperature: temperature,
 	}, nil
 }
 

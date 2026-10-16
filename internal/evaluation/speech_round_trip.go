@@ -69,6 +69,8 @@ type SpeechRoundTripper interface {
 	RoundTrip(ctx context.Context, text, voice string, seed int64) (string, error)
 	// Judge names the recognizer that listens, which the score depends on.
 	Judge() string
+	// JudgeRecipe identifies the model, frontend and decoder used by the recognizer.
+	JudgeRecipe() artifact.ID
 }
 
 // SpeechRoundTripCase is one text the model reads aloud.
@@ -83,12 +85,14 @@ type SpeechRoundTripCase struct {
 // that names no normalization is counted with the three plain steps, as every
 // suite was before one could name any.
 type SpeechRoundTripSuite struct {
-	Kind          string                       `json:"kind"`
-	Schema        string                       `json:"schema"`
-	Source        string                       `json:"source"`
-	Voice         string                       `json:"voice"`
-	Seed          int64                        `json:"seed"`
-	Judge         string                       `json:"judge"`
+	Kind   string `json:"kind"`
+	Schema string `json:"schema"`
+	Source string `json:"source"`
+	Voice  string `json:"voice"`
+	Seed   int64  `json:"seed"`
+	Judge  string `json:"judge"`
+	// JudgeRecipe binds exact recognizer inputs when present; an unpinned suite makes no such claim.
+	JudgeRecipe   artifact.ID                  `json:"judge_recipe,omitzero"`
 	Normalization []TranscriptionNormalization `json:"normalization,omitempty"`
 	Cases         []SpeechRoundTripCase        `json:"cases"`
 }
@@ -126,7 +130,8 @@ type speechRoundTripReport struct {
 // compileSpeechRoundTrip validates and identifies the suite.
 func compileSpeechRoundTrip(suite SpeechRoundTripSuite) (speechRoundTripPlan, error) {
 	if suite.Kind != speechRoundTripKind || strings.TrimSpace(suite.Schema) == "" || strings.TrimSpace(suite.Source) == "" ||
-		strings.TrimSpace(suite.Voice) == "" || strings.TrimSpace(suite.Judge) == "" || len(suite.Cases) == 0 {
+		strings.TrimSpace(suite.Voice) == "" || strings.TrimSpace(suite.Judge) == "" || len(suite.Cases) == 0 ||
+		(suite.JudgeRecipe != (artifact.ID{}) && suite.JudgeRecipe.Kind() != artifact.KindRecipe) {
 		return speechRoundTripPlan{}, errors.New("evaluation: invalid speech-round-trip suite")
 	}
 	normalization := roundTripNormalization
@@ -192,6 +197,9 @@ func evaluateSpeechRoundTrip(
 	if speaker.Judge() != compiled.suite.Judge {
 		return speechRoundTripReport{}, fmt.Errorf("evaluation: the suite is judged by %q, this session by %q", compiled.suite.Judge, speaker.Judge())
 	}
+	if compiled.suite.JudgeRecipe.Valid() && speaker.JudgeRecipe() != compiled.suite.JudgeRecipe {
+		return speechRoundTripReport{}, fmt.Errorf("evaluation: judge recipe %s differs from required %s", speaker.JudgeRecipe(), compiled.suite.JudgeRecipe)
+	}
 	contents, err := datasetContents(
 		compiled.dataset, compiled.split, compiled.set, speechRoundTripDatasetContract, speechRoundTripSplitContract,
 	)
@@ -249,6 +257,7 @@ type SpeechRoundTripSpec struct {
 	// SynthesisSeed fixes the speech model's randomness.
 	SynthesisSeed int64
 	Judge         string
+	JudgeRecipe   artifact.ID
 }
 
 // BuildLibriSpeechRoundTrip builds the round-trip suite of LibriSpeech
@@ -283,7 +292,7 @@ func speechRoundTripSuiteOf(texts []string, spec SpeechRoundTripSpec) (SpeechRou
 	rng.Shuffle(len(texts), func(left, right int) { texts[left], texts[right] = texts[right], texts[left] })
 	suite := SpeechRoundTripSuite{
 		Kind: speechRoundTripKind, Schema: libriSpeechSchema, Source: libriSpeechSource,
-		Voice: spec.Voice, Seed: spec.SynthesisSeed, Judge: spec.Judge, Normalization: slices.Clone(writtenOneWay),
+		Voice: spec.Voice, Seed: spec.SynthesisSeed, Judge: spec.Judge, JudgeRecipe: spec.JudgeRecipe, Normalization: slices.Clone(writtenOneWay),
 	}
 	for index, text := range texts[:spec.Cases] {
 		suite.Cases = append(suite.Cases, SpeechRoundTripCase{Name: fmt.Sprintf("%s/%03d", libriSpeechSource, index), Text: text})

@@ -19,8 +19,9 @@ import (
 
 // echoSpeaker is a speech session whose judge hears exactly what a script says.
 type echoSpeaker struct {
-	heard map[string]string
-	judge string
+	heard    map[string]string
+	judge    string
+	identity artifact.ID
 }
 
 func (s echoSpeaker) RoundTrip(_ context.Context, text, _ string, _ int64) (string, error) {
@@ -32,6 +33,8 @@ func (s echoSpeaker) RoundTrip(_ context.Context, text, _ string, _ int64) (stri
 }
 
 func (s echoSpeaker) Judge() string { return s.judge }
+
+func (s echoSpeaker) JudgeRecipe() artifact.ID { return s.identity }
 
 func (echoSpeaker) Generate(context.Context, string, inference.GenerateOptions) ([]tokenizer.TokenID, string, error) {
 	return nil, "", errors.New("a speech session generates no text")
@@ -47,7 +50,8 @@ func (echoSpeaker) ScoreContinuations(context.Context, string, []string) ([]sequ
 // judge is not the suite's.
 func TestSpeechRoundTripScoresTheWordsThatSurviveTheTrip(t *testing.T) {
 	t.Parallel()
-	suite := SpeechRoundTripSuite{Kind: speechRoundTripKind, Schema: "fixture/v1", Source: "fixture", Voice: "alba", Seed: 7, Judge: "recognizer-a", Cases: []SpeechRoundTripCase{
+	judge := planID(t, artifact.KindRecipe, "recognizer-a-v1")
+	suite := SpeechRoundTripSuite{Kind: speechRoundTripKind, Schema: "fixture/v1", Source: "fixture", Voice: "alba", Seed: 7, Judge: "recognizer-a", JudgeRecipe: judge, Cases: []SpeechRoundTripCase{
 		{Name: "exact", Text: "He hoped there would be stew."},
 		{Name: "two wrong", Text: "The cat sat on the mat."},
 	}}
@@ -69,7 +73,7 @@ func TestSpeechRoundTripScoresTheWordsThatSurviveTheTrip(t *testing.T) {
 	}
 	defer store.Close()
 	publishPlanFixtureAuthorities(t, store, plan)
-	speaker := echoSpeaker{judge: "recognizer-a", heard: map[string]string{
+	speaker := echoSpeaker{judge: "recognizer-a", identity: judge, heard: map[string]string{
 		"He hoped there would be stew.": "he hoped there would be stew",
 		"The cat sat on the mat.":       "the bat sat on mat",
 	}}
@@ -86,6 +90,22 @@ func TestSpeechRoundTripScoresTheWordsThatSurviveTheTrip(t *testing.T) {
 	other.judge = "recognizer-b"
 	if _, err := evaluateSpeechRoundTrip(t.Context(), store, other, compiled, plan); err == nil {
 		t.Fatal("a session judged by another recognizer was evaluated")
+	}
+	for _, identity := range []artifact.ID{{}, planID(t, artifact.KindRecipe, "recognizer-a-v2")} {
+		other = speaker
+		other.identity = identity
+		if _, err := evaluateSpeechRoundTrip(t.Context(), store, other, compiled, plan); err == nil {
+			t.Fatal("a same-named judge with missing or changed recipe identity was evaluated")
+		}
+	}
+	changed := suite
+	changed.JudgeRecipe = planID(t, artifact.KindRecipe, "recognizer-a-v2")
+	if alternate, err := compileSpeechRoundTrip(changed); err != nil || alternate.identity == compiled.identity {
+		t.Fatalf("judge replacement did not change the evaluation identity: %v", err)
+	}
+	changed.JudgeRecipe = planID(t, artifact.KindModel, "wrong-kind")
+	if _, err := compileSpeechRoundTrip(changed); err == nil {
+		t.Fatal("a model identity was accepted as a complete judge recipe")
 	}
 	if _, err := evaluateSpeechRoundTrip(t.Context(), store, textOnlyRuntime{}, compiled, plan); err == nil {
 		t.Fatal("a runtime that cannot speak was evaluated")

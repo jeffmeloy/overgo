@@ -330,10 +330,13 @@ func speechExecutor(preview, whole capabilityruntime.Executor) capabilityruntime
 // each binds. The loader is a parameter so that a test with no model file
 // holds which binding stands on which side of speechExecutor.
 func speechCapability(load func(string) (*speechsynth.Synthesizer, error)) Capability {
-	loaded := func(ctx context.Context, repository artifact.Repository, path string, program recipe.Program, _ speechsynth.SynthesisRequest) (*speechsynth.Synthesizer, error) {
+	loaded := func(ctx context.Context, repository artifact.Repository, path string, program recipe.Program, request speechsynth.SynthesisRequest) (*speechsynth.Synthesizer, error) {
 		synthesizer, err := load(path)
 		if err == nil {
 			err = synthesizer.RestoreRecipe(ctx, repository, program.Definition())
+		}
+		if err == nil {
+			_, err = synthesizer.BindVoice(ctx, repository, program.Definition(), request)
 		}
 		return synthesizer, err
 	}

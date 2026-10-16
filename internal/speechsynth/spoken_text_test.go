@@ -49,7 +49,7 @@ func TestSpokenTextMatchesUpstream(t *testing.T) {
 	}
 	short, long := 0, 0
 	for _, reference := range fixture.Cases {
-		spoken, frames, err := spokenText(reference.Text)
+		spoken, frames, err := spokenText(reference.Text, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -66,7 +66,7 @@ func TestSpokenTextMatchesUpstream(t *testing.T) {
 	if short == 0 || long == 0 {
 		t.Fatalf("the fixture holds %d short texts and %d longer ones, and both rules need a text", short, long)
 	}
-	if _, _, err := spokenText(" \n "); err == nil {
+	if _, _, err := spokenText(" \n ", false); err == nil {
 		t.Error("a text of spaces was prepared to be spoken")
 	}
 	t.Logf("%d texts, %d of them short: preparation, post-EOS budget and blank refusal checked before tokenizer admission", len(fixture.Cases), short)

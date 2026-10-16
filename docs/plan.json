@@ -114,17 +114,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 657,
+        "nodes": -4137,
         "reason": "Measured preflight growth = 4117 production AST nodes for dataset materialization + native resume + checkpoint serving before evaluation selection.\nEstimated remaining growth = at most 883 nodes for isolated candidate evaluation and final publication integration.\nTotal budget = 5000 production AST nodes.\nExisting checkpoint, artifact, dataset, optimizer and evaluation owners retain authority.\nThe repeated trace loop and duplicated model inventory helper disappear.\nTest fixtures and new failure coverage are reported separately rather than counted as production savings."
       },
       "steps": [
-        {
-          "id": "evaluate-wiring",
-          "title": "Wire exact speech objective and judge selection",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow ./internal/evaluation -run '^(TestSpeechDatasetCommand|TestSpeechRoundTripScoresTheWordsThatSurviveTheTrip)$'",
-          "rationale": "Land exact objective and recognizer identity wiring before running the real held-out comparison.\nThe publish step retains complete-speech quality, resource and inactive-checkpoint acceptance.\nServes: The existing training and evaluation owners can select exact inactive synthesis recipes and judges.\nDisappears: An unpinned recognizer name no longer substitutes for a declared judge identity.\nEvidence: Existing speech dataset command and round-trip evaluation tables cover the wiring and mismatched identities.\nBatch: Land with voice preparation and package text contracts before real-model evaluation."
-        },
         {
           "id": "publish",
           "title": "Reload trained synthesis and judge held-out complete speech",
@@ -147,23 +140,6 @@
         "reason": "Declare measured speech growth before landing production changes.\nCombined preflight growth = 4780 production AST nodes.\nThe prior combined allowance = 4157 nodes across speech training, voice preparation and package admission.\nUpdated combined allowance = 5157 nodes including literal-rule corrections and remaining bounded integration.\nThe encoder and immutable prepared-state capability account for growth while transformer and residual-block loaders are shared with decoding.\nTests and fixtures add unique failure and independent-reference coverage and are not reported as code savings.\nServes: The declared budget matches the concrete implementation and retains real-model acceptance obligations.\nDisappears: The insufficient planning estimate is replaced before production landing.\nEvidence: Preflight measured production growth and the focused regression commands passed.\nBatch: Plan-only landing before any production change."
       },
       "steps": [
-        {
-          "id": "prepare",
-          "title": "Encode reference audio into identified reusable voice state",
-          "status": "open",
-          "verify": "go test ./internal/speechsynth -run '^TestVoicePreparation$'",
-          "rationale": "Inventory admitted weights before adding the missing Mimi encoder.\nThe decoder-only artifact cannot support voice preparation and must not acquire fabricated encoder tensors.\nAdd TestVoicePreparation as a table for independently referenced conditioning, resampling, padding, declared clip bounds, missing weights, cancellation and state reuse.\nReuse media decoding, audiodsp where semantics match, tensor catalog, existing math operators and VoiceState loading.\nKeep source bytes, consumed sample range, resampling, padding, encoder, speaker projection and model identities in prepared conditioning.\nExport and reload through existing immutable artifact owners rather than an unversioned voice cache.\nCompare the prepared state and resulting speech with the pinned reference on the same audio and text.\nReuse is permitted only under the full unchanged conditioning identity.\nServes: A reference recording becomes reusable conditioning for the existing PocketTTS model.\nDisappears: No existing encoder is retired because this is missing capability. Prepared-state reuse avoids repeated encoding after adoption and shared media owners prevent duplicate conversion paths.\nEvidence: audio.cpp 22cad6af5043a2d7c7f1d9a0e6c9d7996a80dfc8 src/models/pocket_tts/mimi_encoder.cpp and voice_conditioner.cpp define the reference boundary.\nBatch: Encoder correctness remains independently testable when serving or GPU work is unavailable."
-        },
-        {
-          "id": "serve",
-          "title": "Expose prepared voices through existing speech request and artifact ownership",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestNativeAudioProtocolUsesActiveRecipeSession$' \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowserSpeechControls$' -leg 'speech controls leg'",
-          "rationale": "Extend TestNativeAudioProtocolUsesActiveRecipeSession with named preset, prepared state and reference-audio cases using its existing fixture and assertions.\nResolve one explicit conditioning source per request and refuse contradictory sources or mismatched model identities.\nPreserve authorization, immutable input attribution, session isolation and bounded cancellation.\nUse the current intake and voice controls for browser selection rather than a separate cloning workflow.\nExtend TestWebUIBrowserSpeechControls in its existing lane for conditioning selection, refusal and retry.\nMeasure first preparation separately from repeated prepared-state synthesis and include artifact I/O.\nServes: Existing speech API and UI can select reusable reference-derived voices.\nDisappears: Parallel preset-versus-clone serving paths are avoided by one conditioning resolution boundary and one synthesis execution.\nEvidence: Existing VoiceState, ResolveVoicePath, speech capability and request identity owners retain preset behavior and complete-request reuse rules.\nBatch: API and UI selection land with their existing browser leg and no second voice service.",
-          "depends_on": [
-            "audio-voice/prepare"
-          ]
-        },
         {
           "id": "compare",
           "title": "Compare complete prepared-voice speech with its original",
@@ -202,13 +178,6 @@
         "reason": "Planning estimate of net production AST growth = 400 nodes for artifact/config differences + 300 for tokenizer/text contract differences + 200 for existing catalog bindings after hard-coded assumptions are replaced. New model architecture, acquisition tooling and language framework are excluded."
       },
       "steps": [
-        {
-          "id": "contract",
-          "title": "Honor the elected package text and tokenizer contract",
-          "status": "open",
-          "verify": "go test ./internal/speechsynth -run '^TestPocketTTSLanguageContract$'",
-          "rationale": "Land artifact-declared semicolon normalization and the elected German tokenizer contract before judging complete speech.\nThe elected package is the existing six-layer German artifact at upstream revision e041936c75475d350b405bc870bcf7c22da4e9e6.\nModel, tokenizer and anna voice hashes must match the pinned upstream objects.\nThe admit step retains complete-audio parity and four frozen native-language intelligibility cases judged by the exact German-capable Nemotron recipe.\nServes: Existing synthesis loads one additional package through data rather than language-name branches.\nDisappears: The fixed punctuation assumption gives way to the existing package declaration.\nEvidence: Twelve independently prepared texts cover Unicode, punctuation, token identity and short versus long EOS budgets.\nBatch: Text-contract wiring lands with the voice surface while model admission remains open."
-        },
         {
           "id": "admit",
           "title": "Verify one available non-English PocketTTS package end to end",

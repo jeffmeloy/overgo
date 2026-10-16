@@ -456,7 +456,7 @@ func replaceSyncedFile(path string, data []byte) error {
 	if err != nil || closeErr != nil {
 		return errors.Join(err, closeErr)
 	}
-	return os.Rename(temporary, path)
+	return fsatomic.Replace(temporary, path)
 }
 
 func cloneStreamPlan(plan streamPlan) streamPlan {

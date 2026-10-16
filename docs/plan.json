@@ -71,13 +71,6 @@
       },
       "steps": [
         {
-          "id": "publish",
-          "title": "Use the existing durable replacement owner for streaming checkpoint sidecars",
-          "status": "open",
-          "verify": "go test -timeout=0 ./internal/safetensors ./internal/fsatomic",
-          "rationale": "Serves: Completed training reaches checkpoint publication on Windows.\nDisappears: replaceSyncedFile delegates the namespace move to fsatomic.Replace instead of raw os.Rename.\nEvidence: The third Qwen proof at 93d19be2 completed all updates and failed replacing resume.json with Access is denied. The failed observation and load-closeout-93d19be2-qwen-3 logs remain retained. The external holder was not identified.\nBatch: Reuse the existing mapped-reader and denying-holder tests in fsatomic and streaming resume tests in safetensors. No new retry loop, test framework or duplicate holder fixture is introduced.\nThe checkpoint owner removed the failed staging directory, so the completed training cannot resume.\nRetain the two successful load samples because this repair changes publication only.\nTake one bounded recovery attempt after the repair and retain the original failure.\nThe load target remains 6532.2922 ms and unknown locking causes remain reported failures."
-        },
-        {
           "id": "do",
           "title": "Restore Qwen3.5-4B training load-time to 6532.2922 ms",
           "status": "open",

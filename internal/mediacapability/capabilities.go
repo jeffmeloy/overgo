@@ -4,9 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
-	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/audioparity"
@@ -177,35 +175,6 @@ var Catalog = map[recipe.Task]Capability{
 	recipe.TaskReconstruction: reconstructionCapability(),
 }
 
-func safetensorsInventory(context, path, config string, companions ...modelartifact.FileSpec) (modelartifact.Inventory, error) {
-	entries, err := os.ReadDir(path)
-	if err != nil {
-		return modelartifact.Inventory{}, err
-	}
-	weights := ""
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(strings.ToLower(entry.Name()), ".safetensors") {
-			continue
-		}
-		if weights != "" {
-			return modelartifact.Inventory{}, fmt.Errorf("%s Inventory: multiple safetensors files in %s", context, path)
-		}
-		weights = entry.Name()
-	}
-	if weights == "" {
-		return modelartifact.Inventory{}, fmt.Errorf("%s Inventory: no safetensors weights in %s", context, path)
-	}
-	specs := []modelartifact.FileSpec{
-		{Path: filepath.Join(path, config), Name: "config", Role: artifact.ComponentConfig},
-		{Path: filepath.Join(path, weights), Name: "weights", Role: artifact.ComponentWeights},
-	}
-	for _, companion := range companions {
-		companion.Path = filepath.Join(path, companion.Path)
-		specs = append(specs, companion)
-	}
-	return modelartifact.FromFiles(path, specs)
-}
-
 // transcriptionCapability registers a speech recognition checkpoint as the
 // transcription recipe the speech runtime loads: its Hugging Face inventory,
 // the identity that runtime recomputes, compiled with the execution profile
@@ -361,21 +330,22 @@ func speechExecutor(preview, whole capabilityruntime.Executor) capabilityruntime
 // each binds. The loader is a parameter so that a test with no model file
 // holds which binding stands on which side of speechExecutor.
 func speechCapability(load func(string) (*speechsynth.Synthesizer, error)) Capability {
-	loaded := capabilityruntime.IgnoreInput[speechsynth.SynthesisRequest](load)
-	return inventoryCapability(speechInventory, speechExecutor(
+	loaded := func(ctx context.Context, repository artifact.Repository, path string, program recipe.Program, _ speechsynth.SynthesisRequest) (*speechsynth.Synthesizer, error) {
+		synthesizer, err := load(path)
+		if err == nil {
+			err = synthesizer.RestoreRecipe(ctx, repository, program.Definition())
+		}
+		return synthesizer, err
+	}
+	return inventoryCapability(speechsynth.Inventory, speechExecutor(
 		capabilityruntime.JSONScalar[speechsynth.SynthesisRequest, *speechsynth.Synthesizer, speechsynth.Audio](
 			"speech", speechsynth.ValidateSynthesisRequest, loaded, speechsynth.RegisterRuntime),
 		capabilityruntime.JSONScalar[speechsynth.SynthesisRequest, *speechsynth.Synthesizer, speechsynth.Audio](
 			"speech", speechsynth.ValidateSynthesisRequest, loaded, speechsynth.RegisterWholeText)))
 }
 
-func speechInventory(path string) (modelartifact.Inventory, error) {
-	return safetensorsInventory("speech", path, "pockettts_config.json",
-		modelartifact.FileSpec{Path: "tokenizer.model", Name: "tokenizer", Role: artifact.ComponentTokenizer})
-}
-
 func imageGenInventory(path string) (modelartifact.Inventory, error) {
-	return safetensorsInventory("image-gen", path, "config.json")
+	return modelartifact.FromSafetensorsDirectory("image-gen", path, "config.json")
 }
 
 func tabularInventory(path string) (modelartifact.Inventory, error) {

@@ -88,7 +88,7 @@ func TestAudioTrainingContract(t *testing.T) {
 		if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{Key: "audio/observation", Artifacts: []artifact.Descriptor{{ID: model}, {ID: id}}}); err != nil {
 			t.Fatal(err)
 		}
-		for _, objective := range []trainingprogram.ObjectiveKind{trainingprogram.ObjectiveCTC, trainingprogram.ObjectiveTokenPrediction} {
+		for _, objective := range []trainingprogram.ObjectiveKind{trainingprogram.ObjectiveCTC, trainingprogram.ObjectiveLatentSequence, trainingprogram.ObjectiveTokenPrediction} {
 			observer, err := NewObserver(store, true)
 			if err != nil {
 				t.Fatal(err)
@@ -100,7 +100,7 @@ func TestAudioTrainingContract(t *testing.T) {
 			}
 			observation, err := runrecord.RequireServingObservation(t.Context(), store, observationID)
 			wantTokens := result.StreamPosition
-			if objective == trainingprogram.ObjectiveCTC {
+			if objective == trainingprogram.ObjectiveCTC || objective == trainingprogram.ObjectiveLatentSequence {
 				wantTokens = 0
 			}
 			if err != nil || observation.Outcome != runrecord.OutcomeCancelled || observation.Failure != "" || observation.Usage.InputTokens != wantTokens {

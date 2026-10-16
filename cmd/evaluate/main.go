@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"overgo/internal/artifact"
 	"overgo/internal/checked"
 	"overgo/internal/clioptions"
 	"overgo/internal/evaluation"
@@ -42,8 +43,10 @@ type manifest struct {
 }
 
 type modelRequest struct {
-	Path   string   `json:"path"`
-	Suites []string `json:"suites"`
+	// Recipe selects an inactive or active speech recipe for isolated evaluation without activation.
+	Recipe *artifact.ID `json:"recipe,omitempty"`
+	Path   string       `json:"path"`
+	Suites []string     `json:"suites"`
 	// Judge names the speech recognizer directory that listens to a speech model's
 	// recordings and writes down what it heard.
 	Judge string `json:"judge,omitempty"`

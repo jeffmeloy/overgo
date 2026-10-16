@@ -129,7 +129,7 @@ func openVQASession(ctx context.Context, store *overgodb.Store, value manifest, 
 		return nil, fmt.Errorf("evaluate: %s is no vqa model: %w", request.Path, err)
 	}
 	modelID := source.Inventory.Manifest.ID
-	return openCapabilitySession(ctx, store, value, source, recipe.TaskVQA, func() (evaluation.Runtime, func(context.Context) error, error) {
+	return openCapabilitySession(ctx, store, value, source, recipe.TaskVQA, nil, func(recipe.Definition) (evaluation.Runtime, func(context.Context) error, error) {
 		_, program, err := modelrecipe.ResolveActiveCapability(ctx, store, modelID, recipe.TaskVQA)
 		return &vqaRuntime{store: store, modelID: modelID, modelDir: request.Path, program: program, mediaFiles: &mediaFiles{root: request.MediaRoot}, attempt: time.Now().UTC().Format(time.RFC3339Nano)},
 			func(context.Context) error { return nil }, err

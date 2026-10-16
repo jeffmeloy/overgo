@@ -15,6 +15,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 )
 
@@ -106,7 +107,7 @@ func writeTinySeq2Seq(t *testing.T, directory string) string {
 		tensors[name] = values
 	}
 	writeBF16Safetensors(t, filepath.Join(directory, trainingprogram.CheckpointWeights), tensors, shapes)
-	writeSentencePiece(t, filepath.Join(directory, "tokenizer.model"),
+	testutil.WriteSentencePiece(t, filepath.Join(directory, "tokenizer.model"),
 		[]string{"<pad>", "</s>", "<unk>", "▁a", "▁b", "▁c", "▁d", "▁e"}, 2)
 	return directory
 }
@@ -130,31 +131,6 @@ func writeBF16Safetensors(t *testing.T, path string, tensors map[string][]float3
 	}
 	file := binary.LittleEndian.AppendUint64(nil, uint64(len(encoded)))
 	if err := os.WriteFile(path, append(append(file, encoded...), data...), 0o600); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// writeSentencePiece writes a SentencePiece ModelProto holding only the
-// piece table: every piece normal, unknown typed UNKNOWN.
-func writeSentencePiece(t *testing.T, path string, pieces []string, unknown int) {
-	t.Helper()
-	const (
-		pieceEntry, pieceText, pieceType = 0x0a, 0x0a, 0x18
-		normal, unknownType              = 1, 2
-	)
-	var model []byte
-	for index, piece := range pieces {
-		entry := binary.AppendUvarint([]byte{pieceText}, uint64(len(piece)))
-		entry = append(entry, piece...)
-		kind := uint64(normal)
-		if index == unknown {
-			kind = unknownType
-		}
-		entry = binary.AppendUvarint(append(entry, pieceType), kind)
-		model = binary.AppendUvarint(append(model, pieceEntry), uint64(len(entry)))
-		model = append(model, entry...)
-	}
-	if err := os.WriteFile(path, model, 0o600); err != nil {
 		t.Fatal(err)
 	}
 }

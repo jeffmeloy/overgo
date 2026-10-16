@@ -448,9 +448,8 @@ func PublishCheckpoint(target string, spec CheckpointSpec, writeWeights func(str
 	return checkpoint, nil
 }
 
-// LoadCheckpoint reads a published checkpoint with its resume sidecar,
-// holding each file to the digest the document chain names.
-func LoadCheckpoint(directory string) (Checkpoint, error) {
+// ReadCheckpoint verifies published metadata and weights without reading optimizer payloads.
+func ReadCheckpoint(directory string) (Checkpoint, error) {
 	data, err := os.ReadFile(filepath.Join(directory, CheckpointFilename))
 	if err != nil {
 		return Checkpoint{}, err
@@ -462,7 +461,17 @@ func LoadCheckpoint(directory string) (Checkpoint, error) {
 	if _, err := checkpoint.weights(directory); err != nil {
 		return Checkpoint{}, err
 	}
-	data, err = os.ReadFile(filepath.Join(directory, resumeFilename))
+	return checkpoint, nil
+}
+
+// LoadCheckpoint reads a published checkpoint with its resume sidecar,
+// holding each file to the digest the document chain names.
+func LoadCheckpoint(directory string) (Checkpoint, error) {
+	checkpoint, err := ReadCheckpoint(directory)
+	if err != nil {
+		return Checkpoint{}, err
+	}
+	data, err := os.ReadFile(filepath.Join(directory, resumeFilename))
 	if err != nil {
 		return Checkpoint{}, fmt.Errorf("training checkpoint: resume sidecar: %w", err)
 	}

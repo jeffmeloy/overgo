@@ -3,6 +3,7 @@ package modelartifact
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -190,4 +191,34 @@ func namespacedTensorFacts(source *safetensors.Source, path, namespace string) (
 		}
 	}
 	return facts, nil
+}
+
+// FromSafetensorsDirectory inventories one weight file and its declared companions.
+func FromSafetensorsDirectory(context, path, config string, companions ...FileSpec) (Inventory, error) {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return Inventory{}, err
+	}
+	weights := ""
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(strings.ToLower(entry.Name()), ".safetensors") {
+			continue
+		}
+		if weights != "" {
+			return Inventory{}, fmt.Errorf("%s Inventory: multiple safetensors files in %s", context, path)
+		}
+		weights = entry.Name()
+	}
+	if weights == "" {
+		return Inventory{}, fmt.Errorf("%s Inventory: no safetensors weights in %s", context, path)
+	}
+	specs := []FileSpec{
+		{Path: filepath.Join(path, config), Name: "config", Role: artifact.ComponentConfig},
+		{Path: filepath.Join(path, weights), Name: "weights", Role: artifact.ComponentWeights},
+	}
+	for _, companion := range companions {
+		companion.Path = filepath.Join(path, companion.Path)
+		specs = append(specs, companion)
+	}
+	return FromFiles(path, specs)
 }

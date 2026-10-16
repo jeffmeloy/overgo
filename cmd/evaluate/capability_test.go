@@ -41,7 +41,7 @@ type capabilityDefiner func(model, profile artifact.ID) (recipe.Definition, erro
 // of its own, takes the recipe define gives the model through activation when
 // define is given, and opens a capability session over it for task with a
 // runtime that loads nothing. The release of that runtime reports released.
-func openPublishedCapability(t *testing.T, value manifest, task recipe.Task, define capabilityDefiner, released error) *capabilityOpening {
+func openPublishedCapability(t *testing.T, value manifest, task recipe.Task, define capabilityDefiner, released error, explicit bool) *capabilityOpening {
 	t.Helper()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
@@ -65,20 +65,35 @@ func openPublishedCapability(t *testing.T, value manifest, task recipe.Task, def
 	}); err != nil {
 		t.Fatal(err)
 	}
+	var requested *artifact.ID
+	if explicit {
+		missing := testutil.ArtifactID(t, artifact.KindRecipe, "unpublished")
+		requested = &missing
+	}
 	if define != nil {
 		definition, err := define(model.ID, profile)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := modelrecipetest.PublishActivation(ctx, store, "capability/active", definition); err != nil {
-			t.Fatal(err)
+		if explicit {
+			requested = &definition.ID
+			if _, _, err := modelrecipe.PublishCandidate(ctx, store, "candidate", definition); err != nil {
+				t.Fatal(err)
+			}
+		} else {
+			if err := modelrecipetest.PublishActivation(ctx, store, "capability/active", definition); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 	opening := &capabilityOpening{}
 	_, before := store.Head()
 	opening.session, opening.err = openCapabilitySession(ctx, store, value,
-		mediacapability.Source{Inventory: modelartifact.Inventory{Manifest: model}}, task,
-		func() (evaluation.Runtime, func(context.Context) error, error) {
+		mediacapability.Source{Inventory: modelartifact.Inventory{Manifest: model}}, task, requested,
+		func(definition recipe.Definition) (evaluation.Runtime, func(context.Context) error, error) {
+			if requested != nil && definition.ID != *requested {
+				t.Fatal("loader received another recipe")
+			}
 			opening.loads++
 			return &vqaRuntime{}, func(context.Context) error {
 				opening.releases++
@@ -87,6 +102,12 @@ func openPublishedCapability(t *testing.T, value manifest, task recipe.Task, def
 		})
 	_, after := store.Head()
 	opening.wrote = after != before
+	if explicit && define != nil {
+		status, _, err := modelrecipe.Status(ctx, store, *requested)
+		if err != nil || status != recipe.StatusCandidate {
+			t.Fatalf("evaluation changed candidate status: %s %v", status, err)
+		}
+	}
 	return opening
 }
 
@@ -141,7 +162,7 @@ func TestACapabilitySessionNamesTheDeviceItRunsOnAndRefusesOneItCannotSelect(t *
 		"a host image encoder":                      {recipe.TaskImageEmbedding, capabilityOf(recipe.TaskImageEmbedding), 1, "host", "go"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			opening := openPublishedCapability(t, manifest{CodeCommit: hostedTestCommit, Device: c.ordinal}, c.task, c.define, nil)
+			opening := openPublishedCapability(t, manifest{CodeCommit: hostedTestCommit, Device: c.ordinal}, c.task, c.define, nil, false)
 			if c.device == "" {
 				if opening.err == nil || opening.session != nil || opening.loads != 0 || opening.releases != 0 || opening.wrote {
 					t.Fatalf("device %d opened (%T, %v) with %d loads and %d releases, store written %t, want a refusal before anything is loaded or written",
@@ -185,22 +206,39 @@ func TestACapabilitySessionReleasesTheRuntimeItLoadedExactlyOnce(t *testing.T) {
 	stuck := errors.New("the runtime did not release")
 	for name, released := range map[string]error{"a release that succeeds": nil, "a release that fails": stuck} {
 		t.Run(name, func(t *testing.T) {
-			opened := openPublishedCapability(t, bound, recipe.TaskImageEmbedding, host, released)
+			opened := openPublishedCapability(t, bound, recipe.TaskImageEmbedding, host, released, false)
 			if opened.err != nil {
 				t.Fatal(opened.err)
 			}
 			if err := opened.session.Close(); !errors.Is(err, released) || opened.loads != 1 || opened.releases != 1 {
 				t.Errorf("closing reported %v after %d loads and %d releases, want %v after one of each", err, opened.loads, opened.releases, released)
 			}
-			unbound := openPublishedCapability(t, manifest{}, recipe.TaskImageEmbedding, host, released)
+			unbound := openPublishedCapability(t, manifest{}, recipe.TaskImageEmbedding, host, released, false)
 			if unbound.err == nil || unbound.session != nil || released != nil && !errors.Is(unbound.err, released) || unbound.loads != 1 || unbound.releases != 1 {
 				t.Errorf("a manifest with no commit opened (%T, %v) with %d loads and %d releases, want a refusal that released the one runtime it loaded",
 					unbound.session, unbound.err, unbound.loads, unbound.releases)
 			}
 		})
 	}
-	if inactive := openPublishedCapability(t, bound, recipe.TaskImageEmbedding, nil, nil); inactive.err == nil || inactive.session != nil || inactive.loads != 0 {
+	if inactive := openPublishedCapability(t, bound, recipe.TaskImageEmbedding, nil, nil, false); inactive.err == nil || inactive.session != nil || inactive.loads != 0 {
 		t.Errorf("a model with no active recipe opened (%T, %v) with %d loads, want a refusal before loading", inactive.session, inactive.err, inactive.loads)
+	}
+	for name, define := range map[string]capabilityDefiner{"candidate": capabilityOf(recipe.TaskSpeech), "foreign-task": host, "unpublished": nil} {
+		t.Run(name, func(t *testing.T) {
+			opened := openPublishedCapability(t, bound, recipe.TaskSpeech, define, nil, true)
+			if name != "candidate" {
+				if opened.err == nil || opened.loads != 0 || opened.wrote {
+					t.Fatalf("invalid explicit recipe opened: %+v", opened)
+				}
+				return
+			}
+			if opened.err != nil || opened.loads != 1 {
+				t.Fatalf("inactive candidate did not open: %+v", opened)
+			}
+			if err := opened.session.Close(); err != nil || opened.releases != 1 {
+				t.Fatalf("candidate release: %v count=%d", err, opened.releases)
+			}
+		})
 	}
 }
 

@@ -30,6 +30,8 @@ import (
 )
 
 type Request struct {
+	// Speech selects dataset-bound normalized-latent synthesis training.
+	Speech *SpeechTrainingSpec
 	// Audio selects recipe-bound CPU CTC adaptation; dense-only inputs refuse.
 	Audio              *AudioTrainingSpec
 	Repository         artifact.Reader
@@ -101,6 +103,9 @@ type Result struct {
 }
 
 func Execute(ctx context.Context, request Request) (Result, error) {
+	if request.Speech != nil {
+		return executeSpeechTraining(ctx, request)
+	}
 	if request.Audio != nil {
 		return executeAudioTraining(ctx, request)
 	}

@@ -221,7 +221,7 @@ func (o *Observer) finish(
 		return artifact.ID{}, nil, artifact.ID{}, err
 	}
 	inputTokens := streamPosition
-	if result.Objective == trainingprogram.ObjectiveCTC {
+	if result.Objective == trainingprogram.ObjectiveCTC || result.Objective == trainingprogram.ObjectiveLatentSequence {
 		// A speech stream cursor counts source records, not tokenizer units.
 		// Keep unmeasured token usage absent from the shared observation.
 		inputTokens = 0

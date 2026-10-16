@@ -7,13 +7,16 @@ import (
 	"math"
 	"math/rand"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
 	"overgo/internal/artifact"
 	"overgo/internal/jsonfile"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/recipe"
 	"overgo/internal/tensor"
+	"overgo/internal/trainingprogram"
 	"overgo/internal/workflowruntime"
 )
 
@@ -107,6 +110,78 @@ func LoadSynthesizer(directory string) (*Synthesizer, error) {
 		model: model, tokenizer: tokenizer, directory: directory,
 		defaultTemperature: config.DefaultTemperature, voices: map[string]*VoiceState{},
 	}, nil
+}
+
+// RestoreRecipe applies a verified trained surface while retaining the immutable base codec and tokenizer.
+// Serving reads no optimizer or sampler payload and never activates a recipe.
+func (s *Synthesizer) RestoreRecipe(ctx context.Context, repository artifact.Repository, definition recipe.Definition) error {
+	id, found := definition.PrimaryDependency(recipe.DependencyCheckpoint)
+	if !found {
+		return nil
+	}
+	if err := definition.ValidateIdentity(); err != nil {
+		return err
+	}
+	if !s.complete() {
+		return errors.New("speechsynth: checkpoint requires a complete base")
+	}
+	base, err := modelrecipe.CapabilityDefinition(recipe.TaskSpeech, definition.Model)
+	if err != nil {
+		return err
+	}
+	expected, err := modelrecipe.AdaptedSpeechDefinition(base, id)
+	if err != nil || expected.ID != definition.ID {
+		return errors.New("speechsynth: trained recipe topology differs")
+	}
+	inventory, err := Inventory(s.directory)
+	if err != nil || inventory.Manifest.ID != base.Model {
+		return errors.Join(errors.New("speechsynth: frozen base inventory differs"), err)
+	}
+	content, err := artifact.RequireTypedContent(ctx, repository, id)
+	if err != nil {
+		return err
+	}
+	checkpoint, err := trainingprogram.ParseCheckpoint(content.Data)
+	if err != nil || checkpoint.ID() != id || checkpoint.Model != base.Model ||
+		!slices.Contains(checkpoint.Lineage, trainingprogram.LineageParent{Artifact: base.ID, Relation: artifact.RelationDependsOn}) {
+		return errors.Join(errors.New("speechsynth: checkpoint base lineage differs"), err)
+	}
+	parents, err := repository.Parents(ctx, id)
+	if err != nil {
+		return err
+	}
+	for _, edge := range append(checkpoint.ArtifactLineage(), artifact.Lineage{Child: id, Parent: checkpoint.Weights, Relation: artifact.RelationContains}) {
+		if !slices.Contains(parents, edge) {
+			return errors.New("speechsynth: checkpoint lineage is incomplete")
+		}
+	}
+	directory, err := artifact.AvailablePath(ctx, repository, id, artifact.LocationDirectory)
+	if err != nil {
+		return err
+	}
+	loaded, err := trainingprogram.ReadCheckpoint(directory)
+	if err != nil || loaded.ID() != id {
+		return errors.Join(errors.New("speechsynth: checkpoint publication differs"), err)
+	}
+	weights, err := s.model.checkpointWeights(directory)
+	if err != nil {
+		return err
+	}
+	targets, _ := s.model.TrainedTensors(true)
+	parameters := 0
+	for _, values := range targets {
+		parameters += len(values)
+	}
+	if checkpoint.ParameterCount != parameters {
+		return errors.New("speechsynth: checkpoint parameter count differs")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	for name, values := range targets {
+		copy(values, weights[name])
+	}
+	return nil
 }
 
 func (s *Synthesizer) complete() bool {

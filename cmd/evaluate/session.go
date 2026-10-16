@@ -53,6 +53,9 @@ type nativeSession struct {
 }
 
 func openEvaluationSession(ctx context.Context, value manifest, request modelRequest) (evaluationSession, error) {
+	if request.Recipe != nil && (request.Recipe.Kind() != artifact.KindRecipe || request.Task != string(recipe.TaskSpeech)) {
+		return nil, errors.New("evaluate: explicit recipe requires the speech task and a recipe identity")
+	}
 	store, err := overgodb.OpenContext(ctx, value.Repository)
 	if err != nil {
 		return nil, err

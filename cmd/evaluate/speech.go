@@ -124,9 +124,12 @@ func openSpeechSession(ctx context.Context, store *overgodb.Store, value manifes
 	if err != nil {
 		return nil, fmt.Errorf("evaluate: %s is no speech model: %w", request.Path, err)
 	}
-	return openCapabilitySession(ctx, store, value, source, recipe.TaskSpeech, func() (evaluation.Runtime, func(context.Context) error, error) {
+	return openCapabilitySession(ctx, store, value, source, recipe.TaskSpeech, request.Recipe, func(definition recipe.Definition) (evaluation.Runtime, func(context.Context) error, error) {
 		synthesizer, err := speechsynth.LoadSynthesizer(request.Path)
 		if err != nil {
+			return nil, nil, err
+		}
+		if err := synthesizer.RestoreRecipe(ctx, store, definition); err != nil {
 			return nil, nil, err
 		}
 		recognizer, err := mediacapability.OpenRecognizer(ctx, request.Judge, speechJudgeMemoryBytes)

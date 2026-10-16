@@ -353,8 +353,8 @@ func validateExample(example Example, reference recordRef, processor compiledPro
 		if !validRole(value.Role) || !recipecontract.ValidModality(value.Modality) || !processor.modalities[value.Modality] || value.Encoding == "" || len(value.Data) == 0 {
 			return errors.New("training data: processor emitted invalid value")
 		}
-		if value.Modality == recipecontract.ModalityAudio && value.SampleRate <= 0 ||
-			value.Modality != recipecontract.ModalityAudio && value.SampleRate != 0 {
+		pcm := value.Modality == recipecontract.ModalityAudio && value.Encoding != speechLatentEncoding
+		if pcm && value.SampleRate <= 0 || !pcm && value.SampleRate != 0 {
 			return errors.New("training data: processor emitted invalid sample rate")
 		}
 		for _, extent := range value.Shape {

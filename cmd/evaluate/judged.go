@@ -76,7 +76,7 @@ func openJudgedSession(ctx context.Context, store *overgodb.Store, value manifes
 	if err != nil || !active {
 		return nil, errors.Join(err, fmt.Errorf("evaluate: %s has no active %s recipe", request.Path, task))
 	}
-	opened, err := openCapabilitySession(ctx, store, value, source, task, func() (evaluation.Runtime, func(context.Context) error, error) {
+	opened, err := openCapabilitySession(ctx, store, value, source, task, nil, func(recipe.Definition) (evaluation.Runtime, func(context.Context) error, error) {
 		runner, err := modelcli.OpenRunner(ctx, value.Repository, request.Judge, inference.OpenOptions{DeviceOrdinal: value.Device})
 		if err != nil {
 			return nil, nil, err

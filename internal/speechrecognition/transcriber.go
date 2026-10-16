@@ -226,7 +226,7 @@ func loadCheckpointProjection(ctx context.Context, repository artifact.Repositor
 	if err != nil {
 		return nil, err
 	}
-	loaded, err := trainingprogram.LoadCheckpoint(directory)
+	loaded, err := trainingprogram.ReadCheckpoint(directory)
 	if err != nil || loaded.ID() != id {
 		return nil, errors.Join(errors.New("speech recognition: checkpoint publication differs"), err)
 	}

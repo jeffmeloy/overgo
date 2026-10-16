@@ -7,6 +7,8 @@ type Stepper interface {
 	// same State the host Optimizer's Snapshot reports, so a checkpoint
 	// carries it whatever backend stepped.
 	Snapshot() State
+	// Restore preserves the native momentum precision and exact next step.
+	Restore(State) error
 	Close() error
 }
 

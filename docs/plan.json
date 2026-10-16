@@ -114,17 +114,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 5000,
+        "nodes": 657,
         "reason": "Measured preflight growth = 4117 production AST nodes for dataset materialization + native resume + checkpoint serving before evaluation selection.\nEstimated remaining growth = at most 883 nodes for isolated candidate evaluation and final publication integration.\nTotal budget = 5000 production AST nodes.\nExisting checkpoint, artifact, dataset, optimizer and evaluation owners retain authority.\nThe repeated trace loop and duplicated model inventory helper disappear.\nTest fixtures and new failure coverage are reported separately rather than counted as production savings."
       },
       "steps": [
-        {
-          "id": "dataset",
-          "title": "Feed declared latent examples through the shared training stream",
-          "status": "open",
-          "verify": "go test ./internal/trainingdata -run '^TestSpeechLatentMaterialization$' \u0026\u0026 go test ./internal/trainingworkflow -run '^TestSpeechDatasetTraining$'",
-          "rationale": "Add bounded tables for target identity, shape and normalization refusal plus uninterrupted versus resumed dataset order and updates.\nUse trainingdata.Materialize, dataset.RecordID, shared split membership and JointTrainer rather than a second synthesis trainer.\nA latent target binds source record, immutable base, tokenizer, codec, transform, conditioning and generation noise identity.\nRecorded or independently produced latent datasets are admissible with explicit provenance.\nOne repeated trace proves fitting rather than held-out synthesis quality.\nWaveform targets require an admitted encoder with an independently checked normalized-latent contract.\nThe voice encoder's speaker-projected conditioning is not a normalized training target.\nPreserve exact next example, RNG, optimizer and scheduler state through existing trainingprogram checkpoints.\nRetain CPU numerical reference coverage and reuse the existing Muon device owner for production optimizer execution.\nServes: Existing synthesis training learns from a bounded dataset with replayable identities.\nDisappears: cmd/train/route_speech.go single-example loop policy migrates to the existing trainingworkflow owner and any useful trace fixture remains a small dataset input.\nEvidence: The design intent in overgo_audiocpp2 68cb02e68 is reconciled with existing momentum.bin storage and TestJointTrainerCheckpointRoundTripIsBitExact rather than restoring inline JSON or a legacy reader.\nBatch: Dataset and trainer integration share focused hermetic checks with existing finite-difference and resume owners."
-        },
         {
           "id": "publish",
           "title": "Reload trained synthesis and judge held-out complete speech",

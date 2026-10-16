@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 
+	"overgo/internal/artifact"
 	"overgo/internal/cuda/device"
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
@@ -120,14 +121,25 @@ type capabilitySession struct {
 // to the model's manifest.
 func openCapabilitySession(
 	ctx context.Context, store *overgodb.Store, value manifest, source mediacapability.Source, task recipe.Task,
-	load func() (evaluation.Runtime, func(context.Context) error, error),
+	requested *artifact.ID,
+	load func(recipe.Definition) (evaluation.Runtime, func(context.Context) error, error),
 ) (evaluationSession, error) {
 	modelID := source.Inventory.Manifest.ID
-	activation, _, err := modelrecipe.ResolveActiveCapability(ctx, store, modelID, task)
-	if err != nil {
-		return nil, err
+	var definition recipe.Definition
+	var err error
+	if requested == nil {
+		activation, _, resolveErr := modelrecipe.ResolveActiveCapability(ctx, store, modelID, task)
+		definition, err = activation.Definition, resolveErr
+	} else {
+		eligibility, resolveErr := modelrecipe.RecipeEligibility(ctx, store, *requested)
+		if resolveErr != nil || !eligibility.Published || eligibility.Refusal != "" {
+			return nil, errors.Join(errors.New("evaluate: explicit recipe must be published and unrefused"), resolveErr)
+		}
+		definition, err = recipe.RequireDefinition(ctx, store, *requested)
 	}
-	definition := activation.Definition
+	if err != nil || definition.Model != modelID || definition.Task != task {
+		return nil, errors.Join(errors.New("evaluate: recipe does not match requested model and task"), err)
+	}
 	environment, err := capabilityEnvironment(task, definition, value.Device)
 	if err != nil {
 		return nil, err
@@ -138,7 +150,7 @@ func openCapabilitySession(
 	if err != nil {
 		return nil, err
 	}
-	runtime, release, err := load()
+	runtime, release, err := load(definition)
 	if err != nil {
 		return nil, err
 	}
@@ -196,7 +208,7 @@ func openThoughtBankSession(ctx context.Context, store *overgodb.Store, value ma
 	if err != nil {
 		return nil, false, nil
 	}
-	session, err := openCapabilitySession(ctx, store, value, source, recipe.TaskGeneration, func() (evaluation.Runtime, func(context.Context) error, error) {
+	session, err := openCapabilitySession(ctx, store, value, source, recipe.TaskGeneration, nil, func(recipe.Definition) (evaluation.Runtime, func(context.Context) error, error) {
 		generator, err := thoughtbank.LoadGenerator(path)
 		return thoughtBankRuntime{generator}, generator.Close, err
 	})
@@ -211,7 +223,7 @@ func openSeq2SeqSession(ctx context.Context, store *overgodb.Store, value manife
 	if err != nil {
 		return nil, fmt.Errorf("evaluate: %s is no seq2seq model: %w", path, err)
 	}
-	return openCapabilitySession(ctx, store, value, source, recipe.TaskSeq2Seq, func() (evaluation.Runtime, func(context.Context) error, error) {
+	return openCapabilitySession(ctx, store, value, source, recipe.TaskSeq2Seq, nil, func(recipe.Definition) (evaluation.Runtime, func(context.Context) error, error) {
 		generator, err := seq2seq.LoadGenerator(path)
 		return seq2seqRuntime{generator}, func(context.Context) error { return nil }, err
 	})
@@ -225,7 +237,7 @@ func openForecastSession(ctx context.Context, store *overgodb.Store, value manif
 	if err != nil {
 		return nil, fmt.Errorf("evaluate: %s is no forecast model: %w", path, err)
 	}
-	return openCapabilitySession(ctx, store, value, source, recipe.TaskForecast, func() (evaluation.Runtime, func(context.Context) error, error) {
+	return openCapabilitySession(ctx, store, value, source, recipe.TaskForecast, nil, func(recipe.Definition) (evaluation.Runtime, func(context.Context) error, error) {
 		model, err := seriesforecast.Load(path)
 		return forecastRuntime{model}, func(context.Context) error { return nil }, err
 	})

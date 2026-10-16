@@ -2,9 +2,12 @@ package speechsynth
 
 import (
 	"errors"
+	"path/filepath"
 
 	"overgo/internal/checked"
 	"overgo/internal/optimizer"
+	"overgo/internal/safetensors"
+	"overgo/internal/tensor"
 	"overgo/internal/trainingprogram"
 )
 
@@ -123,34 +126,85 @@ func (t *JointTrainer) Close() error {
 	return err
 }
 
-// OptimizerSnapshot returns shared CPU Muon state at a completed step boundary.
-// Device state is not converted to host precision or represented as resumable.
+// OptimizerSnapshot returns native Muon state at a completed finite step boundary.
 func (t *JointTrainer) OptimizerSnapshot() (optimizer.State, error) {
-	if t == nil || t.host == nil || !t.checkpointReady || !t.finiteWeights() {
-		return optimizer.State{}, errors.New("speechsynth: CPU checkpoint boundary unavailable")
+	if t == nil || t.pack == nil || !t.checkpointReady || !t.finiteWeights() {
+		return optimizer.State{}, errors.New("speechsynth: checkpoint boundary unavailable")
 	}
-	return t.host.Snapshot(), nil
+	return t.Snapshot(), nil
 }
 
-// Restore validates CPU state and every named weight before replacing either.
+// Restore validates native optimizer state and every named weight before replacing either.
 // Universal checkpoint, data-stream and artifact binding remain caller-owned.
 func (t *JointTrainer) Restore(weights map[string][]float32, state optimizer.State) error {
-	if t == nil || t.host == nil || state.Config != t.config {
-		return errors.New("speechsynth: CPU restore configuration differs")
+	if t == nil || t.pack == nil || state.Config != t.config {
+		return errors.New("speechsynth: restore configuration differs")
 	}
 	if err := optimizer.ValidateState(state, t.pack.Plan().Identity(), t.pack.ParameterCount()); err != nil {
 		return err
+	}
+	current := t.Snapshot()
+	if (len(current.MomentumF32) != 0) != (len(state.MomentumF32) != 0) {
+		return errors.New("speechsynth: exact resume requires the same momentum precision")
 	}
 	if err := t.pack.RestoreWeights(weights); err != nil {
 		return err
 	}
 	// Restore cannot fail after the same plan, shape and configuration checks;
 	// the trainer contract excludes concurrent mutation of the supplied state.
-	if err := t.host.Restore(state); err != nil {
+	var err error
+	if t.host != nil {
+		err = t.host.Restore(state)
+	} else {
+		err = t.stepper.Restore(state)
+	}
+	if err != nil {
 		return err
 	}
 	t.checkpointReady = true
 	return nil
+}
+
+// RestoreCheckpoint restores only the complete trainable surface after the caller verifies checkpoint identity.
+func (t *JointTrainer) RestoreCheckpoint(directory string, state optimizer.State) error {
+	if t == nil || t.model == nil {
+		return errors.New("speechsynth: closed trainer cannot restore")
+	}
+	weights, err := t.model.checkpointWeights(directory)
+	if err != nil {
+		return err
+	}
+	return t.Restore(weights, state)
+}
+
+func (m *Model) checkpointWeights(directory string) (map[string][]float32, error) {
+	source, err := safetensors.OpenFile(filepath.Join(directory, trainingprogram.CheckpointWeights))
+	if err != nil {
+		return nil, err
+	}
+	defer source.Close()
+	expected, shapes := m.TrainedTensors(true)
+	if len(source.Tensors) != len(expected) {
+		return nil, errors.New("speechsynth: checkpoint trainable tensor set differs")
+	}
+	for name, values := range expected {
+		stored, found := source.Tensors[name]
+		shape := shapes[name]
+		if !found || stored.DType != "F32" || len(stored.Shape) != tensor.PairedExtent || stored.Shape[0] != uint64(shape[0]) || stored.Shape[1] != uint64(shape[1]) {
+			return nil, errors.New("speechsynth: checkpoint tensor geometry differs")
+		}
+		loaded, err := safetensors.ReadF32(stored)
+		if err != nil || len(loaded) != len(values) {
+			return nil, errors.Join(errors.New("speechsynth: checkpoint tensor length differs"), err)
+		}
+		for _, value := range loaded {
+			if !checked.Finite32(value) {
+				return nil, errors.New("speechsynth: checkpoint weight is nonfinite")
+			}
+		}
+		expected[name] = loaded
+	}
+	return expected, nil
 }
 
 func (t *JointTrainer) forward(state *jointTrainingState) error {

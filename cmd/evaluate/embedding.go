@@ -74,7 +74,7 @@ func openEmbeddingSession(ctx context.Context, store *overgodb.Store, value mani
 	if err != nil {
 		return nil, fmt.Errorf("evaluate: %s is no image encoder: %w", request.Path, err)
 	}
-	return openCapabilitySession(ctx, store, value, source, recipe.TaskImageEmbedding, func() (evaluation.Runtime, func(context.Context) error, error) {
+	return openCapabilitySession(ctx, store, value, source, recipe.TaskImageEmbedding, nil, func(recipe.Definition) (evaluation.Runtime, func(context.Context) error, error) {
 		encoder, err := vitencoder.Load(request.Path)
 		return embeddingRuntime{encoder: encoder, root: request.MediaRoot}, func(context.Context) error { return nil }, err
 	})

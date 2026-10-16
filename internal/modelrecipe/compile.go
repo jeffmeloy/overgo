@@ -475,6 +475,19 @@ func CapabilityDefinition(task recipe.Task, modelID artifact.ID) (recipe.Definit
 	return capability.definition(task, modelID)
 }
 
+// AdaptedSpeechDefinition binds a trained surface to the canonical frozen speech base without activation.
+func AdaptedSpeechDefinition(base recipe.Definition, checkpoint artifact.ID) (recipe.Definition, error) {
+	if err := base.ValidateIdentity(); err != nil {
+		return recipe.Definition{}, err
+	}
+	expected, err := CapabilityDefinition(recipe.TaskSpeech, base.Model)
+	if err != nil || expected.ID != base.ID || checkpoint.Kind() != artifact.KindCheckpoint {
+		return recipe.Definition{}, errors.New("adapted speech: canonical base and checkpoint required")
+	}
+	return linearCapabilities[recipe.TaskSpeech].definition(recipe.TaskSpeech, base.Model,
+		recipe.Dependency{Role: recipe.DependencyCheckpoint, Artifact: checkpoint})
+}
+
 // ReferenceVideoEditDefinition returns a prompt and source-video conditioned graph.
 func ReferenceVideoEditDefinition(modelID, profileID artifact.ID) (recipe.Definition, error) {
 	prepare := recipe.Node{ID: "prepare", Module: ModuleReferenceVideoPrepare, Placement: recipe.PlacementHybrid, Session: recipe.SessionCapacity}

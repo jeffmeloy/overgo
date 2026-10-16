@@ -99,7 +99,7 @@ func openReconstructionSession(ctx context.Context, store *overgodb.Store, value
 	if err != nil {
 		return nil, fmt.Errorf("evaluate: %s is no autoencoder: %w", request.Path, err)
 	}
-	return openCapabilitySession(ctx, store, value, source, recipe.TaskReconstruction, func() (evaluation.Runtime, func(context.Context) error, error) {
+	return openCapabilitySession(ctx, store, value, source, recipe.TaskReconstruction, nil, func(recipe.Definition) (evaluation.Runtime, func(context.Context) error, error) {
 		autoencoder, err := mediacapability.OpenAutoencoder(request.Path)
 		if err != nil {
 			return nil, nil, err

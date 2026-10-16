@@ -150,7 +150,7 @@
      "path": "internal/trainingworkflow/audio_test.go",
      "contains": "func TestAudioTrainingContract(",
      "role": "artifact",
-     "identity": "evidence:sha256:9997ab4862947c504825a7898d6e05c3a7e8c569f5340e74c50fd43d05de46d1"
+     "identity": "evidence:sha256:e6970e200ede64eb033df44e5c11e0a6d2783cef9ddcaab40e951b6efcbc67b5"
     }
    ]
   },

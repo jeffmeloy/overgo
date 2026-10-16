@@ -26,15 +26,23 @@ import (
 	"math"
 	"path/filepath"
 
+	"overgo/internal/artifact"
 	"overgo/internal/checked"
 	"overgo/internal/hostmath"
 	"overgo/internal/jsonfile"
 	"overgo/internal/media"
+	"overgo/internal/modelartifact"
 	"overgo/internal/safetensors"
 	"overgo/internal/strictjson"
 	"overgo/internal/tensor"
 	"overgo/internal/tensorcatalog"
 )
+
+// Inventory binds the complete speech weights, configuration and tokenizer.
+func Inventory(directory string) (modelartifact.Inventory, error) {
+	return modelartifact.FromSafetensorsDirectory("speech", directory, "pockettts_config.json",
+		modelartifact.FileSpec{Path: "tokenizer.model", Name: "tokenizer", Role: artifact.ComponentTokenizer})
+}
 
 // Vendor-source epsilons: not config fields, not tensors — code facts of the
 // reference implementation (adaptive reference facts speech-flow-synthesis).

@@ -94,6 +94,16 @@ func TestASRResidentCUDA(t *testing.T) {
 			t.Fatal("closed binding silently executed")
 		}
 	})
-	t.Run("stream_restart", func(t *testing.T) { testTransducerCheckpointRestart(t, true) })
+	t.Run("stream_refused", func(t *testing.T) {
+		_, _, _, model := tinyTransducer(t)
+		if err := model.BindDevice(t.Context(), 0); err != nil {
+			t.Fatal(err)
+		}
+		defer model.Close(context.Background())
+		var workspace TransducerWorkspace
+		if _, err := model.RecognizeChunk(t.Context(), []float32{1, -1, 2, -2}, 2, true, &workspace, nil); err == nil || workspace.stream != nil {
+			t.Fatalf("resident binding admitted a native stream: %v", err)
+		}
+	})
 	t.Run("recipe_lifetime", func(t *testing.T) { testTranscriptionRecipeLineage(t, true) })
 }

@@ -179,7 +179,8 @@ func (r *Recognizer) Close(ctx context.Context) error {
 	return r.encoder.Close(ctx)
 }
 
-// BindDevice retains the acoustic encoder's feed-forward execution.
+// BindDevice retains the acoustic encoder's feed-forward execution for whole clips.
+// Native streaming requires the CPU binding.
 func (t *Transducer) BindDevice(ctx context.Context, ordinal int) error {
 	if t == nil {
 		return errors.New("transducer: device binding requires a loaded model")

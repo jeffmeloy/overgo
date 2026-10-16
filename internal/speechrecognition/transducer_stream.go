@@ -16,6 +16,9 @@ type transducerStream struct {
 }
 
 func (t *Transducer) streamGeometry(visit func(int)) (first, following int, bytes uint64, err error) {
+	if t.encoder.resident != nil {
+		return 0, 0, 0, errors.New("transducer stream: resident execution supports whole clips only; use the CPU recipe for native streaming")
+	}
 	factor, bands, channels := 1, t.binding.Bands, 1
 	var elements uint64
 	for _, layer := range t.subsampling {

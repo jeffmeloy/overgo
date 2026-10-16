@@ -65,7 +65,7 @@
      "path": "internal/audioparity/second_asr_test.go",
      "contains": "func TestSecondASROfflineAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:8817027f82ed0fc7488cf73f63cc34d0dbabe5de784861a75a24bda35181ac13"
+     "identity": "evidence:sha256:06dfefa81a16cc8f2983891ab34599a6f939a8caa44b33fe94482701c10e8f0d"
     },
     {
      "path": "internal/audioparity/testdata/transducer_captures.json",
@@ -88,13 +88,13 @@
      "path": "internal/speechrecognition/transducer_stream.go",
      "contains": "func (t *Transducer) RecognizeChunk(",
      "role": "source",
-     "identity": "file:sha256:18666ce373f333f85f09ac6bae379394a4e7b7810ba5de905af9dd08e29f2330"
+     "identity": "file:sha256:e612fba933bd544e310118f49d096fad7681321b34bb9799848fe83eac889072"
     },
     {
      "path": "internal/audioparity/second_asr_test.go",
      "contains": "func TestSecondASRStreamingAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:8817027f82ed0fc7488cf73f63cc34d0dbabe5de784861a75a24bda35181ac13"
+     "identity": "evidence:sha256:06dfefa81a16cc8f2983891ab34599a6f939a8caa44b33fe94482701c10e8f0d"
     },
     {
      "path": "internal/audioparity/testdata/transducer_captures.json",

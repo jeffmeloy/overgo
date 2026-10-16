@@ -164,7 +164,9 @@ func loadTranscriber(ctx context.Context, repository artifact.Repository, defini
 		transducer, err = LoadTransducer(ctx, hf.Tensors, profile.Encoder, *profile.Transducer, memoryBytes)
 		if err == nil {
 			encoder = transducer.encoder
-			stream, err = audiodsp.NewStreamFrontend(profile.Frontend, memoryBytes)
+			if !device {
+				stream, err = audiodsp.NewStreamFrontend(profile.Frontend, memoryBytes)
+			}
 		}
 	}
 	if err != nil {

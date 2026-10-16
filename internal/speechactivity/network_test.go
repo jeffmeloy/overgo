@@ -8,7 +8,47 @@ import (
 	"reflect"
 	"slices"
 	"testing"
+
+	"overgo/internal/audiodsp"
+	"overgo/internal/media"
+	"overgo/internal/recipecontract"
 )
+
+func BenchmarkActivityWaveform(b *testing.B) {
+	config := audiodsp.FrontendConfig{
+		SampleRate: 16_000, FFTLength: 512, FrameSpan: 400,
+		Geometry: recipecontract.AudioFrameGeometry{WindowSamples: 400, HopSamples: 160, FeatureBins: 1},
+		Padding:  "zero", Window: "periodic-hann",
+		Mel: audiodsp.MelConfig{Scale: "htk", MinFrequency: 20, MaxFrequency: 7_000},
+		Log: audiodsp.LogConfig{Power: true, Base: "natural", GuardMode: "clamp", Guard: 1e-8, Scale: 1},
+	}
+	frontend, err := audiodsp.NewFrontend(config, 1<<24)
+	if err != nil {
+		b.Fatal(err)
+	}
+	detector := OfflineDetector{network: testNetwork(), frontend: frontend, config: config,
+		policy: OfflineConfig{Smoothing: 1, Threshold: .5, MaxSpeech: config.SampleRate / int(config.Geometry.HopSamples)}, memoryBytes: 1 << 24}
+	samples := make([]float32, config.SampleRate)
+	for i := range samples {
+		samples[i] = float32(i%config.FFTLength)/float32(config.FFTLength) - .5
+	}
+	encoded, err := media.EncodeWAVPCM16(samples, config.SampleRate)
+	if err != nil {
+		b.Fatal(err)
+	}
+	request := DetectionRequest{Audio: encoded, MaximumSamples: uint64(len(samples)), MemoryBytes: 1 << 24}
+	want, err := detector.Detect(b.Context(), request)
+	if err != nil || len(want) == 0 {
+		b.Fatalf("fixture activity %v: %v", want, err)
+	}
+	b.Logf("synthetic waveform segments=%v", want)
+	b.ReportAllocs()
+	for b.Loop() {
+		if got, err := detector.Detect(b.Context(), request); err != nil || !slices.Equal(got, want) {
+			b.Fatalf("activity %v, want %v: %v", got, want, err)
+		}
+	}
+}
 
 // Small declared linear maps make every state element observable. The two
 // blocks use different contexts, including dilation, without a model fixture.

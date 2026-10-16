@@ -8,7 +8,39 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/audiodsp"
+	"overgo/internal/recipecontract"
 )
+
+func BenchmarkRecognizerWaveform(b *testing.B) {
+	directory, declaration := transcriptionFixtureModel(b)
+	frontend := audiodsp.FrontendConfig{
+		SampleRate: 16_000, FFTLength: 512, FrameSpan: 400,
+		Geometry: recipecontract.AudioFrameGeometry{WindowSamples: 400, HopSamples: 160, FeatureBins: 4},
+		Padding:  "zero", Window: "periodic-hann",
+		Mel: audiodsp.MelConfig{Scale: "htk", MinFrequency: 20, MaxFrequency: 7_000},
+		Log: audiodsp.LogConfig{Power: true, Base: "natural", GuardMode: "clamp", Guard: 1e-8, Scale: 1},
+	}
+	model, err := LoadRecognizer(b.Context(), directory, RecognizerSpec{
+		Declaration: declaration, Frontend: frontend,
+		Grouping: audiodsp.GroupedFeatureConfig{StackFrames: 1, FinalFrameSamples: 400},
+	}, 1<<24)
+	if err != nil {
+		b.Fatal(err)
+	}
+	request := TranscriptionRequest{Audio: transcriptionWAV(testWave(frontend.SampleRate)), MaximumSamples: uint64(frontend.SampleRate), MemoryBytes: 1 << 24}
+	want, err := model.Transcribe(b.Context(), request)
+	if err != nil || want == "" {
+		b.Fatalf("fixture transcript %q: %v", want, err)
+	}
+	b.Logf("synthetic waveform transcript=%q", want)
+	b.ReportAllocs()
+	for b.Loop() {
+		if got, err := model.Transcribe(b.Context(), request); err != nil || got != want {
+			b.Fatalf("transcript %q, want %q: %v", got, want, err)
+		}
+	}
+}
 
 func TestRecognizerLoadAdmission(t *testing.T) {
 	t.Parallel()

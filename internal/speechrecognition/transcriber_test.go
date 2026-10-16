@@ -266,7 +266,7 @@ func TestTranscriptionRecipeLineage(t *testing.T) {
 	})
 }
 
-func transcriptionFixtureModel(t *testing.T) (string, Declaration) {
+func transcriptionFixtureModel(t testing.TB) (string, Declaration) {
 	t.Helper()
 	encoded, err := os.ReadFile("testdata/encoder.json")
 	if err != nil {

@@ -109,32 +109,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "audio-frontend",
-      "title": "Reduce shared spectral and mel processing for ASR and activity callers",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 1600,
-        "reason": "Planning estimate of net production AST growth = 1100 nodes for bounded FFT planning/execution + 300 for mel support spans + 200 for workspace integration after displaced loops and tables are removed. These are scope allowances rather than measured node counts. Reconcile with preflight before implementation lands. Test, fixture and maintenance costs remain part of the adoption comparison."
-      },
-      "steps": [
-        {
-          "id": "spectrum",
-          "title": "Replace direct transforms through the existing audiodsp frontend",
-          "status": "open",
-          "verify": "go test ./internal/audiodsp",
-          "rationale": "The existing frontend serves speechrecognition.loadTranscriber, Recognizer and speaker processing plus speechactivity detectors.\nCompare a Go-native FFT plan with Frontend.spectrum and Reconstruct using BenchmarkFrontend cold-plan, whole, hop-chunks and single-sample-chunks plus matched waveform-to-transcript and activity consumers.\nPreserve float64-derived arithmetic contracts, arbitrary supported odd/even lengths, window offsets, inverse scaling, resampling, normalization, cancellation and memory admission.\nThe upstream float FFT does not establish equivalent Go arithmetic.\nReplace the direct trigonometric tables and transform loops only after numerical and matched-cost acceptance.\nKeep a direct transform only as a bounded test oracle if no independent fixture covers its cases.\nExtend TestSpectrumMatchesNumpyRFFT, TestStandardSTFTInverseReconstructsSource, TestOddFourierLengthAndEmptyChunkBoundaries and the existing stream restart tables.\nExisting numerical checks are expected to pass on both implementations because the improvement is cost rather than changed answers.\nServes: ASR, activity detection and speaker processing share lower spectral cost.\nDisappears: audiodsp owns the replacement and retires displaced direct-transform tables and loops together with redundant setup after coverage is mapped.\nEvidence: audio.cpp 22cad6af5043a2d7c7f1d9a0e6c9d7996a80dfc8 src/framework/audio/fft.cpp and its dependency license notices provide reference behavior rather than a linked runtime.\nBatch: The diff determines host/device lane reach, inference-guard expiry and media reconciliation independently before a production landing."
-        },
-        {
-          "id": "mel",
-          "title": "Remove zero-coefficient mel work without changing feature semantics",
-          "status": "open",
-          "verify": "go test ./internal/audiodsp ./internal/speechrecognition ./internal/speechactivity",
-          "rationale": "Compare the current dense mel loop with per-band nonzero support in the existing immutable Frontend.\nDerive supports from the actual filterbank and preserve the ordered accumulation of nonzero terms.\nRetain HTK and Slaney behavior, float32 preemphasis and normalization differences, frame limits and streamed finalization.\nMeasure mel independently of the FFT change before combining gains.\nKeep the dense representation where its consumers or measured cost require it rather than storing both indefinitely.\nExtend existing filterbank and normalization tables instead of creating a second frontend suite.\nServes: All existing audiodsp callers avoid demonstrated redundant frequency-band work.\nDisappears: Accepted support iteration replaces dense zero multiplies and any displaced filterbank representation in audiodsp.\nEvidence: The same pinned audio.cpp src/framework/audio/nemo_mel_frontend.cpp and docs/reports/nemo_mel_frontend_migration.md identify reference cases rather than Overgo timing results.\nBatch: Land with the spectral change when both are ready and share affected checks without delaying an accepted result."
-        }
-      ]
-    },
-    {
       "id": "audio-speech-stream",
       "title": "Produce playable speech before the complete recording finishes",
       "owner": "master-lead",

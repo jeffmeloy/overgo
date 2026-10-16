@@ -93,8 +93,8 @@ func TestDeclaredWindowPowerAndMelInterpolation(t *testing.T) {
 	// The 350-Hz bin has normalized mel position log(1.5)/log(4).
 	// Its first triangle's descending side is 2-2*log2(1.5).
 	want := 2 - 2*math.Log2(1.5)
-	if math.Abs(plan.filterbank[plan.bands]-want) > 1e-14 {
-		t.Fatalf("mel-linear side %g, want %g", plan.filterbank[plan.bands], want)
+	if got := melWeight(plan, 1, 0); math.Abs(got-want) > 1e-14 {
+		t.Fatalf("mel-linear side %g, want %g", got, want)
 	}
 	config.WindowPower = nil
 	config.Mel.LinearInMel = false

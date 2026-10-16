@@ -2,6 +2,7 @@ package audiodsp
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"testing"
 
@@ -83,35 +84,6 @@ func TestProcessIsChunkBoundaryInvariantAndReusesStorage(t *testing.T) {
 	}
 }
 
-func TestStandardSTFTInverseReconstructsSource(t *testing.T) {
-	config := testFrontendConfig()
-	config.Geometry.WindowSamples = 8
-	config.Geometry.HopSamples = 4
-	config.FrameSpan = 8
-	config.WindowOffset = 0
-	config.Window = "rectangular"
-	config.PadLeft = 4
-	config.PadRight = 4
-	plan, err := NewFrontend(config, 1<<20)
-	if err != nil {
-		t.Fatal(err)
-	}
-	samples := []float32{.125, -.25, .5, -.75, 1, -.625, .375, -.125, .0625}
-	var workspace Workspace
-	got, err := plan.Reconstruct(t.Context(), [][]float32{samples[:2], samples[2:7], samples[7:]}, 8, &workspace)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(got) != len(samples) {
-		t.Fatalf("samples=%d want %d", len(got), len(samples))
-	}
-	for index, want := range samples {
-		if math.Abs(float64(got[index]-want)) > 4*math.SmallestNonzeroFloat32 {
-			t.Fatalf("sample %d=%g want %g", index, got[index], want)
-		}
-	}
-}
-
 func TestNormalizationUsesOnlyDeclaredStatistics(t *testing.T) {
 	config := testFrontendConfig()
 	config.Padding = "zero"
@@ -189,10 +161,20 @@ func TestFrontendSlaneyFilterbankMatchesTorchAudio(t *testing.T) {
 	want := []float64{0, 0, 0, .0005348663544282317, .0008510092739015818, 0, 0, .00023411086294800043, .0005793526652269065, 0, 0, .00039287295658141375, 0, 0, 0}
 	// The oracle stores weights in float32; this reference computes float64.
 	for index, value := range want {
-		if math.Abs(p.filterbank[index]-value) > 8*(1.0/(1<<23))*max(1e-3, value) {
-			t.Fatalf("weight %d=%.17g want %.17g", index, p.filterbank[index], value)
+		got := melWeight(p, index/p.bands, index%p.bands)
+		if math.Abs(got-value) > 8*(1.0/(1<<23))*max(1e-3, value) {
+			t.Fatalf("weight %d=%.17g want %.17g", index, got, value)
 		}
 	}
+}
+
+func melWeight(p *Frontend, bin, band int) float64 {
+	support := p.melSupport[band]
+	index := int64(bin) - int64(support.first)
+	if index < 0 || uint64(index) >= p.melSupport[band+1].offset-support.offset {
+		return 0
+	}
+	return p.filterbank[support.offset+uint64(index)]
 }
 
 func TestFrontendNormalizationAndDynamicRangeDefinitions(t *testing.T) {
@@ -351,6 +333,7 @@ func TestFrontendRefusesImplicitOrUnboundedBehavior(t *testing.T) {
 		{"zero budget", func(*FrontendConfig) {}, 0},
 		{"unknown padding", func(c *FrontendConfig) { c.Padding = "replicate" }, 1 << 20},
 		{"window outside FFT", func(c *FrontendConfig) { c.FFTLength = 3 }, 1 << 20},
+		{"Fourier extent overflow", func(c *FrontendConfig) { c.FFTLength = math.MaxInt }, math.MaxUint64},
 		{"Nyquist violation", func(c *FrontendConfig) { c.Mel.MaxFrequency = 5 }, 1 << 20},
 		{"even FIR", func(c *FrontendConfig) { c.ResampleTaps = []float64{1, 1} }, 1 << 20},
 		{"unspecified log scale", func(c *FrontendConfig) { c.Log.Scale = math.NaN() }, 1 << 20},
@@ -390,6 +373,18 @@ func TestFrontendRefusesImplicitOrUnboundedBehavior(t *testing.T) {
 	if _, _, err := other.Process(t.Context(), [][]float32{{1, 2, 3, 4, 5, 6, 7, 8}}, 8, &workspace, ProcessOptions{}); err == nil {
 		t.Fatal("want workspace-owner refusal")
 	}
+	// Infinite energy must be refused even when this band's only coefficients are zero.
+	base.FFTLength, base.FrameSpan, base.WindowOffset = 2, 2, 0
+	base.Geometry.WindowSamples, base.Geometry.FeatureBins = 2, 1
+	base.PadLeft, base.PadRight = 0, 0
+	base.Condition = &FrameCondition{Gain: math.MaxFloat64}
+	overflow, err := NewFrontend(base, 1<<20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := overflow.Process(t.Context(), [][]float32{{1, 1}}, 8, &Workspace{}, ProcessOptions{}); err == nil {
+		t.Fatal("accepted non-finite energy outside mel support")
+	}
 }
 
 func TestInverseRefusesUncoveredSamples(t *testing.T) {
@@ -419,33 +414,73 @@ func TestWorkspaceBudgetRefusesBeforeAllocation(t *testing.T) {
 	if values, _, err := plan.Process(t.Context(), [][]float32{{1, 2, 3, 4, 5, 6, 7, 8}}, 8, &w, ProcessOptions{}); err == nil || values != nil {
 		t.Fatal("want workspace budget refusal")
 	}
-	if cap(w.features) != 0 || cap(w.real) != 0 || w.owner != nil {
+	if cap(w.features) != 0 || cap(w.real) != 0 || cap(w.fourier) != 0 || w.owner != nil {
 		t.Fatal("allocated workspace before budget approval")
 	}
 }
 
-func TestOddFourierLengthAndEmptyChunkBoundaries(t *testing.T) {
-	config := testFrontendConfig()
-	config.FFTLength = 5
-	config.FrameSpan = 5
-	config.Geometry.WindowSamples = 5
-	config.WindowOffset = 0
-	config.PadLeft = 2
-	config.PadRight = 2
-	config.Window = "rectangular"
-	plan, err := NewFrontend(config, 1<<20)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var w Workspace
-	samples := []float32{.25, -.5, .75, -1, .125, -.25, .5}
-	got, err := plan.Reconstruct(t.Context(), [][]float32{nil, samples[:2], nil, samples[2:], nil}, 8, &w)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for index, value := range samples {
-		if got[index] != value {
-			t.Fatalf("odd inverse[%d]=%g want %g", index, got[index], value)
+func TestStandardSTFTInverseReconstructsSource(t *testing.T) {
+	// Prime, composite and power-of-two transforms share the inverse and chunk contract.
+	for _, length := range []int{5, 7, 8, 15, 31, 257, 400, 512} {
+		for _, offset := range []int{0, 1} {
+			t.Run(fmt.Sprintf("length=%d/offset=%d", length, offset), func(t *testing.T) {
+				config := testFrontendConfig()
+				config.FFTLength, config.FrameSpan = length, length
+				config.Geometry.WindowSamples = uint64(length - offset)
+				config.WindowOffset, config.PadLeft, config.PadRight = offset, 2, 2
+				config.Window = "rectangular"
+				if length == 8 {
+					config.Geometry.HopSamples, config.PadLeft, config.PadRight = 4, 4, 4
+				}
+				plan, err := NewFrontend(config, 1<<22)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var w Workspace
+				samples := []float32{.25, -.5, .75, -1, .125, -.25, .5}
+				if length == 8 {
+					samples = []float32{.125, -.25, .5, -.75, 1, -.625, .375, -.125, .0625}
+				}
+				for len(samples) < length {
+					samples = append(samples, samples...)
+				}
+				chunks := [][]float32{nil, samples[:2], nil, samples[2:], nil}
+				_, _, err = plan.Process(t.Context(), chunks, 8, &w, ProcessOptions{FrameLimit: 1, Observe: func(trace FrameTrace) error {
+					var magnitude float64
+					for _, value := range trace.Window {
+						magnitude += math.Abs(value)
+					}
+					// The direct oracle's phase and accumulation error grows with N.
+					limit := 8 * (math.Nextafter(1, 2) - 1) * float64(length) * magnitude
+					for bin := range trace.Real {
+						var real, imaginary float64
+						for index, value := range trace.Window {
+							angle := -2 * math.Pi * float64(bin) * float64(offset+index) / float64(length)
+							real += value * math.Cos(angle)
+							imaginary += value * math.Sin(angle)
+						}
+						if math.Abs(trace.Real[bin]-real) > limit || math.Abs(trace.Imaginary[bin]-imaginary) > limit {
+							t.Fatalf("frame %d bin %d differs from direct oracle", trace.Frame, bin)
+						}
+					}
+					return nil
+				}})
+				if err != nil {
+					t.Fatal(err)
+				}
+				got, err := plan.Reconstruct(t.Context(), chunks, 8, &w)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(got) != len(samples) {
+					t.Fatalf("samples=%d want %d", len(got), len(samples))
+				}
+				for index, value := range samples {
+					if got[index] != value {
+						t.Fatalf("inverse[%d]=%g want %g", index, got[index], value)
+					}
+				}
+			})
 		}
 	}
 }

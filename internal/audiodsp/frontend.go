@@ -122,14 +122,15 @@ type NormalizeConfig struct {
 }
 
 // Frontend is immutable after construction and may be shared across callers.
-// It reuses the projector's float64 direct-DFT reference, not a fast FFT.
 // Audio.cpp 3497b7cc44753e2c141d8fe60ac42cec433e3281 supplies padding,
 // window, filterbank and normalization semantics; see licenses/audio-notices.txt.
 type Frontend struct {
-	config                           FrontendConfig
-	window, cosine, sine, filterbank []float64
-	bins, windowSize, hop, bands     int
-	memoryBytes, tableBytes          uint64
+	config                       FrontendConfig
+	window, filterbank           []float64
+	melSupport                   []melSupport
+	fourier                      fourierPlan
+	bins, windowSize, hop, bands int
+	memoryBytes, tableBytes      uint64
 }
 
 // Workspace owns mutable per-call storage. Its zero value is ready to use.
@@ -137,6 +138,7 @@ type Frontend struct {
 // only until the next call with this workspace. Input chunks are never retained.
 type Workspace struct {
 	owner                              *Frontend
+	fourier                            []complex128
 	window, real, imaginary, magnitude []float64
 	accum, envelope                    []float64
 	features, waveform, resampled      []float32
@@ -234,16 +236,25 @@ func NewFrontend(config FrontendConfig, memoryBytes uint64) (*Frontend, error) {
 	}
 	p := &Frontend{config: config, bins: config.FFTLength/2 + 1, windowSize: windowSize, hop: hop,
 		bands: bands, memoryBytes: memoryBytes}
-	basis, ok := checked.MulInt(p.bins, windowSize)
-	bank, bankOK := checked.MulInt(p.bins, p.bands)
-	if !ok || !bankOK {
+	fftSize, chirps, err := fourierExtent(config.FFTLength)
+	if err != nil {
+		return nil, err
+	}
+	kernelSize := 0
+	if chirps != 0 {
+		kernelSize = fftSize
+	}
+	// A bin belongs to at most two neighboring triangular mel bands.
+	bank, bankOK := checked.MulInt(p.bins, melOverlap)
+	supportWords, supportOK := checked.MulInt(p.bands+1, melSupportFields)
+	if !bankOK || !supportOK {
 		return nil, errors.New("audio frontend: table extent overflows")
 	}
 	statistics := 0
 	if config.Normalize != nil {
 		statistics = len(config.Normalize.Mean) + len(config.Normalize.InverseStd)
 	}
-	if err := p.reserve(0, []int{windowSize, basis, basis, bank, p.bands + 2, len(config.ResampleTaps), statistics}, nil); err != nil {
+	if err := p.reserve(0, []int{windowSize, bank, supportWords, p.bands + 2, len(config.ResampleTaps), statistics}, nil, fftSize/fourierRadix, chirps, kernelSize); err != nil {
 		return nil, err
 	}
 	p.config = config.Clone()
@@ -261,20 +272,13 @@ func NewFrontend(config FrontendConfig, memoryBytes uint64) (*Frontend, error) {
 			}
 		}
 	}
-	p.cosine, p.sine = make([]float64, basis), make([]float64, basis)
-	for bin := range p.bins {
-		angle := -2 * math.Pi * float64(bin) / float64(config.FFTLength)
-		for index := range windowSize {
-			phase := angle * float64(config.WindowOffset+index)
-			p.cosine[bin*windowSize+index], p.sine[bin*windowSize+index] = math.Cos(phase), math.Sin(phase)
-		}
-	}
-	var err error
-	p.filterbank, err = p.melFilterbank()
+	p.fourier = newFourierPlan(config.FFTLength, fftSize, chirps)
+	p.filterbank, p.melSupport, err = p.melFilterbank(bank)
 	if err != nil {
 		return nil, err
 	}
-	for _, count := range []int{windowSize, basis, basis, bank, len(config.ResampleTaps), statistics} {
+	p.tableBytes = uint64(fftSize/fourierRadix+chirps+kernelSize) * complex128Bytes
+	for _, count := range []int{windowSize, bank, supportWords, len(config.ResampleTaps), statistics} {
 		term := uint64(count) * uint64(float64Bytes)
 		if p.tableBytes > math.MaxUint64-term {
 			return nil, errors.New("audio frontend: table byte count overflows")
@@ -287,14 +291,15 @@ func NewFrontend(config FrontendConfig, memoryBytes uint64) (*Frontend, error) {
 const (
 	float64Bytes = 8
 	float32Bytes = 4
+	// complex128Bytes is Go's two float64 components for numeric budget accounting.
+	// Reconsider only if the Fourier scalar type changes.
+	complex128Bytes = 2 * float64Bytes
 )
 
-func (p *Frontend) reserve(base uint64, doubles, singles []int) error {
-	for group, counts := range [][]int{doubles, singles} {
-		width := uint64(float64Bytes)
-		if group != 0 {
-			width = float32Bytes
-		}
+func (p *Frontend) reserve(base uint64, doubles, singles []int, complexes ...int) error {
+	widths := [...]uint64{float64Bytes, float32Bytes, complex128Bytes}
+	for group, counts := range [][]int{doubles, singles, complexes} {
+		width := widths[group]
 		for _, count := range counts {
 			if count < 0 || uint64(count) > uint64(math.MaxInt)/width || base > p.memoryBytes || uint64(count) > (p.memoryBytes-base)/width {
 				return errors.New("audio frontend: numeric storage exceeds byte budget or addressability")
@@ -314,7 +319,7 @@ func (p *Frontend) reserveWorkspace(w *Workspace, featureCount, sampleCount int,
 	if inverse {
 		doubles[4], doubles[5], singles[1] = max(cap(w.accum), sampleCount), max(cap(w.envelope), sampleCount), max(cap(w.waveform), sampleCount)
 	}
-	return p.reserve(p.tableBytes, doubles, singles)
+	return p.reserve(p.tableBytes, doubles, singles, max(cap(w.fourier), p.fourier.size))
 }
 
 func (p *Frontend) workspace(w *Workspace, featureCount, sampleCount int, inverse bool) error {
@@ -322,6 +327,7 @@ func (p *Frontend) workspace(w *Workspace, featureCount, sampleCount int, invers
 		return err
 	}
 	w.owner = p
+	w.fourier = scratch.Resize(w.fourier, p.fourier.size)
 	w.window = scratch.Resize(w.window, p.windowSize)
 	w.real = scratch.Resize(w.real, p.bins)
 	w.imaginary = scratch.Resize(w.imaginary, p.bins)
@@ -374,7 +380,7 @@ func (p *Frontend) processFrames(ctx context.Context, source chunkSource, frames
 	if options.Observe != nil {
 		if err := p.reserve(p.tableBytes,
 			[]int{cap(w.window), cap(w.real), cap(w.imaginary), cap(w.magnitude), cap(w.accum), cap(w.envelope), max(cap(w.mel), p.bands)},
-			[]int{cap(w.features), cap(w.waveform), cap(w.joined), cap(w.resampled), cap(w.sequence), cap(w.padding)}); err != nil {
+			[]int{cap(w.features), cap(w.waveform), cap(w.joined), cap(w.resampled), cap(w.sequence), cap(w.padding)}, cap(w.fourier)); err != nil {
 			return nil, 0, err
 		}
 		w.mel = scratch.Resize(w.mel, p.bands)
@@ -386,6 +392,9 @@ func (p *Frontend) processFrames(ctx context.Context, source chunkSource, frames
 		p.spectrum(&source, frame, w)
 		for bin := range p.bins {
 			power := w.real[bin]*w.real[bin] + w.imaginary[bin]*w.imaginary[bin]
+			if !checked.Finite64(power) {
+				return nil, 0, errors.New("audio frontend: non-finite spectrum energy")
+			}
 			if p.config.Log.Power {
 				w.magnitude[bin] = power
 			} else {
@@ -394,8 +403,9 @@ func (p *Frontend) processFrames(ctx context.Context, source chunkSource, frames
 		}
 		for band := range p.bands {
 			var sum float64
-			for bin, magnitude := range w.magnitude {
-				sum += magnitude * p.filterbank[bin*p.bands+band]
+			support := p.melSupport[band]
+			for bin, weight := range p.filterbank[support.offset:p.melSupport[band+1].offset] {
+				sum += w.magnitude[int(support.first)+bin] * weight
 			}
 			if options.Observe != nil {
 				w.mel[band] = sum
@@ -447,21 +457,20 @@ func (p *Frontend) Reconstruct(ctx context.Context, chunks [][]float32, sampleRa
 			return nil, err
 		}
 		p.spectrum(&source, frame, w)
+		// Reconstruct the Hermitian spectrum from the exposed one-sided values.
+		for bin := range p.bins {
+			w.fourier[bin] = complex(w.real[bin], w.imaginary[bin])
+			if bin > 0 && bin < p.config.FFTLength-bin {
+				w.fourier[p.config.FFTLength-bin] = complex(w.real[bin], -w.imaginary[bin])
+			}
+		}
+		p.fourier.execute(w.fourier, true)
 		for index, window := range p.window {
 			sample := frame*p.hop - p.config.PadLeft + p.config.WindowOffset + index
 			if sample < 0 || sample >= source.count {
 				continue
 			}
-			var sum float64
-			for bin := range p.bins {
-				weight := 2.0
-				if bin == 0 || p.config.FFTLength%2 == 0 && bin == p.bins-1 {
-					weight = 1
-				}
-				basis := bin*p.windowSize + index
-				sum += weight * (w.real[bin]*p.cosine[basis] + w.imaginary[bin]*p.sine[basis])
-			}
-			w.accum[sample] += sum / float64(p.config.FFTLength) * window
+			w.accum[sample] += real(w.fourier[p.config.WindowOffset+index]) * window
 			w.envelope[sample] += window * window
 		}
 	}

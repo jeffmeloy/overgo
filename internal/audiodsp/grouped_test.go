@@ -139,7 +139,7 @@ func TestProcessGroupedRefusalAndBudget(t *testing.T) {
 	if _, _, err := p.Process(t.Context(), [][]float32{got}, 8, &w, ProcessOptions{}); err == nil {
 		t.Fatal("ordinary frontend accepted borrowed grouped output")
 	}
-	bytes := p.tableBytes + uint64(cap(w.window)+cap(w.real)+cap(w.imaginary)+cap(w.magnitude))*float64Bytes + uint64(cap(w.features)+cap(w.sequence)+cap(w.padding))*float32Bytes
+	bytes := p.tableBytes + uint64(cap(w.window)+cap(w.real)+cap(w.imaginary)+cap(w.magnitude))*float64Bytes + uint64(cap(w.features)+cap(w.sequence)+cap(w.padding))*float32Bytes + uint64(cap(w.fourier))*complex128Bytes
 	p.memoryBytes = bytes
 	if _, _, _, err := p.ProcessGrouped(t.Context(), input, 8, &w, config); err != nil {
 		t.Fatal(err)

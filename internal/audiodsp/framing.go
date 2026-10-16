@@ -82,7 +82,7 @@ func (p *Frontend) prepare(ctx context.Context, chunks [][]float32, sampleRate i
 			return chunkSource{}, 0, errors.New("audio frontend: FIR index overflows")
 		}
 		if err := p.reserve(p.tableBytes, []int{cap(w.window), cap(w.real), cap(w.imaginary), cap(w.magnitude), cap(w.accum), cap(w.envelope), cap(w.mel)},
-			[]int{cap(w.features), cap(w.waveform), max(cap(w.joined), source.count), max(cap(w.resampled), outCount), cap(w.sequence), cap(w.padding)}); err != nil {
+			[]int{cap(w.features), cap(w.waveform), max(cap(w.joined), source.count), max(cap(w.resampled), outCount), cap(w.sequence), cap(w.padding)}, cap(w.fourier)); err != nil {
 			return chunkSource{}, 0, err
 		}
 		w.joined = scratch.Resize(w.joined, source.count)
@@ -168,13 +168,12 @@ func (p *Frontend) spectrum(source *chunkSource, frame int, w *Workspace) {
 	for index, window := range p.window {
 		w.window[index] *= window
 	}
+	clear(w.fourier)
+	for index, value := range w.window {
+		w.fourier[p.config.WindowOffset+index] = complex(value, 0)
+	}
+	p.fourier.execute(w.fourier, false)
 	for bin := range p.bins {
-		var real, imaginary float64
-		basis := bin * p.windowSize
-		for index, value := range w.window {
-			real += value * p.cosine[basis+index]
-			imaginary += value * p.sine[basis+index]
-		}
-		w.real[bin], w.imaginary[bin] = real, imaginary
+		w.real[bin], w.imaginary[bin] = real(w.fourier[bin]), imag(w.fourier[bin])
 	}
 }

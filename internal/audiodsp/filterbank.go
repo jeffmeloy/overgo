@@ -17,9 +17,22 @@ const (
 	slaneyLogStartHz   = 1000.0
 	slaneyLogSpan      = 27.0
 	slaneyLogRatio     = 6.4
+	// melOverlap bounds nonzero triangle weights at a frequency bin.
+	// Reconsider if bands cease to be adjacent triangles on shared edges.
+	melOverlap = 2
+	// melSupportFields counts the uint64 fields in melSupport for byte admission.
+	// Reconsider when that representation changes.
+	melSupportFields = 2
 )
 
-func (p *Frontend) melFilterbank() ([]float64, error) {
+// melSupport indexes the first bin and packed coefficients for one triangle.
+//   - Uint64 fields keep numeric byte accounting independent of native int width.
+//   - The final entry supplies the end offset of the last band.
+type melSupport struct {
+	first, offset uint64
+}
+
+func (p *Frontend) melFilterbank(capacity int) ([]float64, []melSupport, error) {
 	toMel := func(hz float64) float64 { return htkMelScale * math.Log10(1+hz/htkMelBreakHz) }
 	toHz := func(mel float64) float64 { return htkMelBreakHz * (math.Pow(htkMelLogBase, mel/htkMelScale) - 1) }
 	if p.config.Mel.Scale == "slaney" {
@@ -47,16 +60,18 @@ func (p *Frontend) melFilterbank() ([]float64, error) {
 			points[index] = point
 		}
 		if !checked.Finite64(points[index]) || index > 0 && points[index] <= points[index-1] {
-			return nil, errors.New("audio frontend: mel edges collapse at declared precision")
+			return nil, nil, errors.New("audio frontend: mel edges collapse at declared precision")
 		}
 	}
-	bank := make([]float64, p.bins*p.bands)
-	for bin := range p.bins {
-		frequency := float64(p.config.SampleRate) / 2 * float64(bin) / (float64(p.config.FFTLength) / 2)
-		if p.config.Mel.LinearInMel {
-			frequency = toMel(frequency)
-		}
-		for band := range p.bands {
+	bank := make([]float64, 0, capacity)
+	support := make([]melSupport, p.bands+1)
+	for band := range p.bands {
+		support[band].offset = uint64(len(bank))
+		for bin := range p.bins {
+			frequency := float64(p.config.SampleRate) / 2 * float64(bin) / (float64(p.config.FFTLength) / 2)
+			if p.config.Mel.LinearInMel {
+				frequency = toMel(frequency)
+			}
 			rising := (frequency - points[band]) / (points[band+1] - points[band])
 			falling := (points[band+2] - frequency) / (points[band+2] - points[band+1])
 			value := max(0, min(rising, falling))
@@ -68,12 +83,18 @@ func (p *Frontend) melFilterbank() ([]float64, error) {
 				value *= 2 / span
 			}
 			if !checked.Finite64(value) {
-				return nil, errors.New("audio frontend: non-finite filterbank")
+				return nil, nil, errors.New("audio frontend: non-finite filterbank")
 			}
-			bank[bin*p.bands+band] = value
+			if value > 0 {
+				if uint64(len(bank)) == support[band].offset {
+					support[band].first = uint64(bin)
+				}
+				bank = append(bank, value)
+			}
 		}
 	}
-	return bank, nil
+	support[p.bands].offset = uint64(len(bank))
+	return bank, support, nil
 }
 
 func (p *Frontend) transform(ctx context.Context, features []float32, frames int) error {

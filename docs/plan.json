@@ -59,31 +59,7 @@
     }
   ],
   "lane": "master-lead",
-  "items": [
-    {
-      "id": "scorecard-regressed-89865f5144d7f17f",
-      "title": "Restore Qwen3.5-4B training load-time to 6532.2922 ms",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 600,
-        "reason": "Estimated net production growth = at most 600 AST nodes for direct feed-forward decoding into the existing optimizer master slab.\nThe private loader reuses quant.DequantizeInto and one source-byte buffer.\nThree temporary FP32 matrices per layer and their master-slab copies disappear.\nFocused fixture coverage adds test code for destination aliasing, tensor order, malformed geometry and cancellation.\nNo new model loader API, cache, storage representation or recurring analyzer is introduced."
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Qwen3.5-4B training load-time to 6532.2922 ms",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-89865f5144d7f17f -target 6532.2922",
-          "rationale": "- Qwen3.5-4B load-time, {Metric:load phase Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:c14b1d781a838e780e085a07e52ec7fd2ae992c00a91553613103a391eeb86da}: 5065.7454 to 6608.1204 (+1542.375, +30.4%, allowed 1466.5468; load phase, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261016T043647Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it.",
-          "depends_on": [
-            "scorecard-regressed-89865f5144d7f17f/decode",
-            "scorecard-regressed-89865f5144d7f17f/publish"
-          ]
-        }
-      ]
-    }
-  ],
+  "items": [],
   "decisions": [
     {
       "id": "gemma-12b-bf16-download",

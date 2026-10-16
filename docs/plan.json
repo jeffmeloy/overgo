@@ -179,6 +179,13 @@
       },
       "steps": [
         {
+          "id": "arithmetic",
+          "title": "Preserve synthesis arithmetic and consolidate causal attention",
+          "status": "open",
+          "verify": "go test ./internal/hostmath ./internal/speechsynth",
+          "rationale": "Preserve the original FP32 boundaries in rotary, time conditioning and flow normalization.\nReuse LinearF64 for synthesis projections and retain FP32 model storage.\nThe causal attention owner accumulates weighted values in FP64 and owns both full and incremental calls.\nIndependent component fixtures isolate elementary-library frequency rounding from rotation arithmetic.\nThe served waveform tolerance and exact EOS requirement remain unchanged.\nServes: Complete English and elected German speech match the original implementation under the existing arithmetic contract.\nDisappears: The duplicate full causal attention body and duplicate timestep normalization disappear together with separate flow bias passes.\nEvidence: Existing rotary, flow-gradient and causal-attention tests receive original-reference and cancellation cases. TestServedSpeechMatchesUpstream retains complete speech acceptance.\nBatch: Shared host math and synthesis change together before held-out model evaluation. Language admission and prepared-voice cost comparisons remain open."
+        },
+        {
           "id": "admit",
           "title": "Verify one available non-English PocketTTS package end to end",
           "status": "open",

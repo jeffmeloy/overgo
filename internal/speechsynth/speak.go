@@ -3,7 +3,6 @@ package speechsynth
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
@@ -15,40 +14,66 @@ import (
 // segment is generated and decoded, and their samples follow one another. The
 // recording is complete only when every segment ended on its own.
 func (s *Synthesizer) Speak(ctx context.Context, request DocumentRequest) (Audio, error) {
-	return s.speakFrom(ctx, request, seededNoise)
+	return collectSpeech(func(emit func(Audio) error) (Audio, error) { return s.SpeakStream(ctx, request, emit) })
 }
 
-// speakFrom is Speak with the noise of each segment's generation given by the
-// caller: a served request draws it from its seed, and a comparison with the
-// model's own code hands in the noise that code drew.
-func (s *Synthesizer) speakFrom(ctx context.Context, request DocumentRequest, noise func(generationPlan) frameNoise) (Audio, error) {
+func collectSpeech(stream func(func(Audio) error) (Audio, error)) (Audio, error) {
+	var pcm []float32
+	spoken, err := stream(func(chunk Audio) error { pcm = append(pcm, chunk.PCM...); return nil })
+	if err != nil {
+		return Audio{}, err
+	}
+	spoken.PCM = pcm
+	return spoken, nil
+}
+
+// SpeakStream emits ordered PCM chunks with synchronous backpressure.
+// Chunks are provisional and the returned metadata establishes completion.
+// The callback owns each chunk's samples and an error stops generation.
+func (s *Synthesizer) SpeakStream(ctx context.Context, request DocumentRequest, emit func(Audio) error) (Audio, error) {
+	return s.speakStream(ctx, request, seededNoise, emit)
+}
+
+func (s *Synthesizer) speakStream(ctx context.Context, request DocumentRequest, noise func(generationPlan) frameNoise, emit func(Audio) error) (Audio, error) {
+	if emit == nil {
+		return Audio{}, errors.New("speechsynth: streaming requires a chunk consumer")
+	}
 	plan, err := s.PlanDocument(ctx, request)
 	if err != nil {
 		return Audio{}, err
 	}
 	var spoken Audio
 	spoken.Complete = true
+	samples := 0
 	for _, segment := range plan.Segments {
 		generation, err := s.tokenize(documentSegmentRequest(plan, segment))
 		if err != nil {
 			return Audio{}, err
 		}
-		latents, err := s.generateFrom(ctx, generation, noise(generation))
+		voice, params, err := s.prepareGeneration(generation, noise(generation))
 		if err != nil {
 			return Audio{}, err
 		}
-		audio, err := s.decode(ctx, latents)
+		state, err := s.model.promptVoice(ctx, voice, generation.tokens, params)
 		if err != nil {
 			return Audio{}, err
 		}
-		if spoken.SampleRate != 0 && (audio.SampleRate != spoken.SampleRate || audio.Channels != spoken.Channels) {
-			return Audio{}, fmt.Errorf("speechsynth: a segment's format differs from the first: %d Hz, %d channels against %d, %d", audio.SampleRate, audio.Channels, spoken.SampleRate, spoken.Channels)
+		decoder := newCodecState(s.model.Codec)
+		spoken.SampleRate, spoken.Channels = s.model.Codec.SampleRate, 1
+		complete, err := s.model.walkFrames(ctx, state, params, func(frame []float32, _ float64) error {
+			pcm, err := s.model.decodeLatents(ctx, decoder, LatentBatch{Values: frame, Frames: 1, Width: s.model.Dims.LatentDim})
+			if err != nil {
+				return err
+			}
+			samples += len(pcm)
+			return emit(Audio{PCM: pcm, SampleRate: spoken.SampleRate, Channels: spoken.Channels})
+		})
+		if err != nil {
+			return Audio{}, err
 		}
-		spoken.SampleRate, spoken.Channels = audio.SampleRate, audio.Channels
-		spoken.PCM = append(spoken.PCM, audio.PCM...)
-		spoken.Complete = spoken.Complete && audio.Complete
+		spoken.Complete = spoken.Complete && complete
 	}
-	if len(spoken.PCM) == 0 {
+	if samples == 0 {
 		return Audio{}, errors.New("speechsynth: the text produced no samples")
 	}
 	return spoken, nil

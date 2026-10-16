@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"overgo/internal/artifact"
 	"overgo/internal/jsonfile"
@@ -80,7 +81,8 @@ type Synthesizer struct {
 	// used when a request does not state one.
 	defaultTemperature float64
 	// voices caches loaded voice states by name.
-	voices map[string]*VoiceState
+	voices  map[string]*VoiceState
+	voiceMu sync.Mutex
 }
 
 func LoadSynthesizer(directory string) (*Synthesizer, error) {
@@ -138,6 +140,8 @@ func (s *Synthesizer) tokenize(request SynthesisRequest) (generationPlan, error)
 
 // voiceState resolves and caches one named artifact voice.
 func (s *Synthesizer) voiceState(name string) (*VoiceState, error) {
+	s.voiceMu.Lock()
+	defer s.voiceMu.Unlock()
 	if voice, ok := s.voices[name]; ok {
 		return voice, nil
 	}
@@ -176,21 +180,25 @@ func (s *Synthesizer) generate(ctx context.Context, plan generationPlan) (Latent
 // stored state, then the text, then frames until the end of speech is seen and
 // the plan's frames after it.
 func (s *Synthesizer) generateFrom(ctx context.Context, plan generationPlan, noise frameNoise) (LatentBatch, error) {
+	voice, params, err := s.prepareGeneration(plan, noise)
+	if err != nil {
+		return LatentBatch{}, err
+	}
+	latents, _, err := s.model.GenerateLatentsWithVoice(ctx, voice, plan.tokens, params)
+	return latents, err
+}
+
+func (s *Synthesizer) prepareGeneration(plan generationPlan, noise frameNoise) (*VoiceState, GenerateParams, error) {
+	params := GenerateParams{MaxFrames: plan.maxFrames, EOSThreshold: referenceEOSThreshold, FramesAfterEOS: plan.framesAfterEnd, NoiseAt: noise}
 	if !s.complete() || len(plan.tokens) == tensor.FirstOffset || plan.maxFrames <= tensor.FirstOffset ||
 		plan.voice == "" || plan.temperature <= 0 {
-		return LatentBatch{}, errors.New("speechsynth: invalid generation plan")
+		return nil, params, errors.New("speechsynth: invalid generation plan")
 	}
 	voice, err := s.voiceState(plan.voice)
 	if err != nil {
-		return LatentBatch{}, err
+		return nil, params, err
 	}
-	latents, _, err := s.model.GenerateLatentsWithVoice(ctx, voice, plan.tokens, GenerateParams{
-		MaxFrames: plan.maxFrames, EOSThreshold: referenceEOSThreshold, FramesAfterEOS: plan.framesAfterEnd, NoiseAt: noise,
-	})
-	if err != nil {
-		return LatentBatch{}, err
-	}
-	return latents, nil
+	return voice, params, nil
 }
 
 func (s *Synthesizer) decode(ctx context.Context, latents LatentBatch) (Audio, error) {

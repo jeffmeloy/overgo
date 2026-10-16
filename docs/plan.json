@@ -114,17 +114,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 3600,
+        "nodes": 2794,
         "reason": "Planning estimate of net production AST growth = 1900 nodes for retained codec state + 700 for incremental generation + 1000 for serving/output ownership after replacement code is removed. Browser JS and test growth are additional declared costs. This buys streaming output and is not a code-reduction claim."
       },
       "steps": [
-        {
-          "id": "decode",
-          "title": "Generate and decode bounded PocketTTS audio chunks",
-          "status": "open",
-          "verify": "go test ./internal/speechsynth -run '^TestMimiStreamingDecode$'",
-          "rationale": "Add TestMimiStreamingDecode as one table for stateful chunk decoding with independent PCM references, odd boundaries, final flush, cancellation and separate concurrent states.\nExtend existing generation, codec, completion and cancellation coverage instead of copying upstream suites.\nReuse DecodeState and CodecDecoder for generation and retained convolution, transpose-convolution overlap and attention state.\nOffline synthesis collects the same incremental outputs where the arithmetic contract permits one production path.\nNever decode the accumulated latent prefix for every emitted chunk.\nRetain exact segment order, seeded noise consumption, EOS decisions, post-EOS frames and normalized-latent semantics.\nBound decoder working state separately from the final output artifact.\nServes: Speech can yield its first audio while later frames are generated.\nDisappears: The batch-only generation/decode handoff and duplicated batch decoder plumbing yield to shared incremental state while final artifact storage remains separately owned.\nEvidence: audio.cpp 22cad6af5043a2d7c7f1d9a0e6c9d7996a80dfc8 src/models/pocket_tts/session.cpp next_stream_event and mimi_decoder.cpp decode_streaming_step supply reference boundaries.\nBatch: Keep hermetic decoding checks in the landing and full-model TestServedSpeechMatchesUpstream comparisons in the cycle."
-        },
         {
           "id": "serve",
           "title": "Stream speech through the existing API and browser with complete-output publication",

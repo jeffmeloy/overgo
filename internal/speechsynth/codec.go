@@ -248,163 +248,22 @@ func loadCodecDecoder(read func(name string, want ...int) ([]float32, error), sh
 	return c, nil
 }
 
-// Upsample runs the depthwise transpose conv: [outer][T] -> [outer][T*k/2].
-func (c *CodecDecoder) Upsample(latent []float32, T int) []float32 {
-	return hostmath.ConvTranspose1dTrim(latent, c.outerDim, T, c.upsampleW, nil, c.outerDim, c.upsampleK, c.upsampleK/2, c.outerDim)
-}
-
-// TransformInPlace applies the decoder transformer over channel-major
-// [d][T] in place (transpose to time-major, forward, transpose back).
-func (c *CodecDecoder) TransformInPlace(ctx context.Context, x []float32, T int) error {
-	if err := context.Cause(ctx); err != nil {
-		return err
-	}
-	d := c.d
-	tm := make([]float32, len(x))
-	for ch := range d {
-		for t := range T {
-			tm[t*d+ch] = x[ch*T+t]
-		}
-	}
-	if err := c.forwardTimeMajor(ctx, tm, T); err != nil {
-		return err
-	}
-	for ch := range d {
-		for t := range T {
-			x[ch*T+t] = tm[t*d+ch]
-		}
-	}
-	return context.Cause(ctx)
-}
-
-// forwardTimeMajor: causal decode over [T][d] with the config attention
-// window; positions from 0. Same t-major structure as the backbone
-// AppendForward, plus LayerScale on both residual updates.
-func (c *CodecDecoder) forwardTimeMajor(ctx context.Context, x []float32, T int) error {
-	if err := context.Cause(ctx); err != nil {
-		return err
-	}
-	d, h, hd, ff := c.d, c.h, c.hd, c.ff
-	kc := make([][]float32, len(c.layers))
-	vc := make([][]float32, len(c.layers))
-	for i := range kc {
-		kc[i] = make([]float32, 0, T*d)
-		vc[i] = make([]float32, 0, T*d)
-	}
-	qkv := make([]float32, tensor.TripleExtent*d)
-	xn := make([]float32, d)
-	attn := make([]float32, d)
-	proj := make([]float32, d)
-	h1 := make([]float32, ff)
-	for t := range T {
-		if err := context.Cause(ctx); err != nil {
-			return err
-		}
-		cur := x[t*d : (t+tensor.SingletonExtent)*d]
-		lo := max(t+tensor.SingletonExtent-c.window, tensor.FirstOffset)
-		for li := range c.layers {
-			l := &c.layers[li]
-			hostmath.LayerNormInto(xn, cur, l.norm1W, l.norm1B, tensor.SingletonExtent, d, c.normalization.TransformerLayer)
-			hostmath.Linear(qkv, xn, l.inProj, tensor.SingletonExtent, d, tensor.TripleExtent*d)
-			q, k, v := qkv[:d], qkv[d:tensor.PairedExtent*d], qkv[tensor.PairedExtent*d:]
-			for head := range h {
-				hostmath.ApplyRotaryInterleaved(q[head*hd:(head+tensor.SingletonExtent)*hd], c.invFreq, t)
-				hostmath.ApplyRotaryInterleaved(k[head*hd:(head+tensor.SingletonExtent)*hd], c.invFreq, t)
-			}
-			kc[li] = append(kc[li], k...)
-			vc[li] = append(vc[li], v...)
-			for i := range q {
-				q[i] *= c.scoreScale
-			}
-			hostmath.CausalAttentionStep(attn, q, kc[li][lo*d:], vc[li][lo*d:], t+tensor.SingletonExtent-lo, h, h, hd)
-			hostmath.Linear(proj, attn, l.outProj, tensor.SingletonExtent, d, d)
-			for i := range cur {
-				cur[i] += l.ls1[i] * proj[i]
-			}
-			hostmath.LayerNormInto(xn, cur, l.norm2W, l.norm2B, tensor.SingletonExtent, d, c.normalization.TransformerLayer)
-			hostmath.Linear(h1, xn, l.lin1, tensor.SingletonExtent, d, ff)
-			hostmath.GELUErfInPlace(h1)
-			hostmath.Linear(proj, h1, l.lin2, tensor.SingletonExtent, ff, d)
-			for i := range cur {
-				cur[i] += l.ls2[i] * proj[i]
-			}
-		}
-	}
-	return context.Cause(ctx)
-}
-
-// SeanetDecode runs the conv stack: [outer][T] -> [channels][T*prod(ratios)].
-// A residual block plus ELU follows each transpose convolution.
-func (c *CodecDecoder) SeanetDecode(ctx context.Context, x []float32, T int) ([]float32, error) {
-	if err := context.Cause(ctx); err != nil {
-		return nil, err
-	}
-	cur, curT := x, T
-	apply := func(cv codecConv) {
-		if cv.transpose {
-			cur = hostmath.ConvTranspose1dTrim(cur, cv.cIn, curT, cv.w, cv.b, cv.cOut, cv.k, cv.strd, tensor.SingletonExtent)
-			curT *= cv.strd
-		} else {
-			cur = hostmath.CausalConv1d(cur, cv.cIn, curT, cv.w, cv.b, cv.cOut, cv.k, cv.strd)
-			curT /= cv.strd
-		}
-	}
-	apply(c.convs[0])
-	hostmath.ELUInPlace(cur)
-	for i, conv := range c.convs[tensor.SingletonExtent : len(c.convs)-tensor.SingletonExtent] {
-		if err := context.Cause(ctx); err != nil {
-			return nil, err
-		}
-		apply(conv)
-		cur = seanetResnet(c.resnets[i], cur, curT)
-		hostmath.ELUInPlace(cur)
-	}
-	if err := context.Cause(ctx); err != nil {
-		return nil, err
-	}
-	apply(c.convs[len(c.convs)-tensor.SingletonExtent])
-	if err := context.Cause(ctx); err != nil {
-		return nil, err
-	}
-	return cur, nil
-}
-
-// seanetResnet: identity skip around [ELU -> conv k -> ELU -> conv 1].
-func seanetResnet(blk [tensor.PairedExtent]codecConv, x []float32, T int) []float32 {
-	v := append([]float32(nil), x...)
-	hostmath.ELUInPlace(v)
-	v = hostmath.CausalConv1d(v, blk[tensor.FirstOffset].cIn, T, blk[tensor.FirstOffset].w, blk[tensor.FirstOffset].b, blk[tensor.FirstOffset].cOut, blk[tensor.FirstOffset].k, tensor.SingletonExtent)
-	hostmath.ELUInPlace(v)
-	v = hostmath.CausalConv1d(v, blk[tensor.SingletonExtent].cIn, T, blk[tensor.SingletonExtent].w, blk[tensor.SingletonExtent].b, blk[tensor.SingletonExtent].cOut, blk[tensor.SingletonExtent].k, tensor.SingletonExtent)
-	for i := range v {
-		v[i] += x[i]
-	}
-	return v
-}
-
-// DecodeFromLatent: outer latent channel-major [outer][T] -> mono PCM
-// [T * (k/2) * prod(ratios)].
-func (c *CodecDecoder) DecodeFromLatent(ctx context.Context, latent []float32, T int) ([]float32, error) {
-	if err := context.Cause(ctx); err != nil {
-		return nil, err
-	}
-	up := c.Upsample(latent, T)
-	upT := T * c.upsampleK / tensor.PairedExtent
-	if err := c.TransformInPlace(ctx, up, upT); err != nil {
-		return nil, err
-	}
-	return c.SeanetDecode(ctx, up, upT)
-}
-
 // LatentsToPCM crosses the codec boundary: normalized frame latents ->
 // denorm (emb_std, emb_mean) -> quantizer output projection, written
 // channel-major [outer][frames] -> mimi decode. The per-output accumulation
 // order matches the reference channel-major projection.
 func (m *Model) LatentsToPCM(ctx context.Context, latents LatentBatch) ([]float32, error) {
+	if m.Codec == nil {
+		return nil, fmt.Errorf("speechsynth: latent-to-pcm requires the loaded mimi codec decoder")
+	}
+	return m.decodeLatents(ctx, newCodecState(m.Codec), latents)
+}
+
+func (m *Model) decodeLatents(ctx context.Context, state *codecState, latents LatentBatch) ([]float32, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("speechsynth: decoding requires a context")
 	}
-	if err := context.Cause(ctx); err != nil {
+	if err := state.cause(ctx); err != nil {
 		return nil, err
 	}
 	if m.Codec == nil {
@@ -422,5 +281,5 @@ func (m *Model) LatentsToPCM(ctx context.Context, latents LatentBatch) ([]float3
 	if err := hostmath.NormalizeProjectRowsToChannelsF64(proj, values, m.EmbStd, m.EmbMean, m.Codec.quantW, F, ldim, odim); err != nil {
 		return nil, fmt.Errorf("speechsynth: latent projection: %w", err)
 	}
-	return m.Codec.DecodeFromLatent(ctx, proj, F)
+	return state.decode(ctx, proj, F)
 }

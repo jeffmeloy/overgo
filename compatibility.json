@@ -1310,19 +1310,19 @@
      "contains": "func (m *Model) GenerateLatents(",
      "path": "internal/speechsynth/generate.go",
      "role": "source",
-     "identity": "file:sha256:74cf10f003129867e9968362858b7587656debcdcc966b004fde2814bc074a61"
+     "identity": "file:sha256:3d9d5d16f21aaca6ba4a8ab1ed57dd315559f1d7edf8cd0de1ebe35cfa6417a5"
     },
     {
      "contains": "func (m *Model) LatentsToPCM(",
      "path": "internal/speechsynth/codec.go",
      "role": "source",
-     "identity": "file:sha256:06ea446ab28d3a89d373a8472ec11ef418345cd7ddaf93bf83d58a8dc81d9d92"
+     "identity": "file:sha256:ab7f854a931564741532ee686fdb1f153b08c20158eaf7f500b0af5a07b0b627"
     },
     {
      "contains": "func TestSpeakE2EProducesReferenceAudio(",
      "path": "internal/speechsynth/codec_golden_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:9095b101f804d2201947c98f2ecde6f02a788d0eec2c946e749131fcfe242f30"
+     "identity": "evidence:sha256:f215d60328ab12f695c18399645fbe276a21fbff699d9eb7c37964288c19a6c0"
     }
    ],
    "id": "pocket-tts-production-oracle",

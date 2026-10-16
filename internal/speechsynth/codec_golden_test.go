@@ -65,7 +65,7 @@ func TestMimiDecodeStagesGolden(t *testing.T) {
 	latent := f32of(g.LatentIn.Values)
 
 	// Stage 1: depthwise transpose-conv upsample [outer,T] -> [outer,T*16].
-	up := c.Upsample(latent, T)
+	up, _ := newCodecState(c).upsample(latent, T)
 	upStage := g.Stages["upsample"]
 	upT := upStage.Out.Shape[2]
 	if len(up) != c.outerDim*upT {
@@ -79,13 +79,13 @@ func TestMimiDecodeStagesGolden(t *testing.T) {
 	if decStage.In == nil {
 		t.Fatal("g5 decoder stage missing input tensor")
 	}
-	if err := c.TransformInPlace(t.Context(), up, upT); err != nil {
+	if err := newCodecState(c).transform(t.Context(), up, upT); err != nil {
 		t.Fatal(err)
 	}
 	requireWithin(t, "decoder transformer", up, decStage.In.Values, tolCodecTr)
 
 	// Stage 3: SEANet conv stack -> PCM, from the golden stage input.
-	pcm, err := c.SeanetDecode(t.Context(), f32of(decStage.In.Values), upT)
+	pcm, err := newCodecState(c).seanet(t.Context(), f32of(decStage.In.Values), upT)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func TestMimiDecodeStagesGolden(t *testing.T) {
 	requireWithin(t, "seanet decode", pcm, decStage.Out.Values, tolSeanetPCM)
 
 	// End-to-end: latent -> pcm, gated on the pcm head slice + rms.
-	full, err := c.DecodeFromLatent(t.Context(), latent, T)
+	full, err := newCodecState(c).decode(t.Context(), latent, T)
 	if err != nil {
 		t.Fatal(err)
 	}

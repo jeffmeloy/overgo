@@ -197,7 +197,7 @@
     "internal/seriesforecast/native_declaration_test.go": "88daf926bc8f7084e0dbd863f29c1c8e69f610197d32bdec0bbaaa88fbe136f5",
     "internal/seriesforecast/testdata/timesfm3_golden.json": "edc23bd3e05c912c176eb6e8fe1df68058af9c9ef0828a51b4ced401f5ddf82f",
     "internal/speechsynth/cancellation_test.go": "b9a7293ce114fe53df08a41c7a5725ca4f6ec9d740dbe0321c36da6797c39464",
-    "internal/speechsynth/codec_golden_test.go": "9095b101f804d2201947c98f2ecde6f02a788d0eec2c946e749131fcfe242f30",
+    "internal/speechsynth/codec_golden_test.go": "f215d60328ab12f695c18399645fbe276a21fbff699d9eb7c37964288c19a6c0",
     "internal/speechsynth/completion_test.go": "a97ba8e5951dd09de5a17a1fa0a75a533c698ed201b5245e36eb9dff8e516855",
     "internal/speechsynth/document_test.go": "7c1e76e557568b423e496139fdb6aad62aeb77d450032dc7103f24a6a7cbf3c2",
     "internal/speechsynth/generate_golden_test.go": "730e174610c86d1e8b0672cdd89bc537392e0e4c5adf673dcd61683816d1b93a",

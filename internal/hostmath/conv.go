@@ -6,22 +6,22 @@ package hostmath
 
 import "math"
 
-// CausalConv1d: fully causal 1-D convolution. x is [cIn][T] channel-major;
-// w is the PyTorch Conv1d layout [cOut][cIn][k]; bias may be nil. Left pad
-// is k-stride zeros (the reference streaming invariant: T divisible by
-// stride). Returns [cOut][T/stride].
-func CausalConv1d(x []float32, cIn, T int, w, bias []float32, cOut, k, stride int) []float32 {
+// CausalConv1dSuffix excludes outputs before skip while retaining their input history.
+// Input and output are channel-major and weights use [cOut][cIn][k].
+// Left padding is k-stride zeros and T must be divisible by stride.
+// A zero skip decodes the complete input and bias may be nil.
+func CausalConv1dSuffix(x []float32, cIn, T int, w, bias []float32, cOut, k, stride, skip int) []float32 {
 	leftPad := k - stride
-	outT := T / stride
+	outT := T/stride - skip
 	out := make([]float32, cOut*outT)
 	// outT*cIn*k MACs per output channel.
 	parallelRangeCost(cOut, outT*cIn*k, macF64, func(coLo, coHi int) {
-		causalConv1dChannels(out, x, w, bias, cIn, T, outT, k, stride, leftPad, coLo, coHi)
+		causalConv1dChannels(out, x, w, bias, cIn, T, outT, k, stride, leftPad-skip*stride, coLo, coHi)
 	})
 	return out
 }
 
-// causalConv1dChannels: output channels [coLo,coHi) of CausalConv1d — the
+// causalConv1dChannels: output channels [coLo,coHi) of CausalConv1dSuffix — the
 // serial kernel the dispatch calibration times.
 func causalConv1dChannels(out, x, w, bias []float32, cIn, T, outT, k, stride, leftPad, coLo, coHi int) {
 	for co := coLo; co < coHi; co++ {
@@ -47,21 +47,19 @@ func causalConv1dChannels(out, x, w, bias []float32, cIn, T, outT, k, stride, le
 	}
 }
 
-// ConvTranspose1dTrim: 1-D transposed convolution, trimming the trailing
-// k-stride samples (the reference streaming carry). x is [cIn][T]
-// channel-major; w is the PyTorch ConvTranspose1d layout [cIn][cOut/groups][k];
-// bias may be nil. Returns [cOut][T*stride]. For a fixed co the contributions
-// land in ascending (ci, t, j) order — the serial addition sequence.
-func ConvTranspose1dTrim(x []float32, cIn, T int, w, bias []float32, cOut, k, stride, groups int) []float32 {
-	fullT := (T-1)*stride + k
-	outT := T * stride
+// ConvTranspose1dSuffix excludes outputs before skip and trims the trailing overlap.
+// Accumulation keeps ascending input channel, time and kernel order.
+// Input and output are channel-major and weights use [cIn][cOut/groups][k].
+// A zero skip decodes the complete input and bias may be nil.
+func ConvTranspose1dSuffix(x []float32, cIn, T int, w, bias []float32, cOut, k, stride, groups, skip int) []float32 {
+	outT := T*stride - skip
 	cInPerG := cIn / groups
 	cOutPerG := cOut / groups
 	out := make([]float32, cOut*outT)
 	// cInPerG*T*k MACs per output channel; the outT accumulate-copy is
 	// lower-order (outT = T*stride <= T*k).
 	parallelRangeCost(cOut, cInPerG*T*k, macF64, func(coLo, coHi int) {
-		acc := make([]float64, fullT)
+		acc := make([]float64, outT)
 		for co := coLo; co < coHi; co++ {
 			clear(acc)
 			g := co / cOutPerG
@@ -75,8 +73,8 @@ func ConvTranspose1dTrim(x []float32, cIn, T int, w, bias []float32, cOut, k, st
 					if xv == 0 {
 						continue
 					}
-					base := t * stride
-					for j := range k {
+					base := t*stride - skip
+					for j := max(0, -base); j < min(k, outT-base); j++ {
 						acc[base+j] += xv * float64(wRow[j])
 					}
 				}

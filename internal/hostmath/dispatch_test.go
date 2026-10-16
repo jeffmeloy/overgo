@@ -37,7 +37,7 @@ func TestDispatchSchedulingPreservesResults(t *testing.T) {
 			x, weights, bias := values(input*frames), values(width*input*kernel), values(width)
 			want = make([]float32, width*frames)
 			causalConv1dChannels(want, x, weights, bias, input, frames, frames, kernel, 1, kernel-1, 0, width)
-			got = CausalConv1d(x, input, frames, weights, bias, width, kernel, 1)
+			got = CausalConv1dSuffix(x, input, frames, weights, bias, width, kernel, 1, 0)
 			if !slices.Equal(got, want) {
 				t.Fatalf("convolution changed: failed=%t width=%d", failed, width)
 			}

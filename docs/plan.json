@@ -113,13 +113,17 @@
       "title": "Repair cycle tests to honor optional inputs and registered datasets",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 2,
+        "reason": "Measured source change = two native go test flag literals. The browser lane uses -p=1 and -parallel=1 because concurrent Chromium starts failed twice with ERR_NO_BUFFER_SPACE in different page tests. Serialization replaces repeated failed landings without a new selector, framework or retry layer."
+      },
       "steps": [
         {
           "id": "do",
           "title": "Repair cycle tests to honor optional inputs and registered datasets",
           "status": "open",
           "verify": "go test -timeout=0 ./cmd/train ./internal/server ./internal/seriesforecast",
-          "rationale": "Serves: The failed cycle resumes through native Go selections for the exact failed tests and unstarted journeys.\nDisappears: The browser fixture stops supplying reference-audio bounds without a reference recording. The codec proof accepts an absent unqualified cache while token_cache_test.go retains qualified reuse coverage. Both TimesFM tests resolve the existing registered dataset and share leadingRecords instead of a second scanner.\nEvidence: The retained cycle at 90e0d23f206a passed all 108 cells, publication, audio and needle-reference. Native retries retain that evidence and do not repeat the passed model packages.\nBatch: Test-only repair with no production or inference-surface change. External-model retries use -count=1 only for the selected acceptance invocations."
+          "rationale": "Serves: The failed cycle resumes through native Go selections for the exact failed tests and unstarted journeys.\nDisappears: The browser fixture stops supplying reference-audio bounds without a reference recording. The codec proof accepts an absent unqualified cache while token_cache_test.go retains qualified reuse coverage. Both TimesFM tests resolve the existing registered dataset and share leadingRecords instead of a second scanner.\nEvidence: The retained cycle at 90e0d23f206a passed all 108 cells, publication, audio and needle-reference. Native retries retain that evidence and do not repeat the passed model packages.\nBatch: Test-only repair with no production or inference-surface change. External-model retries use -count=1 only for the selected acceptance invocations.\n\nThe browser lane serializes packages and test bodies with native go test -p=1 -parallel=1 after two concurrent Chromium asset loads failed with ERR_NO_BUFFER_SPACE. All browser contracts remain required. The two flag literals add two production AST nodes and trade parallel wall time for bounded resource use."
         }
       ]
     },

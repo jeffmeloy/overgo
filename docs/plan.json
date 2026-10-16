@@ -114,8 +114,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 3000,
-        "reason": "Planning estimate of net production AST growth = 1100 nodes for latent target materialization + 1100 for dataset/trainer integration + 800 for publication and evaluation bindings after duplicated route policy is removed. Binary optimizer storage and exact model resume already exist and receive no new budget."
+        "nodes": 5000,
+        "reason": "Measured preflight growth = 4117 production AST nodes for dataset materialization + native resume + checkpoint serving before evaluation selection.\nEstimated remaining growth = at most 883 nodes for isolated candidate evaluation and final publication integration.\nTotal budget = 5000 production AST nodes.\nExisting checkpoint, artifact, dataset, optimizer and evaluation owners retain authority.\nThe repeated trace loop and duplicated model inventory helper disappear.\nTest fixtures and new failure coverage are reported separately rather than counted as production savings."
       },
       "steps": [
         {

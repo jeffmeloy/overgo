@@ -119,6 +119,13 @@
       },
       "steps": [
         {
+          "id": "evaluate-wiring",
+          "title": "Wire exact speech objective and judge selection",
+          "status": "open",
+          "verify": "go test ./internal/trainingworkflow ./internal/evaluation -run '^(TestSpeechDatasetCommand|TestSpeechRoundTripScoresTheWordsThatSurviveTheTrip)$'",
+          "rationale": "Land exact objective and recognizer identity wiring before running the real held-out comparison.\nThe publish step retains complete-speech quality, resource and inactive-checkpoint acceptance.\nServes: The existing training and evaluation owners can select exact inactive synthesis recipes and judges.\nDisappears: An unpinned recognizer name no longer substitutes for a declared judge identity.\nEvidence: Existing speech dataset command and round-trip evaluation tables cover the wiring and mismatched identities.\nBatch: Land with voice preparation and package text contracts before real-model evaluation."
+        },
+        {
           "id": "publish",
           "title": "Reload trained synthesis and judge held-out complete speech",
           "status": "open",
@@ -136,8 +143,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 2600,
-        "reason": "Planning estimate of net production AST growth = 1500 nodes for encoder bindings through existing tensor/math owners + 600 for prepared-state identity/publication + 500 for request integration. Necessary encoder capability and tests grow the tree. No new model family or voice service is budgeted."
+        "nodes": 3600,
+        "reason": "Declare measured speech growth before landing production changes.\nCombined preflight growth = 4780 production AST nodes.\nThe prior combined allowance = 4157 nodes across speech training, voice preparation and package admission.\nUpdated combined allowance = 5157 nodes including literal-rule corrections and remaining bounded integration.\nThe encoder and immutable prepared-state capability account for growth while transformer and residual-block loaders are shared with decoding.\nTests and fixtures add unique failure and independent-reference coverage and are not reported as code savings.\nServes: The declared budget matches the concrete implementation and retains real-model acceptance obligations.\nDisappears: The insufficient planning estimate is replaced before production landing.\nEvidence: Preflight measured production growth and the focused regression commands passed.\nBatch: Plan-only landing before any production change."
       },
       "steps": [
         {
@@ -156,6 +163,13 @@
           "depends_on": [
             "audio-voice/prepare"
           ]
+        },
+        {
+          "id": "compare",
+          "title": "Compare complete prepared-voice speech with its original",
+          "status": "open",
+          "verify": "go test ./internal/speechsynth -run '^TestVoicePreparation$'",
+          "rationale": "Compare complete prepared-voice conditioning and speech with the pinned original after the implementation landing.\nRetain every independent state layer, exact input identity, complete PCM and EOS result under the existing arithmetic tolerances.\nMeasure first preparation and repeated prepared-state synthesis separately including inventory checks and artifact I/O.\nThe encoder and request steps establish hermetic behavior but do not close this real-model obligation.\nServes: Reusable voice conditioning has complete-model parity and honestly scoped cost evidence.\nDisappears: No separate voice execution path or repeated encoding is retained after valid reuse.\nEvidence: TestServedSpeechMatchesUpstream compares independent original state and audio in the model lane.\nBatch: Run through the cycle after the coherent surface landing and retain the result in the existing evidence owner."
         }
       ]
     },
@@ -189,11 +203,48 @@
       },
       "steps": [
         {
+          "id": "contract",
+          "title": "Honor the elected package text and tokenizer contract",
+          "status": "open",
+          "verify": "go test ./internal/speechsynth -run '^TestPocketTTSLanguageContract$'",
+          "rationale": "Land artifact-declared semicolon normalization and the elected German tokenizer contract before judging complete speech.\nThe elected package is the existing six-layer German artifact at upstream revision e041936c75475d350b405bc870bcf7c22da4e9e6.\nModel, tokenizer and anna voice hashes must match the pinned upstream objects.\nThe admit step retains complete-audio parity and four frozen native-language intelligibility cases judged by the exact German-capable Nemotron recipe.\nServes: Existing synthesis loads one additional package through data rather than language-name branches.\nDisappears: The fixed punctuation assumption gives way to the existing package declaration.\nEvidence: Twelve independently prepared texts cover Unicode, punctuation, token identity and short versus long EOS budgets.\nBatch: Text-contract wiring lands with the voice surface while model admission remains open."
+        },
+        {
           "id": "admit",
           "title": "Verify one available non-English PocketTTS package end to end",
           "status": "open",
           "verify": "go test ./internal/speechsynth -run '^TestPocketTTSLanguageContract$'",
           "rationale": "Elect one available package with complete model, tokenizer, voice and license provenance before implementation.\nPrefer the documented six-layer French package when its complete artifacts are already admitted or separately authorized.\nAbsence of an authorized artifact leaves the prerequisite open rather than causing a download or a false completion.\nAdd TestPocketTTSLanguageContract as artifact-shaped table cases in the existing loading and text preparation coverage.\nDerive depth, tokenizer, voice catalog and supported preprocessing from the package rather than language-name switches.\nCheck text normalization, punctuation, Unicode, document splitting, EOS, packaged voices and full audio against the elected reference.\nFreeze native-language held-out intelligibility criteria and denominators before judging output.\nAn English round-trip recognizer is not authority for another language.\nMultilingual claims name only the language and package actually validated.\nServes: One existing synthesis architecture covers an additional demonstrated language.\nDisappears: Incompatible fixed package assumptions are replaced by artifact facts without a parallel synthesis implementation.\nEvidence: audio.cpp 22cad6af5043a2d7c7f1d9a0e6c9d7996a80dfc8 src/models/pocket_tts/assets.cpp and docs/tts.md supply package contracts while existing Overgo load/tokenizer/served-speech tests retain their own cases.\nBatch: This admission is lower priority but does not falsely depend on ASR CUDA or the voice encoder. Model quality remains cycle evidence."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-7432e7f80e336e4f",
+      "title": "Restore Wan2.1-T2V-1.3B video-gen load-time to 4872.3347 ms",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Wan2.1-T2V-1.3B video-gen load-time to 4872.3347 ms",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-7432e7f80e336e4f -target 4872.334699999999",
+          "rationale": "- Wan2.1-T2V-1.3B load-time, {Metric:load phase Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:bff12bb8946afe0d8ca84d635e0ff275855c94a22a99df91e03d319c32ed54b4}: 3770.2035 to 6049.8777 (+2279.6742, +60.5%, allowed 1102.1312; load phase, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261016T043647Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-89865f5144d7f17f",
+      "title": "Restore Qwen3.5-4B training load-time to 6532.2922 ms",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Qwen3.5-4B training load-time to 6532.2922 ms",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-89865f5144d7f17f -target 6532.2922",
+          "rationale": "- Qwen3.5-4B load-time, {Metric:load phase Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:c14b1d781a838e780e085a07e52ec7fd2ae992c00a91553613103a391eeb86da}: 5065.7454 to 6608.1204 (+1542.375, +30.4%, allowed 1466.5468; load phase, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261016T043647Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
         }
       ]
     }

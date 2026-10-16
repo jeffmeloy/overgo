@@ -1,5 +1,5 @@
 {
-  "campaign": "Reduce the surface of execution, evidence and development while capability and pace grow",
+  "campaign": "Improve shared audio processing, streaming speech, synthesis training and existing ASR execution from pinned audio.cpp references",
   "paragraphs": [
     {
       "governs": "standing",
@@ -56,10 +56,210 @@
     {
       "governs": "standing",
       "text": "An experiment is frozen before it trains: a protocol missing a numerical gain or resource criterion is not dispatched, and a pilot does not change the acceptance of the objective it is compared with. Completing an experiment and adopting its model are separate: a complete negative or inconclusive record closes the experiment and activates nothing."
+    },
+    {
+      "governs": "row",
+      "rows": [
+        "audio-frontend",
+        "audio-speech-stream",
+        "audio-speech-training",
+        "audio-voice",
+        "audio-asr-device",
+        "audio-pocket-languages"
+      ],
+      "text": "Scope = the existing audiodsp, speechsynth and speechrecognition consumers plus one bounded PocketTTS language admission.\nOrder = shared frontend -\u003e speech playback -\u003e synthesis training -\u003e voice preparation -\u003e ASR device execution -\u003e language admission.\nOrder expresses priority rather than a dependency on unrelated GPU or artifact work.\nDependencies name only required implementation boundaries.\nUnavailable inputs leave their exact prerequisite open while independent rows proceed.\nNew model families, music generation, conversational turn detection and full-encoder ASR training remain outside this campaign.\nThe audio worktree contributes design evidence rather than a branch merge."
+    },
+    {
+      "governs": "row",
+      "rows": [
+        "audio-frontend",
+        "audio-speech-stream",
+        "audio-speech-training",
+        "audio-voice",
+        "audio-asr-device",
+        "audio-pocket-languages"
+      ],
+      "text": "Reference = a pinned local source and independently produced output with exact model, tokenizer, codec, processor, input and environment identities.\nReference code remains outside the Go runtime.\nExisting model and dataset inventory precedes acquisition.\nMissing weights, license provenance or executable reference output prevent capability credit.\nAcquisition outside existing owner authorization requires a separate owner decision.\nThe final audio landing removes these row-scoped paragraphs when their governed rows have left the plan."
+    },
+    {
+      "governs": "row",
+      "rows": [
+        "audio-frontend",
+        "audio-speech-stream",
+        "audio-speech-training",
+        "audio-voice",
+        "audio-asr-device",
+        "audio-pocket-languages"
+      ],
+      "text": "Acceptance is frozen before candidate measurements.\nNumerical tolerances come from the arithmetic contract rather than timing variability.\nRepeated matched baseline observations determine timing confidence and resource regression allowances before candidate results are read.\nMeasurements separate cold load, admission, warm execution, first usable output, publication, cancellation release and peak host/device memory.\nProfiling runs remain separate from timing runs.\nA component-only gain qualifies only when recurring work or memory decreases and the complete consumer has no detectable regression under its frozen allowance.\nA component-only gain earns no end-to-end speed claim.\nA performance replacement remains provisional until arithmetic and matched-cost acceptance succeed.\nNegative or inconclusive comparisons retain evidence and remove rejected replacements rather than relax acceptance."
+    },
+    {
+      "governs": "row",
+      "rows": [
+        "audio-frontend",
+        "audio-speech-stream",
+        "audio-speech-training",
+        "audio-voice",
+        "audio-asr-device",
+        "audio-pocket-languages"
+      ],
+      "text": "Existing test bodies and tables own retained behavior.\nEach implementation records the tests and helpers removed, the unique cases moved and net production/test syntax, fixture, setup and recurring execution cost.\nNo safe test deletion =\u003e retain the test and state why.\nNew streaming, conditioning and dataset contracts may justify test growth.\nNew tests named by a step are implementation obligations rather than existing evidence.\nHermetic tests use native Go caching.\nExternal model, kernel or subprocess measurements use honest declared inputs and -count=1 only in the invocation requiring fresh execution.\nMissing, skipped, unsupported or zero-match cases earn no acceptance.\nSmall device checks use the existing device lane and browser checks use the existing browser lane.\nReal-model comparisons use the existing improvement cycle after coherent surface changes.\nNo audio gate, receipt-reuse layer, test selector, performance ratchet or permanent telemetry is added."
     }
   ],
   "lane": "master-lead",
-  "items": [],
+  "items": [
+    {
+      "id": "audio-frontend",
+      "title": "Reduce shared spectral and mel processing for ASR and activity callers",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 1600,
+        "reason": "Planning estimate of net production AST growth = 1100 nodes for bounded FFT planning/execution + 300 for mel support spans + 200 for workspace integration after displaced loops and tables are removed. These are scope allowances rather than measured node counts. Reconcile with preflight before implementation lands. Test, fixture and maintenance costs remain part of the adoption comparison."
+      },
+      "steps": [
+        {
+          "id": "spectrum",
+          "title": "Replace direct transforms through the existing audiodsp frontend",
+          "status": "open",
+          "verify": "go test ./internal/audiodsp",
+          "rationale": "The existing frontend serves speechrecognition.loadTranscriber, Recognizer and speaker processing plus speechactivity detectors.\nCompare a Go-native FFT plan with Frontend.spectrum and Reconstruct using BenchmarkFrontend cold-plan, whole, hop-chunks and single-sample-chunks plus matched waveform-to-transcript and activity consumers.\nPreserve float64-derived arithmetic contracts, arbitrary supported odd/even lengths, window offsets, inverse scaling, resampling, normalization, cancellation and memory admission.\nThe upstream float FFT does not establish equivalent Go arithmetic.\nReplace the direct trigonometric tables and transform loops only after numerical and matched-cost acceptance.\nKeep a direct transform only as a bounded test oracle if no independent fixture covers its cases.\nExtend TestSpectrumMatchesNumpyRFFT, TestStandardSTFTInverseReconstructsSource, TestOddFourierLengthAndEmptyChunkBoundaries and the existing stream restart tables.\nExisting numerical checks are expected to pass on both implementations because the improvement is cost rather than changed answers.\nServes: ASR, activity detection and speaker processing share lower spectral cost.\nDisappears: audiodsp owns the replacement and retires displaced direct-transform tables and loops together with redundant setup after coverage is mapped.\nEvidence: audio.cpp 22cad6af5043a2d7c7f1d9a0e6c9d7996a80dfc8 src/framework/audio/fft.cpp and its dependency license notices provide reference behavior rather than a linked runtime.\nBatch: The diff determines host/device lane reach, inference-guard expiry and media reconciliation independently before a production landing."
+        },
+        {
+          "id": "mel",
+          "title": "Remove zero-coefficient mel work without changing feature semantics",
+          "status": "open",
+          "verify": "go test ./internal/audiodsp ./internal/speechrecognition ./internal/speechactivity",
+          "rationale": "Compare the current dense mel loop with per-band nonzero support in the existing immutable Frontend.\nDerive supports from the actual filterbank and preserve the ordered accumulation of nonzero terms.\nRetain HTK and Slaney behavior, float32 preemphasis and normalization differences, frame limits and streamed finalization.\nMeasure mel independently of the FFT change before combining gains.\nKeep the dense representation where its consumers or measured cost require it rather than storing both indefinitely.\nExtend existing filterbank and normalization tables instead of creating a second frontend suite.\nServes: All existing audiodsp callers avoid demonstrated redundant frequency-band work.\nDisappears: Accepted support iteration replaces dense zero multiplies and any displaced filterbank representation in audiodsp.\nEvidence: The same pinned audio.cpp src/framework/audio/nemo_mel_frontend.cpp and docs/reports/nemo_mel_frontend_migration.md identify reference cases rather than Overgo timing results.\nBatch: Land with the spectral change when both are ready and share affected checks without delaying an accepted result."
+        }
+      ]
+    },
+    {
+      "id": "audio-speech-stream",
+      "title": "Produce playable speech before the complete recording finishes",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 3600,
+        "reason": "Planning estimate of net production AST growth = 1900 nodes for retained codec state + 700 for incremental generation + 1000 for serving/output ownership after replacement code is removed. Browser JS and test growth are additional declared costs. This buys streaming output and is not a code-reduction claim."
+      },
+      "steps": [
+        {
+          "id": "decode",
+          "title": "Generate and decode bounded PocketTTS audio chunks",
+          "status": "open",
+          "verify": "go test ./internal/speechsynth -run '^TestMimiStreamingDecode$'",
+          "rationale": "Add TestMimiStreamingDecode as one table for stateful chunk decoding with independent PCM references, odd boundaries, final flush, cancellation and separate concurrent states.\nExtend existing generation, codec, completion and cancellation coverage instead of copying upstream suites.\nReuse DecodeState and CodecDecoder for generation and retained convolution, transpose-convolution overlap and attention state.\nOffline synthesis collects the same incremental outputs where the arithmetic contract permits one production path.\nNever decode the accumulated latent prefix for every emitted chunk.\nRetain exact segment order, seeded noise consumption, EOS decisions, post-EOS frames and normalized-latent semantics.\nBound decoder working state separately from the final output artifact.\nServes: Speech can yield its first audio while later frames are generated.\nDisappears: The batch-only generation/decode handoff and duplicated batch decoder plumbing yield to shared incremental state while final artifact storage remains separately owned.\nEvidence: audio.cpp 22cad6af5043a2d7c7f1d9a0e6c9d7996a80dfc8 src/models/pocket_tts/session.cpp next_stream_event and mimi_decoder.cpp decode_streaming_step supply reference boundaries.\nBatch: Keep hermetic decoding checks in the landing and full-model TestServedSpeechMatchesUpstream comparisons in the cycle."
+        },
+        {
+          "id": "serve",
+          "title": "Stream speech through the existing API and browser with complete-output publication",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestSpeechOutputStream$' \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowserSpeechPlayback$' -leg 'speech playback lifecycle'",
+          "rationale": "Add TestSpeechOutputStream for ordered chunks, backpressure, disconnect and completion publication using a hermetic generator.\nAdd TestWebUIBrowserSpeechPlayback with the speech playback lifecycle leg for first playback, stop, stale completion, final drain and player cleanup.\nReuse the active recipe session, operation events, native audio route and browser player owners rather than another service.\nPreserve nonstreaming API compatibility through collection of the same output.\nPersist the final recording through the current WAV/blob owner and identify every partial stream separately from completed content.\nInterrupted playback never publishes a completed recording or earns replay credit.\nCancellation releases resources on actual completion and bounded backpressure prevents unbounded PCM queues.\nCompare submit-to-first-playable audio, total completion and peak memory on the same short and multi-segment texts.\nKeep output streaming distinct from the ASR input-stream checkpoint contract.\nServes: A speech request becomes usable before full recording publication.\nDisappears: The complete-recording wait in the served path and redundant output conversion or buffering are removed where the shared output owner replaces them.\nEvidence: Existing TestNativeAudioProtocolUsesActiveRecipeSession, TestWholeTextBinding, TestSpeechRecovery and TestServedSpeechMatchesUpstream retain their unique contracts.\nBatch: Serving and browser changes share one coherent landing with small fixtures while real-model playback remains cycle evidence.",
+          "depends_on": [
+            "audio-speech-stream/decode"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "audio-speech-training",
+      "title": "Train and publish synthesis from identified datasets rather than one trace",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 3000,
+        "reason": "Planning estimate of net production AST growth = 1100 nodes for latent target materialization + 1100 for dataset/trainer integration + 800 for publication and evaluation bindings after duplicated route policy is removed. Binary optimizer storage and exact model resume already exist and receive no new budget."
+      },
+      "steps": [
+        {
+          "id": "dataset",
+          "title": "Feed declared latent examples through the shared training stream",
+          "status": "open",
+          "verify": "go test ./internal/trainingdata -run '^TestSpeechLatentMaterialization$' \u0026\u0026 go test ./internal/trainingworkflow -run '^TestSpeechDatasetTraining$'",
+          "rationale": "Add bounded tables for target identity, shape and normalization refusal plus uninterrupted versus resumed dataset order and updates.\nUse trainingdata.Materialize, dataset.RecordID, shared split membership and JointTrainer rather than a second synthesis trainer.\nA latent target binds source record, immutable base, tokenizer, codec, transform, conditioning and generation noise identity.\nRecorded or independently produced latent datasets are admissible with explicit provenance.\nOne repeated trace proves fitting rather than held-out synthesis quality.\nWaveform targets require an admitted encoder with an independently checked normalized-latent contract.\nThe voice encoder's speaker-projected conditioning is not a normalized training target.\nPreserve exact next example, RNG, optimizer and scheduler state through existing trainingprogram checkpoints.\nRetain CPU numerical reference coverage and reuse the existing Muon device owner for production optimizer execution.\nServes: Existing synthesis training learns from a bounded dataset with replayable identities.\nDisappears: cmd/train/route_speech.go single-example loop policy migrates to the existing trainingworkflow owner and any useful trace fixture remains a small dataset input.\nEvidence: The design intent in overgo_audiocpp2 68cb02e68 is reconciled with existing momentum.bin storage and TestJointTrainerCheckpointRoundTripIsBitExact rather than restoring inline JSON or a legacy reader.\nBatch: Dataset and trainer integration share focused hermetic checks with existing finite-difference and resume owners."
+        },
+        {
+          "id": "publish",
+          "title": "Reload trained synthesis and judge held-out complete speech",
+          "status": "open",
+          "verify": "go test ./internal/trainingworkflow -run '^TestSpeechCheckpointPublication$'",
+          "rationale": "Add TestSpeechCheckpointPublication using existing tiny trainer and publication fixtures for inactive publication, reload, corruption, interrupted publication and identity refusal.\nReuse PublishCheckpoint and LoadCheckpoint with binary momentum and small metadata.\nServing reload verifies lineage without loading optimizer payloads.\nReal-model evaluation uses disjoint record identities and independently specified synthesis targets rather than the trace used for training.\nFreeze text intelligibility and waveform-quality criteria in the existing evaluation owner before training.\nReport round-trip WER with recognizer identity and denominators without treating that recognizer as perceptual or speaker-quality truth.\nCompare complete served output before and after training under the same artifact, conditioning and resource contract.\nMeasure packed gradients, scatter, host/device copies, publication and reload before proposing residency changes.\nA reduced loss on the trained trace is insufficient for adoption.\nServes: The train -\u003e publish -\u003e reload -\u003e evaluate loop covers complete synthesis.\nDisappears: Any duplicated checkpoint, split, publication or evaluation policy is replaced by its existing shared owner.\nEvidence: TestCPUJointTrainerExactResume, TestJointTrainerCheckpointRoundTripIsBitExact and TestServedSpeechMatchesUpstream remain retained owners with new cases merged where their contracts match.\nBatch: Production wiring and hermetic failures land together while fresh held-out model runs use the cycle after the coherent surface batch.",
+          "depends_on": [
+            "audio-speech-training/dataset"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "audio-voice",
+      "title": "Prepare and reuse PocketTTS voice conditioning from reference audio",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 2600,
+        "reason": "Planning estimate of net production AST growth = 1500 nodes for encoder bindings through existing tensor/math owners + 600 for prepared-state identity/publication + 500 for request integration. Necessary encoder capability and tests grow the tree. No new model family or voice service is budgeted."
+      },
+      "steps": [
+        {
+          "id": "prepare",
+          "title": "Encode reference audio into identified reusable voice state",
+          "status": "open",
+          "verify": "go test ./internal/speechsynth -run '^TestVoicePreparation$'",
+          "rationale": "Inventory admitted weights before adding the missing Mimi encoder.\nThe decoder-only artifact cannot support voice preparation and must not acquire fabricated encoder tensors.\nAdd TestVoicePreparation as a table for independently referenced conditioning, resampling, padding, declared clip bounds, missing weights, cancellation and state reuse.\nReuse media decoding, audiodsp where semantics match, tensor catalog, existing math operators and VoiceState loading.\nKeep source bytes, consumed sample range, resampling, padding, encoder, speaker projection and model identities in prepared conditioning.\nExport and reload through existing immutable artifact owners rather than an unversioned voice cache.\nCompare the prepared state and resulting speech with the pinned reference on the same audio and text.\nReuse is permitted only under the full unchanged conditioning identity.\nServes: A reference recording becomes reusable conditioning for the existing PocketTTS model.\nDisappears: No existing encoder is retired because this is missing capability. Prepared-state reuse avoids repeated encoding after adoption and shared media owners prevent duplicate conversion paths.\nEvidence: audio.cpp 22cad6af5043a2d7c7f1d9a0e6c9d7996a80dfc8 src/models/pocket_tts/mimi_encoder.cpp and voice_conditioner.cpp define the reference boundary.\nBatch: Encoder correctness remains independently testable when serving or GPU work is unavailable."
+        },
+        {
+          "id": "serve",
+          "title": "Expose prepared voices through existing speech request and artifact ownership",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestNativeAudioProtocolUsesActiveRecipeSession$' \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowserSpeechControls$' -leg 'speech controls leg'",
+          "rationale": "Extend TestNativeAudioProtocolUsesActiveRecipeSession with named preset, prepared state and reference-audio cases using its existing fixture and assertions.\nResolve one explicit conditioning source per request and refuse contradictory sources or mismatched model identities.\nPreserve authorization, immutable input attribution, session isolation and bounded cancellation.\nUse the current intake and voice controls for browser selection rather than a separate cloning workflow.\nExtend TestWebUIBrowserSpeechControls in its existing lane for conditioning selection, refusal and retry.\nMeasure first preparation separately from repeated prepared-state synthesis and include artifact I/O.\nServes: Existing speech API and UI can select reusable reference-derived voices.\nDisappears: Parallel preset-versus-clone serving paths are avoided by one conditioning resolution boundary and one synthesis execution.\nEvidence: Existing VoiceState, ResolveVoicePath, speech capability and request identity owners retain preset behavior and complete-request reuse rules.\nBatch: API and UI selection land with their existing browser leg and no second voice service.",
+          "depends_on": [
+            "audio-voice/prepare"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "audio-asr-device",
+      "title": "Run measured ASR sequences on the existing device runtime",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 3200,
+        "reason": "Planning estimate of net production AST growth = 1800 nodes for shared execution bindings + 900 for resident state/lifetime integration + 500 for capability and lane registration after displaced staging is removed. Kernel and test growth are counted separately. This is an execution capability rather than a promised speedup."
+      },
+      "steps": [
+        {
+          "id": "resident",
+          "title": "Bind a profiled ASR sequence and accept it on complete transcription cost",
+          "status": "open",
+          "verify": "go run ./cmd/device-lane -paths internal/speechrecognition/forward.go,internal/speechrecognition/transducer.go",
+          "rationale": "Profile existing Granite CTC and Nemotron recurrent consumers before choosing the first device sequence.\nStart with the smallest complete consumer whose measured host execution or transfers justify the change.\nBind through existing graph/execution, device math, kernel manifest and resource owners rather than a ggml runtime or family executor.\nRetain intermediate tensors and recurrent state on device where the matched profile justifies residency.\nPreserve CPU fallback, token decisions, numerical tolerances, chunk boundaries, restart identities, fairness and cancellation release.\nDevice acceptance requires supported Windows/CUDA execution with OVERGO_CUDA_TEST=1 as set by cmd/device-lane.\nRegister TestASRResidentCUDA with the existing lane and verify that every intended case ran on the device rather than skipped, matched nothing or silently used CPU.\nUse tiny declared fixtures for landing checks and real-model comparisons in the cycle with fresh execution scoped to external inputs.\nCompare identical waveform-to-transcript work across short, long and streamed input with cold/warm wall, transfers, synchronization, actual peak memory and failure/restart cost.\nNo end-to-end or resource benefit under the frozen acceptance =\u003e remove the provisional device replacement and retain the negative evidence.\nServes: Existing transcription consumers can use demonstrated beneficial device execution.\nDisappears: The accepted resident binding removes host staging and per-operation transfers from the provisional device path. The existing CPU backend remains supported and no second scheduler or recurrent lifecycle is added.\nEvidence: audio.cpp 22cad6af5043a2d7c7f1d9a0e6c9d7996a80dfc8 src/models/nemotron_asr/encoder.cpp and docs/reports/depthwise_conv1d_performance.md guide comparisons without transferring upstream timing claims to Overgo.\nBatch: Device scope, inference-guard expiry and media reconciliation follow actual changed consumers and kernels rather than blanket GPU parallelism."
+        }
+      ]
+    },
+    {
+      "id": "audio-pocket-languages",
+      "title": "Admit one additional PocketTTS language through existing artifact contracts",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 900,
+        "reason": "Planning estimate of net production AST growth = 400 nodes for artifact/config differences + 300 for tokenizer/text contract differences + 200 for existing catalog bindings after hard-coded assumptions are replaced. New model architecture, acquisition tooling and language framework are excluded."
+      },
+      "steps": [
+        {
+          "id": "admit",
+          "title": "Verify one available non-English PocketTTS package end to end",
+          "status": "open",
+          "verify": "go test ./internal/speechsynth -run '^TestPocketTTSLanguageContract$'",
+          "rationale": "Elect one available package with complete model, tokenizer, voice and license provenance before implementation.\nPrefer the documented six-layer French package when its complete artifacts are already admitted or separately authorized.\nAbsence of an authorized artifact leaves the prerequisite open rather than causing a download or a false completion.\nAdd TestPocketTTSLanguageContract as artifact-shaped table cases in the existing loading and text preparation coverage.\nDerive depth, tokenizer, voice catalog and supported preprocessing from the package rather than language-name switches.\nCheck text normalization, punctuation, Unicode, document splitting, EOS, packaged voices and full audio against the elected reference.\nFreeze native-language held-out intelligibility criteria and denominators before judging output.\nAn English round-trip recognizer is not authority for another language.\nMultilingual claims name only the language and package actually validated.\nServes: One existing synthesis architecture covers an additional demonstrated language.\nDisappears: Incompatible fixed package assumptions are replaced by artifact facts without a parallel synthesis implementation.\nEvidence: audio.cpp 22cad6af5043a2d7c7f1d9a0e6c9d7996a80dfc8 src/models/pocket_tts/assets.cpp and docs/tts.md supply package contracts while existing Overgo load/tokenizer/served-speech tests retain their own cases.\nBatch: This admission is lower priority but does not falsely depend on ASR CUDA or the voice encoder. Model quality remains cycle evidence."
+        }
+      ]
+    }
+  ],
   "decisions": [
     {
       "id": "gemma-12b-bf16-download",

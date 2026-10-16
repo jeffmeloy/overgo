@@ -110,8 +110,8 @@ func (s *codecTransformState) transform(ctx context.Context, x []float32, frames
 			hostmath.Linear(s.qkv, s.xn, l.inProj, 1, d, tensor.TripleExtent*d)
 			q, k, v := s.qkv[:d], s.qkv[d:tensor.PairedExtent*d], s.qkv[tensor.PairedExtent*d:]
 			for head := range c.h {
-				hostmath.ApplyRotaryInterleaved(q[head*c.hd:(head+1)*c.hd], c.invFreq, t)
-				hostmath.ApplyRotaryInterleaved(k[head*c.hd:(head+1)*c.hd], c.invFreq, t)
+				hostmath.ApplyRotaryInterleavedF32(q[head*c.hd:(head+1)*c.hd], c.invFreq, t)
+				hostmath.ApplyRotaryInterleavedF32(k[head*c.hd:(head+1)*c.hd], c.invFreq, t)
 			}
 			for _, offset := range []int{write, write + c.window*d} {
 				copy(s.k[li][offset:], k)

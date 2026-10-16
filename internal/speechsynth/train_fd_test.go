@@ -78,7 +78,7 @@ func tinyBackboneModel(rng *rand.Rand, d, heads, ff, layers int) *Model {
 	m := &Model{Normalization: fixtureSpeechProgram()}
 	m.Dims.DModel, m.Dims.Heads, m.Dims.HeadDim, m.Dims.FF, m.Dims.Layers = d, heads, d/heads, ff, layers
 	m.Dims.MaxPeriod = 10000
-	m.invFreq = hostmath.RopeInvFreq(m.Dims.MaxPeriod, m.Dims.HeadDim)
+	m.invFreq = hostmath.RopeInvFreqF32(m.Dims.MaxPeriod, m.Dims.HeadDim)
 	m.scoreScale = float32(1 / math.Sqrt(float64(m.Dims.HeadDim)))
 	m.layers = make([]attnLayer, layers)
 	for i := range m.layers {
@@ -97,6 +97,31 @@ func tinyBackboneModel(rng *rand.Rand, d, heads, ff, layers int) *Model {
 // tensor class plus dX and dCond on the one-step latent-L2 objective
 // loss = mean((x + F(cond,0,1,x) - z)^2).
 func TestFlowNetGradCheck(t *testing.T) {
+	normalization := loadFixture[struct {
+		X, Alpha, Bias, RMS, Layer, Plain []float32
+		RMSEpsilon                        float64 `json:"rms_epsilon"`
+		LayerEpsilon                      float64 `json:"layer_epsilon"`
+	}](t, "normalization.json")
+	values := make([]float32, len(normalization.X))
+	te := timeEmbed{alpha: normalization.Alpha}
+	te.normalizeTime(values, normalization.X, normalization.RMSEpsilon)
+	for i, want := range normalization.RMS {
+		if values[i] != want {
+			t.Fatalf("time RMS[%d]=%g, original FP32 result %g", i, values[i], want)
+		}
+	}
+	for _, affine := range []bool{false, true} {
+		weight, bias, want := normalization.Alpha, normalization.Bias, normalization.Layer
+		if !affine {
+			weight, bias, want = nil, nil, normalization.Plain
+		}
+		hostmath.LayerNormF32UnfusedInto(values, normalization.X, weight, bias, 1, len(values), normalization.LayerEpsilon)
+		for i, expected := range want {
+			if values[i] != expected {
+				t.Fatalf("flow layer norm affine=%v[%d]=%g, original FP32 result %g", affine, i, values[i], expected)
+			}
+		}
+	}
 	const dim, latent, condDim, depth, half = 10, 4, 6, 2, 3
 	rng := rand.New(rand.NewSource(7))
 	m := tinyFlowModel(rng, dim, latent, condDim, depth, half)
@@ -117,6 +142,18 @@ func TestFlowNetGradCheck(t *testing.T) {
 
 	out := make([]float32, latent)
 	tr := m.flowForwardTrace(out, cond, 0, 1, x)
+	// SimpleMLPAdaLN.forward averages the two FP32 time embeddings before adding conditioning.
+	// Separate additions lose the low bits before the average reaches the conditioning vector.
+	time0, time1, combined := make([]float32, dim), make([]float32, dim), make([]float32, dim)
+	fn.timeEmbeds[0].forwardInto(time0, 0, dim, m.Normalization.TimeEmbeddingRMS)
+	fn.timeEmbeds[1].forwardInto(time1, 1, dim, m.Normalization.TimeEmbeddingRMS)
+	hostmath.LinearF64(combined, cond, fn.condEmbedW, fn.condEmbedB, 1, condDim, dim)
+	for i := range combined {
+		combined[i] += (time0[i] + time1[i]) / 2
+		if tr.y[i] != combined[i] {
+			t.Fatalf("time conditioning[%d]=%g, want original FP32 order %g", i, tr.y[i], combined[i])
+		}
+	}
 	ref := m.FlowForward(cond, 0, 1, x)
 	for i := range ref {
 		if out[i] != ref[i] {

@@ -66,6 +66,33 @@ func TestRotaryInterleavedMatchesGolden(t *testing.T) {
 	dx := f64To32(g.Dout)
 	RotaryInterleavedBackward(dx, inv, g.Pos)
 	checkClose(t, "grad_x", dx, g.GradX)
+	var speech struct {
+		Cases []struct {
+			HeadDim      int     `json:"head_dim"`
+			Pos          int     `json:"pos"`
+			Theta        float64 `json:"theta"`
+			X, Out, Dout []float64
+			Frequencies  []float32
+			GradX        []float64 `json:"grad_x"`
+		}
+	}
+	readFixture(t, "pockettts_rotary_f32.json", &speech)
+	for _, sample := range speech.Cases {
+		frequencies := RopeInvFreqF32(sample.Theta, sample.HeadDim)
+		for i, reference := range sample.Frequencies {
+			// expf implementations may choose adjacent FP32 results.
+			// Rotation receives identical frequencies to isolate its arithmetic from that library difference.
+			ulp := math.Nextafter32(reference, float32(math.Inf(1))) - reference
+			if math.Abs(float64(frequencies[i]-reference)) > float64(ulp) {
+				t.Fatalf("frequency[%d]=%g, original %g differs by more than one FP32 spacing", i, frequencies[i], reference)
+			}
+		}
+		forward, backward := f64To32(sample.X), f64To32(sample.Dout)
+		ApplyRotaryInterleavedF32(forward, sample.Frequencies, sample.Pos)
+		ApplyRotaryInterleavedF32(backward, sample.Frequencies, -sample.Pos)
+		checkClose(t, "speech FP32 rotary", forward, sample.Out)
+		checkClose(t, "speech FP32 rotary gradient", backward, sample.GradX)
+	}
 }
 
 func TestGatedMLPMatchesGolden(t *testing.T) {

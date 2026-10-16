@@ -1316,7 +1316,7 @@
      "contains": "func (m *Model) LatentsToPCM(",
      "path": "internal/speechsynth/codec.go",
      "role": "source",
-     "identity": "file:sha256:a22914037e2bf22e8d469105b5349147702b78adbd3314773f1516b8c185d9e2"
+     "identity": "file:sha256:f9eacd089ab22a2f62b001896ddd77974d03099a2c01c2682d46e2ca26fec1e3"
     },
     {
      "contains": "func TestSpeakE2EProducesReferenceAudio(",

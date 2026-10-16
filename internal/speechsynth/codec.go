@@ -60,7 +60,7 @@ type codecTransformer struct {
 	layers        []codecAttnLayer
 	d, h, hd      int
 	ff, window    int
-	invFreq       []float64
+	invFreq       []float32
 	scoreScale    float32
 	normalization media.NormalizationProgram
 }
@@ -218,7 +218,7 @@ func loadCodecTransformer(read func(string, ...int) ([]float32, error), shapes m
 
 	c := &codecTransformer{
 		d: d, h: tr.NumHeads, hd: d / tr.NumHeads, ff: ff, window: tr.Context,
-		invFreq:       hostmath.RopeInvFreq(tr.MaxPeriod, d/tr.NumHeads),
+		invFreq:       hostmath.RopeInvFreqF32(tr.MaxPeriod, d/tr.NumHeads),
 		scoreScale:    float32(float64(tensor.SingletonExtent) / math.Sqrt(float64(d/tr.NumHeads))),
 		normalization: normalization,
 	}

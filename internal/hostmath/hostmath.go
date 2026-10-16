@@ -113,6 +113,31 @@ func LayerNormF32AffineInto(out, x, weight, bias []float32, rows, d int, eps flo
 	})
 }
 
+// LayerNormF32UnfusedInto preserves separate FP32 mean, variance, division and affine operations.
+//   - A nil weight and bias select normalization without an affine transform.
+func LayerNormF32UnfusedInto(out, x, weight, bias []float32, rows, d int, eps float64) {
+	for r := range rows {
+		row := x[r*d : (r+1)*d]
+		var mean, variance float64
+		for _, value := range row {
+			mean += float64(value)
+		}
+		mean /= float64(d)
+		for _, value := range row {
+			delta := float64(value) - mean
+			variance += delta * delta
+		}
+		divisor := float32(math.Sqrt(float64(float32(variance/float64(d)) + float32(eps))))
+		for i, value := range row {
+			normalized := float32(value-float32(mean)) / divisor
+			if weight != nil {
+				normalized = float32(normalized*weight[i]) + bias[i]
+			}
+			out[r*d+i] = normalized
+		}
+	}
+}
+
 // GELUErf: the EXACT (erf) GELU 0.5*x*(1+erf(x/sqrt(2))) — distinct from the
 // tanh approximation above.
 func GELUErf(x float64) float64 { return 0.5 * x * (1 + math.Erf(x/math.Sqrt2)) }
@@ -168,6 +193,32 @@ func ApplyRotaryHalf(x []float32, invFreq []float64, pos int) {
 		x1, x2 := float64(x[i]), float64(x[i+h])
 		x[i] = float32(x1*c - x2*s)
 		x[i+h] = float32(x2*c + x1*s)
+	}
+}
+
+// rotaryPairWidth counts real and imaginary components in interleaved complex rotations.
+//   - Reconsider only if the interleaved rotary layout changes.
+const rotaryPairWidth = 2
+
+// RopeInvFreqF32 computes the FP32 exponential frequency ladder used by speech transformers.
+func RopeInvFreqF32(theta float64, ropeDim int) []float32 {
+	frequencies := make([]float32, ropeDim/rotaryPairWidth)
+	step := float32(-math.Log(theta) * rotaryPairWidth / float64(ropeDim))
+	for i := range frequencies {
+		frequencies[i] = float32(math.Exp(float64(float32(i) * step)))
+	}
+	return frequencies
+}
+
+// ApplyRotaryInterleavedF32 rounds angles, trigonometric values and products to FP32.
+//   - A negative position applies the transpose rotation to an output gradient.
+func ApplyRotaryInterleavedF32(x, invFreq []float32, pos int) {
+	for i, frequency := range invFreq {
+		angle := float32(pos) * frequency
+		cosine, sine := float32(math.Cos(float64(angle))), float32(math.Sin(float64(angle)))
+		real, imaginary := x[rotaryPairWidth*i], x[rotaryPairWidth*i+1]
+		x[rotaryPairWidth*i] = float32(real*cosine) - float32(imaginary*sine)
+		x[rotaryPairWidth*i+1] = float32(real*sine) + float32(imaginary*cosine)
 	}
 }
 
@@ -489,12 +540,7 @@ func ScaledMaskedBidirectionalAttention(out, q, k, v []float32, querySeq, keySeq
 // query head h reads kv head h/(heads/kvHeads) (grouped-query attention;
 // kvHeads == heads is the per-head case). Scores are f64 dots stored f32.
 func CausalAttention(out, q, k, v []float32, seq, heads, kvHeads, headDim int) {
-	clear(out)
-	// Per head: causal span sum_qi(qi+1) = seq*(seq+1)/2 pairs at 2*headDim
-	// MACs each (score dot + value mix).
-	parallelRangeCost(heads, seq*(seq+1)*headDim, macF64, func(hStart, hEnd int) {
-		causalAttentionHeads(out, q, k, v, seq, heads, kvHeads, headDim, hStart, hEnd)
-	})
+	CausalAttentionSteps(out, q, k, v, 0, seq, heads, kvHeads, headDim)
 }
 
 // CausalAttentionStep: one cached-decode query at position cachedRows-1
@@ -508,7 +554,7 @@ func CausalAttentionStep(out, q, kCache, vCache []float32, cachedRows, heads, kv
 // CausalAttentionSteps: T new cached-decode queries at positions
 // rows0..rows0+T-1, each attending the cache prefix through its own row —
 // the batched form of CausalAttentionStep. Same per-row math (f64 dots
-// stored f32, SoftmaxInPlace, f32 value accumulation), so a stepped decode
+// stored f32, SoftmaxInPlace, f64 value accumulation), so a stepped decode
 // is bit-identical to the full-sequence core's row at that position.
 // Layout: q/out [T][heads][headDim] flat; kCache/vCache hold rows0+T rows
 // [kvHeads][headDim]. Parallel over heads — each worker owns disjoint out
@@ -521,6 +567,7 @@ func CausalAttentionSteps(out, q, kCache, vCache []float32, rows0, T, heads, kvH
 	unit := 2 * headDim * (T*rows0 + T*(T+1)/2)
 	parallelRangeCost(heads, unit, macF64, func(hStart, hEnd int) {
 		scores := make([]float32, rows0+T)
+		values := make([]float64, headDim)
 		for h := hStart; h < hEnd; h++ {
 			kv := h / group
 			for t := range T {
@@ -536,43 +583,17 @@ func CausalAttentionSteps(out, q, kCache, vCache []float32, rows0, T, heads, kvH
 				}
 				SoftmaxInPlace(probs)
 				outRow := out[(t*heads+h)*headDim : (t*heads+h+1)*headDim]
+				clear(values)
 				for ki, weight := range probs {
 					vRow := vCache[(ki*kvHeads+kv)*headDim : (ki*kvHeads+kv+1)*headDim]
 					for d := range headDim {
-						outRow[d] += weight * vRow[d]
+						values[d] += float64(weight) * float64(vRow[d])
 					}
+				}
+				for d, value := range values {
+					outRow[d] = float32(value)
 				}
 			}
 		}
 	})
-}
-
-// causalAttentionHeads runs the head range [hStart,hEnd) — each worker owns
-// disjoint out rows per head, so the split is race-free.
-func causalAttentionHeads(out, q, k, v []float32, seq, heads, kvHeads, headDim, hStart, hEnd int) {
-	scores := make([]float32, seq)
-	group := heads / kvHeads
-	for h := hStart; h < hEnd; h++ {
-		kv := h / group
-		for qi := range seq {
-			qRow := q[(qi*heads+h)*headDim : (qi*heads+h+1)*headDim]
-			probs := scores[:qi+1]
-			for ki := range probs {
-				kRow := k[(ki*kvHeads+kv)*headDim : (ki*kvHeads+kv+1)*headDim]
-				var dot float64
-				for d := range headDim {
-					dot += float64(qRow[d]) * float64(kRow[d])
-				}
-				probs[ki] = float32(dot)
-			}
-			SoftmaxInPlace(probs)
-			outRow := out[(qi*heads+h)*headDim : (qi*heads+h+1)*headDim]
-			for ki, weight := range probs {
-				vRow := v[(ki*kvHeads+kv)*headDim : (ki*kvHeads+kv+1)*headDim]
-				for d := range headDim {
-					outRow[d] += weight * vRow[d]
-				}
-			}
-		}
-	}
 }

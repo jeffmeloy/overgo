@@ -45,13 +45,13 @@ func (m *Model) AppendForward(st *DecodeState, x []float32, T int) {
 	for li := range m.layers {
 		l := &m.layers[li]
 		hostmath.LayerNormInto(xn, x, l.norm1W, l.norm1B, T, d, m.Normalization.TransformerLayer)
-		hostmath.Linear(qkv, xn, l.inProj, T, d, tensor.TripleExtent*d)
+		hostmath.LinearF64(qkv, xn, l.inProj, nil, T, d, tensor.TripleExtent*d)
 		for t := range T {
 			base := t * tensor.TripleExtent * d
 			qr, kr, vr := qkv[base:base+d], qkv[base+d:base+tensor.PairedExtent*d], qkv[base+tensor.PairedExtent*d:(t+tensor.SingletonExtent)*tensor.TripleExtent*d]
 			for head := range h {
-				hostmath.ApplyRotaryInterleaved(qr[head*hd:(head+tensor.SingletonExtent)*hd], m.invFreq, rows0+t)
-				hostmath.ApplyRotaryInterleaved(kr[head*hd:(head+tensor.SingletonExtent)*hd], m.invFreq, rows0+t)
+				hostmath.ApplyRotaryInterleavedF32(qr[head*hd:(head+tensor.SingletonExtent)*hd], m.invFreq, rows0+t)
+				hostmath.ApplyRotaryInterleavedF32(kr[head*hd:(head+tensor.SingletonExtent)*hd], m.invFreq, rows0+t)
 			}
 			st.k[li] = append(st.k[li], kr...)
 			st.v[li] = append(st.v[li], vr...)
@@ -61,14 +61,14 @@ func (m *Model) AppendForward(st *DecodeState, x []float32, T int) {
 			}
 		}
 		hostmath.CausalAttentionSteps(attn, q, st.k[li], st.v[li], rows0, T, h, h, hd)
-		hostmath.Linear(proj, attn, l.outProj, T, d, d)
+		hostmath.LinearF64(proj, attn, l.outProj, nil, T, d, d)
 		for i := range x {
 			x[i] += proj[i]
 		}
 		hostmath.LayerNormInto(xn, x, l.norm2W, l.norm2B, T, d, m.Normalization.TransformerLayer)
-		hostmath.Linear(h1, xn, l.lin1, T, d, ff)
+		hostmath.LinearF64(h1, xn, l.lin1, nil, T, d, ff)
 		hostmath.GELUErfInPlace(h1)
-		hostmath.Linear(proj, h1, l.lin2, T, ff, d)
+		hostmath.LinearF64(proj, h1, l.lin2, nil, T, ff, d)
 		for i := range x {
 			x[i] += proj[i]
 		}
@@ -90,7 +90,7 @@ func (m *Model) TextEmbedInto(out []float32, ids []int) error {
 
 // LatentInputInto projects one frame latent into the transformer width.
 func (m *Model) LatentInputInto(dst, latent []float32) {
-	hostmath.Linear(dst, latent, m.inputLinear, tensor.SingletonExtent, m.Dims.LatentDim, m.Dims.DModel)
+	hostmath.LinearF64(dst, latent, m.inputLinear, nil, tensor.SingletonExtent, m.Dims.LatentDim, m.Dims.DModel)
 }
 
 // OutNormInto applies the flow-LM output LayerNorm over rows of width d.

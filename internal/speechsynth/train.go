@@ -48,7 +48,7 @@ func (m *Model) layerForwardTrace(l *attnLayer, x []float32, T int) ([]float32, 
 	tr.xn1 = make([]float32, T*d)
 	hostmath.LayerNormInto(tr.xn1, x, l.norm1W, l.norm1B, T, d, m.Normalization.TransformerLayer)
 	qkv := make([]float32, T*tensor.TripleExtent*d)
-	hostmath.Linear(qkv, tr.xn1, l.inProj, T, d, tensor.TripleExtent*d)
+	hostmath.LinearF64(qkv, tr.xn1, l.inProj, nil, T, d, tensor.TripleExtent*d)
 	tr.q, tr.k, tr.v = make([]float32, T*d), make([]float32, T*d), make([]float32, T*d)
 	for t := range T {
 		row := qkv[t*tensor.TripleExtent*d : (t+tensor.SingletonExtent)*tensor.TripleExtent*d]
@@ -58,8 +58,8 @@ func (m *Model) layerForwardTrace(l *attnLayer, x []float32, T int) ([]float32, 
 	}
 	for t := range T {
 		for h := range heads {
-			hostmath.ApplyRotaryInterleaved(tr.q[(t*heads+h)*hd:(t*heads+h+tensor.SingletonExtent)*hd], m.invFreq, t)
-			hostmath.ApplyRotaryInterleaved(tr.k[(t*heads+h)*hd:(t*heads+h+tensor.SingletonExtent)*hd], m.invFreq, t)
+			hostmath.ApplyRotaryInterleavedF32(tr.q[(t*heads+h)*hd:(t*heads+h+tensor.SingletonExtent)*hd], m.invFreq, t)
+			hostmath.ApplyRotaryInterleavedF32(tr.k[(t*heads+h)*hd:(t*heads+h+tensor.SingletonExtent)*hd], m.invFreq, t)
 		}
 	}
 	for i := range tr.q {
@@ -68,7 +68,7 @@ func (m *Model) layerForwardTrace(l *attnLayer, x []float32, T int) ([]float32, 
 	tr.attn = make([]float32, T*d)
 	hostmath.CausalAttention(tr.attn, tr.q, tr.k, tr.v, T, heads, heads, hd)
 	attnOut := make([]float32, T*d)
-	hostmath.Linear(attnOut, tr.attn, l.outProj, T, d, d)
+	hostmath.LinearF64(attnOut, tr.attn, l.outProj, nil, T, d, d)
 	tr.mid = make([]float32, T*d)
 	for i := range tr.mid {
 		tr.mid[i] = x[i] + attnOut[i]
@@ -76,11 +76,11 @@ func (m *Model) layerForwardTrace(l *attnLayer, x []float32, T int) ([]float32, 
 	tr.xn2 = make([]float32, T*d)
 	hostmath.LayerNormInto(tr.xn2, tr.mid, l.norm2W, l.norm2B, T, d, m.Normalization.TransformerLayer)
 	tr.h1pre = make([]float32, T*ff)
-	hostmath.Linear(tr.h1pre, tr.xn2, l.lin1, T, d, ff)
+	hostmath.LinearF64(tr.h1pre, tr.xn2, l.lin1, nil, T, d, ff)
 	tr.h1post = append([]float32(nil), tr.h1pre...)
 	hostmath.GELUErfInPlace(tr.h1post)
 	h2 := make([]float32, T*d)
-	hostmath.Linear(h2, tr.h1post, l.lin2, T, ff, d)
+	hostmath.LinearF64(h2, tr.h1post, l.lin2, nil, T, ff, d)
 	out := make([]float32, T*d)
 	for i := range out {
 		out[i] = tr.mid[i] + h2[i]
@@ -118,8 +118,8 @@ func (m *Model) layerBackward(li int, x, dOut []float32, T int, g Grads) []float
 	}
 	for t := range T {
 		for h := range heads {
-			hostmath.RotaryInterleavedBackward(dq[(t*heads+h)*hd:(t*heads+h+tensor.SingletonExtent)*hd], m.invFreq, t)
-			hostmath.RotaryInterleavedBackward(dk[(t*heads+h)*hd:(t*heads+h+tensor.SingletonExtent)*hd], m.invFreq, t)
+			hostmath.ApplyRotaryInterleavedF32(dq[(t*heads+h)*hd:(t*heads+h+tensor.SingletonExtent)*hd], m.invFreq, -t)
+			hostmath.ApplyRotaryInterleavedF32(dk[(t*heads+h)*hd:(t*heads+h+tensor.SingletonExtent)*hd], m.invFreq, -t)
 		}
 	}
 	dqkv := make([]float32, T*tensor.TripleExtent*d)
@@ -166,27 +166,11 @@ func (te *timeEmbed) forwardTrace(out []float32, t float64, flowDim int, rmsEpsi
 		tr.emb[i] = float32(math.Cos(arg))
 		tr.emb[half+i] = float32(math.Sin(arg))
 	}
-	hostmath.Linear(tr.h0pre, tr.emb, te.l0w, tensor.SingletonExtent, tensor.PairedExtent*half, flowDim)
-	hostmath.AddBias(tr.h0pre, te.l0b)
+	hostmath.LinearF64(tr.h0pre, tr.emb, te.l0w, te.l0b, tensor.SingletonExtent, tensor.PairedExtent*half, flowDim)
 	copy(tr.h0post, tr.h0pre)
 	hostmath.SiLUInPlace(tr.h0post)
-	hostmath.Linear(tr.h, tr.h0post, te.l2w, tensor.SingletonExtent, flowDim, flowDim)
-	hostmath.AddBias(tr.h, te.l2b)
-	var mean float64
-	for _, v := range tr.h {
-		mean += float64(v)
-	}
-	mean /= float64(flowDim)
-	var varsum float64
-	for _, v := range tr.h {
-		delta := float64(v) - mean
-		varsum += delta * delta
-	}
-	tr.mean = mean
-	tr.inv = float64(tensor.SingletonExtent) / math.Sqrt(rmsEpsilon+varsum/float64(flowDim-tensor.SingletonExtent))
-	for i := range out {
-		out[i] = float32(float64(tr.h[i]) * float64(te.alpha[i]) * tr.inv)
-	}
+	hostmath.LinearF64(tr.h, tr.h0post, te.l2w, te.l2b, tensor.SingletonExtent, flowDim, flowDim)
+	tr.mean, tr.inv = te.normalizeTime(out, tr.h, rmsEpsilon)
 	return tr
 }
 
@@ -220,44 +204,39 @@ func (m *Model) flowForwardTrace(out, cond []float32, s, t float64, x []float32)
 	tr := &flowTrace{cur: make([][]float32, len(fn.blocks)+tensor.SingletonExtent), blocks: make([]flowBlockTrace, len(fn.blocks))}
 
 	cur := make([]float32, dim)
-	hostmath.Linear(cur, x, fn.inputProjW, tensor.SingletonExtent, latent, dim)
-	hostmath.AddBias(cur, fn.inputProjB)
+	hostmath.LinearF64(cur, x, fn.inputProjW, fn.inputProjB, tensor.SingletonExtent, latent, dim)
 	tr.cur[tensor.FirstOffset] = cur
 
 	tr.y = make([]float32, dim)
-	hostmath.Linear(tr.y, cond, fn.condEmbedW, tensor.SingletonExtent, len(cond), dim)
-	hostmath.AddBias(tr.y, fn.condEmbedB)
+	hostmath.LinearF64(tr.y, cond, fn.condEmbedW, fn.condEmbedB, tensor.SingletonExtent, len(cond), dim)
+	tr.ySiLU = make([]float32, dim)
 	timeValue := make([]float32, dim)
-	for i, tv := range [...]float64{s, t} {
-		tr.te[i] = fn.timeEmbeds[i].forwardTrace(timeValue, tv, dim, m.Normalization.TimeEmbeddingRMS)
-		for j := range tr.y {
-			tr.y[j] += timeValue[j] / tensor.PairedExtent
-		}
+	tr.te[0] = fn.timeEmbeds[0].forwardTrace(tr.ySiLU, s, dim, m.Normalization.TimeEmbeddingRMS)
+	tr.te[1] = fn.timeEmbeds[1].forwardTrace(timeValue, t, dim, m.Normalization.TimeEmbeddingRMS)
+	for j := range tr.y {
+		tr.y[j] += (tr.ySiLU[j] + timeValue[j]) / tensor.PairedExtent
+		tr.ySiLU[j] = tr.y[j]
 	}
-	tr.ySiLU = append([]float32(nil), tr.y...)
 	hostmath.SiLUInPlace(tr.ySiLU)
 
 	for bi := range fn.blocks {
 		b := &fn.blocks[bi]
 		bt := &tr.blocks[bi]
 		bt.ada = make([]float32, tensor.TripleExtent*dim)
-		hostmath.Linear(bt.ada, tr.ySiLU, b.adaW, tensor.SingletonExtent, dim, tensor.TripleExtent*dim)
-		hostmath.AddBias(bt.ada, b.adaB)
+		hostmath.LinearF64(bt.ada, tr.ySiLU, b.adaW, b.adaB, tensor.SingletonExtent, dim, tensor.TripleExtent*dim)
 		shift, scale, gate := bt.ada[:dim], bt.ada[dim:tensor.PairedExtent*dim], bt.ada[tensor.PairedExtent*dim:]
 		bt.hln = make([]float32, dim)
-		hostmath.LayerNormInto(bt.hln, cur, b.inLnW, b.inLnB, tensor.SingletonExtent, dim, m.Normalization.FlowLayer)
+		hostmath.LayerNormF32UnfusedInto(bt.hln, cur, b.inLnW, b.inLnB, tensor.SingletonExtent, dim, m.Normalization.FlowLayer)
 		bt.hmod = make([]float32, dim)
 		for i := range bt.hmod {
 			bt.hmod[i] = bt.hln[i]*(tensor.SingletonExtent+scale[i]) + shift[i]
 		}
 		bt.h1pre = make([]float32, dim)
-		hostmath.Linear(bt.h1pre, bt.hmod, b.mlp0w, tensor.SingletonExtent, dim, dim)
-		hostmath.AddBias(bt.h1pre, b.mlp0b)
+		hostmath.LinearF64(bt.h1pre, bt.hmod, b.mlp0w, b.mlp0b, tensor.SingletonExtent, dim, dim)
 		bt.h1post = append([]float32(nil), bt.h1pre...)
 		hostmath.SiLUInPlace(bt.h1post)
 		bt.h2 = make([]float32, dim)
-		hostmath.Linear(bt.h2, bt.h1post, b.mlp2w, tensor.SingletonExtent, dim, dim)
-		hostmath.AddBias(bt.h2, b.mlp2b)
+		hostmath.LinearF64(bt.h2, bt.h1post, b.mlp2w, b.mlp2b, tensor.SingletonExtent, dim, dim)
 		next := make([]float32, dim)
 		for i := range next {
 			next[i] = cur[i] + gate[i]*bt.h2[i]
@@ -267,17 +246,15 @@ func (m *Model) flowForwardTrace(out, cond []float32, s, t float64, x []float32)
 	}
 
 	tr.adaF = make([]float32, tensor.PairedExtent*dim)
-	hostmath.Linear(tr.adaF, tr.ySiLU, fn.finalAdaW, tensor.SingletonExtent, dim, tensor.PairedExtent*dim)
-	hostmath.AddBias(tr.adaF, fn.finalAdaB)
+	hostmath.LinearF64(tr.adaF, tr.ySiLU, fn.finalAdaW, fn.finalAdaB, tensor.SingletonExtent, dim, tensor.PairedExtent*dim)
 	tr.nf = make([]float32, dim)
-	hostmath.LayerNormInto(tr.nf, cur, nil, nil, tensor.SingletonExtent, dim, m.Normalization.FlowLayer)
+	hostmath.LayerNormF32UnfusedInto(tr.nf, cur, nil, nil, tensor.SingletonExtent, dim, m.Normalization.FlowLayer)
 	shift, scale := tr.adaF[:dim], tr.adaF[dim:]
 	tr.nfm = make([]float32, dim)
 	for i := range tr.nfm {
 		tr.nfm[i] = tr.nf[i]*(tensor.SingletonExtent+scale[i]) + shift[i]
 	}
-	hostmath.Linear(out, tr.nfm, fn.finalLinW, tensor.SingletonExtent, dim, latent)
-	hostmath.AddBias(out, fn.finalLinB)
+	hostmath.LinearF64(out, tr.nfm, fn.finalLinW, fn.finalLinB, tensor.SingletonExtent, dim, latent)
 	return tr
 }
 

@@ -258,6 +258,13 @@ func TestMaskedBidirectionalAttention(t *testing.T) {
 // the accumulated cache must be BIT-identical to the full-sequence core's
 // row — the contract incremental decode relies on.
 func TestCausalAttentionStepMatchesFull(t *testing.T) {
+	// Equal scores make the value reduction an arithmetic mean despite cancellation.
+	values := []float32{1e8, 1, -1e8}
+	mean := make([]float32, 1)
+	CausalAttentionStep(mean, []float32{0}, make([]float32, len(values)), values, len(values), 1, 1, 1)
+	if math.Abs(float64(mean[0])-1.0/3.0) > 1e-7 {
+		t.Fatalf("causal value mean=%g, want 1/3 within FP32 rounding", mean[0])
+	}
 	const seq, heads, kvHeads, headDim = 6, 4, 2, 8
 	fill := func(n int, seed float64) []float32 {
 		out := make([]float32, n)

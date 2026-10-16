@@ -134,7 +134,7 @@ type Model struct {
 	// Codec: the mimi decoder half; LatentsToPCM refuses while nil.
 	Codec *CodecDecoder
 
-	invFreq    []float64 // interleaved-RoPE ladder from MaxPeriod, HeadDim
+	invFreq    []float32 // interleaved-RoPE ladder from MaxPeriod, HeadDim
 	scoreScale float32   // 1/sqrt(hd), folded into q before attention
 }
 
@@ -251,7 +251,7 @@ func Load(directory string) (*Model, error) {
 	m := &Model{
 		Dims:          dims,
 		Normalization: normalization,
-		invFreq:       hostmath.RopeInvFreq(dims.MaxPeriod, dims.HeadDim),
+		invFreq:       hostmath.RopeInvFreqF32(dims.MaxPeriod, dims.HeadDim),
 		scoreScale:    float32(float64(tensor.SingletonExtent) / math.Sqrt(float64(dims.HeadDim))),
 	}
 

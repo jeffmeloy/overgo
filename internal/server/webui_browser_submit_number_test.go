@@ -79,7 +79,8 @@ func TestWebUIBrowserSubmitNumberCarriesAComposerRun(t *testing.T) {
 	pressKey(t, ctx, browser, "ArrowDown", 40)
 	settle(`document.querySelector('.mode-controls select[aria-label="voice"]').value === 'alba'`)
 
-	// The first answer is lost after the server has the request; the page records what it posted.
+	// Lose the completed answer before the page reads it.
+	// Disconnecting the owning speech stream before completion correctly cancels execution.
 	check(`(() => {
   window.posted = [];
   let lost = true;
@@ -88,7 +89,7 @@ func TestWebUIBrowserSubmitNumberCarriesAComposerRun(t *testing.T) {
     if (String(url).endsWith('/generation/run') && options && options.method === 'POST') {
       window.posted.push(JSON.parse(options.body));
       const response = await real(url, options);
-      if (lost) { lost = false; throw new TypeError('the response was lost'); }
+      if (lost) { lost = false; await response.arrayBuffer(); throw new TypeError('the response was lost'); }
       return response;
     }
     return real(url, options);

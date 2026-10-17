@@ -113,6 +113,27 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "flashnext-retained-slices",
+      "title": "Release prompt-sized producers after retaining compact recurrent state",
+      "status": "open",
+      "budget": {
+        "nodes": 400,
+        "reason": "Estimated compile-time selection of existing retained aliases versus existing slice copies by allocation cost. Reuse the executor layout and pool with no new allocator, kernel or runtime policy."
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "Compact partial outputs when shared producer storage costs more",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor ./internal/inference -run '^(TestRetainedAliasPlanOmitsProducerStorage|TestRetainedAliasPlanPreservesBoundWholeViews|TestExecutorRetainedFlatSlicesShareProducerStorage|TestExecutorMixedRetainedSliceAndWholeTarget|TestExecutorRetainedOutputLifetime|TestHermeticCUDAProjectedDeviceCache)$'",
+          "rationale": "Serves: Remove prompt-sized data retained solely by small recurrent-state output views.\ninternal/model/block.go builds nextSSMState as a FlatSlice of the packed prompt outputs and final state.\nresolveRetainedStorageView in internal/cuda/executor/executor.go currently retains that entire producer.\ndecodeGraphOutputs already schedules layer states before later layers and supplies the correct lifetime boundary.\nDisappears: Replace unconditional retention of partial-output producers with an allocation-cost decision at compilation.\nReuse existing slice-copy launches, retainedOutputLayout, deviceBufferBucket and retained target contracts.\nPreserve sharing when a whole producer is independently retained or rounded compact storage is no cheaper.\nDo not add a kernel, allocator, cache owner, model-name branch or numerical conversion.\nExtend existing compile and device-memory test tables for small shared slices, large compact tails, whole views, explicit targets and source reuse.\nRemove displaced blanket alias assertions in those same tests while retaining exact values, cancellation and release coverage.\nEvidence: evidence:sha256:66865ff191ebb93c6f4bb5e240d059e7da87a191295dfb10f54e5999a847e674 records a 2147483648-byte new allocation in the rejected candidate peak ledger.\nThe observed total device peak increase is 696679424 bytes because expert residency also changes.\nSource traces the packed recurrent output to retained alias storage and predicts a smaller retained allocation after compaction.\nFirst demonstrate the large-tail compact-storage assertion fails on the existing executor.\nCompare exact output bytes after another execution reuses the producer arena and verify ownership release.\nFreeze adoption against the unchanged bfd646de screenshot producer, inputs, output IDs, wall time, peak working set and owned-device peak.\nCount the extra state-copy work and keep the change only when the whole-request comparison meets every bound.\nBatch: One executor change corrects the lifetime for every concrete retained-slice caller.\nThe projected route remains provisional until this comparison passes.\nIf the refined candidate fails, remove the provisional route and retain the negative evidence.\nFull Strata parity and 256K acceptance remain separate open obligations.",
+          "depends_on": [
+            "flashnext-device-projection/do"
+          ]
+        }
+      ]
+    },
+    {
       "id": "flashnext-efficiency",
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",
@@ -151,24 +172,21 @@
       "id": "flashnext-vision",
       "title": "Deliver image understanding and its web GUI as the next native increment",
       "status": "open",
-      "budget": {
-        "nodes": 128,
-        "reason": "Reuse the existing cache upload and device decode after projected prefill to remove per-token state transfers. The allowance covers generation wiring and failure cleanup without a new cache owner."
-      },
       "steps": [
         {
           "id": "images",
           "title": "Reuse the vision projector and composer for image, OCR and multi-image conversations",
           "status": "open",
           "verify": "go test ./internal/projector ./internal/server -run '^(TestFlashNextVision|TestChatMultimodalAttachments|TestPreprocessQwen3VLImageMergedOrder)$' \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/projector -run '^TestFlashNextVisionCUDAMatchesReference$' \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowserMediaCapture$' -leg flashnext-image",
-          "rationale": "Serves: Inspect the exact projector metadata and tensor mapping before extending Qwen3VLRunner.\nVerify the 27-layer, width-1152 visual backbone, width-2560 merger, spatial and temporal patch geometry, empty deepstack configuration and language insertion semantics from source artifacts.\nExpose image upload, paste, preview, multiple images and OCR or screenshot questions through the existing composer.\nBind exact image bytes and preprocessing to prompt reuse.\nDisappears: Reuse internal/projector/qwen3vl.go, prompt.go, preprocess_profiles.json and existing tensor operations.\nKeep images in the native artifact and projector flow instead of Strata's mtmd subprocess and temporary SVE1 embedding files.\nReuse image attachment and capture fixtures and consolidate duplicate setup into their retained owner.\nRetain existing Qwen3VL numerical and deepstack tests because their contracts remain distinct.\nEvidence: Strata tools/vision/strata_vision.cpp is an image encoder sidecar reference rather than a mandatory runtime dependency.\nOvergo already provides image prompt construction and multiple-image coverage.\nTestFlashNextVision and its CUDA case are planned independent-reference tables for geometry, embeddings, positions and prompt insertion.\nClosure requires held-out image and OCR quality, missing-projector refusal and common image performance under the frozen Strata baseline.\nBatch: Image support is a required campaign increment.\nMatch image dimensions, resize and token budgets when measuring.\nDo not reduce OCR resolution or use an unverified projector quant to improve timings.\nThe browser leg and real-model evidence remain separate obligations with shared assets.\nThe rejected projected decode comparison is evidence:sha256:504199519b224ab53f39477323d980fc5daa85ec5bbf809df75d39f43884f0d5.\nDevice decode removes repeated transfers but the upload bridge fails the frozen memory acceptance.\nBefore reintroducing it, preserve projected prefill directly in existing device outputs or separate transient state from reusable KV capacity without retaining displaced state.\nRequire identical output IDs and no-greater request time and owned device peak against the retained screenshot baseline.\nKeep the rejected measurements and do not compensate for them by weakening acceptance.\nThe projector storage comparison is evidence:sha256:d3e38014884ac88008a5bcaaed2923ca3ec9e4489d9698a716cb841fc72aa190.\nBF16 storage saves 854646784 device bytes but adds 0.5 to 0.8 percent warmed encode time in the frozen comparison.\nRemove the provisional storage replacement and retain its negative result.\nDevice-owned projected prefill is the next mechanism to compare against the existing full-request baseline.",
+          "rationale": "Serves: Inspect the exact projector metadata and tensor mapping before extending Qwen3VLRunner.\nVerify the 27-layer, width-1152 visual backbone, width-2560 merger, spatial and temporal patch geometry, empty deepstack configuration and language insertion semantics from source artifacts.\nExpose image upload, paste, preview, multiple images and OCR or screenshot questions through the existing composer.\nBind exact image bytes and preprocessing to prompt reuse.\nDisappears: Reuse internal/projector/qwen3vl.go, prompt.go, preprocess_profiles.json and existing tensor operations.\nKeep images in the native artifact and projector flow instead of Strata's mtmd subprocess and temporary SVE1 embedding files.\nReuse image attachment and capture fixtures and consolidate duplicate setup into their retained owner.\nRetain existing Qwen3VL numerical and deepstack tests because their contracts remain distinct.\nEvidence: Strata tools/vision/strata_vision.cpp is an image encoder sidecar reference rather than a mandatory runtime dependency.\nOvergo already provides image prompt construction and multiple-image coverage.\nTestFlashNextVision and its CUDA case are planned independent-reference tables for geometry, embeddings, positions and prompt insertion.\nClosure requires held-out image and OCR quality, missing-projector refusal and common image performance under the frozen Strata baseline.\nBatch: Image support is a required campaign increment.\nMatch image dimensions, resize and token budgets when measuring.\nDo not reduce OCR resolution or use an unverified projector quant to improve timings.\nThe browser leg and real-model evidence remain separate obligations with shared assets.\nThe rejected projected decode comparison is evidence:sha256:504199519b224ab53f39477323d980fc5daa85ec5bbf809df75d39f43884f0d5.\nDevice decode removes repeated transfers but the upload bridge fails the frozen memory acceptance.\nBefore reintroducing it, preserve projected prefill directly in existing device outputs or separate transient state from reusable KV capacity without retaining displaced state.\nRequire identical output IDs and no-greater request time and owned device peak against the retained screenshot baseline.\nKeep the rejected measurements and do not compensate for them by weakening acceptance.\nThe projector storage comparison is evidence:sha256:d3e38014884ac88008a5bcaaed2923ca3ec9e4489d9698a716cb841fc72aa190.\nBF16 storage saves 854646784 device bytes but adds 0.5 to 0.8 percent warmed encode time in the frozen comparison.\nRemove the provisional storage replacement and retain its negative result.\nDevice-owned projected prefill is the next mechanism to compare against the existing full-request baseline.\nThe projected device comparison is evidence:sha256:66865ff191ebb93c6f4bb5e240d059e7da87a191295dfb10f54e5999a847e674.\nThe candidate preserves all output IDs and reduces request time from 87.0796214 to 74.2797538 seconds.\nIts device peak grows by 696679424 bytes and therefore fails adoption.\nKeep the route provisional while correcting retained partial-output lifetimes in the existing executor.\nThe next candidate must meet the same original baseline rather than the rejected candidate.",
           "depends_on": [
             "flashnext-chat/serve",
             "flashnext-vision/arithmetic",
             "flashnext-vision/decode",
             "flashnext-vision-rejection/do",
             "flashnext-vision-storage/weights",
-            "flashnext-device-projection/do"
+            "flashnext-device-projection/do",
+            "flashnext-retained-slices/do"
           ]
         }
       ]
@@ -222,7 +240,8 @@
             "flashnext-vision-rejection/do",
             "flashnext-vision-rejection-plan/do",
             "flashnext-vision-storage-plan/do",
-            "flashnext-device-projection-plan/do"
+            "flashnext-device-projection-plan/do",
+            "flashnext-retained-slices-plan/do"
           ]
         }
       ]

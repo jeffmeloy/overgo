@@ -167,58 +167,86 @@ func TestExecutorRetainedOnceBypassesGraphCache(t *testing.T) {
 
 func TestExecutorRetainedFlatSlicesShareProducerStorage(t *testing.T) {
 	cudatest.Require(t)
-	const (
-		firstOffset  = 1
-		firstLength  = 3
-		secondOffset = 5
-		secondLength = 2
-	)
-	builder := tensor.NewBuilder()
-	shape := tensor.MustShape(8)
-	input := builder.Input("input", dtype.F32, shape)
-	producer := builder.Scale(input, 2)
-	first := builder.FlatSlice(producer, firstOffset, firstLength)
-	second := builder.FlatSlice(producer, secondOffset, secondLength)
-	cuda := newFixtureExecutor(t)
-	retained, err := cuda.executeRetainedWithDeviceFeeds(
-		context.WithoutCancel(t.Context()),
-		[]*tensor.Tensor{first, second},
-		map[*tensor.Tensor]reference.Value{
-			input: {Shape: shape, Data: []float32{1, 2, 3, 4, 5, 6, 7, 8}},
-		},
-		nil,
-	)
-	if err != nil {
-		t.Fatal(err)
+	for _, test := range []struct {
+		name   string
+		length uint64
+		shared bool
+	}{
+		{"shared small producer", 8, true},
+		{"compact large producer", 1024, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			const (
+				firstOffset  = 1
+				firstLength  = 3
+				secondOffset = 5
+				secondLength = 2
+			)
+			builder := tensor.NewBuilder()
+			shape := tensor.MustShape(test.length)
+			input := builder.Input("input", dtype.F32, shape)
+			producer := builder.Scale(input, 2)
+			first := builder.FlatSlice(producer, firstOffset, firstLength)
+			second := builder.FlatSlice(producer, secondOffset, secondLength)
+			cuda := newFixtureExecutor(t)
+			data := make([]float32, test.length)
+			for i := range data {
+				data[i] = float32(i + 1)
+			}
+			feeds := map[*tensor.Tensor]reference.Value{input: {Shape: shape, Data: data}}
+			retained, err := cuda.executeRetainedWithDeviceFeeds(
+				context.WithoutCancel(t.Context()),
+				[]*tensor.Tensor{first, second},
+				feeds,
+				nil,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			fixtureCleanup(t, "release retained fixture slices", func() error {
+				return retained.Release(context.WithoutCancel(t.Context()))
+			})
+			firstValue, firstOK := retained.Value(first)
+			secondValue, secondOK := retained.Value(second)
+			metrics, err := cuda.Metrics(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			producerBytes := fixtureShapeBytes(t, shape, dtype.F32)
+			wantArena, wantRetained := uint64(0), producerBytes
+			wantPointerDelta := fixtureShapeBytes(
+				t, tensor.MustShape(secondOffset-firstOffset), dtype.F32,
+			)
+			if !test.shared {
+				wantArena, wantRetained = producerBytes, deviceAllocationAlignment+secondLength*4
+				wantPointerDelta = deviceAllocationAlignment
+			}
+			wantRetained, err = deviceBufferBucket(wantRetained)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if metrics.ArenaRequiredBytes != wantArena || metrics.PoolTotalBytes-metrics.PoolRetainedBytes != wantRetained {
+				t.Fatalf("storage = %+v, want arena %d and live retained %d", metrics, wantArena, wantRetained)
+			}
+			if !firstOK || !secondOK || uint64(secondValue.Pointer-firstValue.Pointer) != wantPointerDelta {
+				t.Fatalf("retained slice pointers = %+v/%+v", firstValue, secondValue)
+			}
+			// A later execution overwrites temporary producer storage while the slices remain live.
+			if _, err := cuda.Execute(t.Context(), []*tensor.Tensor{builder.Scale(input, 3)}, feeds); err != nil {
+				t.Fatal(err)
+			}
+			firstHost, err := retained.CopyToHost(t.Context(), first)
+			if err != nil {
+				t.Fatal(err)
+			}
+			secondHost, err := retained.CopyToHost(t.Context(), second)
+			if err != nil {
+				t.Fatal(err)
+			}
+			compare(t, firstHost.Data, []float32{4, 6, 8}, accuracyExact)
+			compare(t, secondHost.Data, []float32{12, 14}, accuracyExact)
+		})
 	}
-	fixtureCleanup(t, "release retained fixture slices", func() error {
-		return retained.Release(context.WithoutCancel(t.Context()))
-	})
-	firstValue, firstOK := retained.Value(first)
-	secondValue, secondOK := retained.Value(second)
-	metrics, err := cuda.Metrics(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if metrics.ArenaRequiredBytes != 0 || metrics.ArenaCommittedBytes != 0 {
-		t.Fatalf("retained alias producer duplicated in arena: %+v", metrics)
-	}
-	wantPointerDelta := fixtureShapeBytes(
-		t, tensor.MustShape(secondOffset-firstOffset), dtype.F32,
-	)
-	if !firstOK || !secondOK || uint64(secondValue.Pointer-firstValue.Pointer) != wantPointerDelta {
-		t.Fatalf("retained slice pointers = %+v/%+v", firstValue, secondValue)
-	}
-	firstHost, err := retained.CopyToHost(t.Context(), first)
-	if err != nil {
-		t.Fatal(err)
-	}
-	secondHost, err := retained.CopyToHost(t.Context(), second)
-	if err != nil {
-		t.Fatal(err)
-	}
-	compare(t, firstHost.Data, []float32{4, 6, 8}, accuracyExact)
-	compare(t, secondHost.Data, []float32{12, 14}, accuracyExact)
 }
 
 func TestExecutorMixedRetainedSliceAndWholeTarget(t *testing.T) {

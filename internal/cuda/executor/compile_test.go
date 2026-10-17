@@ -239,26 +239,46 @@ func TestRetainedPlanDoesNotIncreaseArena(t *testing.T) {
 }
 
 func TestRetainedAliasPlanOmitsProducerStorage(t *testing.T) {
-	builder := tensor.NewBuilder()
-	input := builder.Input("input", dtype.F32, tensor.MustShape(1024))
-	producer := builder.Scale(input, 2)
-	view := builder.FlatSlice(producer, 1000, 24)
-	compiled, err := Compile(view)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if arena := compiled.executionMemory(true, nil).ArenaSize; arena != 0 {
-		t.Fatalf("retained alias producer still reserves %d duplicate arena bytes", arena)
-	}
-	if compiled.executionMemory(false, nil).ArenaSize == 0 {
-		t.Fatal("host output lost its producer storage")
-	}
-	targets := compiled.NewRetainedTargets()
-	if err := targets.Set(view, DeviceValue{Pointer: driver.DevicePtr(deviceAllocationAlignment), Shape: view.Shape, CapacityBytes: 24 * 4}); err != nil {
-		t.Fatal(err)
-	}
-	if compiled.executionMemory(true, targets).ArenaSize == 0 {
-		t.Fatal("caller-bound alias lost its intermediate producer storage")
+	for _, test := range []struct {
+		name                   string
+		offset, length         uint64
+		producerOutput, shared bool
+	}{
+		{"compact tail", 1000, 24, false, false},
+		{"whole view", 0, 1024, false, true},
+		{"same allocation class", 24, 1000, false, true},
+		{"producer also retained", 1000, 24, true, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			builder := tensor.NewBuilder()
+			input := builder.Input("input", dtype.F32, tensor.MustShape(1024))
+			producer := builder.Scale(input, 2)
+			view := builder.FlatSlice(producer, test.offset, test.length)
+			outputs := []*tensor.Tensor{view}
+			if test.producerOutput {
+				outputs = append(outputs, producer)
+			}
+			compiled, err := Compile(outputs...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if compiled.outputAliases[0] != test.shared {
+				t.Fatalf("producer sharing = %t, want %t", compiled.outputAliases[0], test.shared)
+			}
+			if !test.shared && compiled.executionMemory(true, nil).ArenaSize == 0 {
+				t.Fatal("compact output lost its temporary producer")
+			}
+			if compiled.executionMemory(false, nil).ArenaSize == 0 {
+				t.Fatal("host output lost its producer storage")
+			}
+			targets := compiled.NewRetainedTargets()
+			if err := targets.Set(view, DeviceValue{Pointer: driver.DevicePtr(deviceAllocationAlignment), Shape: view.Shape, CapacityBytes: test.length * 4}); err != nil {
+				t.Fatal(err)
+			}
+			if !test.producerOutput && compiled.executionMemory(true, targets).ArenaSize == 0 {
+				t.Fatal("caller-bound alias lost its intermediate producer storage")
+			}
+		})
 	}
 }
 
@@ -278,8 +298,8 @@ func TestRetainedAliasPlanPreservesBoundWholeViews(t *testing.T) {
 		t.Fatal(err)
 	}
 	plan := compiled.executionMemory(true, targets)
-	if _, duplicate := plan.Allocations[producer]; duplicate {
-		t.Fatal("bound whole view kept an unrelated retained slice producer in the arena")
+	if _, required := plan.Allocations[producer]; !required {
+		t.Fatal("compact retained slice lost its temporary producer")
 	}
 	if _, required := plan.Allocations[other]; !required {
 		t.Fatal("bound whole view lost its producer storage")

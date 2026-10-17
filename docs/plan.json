@@ -235,32 +235,31 @@
       "title": "Make 256K context practical within the PC memory envelope",
       "status": "open",
       "budget": {
-        "nodes": 2600,
+        "nodes": 547,
         "reason": "Estimated bound for compiled-memory admission, deferred lexical row loading and bounded single-sequence prefill in existing executor and inference owners. Reuse compiled liveness, output storage layout, allocation classes and expert residency. Consolidate retained-output ownership selection rather than adding another graph analyzer or allocator."
       },
       "steps": [
-        {
-          "id": "capacity",
-          "title": "Bound long prefill and retain exact sparse, recurrent and lexical state",
-          "status": "open",
-          "verify": "go test ./internal/cuda/executor ./internal/modeldevice ./internal/model -run '^(TestCompiledRetainedMemory|TestRetainedAliasPlanOmitsProducerStorage|TestFlashNextExpertResidency|TestFlashNextNGram|TestFlashNextSparseAttention)$' \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/inference ./internal/model -run '^(TestDeviceBoundedPrefill|TestFlashNextSparseAttentionCUDA|TestFlashNextNGramCUDA)$'",
-          "rationale": "Serves: Bound prefill through existing compiled allocation and cache owners while preserving the requested 262144-token total context.\nDerive admissible work from current free memory, reclaimable completed experts, graph liveness, retained roots, input and attribute buffers, scratch growth and one routed expert group.\nCount caller-owned cache capacity allocations with their actual allocation classes.\nKeep allocation failure authoritative because concurrent consumers can change availability after planning.\nDisappears: Replace unconditional whole-prompt device submission with bounded sequential appends.\nReuse the compiled graph and retained-output layout instead of introducing a separate model cost graph or allocator.\nDefer lexical row reads until the selected graph fits so rejected chunk candidates do not load their embeddings.\nRelease intermediate caches after their consumers complete and preserve the original retained prefix on refusal or cancellation.\nKeep speculative span output intact and do not retry any chunk after execution starts.\nEvidence: The four-head sparse indexer materializes a score matrix proportional to chunk tokens times retained context.\nThe original-model sparse and n-gram fixtures own split-prefill numerical acceptance including compression boundaries.\nExtend native compiled-memory tests for retained aliases, external targets, resident inputs, allocation classes and overflow.\nUse the existing hermetic model to compare bounded prefill and continuation with whole-prompt evaluation and canceled cleanup.\nFreeze these checks before implementation and demonstrate the missing admission boundary.\nBatch: No fixed machine chunk size, new cache, speculative input reuse or performance threshold is introduced.\nMemory fit alone does not prove the fastest chunk size.\nFull-model timing, peak-memory and near-limit retrieval remain explicit acceptance work after the implementation landing.\nThe accepted block selector evidence is evidence:sha256:5b5ae99d7fd59dea7ac7f7a4769c13f5fa71cad47b728b87f58062d49fcec381.\nIts local timing does not establish full-model performance or 256K capability.",
-          "depends_on": [
-            "flashnext-efficiency/processing",
-            "flashnext-indexer/score",
-            "flashnext-context/storage"
-          ]
-        },
         {
           "id": "accept",
           "title": "Accept near-limit retrieval, follow-ups and multimodal resource coexistence",
           "status": "open",
           "verify": "go run ./cmd/validate -claims",
-          "rationale": "Serves: Demonstrate the requested 262144-token working context including output reservation on this PC.\nUse identified real documents and independently specified retrieval answers distributed across the context.\nExercise a cached follow-up, cancellation followed by recovery, and image input beside the retained context.\nDisappears: Reuse existing evaluation, prompt-cache, projector and request evidence owners.\nKeep one authoritative run set and no separate long-context framework.\nEvidence: Retain exact token and media inputs, positions, context budget, quality outcomes, first usable output, prefill throughput, follow-up cost and peak host and device memory.\nA missing near-limit run, lost retrieval answer, truncation or resource failure keeps this step open.\nThe native 128K reference remains independently identified.\nThe 256K comparison requires a supported Strata run with the same context budget, workload and output reservation.\nA missing matched reference leaves comparative acceptance open and does not invalidate an independently demonstrated Overgo capability.\nBatch: Derive practical prefill changes from the recorded bottleneck.\nRun long-model comparisons alone and use the smallest bounded diagnostic before a near-limit acceptance attempt.",
+          "rationale": "Serves: Demonstrate the requested 262144-token working context including output reservation on this PC.\nUse identified real documents and independently specified retrieval answers distributed across the context.\nExercise a cached follow-up, cancellation followed by recovery, and image input beside the retained context.\nDisappears: Reuse existing evaluation, prompt-cache, projector and request evidence owners.\nKeep one authoritative run set and no separate long-context framework.\nEvidence: Retain exact token and media inputs, positions, context budget, quality outcomes, first usable output, prefill throughput, follow-up cost and peak host and device memory.\nA missing near-limit run, lost retrieval answer, truncation or resource failure keeps this step open.\nThe native 128K reference remains independently identified.\nThe 256K comparison requires a supported Strata run with the same context budget, workload and output reservation.\nA missing matched reference leaves comparative acceptance open and does not invalidate an independently demonstrated Overgo capability.\nBatch: Derive practical prefill changes from the recorded bottleneck.\nRun long-model comparisons alone and use the smallest bounded diagnostic before a near-limit acceptance attempt.\nMeasure the capacity-session candidate explicitly after the implementation landing.\nCurrent free-list bytes receive no planning credit and current expert bytes are reclaimable rather than free.\nChunk admission is conservative and allocation remains authoritative under concurrent resource changes.\nUse the frozen document workload first to check outputs and identify whether chunk size or expert processing dominates before the near-limit run.",
           "depends_on": [
             "flashnext-context/capacity",
             "flashnext-efficiency/reuse",
-            "flashnext-video-audio/journeys"
+            "flashnext-video-audio/journeys",
+            "flashnext-context/reservation"
+          ]
+        },
+        {
+          "id": "reservation",
+          "title": "Include reserved output in non-shifting request admission",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestProtocolContextOverflow$'",
+          "rationale": "Serves: Keep the requested total context inclusive of reserved output.\nDisappears: Replace prompt-only admission for requests that do not explicitly enable context shifting.\nReuse protocolGenerationPlan.admit and its existing text, media, stream, protocol and history-isolation table.\nPreserve explicitly enabled shifting and unknown provider context semantics.\nEvidence: protocol_common.go currently checks prepared prompt length alone and TestProtocolContextOverflow admits a full-context prompt with another output token reserved.\nExtend that existing table with exact prompt-plus-output capacity and one-token overflow before changing admission.\nCount cached and projected prompt positions exactly once.\nBatch: The inference comparison producer must reserve output in its declared 262144 total-token workload.\nNo second token budget, context truncation or separate admission framework is introduced.",
+          "depends_on": [
+            "flashnext-context/capacity"
           ]
         }
       ]

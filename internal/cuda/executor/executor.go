@@ -981,6 +981,22 @@ func retainedOutputLayout(
 	return total, nil
 }
 
+func (c *CompiledGraph) retainedLayout(targeted func(int) bool, storage []bool, offsets []uint64) (uint64, error) {
+	clear(storage)
+	clear(offsets)
+	for index, output := range c.outputs {
+		if targeted(index) {
+			continue
+		}
+		if c.outputAliases[index] {
+			storage[c.outputViews[index].sourceIndex] = true
+		} else {
+			storage[c.orderIndexes[output]] = true
+		}
+	}
+	return retainedOutputLayout(c, storage, offsets)
+}
+
 // Compile: validates and plans an immutable tensor graph.
 func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 	program, err := tensor.CompileProgram(outputs...)
@@ -1574,18 +1590,20 @@ func (c *CompiledGraph) executionMemory(retain bool, targets *RetainedTargets) p
 	if !retain {
 		return c.memory
 	}
-	if targets != nil {
-		if len(targets.values) != len(c.outputs) {
-			return c.retainedMemory
-		}
-		for index, aliases := range c.outputAliases {
-			if aliases && targets.values[index].Pointer != 0 {
-				root := c.outputViews[index].source
-				_, reserved := c.retainedAliasMemory.Allocations[root]
-				_, required := c.retainedMemory.Allocations[root]
-				if required && !reserved {
-					return c.retainedMemory
-				}
+	if targets != nil && len(targets.values) != len(c.outputs) {
+		return c.retainedMemory
+	}
+	return c.retainedExecutionMemory(func(index int) bool { return targets != nil && targets.values[index].Pointer != 0 })
+}
+
+func (c *CompiledGraph) retainedExecutionMemory(targeted func(int) bool) planner.Plan {
+	for index, aliases := range c.outputAliases {
+		if aliases && targeted(index) {
+			root := c.outputViews[index].source
+			_, reserved := c.retainedAliasMemory.Allocations[root]
+			_, required := c.retainedMemory.Allocations[root]
+			if required && !reserved {
+				return c.retainedMemory
 			}
 		}
 	}
@@ -1828,19 +1846,7 @@ func execute(
 	}
 	retainedStorage := scratch.retainedStorage[:len(order)]
 	retainedOffsets := scratch.retainedOffsets[:len(order)]
-	clear(retainedStorage)
-	clear(retainedOffsets)
-	for index, output := range outputs {
-		if !ownsOutput(index) {
-			continue
-		}
-		if compiled.outputAliases[index] {
-			retainedStorage[compiled.outputViews[index].sourceIndex] = true
-			continue
-		}
-		retainedStorage[compiled.orderIndexes[output]] = true
-	}
-	retainedBytes, err := retainedOutputLayout(compiled, retainedStorage, retainedOffsets)
+	retainedBytes, err := compiled.retainedLayout(func(index int) bool { return !ownsOutput(index) }, retainedStorage, retainedOffsets)
 	if err != nil {
 		return nil, err
 	}

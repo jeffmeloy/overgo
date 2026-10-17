@@ -30,6 +30,32 @@ func TestExecutorRetainedOutputLifetime(t *testing.T) {
 	if _, err := cuda.Execute(context.WithoutCancel(t.Context()), []*tensor.Tensor{output}, feeds); err != nil {
 		t.Fatal(err)
 	}
+	compiled, err := Compile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var total uint64
+	if err := cuda.worker.Do(t.Context(), func(state *device.State) error {
+		_, total, err = state.Driver.MemInfo()
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	admissionBefore, err := cuda.worker.MemoryStats(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var refused *MemoryCapacityError
+	if err := cuda.CheckRetainedMemory(t.Context(), compiled, nil, nil, []uint64{total}); !errors.As(err, &refused) {
+		t.Fatalf("oversized graph admission = %v", err)
+	}
+	admissionAfter, err := cuda.worker.MemoryStats(t.Context())
+	if err != nil || admissionAfter.Allocations != admissionBefore.Allocations || admissionAfter.CurrentBytes != admissionBefore.CurrentBytes {
+		t.Fatalf("refusal allocated memory: before=%+v after=%+v: %v", admissionBefore, admissionAfter, err)
+	}
+	if err := cuda.CheckRetainedMemory(t.Context(), compiled, nil, nil, nil); err != nil {
+		t.Fatal(err)
+	}
 	outputs := []*tensor.Tensor{output, left, right}
 	rightPointer := copyFixtureDeviceBytes(t, cuda.worker, driver.Bytes(rightValue.Data))
 	delete(feeds, right)

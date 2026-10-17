@@ -148,14 +148,26 @@ func TestCompileReservesMoEScratch(t *testing.T) {
 	const ocrTokenBytes = (13 + 6*896) * 4
 	for _, bankType := range []dtype.Type{dtype.F32, dtype.BF16} {
 		for _, fused := range []bool{false, true} {
-			if got := compile(1, 896, 6, bankType, fused).attentionScoreBytes; got != ocrTokenBytes {
+			compiled := compile(1, 896, 6, bankType, fused)
+			if got := compiled.attentionScoreBytes; got != ocrTokenBytes {
 				t.Fatalf("%s decode scratch (fused %t) = %d, want %d", bankType, fused, got, ocrTokenBytes)
+			}
+			bytes, err := compiled.expertWorkingBytes(func(string) bool { return true })
+			want, _ := tensor.MustShape(1280, 896, 3*6).Bytes(bankType)
+			if err != nil || bytes != want {
+				t.Fatalf("%s routed working set (fused %t) = %d, want %d: %v", bankType, fused, bytes, want, err)
 			}
 		}
 	}
 	group := moeScratchLimitBytes / ocrTokenBytes
-	if got := compile(group+1, 896, 6, dtype.BF16, false).attentionScoreBytes; got != group*ocrTokenBytes {
+	compiled := compile(group+1, 896, 6, dtype.BF16, false)
+	if got := compiled.attentionScoreBytes; got != group*ocrTokenBytes {
 		t.Fatalf("prefill scratch = %d, want %d tokens of %d", got, group, ocrTokenBytes)
+	}
+	bytes, err := compiled.expertWorkingBytes(func(string) bool { return true })
+	want, _ := tensor.MustShape(1280, 896, 3*64).Bytes(dtype.BF16)
+	if err != nil || bytes != want {
+		t.Fatalf("prefill expert working set = %d, want %d: %v", bytes, want, err)
 	}
 	// Sixteen slots of limit/4 rows: one token alone exceeds the limit.
 	const wideRows = moeScratchLimitBytes / 4

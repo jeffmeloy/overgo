@@ -467,6 +467,7 @@ type deviceBatchAppend struct {
 }
 
 type deviceBatchGraph struct {
+	loadInputs   func() error
 	logits       *tensor.Tensor
 	selection    *tensor.Tensor
 	candidates   *tensor.Tensor
@@ -593,6 +594,13 @@ func (r *Runner) forwardDeviceCachedBatchLocked(
 ) ([]*deviceKVCache, error) {
 	if len(appends) == 0 {
 		return nil, errors.New("inference: device batch is empty")
+	}
+	if len(appends) == 1 && len(appends[0].Tokens) > 1 && !plan.is(deviceOutputGreedySpan) {
+		next, err := r.prefillDeviceCachedLocked(ctx, appends[0], plan, len(appends[0].Tokens))
+		if err != nil {
+			return nil, err
+		}
+		return []*deviceKVCache{next}, nil
 	}
 	if next, handled, err := r.forwardPackedDeviceCohortsLocked(ctx, appends, plan); handled {
 		return next, err
@@ -851,6 +859,18 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	targetPlans, err := r.compileDeviceCacheTargetPlans(execution.Graph, graphs, appends)
 	if err != nil {
 		return nil, err
+	}
+	if len(appends) == 1 && len(appends[0].Tokens) > 1 && !plan.is(deviceOutputGreedySpan) {
+		if err := r.checkDevicePrefillMemory(ctx, execution, targetPlans[0], appends[0].Past); err != nil {
+			return nil, err
+		}
+	}
+	for _, graph := range graphs {
+		if graph.loadInputs != nil {
+			if err := graph.loadInputs(); err != nil {
+				return nil, err
+			}
+		}
 	}
 	var sessions []*deviceDecodeSession
 	retainable := parameterized
@@ -1114,7 +1134,7 @@ func (r *Runner) prepareDeviceCacheTargets(
 		}
 		past := appends[branch].Past
 		var storage *deviceCacheStorage
-		if past != nil && past.storage.aliases(past) && past.storage.exclusive() && deviceCacheStorageFits(past.storage, plans[branch]) {
+		if reusableDeviceCacheStorage(past, plans[branch]) != nil {
 			if _, duplicate := used[past.storage]; !duplicate && past.storage.retain() {
 				storage = past.storage
 				used[storage] = struct{}{}
@@ -1323,6 +1343,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	}
 	var perLayerInputs []*tensor.Tensor
 	var perLayerRows *tensor.Tensor
+	var loadInputs func() error
 	if r.program.Model.ProjectedInput().PerLayerEmbeddings {
 		if r.weights.PerLayerTokenEmbedding == nil || r.weights.PerLayerModelProjection == nil ||
 			r.weights.PerLayerProjectionNorm == nil {
@@ -1413,7 +1434,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 				}
 				history = values[0]
 			}
-			graphWeights.PerLayerInput, ngramHistory, layerErr = r.prepareNGramGraphInputs(ctx, builder, tokenIndices, history, hostFeeds)
+			graphWeights.PerLayerInput, ngramHistory, loadInputs, layerErr = r.planNGramGraphInputs(ctx, builder, tokenIndices, history, hostFeeds)
 			if layerErr != nil {
 				return fail(layerErr)
 			}
@@ -1488,7 +1509,8 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		spanHidden = preNormHidden
 	}
 	return deviceBatchGraph{
-		logits: logits, selection: selection, candidates: candidates, feedback: feedback,
+		loadInputs: loadInputs,
+		logits:     logits, selection: selection, candidates: candidates, feedback: feedback,
 		hidden: spanHidden, tokenInput: tokenRowInput, perLayerRows: perLayerRows, positionRows: positionRows,
 		keys: keys, values: values, states: states, cacheInputs: cacheBindings,
 		pastTokens: pastTokens, nextPosition: nextPosition,

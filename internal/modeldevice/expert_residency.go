@@ -115,6 +115,15 @@ func (w *DeviceWeights) IsExpertBank(name string) bool {
 // HasExpertResidency distinguishes file-backed expert execution from full device residency.
 func (w *DeviceWeights) HasExpertResidency() bool { return w != nil && w.experts != nil }
 
+// ExpertMemory reports reclaimable encoded bytes and the routed working-set limit.
+// Pointer tables remain resident and are excluded from both values.
+func (w *DeviceWeights) ExpertMemory(state *device.State) (reclaimable, capacity uint64, err error) {
+	if w == nil || w.experts == nil || w.experts.state != state {
+		return 0, 0, errors.New("expert memory query requires its owning worker")
+	}
+	return w.experts.bytes - w.experts.tableBytes, w.experts.limit - w.experts.tableBytes, nil
+}
+
 // ReserveExpertMemory makes room for another executor owner before allocation.
 // Only completed expert reads are evicted and the GGUF remains authoritative.
 func (w *DeviceWeights) ReserveExpertMemory(state *device.State, required uint64) error {

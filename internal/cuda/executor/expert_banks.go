@@ -17,6 +17,7 @@ type ExpertBanks interface {
 	IsExpertBank(string) bool
 	ResolveExpertBanks(context.Context, *device.State, []*tensor.Tensor, []uint32) ([]driver.DevicePtr, error)
 	ReserveExpertMemory(*device.State, uint64) error
+	ExpertMemory(*device.State) (reclaimable, capacity uint64, err error)
 }
 
 // SetExpertBanks binds the existing weight owner to routed execution and memory admission.

@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"math"
 	"strings"
 	"testing"
 
@@ -8,6 +9,43 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 )
+
+func TestCompiledRetainedMemory(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(1024))
+	producer := builder.Add(input, input)
+	view := builder.FlatSlice(producer, 1000, 24)
+	compiled, err := Compile(view)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inputs := compiled.NewDeviceInputs()
+	check := func(slots []OutputSlot, capacity []uint64, arena, pooled, owned uint64) {
+		t.Helper()
+		a, p, c, err := compiled.retainedAllocations(inputs, slots, capacity)
+		if err != nil || a != arena || p != pooled || c != owned {
+			t.Fatalf("allocation bytes = %d/%d/%d, want %d/%d/%d: %v", a, p, c, arena, pooled, owned, err)
+		}
+	}
+	// The 24-value view retains its 1024-value producer exactly once.
+	check(nil, nil, 0, 8192, 0)
+	if err := inputs.Set(input, driver.DevicePtr(deviceAllocationAlignment)); err != nil {
+		t.Fatal(err)
+	}
+	check(nil, nil, 0, 4096, 0)
+	slot, _ := compiled.OutputSlot(view)
+	// An external view destination restores the producer's arena allocation.
+	check([]OutputSlot{slot}, []uint64{96}, 4096, 0, 256)
+	if _, _, _, err := compiled.retainedAllocations(inputs, []OutputSlot{1}, nil); err == nil {
+		t.Fatal("invalid output slot accepted")
+	}
+	if _, _, _, err := compiled.retainedAllocations(inputs, nil, []uint64{math.MaxUint64}); err == nil {
+		t.Fatal("overflowing capacity accepted")
+	}
+	if _, _, _, err := compiled.retainedAllocations(inputs, nil, []uint64{1 << 63, 1 << 63}); err == nil {
+		t.Fatal("overflowing allocation sum accepted")
+	}
+}
 
 func TestIndexedGraphOwnsCompilation(t *testing.T) {
 	builder := tensor.NewBuilder()

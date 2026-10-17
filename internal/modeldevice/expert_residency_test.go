@@ -63,6 +63,11 @@ func TestFlashNextExpertResidency(t *testing.T) {
 			}
 		}
 		check([]uint32{0, 1})
+		weights := &DeviceWeights{experts: cache}
+		reclaimable, capacity, err := weights.ExpertMemory(nil)
+		if err != nil || reclaimable != 2*pairBytes || capacity != 2*pairBytes {
+			t.Fatalf("expert admission includes tables or omits resident experts: %d/%d: %v", reclaimable, capacity, err)
+		}
 		allocs := mem.allocs
 		check([]uint32{1, 1})
 		if mem.allocs != allocs {

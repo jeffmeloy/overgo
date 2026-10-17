@@ -21,6 +21,7 @@ type projectorCUDA struct {
 	worker   *device.Worker
 	executor *executor.Executor
 	weights  *modeldevice.DeviceConvertedWeights
+	native   *modeldevice.DeviceWeights
 }
 
 func openProjectorCUDA(
@@ -28,6 +29,7 @@ func openProjectorCUDA(
 	file *gguf.File,
 	required, optional []string,
 	ordinal int,
+	nativeWeight func(gguf.TensorInfo) bool,
 ) (*projectorCUDA, error) {
 	worker, err := device.New(ordinal)
 	if err != nil {
@@ -51,7 +53,19 @@ func openProjectorCUDA(
 		return fail(err)
 	}
 	loader := modeldevice.NewLoader(file)
-	loader.Converted(state.weights, infos)
+	if nativeWeight != nil {
+		state.native, err = modeldevice.NewDeviceWeights(worker)
+		if err != nil {
+			return fail(err)
+		}
+	}
+	for _, info := range infos {
+		if nativeWeight != nil && nativeWeight(info) {
+			loader.Raw(state.native, []gguf.TensorInfo{info})
+		} else {
+			loader.Converted(state.weights, []gguf.TensorInfo{info})
+		}
+	}
 	if err := loader.Load(ctx, nil); err != nil {
 		return fail(err)
 	}
@@ -83,6 +97,10 @@ func (c *projectorCUDA) Close() error {
 		return nil
 	}
 	var closeErrors []error
+	if c.native != nil {
+		closeErrors = append(closeErrors, c.native.Close())
+		c.native = nil
+	}
 	if c.weights != nil {
 		closeErrors = append(closeErrors, c.weights.Close())
 		c.weights = nil
@@ -113,7 +131,13 @@ func (b *projectorCUDAWeights) weight(name string) *tensor.Tensor {
 	if b.err != nil {
 		return nil
 	}
-	node, pointer, err := b.runtime.weights.Input(b.builder, name)
+	input := b.runtime.weights.Input
+	if b.runtime.native != nil {
+		if _, exists := b.runtime.native.Lookup(name); exists {
+			input = b.runtime.native.Input
+		}
+	}
+	node, pointer, err := input(b.builder, name)
 	if err != nil {
 		b.err = err
 		return nil

@@ -345,19 +345,31 @@ func TestQwen3VLOriginalFixture(t *testing.T) {
 			metadata[i].Value.Data = make([]bool, fixture.Layers)
 		}
 	}
-	var tensors []gguf.TensorData
-	for name, value := range fixture.Weights {
-		tensors = append(tensors, f32Tensor(name, value.Shape, value.Data))
-	}
-	path := testutil.TempGGUF(t, "mmproj.gguf", metadata, tensors)
 	for _, backend := range []struct {
-		name string
-		cuda bool
-	}{{"host", false}, {"cuda", true}} {
+		name         string
+		cuda, native bool
+	}{{"host", false, false}, {"cuda", true, false}, {"cuda-bf16", true, true}} {
 		t.Run(backend.name, func(t *testing.T) {
 			if backend.cuda {
 				cudatest.Require(t)
 			}
+			var tensors []gguf.TensorData
+			for name, value := range fixture.Weights {
+				encoded := f32Tensor(name, value.Shape, value.Data)
+				if backend.native {
+					var data []byte
+					for _, v := range value.Data {
+						bits := math.Float32bits(v)
+						if bits != bits>>16<<16 {
+							t.Fatal("original fixture weight is not BF16-representable")
+						}
+						data = binary.LittleEndian.AppendUint16(data, uint16(bits>>16))
+					}
+					encoded.Type, encoded.Data = gguf.DTypeBF16, bytes.NewReader(data)
+				}
+				tensors = append(tensors, encoded)
+			}
+			path := testutil.TempGGUF(t, "mmproj.gguf", metadata, tensors)
 			runner, err := openImageProjectorAs[*Qwen3VLRunner](path, fixtureMediaPreprocessOptions(t, OpenOptions{CUDA: backend.cuda}))
 			if err != nil {
 				t.Fatal(err)
@@ -367,6 +379,18 @@ func TestQwen3VLOriginalFixture(t *testing.T) {
 					t.Error(err)
 				}
 			})
+			if backend.native {
+				graph := newProjectorGraphRuntime(t.Context(), runner.file, runner.cuda, tensor.NewBuilder())
+				for name, value := range fixture.Weights {
+					want := gguf.DTypeF32
+					if len(value.Shape) > 1 {
+						want = gguf.DTypeBF16
+					}
+					if node := graph.weight(name); node == nil || node.Type != want {
+						t.Fatalf("weight %s storage = %v, want %s", name, node, want)
+					}
+				}
+			}
 			for _, test := range fixture.Cases {
 				t.Run(test.Name, func(t *testing.T) {
 					input := Qwen3VLImage{PixelValues: test.Pixels, GridT: test.Grid[0], GridH: test.Grid[1], GridW: test.Grid[2]}

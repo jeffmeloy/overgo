@@ -51,7 +51,7 @@ func openDeepSeekOCR2(ctx context.Context, file *gguf.File, options OpenOptions)
 		return nil, err
 	}
 	if options.CUDA {
-		runner.cuda, err = openProjectorCUDA(ctx, file, spec.TensorNames, nil, options.DeviceOrdinal)
+		runner.cuda, err = openProjectorCUDA(ctx, file, spec.TensorNames, nil, options.DeviceOrdinal, nil)
 		if err != nil {
 			return nil, fmt.Errorf("projector: initialize DeepSeek-OCR-2 CUDA: %w", err)
 		}

@@ -223,7 +223,8 @@
             "flashnext-device-projection-plan/do",
             "flashnext-retained-slices-plan/do",
             "flashnext-retained-rejection-plan/do",
-            "flashnext-indexer-plan/do"
+            "flashnext-indexer-plan/do",
+            "flashnext-storage-plan/do"
           ]
         }
       ]
@@ -232,7 +233,18 @@
       "id": "flashnext-context",
       "title": "Make 256K context practical within the PC memory envelope",
       "status": "open",
+      "budget": {
+        "nodes": 900,
+        "reason": "Estimated bound for token-aligned named cache targets, storage/graph-replay separation and bounded prefill admission in existing owners. Replace duplicated primary key/value target handling with one target-value contract. No new cache, scheduler, allocator or selection framework."
+      },
       "steps": [
+        {
+          "id": "storage",
+          "title": "Append token-aligned primary and named state through the existing capacity owner",
+          "status": "open",
+          "verify": "go test ./internal/model ./internal/inference -run '^(TestSupportsCapacityCacheAdmitsSharedKV|TestCompileDeviceCacheTargetPlanPinsSlotsAndCapacity|TestDeviceCacheStorageViewsBoundEachLayer|TestParameterizedDecodeCapacityStaysWithinPageClass)$' \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/inference ./internal/model -run '^(TestDeviceSparseCacheTargets|TestHermeticCUDAContinuousCacheParity|TestFlashNextSparseAttentionCUDA|TestFlashNextNGramCUDA)$'",
+          "rationale": "Serves: Remove repeated complete-prefix copies during sparse and lexical decode before bounded prefill is added.\nSupportsCapacityCache currently rejects n-gram and sparse block models although the original-model sparse fixture already exercises append arithmetic.\nDisappears: Separate capacity storage admission from parameterized graph replay rather than removing the replay exclusions.\nUse the existing CacheStateMode, LayerCacheSchema, retained targets and deviceCacheStorage ownership for indexer keys and position history beside primary KV.\nConsolidate repeated key/value target planning through one target-value boundary also called by named token state.\nKeep fixed recurrent and n-gram state separate from token-capacity views.\nRebuild graphs when lexical rows or sparse selection shapes change.\nDo not cache a graph with stale n-gram inputs, block bounds or position rows.\nPreserve storage exclusivity, fork isolation, page growth, exact active extents and release after actual completion.\nEvidence: device_cache.go ties CacheWriteAppend to parameterizedDecodeCapacity and currently reserves targets only for primary keys and values.\nThe existing CacheAppend executor omits the full source copy when the retained destination aliases its source.\nFreeze native checks of active values, stable within-page pointers, page-growth prefix preservation, shared-storage isolation and source preservation with cleanup after canceled execution.\nExtend the current target-plan and replay-eligibility tests and use one CUDA cache-target case for the missing resource contract.\nThe original-model sparse and n-gram fixtures remain the numerical owners.\nBatch: Demonstrate missing named targets before implementation.\nKeep recipe admission explicit and do not mutate the active model or its policy during implementation.\nNo elapsed improvement or full-model memory benefit is inferred from pointer reuse alone.\nThe capacity step still owns resource-derived prefill bounds and the accept step still owns near-limit model measurements."
+        },
         {
           "id": "capacity",
           "title": "Bound long prefill and retain exact sparse, recurrent and lexical state",
@@ -241,7 +253,8 @@
           "rationale": "Serves: Remove the processing and memory obstacles to a 262144-token total context.\nInspect the existing capacity-cache exclusions for n-gram history and sparse attention before extending the owning contracts.\nUse bounded prefill and persistent append where independently justified numerical and position semantics permit them.\nDisappears: Reuse the existing decode session, cache pages, recurrent state and file-backed n-gram owners.\nRemove repeated full-prefix copies, graph reconstruction and per-token setup where measurements establish them.\nEvidence: Freeze boundary, split-prefill and continuation comparisons against original-model arithmetic before implementation.\nName the exact existing native tests and update this verifier from the observed failure before coding.\nBatch: The listed tests identify retained owners and do not themselves prove long-context support.\nDeclare measured growth separately if required.\nKeep full-model observations outside the landing gate.\nThe current four-head block indexer materializes all head scores before summation.\nThe fused scalar indexer failed the local timing requirement and is removed.\nUse bounded prefill to limit the existing head-score matrices.\nThe accepted selection search reduces near-limit block-scoring and selection from 2905450760 ns to 23610880 ns in the frozen resident benchmark.\nThis local result does not establish full-model performance or 256K capability.\nPersistent append and dynamic graph replay remain distinct capabilities because sparse selection shapes and lexical rows change with every append.",
           "depends_on": [
             "flashnext-efficiency/processing",
-            "flashnext-indexer/score"
+            "flashnext-indexer/score",
+            "flashnext-context/storage"
           ]
         },
         {

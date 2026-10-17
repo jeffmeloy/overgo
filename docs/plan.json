@@ -117,21 +117,29 @@
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",
       "budget": {
-        "nodes": 6,
-        "reason": "The prepared hidden expert launch adds 61 production Go AST nodes and 17 CUDA source lines. It replaces three serial weight-loading loops with one cooperative tile using the existing quantized element decoder. The 256-thread block uses 18432 shared bytes and no additional global allocation. Existing launch and pinned-output tables add 76 test AST nodes without another fixture or test owner."
+        "nodes": 80,
+        "reason": "Bounded estimate for routing and down-projection shared launch arguments and tile constants in the existing MoE launcher. The CUDA change shares the existing cooperative weight tile across three consumers and removes displaced scalar loading loops and repeated probability calculation. No global scratch, fixture, package or test owner is added. Count actual production and test changes before landing."
       },
       "steps": [
+        {
+          "id": "projection-reads",
+          "title": "Share cooperative weight reads across routing and expert projections",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^(TestMoELaunchesCoverTokenGroups|TestCompileReservesMoEScratch|TestExecutorMoEOutputBitsArePinned)$'",
+          "rationale": "Serves: Reduce the measured routing and down-projection costs using the existing hidden projection's cooperative weight reads.\nDisappears: Replace scalar strided loads with one CUDA tile helper shared by routing, hidden and down projections.\nCompute each routing probability once before selection rather than once per selected slot.\nPreserve expert ordering, bias application, route normalization, sequential accumulation and MOE_DOWN_TILE boundaries.\nEvidence: The separate trace is evidence:sha256:691031c49e067e7a0ee533e9703803ee228fe647db416e31e31dd9abde6e1cc0.\nRouting and down projection account for 21.9 and 20.7 percent of summed kernel time.\nExtend TestMoELaunchesCoverTokenGroups to require padded per-token down tiles and the exact shared-memory ABI.\nThe old launch must fail those assertions.\nRetain every TestExecutorMoEOutputBitsArePinned hash and its resident, indexed, mixed, fused, routing and tail cases.\nRequire actual Windows CUDA execution with OVERGO_CUDA_TEST=1.\nBatch: Use cmd/build-kernels and the normal landing gate.\nAfter landing compare the identical isolated fresh-KV arithmetic probe against evidence:sha256:e6f562bc29664cb36491b7ac3c9332fe48d1666987a0c324cf7aec65ff29a91b.\nCount shared-memory occupancy, global allocation, host high-water and complete request time.\nRevise or remove a candidate that has no useful gain.\nKeep broader processing and Strata acceptance open."
+        },
         {
           "id": "processing",
           "title": "Reduce repeated execution, expert movement and prefill work at the measured bottleneck",
           "status": "open",
           "verify": "go test -tags models ./internal/evaluation -run '^TestFlashNextRetainedEvidence$/processing-comparison' -count=1",
-          "rationale": "Serves: Read the retained per-workload comparison before selecting a change.\nTrace the slowest material path through routing, resident hits, missing experts, n-gram reads, prefill, device scheduling and publication.\nPrefer removing duplicate copies, conversions, allocations, loads and synchronizations before adding concurrency or custom kernels.\nCompare GPU staging with CPU quantized miss execution only if profiles show expert misses dominate.\nCompare batched expert prefill and bounded copy-compute overlap only if the real-document workload exposes that cost.\nDisappears: Reuse Strata src/core/verify.cpp, expert_source.cpp and src/prefill/prefill.cpp as algorithm references and Overgo's existing execution owners as the implementation home.\nA CPU expert pool is conditional because Overgo's F32 host reference is not a competitive quantized kernel.\nDelete displaced loops, scratch representations and wrappers with the accepted change.\nAvoid Strata route-prior or resident-biased expert selection because they change the computation.\nEvidence: The smallest deciding experiment uses the frozen short, real-prefill and image workloads plus the retained memory envelope.\nA candidate records removed operations and bytes, peak memory, elapsed differences and total production, test and maintenance cost.\nRun profiles separately and reuse unchanged numerical evidence only when its identity permits it.\nClosure requires a complete supported bottleneck comparison and adoption of beneficial changes or an evidence-based retirement of an unnecessary candidate.\nBatch: Split this row into additional bounded steps only when a measured residual gap requires them.\nBind each implementation step to its specific native Go regression table before coding.\nDo not expand into speculative kernel work, continuous profiling, new cache formats or all-platform portability.\nThe copy comparison is evidence:sha256:f3959194e300d1086869a19508a051af2f31a337ca97182638394199b7d8816f.\nMatched fresh-prompt medians of 2.9867944 and 2.9723131 seconds establish no material end-to-end gain.\nThe separate CUDA trace is evidence:sha256:9ffcf5dd3fbcff681aa4f464e204c36ee481bfa5a4d580d66d27b17f58fc6505.\nmoe_hidden_f32 accounts for 83.3 percent of summed kernel time over the traced arithmetic warm-up and repeat.\nThis percentage is not whole-request time or a representative-workload speed prediction.\nCompare coalesced expert-weight reads while preserving the sequential sum order enforced by TestExecutorMoEOutputBitsArePinned.\nDo not change pinned hashes to accommodate an arithmetic change.\nExisting mixed-bank, indexed-bank and token-group cases retain numerical and resource contracts.\nCount shared-memory occupancy and scratch cost before accepting a layout change.\nFreeze the exact native verifier and measured production growth before implementation.",
+          "rationale": "Serves: Meet native Strata time and memory for the same model and required workloads.\nSelect each next change from retained results and Strata's processing approach.\nDisappears: Remove duplicate weight reads, conversions, copies, allocations and synchronization through existing execution and resource owners.\nUse Strata src/prefill/prefill.cpp and src/core/verify.cpp for grouped expert work, shared scratch and retained device state.\nDo not adopt resident-biased routing or change expert selection.\nEvidence: The hidden-read comparison is evidence:sha256:3788dc298a6b37e1d3fd3e9979b8df3fe08bcc3a5fb4acfb393b52419a522691.\nThe isolated arithmetic median is 1.1113094 seconds against 2.9723131 seconds with identical generated tokens.\nDevice peak remains 17889104176 bytes and host peak increases by 27303936 bytes.\nThis diagnostic establishes neither representative prefill performance nor Strata parity.\nThe current trace is evidence:sha256:691031c49e067e7a0ee533e9703803ee228fe647db416e31e31dd9abde6e1cc0.\nBatch: After projection reads measure a real-document prefill before choosing grouped expert execution or another kernel change.\nReuse existing evaluation, native tests and resource owners.\nKeep profiles separate from timing.\nClosure requires the supported short and real-prefill bottleneck comparisons and adoption or retirement of each measured candidate.\nImage and near-limit context comparisons remain owned by their capability steps and final parity.",
           "depends_on": [
             "flashnext-chat/serve",
             "flashnext-efficiency/copies",
             "flashnext-efficiency/catalog-size",
-            "flashnext-efficiency/expert-reads"
+            "flashnext-efficiency/expert-reads",
+            "flashnext-efficiency/projection-reads"
           ]
         },
         {
@@ -215,7 +223,8 @@
             "flashnext-serving-plan/do",
             "flashnext-copy-plan/do",
             "strata-cost-plan/do",
-            "flashnext-expert-plan/do"
+            "flashnext-expert-plan/do",
+            "flashnext-projection-plan/do"
           ]
         }
       ]

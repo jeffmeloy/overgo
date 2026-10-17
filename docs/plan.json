@@ -153,13 +153,21 @@
       "status": "open",
       "steps": [
         {
+          "id": "arithmetic",
+          "title": "Match the shared vision merger to the Python original",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test -json ./internal/projector -run '^(TestQwen3VLOriginalFixture|TestQwen3VLRunnerTinyFixture|TestQwen3VLDeepstackTinyFixture|TestQwen3VLDeepstackCUDAMatchesCPU|TestPreprocessQwen3VLImageMergedOrder|TestPreprocessQwen3VLFramesTemporalOrder)$'",
+          "rationale": "Serves: Establish original-model vision arithmetic before full-model image observations.\nThe pinned Qwen4 vision backbone uses tanh GELU and its final merger uses erf GELU.\nDisappears: Replace the final merger activation in Qwen3VLRunner.encodeGraph with the existing GELUErf operation.\nKeep the backbone activation and existing runtime owners.\nReplace TestQwen3VLRunnerTinyFixtureCUDAMatchesCPU and its sole nonzeroTinyQwen3VLTensors helper with one original-reference table shared by host and CUDA.\nKeep the public tiny-image, deepstack, image-prompt, multiple-image and exact preprocessing tests.\nEvidence: The original source is huggingface/transformers e0eb2810ac1b2caf6d082f247d8d37162ecf67a0.\nThe small FP32 fixture executes its unmodified vision mathematics and helpers with seed 241.\nIts image, resized-image and two-frame-group cases use the existing 0.0005 model FP32 tolerance.\nThe source and helper hashes are embedded in the fixture.\nBatch: Require the reference table to fail before correcting the activation and pass on host and Windows CUDA afterwards.\nThe source change adds no production Go AST nodes or new kernel.\nOne approximately 85 KB fixture and replacement test code add necessary independent numerical coverage.\nRecord the net test cost after removing the displaced self-comparison and helper.\nFull-model quality, prompt insertion, resource coexistence, GUI behavior and matched performance remain in images."
+        },
+        {
           "id": "images",
           "title": "Reuse the vision projector and composer for image, OCR and multi-image conversations",
           "status": "open",
           "verify": "go test ./internal/projector ./internal/server -run '^(TestFlashNextVision|TestChatMultimodalAttachments|TestPreprocessQwen3VLImageMergedOrder)$' \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/projector -run '^TestFlashNextVisionCUDAMatchesReference$' \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowserMediaCapture$' -leg flashnext-image",
           "rationale": "Serves: Inspect the exact projector metadata and tensor mapping before extending Qwen3VLRunner.\nVerify the 27-layer, width-1152 visual backbone, width-2560 merger, spatial and temporal patch geometry, empty deepstack configuration and language insertion semantics from source artifacts.\nExpose image upload, paste, preview, multiple images and OCR or screenshot questions through the existing composer.\nBind exact image bytes and preprocessing to prompt reuse.\nDisappears: Reuse internal/projector/qwen3vl.go, prompt.go, preprocess_profiles.json and existing tensor operations.\nKeep images in the native artifact and projector flow instead of Strata's mtmd subprocess and temporary SVE1 embedding files.\nReuse image attachment and capture fixtures and consolidate duplicate setup into their retained owner.\nRetain existing Qwen3VL numerical and deepstack tests because their contracts remain distinct.\nEvidence: Strata tools/vision/strata_vision.cpp is an image encoder sidecar reference rather than a mandatory runtime dependency.\nOvergo already provides image prompt construction and multiple-image coverage.\nTestFlashNextVision and its CUDA case are planned independent-reference tables for geometry, embeddings, positions and prompt insertion.\nClosure requires held-out image and OCR quality, missing-projector refusal and common image performance under the frozen Strata baseline.\nBatch: Image support is a required campaign increment.\nMatch image dimensions, resize and token budgets when measuring.\nDo not reduce OCR resolution or use an unverified projector quant to improve timings.\nThe browser leg and real-model evidence remain separate obligations with shared assets.",
           "depends_on": [
-            "flashnext-chat/serve"
+            "flashnext-chat/serve",
+            "flashnext-vision/arithmetic"
           ]
         }
       ]
@@ -207,7 +215,8 @@
             "flashnext-route-plan/do",
             "flashnext-mechanism-plan/do",
             "flashnext-down-plan/do",
-            "flashnext-down-rejection/do"
+            "flashnext-down-rejection/do",
+            "flashnext-vision-reference-plan/do"
           ]
         }
       ]

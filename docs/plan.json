@@ -117,17 +117,10 @@
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",
       "budget": {
-        "nodes": 150,
-        "reason": "The existing down-projection launch derives cooperative partial lanes from the existing 256-element sum boundary and CUDA warp width. The launch reuses its ABI and global scratch and adds at most 150 production Go AST nodes. CUDA replaces the serial partial loop with cooperative independent partials and ordered accumulation using 1024 shared bytes per block. Existing launch and pinned-output tables own verification."
+        "nodes": 63,
+        "reason": "The existing down launch adds 87 production Go AST nodes and its table adds 12 test nodes. CUDA replaces the serial loop with concurrent partials and ordered accumulation using 1024 shared bytes per block, 48 registers and no spills. The global scratch, ABI, kernel count and fixture count are unchanged."
       },
       "steps": [
-        {
-          "id": "down-partials",
-          "title": "Parallelize independent expert down partials without changing accumulation",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test -json ./internal/cuda/executor -run '^(TestMoELaunchesCoverTokenGroups|TestCompileReservesMoEScratch|TestExecutorMoEOutputBitsArePinned)$'",
-          "rationale": "Serves: Reduce the long serial dependency chain in expert down projection.\nFor hidden width 2560 the current decode launches ten blocks while each output thread computes ten experts with three partial sums each.\nIndependent 256-element partial sums can execute concurrently and still combine in the original slot and tile order.\nDisappears: Replace serial computation of all partials by one output thread in moe_down_f32.\nReuse the same route state, activations, bank tables, output and global scratch.\nDerive cooperating lanes as a power of two bounded by the warp width and the number of partials.\nEach 256-thread block uses 1024 shared bytes for unweighted partials.\nKeep the route multiplication and final accumulation together to preserve the compiler's fused multiply-add behavior.\nRetain one production down kernel and every pinned output hash.\nEvidence: The complete initial prompt segment in evidence:sha256:160c3321fe7e4c47844ba01ad125597e4191cd3418c5a2fd474b10d4193beeb4 assigns 18.8927 seconds to down projection.\nPrefill already has many blocks so increased parallelism may help decode more than prefill.\nSynchronization and smaller row groups may instead regress either workload.\nBatch: Change the existing launch table to require the cooperative geometry and block-local scratch.\nExercise multiple partial batches, incomplete output rows and intermediate tails in the existing pinned table.\nKeep all outputs bit-identical before timing adoption.\nRebuild kernels and the SBOM with existing commands.\nCompare the same short request and frozen document against 23709b384fb90f21aff3e8c768f9ede90aa2a7a2 after landing.\nDo not claim a bandwidth improvement without measurement.\nReject the candidate if the required workload or memory result regresses.\nKeep processing and all final parity obligations open until the results decide adoption."
-        },
         {
           "id": "processing",
           "title": "Reduce repeated execution, expert movement and prefill work at the measured bottleneck",

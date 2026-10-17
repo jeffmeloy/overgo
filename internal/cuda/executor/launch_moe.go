@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/cuda/kernel"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 )
@@ -227,8 +228,16 @@ func launchMoE(
 				return err
 			}
 			downCount := count * hidden
-			if err := launch1DABI(
-				state, functions[kernelMoeDownF32], downCount,
+			partialLanes := uint32(1)
+			partials := topK * ((intermediate-1)/moeDownTile + 1)
+			for partialLanes < partials && partialLanes < uint32(kernel.WarpThreads()) {
+				partialLanes <<= 1
+			}
+			rows := moeThreads / partialLanes
+			if err := launchGridSharedABI(
+				state, functions[kernelMoeDownF32],
+				driver.Dim3{X: (downCount-1)/rows + 1, Y: 1, Z: 1},
+				driver.Dim3{X: moeThreads, Y: 1, Z: 1}, moeThreads*uint32(f32ScalarBytes),
 				&routeState, &activations, &down, &expertScale, &downBias, &groupOutput,
 				&hidden, &topK, &intermediate, &normalize, &scale, &downStorage,
 				&expertIndexDivisor, &indexed, &downCount,
@@ -248,6 +257,9 @@ const (
 	moeFirstBankInput = 3
 	// moeThreads retains the generic 256-thread block for routing and hidden rows.
 	moeThreads = uint32(256)
+	// moeDownTile preserves the CUDA down projection's arithmetic boundary.
+	// Changing it changes the ordered partial sums and requires a numerical contract.
+	moeDownTile = uint32(256)
 	// moeHiddenSharedBytes holds two banks of sector-wide F32 rows with one padding word.
 	// Keep this ABI equal to the CUDA tile and reconsider it with measured occupancy.
 	moeHiddenSharedBytes = 2 * moeThreads * (32/4 + 1) * 4

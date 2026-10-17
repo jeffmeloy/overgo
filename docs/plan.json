@@ -113,6 +113,20 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "flashnext-vision-rejection",
+      "title": "Remove the projected decode bridge rejected by memory acceptance",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore the existing projected generation path and retain the failed comparison",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -run '^(TestHermeticCUDAContinuousCacheParity|TestProjectedPromptCacheRequiresExactMediaSignature|TestRecurrentCheckpoint)$'",
+          "rationale": "Serves: Honor the frozen image memory acceptance.\nDisappears: Remove the provisional upload bridge and its sole transition test while retaining established cache, recurrence and projection coverage.\nEvidence: evidence:sha256:504199519b224ab53f39477323d980fc5daa85ec5bbf809df75d39f43884f0d5 records identical output, faster request time and a 145725952-byte device peak increase.\nBatch: Restore the previously accepted source and run the existing native owners through the landing gate without another full-model run."
+        }
+      ]
+    },
+    {
       "id": "flashnext-efficiency",
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",
@@ -161,11 +175,12 @@
           "title": "Reuse the vision projector and composer for image, OCR and multi-image conversations",
           "status": "open",
           "verify": "go test ./internal/projector ./internal/server -run '^(TestFlashNextVision|TestChatMultimodalAttachments|TestPreprocessQwen3VLImageMergedOrder)$' \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/projector -run '^TestFlashNextVisionCUDAMatchesReference$' \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowserMediaCapture$' -leg flashnext-image",
-          "rationale": "Serves: Inspect the exact projector metadata and tensor mapping before extending Qwen3VLRunner.\nVerify the 27-layer, width-1152 visual backbone, width-2560 merger, spatial and temporal patch geometry, empty deepstack configuration and language insertion semantics from source artifacts.\nExpose image upload, paste, preview, multiple images and OCR or screenshot questions through the existing composer.\nBind exact image bytes and preprocessing to prompt reuse.\nDisappears: Reuse internal/projector/qwen3vl.go, prompt.go, preprocess_profiles.json and existing tensor operations.\nKeep images in the native artifact and projector flow instead of Strata's mtmd subprocess and temporary SVE1 embedding files.\nReuse image attachment and capture fixtures and consolidate duplicate setup into their retained owner.\nRetain existing Qwen3VL numerical and deepstack tests because their contracts remain distinct.\nEvidence: Strata tools/vision/strata_vision.cpp is an image encoder sidecar reference rather than a mandatory runtime dependency.\nOvergo already provides image prompt construction and multiple-image coverage.\nTestFlashNextVision and its CUDA case are planned independent-reference tables for geometry, embeddings, positions and prompt insertion.\nClosure requires held-out image and OCR quality, missing-projector refusal and common image performance under the frozen Strata baseline.\nBatch: Image support is a required campaign increment.\nMatch image dimensions, resize and token budgets when measuring.\nDo not reduce OCR resolution or use an unverified projector quant to improve timings.\nThe browser leg and real-model evidence remain separate obligations with shared assets.\nThe projected decode change is provisional until the same clean-commit screenshot comparison passes unchanged output IDs, no-greater full request time and no-greater owned device peak.\nThe existing cache upload preserves projected prefill state and removes subsequent host-cache decode.\nIt does not remove host-prefill transfers or establish final Strata parity.",
+          "rationale": "Serves: Inspect the exact projector metadata and tensor mapping before extending Qwen3VLRunner.\nVerify the 27-layer, width-1152 visual backbone, width-2560 merger, spatial and temporal patch geometry, empty deepstack configuration and language insertion semantics from source artifacts.\nExpose image upload, paste, preview, multiple images and OCR or screenshot questions through the existing composer.\nBind exact image bytes and preprocessing to prompt reuse.\nDisappears: Reuse internal/projector/qwen3vl.go, prompt.go, preprocess_profiles.json and existing tensor operations.\nKeep images in the native artifact and projector flow instead of Strata's mtmd subprocess and temporary SVE1 embedding files.\nReuse image attachment and capture fixtures and consolidate duplicate setup into their retained owner.\nRetain existing Qwen3VL numerical and deepstack tests because their contracts remain distinct.\nEvidence: Strata tools/vision/strata_vision.cpp is an image encoder sidecar reference rather than a mandatory runtime dependency.\nOvergo already provides image prompt construction and multiple-image coverage.\nTestFlashNextVision and its CUDA case are planned independent-reference tables for geometry, embeddings, positions and prompt insertion.\nClosure requires held-out image and OCR quality, missing-projector refusal and common image performance under the frozen Strata baseline.\nBatch: Image support is a required campaign increment.\nMatch image dimensions, resize and token budgets when measuring.\nDo not reduce OCR resolution or use an unverified projector quant to improve timings.\nThe browser leg and real-model evidence remain separate obligations with shared assets.\nThe rejected projected decode comparison is evidence:sha256:504199519b224ab53f39477323d980fc5daa85ec5bbf809df75d39f43884f0d5.\nDevice decode removes repeated transfers but the upload bridge fails the frozen memory acceptance.\nBefore reintroducing it, preserve projected prefill directly in existing device outputs or separate transient state from reusable KV capacity without retaining displaced state.\nRequire identical output IDs and no-greater request time and owned device peak against the retained screenshot baseline.\nKeep the rejected measurements and do not compensate for them by weakening acceptance.",
           "depends_on": [
             "flashnext-chat/serve",
             "flashnext-vision/arithmetic",
-            "flashnext-vision/decode"
+            "flashnext-vision/decode",
+            "flashnext-vision-rejection/do"
           ]
         }
       ]
@@ -215,7 +230,9 @@
             "flashnext-down-plan/do",
             "flashnext-down-rejection/do",
             "flashnext-vision-reference-plan/do",
-            "flashnext-vision-decode-plan/do"
+            "flashnext-vision-decode-plan/do",
+            "flashnext-vision-rejection/do",
+            "flashnext-vision-rejection-plan/do"
           ]
         }
       ]

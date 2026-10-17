@@ -305,10 +305,85 @@ func TestQwen3VLMultipleImagePrompt(t *testing.T) {
 	}
 }
 
-func TestQwen3VLRunnerTinyFixtureCUDAMatchesCPU(t *testing.T) {
-	cudatest.Require(t)
-	path := testutil.TempGGUF(t, "mmproj.gguf", tinyQwen3VLMetadata(), nonzeroTinyQwen3VLTensors())
-	qwenImageVideoParityCase[*Qwen3VLRunner](t, "Qwen3-VL", path)
+func TestQwen3VLOriginalFixture(t *testing.T) {
+	var fixture struct {
+		Hidden, Intermediate, Heads, Layers uint32
+		OutputHidden                        uint32 `json:"output_hidden"`
+		PatchSize                           uint32 `json:"patch_size"`
+		MergeSize                           uint32 `json:"merge_size"`
+		ImageSize                           uint32 `json:"image_size"`
+		Tolerance                           float32
+		Weights                             map[string]struct {
+			Shape []uint64
+			Data  []float32
+		}
+		Cases []struct {
+			Name           string
+			Grid           []int
+			Pixels, Output []float32
+		}
+	}
+	if err := jsonfile.Decode("testdata/qwen4_vision.json", &fixture); err != nil {
+		t.Fatal(err)
+	}
+	metadata := tinyQwen3VLMetadata()
+	dimensions := map[string]uint32{
+		"clip.vision.image_size":           fixture.ImageSize,
+		"clip.vision.patch_size":           fixture.PatchSize,
+		"clip.vision.embedding_length":     fixture.Hidden,
+		"clip.vision.feed_forward_length":  fixture.Intermediate,
+		"clip.vision.projection_dim":       fixture.OutputHidden,
+		"clip.vision.block_count":          fixture.Layers,
+		"clip.vision.attention.head_count": fixture.Heads,
+		visionSpatialMergeKey:              fixture.MergeSize,
+	}
+	for i := range metadata {
+		if value, ok := dimensions[metadata[i].Key]; ok {
+			metadata[i].Value.Data = value
+		}
+		if metadata[i].Key == "clip.vision.is_deepstack_layers" {
+			metadata[i].Value.Data = make([]bool, fixture.Layers)
+		}
+	}
+	var tensors []gguf.TensorData
+	for name, value := range fixture.Weights {
+		tensors = append(tensors, f32Tensor(name, value.Shape, value.Data))
+	}
+	path := testutil.TempGGUF(t, "mmproj.gguf", metadata, tensors)
+	for _, backend := range []struct {
+		name string
+		cuda bool
+	}{{"host", false}, {"cuda", true}} {
+		t.Run(backend.name, func(t *testing.T) {
+			if backend.cuda {
+				cudatest.Require(t)
+			}
+			runner, err := openImageProjectorAs[*Qwen3VLRunner](path, fixtureMediaPreprocessOptions(t, OpenOptions{CUDA: backend.cuda}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := runner.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			for _, test := range fixture.Cases {
+				t.Run(test.Name, func(t *testing.T) {
+					input := Qwen3VLImage{PixelValues: test.Pixels, GridT: test.Grid[0], GridH: test.Grid[1], GridW: test.Grid[2]}
+					output, err := runner.encodeGraph(t.Context(), input)
+					if err != nil {
+						t.Fatal(err)
+					}
+					rows := input.GridT * input.GridH * input.GridW / int(fixture.MergeSize*fixture.MergeSize)
+					if output.Embeddings.Shape != tensor.MustShape(uint64(fixture.OutputHidden), uint64(rows)) ||
+						len(output.DeepstackEmbeddings) != 0 {
+						t.Fatalf("original vision output shape/streams = %v/%d", output.Embeddings.Shape, len(output.DeepstackEmbeddings))
+					}
+					compareFloat32Tolerance(t, test.Name, output.Embeddings.Data, test.Output, fixture.Tolerance)
+				})
+			}
+		})
+	}
 }
 
 func compareFloat32Tolerance(t *testing.T, name string, got, want []float32, tolerance float32) {
@@ -546,29 +621,6 @@ func tinyQwen3VLDeepstackTensors() []gguf.TensorData {
 		f32Tensor("v.deepstack.0.fc2.bias", []uint64{6}, []float32{7, 8, 9, 10, 11, 12}),
 	)
 	return tensors
-}
-
-func nonzeroTinyQwen3VLTensors() []gguf.TensorData {
-	base := tinyQwen3VLTensors()
-	result := make([]gguf.TensorData, len(base))
-	for tensorIndex, item := range base {
-		elements := uint64(1)
-		for _, dimension := range item.Shape {
-			elements *= dimension
-		}
-		values := make([]float32, int(elements))
-		isNorm := strings.HasSuffix(item.Name, "ln.weight") || strings.Contains(item.Name, "ln1.weight") ||
-			strings.Contains(item.Name, "ln2.weight")
-		for index := range values {
-			value := float32((index+tensorIndex*3)%13-6) * 0.0075
-			if isNorm {
-				value += 1
-			}
-			values[index] = value
-		}
-		result[tensorIndex] = f32Tensor(item.Name, item.Shape, values)
-	}
-	return result
 }
 
 func f32Tensor(name string, shape []uint64, values []float32) gguf.TensorData {

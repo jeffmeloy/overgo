@@ -83,7 +83,7 @@ func (r *Qwen3VLRunner) encodeGraph(ctx context.Context, input Qwen3VLImage) (qw
 	normalized := builder.AffineLayerNorm(hidden, weight(visionPostNormWeightTensor), weight(visionPostNormBiasTensor), r.spec.LayerNormEpsilon)
 	merged := builder.Reshape(normalized, uint64(mergedWidth), uint64(mergedRows))
 	fc1 := builder.Add(builder.MulMat(weight(projectionFirstWeightTensor), merged), weight(projectionFirstBiasTensor))
-	fc1 = builder.GELUTanhExact(fc1)
+	fc1 = builder.GELUErf(fc1)
 	output := builder.Add(builder.MulMat(weight(projectionSecondWeightTensor), fc1), weight(projectionSecondBiasTensor))
 	targets := append([]*tensor.Tensor{output}, deepstack...)
 	results, err := graph.execute(targets...)

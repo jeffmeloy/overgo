@@ -117,10 +117,17 @@
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "The prepared local catalog size correction adds 144 production AST nodes. It replaces entry-file stat sizing with the sum of distinct weight and shard descriptors already validated by discovery. Both cmd/benchmark and cmd/benchmark-report retain one size owner. No new selector, storage index, benchmark or gate is added."
+        "nodes": 61,
+        "reason": "The prepared hidden expert launch adds 61 production Go AST nodes and 17 CUDA source lines. It replaces three serial weight-loading loops with one cooperative tile using the existing quantized element decoder. The 256-thread block uses 18432 shared bytes and no additional global allocation. Existing launch and pinned-output tables add 76 test AST nodes without another fixture or test owner."
       },
       "steps": [
+        {
+          "id": "expert-reads",
+          "title": "Coalesce expert hidden reads while retaining accumulation order",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^(TestMoELaunchesCoverTokenGroups|TestCompileReservesMoEScratch|TestExecutorMoEOutputBitsArePinned)$'",
+          "rationale": "Serves: Reduce the measured moe_hidden_f32 weight-read bottleneck without changing expert selection or sum order.\nThe retained CUDA trace assigns 83.3 percent of summed kernel time to this kernel.\nDisappears: Replace F32, BF16 and quantized serial-loading loops with the existing moe_expert_value decoder and one warp-cooperative sector tile.\nEach output row still accumulates channels sequentially.\nEach block belongs to one selected expert and token and pads its final row tile.\nThe 32-byte F32 sector determines eight channels per load and one shared bank of padding prevents row conflicts.\nEvidence: Extend TestMoELaunchesCoverTokenGroups with a partial row tile and the shared-memory requirement.\nThe prior launch must fail that case.\nRetain every pinned output hash and existing mixed, fused, indexed and token-group case.\nAdd one mixed float tail case to the existing table for 25 channels and 17 rows.\nRequire actual Windows CUDA execution with OVERGO_CUDA_TEST=1 and package-qualified results.\nBatch: Rebuild through cmd/build-kernels and count compiled shared-memory and register costs.\nLand arithmetic-correct code before the separate clean-revision real-model comparison.\nUse the existing arithmetic probe with retained expert resources and identical output tokens against evidence:sha256:94dc7dbd5019187c18367d35da73ff2cee258c68cf9805dc4356a00eea9a893f.\nNo real-model timing runs beside builds or tests.\nKeep processing open until the measured cost determines adoption or revision.\nNo claim of full Strata parity follows from local kernel correctness or this diagnostic request."
+        },
         {
           "id": "processing",
           "title": "Reduce repeated execution, expert movement and prefill work at the measured bottleneck",
@@ -130,7 +137,8 @@
           "depends_on": [
             "flashnext-chat/serve",
             "flashnext-efficiency/copies",
-            "flashnext-efficiency/catalog-size"
+            "flashnext-efficiency/catalog-size",
+            "flashnext-efficiency/expert-reads"
           ]
         },
         {
@@ -213,7 +221,8 @@
             "flashnext-response-budget/do",
             "flashnext-serving-plan/do",
             "flashnext-copy-plan/do",
-            "strata-cost-plan/do"
+            "strata-cost-plan/do",
+            "flashnext-expert-plan/do"
           ]
         }
       ]

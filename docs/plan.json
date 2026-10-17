@@ -113,6 +113,20 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "flashnext-retained-rejection",
+      "title": "Remove the projected-device candidate that still exceeds memory acceptance",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore accepted projected execution and retained output ownership",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor ./internal/inference -run '^(TestRetainedAliasPlanOmitsProducerStorage|TestRetainedAliasPlanPreservesBoundWholeViews|TestExecutorRetainedFlatSlicesShareProducerStorage|TestExecutorMixedRetainedSliceAndWholeTarget|TestExecutorRetainedOutputLifetime|TestProjectedPromptCacheRequiresExactMediaSignature)$'",
+          "rationale": "Serves: Keep only adopted production implementations under the frozen memory criterion.\nDisappears: Restore projected inference files to 651babe861891ed730690cd3b810a5b683cfaa73.\nRestore retained-slice compilation and memory tests to fa45dd62ac02266e6930a3d2f9065fe69462aef6.\nRemove the compactRetainedViews selection, projected-device integration and its unique continuation test in the same change.\nRetain the accepted projector arithmetic and the removal of the rejected BF16 storage pilot.\nKeep host projected cache media identity, general device ownership, target and release coverage in their existing tests.\nEvidence: evidence:sha256:31ff3f685bf7b2f4e392554732c8b4ba297d4f5d52c4160f8430324ca52407f5 fails device peak by 429267456 bytes with identical prompt and output IDs.\nThe declared one warmup and one measured fresh-state repetition completed and all owned bytes were released.\nNo extra favorable timing run is warranted.\nBatch: Restore the previous compile expectation first and observe its failure on the candidate.\nCheck exact restored source identities and use the normal gate rather than repeat the unchanged full-model baseline.\nKeep the negative evidence and continue the existing context and performance obligations."
+        }
+      ]
+    },
+    {
       "id": "flashnext-efficiency",
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",
@@ -157,7 +171,7 @@
           "title": "Reuse the vision projector and composer for image, OCR and multi-image conversations",
           "status": "open",
           "verify": "go test ./internal/projector ./internal/server -run '^(TestFlashNextVision|TestChatMultimodalAttachments|TestPreprocessQwen3VLImageMergedOrder)$' \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/projector -run '^TestFlashNextVisionCUDAMatchesReference$' \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowserMediaCapture$' -leg flashnext-image",
-          "rationale": "Serves: Inspect the exact projector metadata and tensor mapping before extending Qwen3VLRunner.\nVerify the 27-layer, width-1152 visual backbone, width-2560 merger, spatial and temporal patch geometry, empty deepstack configuration and language insertion semantics from source artifacts.\nExpose image upload, paste, preview, multiple images and OCR or screenshot questions through the existing composer.\nBind exact image bytes and preprocessing to prompt reuse.\nDisappears: Reuse internal/projector/qwen3vl.go, prompt.go, preprocess_profiles.json and existing tensor operations.\nKeep images in the native artifact and projector flow instead of Strata's mtmd subprocess and temporary SVE1 embedding files.\nReuse image attachment and capture fixtures and consolidate duplicate setup into their retained owner.\nRetain existing Qwen3VL numerical and deepstack tests because their contracts remain distinct.\nEvidence: Strata tools/vision/strata_vision.cpp is an image encoder sidecar reference rather than a mandatory runtime dependency.\nOvergo already provides image prompt construction and multiple-image coverage.\nTestFlashNextVision and its CUDA case are planned independent-reference tables for geometry, embeddings, positions and prompt insertion.\nClosure requires held-out image and OCR quality, missing-projector refusal and common image performance under the frozen Strata baseline.\nBatch: Image support is a required campaign increment.\nMatch image dimensions, resize and token budgets when measuring.\nDo not reduce OCR resolution or use an unverified projector quant to improve timings.\nThe browser leg and real-model evidence remain separate obligations with shared assets.\nThe rejected projected decode comparison is evidence:sha256:504199519b224ab53f39477323d980fc5daa85ec5bbf809df75d39f43884f0d5.\nDevice decode removes repeated transfers but the upload bridge fails the frozen memory acceptance.\nBefore reintroducing it, preserve projected prefill directly in existing device outputs or separate transient state from reusable KV capacity without retaining displaced state.\nRequire identical output IDs and no-greater request time and owned device peak against the retained screenshot baseline.\nKeep the rejected measurements and do not compensate for them by weakening acceptance.\nThe projector storage comparison is evidence:sha256:d3e38014884ac88008a5bcaaed2923ca3ec9e4489d9698a716cb841fc72aa190.\nBF16 storage saves 854646784 device bytes but adds 0.5 to 0.8 percent warmed encode time in the frozen comparison.\nRemove the provisional storage replacement and retain its negative result.\nDevice-owned projected prefill is the next mechanism to compare against the existing full-request baseline.\nThe projected device comparison is evidence:sha256:66865ff191ebb93c6f4bb5e240d059e7da87a191295dfb10f54e5999a847e674.\nThe candidate preserves all output IDs and reduces request time from 87.0796214 to 74.2797538 seconds.\nIts device peak grows by 696679424 bytes and therefore fails adoption.\nKeep the route provisional while correcting retained partial-output lifetimes in the existing executor.\nThe next candidate must meet the same original baseline rather than the rejected candidate.",
+          "rationale": "Serves: Complete image, OCR and multiple-image conversations through the existing projector and composer.\nPreserve the independently checked Qwen4 vision geometry, GELU-erf merger, embeddings, positions and prompt insertion.\nBind exact image bytes and preprocessing to prompt reuse.\nDisappears: Reuse Qwen3VLRunner, its independent fixture, image attachment fixtures and existing browser media journeys.\nDo not add a projector sidecar, alternate image UI or duplicate policy suite.\nRetain distinct Qwen3-VL deepstack and numerical coverage.\nEvidence: evidence:sha256:c8cf723f8fc528c51ca5b5fe604a35f6a99073df0782dbfda3c915f21550a872 owns the original-model merger comparison.\nevidence:sha256:31ff3f685bf7b2f4e392554732c8b4ba297d4f5d52c4160f8430324ca52407f5 rejects the refined projected-device path on peak memory despite identical output and faster completion.\nIts frozen screenshot request takes 75.2954038 seconds against 87.0796214 seconds.\nIts device peak is 39108315520 bytes against 38679048064 bytes.\nRemove that provisional route and its unadopted retained-view cost selection.\nDo not repeat the already rejected independent down-partial parallelism without a distinct measured cause.\nClosure requires held-out image and OCR quality, missing-projector refusal and matched common image performance against Strata.\nBatch: Resolve the actual existing numerical and browser test owners before adding model-specific wiring.\nMatch image dimensions, preprocessing and output work.\nFull-model observations remain outside the landing gate.\nLong context and final Strata parity remain open.",
           "depends_on": [
             "flashnext-chat/serve",
             "flashnext-vision/arithmetic",
@@ -165,7 +179,8 @@
             "flashnext-vision-rejection/do",
             "flashnext-vision-storage/weights",
             "flashnext-device-projection/do",
-            "flashnext-retained-slices/do"
+            "flashnext-retained-slices/do",
+            "flashnext-retained-rejection/do"
           ]
         }
       ]
@@ -220,7 +235,8 @@
             "flashnext-vision-rejection-plan/do",
             "flashnext-vision-storage-plan/do",
             "flashnext-device-projection-plan/do",
-            "flashnext-retained-slices-plan/do"
+            "flashnext-retained-slices-plan/do",
+            "flashnext-retained-rejection-plan/do"
           ]
         }
       ]

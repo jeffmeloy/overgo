@@ -388,18 +388,8 @@ func (r *Runner) forwardDeviceCachedLocked(
 	tokenIDs []tokenizer.TokenID,
 	past *deviceKVCache,
 ) (reference.Value, *deviceKVCache, error) {
-	plan, err := compileDeviceOutputPlan(deviceOutputLogits, 0, r.spec.VocabularySize)
-	if err != nil {
-		return reference.Value{}, nil, err
-	}
-	next, err := r.forwardDeviceCachedBatchLocked(ctx, []deviceBatchAppend{{
-		Tokens: tokenIDs,
-		Past:   past,
-	}}, plan)
-	if err != nil {
-		return reference.Value{}, nil, err
-	}
-	return reference.Value{}, next[0], nil
+	next, err := r.forwardDeviceCachedModeLocked(ctx, deviceOutputLogits, tokenIDs, past)
+	return reference.Value{}, next, err
 }
 
 // forwardDeviceCachedGreedyStepLocked: raw-greedy single-branch forward; the
@@ -422,14 +412,15 @@ func (r *Runner) forwardDeviceCachedModeLocked(
 	tokenIDs []tokenizer.TokenID,
 	past *deviceKVCache,
 ) (*deviceKVCache, error) {
+	return r.forwardDeviceCachedAppendLocked(ctx, mode, deviceBatchAppend{Tokens: tokenIDs, Past: past})
+}
+
+func (r *Runner) forwardDeviceCachedAppendLocked(ctx context.Context, mode deviceOutputMode, input deviceBatchAppend) (*deviceKVCache, error) {
 	plan, err := compileDeviceOutputPlan(mode, 0, r.spec.VocabularySize)
 	if err != nil {
 		return nil, err
 	}
-	next, err := r.forwardDeviceCachedBatchLocked(ctx, []deviceBatchAppend{{
-		Tokens: tokenIDs,
-		Past:   past,
-	}}, plan)
+	next, err := r.forwardDeviceCachedBatchLocked(ctx, []deviceBatchAppend{input}, plan)
 	if err != nil {
 		return nil, err
 	}
@@ -437,8 +428,9 @@ func (r *Runner) forwardDeviceCachedModeLocked(
 }
 
 type deviceBatchAppend struct {
-	Tokens []tokenizer.TokenID
-	Past   *deviceKVCache
+	Tokens    []tokenizer.TokenID
+	Past      *deviceKVCache
+	Projected *ProjectedInputs
 }
 
 type deviceBatchGraph struct {
@@ -455,7 +447,7 @@ type deviceBatchGraph struct {
 	states       []deviceGraphStates
 	cacheInputs  []layerGraphCacheInputs
 	pastTokens   uint32
-	nextPosition uint32
+	position     uint32
 	tokenCount   uint32
 	sequences    uint32
 }
@@ -590,6 +582,9 @@ func (r *Runner) parameterizedDecodeCapacity(
 	}
 	var capacity, source, tokens uint32
 	for index, item := range appends {
+		if item.Projected != nil {
+			return 0, 0, false
+		}
 		past := item.Past
 		appended := uint32(len(item.Tokens))
 		if !span && appended != 1 {
@@ -655,7 +650,7 @@ func (r *Runner) executeParameterizedDecodeSession(
 	graphs := session.graphs
 	for index := range graphs {
 		graphs[index].pastTokens = appends[index].Past.Tokens
-		graphs[index].nextPosition = appends[index].Past.Position
+		graphs[index].position = appends[index].Past.Position + uint32(len(appends[index].Tokens))
 	}
 	plans := session.program.targets
 	targets, storages, err := r.prepareDeviceCacheTargets(
@@ -813,7 +808,7 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	for index, appendInput := range appends {
 		graph, err := r.buildDeviceCachedBatchBranch(
 			ctx, builder, index, appendInput.Tokens, appendInput.Past, 1, plan,
-			cacheWrite, hostFeeds, &deviceFeeds,
+			cacheWrite, hostFeeds, &deviceFeeds, appendInput.Projected,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("inference: device batch branch %d: %w", index, err)
@@ -932,7 +927,7 @@ func (r *Runner) assembleDeviceBatchCaches(
 			Values:   make([]executor.DeviceValue, len(graph.values)),
 			States:   make([]deviceLayerStates, len(graph.states)),
 			Tokens:   graph.pastTokens + graph.tokenCount,
-			Position: graph.nextPosition + graph.tokenCount,
+			Position: graph.position,
 		}
 		if appends[index].Past != nil {
 			cache.session = appends[index].Past.session
@@ -1197,6 +1192,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	cacheWrite tensor.CacheWriteMode,
 	hostFeeds map[*tensor.Tensor]reference.Value,
 	deviceFeeds *tensor.InputBindings[driver.DevicePtr],
+	projected *ProjectedInputs,
 ) (deviceBatchGraph, error) {
 	fail := func(err error) (deviceBatchGraph, error) {
 		return deviceBatchGraph{}, err
@@ -1228,23 +1224,52 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		return fail(err)
 	}
 	positions := sequence.positions
-	var positionRows []*tensor.Tensor
-	prefix := fmt.Sprintf("seq.%d.", branch)
-	embeddingTable, embeddingPointer, err := r.deviceInput(builder, r.weights.TokenEmbedding)
+	var projection projectedRequestPlan
+	if projected != nil {
+		if sequences != tensor.SingletonExtent || !r.deviceProjectedInputs(*projected) {
+			return fail(errors.New("projected device input contract is unsupported"))
+		}
+		projection, err = r.compileProjectedRequestPlan(len(tokenIDs), past != nil, *projected)
+		if err != nil {
+			return fail(err)
+		}
+		if projection.multiPositions != nil {
+			positions = (*projection.multiPositions)[0]
+		}
+	}
+	position, err := projectedCachePosition(nextPosition, uint32(tokensPerSequence), projection.multiPositions)
 	if err != nil {
 		return fail(err)
 	}
-	tokenRowInput := builder.GetRows(embeddingTable, tokenIndices)
-	current := tokenRowInput
-	deviceFeeds.Add(embeddingTable, embeddingPointer)
-	dynamicEmbedding := embeddingTable.Type == dtype.F32 || embeddingTable.Type == dtype.Q8_0
-	var feedback *tensor.Tensor
-	if plan.is(deviceOutputGreedy) && dynamicEmbedding && past != nil && past.Selection.Pointer != 0 && tokensPerSequence == 1 {
-		selection := builder.Input(prefix+"selected_token", dtype.F32, tensor.MustShape(sequences))
-		deviceFeeds.Add(selection, past.Selection.Pointer)
-		current = builder.GatherLast(embeddingTable, selection)
-		feedback = selection
-		tokenRowInput = nil
+	var positionRows []*tensor.Tensor
+	prefix := fmt.Sprintf("seq.%d.", branch)
+	var tokenRowInput, current, feedback *tensor.Tensor
+	if projected != nil {
+		activation, gatherErr := r.gatherTensor(ctx, r.weights.TokenEmbedding, tokenIndices)
+		if gatherErr != nil {
+			return fail(gatherErr)
+		}
+		if err := applyEmbeddingOverrides(&activation, projection.overrides); err != nil {
+			return fail(err)
+		}
+		current = builder.Input(prefix+"projected_input", dtype.F32, activation.Shape)
+		hostFeeds[current] = activation
+	} else {
+		embeddingTable, embeddingPointer, inputErr := r.deviceInput(builder, r.weights.TokenEmbedding)
+		if inputErr != nil {
+			return fail(inputErr)
+		}
+		tokenRowInput = builder.GetRows(embeddingTable, tokenIndices)
+		current = tokenRowInput
+		deviceFeeds.Add(embeddingTable, embeddingPointer)
+		dynamicEmbedding := embeddingTable.Type == dtype.F32 || embeddingTable.Type == dtype.Q8_0
+		if plan.is(deviceOutputGreedy) && dynamicEmbedding && past != nil && past.Selection.Pointer != 0 && tokensPerSequence == 1 {
+			selection := builder.Input(prefix+"selected_token", dtype.F32, tensor.MustShape(sequences))
+			deviceFeeds.Add(selection, past.Selection.Pointer)
+			current = builder.GatherLast(embeddingTable, selection)
+			feedback = selection
+			tokenRowInput = nil
+		}
 	}
 	if r.weights.PositionEmbedding != nil {
 		repeatedPositions := make([]uint32, 0, len(positions)*int(sequences))
@@ -1326,6 +1351,12 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	if decodeCatalog {
 		bindLayerTensor = r.decodeDeviceInput
 	}
+	var attentionBlock *tensor.Tensor
+	if len(projection.attentionBlockIDs) != 0 {
+		shape := tensor.MustShape(uint64(len(projection.attentionBlockIDs)))
+		attentionBlock = builder.Input(prefix+"attention_block_ids", dtype.F32, shape)
+		hostFeeds[attentionBlock] = reference.Value{Shape: shape, Data: projection.attentionBlockIDs}
+	}
 	for layerIndex, info := range r.weights.Layers {
 		program := r.layerProgram(layerIndex)
 		plan := program.Layer()
@@ -1336,7 +1367,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			return fail(layerErr)
 		}
 		*deviceFeeds = append(*deviceFeeds, layerFeeds...)
-		sideInputs := layerSideInputs{embeddingSkip: embeddingSkip}
+		sideInputs := layerSideInputs{embeddingSkip: embeddingSkip, multiPositions: projection.multiPositions, attentionBlock: attentionBlock}
 		if len(perLayerInputs) > 0 {
 			sideInputs.perLayerInput = perLayerInputs[layerIndex]
 		}
@@ -1385,8 +1416,9 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			}
 		}
 		result, buildErr := program.Build(model.CachedBlockContext{
-			NGramHistory: ngramHistory,
-			Builder:      builder, Input: current, Positions: positions, TokenRows: tokenIndices,
+			MultiPositions: (*[tensor.MaxDimensions][]uint32)(projection.multiPositions),
+			NGramHistory:   ngramHistory,
+			Builder:        builder, Input: current, Positions: positions, TokenRows: tokenIndices,
 			PastKey: cacheInputs.key, PastValue: cacheInputs.value,
 			PastStates:       cacheInputs.states,
 			CurrentPositions: boundSideInputs.currentPositions,
@@ -1457,7 +1489,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		logits: logits, selection: selection, candidates: candidates, feedback: feedback,
 		hidden: spanHidden, tokenInput: tokenRowInput, perLayerRows: perLayerRows, positionRows: positionRows,
 		keys: keys, values: values, states: states, cacheInputs: cacheBindings,
-		pastTokens: pastTokens, nextPosition: nextPosition,
+		pastTokens: pastTokens, position: position,
 		tokenCount: uint32(tokensPerSequence), sequences: uint32(sequences),
 	}, nil
 }

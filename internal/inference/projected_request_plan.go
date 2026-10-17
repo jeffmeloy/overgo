@@ -3,6 +3,7 @@ package inference
 import (
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 
 	"overgo/internal/model"
@@ -39,6 +40,32 @@ type projectedRequestPlan struct {
 	visualBlocks      []AttentionBlock
 	visualMode        bool
 	deepstackBase     bool
+}
+
+func (r *Runner) deviceProjectedInputs(inputs ProjectedInputs) bool {
+	program := r.program.Model.ProjectedInput()
+	return !program.PerLayerEmbeddings && program.Overrides != model.EmbeddingOverrideVisualSpan &&
+		program.Overrides != model.EmbeddingOverrideRawScaled && program.Overrides != model.EmbeddingOverrideMappedBase &&
+		len(inputs.DeepstackEmbeddings) == 0 && len(inputs.VisualExpertBlocks) == 0
+}
+
+func projectedCachePosition(start, tokens uint32, axes *MultiAxisPositions) (uint32, error) {
+	if axes == nil {
+		return start + tokens, nil
+	}
+	var maximum uint32
+	for _, axis := range axes {
+		for _, position := range axis {
+			maximum = max(maximum, position)
+		}
+	}
+	if maximum == math.MaxUint32 {
+		return 0, errors.New("inference: multi-axis position exceeds resumable range")
+	}
+	if maximum+1 < start {
+		return 0, errors.New("inference: multi-axis positions regress cached position")
+	}
+	return maximum + 1, nil
 }
 
 func (r *Runner) compileProjectedRequestPlan(

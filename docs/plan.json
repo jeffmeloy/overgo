@@ -113,27 +113,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "flashnext-device-projection",
-      "title": "Keep projected prompt state in the existing device execution owner",
-      "status": "open",
-      "budget": {
-        "nodes": 1500,
-        "reason": "Estimated projected input binding and cache-position integration in the existing device graph and prompt-cache owners, after removing the rejected 216-node projector storage change. No kernel, allocator, numeric policy or public option."
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Remove the rejected storage pilot and eliminate projected host-cache transfers",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference ./internal/projector -run '^(TestHermeticCUDAProjectedDeviceCache|TestProjectedPromptCacheRequiresExactMediaSignature|TestRecurrentCheckpoint|TestQwen3VLOriginalFixture)$'",
-          "rationale": "Serves: Reduce image prompt and decode transfers without retaining a host-to-device cache bridge.\nThe existing projected path copies each layer output and cache to the host and reuploads those tensors for decode.\nThe existing device graph already owns retained outputs and cache lifetimes for text.\nDisappears: Remove the rejected BF16 projector routing, its native-view admission, backend assertion and replacement fixture.\nRestore those sources to 651babe861891ed730690cd3b810a5b683cfaa73.\nBind projected embeddings and positions into the existing device graph for supported compiled input contracts.\nKeep unsupported visual-expert, mapped-base and per-layer input semantics in their existing owner until their device contract is implemented.\nReuse compileProjectedRequestPlan, applyEmbeddingOverrides, bindLayerSideInputs and retained output collection.\nDo not add a cache owner, upload bridge, flag or model-name dispatch.\nEvidence: The storage rejection is evidence:sha256:d3e38014884ac88008a5bcaaed2923ca3ec9e4489d9698a716cb841fc72aa190.\nThe prior projected upload rejection is evidence:sha256:504199519b224ab53f39477323d980fc5daa85ec5bbf809df75d39f43884f0d5.\nRequire projected cache state to reside on the device and preserve exact media-signature reuse.\nCompare the existing tiny dense and hybrid fixtures against their retained host path for cache positions, logits, continuation, cancellation and release.\nKeep original-model projector and sparse, n-gram and gated-block reference tests as the arithmetic owners.\nRequire the new projected-device assertion to fail before routing.\nFreeze full-model adoption against the retained bfd646de screenshot protocol at identical image bytes, raster limits, prompt IDs, output IDs and sampling.\nRequire no-greater full-request wall time, owned-device peak and peak host working set.\nRestore the original projector before this comparison so storage savings cannot mask the rejected upload bridge.\nFull native Strata parity, video and long-context acceptance remain open.\nBatch: One coherent image dataflow landing removes the rejected pilot and extends the existing device execution path.\nPublish the clean-commit comparison before adoption.\nReject a candidate that fails numerical, quality, time or memory acceptance.",
-          "depends_on": [
-            "flashnext-vision-storage/weights"
-          ]
-        }
-      ]
-    },
-    {
       "id": "flashnext-efficiency",
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",

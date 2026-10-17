@@ -11,18 +11,10 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/media"
 	"overgo/internal/tensor"
-	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
 )
 
 const qwen3VLProjectorType = "qwen3vl_merger"
-
-// qwen3VLNativeWeight selects BF16 matrices and position tables from the validated catalog.
-// Their graph consumers are MulMat and GetRows, optionally after Reshape.
-// Norm and bias vectors require F32 storage.
-func qwen3VLNativeWeight(info gguf.TensorInfo) bool {
-	return info.Type == dtype.BF16 && info.Dimensions > tensor.SingletonExtent
-}
 
 var deepstackTensorSuffixes = [...]string{"norm.weight", "norm.bias", "fc1.weight", "fc1.bias", "fc2.weight", "fc2.bias"}
 

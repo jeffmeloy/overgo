@@ -145,11 +145,7 @@ func buildCatalogProjector[S, R any](
 	}
 	var cuda *projectorCUDA
 	if options.CUDA {
-		var nativeWeight func(gguf.TensorInfo) bool
-		if _, ok := any(spec).(qwen3VLSpec); ok {
-			nativeWeight = qwen3VLNativeWeight
-		}
-		cuda, err = openProjectorCUDA(ctx, file, catalog, excluded, options.DeviceOrdinal, nativeWeight)
+		cuda, err = openProjectorCUDA(ctx, file, catalog, excluded, options.DeviceOrdinal)
 		if err != nil {
 			return zero, fmt.Errorf("projector: initialize %s CUDA: %w", label, err)
 		}

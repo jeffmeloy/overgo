@@ -213,7 +213,7 @@ func (r *Runner) selectProjectedPromptCache(
 	}
 	lora := r.currentLoRASignature()
 	for index, candidate := range r.promptCaches {
-		if candidate == nil || !candidate.HasProjection || candidate.Cache == nil ||
+		if candidate == nil || !candidate.HasProjection || (candidate.Cache == nil && candidate.Device == nil) ||
 			candidate.LoRASignature != lora || candidate.ProjectionSignature != projection ||
 			!slices.Equal(candidate.Tokens, requested) {
 			continue

@@ -1867,8 +1867,7 @@ func execute(
 	}()
 	for nodeIndex, frame := range compiled.nodes {
 		node := compiled.order[nodeIndex]
-		_, graphOutput := compiled.outputIndexes[node]
-		if node.Op != tensor.OpInput && node.Type != dtype.F32 && (!frame.aliases || graphOutput) {
+		if node.Op != tensor.OpInput && node.Type != dtype.F32 {
 			return nil, fmt.Errorf("CUDA executor does not support %s for tensor %d", node.Type, node.ID)
 		}
 		if node.Op != tensor.OpInput {

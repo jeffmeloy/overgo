@@ -4,7 +4,6 @@ package executor
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	"overgo/internal/cuda/driver"
@@ -43,9 +42,8 @@ func TestExecutorBF16GetRowsMatchesReference(t *testing.T) {
 		t.Fatal(err)
 	}
 	builder := tensor.NewBuilder()
-	table := builder.Input("table", dtype.BF16, tensor.MustShape(4, 2, 4))
-	view := builder.Reshape(table, shape.Slice()...)
-	rows := builder.GetRows(view, []uint32{3, 1})
+	table := builder.Input("table", dtype.BF16, shape)
+	rows := builder.GetRows(table, []uint32{3, 1})
 	worker := newFixtureWorker(t)
 	pointer := copyFixtureDeviceBytes(t, worker, storage)
 	cuda := newFixtureExecutorWithWorker(t, worker)
@@ -59,10 +57,6 @@ func TestExecutorBF16GetRowsMatchesReference(t *testing.T) {
 	want := append([]float32(nil), dequantized[24:32]...)
 	want = append(want, dequantized[8:16]...)
 	compare(t, got[rows].Data, want, accuracyExact)
-	if _, err := cuda.executeWithDeviceFeeds(t.Context(), []*tensor.Tensor{view}, nil,
-		map[*tensor.Tensor]driver.DevicePtr{table: pointer}); err == nil || !strings.Contains(err.Error(), "does not support bf16") {
-		t.Fatalf("native host output refusal = %v", err)
-	}
 }
 
 func TestExecutorBF16TensorCoreMulMatMatchesRoundedReference(t *testing.T) {

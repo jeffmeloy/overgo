@@ -64,7 +64,7 @@ func openGemma3nVision(ctx context.Context, file *gguf.File, options OpenOptions
 		return nil, err
 	}
 	if options.CUDA {
-		runner.cuda, err = openProjectorCUDA(ctx, file, spec.TensorNames, nil, options.DeviceOrdinal, nil)
+		runner.cuda, err = openProjectorCUDA(ctx, file, spec.TensorNames, nil, options.DeviceOrdinal)
 		if err != nil {
 			return nil, fmt.Errorf("projector: initialize Gemma 3n CUDA: %w", err)
 		}

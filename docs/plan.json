@@ -116,7 +116,21 @@
       "id": "flashnext-efficiency",
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",
+      "budget": {
+        "nodes": 63,
+        "reason": "The prepared exact-base lookup adds 15 production AST nodes and the unified expert reclamation path adds 48. They remove measured allocation scans and same-sized victim free/allocation pairs without adding an index, allocator or cache owner. Existing range and expert-residency tables retain bounds, encoded bytes, cancellation, capacity refusal, retry and release coverage."
+      },
       "steps": [
+        {
+          "id": "copies",
+          "title": "Remove allocation scans and reuse completed same-sized expert buffers",
+          "status": "open",
+          "verify": "go test ./internal/cuda/driver ./internal/modeldevice -run '^(TestOwnsDeviceRange|TestFlashNextExpertResidency)$'",
+          "rationale": "Serves: Remove measured host work from device copies and expert replacement.\nUse the existing allocation map for exact-base copies before the retained interior-range scan.\nReuse the first releasable LRU victim only when its encoded byte size matches the requested expert.\nDisappears: Replace the separate allocation retry and eviction paths with one reclamation path.\nKeep no extra index, allocator, persistent fixture or benchmark framework.\nEvidence: The retained profile assigns 8.89 sampled CPU seconds to range checks and 47.66 inclusive sampled CPU seconds to expert resolution.\nThe existing encoded-hit-miss-eviction case must fail before changing its allocation expectation.\nIts retained byte comparison also checks replacement content and mixed bank sizes.\nExtend the existing failure table for cancelled and failed replacement uploads.\nUse one native range benchmark for small and observed 40000-allocation maps before and after the change.\nRecord a matched unprofiled arithmetic workload separately from the GPU trace.\nNo kernel arithmetic, expert selection or byte-limit contract changes.\nBatch: Resource reservation and close must still free actual allocations.\nNo latency claim follows from AST counts or saved calls alone.\nFull workload parity and practical 256K acceptance stay open.",
+          "depends_on": [
+            "flashnext-chat/serve"
+          ]
+        },
         {
           "id": "processing",
           "title": "Reduce repeated execution, expert movement and prefill work at the measured bottleneck",
@@ -124,7 +138,8 @@
           "verify": "go test -tags models ./internal/evaluation -run '^TestFlashNextRetainedEvidence$/processing-comparison' -count=1",
           "rationale": "Serves: Read the retained per-workload comparison before selecting a change.\nTrace the slowest material path through routing, resident hits, missing experts, n-gram reads, prefill, device scheduling and publication.\nPrefer removing duplicate copies, conversions, allocations, loads and synchronizations before adding concurrency or custom kernels.\nCompare GPU staging with CPU quantized miss execution only if profiles show expert misses dominate.\nCompare batched expert prefill and bounded copy-compute overlap only if the real-document workload exposes that cost.\nDisappears: Reuse Strata src/core/verify.cpp, expert_source.cpp and src/prefill/prefill.cpp as algorithm references and Overgo's existing execution owners as the implementation home.\nA CPU expert pool is conditional because Overgo's F32 host reference is not a competitive quantized kernel.\nDelete displaced loops, scratch representations and wrappers with the accepted change.\nAvoid Strata route-prior or resident-biased expert selection because they change the computation.\nEvidence: The smallest deciding experiment uses the frozen short, real-prefill and image workloads plus the retained memory envelope.\nA candidate records removed operations and bytes, peak memory, elapsed differences and total production, test and maintenance cost.\nRun profiles separately and reuse unchanged numerical evidence only when its identity permits it.\nClosure requires a complete supported bottleneck comparison and adoption of beneficial changes or an evidence-based retirement of an unnecessary candidate.\nBatch: Split this row into additional bounded steps only when a measured residual gap requires them.\nBind each implementation step to its specific native Go regression table before coding.\nDo not expand into speculative kernel work, continuous profiling, new cache formats or all-platform portability.\nThe native CPU profile is file:sha256:0e52474e801a823ae3717769e6edf48e7efad164564b49030f2edf05d3ab93f7.\nIt attributes 8.89 sampled CPU seconds to device-range ownership scans and 47.66 inclusive sampled CPU seconds to expert resolution over 131.29 seconds of profiled execution.\nThe candidate has roughly 40000 live device allocations.\nFirst compare existing exact-base allocation lookup and same-size expert replacement against the removed scans and allocate/free pairs.\nUse existing range and expert-residency test tables and native benchmarks without a new allocator framework.\nDistinguish CUDA synchronization from kernel execution before choosing later GPU work.",
           "depends_on": [
-            "flashnext-chat/serve"
+            "flashnext-chat/serve",
+            "flashnext-efficiency/copies"
           ]
         },
         {
@@ -205,7 +220,8 @@
             "flashnext-residency-budget/do",
             "flashnext-chat-budget/do",
             "flashnext-response-budget/do",
-            "flashnext-serving-plan/do"
+            "flashnext-serving-plan/do",
+            "flashnext-copy-plan/do"
           ]
         }
       ]

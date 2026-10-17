@@ -113,20 +113,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "flashnext-vision-rejection",
-      "title": "Remove the projected decode bridge rejected by memory acceptance",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore the existing projected generation path and retain the failed comparison",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -run '^(TestHermeticCUDAContinuousCacheParity|TestProjectedPromptCacheRequiresExactMediaSignature|TestRecurrentCheckpoint)$'",
-          "rationale": "Serves: Honor the frozen image memory acceptance.\nDisappears: Remove the provisional upload bridge and its sole transition test while retaining established cache, recurrence and projection coverage.\nEvidence: evidence:sha256:504199519b224ab53f39477323d980fc5daa85ec5bbf809df75d39f43884f0d5 records identical output, faster request time and a 145725952-byte device peak increase.\nBatch: Restore the previously accepted source and run the existing native owners through the landing gate without another full-model run."
-        }
-      ]
-    },
-    {
       "id": "flashnext-efficiency",
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",

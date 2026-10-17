@@ -116,23 +116,27 @@
       "id": "flashnext-efficiency",
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",
-      "budget": {
-        "nodes": 32,
-        "reason": "Bounded estimate for routing and down-projection shared launch arguments and tile constants in the existing MoE launcher. The CUDA change shares the existing cooperative weight tile across three consumers and removes displaced scalar loading loops and repeated probability calculation. No global scratch, fixture, package or test owner is added. Count actual production and test changes before landing."
-      },
       "steps": [
+        {
+          "id": "route-probabilities",
+          "title": "Remove rejected projection tiles and retain one probability calculation",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test -json ./internal/cuda/executor -run '^(TestMoELaunchesCoverTokenGroups|TestCompileReservesMoEScratch|TestExecutorMoEOutputBitsArePinned)$'",
+          "rationale": "Serves: Restore the measured request speed lost to routing and down-projection tiles.\nDisappears: Remove the shared tile helper and its routing and down-projection launch setup.\nRestore the accepted hidden projection and prior routing and down loading loops.\nRetain only calculating each routing probability once before selection.\nThis change removes 48 production Go AST nodes and 19 test nodes.\nEvidence: The rejected comparison is evidence:sha256:4ef80469e495eabcfa94712c291795678a675294c72aae2f7d50fea1d79b0c3a.\nThe three declared repeats give a median of 1.3781028 seconds against 1.1113094 seconds with identical tokens and device peak allocation.\nThe diagnostic trace assigns 642738639 nanoseconds to routing and 624057990 nanoseconds to down projection over 288 calls each.\nThe accepted implementation used 407760054 and 384772179 nanoseconds respectively.\nThe hidden projection remains approximately unchanged.\nBatch: Keep every pinned output hash and existing native MoE case.\nRemove the launch assertions for the rejected layout with its code.\nRebuild kernels and the generated SBOM through their existing commands.\nLand through the normal gate and compare the same isolated arithmetic request against the accepted 1.1113094-second baseline.\nProceed to the retained real-document workload rather than another unmeasured tile variation."
+        },
         {
           "id": "processing",
           "title": "Reduce repeated execution, expert movement and prefill work at the measured bottleneck",
           "status": "open",
           "verify": "go test -tags models ./internal/evaluation -run '^TestFlashNextRetainedEvidence$/processing-comparison' -count=1",
-          "rationale": "Serves: Meet native Strata time and memory for the same model and required workloads.\nSelect each next change from retained results and Strata's processing approach.\nDisappears: Remove duplicate weight reads, conversions, copies, allocations and synchronization through existing execution and resource owners.\nUse Strata src/prefill/prefill.cpp and src/core/verify.cpp for grouped expert work, shared scratch and retained device state.\nDo not adopt resident-biased routing or change expert selection.\nEvidence: The hidden-read comparison is evidence:sha256:3788dc298a6b37e1d3fd3e9979b8df3fe08bcc3a5fb4acfb393b52419a522691.\nThe isolated arithmetic median is 1.1113094 seconds against 2.9723131 seconds with identical generated tokens.\nDevice peak remains 17889104176 bytes and host peak increases by 27303936 bytes.\nThis diagnostic establishes neither representative prefill performance nor Strata parity.\nThe current trace is evidence:sha256:691031c49e067e7a0ee533e9703803ee228fe647db416e31e31dd9abde6e1cc0.\nBatch: After projection reads measure a real-document prefill before choosing grouped expert execution or another kernel change.\nReuse existing evaluation, native tests and resource owners.\nKeep profiles separate from timing.\nClosure requires the supported short and real-prefill bottleneck comparisons and adoption or retirement of each measured candidate.\nImage and near-limit context comparisons remain owned by their capability steps and final parity.",
+          "rationale": "Serves: Meet native Strata time and memory for the same model and required workloads.\nSelect each next change from retained results and Strata's processing approach.\nDisappears: Remove duplicate weight reads, conversions, copies, allocations and synchronization through existing execution and resource owners.\nUse Strata src/prefill/prefill.cpp and src/core/verify.cpp for grouped expert work, shared scratch and retained device state.\nDo not adopt resident-biased routing or change expert selection.\nEvidence: The hidden-read comparison is evidence:sha256:3788dc298a6b37e1d3fd3e9979b8df3fe08bcc3a5fb4acfb393b52419a522691.\nThe isolated arithmetic median is 1.1113094 seconds against 2.9723131 seconds with identical generated tokens.\nDevice peak remains 17889104176 bytes and host peak increases by 27303936 bytes.\nThis diagnostic establishes neither representative prefill performance nor Strata parity.\nThe current trace is evidence:sha256:691031c49e067e7a0ee533e9703803ee228fe647db416e31e31dd9abde6e1cc0.\nBatch: After projection reads measure a real-document prefill before choosing grouped expert execution or another kernel change.\nReuse existing evaluation, native tests and resource owners.\nKeep profiles separate from timing.\nClosure requires the supported short and real-prefill bottleneck comparisons and adoption or retirement of each measured candidate.\nImage and near-limit context comparisons remain owned by their capability steps and final parity.\nThe generalized routing and down tiles are rejected by evidence:sha256:4ef80469e495eabcfa94712c291795678a675294c72aae2f7d50fea1d79b0c3a.\nTheir removal precedes the real-document comparison.",
           "depends_on": [
             "flashnext-chat/serve",
             "flashnext-efficiency/copies",
             "flashnext-efficiency/catalog-size",
             "flashnext-efficiency/expert-reads",
-            "flashnext-efficiency/projection-reads"
+            "flashnext-efficiency/projection-reads",
+            "flashnext-efficiency/route-probabilities"
           ]
         },
         {
@@ -217,7 +221,8 @@
             "flashnext-copy-plan/do",
             "strata-cost-plan/do",
             "flashnext-expert-plan/do",
-            "flashnext-projection-plan/do"
+            "flashnext-projection-plan/do",
+            "flashnext-route-plan/do"
           ]
         }
       ]

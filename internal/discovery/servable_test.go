@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -26,27 +27,38 @@ func TestServableReportsStaleActivationsWithoutFailing(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	publish := func(name string) artifact.ID {
-		payload := []byte("discovery-weights-" + name)
-		component := testutil.ArtifactBytesID(t, artifact.KindTensorSet, payload)
-		location := filepath.Join(t.TempDir(), name+".gguf")
-		if err := os.WriteFile(location, payload, 0o600); err != nil {
-			t.Fatal(err)
+	publish := func(name string, payloads ...string) artifact.ID {
+		if len(payloads) == 0 {
+			payloads = []string{"discovery-weights-" + name}
 		}
-		manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
-			Role: artifact.ComponentWeights, Name: "weights", Artifact: component,
-		}})
+		batch := artifact.Batch{Key: "fixture/discovery/facts/" + name}
+		var components []artifact.Component
+		for ordinal, payload := range payloads {
+			component := testutil.ArtifactBytesID(t, artifact.KindTensorSet, []byte(payload))
+			location := filepath.Join(t.TempDir(), fmt.Sprintf("%s-%d.gguf", name, ordinal))
+			if err := os.WriteFile(location, []byte(payload), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			role := artifact.ComponentWeights
+			if ordinal != 0 {
+				role = artifact.ComponentWeightsShard
+			}
+			components = append(components, artifact.Component{Role: role, Ordinal: uint32(ordinal), Name: fmt.Sprint("weights-", ordinal), Artifact: component})
+			batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: component, Size: uint64(len(payload))})
+			batch.Locations = append(batch.Locations, artifact.LocationEvent{Location: artifact.Location{
+				Artifact: component, Kind: artifact.LocationFile, Value: location,
+			}, Action: artifact.LocationAdd})
+		}
+		if len(components) > 1 {
+			// Two manifest references to one shard still name one physical payload.
+			components = append(components, artifact.Component{Role: artifact.ComponentWeightsShard, Ordinal: uint32(len(components)), Name: "shared-shard", Artifact: components[1].Artifact})
+		}
+		manifest, err := artifact.NewManifest(artifact.KindModel, components)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := store.Commit(ctx, artifact.Batch{
-			Key:       "fixture/discovery/facts/" + name,
-			Artifacts: []artifact.Descriptor{{ID: component, Size: uint64(len(payload))}},
-			Manifests: []artifact.Manifest{manifest},
-			Locations: []artifact.LocationEvent{{Location: artifact.Location{
-				Artifact: component, Kind: artifact.LocationFile, Value: location,
-			}, Action: artifact.LocationAdd}},
-		}); err != nil {
+		batch.Manifests = []artifact.Manifest{manifest}
+		if _, err := store.Commit(ctx, batch); err != nil {
 			t.Fatal(err)
 		}
 		return manifest.ID
@@ -70,6 +82,18 @@ func TestServableReportsStaleActivationsWithoutFailing(t *testing.T) {
 	served := byModel[healthy]
 	if served.Stale != "" || !served.Present || !served.Recipe.Valid() {
 		t.Fatalf("healthy entry = %+v, want a served model unaffected by the stale neighbor", served)
+	}
+	// The split model's entry file is smaller, but its complete weights are larger.
+	shards := []string{"x", strings.Repeat("shard", 16)}
+	split := publish("split", shards...)
+	publishVerifiedActivation(t, store, split, "split")
+	sized, err := LocalServable(ctx, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sized) != 2 || sized[0].Model != healthy || sized[1].Model != split ||
+		sized[0].Bytes != int64(len("discovery-weights-healthy")) || sized[1].Bytes != int64(len(shards[0])+len(shards[1])) {
+		t.Fatalf("local weights = %+v, want healthy then the complete split model without duplicate shard bytes", sized)
 	}
 
 	// Drifting the healthy recipe's runtime-policy alias makes the

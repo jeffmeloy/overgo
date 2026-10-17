@@ -117,17 +117,10 @@
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",
       "budget": {
-        "nodes": 144,
+        "nodes": 0,
         "reason": "The prepared local catalog size correction adds 144 production AST nodes. It replaces entry-file stat sizing with the sum of distinct weight and shard descriptors already validated by discovery. Both cmd/benchmark and cmd/benchmark-report retain one size owner. No new selector, storage index, benchmark or gate is added."
       },
       "steps": [
-        {
-          "id": "catalog-size",
-          "title": "Count all weight shards when choosing the small benchmark model",
-          "status": "open",
-          "verify": "go test ./internal/discovery -run '^TestServableReportsStaleActivationsWithoutFailing$'",
-          "rationale": "Serves: Keep routine native inference measurements on the smallest actual model.\nThe Flash-Next entry shard has 10946624 bytes but its three weight shards total 93682584224 bytes.\nThe existing LocalServable entry-file stat ranks that split model ahead of the 994065792-byte Qwen2.5-0.5B model.\nDisappears: Replace entry-file size with distinct weight-component descriptor totals inside internal/discovery.LocalServable.\nKeep the existing presence, activation, runtime-policy and ordering owners.\nUse no model-name exception, new selector, timing ceiling or alternate benchmark fixture.\nEvidence: Extend the existing stale-and-healthy catalog fixture with a small entry shard and larger remaining shard.\nThe old implementation must order that split model incorrectly and report the wrong total.\nRetain broken-activation isolation and runtime-policy drift cases.\nVerify the resulting live catalog order without running a model before the landing's single existing scorecard slice.\nBatch: The cancelled large-model slice at caad3bcb recorded no performance result.\nThe cancellation is not a demonstrated model correctness regression and does not count as acceptance."
-        },
         {
           "id": "processing",
           "title": "Reduce repeated execution, expert movement and prefill work at the measured bottleneck",

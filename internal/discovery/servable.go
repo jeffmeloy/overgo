@@ -282,16 +282,16 @@ func identifyLocation(path string, kind artifact.Kind, identities map[string]fil
 	return identity
 }
 
-// SizedEntry is a servable entry whose weights are a local file of Bytes.
+// SizedEntry reports the total bytes of a local model's distinct weight artifacts.
 type SizedEntry struct {
 	Entry
 	Bytes int64
 }
 
 // LocalServable lists the whole servable catalog's present, fresh entries
-// with a local weights file, smallest first by bytes and then by location:
-// the order a report reads models in, and the smallest a quick measurement
-// takes. A recorded file that is missing on disk is an error.
+// with local weights, smallest first by total weight bytes and then by location.
+// Split models include every shard rather than only their entry file.
+// Both quick measurements and benchmark reports consume this ordering.
 func LocalServable(ctx context.Context, store *overgodb.Store) ([]SizedEntry, error) {
 	// The denominator is the whole catalog: the listing bound is the
 	// widest the query accepts, never a sample.
@@ -305,11 +305,30 @@ func LocalServable(ctx context.Context, store *overgodb.Store) ([]SizedEntry, er
 		if !entry.Present || entry.Stale != "" || entry.Location == "" || remoteprovider.IsRemoteLocation(entry.Location) {
 			continue
 		}
-		info, err := os.Stat(entry.Location)
-		if err != nil {
-			return nil, err
+		manifest, found, err := store.Manifest(ctx, entry.Model)
+		if err != nil || !found {
+			return nil, errors.Join(err, fmt.Errorf("discovery: missing weight inventory for %s", entry.Model))
 		}
-		sized = append(sized, SizedEntry{Entry: entry, Bytes: info.Size()})
+		var total uint64
+		seen := make(map[artifact.ID]bool)
+		for _, component := range manifest.Components {
+			if seen[component.Artifact] || component.Role != artifact.ComponentWeights && component.Role != artifact.ComponentWeightsShard {
+				continue
+			}
+			descriptor, found, err := store.Artifact(ctx, component.Artifact)
+			if err != nil || !found {
+				return nil, errors.Join(err, fmt.Errorf("discovery: missing weights %s", component.Artifact))
+			}
+			if descriptor.Size > math.MaxInt64-total {
+				return nil, fmt.Errorf("discovery: total weight bytes exceed int64 for %s", entry.Model)
+			}
+			total += descriptor.Size
+			seen[component.Artifact] = true
+		}
+		if total == 0 {
+			return nil, fmt.Errorf("discovery: no weight bytes declared for %s", entry.Model)
+		}
+		sized = append(sized, SizedEntry{Entry: entry, Bytes: int64(total)})
 	}
 	slices.SortFunc(sized, func(left, right SizedEntry) int {
 		return cmp.Or(cmp.Compare(left.Bytes, right.Bytes), strings.Compare(left.Location, right.Location))

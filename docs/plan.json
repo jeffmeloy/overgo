@@ -113,20 +113,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "flashnext-retained-rejection",
-      "title": "Remove the projected-device candidate that still exceeds memory acceptance",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore accepted projected execution and retained output ownership",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor ./internal/inference -run '^(TestRetainedAliasPlanOmitsProducerStorage|TestRetainedAliasPlanPreservesBoundWholeViews|TestExecutorRetainedFlatSlicesShareProducerStorage|TestExecutorMixedRetainedSliceAndWholeTarget|TestExecutorRetainedOutputLifetime|TestProjectedPromptCacheRequiresExactMediaSignature)$'",
-          "rationale": "Serves: Keep only adopted production implementations under the frozen memory criterion.\nDisappears: Restore projected inference files to 651babe861891ed730690cd3b810a5b683cfaa73.\nRestore retained-slice compilation and memory tests to fa45dd62ac02266e6930a3d2f9065fe69462aef6.\nRemove the compactRetainedViews selection, projected-device integration and its unique continuation test in the same change.\nRetain the accepted projector arithmetic and the removal of the rejected BF16 storage pilot.\nKeep host projected cache media identity, general device ownership, target and release coverage in their existing tests.\nEvidence: evidence:sha256:31ff3f685bf7b2f4e392554732c8b4ba297d4f5d52c4160f8430324ca52407f5 fails device peak by 429267456 bytes with identical prompt and output IDs.\nThe declared one warmup and one measured fresh-state repetition completed and all owned bytes were released.\nNo extra favorable timing run is warranted.\nBatch: Restore the previous compile expectation first and observe its failure on the candidate.\nCheck exact restored source identities and use the normal gate rather than repeat the unchanged full-model baseline.\nKeep the negative evidence and continue the existing context and performance obligations."
-        }
-      ]
-    },
-    {
       "id": "flashnext-efficiency",
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",

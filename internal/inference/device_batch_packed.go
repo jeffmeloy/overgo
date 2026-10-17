@@ -91,7 +91,7 @@ func planDeviceCohorts(appends []deviceBatchAppend) ([][]int, []int) {
 	byKey := make(map[deviceCohortKey]int)
 	remainder := make([]int, 0)
 	for index, item := range appends {
-		if item.Past == nil || len(item.Tokens) != 1 || item.Projected != nil {
+		if item.Past == nil || len(item.Tokens) != 1 {
 			remainder = append(remainder, index)
 			continue
 		}
@@ -140,7 +140,7 @@ func (r *Runner) forwardPackedDeviceBatchLocked(
 	var deviceFeeds tensor.InputBindings[driver.DevicePtr]
 	graph, err := r.buildDeviceCachedBatchBranch(
 		ctx, builder, 0, tokens, packedPast, uint64(len(appends)), plan,
-		tensor.CacheWriteConcat, hostFeeds, &deviceFeeds, nil,
+		tensor.CacheWriteConcat, hostFeeds, &deviceFeeds,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("inference: packed device batch: %w", err)
@@ -193,7 +193,7 @@ func (r *Runner) forwardPackedDeviceBatchLocked(
 		cache := &deviceKVCache{
 			Keys: make([]executor.DeviceValue, len(graph.keys)), Values: make([]executor.DeviceValue, len(graph.values)),
 			States: make([]deviceLayerStates, len(graph.states)),
-			Tokens: graph.pastTokens + graph.tokenCount, Position: graph.position,
+			Tokens: graph.pastTokens + graph.tokenCount, Position: graph.nextPosition + graph.tokenCount,
 		}
 		for layer := range cache.Keys {
 			cache.Keys[layer], err = executor.SplitPackedValue(

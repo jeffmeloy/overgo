@@ -844,13 +844,13 @@
      "contains": "func Compile(",
      "path": "internal/cuda/executor/executor.go",
      "role": "source",
-     "identity": "file:sha256:e7c4d2846eea1e05c5180cb6b48bcecac1f609038c2075c4fe30a6a4e6737944"
+     "identity": "file:sha256:cfb47210453e91e2fcd819c27bfc001385a7cd05a8f4e631b95d10f3015f4480"
     },
     {
      "contains": "func TestIndexedGraphOwnsCompilation(",
      "path": "internal/cuda/executor/compile_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:db2bbd967f97b3ec5c0604d8781c5e8d69c0676ff76fa90042f67882cbc2d3e3"
+     "identity": "evidence:sha256:cb97a545e63de95fe6c9f735dd7412a33f850d839a49c3eb76e3ea6541dbc778"
     }
    ],
    "id": "compiled-cuda-graph",
@@ -886,13 +886,13 @@
      "contains": "func (r *Runner) selectPromptCache(",
      "path": "internal/inference/prompt_cache.go",
      "role": "source",
-     "identity": "file:sha256:904079966c7c8d186026a955876c5d13b3fe12340ef709a4cf0abc249aab6e7e"
+     "identity": "file:sha256:1d22595d807e3adf86a3c6c37672b1818a310efdc61d2053a8e99b8b5209b4b3"
     },
     {
      "contains": "func TestProjectedPromptCacheRequiresExactMediaSignature(",
      "path": "internal/inference/prompt_cache_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:7eb73cc63191ab61574ad325617546a9c01fd76ff39fdde3a04016285ec8364d"
+     "identity": "evidence:sha256:0352f5dfd8c2f42fd1f77de55f9fc114f7c643d066aa16041c64e8392587cded"
     }
    ],
    "id": "editable-prompt-cache",

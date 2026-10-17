@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 	"sync"
 	"time"
@@ -644,9 +645,21 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 			ctx, forward.Alternate, activation, perLayerInputs, positions, cache, pastTokens, nextPosition,
 		)
 	}
-	cachePosition, err := projectedCachePosition(nextPosition, uint32(len(tokenIDs)), multiPositions)
-	if err != nil {
-		return reference.Value{}, nil, err
+	cachePosition := nextPosition + uint32(len(tokenIDs))
+	if multiPositions != nil {
+		var maximum uint32
+		for axis := range multiPositions {
+			for _, position := range (*multiPositions)[axis] {
+				maximum = max(maximum, position)
+			}
+		}
+		if maximum == math.MaxUint32 {
+			return reference.Value{}, nil, errors.New("inference: multi-axis position exceeds resumable range")
+		}
+		cachePosition = maximum + 1
+		if cache != nil && cachePosition < nextPosition {
+			return reference.Value{}, nil, errors.New("inference: multi-axis positions regress cached position")
+		}
 	}
 	nextCache := &KVCache{
 		Layers:   make([]LayerCache, len(r.weights.Layers)),

@@ -89,8 +89,7 @@ func (r *Runner) Generate(
 	if options.ProjectedInputs != nil {
 		projectionSignature = projectedInputsSignature(*options.ProjectedInputs)
 	}
-	useDeviceCache := aloraID < 0 && r.persistentDeviceCache() &&
-		(options.ProjectedInputs == nil || r.deviceProjectedInputs(*options.ProjectedInputs))
+	useDeviceCache := options.ProjectedInputs == nil && aloraID < 0 && r.persistentDeviceCache()
 	// deviceGreedy: raw-greedy decode selects on device; only the winning
 	// token id crosses PCIe. Callbacks receive TokenEvent without Logits, so
 	// callback users must opt in via options.DeviceGreedy.
@@ -112,14 +111,11 @@ func (r *Runner) Generate(
 		if useDeviceCache {
 			var retainedPrefix *deviceKVCache
 			if options.CachePrompt {
-				if options.ProjectedInputs != nil {
-					selectedPromptCache, cached = r.selectProjectedPromptCache(ids, projectionSignature, options.MinCacheReuse)
-					if selectedPromptCache != nil && selectedPromptCache.Device == nil {
-						selectedPromptCache, cached = nil, 0
-					}
-				} else {
-					selectedPromptCache, cached = r.selectPromptCache(ids, options.MinCacheReuse, true)
-				}
+				selectedPromptCache, cached = r.selectPromptCache(
+					ids,
+					options.MinCacheReuse,
+					true,
+				)
 			}
 			if selectedPromptCache != nil {
 				if cached > 0 &&
@@ -184,13 +180,7 @@ func (r *Runner) Generate(
 			} else {
 				deviceCache = retainedPrefix
 				var nextDevice *deviceKVCache
-				if options.ProjectedInputs != nil {
-					mode := deviceOutputLogits
-					if deviceGreedy {
-						mode = deviceOutputGreedy
-					}
-					nextDevice, err = r.forwardDeviceCachedAppendLocked(ctx, mode, deviceBatchAppend{Tokens: ids, Projected: options.ProjectedInputs})
-				} else if deviceGreedy {
+				if deviceGreedy {
 					nextDevice, err = r.forwardDeviceCachedGreedyStepLocked(
 						ctx, ids[cached:], retainedPrefix,
 					)
@@ -411,8 +401,8 @@ func (r *Runner) Generate(
 			break
 		}
 	}
-	if options.CachePrompt && options.ProjectedInputs == nil {
-		// A stopped text generation keeps its state too, so a continuation resumes it.
+	if options.CachePrompt {
+		// A stopped generation keeps its state too, so a continuation resumes it.
 		loopErr = errors.Join(loopErr, r.retainDecodedPromptCache(context.WithoutCancel(ctx), ids, reference.Value{}, nil, deviceCache))
 	}
 	if loopErr != nil {

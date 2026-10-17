@@ -904,58 +904,6 @@ func resolveRetainedStorageView(output *tensor.Tensor) (retainedStorageView, boo
 	return retainedStorageView{source: current, byteOffset: byteOffset}, true, nil
 }
 
-// compactRetainedViews copies partial outputs when their allocation is smaller than their producer.
-// Independently retained producers and equal-cost views keep shared storage.
-func (c *CompiledGraph) compactRetainedViews() error {
-	compactBytes := make(map[*tensor.Tensor]uint64)
-	for index, aliases := range c.outputAliases {
-		if !aliases {
-			continue
-		}
-		source := c.outputViews[index].source
-		bytes, err := c.outputs[index].Shape.Bytes(c.outputs[index].Type)
-		if err != nil {
-			return err
-		}
-		aligned, ok := checked.Align(bytes, deviceAllocationAlignment)
-		if !ok {
-			return errors.New("CUDA compact output alignment overflows")
-		}
-		total, ok := checked.Add64(compactBytes[source], aligned)
-		if !ok {
-			return errors.New("CUDA compact output extent overflows")
-		}
-		compactBytes[source] = total
-	}
-	for source, bytes := range compactBytes {
-		if _, retained := c.outputIndexes[source]; retained {
-			delete(compactBytes, source)
-			continue
-		}
-		sourceBytes, err := source.Shape.Bytes(source.Type)
-		if err != nil {
-			return err
-		}
-		shared, err := deviceBufferBucket(sourceBytes)
-		if err != nil {
-			return err
-		}
-		compact, err := deviceBufferBucket(bytes)
-		if err != nil {
-			return err
-		}
-		if compact >= shared {
-			delete(compactBytes, source)
-		}
-	}
-	for index, view := range c.outputViews {
-		if _, compact := compactBytes[view.source]; compact {
-			c.outputAliases[index] = false
-		}
-	}
-	return nil
-}
-
 type deviceAddressRange struct {
 	first uint64
 	last  uint64
@@ -1131,9 +1079,6 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 			return nil, contractErr
 		}
 		compiled.targetContracts[index] = contract
-	}
-	if err := compiled.compactRetainedViews(); err != nil {
-		return nil, err
 	}
 	for _, node := range order {
 		for _, input := range node.Inputs {

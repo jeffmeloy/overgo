@@ -117,17 +117,10 @@
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",
       "budget": {
-        "nodes": 80,
+        "nodes": 32,
         "reason": "Bounded estimate for routing and down-projection shared launch arguments and tile constants in the existing MoE launcher. The CUDA change shares the existing cooperative weight tile across three consumers and removes displaced scalar loading loops and repeated probability calculation. No global scratch, fixture, package or test owner is added. Count actual production and test changes before landing."
       },
       "steps": [
-        {
-          "id": "projection-reads",
-          "title": "Share cooperative weight reads across routing and expert projections",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^(TestMoELaunchesCoverTokenGroups|TestCompileReservesMoEScratch|TestExecutorMoEOutputBitsArePinned)$'",
-          "rationale": "Serves: Reduce the measured routing and down-projection costs using the existing hidden projection's cooperative weight reads.\nDisappears: Replace scalar strided loads with one CUDA tile helper shared by routing, hidden and down projections.\nCompute each routing probability once before selection rather than once per selected slot.\nPreserve expert ordering, bias application, route normalization, sequential accumulation and MOE_DOWN_TILE boundaries.\nEvidence: The separate trace is evidence:sha256:691031c49e067e7a0ee533e9703803ee228fe647db416e31e31dd9abde6e1cc0.\nRouting and down projection account for 21.9 and 20.7 percent of summed kernel time.\nExtend TestMoELaunchesCoverTokenGroups to require padded per-token down tiles and the exact shared-memory ABI.\nThe old launch must fail those assertions.\nRetain every TestExecutorMoEOutputBitsArePinned hash and its resident, indexed, mixed, fused, routing and tail cases.\nRequire actual Windows CUDA execution with OVERGO_CUDA_TEST=1.\nBatch: Use cmd/build-kernels and the normal landing gate.\nAfter landing compare the identical isolated fresh-KV arithmetic probe against evidence:sha256:e6f562bc29664cb36491b7ac3c9332fe48d1666987a0c324cf7aec65ff29a91b.\nCount shared-memory occupancy, global allocation, host high-water and complete request time.\nRevise or remove a candidate that has no useful gain.\nKeep broader processing and Strata acceptance open."
-        },
         {
           "id": "processing",
           "title": "Reduce repeated execution, expert movement and prefill work at the measured bottleneck",

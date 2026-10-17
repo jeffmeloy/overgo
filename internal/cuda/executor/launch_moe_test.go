@@ -26,7 +26,7 @@ func TestMoELaunchesCoverTokenGroups(t *testing.T) {
 	input := builder.Input("input", dtype.F32, tensor.MustShape(hidden, tokens))
 	router := builder.Input("router", dtype.F32, tensor.MustShape(hidden, experts))
 	gate := builder.Input("gate", dtype.BF16, tensor.MustShape(hidden, intermediate, experts))
-	up := builder.Input("up", dtype.BF16, tensor.MustShape(hidden, intermediate, experts))
+	up := builder.Input("up", dtype.F32, tensor.MustShape(hidden, intermediate, experts))
 	down := builder.Input("down", dtype.BF16, tensor.MustShape(intermediate, hidden, experts))
 	selected := builder.Input("selected", dtype.F32, tensor.MustShape(topK, tokens))
 	node := builder.MoEWithOptions(input, router, up, down, tensor.MoEOptions{
@@ -57,7 +57,7 @@ func TestMoELaunchesCoverTokenGroups(t *testing.T) {
 	const (
 		headerBytes = 4 * 8
 		routeRecord = headerBytes + 6*8 + 5*4
-		hiddenBytes = headerBytes + 7*8 + 11*4
+		hiddenBytes = headerBytes + 7*8 + 12*4
 		downRecord  = headerBytes + 6*8 + 8*4
 	)
 	raw := trace.Data()
@@ -86,8 +86,9 @@ func TestMoELaunchesCoverTokenGroups(t *testing.T) {
 			{"hidden input", word(hiddenLaunch[32:]), inputBase + start*hidden*4},
 			{"hidden route state", word(hiddenLaunch[40:]), scores},
 			{"hidden activations", word(hiddenLaunch[80:]), scores + group*routeBytes},
-			{"hidden storage", uint64(scalar(hiddenLaunch[104:])), uint64(dtype.BF16)},
-			{"hidden count", uint64(scalar(hiddenLaunch[128:])), count * topK * intermediate},
+			{"hidden gate storage", uint64(scalar(hiddenLaunch[104:])), uint64(dtype.BF16)},
+			{"hidden up storage", uint64(scalar(hiddenLaunch[108:])), uint64(dtype.F32)},
+			{"hidden count", uint64(scalar(hiddenLaunch[132:])), count * topK * intermediate},
 			{"down kernel", word(downLaunch), uint64(kernelMoeDownF32)},
 			{"down grid", word(downLaunch[8:]), (count*hidden+255)/256 | 1<<32 | 1<<48},
 			{"down route state", word(downLaunch[32:]), scores},

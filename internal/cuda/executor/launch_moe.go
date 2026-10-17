@@ -91,13 +91,13 @@ func launchMoE(
 			gate = up
 			intermediate /= 2
 		}
-		if upNode.Type != downNode.Type || attributes.Gated && !attributes.FusedGateUp && node.Inputs[moeFirstBankInput].Type != upNode.Type {
-			return errors.New("MoE expert storage types differ")
+		for _, bank := range node.Inputs[moeFirstBankInput:wantInputs] {
+			if bank.Type != dtype.F32 && bank.Type != dtype.BF16 && !nativeQuantizedType(bank.Type) {
+				return fmt.Errorf("MoE expert storage type %s is unsupported", bank.Type)
+			}
 		}
-		if upNode.Type != dtype.F32 && upNode.Type != dtype.BF16 && !nativeQuantizedType(upNode.Type) {
-			return fmt.Errorf("MoE expert storage type %s is unsupported", upNode.Type)
-		}
-		expertStorage := uint32(upNode.Type)
+		gateStorage := uint32(node.Inputs[moeFirstBankInput].Type)
+		upStorage, downStorage := uint32(upNode.Type), uint32(downNode.Type)
 		var selectionBias driver.DevicePtr
 		optionalIndex := wantInputs
 		if attributes.HasSelectionBias {
@@ -177,7 +177,7 @@ func launchMoE(
 			if err := launch1DABI(
 				state, functions[kernelMoeHiddenF32], hiddenCount,
 				&groupInput, &routeState, &gate, &up, &gateBias, &upBias, &activations,
-				&hidden, &topK, &intermediate, &routing, &expertStorage, &gated, &fusedGateUp,
+				&hidden, &topK, &intermediate, &routing, &gateStorage, &upStorage, &gated, &fusedGateUp,
 				&activation, &expertIndexDivisor, &swigluClamp, &hiddenCount,
 			); err != nil {
 				return err
@@ -186,7 +186,7 @@ func launchMoE(
 			if err := launch1DABI(
 				state, functions[kernelMoeDownF32], downCount,
 				&routeState, &activations, &down, &expertScale, &downBias, &groupOutput,
-				&hidden, &topK, &intermediate, &normalize, &scale, &expertStorage,
+				&hidden, &topK, &intermediate, &normalize, &scale, &downStorage,
 				&expertIndexDivisor, &downCount,
 			); err != nil {
 				return err

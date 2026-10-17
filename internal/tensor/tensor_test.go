@@ -497,43 +497,50 @@ func TestBuilderUngatedMoE(t *testing.T) {
 	}
 }
 
-// TestBuilderMoEExpertBankStorage: a node's expert banks share one storage
-// the routed-expert kernels read -- F32, BF16 or a quantized type -- and keep
-// it as their input type.
+// TestBuilderMoEExpertBankStorage preserves each bank's supported storage and row alignment.
 func TestBuilderMoEExpertBankStorage(t *testing.T) {
-	build := func(gateType, upType, downType dtype.Type) (*Tensor, error) {
-		builder := NewBuilder()
-		input := builder.Input("input", dtype.F32, MustShape(32, 1))
-		router := builder.Input("router", dtype.F32, MustShape(32, 3))
-		gate := builder.Input("gate", gateType, MustShape(32, 32, 3))
-		up := builder.Input("up", upType, MustShape(32, 32, 3))
-		down := builder.Input("down", downType, MustShape(32, 32, 3))
-		output := builder.MoEWithOptions(input, router, up, down, MoEOptions{Gate: gate, TopK: 2, NormalizeTopKProb: true, Scale: 1, Routing: MoERoutingSoftmax, Activation: MoEActivationSiLU, ExpertIndexDivisor: 1})
-		return output, builder.Err()
-	}
-	for _, storage := range []dtype.Type{dtype.F32, dtype.BF16, dtype.Q8_0} {
-		output, err := build(storage, storage, storage)
-		if err != nil {
-			t.Fatalf("%s expert banks: %v", storage, err)
-		}
-		if output.Type != dtype.F32 {
-			t.Fatalf("%s expert banks gave a %s output", storage, output.Type)
-		}
-		for _, bank := range output.Inputs[3:] {
-			if bank.Type != storage {
-				t.Fatalf("%s expert bank %q became %s", storage, bank.Name, bank.Type)
-			}
-		}
-	}
-	for _, banks := range [][3]dtype.Type{
-		{dtype.F32, dtype.BF16, dtype.BF16},
-		{dtype.BF16, dtype.BF16, dtype.F32},
-		{dtype.BF16, dtype.Q8_0, dtype.Q8_0},
-		{dtype.F16, dtype.F16, dtype.F16},
+	for _, tc := range []struct {
+		name                 string
+		banks                [3]dtype.Type
+		hidden, intermediate uint64
+		invalid              bool
+	}{
+		{"f32", [3]dtype.Type{dtype.F32, dtype.F32, dtype.F32}, 32, 32, false},
+		{"bf16", [3]dtype.Type{dtype.BF16, dtype.BF16, dtype.BF16}, 32, 32, false},
+		{"q8", [3]dtype.Type{dtype.Q8_0, dtype.Q8_0, dtype.Q8_0}, 32, 32, false},
+		{"mixed-float", [3]dtype.Type{dtype.F32, dtype.BF16, dtype.F32}, 32, 32, false},
+		{"mixed-q8", [3]dtype.Type{dtype.Q8_0, dtype.F32, dtype.Q8_0}, 32, 32, false},
+		{"mixed-iq", [3]dtype.Type{dtype.IQ3S, dtype.IQ4XS, dtype.IQ4NL}, 256, 640, false},
+		{"gate-f16", [3]dtype.Type{dtype.F16, dtype.F32, dtype.F32}, 32, 32, true},
+		{"up-f16", [3]dtype.Type{dtype.F32, dtype.F16, dtype.F32}, 32, 32, true},
+		{"down-f16", [3]dtype.Type{dtype.F32, dtype.F32, dtype.F16}, 32, 32, true},
+		{"gate-unaligned", [3]dtype.Type{dtype.Q8_0, dtype.F32, dtype.F32}, 16, 32, true},
+		{"up-unaligned", [3]dtype.Type{dtype.F32, dtype.IQ4XS, dtype.F32}, 128, 32, true},
+		{"down-unaligned", [3]dtype.Type{dtype.F32, dtype.F32, dtype.IQ3S}, 32, 128, true},
 	} {
-		if _, err := build(banks[0], banks[1], banks[2]); err == nil {
-			t.Fatalf("expert banks %v were accepted", banks)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			builder := NewBuilder()
+			input := builder.Input("input", dtype.F32, MustShape(tc.hidden, 1))
+			router := builder.Input("router", dtype.F32, MustShape(tc.hidden, 3))
+			gate := builder.Input("gate", tc.banks[0], MustShape(tc.hidden, tc.intermediate, 3))
+			up := builder.Input("up", tc.banks[1], MustShape(tc.hidden, tc.intermediate, 3))
+			down := builder.Input("down", tc.banks[2], MustShape(tc.intermediate, tc.hidden, 3))
+			output := builder.MoEWithOptions(input, router, up, down, MoEOptions{Gate: gate, TopK: 2, NormalizeTopKProb: true, Scale: 1, Routing: MoERoutingSoftmax, Activation: MoEActivationSiLU, ExpertIndexDivisor: 1})
+			if (builder.Err() != nil) != tc.invalid {
+				t.Fatalf("banks %v: error %v, want invalid %v", tc.banks, builder.Err(), tc.invalid)
+			}
+			if tc.invalid {
+				return
+			}
+			if output.Type != dtype.F32 || output.Shape != input.Shape {
+				t.Fatalf("unexpected MoE output: %+v", output)
+			}
+			for i, bank := range output.Inputs[3:] {
+				if bank.Type != tc.banks[i] {
+					t.Fatalf("%s expert bank %q became %s", tc.banks[i], bank.Name, bank.Type)
+				}
+			}
+		})
 	}
 }
 
@@ -656,44 +663,6 @@ func TestBuilderBF16Round(t *testing.T) {
 	}
 	if output.Op != OpBF16Round || output.Type != dtype.F32 || !output.Shape.Equal(input.Shape) {
 		t.Fatalf("unexpected BF16 round graph: %+v", output)
-	}
-}
-
-func TestBuilderQ8MoE(t *testing.T) {
-	builder := NewBuilder()
-	input := builder.Input("input", dtype.F32, MustShape(32, 1))
-	router := builder.Input("router", dtype.F32, MustShape(32, 4))
-	gate := builder.Input("gate", dtype.Q8_0, MustShape(32, 32, 4))
-	up := builder.Input("up", dtype.Q8_0, MustShape(32, 32, 4))
-	down := builder.Input("down", dtype.Q8_0, MustShape(32, 32, 4))
-	output := builder.MoEWithOptions(input, router, up, down, MoEOptions{Gate: gate, TopK: 2, NormalizeTopKProb: true, Scale: 1, Routing: MoERoutingSoftmax, Activation: MoEActivationSiLU, ExpertIndexDivisor: 1})
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
-	if output.Type != dtype.F32 || !output.Shape.Equal(input.Shape) {
-		t.Fatalf("unexpected Q8_0 MoE output: %+v", output)
-	}
-
-	invalid := NewBuilder()
-	invalidInput := invalid.Input("input", dtype.F32, MustShape(16, 1))
-	invalidRouter := invalid.Input("router", dtype.F32, MustShape(16, 4))
-	invalidGate := invalid.Input("gate", dtype.Q8_0, MustShape(16, 32, 4))
-	invalidUp := invalid.Input("up", dtype.Q8_0, MustShape(16, 32, 4))
-	invalidDown := invalid.Input("down", dtype.Q8_0, MustShape(32, 16, 4))
-	invalid.MoEWithOptions(invalidInput, invalidRouter, invalidUp, invalidDown, MoEOptions{Gate: invalidGate, TopK: 2, NormalizeTopKProb: true, Scale: 1, Routing: MoERoutingSoftmax, Activation: MoEActivationSiLU, ExpertIndexDivisor: 1})
-	if invalid.Err() == nil {
-		t.Fatal("Q8_0 MoE accepted an unaligned hidden width")
-	}
-
-	mixed := NewBuilder()
-	mixedInput := mixed.Input("input", dtype.F32, MustShape(32, 1))
-	mixedRouter := mixed.Input("router", dtype.F32, MustShape(32, 4))
-	mixedGate := mixed.Input("gate", dtype.Q8_0, MustShape(32, 32, 4))
-	mixedUp := mixed.Input("up", dtype.F32, MustShape(32, 32, 4))
-	mixedDown := mixed.Input("down", dtype.Q8_0, MustShape(32, 32, 4))
-	mixed.MoEWithOptions(mixedInput, mixedRouter, mixedUp, mixedDown, MoEOptions{Gate: mixedGate, TopK: 2, NormalizeTopKProb: true, Scale: 1, Routing: MoERoutingSoftmax, Activation: MoEActivationSiLU, ExpertIndexDivisor: 1})
-	if mixed.Err() == nil {
-		t.Fatal("MoE accepted mixed expert storage types")
 	}
 }
 

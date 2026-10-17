@@ -3665,7 +3665,8 @@ extern "C" __global__ void moe_hidden_f32(
         unsigned int top_k,
         unsigned int intermediate,
         unsigned int routing,
-        unsigned int expert_storage,
+        unsigned int gate_storage,
+        unsigned int up_storage,
         unsigned int gated,
         unsigned int fused_gate_up,
         unsigned int activation,
@@ -3685,14 +3686,14 @@ extern "C" __global__ void moe_hidden_f32(
     const size_t up_offset = gate_offset + (fused_gate_up ? (size_t) intermediate * hidden : 0);
     float gate_dot = 0.0f;
     float up_dot = 0.0f;
-    if (expert_storage == GGML_F32) {
+    if (up_storage == GGML_F32 && (!gated || gate_storage == GGML_F32)) {
         const float * gate_row = reinterpret_cast<const float *>(gate) + gate_offset;
         const float * up_row = reinterpret_cast<const float *>(up) + up_offset;
         for (unsigned int channel = 0; channel < hidden; ++channel) {
             if (gated) gate_dot += x[channel] * gate_row[channel];
             up_dot += x[channel] * up_row[channel];
         }
-    } else if (expert_storage == GGML_BF16) {
+    } else if (up_storage == GGML_BF16 && (!gated || gate_storage == GGML_BF16)) {
         // BF16 is the high half of the F32 encoding: the widening is exact.
         const unsigned short * gate_row = reinterpret_cast<const unsigned short *>(gate) + gate_offset;
         const unsigned short * up_row = reinterpret_cast<const unsigned short *>(up) + up_offset;
@@ -3702,8 +3703,8 @@ extern "C" __global__ void moe_hidden_f32(
         }
     } else {
         for (unsigned int channel = 0; channel < hidden; ++channel) {
-            if (gated) gate_dot += x[channel] * moe_expert_value(gate, gate_offset + channel, expert_storage);
-            up_dot += x[channel] * moe_expert_value(up, up_offset + channel, expert_storage);
+            if (gated) gate_dot += x[channel] * moe_expert_value(gate, gate_offset + channel, gate_storage);
+            up_dot += x[channel] * moe_expert_value(up, up_offset + channel, up_storage);
         }
     }
     if (gate_bias) {
@@ -7112,6 +7113,9 @@ __device__ float moe_expert_value(
         unsigned int storage) {
     if (storage == GGML_F32) {
         return reinterpret_cast<const float *>(weights)[index];
+    }
+    if (storage == GGML_BF16) {
+        return __uint_as_float((unsigned int) reinterpret_cast<const unsigned short *>(weights)[index] << 16);
     }
     const unsigned char * bytes = reinterpret_cast<const unsigned char *>(weights);
 #define MOE_DEQUANT_CASE(TYPE, WIDTH, BLOCK_BYTES, DEQUANT) \

@@ -107,12 +107,6 @@ func (b *Builder) buildMoE(
 		b.setError(errors.New("MoE inputs and router must be F32"))
 		return nil
 	}
-	expertType := up.Type
-	if up.Type != down.Type || gate != nil && gate.Type != up.Type ||
-		(expertType != dtype.F32 && expertType != dtype.BF16 && !expertType.IsQuantized()) {
-		b.setError(errors.New("MoE experts must share F32, BF16 or native quantized storage"))
-		return nil
-	}
 	if input.Shape.Rank != 2 || routerInput.Shape.Rank != 2 || router.Shape.Rank != 2 ||
 		gate != nil && gate.Shape.Rank != 3 || up.Shape.Rank != 3 || down.Shape.Rank != 3 {
 		b.setError(errors.New("MoE input ranks are invalid"))
@@ -171,10 +165,17 @@ func (b *Builder) buildMoE(
 		b.setError(errors.New("MoE SwiGLU clamp is invalid"))
 		return nil
 	}
-	if expertType.IsQuantized() {
-		traits, _ := expertType.Traits()
-		if hidden%traits.BlockSize != 0 || intermediate%traits.BlockSize != 0 {
-			b.setError(fmt.Errorf("%s MoE hidden and intermediate widths must be block aligned", expertType))
+	for _, bank := range []*Tensor{gate, up, down} {
+		if bank == nil {
+			continue
+		}
+		if bank.Type != dtype.F32 && bank.Type != dtype.BF16 && !bank.Type.IsQuantized() {
+			b.setError(fmt.Errorf("MoE expert bank %q has unsupported storage %s", bank.Name, bank.Type))
+			return nil
+		}
+		traits, _ := bank.Type.Traits()
+		if bank.Shape.Dims[0]%traits.BlockSize != 0 {
+			b.setError(fmt.Errorf("MoE expert bank %q width %d must align to %s block size %d", bank.Name, bank.Shape.Dims[0], bank.Type, traits.BlockSize))
 			return nil
 		}
 	}

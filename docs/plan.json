@@ -109,28 +109,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "flashnext-mixed-quant",
-      "title": "Preserve the model's mixed expert formats through the existing MoE path",
-      "status": "open",
-      "budget": {
-        "nodes": 5,
-        "reason": "The built candidate preflight measures 5 additional production AST nodes for independent bank storage and row alignment.\nThe change removes the same-type rejection and reuses the existing MoE kernels.\nThe existing storage table absorbs TestBuilderQ8MoE and its repeated setup.\nThe device table gains mixed quantized, mixed float and fused-bank cases without another fixture framework."
-      },
-      "steps": [
-        {
-          "id": "banks",
-          "title": "Carry each expert bank's storage type through graph and CUDA execution",
-          "status": "open",
-          "verify": "go test ./internal/tensor -run '^TestBuilder(MoEExpertBankStorage|NativeQuantizedMoEFormats)$' \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestExecutorMoEOutputBitsArePinned$'",
-          "rationale": "Serves: Support independently typed gate, up and down expert banks while preserving routing, scaling, activation and accumulation contracts.\nInspect tensor metadata before selecting supported kernels and reject unsupported combinations explicitly.\nPreserve original quantized expert bytes rather than expanding the banks to F32.\nDisappears: Replace the same-type restriction in internal/tensor/builder_moe.go and the single expertStorage assumption in internal/cuda/executor/launch_moe.go.\nExtend the existing executor pinned-case table and keep its existing homogeneous-format coverage.\nUse one small mixed-bank fixture for graph and device cases instead of a parallel quantization suite.\nEvidence: Strata docs/UNSLOTH_Q4.md identifies IQ3_S or IQ4_XS gate/up, IQ4_NL down and selected Q8_0 banks.\nThe existing Overgo builder rejects up.Type != down.Type and the executor passes one type to all banks.\nCompare routing indices, intermediate values and returned output against a pinned independent dequantization and arithmetic reference.\nMixed-bank rows in TestBuilderMoEExpertBankStorage must fail on the prior contract.\nMerge TestBuilderQ8MoE into that table while retaining its shape and alignment assertions.\nBatch: Change tensor, model bindings, executor and only required manifest kernels together.\nUse the existing small device lane with actual matched tests.\nReport production, test and CUDA growth and batch the inference-surface change before the next real-model evaluation.",
-          "depends_on": [
-            "flashnext-reference/baseline",
-            "flashnext-mixed-quant/budget"
-          ]
-        }
-      ]
-    },
-    {
       "id": "flashnext-architecture",
       "title": "Add the missing qwen4exp behavior through existing model and tensor owners",
       "status": "open",

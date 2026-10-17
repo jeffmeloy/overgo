@@ -51,7 +51,7 @@ func TestExecutorMoEOutputBitsArePinned(t *testing.T) {
 	for _, pinned := range moePinnedCases {
 		t.Run(pinned.name, func(t *testing.T) {
 			bankTypes := []dtype.Type{dtype.F32, dtype.BF16}
-			if pinned.storage != dtype.F32 {
+			if pinned.storage != dtype.F32 || pinned.banks != [3]dtype.Type{} {
 				bankTypes = []dtype.Type{pinned.storage}
 			}
 			outputs := make(map[dtype.Type]string, len(bankTypes))
@@ -59,7 +59,7 @@ func TestExecutorMoEOutputBitsArePinned(t *testing.T) {
 				got, want := pinned.run(t, cuda, bankType)
 				digest := sha256.Sum256(driver.Bytes(got))
 				outputs[bankType] = hex.EncodeToString(digest[:])
-				if outputs[bankType] != moePinnedOutputs[pinned.name] {
+				if pinned.banks == [3]dtype.Type{} && outputs[bankType] != moePinnedOutputs[pinned.name] {
 					t.Errorf("%s banks: output %s, pinned %q", bankType, outputs[bankType], moePinnedOutputs[pinned.name])
 				}
 				if outputs[bankType] != outputs[bankTypes[0]] {
@@ -67,6 +67,8 @@ func TestExecutorMoEOutputBitsArePinned(t *testing.T) {
 				}
 				if want != nil {
 					compare(t, got, want, accuracyModel)
+				} else if pinned.banks != [3]dtype.Type{} {
+					t.Fatal("mixed banks require the dequantized arithmetic reference")
 				}
 			}
 		})
@@ -90,6 +92,8 @@ type moePinnedCase struct {
 	selected, biases                   bool
 	// storage is F32 for float banks, or the quantized type the banks carry.
 	storage dtype.Type
+	// banks overrides gate, up and down storage for mixed-bank reference cases.
+	banks [3]dtype.Type
 	// reference also holds the F32-bank output to the host reference; the
 	// real geometry is too wide for the host.
 	reference bool
@@ -137,6 +141,15 @@ var moePinnedCases = []moePinnedCase{
 	moePinnedQuantizedCase(dtype.TQ2_0),
 	moePinnedQuantizedCase(dtype.MXFP4),
 	moePinnedQuantizedCase(dtype.Q1_0),
+	{name: "mixed-iq", hidden: 256, routerHidden: 256, intermediate: 640, experts: 4, tokens: 3, divisor: 1, topK: 2,
+		routing: tensor.MoERoutingSoftmax, activation: tensor.MoEActivationSiLU, normalize: true, scale: 1.25,
+		banks: [3]dtype.Type{dtype.IQ3S, dtype.IQ4XS, dtype.IQ4NL}, reference: true},
+	{name: "mixed-float", hidden: 32, routerHidden: 32, intermediate: 320, experts: 4, tokens: 3, divisor: 1, topK: 2,
+		routing: tensor.MoERoutingSigmoid, activation: tensor.MoEActivationSiLU, normalize: true, scale: 1,
+		banks: [3]dtype.Type{dtype.BF16, dtype.F32, dtype.Q8_0}, reference: true},
+	{name: "mixed-fused", hidden: 256, routerHidden: 256, intermediate: 640, experts: 4, tokens: 3, divisor: 1, topK: 2,
+		routing: tensor.MoERoutingSoftmax, activation: tensor.MoEActivationSiLU, normalize: true, scale: 1,
+		banks: [3]dtype.Type{dtype.IQ4XS, dtype.IQ4XS, dtype.IQ4NL}, fused: true, reference: true},
 }
 
 // moePinnedQuantizedCase: a block-aligned node whose intermediate width spans
@@ -191,25 +204,35 @@ func (c moePinnedCase) run(t *testing.T, cuda *Executor, bankType dtype.Type) (g
 		host[node] = reference.Value{Shape: node.Shape, Data: moePinnedValues(c.name, ordinal, elements, scale)}
 		return node
 	}
-	bank := func(name string, scale float64, dims ...uint64) *tensor.Tensor {
-		node := builder.Input(name, bankType, tensor.MustShape(dims...))
+	bank := func(name string, index int, scale float64, dims ...uint64) *tensor.Tensor {
+		storageType := bankType
+		if c.banks != [3]dtype.Type{} {
+			storageType = c.banks[index]
+		}
+		node := builder.Input(name, storageType, tensor.MustShape(dims...))
 		elements, _ := node.Shape.Elements()
 		ordinal++
 		values := moePinnedValues(c.name, ordinal, elements, scale)
 		storage := driver.Bytes(values)
 		switch {
-		case bankType == dtype.BF16:
+		case storageType == dtype.BF16:
 			bits := make([]uint16, len(values))
 			for index, value := range values {
 				bits[index] = dtype.Float32ToBF16(value)
 			}
 			storage = driver.Bytes(bits)
-		case bankType != dtype.F32:
-			quantized, err := quant.Quantize(bankType, values)
+		case storageType != dtype.F32:
+			quantized, err := quant.Quantize(storageType, values)
 			if err != nil {
 				t.Fatal(err)
 			}
 			storage = quantized
+			if withReference {
+				values, err = quant.Dequantize(storageType, storage, elements)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
 		}
 		device[node] = copyFixtureDeviceBytes(t, cuda.worker, storage)
 		if withReference {
@@ -233,10 +256,10 @@ func (c moePinnedCase) run(t *testing.T, cuda *Executor, bankType dtype.Type) (g
 	case c.fused:
 		upRows *= 2
 	case !c.ungated:
-		options.Gate = bank("gate", dotScale(c.hidden), c.hidden, c.intermediate, bankExperts)
+		options.Gate = bank("gate", 0, dotScale(c.hidden), c.hidden, c.intermediate, bankExperts)
 	}
-	up := bank("up", dotScale(c.hidden), c.hidden, upRows, bankExperts)
-	down := bank("down", dotScale(c.intermediate), c.intermediate, c.hidden, bankExperts)
+	up := bank("up", 1, dotScale(c.hidden), c.hidden, upRows, bankExperts)
+	down := bank("down", 2, dotScale(c.intermediate), c.intermediate, c.hidden, bankExperts)
 	const biasScale = 0.25
 	if c.selectionBias {
 		options.SelectionBias = feed("selection_bias", biasScale, c.experts)
@@ -278,6 +301,10 @@ func (c moePinnedCase) run(t *testing.T, cuda *Executor, bankType dtype.Type) (g
 		return result[output].Data, nil
 	}
 	maps.Copy(host, bankValues)
+	// The reference consumes decoded F32 banks after device execution completes.
+	for bank := range bankValues {
+		bank.Type = dtype.F32
+	}
 	expected, err := reference.Execute([]*tensor.Tensor{output}, host)
 	if err != nil {
 		t.Fatal(err)

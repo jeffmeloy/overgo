@@ -222,6 +222,7 @@ func (b *Builder) buildMoE(
 	}
 	return b.add("", dtype.F32, input.Shape, OpMoE,
 		inputs, MoEAttributes{
+			Compute: b.mulMatCompute,
 			Experts: uint32(experts), ExpertIndexDivisor: expertIndexDivisor, TopK: topK,
 			NormalizeTopKProb: normalizeTopKProb, Scale: scale, Routing: routing,
 			Activation: activation, Gated: gate != nil || fusedGateUp, FusedGateUp: fusedGateUp,

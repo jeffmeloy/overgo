@@ -214,6 +214,13 @@ func launchMoE(
 					gate = tables[0]
 				}
 			}
+			if used, err := launchMoEMatrices(pointers.ctx, state, functions, blas, node,
+				groupInput, routeState, groupOutput, gate, up, down, gateBias, upBias, downBias, expertScale,
+				count, indexed); err != nil {
+				return err
+			} else if used {
+				continue
+			}
 			hiddenCount := count * topK * intermediate
 			if err := launchGridSharedABI(
 				state, functions[kernelMoeHiddenF32],
@@ -277,7 +284,11 @@ func moeScratchGroup(node *tensor.Tensor) (uint32, uint64, error) {
 		intermediate == 0 || intermediate > math.MaxUint32/uint64(attributes.TopK) {
 		return 0, 0, errors.New("invalid grouped MoE dimensions")
 	}
+	tokenLimit := tokens
+	if geometry, ok := nativeMoEMatrix(node); ok {
+		tokenLimit = min(tokenLimit, (quantStagedChunkBytes-geometry.weightBytes-f32ScalarBytes)/(geometry.rowBytes*geometry.rowsPerToken+geometry.slotBytes))
+	}
 	activations := uint64(attributes.TopK) * intermediate
 	tokenBytes := (uint64(attributes.TopK)*moeSlotRouteWords + moeTokenRouteWords + activations) * f32ScalarBytes
-	return uint32(min(tokens, max(1, moeScratchLimitBytes/tokenBytes))), tokenBytes, nil
+	return uint32(max(1, min(tokenLimit, moeScratchLimitBytes/tokenBytes))), tokenBytes, nil
 }

@@ -117,10 +117,13 @@ func TestMoELaunchesCoverTokenGroups(t *testing.T) {
 // routed activations -- bounded for a long prompt, whole for one wide token,
 // and the same whatever the expert banks' storage.
 func TestCompileReservesMoEScratch(t *testing.T) {
-	compile := func(tokens, intermediate uint64, topK uint32, bankType dtype.Type, fused bool) *CompiledGraph {
+	compile := func(tokens, intermediate uint64, topK uint32, bankType dtype.Type, fused bool, compute ...tensor.MulMatCompute) *CompiledGraph {
 		t.Helper()
 		const hidden, experts = 1280, 64
 		builder := tensor.NewBuilder()
+		if len(compute) > 0 {
+			builder.SetMulMatCompute(compute[0])
+		}
 		input := builder.Input("input", dtype.F32, tensor.MustShape(hidden, tokens))
 		router := builder.Input("router", dtype.F32, tensor.MustShape(hidden, experts))
 		options := tensor.MoEOptions{
@@ -174,5 +177,23 @@ func TestCompileReservesMoEScratch(t *testing.T) {
 	wideTokenBytes := (uint64(tensor.MaxMoETopK)*(wideRows+moeSlotRouteWords) + moeTokenRouteWords) * 4
 	if got := compile(3, wideRows, tensor.MaxMoETopK, dtype.F32, false).attentionScoreBytes; got != wideTokenBytes {
 		t.Fatalf("wide-token scratch = %d, want one token of %d", got, wideTokenBytes)
+	}
+	for _, fused := range []bool{false, true} {
+		native := compile(64, 896, 6, dtype.BF16, fused, tensor.MulMatComputeNativeTensorCore)
+		const slotBytes = 64 * ocrTokenBytes
+		if native.attentionScoreBytes != slotBytes || native.matmulStagingBytes == 0 || native.matmulStagingBytes > quantStagedChunkBytes {
+			t.Fatalf("native scratch: scores=%d staging=%d", native.attentionScoreBytes, native.matmulStagingBytes)
+		}
+		bounded := compile(1<<20, 896, 6, dtype.BF16, fused, tensor.MulMatComputeNativeTensorCore)
+		if bounded.attentionScoreBytes > quantStagedChunkBytes || bounded.matmulStagingBytes > quantStagedChunkBytes {
+			t.Fatal("long prompt scratch is unbounded")
+		}
+		lowReuse := compile(1, 896, 6, dtype.BF16, fused, tensor.MulMatComputeNativeTensorCore)
+		if lowReuse.matmulStagingBytes != 0 || lowReuse.attentionScoreBytes != ocrTokenBytes {
+			t.Fatal("decode reserves unused matrix staging")
+		}
+	}
+	if huge := compile(64, wideRows, 16, dtype.F32, false, tensor.MulMatComputeNativeTensorCore); huge.matmulStagingBytes != 0 {
+		t.Fatal("oversized expert matrix was admitted")
 	}
 }

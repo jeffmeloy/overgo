@@ -6,13 +6,8 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
-// The native tensor-core policy binds half-precision weights against F32
-// activations, which cuBLAS multiplies in their dtype, and quantized
-// weights, which the CUDA executor stages to F32 and multiplies exactly
-// past its column floor; an F32 or fp8 mul_mat in the same graph keeps
-// its exact arithmetic unmarked, so a graph-wide default is safe for a
-// transformer forward.
-func TestNativeTensorCorePolicyAppliesOnlyToHalfPrecisionWeights(t *testing.T) {
+// TestNativeTensorCorePolicy checks weight-aware projection policy and routed-expert arithmetic.
+func TestNativeTensorCorePolicy(t *testing.T) {
 	builder := NewBuilder()
 	builder.SetMulMatCompute(MulMatComputeNativeTensorCore)
 	shape := MustShape(32, 4)
@@ -44,5 +39,23 @@ func TestNativeTensorCorePolicyAppliesOnlyToHalfPrecisionWeights(t *testing.T) {
 	explicit.MulMatWithCompute(weight, activation, MulMatComputeNativeTensorCore)
 	if explicit.Err() != nil {
 		t.Fatalf("explicit native policy over F32 refused instead of staying exact: %v", explicit.Err())
+	}
+	for _, compute := range []MulMatCompute{MulMatComputeExact, MulMatComputeNativeTensorCore} {
+		builder := NewBuilder()
+		builder.SetMulMatCompute(compute)
+		input := builder.Input("input", dtype.F32, shape)
+		router := builder.Input("router", dtype.F32, MustShape(32, 4))
+		gate := builder.Input("gate", dtype.BF16, MustShape(32, 8, 4))
+		up := builder.Input("up", dtype.BF16, gate.Shape)
+		down := builder.Input("down", dtype.BF16, MustShape(8, 32, 4))
+		output := builder.MoEWithOptions(input, router, up, down, MoEOptions{
+			Gate: gate, TopK: 2, Scale: 1, Routing: MoERoutingSoftmax, Activation: MoEActivationSiLU, ExpertIndexDivisor: 1,
+		})
+		if builder.Err() != nil {
+			t.Fatal(builder.Err())
+		}
+		if got := output.Attrs.(MoEAttributes).Compute; got != compute {
+			t.Fatalf("MoE compute = %v, want graph policy %v", got, compute)
+		}
 	}
 }

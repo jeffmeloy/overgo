@@ -3688,6 +3688,47 @@ extern "C" __global__ void moe_route_f32(
     }
 }
 
+__device__ __forceinline__ float moe_activation(float gate_dot, float up_dot, unsigned int gated,
+        unsigned int activation, unsigned int routing, float swiglu_clamp) {
+    float activated;
+    if (activation == 2) {
+        activated = gated ? fmaxf(gate_dot, 0.0f) * up_dot : fmaxf(up_dot, 0.0f);
+    } else if (activation == 3) {
+        const float source = gated ? gate_dot : up_dot;
+        float gelu;
+        if (source <= -10.0f) {
+            gelu = 0.0f;
+        } else if (source >= 10.0f) {
+            gelu = source;
+        } else {
+            const float rounded = __half2float(__float2half_rn(source));
+            const float argument = 0.7978845608028654f * rounded *
+                (1.0f + 0.044715f * rounded * rounded);
+            gelu = __half2float(__float2half_rn(
+                0.5f * rounded * (1.0f + tanhf(argument))));
+        }
+        activated = gated ? gelu * up_dot : gelu;
+    } else if (activation == 4) {
+        const float gate_value = fminf(gate_dot, 7.0f);
+        const float up_value = fminf(7.0f, fmaxf(-7.0f, up_dot));
+        activated = gate_value / (1.0f + expf(-1.702f * gate_value)) * (up_value + 1.0f);
+    } else if (activation == 5) {
+        activated = fmaxf(up_dot, 0.0f);
+        activated *= activated;
+    } else if (gated) {
+        if (swiglu_clamp > 0.0f) {
+            up_dot = fminf(swiglu_clamp, fmaxf(-swiglu_clamp, up_dot));
+            if (routing == 4) gate_dot = fminf(swiglu_clamp, gate_dot);
+        }
+        float gate_activation = gate_dot / (1.0f + expf(-gate_dot));
+        if (swiglu_clamp > 0.0f && routing != 4) gate_activation = fminf(swiglu_clamp, gate_activation);
+        activated = gate_activation * up_dot;
+    } else {
+        activated = up_dot / (1.0f + expf(-up_dot));
+    }
+    return activated;
+}
+
 extern "C" __global__ void moe_hidden_f32(
         const float * input,
         const unsigned int * route_state,
@@ -3768,43 +3809,7 @@ extern "C" __global__ void moe_hidden_f32(
         gate_dot += gate_bias[(size_t) expert * intermediate + inner_index];
         up_dot += up_bias[(size_t) expert * intermediate + inner_index];
     }
-    float activated;
-    if (activation == 2) {
-        activated = gated ? fmaxf(gate_dot, 0.0f) * up_dot : fmaxf(up_dot, 0.0f);
-    } else if (activation == 3) {
-        const float source = gated ? gate_dot : up_dot;
-        float gelu;
-        if (source <= -10.0f) {
-            gelu = 0.0f;
-        } else if (source >= 10.0f) {
-            gelu = source;
-        } else {
-            const float rounded = __half2float(__float2half_rn(source));
-            const float argument = 0.7978845608028654f * rounded *
-                (1.0f + 0.044715f * rounded * rounded);
-            gelu = __half2float(__float2half_rn(
-                0.5f * rounded * (1.0f + tanhf(argument))));
-        }
-        activated = gated ? gelu * up_dot : gelu;
-    } else if (activation == 4) {
-        const float gate_value = fminf(gate_dot, 7.0f);
-        const float up_value = fminf(7.0f, fmaxf(-7.0f, up_dot));
-        activated = gate_value / (1.0f + expf(-1.702f * gate_value)) * (up_value + 1.0f);
-    } else if (activation == 5) {
-        activated = fmaxf(up_dot, 0.0f);
-        activated *= activated;
-    } else if (gated) {
-        if (swiglu_clamp > 0.0f) {
-            up_dot = fminf(swiglu_clamp, fmaxf(-swiglu_clamp, up_dot));
-            if (routing == 4) gate_dot = fminf(swiglu_clamp, gate_dot);
-        }
-        float gate_activation = gate_dot / (1.0f + expf(-gate_dot));
-        if (swiglu_clamp > 0.0f && routing != 4) gate_activation = fminf(swiglu_clamp, gate_activation);
-        activated = gate_activation * up_dot;
-    } else {
-        activated = up_dot / (1.0f + expf(-up_dot));
-    }
-    activations[index] = activated;
+    activations[index] = moe_activation(gate_dot, up_dot, gated, activation, routing, swiglu_clamp);
 }
 
 extern "C" __global__ void moe_down_f32(
@@ -3863,6 +3868,92 @@ extern "C" __global__ void moe_down_f32(
             }
             result += route * expert_multiplier * partial;
         }
+    }
+    output[index] = result;
+}
+
+extern "C" __global__ void moe_gather_f32(
+        const float * input, const unsigned int * table, float * output,
+        unsigned int hidden, unsigned int rows, unsigned int batch, unsigned int top_k, unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) return;
+    const unsigned int slot = table[batch + index / hidden];
+    output[index] = slot == 0xffffffffu ? 0.0f : input[(size_t) (slot / top_k) * hidden + index % hidden];
+}
+
+extern "C" __global__ void moe_stage_f32(
+        const void * gate, const void * up, const unsigned int * table, float * output,
+        unsigned int hidden, unsigned int intermediate, unsigned int gate_storage, unsigned int up_storage,
+        unsigned int fused, unsigned int indexed, unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) return;
+    const size_t bank_elements = (size_t) hidden * intermediate;
+    const unsigned int expert = table[index / (2 * bank_elements)];
+    const size_t within = index % (2 * bank_elements);
+    const bool is_up = within >= bank_elements;
+    const void * bank = is_up ? up : gate;
+    if (indexed) bank = reinterpret_cast<const void * const *>(bank)[expert];
+    const size_t base = indexed ? 0 : (size_t) expert * (fused ? 2 : 1) * bank_elements;
+    const size_t offset = within % bank_elements + (fused && is_up ? bank_elements : 0);
+    output[index] = moe_expert_value(bank, base + offset, is_up ? up_storage : gate_storage);
+}
+
+extern "C" __global__ void moe_activate_f32(
+        float * gu, const unsigned int * table, const float * gate_bias, const float * up_bias,
+        unsigned int intermediate, unsigned int rows, unsigned int activation, unsigned int routing,
+        float swiglu_clamp, unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) return;
+    const unsigned int inner = index % intermediate;
+    const size_t offset = (size_t) (index / intermediate) * 2 * intermediate + inner;
+    float gate_dot = gu[offset], up_dot = gu[offset + intermediate];
+    if (gate_bias) {
+        const unsigned int expert = table[index / (rows * intermediate)];
+        gate_dot += gate_bias[(size_t) expert * intermediate + inner];
+        up_dot += up_bias[(size_t) expert * intermediate + inner];
+    }
+    gu[offset] = moe_activation(gate_dot, up_dot, 1, activation, routing, swiglu_clamp);
+}
+
+extern "C" __global__ void moe_stage_down_f32(
+        const void * down, const unsigned int * table, float * output,
+        unsigned int hidden, unsigned int intermediate, unsigned int storage, unsigned int indexed, unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) return;
+    const size_t bank_elements = (size_t) hidden * intermediate;
+    const unsigned int expert = table[index / bank_elements];
+    const void * bank = indexed ? reinterpret_cast<const void * const *>(down)[expert] : down;
+    output[index] = moe_expert_value(bank, (indexed ? 0 : (size_t) expert * bank_elements) + index % bank_elements, storage);
+}
+
+extern "C" __global__ void moe_scatter_f32(
+        const float * input, const unsigned int * table, float * slots, const float * down_bias,
+        unsigned int hidden, unsigned int rows, unsigned int batch, unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) return;
+    const unsigned int slot = table[batch + index / hidden];
+    if (slot == 0xffffffffu) return;
+    const unsigned int channel = index % hidden;
+    float value = input[index];
+    if (down_bias) value += down_bias[(size_t) table[index / (rows * hidden)] * hidden + channel];
+    slots[(size_t) slot * hidden + channel] = value;
+}
+
+extern "C" __global__ void moe_combine_f32(
+        const unsigned int * route_state, const float * slots, const float * expert_scale, float * output,
+        unsigned int hidden, unsigned int top_k, unsigned int normalize, float scale,
+        unsigned int divisor, unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) return;
+    const unsigned int token = index / hidden, channel = index % hidden;
+    const unsigned int * selected = route_state + (size_t) token * (2 * top_k + 1);
+    const float * routes = reinterpret_cast<const float *>(selected + top_k);
+    float result = 0.0f;
+    for (unsigned int slot = 0; slot < top_k; ++slot) {
+        float route = routes[slot] * scale;
+        if (normalize) route /= fmaxf(routes[top_k], 6.103515625e-5f);
+        const float multiplier = expert_scale ? expert_scale[selected[slot] / divisor] : 1.0f;
+        result += route * multiplier * slots[((size_t) token * top_k + slot) * hidden + channel];
     }
     output[index] = result;
 }

@@ -723,6 +723,7 @@ type CompiledGraph struct {
 	externalOutputs bool
 	skipped         map[*tensor.Tensor]struct{}
 	needBlas        bool
+	readsRoutes     bool
 	q8InputBytes    uint64
 	// matmulStagingBytes: shared exact-weight or tensor-core-input scratch.
 	matmulStagingBytes uint64
@@ -1185,6 +1186,10 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 			}
 			compiled.needBlas = true
 			compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, uint64(group)*tokenBytes)
+			if geometry, ok := nativeMoEMatrix(node); ok {
+				compiled.readsRoutes = true
+				compiled.matmulStagingBytes = max(compiled.matmulStagingBytes, geometry.stagingBytes(group, node.Attrs.(tensor.MoEAttributes).TopK))
+			}
 		}
 		// Every column count stages: prefill chunks its columns through
 		// the span kernel, so the workspace holds the whole right operand.
@@ -1637,7 +1642,7 @@ func (e *Executor) runCompiled(
 	if err != nil {
 		return nil, err
 	}
-	cacheGraph = cacheGraph && !usesExperts
+	cacheGraph = cacheGraph && !usesExperts && !compiled.readsRoutes
 	var result *executionResult
 	err = e.worker.Do(ctx, func(state *device.State) error {
 		resources, resourceErr := e.ensureResources(
@@ -2281,6 +2286,10 @@ func quantKernel(dataType dtype.Type) (quantKernelDescriptor, bool) {
 type blasState struct {
 	moeRoutes    []uint32
 	moeExperts   []uint32
+	moeCounts    []uint32
+	moeOffsets   []uint32
+	moeSlots     []uint32
+	moeTable     []uint32
 	library      *cublas.Library
 	handle       cublas.Handle
 	staging      driver.DevicePtr

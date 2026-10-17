@@ -4,15 +4,17 @@ package executor
 
 import (
 	"bytes"
-	"context"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
+	"fmt"
 	"maps"
 	"math"
 	"overgo/internal/gguf"
 	"overgo/internal/modeldevice"
 	"testing"
 
+	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/quant"
 	"overgo/internal/tensor"
@@ -88,6 +90,7 @@ func TestExecutorMoEOutputBitsArePinned(t *testing.T) {
 // value is BF16-representable, so an F32 bank and a BF16 bank hold the same
 // numbers.
 type moePinnedCase struct {
+	compute                            tensor.MulMatCompute
 	offload                            bool
 	name                               string
 	hidden, routerHidden, intermediate uint64
@@ -203,8 +206,51 @@ func moePinnedValues(name string, ordinal, count uint64, scale float64) []float3
 // returns the device output, with the host reference's when the case asks
 // for it and the banks are F32.
 func (c moePinnedCase) run(t *testing.T, cuda *Executor, bankType dtype.Type) (got, want []float32) {
+	output, host, device, bankValues := c.prepare(t, cuda, bankType)
+	var result map[*tensor.Tensor]reference.Value
+	var err error
+	if c.compute == tensor.MulMatComputeNativeTensorCore {
+		retained, runErr := cuda.executeRetainedWithDeviceFeeds(t.Context(), []*tensor.Tensor{output}, host, device)
+		if runErr != nil {
+			t.Fatal(runErr)
+		}
+		value, copyErr := retained.CopyToHost(t.Context(), output)
+		if releaseErr := retained.Release(t.Context()); releaseErr != nil {
+			t.Fatal(releaseErr)
+		}
+		if copyErr != nil {
+			t.Fatal(copyErr)
+		}
+		result = map[*tensor.Tensor]reference.Value{output: value}
+	} else {
+		result, err = cuda.executeWithDeviceFeeds(t.Context(), []*tensor.Tensor{output}, host, device)
+	}
+	if c.offload {
+		if resetErr := cuda.SetExpertBanks(nil); resetErr != nil {
+			t.Fatal(resetErr)
+		}
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(bankValues) == 0 {
+		return result[output].Data, nil
+	}
+	maps.Copy(host, bankValues)
+	for bank := range bankValues {
+		bank.Type = dtype.F32
+	}
+	expected, err := reference.Execute([]*tensor.Tensor{output}, host)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return result[output].Data, expected[output].Data
+}
+
+func (c moePinnedCase) prepare(t testing.TB, cuda *Executor, bankType dtype.Type) (*tensor.Tensor, map[*tensor.Tensor]reference.Value, map[*tensor.Tensor]driver.DevicePtr, map[*tensor.Tensor]reference.Value) {
 	t.Helper()
 	builder := tensor.NewBuilder()
+	builder.SetMulMatCompute(c.compute)
 	host := make(map[*tensor.Tensor]reference.Value)
 	device := make(map[*tensor.Tensor]driver.DevicePtr)
 	withReference := c.reference && bankType == dtype.F32 && !c.offload
@@ -322,14 +368,14 @@ func (c moePinnedCase) run(t *testing.T, cuda *Executor, bankType dtype.Type) (g
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer func() {
+		t.Cleanup(func() {
 			if err := cuda.SetExpertBanks(nil); err != nil {
 				t.Error(err)
 			}
 			if err := weights.Close(); err != nil {
 				t.Error(err)
 			}
-		}()
+		})
 		if err := weights.EnableExpertResidency(t.Context(), file, file.Tensors, 0); err != nil {
 			t.Fatal(err)
 		}
@@ -347,23 +393,88 @@ func (c moePinnedCase) run(t *testing.T, cuda *Executor, bankType dtype.Type) (g
 			device[bank] = pointer
 		}
 	}
-	result, err := cuda.executeWithDeviceFeeds(
-		context.WithoutCancel(t.Context()), []*tensor.Tensor{output}, host, device,
-	)
+	return output, host, device, bankValues
+}
+
+func TestExecutorMoEGroupedMatrices(t *testing.T) {
+	for _, c := range moePinnedCases {
+		if !c.reference || c.ungated || c.name == "many-experts" {
+			continue
+		}
+		t.Run(c.name, func(t *testing.T) {
+			c.tokens = 64
+			c.compute = tensor.MulMatComputeNativeTensorCore
+			var want []float32
+			for _, offload := range []bool{false, true} {
+				t.Run(map[bool]string{false: "resident", true: "indexed"}[offload], func(t *testing.T) {
+					cuda := newFixtureExecutor(t)
+					trace := &device.LaunchTrace{}
+					if err := cuda.worker.Do(t.Context(), func(state *device.State) error { state.Trace = trace; return nil }); err != nil {
+						t.Fatal(err)
+					}
+					c.offload = offload
+					got, reference := c.run(t, cuda, dtype.F32)
+					if !offload {
+						want = reference
+					}
+					compare(t, got, want, accuracyModel)
+					// The first expert batch follows routing, input gathering and weight staging.
+					const firstProduct = (32 + 6*8 + 5*4) + (32 + 3*8 + 5*4) + (32 + 4*8 + 7*4)
+					if len(trace.Data()) < firstProduct+8 || binary.LittleEndian.Uint64(trace.Data()[firstProduct:]) != traceTagSGEMMStrided {
+						t.Fatal("grouped expert matrix product did not execute")
+					}
+				})
+			}
+		})
+	}
+}
+
+// BenchmarkMoEGroupedMatrices measures resident execution including synchronization.
+// Compilation, quantization, upload and warm-up precede the timed loop.
+func BenchmarkMoEGroupedMatrices(b *testing.B) {
+	library, err := driver.Open()
 	if err != nil {
-		t.Fatal(err)
+		b.Fatal(err)
 	}
-	if !withReference {
-		return result[output].Data, nil
+	defer library.Close()
+	if _, err := library.ReserveDevice(0); err != nil {
+		b.Fatal(err)
 	}
-	maps.Copy(host, bankValues)
-	// The reference consumes decoded F32 banks after device execution completes.
-	for bank := range bankValues {
-		bank.Type = dtype.F32
+	for _, tokens := range []uint64{4, 128} {
+		b.Run(fmt.Sprintf("tokens=%d", tokens), func(b *testing.B) {
+			var c moePinnedCase
+			for _, fixture := range moePinnedCases {
+				if fixture.name == "mixed-iq" {
+					c = fixture
+				}
+			}
+			c.tokens, c.reference = tokens, false
+			cuda := newFixtureExecutor(b)
+			output, host, pointers, _ := c.prepare(b, cuda, dtype.F32)
+			for node, value := range host {
+				pointers[node] = copyFixtureDeviceBytes(b, cuda.worker, driver.Bytes(value.Data))
+			}
+			for _, mode := range []tensor.MulMatCompute{tensor.MulMatComputeExact, tensor.MulMatComputeNativeTensorCore} {
+				b.Run(fmt.Sprintf("compute=%d", mode), func(b *testing.B) {
+					a := output.Attrs.(tensor.MoEAttributes)
+					a.Compute = mode
+					output.Attrs = a
+					compiled, inputs, err := compileDeviceFeeds([]*tensor.Tensor{output}, pointers)
+					if err != nil {
+						b.Fatal(err)
+					}
+					if _, err = cuda.ExecuteCompiled(b.Context(), compiled, nil, inputs); err != nil {
+						b.Fatal(err)
+					}
+					b.ResetTimer()
+					for b.Loop() {
+						if _, err = cuda.ExecuteCompiled(b.Context(), compiled, nil, inputs); err != nil {
+							b.Fatal(err)
+						}
+					}
+					b.ReportMetric(float64(compiled.matmulStagingBytes+compiled.attentionScoreBytes), "scratch-B")
+				})
+			}
+		})
 	}
-	expected, err := reference.Execute([]*tensor.Tensor{output}, host)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return result[output].Data, expected[output].Data
 }

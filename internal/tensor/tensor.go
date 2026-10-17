@@ -233,6 +233,7 @@ type GroupNormAttributes struct {
 }
 
 type MoEAttributes struct {
+	Compute            MulMatCompute
 	Experts            uint32
 	ExpertIndexDivisor uint32
 	TopK               uint32

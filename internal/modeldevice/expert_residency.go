@@ -235,6 +235,16 @@ func (c *expertResidency) resolve(ctx context.Context, names []string, indices [
 			keys = append(keys, key)
 		}
 	}
+	evictUnused := func() error {
+		victim := c.order.Front()
+		for victim != nil && needed[victim.Value.(residentExpert).key] {
+			victim = victim.Next()
+		}
+		if victim == nil {
+			return errors.New("expert residency has no releasable entry")
+		}
+		return c.evict(victim)
+	}
 	for _, key := range keys {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -255,18 +265,22 @@ func (c *expertResidency) resolve(ctx context.Context, names []string, indices [
 			return nil, err
 		}
 		for c.bytes > limit-bank.bytes {
-			victim := c.order.Front()
-			for victim != nil && needed[victim.Value.(residentExpert).key] {
-				victim = victim.Next()
-			}
-			if victim == nil {
-				return nil, errors.New("expert residency has no releasable entry")
-			}
-			if err := c.evict(victim); err != nil {
+			if err := evictUnused(); err != nil {
 				return nil, err
 			}
 		}
 		pointer, err := c.mem.alloc(ctx, bank.bytes)
+		// Logical encoded bytes exclude physical allocation overhead and other contexts.
+		// An actual capacity refusal reclaims only experts outside this working set.
+		for driver.IsOutOfMemory(err) {
+			if releaseErr := evictUnused(); releaseErr != nil {
+				return nil, errors.Join(err, releaseErr)
+			}
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			pointer, err = c.mem.alloc(ctx, bank.bytes)
+		}
 		if err != nil {
 			return nil, err
 		}

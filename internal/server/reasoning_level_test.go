@@ -71,6 +71,19 @@ func TestReasoningLevelDeclared(t *testing.T) {
 	if prompt := turn("none"); prompt != "ab" {
 		t.Fatalf("an off turn's prompt = %q", prompt)
 	}
+	for _, thinking := range []string{"", `,"thinking":{"type":"disabled"}`} {
+		response := serveTestRequest(handler, http.MethodPost, "/v1/messages",
+			`{"model":"`+testModelID+`","messages":[{"role":"user","content":"ab"}],"temperature":0,"max_tokens":1`+thinking+`}`)
+		if response.Code != http.StatusOK {
+			t.Fatalf("messages thinking %q: %d %s", thinking, response.Code, response.Body.String())
+		}
+		recorder.mu.Lock()
+		prompt := recorder.prompts[len(recorder.prompts)-1]
+		recorder.mu.Unlock()
+		if prompt != "ab" {
+			t.Fatalf("messages thinking %q rendered %q, want no thinking", thinking, prompt)
+		}
+	}
 	if reasoning := offered(newTestHandler(t, openSessionRunner(t, 64))); reasoning != nil {
 		t.Fatalf("a template reading no reasoning offered %+v", reasoning)
 	}

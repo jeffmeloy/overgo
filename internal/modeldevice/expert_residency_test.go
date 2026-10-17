@@ -78,6 +78,33 @@ func TestFlashNextExpertResidency(t *testing.T) {
 			t.Fatal("miss did not allocate exactly one expert per bank")
 		}
 	})
+	t.Run("physical-allocation-pressure", func(t *testing.T) {
+		cache, mem := open(t, tableBytes+3*pairBytes)
+		names := []string{"gate", "down"}
+		mem.maxLive = len(names) + 2*len(names)
+		if _, err := cache.resolve(t.Context(), names, []uint32{0, 1}); err != nil {
+			t.Fatal(err)
+		}
+		retained := cache.entries[expertKey{"gate", 1}].Value.(residentExpert).pointer
+		if _, err := cache.resolve(t.Context(), names, []uint32{1, 2}); err != nil {
+			t.Fatalf("physical capacity did not reclaim unused experts: %v", err)
+		}
+		if cache.entries[expertKey{"gate", 1}].Value.(residentExpert).pointer != retained {
+			t.Fatal("the current request's expert was displaced")
+		}
+		for _, name := range names {
+			if cache.entries[expertKey{name, 0}] != nil || cache.entries[expertKey{name, 2}] == nil {
+				t.Fatal("physical pressure did not replace only the unused experts")
+			}
+		}
+		if tables, err := cache.resolve(t.Context(), names, []uint32{0, 1, 2}); !driver.IsOutOfMemory(err) || tables != nil {
+			t.Fatalf("an entirely required working set must refuse without a table: %v, %v", tables, err)
+		}
+		mem.maxLive = 0
+		if _, err := cache.resolve(t.Context(), names, []uint32{0, 1, 2}); err != nil {
+			t.Fatalf("capacity recovery: %v", err)
+		}
+	})
 	for _, name := range []string{"cancelled-before", "cancelled-copy", "failed-copy", "out-of-range", "over-limit"} {
 		t.Run(name, func(t *testing.T) {
 			cache, mem := open(t, tableBytes+pairBytes)

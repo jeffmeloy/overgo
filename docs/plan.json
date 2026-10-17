@@ -113,20 +113,10 @@
       "title": "Deliver native Flash-Next text chat through existing APIs and web GUI",
       "status": "open",
       "budget": {
-        "nodes": 47,
+        "nodes": 0,
         "reason": "Measured owner repairs reclaim unused encoded experts on physical capacity refusal and pass disabled thinking to Messages templates."
       },
       "steps": [
-        {
-          "id": "runtime",
-          "title": "Honor physical expert capacity and explicit disabled thinking",
-          "status": "open",
-          "verify": "go test ./internal/modeldevice ./internal/server -run '^(TestFlashNextExpertResidency|TestReasoningLevelDeclared)$'",
-          "rationale": "Serves: Continue native chat across changing expert working sets and honor disabled thinking in Messages.\nDisappears: Replace the logical-byte-only allocation assumption with bounded eviction on typed CUDA capacity refusal.\nReuse the existing LRU and protect every expert required by the current request.\nRemove the Messages branch that omits the explicit false template option.\nExtend TestFlashNextExpertResidency and TestReasoningLevelDeclared rather than adding duplicate test functions.\nEvidence: evidence:sha256:d02f59cfb10f967b97e68dfbea51e794bee61a95cdf789d291e1c0142e2b557a retains the exact candidate, runtime commit, requests, answers and failures.\nThe physical-allocation-pressure case requires eviction of unused experts and preserves needed entries.\nAn entirely required working set still refuses and recovers when capacity becomes available.\nThe Messages cases require both absent and disabled thinking to render without a think prefix.\nBatch: The existing native Go tests decide these owner fixes.\nRepeat the identified real-model protocol probe only after landing and preserve its earlier failures.\nChat acceptance, tools, reasoning and matched performance remain open in the following steps.",
-          "depends_on": [
-            "flashnext-residency/tiers"
-          ]
-        },
         {
           "id": "serve",
           "title": "Wire full execution, activation, reasoning and tool use into the existing chat flow",

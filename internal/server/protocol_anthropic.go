@@ -521,10 +521,9 @@ func (h *Handler) anthropicChatTurn(response http.ResponseWriter, request *http.
 		writeInvalidRequest(response, err)
 		return anthropicTurn{}, false
 	}
-	chat := chatCompletionRequest{Messages: messages}
-	if len(tools.prompt) != 0 || thinking {
-		chat.Tools = tools.active
-		chat.TemplateKwargs = map[string]any{templateThinkingKwarg: thinking}
+	chat := chatCompletionRequest{
+		Messages: messages, Tools: tools.active,
+		TemplateKwargs: map[string]any{templateThinkingKwarg: thinking},
 	}
 	return anthropicTurn{chat: chat, tools: tools, thinking: thinking}, true
 }

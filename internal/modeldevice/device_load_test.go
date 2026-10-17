@@ -30,6 +30,7 @@ type fakeDevice struct {
 	allocs    int
 	writes    int
 	failAlloc int // the allocation that fails with an out-of-memory error; 0 for none
+	maxLive   int // physical allocation slots, independent of the logical byte limit; 0 is unlimited
 	failWrite int // the write that fails; 0 for none
 	onWrite   func()
 }
@@ -42,7 +43,7 @@ func (d *fakeDevice) alloc(_ context.Context, size uint64) (driver.DevicePtr, er
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.allocs++
-	if d.allocs == d.failAlloc {
+	if d.allocs == d.failAlloc || d.maxLive > 0 && len(d.live) >= d.maxLive {
 		return 0, &driver.ResultError{Operation: "injected allocation", Code: 2}
 	}
 	pointer := d.next

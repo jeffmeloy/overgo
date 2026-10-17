@@ -30,15 +30,18 @@ func TestExecutorRetainedOutputLifetime(t *testing.T) {
 	if _, err := cuda.Execute(context.WithoutCancel(t.Context()), []*tensor.Tensor{output}, feeds); err != nil {
 		t.Fatal(err)
 	}
+	outputs := []*tensor.Tensor{output, left, right}
+	rightPointer := copyFixtureDeviceBytes(t, cuda.worker, driver.Bytes(rightValue.Data))
+	delete(feeds, right)
 	before, err := cuda.worker.MemoryStats(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
 	retained, err := cuda.executeRetainedWithDeviceFeeds(
 		context.WithoutCancel(t.Context()),
-		[]*tensor.Tensor{output},
+		outputs,
 		feeds,
-		nil,
+		map[*tensor.Tensor]driver.DevicePtr{right: rightPointer},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -47,11 +50,14 @@ func TestExecutorRetainedOutputLifetime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if during.CurrentBytes-before.CurrentBytes != deviceAllocationAlignment {
+	outputBytes, _ := shape.Bytes(dtype.F32)
+	wantBytes, _ := deviceBufferBucket(uint64(len(outputs)-1)*deviceAllocationAlignment + outputBytes)
+	if during.CurrentBytes-before.CurrentBytes != wantBytes || during.Allocations-before.Allocations != 1 {
 		t.Fatalf(
-			"retained pool bytes = %d, want %d",
+			"retained pool bytes = %d, want %d; before=%+v during=%+v",
 			during.CurrentBytes-before.CurrentBytes,
-			deviceAllocationAlignment,
+			wantBytes,
+			before, during,
 		)
 	}
 	got, err := retained.CopyToHost(t.Context(), output)
@@ -59,6 +65,16 @@ func TestExecutorRetainedOutputLifetime(t *testing.T) {
 		t.Fatal(err)
 	}
 	compare(t, got.Data, []float32{11, 22, 33, 44}, accuracyExact)
+	for node, want := range map[*tensor.Tensor][]float32{left: leftValue.Data, right: rightValue.Data} {
+		got, err := retained.CopyToHost(t.Context(), node)
+		if err != nil {
+			t.Fatal(err)
+		}
+		compare(t, got.Data, want, accuracyExact)
+		if value, ok := retained.Value(node); !ok || value.Pointer == rightPointer {
+			t.Fatal("retained input has no independent storage")
+		}
+	}
 	canceled, cancel := context.WithCancel(t.Context())
 	cancel()
 	if err := retained.Release(canceled); !errors.Is(err, context.Canceled) {
@@ -85,9 +101,9 @@ func TestExecutorRetainedOutputLifetime(t *testing.T) {
 	}
 	reused, err := cuda.executeRetainedWithDeviceFeeds(
 		context.WithoutCancel(t.Context()),
-		[]*tensor.Tensor{output},
+		outputs,
 		feeds,
-		nil,
+		map[*tensor.Tensor]driver.DevicePtr{right: rightPointer},
 	)
 	if err != nil {
 		t.Fatal(err)

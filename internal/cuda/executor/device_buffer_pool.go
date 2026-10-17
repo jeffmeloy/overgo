@@ -24,6 +24,7 @@ type deviceBufferLease struct {
 // of exact-size cache pages per length in the lists and filled a 49 GB
 // device within thirty seconds.
 type deviceBufferPool struct {
+	reserve     func(*device.State, uint64) error
 	free        map[uint64][]driver.DevicePtr
 	allocations []deviceBufferLease
 	freeBytes   uint64
@@ -88,14 +89,22 @@ func (p *deviceBufferPool) acquireBucket(
 	if err := p.trim(state, bucket); err != nil {
 		return deviceBufferLease{}, err
 	}
-	pointer, err := state.Driver.MemAlloc(bucket)
+	allocate := func() (driver.DevicePtr, error) {
+		if p.reserve != nil {
+			if err := p.reserve(state, bucket); err != nil {
+				return 0, err
+			}
+		}
+		return state.Driver.MemAlloc(bucket)
+	}
+	pointer, err := allocate()
 	if driver.IsOutOfMemory(err) && p.freeBytes > 0 {
 		before := p.freeBytes
 		if releaseErr := p.trim(state, p.freeLimit); releaseErr != nil {
 			return deviceBufferLease{}, errors.Join(err, releaseErr)
 		}
 		if p.freeBytes < before {
-			pointer, err = state.Driver.MemAlloc(bucket)
+			pointer, err = allocate()
 		}
 	}
 	if err != nil {

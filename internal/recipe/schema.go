@@ -295,7 +295,7 @@ const (
 	RealizedDeviceNativeBF16 RealizedResidency = "device-native-bf16"
 	// RealizedOOMStreamed means hybrid preload failed on OOM and released its partial stores.
 	RealizedOOMStreamed RealizedResidency = "oom-streamed"
-	// RealizedExpertOffloaded reserves a distinct outcome for a future measured expert path.
+	// RealizedExpertOffloaded means encoded experts use a bounded device cache and immutable file backing.
 	RealizedExpertOffloaded RealizedResidency = "expert-offloaded"
 )
 

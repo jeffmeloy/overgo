@@ -26,11 +26,11 @@ func TestHybridNativeFallbackRealizedResidency(t *testing.T) {
 	if err != nil || !recovered || partial || releases != 1 {
 		t.Fatalf("injected OOM fallback = recovered=%v err=%v partial=%v releases=%d", recovered, err, partial, releases)
 	}
-	actual, err := realizedResidencyForOpen(recipe.ResidencyHybridNative, false, recovered)
+	actual, err := realizedResidencyForOpen(recipe.ResidencyHybridNative, false, recovered, false)
 	if err != nil || actual != recipe.RealizedOOMStreamed {
 		t.Fatalf("fallback outcome = %q, %v", actual, err)
 	}
-	actual, err = realizedResidencyForOpen(recipe.ResidencyHybridNative, true, false)
+	actual, err = realizedResidencyForOpen(recipe.ResidencyHybridNative, true, false, false)
 	if err != nil || actual != recipe.RealizedDeviceNative {
 		t.Fatalf("successful preload outcome = %q, %v", actual, err)
 	}
@@ -45,16 +45,24 @@ func TestHybridNativeFallbackRealizedResidency(t *testing.T) {
 		{recipe.ResidencyDeviceF32, true, recipe.RealizedDeviceF32},
 		{recipe.ResidencyDeviceNativeBF16, true, recipe.RealizedDeviceNativeBF16},
 	} {
-		got, err := realizedResidencyForOpen(tc.requested, tc.resident, false)
+		got, err := realizedResidencyForOpen(tc.requested, tc.resident, false, false)
 		if err != nil || got != tc.want {
 			t.Fatalf("%q realization = %q, %v", tc.requested, got, err)
 		}
 	}
-	if got, err := realizedResidencyForOpen(recipe.ResidencyDeviceNative, false, false); err == nil || got != "" {
+	if got, err := realizedResidencyForOpen(recipe.ResidencyDeviceNative, false, false, false); err == nil || got != "" {
 		t.Fatalf("missing device preload was accepted: %q, %v", got, err)
 	}
 	if got := (*Runner)(nil).RealizedResidency(); got != "" {
 		t.Fatalf("nil runner claimed residency %q", got)
+	}
+	if got, err := realizedResidencyForOpen(recipe.ResidencyHybridNative, true, false, true); err != nil || got != recipe.RealizedExpertOffloaded {
+		t.Fatalf("expert residency = %q, %v", got, err)
+	}
+	for _, policy := range []recipe.ResidencyPolicy{recipe.ResidencyDeviceNative, recipe.ResidencyStream} {
+		if _, err := realizedResidencyForOpen(policy, true, false, true); err == nil {
+			t.Fatal("expert residency accepted under another policy")
+		}
 	}
 	if recovered, err := loadWithHostRecovery(false, func() error { return oom }, func() error {
 		t.Fatal("non-recoverable policy released for fallback")

@@ -3701,6 +3701,7 @@ extern "C" __global__ void moe_hidden_f32(
         unsigned int activation,
         unsigned int expert_index_divisor,
         float swiglu_clamp,
+        unsigned int indexed_experts,
         unsigned int count) {
     const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
     if (index >= count) return;
@@ -3710,8 +3711,12 @@ extern "C" __global__ void moe_hidden_f32(
     const float * x = input + (size_t) token * hidden;
     const unsigned int expert =
         route_state[(size_t) token * (2 * top_k + 1) + slot] / expert_index_divisor;
+    if (indexed_experts) {
+        if (gated) gate = reinterpret_cast<const void * const *>(gate)[expert];
+        up = reinterpret_cast<const void * const *>(up)[expert];
+    }
     const size_t gate_offset =
-        ((size_t) expert * (fused_gate_up ? 2 : 1) * intermediate + inner_index) * hidden;
+        ((size_t) (indexed_experts ? 0 : expert) * (fused_gate_up ? 2 : 1) * intermediate + inner_index) * hidden;
     const size_t up_offset = gate_offset + (fused_gate_up ? (size_t) intermediate * hidden : 0);
     float gate_dot = 0.0f;
     float up_dot = 0.0f;
@@ -3793,6 +3798,7 @@ extern "C" __global__ void moe_down_f32(
         float routed_scale,
         unsigned int expert_storage,
         unsigned int expert_index_divisor,
+        unsigned int indexed_experts,
         unsigned int count) {
     const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
     if (index >= count) return;
@@ -3804,28 +3810,29 @@ extern "C" __global__ void moe_down_f32(
     float result = 0.0f;
     for (unsigned int slot = 0; slot < top_k; ++slot) {
         const unsigned int expert = selected[slot] / expert_index_divisor;
+        const void * bank = indexed_experts ? reinterpret_cast<const void * const *>(down)[expert] : down;
         float route = routes[slot] * routed_scale;
         if (normalize_top_k) route /= fmaxf(*selected_sum, 6.103515625e-5f);
         const float expert_multiplier = expert_scale ? expert_scale[expert] : 1.0f;
         const float * slot_activations = activations + ((size_t) token * top_k + slot) * intermediate;
         for (unsigned int tile = 0; tile < intermediate; tile += MOE_DOWN_TILE) {
             const unsigned int tile_count = intermediate - tile < MOE_DOWN_TILE ? intermediate - tile : MOE_DOWN_TILE;
-            const size_t down_offset = ((size_t) expert * hidden + output_channel) * intermediate + tile;
+            const size_t down_offset = ((size_t) (indexed_experts ? 0 : expert) * hidden + output_channel) * intermediate + tile;
             const float * tile_activations = slot_activations + tile;
             float partial = 0.0f;
             if (expert_storage == GGML_F32) {
-                const float * down_row = reinterpret_cast<const float *>(down) + down_offset;
+                const float * down_row = reinterpret_cast<const float *>(bank) + down_offset;
                 for (unsigned int inner = 0; inner < tile_count; ++inner) {
                     partial += tile_activations[inner] * down_row[inner];
                 }
             } else if (expert_storage == GGML_BF16) {
-                const unsigned short * down_row = reinterpret_cast<const unsigned short *>(down) + down_offset;
+                const unsigned short * down_row = reinterpret_cast<const unsigned short *>(bank) + down_offset;
                 for (unsigned int inner = 0; inner < tile_count; ++inner) {
                     partial += tile_activations[inner] * __uint_as_float((unsigned int) down_row[inner] << 16);
                 }
             } else {
                 for (unsigned int inner = 0; inner < tile_count; ++inner) {
-                    partial += tile_activations[inner] * moe_expert_value(down, down_offset + inner, expert_storage);
+                    partial += tile_activations[inner] * moe_expert_value(bank, down_offset + inner, expert_storage);
                 }
             }
             if (tile + tile_count == intermediate && down_bias) {

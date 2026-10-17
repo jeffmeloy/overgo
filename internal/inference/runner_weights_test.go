@@ -10,9 +10,7 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
-// TestNativeExpertBankTensors: BF16 routed-expert banks stay at file width a
-// whole layer at a time; a layer with an adapted, F32, quantized or rank-2
-// bank keeps the load path it had.
+// TestNativeExpertBankTensors covers native storage and complete-layer eligibility.
 func TestNativeExpertBankTensors(t *testing.T) {
 	bank := func(name string, storage dtype.Type, rank uint32) *gguf.TensorInfo {
 		return &gguf.TensorInfo{Name: name, Type: storage, Dimensions: rank}
@@ -42,8 +40,35 @@ func TestNativeExpertBankTensors(t *testing.T) {
 		},
 	}}
 	got := nativeExpertBankTensors(weights, map[string]struct{}{"adapted.up": {}})
-	want := []string{"fused.down", "fused.gate_up", "native.down", "native.gate", "native.up"}
+	want := []string{"fused.down", "fused.gate_up", "mixed.down", "mixed.gate", "mixed.up", "native.down", "native.gate", "native.up", "quantized.down", "quantized.gate", "quantized.up", "widened.down", "widened.gate", "widened.up"}
 	if names := slices.Sorted(maps.Keys(got)); !slices.Equal(names, want) {
 		t.Fatalf("native expert banks = %v, want %v", names, want)
+	}
+	expert, err := gguf.NewTensorInfo("experts", dtype.BF16, []uint64{2, 2, 4})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dense, err := gguf.NewTensorInfo("dense", dtype.F32, []uint64{2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	converted, err := gguf.NewTensorInfo("converted", dtype.BF16, []uint64{2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		available uint64
+		backed    int
+	}{{48, 0}, {47, 1}} {
+		resident, backed, err := splitExpertResidency([]gguf.TensorInfo{expert, dense}, []gguf.TensorInfo{converted}, map[string]struct{}{"experts": {}}, tc.available)
+		if err != nil || len(backed) != tc.backed || len(resident) != 2-tc.backed {
+			t.Fatalf("available %d: resident=%v backed=%v err=%v", tc.available, resident, backed, err)
+		}
+		if len(backed) != 0 && (backed[0] != expert || resident[0] != dense) {
+			t.Fatal("placement changed the file descriptors")
+		}
+	}
+	if _, _, err := splitExpertResidency([]gguf.TensorInfo{{Size: ^uint64(0)}, dense}, nil, nil, 0); err == nil {
+		t.Fatal("overflowing weight extent accepted")
 	}
 }

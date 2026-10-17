@@ -57,8 +57,8 @@ func TestMoELaunchesCoverTokenGroups(t *testing.T) {
 	const (
 		headerBytes = 4 * 8
 		routeRecord = headerBytes + 6*8 + 5*4
-		hiddenBytes = headerBytes + 7*8 + 12*4
-		downRecord  = headerBytes + 6*8 + 8*4
+		hiddenBytes = headerBytes + 7*8 + 13*4
+		downRecord  = headerBytes + 6*8 + 9*4
 	)
 	raw := trace.Data()
 	if want := 3 * (routeRecord + hiddenBytes + downRecord); len(raw) != want {
@@ -88,14 +88,16 @@ func TestMoELaunchesCoverTokenGroups(t *testing.T) {
 			{"hidden activations", word(hiddenLaunch[80:]), scores + group*routeBytes},
 			{"hidden gate storage", uint64(scalar(hiddenLaunch[104:])), uint64(dtype.BF16)},
 			{"hidden up storage", uint64(scalar(hiddenLaunch[108:])), uint64(dtype.F32)},
-			{"hidden count", uint64(scalar(hiddenLaunch[132:])), count * topK * intermediate},
+			{"hidden indexed", uint64(scalar(hiddenLaunch[132:])), 0},
+			{"hidden count", uint64(scalar(hiddenLaunch[136:])), count * topK * intermediate},
 			{"down kernel", word(downLaunch), uint64(kernelMoeDownF32)},
 			{"down grid", word(downLaunch[8:]), (count*hidden+255)/256 | 1<<32 | 1<<48},
 			{"down route state", word(downLaunch[32:]), scores},
 			{"down activations", word(downLaunch[40:]), scores + group*routeBytes},
 			{"down output", word(downLaunch[72:]), output + start*hidden*4},
 			{"down storage", uint64(scalar(downLaunch[100:])), uint64(dtype.BF16)},
-			{"down count", uint64(scalar(downLaunch[108:])), count * hidden},
+			{"down indexed", uint64(scalar(downLaunch[108:])), 0},
+			{"down count", uint64(scalar(downLaunch[112:])), count * hidden},
 		} {
 			if check.got != check.want {
 				t.Fatalf("tokens %d..%d: %s = %#x, want %#x", start, start+count, check.name, check.got, check.want)

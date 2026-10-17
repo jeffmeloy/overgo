@@ -109,28 +109,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "flashnext-residency",
-      "title": "Fit the model and projector by eliminating duplicated resident content",
-      "status": "open",
-      "budget": {
-        "nodes": 3591,
-        "reason": "Measured candidate growth for encoded expert residency, indexed MoE execution and retained input lifetime fixes; full target completes an eight-token continuation within available VRAM."
-      },
-      "steps": [
-        {
-          "id": "tiers",
-          "title": "Add bounded expert residency to the existing device weight and resource owners",
-          "status": "open",
-          "verify": "go test ./internal/modeldevice -run '^TestFlashNextExpertResidency$' \u0026\u0026 go test ./internal/inference -run '^(TestNativeExpertBankTensors|TestHybridNativeFallbackRealizedResidency|TestHybridFallbackReleasesPartialStoresWithoutADecodeStore)$' \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^(TestExecutorMoEOutputBitsArePinned|TestMoELaunchesCoverTokenGroups|TestCompileReservesMoEScratch|TestIndexedOperandSlotsOnly|TestExecutorRetainedOutputLifetime|TestDeviceBufferPoolCapacityRefusalReclaimsIdle)$'",
-          "rationale": "Serves: Keep encoded selected experts on the device and retain the immutable GGUF as the authoritative backing copy.\nSize the cache from current free device memory after ordinary weights load.\nReclaim completed experts before execution-state and scratch allocations through the existing executor.\nRelease buffers only after dependent work finishes and preserve cancellation and exact expert selection.\nDisappears: Replace the all-or-nothing expert preload with bounded indexed banks in DeviceWeights and the existing MoE kernels.\nAvoid persistent host F32 banks and an explicit duplicate host expert cache.\nThe OS owns file caching and its physical pages are not an application-managed RAM complement.\nReuse existing encoded fixture producers and the pinned MoE test table.\nEvidence: TestFlashNextExpertResidency owns hit, miss, eviction, failed-copy cleanup, cancellation and descriptor refusal.\nTestExecutorMoEOutputBitsArePinned compares indexed and contiguous execution bits for mixed bank types, grouped routing, biases, scales and selected experts on Windows with OVERGO_CUDA_TEST=1.\nThe native bank table retains strict-residency refusal and hybrid fit selection.\nClosure requires full-target execution and explicit remaining device capacity without changing routing or materializing host F32 banks.\nThe full model, projector and matching-context peak comparison remains required by flashnext-vision/images and flashnext-efficiency/parity.\nBatch: Keep the initial file-backed miss path and dynamic reclaim before considering CPU SIMD, VMM or overlap.\nRecord actual process and device readings as observations rather than claiming true peaks or throughput parity.\nIndependent arithmetic and failure coverage remain mandatory while synthetic and full-model checks serve different contracts.",
-          "depends_on": [
-            "flashnext-mixed-quant/banks",
-            "flashnext-ngram/rows"
-          ]
-        }
-      ]
-    },
-    {
       "id": "flashnext-chat",
       "title": "Deliver native Flash-Next text chat through existing APIs and web GUI",
       "status": "open",

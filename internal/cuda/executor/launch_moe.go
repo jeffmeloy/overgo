@@ -154,7 +154,17 @@ func launchMoE(
 			return errors.New("grouped MoE launch size exceeds uint32")
 		}
 		logitBytes := experts * uint32(f32ScalarBytes)
+		indexed := uint32(0)
+		banks := node.Inputs[moeFirstBankInput:wantInputs]
+		if pointers.experts != nil && pointers.experts.IsExpertBank(banks[0].Name) {
+			indexed = 1
+		}
 		for start := uint32(0); start < tokens; start += group {
+			if pointers.ctx != nil {
+				if err := pointers.ctx.Err(); err != nil {
+					return err
+				}
+			}
 			count := min(group, tokens-start)
 			tokenOffset := uint64(start) * f32ScalarBytes
 			groupInput := input + driver.DevicePtr(tokenOffset*uint64(hidden))
@@ -173,12 +183,43 @@ func launchMoE(
 			); err != nil {
 				return err
 			}
+			if indexed != 0 {
+				if err := state.Driver.StreamSynchronize(state.Stream); err != nil {
+					return err
+				}
+				routeWords := uint32(moeSlotRouteWords)*topK + uint32(moeTokenRouteWords)
+				words := int(count) * int(routeWords)
+				if cap(blas.moeRoutes) < words {
+					blas.moeRoutes = make([]uint32, words)
+				}
+				routes := blas.moeRoutes[:words]
+				if err := state.Driver.MemcpyDtoH(driver.Bytes(routes), routeState); err != nil {
+					return err
+				}
+				blas.moeExperts = blas.moeExperts[:0]
+				for token := uint32(0); token < count; token++ {
+					for slot := uint32(0); slot < topK; slot++ {
+						blas.moeExperts = append(blas.moeExperts, routes[token*routeWords+slot]/expertIndexDivisor)
+					}
+				}
+				tables, err := pointers.experts.ResolveExpertBanks(pointers.ctx, state, banks, blas.moeExperts)
+				if err != nil {
+					return err
+				}
+				if len(tables) != len(banks) {
+					return errors.New("expert resolver returned an incomplete bank group")
+				}
+				up, down = tables[next-moeFirstBankInput], tables[next-moeFirstBankInput+1]
+				if attributes.Gated {
+					gate = tables[0]
+				}
+			}
 			hiddenCount := count * topK * intermediate
 			if err := launch1DABI(
 				state, functions[kernelMoeHiddenF32], hiddenCount,
 				&groupInput, &routeState, &gate, &up, &gateBias, &upBias, &activations,
 				&hidden, &topK, &intermediate, &routing, &gateStorage, &upStorage, &gated, &fusedGateUp,
-				&activation, &expertIndexDivisor, &swigluClamp, &hiddenCount,
+				&activation, &expertIndexDivisor, &swigluClamp, &indexed, &hiddenCount,
 			); err != nil {
 				return err
 			}
@@ -187,7 +228,7 @@ func launchMoE(
 				state, functions[kernelMoeDownF32], downCount,
 				&routeState, &activations, &down, &expertScale, &downBias, &groupOutput,
 				&hidden, &topK, &intermediate, &normalize, &scale, &downStorage,
-				&expertIndexDivisor, &downCount,
+				&expertIndexDivisor, &indexed, &downCount,
 			); err != nil {
 				return err
 			}

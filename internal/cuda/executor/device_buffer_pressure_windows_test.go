@@ -47,6 +47,24 @@ func TestDeviceBufferPoolCapacityRefusalReclaimsIdle(t *testing.T) {
 		if after := state.Driver.MemoryStats().CurrentBytes; before-after != idle.size {
 			return fmt.Errorf("reclaimed bytes: before=%d after=%d idle=%d", before, after, idle.size)
 		}
+		idle, err = pool.acquireExact(state, deviceAllocationAlignment)
+		if err != nil {
+			return err
+		}
+		if err := pool.release(state, idle); err != nil {
+			return err
+		}
+		// An expert reservation can refuse before MemAlloc reaches the same retry.
+		pool.reserve = func(*device.State, uint64) error {
+			if pool.freeBytes != 0 {
+				return &driver.ResultError{Operation: "expert reservation fixture", Code: 2}
+			}
+			return nil
+		}
+		resumed, err := pool.acquireExact(state, 2*deviceAllocationAlignment)
+		if err != nil || resumed.pointer == 0 || pool.freeBytes != 0 {
+			return fmt.Errorf("reservation did not reclaim idle memory and retry: %+v: %v", resumed, err)
+		}
 		// The surviving lease remains writable after failure and reclamation.
 		if err := state.Driver.MemsetD32Async(live.pointer, 0, live.size/4, state.Stream); err != nil {
 			return err

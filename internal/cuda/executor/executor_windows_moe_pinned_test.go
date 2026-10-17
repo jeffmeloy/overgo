@@ -3,11 +3,14 @@
 package executor
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"maps"
 	"math"
+	"overgo/internal/gguf"
+	"overgo/internal/modeldevice"
 	"testing"
 
 	"overgo/internal/cuda/driver"
@@ -57,6 +60,12 @@ func TestExecutorMoEOutputBitsArePinned(t *testing.T) {
 			outputs := make(map[dtype.Type]string, len(bankTypes))
 			for _, bankType := range bankTypes {
 				got, want := pinned.run(t, cuda, bankType)
+				tiered := pinned
+				tiered.offload = true
+				indexed, _ := tiered.run(t, cuda, bankType)
+				if !bytes.Equal(driver.Bytes(got), driver.Bytes(indexed)) {
+					t.Fatalf("%s indexed banks changed output bits", bankType)
+				}
 				digest := sha256.Sum256(driver.Bytes(got))
 				outputs[bankType] = hex.EncodeToString(digest[:])
 				if pinned.banks == [3]dtype.Type{} && outputs[bankType] != moePinnedOutputs[pinned.name] {
@@ -79,6 +88,7 @@ func TestExecutorMoEOutputBitsArePinned(t *testing.T) {
 // value is BF16-representable, so an F32 bank and a BF16 bank hold the same
 // numbers.
 type moePinnedCase struct {
+	offload                            bool
 	name                               string
 	hidden, routerHidden, intermediate uint64
 	experts, tokens                    uint64
@@ -194,7 +204,8 @@ func (c moePinnedCase) run(t *testing.T, cuda *Executor, bankType dtype.Type) (g
 	builder := tensor.NewBuilder()
 	host := make(map[*tensor.Tensor]reference.Value)
 	device := make(map[*tensor.Tensor]driver.DevicePtr)
-	withReference := c.reference && bankType == dtype.F32
+	withReference := c.reference && bankType == dtype.F32 && !c.offload
+	var fileBanks []gguf.TensorData
 	bankValues := make(map[*tensor.Tensor]reference.Value)
 	ordinal := uint64(0)
 	feed := func(name string, scale float64, dims ...uint64) *tensor.Tensor {
@@ -234,7 +245,11 @@ func (c moePinnedCase) run(t *testing.T, cuda *Executor, bankType dtype.Type) (g
 				}
 			}
 		}
-		device[node] = copyFixtureDeviceBytes(t, cuda.worker, storage)
+		if c.offload {
+			fileBanks = append(fileBanks, gguf.TensorData{Name: name, Shape: dims, Type: storageType, Data: bytes.NewReader(storage)})
+		} else {
+			device[node] = copyFixtureDeviceBytes(t, cuda.worker, storage)
+		}
 		if withReference {
 			bankValues[node] = reference.Value{Shape: node.Shape, Data: values}
 		}
@@ -290,6 +305,44 @@ func (c moePinnedCase) run(t *testing.T, cuda *Executor, bankType dtype.Type) (g
 	output := builder.MoEWithOptions(input, router, up, down, options)
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
+	}
+	if c.offload {
+		var encoded bytes.Buffer
+		if err := gguf.Write(&encoded, nil, fileBanks, gguf.WriteOptions{}); err != nil {
+			t.Fatal(err)
+		}
+		file, err := gguf.Parse(bytes.NewReader(encoded.Bytes()), uint64(encoded.Len()), gguf.DefaultOptions())
+		if err != nil {
+			t.Fatal(err)
+		}
+		weights, err := modeldevice.NewDeviceWeights(cuda.worker)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := cuda.SetExpertBanks(nil); err != nil {
+				t.Error(err)
+			}
+			if err := weights.Close(); err != nil {
+				t.Error(err)
+			}
+		}()
+		if err := weights.EnableExpertResidency(t.Context(), file, file.Tensors, 0); err != nil {
+			t.Fatal(err)
+		}
+		if err := cuda.SetExpertBanks(weights); err != nil {
+			t.Fatal(err)
+		}
+		for _, bank := range []*tensor.Tensor{options.Gate, up, down} {
+			if bank == nil {
+				continue
+			}
+			_, pointer, err := weights.Input(builder, bank.Name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			device[bank] = pointer
+		}
 	}
 	result, err := cuda.executeWithDeviceFeeds(
 		context.WithoutCancel(t.Context()), []*tensor.Tensor{output}, host, device,

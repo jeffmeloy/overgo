@@ -112,7 +112,7 @@ type stores struct {
 
 func newStores(memory deviceMemory) stores {
 	result := stores{
-		raw: &DeviceWeights{newDeviceTensorStore(nil, "device")},
+		raw: &DeviceWeights{deviceTensorStore: newDeviceTensorStore(nil, "device")},
 		f32: &DeviceConvertedWeights{
 			deviceTensorStore: newDeviceTensorStore(nil, "F32 device"),
 			storage:           dtype.F32, bytesPerValue: 4, encode: encodeF32,

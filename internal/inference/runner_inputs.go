@@ -18,7 +18,7 @@ func (r *Runner) deviceInput(
 	info gguf.TensorInfo,
 ) (*tensor.Tensor, driver.DevicePtr, error) {
 	if r.rawWeights != nil {
-		if _, ok := r.rawWeights.Lookup(info.Name); ok {
+		if _, ok := r.rawWeights.Lookup(info.Name); ok || r.rawWeights.IsExpertBank(info.Name) {
 			return r.rawWeights.Input(builder, info.Name)
 		}
 	}

@@ -155,9 +155,14 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 			return fail(err)
 		}
 	}
-	realized, err := realizedResidencyForOpen(program.Residency, deviceWeights != nil, recovered)
+	realized, err := realizedResidencyForOpen(program.Residency, deviceWeights != nil, recovered, rawWeights.HasExpertResidency())
 	if err != nil {
 		return fail(err)
+	}
+	if rawWeights.HasExpertResidency() {
+		if err := cuda.SetExpertBanks(rawWeights); err != nil {
+			return fail(err)
+		}
 	}
 	return &Runner{preparedModel: preparedModel{
 		file: file, path: path, spec: spec, program: program, runtimePolicy: runtimePolicy, evidenceTier: evidenceTier,
@@ -229,7 +234,13 @@ func releasePartialStores(
 	return err
 }
 
-func realizedResidencyForOpen(policy recipe.ResidencyPolicy, resident, recovered bool) (recipe.RealizedResidency, error) {
+func realizedResidencyForOpen(policy recipe.ResidencyPolicy, resident, recovered, experts bool) (recipe.RealizedResidency, error) {
+	if experts {
+		if policy == recipe.ResidencyHybridNative && resident && !recovered {
+			return recipe.RealizedExpertOffloaded, nil
+		}
+		return "", errors.New("inference: inconsistent expert residency")
+	}
 	if recovered {
 		if policy == recipe.ResidencyHybridNative && !resident {
 			return recipe.RealizedOOMStreamed, nil
@@ -294,6 +305,7 @@ func loadResidentWeights(
 	loader := modeldevice.NewLoader(file)
 	selected := selectedModelTensors(file, weights)
 	f32Tensors := selected
+	var fileBackedExperts []gguf.TensorInfo
 	if residency.deviceNative {
 		adaptedTensors := make(map[string]struct{})
 		for _, loaded := range loraAdapters {
@@ -335,6 +347,20 @@ func loadResidentWeights(
 		if err != nil {
 			return err
 		}
+		if residency.hostRecovery {
+			var available uint64
+			if err := worker.Do(ctx, func(state *device.State) error {
+				free, _, err := state.Driver.MemInfo()
+				available = free
+				return err
+			}); err != nil {
+				return err
+			}
+			quantized, fileBackedExperts, err = splitExpertResidency(quantized, f32Tensors, expertBanks, available)
+			if err != nil {
+				return err
+			}
+		}
 		loader.Raw(*rawWeights, quantized)
 		// native 2D BF16 matmul weights now live in the raw store (above),
 		// serving both decode (native kernel) and prefill (upconvert + SGEMM)
@@ -365,7 +391,13 @@ func loadResidentWeights(
 		}
 	}
 	loader.Converted(*deviceWeights, f32Tensors)
-	return loader.Load(ctx, claims)
+	if err := loader.Load(ctx, claims); err != nil {
+		return err
+	}
+	if len(fileBackedExperts) != 0 {
+		return (*rawWeights).EnableExpertResidency(ctx, file, fileBackedExperts, 0)
+	}
+	return nil
 }
 
 func (r *Runner) Close() error {

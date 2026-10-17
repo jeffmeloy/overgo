@@ -23,6 +23,7 @@ type DeviceTensor struct {
 // DeviceWeights owns persistent raw GGUF tensors in one CUDA context.
 type DeviceWeights struct {
 	*deviceTensorStore
+	experts *expertResidency
 }
 
 // NewDeviceWeights opens a raw tensor store on the worker.
@@ -63,6 +64,9 @@ func (w *DeviceWeights) Input(
 ) (*tensor.Tensor, driver.DevicePtr, error) {
 	if builder == nil {
 		return nil, 0, errors.New("device tensor graph builder is nil")
+	}
+	if w.IsExpertBank(name) {
+		return w.expertInput(builder, name)
 	}
 	value, ok := w.Lookup(name)
 	if !ok {

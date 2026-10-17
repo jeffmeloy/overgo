@@ -33,6 +33,7 @@ type Executor struct {
 }
 
 type executorResources struct {
+	experts    ExpertBanks
 	module     driver.Module
 	functions  functionSet
 	blas       *blasState
@@ -507,9 +508,18 @@ func (i *DeviceInputs) Set(node *tensor.Tensor, pointer driver.DevicePtr) error 
 	return nil
 }
 
-// Bind resolves ordered graph bindings into compiled input slots.
+// Bind resolves the used inputs from an ordered set of graph bindings.
+// Valid inputs pruned from this output graph require no operand slot.
 func (i *DeviceInputs) Bind(bindings tensor.InputBindings[driver.DevicePtr]) error {
+	if i == nil || i.compiled == nil {
+		return errors.New("CUDA device inputs are unavailable")
+	}
 	for _, binding := range bindings {
+		if binding.Node != nil && binding.Node.Op == tensor.OpInput {
+			if _, used := i.compiled.InputSlot(binding.Node); !used {
+				continue
+			}
+		}
 		if err := i.Set(binding.Node, binding.Value); err != nil {
 			return err
 		}
@@ -814,6 +824,8 @@ func prepareAttributePointers(scratch *[]driver.DevicePtr, count int) []driver.D
 
 // launchPointerFrame: precompiled output/input slots.
 type launchPointerFrame struct {
+	ctx       context.Context
+	experts   ExpertBanks
 	values    []driver.DevicePtr
 	slots     []int
 	attribute driver.DevicePtr
@@ -952,7 +964,7 @@ func retainedOutputLayout(
 ) (uint64, error) {
 	var total uint64
 	for index, node := range compiled.order {
-		if node.Op == tensor.OpInput || !storage[index] {
+		if !storage[index] {
 			continue
 		}
 		offset, ok := checked.Align(total, deviceAllocationAlignment)
@@ -1603,8 +1615,13 @@ func (e *Executor) runCompiled(
 	if e.closed || e.worker == nil {
 		return nil, errors.New("CUDA executor is closed")
 	}
+	usesExperts, err := validateExpertUses(compiled, e.resources.experts)
+	if err != nil {
+		return nil, err
+	}
+	cacheGraph = cacheGraph && !usesExperts
 	var result *executionResult
-	err := e.worker.Do(ctx, func(state *device.State) error {
+	err = e.worker.Do(ctx, func(state *device.State) error {
 		resources, resourceErr := e.ensureResources(
 			state, compiled.needBlas, compiled.q8InputBytes,
 			compiled.attentionScoreBytes, compiled.matmulStagingBytes,
@@ -1623,7 +1640,7 @@ func (e *Executor) runCompiled(
 			graphExecs = &resources.graphExecs
 		}
 		result, executeErr = execute(
-			state,
+			ctx, resources.experts, state,
 			compiled,
 			hostFeeds,
 			deviceInputs,
@@ -1713,6 +1730,8 @@ func launchCompiledFusion(
 }
 
 func execute(
+	ctx context.Context,
+	experts ExpertBanks,
 	state *device.State,
 	compiled *CompiledGraph,
 	feeds map[*tensor.Tensor]reference.Value,
@@ -1924,6 +1943,20 @@ func execute(
 			continue
 		}
 		pointer, deviceFed := driver.DevicePtr(0), false
+		outputIndex, retainedInput := compiled.outputIndexes[node]
+		retainedInput = retainedInput && retainOutputs
+		var inputTarget driver.DevicePtr
+		if retainedInput {
+			bytes, sizeErr := node.Shape.Bytes(node.Type)
+			if sizeErr != nil {
+				return nil, sizeErr
+			}
+			inputTarget = retainedBase + driver.DevicePtr(retainedOffsets[nodeIndex])
+			if !ownsOutput(outputIndex) {
+				inputTarget = targetValues[outputIndex].Pointer
+			}
+			retainedValues[outputIndex] = DeviceValue{Pointer: inputTarget, Shape: node.Shape, CapacityBytes: bytes}
+		}
 		if inputSlot := -frame.operandOffset - 1; deviceInputs != nil && deviceInputs.Pointers[inputSlot] != 0 {
 			pointer, deviceFed = deviceInputs.Pointers[inputSlot], true
 		}
@@ -1937,6 +1970,18 @@ func execute(
 			}
 			if _, duplicate := feeds[node]; duplicate {
 				return nil, fmt.Errorf("input %q has both host and device feeds", node.Name)
+			}
+			if retainedInput && pointer != inputTarget {
+				bytes := retainedValues[outputIndex].CapacityBytes
+				source, sourceErr := newDeviceAddressRange(pointer, bytes)
+				target, targetErr := newDeviceAddressRange(inputTarget, bytes)
+				if sourceErr != nil || targetErr != nil || deviceRangesOverlap(source, target) {
+					return nil, errors.New("retained input target overlaps its source or has an invalid range")
+				}
+				if err := state.Driver.MemcpyDtoD(inputTarget, pointer, bytes); err != nil {
+					return nil, err
+				}
+				pointer = inputTarget
 			}
 			pointers.set(node, pointer)
 			continue
@@ -1971,15 +2016,19 @@ func execute(
 		if err != nil {
 			return nil, err
 		}
-		lease, err := buffers.acquire(state, bytes)
-		if err != nil {
-			return nil, err
+		pointer = inputTarget
+		if !retainedInput {
+			lease, err := buffers.acquire(state, bytes)
+			if err != nil {
+				return nil, err
+			}
+			inputLeases = append(inputLeases, lease)
+			pointer = lease.pointer
 		}
-		inputLeases = append(inputLeases, lease)
-		pointers.set(node, lease.pointer)
+		pointers.set(node, pointer)
 		if value.Storage == reference.ValueImplicitZero {
 			if err := state.Driver.MemsetD32Async(
-				lease.pointer,
+				pointer,
 				0,
 				elements,
 				state.Stream,
@@ -1988,7 +2037,7 @@ func execute(
 			}
 			submitted = true
 		} else if value.Storage == reference.ValueMaterialized {
-			if err := state.Driver.MemcpyHtoD(lease.pointer, driver.Bytes(value.Data)); err != nil {
+			if err := state.Driver.MemcpyHtoD(pointer, driver.Bytes(value.Data)); err != nil {
 				return nil, err
 			}
 		} else {
@@ -2049,6 +2098,7 @@ func execute(
 			frame := compiled.nodes[nodeIndex]
 			node := compiled.order[nodeIndex]
 			operands := launchPointerFrame{
+				ctx: ctx, experts: experts,
 				values:    pointers.values,
 				slots:     compiled.operandSlots[frame.operandOffset : frame.operandOffset+len(node.Inputs)+1],
 				attribute: attributePointers[nodeIndex],
@@ -2223,6 +2273,8 @@ func quantKernel(dataType dtype.Type) (quantKernelDescriptor, bool) {
 }
 
 type blasState struct {
+	moeRoutes    []uint32
+	moeExperts   []uint32
 	library      *cublas.Library
 	handle       cublas.Handle
 	staging      driver.DevicePtr
@@ -2305,7 +2357,7 @@ func (e *Executor) ensureResources(
 		e.resources.blas = &blasState{library: library, handle: handle, lt: lt}
 	}
 	if matmulStagingBytes > 0 && e.resources.blas != nil && e.resources.blas.stagingBytes < matmulStagingBytes {
-		staging, err := state.Driver.MemAlloc(matmulStagingBytes)
+		staging, err := e.resources.allocate(state, matmulStagingBytes)
 		if err != nil {
 			return nil, err
 		}
@@ -2323,7 +2375,7 @@ func (e *Executor) ensureResources(
 		e.resources.blas.stagingBytes = matmulStagingBytes
 	}
 	if attentionScoreBytes > 0 && e.resources.blas != nil && e.resources.blas.scoreBytes < attentionScoreBytes {
-		scores, err := state.Driver.MemAlloc(attentionScoreBytes)
+		scores, err := e.resources.allocate(state, attentionScoreBytes)
 		if err != nil {
 			return nil, err
 		}
@@ -2341,7 +2393,7 @@ func (e *Executor) ensureResources(
 		e.resources.blas.scoreBytes = attentionScoreBytes
 	}
 	if q8InputBytes > e.resources.q8Input.stagingBytes {
-		staging, err := state.Driver.MemAlloc(q8InputBytes)
+		staging, err := e.resources.allocate(state, q8InputBytes)
 		if err != nil {
 			return nil, err
 		}
@@ -2381,7 +2433,7 @@ func (r *executorResources) ensureArena(state *device.State, size uint64) (drive
 		}
 		r.arena, r.arenaSize = 0, 0
 	}
-	next, err := state.Driver.MemAlloc(size)
+	next, err := r.allocate(state, size)
 	if err != nil {
 		return 0, err
 	}

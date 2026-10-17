@@ -27,6 +27,7 @@ func TestIndexedOperandSlotsOnly(t *testing.T) {
 	bindings := tensor.InputBindings[driver.DevicePtr]{
 		{Node: left, Value: leftPointer},
 		{Node: right, Value: rightPointer},
+		{Node: builder.Input("pruned_indexer_norm", dtype.F32, shape), Value: rightPointer},
 	}
 	if err := inputs.Bind(bindings); err != nil {
 		t.Fatal(err)
@@ -48,5 +49,11 @@ func TestIndexedOperandSlotsOnly(t *testing.T) {
 	var missing *DeviceInputs
 	if err := missing.Set(left, driver.DevicePtr(1)); err == nil {
 		t.Fatal("nil device inputs accepted a binding")
+	}
+	if err := inputs.Bind(tensor.InputBindings[driver.DevicePtr]{{Node: output, Value: leftPointer}}); err == nil {
+		t.Fatal("bulk binding accepted a non-input node")
+	}
+	if err := missing.Bind(bindings); err == nil {
+		t.Fatal("nil device inputs accepted bulk bindings")
 	}
 }

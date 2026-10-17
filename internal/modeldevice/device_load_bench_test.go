@@ -208,7 +208,7 @@ func TestLoaderStructureBenchmark(t *testing.T) {
 	}
 	routed := func(memory deviceMemory) *Loader {
 		loader := NewLoader(file)
-		rawStore := &DeviceWeights{newDeviceTensorStore(nil, "device")}
+		rawStore := &DeviceWeights{deviceTensorStore: newDeviceTensorStore(nil, "device")}
 		convertedStore := &DeviceConvertedWeights{
 			deviceTensorStore: newDeviceTensorStore(nil, "F32 device"), storage: dtype.F32, bytesPerValue: 4, encode: encodeF32,
 		}

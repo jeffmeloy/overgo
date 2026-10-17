@@ -20,10 +20,8 @@ func catalogLayers(weights model.Weights) []model.LayerWeights {
 // expertBankRank: a routed-expert bank is [inner, rows, experts].
 const expertBankRank = 3
 
-// nativeExpertBankTensors: the BF16 routed-expert banks that stay at file
-// width on the device, where the routed-expert kernels widen each element as
-// they read it. A layer's banks qualify together or not at all: the kernels
-// take one storage type per node, and a LoRA merge needs an F32 base.
+// nativeExpertBankTensors identifies complete layers whose expert banks execute at file width.
+// Each bank retains its own dtype and an adapted layer keeps its F32 merge path.
 func nativeExpertBankTensors(weights model.Weights, adapted map[string]struct{}) map[string]struct{} {
 	result := make(map[string]struct{})
 	for _, layer := range catalogLayers(weights) {
@@ -35,7 +33,8 @@ func nativeExpertBankTensors(weights model.Weights, adapted map[string]struct{})
 		}, func(info *gguf.TensorInfo) bool { return info == nil })
 		if len(banks) == 0 || slices.ContainsFunc(banks, func(info *gguf.TensorInfo) bool {
 			_, isAdapted := adapted[info.Name]
-			return isAdapted || info.Type != dtype.BF16 || info.Dimensions != expertBankRank
+			return isAdapted || info.Dimensions != expertBankRank ||
+				(info.Type != dtype.BF16 && info.Type != dtype.F32 && !info.Type.IsQuantized())
 		}) {
 			continue
 		}

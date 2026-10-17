@@ -109,28 +109,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "flashnext-architecture",
-      "title": "Add the missing qwen4exp behavior through existing model and tensor owners",
-      "status": "open",
-      "budget": {
-        "nodes": 2106,
-        "reason": "Measured sparse-attention candidate adds 2106 production AST nodes for causal block selection, indexed rotary coordinates and cache integration. Existing top-k and sparse-attention owners remain authoritative with no new kernel entrypoint. Full-model memory and elapsed cost remain unmeasured."
-      },
-      "steps": [
-        {
-          "id": "sparse-attention",
-          "title": "Implement Qwen sparse attention and complete the forward program",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/model -run '^(TestReadQwen35MoESpec|TestFlashNextSparseAttention|TestFlashNextSparseAttentionCUDA)$' -count=1",
-          "rationale": "Serves: Implement the model's QSA block indexer, selection, causal visibility and position semantics using existing attention and recurrent cache owners.\nBind the declared recurrent and sparse-attention cadence rather than inferring it from layer names.\nInspect whether existing sparse primitives can express the model's selection before adding a kernel.\nDisappears: Replace duplicated indexing, gather or materialization inside the chosen existing attention owner where the new path subsumes it.\nDo not replace unrelated sparse-attention contracts or materialize full dense attention merely to avoid the block indexer.\nShare one small reference fixture between host and CUDA TestFlashNextSparseAttention cases.\nEvidence: internal/tensor/operation.go and kernels/cuda/ops_f32.cu provide sparse-attention primitives but do not establish qwen4exp QSA equivalence.\nStrata src/core/verify.cpp provides a second implementation to trace.\nClosure compares selected blocks, masking, state continuation and output against the independent model reference across boundary positions and chunked continuation.\nBatch: Batch model and attention ABI changes with required manifest updates.\nProve the unique masking and resource-lifetime boundaries once in the owning tests.\nDo not run the full model until bounded storage and execution are wired.",
-          "depends_on": [
-            "flashnext-architecture/gated-blocks",
-            "flashnext-mixed-quant/banks"
-          ]
-        }
-      ]
-    },
-    {
       "id": "flashnext-ngram",
       "title": "Read only required n-gram content through existing GGUF storage",
       "status": "open",

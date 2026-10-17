@@ -249,7 +249,7 @@ func (r *Runner) runLayerCached(
 			return reference.Value{}, LayerCache{}, err
 		}
 	}
-	sideInputs := layerSideInputs{}
+	sideInputs := layerSideInputs{multiPositions: multiPositions}
 	if plan.EmbeddingSkip {
 		skip := builder.Input("embedding_skip", dtype.F32, embeddingSkip.Shape)
 		hostFeeds[skip] = embeddingSkip

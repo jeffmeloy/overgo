@@ -57,6 +57,10 @@ func launchRoPE(
 		width, heads, tokens := uint32(node.Shape.Dims[0]), uint32(node.Shape.Dims[1]), uint32(node.Shape.Dims[2])
 		input := pointers.input(0)
 		positions := pointers.attribute
+		positionsF32 := kernelBool(len(node.Inputs) == tensor.PairedExtent)
+		if positionsF32 != 0 {
+			positions = pointers.input(1)
+		}
 		if positions == 0 {
 			return errors.New("RoPE multi position storage is unavailable")
 		}
@@ -79,7 +83,7 @@ func launchRoPE(
 			state, functions[kernelRopeMultiF32], count,
 			&input, &positions, &output, &width, &heads, &tokens, &rotary,
 			&frequencyBase, &frequencyScale,
-			&sections[0], &sections[1], &sections[2], &sections[3], &interleaved, &splitHalf, &count,
+			&sections[0], &sections[1], &sections[2], &sections[3], &interleaved, &splitHalf, &positionsF32, &count,
 		)
 	default:
 		return fmt.Errorf("unsupported CUDA operation %s", node.Op)

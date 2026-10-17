@@ -45,13 +45,18 @@ func topK(
 		return Value{}, errors.New("invalid TopK dimensions")
 	}
 	rows := len(input.Data) / width
-	output := make([]float32, rows*k)
+	outputWidth := int(shape.Dims[0])
+	output := make([]float32, rows*outputWidth)
 	for row := range rows {
-		selected := output[row*k : (row+1)*k]
+		selected := output[row*outputWidth : (row+1)*outputWidth]
 		for index := range selected {
 			selected[index] = -1
 		}
-		for candidate := range width {
+		visible := width
+		if attributes.BlockSize != 0 {
+			visible = min(width, (int(attributes.QueryStart)+row+1)/int(attributes.BlockSize))
+		}
+		for candidate := range visible {
 			candidateValue := input.Data[row*width+candidate]
 			insert := k
 			for slot := range k {
@@ -69,6 +74,18 @@ func topK(
 			}
 			copy(selected[insert+1:], selected[insert:k-1])
 			selected[insert] = float32(candidate)
+		}
+		if attributes.BlockSize != 0 {
+			ratio, blocks := int(attributes.BlockSize), min(k, visible)
+			for block := blocks - 1; block >= 0; block-- {
+				first := int(selected[block]) * ratio
+				for token := range ratio {
+					selected[block*ratio+token] = float32(first + token)
+				}
+			}
+			for token := visible * ratio; token <= int(attributes.QueryStart)+row; token++ {
+				selected[blocks*ratio+token-visible*ratio] = float32(token)
+			}
 		}
 	}
 	return Value{Shape: shape, Data: output}, nil
@@ -197,6 +214,10 @@ func sparseAttention(
 	}
 	indexRows := make([]int, len(indices.Data))
 	for index, raw := range indices.Data {
+		if raw == -1 {
+			indexRows[index] = -1
+			continue
+		}
 		row, err := exactTensorIndex(raw, keyValueTokens)
 		if err != nil {
 			return Value{}, fmt.Errorf("SparseAttention index %d: %w", index, err)
@@ -209,6 +230,9 @@ func sparseAttention(
 		selectedTokens := make([]int, 0, selected)
 		for slot := range selected {
 			keyToken := indexRows[queryToken*selected+slot]
+			if keyToken < 0 {
+				continue
+			}
 			if attributes.Causal && keyToken > int(attributes.QueryStart)+queryToken {
 				continue
 			}

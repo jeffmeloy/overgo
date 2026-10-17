@@ -284,7 +284,7 @@ type LayerPlan struct {
 func (p LayerPlan) ExactAttentionReplay() bool {
 	attention := p.AttentionGraph
 	return p.HasKV && attention.Causal && !attention.UseSinks && !attention.ChunkedWindow &&
-		attention.Window == 0 && attention.Softcap == 0 && attention.MaxALiBiBias == 0
+		attention.Window == 0 && attention.Softcap == 0 && attention.MaxALiBiBias == 0 && attention.BlockSize == 0
 }
 
 func (s Spec) planLayer(profile ArchitectureProfile, layer uint32, recurrent bool) (LayerPlan, error) {
@@ -418,6 +418,9 @@ func (p ModelPlan) SupportsCapacityCache() bool {
 		return false
 	}
 	for _, layer := range p.layers {
+		if layer.AttentionGraph.BlockSize != 0 {
+			return false
+		}
 		if !layer.CacheMode.TokenAligned() {
 			continue
 		}
@@ -993,7 +996,12 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) (layerProg
 		}
 		if profile.LayerTopology == layerTopologyGatedHyper {
 			if !recurrent {
-				return layerProgram{}, errors.New("gated hyperconnection sparse attention is not implemented")
+				if plan.AttentionGraph.BlockSize == 0 {
+					return layerProgram{}, errors.New("block sparse attention compression ratio is missing")
+				}
+				mixer = leafLayerStage(layerOperatorAttentionGatedProjection,
+					[]runtimeCacheBinding{runtimeCachePrimaryKey, runtimeCachePrimaryValue, runtimeCacheIndexerKey},
+					[]runtimeTensorBinding{runtimeTensorCurrentPositions})
 			}
 			stages := []layerOperatorInstruction{
 				layerStage(layerOperatorGatedHyperAttention), mixer,

@@ -286,6 +286,24 @@ func (b *Builder) TopK(input *Tensor, k uint32) *Tensor {
 	return b.add("", dtype.F32, shape, OpTopK, []*Tensor{input}, TopKAttributes{K: k})
 }
 
+// BlockTopK selects complete causal blocks and appends each query's incomplete tail.
+// Scores are [complete blocks, queries], and unused output slots contain -1.
+func (b *Builder) BlockTopK(input *Tensor, budget, blockSize, queryStart, keyTokens uint32) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if input == nil || input.Type != dtype.F32 || input.Shape.Rank != PairedExtent ||
+		blockSize == FirstOffset || budget < blockSize || budget%blockSize != FirstOffset ||
+		input.Shape.Dims[0] == FirstOffset || keyTokens > maxExactFloat32Integer || uint64(keyTokens/blockSize) != input.Shape.Dims[0] ||
+		queryStart > keyTokens || input.Shape.Dims[1] > uint64(keyTokens-queryStart) {
+		b.setError(errors.New("BlockTopK requires complete block scores, a divisible token budget and a valid causal suffix"))
+		return nil
+	}
+	selected := min(uint64(keyTokens), uint64(budget)+uint64(blockSize)-SingletonExtent)
+	return b.add("", dtype.F32, MustShape(selected, input.Shape.Dims[1]), OpTopK, []*Tensor{input},
+		TopKAttributes{K: min(budget/blockSize, uint32(input.Shape.Dims[0])), BlockSize: blockSize, QueryStart: queryStart})
+}
+
 // TopKPairs: interleaved descending token/logit pairs.
 func (b *Builder) TopKPairs(input *Tensor, k uint32) *Tensor {
 	if b.err != nil {

@@ -282,6 +282,7 @@ func (s Spec) rotaryPlan(profile ArchitectureProfile, layer uint32) rotaryPlan {
 
 // AttentionGraphPlan: compiled per-layer attention graph.
 type AttentionGraphPlan struct {
+	BlockSize       uint32
 	Causal          bool
 	UseSinks        bool
 	ChunkedWindow   bool
@@ -315,6 +316,9 @@ func (p AttentionGraphPlan) Build(
 func (s Spec) attentionGraphPlan(profile ArchitectureProfile, layer uint32) AttentionGraphPlan {
 	policy := profile.AttentionGraph
 	plan := AttentionGraphPlan{Causal: !s.NonCausalAttention, deltaProjection: policy.GatedDelta}
+	if profile.LayerTopology == layerTopologyGatedHyper && int(layer) < len(s.CompressRatios) {
+		plan.BlockSize = s.CompressRatios[layer]
+	}
 	if s.IsSlidingLayer(layer) {
 		plan.Window = s.SlidingWindow
 		plan.ChunkedWindow = policy.ChunkedWindow

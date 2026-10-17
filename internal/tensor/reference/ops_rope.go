@@ -104,9 +104,10 @@ func ropeFrequencyFactors(inputs []Value, rotary int) ([]float32, error) {
 
 func ropeMulti(
 	shape tensor.Shape,
-	input Value,
+	inputs []Value,
 	attributes tensor.RoPEMultiAttributes,
 ) (Value, error) {
+	input := inputs[0]
 	width, heads, tokens, batches := dims4(shape)
 	rotary := int(attributes.RotaryDimensions)
 	half := rotary / 2
@@ -139,7 +140,16 @@ func ropeMulti(
 							axis = spatialAxes
 						}
 					}
-					theta := float64(attributes.Positions[axis][token]) * float64(attributes.FrequencyScale) * math.Pow(
+					var position float64
+					if len(inputs) == tensor.PairedExtent {
+						position = float64(inputs[1].Data[token*tensor.MaxDimensions+axis])
+						if position < 0 || math.IsNaN(position) || math.IsInf(position, 0) || position != math.Trunc(position) {
+							return Value{}, errors.New("multi-axis RoPE coordinate is not a nonnegative integer")
+						}
+					} else {
+						position = float64(attributes.Positions[axis][token])
+					}
+					theta := position * float64(attributes.FrequencyScale) * math.Pow(
 						float64(attributes.FrequencyBase),
 						-2*float64(pair)/float64(rotary),
 					)

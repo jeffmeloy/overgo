@@ -1,6 +1,7 @@
 package inference
 
 import (
+	"errors"
 	"fmt"
 	"math"
 
@@ -11,6 +12,7 @@ import (
 )
 
 type layerSideInputs struct {
+	multiPositions *MultiAxisPositions
 	embeddingSkip  *tensor.Tensor
 	perLayerInput  *tensor.Tensor
 	attentionBlock *tensor.Tensor
@@ -47,19 +49,32 @@ func bindLayerSideInputs(
 		return boundLayerSideInputs{}, err
 	}
 	var result boundLayerSideInputs
-	if plan.Cache == model.CacheCompressedAttention {
-		data := make([]float32, len(positions))
-		for index, position := range positions {
-			if position > maxExactFloat32Position {
-				return boundLayerSideInputs{}, fmt.Errorf(
-					"%s position %d exceeds exact F32 cache representation",
-					spec.Architecture,
-					position,
-				)
-			}
-			data[index] = float32(position)
+	if plan.Cache == model.CacheCompressedAttention || plan.AttentionGraph.BlockSize != 0 {
+		axes := tensor.SingletonExtent
+		if plan.AttentionGraph.BlockSize != 0 {
+			axes = tensor.MaxDimensions
 		}
-		shape := tensor.MustShape(1, 1, uint64(len(positions)))
+		data := make([]float32, len(positions)*axes)
+		for index, position := range positions {
+			for axis := range axes {
+				coordinate := position
+				if plan.AttentionGraph.BlockSize != 0 && inputs.multiPositions != nil {
+					if len(inputs.multiPositions[axis]) != len(positions) {
+						return boundLayerSideInputs{}, errors.New("cached multi-axis coordinate count differs from tokens")
+					}
+					coordinate = inputs.multiPositions[axis][index]
+				}
+				if coordinate > maxExactFloat32Position {
+					return boundLayerSideInputs{}, fmt.Errorf(
+						"%s position %d exceeds exact F32 cache representation",
+						spec.Architecture,
+						coordinate,
+					)
+				}
+				data[index*axes+axis] = float32(coordinate)
+			}
+		}
+		shape := tensor.MustShape(uint64(axes), tensor.SingletonExtent, uint64(len(positions)))
 		result.currentPositions = builder.Input(
 			fmt.Sprintf("blk.%d.positions.current", plan.Layer), dtype.F32, shape,
 		)

@@ -665,7 +665,7 @@
      "contains": "func (r *Runner) forwardDenseLayersPreloaded(",
      "path": "internal/inference/runner_layers.go",
      "role": "source",
-     "identity": "file:sha256:ab1569fae37383e453988fe49d469f09ed92cf37fbfe9b00bf341a7dbdcd66ad"
+     "identity": "file:sha256:ac338fd80cce5f08c3c5d1ae2803e0954ede7e473060479624181ccd9b1bbf82"
     },
     {
      "contains": "func TestMultimodalInputMatrix(",
@@ -823,7 +823,7 @@
      "contains": "func CompileModelPlanWithProfile(",
      "path": "internal/model/layer_plan.go",
      "role": "source",
-     "identity": "file:sha256:2ab198876f0e2f83dcaec0ca2a2f70773657fa3757e44497850af64afb63aeac"
+     "identity": "file:sha256:39090dbefa773ff8ed69b9d00469b0913d0e0f1ecdfa1724e6293e48de15a052"
     },
     {
      "contains": "func TestCompileModelPlanPinsLayerPolicies(",
@@ -1271,7 +1271,7 @@
      "contains": "func (p CompiledLayerProgram) Build(",
      "path": "internal/model/graph_dispatch.go",
      "role": "source",
-     "identity": "file:sha256:fe22035bce42757d521c18f809daaab51c8dbaa3b25340333069a3ee530605c7"
+     "identity": "file:sha256:3d84543a923cd4971a8d45b912d1efb4de64753e24b2f774912224fa9fa093c8"
     },
     {
      "contains": "func ReadWeights(",
@@ -4079,7 +4079,7 @@
   },
   "qwen4exp": {
    "execution": [
-    "fixture-only-recurrent-block"
+    "fixture-only-recurrent-and-sparse-attention-blocks"
    ],
    "features": [
     "gated-residual-streams",
@@ -4087,8 +4087,8 @@
     "recurrent-convolution-state",
     "native-quantized-experts"
    ],
-   "real_model_validation": "unavailable-until-sparse-attention-ngram-and-bounded-residency",
-   "validated_fixture": "internal/model/testdata/flashnext_gated.json"
+   "real_model_validation": "unavailable-until-ngram-and-bounded-residency",
+   "validated_fixture": "internal/model/testdata/flashnext_gated.json + internal/model/testdata/flashnext_sparse.json"
   },
   "refact": {
    "features": [

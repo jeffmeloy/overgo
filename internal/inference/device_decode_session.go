@@ -161,6 +161,9 @@ func compileDecodeSessionPlan(
 				value.Positions = append([]uint32(nil), value.Positions...)
 				slot.kind, slot.value, slot.positions[0] = decodeDynamicPositions, &value, value.Positions
 			case tensor.OpRoPEMulti:
+				if len(node.Inputs) == tensor.PairedExtent {
+					continue
+				}
 				value := node.Attrs.(tensor.RoPEMultiAttributes)
 				for axis := range value.Positions {
 					value.Positions[axis] = append([]uint32(nil), value.Positions[axis]...)

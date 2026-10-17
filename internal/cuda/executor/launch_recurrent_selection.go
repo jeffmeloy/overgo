@@ -135,7 +135,7 @@ func launchRecurrentSelection(
 		width, rows := rowWords(node.Inputs[0].Shape)
 		input := pointers.input(0)
 		k := attributes.K
-		if k == 1 {
+		if k == 1 && attributes.BlockSize == 0 {
 			return launchGridABI(
 				state, functions[kernelArgmaxF32],
 				kernel.Grid1D(int(rows)),
@@ -143,7 +143,8 @@ func launchRecurrentSelection(
 				&input, &output, &width, &rows,
 			)
 		}
-		return launch1DABI(state, functions[kernelTopKF32], rows, &input, &output, &width, &k, &rows)
+		blockSize, queryStart, outputWidth := attributes.BlockSize, attributes.QueryStart, uint32(node.Shape.Dims[0])
+		return launch1DABI(state, functions[kernelTopKF32], rows, &input, &output, &width, &k, &rows, &blockSize, &queryStart, &outputWidth)
 	case tensor.OpTopKPairs:
 		attributes := node.Attrs.(tensor.TopKAttributes)
 		if attributes.K == 0 {

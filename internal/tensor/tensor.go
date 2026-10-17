@@ -354,8 +354,10 @@ type CacheAppendAttributes struct {
 }
 
 type TopKAttributes struct {
-	K     uint32
-	Chunk uint32
+	K          uint32
+	Chunk      uint32
+	BlockSize  uint32
+	QueryStart uint32
 }
 
 type SparseAttentionAttributes struct {

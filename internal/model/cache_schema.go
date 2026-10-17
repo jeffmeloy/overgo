@@ -265,6 +265,13 @@ func cacheSchemaForPlan(
 ) (LayerCacheSchema, error) {
 	schema := LayerCacheSchema{Label: "KV"}
 	states := cacheSchemaBuilder{schema: &schema}
+	if plan.AttentionGraph.BlockSize != 0 {
+		schema.StrictStates = true
+		states.state(CacheStateIndexerKey, CacheStateToken, false, false,
+			uint64(spec.IndexerKeyLength), tensor.SingletonExtent, tensor.SingletonExtent)
+		states.state(CacheStatePositions, CacheStateToken, false, false,
+			tensor.MaxDimensions, tensor.SingletonExtent, tensor.SingletonExtent)
+	}
 	if plan.Attention == AttentionSparseLatent && spec.LayerHasFullIndexer(plan.Layer) {
 		states.state(CacheStateIndexerKey, CacheStateToken, false, false,
 			uint64(spec.IndexerKeyLength), tensor.SingletonExtent, tensor.SingletonExtent)

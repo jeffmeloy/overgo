@@ -13,6 +13,22 @@ func (s Spec) validateHybridMetadata() error {
 		return errors.New("gated hyperconnection count must exceed one and low rank must be positive")
 	}
 	hybrid := s.Profile().Validation.Hybrid
+	if s.Profile().LayerTopology == layerTopologyGatedHyper {
+		if s.IndexerHeadCount == 0 || s.IndexerKeyLength < s.RopeDimensionCount || s.IndexerTopK == 0 || len(s.CompressRatios) != int(s.BlockCount) {
+			return errors.New("block sparse attention indexer dimensions or compression schedule are invalid")
+		}
+		for layer, ratio := range s.CompressRatios {
+			if s.IsRecurrentLayer(uint32(layer)) {
+				if ratio != 0 {
+					return errors.New("recurrent layer has a sparse attention compression ratio")
+				}
+				continue
+			}
+			if ratio == 0 || s.IndexerTopK < ratio || s.IndexerTopK%ratio != 0 {
+				return errors.New("block sparse attention budget must contain whole compression blocks")
+			}
+		}
+	}
 	alternatingStateSpace := hybrid == hybridValidationAlternatingGatedDelta ||
 		hybrid == hybridValidationAlternatingGatedDeltaHybrid || hybrid == hybridValidationAlternatingGatedDeltaExperts
 	if alternatingStateSpace {

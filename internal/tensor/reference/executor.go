@@ -308,7 +308,7 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 	case tensor.OpRoPENormal:
 		return rope(node.Shape, inputs, node.Attrs.(tensor.RoPEAttributes), node.Op)
 	case tensor.OpRoPEMulti:
-		return ropeMulti(node.Shape, inputs[0], node.Attrs.(tensor.RoPEMultiAttributes))
+		return ropeMulti(node.Shape, inputs, node.Attrs.(tensor.RoPEMultiAttributes))
 	case tensor.OpAttention:
 		attributes := node.Attrs.(tensor.AttentionAttributes)
 		// Optional inputs follow q/k/v from index 3 in a fixed order:

@@ -1119,6 +1119,10 @@ func TestReadQwen35MoESpec(t *testing.T) {
 				candidate.Metadata = append(candidate.Metadata,
 					metadata(architecture+".hyper_connection.count", gguf.ValueTypeUint32, uint32(4)),
 					metadata(architecture+".hyper_connection.low_rank", gguf.ValueTypeUint32, uint32(3)),
+					metadata(architecture+".attention.indexer.head_count", gguf.ValueTypeUint32, uint32(2)),
+					metadata(architecture+".attention.indexer.key_length", gguf.ValueTypeUint32, uint32(4)),
+					metadata(architecture+".attention.indexer.top_k", gguf.ValueTypeUint32, uint32(6)),
+					gguf.Metadata{Key: architecture + ".attention.compress_ratios", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32, Data: []int32{0, 0, 0, 3}}},
 				)
 			}
 			spec, err := ReadSpec(candidate)
@@ -1133,6 +1137,18 @@ func TestReadQwen35MoESpec(t *testing.T) {
 			}
 			if architecture == "qwen4exp" && (spec.HyperConnectionCount != 4 || spec.HyperConnectionRank != 3) {
 				t.Fatalf("hyperconnection dimensions = %d, %d", spec.HyperConnectionCount, spec.HyperConnectionRank)
+			}
+			if architecture == "qwen4exp" && (spec.IndexerHeadCount != 2 || spec.IndexerKeyLength != 4 || spec.IndexerTopK != 6 || !slices.Equal(spec.CompressRatios, []uint32{0, 0, 0, 3})) {
+				t.Fatalf("sparse indexer dimensions or schedule = %+v", spec)
+			}
+			if architecture == "qwen4exp" {
+				if fixtureModelPlan(t, spec, Weights{}).SupportsCapacityCache() {
+					t.Fatal("block-sparse graph admitted to fixed capacity replay across compression boundaries")
+				}
+				candidate.Metadata = append(candidate.Metadata, gguf.Metadata{Key: architecture + ".ple.layers", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32, Data: []int32{0}}})
+				if _, err := ReadSpec(candidate); err == nil || !strings.Contains(err.Error(), "ngram") {
+					t.Fatalf("unimplemented ngram metadata error = %v", err)
+				}
 			}
 		})
 	}

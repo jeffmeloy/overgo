@@ -74,7 +74,7 @@ The preamble's row is the plan's step shape-reading/launch-checks, and TestNoLau
 == switches ==
 family: internal/tensor.Op
 switches: 10
-lines: 1524
+lines: 1532
 functions: 10
 packages: 4
 constants: 65
@@ -117,7 +117,7 @@ row: the entry of each operation and, as a column, the kernel each elementwise o
 table: yes
 
 switch: internal/cuda/executor/launch_recurrent_selection.go#launchRecurrentSelection
-lines: 242
+lines: 243
 constants: 14
 clauses: 15
 dispatch-lines: 18
@@ -135,20 +135,20 @@ row: an entry naming the bridge for each of the operations, so the function and 
 table: yes
 
 switch: internal/cuda/executor/launch_rope.go#launchRoPE
-lines: 65
+lines: 69
 constants: 3
 clauses: 3
 dispatch-lines: 6
-decides: the device launch of rope_neox and rope_normal through one launch whose kernel the operation picks, and of rope_multi with its sections and layout, each reading its positions from device-resident words
+decides: the device launch of rope_neox and rope_normal through one launch whose kernel the operation picks, and of rope_multi with its sections and layout, reading positions from device-resident attribute words or a dynamic F32 coordinate tensor
 row: the entry of each operation and its kernel as a column
 table: yes
 
 switch: internal/inference/device_decode_session.go#compileDecodeSessionPlan
-lines: 37
+lines: 40
 constants: 6
 clauses: 6
 dispatch-lines: 9
-decides: which nodes of a decode graph take new values each step and how each copies its per-step attributes (the token rows and position rows of get_rows, the rotary encodings' positions, attention's view of the cache and cache_append's offset)
+decides: which nodes take per-step attribute overrides and which carry positions through graph inputs
 row: none, because the choice of nodes reads the decode graph's token input, per-layer rows and position rows, and its slot kinds are the session's own, which package tensor cannot name
 table: no
 

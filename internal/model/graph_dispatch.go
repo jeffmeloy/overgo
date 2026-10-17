@@ -151,12 +151,23 @@ func executeAttentionOperator(
 			operands.caches[runtimeCachePrimaryKey], operands.caches[runtimeCachePrimaryValue], plan.Layer,
 		)
 	case layerOperatorAttentionGatedProjection:
-		return buildGatedProjectionMixCached(
+		var indices *tensor.Tensor
+		var states CacheStates[*tensor.Tensor]
+		if plan.AttentionGraph.BlockSize != 0 {
+			var err error
+			indices, states, err = buildBlockSparseSelection(options, execution.current)
+			if err != nil {
+				return DenseBlockResult{}, err
+			}
+		}
+		result, err := buildGatedProjectionMixCached(
 			c.Builder, execution.current, options.Spec, options.Weights,
 			c.Positions, c.MultiPositions, c.Sequences,
 			operands.caches[runtimeCachePrimaryKey], operands.caches[runtimeCachePrimaryValue], c.CacheWrite,
-			plan.Rotary,
+			plan.Rotary, indices,
 		)
+		result.States = states
+		return result, err
 	case layerOperatorAttentionOutputProjection:
 		if options.Weights.AttentionOutput == nil {
 			return DenseBlockResult{}, errors.New("compiled output-projection stage is invalid")

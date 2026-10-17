@@ -760,6 +760,7 @@ func buildGatedProjectionMixCached(
 	pastKey, pastValue *tensor.Tensor,
 	cacheWrite tensor.CacheWriteMode,
 	rotary rotaryPlan,
+	indices *tensor.Tensor,
 ) (DenseBlockResult, error) {
 	if builder == nil || normalized == nil {
 		return DenseBlockResult{}, errors.New("gated-delta attention mix input is nil")
@@ -827,10 +828,12 @@ func buildGatedProjectionMixCached(
 		cacheValue = builder.WriteCache(pastValue, value, valueAxis, cacheWrite)
 	}
 	attentionScale := spec.resolvedAttentionScale(uint64(spec.KeyLength))
-	attention := builder.AttentionWithOptions(
-		query,
-		cacheKey,
-		cacheValue, tensor.AttentionOptions{Scale: attentionScale, Causal: true, QueryStart: queryStart})
+	var attention *tensor.Tensor
+	if indices != nil {
+		attention = builder.SparseAttentionWithOffset(query, cacheKey, cacheValue, indices, attentionScale, true, queryStart)
+	} else {
+		attention = builder.AttentionWithOptions(query, cacheKey, cacheValue, tensor.AttentionOptions{Scale: attentionScale, Causal: true, QueryStart: queryStart})
+	}
 
 	attention = builder.Reshape(
 		attention,

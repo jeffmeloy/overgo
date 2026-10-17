@@ -2374,17 +2374,21 @@ extern "C" __global__ void top_k_f32(
 		float * output,
 		unsigned int width,
 		unsigned int k,
-		unsigned int rows) {
+		unsigned int rows,
+		unsigned int block_size,
+		unsigned int query_start,
+		unsigned int output_width) {
 	const unsigned int row = blockIdx.x * blockDim.x + threadIdx.x;
 	if (row >= rows) {
 		return;
 	}
 	const size_t input_base = (size_t) row * width;
-	const size_t output_base = (size_t) row * k;
-	for (unsigned int slot = 0; slot < k; ++slot) {
+	const size_t output_base = (size_t) row * output_width;
+	for (unsigned int slot = 0; slot < output_width; ++slot) {
 		output[output_base + slot] = -1.0f;
 	}
-	for (unsigned int candidate = 0; candidate < width; ++candidate) {
+	const unsigned int visible = block_size ? min(width, (query_start + row + 1) / block_size) : width;
+	for (unsigned int candidate = 0; candidate < visible; ++candidate) {
 		unsigned int insertion = k;
 		const float candidate_value = input[input_base + candidate];
 		for (unsigned int slot = 0; slot < k; ++slot) {
@@ -2403,6 +2407,18 @@ extern "C" __global__ void top_k_f32(
 			output[output_base + slot] = output[output_base + slot - 1];
 		}
 		output[output_base + insertion] = (float) candidate;
+	}
+	if (block_size) {
+		const unsigned int blocks = min(k, visible);
+		for (int block = (int) blocks - 1; block >= 0; --block) {
+			const unsigned int first = (unsigned int) output[output_base + block] * block_size;
+			for (unsigned int token = 0; token < block_size; ++token) {
+				output[output_base + block * block_size + token] = (float) (first + token);
+			}
+		}
+		for (unsigned int token = visible * block_size; token <= query_start + row; ++token) {
+			output[output_base + blocks * block_size + token - visible * block_size] = (float) token;
+		}
 	}
 }
 
@@ -3476,6 +3492,7 @@ extern "C" __global__ void rope_multi_f32(
         unsigned int section_3,
         unsigned int interleaved_sections,
         unsigned int split_half,
+        unsigned int positions_f32,
         unsigned int count) {
     const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
     if (index >= count) {
@@ -3511,8 +3528,11 @@ extern "C" __global__ void rope_multi_f32(
         }
     }
     const unsigned int pair_offset = row * width + (split_half ? pair : pair * 2);
+    const float position = positions_f32
+        ? reinterpret_cast<const float *>(positions)[token * 4 + axis]
+        : (float) positions[axis * tokens + token];
     const float theta =
-        (float) positions[axis * tokens + token] * frequency_scale *
+        position * frequency_scale *
         powf(frequency_base, -2.0f * (float) pair / (float) rotary_dimensions);
     float sine;
     float cosine;

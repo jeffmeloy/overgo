@@ -105,6 +105,7 @@ type layerTensorSchema[T any] struct {
 	AttentionKB                 *T
 	AttentionVB                 *T
 	IndexerKNorm                *T
+	IndexerQNorm                *T
 	IndexerKNormBias            *T
 	IndexerProjection           *T
 	IndexerAttentionK           *T

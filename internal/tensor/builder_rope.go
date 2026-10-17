@@ -36,9 +36,12 @@ const (
 
 // RoPEOptions defines rotary coordinates and channel pairing.
 type RoPEOptions struct {
-	Layout              RoPELayout
-	Positions           []uint32
-	MultiPositions      *[MaxDimensions][]uint32
+	Layout         RoPELayout
+	Positions      []uint32
+	MultiPositions *[MaxDimensions][]uint32
+	// PositionInput supplies cached F32 coordinates shaped [axes, 1, tokens].
+	// The producer must preserve exact nonnegative integer coordinates.
+	PositionInput       *Tensor
 	Sections            [MaxDimensions]int32
 	InterleavedSections bool
 	FrequencyFactors    *Tensor
@@ -56,7 +59,11 @@ type RoPEOptions struct {
 
 // RoPEWithOptions builds single-axis or multi-axis rotary operations.
 func (b *Builder) RoPEWithOptions(input *Tensor, options RoPEOptions) *Tensor {
-	if options.MultiPositions != nil {
+	if options.MultiPositions != nil || options.PositionInput != nil {
+		if options.MultiPositions != nil && options.PositionInput != nil {
+			b.setError(errors.New("multi-axis RoPE has two position sources"))
+			return nil
+		}
 		if options.Layout > RoPELayoutNeoX || len(options.Positions) != 0 || options.FrequencyFactors != nil || options.YaRN || options.Reverse ||
 			options.OriginalContext != 0 || options.ExtFactor != 0 || options.AttentionFactor != 0 || options.BetaFast != 0 || options.BetaSlow != 0 {
 			b.setError(errors.New("multi-axis RoPE cannot combine single-axis controls"))
@@ -89,7 +96,11 @@ func (b *Builder) RoPEWithOptions(input *Tensor, options RoPEOptions) *Tensor {
 }
 
 func (b *Builder) buildRoPEMulti(input *Tensor, options RoPEOptions) *Tensor {
-	positions, sections := *options.MultiPositions, options.Sections
+	var positions [MaxDimensions][]uint32
+	if options.MultiPositions != nil {
+		positions = *options.MultiPositions
+	}
+	sections := options.Sections
 	rotaryDimensions := options.RotaryDimensions
 	frequencyBase, frequencyScale := options.FrequencyBase, options.FrequencyScale
 	if b.err != nil {
@@ -97,6 +108,11 @@ func (b *Builder) buildRoPEMulti(input *Tensor, options RoPEOptions) *Tensor {
 	}
 	if input == nil || input.Shape.Rank < 3 {
 		b.setError(errors.New("rope_multi input must have rank 3 or 4"))
+		return nil
+	}
+	if options.PositionInput != nil && (options.PositionInput.Type != dtype.F32 ||
+		options.PositionInput.Shape != MustShape(MaxDimensions, SingletonExtent, input.Shape.Dims[PairedExtent])) {
+		b.setError(errors.New("multi-axis RoPE position input requires F32 [axes, 1, tokens]"))
 		return nil
 	}
 	if rotaryDimensions == 0 || rotaryDimensions%2 != 0 ||
@@ -111,7 +127,7 @@ func (b *Builder) buildRoPEMulti(input *Tensor, options RoPEOptions) *Tensor {
 			return nil
 		}
 		sectionPairs += int64(sections[axis])
-		if len(positions[axis]) != int(input.Shape.Dims[2]) {
+		if options.PositionInput == nil && len(positions[axis]) != int(input.Shape.Dims[2]) {
 			b.setError(errors.New("rope_multi position count differs from token count"))
 			return nil
 		}
@@ -136,7 +152,11 @@ func (b *Builder) buildRoPEMulti(input *Tensor, options RoPEOptions) *Tensor {
 	for axis := range positions {
 		attributes.Positions[axis] = slices.Clone(positions[axis])
 	}
-	return b.add("", input.Type, input.Shape, OpRoPEMulti, []*Tensor{input}, attributes)
+	inputs := []*Tensor{input}
+	if options.PositionInput != nil {
+		inputs = append(inputs, options.PositionInput)
+	}
+	return b.add("", input.Type, input.Shape, OpRoPEMulti, inputs, attributes)
 }
 
 func (b *Builder) buildRoPE(input *Tensor, options ropeOptions) *Tensor {

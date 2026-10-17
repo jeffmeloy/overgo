@@ -93,6 +93,11 @@ func newSpecMetadataWithProfile(file *gguf.File, resolved *ArchitectureProfile) 
 
 func (m specMetadata) readBase(spec *Spec) (specReadState, error) {
 	values, prefix := m.values, m.prefix
+	if m.profile.LayerTopology == layerTopologyGatedHyper {
+		if _, declared := values[prefix+"ple.layers"]; declared {
+			return specReadState{}, errors.New("declared ngram embedding execution is not implemented")
+		}
+	}
 	if m.profile.Validation.Attention == attentionValidationQKNormEpsilon {
 		spec.SandwichNorm, _ = optional[bool](values, "chameleon.swin_norm", gguf.ValueTypeBool)
 	}
@@ -829,6 +834,10 @@ func compileRuntimeProgram(profile ArchitectureProfile) []metadataOp {
 		program = append(program,
 			opReqU32.at("hyper_connection.count", func(spec *Spec) *uint32 { return &spec.HyperConnectionCount }),
 			opReqU32.at("hyper_connection.low_rank", func(spec *Spec) *uint32 { return &spec.HyperConnectionRank }),
+			opReqU32.at("attention.indexer.head_count", func(spec *Spec) *uint32 { return &spec.IndexerHeadCount }),
+			opReqU32.at("attention.indexer.key_length", func(spec *Spec) *uint32 { return &spec.IndexerKeyLength }),
+			opReqU32.at("attention.indexer.top_k", func(spec *Spec) *uint32 { return &spec.IndexerTopK }),
+			metadataOp{kind: metadataOpCompressRatios},
 		)
 	}
 	if profile.Validation.MLA == mlaValidationCompressedHyper {
@@ -1348,6 +1357,10 @@ func (m specMetadata) runMetadataProgram(spec Spec, state specReadState, program
 		case metadataOpIndexerLayers:
 			err = m.readIndexerLayers(&spec)
 		case metadataOpCompressRatios:
+			if m.profile.LayerTopology == layerTopologyGatedHyper {
+				spec.CompressRatios, err = requiredLayerUint32Compatible(values, prefix+"attention.compress_ratios", spec.BlockCount)
+				break
+			}
 			spec.CompressRatios, err = requiredArray[uint32](values, prefix+"attention.compress_ratios", gguf.ValueTypeUint32)
 			if err == nil && len(spec.CompressRatios) < int(spec.BlockCount) {
 				err = errors.New("compression schedule is shorter than block count")

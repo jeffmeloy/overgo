@@ -259,6 +259,11 @@ func (h *Handler) runResponseTurn(
 	parser chatOutputParser,
 	session turnSession,
 ) {
+	channel, err := newPromptChatDeltaStream(plan, tools)
+	if err != nil {
+		writeGenerationError(response, err)
+		return
+	}
 	idNumber := h.nextID.Add(1)
 	responseID := "resp_" + strconv.FormatUint(idNumber, identifierRadix)
 	messageID := "msg_" + strconv.FormatUint(idNumber, identifierRadix)
@@ -275,6 +280,7 @@ func (h *Handler) runResponseTurn(
 			body.Store == nil || *body.Store,
 			reasoningSummary,
 			parser,
+			channel,
 			session,
 		)
 		return
@@ -290,11 +296,15 @@ func (h *Handler) runResponseTurn(
 		Role:    inference.ChatRoleAssistant,
 		Content: result.pump.text(),
 	}
-	if len(tools) != 0 || reasoningSummary {
-		message, err = parser.ParseChatOutput(
-			result.pump.text(),
-			tools,
-		)
+	if channel != nil || len(tools) != 0 || reasoningSummary {
+		if channel != nil {
+			_, err = channel.accept(result.pump.text())
+			if err == nil {
+				message, err = channel.parse(parser, tools)
+			}
+		} else {
+			message, err = parser.ParseChatOutput(result.pump.text(), tools)
+		}
 		if err != nil {
 			writeGenerationError(response, err)
 			return
@@ -348,6 +358,7 @@ func (h *Handler) streamResponses(
 	store bool,
 	reasoningSummary bool,
 	parser chatOutputParser,
+	channel *toolDeltaStream,
 	session turnSession,
 ) {
 	var output strings.Builder
@@ -371,6 +382,17 @@ func (h *Handler) streamResponses(
 				// The pump's text holds every released token, one whose send the
 				// stop interrupted included, so the message matches its context.
 				partial.Content, held = session.prefix+generated.pump.text(), generated.pump.held()
+				if channel != nil {
+					partial.Content = session.prefix + output.String()
+					parsed, parseErr := channel.parse(parser, tools)
+					if parseErr != nil {
+						err = errors.Join(err, parseErr)
+						status, outcome, session.keep = "failed", runrecord.OutcomeFailed, false
+					} else {
+						partial = parsed
+						partial.Content = session.prefix + parsed.Content
+					}
+				}
 			}
 			if publishErr := h.publishTurn(context.WithoutCancel(request.Context()), responseID, parent, append(turn, partial), outcome, "",
 				session, plan.sampler, generated.ids, held, outcome == runrecord.OutcomeCancelled); publishErr != nil {
@@ -446,10 +468,13 @@ func (h *Handler) streamResponses(
 		return
 	}
 
-	var buffered strings.Builder
 	textStarted := false
 	var reasoningOutput *responseOutputItem
-	toolStream, streamErr := newToolDeltaStream(h.generator, tools)
+	toolStream := channel
+	var streamErr error
+	if toolStream == nil {
+		toolStream, streamErr = newToolDeltaStream(h.generator, tools)
+	}
 	if streamErr != nil {
 		fail(streamErr)
 		return
@@ -581,14 +606,16 @@ func (h *Handler) streamResponses(
 	}
 	result, err := plan.run(
 		func(piece string) error {
-			if len(tools) != 0 {
-				if streamErr := emitToolPiece(piece); streamErr != nil {
-					return streamErr
+			if reasoningSummary {
+				if _, err := toolStream.accept(piece); err != nil {
+					return err
 				}
 				return plan.context().Err()
 			}
-			if reasoningSummary {
-				buffered.WriteString(piece)
+			if channel != nil || len(tools) != 0 {
+				if streamErr := emitToolPiece(piece); streamErr != nil {
+					return streamErr
+				}
 				return plan.context().Err()
 			}
 			if err := plan.context().Err(); err != nil {
@@ -604,28 +631,24 @@ func (h *Handler) streamResponses(
 	}
 	completionStatus, reason := responseCompletion(result.end(plan.maxTokens, inference.ChatMessage{}))
 	var parsedMessage inference.ChatMessage
-	if len(tools) != 0 {
+	if channel != nil || len(tools) != 0 || reasoningSummary {
 		parsedMessage, err = toolStream.parse(parser, tools)
 		if err != nil {
 			fail(err)
 			return
 		}
 		completionStatus, reason = responseCompletion(result.end(plan.maxTokens, parsedMessage))
-		if !toolStream.started {
-			if err := emitText(parsedMessage.Content); err != nil {
-				return
-			}
-		}
-	} else if reasoningSummary {
-		parsedMessage, err = parser.ParseChatOutput(buffered.String(), nil)
+		remaining, err := toolStream.remaining(parsedMessage)
 		if err != nil {
 			fail(err)
 			return
 		}
-		if err := emitReasoning(parsedMessage.ReasoningContent); err != nil {
-			return
+		if reasoningSummary {
+			if err := emitReasoning(remaining.ReasoningContent); err != nil {
+				return
+			}
 		}
-		if err := emitText(parsedMessage.Content); err != nil {
+		if err := emitText(remaining.Content); err != nil {
 			return
 		}
 	} else {

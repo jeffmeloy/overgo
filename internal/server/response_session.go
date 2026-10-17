@@ -82,6 +82,8 @@ func (h *Handler) publishTurn(
 	held string,
 	continuable bool,
 ) error {
+	// Reasoning needs channel state beyond the plain-text continuation contract.
+	session.keep = session.keep && messages[len(messages)-1].ReasoningContent == ""
 	record, err := session.record(sampler, ids, held, continuable)
 	if err != nil {
 		return err

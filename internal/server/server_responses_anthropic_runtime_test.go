@@ -20,6 +20,7 @@ import (
 
 	"overgo/internal/inference"
 	"overgo/internal/projector"
+	"overgo/internal/runrecord"
 	"overgo/internal/tokenizer"
 
 	"net/http"
@@ -788,55 +789,127 @@ func TestStreamingResponsesStoresContinuationHistory(t *testing.T) {
 
 func TestResponsesReasoningItemsBufferedAndStreaming(t *testing.T) {
 	t.Parallel()
-	for _, stream := range []bool{false, true} {
-		t.Run(fmt.Sprintf("stream=%v", stream), func(t *testing.T) {
-			generator := &reasoningGenerator{fakeGenerator: &fakeGenerator{
-				pieces: []string{"check facts</think>", "final answer"},
-			}}
-			handler := newTestHandler(t, generator)
-			response := httptest.NewRecorder()
-			body := fmt.Sprintf(
-				`{"input":"question","max_output_tokens":2,"stream":%v,`+
-					`"reasoning":{"effort":"high","summary":"auto"}}`,
-				stream,
-			)
-			handler.ServeHTTP(
-				response,
-				httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body)),
-			)
-			if response.Code != http.StatusOK {
-				t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
-			}
-			if stream {
-				want := []string{
-					"event: response.reasoning_summary_part.added",
-					"event: response.reasoning_summary_text.delta",
-					`"delta":"check facts"`,
-					"event: response.reasoning_summary_text.done",
-					"event: response.reasoning_summary_part.done",
-					`"text":"final answer"`,
-					"event: response.incomplete",
+	for _, test := range []struct {
+		name, template, prompt, output, content string
+		summary, legacy                         bool
+	}{
+		{"legacy_summary", "", "", "check facts</think>final answer", "final answer", true, true},
+		{"declared_summary", "<think></think>", "assistant<think>\n", "check facts</think>final answer", "final answer", true, false},
+		{"declared_hidden", "<think></think>", "assistant<think>\n", "check facts</think>final answer", "final answer", false, false},
+		{"declared_unfinished", "<think></think>", "assistant<think>\n", "check facts", "", false, false},
+		{"undeclared_literal", "", "assistant", "<think>literal</think>", "<think>literal</think>", false, false},
+	} {
+		for _, stream := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/stream=%v", test.name, stream), func(t *testing.T) {
+				pieces := []string{test.output[:len(test.output)/2], test.output[len(test.output)/2:]}
+				generator := &declaredReasoningGenerator{fakeGenerator: &fakeGenerator{pieces: pieces}, template: test.template, prompt: test.prompt}
+				handler := newTestHandlerWithRepository(t, struct {
+					*declaredReasoningGenerator
+					recipeInspectionAPI
+				}{generator, responseRecipeGenerator(t, generator.fakeGenerator)})
+				if test.legacy {
+					handler = newTestHandler(t, &reasoningGenerator{fakeGenerator: &fakeGenerator{pieces: pieces}})
 				}
-				previous := -1
-				for _, value := range want {
-					index := strings.Index(response.Body.String(), value)
-					if index <= previous {
-						t.Fatalf("event %q index=%d after=%d body=%s", value, index, previous, response.Body.String())
+				response := httptest.NewRecorder()
+				summary := ""
+				if test.summary {
+					summary = `,"summary":"auto"`
+				}
+				body := fmt.Sprintf(
+					`{"input":"question","max_output_tokens":2,"stream":%v,`+
+						`"reasoning":{"effort":"low"%s}}`,
+					stream, summary,
+				)
+				handler.ServeHTTP(
+					response,
+					httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body)),
+				)
+				if response.Code != http.StatusOK {
+					t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+				}
+				var result responsesResponse
+				if stream && test.summary {
+					want := []string{
+						"event: response.reasoning_summary_part.added",
+						"event: response.reasoning_summary_text.delta",
+						`"delta":"check facts"`,
+						"event: response.reasoning_summary_text.done",
+						"event: response.reasoning_summary_part.done",
+						`"text":"final answer"`,
+						"event: response.incomplete",
 					}
-					previous = index
+					previous := -1
+					for _, value := range want {
+						index := strings.Index(response.Body.String(), value)
+						if index <= previous {
+							t.Fatalf("event %q index=%d after=%d body=%s", value, index, previous, response.Body.String())
+						}
+						previous = index
+					}
 				}
-				return
-			}
-			var result responsesResponse
-			if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
-				t.Fatal(err)
-			}
-			if len(result.Output) != 2 || result.Output[0].Type != "reasoning" ||
-				len(result.Output[0].Summary) != 1 || result.Output[0].Summary[0].Text != "check facts" ||
-				result.Output[1].Type != "message" || result.Output[1].Content[0].Text != "final answer" {
-				t.Fatalf("reasoning response = %+v", result.Output)
-			}
-		})
+				if stream {
+					var text strings.Builder
+					for line := range strings.SplitSeq(response.Body.String(), "\n") {
+						data, ok := strings.CutPrefix(line, "data: ")
+						if !ok {
+							continue
+						}
+						var event struct {
+							Type, Delta string
+							Response    responsesResponse
+						}
+						if err := json.Unmarshal([]byte(data), &event); err != nil {
+							t.Fatal(err)
+						}
+						if event.Type == "response.output_text.delta" {
+							text.WriteString(event.Delta)
+						}
+						if event.Type == "response.incomplete" {
+							result = event.Response
+						}
+					}
+					if text.String() != test.content {
+						t.Fatalf("streamed content = %q want %q", text.String(), test.content)
+					}
+				} else if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+					t.Fatal(err)
+				}
+				if result.Status != "incomplete" {
+					t.Fatalf("response = %+v", result)
+				}
+				items := result.Output
+				if test.summary {
+					if len(items) < 1 || items[0].Type != "reasoning" || len(items[0].Summary) != 1 || items[0].Summary[0].Text != "check facts" {
+						t.Fatalf("reasoning response = %+v", items)
+					}
+					items = items[1:]
+				}
+				if test.content == "" {
+					if len(items) != 0 {
+						t.Fatalf("unexpected output = %+v", items)
+					}
+				} else if len(items) != 1 || items[0].Type != "message" || len(items[0].Content) != 1 || items[0].Content[0].Text != test.content {
+					t.Fatalf("visible response = %+v want %q", items, test.content)
+				}
+				if !test.legacy {
+					stored, found, err := runrecord.ResolveInteraction(t.Context(), handler.repository, result.ID)
+					if err != nil || !found {
+						t.Fatalf("stored response found=%v error=%v", found, err)
+					}
+					transcript, err := runrecord.RequireInteractionTranscript(t.Context(), handler.repository, stored.Message)
+					if err != nil {
+						t.Fatal(err)
+					}
+					message := transcript.Messages[len(transcript.Messages)-1]
+					if message.Content != test.content {
+						t.Fatalf("stored content = %q want %q", message.Content, test.content)
+					}
+					if test.template != "" && (message.ReasoningContent != "check facts" || stored.Context.Valid()) {
+						t.Fatalf("reasoning stored as plain continuation: %+v context=%v", message, stored.Context)
+					}
+				}
+			})
+		}
 	}
 }
 

@@ -150,10 +150,10 @@ func launchMoE(
 		routeState := blas.scores
 		activations := routeState +
 			driver.DevicePtr(uint64(group)*(uint64(topK)*moeSlotRouteWords+moeTokenRouteWords)*f32ScalarBytes)
-		if uint64(experts)*f32ScalarBytes+uint64(moeWeightSharedBytes) > math.MaxUint32 || uint64(group)*uint64(hidden) > math.MaxUint32 {
+		if uint64(experts) > math.MaxUint32/f32ScalarBytes || uint64(group)*uint64(hidden) > math.MaxUint32 {
 			return errors.New("grouped MoE launch size exceeds uint32")
 		}
-		logitBytes := experts*uint32(f32ScalarBytes) + moeWeightSharedBytes
+		logitBytes := experts * uint32(f32ScalarBytes)
 		indexed := uint32(0)
 		banks := node.Inputs[moeFirstBankInput:wantInputs]
 		if pointers.experts != nil && pointers.experts.IsExpertBank(banks[0].Name) {
@@ -227,10 +227,8 @@ func launchMoE(
 				return err
 			}
 			downCount := count * hidden
-			if err := launchGridSharedABI(
-				state, functions[kernelMoeDownF32],
-				driver.Dim3{X: count * ((hidden-1)/moeThreads + 1), Y: 1, Z: 1},
-				driver.Dim3{X: moeThreads, Y: 1, Z: 1}, moeWeightSharedBytes,
+			if err := launch1DABI(
+				state, functions[kernelMoeDownF32], downCount,
 				&routeState, &activations, &down, &expertScale, &downBias, &groupOutput,
 				&hidden, &topK, &intermediate, &normalize, &scale, &downStorage,
 				&expertIndexDivisor, &indexed, &downCount,
@@ -248,14 +246,11 @@ const (
 	// moeFirstBankInput: a routed-expert node's inputs open with its
 	// activations, its router input and its router; the expert banks follow.
 	moeFirstBankInput = 3
-	// moeThreads retains the generic 256-thread block for MoE projections.
+	// moeThreads retains the generic 256-thread block for routing and hidden rows.
 	moeThreads = uint32(256)
-	// moeWeightSharedBytes holds sector-wide F32 rows with one padding word.
+	// moeHiddenSharedBytes holds two banks of sector-wide F32 rows with one padding word.
 	// Keep this ABI equal to the CUDA tile and reconsider it with measured occupancy.
-	moeWeightSharedBytes = moeThreads * (32/4 + 1) * 4
-	// moeHiddenSharedBytes retains gate and up tiles together until their sequential sums finish.
-	// Reconsider these two banks only when the hidden projection's liveness changes.
-	moeHiddenSharedBytes = 2 * moeWeightSharedBytes
+	moeHiddenSharedBytes = 2 * moeThreads * (32/4 + 1) * 4
 	// A token's route words: each routed slot's expert and route weight, then
 	// the route weights' sum.
 	moeSlotRouteWords  = uint64(2)

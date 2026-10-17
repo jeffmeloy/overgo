@@ -3592,26 +3592,6 @@ extern "C" __global__ void lora_merge_f32(
 // restarts its partial sum every MOE_DOWN_TILE intermediate rows, slot-major.
 constexpr unsigned int MOE_DOWN_TILE = 256;
 
-// A 32-byte F32 sector supplies eight channels and one padding word avoids bank conflicts.
-// The three MoE projections share this layout with the Go launch ABI.
-constexpr unsigned int MOE_WEIGHT_CHANNELS = 32 / sizeof(float);
-constexpr unsigned int MOE_WEIGHT_STRIDE = MOE_WEIGHT_CHANNELS + 1;
-
-__device__ __forceinline__ void moe_load_weight_tile(
-        const void * bank, size_t offset, unsigned int width, unsigned int rows,
-        unsigned int warp_row, unsigned int base, unsigned int storage, float * tile) {
-    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
-    const unsigned int channel = base + lane % MOE_WEIGHT_CHANNELS;
-    #pragma unroll 1
-    for (unsigned int row = lane / MOE_WEIGHT_CHANNELS; row < CUDA_WARP_WIDTH;
-            row += CUDA_WARP_WIDTH / MOE_WEIGHT_CHANNELS) {
-        if (warp_row + row < rows && channel < width) {
-            tile[row * MOE_WEIGHT_STRIDE + lane % MOE_WEIGHT_CHANNELS] =
-                moe_expert_value(bank, offset + (size_t) (warp_row + row) * width + channel, storage);
-        }
-    }
-}
-
 extern "C" __global__ void moe_route_f32(
         const float * router_input,
         const float * router,
@@ -3629,30 +3609,14 @@ extern "C" __global__ void moe_route_f32(
     const float * router_x = router_input + (size_t) token * router_hidden;
     extern __shared__ float shared[];
     float * logits = shared;
-    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
-    float * weight_tile = logits + experts +
-        (threadIdx.x / CUDA_WARP_WIDTH) * CUDA_WARP_WIDTH * MOE_WEIGHT_STRIDE;
-    for (unsigned int row_base = 0; row_base < experts; row_base += blockDim.x) {
-        const unsigned int expert = row_base + threadIdx.x;
-        const unsigned int warp_row = expert - lane;
-        if (warp_row >= experts) continue;
+    for (unsigned int expert = threadIdx.x; expert < experts; expert += blockDim.x) {
+        const float * weight = router + (size_t) expert * router_hidden;
         float logit = 0.0f;
-        for (unsigned int base = 0; base < router_hidden; base += MOE_WEIGHT_CHANNELS) {
-            moe_load_weight_tile(router, 0, router_hidden, experts, warp_row, base, GGML_F32, weight_tile);
-            __syncwarp();
-            if (expert < experts) {
-                #pragma unroll
-                for (unsigned int channel = 0; channel < MOE_WEIGHT_CHANNELS; ++channel) {
-                    if (base + channel < router_hidden)
-                        logit += router_x[base + channel] * weight_tile[lane * MOE_WEIGHT_STRIDE + channel];
-                }
-            }
-            __syncwarp();
+        for (unsigned int channel = 0; channel < router_hidden; ++channel) {
+            logit += router_x[channel] * weight[channel];
         }
-        if (expert < experts) {
-            if (router_bias) logit += router_bias[expert];
-            logits[expert] = logit;
-        }
+        if (router_bias) logit += router_bias[expert];
+        logits[expert] = logit;
     }
     __syncthreads();
     if (threadIdx.x != 0) return;
@@ -3739,6 +3703,10 @@ extern "C" __global__ void moe_hidden_f32(
         unsigned int indexed_experts,
         unsigned int count) {
     // A warp transposes sector-wide reads into rows without changing sum order.
+    constexpr unsigned int sector_bytes = 32;
+    constexpr unsigned int channels = sector_bytes / sizeof(float);
+    constexpr unsigned int stride = channels + 1;
+    constexpr unsigned int rows_per_load = CUDA_WARP_WIDTH / channels;
     const unsigned int tiles = (intermediate - 1) / blockDim.x + 1;
     const unsigned int selected = blockIdx.x / tiles;
     if (selected >= count / intermediate) return;
@@ -3760,20 +3728,29 @@ extern "C" __global__ void moe_hidden_f32(
         (size_t) (indexed_experts ? 0 : expert) * (fused_gate_up ? 2 : 1) * intermediate * hidden;
     const size_t up_base = gate_base + (fused_gate_up ? (size_t) intermediate * hidden : 0);
     extern __shared__ float weights[];
-    float * gate_tile = weights + (threadIdx.x / CUDA_WARP_WIDTH) * CUDA_WARP_WIDTH * MOE_WEIGHT_STRIDE;
-    float * up_tile = gate_tile + blockDim.x * MOE_WEIGHT_STRIDE;
+    float * gate_tile = weights + (threadIdx.x / CUDA_WARP_WIDTH) * CUDA_WARP_WIDTH * stride;
+    float * up_tile = gate_tile + blockDim.x * stride;
     float gate_dot = 0.0f;
     float up_dot = 0.0f;
-    for (unsigned int base = 0; base < hidden; base += MOE_WEIGHT_CHANNELS) {
-        if (gated) moe_load_weight_tile(gate, gate_base, hidden, intermediate, warp_row, base, gate_storage, gate_tile);
-        moe_load_weight_tile(up, up_base, hidden, intermediate, warp_row, base, up_storage, up_tile);
+    for (unsigned int base = 0; base < hidden; base += channels) {
+        const unsigned int channel = base + lane % channels;
+        #pragma unroll 1
+        for (unsigned int row = lane / channels; row < CUDA_WARP_WIDTH; row += rows_per_load) {
+            if (warp_row + row < intermediate && channel < hidden) {
+                const size_t offset = (size_t) (warp_row + row) * hidden + channel;
+                if (gated) gate_tile[row * stride + lane % channels] =
+                    moe_expert_value(gate, gate_base + offset, gate_storage);
+                up_tile[row * stride + lane % channels] =
+                    moe_expert_value(up, up_base + offset, up_storage);
+            }
+        }
         __syncwarp();
         if (inner_index < intermediate) {
             #pragma unroll
-            for (unsigned int channel = 0; channel < MOE_WEIGHT_CHANNELS; ++channel) {
+            for (unsigned int channel = 0; channel < channels; ++channel) {
                 if (base + channel < hidden) {
-                    if (gated) gate_dot += x[base + channel] * gate_tile[lane * MOE_WEIGHT_STRIDE + channel];
-                    up_dot += x[base + channel] * up_tile[lane * MOE_WEIGHT_STRIDE + channel];
+                    if (gated) gate_dot += x[base + channel] * gate_tile[lane * stride + channel];
+                    up_dot += x[base + channel] * up_tile[lane * stride + channel];
                 }
             }
         }
@@ -3839,15 +3816,10 @@ extern "C" __global__ void moe_down_f32(
         unsigned int expert_index_divisor,
         unsigned int indexed_experts,
         unsigned int count) {
-    const unsigned int tiles = (hidden - 1) / blockDim.x + 1;
-    const unsigned int token = blockIdx.x / tiles;
-    if (token >= count / hidden) return;
-    const unsigned int output_channel = (blockIdx.x % tiles) * blockDim.x + threadIdx.x;
-    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
-    const unsigned int warp_row = output_channel - lane;
-    if (warp_row >= hidden) return;
-    extern __shared__ float weights[];
-    float * weight_tile = weights + (threadIdx.x / CUDA_WARP_WIDTH) * CUDA_WARP_WIDTH * MOE_WEIGHT_STRIDE;
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) return;
+    const unsigned int output_channel = index % hidden;
+    const unsigned int token = index / hidden;
     const unsigned int * selected = route_state + (size_t) token * (2 * top_k + 1);
     const float * routes = reinterpret_cast<const float *>(selected + top_k);
     const float * selected_sum = routes + top_k;
@@ -3861,27 +3833,31 @@ extern "C" __global__ void moe_down_f32(
         const float * slot_activations = activations + ((size_t) token * top_k + slot) * intermediate;
         for (unsigned int tile = 0; tile < intermediate; tile += MOE_DOWN_TILE) {
             const unsigned int tile_count = intermediate - tile < MOE_DOWN_TILE ? intermediate - tile : MOE_DOWN_TILE;
-            const size_t down_offset = (size_t) (indexed_experts ? 0 : expert) * hidden * intermediate;
+            const size_t down_offset = ((size_t) (indexed_experts ? 0 : expert) * hidden + output_channel) * intermediate + tile;
+            const float * tile_activations = slot_activations + tile;
             float partial = 0.0f;
-            for (unsigned int base = tile; base < tile + tile_count; base += MOE_WEIGHT_CHANNELS) {
-                moe_load_weight_tile(bank, down_offset, intermediate, hidden, warp_row, base, expert_storage, weight_tile);
-                __syncwarp();
-                if (output_channel < hidden) {
-                    #pragma unroll
-                    for (unsigned int inner = 0; inner < MOE_WEIGHT_CHANNELS; ++inner) {
-                        if (base + inner < tile + tile_count)
-                            partial += slot_activations[base + inner] * weight_tile[lane * MOE_WEIGHT_STRIDE + inner];
-                    }
+            if (expert_storage == GGML_F32) {
+                const float * down_row = reinterpret_cast<const float *>(bank) + down_offset;
+                for (unsigned int inner = 0; inner < tile_count; ++inner) {
+                    partial += tile_activations[inner] * down_row[inner];
                 }
-                __syncwarp();
+            } else if (expert_storage == GGML_BF16) {
+                const unsigned short * down_row = reinterpret_cast<const unsigned short *>(bank) + down_offset;
+                for (unsigned int inner = 0; inner < tile_count; ++inner) {
+                    partial += tile_activations[inner] * __uint_as_float((unsigned int) down_row[inner] << 16);
+                }
+            } else {
+                for (unsigned int inner = 0; inner < tile_count; ++inner) {
+                    partial += tile_activations[inner] * moe_expert_value(bank, down_offset + inner, expert_storage);
+                }
             }
-            if (output_channel < hidden && tile + tile_count == intermediate && down_bias) {
+            if (tile + tile_count == intermediate && down_bias) {
                 partial += down_bias[(size_t) expert * hidden + output_channel];
             }
             result += route * expert_multiplier * partial;
         }
     }
-    if (output_channel < hidden) output[(size_t) token * hidden + output_channel] = result;
+    output[index] = result;
 }
 
 extern "C" __global__ void repeat_heads_f32(

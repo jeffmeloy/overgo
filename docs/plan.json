@@ -116,14 +116,11 @@
       "id": "flashnext-efficiency",
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",
+      "budget": {
+        "nodes": 48,
+        "reason": ""
+      },
       "steps": [
-        {
-          "id": "route-probabilities",
-          "title": "Remove rejected projection tiles and retain one probability calculation",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test -json ./internal/cuda/executor -run '^(TestMoELaunchesCoverTokenGroups|TestCompileReservesMoEScratch|TestExecutorMoEOutputBitsArePinned)$'",
-          "rationale": "Serves: Restore the measured request speed lost to routing and down-projection tiles.\nDisappears: Remove the shared tile helper and its routing and down-projection launch setup.\nRestore the accepted hidden projection and prior routing and down loading loops.\nRetain only calculating each routing probability once before selection.\nThis change removes 48 production Go AST nodes and 19 test nodes.\nEvidence: The rejected comparison is evidence:sha256:4ef80469e495eabcfa94712c291795678a675294c72aae2f7d50fea1d79b0c3a.\nThe three declared repeats give a median of 1.3781028 seconds against 1.1113094 seconds with identical tokens and device peak allocation.\nThe diagnostic trace assigns 642738639 nanoseconds to routing and 624057990 nanoseconds to down projection over 288 calls each.\nThe accepted implementation used 407760054 and 384772179 nanoseconds respectively.\nThe hidden projection remains approximately unchanged.\nBatch: Keep every pinned output hash and existing native MoE case.\nRemove the launch assertions for the rejected layout with its code.\nRebuild kernels and the generated SBOM through their existing commands.\nLand through the normal gate and compare the same isolated arithmetic request against the accepted 1.1113094-second baseline.\nProceed to the retained real-document workload rather than another unmeasured tile variation."
-        },
         {
           "id": "processing",
           "title": "Reduce repeated execution, expert movement and prefill work at the measured bottleneck",

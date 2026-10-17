@@ -68,15 +68,26 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		if mem.allocs != allocs {
 			t.Fatal("duplicate hit allocated another expert")
 		}
+		victims := make(map[string]driver.DevicePtr, len(names))
+		for _, name := range names {
+			victims[name] = cache.entries[expertKey{name, 0}].Value.(residentExpert).pointer
+		}
 		check([]uint32{1, 2})
 		for _, name := range names {
 			if cache.entries[expertKey{name, 0}] != nil {
 				t.Fatal("old unused expert was not evicted")
 			}
+			if cache.entries[expertKey{name, 2}].Value.(residentExpert).pointer != victims[name] {
+				t.Fatal("replacement did not reuse the victim allocation")
+			}
 		}
-		if mem.allocs != allocs+len(names) {
-			t.Fatal("miss did not allocate exactly one expert per bank")
+		if mem.allocs != allocs {
+			t.Fatal("equal-sized replacements allocated instead of reusing completed victims")
 		}
+		if _, err := cache.resolve(t.Context(), []string{"down", "gate"}, []uint32{0}); err != nil {
+			t.Fatalf("replacement across different bank sizes: %v", err)
+		}
+		check([]uint32{0})
 	})
 	t.Run("physical-allocation-pressure", func(t *testing.T) {
 		cache, mem := open(t, tableBytes+3*pairBytes)
@@ -105,18 +116,26 @@ func TestFlashNextExpertResidency(t *testing.T) {
 			t.Fatalf("capacity recovery: %v", err)
 		}
 	})
-	for _, name := range []string{"cancelled-before", "cancelled-copy", "failed-copy", "out-of-range", "over-limit"} {
+	for _, name := range []string{"cancelled-before", "cancelled-copy", "failed-copy", "cancelled-replacement", "failed-replacement", "out-of-range", "over-limit"} {
 		t.Run(name, func(t *testing.T) {
 			cache, mem := open(t, tableBytes+pairBytes)
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 			indices := []uint32{0}
+			retainedEntries, retainedBytes := 0, uint64(0)
+			if name == "cancelled-replacement" || name == "failed-replacement" {
+				if _, err := cache.resolve(t.Context(), []string{"gate", "down"}, indices); err != nil {
+					t.Fatal(err)
+				}
+				indices = []uint32{1}
+				retainedEntries, retainedBytes = 1, cache.banks["down"].bytes
+			}
 			switch name {
 			case "cancelled-before":
 				cancel()
-			case "cancelled-copy":
+			case "cancelled-copy", "cancelled-replacement":
 				mem.onWrite = cancel
-			case "failed-copy":
+			case "failed-copy", "failed-replacement":
 				mem.failWrite = mem.writes + 1
 			case "out-of-range":
 				indices = []uint32{3}
@@ -127,11 +146,11 @@ func TestFlashNextExpertResidency(t *testing.T) {
 			if err == nil || tables != nil {
 				t.Fatal("failed resolution published a table")
 			}
-			if (name == "cancelled-before" || name == "cancelled-copy") && !errors.Is(err, context.Canceled) {
+			if (name == "cancelled-before" || name == "cancelled-copy" || name == "cancelled-replacement") && !errors.Is(err, context.Canceled) {
 				t.Fatalf("cancellation = %v", err)
 			}
-			if len(cache.entries) != 0 || mem.liveCount() != len(file.Tensors) || cache.bytes != tableBytes {
-				t.Fatal("failed first upload retained an expert allocation")
+			if len(cache.entries) != retainedEntries || mem.liveCount() != len(file.Tensors)+retainedEntries || cache.bytes != tableBytes+retainedBytes {
+				t.Fatal("failed upload retained its allocation or discarded an unrelated expert")
 			}
 			mem.onWrite = nil
 			mem.failWrite = 0

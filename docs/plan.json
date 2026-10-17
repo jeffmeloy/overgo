@@ -117,20 +117,10 @@
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",
       "budget": {
-        "nodes": 63,
+        "nodes": 0,
         "reason": "The prepared exact-base lookup adds 15 production AST nodes and the unified expert reclamation path adds 48. They remove measured allocation scans and same-sized victim free/allocation pairs without adding an index, allocator or cache owner. Existing range and expert-residency tables retain bounds, encoded bytes, cancellation, capacity refusal, retry and release coverage."
       },
       "steps": [
-        {
-          "id": "copies",
-          "title": "Remove allocation scans and reuse completed same-sized expert buffers",
-          "status": "open",
-          "verify": "go test ./internal/cuda/driver ./internal/modeldevice -run '^(TestOwnsDeviceRange|TestFlashNextExpertResidency)$'",
-          "rationale": "Serves: Remove measured host work from device copies and expert replacement.\nUse the existing allocation map for exact-base copies before the retained interior-range scan.\nReuse the first releasable LRU victim only when its encoded byte size matches the requested expert.\nDisappears: Replace the separate allocation retry and eviction paths with one reclamation path.\nKeep no extra index, allocator, persistent fixture or benchmark framework.\nEvidence: The retained profile assigns 8.89 sampled CPU seconds to range checks and 47.66 inclusive sampled CPU seconds to expert resolution.\nThe existing encoded-hit-miss-eviction case must fail before changing its allocation expectation.\nIts retained byte comparison also checks replacement content and mixed bank sizes.\nExtend the existing failure table for cancelled and failed replacement uploads.\nUse one native range benchmark for small and observed 40000-allocation maps before and after the change.\nRecord a matched unprofiled arithmetic workload separately from the GPU trace.\nNo kernel arithmetic, expert selection or byte-limit contract changes.\nBatch: Resource reservation and close must still free actual allocations.\nNo latency claim follows from AST counts or saved calls alone.\nFull workload parity and practical 256K acceptance stay open.",
-          "depends_on": [
-            "flashnext-chat/serve"
-          ]
-        },
         {
           "id": "processing",
           "title": "Reduce repeated execution, expert movement and prefill work at the measured bottleneck",

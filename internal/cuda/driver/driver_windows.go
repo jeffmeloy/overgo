@@ -806,6 +806,9 @@ func (l *Library) ownsDeviceRange(pointer DevicePtr, bytes uint64) bool {
 	}
 	l.allocationMu.Lock()
 	defer l.allocationMu.Unlock()
+	if capacity, found := l.allocations[pointer]; found {
+		return bytes <= capacity
+	}
 	for base, capacity := range l.allocations {
 		if pointer < base {
 			continue

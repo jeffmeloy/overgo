@@ -129,7 +129,7 @@ func (w *DeviceWeights) ReserveExpertMemory(state *device.State, required uint64
 		return err
 	}
 	for free < required && w.experts.order.Len() > 0 {
-		if err = w.experts.evict(w.experts.order.Front()); err != nil {
+		if _, err = w.experts.reclaim(w.experts.order.Front(), 0); err != nil {
 			return err
 		}
 		free, _, err = state.Driver.MemInfo()
@@ -235,15 +235,15 @@ func (c *expertResidency) resolve(ctx context.Context, names []string, indices [
 			keys = append(keys, key)
 		}
 	}
-	evictUnused := func() error {
+	reclaimUnused := func(size uint64) (driver.DevicePtr, error) {
 		victim := c.order.Front()
 		for victim != nil && needed[victim.Value.(residentExpert).key] {
 			victim = victim.Next()
 		}
 		if victim == nil {
-			return errors.New("expert residency has no releasable entry")
+			return 0, errors.New("expert residency has no releasable entry")
 		}
-		return c.evict(victim)
+		return c.reclaim(victim, size)
 	}
 	for _, key := range keys {
 		if err := ctx.Err(); err != nil {
@@ -264,22 +264,29 @@ func (c *expertResidency) resolve(ctx context.Context, names []string, indices [
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		for c.bytes > limit-bank.bytes {
-			if err := evictUnused(); err != nil {
-				return nil, err
+		var pointer driver.DevicePtr
+		var err error
+		for {
+			if c.bytes <= limit-bank.bytes {
+				pointer, err = c.mem.alloc(ctx, bank.bytes)
+				if !driver.IsOutOfMemory(err) {
+					break
+				}
 			}
-		}
-		pointer, err := c.mem.alloc(ctx, bank.bytes)
-		// Logical encoded bytes exclude physical allocation overhead and other contexts.
-		// An actual capacity refusal reclaims only experts outside this working set.
-		for driver.IsOutOfMemory(err) {
-			if releaseErr := evictUnused(); releaseErr != nil {
+			// A completed equal-sized victim supplies the allocation directly.
+			// Other victims release physical capacity before the next allocation.
+			var releaseErr error
+			pointer, releaseErr = reclaimUnused(bank.bytes)
+			if releaseErr != nil {
 				return nil, errors.Join(err, releaseErr)
 			}
-			if err := ctx.Err(); err != nil {
+			if pointer != 0 {
+				err = nil
+				break
+			}
+			if err = ctx.Err(); err != nil {
 				return nil, err
 			}
-			pointer, err = c.mem.alloc(ctx, bank.bytes)
 		}
 		if err != nil {
 			return nil, err
@@ -308,15 +315,18 @@ func (c *expertResidency) resolve(ctx context.Context, names []string, indices [
 	return tables, ctx.Err()
 }
 
-func (c *expertResidency) evict(entry *list.Element) error {
+func (c *expertResidency) reclaim(entry *list.Element, size uint64) (driver.DevicePtr, error) {
 	value := entry.Value.(residentExpert)
-	if err := c.mem.free(context.Background(), []driver.DevicePtr{value.pointer}); err != nil {
-		return err
+	if value.bytes != size {
+		if err := c.mem.free(context.Background(), []driver.DevicePtr{value.pointer}); err != nil {
+			return 0, err
+		}
+		value.pointer = 0
 	}
 	delete(c.entries, value.key)
 	c.order.Remove(entry)
 	c.bytes -= value.bytes
-	return nil
+	return value.pointer, nil
 }
 
 func (c *expertResidency) close() error {
@@ -324,7 +334,7 @@ func (c *expertResidency) close() error {
 		return nil
 	}
 	for c.order.Len() != 0 {
-		if err := c.evict(c.order.Front()); err != nil {
+		if _, err := c.reclaim(c.order.Front(), 0); err != nil {
 			return err
 		}
 	}

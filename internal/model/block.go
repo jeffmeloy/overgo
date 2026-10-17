@@ -1017,9 +1017,14 @@ func buildGatedDeltaMixCached(
 		sequences,
 	)
 	z = builder.Reshape(z, stateWidth, valueHeads, tokens, sequences)
+	if deltaPolicy == gatedDeltaSeparateSigmoid {
+		z = builder.Sigmoid(z)
+	} else {
+		z = builder.SiLU(z)
+	}
 	attention = builder.Multiply(
 		builder.WeightedRMSNorm(attention, weights.SSMNorm, spec.RMSNormEpsilon),
-		builder.SiLU(z),
+		z,
 	)
 	attention = builder.Reshape(attention, valueDimension, tokens*sequences)
 	attention = builder.MulMat(weights.SSMOutput, attention)

@@ -8,6 +8,10 @@ import (
 )
 
 func (s Spec) validateHybridMetadata() error {
+	if s.Profile().LayerTopology == layerTopologyGatedHyper &&
+		(s.HyperConnectionCount < tensor.PairedExtent || s.HyperConnectionRank == tensor.FirstOffset) {
+		return errors.New("gated hyperconnection count must exceed one and low rank must be positive")
+	}
 	hybrid := s.Profile().Validation.Hybrid
 	alternatingStateSpace := hybrid == hybridValidationAlternatingGatedDelta ||
 		hybrid == hybridValidationAlternatingGatedDeltaHybrid || hybrid == hybridValidationAlternatingGatedDeltaExperts

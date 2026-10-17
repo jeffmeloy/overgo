@@ -113,20 +113,10 @@
       "title": "Add the missing qwen4exp behavior through existing model and tensor owners",
       "status": "open",
       "budget": {
-        "nodes": 1120,
+        "nodes": 11,
         "reason": "Measured gated-block candidate adds 1120 production AST nodes for GGUF binding, sigmoid residual mixing and the recurrent output gate. Existing recurrent, expert and tensor operators retain their ownership. Sparse attention has no allowance until its candidate is measured."
       },
       "steps": [
-        {
-          "id": "gated-blocks",
-          "title": "Bind qwen4exp metadata and gated residual and recurrent blocks",
-          "status": "open",
-          "verify": "go test ./internal/model -run '^(TestArchitectureRegistryProfiles|TestReadQwen35MoESpec|TestFlashNextGatedBlocks)$'",
-          "rationale": "Serves: Bind exact artifact metadata to qwen4exp and implement its gated residual branches and GatedDeltaNet behavior through the existing forward program.\nInspect tensor layouts, residual ordering, normalization, convolution and recurrent state semantics against the original model implementation before reusing related operators.\nTreat the existing qwen3next profile and DeepSeek hyperconnections as reusable plumbing rather than equivalent architectures.\nDisappears: Extend internal/model/architecture_profiles.json, spec metadata and block owners instead of creating a second inference engine or model-name branches in the server.\nRetain qwen3next and DeepSeek behavior and reuse their applicable tensor operations.\nAdd the qwen4exp registry row and one fixture-driven TestFlashNextGatedBlocks table for unique arithmetic and state cases.\nEvidence: internal/model/weights_compressed_hyper.go and block_specialized.go contain a different hyperconnection formula.\nThe official Qwen configuration declares Qwen4ExpForConditionalGeneration, 48 layers and four residual branches.\nClosure requires independently produced tiny forward and recurrent-state goldens with source, dtype, shape and compiler assumptions recorded.\nBatch: Land metadata and the consumed block implementation together.\nKeep unimplemented model capability unavailable.\nDerive CUDA lane reach from actual kernels and reuse ordinary cached Go checks for host-only fixtures.",
-          "depends_on": [
-            "flashnext-reference/baseline"
-          ]
-        },
         {
           "id": "sparse-attention",
           "title": "Implement Qwen sparse attention and complete the forward program",

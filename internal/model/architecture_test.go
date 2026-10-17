@@ -25,6 +25,7 @@ func TestArchitectureRegistryProfiles(t *testing.T) {
 		{"llama", architectureNormalRoPE},
 		{"deepseek32", architectureSparseLatent | architectureLatent},
 		{"qwen35moe", architectureMoE | architectureRecurrent},
+		{"qwen4exp", architectureMoE | architectureRecurrent},
 		{"t5", architectureRoPEDisabled},
 		{"llada", architectureNonCausal | architectureDiffusion},
 		{"qwen3vl", architectureMultimodal},

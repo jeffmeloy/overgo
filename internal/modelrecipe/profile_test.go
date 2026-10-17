@@ -15,9 +15,8 @@ import (
 	"overgo/internal/testutil"
 )
 
-// Catalog identity includes the four IMRoPE profile bindings. Stored profiles
-// retain their identities; the fact schema and unaffected profiles are unchanged.
-const profileCatalogSemanticDigest = "801e572bcd20a100359b65d4670a266c1c479e3adc99ff7d8899cc5a0a9a48b4"
+// Catalog identity pins registered policies and their typed provenance.
+const profileCatalogSemanticDigest = "14ea2159b5a7eb2e4ef88203ceffd774b601fe2e56be4ade486c0ad983795e45"
 const architectureProfileFactDigest = "132c449f200e154bc934021d297b8dcfbbd8ccfc76fdde47a5f9843d4257f1f2"
 const architectureProfileFactSchemaDigest = "11960eada0141704aa80b8fa009834e9f40e9b0d5da2e3ef744da3b0269815dc"
 

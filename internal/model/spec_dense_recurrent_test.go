@@ -6,6 +6,7 @@ import (
 	"math"
 
 	"slices"
+	"strings"
 
 	"testing"
 )
@@ -1104,15 +1105,36 @@ func TestReadQwen35MoESpec(t *testing.T) {
 			},
 		},
 	}}
-	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if spec.Architecture != "qwen35moe" || spec.ExpertCount != 4 ||
-		spec.ExpertUsedCount != 2 || spec.ExpertFeedForward != 6 ||
-		spec.SharedExpertFF != 10 || spec.ExpertWeightsScale != 1.25 ||
-		!spec.IsRecurrentLayer(0) || spec.IsRecurrentLayer(3) {
-		t.Fatalf("unexpected Qwen3.5-MoE spec: %+v", spec)
+	for _, architecture := range []string{"qwen35moe", "qwen4exp"} {
+		t.Run(architecture, func(t *testing.T) {
+			candidate := &gguf.File{Metadata: slices.Clone(file.Metadata)}
+			for i := range candidate.Metadata {
+				entry := &candidate.Metadata[i]
+				entry.Key = strings.Replace(entry.Key, "qwen35moe.", architecture+".", 1)
+				if entry.Key == "general.architecture" {
+					entry.Value.Data = architecture
+				}
+			}
+			if architecture == "qwen4exp" {
+				candidate.Metadata = append(candidate.Metadata,
+					metadata(architecture+".hyper_connection.count", gguf.ValueTypeUint32, uint32(4)),
+					metadata(architecture+".hyper_connection.low_rank", gguf.ValueTypeUint32, uint32(3)),
+				)
+			}
+			spec, err := ReadSpec(candidate)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if spec.Architecture != architecture || spec.ExpertCount != 4 ||
+				spec.ExpertUsedCount != 2 || spec.ExpertFeedForward != 6 ||
+				spec.SharedExpertFF != 10 || spec.ExpertWeightsScale != 1.25 ||
+				!spec.IsRecurrentLayer(0) || spec.IsRecurrentLayer(3) {
+				t.Fatalf("unexpected hybrid MoE spec: %+v", spec)
+			}
+			if architecture == "qwen4exp" && (spec.HyperConnectionCount != 4 || spec.HyperConnectionRank != 3) {
+				t.Fatalf("hyperconnection dimensions = %d, %d", spec.HyperConnectionCount, spec.HyperConnectionRank)
+			}
+		})
 	}
 }
 

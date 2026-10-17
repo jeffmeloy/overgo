@@ -382,6 +382,9 @@ func TestCachedLayerTopologyRequiresCompatibleLayers(t *testing.T) {
 		if architecture == "deepseek4" {
 			spec.CompressRatios = []uint32{0}
 		}
+		if architecture == "qwen4exp" {
+			spec.FullAttentionInterval = 4
+		}
 		plan, err := compileFixtureModelPlan(spec, Weights{})
 		if err != nil {
 			t.Fatalf("%s: %v", architecture, err)

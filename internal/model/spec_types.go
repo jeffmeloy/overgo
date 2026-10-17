@@ -96,6 +96,7 @@ type CommonSpec struct {
 	ParallelResidual      bool
 	SandwichNorm          bool
 	HyperConnectionCount  uint32
+	HyperConnectionRank   uint32 `json:",omitzero"`
 	HyperSinkhornIters    uint32
 	HyperConnectionEps    float32
 	HashLayerCount        uint32

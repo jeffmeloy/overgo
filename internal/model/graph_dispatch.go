@@ -116,6 +116,7 @@ type layerExecution struct {
 	current         *tensor.Tensor
 	attentionInput  *tensor.Tensor
 	feedForwardBase *tensor.Tensor
+	injection       *tensor.Tensor
 	result          DenseBlockResult
 }
 
@@ -316,6 +317,17 @@ func executeLayerInstruction(
 ) error {
 	c := options.Context
 	switch instruction.Operator {
+	case layerOperatorGatedHyperAttention, layerOperatorGatedHyperFeedForward, layerOperatorGatedHyperHead:
+		return executeGatedHyperMix(options, instruction.Operator, execution)
+	case layerOperatorGatedHyperCombine:
+		if execution.injection == nil || execution.current == nil || execution.residual == nil {
+			return errors.New("gated hyperconnection combination operands are nil")
+		}
+		execution.current = c.Builder.Add(execution.residual, c.Builder.Multiply(
+			c.Builder.HyperConnectionInit(execution.current, options.Spec.HyperConnectionCount), execution.injection,
+		))
+		execution.result.Output = execution.current
+		return c.Builder.Err()
 	case layerOperatorAttentionInputNorm:
 		attentionInput, feedForwardBase, err := preparePolicyAttentionInputs(options)
 		if err != nil {

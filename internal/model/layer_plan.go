@@ -90,6 +90,10 @@ const (
 	layerOperatorFeedForwardOutput
 	layerOperatorActivationProjection
 	layerOperatorActivatedOutput
+	layerOperatorGatedHyperAttention
+	layerOperatorGatedHyperFeedForward
+	layerOperatorGatedHyperCombine
+	layerOperatorGatedHyperHead
 )
 
 // layerOperatorInstruction: compiled operator and operand indexes.
@@ -201,6 +205,7 @@ const (
 	layerTopologyDynamicWKV7
 	layerTopologyKeyedDeltaHybrid
 	layerTopologyCompressedHyper
+	layerTopologyGatedHyper
 )
 
 // outputHeadPolicy: compiled terminal projection source.
@@ -985,6 +990,18 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) (layerProg
 		mixer := attentionLayerStage(layerOperatorAttentionGatedProjection)
 		if recurrent {
 			mixer = attentionLayerStage(layerOperatorRecurrentMix)
+		}
+		if profile.LayerTopology == layerTopologyGatedHyper {
+			if !recurrent {
+				return layerProgram{}, errors.New("gated hyperconnection sparse attention is not implemented")
+			}
+			stages := []layerOperatorInstruction{
+				layerStage(layerOperatorGatedHyperAttention), mixer,
+				layerStage(layerOperatorGatedHyperCombine), layerStage(layerOperatorGatedHyperFeedForward),
+				layerStage(layerOperatorFeedForwardRoutedSwiGLU), layerStage(layerOperatorGatedHyperCombine),
+				layerStage(layerOperatorGatedHyperHead),
+			}
+			return newLayerProgram(stages...)
 		}
 		return residualMixerProgram(mixer, layerOperatorFeedForwardRoutedSwiGLU)
 	}

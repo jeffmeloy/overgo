@@ -825,6 +825,12 @@ func compileRuntimeProgram(profile ArchitectureProfile) []metadataOp {
 			metadataOp{kind: metadataOpIndexerLayers},
 		)
 	}
+	if profile.LayerTopology == layerTopologyGatedHyper {
+		program = append(program,
+			opReqU32.at("hyper_connection.count", func(spec *Spec) *uint32 { return &spec.HyperConnectionCount }),
+			opReqU32.at("hyper_connection.low_rank", func(spec *Spec) *uint32 { return &spec.HyperConnectionRank }),
+		)
+	}
 	if profile.Validation.MLA == mlaValidationCompressedHyper {
 		program = append(program,
 			opReqU32.at("attention.q_lora_rank", func(spec *Spec) *uint32 { return &spec.QLoRARank }),

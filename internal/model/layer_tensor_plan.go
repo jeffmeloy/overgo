@@ -65,6 +65,7 @@ const (
 	gatedDeltaNone gatedDeltaPolicy = iota
 	gatedDeltaSeparateProjections
 	gatedDeltaInterleavedProjections
+	gatedDeltaSeparateSigmoid
 )
 
 func applyRoPEPairWithOptions(

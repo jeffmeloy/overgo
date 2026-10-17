@@ -9,12 +9,42 @@
    "verify": "go test ./internal/audioparity -run '^TestSpeakerDiarizationAcceptance$' -count=1 -v",
    "summary": "A declared CPU acoustic encoder, post-normalized attention stack and speaker-activity head use shared operations and SpeechLease, with no model-family dispatch. Four waveform cases verify all 156 independently pinned capture files and 148 intermediate traces under the predeclared absolute float32 bound; valid-frame masking is explicit. Three preselected continuous AMI EN2002b windows match C++ turns exactly and retain zero-collar overlap-inclusive speaker-time error, bidirectional nearest-boundary distances and unmatched counts. The partial-window control clips one C++ endpoint to actual audio. Native evaluate repeats fresh inference with exact library scores, retains all failed/scored attempts and preserves annotation-conditioned words with ambiguous/unassigned labels. Cancellation, admission, task, release and reuse refusals execute. Weights are CC-BY-NC-4.0; the model card lists AMI training and manual segment boundaries include pauses. Recorded errors are not a quality gain. No held-out generalization, commercial readiness, cross-recording identity, streaming diarization, HTTP analysis, encoder training, RSS/performance or GPU claim.",
    "evidence": [
-    {"path": "internal/speechrecognition/activity.go", "contains": "func LoadSpeakerActivity(", "role": "source", "identity": "file:sha256:334679b6892d0e67cc02454e9b953ee6b7c9d391485818f529081c9a07bd4f30"},
-    {"path": "internal/audioparity/speaker_numerical_test.go", "contains": "func TestSpeakerDiarizationAcceptance(", "role": "artifact", "identity": "evidence:sha256:b5ba93736d6aaf39e434bda7e53ccff10e95bdee0bc5d1ec2122e179826b18d6"},
-    {"path": "internal/audioparity/testdata/speaker_reference.json", "contains": "CC-BY-NC-4.0", "role": "source", "identity": "file:sha256:53d981c8788cffcc2282b53f6a261809500dc3ce249acd35ce40732283f42284"},
-    {"path": "internal/audioparity/speaker_session_test.go", "contains": "verifySpeakerCommand(", "role": "source", "identity": "file:sha256:7d3576d4b996a37202dc9778055ec9d8494537835ac6563f199e18151db38f8e"},
-    {"path": "internal/speechrecognition/speaker_boundary_test.go", "contains": "func TestSpeakerBoundaryIndependentOracle(", "role": "source", "identity": "file:sha256:5cab97b61d546c721ff0032f4a27ce7c25aead54d162bc4e5a0838bb081211cb"},
-    {"path": "internal/speechrecognition/attribution_test.go", "contains": "func TestSpeakerWordAttributionPreservesAlignment(", "role": "source", "identity": "file:sha256:3556be5c475a8fbcda893bcb48f66c3a2aaddb743fa3156c217bfe63a65b9cc3"}
+    {
+     "path": "internal/speechrecognition/activity.go",
+     "contains": "func LoadSpeakerActivity(",
+     "role": "source",
+     "identity": "file:sha256:334679b6892d0e67cc02454e9b953ee6b7c9d391485818f529081c9a07bd4f30"
+    },
+    {
+     "path": "internal/audioparity/speaker_numerical_test.go",
+     "contains": "func TestSpeakerDiarizationAcceptance(",
+     "role": "artifact",
+     "identity": "evidence:sha256:b5ba93736d6aaf39e434bda7e53ccff10e95bdee0bc5d1ec2122e179826b18d6"
+    },
+    {
+     "path": "internal/audioparity/testdata/speaker_reference.json",
+     "contains": "CC-BY-NC-4.0",
+     "role": "source",
+     "identity": "file:sha256:53d981c8788cffcc2282b53f6a261809500dc3ce249acd35ce40732283f42284"
+    },
+    {
+     "path": "internal/audioparity/speaker_session_test.go",
+     "contains": "verifySpeakerCommand(",
+     "role": "source",
+     "identity": "file:sha256:7d3576d4b996a37202dc9778055ec9d8494537835ac6563f199e18151db38f8e"
+    },
+    {
+     "path": "internal/speechrecognition/speaker_boundary_test.go",
+     "contains": "func TestSpeakerBoundaryIndependentOracle(",
+     "role": "source",
+     "identity": "file:sha256:5cab97b61d546c721ff0032f4a27ce7c25aead54d162bc4e5a0838bb081211cb"
+    },
+    {
+     "path": "internal/speechrecognition/attribution_test.go",
+     "contains": "func TestSpeakerWordAttributionPreservesAlignment(",
+     "role": "source",
+     "identity": "file:sha256:3556be5c475a8fbcda893bcb48f66c3a2aaddb743fa3156c217bfe63a65b9cc3"
+    }
    ]
   },
   {
@@ -793,13 +823,13 @@
      "contains": "func CompileModelPlanWithProfile(",
      "path": "internal/model/layer_plan.go",
      "role": "source",
-     "identity": "file:sha256:4297311ce3de7754ef179bf7f12d2eb79bac467d7b2e51cc703a1d7e59d94a28"
+     "identity": "file:sha256:2ab198876f0e2f83dcaec0ca2a2f70773657fa3757e44497850af64afb63aeac"
     },
     {
      "contains": "func TestCompileModelPlanPinsLayerPolicies(",
      "path": "internal/model/layer_plan_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:d611605966e67dfc8017e2ef84c009c635ca4ace8521e1f7ae530c77c9e29385"
+     "identity": "evidence:sha256:2de43a1845f40a145db538a7a9edb57aefd8f33c1767172e7339b076716d75bb"
     }
    ],
    "id": "compiled-model-plan",
@@ -1226,7 +1256,7 @@
      "contains": "func TestArchitectureRegistryProfiles(",
      "path": "internal/model/architecture_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:8e555ae839d55bd294518be2cbbf08de1599ac383c93e39e2505bf3e8725b2e1"
+     "identity": "evidence:sha256:414a4d95b77425d0d26b7ae2d4d3b49792590f4ad8791589441a2c9de463e0d8"
     }
    ],
    "id": "architecture-profiles",
@@ -1241,7 +1271,7 @@
      "contains": "func (p CompiledLayerProgram) Build(",
      "path": "internal/model/graph_dispatch.go",
      "role": "source",
-     "identity": "file:sha256:3925fcc81112c9b92a4572f21496047e63f9aac7bf4660da92d382dfbcc12144"
+     "identity": "file:sha256:fe22035bce42757d521c18f809daaab51c8dbaa3b25340333069a3ee530605c7"
     },
     {
      "contains": "func ReadWeights(",
@@ -4046,6 +4076,19 @@
     "classification-rerank-head-absent-from-pinned-graph"
    ],
    "real_model_validation": "pending-fixture"
+  },
+  "qwen4exp": {
+   "execution": [
+    "fixture-only-recurrent-block"
+   ],
+   "features": [
+    "gated-residual-streams",
+    "sigmoid-gated-delta-output",
+    "recurrent-convolution-state",
+    "native-quantized-experts"
+   ],
+   "real_model_validation": "unavailable-until-sparse-attention-ngram-and-bounded-residency",
+   "validated_fixture": "internal/model/testdata/flashnext_gated.json"
   },
   "refact": {
    "features": [

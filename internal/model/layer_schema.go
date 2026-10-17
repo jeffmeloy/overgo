@@ -127,6 +127,17 @@ type layerTensorSchema[T any] struct {
 	HyperHeadFN                 *T
 	HyperHeadBase               *T
 	HyperHeadScale              *T
+	HyperAttentionNorm          *T
+	HyperAttentionDown          *T
+	HyperAttentionUp            *T
+	HyperAttentionInject        *T
+	HyperFeedForwardNorm        *T
+	HyperFeedForwardDown        *T
+	HyperFeedForwardUp          *T
+	HyperFeedForwardInject      *T
+	HyperHeadNorm               *T
+	HyperHeadDown               *T
+	HyperHeadUp                 *T
 	FeedForwardHashExperts      *T
 	VisualAttentionQKV          *T
 	VisualAttentionOutput       *T

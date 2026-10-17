@@ -562,6 +562,11 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			}
 		}
 		layer := &result.Layers[block]
+		if profile.LayerTopology == layerTopologyGatedHyper {
+			if err := bindGatedHyperWeights(catalog, prefix, spec, layer, block); err != nil {
+				return Weights{}, err
+			}
+		}
 		if layerPlan.DenseWeights.validateOptionalQKNorm && layerPlan.DenseWeights.allowActivationScale {
 			_, hasQNorm := catalog.tensors[prefix+attentionQueryNormTensor]
 			_, hasKNorm := catalog.tensors[prefix+attentionKeyNormTensor]
@@ -601,7 +606,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			if normErr := bindTensorProgram(catalog, prefix, []tensorBinding{norm}); normErr != nil {
 				return Weights{}, normErr
 			}
-		} else if normPlan.PreAttention &&
+		} else if normPlan.PreAttention && profile.LayerTopology != layerTopologyGatedHyper &&
 			(!layerPlan.DeciSparse || spec.LayerHasAttention(block)) &&
 			!spec.UsesUnweightedLayerNorm() && !spec.UsesUnweightedRMSNorm() {
 			requirements := []tensorBinding{
@@ -929,7 +934,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			); normErr != nil {
 				return Weights{}, normErr
 			}
-		} else if !layerPlan.DenseWeights.requireExpertProjectionBiases &&
+		} else if profile.LayerTopology != layerTopologyGatedHyper && !layerPlan.DenseWeights.requireExpertProjectionBiases &&
 			layerPlan.DenseWeights.requireFeedForwardNorm &&
 			(!layerPlan.DeciSparse || spec.LayerHasFeedForward(block)) {
 			requirements := []tensorBinding{

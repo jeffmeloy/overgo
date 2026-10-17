@@ -113,10 +113,20 @@
       "title": "Deliver native Flash-Next text chat through existing APIs and web GUI",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "Measured owner repairs reclaim unused encoded experts on physical capacity refusal and pass disabled thinking to Messages templates."
+        "nodes": 146,
+        "reason": "Measured Responses wiring reuses the declared prompt channel and prevents raw reasoning in answers and stored partials. The existing native regression table grows by 469 test syntax nodes."
       },
       "steps": [
+        {
+          "id": "responses",
+          "title": "Route Responses reasoning through the existing declared output channel",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^(TestResponsesReasoningItemsBufferedAndStreaming|TestStreamingResponsesFunctionCallLifecycle|TestProtocolToolExecutionParity|TestContinuationRestoresSamplerState)$'",
+          "rationale": "Serves: Keep declared reasoning separate from Responses answer text in buffered, streamed and stored messages.\nDisappears: Reuse newPromptChatDeltaStream from Chat and remove the separate Responses summary buffer and final parser branch.\nKeep undeclared literal text unchanged and retain legacy parser support.\nReasoning turns remain outside the plain-text token continuation contract.\nEvidence: evidence:sha256:5045496b34b9da42575987820eb89cef88a057b6eb186b1c22a001201937de5d retains seven accepted cases out of eight and the reasoning leak.\nThe existing regression table fails on declared summaries, hidden reasoning and unfinished thoughts before this fix.\nThe native tool and plain-text sampler continuation tests remain retained owners.\nBatch: Claims refresh only affected evidence.\nLand before repeating real-model acceptance.\nFull-model quality, activation and performance remain in the following steps.",
+          "depends_on": [
+            "flashnext-chat/runtime"
+          ]
+        },
         {
           "id": "serve",
           "title": "Wire full execution, activation, reasoning and tool use into the existing chat flow",
@@ -127,7 +137,8 @@
             "flashnext-architecture/sparse-attention",
             "flashnext-ngram/rows",
             "flashnext-residency/tiers",
-            "flashnext-chat/runtime"
+            "flashnext-chat/runtime",
+            "flashnext-chat/responses"
           ]
         }
       ]
@@ -221,7 +232,8 @@
             "flashnext-sparse-budget/do",
             "flashnext-ngram-budget/do",
             "flashnext-residency-budget/do",
-            "flashnext-chat-budget/do"
+            "flashnext-chat-budget/do",
+            "flashnext-response-budget/do"
           ]
         }
       ]

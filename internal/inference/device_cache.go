@@ -53,6 +53,7 @@ type deviceCacheStorage struct {
 	buffer    *executor.DeviceBuffer
 	keys      []executor.DeviceValue
 	values    []executor.DeviceValue
+	states    []deviceLayerStates
 }
 
 func (s *deviceCacheStorage) retain() bool {
@@ -77,6 +78,28 @@ func (s *deviceCacheStorage) exclusive() bool {
 	return s.refs == 1 && !s.releasing
 }
 
+// aliases admits append only from the start of each owned token allocation.
+// Shifted views require a fresh target because parallel prefix copies may overlap.
+func (s *deviceCacheStorage) aliases(cache *deviceKVCache) bool {
+	if s == nil || len(s.keys) != len(cache.Keys) || len(s.values) != len(cache.Values) {
+		return false
+	}
+	for layer := range s.keys {
+		if s.keys[layer].Pointer != 0 && s.keys[layer].Pointer != cache.Keys[layer].Pointer ||
+			s.values[layer].Pointer != 0 && s.values[layer].Pointer != cache.Values[layer].Pointer {
+			return false
+		}
+	}
+	for layer, states := range s.states {
+		for name, state := range states {
+			if layer >= len(cache.States) || state.Value.Pointer != cache.States[layer][name].Value.Pointer {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func (s *deviceCacheStorage) release(ctx context.Context) error {
 	if s == nil {
 		return nil
@@ -95,12 +118,13 @@ func (s *deviceCacheStorage) release(ctx context.Context) error {
 		s.mu.Unlock()
 		return err
 	}
-	buffer, keys, values := s.buffer, s.keys, s.values
+	buffer, keys, values, states := s.buffer, s.keys, s.values, s.states
 	s.refs = 0
 	s.releasing = true
 	s.buffer = nil
 	s.keys = nil
 	s.values = nil
+	s.states = nil
 	s.mu.Unlock()
 
 	var err error
@@ -116,6 +140,7 @@ func (s *deviceCacheStorage) release(ctx context.Context) error {
 		s.buffer = buffer
 		s.keys = keys
 		s.values = values
+		s.states = states
 		return err
 	}
 	s.refs = 0
@@ -461,15 +486,15 @@ type deviceBatchGraph struct {
 }
 
 type deviceCacheTargetLayer struct {
-	keySlot       executor.OutputSlot
-	valueSlot     executor.OutputSlot
-	keyShape      tensor.Shape
-	valueShape    tensor.Shape
-	keyCapacity   tensor.Shape
-	valueCapacity tensor.Shape
-	keyOffset     uint64
-	valueOffset   uint64
-	enabled       bool
+	key, value deviceCacheTargetValue
+	states     map[model.CacheStateName]deviceCacheTargetValue
+}
+
+type deviceCacheTargetValue struct {
+	slot            executor.OutputSlot
+	shape, capacity tensor.Shape
+	offset          uint64
+	enabled         bool
 }
 
 type deviceCacheTargetPlan struct {
@@ -575,44 +600,39 @@ func (r *Runner) forwardDeviceCachedBatchLocked(
 	return r.forwardDeviceCachedBranchedBatchLocked(ctx, appends, plan)
 }
 
-func (r *Runner) parameterizedDecodeCapacity(
-	appends []deviceBatchAppend,
-	plan deviceOutputPlan,
-) (uint32, uint32, bool) {
-	if len(appends) == 0 || r.program.Decode.Session != modelrecipe.DecodeSessionCapacity {
-		return 0, 0, false
+type deviceCacheAppendPlan struct {
+	tensor.CacheAppendPlan
+	replay bool
+}
+
+func (r *Runner) cacheAppendPlan(appends []deviceBatchAppend, plan deviceOutputPlan) deviceCacheAppendPlan {
+	if len(appends) == 0 || r.program.Decode.Session != modelrecipe.DecodeSessionCapacity || !r.program.Model.SupportsCapacityCache() {
+		return deviceCacheAppendPlan{}
 	}
-	// Span plans parameterize one bounded multi-token append; every other
-	// plan parameterizes exactly one token per branch.
+	result := deviceCacheAppendPlan{replay: r.program.Model.SupportsCapacityReplay()}
 	span := plan.is(deviceOutputGreedySpan)
-	if span && len(appends) != 1 {
-		return 0, 0, false
-	}
-	var capacity, source, tokens uint32
+	result.replay = result.replay && (!span || len(appends) == 1)
+	var count uint32
 	for index, item := range appends {
 		past := item.Past
 		appended := uint32(len(item.Tokens))
-		if !span && appended != 1 {
-			return 0, 0, false
+		if appended == 0 || past == nil || past.Tokens == 0 || !past.storage.aliases(past) || uint64(past.Tokens)+uint64(appended) > uint64(r.spec.ContextLength) || past.Tokens == math.MaxUint32 {
+			return deviceCacheAppendPlan{}
 		}
-		if appended == 0 || past == nil || past.Tokens == 0 || past.storage == nil ||
-			(plan.is(deviceOutputGreedy) && past.Selection.Pointer == 0) ||
-			uint64(past.Tokens)+uint64(appended) > uint64(r.spec.ContextLength) ||
-			past.Tokens == math.MaxUint32 {
-			return 0, 0, false
-		}
+		result.replay = result.replay && (span || appended == 1) && (!plan.is(deviceOutputGreedy) || past.Selection.Pointer != 0)
 		current := cachePageCapacity(past.Tokens, r.spec.ContextLength, r.program.Decode.Session)
 		next := cachePageCapacity(past.Tokens+appended, r.spec.ContextLength, r.program.Decode.Session)
 		if current < past.Tokens || next < past.Tokens+appended {
-			return 0, 0, false
+			return deviceCacheAppendPlan{}
 		}
 		if index == 0 {
-			capacity, source, tokens = next, current, past.Tokens
-		} else if next != capacity || current != source || past.Tokens != tokens {
-			return 0, 0, false
+			result.CacheAppendPlan = tensor.CacheAppendPlan{ActiveTokens: past.Tokens, SourceCapacityTokens: current, CapacityTokens: next}
+			count = appended
+		} else if next != result.CapacityTokens || current != result.SourceCapacityTokens || past.Tokens != result.ActiveTokens || appended != count {
+			return deviceCacheAppendPlan{}
 		}
 	}
-	return capacity, source, true
+	return result
 }
 
 func (r *Runner) executeParameterizedDecodeSession(
@@ -757,7 +777,8 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	appends []deviceBatchAppend,
 	plan deviceOutputPlan,
 ) ([]*deviceKVCache, error) {
-	capacity, source, parameterized := r.parameterizedDecodeCapacity(appends, plan)
+	appendPlan := r.cacheAppendPlan(appends, plan)
+	capacity, source, parameterized := appendPlan.CapacityTokens, appendPlan.SourceCapacityTokens, appendPlan.replay
 	tokenCount := uint32(1)
 	if parameterized {
 		tokenCount = uint32(len(appends[0].Tokens))
@@ -795,18 +816,14 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 		}
 	}
 	builder := r.newGraphBuilder()
-	if parameterized {
-		builder.SetCacheAppendPlan(tensor.CacheAppendPlan{
-			ActiveTokens:         appends[0].Past.Tokens,
-			SourceCapacityTokens: source,
-			CapacityTokens:       capacity,
-		})
+	if capacity != 0 {
+		builder.SetCacheAppendPlan(appendPlan.CacheAppendPlan)
 	}
 	hostFeeds := make(map[*tensor.Tensor]reference.Value)
 	var deviceFeeds tensor.InputBindings[driver.DevicePtr]
 	graphs := make([]deviceBatchGraph, len(appends))
 	cacheWrite := tensor.CacheWriteConcat
-	if parameterized {
+	if capacity != 0 {
 		cacheWrite = tensor.CacheWriteAppend
 	}
 	outputs := make([]*tensor.Tensor, 0, len(appends)*(1+2*len(r.weights.Layers)))
@@ -961,10 +978,12 @@ func (r *Runner) assembleDeviceBatchCaches(
 			if !ok {
 				return fail(fmt.Errorf("inference: missing retained value for branch %d layer %d", index, layer))
 			}
-			if targetPlans[index].layers[layer].enabled {
-				cache.Keys[layer].Shape = targetPlans[index].layers[layer].keyShape
-				cache.Values[layer].Shape = targetPlans[index].layers[layer].valueShape
+			if targetPlans[index].layers[layer].key.enabled {
+				cache.Keys[layer].Shape = targetPlans[index].layers[layer].key.shape
 				cache.Keys[layer].Shape.Dims[cache.Keys[layer].Shape.Rank-1] = uint64(cache.Tokens)
+			}
+			if targetPlans[index].layers[layer].value.enabled {
+				cache.Values[layer].Shape = targetPlans[index].layers[layer].value.shape
 				cache.Values[layer].Shape.Dims[cache.Values[layer].Shape.Rank-1] = uint64(cache.Tokens)
 			}
 			if len(graph.states[layer]) != 0 {
@@ -976,6 +995,9 @@ func (r *Runner) assembleDeviceBatchCaches(
 							"inference: missing retained state %q for branch %d layer %d",
 							name, index, layer,
 						))
+					}
+					if targetPlans[index].layers[layer].states[name].enabled {
+						value.Shape.Dims[value.Shape.Rank-1] = uint64(cache.Tokens)
 					}
 					cache.States[layer][name] = deviceLayerState{Mode: state.Mode, Value: value}
 				}
@@ -1004,13 +1026,30 @@ func (r *Runner) compileDeviceCacheTargetPlans(
 	plans := make([]deviceCacheTargetPlan, len(graphs))
 	for branch, graph := range graphs {
 		plan := deviceCacheTargetPlan{layers: make([]deviceCacheTargetLayer, len(graph.keys))}
-		capacity := uint64(cachePageCapacity(
-			graph.pastTokens+graph.tokenCount,
-			r.spec.ContextLength,
-			r.program.Decode.Session,
-		))
+		capacity := uint64(cachePageCapacity(graph.pastTokens+graph.tokenCount, r.spec.ContextLength, r.program.Decode.Session))
+		target := func(node *tensor.Tensor, schema model.CacheState[model.CacheValueSchema]) (deviceCacheTargetValue, error) {
+			if !schema.Value.AcceptsTokenTarget(schema.Mode, node.Shape) {
+				return deviceCacheTargetValue{}, nil
+			}
+			slot, ok := compiled.OutputSlot(node)
+			if !ok {
+				return deviceCacheTargetValue{}, errors.New("inference: cache target is not a compiled output")
+			}
+			shape, ok := tensor.WithTrailingExtent(node.Shape, capacity)
+			if !ok {
+				return deviceCacheTargetValue{}, errors.New("inference: cache capacity shape is invalid")
+			}
+			count, err := shape.Elements()
+			if err != nil {
+				return deviceCacheTargetValue{}, err
+			}
+			result := deviceCacheTargetValue{slot: slot, shape: node.Shape, capacity: shape, offset: plan.elements, enabled: true}
+			if plan.elements, ok = checked.Add64(plan.elements, count); !ok {
+				return deviceCacheTargetValue{}, errors.New("inference: cache storage extent overflows")
+			}
+			return result, nil
+		}
 		for layer := range graph.keys {
-			// SharedKV layers read the source layer's cache in-graph and own no storage
 			if r.layerProgram(layer).Layer().SharedKV {
 				continue
 			}
@@ -1018,46 +1057,34 @@ func (r *Runner) compileDeviceCacheTargetPlans(
 			if err != nil {
 				return nil, err
 			}
-			key, value := graph.keys[layer], graph.values[layer]
-			if !schema.Primary.Key.Value.AcceptsTokenTarget(schema.Primary.Key.Mode, key.Shape) ||
-				!schema.Primary.Value.Value.AcceptsTokenTarget(schema.Primary.Value.Mode, value.Shape) {
+			entry := &plan.layers[layer]
+			if entry.key, err = target(graph.keys[layer], schema.Primary.Key); err != nil {
+				return nil, err
+			}
+			if entry.value, err = target(graph.values[layer], schema.Primary.Value); err != nil {
+				return nil, err
+			}
+			if layer >= len(graph.states) {
 				continue
 			}
-			keySlot, keyOK := compiled.OutputSlot(key)
-			valueSlot, valueOK := compiled.OutputSlot(value)
-			if !keyOK || !valueOK {
-				return nil, fmt.Errorf("inference: cache layer %d is not a compiled output", layer)
+			for _, name := range graph.states[layer].SortedNames() {
+				state := graph.states[layer][name]
+				if !state.Mode.TokenAligned() {
+					continue
+				}
+				declared, ok := schema.State(name)
+				if !ok || declared.Mode != state.Mode || !declared.Value.AcceptsTokenTarget(state.Mode, state.Value.Shape) {
+					return nil, fmt.Errorf("inference: cache layer %d state %q differs from its token schema", layer, name)
+				}
+				value, err := target(state.Value, declared)
+				if err != nil {
+					return nil, err
+				}
+				if entry.states == nil {
+					entry.states = make(map[model.CacheStateName]deviceCacheTargetValue)
+				}
+				entry.states[name] = value
 			}
-			keyCapacity, keyCapacityOK := tensor.WithTrailingExtent(key.Shape, capacity)
-			valueCapacity, valueCapacityOK := tensor.WithTrailingExtent(value.Shape, capacity)
-			if !keyCapacityOK || !valueCapacityOK {
-				return nil, fmt.Errorf("inference: cache layer %d capacity shape is invalid", layer)
-			}
-			layerPlan := deviceCacheTargetLayer{
-				keySlot: keySlot, valueSlot: valueSlot,
-				keyShape: key.Shape, valueShape: value.Shape,
-				keyCapacity: keyCapacity, valueCapacity: valueCapacity,
-				enabled: true,
-			}
-			keyElements, err := keyCapacity.Elements()
-			if err != nil {
-				return nil, err
-			}
-			valueElements, err := valueCapacity.Elements()
-			if err != nil {
-				return nil, err
-			}
-			layerPlan.keyOffset = plan.elements
-			var fits bool
-			layerPlan.valueOffset, fits = checked.Add64(plan.elements, keyElements)
-			if !fits {
-				return nil, errors.New("inference: cache storage extent overflows")
-			}
-			plan.elements, fits = checked.Add64(layerPlan.valueOffset, valueElements)
-			if !fits {
-				return nil, errors.New("inference: cache storage extent overflows")
-			}
-			plan.layers[layer] = layerPlan
 		}
 		plans[branch] = plan
 	}
@@ -1075,8 +1102,7 @@ func (r *Runner) prepareDeviceCacheTargets(
 	storages := make([]*deviceCacheStorage, len(graphs))
 	used := make(map[*deviceCacheStorage]struct{})
 	fail := func(cause error) (*executor.RetainedTargets, []*deviceCacheStorage, error) {
-		var errs []error
-		errs = append(errs, cause)
+		errs := []error{cause}
 		for _, storage := range storages {
 			errs = append(errs, storage.release(context.Background()))
 		}
@@ -1088,19 +1114,15 @@ func (r *Runner) prepareDeviceCacheTargets(
 		}
 		past := appends[branch].Past
 		var storage *deviceCacheStorage
-		if past != nil && past.storage != nil && past.storage.exclusive() &&
-			deviceCacheStorageFits(past.storage, graph) {
+		if past != nil && past.storage.aliases(past) && past.storage.exclusive() && deviceCacheStorageFits(past.storage, plans[branch]) {
 			if _, duplicate := used[past.storage]; !duplicate && past.storage.retain() {
 				storage = past.storage
 				used[storage] = struct{}{}
 			}
 		}
+		var group executor.DeviceValue
 		if storage == nil {
-			storage = &deviceCacheStorage{
-				refs:   1,
-				keys:   make([]executor.DeviceValue, len(graph.keys)),
-				values: make([]executor.DeviceValue, len(graph.values)),
-			}
+			storage = &deviceCacheStorage{refs: 1, keys: make([]executor.DeviceValue, len(graph.keys)), values: make([]executor.DeviceValue, len(graph.values)), states: make([]deviceLayerStates, len(graph.states))}
 			storages[branch] = storage
 			if plans[branch].elements > 0 {
 				shape, err := tensor.NewShape(plans[branch].elements)
@@ -1115,38 +1137,45 @@ func (r *Runner) prepareDeviceCacheTargets(
 				if err != nil {
 					return fail(err)
 				}
-				group, err := storage.buffer.Value(shape)
+				group, err = storage.buffer.Value(shape)
 				if err != nil {
 					return fail(err)
-				}
-				for layer, target := range plans[branch].layers {
-					if !target.enabled {
-						continue
-					}
-					storage.keys[layer], err = deviceCacheStorageView(group, target.keyOffset, target.keyCapacity)
-					if err != nil {
-						return fail(err)
-					}
-					storage.values[layer], err = deviceCacheStorageView(group, target.valueOffset, target.valueCapacity)
-					if err != nil {
-						return fail(err)
-					}
 				}
 			}
 		}
 		storages[branch] = storage
-		for layer := range graph.keys {
-			layerPlan := plans[branch].layers[layer]
-			if !layerPlan.enabled {
-				continue
+		bind := func(target deviceCacheTargetValue, stored *executor.DeviceValue) error {
+			if !target.enabled {
+				return nil
 			}
-			key, value := storage.keys[layer], storage.values[layer]
-			key.Shape, value.Shape = layerPlan.keyShape, layerPlan.valueShape
-			if targetErr := targets.SetSlot(layerPlan.keySlot, key); targetErr != nil {
-				return fail(targetErr)
+			if group.Pointer != 0 {
+				var err error
+				*stored, err = deviceCacheStorageView(group, target.offset, target.capacity)
+				if err != nil {
+					return err
+				}
 			}
-			if targetErr := targets.SetSlot(layerPlan.valueSlot, value); targetErr != nil {
-				return fail(targetErr)
+			active := *stored
+			active.Shape = target.shape
+			return targets.SetSlot(target.slot, active)
+		}
+		for layer, target := range plans[branch].layers {
+			if err := bind(target.key, &storage.keys[layer]); err != nil {
+				return fail(err)
+			}
+			if err := bind(target.value, &storage.values[layer]); err != nil {
+				return fail(err)
+			}
+			if len(target.states) != 0 && storage.states[layer] == nil {
+				storage.states[layer] = make(deviceLayerStates, len(target.states))
+			}
+			for name, value := range target.states {
+				state := storage.states[layer][name]
+				state.Mode = model.CacheStateToken
+				if err := bind(value, &state.Value); err != nil {
+					return fail(err)
+				}
+				storage.states[layer][name] = state
 			}
 		}
 	}
@@ -1167,18 +1196,23 @@ func deviceCacheStorageView(group executor.DeviceValue, offset uint64, shape ten
 	return view, err
 }
 
-func deviceCacheStorageFits(storage *deviceCacheStorage, graph deviceBatchGraph) bool {
-	if storage == nil || len(storage.keys) != len(graph.keys) || len(storage.values) != len(graph.values) {
+func deviceCacheStorageFits(storage *deviceCacheStorage, plan deviceCacheTargetPlan) bool {
+	if storage == nil || len(storage.keys) != len(plan.layers) || len(storage.values) != len(plan.layers) {
 		return false
 	}
-	for layer := range graph.keys {
-		if storage.keys[layer].Pointer != 0 {
-			if bytes, err := graph.keys[layer].Shape.Bytes(dtype.F32); err != nil || bytes > storage.keys[layer].CapacityBytes {
-				return false
-			}
+	fits := func(target deviceCacheTargetValue, value executor.DeviceValue) bool {
+		if !target.enabled {
+			return true
 		}
-		if storage.values[layer].Pointer != 0 {
-			if bytes, err := graph.values[layer].Shape.Bytes(dtype.F32); err != nil || bytes > storage.values[layer].CapacityBytes {
+		bytes, err := target.capacity.Bytes(dtype.F32)
+		return err == nil && value.Pointer != 0 && bytes <= value.CapacityBytes
+	}
+	for layer, target := range plan.layers {
+		if !fits(target.key, storage.keys[layer]) || !fits(target.value, storage.values[layer]) {
+			return false
+		}
+		for name, value := range target.states {
+			if layer >= len(storage.states) || !fits(value, storage.states[layer][name].Value) {
 				return false
 			}
 		}
@@ -1501,6 +1535,13 @@ func (r *Runner) deviceBatchLayerCacheInputs(
 			if schema.Primary.Value.Mode.TokenAligned() {
 				value.Shape.Dims[value.Shape.Rank-1] = uint64(capacity)
 			}
+			states = states.Clone()
+			for name, state := range states {
+				if state.Mode.TokenAligned() {
+					state.Value.Shape.Dims[state.Value.Shape.Rank-1] = uint64(capacity)
+					states[name] = state
+				}
+			}
 		}
 		source = &layerCacheSource[executor.DeviceValue]{
 			primary: model.NewCachePair(key, value),
@@ -1614,8 +1655,8 @@ func (r *Runner) downloadDeviceCache(ctx context.Context, cache *deviceKVCache) 
 
 // uploadDeviceCache places a host cache on the device as a cache a decode appends to.
 //   - one buffer holds every tensor, and the cache's storage owns it
-//   - a token-aligned key or value gets cachePageCapacity rows because the capacity decode reads that many rows from its past's storage
-//   - a fixed key or value and every named state get their exact shapes
+//   - token-aligned values get cachePageCapacity rows for bounded append
+//   - fixed values keep their exact shapes
 //   - a shared-KV layer aliases its source layer, as a device forward does
 func (r *Runner) uploadDeviceCache(ctx context.Context, host *KVCache) (*deviceKVCache, error) {
 	if host == nil || len(host.Layers) != len(r.weights.Layers) {
@@ -1628,7 +1669,7 @@ func (r *Runner) uploadDeviceCache(ctx context.Context, host *KVCache) (*deviceK
 		States: make([]deviceLayerStates, layers), Tokens: host.Tokens, Position: effectiveCachePosition(host),
 	}
 	storage := &deviceCacheStorage{
-		refs: 1, keys: make([]executor.DeviceValue, layers), values: make([]executor.DeviceValue, layers),
+		refs: 1, keys: make([]executor.DeviceValue, layers), values: make([]executor.DeviceValue, layers), states: make([]deviceLayerStates, layers),
 	}
 	// placement holds one host tensor, its allocated shape and offset, and where its views go.
 	type placement struct {
@@ -1682,11 +1723,23 @@ func (r *Runner) uploadDeviceCache(ctx context.Context, host *KVCache) (*deviceK
 		}
 		if len(layerCache.States) != 0 {
 			cache.States[layer] = make(deviceLayerStates, len(layerCache.States))
+			storage.states[layer] = make(deviceLayerStates, len(layerCache.States))
 		}
 		for _, name := range layerCache.States.SortedNames() {
 			state := layerCache.States[name]
-			if err := place(state.Value, state.Value.Shape, func(active, _ executor.DeviceValue) {
+			allocated := state.Value.Shape
+			if state.Mode.TokenAligned() {
+				declared, ok := schema.State(name)
+				if !ok || declared.Mode != state.Mode || !declared.Value.AcceptsTokenTarget(state.Mode, allocated) {
+					return nil, fmt.Errorf("inference: uploaded layer %d state %q differs from its token schema", layer, name)
+				}
+				allocated, _ = tensor.WithTrailingExtent(allocated, capacity)
+			}
+			if err := place(state.Value, allocated, func(active, allocated executor.DeviceValue) {
 				cache.States[layer][name] = deviceLayerState{Mode: state.Mode, Value: active}
+				if state.Mode.TokenAligned() {
+					storage.states[layer][name] = deviceLayerState{Mode: state.Mode, Value: allocated}
+				}
 			}); err != nil {
 				return nil, err
 			}

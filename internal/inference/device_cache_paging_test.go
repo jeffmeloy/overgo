@@ -31,6 +31,11 @@ func TestCompileDeviceCacheTargetPlanPinsSlotsAndCapacity(t *testing.T) {
 		weights: model.Weights{Layers: []model.LayerWeights{{}}},
 	}}
 	runner = attachFixtureProgram(runner)
+	runner.spec.Architecture = "qwen4exp"
+	runner.spec.RecurrentLayers = []bool{false}
+	runner.spec.CompressRatios = []uint32{4}
+	runner.spec.IndexerKeyLength = fixtureKeyWidth
+	runner = attachFixtureProgram(runner)
 	builder := tensor.NewBuilder()
 	keyPast := builder.Input("key_past", dtype.F32, tensor.MustShape(
 		uint64(fixtureKeyWidth), uint64(fixtureHeads), uint64(fixturePastTokens),
@@ -47,7 +52,16 @@ func TestCompileDeviceCacheTargetPlanPinsSlotsAndCapacity(t *testing.T) {
 	const tokenAxis = uint32(2)
 	key := builder.Concat(keyPast, keyNew, tokenAxis)
 	value := builder.Concat(valuePast, valueNew, tokenAxis)
-	compiled, err := executor.Compile(key, value)
+	states := deviceGraphStates{}
+	outputs := []*tensor.Tensor{key, value}
+	for name, width := range map[model.CacheStateName]uint64{
+		model.CacheStateIndexerKey: uint64(fixtureKeyWidth), model.CacheStatePositions: tensor.MaxDimensions,
+	} {
+		node := builder.Input(string(name), dtype.F32, tensor.MustShape(width, 1, uint64(fixturePastTokens+fixtureNewTokens)))
+		states[name] = model.CacheState[*tensor.Tensor]{Mode: model.CacheStateToken, Value: node}
+		outputs = append(outputs, node)
+	}
+	compiled, err := executor.Compile(outputs...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,6 +69,7 @@ func TestCompileDeviceCacheTargetPlanPinsSlotsAndCapacity(t *testing.T) {
 		compiled,
 		[]deviceBatchGraph{{
 			keys: []*tensor.Tensor{key}, values: []*tensor.Tensor{value},
+			states:     []deviceGraphStates{states},
 			pastTokens: fixturePastTokens, tokenCount: fixtureNewTokens,
 		}},
 		[]deviceBatchAppend{{}},
@@ -66,20 +81,21 @@ func TestCompileDeviceCacheTargetPlanPinsSlotsAndCapacity(t *testing.T) {
 	wantCapacity := uint64(cachePageCapacity(
 		fixturePastTokens+fixtureNewTokens, fixtureContext, recipe.SessionCapacity,
 	))
-	if !got.enabled || got.keySlot == got.valueSlot ||
-		got.keyCapacity.Dims[tokenAxis] != wantCapacity ||
-		got.valueCapacity.Dims[tokenAxis] != wantCapacity {
+	if !got.key.enabled || !got.value.enabled || got.key.slot == got.value.slot ||
+		got.key.capacity.Dims[tokenAxis] != wantCapacity ||
+		got.value.capacity.Dims[tokenAxis] != wantCapacity {
 		t.Fatalf("cache target plan = %+v", got)
 	}
-	keyElements, err := got.keyCapacity.Elements()
+	keyElements, err := got.key.capacity.Elements()
 	if err != nil {
 		t.Fatal(err)
 	}
-	valueElements, err := got.valueCapacity.Elements()
+	valueElements, err := got.value.capacity.Elements()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.keyOffset != 0 || got.valueOffset != keyElements || plans[0].elements != keyElements+valueElements {
+	namedElements := (uint64(fixtureKeyWidth) + tensor.MaxDimensions) * wantCapacity
+	if got.key.offset != 0 || got.value.offset != keyElements || plans[0].elements != keyElements+valueElements+namedElements {
 		t.Fatalf("cache group overlaps or includes unused storage: %+v", plans[0])
 	}
 }
@@ -101,9 +117,17 @@ func TestDeviceCacheStorageViewsBoundEachLayer(t *testing.T) {
 		t.Fatal("out-of-group cache view accepted")
 	}
 	storage := &deviceCacheStorage{keys: []executor.DeviceValue{key}, values: []executor.DeviceValue{value}}
+	cache := &deviceKVCache{Keys: []executor.DeviceValue{key}, Values: []executor.DeviceValue{value}}
+	if !storage.aliases(cache) {
+		t.Fatal("original cache view refused")
+	}
+	cache.Keys[0].Pointer++
+	if storage.aliases(cache) {
+		t.Fatal("shifted cache view admitted to an overlapping prefix copy")
+	}
 	builder := tensor.NewBuilder()
 	graph := deviceBatchGraph{keys: []*tensor.Tensor{builder.Input("key", dtype.F32, tensor.MustShape(2, 3))}, values: []*tensor.Tensor{builder.Input("value", dtype.F32, value.Shape)}}
-	if deviceCacheStorageFits(storage, graph) {
+	if deviceCacheStorageFits(storage, deviceCacheTargetPlan{layers: []deviceCacheTargetLayer{{key: deviceCacheTargetValue{enabled: true, capacity: graph.keys[0].Shape}, value: deviceCacheTargetValue{enabled: true, capacity: graph.values[0].Shape}}}}) {
 		t.Fatal("cache growth crossed into another layer's storage")
 	}
 }

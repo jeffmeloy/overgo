@@ -76,28 +76,30 @@ func TestParameterizedDecodeCapacityStaysWithinPageClass(t *testing.T) {
 		}}
 	}
 	plan := deviceOutputPlan{mode: deviceOutputGreedy}
-	if capacity, _, ok := runner.parameterizedDecodeCapacity(appendFor(2), plan); !ok ||
-		capacity != cachePageCapacity(3, contextTokens, modelrecipe.DecodeSessionCapacity) {
-		t.Fatalf("within-page capacity = %d/%t", capacity, ok)
+	if got := runner.cacheAppendPlan(appendFor(2), plan); !got.replay ||
+		got.CapacityTokens != cachePageCapacity(3, contextTokens, modelrecipe.DecodeSessionCapacity) {
+		t.Fatalf("within-page capacity = %d/%t", got.CapacityTokens, got.replay)
 	}
-	if capacity, _, ok := runner.parameterizedDecodeCapacity(appendFor(4), plan); !ok ||
-		capacity != cachePageCapacity(5, contextTokens, modelrecipe.DecodeSessionCapacity) {
-		t.Fatalf("boundary capacity = %d/%t", capacity, ok)
+	if got := runner.cacheAppendPlan(appendFor(4), plan); !got.replay ||
+		got.CapacityTokens != cachePageCapacity(5, contextTokens, modelrecipe.DecodeSessionCapacity) {
+		t.Fatalf("boundary capacity = %d/%t", got.CapacityTokens, got.replay)
 	}
-	if capacity, _, ok := runner.parameterizedDecodeCapacity(appendFor(2), deviceOutputPlan{}); !ok ||
-		capacity != cachePageCapacity(3, contextTokens, modelrecipe.DecodeSessionCapacity) {
-		t.Fatalf("buffered decode capacity = %d/%t", capacity, ok)
+	if got := runner.cacheAppendPlan(appendFor(2), deviceOutputPlan{}); !got.replay ||
+		got.CapacityTokens != cachePageCapacity(3, contextTokens, modelrecipe.DecodeSessionCapacity) {
+		t.Fatalf("buffered decode capacity = %d/%t", got.CapacityTokens, got.replay)
 	}
 	// Two pasts that append into the same target page can sit on pages of
 	// different capacity: 4 tokens on a 4-token page and 6 on an 8-token
 	// page both append into 8. The derivation reports the source page so
 	// the session identity keeps them apart (the BBH chat fault: a session
 	// compiled over a 512-token page served a 256-token past).
-	onBand, onBandSource, ok := runner.parameterizedDecodeCapacity(appendFor(4), plan)
+	on := runner.cacheAppendPlan(appendFor(4), plan)
+	onBand, onBandSource, ok := on.CapacityTokens, on.SourceCapacityTokens, on.replay
 	if !ok || onBand != 8 || onBandSource != 4 {
 		t.Fatalf("on-band past = capacity %d source %d ok %t, want 8/4", onBand, onBandSource, ok)
 	}
-	beyond, beyondSource, ok := runner.parameterizedDecodeCapacity(appendFor(6), plan)
+	past := runner.cacheAppendPlan(appendFor(6), plan)
+	beyond, beyondSource, ok := past.CapacityTokens, past.SourceCapacityTokens, past.replay
 	if !ok || beyond != 8 || beyondSource != 8 {
 		t.Fatalf("beyond-band past = capacity %d source %d ok %t, want 8/8", beyond, beyondSource, ok)
 	}
@@ -108,6 +110,17 @@ func TestParameterizedDecodeCapacityStaysWithinPageClass(t *testing.T) {
 	}
 	if !compiledBeyond.matches(beyond, beyondSource, 1, plan, lora) {
 		t.Fatal("the session does not match its own past class")
+	}
+	multiple := appendFor(2)
+	multiple[0].Tokens = []tokenizer.TokenID{1, 2}
+	if got := runner.cacheAppendPlan(multiple, deviceOutputPlan{}); got.CapacityTokens != 4 || got.replay {
+		t.Fatalf("multi-token append must reuse storage without replay: %+v", got)
+	}
+	runner.spec.NGram = &model.NGramSpec{Size: 3, ConvKernel: 4}
+	runner.spec.EmbeddingLength, runner.spec.HyperConnectionCount = 4, 4
+	runner.program.Model = fixtureProgram(runner.spec, model.Weights{}).Model
+	if got := runner.cacheAppendPlan(appendFor(2), plan); got.CapacityTokens != 4 || got.replay {
+		t.Fatalf("lexical append must reuse storage without replay: %+v", got)
 	}
 }
 

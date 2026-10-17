@@ -1145,7 +1145,7 @@ func TestReadQwen35MoESpec(t *testing.T) {
 				t.Fatalf("sparse indexer dimensions or schedule = %+v", spec)
 			}
 			if architecture == "qwen4exp" {
-				if fixtureModelPlan(t, spec, Weights{}).SupportsCapacityCache() {
+				if fixtureModelPlan(t, spec, Weights{}).SupportsCapacityReplay() {
 					t.Fatal("block-sparse graph admitted to fixed capacity replay across compression boundaries")
 				}
 				candidate.Metadata = append(candidate.Metadata, gguf.Metadata{Key: architecture + ".ple.layers", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32, Data: []int32{0}}})

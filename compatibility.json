@@ -823,7 +823,7 @@
      "contains": "func CompileModelPlanWithProfile(",
      "path": "internal/model/layer_plan.go",
      "role": "source",
-     "identity": "file:sha256:76f3b3285876c31478abcc12010c480f2474d8a52541dd7b8b123cf7ba6e79a7"
+     "identity": "file:sha256:9ab14071ce97ff69fa92985f0d61c54fc084871e4c0dc9807326f942e9d3415b"
     },
     {
      "contains": "func TestCompileModelPlanPinsLayerPolicies(",
@@ -1304,7 +1304,7 @@
      "contains": "func TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState(",
      "path": "internal/inference/device_cache_paging_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:b3d517a7ad6900b0dc2aed94f7299ae24c6cf46f2430a77f7f59f6c823db042e"
+     "identity": "evidence:sha256:3ccc9f15bab4d10aaeba6ae6ebd9604d712289aa6b8d99e15af05e64e44519a1"
     }
    ],
    "id": "paged-continuous-cache",

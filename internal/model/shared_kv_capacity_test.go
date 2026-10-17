@@ -45,6 +45,22 @@ func TestSupportsCapacityCacheAdmitsSharedKV(t *testing.T) {
 	if plan := fixtureModelPlan(t, llama, Weights{}); !plan.SupportsCapacityCache() {
 		t.Fatal("a dense decoder without shared KV was refused the capacity session")
 	}
+	for _, lexical := range []bool{false, true} {
+		spec := qwen35TestSpec()
+		spec.Architecture, spec.BlockCount = "qwen4exp", 1
+		spec.RecurrentLayers = []bool{false}
+		spec.CompressRatios = []uint32{4}
+		spec.IndexerKeyLength = 4
+		if lexical {
+			spec.Architecture = "llama"
+			spec.HyperConnectionCount = 4
+			spec.NGram = &NGramSpec{Size: 3, ConvKernel: 4}
+		}
+		plan := fixtureModelPlan(t, spec, Weights{})
+		if !plan.SupportsCapacityCache() || plan.SupportsCapacityReplay() {
+			t.Fatalf("lexical=%t storage/replay = %t/%t", lexical, plan.SupportsCapacityCache(), plan.SupportsCapacityReplay())
+		}
+	}
 }
 
 type sharedKVPair struct {

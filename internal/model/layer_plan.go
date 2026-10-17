@@ -414,13 +414,10 @@ func (s Spec) planLayer(profile ArchitectureProfile, layer uint32, recurrent boo
 // so it joins the capacity cache when that source does and the plan decodes
 // through the persistent device cache that builds the graph.
 func (p ModelPlan) SupportsCapacityCache() bool {
-	if len(p.layers) == tensor.FirstOffset || p.spec.NGram != nil {
+	if len(p.layers) == tensor.FirstOffset {
 		return false
 	}
 	for _, layer := range p.layers {
-		if layer.AttentionGraph.BlockSize != 0 {
-			return false
-		}
 		if !layer.CacheMode.TokenAligned() {
 			continue
 		}
@@ -430,6 +427,19 @@ func (p ModelPlan) SupportsCapacityCache() bool {
 		if layer.SharedKV && (!p.forward.PersistentDeviceCache() || int(layer.KVSource) >= len(p.layers) ||
 			!p.layers[layer.KVSource].CacheMode.TokenAligned() ||
 			p.layers[layer.KVSource].CacheWrite != cacheWriteConcatOrAppend) {
+			return false
+		}
+	}
+	return true
+}
+
+// SupportsCapacityReplay admits graphs whose token-dependent inputs can be rebound.
+func (p ModelPlan) SupportsCapacityReplay() bool {
+	if !p.SupportsCapacityCache() || p.spec.NGram != nil {
+		return false
+	}
+	for _, layer := range p.layers {
+		if layer.AttentionGraph.BlockSize != 0 {
 			return false
 		}
 	}

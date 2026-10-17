@@ -3816,31 +3816,26 @@ extern "C" __global__ void moe_down_f32(
         unsigned int expert_index_divisor,
         unsigned int indexed_experts,
         unsigned int count) {
-    const unsigned int tiles = (intermediate - 1) / MOE_DOWN_TILE + 1;
-    const unsigned int partial_count = top_k * tiles;
-    unsigned int lanes = 1;
-    while (lanes < partial_count && lanes < CUDA_WARP_WIDTH) lanes *= 2;
-    const unsigned int lane = threadIdx.x % lanes;
-    const unsigned int index = blockIdx.x * (blockDim.x / lanes) + threadIdx.x / lanes;
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) return;
     const unsigned int output_channel = index % hidden;
     const unsigned int token = index / hidden;
     const unsigned int * selected = route_state + (size_t) token * (2 * top_k + 1);
     const float * routes = reinterpret_cast<const float *>(selected + top_k);
     const float * selected_sum = routes + top_k;
-    extern __shared__ float partials[];
     float result = 0.0f;
-    for (unsigned int first = 0; first < partial_count; first += lanes) {
-        const unsigned int part = first + lane;
-        float partial = 0.0f;
-        if (index < count && part < partial_count) {
-            const unsigned int slot = part / tiles;
-            const unsigned int tile = (part % tiles) * MOE_DOWN_TILE;
-            const unsigned int expert = selected[slot] / expert_index_divisor;
-            const void * bank = indexed_experts ? reinterpret_cast<const void * const *>(down)[expert] : down;
-            const float * slot_activations = activations + ((size_t) token * top_k + slot) * intermediate;
+    for (unsigned int slot = 0; slot < top_k; ++slot) {
+        const unsigned int expert = selected[slot] / expert_index_divisor;
+        const void * bank = indexed_experts ? reinterpret_cast<const void * const *>(down)[expert] : down;
+        float route = routes[slot] * routed_scale;
+        if (normalize_top_k) route /= fmaxf(*selected_sum, 6.103515625e-5f);
+        const float expert_multiplier = expert_scale ? expert_scale[expert] : 1.0f;
+        const float * slot_activations = activations + ((size_t) token * top_k + slot) * intermediate;
+        for (unsigned int tile = 0; tile < intermediate; tile += MOE_DOWN_TILE) {
             const unsigned int tile_count = intermediate - tile < MOE_DOWN_TILE ? intermediate - tile : MOE_DOWN_TILE;
             const size_t down_offset = ((size_t) (indexed_experts ? 0 : expert) * hidden + output_channel) * intermediate + tile;
             const float * tile_activations = slot_activations + tile;
+            float partial = 0.0f;
             if (expert_storage == GGML_F32) {
                 const float * down_row = reinterpret_cast<const float *>(bank) + down_offset;
                 for (unsigned int inner = 0; inner < tile_count; ++inner) {
@@ -3859,24 +3854,10 @@ extern "C" __global__ void moe_down_f32(
             if (tile + tile_count == intermediate && down_bias) {
                 partial += down_bias[(size_t) expert * hidden + output_channel];
             }
+            result += route * expert_multiplier * partial;
         }
-        partials[threadIdx.x] = partial;
-        __syncthreads();
-        if (lane == 0 && index < count) {
-            const unsigned int remaining = partial_count - first;
-            const unsigned int used = remaining < lanes ? remaining : lanes;
-            for (unsigned int offset = 0; offset < used; ++offset) {
-                const unsigned int slot = (first + offset) / tiles;
-                const unsigned int expert = selected[slot] / expert_index_divisor;
-                float route = routes[slot] * routed_scale;
-                if (normalize_top_k) route /= fmaxf(*selected_sum, 6.103515625e-5f);
-                const float expert_multiplier = expert_scale ? expert_scale[expert] : 1.0f;
-                result += route * expert_multiplier * partials[threadIdx.x + offset];
-            }
-        }
-        __syncthreads();
     }
-    if (lane == 0 && index < count) output[index] = result;
+    output[index] = result;
 }
 
 extern "C" __global__ void repeat_heads_f32(

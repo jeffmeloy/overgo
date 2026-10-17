@@ -116,23 +116,11 @@
       "id": "flashnext-efficiency",
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",
+      "budget": {
+        "nodes": 87,
+        "reason": ""
+      },
       "steps": [
-        {
-          "id": "processing",
-          "title": "Retire the rejected down kernel and retain the measured processing improvements",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test -json ./internal/modeldevice ./internal/cuda/executor -run '^(TestFlashNextExpertResidency|TestMoELaunchesCoverTokenGroups|TestCompileReservesMoEScratch|TestExecutorMoEOutputBitsArePinned)$'",
-          "rationale": "Serves: Finish the bounded processing comparison and retain only measured improvements.\nDisappears: Restore the down projection, launch and launch expectations from accepted commit 23709b384fb90f21aff3e8c768f9ede90aa2a7a2.\nRemove 87 production Go AST nodes, 12 test nodes and 19 CUDA source lines added by cooperative partials.\nRemove its 1024 shared bytes per block and retain one production kernel.\nKeep the accepted hidden-read layout and one routing-probability calculation.\nEvidence: evidence:sha256:eb3516772270fb11cc34858c75edb0f53c242228fee10b2267b59a45958d3af3 rejects cooperative down partials.\nIts three fresh arithmetic repeats have a median of 1.2879503 seconds against 1.0859138 seconds with identical token IDs.\nOwned device peak remains 17889104176 bytes and release leaves zero owned bytes.\nThe 18.605 percent latency regression is sufficient to reject the candidate.\nA document timing run cannot rescue that failed required workload and is omitted.\nThe accepted short comparison is evidence:sha256:7f6f139baad76b8de5d4a67abfebf41f52e8f17230bae12e7e25ab8a7a33f5ed.\nThe accepted document diagnostic is evidence:sha256:160c3321fe7e4c47844ba01ad125597e4191cd3418c5a2fd474b10d4193beeb4.\nIts 1561-token prefill takes 55.4974181 seconds against the retained Strata 2.159 seconds.\nThe document completes 112 tokens in 94.1845027 seconds and peaks at 39204593088 owned device bytes.\nDifferent generated work and memory methods prevent final matched acceptance.\nBatch: Restore matching accepted source and generated PTX artifacts together.\nRequire the restored launch assertion to fail on the rejected layout before restoring its implementation.\nRetain all existing numerical hashes and residency cases without new fixtures or absence tests.\nCompare production and kernel blobs with the accepted revision before reusing its observations.\nDo not repeat model timings when the relevant source is identical.\nClosure completes this bounded processing stage and does not claim Strata parity.\nSparse and lexical capacity, bounded prefill, images and follow-up reuse continue in their existing plan steps.\nThe final parity owner must address any remaining measured gap through a concrete mechanism and declared arithmetic contract.\nStrata remains a reference rather than a presumed optimum.",
-          "depends_on": [
-            "flashnext-chat/serve",
-            "flashnext-efficiency/copies",
-            "flashnext-efficiency/catalog-size",
-            "flashnext-efficiency/expert-reads",
-            "flashnext-efficiency/projection-reads",
-            "flashnext-efficiency/route-probabilities",
-            "flashnext-efficiency/down-partials"
-          ]
-        },
         {
           "id": "reuse",
           "title": "Reduce follow-up and streaming cost and adopt speculation only when beneficial",

@@ -156,6 +156,7 @@ func TestExecutorSparsePrimitivesMatchReference(t *testing.T) {
 	indexerKey := builder.Input("indexer_key", dtype.F32, tensor.MustShape(2, 1, 4))
 	indexerWeights := builder.Input("indexer_weights", dtype.F32, tensor.MustShape(2, 2))
 	indexerScores := builder.IndexerScore(indexerQuery, indexerKey, indexerWeights, 0.5, 2)
+	ordering := builder.Input("ordering", dtype.F32, tensor.MustShape(8, 3))
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -168,8 +169,17 @@ func TestExecutorSparsePrimitivesMatchReference(t *testing.T) {
 		indexerQuery:   {Shape: indexerQuery.Shape, Data: []float32{1, 0, 0, 1, 1, 1, -1, 1}},
 		indexerKey:     {Shape: indexerKey.Shape, Data: []float32{1, 0, 0, 1, 1, 1, -1, 1}},
 		indexerWeights: {Shape: indexerWeights.Shape, Data: []float32{2, 1, 1, 3}},
+		ordering: {Shape: ordering.Shape, Data: []float32{
+			float32(math.NaN()), 2, 2, float32(math.Inf(1)), float32(math.Inf(-1)), -1, 0, float32(math.NaN()),
+			7, 6, 5, 4, 3, 2, 1, 0,
+			0, 1, 2, 3, 4, 5, 6, 7,
+		}},
 	}
 	outputs := []*tensor.Tensor{transformed, argmax, indices, pairs, gathered, attention, causalAttention, indexerScores}
+	for _, k := range []uint32{2, 5, 8} {
+		outputs = append(outputs, builder.TopK(ordering, k))
+	}
+	outputs = append(outputs, builder.BlockTopK(ordering, 1, 1, 5, 8))
 	checkCUDAGraph(t, feeds, uniformGraphChecks(outputs, accuracyProjection)...)
 }
 

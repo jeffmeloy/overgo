@@ -2398,15 +2398,22 @@ extern "C" __global__ void top_k_f32(
 	}
 	const unsigned int visible = block_size ? min(width, (query_start + row + 1) / block_size) : width;
 	for (unsigned int candidate = 0; candidate < visible; ++candidate) {
-		unsigned int insertion = k;
 		const float candidate_value = input[input_base + candidate];
-		for (unsigned int slot = 0; slot < k; ++slot) {
-			const int selected = (int) output[output_base + slot];
+		const int worst = (int) output[output_base + k - 1];
+		if (worst >= 0 && !top_k_before(candidate_value, candidate,
+				input[input_base + (unsigned int) worst], (unsigned int) worst)) {
+			continue;
+		}
+		unsigned int insertion = 0, end = k;
+		while (insertion < end) {
+			const unsigned int middle = insertion + (end - insertion) / 2;
+			const int selected = (int) output[output_base + middle];
 			if (selected < 0 || top_k_before(
 					candidate_value, candidate,
 					input[input_base + (unsigned int) selected], (unsigned int) selected)) {
-				insertion = slot;
-				break;
+				end = middle;
+			} else {
+				insertion = middle + 1;
 			}
 		}
 		if (insertion == k) {

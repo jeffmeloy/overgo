@@ -207,10 +207,10 @@ func (plan *protocolGenerationPlan) turn(prompt nativePrompt) (*protocolGenerati
 	return next, next.admit(prompt)
 }
 
-// admit prepares the prompt and holds it to the model context. Prepared IDs
-// include projected media and any reusable prefix; decode shifting cannot
-// make an oversized initial prompt fit. An unknown context or an
-// untokenized provider prompt stays with its generator.
+// admit holds the prepared prompt and non-shifting output reservation to the model context.
+// Prepared IDs include projected media and reusable prefixes exactly once.
+// Decode shifting cannot make an oversized initial prompt fit.
+// Unknown contexts and untokenized provider prompts stay with their generator.
 func (plan *protocolGenerationPlan) admit(prompt nativePrompt) error {
 	prepared, err := plan.handler.preparePrompt(plan.request.Context(), prompt, true)
 	if err != nil {
@@ -218,8 +218,12 @@ func (plan *protocolGenerationPlan) admit(prompt nativePrompt) error {
 	}
 	if properties, ok := plan.handler.generator.(modelPropertiesAPI); ok {
 		limit := uint64(properties.ModelProperties().ContextLength)
-		if limit > 0 && uint64(len(prepared.TokenIDs)) > limit {
-			return contextLengthError{tokens: len(prepared.TokenIDs), limit: limit}
+		reserved := 0
+		if !plan.handler.config.ContextShift {
+			reserved = plan.maxTokens
+		}
+		if limit > 0 && len(prepared.TokenIDs) > 0 && uint64(len(prepared.TokenIDs))+uint64(reserved) > limit {
+			return contextLengthError{tokens: len(prepared.TokenIDs), reserved: reserved, limit: limit}
 		}
 	}
 	plan.prompt = prepared
@@ -227,15 +231,16 @@ func (plan *protocolGenerationPlan) admit(prompt nativePrompt) error {
 }
 
 type contextLengthError struct {
-	tokens int
-	limit  uint64
+	tokens   int
+	reserved int
+	limit    uint64
 }
 
-// Error names the prompt's size against the model context.
+// Error names the prompt and output reservation against the model context.
 func (failure contextLengthError) Error() string {
 	return fmt.Sprintf(
-		"prompt has %d tokens, exceeding the model context length of %d tokens",
-		failure.tokens, failure.limit,
+		"prompt has %d tokens with %d output tokens reserved, exceeding the model context length of %d tokens",
+		failure.tokens, failure.reserved, failure.limit,
 	)
 }
 

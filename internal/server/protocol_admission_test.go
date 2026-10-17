@@ -70,41 +70,49 @@ func TestProtocolContextOverflow(t *testing.T) {
 						if media {
 							promptTokens = 4
 						}
-						generator.limit = promptTokens - 1
 						body := fmt.Sprintf(`{%s,"%s":1,"stream":%t}`, protocol.input, protocol.budget, stream)
-						response := serveTestRequest(handler, http.MethodPost, protocol.path, body)
-						var failure apiErrorEnvelope
-						if err := json.Unmarshal(response.Body.Bytes(), &failure); err != nil {
-							t.Fatalf("refusal is not JSON: %s (%v)", response.Body, err)
-						}
-						if response.Code != http.StatusBadRequest || failure.Error.Type != "invalid_request_error" ||
-							failure.Error.Code != "context_length_exceeded" ||
-							!strings.Contains(failure.Error.Message, fmt.Sprintf("prompt has %d tokens", promptTokens)) ||
-							!strings.Contains(failure.Error.Message, fmt.Sprintf("context length of %d tokens", generator.limit)) {
-							t.Fatalf("status=%d refusal=%s", response.Code, response.Body)
-						}
-						if response.Flushed || response.Header().Get("Content-Type") != "application/json" || generator.calls.Load() != 0 {
-							t.Fatalf("refusal started execution: flushed=%t headers=%v calls=%d", response.Flushed, response.Header(), generator.calls.Load())
-						}
-						if handler.nextID.Load() != 0 {
-							t.Fatal("refused prompt reserved a response identifier")
-						}
-						listed := serveTestRequest(handler, http.MethodGet, "/interactions", "")
-						var conversations conversationListResponse
-						if err := json.Unmarshal(listed.Body.Bytes(), &conversations); err != nil || listed.Code != http.StatusOK || len(conversations.Conversations) != 0 {
-							t.Fatalf("refused prompt changed durable history: %s (%v)", listed.Body, err)
-						}
-						lease, available := handler.acquireSession(-1)
-						if !available {
-							t.Fatal("refusal leaked the session lease")
-						}
-						handler.releaseSession(lease)
-
-						// Exact-capacity prompts still fit, including cached media
-						// prefixes. Admission must not count those tokens twice.
-						generator.limit = promptTokens
 						base.promptCached = int(promptTokens)
-						response = serveTestRequest(handler, http.MethodPost, protocol.path, body)
+						for _, limit := range []uint32{promptTokens - 1, promptTokens} {
+							if shift && limit == promptTokens {
+								continue
+							}
+							generator.limit = limit
+							response := serveTestRequest(handler, http.MethodPost, protocol.path, body)
+							var failure apiErrorEnvelope
+							if err := json.Unmarshal(response.Body.Bytes(), &failure); err != nil {
+								t.Fatalf("refusal is not JSON: %s (%v)", response.Body, err)
+							}
+							if response.Code != http.StatusBadRequest || failure.Error.Type != "invalid_request_error" ||
+								failure.Error.Code != "context_length_exceeded" ||
+								!strings.Contains(failure.Error.Message, fmt.Sprintf("prompt has %d tokens", promptTokens)) ||
+								!strings.Contains(failure.Error.Message, fmt.Sprintf("context length of %d tokens", generator.limit)) {
+								t.Fatalf("status=%d refusal=%s", response.Code, response.Body)
+							}
+							if response.Flushed || response.Header().Get("Content-Type") != "application/json" || generator.calls.Load() != 0 {
+								t.Fatalf("refusal started execution: flushed=%t headers=%v calls=%d", response.Flushed, response.Header(), generator.calls.Load())
+							}
+							if handler.nextID.Load() != 0 {
+								t.Fatal("refused prompt reserved a response identifier")
+							}
+							listed := serveTestRequest(handler, http.MethodGet, "/interactions", "")
+							var conversations conversationListResponse
+							if err := json.Unmarshal(listed.Body.Bytes(), &conversations); err != nil || listed.Code != http.StatusOK || len(conversations.Conversations) != 0 {
+								t.Fatalf("refused prompt changed durable history: %s (%v)", listed.Body, err)
+							}
+							lease, available := handler.acquireSession(-1)
+							if !available {
+								t.Fatal("refusal leaked the session lease")
+							}
+							handler.releaseSession(lease)
+						}
+
+						// Cached media positions count once and non-shifting
+						// requests reserve their output within the same context.
+						generator.limit = promptTokens
+						if !shift {
+							generator.limit++
+						}
+						response := serveTestRequest(handler, http.MethodPost, protocol.path, body)
 						if response.Code != http.StatusOK || generator.calls.Load() != 1 {
 							t.Fatalf("fitting request after refusal: status=%d calls=%d body=%s", response.Code, generator.calls.Load(), response.Body)
 						}

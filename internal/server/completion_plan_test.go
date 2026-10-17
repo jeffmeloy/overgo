@@ -33,7 +33,7 @@ func TestCompletionsShareThePlan(t *testing.T) {
 				t.Fatal(err)
 			}
 			fits, over := uint32(len(prepared.TokenIDs)), uint32(2*len(prepared.TokenIDs))
-			generator.limit = fits
+			generator.limit = fits + 1
 			body := fmt.Sprintf(`{"prompt":[%s,%s],"max_tokens":1,"stream":%t}`, short, long, stream)
 			response := serveTestRequest(handler, http.MethodPost, "/v1/completions", body)
 			var failure apiErrorEnvelope
@@ -53,7 +53,7 @@ func TestCompletionsShareThePlan(t *testing.T) {
 			}
 			handler.releaseSession(lease)
 
-			generator.limit = over
+			generator.limit = over + 1
 			response = serveTestRequest(handler, http.MethodPost, "/v1/completions", body)
 			if response.Code != http.StatusOK || generator.calls.Load() != 2 {
 				t.Fatalf("fitting list: status=%d calls=%d body=%s", response.Code, generator.calls.Load(), response.Body)

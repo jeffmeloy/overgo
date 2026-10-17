@@ -235,7 +235,7 @@
       "title": "Make 256K context practical within the PC memory envelope",
       "status": "open",
       "budget": {
-        "nodes": 547,
+        "nodes": 508,
         "reason": "Estimated bound for compiled-memory admission, deferred lexical row loading and bounded single-sequence prefill in existing executor and inference owners. Reuse compiled liveness, output storage layout, allocation classes and expert residency. Consolidate retained-output ownership selection rather than adding another graph analyzer or allocator."
       },
       "steps": [
@@ -250,16 +250,6 @@
             "flashnext-efficiency/reuse",
             "flashnext-video-audio/journeys",
             "flashnext-context/reservation"
-          ]
-        },
-        {
-          "id": "reservation",
-          "title": "Include reserved output in non-shifting request admission",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestProtocolContextOverflow$'",
-          "rationale": "Serves: Keep the requested total context inclusive of reserved output.\nDisappears: Replace prompt-only admission for requests that do not explicitly enable context shifting.\nReuse protocolGenerationPlan.admit and its existing text, media, stream, protocol and history-isolation table.\nPreserve explicitly enabled shifting and unknown provider context semantics.\nEvidence: protocol_common.go currently checks prepared prompt length alone and TestProtocolContextOverflow admits a full-context prompt with another output token reserved.\nExtend that existing table with exact prompt-plus-output capacity and one-token overflow before changing admission.\nCount cached and projected prompt positions exactly once.\nBatch: The inference comparison producer must reserve output in its declared 262144 total-token workload.\nNo second token budget, context truncation or separate admission framework is introduced.",
-          "depends_on": [
-            "flashnext-context/capacity"
           ]
         }
       ]

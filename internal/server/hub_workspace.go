@@ -182,7 +182,7 @@ func catalogMemory(benchmark *evaluation.BenchmarkSummary, guard evaluation.Guar
 
 // modelSupport is a model's support ladder: each rung held or not with the
 // evidence behind it, and the tier, the highest trust rung held (registered,
-// self-consistent, parity-checked); guarded and trainable stand beside it.
+// execution-verified, parity-checked); guarded and trainable stand beside it.
 type modelSupport struct {
 	Tier  string        `json:"tier"`
 	Rungs []supportRung `json:"rungs"`
@@ -195,18 +195,17 @@ type supportRung struct {
 }
 
 // catalogSupport grades one catalogued model from its activations and its
-// latest long-form record. Self-consistent is the library's verification: a
-// suite replaying the model's own greedy output, which proves determinism,
-// not correctness; parity-checked needs output matched to a reference.
+// latest long-form record. Verification establishes successful execution.
+// Parity requires a separate reference comparison.
 func catalogSupport(model catalogModel, guard evaluation.GuardSummary, guarded bool) modelSupport {
 	verified := model.Tier != "" && model.Stale == ""
-	selfConsistent := supportRung{Name: "self-consistent", Held: verified,
-		Detail: "its verification suite replays its own greedy output: deterministic, not proven correct"}
+	executed := supportRung{Name: "execution-verified", Held: verified,
+		Detail: "a candidate execution produced valid evidence; quality depends on the verification's scope"}
 	switch {
 	case model.Stale != "":
-		selfConsistent.Detail = "unservable: " + model.Stale
+		executed.Detail = "unservable: " + model.Stale
 	case model.Tier == "":
-		selfConsistent.Detail = "no verified inference activation"
+		executed.Detail = "no verified inference activation"
 	}
 	tier := recipe.EvidenceTier(model.Tier)
 	parity := supportRung{Name: "parity-checked", Held: verified && (tier == recipe.EvidenceParity || tier == recipe.EvidenceProduction),
@@ -227,9 +226,9 @@ func catalogSupport(model catalogModel, guard evaluation.GuardSummary, guarded b
 			trainable.Held, trainable.Detail = true, "training recipe "+capability.Recipe+" is active"
 		}
 	}
-	rungs := []supportRung{{Name: "registered", Held: true, Detail: "the store registers its weights at " + model.Location}, selfConsistent, parity, long, trainable}
+	rungs := []supportRung{{Name: "registered", Held: true, Detail: "the store registers its weights at " + model.Location}, executed, parity, long, trainable}
 	support := modelSupport{Tier: "registered", Rungs: rungs}
-	for _, rung := range []supportRung{selfConsistent, parity} {
+	for _, rung := range []supportRung{executed, parity} {
 		if rung.Held {
 			support.Tier = rung.Name
 		}

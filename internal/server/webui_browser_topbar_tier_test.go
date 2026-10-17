@@ -37,7 +37,7 @@ func TestWebUIBrowserPhoneTopBarHoldsALongSupportTier(t *testing.T) {
 		"model": manifest.Model.Model, "location": "C:/models/" + health["model"].(string), "present": true, "recipe": "recipe:served",
 		"capabilities": []map[string]any{{"task": "inference", "recipe": "recipe:served", "tier": "verified"}},
 		"support": map[string]any{"tier": "parity-checked", "rungs": []map[string]any{
-			rung("registered", true), rung("self-consistent", true), rung("parity-checked", true), rung("guarded", true), rung("trainable", true),
+			rung("registered", true), rung("execution-verified", true), rung("parity-checked", true), rung("guarded", true), rung("trainable", true),
 		}},
 	}}})
 	if err != nil {

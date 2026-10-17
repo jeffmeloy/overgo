@@ -566,7 +566,7 @@
   // evidence in the title.
   function supportTag(support, node = el("span")) {
     const beside = support.rungs.filter((rung) => rung.held && (rung.name === "guarded" || rung.name === "trainable")).map((rung) => rung.name);
-    // Registered alone reads as a caution, parity-checked as trusted; self-consistent is plain.
+    // Registered alone reads as a caution, parity-checked as trusted; execution-verified is plain.
     node.className = "tag support-tier" + (support.tier === "registered" ? " caution" : support.tier === "parity-checked" ? " ok" : "");
     node.textContent = [support.tier, ...beside].join(" · ");
     node.title = support.rungs.map((rung) => (rung.held ? "✓ " : "✗ ") + rung.name + ": " + rung.detail).join("\n");

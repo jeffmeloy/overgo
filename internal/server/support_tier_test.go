@@ -18,7 +18,7 @@ import (
 // TestModelSupportTier: a committed long-form record joins its model's
 // weights location with its verdict, commit and surface; the catalog grades
 // every row from its activations and that record -- registered alone,
-// self-consistent under a verified activation, parity-checked under parity
+// execution-verified under a verified activation, parity-checked under parity
 // evidence, guarded only by a passing record, trainable under an active
 // training recipe -- and a stale row stays registered with its reason.
 func TestModelSupportTier(t *testing.T) {
@@ -88,7 +88,7 @@ func TestModelSupportTier(t *testing.T) {
 		return rungs
 	}
 	guarded := held(rows[0].Support)
-	if rows[0].Support.Tier != "self-consistent" || len(guarded) != 4 || guarded["parity-checked"] != "" ||
+	if rows[0].Support.Tier != "execution-verified" || len(guarded) != 4 || guarded["parity-checked"] != "" ||
 		!strings.Contains(guarded["guarded"], "0123456789ab") || !strings.Contains(guarded["guarded"], "feedfacecafe") ||
 		!strings.Contains(guarded["trainable"], training.String()) {
 		t.Fatalf("guarded row support = %+v", rows[0].Support)

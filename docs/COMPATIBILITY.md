@@ -203,7 +203,7 @@ A prototype is structural architecture support guarded by strict metadata/catalo
 | `qwen3next` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
 | `qwen3vl` | bounded-host, f32-preload, native-quant | pending-fixture | - |
 | `qwen3vlmoe` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | classification-rerank-head-absent-from-pinned-graph |
-| `qwen4exp` | fixture-only-recurrent-sparse-attention-and-ngram-blocks | validated: internal/model/testdata/flashnext_gated.json + internal/model/testdata/flashnext_sparse.json + internal/model/testdata/flashnext_ngram.json | - |
+| `qwen4exp` | native-cuda-expert-offloaded | validated: internal/model/testdata/flashnext_gated.json + internal/model/testdata/flashnext_sparse.json + internal/model/testdata/flashnext_ngram.json | - |
 | `refact` | model-dependent | pending-fixture | - |
 | `rnd1` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
 | `rwkv6` | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |

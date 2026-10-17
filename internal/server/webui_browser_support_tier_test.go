@@ -35,9 +35,9 @@ func TestWebUIBrowserSupportTier(t *testing.T) {
 		{
 			"model": manifest.Model.Model, "location": "C:/models/" + health.Model, "present": true, "recipe": "recipe:served",
 			"capabilities": []map[string]any{{"task": "inference", "recipe": "recipe:served", "tier": "verified"}},
-			"support": map[string]any{"tier": "self-consistent", "rungs": []map[string]any{
+			"support": map[string]any{"tier": "execution-verified", "rungs": []map[string]any{
 				rung("registered", true, "the store registers its weights at C:/models/"+health.Model),
-				rung("self-consistent", true, "its verification suite replays its own greedy output: deterministic, not proven correct"),
+				rung("execution-verified", true, "a candidate execution produced valid evidence; quality depends on the verification's scope"),
 				rung("parity-checked", false, "no evidence matching a reference implementation"),
 				rung("guarded", true, "long-form guard passed at commit 0123456789ab on inference surface feedfacecafe; a later code change can expire it"),
 				rung("trainable", false, "no training activation"),
@@ -48,7 +48,7 @@ func TestWebUIBrowserSupportTier(t *testing.T) {
 			"capabilities": []map[string]any{{"task": "inference", "recipe": "recipe:bare", "tier": "verified"}},
 			"support": map[string]any{"tier": "registered", "rungs": []map[string]any{
 				rung("registered", true, "the store registers its weights at C:/models/bare.gguf"),
-				rung("self-consistent", false, "no verified inference activation"),
+				rung("execution-verified", false, "no verified inference activation"),
 				rung("parity-checked", false, "no evidence matching a reference implementation"),
 				rung("guarded", false, "no long-form record"),
 				rung("trainable", false, "no training activation"),
@@ -72,15 +72,15 @@ func TestWebUIBrowserSupportTier(t *testing.T) {
 	settle(`!!document.querySelector('.composer textarea')`)
 
 	// The served model's tier stands beside its pill, every rung in the title; the details list them.
-	settle(`(() => { const tier = document.getElementById('model-tier'); return !tier.hidden && tier.textContent === 'self-consistent · guarded' && tier.title.includes('✓ guarded: long-form guard passed') && tier.title.includes('✗ parity-checked'); })()`)
-	check(`(() => { const rungs = [...document.querySelectorAll('#model-support li')]; return rungs.length === 5 && rungs.filter(rung => rung.classList.contains('held')).length === 3 && rungs[1].textContent.includes('not proven correct'); })()`)
+	settle(`(() => { const tier = document.getElementById('model-tier'); return !tier.hidden && tier.textContent === 'execution-verified · guarded' && tier.title.includes('✓ guarded: long-form guard passed') && tier.title.includes('✗ parity-checked'); })()`)
+	check(`(() => { const rungs = [...document.querySelectorAll('#model-support li')]; return rungs.length === 5 && rungs.filter(rung => rung.classList.contains('held')).length === 3 && rungs[1].textContent.includes("quality depends on the verification's scope"); })()`)
 
 	// Each picker row carries its tier.
 	check(`(() => { document.getElementById('model-pill').click(); return true; })()`)
 	settle(`[...document.querySelectorAll('dialog[open] .row[tabindex]')].length === 2`)
 	check(`(() => {
   const tier = (name) => ([...document.querySelectorAll('dialog[open] .row[tabindex]')].find(row => row.querySelector('.mono').textContent === name) || document.body).querySelector('.support-tier');
-  return tier(` + "`" + health.Model + "`" + `).textContent === 'self-consistent · guarded' && tier('bare.gguf').textContent === 'registered' && tier('bare.gguf').classList.contains('caution');
+  return tier(` + "`" + health.Model + "`" + `).textContent === 'execution-verified · guarded' && tier('bare.gguf').textContent === 'registered' && tier('bare.gguf').classList.contains('caution');
 })()`)
 	// The served row's marker is the one control tag of the card, and a parity-checked tier takes the name's column, not the control's.
 	check(`(() => {

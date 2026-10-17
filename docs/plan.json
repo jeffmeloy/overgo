@@ -113,31 +113,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "flashnext-chat",
-      "title": "Deliver native Flash-Next text chat through existing APIs and web GUI",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "Measured Responses wiring reuses the declared prompt channel and prevents raw reasoning in answers and stored partials. The existing native regression table grows by 469 test syntax nodes."
-      },
-      "steps": [
-        {
-          "id": "serve",
-          "title": "Wire full execution, activation, reasoning and tool use into the existing chat flow",
-          "status": "open",
-          "verify": "go test ./internal/server ./internal/inference -run '^(TestModelSupportTier|TestChatJinjaQwen38Template|TestReasoningLevelDeclared|TestProtocolToolExecutionParity|TestChatReasoningDeclaredChannels)$'",
-          "rationale": "Serves: Deliver native text through Chat, Responses, Messages and the existing web composer.\nDisappears: Reuse the existing recipe activation, protocol handlers, model picker, reasoning control and support-tier tests.\nReplace the unsupported assumption that every verified activation replays its own output with the evidence tier's execution contract.\nAdd no model-specific adapter or duplicate browser leg.\nEvidence: evidence:sha256:899cd841f819b6826c31fea2b7ddd7e7c0f040c1f28152afd93b70c59fe6d80b retains eight accepted native protocol cases and zero owned device bytes after close.\nIts independently specified answers cover arithmetic, grounding, history, reasoning separation and tool arguments.\nIts remaining cases cover streaming, cancellation and recovery.\nThe real browser returned 42 for 23 plus 19 and exposed model, recipe, trace and receipt identities.\nThe GUI receipt is evidence:sha256:25804999d489a25de00bf8ddccd63b58ca7b89d80c0d99b5ed7f45eaa4c9dd05.\nThe native model picker, reasoning and stream browser owners passed in the preceding landing.\nBroad held-out quality, multimodal acceptance and performance parity remain open.\nBatch: The support-tier regression fails before correcting its meaning.\nThe gate owns the existing browser fixtures.\nProfile timings are diagnostic and never performance acceptance.",
-          "depends_on": [
-            "flashnext-architecture/sparse-attention",
-            "flashnext-ngram/rows",
-            "flashnext-residency/tiers",
-            "flashnext-chat/runtime",
-            "flashnext-chat/responses"
-          ]
-        }
-      ]
-    },
-    {
       "id": "flashnext-efficiency",
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",

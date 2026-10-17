@@ -4079,7 +4079,7 @@
   },
   "qwen4exp": {
    "execution": [
-    "fixture-only-recurrent-sparse-attention-and-ngram-blocks"
+    "native-cuda-expert-offloaded"
    ],
    "features": [
     "gated-residual-streams",
@@ -4091,7 +4091,7 @@
     "file-backed-selected-ngram-rows",
     "causal-lexical-injection"
    ],
-   "real_model_validation": "unavailable-until-bounded-residency-and-full-model-acceptance",
+   "real_model_validation": "eight native text protocol cases accepted at 20156d9b; evidence:sha256:899cd841f819b6826c31fea2b7ddd7e7c0f040c1f28152afd93b70c59fe6d80b; GUI answer and durable receipt checked; broad quality, 256K context, multimodal delivery and Strata performance remain pending",
    "validated_fixture": "internal/model/testdata/flashnext_gated.json + internal/model/testdata/flashnext_sparse.json + internal/model/testdata/flashnext_ngram.json"
   },
   "refact": {

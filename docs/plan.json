@@ -113,15 +113,15 @@
       "title": "Add the missing qwen4exp behavior through existing model and tensor owners",
       "status": "open",
       "budget": {
-        "nodes": 11,
-        "reason": "Measured gated-block candidate adds 1120 production AST nodes for GGUF binding, sigmoid residual mixing and the recurrent output gate. Existing recurrent, expert and tensor operators retain their ownership. Sparse attention has no allowance until its candidate is measured."
+        "nodes": 2106,
+        "reason": "Measured sparse-attention candidate adds 2106 production AST nodes for causal block selection, indexed rotary coordinates and cache integration. Existing top-k and sparse-attention owners remain authoritative with no new kernel entrypoint. Full-model memory and elapsed cost remain unmeasured."
       },
       "steps": [
         {
           "id": "sparse-attention",
           "title": "Implement Qwen sparse attention and complete the forward program",
           "status": "open",
-          "verify": "go test ./internal/model ./internal/tensor/reference -run '^TestFlashNextSparseAttention$' \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestFlashNextSparseAttention$'",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/model -run '^(TestReadQwen35MoESpec|TestFlashNextSparseAttention|TestFlashNextSparseAttentionCUDA)$' -count=1",
           "rationale": "Serves: Implement the model's QSA block indexer, selection, causal visibility and position semantics using existing attention and recurrent cache owners.\nBind the declared recurrent and sparse-attention cadence rather than inferring it from layer names.\nInspect whether existing sparse primitives can express the model's selection before adding a kernel.\nDisappears: Replace duplicated indexing, gather or materialization inside the chosen existing attention owner where the new path subsumes it.\nDo not replace unrelated sparse-attention contracts or materialize full dense attention merely to avoid the block indexer.\nShare one small reference fixture between host and CUDA TestFlashNextSparseAttention cases.\nEvidence: internal/tensor/operation.go and kernels/cuda/ops_f32.cu provide sparse-attention primitives but do not establish qwen4exp QSA equivalence.\nStrata src/core/verify.cpp provides a second implementation to trace.\nClosure compares selected blocks, masking, state continuation and output against the independent model reference across boundary positions and chunked continuation.\nBatch: Batch model and attention ABI changes with required manifest updates.\nProve the unique masking and resource-lifetime boundaries once in the owning tests.\nDo not run the full model until bounded storage and execution are wired.",
           "depends_on": [
             "flashnext-architecture/gated-blocks",
@@ -269,7 +269,8 @@
           "verify": "go test -tags models ./internal/evaluation -run '^TestFlashNextRetainedEvidence$/complete' -count=1 \u0026\u0026 go run ./cmd/validate -claims",
           "rationale": "Serves: Require the identified final performance comparison, independent quality outcomes and all delivered GUI and modality obligations.\nRemove completed steps and campaign-only paragraphs through the existing completion workflow.\nLeave no unsupported model capability, unowned temporary implementation or unmeasured parity claim.\nDisappears: Keep only immutable artifacts, necessary independently generated fixtures and retained run records.\nDelete disposable acquisition and experiment scratch after confirming its authoritative copies and active writers.\nKeep the immutable model source and required recovery data.\nDo not create a campaign history, second plan or resolved-item ledger.\nEvidence: The complete case of the shared TestFlashNextRetainedEvidence table checks the protocol's denominator and exact accepted identities without rerunning models.\nAll required common cells must establish parity and all distinct video and speech contracts must be met.\nA negative experiment may be complete while this campaign remains open.\nMeasured limitations requiring a changed target are reported to the owner rather than silently waived.\nBatch: Use the existing claims and closeout owners.\nNo broad confidence rerun or additional performance ratchet is added.\nThe plan shrinks as accepted increments land.",
           "depends_on": [
-            "flashnext-efficiency/parity"
+            "flashnext-efficiency/parity",
+            "flashnext-sparse-budget/do"
           ]
         }
       ]

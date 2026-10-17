@@ -139,7 +139,7 @@ func (r *Runner) forwardPackedDeviceBatchLocked(
 	hostFeeds := make(map[*tensor.Tensor]reference.Value)
 	var deviceFeeds tensor.InputBindings[driver.DevicePtr]
 	graph, err := r.buildDeviceCachedBatchBranch(
-		builder, 0, tokens, packedPast, uint64(len(appends)), plan,
+		ctx, builder, 0, tokens, packedPast, uint64(len(appends)), plan,
 		tensor.CacheWriteConcat, hostFeeds, &deviceFeeds,
 	)
 	if err != nil {

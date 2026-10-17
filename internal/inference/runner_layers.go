@@ -276,6 +276,20 @@ func (r *Runner) runLayerCached(
 	if cacheErr != nil {
 		return reference.Value{}, LayerCache{}, cacheErr
 	}
+	var ngramHistory *tensor.Tensor
+	if n := r.spec.NGram; n != nil && n.Layer == uint32(layerIndex) {
+		var history []float32
+		if past != nil {
+			history = past.States[model.CacheStateNGramHistory].Value.Data
+			if len(history) == 0 {
+				return reference.Value{}, LayerCache{}, fmt.Errorf("ngram history is missing at layer %d", layerIndex)
+			}
+		}
+		graphWeights.PerLayerInput, ngramHistory, err = r.prepareNGramGraphInputs(ctx, builder, tokenRows, history, hostFeeds)
+		if err != nil {
+			return reference.Value{}, LayerCache{}, err
+		}
+	}
 	var result model.DenseBlockResult
 	var dispatchMultiPositions *[4][]uint32
 	if multiPositions != nil {
@@ -293,6 +307,7 @@ func (r *Runner) runLayerCached(
 		PastStates:       cacheInputs.states,
 		CurrentPositions: boundSideInputs.currentPositions,
 		PerLayerInput:    graphWeights.PerLayerInput,
+		NGramHistory:     ngramHistory,
 		Layer:            uint32(layerIndex),
 		Recurrent:        info.Recurrent,
 	}, graphWeights)

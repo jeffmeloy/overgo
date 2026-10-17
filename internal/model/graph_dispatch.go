@@ -2,6 +2,7 @@ package model
 
 import (
 	"errors"
+	"maps"
 
 	"overgo/internal/tensor"
 )
@@ -21,6 +22,7 @@ type CachedBlockContext struct {
 	PastStates       CacheStates[*tensor.Tensor]
 	CurrentPositions *tensor.Tensor
 	PerLayerInput    *tensor.Tensor
+	NGramHistory     *tensor.Tensor
 	Layer            uint32
 	Recurrent        bool
 	CacheWrite       tensor.CacheWriteMode
@@ -132,7 +134,11 @@ func mergeLayerResult(destination *DenseBlockResult, result DenseBlockResult) {
 		destination.Query, destination.AttentionScale = result.Query, result.AttentionScale
 	}
 	if len(result.States) > tensor.FirstOffset {
-		destination.States = result.States
+		if destination.States == nil {
+			destination.States = result.States
+		} else {
+			maps.Copy(destination.States, result.States)
+		}
 	}
 }
 

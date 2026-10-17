@@ -414,7 +414,7 @@ func (s Spec) planLayer(profile ArchitectureProfile, layer uint32, recurrent boo
 // so it joins the capacity cache when that source does and the plan decodes
 // through the persistent device cache that builds the graph.
 func (p ModelPlan) SupportsCapacityCache() bool {
-	if len(p.layers) == tensor.FirstOffset {
+	if len(p.layers) == tensor.FirstOffset || p.spec.NGram != nil {
 		return false
 	}
 	for _, layer := range p.layers {

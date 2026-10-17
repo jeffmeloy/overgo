@@ -369,6 +369,15 @@ extern "C" __global__ void divide_f32(
     }
 }
 
+extern "C" __global__ void signed_sqrt_f32(
+    const float* input, float* output, float minimum, unsigned int count) {
+    const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < count) {
+        const float x = input[i];
+        output[i] = isnan(x) ? x : x == 0.0f ? 0.0f : copysignf(sqrtf(fmaxf(fabsf(x), minimum)), x);
+    }
+}
+
 extern "C" __global__ void clamp_f32(
         const float * input,
         float * output,

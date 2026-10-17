@@ -84,6 +84,11 @@ func launchMathVision(
 		count := shapeCount32(node.Shape)
 		input := pointers.input(0)
 		return launch1DABI(state, functions[kernelBf16RoundF32], count, &input, &output, &count)
+	case tensor.OpSignedSqrt:
+		count := shapeCount32(node.Shape)
+		input := pointers.input(0)
+		minimum := node.Attrs.(tensor.SignedSqrtAttributes).Minimum
+		return launch1DABI(state, functions[kernelSignedSqrtF32], count, &input, &output, &minimum, &count)
 	case tensor.OpSiLU, tensor.OpGELU, tensor.OpGELUErf, tensor.OpReLU, tensor.OpReLUSquared, tensor.OpSigmoid, tensor.OpSoftplus, tensor.OpTanh, tensor.OpAtan, tensor.OpExp:
 		count := shapeCount32(node.Shape)
 		input := pointers.input(0)

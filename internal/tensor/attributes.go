@@ -29,15 +29,16 @@ func (emptyAttributes) validFor(op Op) bool {
 	}
 }
 
-func (ScaleAttributes) validFor(op Op) bool     { return sameOp(op, OpScale) }
-func (ClampAttributes) validFor(op Op) bool     { return sameOp(op, OpClamp) }
-func (RMSNormAttributes) validFor(op Op) bool   { return sameOp(op, OpRMSNorm) }
-func (MADNormAttributes) validFor(op Op) bool   { return sameOp(op, OpMADNorm) }
-func (LayerNormAttributes) validFor(op Op) bool { return sameOp(op, OpLayerNorm) }
-func (L2NormAttributes) validFor(op Op) bool    { return sameOp(op, OpL2Norm) }
-func (XIELUAttributes) validFor(op Op) bool     { return sameOp(op, OpXIELU) }
-func (MulMatAttributes) validFor(op Op) bool    { return sameOp(op, OpMulMat) }
-func (GetRowsAttributes) validFor(op Op) bool   { return sameOp(op, OpGetRows) }
+func (ScaleAttributes) validFor(op Op) bool      { return sameOp(op, OpScale) }
+func (ClampAttributes) validFor(op Op) bool      { return sameOp(op, OpClamp) }
+func (SignedSqrtAttributes) validFor(op Op) bool { return sameOp(op, OpSignedSqrt) }
+func (RMSNormAttributes) validFor(op Op) bool    { return sameOp(op, OpRMSNorm) }
+func (MADNormAttributes) validFor(op Op) bool    { return sameOp(op, OpMADNorm) }
+func (LayerNormAttributes) validFor(op Op) bool  { return sameOp(op, OpLayerNorm) }
+func (L2NormAttributes) validFor(op Op) bool     { return sameOp(op, OpL2Norm) }
+func (XIELUAttributes) validFor(op Op) bool      { return sameOp(op, OpXIELU) }
+func (MulMatAttributes) validFor(op Op) bool     { return sameOp(op, OpMulMat) }
+func (GetRowsAttributes) validFor(op Op) bool    { return sameOp(op, OpGetRows) }
 func (RoPEAttributes) validFor(op Op) bool {
 	return sameOp(op, OpRoPENeoX) || sameOp(op, OpRoPENormal)
 }

@@ -158,6 +158,7 @@ var operationDescriptors = [...]OperationDescriptor{
 	{OpMADNorm, "mad_norm", OperationElementwise, allExecutionBackends, CUDAProgramLinearLayout},
 	{OpAtan, "atan", OperationElementwise, allExecutionBackends, CUDAProgramMathVision},
 	{OpPixelShuffle2D, "pixel_shuffle_2d", OperationLayout, allExecutionBackends, CUDAProgramMathVision},
+	{OpSignedSqrt, "signed_sqrt", OperationElementwise, allExecutionBackends, CUDAProgramMathVision},
 }
 
 // DescribeOperation: typed operation lookup.

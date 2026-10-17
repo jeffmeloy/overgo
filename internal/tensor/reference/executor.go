@@ -158,6 +158,14 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 		return Value{Shape: node.Shape, Data: output}, nil
 	case tensor.OpBF16Round:
 		return mapValues(node.Shape, inputs[0], dtype.RoundBF16), nil
+	case tensor.OpSignedSqrt:
+		minimum := float64(node.Attrs.(tensor.SignedSqrtAttributes).Minimum)
+		return mapValues(node.Shape, inputs[0], func(x float32) float32 {
+			if x == 0 {
+				return 0
+			}
+			return float32(math.Copysign(math.Sqrt(math.Max(math.Abs(float64(x)), minimum)), float64(x)))
+		}), nil
 	case tensor.OpRMSNorm:
 		return rmsNorm(node.Shape, inputs[0], node.Attrs.(tensor.RMSNormAttributes).Epsilon)
 	case tensor.OpMADNorm:

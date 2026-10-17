@@ -1116,6 +1116,9 @@ func TestReadQwen35MoESpec(t *testing.T) {
 				}
 			}
 			if architecture == "qwen4exp" {
+				candidate.Metadata = slices.DeleteFunc(candidate.Metadata, func(entry gguf.Metadata) bool {
+					return entry.Key == architecture+".feed_forward_length"
+				})
 				candidate.Metadata = append(candidate.Metadata,
 					metadata(architecture+".hyper_connection.count", gguf.ValueTypeUint32, uint32(4)),
 					metadata(architecture+".hyper_connection.low_rank", gguf.ValueTypeUint32, uint32(3)),
@@ -1146,8 +1149,37 @@ func TestReadQwen35MoESpec(t *testing.T) {
 					t.Fatal("block-sparse graph admitted to fixed capacity replay across compression boundaries")
 				}
 				candidate.Metadata = append(candidate.Metadata, gguf.Metadata{Key: architecture + ".ple.layers", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32, Data: []int32{0}}})
-				if _, err := ReadSpec(candidate); err == nil || !strings.Contains(err.Error(), "ngram") {
-					t.Fatalf("unimplemented ngram metadata error = %v", err)
+				if _, err := ReadSpec(candidate); err == nil {
+					t.Fatal("incomplete ngram metadata accepted")
+				}
+				candidate.Metadata = append(candidate.Metadata,
+					metadata(architecture+".vocab_size", gguf.ValueTypeUint32, uint32(32)),
+					metadata(architecture+".ple.ngram_size", gguf.ValueTypeUint32, uint32(3)),
+					metadata(architecture+".ple.heads_per_ngram", gguf.ValueTypeUint32, uint32(2)),
+					metadata(architecture+".ple.conv_kernel", gguf.ValueTypeUint32, uint32(4)),
+					metadata(architecture+".ple.eos_token_id", gguf.ValueTypeUint32, uint32(31)),
+					metadata(architecture+".embedding_length_per_layer_input", gguf.ValueTypeUint32, uint32(2)),
+				)
+				for _, entry := range []struct {
+					key    string
+					values []uint64
+				}{
+					{"ple.layer_multipliers", []uint64{3, 5, 7}},
+					{"ple.head_offsets", []uint64{0, 19, 42, 71}},
+					{"ple.head_vocab_sizes", []uint64{19, 23, 29, 31}},
+				} {
+					candidate.Metadata = append(candidate.Metadata, gguf.Metadata{Key: architecture + "." + entry.key, Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeUint64, Data: entry.values}})
+				}
+				withNGram, err := ReadSpec(candidate)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if withNGram.NGram == nil || withNGram.NGram.RowWidth != 2 || !slices.Equal(withNGram.NGram.Multipliers, []uint64{3, 5, 7}) {
+					t.Fatalf("ngram metadata = %+v", withNGram.NGram)
+				}
+				withNGram.NGram.Multipliers[0] = math.MaxUint64
+				if err := withNGram.validateNGram(); err == nil {
+					t.Fatal("overflowing reference hash product accepted")
 				}
 			}
 		})

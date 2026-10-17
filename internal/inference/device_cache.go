@@ -812,7 +812,7 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	outputs := make([]*tensor.Tensor, 0, len(appends)*(1+2*len(r.weights.Layers)))
 	for index, appendInput := range appends {
 		graph, err := r.buildDeviceCachedBatchBranch(
-			builder, index, appendInput.Tokens, appendInput.Past, 1, plan,
+			ctx, builder, index, appendInput.Tokens, appendInput.Past, 1, plan,
 			cacheWrite, hostFeeds, &deviceFeeds,
 		)
 		if err != nil {
@@ -1187,6 +1187,7 @@ func deviceCacheStorageFits(storage *deviceCacheStorage, graph deviceBatchGraph)
 }
 
 func (r *Runner) buildDeviceCachedBatchBranch(
+	ctx context.Context,
 	builder *tensor.Builder,
 	branch int,
 	tokenIDs []tokenizer.TokenID,
@@ -1357,8 +1358,35 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			}
 			cacheBindings[layerIndex] = cacheInputs
 		}
+
+		var ngramHistory *tensor.Tensor
+		if n := r.spec.NGram; n != nil && n.Layer == uint32(layerIndex) {
+			if sequences != tensor.SingletonExtent {
+				return fail(errors.New("ngram embedding requires one sequence"))
+			}
+			var history []float32
+			if past != nil {
+				if layerIndex >= len(past.States) {
+					return fail(errors.New("ngram history layer is missing"))
+				}
+				state, ok := past.States[layerIndex][model.CacheStateNGramHistory]
+				if !ok {
+					return fail(errors.New("ngram token history is missing"))
+				}
+				values, readErr := r.cuda.ReadDeviceValues(ctx, []executor.DeviceValue{state.Value})
+				if readErr != nil {
+					return fail(readErr)
+				}
+				history = values[0]
+			}
+			graphWeights.PerLayerInput, ngramHistory, layerErr = r.prepareNGramGraphInputs(ctx, builder, tokenIndices, history, hostFeeds)
+			if layerErr != nil {
+				return fail(layerErr)
+			}
+		}
 		result, buildErr := program.Build(model.CachedBlockContext{
-			Builder: builder, Input: current, Positions: positions, TokenRows: tokenIndices,
+			NGramHistory: ngramHistory,
+			Builder:      builder, Input: current, Positions: positions, TokenRows: tokenIndices,
 			PastKey: cacheInputs.key, PastValue: cacheInputs.value,
 			PastStates:       cacheInputs.states,
 			CurrentPositions: boundSideInputs.currentPositions,

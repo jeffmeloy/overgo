@@ -214,6 +214,7 @@ const (
 	kernelWindowPartition2dF32
 	kernelWindowUnpartition2dF32
 	kernelXieluF32
+	kernelSignedSqrtF32
 	kernelFunctionCount
 )
 
@@ -425,6 +426,7 @@ var kernelFunctionNames = [...]string{
 	"window_partition_2d_f32",
 	"window_unpartition_2d_f32",
 	"xielu_f32",
+	"signed_sqrt_f32",
 }
 
 var kernelFunctionArgumentCounts = [...]uint16{
@@ -635,6 +637,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	7,
 	7,
 	7,
+	4,
 }
 
 type boundKernel struct {

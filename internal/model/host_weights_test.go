@@ -2,7 +2,9 @@ package model
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
+	"errors"
 	"testing"
 
 	"overgo/internal/gguf"
@@ -32,15 +34,20 @@ func TestLoadHostTensor(t *testing.T) {
 
 func TestLoadHostRowsAndDotRows(t *testing.T) {
 	data := hostTensorFixture(t, "table", 2, 3)
-	file, err := gguf.Parse(bytes.NewReader(data), uint64(len(data)), gguf.DefaultOptions())
+	reader := &countedRowReader{Reader: bytes.NewReader(data)}
+	file, err := gguf.Parse(reader, uint64(len(data)), gguf.DefaultOptions())
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, err := LoadHostRows(t.Context(), file, file.Tensors[0], []uint32{2, 0})
+	reader.calls = 0
+	value, err := LoadHostRows(t.Context(), file, file.Tensors[0], []uint32{2, 0, 2})
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []float32{5, 6, 1, 2}
+	if reader.calls != 2 {
+		t.Fatalf("row read requests = %d, want 2", reader.calls)
+	}
+	want := []float32{5, 6, 1, 2, 5, 6}
 	for index := range want {
 		if value.Data[index] != want[index] {
 			t.Fatalf("row value[%d] = %v, want %v", index, value.Data[index], want[index])
@@ -56,6 +63,37 @@ func TestLoadHostRowsAndDotRows(t *testing.T) {
 			t.Fatalf("score[%d] = %v, want %v", row, scores[row], want)
 		}
 	}
+	for _, indices := range [][]uint32{{3}, {2, 3}, nil} {
+		if _, err := LoadHostRows(t.Context(), file, file.Tensors[0], indices); err == nil {
+			t.Fatalf("invalid rows accepted: %v", indices)
+		}
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	reader.calls, reader.after = 0, cancel
+	value, err = LoadHostRows(ctx, file, file.Tensors[0], []uint32{2, 2, 0})
+	if !errors.Is(err, context.Canceled) || reader.calls != 1 || len(value.Data) != 0 {
+		t.Fatalf("interrupted rows = %v, reads %d, error %v", value.Data, reader.calls, err)
+	}
+	reader.calls = 0
+	if _, err := LoadHostRows(ctx, file, file.Tensors[0], []uint32{0}); !errors.Is(err, context.Canceled) || reader.calls != 0 {
+		t.Fatalf("cancelled read touched file %d times: %v", reader.calls, err)
+	}
+}
+
+type countedRowReader struct {
+	*bytes.Reader
+	calls int
+	after func()
+}
+
+func (r *countedRowReader) ReadAt(p []byte, off int64) (int, error) {
+	r.calls++
+	n, err := r.Reader.ReadAt(p, off)
+	if r.after != nil {
+		r.after()
+	}
+	return n, err
 }
 
 func hostTensorFixture(t *testing.T, name string, dimensions ...uint64) []byte {

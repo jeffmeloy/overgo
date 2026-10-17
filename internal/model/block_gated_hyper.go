@@ -54,6 +54,14 @@ func executeGatedHyperMix(options blockDispatchOptions, operator layerOperator, 
 	if operator == layerOperatorGatedHyperAttention && execution.current.Shape.Rank == tensor.PairedExtent {
 		execution.current = builder.HyperConnectionInit(execution.current, spec.HyperConnectionCount)
 	}
+	if operator == layerOperatorGatedHyperAttention && spec.NGram != nil && spec.NGram.Layer == options.Context.Layer {
+		result, err := buildNGramInjection(options, execution.current)
+		if err != nil {
+			return err
+		}
+		execution.current = result.Output
+		mergeLayerResult(&execution.result, result)
+	}
 	norm, down, up, inject := weights.HyperAttentionNorm, weights.HyperAttentionDown, weights.HyperAttentionUp, weights.HyperAttentionInject
 	if operator == layerOperatorGatedHyperFeedForward {
 		norm, down, up, inject = weights.HyperFeedForwardNorm, weights.HyperFeedForwardDown, weights.HyperFeedForwardUp, weights.HyperFeedForwardInject

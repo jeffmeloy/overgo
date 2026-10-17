@@ -82,7 +82,12 @@ const (
 	OpMADNorm
 	OpAtan
 	OpPixelShuffle2D
+	// OpSignedSqrt preserves sign while taking the square root of a floored magnitude.
+	OpSignedSqrt
 )
+
+// SignedSqrtAttributes declares the positive magnitude floor and preserves exact zero.
+type SignedSqrtAttributes struct{ Minimum float32 }
 
 type ScaleAttributes struct {
 	Value float32

@@ -55,6 +55,7 @@ func f32RequiredModelTensors(weights model.Weights) map[string]struct{} {
 			layer.SSMKeyConv,
 			layer.SSMValueConv,
 			layer.ShortConvKernel,
+			layer.NGramConv,
 		} {
 			if info != nil {
 				result[info.Name] = struct{}{}
@@ -82,6 +83,9 @@ func getRowsSourceTensors(weights model.Weights) map[string]struct{} {
 func selectedModelTensors(file *gguf.File, weights model.Weights) []gguf.TensorInfo {
 	names := make(map[string]struct{})
 	for _, info := range weights.TensorInfos() {
+		if weights.NGramTokenEmbedding != nil && info.Name == weights.NGramTokenEmbedding.Name {
+			continue
+		}
 		names[info.Name] = struct{}{}
 	}
 	result := make([]gguf.TensorInfo, 0, len(names))

@@ -93,11 +93,6 @@ func newSpecMetadataWithProfile(file *gguf.File, resolved *ArchitectureProfile) 
 
 func (m specMetadata) readBase(spec *Spec) (specReadState, error) {
 	values, prefix := m.values, m.prefix
-	if m.profile.LayerTopology == layerTopologyGatedHyper {
-		if _, declared := values[prefix+"ple.layers"]; declared {
-			return specReadState{}, errors.New("declared ngram embedding execution is not implemented")
-		}
-	}
 	if m.profile.Validation.Attention == attentionValidationQKNormEpsilon {
 		spec.SandwichNorm, _ = optional[bool](values, "chameleon.swin_norm", gguf.ValueTypeBool)
 	}
@@ -166,7 +161,11 @@ func (m specMetadata) readAttentionMetadata(spec *Spec, state specReadState) err
 	case metadataLayerCompatible:
 		spec.LayerFeedForward, err = requiredLayerUint32Compatible(values, prefix+"feed_forward_length", spec.BlockCount)
 	default:
-		spec.FeedForwardLength, err = required[uint32](values, prefix+"feed_forward_length", gguf.ValueTypeUint32)
+		key := "feed_forward_length"
+		if m.profile.LayerTopology == layerTopologyGatedHyper {
+			key = "expert_feed_forward_length"
+		}
+		spec.FeedForwardLength, err = required[uint32](values, prefix+key, gguf.ValueTypeUint32)
 	}
 	if err != nil {
 		return err

@@ -573,6 +573,9 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 }
 
 func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, error) {
+	if err := m.readNGram(&spec); err != nil {
+		return Spec{}, err
+	}
 	spec, err := m.runMetadataProgram(spec, specReadState{}, compileRuntimeProgram(m.profile))
 	if err != nil {
 		return Spec{}, err
@@ -751,6 +754,9 @@ func (s Spec) validate() error {
 		return fmt.Errorf("model profile for %q is not bound", s.Architecture)
 	}
 	if err := s.validateBaseMetadata(); err != nil {
+		return err
+	}
+	if err := s.validateNGram(); err != nil {
 		return err
 	}
 	if err := s.validateRecurrentMetadata(); err != nil {

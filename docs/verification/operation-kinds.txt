@@ -1,8 +1,8 @@
 overgo operation kinds: what each switch over the tensor operations decides, what one table of operations could hold of it, what the table would delete and add, and how the table stands to the dense block program
-tool: go test ./internal/repoanalysis -count=1 -v -run '^TestKindsReadingRecordIsWhole$'
+tool: go test ./internal/repoanalysis -count=1 -v -run '^TestShapeReadingFindsPlantedFamilies$'
 code: the tree at 2867b9efd with the change this record was last changed in, and each place the reading names is a place in that tree, while the table's estimate was read at 102f4029b
 taken: 2026-10-14, from the source files alone, with no model loaded, no device used and the store not opened
-read by: TestKindsReadingRecordIsWhole (internal/repoanalysis), which reads the family of switches over the tensor operations again from the tree, holds the part on the switches to it line for line, holds the estimate's sum to the switches and its arithmetic to its own figures, and prints the part as the tree gives it when the two differ
+read by: TestShapeReadingFindsPlantedFamilies (internal/repoanalysis), which reads the family of switches over the tensor operations again from the tree, holds the part on the switches to it line for line, holds the estimate's sum to the switches and its arithmetic to its own figures, and prints the part as the tree gives it when the two differ
 
 What was asked.
 The plan's row shape-reading, step kinds-reading, asked what each switch over the tensor operations decides, which of it one table of operations could hold, and what such a table would delete and add.
@@ -74,11 +74,11 @@ The preamble's row is the plan's step shape-reading/launch-checks, and TestNoLau
 == switches ==
 family: internal/tensor.Op
 switches: 10
-lines: 1532
+lines: 1545
 functions: 10
 packages: 4
-constants: 65
-operations-by-switches: 1=3 2=31 3=25 4=6
+constants: 66
+operations-by-switches: 1=3 2=32 3=25 4=6
 
 switch: internal/cuda/executor/executor.go#validateRuntimeAttributes
 lines: 57
@@ -108,11 +108,11 @@ row: the entry of each operation, while mul_mat's choice by element type is a de
 table: yes
 
 switch: internal/cuda/executor/launch_math_vision.go#launchMathVision
-lines: 211
-constants: 26
-clauses: 15
-dispatch-lines: 18
-decides: the device launch of lora_merge, of add, multiply and divide as a same-shape or a broadcast kernel, of scale, clamp, bf16_round and xielu, of the unary activations through one launch whose kernel an if chain picks by operation, and of the vision operations (conv_1d_same, conv_2d by cuBLAS over im2col or a direct kernel, the window partitions, pixel_shuffle_2d, sam_attention, group_norm, l2_norm)
+lines: 216
+constants: 27
+clauses: 16
+dispatch-lines: 19
+decides: the device launch of lora_merge, of add, multiply and divide as a same-shape or a broadcast kernel, of scale, clamp, bf16_round, signed_sqrt and xielu, of the unary activations through one launch whose kernel an if chain picks by operation, and of the vision operations (conv_1d_same, conv_2d by cuBLAS over im2col or a direct kernel, the window partitions, pixel_shuffle_2d, sam_attention, group_norm, l2_norm)
 row: the entry of each operation and, as a column, the kernel each elementwise operation launches, which replaces the if chains
 table: yes
 
@@ -162,23 +162,23 @@ row: a column of internal/tensor/operation.go#operationDescriptors naming each o
 table: yes
 
 switch: internal/tensor/reference/executor.go#executeNode
-lines: 203
-constants: 62
-clauses: 63
-dispatch-lines: 66
-decides: the host arithmetic of every operation that is not a view or an input, by an inline loop for scale, clamp, xielu and the unary activations and by a named function for the rest
+lines: 211
+constants: 63
+clauses: 64
+dispatch-lines: 67
+decides: the host arithmetic of every operation that is not a view or an input, by an inline loop for scale, clamp, signed_sqrt, xielu and the unary activations and by a named function for the rest
 row: one entry per operation holding its function or a function literal, with each case of one statement folded onto its row
 table: yes
 
 == estimate ==
-table-dispatch-lines: 155
+table-dispatch-lines: 157
 estimated-scaffolding-deleted: 192
-table-deleted: 347
-estimated-rows-added: 126
-estimated-frames-added: 65
+table-deleted: 349
+estimated-rows-added: 128
+estimated-frames-added: 67
 estimated-machinery-added: 44
-table-added: 235
-table-net: 112
+table-added: 239
+table-net: 110
 table-net-range: -56 142
 makes-possible: a device operation declared in one place where the tree holds two that must agree (its family in the descriptors and its case in that family's switch), and a test that refuses an operation a descriptor claims for a backend whose table lacks it, with no device and no graph run
 not-made-possible: adding an operation in one place, because the host and the device executors import package tensor, so each keeps its own table and an operation stays a constant, a descriptor, a builder method, a host entry, a device entry and a kernel

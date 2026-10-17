@@ -665,7 +665,7 @@
      "contains": "func (r *Runner) forwardDenseLayersPreloaded(",
      "path": "internal/inference/runner_layers.go",
      "role": "source",
-     "identity": "file:sha256:ac338fd80cce5f08c3c5d1ae2803e0954ede7e473060479624181ccd9b1bbf82"
+     "identity": "file:sha256:521db6bf92890f33db1382dbb09e87db3ab90dcc538ee02b691beb2b81a9ab2c"
     },
     {
      "contains": "func TestMultimodalInputMatrix(",
@@ -823,7 +823,7 @@
      "contains": "func CompileModelPlanWithProfile(",
      "path": "internal/model/layer_plan.go",
      "role": "source",
-     "identity": "file:sha256:39090dbefa773ff8ed69b9d00469b0913d0e0f1ecdfa1724e6293e48de15a052"
+     "identity": "file:sha256:76f3b3285876c31478abcc12010c480f2474d8a52541dd7b8b123cf7ba6e79a7"
     },
     {
      "contains": "func TestCompileModelPlanPinsLayerPolicies(",
@@ -865,7 +865,7 @@
      "contains": "func DescribeOperation(",
      "path": "internal/tensor/operation.go",
      "role": "source",
-     "identity": "file:sha256:288d246c463dd034af80ab2634eac7d8ea651b044bec91bb7b0331c47bfc4122"
+     "identity": "file:sha256:e593a86375b441193f30e29d915f73c22c427bf06d470bbe31af5cb4bbef6400"
     },
     {
      "contains": "func TestOperationCatalogIsDenseAndUnique(",
@@ -1271,7 +1271,7 @@
      "contains": "func (p CompiledLayerProgram) Build(",
      "path": "internal/model/graph_dispatch.go",
      "role": "source",
-     "identity": "file:sha256:3d84543a923cd4971a8d45b912d1efb4de64753e24b2f774912224fa9fa093c8"
+     "identity": "file:sha256:afffa4c0fb8186d115d2c78be4f9d521226a23b499cf5a73650728449d19bfc5"
     },
     {
      "contains": "func ReadWeights(",
@@ -4079,16 +4079,20 @@
   },
   "qwen4exp": {
    "execution": [
-    "fixture-only-recurrent-and-sparse-attention-blocks"
+    "fixture-only-recurrent-sparse-attention-and-ngram-blocks"
    ],
    "features": [
     "gated-residual-streams",
     "sigmoid-gated-delta-output",
     "recurrent-convolution-state",
-    "native-quantized-experts"
+    "native-quantized-experts",
+    "causal-whole-block-selection",
+    "cached-multi-axis-indexer-positions",
+    "file-backed-selected-ngram-rows",
+    "causal-lexical-injection"
    ],
-   "real_model_validation": "unavailable-until-ngram-and-bounded-residency",
-   "validated_fixture": "internal/model/testdata/flashnext_gated.json + internal/model/testdata/flashnext_sparse.json"
+   "real_model_validation": "unavailable-until-bounded-residency-and-full-model-acceptance",
+   "validated_fixture": "internal/model/testdata/flashnext_gated.json + internal/model/testdata/flashnext_sparse.json + internal/model/testdata/flashnext_ngram.json"
   },
   "refact": {
    "features": [

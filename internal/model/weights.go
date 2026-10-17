@@ -233,6 +233,7 @@ type Weights struct {
 	Dense3Output            *gguf.TensorInfo
 	ClassifierOutput        *gguf.TensorInfo
 	PerLayerTokenEmbedding  *gguf.TensorInfo
+	NGramTokenEmbedding     *gguf.TensorInfo
 	PerLayerModelProjection *gguf.TensorInfo
 	PerLayerProjectionNorm  *gguf.TensorInfo
 	FeatureProjection       *gguf.TensorInfo
@@ -459,6 +460,14 @@ func compileModelTensorBindings(
 			requiredTensorPointer("per_layer_proj_norm.weight", &result.PerLayerProjectionNorm,
 				uint64(spec.EmbeddingPerLayer)),
 		)
+	}
+	if n := spec.NGram; n != nil {
+		info, ok := catalog.tensor("per_layer_token_embd.weight")
+		last := len(n.Offsets) - 1
+		if !ok || info.Dimensions != tensor.PairedExtent || info.Shape[0] != uint64(n.RowWidth) || info.Shape[1] < n.Offsets[last]+n.VocabSizes[last] {
+			return nil, errors.New("ngram embedding table shape does not cover declared head ranges")
+		}
+		bindings = append(bindings, requiredTensorPointer("per_layer_token_embd.weight", &result.NGramTokenEmbedding, info.Extents()...))
 	}
 	if profile.LayerTopology == layerTopologySplitProjection {
 		shape := []uint64{

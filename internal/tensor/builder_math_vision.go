@@ -41,6 +41,15 @@ func (b *Builder) BF16Round(input *Tensor) *Tensor {
 	return b.unary(OpBF16Round, input, nil)
 }
 
+// SignedSqrt maps x to sign(x)*sqrt(max(abs(x),minimum)), preserving zero.
+func (b *Builder) SignedSqrt(input *Tensor, minimum float32) *Tensor {
+	if minimum <= 0 || math.IsNaN(float64(minimum)) || math.IsInf(float64(minimum), 0) {
+		b.setError(errors.New("signed square root requires a positive finite floor"))
+		return nil
+	}
+	return b.unary(OpSignedSqrt, input, SignedSqrtAttributes{Minimum: minimum})
+}
+
 func (b *Builder) RMSNorm(input *Tensor, epsilon float32) *Tensor {
 	if epsilon <= 0 {
 		b.setError(errors.New("RMSNorm epsilon must be positive"))

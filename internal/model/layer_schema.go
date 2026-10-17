@@ -93,6 +93,12 @@ type layerTensorSchema[T any] struct {
 	LayerOutputScale            *T
 	EmbeddingSkip               *T
 	PerLayerInput               *T
+	NGramKey                    *T
+	NGramValue                  *T
+	NGramKeyNorm                *T
+	NGramQueryNorm              *T
+	NGramConvNorm               *T
+	NGramConv                   *T
 	PerLayerInputGate           *T
 	PerLayerProjection          *T
 	PerLayerPostNorm            *T

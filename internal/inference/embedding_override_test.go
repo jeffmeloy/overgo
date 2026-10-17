@@ -123,16 +123,32 @@ func TestSelectedModelTensorsIncludesCogVLMVisualBank(t *testing.T) {
 			t.Fatalf("selected tensors omit %q", name)
 		}
 	}
+	ngram := gguf.TensorInfo{Name: "per_layer_token_embd.weight"}
+	for _, test := range []struct {
+		name    string
+		weights model.Weights
+		want    int
+	}{
+		{"file-backed-ngram", model.Weights{TokenEmbedding: infos[0], NGramTokenEmbedding: &ngram}, 1},
+		{"per-layer-embedding", model.Weights{TokenEmbedding: infos[0], PerLayerTokenEmbedding: &ngram}, 2},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got := selectedModelTensors(&gguf.File{Tensors: []gguf.TensorInfo{infos[0], ngram}}, test.weights)
+			if len(got) != test.want || got[0].Name != infos[0].Name {
+				t.Fatalf("selected tensors = %v", got)
+			}
+		})
+	}
 }
 
 func TestF32RequiredModelTensorsIncludesConvolutionKernels(t *testing.T) {
 	infos := []gguf.TensorInfo{
-		{Name: "ssm"}, {Name: "q"}, {Name: "k"}, {Name: "v"}, {Name: "short"},
+		{Name: "ssm"}, {Name: "q"}, {Name: "k"}, {Name: "v"}, {Name: "short"}, {Name: "ngram"},
 	}
 	pointer := func(index int) *gguf.TensorInfo { return &infos[index] }
 	names := f32RequiredModelTensors(model.Weights{Layers: []model.LayerWeights{{
 		SSMConv1D: pointer(0), SSMQueryConv: pointer(1), SSMKeyConv: pointer(2),
-		SSMValueConv: pointer(3), ShortConvKernel: pointer(4),
+		SSMValueConv: pointer(3), ShortConvKernel: pointer(4), NGramConv: pointer(5),
 	}}})
 	for _, info := range infos {
 		if _, ok := names[info.Name]; !ok {

@@ -58,6 +58,9 @@ func LoadHostRows(
 	info gguf.TensorInfo,
 	indices []uint32,
 ) (reference.Value, error) {
+	if err := ctx.Err(); err != nil {
+		return reference.Value{}, err
+	}
 	if file == nil {
 		return reference.Value{}, errors.New("host rows: GGUF file is nil")
 	}
@@ -75,6 +78,7 @@ func LoadHostRows(
 	}
 	storage := make([]byte, int(layout.BytesPerRow))
 	output := make([]float32, int(layout.ElementsPerRow)*len(indices))
+	seen := make(map[uint32]int, len(indices))
 	for outputIndex, index := range indices {
 		if err := ctx.Err(); err != nil {
 			return reference.Value{}, err
@@ -82,15 +86,23 @@ func LoadHostRows(
 		if uint64(index) >= layout.Count {
 			return reference.Value{}, fmt.Errorf("host rows: row %d exceeds tensor row count %d", index, layout.Count)
 		}
+		first := outputIndex * int(layout.ElementsPerRow)
+		last := first + int(layout.ElementsPerRow)
+		if prior, duplicate := seen[index]; duplicate {
+			copy(output[first:last], output[prior:prior+int(layout.ElementsPerRow)])
+			continue
+		}
 		offset := uint64(index) * layout.BytesPerRow
 		if err := file.ReadTensorRange(info, offset, storage); err != nil {
 			return reference.Value{}, fmt.Errorf("read host row %d from %q: %w", index, info.Name, err)
 		}
-		first := outputIndex * int(layout.ElementsPerRow)
-		last := first + int(layout.ElementsPerRow)
+		if err := ctx.Err(); err != nil {
+			return reference.Value{}, err
+		}
 		if err := quant.DequantizeInto(info.Type, storage, output[first:last]); err != nil {
 			return reference.Value{}, fmt.Errorf("dequantize host row %d from %q: %w", index, info.Name, err)
 		}
+		seen[index] = first
 	}
 	shape, err := tensor.NewShape(layout.ElementsPerRow, uint64(len(indices)))
 	if err != nil {

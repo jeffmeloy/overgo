@@ -4,11 +4,13 @@ package inference
 
 import (
 	"context"
+	"errors"
 	"math"
 	"reflect"
 	"slices"
 	"testing"
 
+	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/sampling"
 	"overgo/internal/tensor"
@@ -21,6 +23,97 @@ const (
 	hermeticVocab   = uint64(8)
 	hermeticContext = uint32(16)
 )
+
+// TestHermeticCUDAProjectedDecode keeps projected positions and recurrent state
+// while downloading only output logits during device decode.
+func TestHermeticCUDAProjectedDecode(t *testing.T) {
+	requireIntegration(t)
+	cudatest.Require(t)
+	for _, fixture := range []struct{ name, path string }{
+		{"dense", testutil.HermeticLlamaGGUF(t, hermeticContext)},
+		{"recurrent", writeHermeticQwen35GGUF(t)},
+	} {
+		t.Run(fixture.name, func(t *testing.T) {
+			live := driver.ProcessCurrentBytes()
+			runner, err := openF32FixtureRunner(fixture.path, OpenOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := runner.Close(); err != nil {
+					t.Error(err)
+				}
+				if got := driver.ProcessCurrentBytes(); got != live {
+					t.Errorf("closed runner retains %d bytes above %d", got, live)
+				}
+			})
+			ids := []tokenizer.TokenID{1, 4, 5}
+			inputs := ProjectedInputs{EmbeddingOverrides: []EmbeddingOverride{{TokenIndex: 1, Embedding: make([]float32, runner.spec.EmbeddingLength)}}}
+			if fixture.name == "recurrent" {
+				inputs.MultiAxisPositions = &MultiAxisPositions{{0, 1, 1}, {0, 2, 1}, {0, 1, 1}, {0, 1, 1}}
+			}
+			greedy, err := sampling.New(sampling.Config{Temperature: 0})
+			if err != nil {
+				t.Fatal(err)
+			}
+			options := GenerateOptions{PromptTokenIDs: ids, ProjectedInputs: &inputs, MaxNewTokens: 3, Sampler: greedy, ContinueAfterEOG: true, CachePrompt: true}
+			var expected [][]float32
+			options.OnToken = func(event TokenEvent) error { expected = append(expected, slices.Clone(event.Logits)); return nil }
+			hidden, cache, err := runner.ForwardCachedWithProjectedInputs(t.Context(), ids, nil, inputs)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want, _, _, err := runner.generateCachedHost(t.Context(), slices.Clone(ids), hidden, cache, options, false, 0, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for repeat := range 2 {
+				var prior uint64
+				options.OnPromptEvaluated = func(e PromptEvaluation) {
+					if e.Cached != repeat*len(ids) {
+						t.Errorf("repeat %d cached %d", repeat, e.Cached)
+					}
+				}
+				options.OnToken = func(event TokenEvent) error {
+					if len(event.Logits) != len(expected[event.Index]) {
+						t.Fatalf("token %d logits absent", event.Index)
+					}
+					for i, value := range event.Logits {
+						if delta := math.Abs(float64(value - expected[event.Index][i])); !(delta <= 2e-4) {
+							t.Errorf("token %d logit %d delta %g", event.Index, i, delta)
+						}
+					}
+					stats, e := runner.DeviceExecutionStats(t.Context())
+					if e != nil {
+						return e
+					}
+					if event.Index > 0 && stats.DeviceToHostBytes-prior != uint64(runner.spec.VocabularySize)*4 {
+						t.Errorf("decode downloaded %d bytes, want only %d logits", stats.DeviceToHostBytes-prior, runner.spec.VocabularySize)
+					}
+					prior = stats.DeviceToHostBytes
+					return nil
+				}
+				got, _, err := runner.Generate(t.Context(), "", options)
+				if err != nil || !slices.Equal(got, want) {
+					t.Fatalf("repeat %d got %v want %v: %v", repeat, got, want, err)
+				}
+			}
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			options.OnPromptEvaluated = nil
+			options.OnToken = func(TokenEvent) error { cancel(); return context.Canceled }
+			stopped, _, err := runner.Generate(ctx, "", options)
+			if !errors.Is(err, context.Canceled) || !slices.Equal(stopped, want[:len(ids)+1]) {
+				t.Fatalf("canceled output %v: %v", stopped, err)
+			}
+			options.OnToken = nil
+			got, _, err := runner.Generate(t.Context(), "", options)
+			if err != nil || !slices.Equal(got, want) {
+				t.Fatalf("recovery output %v: %v", got, err)
+			}
+		})
+	}
+}
 
 func TestHermeticCUDAContinuousCacheParity(t *testing.T) {
 	requireIntegration(t)

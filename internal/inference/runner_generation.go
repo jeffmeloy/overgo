@@ -296,6 +296,17 @@ func (r *Runner) Generate(
 			})
 		}
 	}
+	if options.ProjectedInputs != nil && cache != nil && r.persistentDeviceCache() {
+		deviceCache, err = r.uploadDeviceCache(ctx, cache)
+		if err != nil {
+			return nil, "", err
+		}
+		deviceCache.Logits, err = r.logits(ctx, r.outputTensor(), hidden.LastRowView().Data)
+		if err != nil {
+			return nil, "", err
+		}
+		useDeviceCache = true
+	}
 	if !useDeviceCache {
 		ids, hidden, cache, err = r.generateCachedHost(
 			ctx, ids, hidden, cache, options, false, keepTokens, options.DiscardTokens,
@@ -401,7 +412,7 @@ func (r *Runner) Generate(
 			break
 		}
 	}
-	if options.CachePrompt {
+	if options.CachePrompt && options.ProjectedInputs == nil {
 		// A stopped generation keeps its state too, so a continuation resumes it.
 		loopErr = errors.Join(loopErr, r.retainDecodedPromptCache(context.WithoutCancel(ctx), ids, reference.Value{}, nil, deviceCache))
 	}

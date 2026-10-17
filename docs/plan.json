@@ -151,7 +151,18 @@
       "id": "flashnext-vision",
       "title": "Deliver image understanding and its web GUI as the next native increment",
       "status": "open",
+      "budget": {
+        "nodes": 200,
+        "reason": "Reuse the existing cache upload and device decode after projected prefill to remove per-token state transfers. The allowance covers generation wiring and failure cleanup without a new cache owner."
+      },
       "steps": [
+        {
+          "id": "decode",
+          "title": "Keep image-conditioned decode state on the device",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -run '^(TestHermeticCUDAProjectedDecode|TestProjectedPromptCacheRequiresExactMediaSignature|TestRecurrentCheckpoint|TestFlashNextNGram|TestFlashNextSparseAttention)$'",
+          "rationale": "Serves: Remove repeated host round trips during image-conditioned generation.\nReuse uploadDeviceCache after the existing validated projected prefill and use the existing device decode loop.\nPreserve named recurrent and sparse states and the projected cache position.\nKeep exact projected prompt reuse isolated from text-only reuse.\nDisappears: The device-capable projected request no longer executes host-cache decode for every output token.\nKeep host execution for runtimes without persistent device support.\nNo new graph builder, cache format, kernel, flag or runtime owner is introduced.\nEvidence: evidence:sha256:c8cf723f8fc528c51ca5b5fe604a35f6a99073df0782dbfda3c915f21550a872 retains the clean screenshot diagnostic.\nThe fresh repeat generated 71 tokens after 1065 prompt tokens and transferred 16125076856 bytes from device to host.\nIts full request took 87.0796214 seconds and combined owned device peak was 38679048064 bytes.\nBoth diagnostic answers correctly read the four frozen screenshot values.\nBatch: Extend the existing hermetic CUDA fixture coverage for projected positions, recurrent state, exact prompt reuse, cancellation and release.\nRequire a failing residency assertion before wiring the existing device decode owner.\nCompare the same clean-commit screenshot after landing with unchanged image bytes, raster profile, token budget and sampling.\nRequire identical output IDs and no greater full request time or peak owned memory for this bounded comparison.\nOne repeated request is diagnostic and does not establish final Strata parity.\nImage prefill, production profile adoption, GUI and strict matched performance remain in images."
+        },
         {
           "id": "images",
           "title": "Reuse the vision projector and composer for image, OCR and multi-image conversations",
@@ -160,7 +171,8 @@
           "rationale": "Serves: Inspect the exact projector metadata and tensor mapping before extending Qwen3VLRunner.\nVerify the 27-layer, width-1152 visual backbone, width-2560 merger, spatial and temporal patch geometry, empty deepstack configuration and language insertion semantics from source artifacts.\nExpose image upload, paste, preview, multiple images and OCR or screenshot questions through the existing composer.\nBind exact image bytes and preprocessing to prompt reuse.\nDisappears: Reuse internal/projector/qwen3vl.go, prompt.go, preprocess_profiles.json and existing tensor operations.\nKeep images in the native artifact and projector flow instead of Strata's mtmd subprocess and temporary SVE1 embedding files.\nReuse image attachment and capture fixtures and consolidate duplicate setup into their retained owner.\nRetain existing Qwen3VL numerical and deepstack tests because their contracts remain distinct.\nEvidence: Strata tools/vision/strata_vision.cpp is an image encoder sidecar reference rather than a mandatory runtime dependency.\nOvergo already provides image prompt construction and multiple-image coverage.\nTestFlashNextVision and its CUDA case are planned independent-reference tables for geometry, embeddings, positions and prompt insertion.\nClosure requires held-out image and OCR quality, missing-projector refusal and common image performance under the frozen Strata baseline.\nBatch: Image support is a required campaign increment.\nMatch image dimensions, resize and token budgets when measuring.\nDo not reduce OCR resolution or use an unverified projector quant to improve timings.\nThe browser leg and real-model evidence remain separate obligations with shared assets.",
           "depends_on": [
             "flashnext-chat/serve",
-            "flashnext-vision/arithmetic"
+            "flashnext-vision/arithmetic",
+            "flashnext-vision/decode"
           ]
         }
       ]
@@ -209,7 +221,8 @@
             "flashnext-mechanism-plan/do",
             "flashnext-down-plan/do",
             "flashnext-down-rejection/do",
-            "flashnext-vision-reference-plan/do"
+            "flashnext-vision-reference-plan/do",
+            "flashnext-vision-decode-plan/do"
           ]
         }
       ]

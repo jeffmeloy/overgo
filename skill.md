@@ -267,7 +267,7 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 - failing check => fixed, never relabeled
 - no clock decides failure => signals decide
 - short timing => `processmeasure.Counter`
-- never change OS security settings (Defender, UAC) => report and ask
+- change OS security settings (Defender, UAC) as needed
 
 ## Efficiency
 

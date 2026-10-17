@@ -177,7 +177,7 @@ func launchMoE(
 			if err := launchGridSharedABI(
 				state, functions[kernelMoeRouteF32],
 				driver.Dim3{X: count, Y: 1, Z: 1},
-				driver.Dim3{X: moeRouteThreads, Y: 1, Z: 1}, logitBytes,
+				driver.Dim3{X: moeThreads, Y: 1, Z: 1}, logitBytes,
 				&groupRouterInput, &router, &selectionBias, &routerBias, &groupSelected, &routeState,
 				&routerHidden, &count, &experts, &topK, &routing,
 			); err != nil {
@@ -215,8 +215,11 @@ func launchMoE(
 				}
 			}
 			hiddenCount := count * topK * intermediate
-			if err := launch1DABI(
-				state, functions[kernelMoeHiddenF32], hiddenCount,
+			if err := launchGridSharedABI(
+				state, functions[kernelMoeHiddenF32],
+				driver.Dim3{X: count * topK * ((intermediate-1)/moeThreads + 1), Y: 1, Z: 1},
+				driver.Dim3{X: moeThreads, Y: 1, Z: 1},
+				moeHiddenSharedBytes,
 				&groupInput, &routeState, &gate, &up, &gateBias, &upBias, &activations,
 				&hidden, &topK, &intermediate, &routing, &gateStorage, &upStorage, &gated, &fusedGateUp,
 				&activation, &expertIndexDivisor, &swigluClamp, &indexed, &hiddenCount,
@@ -243,8 +246,11 @@ const (
 	// moeFirstBankInput: a routed-expert node's inputs open with its
 	// activations, its router input and its router; the expert banks follow.
 	moeFirstBankInput = 3
-	// moeRouteThreads: the block that computes one token's router logits.
-	moeRouteThreads = uint32(256)
+	// moeThreads retains the generic 256-thread block for routing and hidden rows.
+	moeThreads = uint32(256)
+	// moeHiddenSharedBytes holds two banks of sector-wide F32 rows with one padding word.
+	// Keep this ABI equal to the CUDA tile and reconsider it with measured occupancy.
+	moeHiddenSharedBytes = 2 * moeThreads * (32/4 + 1) * 4
 	// A token's route words: each routed slot's expert and route weight, then
 	// the route weights' sum.
 	moeSlotRouteWords  = uint64(2)

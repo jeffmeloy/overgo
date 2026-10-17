@@ -3703,11 +3703,21 @@ extern "C" __global__ void moe_hidden_f32(
         float swiglu_clamp,
         unsigned int indexed_experts,
         unsigned int count) {
-    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index >= count) return;
-    const unsigned int inner_index = index % intermediate;
-    const unsigned int slot = index / intermediate % top_k;
-    const unsigned int token = index / intermediate / top_k;
+    // A warp transposes sector-wide reads into rows without changing sum order.
+    constexpr unsigned int sector_bytes = 32;
+    constexpr unsigned int channels = sector_bytes / sizeof(float);
+    constexpr unsigned int stride = channels + 1;
+    constexpr unsigned int rows_per_load = CUDA_WARP_WIDTH / channels;
+    const unsigned int tiles = (intermediate - 1) / blockDim.x + 1;
+    const unsigned int selected = blockIdx.x / tiles;
+    if (selected >= count / intermediate) return;
+    const unsigned int inner_index = (blockIdx.x % tiles) * blockDim.x + threadIdx.x;
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const unsigned int warp_row = inner_index - lane;
+    if (warp_row >= intermediate) return;
+    const unsigned int index = selected * intermediate + inner_index;
+    const unsigned int slot = selected % top_k;
+    const unsigned int token = selected / top_k;
     const float * x = input + (size_t) token * hidden;
     const unsigned int expert =
         route_state[(size_t) token * (2 * top_k + 1) + slot] / expert_index_divisor;
@@ -3715,32 +3725,39 @@ extern "C" __global__ void moe_hidden_f32(
         if (gated) gate = reinterpret_cast<const void * const *>(gate)[expert];
         up = reinterpret_cast<const void * const *>(up)[expert];
     }
-    const size_t gate_offset =
-        ((size_t) (indexed_experts ? 0 : expert) * (fused_gate_up ? 2 : 1) * intermediate + inner_index) * hidden;
-    const size_t up_offset = gate_offset + (fused_gate_up ? (size_t) intermediate * hidden : 0);
+    const size_t gate_base =
+        (size_t) (indexed_experts ? 0 : expert) * (fused_gate_up ? 2 : 1) * intermediate * hidden;
+    const size_t up_base = gate_base + (fused_gate_up ? (size_t) intermediate * hidden : 0);
+    extern __shared__ float weights[];
+    float * gate_tile = weights + (threadIdx.x / CUDA_WARP_WIDTH) * CUDA_WARP_WIDTH * stride;
+    float * up_tile = gate_tile + blockDim.x * stride;
     float gate_dot = 0.0f;
     float up_dot = 0.0f;
-    if (up_storage == GGML_F32 && (!gated || gate_storage == GGML_F32)) {
-        const float * gate_row = reinterpret_cast<const float *>(gate) + gate_offset;
-        const float * up_row = reinterpret_cast<const float *>(up) + up_offset;
-        for (unsigned int channel = 0; channel < hidden; ++channel) {
-            if (gated) gate_dot += x[channel] * gate_row[channel];
-            up_dot += x[channel] * up_row[channel];
+    for (unsigned int base = 0; base < hidden; base += channels) {
+        const unsigned int channel = base + lane % channels;
+        #pragma unroll 1
+        for (unsigned int row = lane / channels; row < CUDA_WARP_WIDTH; row += rows_per_load) {
+            if (warp_row + row < intermediate && channel < hidden) {
+                const size_t offset = (size_t) (warp_row + row) * hidden + channel;
+                if (gated) gate_tile[row * stride + lane % channels] =
+                    moe_expert_value(gate, gate_base + offset, gate_storage);
+                up_tile[row * stride + lane % channels] =
+                    moe_expert_value(up, up_base + offset, up_storage);
+            }
         }
-    } else if (up_storage == GGML_BF16 && (!gated || gate_storage == GGML_BF16)) {
-        // BF16 is the high half of the F32 encoding: the widening is exact.
-        const unsigned short * gate_row = reinterpret_cast<const unsigned short *>(gate) + gate_offset;
-        const unsigned short * up_row = reinterpret_cast<const unsigned short *>(up) + up_offset;
-        for (unsigned int channel = 0; channel < hidden; ++channel) {
-            if (gated) gate_dot += x[channel] * __uint_as_float((unsigned int) gate_row[channel] << 16);
-            up_dot += x[channel] * __uint_as_float((unsigned int) up_row[channel] << 16);
+        __syncwarp();
+        if (inner_index < intermediate) {
+            #pragma unroll
+            for (unsigned int channel = 0; channel < channels; ++channel) {
+                if (base + channel < hidden) {
+                    if (gated) gate_dot += x[base + channel] * gate_tile[lane * stride + channel];
+                    up_dot += x[base + channel] * up_tile[lane * stride + channel];
+                }
+            }
         }
-    } else {
-        for (unsigned int channel = 0; channel < hidden; ++channel) {
-            if (gated) gate_dot += x[channel] * moe_expert_value(gate, gate_offset + channel, gate_storage);
-            up_dot += x[channel] * moe_expert_value(up, up_offset + channel, up_storage);
-        }
+        __syncwarp();
     }
+    if (inner_index >= intermediate) return;
     if (gate_bias) {
         gate_dot += gate_bias[(size_t) expert * intermediate + inner_index];
         up_dot += up_bias[(size_t) expert * intermediate + inner_index];

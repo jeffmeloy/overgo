@@ -18,7 +18,7 @@ func TestMoELaunchesCoverTokenGroups(t *testing.T) {
 	const (
 		hidden, experts, topK, tokens = 64, 16, 16, 8
 		// Sixteen slots of this many rows put three tokens under the limit.
-		intermediate = 163840
+		intermediate = 163839
 		group        = 3
 		routeBytes   = (2*topK + 1) * 4
 	)
@@ -75,14 +75,15 @@ func TestMoELaunchesCoverTokenGroups(t *testing.T) {
 		}{
 			{"route kernel", word(route), uint64(kernelMoeRouteF32)},
 			{"route grid", word(route[8:]), count | 1<<32 | 1<<48},
-			{"route block", word(route[16:]), uint64(moeRouteThreads) | 1<<32 | 1<<48},
+			{"route block", word(route[16:]), uint64(moeThreads) | 1<<32 | 1<<48},
 			{"route logits", word(route[24:]), experts * 4},
 			{"route router input", word(route[32:]), routerInputBase + start*hidden*4},
 			{"route selection", word(route[64:]), selectedBase + start*topK*4},
 			{"route state", word(route[72:]), scores},
 			{"route tokens", uint64(scalar(route[84:])), count},
 			{"hidden kernel", word(hiddenLaunch), uint64(kernelMoeHiddenF32)},
-			{"hidden grid", word(hiddenLaunch[8:]), (count*topK*intermediate+255)/256 | 1<<32 | 1<<48},
+			{"hidden grid", word(hiddenLaunch[8:]), count*topK*((intermediate+255)/256) | 1<<32 | 1<<48},
+			{"hidden shared bytes", word(hiddenLaunch[24:]), 256 * 9 * 4 * 2},
 			{"hidden input", word(hiddenLaunch[32:]), inputBase + start*hidden*4},
 			{"hidden route state", word(hiddenLaunch[40:]), scores},
 			{"hidden activations", word(hiddenLaunch[80:]), scores + group*routeBytes},

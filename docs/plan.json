@@ -224,7 +224,8 @@
             "flashnext-retained-slices-plan/do",
             "flashnext-retained-rejection-plan/do",
             "flashnext-indexer-plan/do",
-            "flashnext-storage-plan/do"
+            "flashnext-storage-plan/do",
+            "flashnext-prefill-plan/do"
           ]
         }
       ]
@@ -234,16 +235,16 @@
       "title": "Make 256K context practical within the PC memory envelope",
       "status": "open",
       "budget": {
-        "nodes": 250,
-        "reason": "Estimated bound for token-aligned named cache targets, storage/graph-replay separation and bounded prefill admission in existing owners. Replace duplicated primary key/value target handling with one target-value contract. No new cache, scheduler, allocator or selection framework."
+        "nodes": 2600,
+        "reason": "Estimated bound for compiled-memory admission, deferred lexical row loading and bounded single-sequence prefill in existing executor and inference owners. Reuse compiled liveness, output storage layout, allocation classes and expert residency. Consolidate retained-output ownership selection rather than adding another graph analyzer or allocator."
       },
       "steps": [
         {
           "id": "capacity",
           "title": "Bound long prefill and retain exact sparse, recurrent and lexical state",
           "status": "open",
-          "verify": "go test ./internal/model ./internal/inference -run '^(TestSupportsCapacityCacheAdmitsSharedKV|TestFlashNextNGram|TestFlashNextSparseAttention)$'",
-          "rationale": "Serves: Remove the processing and memory obstacles to a 262144-token total context.\nInspect the existing capacity-cache exclusions for n-gram history and sparse attention before extending the owning contracts.\nUse bounded prefill and persistent append where independently justified numerical and position semantics permit them.\nDisappears: Reuse the existing decode session, cache pages, recurrent state and file-backed n-gram owners.\nRemove repeated full-prefix copies, graph reconstruction and per-token setup where measurements establish them.\nEvidence: Freeze boundary, split-prefill and continuation comparisons against original-model arithmetic before implementation.\nName the exact existing native tests and update this verifier from the observed failure before coding.\nBatch: The listed tests identify retained owners and do not themselves prove long-context support.\nDeclare measured growth separately if required.\nKeep full-model observations outside the landing gate.\nThe current four-head block indexer materializes all head scores before summation.\nThe fused scalar indexer failed the local timing requirement and is removed.\nUse bounded prefill to limit the existing head-score matrices.\nThe accepted selection search reduces near-limit block-scoring and selection from 2905450760 ns to 23610880 ns in the frozen resident benchmark.\nThis local result does not establish full-model performance or 256K capability.\nPersistent append and dynamic graph replay remain distinct capabilities because sparse selection shapes and lexical rows change with every append.\nPersistent token state is available separately from graph replay.\nNext admission must bound expanded per-head score tensors before building large lexical inputs.\nPreserve the requested 262144 total-token context and reserve output within that limit.",
+          "verify": "go test ./internal/cuda/executor ./internal/modeldevice ./internal/model -run '^(TestCompiledRetainedMemory|TestRetainedAliasPlanOmitsProducerStorage|TestFlashNextExpertResidency|TestFlashNextNGram|TestFlashNextSparseAttention)$' \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/inference ./internal/model -run '^(TestDeviceBoundedPrefill|TestFlashNextSparseAttentionCUDA|TestFlashNextNGramCUDA)$'",
+          "rationale": "Serves: Bound prefill through existing compiled allocation and cache owners while preserving the requested 262144-token total context.\nDerive admissible work from current free memory, reclaimable completed experts, graph liveness, retained roots, input and attribute buffers, scratch growth and one routed expert group.\nCount caller-owned cache capacity allocations with their actual allocation classes.\nKeep allocation failure authoritative because concurrent consumers can change availability after planning.\nDisappears: Replace unconditional whole-prompt device submission with bounded sequential appends.\nReuse the compiled graph and retained-output layout instead of introducing a separate model cost graph or allocator.\nDefer lexical row reads until the selected graph fits so rejected chunk candidates do not load their embeddings.\nRelease intermediate caches after their consumers complete and preserve the original retained prefix on refusal or cancellation.\nKeep speculative span output intact and do not retry any chunk after execution starts.\nEvidence: The four-head sparse indexer materializes a score matrix proportional to chunk tokens times retained context.\nThe original-model sparse and n-gram fixtures own split-prefill numerical acceptance including compression boundaries.\nExtend native compiled-memory tests for retained aliases, external targets, resident inputs, allocation classes and overflow.\nUse the existing hermetic model to compare bounded prefill and continuation with whole-prompt evaluation and canceled cleanup.\nFreeze these checks before implementation and demonstrate the missing admission boundary.\nBatch: No fixed machine chunk size, new cache, speculative input reuse or performance threshold is introduced.\nMemory fit alone does not prove the fastest chunk size.\nFull-model timing, peak-memory and near-limit retrieval remain explicit acceptance work after the implementation landing.\nThe accepted block selector evidence is evidence:sha256:5b5ae99d7fd59dea7ac7f7a4769c13f5fa71cad47b728b87f58062d49fcec381.\nIts local timing does not establish full-model performance or 256K capability.",
           "depends_on": [
             "flashnext-efficiency/processing",
             "flashnext-indexer/score",

@@ -113,6 +113,27 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "flashnext-vision-storage",
+      "title": "Keep Qwen3-VL matrix weights in their existing BF16 storage",
+      "status": "open",
+      "budget": {
+        "nodes": 400,
+        "reason": "Estimated growth for routing Qwen3-VL BF16 matrix and position tensors through the existing raw loader while retaining F32 norm and bias consumers. No new allocation owner or numeric policy."
+      },
+      "steps": [
+        {
+          "id": "weights",
+          "title": "Remove permanent F32 expansion of BF16 projector matrices",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/projector -run '^(TestQwen3VLOriginalFixture|TestQwen3VLDeepstackCUDAMatchesCPU|TestQwen3VLMultipleImagePrompt|TestPreprocessQwen3VLFramesTemporalOrder)$'",
+          "rationale": "Serves: Reduce image and video memory with the exact installed BF16 projector.\nThe Qwen3-VL graph consumes its multidimensional catalog tensors only through matrix multiplication or row gather, optionally after reshape.\nThese existing executor operations already accept BF16 and retain FP32 output arithmetic.\nNorm and bias vectors continue to use their required FP32 representation.\nDisappears: Remove permanent FP32 copies of those BF16 tensors and their host dequantization during load.\nReuse modeldevice.Loader Raw and Converted routes and the existing device stores and executor staging.\nKeep one stored copy per tensor and no new allocator, kernel, cache, selector or public option.\nEvidence: The retained screenshot projector holds 2027926464 device bytes after inference.\nThe source artifact is BF16 but openProjectorCUDA converts every required tensor to F32.\nBefore implementation retain a clean projector-only baseline with the screenshot and architecture image at identical 8 to 1024 token raster budgets.\nAfter implementation compare all embedding values under the existing 0.0005 FP32 model tolerance and require smaller peak owned device bytes and no-greater median warmed encode time for each image.\nUse one discarded warmup and three measured repetitions with no other device work.\nRecord load time and output identities without calling projector-only improvement full-request or Strata parity.\nBatch: Extend the original-model fixture with a native BF16 backend using BF16-representable original weights and unchanged FP32 arithmetic tolerance.\nRequire the BF16 storage assertion to fail before routing changes.\nReject the production replacement if the bounded numerical, memory or timing comparison fails.\nThe full multimodal quality and final matched native performance remain separate plan obligations.",
+          "depends_on": [
+            "flashnext-vision-rejection/do"
+          ]
+        }
+      ]
+    },
+    {
       "id": "flashnext-efficiency",
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",
@@ -166,7 +187,8 @@
             "flashnext-chat/serve",
             "flashnext-vision/arithmetic",
             "flashnext-vision/decode",
-            "flashnext-vision-rejection/do"
+            "flashnext-vision-rejection/do",
+            "flashnext-vision-storage/weights"
           ]
         }
       ]
@@ -218,7 +240,8 @@
             "flashnext-vision-reference-plan/do",
             "flashnext-vision-decode-plan/do",
             "flashnext-vision-rejection/do",
-            "flashnext-vision-rejection-plan/do"
+            "flashnext-vision-rejection-plan/do",
+            "flashnext-vision-storage-plan/do"
           ]
         }
       ]

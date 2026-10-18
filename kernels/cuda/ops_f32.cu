@@ -3597,82 +3597,153 @@ extern "C" __global__ void lora_merge_f32(
 // Down projections retain slot order and restart partial sums every MOE_DOWN_TILE rows.
 constexpr unsigned int MOE_DOWN_TILE = 256;
 
-extern "C" __global__ void moe_route_f32(
+// moe_router_logits_f32 gives each warp one expert of one token across the whole grid.
+// Lanes read consecutive channels at once, and lane 0 adds their products in channel
+// order, so each logit has the bits of a serial sum.
+extern "C" __global__ void moe_router_logits_f32(
         const float * router_input,
         const float * router,
-        const float * selection_bias,
         const float * router_bias,
+        float * logits,
+        unsigned int router_hidden,
+        unsigned int tokens,
+        unsigned int experts) {
+    const unsigned int token = blockIdx.y;
+    const unsigned int lane = threadIdx.x & 31u;
+    const unsigned int expert = blockIdx.x * (blockDim.x >> 5) + (threadIdx.x >> 5);
+    if (token >= tokens || expert >= experts) return;
+    const float * router_x = router_input + (size_t) token * router_hidden;
+    const float * weight = router + (size_t) expert * router_hidden;
+    float logit = 0.0f;
+    for (unsigned int base = 0; base < router_hidden; base += 32u) {
+        const unsigned int width = min(32u, router_hidden - base);
+        const float x = lane < width ? router_x[base + lane] : 0.0f;
+        const float w = lane < width ? weight[base + lane] : 0.0f;
+        for (unsigned int channel = 0; channel < width; ++channel) {
+            const float channel_x = __shfl_sync(0xffffffffu, x, channel);
+            const float channel_w = __shfl_sync(0xffffffffu, w, channel);
+            logit += channel_x * channel_w;
+        }
+    }
+    if (lane == 0u) logits[(size_t) token * experts + expert] = router_bias ? logit + router_bias[expert] : logit;
+}
+
+// moe_route_f32 turns one token's expert logits into its routed experts and weights.
+extern "C" __global__ void moe_route_f32(
+        const float * router_logits,
+        const float * selection_bias,
         const float * selected_experts,
         unsigned int * route_state,
-        unsigned int router_hidden,
         unsigned int tokens,
         unsigned int experts,
         unsigned int top_k,
         unsigned int routing) {
     const unsigned int token = blockIdx.x;
     if (token >= tokens) return;
-    const float * router_x = router_input + (size_t) token * router_hidden;
     extern __shared__ float shared[];
     float * logits = shared;
+    __shared__ float warp_score[32];
+    __shared__ int warp_expert[32];
+    __shared__ float block_scalar;
+    const unsigned int lane = threadIdx.x & 31u;
+    const unsigned int warp = threadIdx.x >> 5;
+    const unsigned int warps = blockDim.x >> 5;
     for (unsigned int expert = threadIdx.x; expert < experts; expert += blockDim.x) {
-        const float * weight = router + (size_t) expert * router_hidden;
-        float logit = 0.0f;
-        for (unsigned int channel = 0; channel < router_hidden; ++channel) {
-            logit += router_x[channel] * weight[channel];
-        }
-        if (router_bias) logit += router_bias[expert];
-        logits[expert] = logit;
+        logits[expert] = router_logits[(size_t) token * experts + expert];
     }
     __syncthreads();
-    if (threadIdx.x != 0) return;
-    unsigned int * selected = route_state + (size_t) token * (2 * top_k + 1);
-    float * routes = reinterpret_cast<float *>(selected + top_k);
-    float * selected_sum = routes + top_k;
-    float maximum = -3.402823466e+38F;
-    for (unsigned int expert = 0; expert < experts; ++expert) {
-        maximum = fmaxf(maximum, logits[expert]);
+    float partial = -3.402823466e+38F;
+    for (unsigned int expert = threadIdx.x; expert < experts; expert += blockDim.x) partial = fmaxf(partial, logits[expert]);
+    for (unsigned int offset = 16u; offset > 0u; offset >>= 1) partial = fmaxf(partial, __shfl_down_sync(0xffffffffu, partial, offset));
+    if (lane == 0u) warp_score[warp] = partial;
+    __syncthreads();
+    if (threadIdx.x == 0u) {
+        float maximum = -3.402823466e+38F;
+        for (unsigned int index = 0; index < warps; ++index) maximum = fmaxf(maximum, warp_score[index]);
+        block_scalar = maximum;
     }
+    __syncthreads();
+    const float maximum = block_scalar;
     float denominator = 0.0f;
     if (routing == 1) {
-        for (unsigned int expert = 0; expert < experts; ++expert) {
-            denominator += expf(logits[expert] - maximum);
+        // The softmax denominator is summed in expert order, so its bits match a serial sum.
+        if (threadIdx.x == 0u) {
+            float sum = 0.0f;
+            for (unsigned int expert = 0; expert < experts; ++expert) sum += expf(logits[expert] - maximum);
+            block_scalar = sum;
         }
+        __syncthreads();
+        denominator = block_scalar;
     }
-    for (unsigned int expert = 0; expert < experts; ++expert) {
+    for (unsigned int expert = threadIdx.x; expert < experts; expert += blockDim.x) {
         const float logit = logits[expert];
         logits[expert] = routing == 4
             ? sqrtf(fmaxf(logit, 0.0f) + log1pf(expf(-fabsf(logit))))
             : routing == 2 ? 1.0f / (1.0f + expf(-logit))
             : routing == 3 ? logit : expf(logit - maximum) / denominator;
     }
-    *selected_sum = 0.0f;
-    for (unsigned int slot = 0; slot < top_k; ++slot) {
-        if (selected_experts) {
+    __syncthreads();
+    unsigned int * selected = route_state + (size_t) token * (2 * top_k + 1);
+    float * routes = reinterpret_cast<float *>(selected + top_k);
+    float * selected_sum = routes + top_k;
+    if (selected_experts) {
+        if (threadIdx.x != 0u) return;
+        *selected_sum = 0.0f;
+        for (unsigned int slot = 0; slot < top_k; ++slot) {
             const unsigned int expert = (unsigned int) selected_experts[(size_t) token * top_k + slot];
             const float probability = logits[expert];
             selected[slot] = expert;
             routes[slot] = probability;
             *selected_sum += probability;
-            continue;
         }
-        int best = -1;
-        float best_score = -3.402823466e+38F;
-        float best_probability = 0.0f;
-        for (unsigned int expert = 0; expert < experts; ++expert) {
-            bool used = false;
-            for (unsigned int prior = 0; prior < slot; ++prior) used = used || selected[prior] == expert;
-            if (used) continue;
-            const float probability = logits[expert];
-            const float score = probability + (selection_bias ? selection_bias[expert] : 0.0f);
-            if (best < 0 || score > best_score) {
-                best = (int) expert;
-                best_score = score;
-                best_probability = probability;
+    } else {
+        // Each slot takes the highest score among unchosen experts, the lowest index on a tie, as a serial scan would.
+        if (threadIdx.x == 0u) *selected_sum = 0.0f;
+        __syncthreads();
+        for (unsigned int slot = 0; slot < top_k; ++slot) {
+            int best = -1;
+            float best_score = -3.402823466e+38F;
+            for (unsigned int expert = threadIdx.x; expert < experts; expert += blockDim.x) {
+                bool used = false;
+                for (unsigned int prior = 0; prior < slot; ++prior) used = used || selected[prior] == expert;
+                if (used) continue;
+                const float score = logits[expert] + (selection_bias ? selection_bias[expert] : 0.0f);
+                if (best < 0 || score > best_score) {
+                    best = (int) expert;
+                    best_score = score;
+                }
             }
+            for (unsigned int offset = 16u; offset > 0u; offset >>= 1) {
+                const float other_score = __shfl_down_sync(0xffffffffu, best_score, offset);
+                const int other = __shfl_down_sync(0xffffffffu, best, offset);
+                if (other >= 0 && (best < 0 || other_score > best_score || (other_score == best_score && other < best))) {
+                    best = other;
+                    best_score = other_score;
+                }
+            }
+            if (lane == 0u) {
+                warp_score[warp] = best_score;
+                warp_expert[warp] = best;
+            }
+            __syncthreads();
+            if (threadIdx.x == 0u) {
+                int chosen = -1;
+                float chosen_score = -3.402823466e+38F;
+                for (unsigned int index = 0; index < warps; ++index) {
+                    const int candidate = warp_expert[index];
+                    const float candidate_score = warp_score[index];
+                    if (candidate >= 0 && (chosen < 0 || candidate_score > chosen_score || (candidate_score == chosen_score && candidate < chosen))) {
+                        chosen = candidate;
+                        chosen_score = candidate_score;
+                    }
+                }
+                selected[slot] = (unsigned int) chosen;
+                routes[slot] = logits[chosen];
+                *selected_sum += logits[chosen];
+            }
+            __syncthreads();
         }
-        selected[slot] = (unsigned int) best;
-        routes[slot] = best_probability;
-        *selected_sum += best_probability;
+        if (threadIdx.x != 0u) return;
     }
     if (routing == 3) {
         float selected_maximum = -3.402823466e+38F;

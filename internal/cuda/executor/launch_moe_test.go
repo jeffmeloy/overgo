@@ -12,7 +12,7 @@ import (
 
 // TestMoELaunchesCoverTokenGroups probes a routed-expert node whose scratch
 // holds three tokens: eight tokens run as groups of three, three and two, each
-// a route, a hidden and a down launch over the group's tokens, with the
+// a router-logits, a route, a hidden and a down launch over the group's tokens, with the
 // scratch reused and the token-major operands advanced by the group's start.
 func TestMoELaunchesCoverTokenGroups(t *testing.T) {
 	const (
@@ -43,10 +43,10 @@ func TestMoELaunchesCoverTokenGroups(t *testing.T) {
 		slots:  []int{0, 1, 2, 3, 4, 5, 6, 7},
 	}
 	var functions functionSet
-	for _, id := range []kernelFunctionID{kernelMoeRouteF32, kernelMoeHiddenF32, kernelMoeDownF32} {
+	for _, id := range []kernelFunctionID{kernelMoeRouterLogitsF32, kernelMoeRouteF32, kernelMoeHiddenF32, kernelMoeDownF32} {
 		functions[id] = boundKernel{id: id, argumentCount: kernelFunctionArgumentCounts[id]}
 	}
-	tokenBytes := uint64(routeBytes + topK*intermediate*4)
+	tokenBytes := uint64(routeBytes + topK*intermediate*4 + experts*4)
 	blas := &blasState{scores: scores, scoreBytes: group * tokenBytes}
 	trace := &device.LaunchTrace{Probe: true}
 	if err := launchMoE(&device.State{Trace: trace}, functions, blas, nil, node, node.Attrs, frame); err != nil {
@@ -55,18 +55,21 @@ func TestMoELaunchesCoverTokenGroups(t *testing.T) {
 	// A record is four header words, then each argument: eight bytes a
 	// pointer, four a scalar.
 	const (
-		headerBytes = 4 * 8
-		routeRecord = headerBytes + 6*8 + 5*4
-		hiddenBytes = headerBytes + 7*8 + 14*4
-		downRecord  = headerBytes + 6*8 + 10*4
+		headerBytes  = 4 * 8
+		logitsRecord = headerBytes + 4*8 + 3*4
+		routeRecord  = headerBytes + 4*8 + 4*4
+		hiddenBytes  = headerBytes + 7*8 + 14*4
+		downRecord   = headerBytes + 6*8 + 10*4
 	)
 	raw := trace.Data()
-	if want := 3 * (routeRecord + hiddenBytes + downRecord); len(raw) != want {
-		t.Fatalf("launch bytes %d, want three groups of three launches (%d)", len(raw), want)
+	if want := 3 * (logitsRecord + routeRecord + hiddenBytes + downRecord); len(raw) != want {
+		t.Fatalf("launch bytes %d, want three groups of four launches (%d)", len(raw), want)
 	}
 	word, scalar := binary.LittleEndian.Uint64, binary.LittleEndian.Uint32
 	start := uint64(0)
 	for _, count := range []uint64{group, group, tokens - 2*group} {
+		logits := raw[:logitsRecord]
+		raw = raw[logitsRecord:]
 		route, hiddenLaunch, downLaunch := raw[:routeRecord], raw[routeRecord:routeRecord+hiddenBytes], raw[routeRecord+hiddenBytes:routeRecord+hiddenBytes+downRecord]
 		raw = raw[routeRecord+hiddenBytes+downRecord:]
 		for _, check := range []struct {
@@ -77,10 +80,15 @@ func TestMoELaunchesCoverTokenGroups(t *testing.T) {
 			{"route grid", word(route[8:]), count | 1<<32 | 1<<48},
 			{"route block", word(route[16:]), uint64(moeThreads) | 1<<32 | 1<<48},
 			{"route logits", word(route[24:]), experts * 4},
-			{"route router input", word(route[32:]), routerInputBase + start*hidden*4},
-			{"route selection", word(route[64:]), selectedBase + start*topK*4},
-			{"route state", word(route[72:]), scores},
-			{"route tokens", uint64(scalar(route[84:])), count},
+			{"logits kernel", word(logits), uint64(kernelMoeRouterLogitsF32)},
+			{"logits grid", word(logits[8:]), (experts+7)/8 | count<<32 | 1<<48},
+			{"logits router input", word(logits[32:]), routerInputBase + start*hidden*4},
+			{"logits output", word(logits[56:]), scores + group*routeBytes + group*topK*intermediate*4},
+			{"logits tokens", uint64(scalar(logits[68:])), count},
+			{"route logits input", word(route[32:]), scores + group*routeBytes + group*topK*intermediate*4},
+			{"route selection", word(route[48:]), selectedBase + start*topK*4},
+			{"route state", word(route[56:]), scores},
+			{"route tokens", uint64(scalar(route[64:])), count},
 			{"hidden kernel", word(hiddenLaunch), uint64(kernelMoeHiddenF32)},
 			{"hidden grid", word(hiddenLaunch[8:]), count*topK*((intermediate+255)/256) | 1<<32 | 1<<48},
 			{"hidden shared bytes", word(hiddenLaunch[24:]), 256 * 9 * 4 * 2},
@@ -115,7 +123,7 @@ func TestMoELaunchesCoverTokenGroups(t *testing.T) {
 		t.Fatal(err)
 	}
 	const nativeHiddenBlocks = (topK*intermediate*32 + 255) / 256
-	if grid := word(trace.Data()[routeRecord+8:]); grid != nativeHiddenBlocks|1<<32|1<<48 {
+	if grid := word(trace.Data()[logitsRecord+routeRecord+8:]); grid != nativeHiddenBlocks|1<<32|1<<48 {
 		t.Fatalf("native expert grid = %#x, want one warp per dot product", grid)
 	}
 	attributes.Compute = tensor.MulMatComputeExact
@@ -128,8 +136,8 @@ func TestMoELaunchesCoverTokenGroups(t *testing.T) {
 }
 
 // TestCompileReservesMoEScratch: a routed-expert node reserves one launch
-// group's scratch in the score staging -- per token its route words and its
-// routed activations -- bounded for a long prompt, whole for one wide token,
+// group's scratch in the score staging -- per token its route words, its
+// routed activations and its router logits -- bounded for a long prompt, whole for one wide token,
 // and the same whatever the expert banks' storage.
 func TestCompileReservesMoEScratch(t *testing.T) {
 	compile := func(tokens, intermediate uint64, topK uint32, bankType dtype.Type, fused bool, compute ...tensor.MulMatCompute) *CompiledGraph {
@@ -162,8 +170,8 @@ func TestCompileReservesMoEScratch(t *testing.T) {
 		}
 		return compiled
 	}
-	// Unlimited-OCR's routed layer: six slots of 896 rows, 13 route words.
-	const ocrTokenBytes = (13 + 6*896) * 4
+	// Unlimited-OCR's routed layer: six slots of 896 rows, 13 route words and 64 router logits.
+	const ocrTokenBytes = (13 + 6*896 + 64) * 4
 	for _, bankType := range []dtype.Type{dtype.F32, dtype.BF16} {
 		for _, fused := range []bool{false, true} {
 			compiled := compile(1, 896, 6, bankType, fused)
@@ -189,7 +197,7 @@ func TestCompileReservesMoEScratch(t *testing.T) {
 	}
 	// Sixteen slots of limit/4 rows: one token alone exceeds the limit.
 	const wideRows = moeScratchLimitBytes / 4
-	wideTokenBytes := (uint64(tensor.MaxMoETopK)*(wideRows+moeSlotRouteWords) + moeTokenRouteWords) * 4
+	wideTokenBytes := (uint64(tensor.MaxMoETopK)*(wideRows+moeSlotRouteWords) + moeTokenRouteWords + 64) * 4
 	if got := compile(3, wideRows, tensor.MaxMoETopK, dtype.F32, false).attentionScoreBytes; got != wideTokenBytes {
 		t.Fatalf("wide-token scratch = %d, want one token of %d", got, wideTokenBytes)
 	}

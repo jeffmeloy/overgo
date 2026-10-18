@@ -423,8 +423,8 @@ func TestExecutorMoENativeCompute(t *testing.T) {
 								want = reference
 							}
 							compare(t, got, want, accuracyModel)
-							// The first expert batch follows routing, input gathering and weight staging.
-							const firstProduct = (32 + 6*8 + 5*4) + (32 + 3*8 + 5*4) + (32 + 4*8 + 7*4)
+							// The first expert batch follows the router logits, routing, input gathering and weight staging.
+							const firstProduct = (32 + 4*8 + 3*4) + (32 + 4*8 + 4*4) + (32 + 3*8 + 5*4) + (32 + 4*8 + 7*4)
 							if tokens > 1 && (len(trace.Data()) < firstProduct+8 || binary.LittleEndian.Uint64(trace.Data()[firstProduct:]) != traceTagSGEMMStrided) {
 								t.Fatal("grouped expert matrix product did not execute")
 							}

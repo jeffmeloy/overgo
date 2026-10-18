@@ -140,5 +140,19 @@
         "the capital of the United States. The"
       ]
     }
+  },
+  {
+    "model": "model:sha256:d7ff4ba52790c0fd4169982fe91872b73bc33e0f15029f2d614802e63e463da7",
+    "domain": "text",
+    "chat": true,
+    "claim": "Greedy instruction following: one exact arithmetic answer; no benchmark or modality-quality claim.",
+    "generation": {
+      "name": "integer-addition",
+      "prompt": "What is 2 + 2? Reply with only the digit.",
+      "max_tokens": 16,
+      "answers": [
+        "4"
+      ]
+    }
   }
 ]

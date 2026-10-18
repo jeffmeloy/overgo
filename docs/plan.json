@@ -117,17 +117,10 @@
       "title": "Decode Qwen3.8-Flash-Next at the speed Strata reaches on this PC",
       "status": "open",
       "budget": {
-        "nodes": 91,
+        "nodes": 0,
         "reason": "measured by the preflight of step router: the launch of the router logits kernel, its scratch place and its block constant"
       },
       "steps": [
-        {
-          "id": "router",
-          "title": "Compute every expert's router logit across the card, keeping each logit's serial sum",
-          "status": "open",
-          "verify": "go test ./internal/cuda/executor -count=1 -run '^TestMoELaunchesCoverTokenGroups$' \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestExecutorMoEOutputBitsArePinned$'",
-          "rationale": "From the lead's review of C:/Users/jeffm/Strata on 2026-10-17 and a profile of trunk 7d07daefb on 2026-10-18.\nStrata's frozen bench on this PC (overgo_data/references/strata/baseline-20261016) decodes the short chat at 148.7 tokens a second with first token at 0.19 s, and agent follow-ups at 138.4 with first token at 2.27 s.\nOn the same PC and file, Overgo decodes a 100-token short chat at 7.2 tokens a second and the frozen 1,561-token document at 5.5.\nNsight Systems over the short chat's 100 tokens gives 8.5 s of GPU time, of which moe_route_f32 takes 5,992 ms, 1.25 ms in each of its 4,800 launches.\nThe kernel runs one 256-thread block a token, so one token's router reads its 512 rows of 2,560 channels from one multiprocessor, one thread an expert in serial order.\nThe step adds moe_router_logits_f32, which gives each expert a warp anywhere on the card.\nThe warp reads 32 channels at once, and lane 0 adds their products in channel order, so each logit keeps the bits of the serial sum.\nmoe_route_f32 then reads the logits, sums the softmax denominator in expert order and picks each slot in parallel with the lowest index on a tie, so routing keeps its bits.\nServes: throughput and first-output for every routed-expert model, Flash-Next first.\nDisappears: the serial router inside moe_route_f32.\nEvidence: the pinned output bits of every MoE case unchanged, and the short chat at 12.3 tokens a second with the same text.\nBatch: device."
-        },
         {
           "id": "host-work",
           "title": "Remove the per-token host work of the decode step that the profile names",

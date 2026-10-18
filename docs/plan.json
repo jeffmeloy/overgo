@@ -117,8 +117,8 @@
       "title": "Decode Qwen3.8-Flash-Next at the speed Strata reaches on this PC",
       "status": "open",
       "budget": {
-        "nodes": 1,
-        "reason": "measured by the preflight of step host-work: the device copy of hyper-connection streams, the driver's allocation lookup and the residency's deferred memory query"
+        "nodes": 960,
+        "reason": "session-reuse measured +942 production nodes at preflight (+274/-136 lines: replay feeds for n-gram, block-sparse positions and first queries, kept single-branch sessions, the runtime launch-argument rule), plus a named attention token axis; serve-capacity, device-experts and decode-graph set theirs from measured figures before dispatch"
       },
       "steps": [
         {
@@ -127,6 +127,13 @@
           "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestGreedySessionReplaysAcrossCapacityClasses$'",
           "rationale": "From the profile of trunk 6a1bffa92 on 2026-10-18.\nA 100-token short chat compiles decode sessions for about 1.1 s of its 5.7 s, in the warm request as in the first.\nThe device cache grows by page classes (internal/inference/cache_paging.go), and each class and each step between two classes has its own session identity.\nGreedy span sessions are kept by identity and rebind every cache input on each replay (internal/inference/device_cache.go).\nA plain greedy session is kept alone and holds the strict branch affinity of the multi-branch decode, so a past cache made by another session forces a new compilation.\nA kept session holds its compiled graph and borrows its device buffers from the pool when it runs, so keeping more of them costs host memory and not device memory.\nThe step lets a single-branch greedy session rebind its cache inputs as a span session does and keeps it by identity, so a capacity class seen once is compiled once a process.\nServes: throughput and first-output for every model the decode session serves.\nDisappears: the recompilation of known decode sessions.\nEvidence: a test that replays a single-branch greedy session across a capacity class with its cache produced by another session and gets the same tokens, and the short chat's compile time and decode speed before and after.\nBatch: device.\n\nCorrected by the lead on 2026-10-18 from a reading of the decode path.\n- Qwen3.8-Flash-Next never replays a decode session, because ModelPlan.SupportsCapacityReplay refuses a model with an n-gram table and a model whose attention has a block size (internal/model/layer_plan.go)\n- so every Flash-Next decode token builds and compiles its graph, about 11 ms a token of the 1.1 s that 100 tokens compile\n- bindParameterizedDecodeInputs already rebinds every cache input, state and greedy feedback on each replay, for every session, so the branch affinity of a single-branch session guards nothing\n- the step lets a replayed decode step take the n-gram rows and the sparse attention's block selection as inputs refreshed each step, as TestParameterizedDecodeRefreshesPerLayerRows holds for per-layer embedding rows, and keeps single-branch sessions by identity as span sessions are kept\n- its test replays a Flash-Next-shaped fixture across steps and capacity classes and gets the tokens a freshly compiled step gives"
+        },
+        {
+          "id": "serve-capacity",
+          "title": "Verify and activate Flash-Next's capacity-session recipe through a command",
+          "status": "open",
+          "verify": "go test ./cmd/recipe -count=1 -run '^TestVerifyPublishesProtocolAcceptance$'",
+          "rationale": "From step session-reuse: a capacity-session Flash-Next recipe decodes the 100-token short chat in 3.53 to 3.59 s in place of 4.76 to 4.86 s with byte-identical text, but the active recipe (recipe:sha256:4b391840...) was derived at 20156d9b with the request session, which builds a graph every token; since 56a1cf1d8 the automatic session choice derives the capacity recipe (recipe:sha256:81d75bcb...).\nThe active recipe was accepted by the eight protocol cases of the stored probe (file:sha256:4d027ce8..., through the chat, responses and messages handlers), published by a direct call of modelintake.PublishVerification: no command runs those cases on a candidate and publishes its gate and run, so serving the capacity recipe is a hand step.\nThe step gives that acceptance a command (a recipe verify route that runs a stored protocol probe's cases on the derived candidate and publishes the observation, gate and run, deleting any one-off path it displaces), then verifies and activates Flash-Next with -session auto through it; the recipe's status names the capacity recipe.\nServes: throughput for Flash-Next's chat, about 21 to 28 tokens a second; setup-steps falls for every protocol-accepted recipe re-derived after a runtime change.\nBatch: device."
         },
         {
           "id": "device-experts",
@@ -365,7 +372,8 @@
             "plan-decode-steps/do",
             "plan-session-note/do",
             "plan-audio-serving/do",
-            "plan-reuse-review/do"
+            "plan-reuse-review/do",
+            "plan-decode-count/do"
           ]
         }
       ]

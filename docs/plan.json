@@ -212,15 +212,15 @@
       "title": "Decode Qwen3.8-Flash-Next at the speed Strata reaches on this PC",
       "status": "open",
       "budget": {
-        "nodes": 14,
-        "reason": "serve-capacity measured +1086 production nodes in its worktree: recipe verify -protocol runs the eight chat protocol cases (reasoning, tools, cancellation, recovery) through the real handlers and publishes the gate and run, replacing the hand call of modelintake.PublishVerification; device-experts and decode-graph set theirs from measured figures before dispatch"
+        "nodes": 1700,
+        "reason": "device-experts measured about +1589 production nodes (go/ast over its changed files, net of the deleted per-layer resolution): card and mapped-host residency for every expert, between-token promotion from a route bitmap, two driver calls; decode-graph and fast-load set theirs from measured figures before dispatch"
       },
       "steps": [
         {
           "id": "device-experts",
           "title": "Resolve routed experts on the card, so a layer runs without waiting for the host",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestFlashNextExpertCacheServesRankedExperts$'",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestExecutorMoEMissedExpertsKeepResidentBits$'",
           "rationale": "Strata keeps the most-used experts on the card in their quantized form, ranked from a profile and adapted to the conversation, and looks each routed expert up on the card (docs/DETAILS.md lines 360-365 and 1698-1709).\nIts log of this PC caches 17,031 of the 24,576 experts in 38.4 GiB and hits 97 to 99 percent of decode lookups.\nOvergo resolves indexed expert banks on the host after a device wait at every layer (launch_moe.go, ResolveExpertBanks).\nThe step keeps a device-resident table from expert to cached slot, filled by the existing residency owners (internal/modeldevice/expert_residency.go), and lets the expert kernels read it.\nA miss is served from host memory over the link or computed on the CPU at the share the profile shows best.\nEvery output token stays identical on the frozen workloads.\nServes: throughput and first-output for Flash-Next.\nDisappears: the per-layer device wait and route copy, and the host expert resolution of decode.\nEvidence: the mechanism's device test, and the short chat's and the document's decode speed before and after, beside Strata's 148.7 tokens a second.\nBatch: device; set the row's count from a measured figure before the change.\n\nFrom the owner's reuse review of 2026-10-18 (points 1 to 3) and this PC's sizes: the Flash-Next file is 93.7 GB, RAM 96 GB, the card 49 GB.\nRouting has to reach replay: keep each layer's routed indices on the card and let the expert kernels read the slot table by them, so decode-graph can capture the step; the host never reads routes inside a token.\nA miss cannot be served from all experts pinned in host RAM, since the file does not fit beside the rest: read misses through bounded pinned staging buffers, prefetched between tokens from the routes of the token before, and change residency between tokens, not inside one.\nA free-memory reading is not a reservation: the cache's bytes are admitted through the executor's admission (retained_memory.go CheckRetainedMemory) once, not refined from MemInfo on a miss.\n\nFrom the owner's review of 2026-10-18 (point 1): prediction from the previous token's routes cannot guarantee that every selected expert is resident, so an unexpected miss needs a guaranteed path.\nContract: every slot-table entry always points at readable bytes, a device copy or a device-accessible backing copy of that expert (pinned host memory mapped into the device, or a bounded set of pinned staging slots the miss is copied into before its layer runs), so a kernel never reads an unfilled entry; where no such backing exists for an expert, the step keeps an explicit execution boundary (a stream wait and host service) at that layer, and says which experts take it.\nAcceptance: a device test forces misses (a residency limit below one layer's routed experts, and a route of experts never loaded) and holds the outputs to the all-resident run's bits; the decode-graph step depends on this test.",
           "depends_on": [
             "strata-decode/host-work"
@@ -480,7 +480,8 @@
             "plan-reuse-contracts/do",
             "plan-capacity-count/do",
             "plan-sqa-p2/do",
-            "plan-device-label/do"
+            "plan-device-label/do",
+            "plan-experts-count/do"
           ]
         }
       ]

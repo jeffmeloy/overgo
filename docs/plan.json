@@ -117,8 +117,8 @@
       "title": "Decode Qwen3.8-Flash-Next at the speed Strata reaches on this PC",
       "status": "open",
       "budget": {
-        "nodes": 12,
-        "reason": "session-reuse measured +942 production nodes at preflight (+274/-136 lines: replay feeds for n-gram, block-sparse positions and first queries, kept single-branch sessions, the runtime launch-argument rule), plus a named attention token axis; serve-capacity, device-experts and decode-graph set theirs from measured figures before dispatch"
+        "nodes": 1100,
+        "reason": "serve-capacity measured +1086 production nodes in its worktree: recipe verify -protocol runs the eight chat protocol cases (reasoning, tools, cancellation, recovery) through the real handlers and publishes the gate and run, replacing the hand call of modelintake.PublishVerification; device-experts and decode-graph set theirs from measured figures before dispatch"
       },
       "steps": [
         {
@@ -364,7 +364,8 @@
             "plan-audio-serving/do",
             "plan-reuse-review/do",
             "plan-decode-count/do",
-            "plan-reuse-contracts/do"
+            "plan-reuse-contracts/do",
+            "plan-capacity-count/do"
           ]
         }
       ]

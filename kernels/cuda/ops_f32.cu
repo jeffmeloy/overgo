@@ -3591,12 +3591,10 @@ extern "C" __global__ void lora_merge_f32(
 	output[index] = base[index] + scale * delta;
 }
 
-// Routed experts run as three launches over a per-token scratch:
-// moe_route_f32 leaves each token's selected experts, their route weights and
-// the weights' sum; moe_hidden_f32 the selected experts' activations;
-// moe_down_f32 their projection. Every sum keeps one order whatever the launch
-// geometry: a dot is a single sequential chain, and the down projection
-// restarts its partial sum every MOE_DOWN_TILE intermediate rows, slot-major.
+// Routed scratch holds selected experts, weights and intermediate activations.
+// Strict dots keep sequential sums independent of launch geometry.
+// Native dots reduce one row across a warp without expanded weight storage.
+// Down projections retain slot order and restart partial sums every MOE_DOWN_TILE rows.
 constexpr unsigned int MOE_DOWN_TILE = 256;
 
 extern "C" __global__ void moe_route_f32(
@@ -3749,19 +3747,21 @@ extern "C" __global__ void moe_hidden_f32(
         unsigned int expert_index_divisor,
         float swiglu_clamp,
         unsigned int indexed_experts,
-        unsigned int count) {
-    // A warp transposes sector-wide reads into rows without changing sum order.
+        unsigned int count,
+        unsigned int native_compute) {
+    // Strict execution transposes sector reads while preserving sum order.
     constexpr unsigned int sector_bytes = 32;
     constexpr unsigned int channels = sector_bytes / sizeof(float);
     constexpr unsigned int stride = channels + 1;
     constexpr unsigned int rows_per_load = CUDA_WARP_WIDTH / channels;
     const unsigned int tiles = (intermediate - 1) / blockDim.x + 1;
-    const unsigned int selected = blockIdx.x / tiles;
+    const unsigned int warp_index = (blockIdx.x * blockDim.x + threadIdx.x) / CUDA_WARP_WIDTH;
+    const unsigned int selected = native_compute ? warp_index / intermediate : blockIdx.x / tiles;
     if (selected >= count / intermediate) return;
-    const unsigned int inner_index = (blockIdx.x % tiles) * blockDim.x + threadIdx.x;
+    const unsigned int inner_index = native_compute ? warp_index % intermediate : (blockIdx.x % tiles) * blockDim.x + threadIdx.x;
     const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
     const unsigned int warp_row = inner_index - lane;
-    if (warp_row >= intermediate) return;
+    if (!native_compute && warp_row >= intermediate) return;
     const unsigned int index = selected * intermediate + inner_index;
     const unsigned int slot = selected % top_k;
     const unsigned int token = selected / top_k;
@@ -3780,29 +3780,42 @@ extern "C" __global__ void moe_hidden_f32(
     float * up_tile = gate_tile + blockDim.x * stride;
     float gate_dot = 0.0f;
     float up_dot = 0.0f;
-    for (unsigned int base = 0; base < hidden; base += channels) {
-        const unsigned int channel = base + lane % channels;
-        #pragma unroll 1
-        for (unsigned int row = lane / channels; row < CUDA_WARP_WIDTH; row += rows_per_load) {
-            if (warp_row + row < intermediate && channel < hidden) {
-                const size_t offset = (size_t) (warp_row + row) * hidden + channel;
-                if (gated) gate_tile[row * stride + lane % channels] =
-                    moe_expert_value(gate, gate_base + offset, gate_storage);
-                up_tile[row * stride + lane % channels] =
-                    moe_expert_value(up, up_base + offset, up_storage);
-            }
+    if (native_compute) {
+        for (unsigned int channel = lane; channel < hidden; channel += CUDA_WARP_WIDTH) {
+            const size_t offset = (size_t) inner_index * hidden + channel;
+            if (gated) gate_dot += x[channel] * moe_expert_value(gate, gate_base + offset, gate_storage);
+            up_dot += x[channel] * moe_expert_value(up, up_base + offset, up_storage);
         }
-        __syncwarp();
-        if (inner_index < intermediate) {
-            #pragma unroll
-            for (unsigned int channel = 0; channel < channels; ++channel) {
-                if (base + channel < hidden) {
-                    if (gated) gate_dot += x[base + channel] * gate_tile[lane * stride + channel];
-                    up_dot += x[base + channel] * up_tile[lane * stride + channel];
+        for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
+            gate_dot += __shfl_down_sync(0xffffffffu, gate_dot, offset);
+            up_dot += __shfl_down_sync(0xffffffffu, up_dot, offset);
+        }
+        if (lane != 0) return;
+    } else {
+        for (unsigned int base = 0; base < hidden; base += channels) {
+            const unsigned int channel = base + lane % channels;
+            #pragma unroll 1
+            for (unsigned int row = lane / channels; row < CUDA_WARP_WIDTH; row += rows_per_load) {
+                if (warp_row + row < intermediate && channel < hidden) {
+                    const size_t offset = (size_t) (warp_row + row) * hidden + channel;
+                    if (gated) gate_tile[row * stride + lane % channels] =
+                        moe_expert_value(gate, gate_base + offset, gate_storage);
+                    up_tile[row * stride + lane % channels] =
+                        moe_expert_value(up, up_base + offset, up_storage);
                 }
             }
+            __syncwarp();
+            if (inner_index < intermediate) {
+                #pragma unroll
+                for (unsigned int channel = 0; channel < channels; ++channel) {
+                    if (base + channel < hidden) {
+                        if (gated) gate_dot += x[base + channel] * gate_tile[lane * stride + channel];
+                        up_dot += x[base + channel] * up_tile[lane * stride + channel];
+                    }
+                }
+            }
+            __syncwarp();
         }
-        __syncwarp();
     }
     if (inner_index >= intermediate) return;
     if (gate_bias) {
@@ -3827,8 +3840,11 @@ extern "C" __global__ void moe_down_f32(
         unsigned int expert_storage,
         unsigned int expert_index_divisor,
         unsigned int indexed_experts,
-        unsigned int count) {
-    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+        unsigned int count,
+        unsigned int native_compute) {
+    const unsigned int width = native_compute ? CUDA_WARP_WIDTH : 1;
+    const unsigned int lane = threadIdx.x % width;
+    const unsigned int index = (blockIdx.x * blockDim.x + threadIdx.x) / width;
     if (index >= count) return;
     const unsigned int output_channel = index % hidden;
     const unsigned int token = index / hidden;
@@ -3850,17 +3866,22 @@ extern "C" __global__ void moe_down_f32(
             float partial = 0.0f;
             if (expert_storage == GGML_F32) {
                 const float * down_row = reinterpret_cast<const float *>(bank) + down_offset;
-                for (unsigned int inner = 0; inner < tile_count; ++inner) {
+                for (unsigned int inner = lane; inner < tile_count; inner += width) {
                     partial += tile_activations[inner] * down_row[inner];
                 }
             } else if (expert_storage == GGML_BF16) {
                 const unsigned short * down_row = reinterpret_cast<const unsigned short *>(bank) + down_offset;
-                for (unsigned int inner = 0; inner < tile_count; ++inner) {
+                for (unsigned int inner = lane; inner < tile_count; inner += width) {
                     partial += tile_activations[inner] * __uint_as_float((unsigned int) down_row[inner] << 16);
                 }
             } else {
-                for (unsigned int inner = 0; inner < tile_count; ++inner) {
+                for (unsigned int inner = lane; inner < tile_count; inner += width) {
                     partial += tile_activations[inner] * moe_expert_value(bank, down_offset + inner, expert_storage);
+                }
+            }
+            if (native_compute) {
+                for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
+                    partial += __shfl_down_sync(0xffffffffu, partial, offset);
                 }
             }
             if (tile + tile_count == intermediate && down_bias) {
@@ -3869,7 +3890,7 @@ extern "C" __global__ void moe_down_f32(
             result += route * expert_multiplier * partial;
         }
     }
-    output[index] = result;
+    if (lane == 0) output[index] = result;
 }
 
 extern "C" __global__ void moe_gather_f32(

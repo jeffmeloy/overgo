@@ -396,32 +396,39 @@ func (c moePinnedCase) prepare(t testing.TB, cuda *Executor, bankType dtype.Type
 	return output, host, device, bankValues
 }
 
-func TestExecutorMoEGroupedMatrices(t *testing.T) {
+func TestExecutorMoENativeCompute(t *testing.T) {
 	for _, c := range moePinnedCases {
-		if !c.reference || c.ungated || c.name == "many-experts" {
+		if !c.reference {
 			continue
 		}
 		t.Run(c.name, func(t *testing.T) {
-			c.tokens = 64
-			c.compute = tensor.MulMatComputeNativeTensorCore
-			var want []float32
-			for _, offload := range []bool{false, true} {
-				t.Run(map[bool]string{false: "resident", true: "indexed"}[offload], func(t *testing.T) {
-					cuda := newFixtureExecutor(t)
-					trace := &device.LaunchTrace{}
-					if err := cuda.worker.Do(t.Context(), func(state *device.State) error { state.Trace = trace; return nil }); err != nil {
-						t.Fatal(err)
-					}
-					c.offload = offload
-					got, reference := c.run(t, cuda, dtype.F32)
-					if !offload {
-						want = reference
-					}
-					compare(t, got, want, accuracyModel)
-					// The first expert batch follows routing, input gathering and weight staging.
-					const firstProduct = (32 + 6*8 + 5*4) + (32 + 3*8 + 5*4) + (32 + 4*8 + 7*4)
-					if len(trace.Data()) < firstProduct+8 || binary.LittleEndian.Uint64(trace.Data()[firstProduct:]) != traceTagSGEMMStrided {
-						t.Fatal("grouped expert matrix product did not execute")
+			for _, tokens := range []uint64{1, 64} {
+				if tokens > 1 && (c.ungated || c.name == "many-experts") {
+					continue
+				}
+				t.Run(fmt.Sprintf("tokens=%d", tokens), func(t *testing.T) {
+					c.tokens = tokens
+					c.compute = tensor.MulMatComputeNativeTensorCore
+					var want []float32
+					for _, offload := range []bool{false, true} {
+						t.Run(map[bool]string{false: "resident", true: "indexed"}[offload], func(t *testing.T) {
+							cuda := newFixtureExecutor(t)
+							trace := &device.LaunchTrace{}
+							if err := cuda.worker.Do(t.Context(), func(state *device.State) error { state.Trace = trace; return nil }); err != nil {
+								t.Fatal(err)
+							}
+							c.offload = offload
+							got, reference := c.run(t, cuda, dtype.F32)
+							if !offload {
+								want = reference
+							}
+							compare(t, got, want, accuracyModel)
+							// The first expert batch follows routing, input gathering and weight staging.
+							const firstProduct = (32 + 6*8 + 5*4) + (32 + 3*8 + 5*4) + (32 + 4*8 + 7*4)
+							if tokens > 1 && (len(trace.Data()) < firstProduct+8 || binary.LittleEndian.Uint64(trace.Data()[firstProduct:]) != traceTagSGEMMStrided) {
+								t.Fatal("grouped expert matrix product did not execute")
+							}
+						})
 					}
 				})
 			}
@@ -440,7 +447,7 @@ func BenchmarkMoEGroupedMatrices(b *testing.B) {
 	if _, err := library.ReserveDevice(0); err != nil {
 		b.Fatal(err)
 	}
-	for _, tokens := range []uint64{4, 128} {
+	for _, tokens := range []uint64{1, 4, 128} {
 		b.Run(fmt.Sprintf("tokens=%d", tokens), func(b *testing.B) {
 			var c moePinnedCase
 			for _, fixture := range moePinnedCases {

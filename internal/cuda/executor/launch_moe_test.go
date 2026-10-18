@@ -57,8 +57,8 @@ func TestMoELaunchesCoverTokenGroups(t *testing.T) {
 	const (
 		headerBytes = 4 * 8
 		routeRecord = headerBytes + 6*8 + 5*4
-		hiddenBytes = headerBytes + 7*8 + 13*4
-		downRecord  = headerBytes + 6*8 + 9*4
+		hiddenBytes = headerBytes + 7*8 + 14*4
+		downRecord  = headerBytes + 6*8 + 10*4
 	)
 	raw := trace.Data()
 	if want := 3 * (routeRecord + hiddenBytes + downRecord); len(raw) != want {
@@ -106,6 +106,21 @@ func TestMoELaunchesCoverTokenGroups(t *testing.T) {
 		}
 		start += count
 	}
+	trace.Reset(true)
+	attributes := node.Attrs.(tensor.MoEAttributes)
+	attributes.Compute = tensor.MulMatComputeNativeTensorCore
+	node.Attrs = attributes
+	node.Shape = tensor.MustShape(hidden, 1)
+	if err := launchMoE(&device.State{Trace: trace}, functions, blas, nil, node, node.Attrs, frame); err != nil {
+		t.Fatal(err)
+	}
+	const nativeHiddenBlocks = (topK*intermediate*32 + 255) / 256
+	if grid := word(trace.Data()[routeRecord+8:]); grid != nativeHiddenBlocks|1<<32|1<<48 {
+		t.Fatalf("native expert grid = %#x, want one warp per dot product", grid)
+	}
+	attributes.Compute = tensor.MulMatComputeExact
+	node.Attrs = attributes
+	node.Shape = tensor.MustShape(hidden, tokens)
 	blas.scoreBytes--
 	if err := launchMoE(&device.State{Trace: trace}, functions, blas, nil, node, node.Attrs, frame); err == nil {
 		t.Fatal("a scratch one byte short was accepted")

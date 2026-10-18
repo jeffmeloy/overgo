@@ -171,6 +171,16 @@
       },
       "steps": [
         {
+          "id": "replay",
+          "title": "Register a saved inspection only when sources and mappings still match",
+          "status": "open",
+          "verify": "go test ./internal/modelintake ./internal/libraryintake ./cmd/recipe -count=1",
+          "rationale": "Serves: deterministic MOSS onboarding across process restarts.\nDisappears: manual reconstruction of a previously reviewed import description through the existing recipe registration command.\nEvidence: saved-description replay, relocated sources, changed payloads, changed bindings and policies, malformed descriptions, failed publication and unchanged duplicate registration.\nBatch: existing inspection and registration owners with no new document contract or serving activation.\nReconstruct the current inspection from the supplied model location and require exact canonical agreement with the saved description before publication.\nBind output purpose, source identities, profiles, mappings, ordered transforms, operator requirements and policy identities.\nThe registration command reuses native source files and the existing atomic fact publisher.\nUnknown component execution mappings remain explicit and numerical acceptance remains separate.\nComplete runtime materialization and lifecycle activation remain later obligations.",
+          "depends_on": [
+            "moss-import/verify-sources"
+          ]
+        },
+        {
           "id": "materialize",
           "title": "Execute an import description idempotently and retain rollback",
           "status": "open",
@@ -179,7 +189,8 @@
           "depends_on": [
             "moss-import/inspect",
             "moss-import/stream",
-            "moss-import/verify-sources"
+            "moss-import/verify-sources",
+            "moss-import/replay"
           ]
         }
       ]

@@ -110,8 +110,10 @@ const (
 	kernelMadNormF32
 	kernelMoeActivateF32
 	kernelMoeCombineF32
+	kernelMoeDownDotF32
 	kernelMoeDownF32
 	kernelMoeGatherF32
+	kernelMoeHiddenDotF32
 	kernelMoeHiddenF32
 	kernelMoeRouteF32
 	kernelMoeRouterLogitsF32
@@ -329,8 +331,10 @@ var kernelFunctionNames = [...]string{
 	"mad_norm_f32",
 	"moe_activate_f32",
 	"moe_combine_f32",
+	"moe_down_dot_f32",
 	"moe_down_f32",
 	"moe_gather_f32",
+	"moe_hidden_dot_f32",
 	"moe_hidden_f32",
 	"moe_route_f32",
 	"moe_router_logits_f32",
@@ -547,9 +551,11 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	5,
 	10,
 	10,
-	16,
+	15,
+	15,
 	8,
-	21,
+	20,
+	20,
 	8,
 	7,
 	8,

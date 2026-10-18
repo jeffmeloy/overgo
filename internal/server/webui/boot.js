@@ -313,8 +313,11 @@
   function displayToken(text) { if (text === "" || text == null) return "∅"; if (/^\s+$/.test(text)) return "␠".repeat(text.length); return text.replace(/\n/g, "⏎"); }
 
   // The shell's timers, named in one place: a library field's focus retry, the swap button's loading
-  // tick, the offline probe, and the status re-probe.
-  const focusRetryMS = 50, loadingTickMS = 1000, offlineProbeMS = 4000, statusRefreshMS = 10000;
+  // tick, the offline probe, the status re-probe, and the pause before a failed script is fetched again.
+  const focusRetryMS = 50, loadingTickMS = 1000, offlineProbeMS = 4000, statusRefreshMS = 10000, scriptRetryMS = 250;
+  // A script whose fetch fails is fetched again this many times in all before the page reports it, so a
+  // transient network failure, such as a host out of socket buffers, does not stop the shell.
+  const scriptLoadAttempts = 3;
   // runner: one exclusive, cancelable async action bound to a run and a cancel button, ended too by the
   // lifetime of the workspace it runs in; an abort goes to onCancel, any other failure to onError.
   function runner(runButton, cancelButton, handlers, lifetime) {
@@ -1262,12 +1265,19 @@
   function loadScript(src) {
     if (loadedScripts.has(src)) return Promise.resolve(src);
     return tracked(new Promise((resolve, reject) => {
-      const script = document.createElement("script");
-      script.src = src;
-      script.async = false; // insertion order is execution order
-      script.onload = () => { loadedScripts.add(src); resolve(src); };
-      script.onerror = () => reject(new Error("failed to load " + src));
-      document.head.appendChild(script);
+      const attempt = (remaining) => {
+        const script = document.createElement("script");
+        script.src = src;
+        script.async = false; // insertion order is execution order
+        script.onload = () => { loadedScripts.add(src); resolve(src); };
+        script.onerror = () => {
+          script.remove();
+          if (remaining > 1) setTimeout(() => attempt(remaining - 1), scriptRetryMS);
+          else reject(new Error("failed to load " + src));
+        };
+        document.head.appendChild(script);
+      };
+      attempt(scriptLoadAttempts);
     }));
   }
   async function loadWorkspaceModules(manifest) {

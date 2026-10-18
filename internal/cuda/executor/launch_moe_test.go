@@ -43,7 +43,7 @@ func TestMoELaunchesCoverTokenGroups(t *testing.T) {
 		slots:  []int{0, 1, 2, 3, 4, 5, 6, 7},
 	}
 	var functions functionSet
-	for _, id := range []kernelFunctionID{kernelMoeRouterLogitsF32, kernelMoeRouteF32, kernelMoeHiddenF32, kernelMoeDownF32} {
+	for _, id := range []kernelFunctionID{kernelMoeRouterLogitsF32, kernelMoeRouteF32, kernelMoeHiddenF32, kernelMoeDownF32, kernelMoeHiddenDotF32, kernelMoeDownDotF32} {
 		functions[id] = boundKernel{id: id, argumentCount: kernelFunctionArgumentCounts[id]}
 	}
 	tokenBytes := uint64(routeBytes + topK*intermediate*4 + experts*4)
@@ -58,8 +58,10 @@ func TestMoELaunchesCoverTokenGroups(t *testing.T) {
 		headerBytes  = 4 * 8
 		logitsRecord = headerBytes + 4*8 + 3*4
 		routeRecord  = headerBytes + 4*8 + 4*4
-		hiddenBytes  = headerBytes + 7*8 + 14*4
-		downRecord   = headerBytes + 6*8 + 10*4
+		hiddenBytes  = headerBytes + 7*8 + 13*4
+		downRecord   = headerBytes + 6*8 + 9*4
+		// A group's activations lead its scratch and its route words follow.
+		routeOffset = group * topK * intermediate * 4
 	)
 	raw := trace.Data()
 	if want := 3 * (logitsRecord + routeRecord + hiddenBytes + downRecord); len(raw) != want {
@@ -87,22 +89,22 @@ func TestMoELaunchesCoverTokenGroups(t *testing.T) {
 			{"logits tokens", uint64(scalar(logits[68:])), count},
 			{"route logits input", word(route[32:]), scores + group*routeBytes + group*topK*intermediate*4},
 			{"route selection", word(route[48:]), selectedBase + start*topK*4},
-			{"route state", word(route[56:]), scores},
+			{"route state", word(route[56:]), scores + routeOffset},
 			{"route tokens", uint64(scalar(route[64:])), count},
 			{"hidden kernel", word(hiddenLaunch), uint64(kernelMoeHiddenF32)},
 			{"hidden grid", word(hiddenLaunch[8:]), count*topK*((intermediate+255)/256) | 1<<32 | 1<<48},
 			{"hidden shared bytes", word(hiddenLaunch[24:]), 256 * 9 * 4 * 2},
 			{"hidden input", word(hiddenLaunch[32:]), inputBase + start*hidden*4},
-			{"hidden route state", word(hiddenLaunch[40:]), scores},
-			{"hidden activations", word(hiddenLaunch[80:]), scores + group*routeBytes},
+			{"hidden route state", word(hiddenLaunch[40:]), scores + routeOffset},
+			{"hidden activations", word(hiddenLaunch[80:]), scores},
 			{"hidden gate storage", uint64(scalar(hiddenLaunch[104:])), uint64(dtype.BF16)},
 			{"hidden up storage", uint64(scalar(hiddenLaunch[108:])), uint64(dtype.F32)},
 			{"hidden indexed", uint64(scalar(hiddenLaunch[132:])), 0},
 			{"hidden count", uint64(scalar(hiddenLaunch[136:])), count * topK * intermediate},
 			{"down kernel", word(downLaunch), uint64(kernelMoeDownF32)},
 			{"down grid", word(downLaunch[8:]), (count*hidden+255)/256 | 1<<32 | 1<<48},
-			{"down route state", word(downLaunch[32:]), scores},
-			{"down activations", word(downLaunch[40:]), scores + group*routeBytes},
+			{"down route state", word(downLaunch[32:]), scores + routeOffset},
+			{"down activations", word(downLaunch[40:]), scores},
 			{"down output", word(downLaunch[72:]), output + start*hidden*4},
 			{"down storage", uint64(scalar(downLaunch[100:])), uint64(dtype.BF16)},
 			{"down indexed", uint64(scalar(downLaunch[108:])), 0},
@@ -123,8 +125,12 @@ func TestMoELaunchesCoverTokenGroups(t *testing.T) {
 		t.Fatal(err)
 	}
 	const nativeHiddenBlocks = (topK*intermediate*32 + 255) / 256
-	if grid := word(trace.Data()[logitsRecord+routeRecord+8:]); grid != nativeHiddenBlocks|1<<32|1<<48 {
-		t.Fatalf("native expert grid = %#x, want one warp per dot product", grid)
+	native := trace.Data()[logitsRecord+routeRecord:]
+	if kernel, grid := word(native), word(native[8:]); kernel != uint64(kernelMoeHiddenDotF32) || grid != nativeHiddenBlocks|1<<32|1<<48 {
+		t.Fatalf("native expert kernel %d grid %#x, want kernel %d with one warp per dot product", kernel, grid, kernelMoeHiddenDotF32)
+	}
+	if kernel, grid := word(native[hiddenBytes:]), word(native[hiddenBytes+8:]); kernel != uint64(kernelMoeDownDotF32) || grid != (hidden*32+255)/256|1<<32|1<<48 {
+		t.Fatalf("native down kernel %d grid %#x, want kernel %d with one warp per output channel", kernel, grid, kernelMoeDownDotF32)
 	}
 	attributes.Compute = tensor.MulMatComputeExact
 	node.Attrs = attributes

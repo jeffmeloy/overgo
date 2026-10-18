@@ -146,12 +146,13 @@ func launchMoE(
 		if blas == nil || blas.scores == 0 || uint64(group)*tokenBytes > blas.scoreBytes {
 			return errors.New("MoE scratch is unavailable")
 		}
-		// A group's route words lead the scratch; its activations follow.
-		routeState := blas.scores
-		activations := routeState +
+		// A group's activations lead the scratch, so a routed row of a block
+		// storage starts 16-byte aligned for the block dots' vector reads.
+		// Its route words and then its router logits follow.
+		activations := blas.scores
+		routeState := activations + driver.DevicePtr(uint64(group)*uint64(topK)*uint64(intermediate)*f32ScalarBytes)
+		routerLogits := routeState +
 			driver.DevicePtr(uint64(group)*(uint64(topK)*moeSlotRouteWords+moeTokenRouteWords)*f32ScalarBytes)
-		// The group's router logits follow its activations.
-		routerLogits := activations + driver.DevicePtr(uint64(group)*uint64(topK)*uint64(intermediate)*f32ScalarBytes)
 		if uint64(experts) > math.MaxUint32/f32ScalarBytes || uint64(group)*uint64(hidden) > math.MaxUint32 {
 			return errors.New("grouped MoE launch size exceeds uint32")
 		}
@@ -231,38 +232,38 @@ func launchMoE(
 				continue
 			}
 			hiddenCount := count * topK * intermediate
+			downCount := count * hidden
+			hiddenKernel, downKernel := functions[kernelMoeHiddenF32], functions[kernelMoeDownF32]
 			hiddenGrid := count * topK * ((intermediate-1)/moeThreads + 1)
 			sharedBytes := moeHiddenSharedBytes
-			downCount := count * hidden
 			downThreads := downCount
-			nativeCompute := kernelBool(attributes.Compute == tensor.MulMatComputeNativeTensorCore)
-			if nativeCompute != 0 {
-				threads, hiddenErr := quantMulMatLaunchCount(dtype.BF16, intermediate, count*topK)
+			if attributes.Compute == tensor.MulMatComputeNativeTensorCore {
+				// Native execution gives each routed row and each output channel a warp.
+				hiddenThreads, hiddenErr := quantMulMatLaunchCount(dtype.BF16, intermediate, count*topK)
 				nativeDown, downErr := quantMulMatLaunchCount(dtype.BF16, hidden, count)
 				if hiddenErr == nil && downErr == nil {
-					hiddenGrid = (threads-1)/moeThreads + 1
+					hiddenKernel, downKernel = functions[kernelMoeHiddenDotF32], functions[kernelMoeDownDotF32]
+					hiddenGrid = (hiddenThreads-1)/moeThreads + 1
 					sharedBytes = 0
 					downThreads = nativeDown
-				} else {
-					nativeCompute = 0
 				}
 			}
 			if err := launchGridSharedABI(
-				state, functions[kernelMoeHiddenF32],
+				state, hiddenKernel,
 				driver.Dim3{X: hiddenGrid, Y: 1, Z: 1},
 				driver.Dim3{X: moeThreads, Y: 1, Z: 1},
 				sharedBytes,
 				&groupInput, &routeState, &gate, &up, &gateBias, &upBias, &activations,
 				&hidden, &topK, &intermediate, &routing, &gateStorage, &upStorage, &gated, &fusedGateUp,
-				&activation, &expertIndexDivisor, &swigluClamp, &indexed, &hiddenCount, &nativeCompute,
+				&activation, &expertIndexDivisor, &swigluClamp, &indexed, &hiddenCount,
 			); err != nil {
 				return err
 			}
 			if err := launch1DABI(
-				state, functions[kernelMoeDownF32], downThreads,
+				state, downKernel, downThreads,
 				&routeState, &activations, &down, &expertScale, &downBias, &groupOutput,
 				&hidden, &topK, &intermediate, &normalize, &scale, &downStorage,
-				&expertIndexDivisor, &indexed, &downCount, &nativeCompute,
+				&expertIndexDivisor, &indexed, &downCount,
 			); err != nil {
 				return err
 			}

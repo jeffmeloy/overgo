@@ -3566,6 +3566,15 @@ __device__ float moe_expert_value(
         size_t index,
         unsigned int storage);
 
+struct block_dot_codebooks;
+
+__device__ __forceinline__ float moe_down_channel(
+        const unsigned int * route_state, const float * activations, const void * down,
+        const float * expert_scale, const float * down_bias, unsigned int hidden, unsigned int top_k,
+        unsigned int intermediate, unsigned int normalize_top_k, float routed_scale, unsigned int expert_storage,
+        unsigned int expert_index_divisor, unsigned int indexed_experts, unsigned int index,
+        unsigned int lane, unsigned int width, const block_dot_codebooks * codebooks);
+
 extern "C" __global__ void lora_merge_f32(
 		const float * base,
 		const float * a,
@@ -3591,9 +3600,9 @@ extern "C" __global__ void lora_merge_f32(
 	output[index] = base[index] + scale * delta;
 }
 
-// Routed scratch holds selected experts, weights and intermediate activations.
+// Routed scratch holds intermediate activations, selected experts and weights.
 // Strict dots keep sequential sums independent of launch geometry.
-// Native dots reduce one row across a warp without expanded weight storage.
+// Native dots reduce one row across a warp without expanded weight storage (moe_hidden_dot_f32, moe_down_dot_f32).
 // Down projections retain slot order and restart partial sums every MOE_DOWN_TILE rows.
 constexpr unsigned int MOE_DOWN_TILE = 256;
 
@@ -3818,21 +3827,19 @@ extern "C" __global__ void moe_hidden_f32(
         unsigned int expert_index_divisor,
         float swiglu_clamp,
         unsigned int indexed_experts,
-        unsigned int count,
-        unsigned int native_compute) {
+        unsigned int count) {
     // Strict execution transposes sector reads while preserving sum order.
     constexpr unsigned int sector_bytes = 32;
     constexpr unsigned int channels = sector_bytes / sizeof(float);
     constexpr unsigned int stride = channels + 1;
     constexpr unsigned int rows_per_load = CUDA_WARP_WIDTH / channels;
     const unsigned int tiles = (intermediate - 1) / blockDim.x + 1;
-    const unsigned int warp_index = (blockIdx.x * blockDim.x + threadIdx.x) / CUDA_WARP_WIDTH;
-    const unsigned int selected = native_compute ? warp_index / intermediate : blockIdx.x / tiles;
+    const unsigned int selected = blockIdx.x / tiles;
     if (selected >= count / intermediate) return;
-    const unsigned int inner_index = native_compute ? warp_index % intermediate : (blockIdx.x % tiles) * blockDim.x + threadIdx.x;
+    const unsigned int inner_index = (blockIdx.x % tiles) * blockDim.x + threadIdx.x;
     const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
     const unsigned int warp_row = inner_index - lane;
-    if (!native_compute && warp_row >= intermediate) return;
+    if (warp_row >= intermediate) return;
     const unsigned int index = selected * intermediate + inner_index;
     const unsigned int slot = selected % top_k;
     const unsigned int token = selected / top_k;
@@ -3851,42 +3858,29 @@ extern "C" __global__ void moe_hidden_f32(
     float * up_tile = gate_tile + blockDim.x * stride;
     float gate_dot = 0.0f;
     float up_dot = 0.0f;
-    if (native_compute) {
-        for (unsigned int channel = lane; channel < hidden; channel += CUDA_WARP_WIDTH) {
-            const size_t offset = (size_t) inner_index * hidden + channel;
-            if (gated) gate_dot += x[channel] * moe_expert_value(gate, gate_base + offset, gate_storage);
-            up_dot += x[channel] * moe_expert_value(up, up_base + offset, up_storage);
+    for (unsigned int base = 0; base < hidden; base += channels) {
+        const unsigned int channel = base + lane % channels;
+        #pragma unroll 1
+        for (unsigned int row = lane / channels; row < CUDA_WARP_WIDTH; row += rows_per_load) {
+            if (warp_row + row < intermediate && channel < hidden) {
+                const size_t offset = (size_t) (warp_row + row) * hidden + channel;
+                if (gated) gate_tile[row * stride + lane % channels] =
+                    moe_expert_value(gate, gate_base + offset, gate_storage);
+                up_tile[row * stride + lane % channels] =
+                    moe_expert_value(up, up_base + offset, up_storage);
+            }
         }
-        for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
-            gate_dot += __shfl_down_sync(0xffffffffu, gate_dot, offset);
-            up_dot += __shfl_down_sync(0xffffffffu, up_dot, offset);
-        }
-        if (lane != 0) return;
-    } else {
-        for (unsigned int base = 0; base < hidden; base += channels) {
-            const unsigned int channel = base + lane % channels;
-            #pragma unroll 1
-            for (unsigned int row = lane / channels; row < CUDA_WARP_WIDTH; row += rows_per_load) {
-                if (warp_row + row < intermediate && channel < hidden) {
-                    const size_t offset = (size_t) (warp_row + row) * hidden + channel;
-                    if (gated) gate_tile[row * stride + lane % channels] =
-                        moe_expert_value(gate, gate_base + offset, gate_storage);
-                    up_tile[row * stride + lane % channels] =
-                        moe_expert_value(up, up_base + offset, up_storage);
+        __syncwarp();
+        if (inner_index < intermediate) {
+            #pragma unroll
+            for (unsigned int channel = 0; channel < channels; ++channel) {
+                if (base + channel < hidden) {
+                    if (gated) gate_dot += x[base + channel] * gate_tile[lane * stride + channel];
+                    up_dot += x[base + channel] * up_tile[lane * stride + channel];
                 }
             }
-            __syncwarp();
-            if (inner_index < intermediate) {
-                #pragma unroll
-                for (unsigned int channel = 0; channel < channels; ++channel) {
-                    if (base + channel < hidden) {
-                        if (gated) gate_dot += x[base + channel] * gate_tile[lane * stride + channel];
-                        up_dot += x[base + channel] * up_tile[lane * stride + channel];
-                    }
-                }
-            }
-            __syncwarp();
         }
+        __syncwarp();
     }
     if (inner_index >= intermediate) return;
     if (gate_bias) {
@@ -3911,57 +3905,12 @@ extern "C" __global__ void moe_down_f32(
         unsigned int expert_storage,
         unsigned int expert_index_divisor,
         unsigned int indexed_experts,
-        unsigned int count,
-        unsigned int native_compute) {
-    const unsigned int width = native_compute ? CUDA_WARP_WIDTH : 1;
-    const unsigned int lane = threadIdx.x % width;
-    const unsigned int index = (blockIdx.x * blockDim.x + threadIdx.x) / width;
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
     if (index >= count) return;
-    const unsigned int output_channel = index % hidden;
-    const unsigned int token = index / hidden;
-    const unsigned int * selected = route_state + (size_t) token * (2 * top_k + 1);
-    const float * routes = reinterpret_cast<const float *>(selected + top_k);
-    const float * selected_sum = routes + top_k;
-    float result = 0.0f;
-    for (unsigned int slot = 0; slot < top_k; ++slot) {
-        const unsigned int expert = selected[slot] / expert_index_divisor;
-        const void * bank = indexed_experts ? reinterpret_cast<const void * const *>(down)[expert] : down;
-        float route = routes[slot] * routed_scale;
-        if (normalize_top_k) route /= fmaxf(*selected_sum, 6.103515625e-5f);
-        const float expert_multiplier = expert_scale ? expert_scale[expert] : 1.0f;
-        const float * slot_activations = activations + ((size_t) token * top_k + slot) * intermediate;
-        for (unsigned int tile = 0; tile < intermediate; tile += MOE_DOWN_TILE) {
-            const unsigned int tile_count = intermediate - tile < MOE_DOWN_TILE ? intermediate - tile : MOE_DOWN_TILE;
-            const size_t down_offset = ((size_t) (indexed_experts ? 0 : expert) * hidden + output_channel) * intermediate + tile;
-            const float * tile_activations = slot_activations + tile;
-            float partial = 0.0f;
-            if (expert_storage == GGML_F32) {
-                const float * down_row = reinterpret_cast<const float *>(bank) + down_offset;
-                for (unsigned int inner = lane; inner < tile_count; inner += width) {
-                    partial += tile_activations[inner] * down_row[inner];
-                }
-            } else if (expert_storage == GGML_BF16) {
-                const unsigned short * down_row = reinterpret_cast<const unsigned short *>(bank) + down_offset;
-                for (unsigned int inner = lane; inner < tile_count; inner += width) {
-                    partial += tile_activations[inner] * __uint_as_float((unsigned int) down_row[inner] << 16);
-                }
-            } else {
-                for (unsigned int inner = lane; inner < tile_count; inner += width) {
-                    partial += tile_activations[inner] * moe_expert_value(bank, down_offset + inner, expert_storage);
-                }
-            }
-            if (native_compute) {
-                for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
-                    partial += __shfl_down_sync(0xffffffffu, partial, offset);
-                }
-            }
-            if (tile + tile_count == intermediate && down_bias) {
-                partial += down_bias[(size_t) expert * hidden + output_channel];
-            }
-            result += route * expert_multiplier * partial;
-        }
-    }
-    if (lane == 0) output[index] = result;
+    output[index] = moe_down_channel(route_state, activations, down, expert_scale, down_bias, hidden, top_k,
+        intermediate, normalize_top_k, routed_scale, expert_storage, expert_index_divisor, indexed_experts,
+        index, 0, 1, nullptr);
 }
 
 extern "C" __global__ void moe_gather_f32(
@@ -7404,6 +7353,468 @@ __device__ float moe_expert_value(
         return 0.0f;
     }
 #undef MOE_DEQUANT_CASE
+}
+
+// ---- Block dots ----
+// A block dot gives one lane BLOCK_DOT_WEIGHTS weights of a quantized block.
+// The lane reads the block's scales once for them and dots them with the matching activations.
+// A row of a block storage holds whole blocks.
+// BLOCK_DOT_WEIGHTS = the weights of one IQ3_S sign byte = the nibbles of one 32-bit IQ4 word.
+constexpr unsigned int BLOCK_DOT_WEIGHTS = 8;
+
+// block_dot_codebooks holds the codebooks of the block dots in shared memory.
+//   - lanes of a warp read different entries at once
+//   - constant memory serves one address at a time, and shared memory one address a bank
+struct block_dot_codebooks {
+    unsigned int iq3_s[sizeof(iq3SGrid) / sizeof(iq3SGrid[0])];
+    float iq4_nl[sizeof(iq4nl_values) / sizeof(iq4nl_values[0])];
+};
+
+// block_dot_codebooks_load copies the codebooks the block dots of two storages read.
+//   - every thread of the block calls it before any returns, because it waits for the whole block
+__device__ __forceinline__ void block_dot_codebooks_load(
+        block_dot_codebooks & codebooks, unsigned int first, unsigned int second) {
+    if (first == GGML_IQ3_S || second == GGML_IQ3_S) {
+        for (unsigned int index = threadIdx.x; index < sizeof(codebooks.iq3_s) / sizeof(codebooks.iq3_s[0]); index += blockDim.x) {
+            codebooks.iq3_s[index] = iq3SGrid[index];
+        }
+    }
+    if (first == GGML_IQ4_NL || first == GGML_IQ4_XS || second == GGML_IQ4_NL || second == GGML_IQ4_XS) {
+        for (unsigned int index = threadIdx.x; index < sizeof(codebooks.iq4_nl) / sizeof(codebooks.iq4_nl[0]); index += blockDim.x) {
+            codebooks.iq4_nl[index] = iq4nl_values[index];
+        }
+    }
+    __syncthreads();
+}
+
+// load_f32x4 reads four consecutive activations that start 16-byte aligned.
+__device__ __forceinline__ float4 load_f32x4(const float * source) {
+    return *reinterpret_cast<const float4 *>(source);
+}
+
+// The block loads read weight bytes through the read-only cache.
+__device__ __forceinline__ unsigned int load_u8(const unsigned char * source) {
+    return __ldg(source);
+}
+
+__device__ __forceinline__ unsigned int load_u16(const unsigned char * source) {
+    return __ldg(reinterpret_cast<const unsigned short *>(source));
+}
+
+// load_u32_halves reads four bytes that start 2-byte aligned.
+__device__ __forceinline__ unsigned int load_u32_halves(const unsigned char * source) {
+    return load_u16(source) | load_u16(source + 2) << 16;
+}
+
+__device__ __forceinline__ float load_half(const unsigned char * source) {
+    return __half2float(__ushort_as_half((unsigned short) load_u16(source)));
+}
+
+// byte_float returns byte BYTE of bytes as a float.
+//   - the byte becomes the low mantissa bits of 2^23, and 2^23 then subtracts exactly
+//   - a byte permute and an add replace a conversion
+//   - conversion rate = 1/8 of the add rate on compute capability 8.9 (CUDA C++ Programming Guide, arithmetic instruction throughput)
+template <unsigned int BYTE>
+__device__ __forceinline__ float byte_float(unsigned int bytes) {
+    return __int_as_float((int) __byte_perm(bytes, 0x4b000000u, 0x7540u | BYTE)) - 8388608.0f;
+}
+
+// signed_byte_float returns signed byte BYTE of bytes as a float.
+//   - the flipped top bit offsets the byte by 128, which subtracts with 2^23
+template <unsigned int BYTE>
+__device__ __forceinline__ float signed_byte_float(unsigned int bytes) {
+    return __int_as_float((int) __byte_perm(bytes ^ 0x80808080u, 0x4b000000u, 0x7540u | BYTE)) - 8388736.0f;
+}
+
+// iq3_s_quad_dot dots the four magnitudes of an IQ3_S grid entry with x.
+//   - bit i of signs negates magnitude i, for i < 4
+__device__ __forceinline__ float iq3_s_quad_dot(unsigned int grid, unsigned int signs, float4 x) {
+    const float w0 = byte_float<0>(grid);
+    const float w1 = byte_float<1>(grid);
+    const float w2 = byte_float<2>(grid);
+    const float w3 = byte_float<3>(grid);
+    return (signs & 1 ? -w0 : w0) * x.x + (signs & 2 ? -w1 : w1) * x.y +
+        (signs & 4 ? -w2 : w2) * x.z + (signs & 8 ? -w3 : w3) * x.w;
+}
+
+// iq4_nibble_dot dots the eight IQ4_NL codebook values packed in four bytes with x.
+//   - the low nibbles weigh low and the high nibbles weigh high, byte by byte
+__device__ __forceinline__ float iq4_nibble_dot(unsigned int packed, float4 low, float4 high, const float * values) {
+    return values[packed & 0x0f] * low.x + values[(packed >> 8) & 0x0f] * low.y +
+        values[(packed >> 16) & 0x0f] * low.z + values[(packed >> 24) & 0x0f] * low.w +
+        values[(packed >> 4) & 0x0f] * high.x + values[(packed >> 12) & 0x0f] * high.y +
+        values[(packed >> 20) & 0x0f] * high.z + values[packed >> 28] * high.w;
+}
+
+// q8_quad_dot dots four signed bytes with x.
+__device__ __forceinline__ float q8_quad_dot(unsigned int bytes, float4 x) {
+    return signed_byte_float<0>(bytes) * x.x + signed_byte_float<1>(bytes) * x.y +
+        signed_byte_float<2>(bytes) * x.z + signed_byte_float<3>(bytes) * x.w;
+}
+
+// A block format names a storage's block width in weights, its block bytes and its block dot.
+//   - width and bytes = ggml's layout, which the storage's dequant_*_value function reads
+//   - dot(block, group, x, codebooks) dots BLOCK_DOT_WEIGHTS weights of the block with x
+//   - x starts at the block's first weight, 16-byte aligned
+//   - the weights decode as the storage's dequant_*_value function decodes them
+
+// iq3_s_blocks dots weights 8 * group to 8 * group + 7.
+struct iq3_s_blocks {
+    static constexpr unsigned int width = 256;
+    static constexpr unsigned int bytes = 110;
+    __device__ static __forceinline__ float dot(
+            const unsigned char * block, unsigned int group, const float * x, const block_dot_codebooks & codebooks) {
+        const unsigned int pair = group / 8;
+        const unsigned int half = group / 4 % 2;
+        const unsigned int sub_group = group % 4;
+        const unsigned int indices = load_u16(block + 2 + pair * 16 + half * 8 + sub_group * 2);
+        const unsigned int high = load_u8(block + 66 + pair * 2 + half);
+        const unsigned int signs = load_u8(block + 74 + pair * 8 + half * 4 + sub_group);
+        const unsigned int group_scale = (load_u8(block + 106 + pair) >> (4 * half)) & 0x0f;
+        const unsigned int first = codebooks.iq3_s[(indices & 0xff) | ((high << (8 - 2 * sub_group)) & 0x0100)];
+        const unsigned int second = codebooks.iq3_s[(indices >> 8) | ((high << (7 - 2 * sub_group)) & 0x0100)];
+        const float scale = load_half(block) * (float) (1 + 2 * group_scale);
+        const float * group_x = x + BLOCK_DOT_WEIGHTS * group;
+        return scale * (iq3_s_quad_dot(first, signs, load_f32x4(group_x)) +
+            iq3_s_quad_dot(second, signs >> 4, load_f32x4(group_x + 4)));
+    }
+};
+
+// iq4_nl_blocks dots weights 4 * group to 4 * group + 3 and 16 + 4 * group to 19 + 4 * group.
+struct iq4_nl_blocks {
+    static constexpr unsigned int width = 32;
+    static constexpr unsigned int bytes = 18;
+    __device__ static __forceinline__ float dot(
+            const unsigned char * block, unsigned int group, const float * x, const block_dot_codebooks & codebooks) {
+        const unsigned int packed = load_u32_halves(block + 2 + 4 * group);
+        return load_half(block) *
+            iq4_nibble_dot(packed, load_f32x4(x + 4 * group), load_f32x4(x + 16 + 4 * group), codebooks.iq4_nl);
+    }
+};
+
+// iq4_xs_blocks dots one quarter of a 32-weight sub-block, laid out as an IQ4_NL block.
+//   - group / 4 = the sub-block, group % 4 = the quarter
+struct iq4_xs_blocks {
+    static constexpr unsigned int width = 256;
+    static constexpr unsigned int bytes = 136;
+    __device__ static __forceinline__ float dot(
+            const unsigned char * block, unsigned int group, const float * x, const block_dot_codebooks & codebooks) {
+        const unsigned int sub_block = group / 4;
+        const unsigned int quarter = group % 4;
+        const unsigned int high_scales = load_u16(block + 2);
+        const unsigned int sub_scale = ((load_u8(block + 4 + sub_block / 2) >> (4 * (sub_block % 2))) & 0x0f) |
+            (((high_scales >> (2 * sub_block)) & 0x03) << 4);
+        const unsigned int packed =
+            __ldg(reinterpret_cast<const unsigned int *>(block + 8 + 16 * sub_block + 4 * quarter));
+        const float * sub_x = x + iq4_nl_blocks::width * sub_block;
+        return load_half(block) * (float) ((int) sub_scale - 32) *
+            iq4_nibble_dot(packed, load_f32x4(sub_x + 4 * quarter), load_f32x4(sub_x + 16 + 4 * quarter),
+                codebooks.iq4_nl);
+    }
+};
+
+// q8_0_blocks dots weights 8 * group to 8 * group + 7.
+struct q8_0_blocks {
+    static constexpr unsigned int width = Q8_0_BLOCK_WIDTH;
+    static constexpr unsigned int bytes = Q8_0_BLOCK_BYTES;
+    __device__ static __forceinline__ float dot(
+            const unsigned char * block, unsigned int group, const float * x, const block_dot_codebooks &) {
+        const unsigned char * quantized = block + Q8_0_SCALE_BYTES + BLOCK_DOT_WEIGHTS * group;
+        const float * group_x = x + BLOCK_DOT_WEIGHTS * group;
+        return load_half(block) * (q8_quad_dot(load_u32_halves(quantized), load_f32x4(group_x)) +
+            q8_quad_dot(load_u32_halves(quantized + 4), load_f32x4(group_x + 4)));
+    }
+};
+
+// visit_block_format calls visit with the block format of a storage.
+//   - it refuses a storage without a block dot, or activations x that do not start 16-byte aligned, and then does not call visit
+//   - a row of a block storage spans whole blocks of at least 32 weights, so each of its activation rows keeps x's alignment
+template <typename Visit>
+__device__ __forceinline__ bool visit_block_format(unsigned int storage, const float * x, Visit visit) {
+    if ((reinterpret_cast<size_t>(x) & (sizeof(float4) - 1)) != 0) return false;
+    switch (storage) {
+    case GGML_IQ3_S: visit(iq3_s_blocks{}); return true;
+    case GGML_IQ4_XS: visit(iq4_xs_blocks{}); return true;
+    case GGML_IQ4_NL: visit(iq4_nl_blocks{}); return true;
+    case GGML_Q8_0: visit(q8_0_blocks{}); return true;
+    default: return false;
+    }
+}
+
+// block_row returns the first block of the row of a bank that starts at weight first.
+template <typename Format>
+__device__ __forceinline__ const unsigned char * block_row(const void * bank, size_t first) {
+    return reinterpret_cast<const unsigned char *>(bank) + first / Format::width * Format::bytes;
+}
+
+// A warp takes the groups of BLOCK_DOT_WEIGHTS weights of block_dot_step<Format>() blocks at once.
+//   - a lane keeps one group of each block it takes, so the group's offsets stay fixed across blocks
+template <typename Format>
+__device__ __forceinline__ constexpr unsigned int block_dot_step() {
+    static_assert(CUDA_WARP_WIDTH % (Format::width / BLOCK_DOT_WEIGHTS) == 0, "a warp covers whole blocks");
+    return CUDA_WARP_WIDTH / (Format::width / BLOCK_DOT_WEIGHTS);
+}
+
+// block_rows_dot adds one lane's share of each row's dot with x to sums.
+//   - rows of one storage share the activation reads
+template <typename Format, unsigned int ROWS>
+__device__ __forceinline__ void block_rows_dot(
+        const unsigned char * const * rows, const float * x, unsigned int width, unsigned int lane,
+        const block_dot_codebooks & codebooks, float * sums) {
+    constexpr unsigned int groups = Format::width / BLOCK_DOT_WEIGHTS;
+    const unsigned int group = lane % groups;
+    #pragma unroll 1
+    for (unsigned int block = lane / groups; block < width / Format::width; block += block_dot_step<Format>()) {
+        #pragma unroll
+        for (unsigned int row = 0; row < ROWS; ++row) {
+            sums[row] += Format::dot(
+                rows[row] + (size_t) block * Format::bytes, group, x + (size_t) block * Format::width, codebooks);
+        }
+    }
+}
+
+// moe_row_weights_dot gives one lane its share of the dot of x with a routed row, one weight a lane in turn.
+//   - it stays out of line, so the block dots' loops keep their own registers
+__device__ __noinline__ float moe_row_weights_dot(
+        const void * bank, size_t first, unsigned int storage, const float * x, unsigned int width, unsigned int lane) {
+    float sum = 0.0f;
+    for (unsigned int channel = lane; channel < width; channel += CUDA_WARP_WIDTH) {
+        sum += x[channel] * moe_expert_value(bank, first + channel, storage);
+    }
+    return sum;
+}
+
+// moe_row_dot gives one lane its share of the dot of x with the routed row that starts at weight first.
+//   - a block storage takes block dots
+//   - another storage, or x off 16-byte alignment, takes one weight a lane in turn
+__device__ __forceinline__ float moe_row_dot(
+        const void * bank, size_t first, unsigned int storage, const float * x, unsigned int width,
+        unsigned int lane, const block_dot_codebooks & codebooks) {
+    float sum = 0.0f;
+    if (visit_block_format(storage, x, [&](auto format) {
+            using Format = decltype(format);
+            const unsigned char * row = block_row<Format>(bank, first);
+            block_rows_dot<Format, 1>(&row, x, width, lane, codebooks, &sum);
+        })) {
+        return sum;
+    }
+    return moe_row_weights_dot(bank, first, storage, x, width, lane);
+}
+
+// block_slots_dot gives one lane its share of a token's routed rows, each dotted with its slot's activations and weighted.
+//   - lane s < slots holds slot s's row and weight
+//   - the warp takes the slots' blocks in turn across slot boundaries
+//   - activations = the first slot's, and each slot's follow the previous slot's
+template <typename Format>
+__device__ __forceinline__ float block_slots_dot(
+        const unsigned char * row, float weight, const float * activations, unsigned int slots,
+        unsigned int width, unsigned int lane, const block_dot_codebooks & codebooks) {
+    constexpr unsigned int groups = Format::width / BLOCK_DOT_WEIGHTS;
+    const unsigned int row_blocks = width / Format::width;
+    const unsigned int group = lane % groups;
+    unsigned int slot = lane / groups / row_blocks;
+    unsigned int block = lane / groups % row_blocks;
+    float sum = 0.0f;
+    #pragma unroll 2
+    for (unsigned int base = 0; base < slots * row_blocks; base += block_dot_step<Format>()) {
+        // Every lane shuffles, because a shuffle waits for the whole warp.
+        const unsigned char * slot_row = reinterpret_cast<const unsigned char *>(
+            __shfl_sync(0xffffffffu, reinterpret_cast<unsigned long long>(row), slot));
+        const float slot_weight = __shfl_sync(0xffffffffu, weight, slot);
+        if (slot < slots) {
+            sum += slot_weight * Format::dot(slot_row + (size_t) block * Format::bytes, group,
+                activations + (size_t) slot * width + (size_t) block * Format::width, codebooks);
+        }
+        block += block_dot_step<Format>();
+        while (block >= row_blocks) {
+            block -= row_blocks;
+            ++slot;
+        }
+    }
+    return sum;
+}
+
+// warp_sum_down adds a value across a warp's lanes by halving shuffles, and lane 0 holds the sum.
+__device__ __forceinline__ float warp_sum_down(float value) {
+    for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
+        value += __shfl_down_sync(0xffffffffu, value, offset);
+    }
+    return value;
+}
+
+// moe_down_channel sums one output channel of one token over the token's routed slots.
+//   - a slot adds its weight times its down row's dot with its activations
+//   - width = the lanes that share the channel, and lane 0 holds the sum
+//   - codebooks != nullptr => a block storage takes block dots across the slots, and a warp shares the channel
+//   - otherwise each lane takes every width-th weight and partial sums restart every MOE_DOWN_TILE rows
+__device__ __forceinline__ float moe_down_channel(
+        const unsigned int * route_state, const float * activations, const void * down,
+        const float * expert_scale, const float * down_bias, unsigned int hidden, unsigned int top_k,
+        unsigned int intermediate, unsigned int normalize_top_k, float routed_scale, unsigned int expert_storage,
+        unsigned int expert_index_divisor, unsigned int indexed_experts, unsigned int index,
+        unsigned int lane, unsigned int width, const block_dot_codebooks * codebooks) {
+    const unsigned int output_channel = index % hidden;
+    const unsigned int token = index / hidden;
+    const unsigned int * selected = route_state + (size_t) token * (2 * top_k + 1);
+    const float * routes = reinterpret_cast<const float *>(selected + top_k);
+    const float * selected_sum = routes + top_k;
+    const float * token_activations = activations + (size_t) token * top_k * intermediate;
+    // A slot's weight = its route, scaled, normalized when asked, times its expert's scale.
+    const auto slot_weight = [&](unsigned int slot, unsigned int expert) {
+        float route = routes[slot] * routed_scale;
+        if (normalize_top_k) route /= fmaxf(*selected_sum, 6.103515625e-5f);
+        return route * (expert_scale ? expert_scale[expert] : 1.0f);
+    };
+    const auto slot_bank = [&](unsigned int expert) {
+        return indexed_experts ? reinterpret_cast<const void * const *>(down)[expert] : down;
+    };
+    const auto slot_row = [&](unsigned int expert) {
+        return ((size_t) (indexed_experts ? 0 : expert) * hidden + output_channel) * intermediate;
+    };
+    float result = 0.0f;
+    if (codebooks) {
+        // Lane s < top_k holds slot s, and top_k <= MaxMoETopK < CUDA_WARP_WIDTH.
+        const unsigned int expert = selected[lane < top_k ? lane : 0] / expert_index_divisor;
+        const float weight = slot_weight(lane < top_k ? lane : 0, expert);
+        if (visit_block_format(expert_storage, token_activations, [&](auto format) {
+                using Format = decltype(format);
+                result = block_slots_dot<Format>(block_row<Format>(slot_bank(expert), slot_row(expert)), weight,
+                    token_activations, top_k, intermediate, lane, *codebooks);
+            })) {
+            if (down_bias && lane < top_k) result += weight * down_bias[(size_t) expert * hidden + output_channel];
+            return warp_sum_down(result);
+        }
+    }
+    for (unsigned int slot = 0; slot < top_k; ++slot) {
+        const unsigned int expert = selected[slot] / expert_index_divisor;
+        const void * bank = slot_bank(expert);
+        const float weight = slot_weight(slot, expert);
+        const float * slot_activations = token_activations + (size_t) slot * intermediate;
+        const size_t row = slot_row(expert);
+        for (unsigned int tile = 0; tile < intermediate; tile += MOE_DOWN_TILE) {
+            const unsigned int tile_count = intermediate - tile < MOE_DOWN_TILE ? intermediate - tile : MOE_DOWN_TILE;
+            const size_t down_offset = row + tile;
+            const float * tile_activations = slot_activations + tile;
+            float partial = 0.0f;
+            if (expert_storage == GGML_F32) {
+                const float * down_row = reinterpret_cast<const float *>(bank) + down_offset;
+                for (unsigned int inner = lane; inner < tile_count; inner += width) {
+                    partial += tile_activations[inner] * down_row[inner];
+                }
+            } else if (expert_storage == GGML_BF16) {
+                const unsigned short * down_row = reinterpret_cast<const unsigned short *>(bank) + down_offset;
+                for (unsigned int inner = lane; inner < tile_count; inner += width) {
+                    partial += tile_activations[inner] * __uint_as_float((unsigned int) down_row[inner] << 16);
+                }
+            } else {
+                for (unsigned int inner = lane; inner < tile_count; inner += width) {
+                    partial += tile_activations[inner] * moe_expert_value(bank, down_offset + inner, expert_storage);
+                }
+            }
+            if (width > 1) partial = warp_sum_down(partial);
+            if (tile + tile_count == intermediate && down_bias) {
+                partial += down_bias[(size_t) expert * hidden + output_channel];
+            }
+            result += weight * partial;
+        }
+    }
+    return result;
+}
+
+// moe_hidden_dot_f32 gives each routed row of a launch group a warp.
+//   - the warp dots the row's gate and up weights with its token's input and stores the row's activation
+//   - a block storage takes block dots
+//   - another storage, or an input off 16-byte alignment, takes one weight a lane in turn
+extern "C" __global__ void moe_hidden_dot_f32(
+        const float * input,
+        const unsigned int * route_state,
+        const void * gate,
+        const void * up,
+        const float * gate_bias,
+        const float * up_bias,
+        float * activations,
+        unsigned int hidden,
+        unsigned int top_k,
+        unsigned int intermediate,
+        unsigned int routing,
+        unsigned int gate_storage,
+        unsigned int up_storage,
+        unsigned int gated,
+        unsigned int fused_gate_up,
+        unsigned int activation,
+        unsigned int expert_index_divisor,
+        float swiglu_clamp,
+        unsigned int indexed_experts,
+        unsigned int count) {
+    __shared__ block_dot_codebooks codebooks;
+    block_dot_codebooks_load(codebooks, gate_storage, up_storage);
+    const unsigned int index = (blockIdx.x * blockDim.x + threadIdx.x) / CUDA_WARP_WIDTH;
+    if (index >= count) return;
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const unsigned int inner_index = index % intermediate;
+    const unsigned int selected = index / intermediate;
+    const unsigned int slot = selected % top_k;
+    const unsigned int token = selected / top_k;
+    const float * x = input + (size_t) token * hidden;
+    const unsigned int expert =
+        route_state[(size_t) token * (2 * top_k + 1) + slot] / expert_index_divisor;
+    if (indexed_experts) {
+        if (gated) gate = reinterpret_cast<const void * const *>(gate)[expert];
+        up = reinterpret_cast<const void * const *>(up)[expert];
+    }
+    const size_t gate_row =
+        (size_t) (indexed_experts ? 0 : expert) * (fused_gate_up ? 2 : 1) * intermediate * hidden +
+        (size_t) inner_index * hidden;
+    const size_t up_row = gate_row + (fused_gate_up ? (size_t) intermediate * hidden : 0);
+    // Gate and up rows of one block storage take one loop, so their reads are in flight together.
+    float dots[2] = {0.0f, 0.0f};
+    const bool paired = gated && gate_storage == up_storage && visit_block_format(up_storage, x, [&](auto format) {
+        using Format = decltype(format);
+        const unsigned char * rows[2] = {block_row<Format>(gate, gate_row), block_row<Format>(up, up_row)};
+        block_rows_dot<Format, 2>(rows, x, hidden, lane, codebooks, dots);
+    });
+    float gate_dot = dots[0];
+    float up_dot = dots[1];
+    if (!paired) {
+        if (gated) gate_dot = moe_row_dot(gate, gate_row, gate_storage, x, hidden, lane, codebooks);
+        up_dot = moe_row_dot(up, up_row, up_storage, x, hidden, lane, codebooks);
+    }
+    gate_dot = warp_sum_down(gate_dot);
+    up_dot = warp_sum_down(up_dot);
+    if (lane != 0) return;
+    if (gate_bias) {
+        gate_dot += gate_bias[(size_t) expert * intermediate + inner_index];
+        up_dot += up_bias[(size_t) expert * intermediate + inner_index];
+    }
+    activations[index] = moe_activation(gate_dot, up_dot, gated, activation, routing, swiglu_clamp);
+}
+
+// moe_down_dot_f32 gives each output channel of a launch group's tokens a warp, which sums the channel over its routed slots.
+extern "C" __global__ void moe_down_dot_f32(
+        const unsigned int * route_state,
+        const float * activations,
+        const void * down,
+        const float * expert_scale,
+        const float * down_bias,
+        float * output,
+        unsigned int hidden,
+        unsigned int top_k,
+        unsigned int intermediate,
+        unsigned int normalize_top_k,
+        float routed_scale,
+        unsigned int expert_storage,
+        unsigned int expert_index_divisor,
+        unsigned int indexed_experts,
+        unsigned int count) {
+    __shared__ block_dot_codebooks codebooks;
+    block_dot_codebooks_load(codebooks, expert_storage, expert_storage);
+    const unsigned int index = (blockIdx.x * blockDim.x + threadIdx.x) / CUDA_WARP_WIDTH;
+    if (index >= count) return;
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const float result = moe_down_channel(route_state, activations, down, expert_scale, down_bias, hidden, top_k,
+        intermediate, normalize_top_k, routed_scale, expert_storage, expert_index_divisor, indexed_experts,
+        index, lane, CUDA_WARP_WIDTH, &codebooks);
+    if (lane == 0) output[index] = result;
 }
 
 // ---- Wan causal 3-D VAE decode (streamed chunk-major, latentvideo) ----

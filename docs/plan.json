@@ -117,17 +117,10 @@
       "title": "Decode Qwen3.8-Flash-Next at the speed Strata reaches on this PC",
       "status": "open",
       "budget": {
-        "nodes": 0,
+        "nodes": 1,
         "reason": "measured by the preflight of step host-work: the device copy of hyper-connection streams, the driver's allocation lookup and the residency's deferred memory query"
       },
       "steps": [
-        {
-          "id": "expert-kernels",
-          "title": "Compute routed experts with the per-type quantized block dots, grouped over the routed slots",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestExecutorMoEExpertsUseBlockDots$'",
-          "rationale": "From the profile of trunk 6a1bffa92 on 2026-10-18.\nA 100-token short chat on Qwen3.8-Flash-Next takes 5.7 s, of which the GPU works about 2.8 s.\nThe routed experts take 1,221 ms of it: moe_hidden_f32 797 ms and moe_down_f32 424 ms over 4,800 launches each.\nStrata reads about 1.16 GB of expert weights a token (docs/QUANTS.md, docs/UNSLOTH_Q4.md), which the card's memory bandwidth streams in under 2 ms, and the two kernels take about 12 ms a token.\nBoth kernels read each weight through moe_expert_value, which decodes one element of its quantized block at a time, so each element repeats its block's scale and grid lookup.\nThe executor's dense quantized matrix-vector kernels (mul_mat_iq3_s_f32, mul_mat_iq4_nl_f32, mul_mat_q8_0_f32 and the others) decode a block at a time.\nThe step computes the routed experts' rows with those per-type block dots, grouped over the routed slots in one launch, for every expert storage UD-IQ4_XS uses (IQ3_S and IQ4_XS gate and up, IQ4_NL and Q8_0 down).\nThe summation order changes, so outputs stay within the arithmetic the dense quantized kernels keep, and TestExecutorMoEOutputBitsArePinned is pinned again for the quantized cases with the reason.\nServes: throughput and first-output for Flash-Next and every quantized routed-expert model.\nDisappears: the per-element expert decoding of the native expert path.\nEvidence: the MoE block tests against their references, the frozen short chat's text, and the routed-expert GPU time before and after.\nBatch: device; set the row's count from the change's measured figure before it."
-        },
         {
           "id": "session-reuse",
           "title": "Keep single-branch greedy decode sessions by identity and rebind their cache inputs on replay",

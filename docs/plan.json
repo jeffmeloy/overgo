@@ -291,6 +291,10 @@
       "id": "strata-monitor",
       "title": "Show the running model, the device and each request live in the GUI, as Strata's Monitor does",
       "status": "open",
+      "budget": {
+        "nodes": 1150,
+        "reason": "monitor measured +1,113 production nodes in its worktree: an optional nvml.dll binding (+374) for GPU load, temperature, power and PCIe, the /metrics additions (+254), expert placement and hit counters in the residency (+192), per-request prefill accounting (+138)"
+      },
       "steps": [
         {
           "id": "monitor",
@@ -437,7 +441,8 @@
             "plan-device-label/do",
             "plan-experts-count/do",
             "plan-retire-reopened/do",
-            "plan-graph-count/do"
+            "plan-graph-count/do",
+            "plan-monitor-count/do"
           ]
         }
       ]

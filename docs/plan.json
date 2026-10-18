@@ -117,17 +117,10 @@
       "title": "Decode Qwen3.8-Flash-Next at the speed Strata reaches on this PC",
       "status": "open",
       "budget": {
-        "nodes": 960,
+        "nodes": 12,
         "reason": "session-reuse measured +942 production nodes at preflight (+274/-136 lines: replay feeds for n-gram, block-sparse positions and first queries, kept single-branch sessions, the runtime launch-argument rule), plus a named attention token axis; serve-capacity, device-experts and decode-graph set theirs from measured figures before dispatch"
       },
       "steps": [
-        {
-          "id": "session-reuse",
-          "title": "Keep single-branch greedy decode sessions by identity and rebind their cache inputs on replay",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestGreedySessionReplaysAcrossCapacityClasses$'",
-          "rationale": "From the profile of trunk 6a1bffa92 on 2026-10-18.\nA 100-token short chat compiles decode sessions for about 1.1 s of its 5.7 s, in the warm request as in the first.\nThe device cache grows by page classes (internal/inference/cache_paging.go), and each class and each step between two classes has its own session identity.\nGreedy span sessions are kept by identity and rebind every cache input on each replay (internal/inference/device_cache.go).\nA plain greedy session is kept alone and holds the strict branch affinity of the multi-branch decode, so a past cache made by another session forces a new compilation.\nA kept session holds its compiled graph and borrows its device buffers from the pool when it runs, so keeping more of them costs host memory and not device memory.\nThe step lets a single-branch greedy session rebind its cache inputs as a span session does and keeps it by identity, so a capacity class seen once is compiled once a process.\nServes: throughput and first-output for every model the decode session serves.\nDisappears: the recompilation of known decode sessions.\nEvidence: a test that replays a single-branch greedy session across a capacity class with its cache produced by another session and gets the same tokens, and the short chat's compile time and decode speed before and after.\nBatch: device.\n\nCorrected by the lead on 2026-10-18 from a reading of the decode path.\n- Qwen3.8-Flash-Next never replays a decode session, because ModelPlan.SupportsCapacityReplay refuses a model with an n-gram table and a model whose attention has a block size (internal/model/layer_plan.go)\n- so every Flash-Next decode token builds and compiles its graph, about 11 ms a token of the 1.1 s that 100 tokens compile\n- bindParameterizedDecodeInputs already rebinds every cache input, state and greedy feedback on each replay, for every session, so the branch affinity of a single-branch session guards nothing\n- the step lets a replayed decode step take the n-gram rows and the sparse attention's block selection as inputs refreshed each step, as TestParameterizedDecodeRefreshesPerLayerRows holds for per-layer embedding rows, and keeps single-branch sessions by identity as span sessions are kept\n- its test replays a Flash-Next-shaped fixture across steps and capacity classes and gets the tokens a freshly compiled step gives"
-        },
         {
           "id": "serve-capacity",
           "title": "Verify and activate Flash-Next's capacity-session recipe through a command",

@@ -45,20 +45,25 @@ func TestSupportsCapacityCacheAdmitsSharedKV(t *testing.T) {
 	if plan := fixtureModelPlan(t, llama, Weights{}); !plan.SupportsCapacityCache() {
 		t.Fatal("a dense decoder without shared KV was refused the capacity session")
 	}
+	const budget = uint32(8)
 	for _, lexical := range []bool{false, true} {
 		spec := qwen35TestSpec()
 		spec.Architecture, spec.BlockCount = "qwen4exp", 1
 		spec.RecurrentLayers = []bool{false}
 		spec.CompressRatios = []uint32{4}
-		spec.IndexerKeyLength = 4
+		spec.IndexerKeyLength, spec.IndexerTopK = 4, budget
 		if lexical {
 			spec.Architecture = "llama"
 			spec.HyperConnectionCount = 4
 			spec.NGram = &NGramSpec{Size: 3, ConvKernel: 4}
 		}
 		plan := fixtureModelPlan(t, spec, Weights{})
-		if !plan.SupportsCapacityCache() || plan.SupportsCapacityReplay() {
-			t.Fatalf("lexical=%t storage/replay = %t/%t", lexical, plan.SupportsCapacityCache(), plan.SupportsCapacityReplay())
+		if !plan.SupportsCapacityCache() {
+			t.Fatalf("lexical=%t plan was refused the capacity session", lexical)
+		}
+		// Only a block-sparse layer changes its graph at the indexer budget.
+		if selects := plan.SelectsAttentionBlocks(budget + 1); plan.SelectsAttentionBlocks(budget) || selects == lexical {
+			t.Fatalf("lexical=%t selects blocks at the budget/above it = %t/%t", lexical, plan.SelectsAttentionBlocks(budget), selects)
 		}
 	}
 }

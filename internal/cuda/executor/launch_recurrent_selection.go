@@ -19,7 +19,7 @@ func launchRecurrentSelection(
 	blas *blasState,
 	_ *q8InputState,
 	node *tensor.Tensor,
-	_ tensor.Attributes,
+	runtimeAttributes tensor.Attributes,
 	pointers launchPointerFrame,
 ) error {
 	output := pointers.output()
@@ -128,7 +128,7 @@ func launchRecurrentSelection(
 		input := pointers.input(0)
 		return launch1DABI(state, functions[kernelFwhtF32], rows, &input, &output, &width, &rows)
 	case tensor.OpTopK:
-		attributes := node.Attrs.(tensor.TopKAttributes)
+		attributes := runtimeAttributes.(tensor.TopKAttributes)
 		if attributes.K == 0 {
 			return errors.New("invalid TopK attributes")
 		}
@@ -216,7 +216,7 @@ func launchRecurrentSelection(
 			&input, &indices, &output, &inner, &indexCount, &inputRows, &count,
 		)
 	case tensor.OpSparseAttention:
-		attributes := node.Attrs.(tensor.SparseAttentionAttributes)
+		attributes := runtimeAttributes.(tensor.SparseAttentionAttributes)
 		keyWidth, valueWidth := uint32(node.Inputs[0].Shape.Dims[0]), uint32(node.Inputs[2].Shape.Dims[0])
 		queryHeads, keyValueHeads := uint32(node.Inputs[0].Shape.Dims[1]), uint32(node.Inputs[1].Shape.Dims[1])
 		queryTokens, keyValueTokens := uint32(node.Inputs[0].Shape.Dims[2]), uint32(node.Inputs[1].Shape.Dims[2])

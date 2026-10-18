@@ -17,16 +17,19 @@ const (
 	decodeDynamicPositions
 	decodeDynamicAttention
 	decodeDynamicCacheAppend
+	// decodeDynamicQueryStart is a block selection's or a sparse attention's first query, the past's token count.
+	decodeDynamicQueryStart
 )
 
 type decodeDynamicSlot struct {
-	node      *tensor.Tensor
-	branch    int
-	kind      decodeDynamicKind
-	value     tensor.Attributes
-	positions [4][]uint32
-	attention *tensor.AttentionAttributes
-	append    *tensor.CacheAppendAttributes
+	node       *tensor.Tensor
+	branch     int
+	kind       decodeDynamicKind
+	value      tensor.Attributes
+	positions  [4][]uint32
+	attention  *tensor.AttentionAttributes
+	append     *tensor.CacheAppendAttributes
+	queryStart *uint32
 }
 
 type decodeSessionIdentity struct {
@@ -40,16 +43,19 @@ type decodeSessionIdentity struct {
 	branches   uint32
 	tokenCount uint32
 	output     deviceOutputPlan
-	lora       [32]byte
+	// blockSelection holds whether the step's block-sparse layers select attention blocks, which changes the graph's structure.
+	blockSelection bool
+	lora           [32]byte
 }
 
 func (i decodeSessionIdentity) matches(
 	capacity, source, tokenCount uint32,
 	output deviceOutputPlan,
+	blockSelection bool,
 	lora [32]byte,
 ) bool {
-	return i.capacity == capacity && i.source == source &&
-		i.branches > 0 && i.tokenCount == tokenCount && i.output == output && i.lora == lora
+	return i.capacity == capacity && i.source == source && i.branches > 0 && i.tokenCount == tokenCount &&
+		i.output == output && i.blockSelection == blockSelection && i.lora == lora
 }
 
 type decodeSessionBranchPlan struct {
@@ -125,11 +131,12 @@ func compileDecodeSessionPlan(
 				return decodeSessionPlan{}, err
 			}
 			for _, name := range inputs.states.SortedNames() {
-				slot, slotErr := compileDecodeInputSlot(compiled, inputs.states[name].Value)
-				if slotErr != nil {
-					return decodeSessionPlan{}, slotErr
+				// A state the graph never reads needs no binding (the lexical history, read on the host).
+				slot, read := compiled.InputSlot(inputs.states[name].Value)
+				if !read {
+					continue
 				}
-				compiledInputs.states = append(compiledInputs.states, decodeStateInputSlot{name: name, slot: slot.slot})
+				compiledInputs.states = append(compiledInputs.states, decodeStateInputSlot{name: name, slot: slot})
 			}
 		}
 		plan.branches[branch] = branchPlan
@@ -176,6 +183,15 @@ func compileDecodeSessionPlan(
 			case tensor.OpCacheAppend:
 				value := node.Attrs.(tensor.CacheAppendAttributes)
 				slot.kind, slot.value, slot.append = decodeDynamicCacheAppend, &value, &value
+			case tensor.OpTopK:
+				value := node.Attrs.(tensor.TopKAttributes)
+				if value.BlockSize == 0 {
+					continue
+				}
+				slot.kind, slot.value, slot.queryStart = decodeDynamicQueryStart, &value, &value.QueryStart
+			case tensor.OpSparseAttention:
+				value := node.Attrs.(tensor.SparseAttentionAttributes)
+				slot.kind, slot.value, slot.queryStart = decodeDynamicQueryStart, &value, &value.QueryStart
 			default:
 				continue
 			}
@@ -271,6 +287,8 @@ func (p *decodeSessionPlan) updateBranch(
 			slot.attention.KeyValueTokens = pastTokens + p.identity.tokenCount
 		case decodeDynamicCacheAppend:
 			slot.append.Offset = pastTokens
+		case decodeDynamicQueryStart:
+			*slot.queryStart = pastTokens
 		}
 	}
 	return nil

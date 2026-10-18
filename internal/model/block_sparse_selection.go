@@ -47,10 +47,15 @@ func buildBlockSparseSelection(options blockDispatchOptions, normalized *tensor.
 	if total > math.MaxUint32 {
 		return nil, nil, errors.New("block sparse indexer token count exceeds uint32")
 	}
-	if total <= uint64(spec.IndexerTopK) {
+	if !spec.selectsAttentionBlocks(total) {
 		return nil, states, builder.Err()
 	}
-	blocks := total / ratio
+	// The blocks span the stored keys, so an appending write scores every block of its page.
+	//   - stored = total under a concatenating write, the page capacity under an appending one
+	//   - BlockTopK reads only the blocks complete before each query, so the scores of a block past the active tokens are never read
+	//   - so the graph of one page keeps its structure as its active tokens grow
+	stored := raw.Shape.Dims[raw.Shape.Rank-tensor.SingletonExtent]
+	blocks := stored / ratio
 	complete := builder.FlatSlice(raw, tensor.FirstOffset, width*ratio, blocks)
 	var pooled *tensor.Tensor
 	for member := range ratio {
@@ -66,7 +71,7 @@ func buildBlockSparseSelection(options blockDispatchOptions, normalized *tensor.
 	for block := range blockRows {
 		blockRows[block] = uint32(uint64(block) * ratio)
 	}
-	positionMatrix := builder.Reshape(builder.FlatSlice(positions, tensor.FirstOffset, tensor.MaxDimensions, tensor.SingletonExtent, total), tensor.MaxDimensions, total)
+	positionMatrix := builder.Reshape(builder.FlatSlice(positions, tensor.FirstOffset, tensor.MaxDimensions, tensor.SingletonExtent, blocks*ratio), tensor.MaxDimensions, blocks*ratio)
 	blockPositions := builder.Reshape(builder.GetRows(positionMatrix, blockRows), tensor.MaxDimensions, tensor.SingletonExtent, blocks)
 	rotary := plan.Rotary
 	pooled = builder.RoPEWithOptions(builder.Reshape(pooled, width, tensor.SingletonExtent, blocks), tensor.RoPEOptions{
@@ -88,6 +93,11 @@ func buildBlockSparseSelection(options blockDispatchOptions, normalized *tensor.
 		}
 	}
 	summed = builder.Scale(summed, hostmath.InvSqrt32(width))
-	indices := builder.BlockTopK(summed, spec.IndexerTopK, uint32(ratio), start, uint32(total))
+	indices := builder.BlockTopK(summed, spec.IndexerTopK, uint32(ratio), start, uint32(stored))
 	return indices, states, builder.Err()
+}
+
+// selectsAttentionBlocks reports whether a block-sparse layer selects blocks for a cache of the given token count.
+func (s Spec) selectsAttentionBlocks(total uint64) bool {
+	return total > uint64(s.IndexerTopK)
 }

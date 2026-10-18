@@ -207,14 +207,13 @@ type preparedModel struct {
 
 // runnerState: mutable LoRA and prompt-cache state.
 type runnerState struct {
-	closed        bool
-	promptCaches  []*cachedPrompt
-	loraAdapters  []loadedLoRA
+	closed       bool
+	promptCaches []*cachedPrompt
+	loraAdapters []loadedLoRA
+	// decodeSession is the last multi-branch decode session, which serves only the pasts it produced.
 	decodeSession *deviceDecodeSession
-	// spanDecodeSessions retains compiled span decode sessions keyed by
-	// identity: speculation replays a handful of span lengths per boundary
-	// capacity, each compiled once.
-	spanDecodeSessions map[decodeSessionIdentity]*deviceDecodeSession
+	// decodeSessions keeps the single-branch decode sessions by identity, so each capacity page and span length compiles once a process.
+	decodeSessions map[decodeSessionIdentity]*deviceDecodeSession
 }
 
 // Runner: prepared assets + mutable request state.

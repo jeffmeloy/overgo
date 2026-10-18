@@ -531,6 +531,9 @@ func (i *DeviceInputs) Bind(bindings tensor.InputBindings[driver.DevicePtr]) err
 type RuntimeAttributes struct {
 	compiled *CompiledGraph
 	values   []tensor.Attributes
+	// launchArguments holds whether an override reaches its kernel as a launch argument.
+	//   - a captured graph replays its launch arguments unchanged, so such a graph is never captured
+	launchArguments bool
 }
 
 // NewRuntimeAttributes: indexed override slots.
@@ -562,6 +565,7 @@ func (a *RuntimeAttributes) Set(node *tensor.Tensor, attributes tensor.Attribute
 		return err
 	}
 	a.values[index] = attributes
+	a.launchArguments = a.launchArguments || node.Op == tensor.OpTopK || node.Op == tensor.OpSparseAttention
 	return nil
 }
 
@@ -587,11 +591,22 @@ func resolveRuntimeAttributes(attributes tensor.Attributes) (tensor.Attributes, 
 		if value != nil {
 			return *value, nil
 		}
+	case *tensor.TopKAttributes:
+		if value != nil {
+			return *value, nil
+		}
+	case *tensor.SparseAttentionAttributes:
+		if value != nil {
+			return *value, nil
+		}
 	default:
 		return attributes, nil
 	}
 	return nil, errors.New("CUDA runtime attribute binding is nil")
 }
+
+// attentionTokenAxis is the token axis of an attention operand's [head dimension, heads, tokens] layout.
+const attentionTokenAxis = 2
 
 func validateRuntimeAttributes(node *tensor.Tensor, attributes tensor.Attributes) error {
 	sameLength := func(left, right []uint32) bool { return len(left) == len(right) }
@@ -636,9 +651,9 @@ func validateRuntimeAttributes(node *tensor.Tensor, attributes tensor.Attributes
 		queryStart, logicalTokens := uint64(next.QueryStart), uint64(next.KeyValueTokens)
 		initial.QueryStart, next.QueryStart = 0, 0
 		initial.KeyValueTokens, next.KeyValueTokens = 0, 0
-		capacity := node.Inputs[1].Shape.Dims[2]
+		capacity := node.Inputs[1].Shape.Dims[attentionTokenAxis]
 		logicalTokens = cmp.Or(logicalTokens, capacity)
-		queryTokens := node.Inputs[0].Shape.Dims[2]
+		queryTokens := node.Inputs[0].Shape.Dims[attentionTokenAxis]
 		if initial != next || logicalTokens > capacity ||
 			(next.Causal && queryStart+queryTokens > logicalTokens) {
 			return errors.New("CUDA runtime attention override changes compiled policy or exceeds capacity")
@@ -648,6 +663,24 @@ func validateRuntimeAttributes(node *tensor.Tensor, attributes tensor.Attributes
 		if initial.Axis != next.Axis || next.Axis >= uint32(node.Shape.Rank) ||
 			uint64(next.Offset)+node.Inputs[1].Shape.Dims[next.Axis] > node.Shape.Dims[next.Axis] {
 			return errors.New("CUDA runtime cache append exceeds compiled capacity")
+		}
+	case tensor.OpTopK:
+		// A block selection writes K blocks and then the tokens after the last complete block.
+		//   - the blocks complete before the last query <= the scored blocks, so its tail stays inside one block
+		//   - the written tokens <= the row width
+		initial, next := node.Attrs.(tensor.TopKAttributes), attributes.(tensor.TopKAttributes)
+		queryEnd := uint64(next.QueryStart) + node.Inputs[0].Shape.Dims[1]
+		initial.QueryStart, next.QueryStart = 0, 0
+		if initial != next || next.BlockSize == 0 || queryEnd/uint64(next.BlockSize) > node.Inputs[0].Shape.Dims[0] ||
+			min((uint64(next.K)+1)*uint64(next.BlockSize)-1, queryEnd) > node.Shape.Dims[0] {
+			return errors.New("CUDA runtime block selection changes compiled policy or exceeds its blocks")
+		}
+	case tensor.OpSparseAttention:
+		initial, next := node.Attrs.(tensor.SparseAttentionAttributes), attributes.(tensor.SparseAttentionAttributes)
+		queryEnd := uint64(next.QueryStart) + node.Inputs[0].Shape.Dims[attentionTokenAxis]
+		initial.QueryStart, next.QueryStart = 0, 0
+		if initial != next || queryEnd > node.Inputs[1].Shape.Dims[attentionTokenAxis] {
+			return errors.New("CUDA runtime sparse attention changes compiled policy or exceeds capacity")
 		}
 	default:
 		return fmt.Errorf("CUDA operation %s has no runtime parameters", node.Op)
@@ -1642,7 +1675,7 @@ func (e *Executor) runCompiled(
 	if err != nil {
 		return nil, err
 	}
-	cacheGraph = cacheGraph && !usesExperts && !compiled.readsRoutes
+	cacheGraph = cacheGraph && !usesExperts && !compiled.readsRoutes && (attributes == nil || !attributes.launchArguments)
 	var result *executionResult
 	err = e.worker.Do(ctx, func(state *device.State) error {
 		resources, resourceErr := e.ensureResources(

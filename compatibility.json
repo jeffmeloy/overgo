@@ -823,7 +823,7 @@
      "contains": "func CompileModelPlanWithProfile(",
      "path": "internal/model/layer_plan.go",
      "role": "source",
-     "identity": "file:sha256:9ab14071ce97ff69fa92985f0d61c54fc084871e4c0dc9807326f942e9d3415b"
+     "identity": "file:sha256:3c6d25b3eb3fa84d033db0b37e92b06410381258b78640739179f3b98095bd72"
     },
     {
      "contains": "func TestCompileModelPlanPinsLayerPolicies(",
@@ -844,7 +844,7 @@
      "contains": "func Compile(",
      "path": "internal/cuda/executor/executor.go",
      "role": "source",
-     "identity": "file:sha256:78e3b4f3435fc0ba0c243578141afa84d7743343272e76b3374dd9abf714be30"
+     "identity": "file:sha256:e0134f57045bf96aa8a9446e099acf61053929c10285b7fafb4ea0dc72a356d9"
     },
     {
      "contains": "func TestIndexedGraphOwnsCompilation(",

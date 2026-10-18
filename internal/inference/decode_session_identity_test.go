@@ -12,14 +12,17 @@ func TestDecodeSessionIdentityDistinguishesSourcePageCapacity(t *testing.T) {
 	compiled := decodeSessionIdentity{
 		capacity: 512, source: 512, branches: 1, tokenCount: 1, output: deviceOutputPlan{}, lora: lora,
 	}
-	if !compiled.matches(512, 512, 1, deviceOutputPlan{}, lora) {
+	if !compiled.matches(512, 512, 1, deviceOutputPlan{}, false, lora) {
 		t.Fatal("the identity does not match itself")
 	}
-	if compiled.matches(512, 256, 1, deviceOutputPlan{}, lora) {
+	if compiled.matches(512, 256, 1, deviceOutputPlan{}, false, lora) {
 		t.Fatal("a session compiled over a 512-token page matched a 256-token past page")
 	}
-	if compiled.matches(1024, 512, 1, deviceOutputPlan{}, lora) {
+	if compiled.matches(1024, 512, 1, deviceOutputPlan{}, false, lora) {
 		t.Fatal("a different target capacity matched")
+	}
+	if compiled.matches(512, 512, 1, deviceOutputPlan{}, true, lora) {
+		t.Fatal("a session compiled without block selection matched a step that selects blocks")
 	}
 	if page := cachePageCapacity(256, 4096, "capacity"); page != 256 {
 		t.Fatalf("256 tokens page to %d, want 256", page)

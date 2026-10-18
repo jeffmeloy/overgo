@@ -433,17 +433,19 @@ func (p ModelPlan) SupportsCapacityCache() bool {
 	return true
 }
 
-// SupportsCapacityReplay admits graphs whose token-dependent inputs can be rebound.
-func (p ModelPlan) SupportsCapacityReplay() bool {
-	if !p.SupportsCapacityCache() || p.spec.NGram != nil {
+// SelectsAttentionBlocks reports whether a forward whose cache ends at the given token count selects attention blocks.
+//   - a block-sparse layer attends every cached token <=> the count <= the indexer budget, and its selected blocks otherwise
+//   - the two sides build graphs of different structure, so a graph compiled on one side never serves the other.
+func (p ModelPlan) SelectsAttentionBlocks(tokens uint32) bool {
+	if !p.spec.selectsAttentionBlocks(uint64(tokens)) {
 		return false
 	}
 	for _, layer := range p.layers {
 		if layer.AttentionGraph.BlockSize != 0 {
-			return false
+			return true
 		}
 	}
-	return true
+	return false
 }
 
 // SupportsMultiAxisPositionsWithProfile: bound-profile MRoPE contract.

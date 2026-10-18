@@ -105,10 +105,10 @@ func TestParameterizedDecodeCapacityStaysWithinPageClass(t *testing.T) {
 	}
 	var lora [32]byte
 	compiledBeyond := decodeSessionIdentity{capacity: beyond, source: beyondSource, branches: 1, tokenCount: 1, output: plan, lora: lora}
-	if compiledBeyond.matches(onBand, onBandSource, 1, plan, lora) {
+	if compiledBeyond.matches(onBand, onBandSource, 1, plan, false, lora) {
 		t.Fatal("a session compiled over the larger page matched the on-band past")
 	}
-	if !compiledBeyond.matches(beyond, beyondSource, 1, plan, lora) {
+	if !compiledBeyond.matches(beyond, beyondSource, 1, plan, false, lora) {
 		t.Fatal("the session does not match its own past class")
 	}
 	multiple := appendFor(2)
@@ -116,11 +116,78 @@ func TestParameterizedDecodeCapacityStaysWithinPageClass(t *testing.T) {
 	if got := runner.cacheAppendPlan(multiple, deviceOutputPlan{}); got.CapacityTokens != 4 || got.replay {
 		t.Fatalf("multi-token append must reuse storage without replay: %+v", got)
 	}
-	runner.spec.NGram = &model.NGramSpec{Size: 3, ConvKernel: 4}
-	runner.spec.EmbeddingLength, runner.spec.HyperConnectionCount = 4, 4
-	runner.program.Model = fixtureProgram(runner.spec, model.Weights{}).Model
-	if got := runner.cacheAppendPlan(appendFor(2), plan); got.CapacityTokens != 4 || got.replay {
-		t.Fatalf("lexical append must reuse storage without replay: %+v", got)
+}
+
+// TestFlashNextDecodeReplaysItsStepInputs pins that a plan with a lexical
+// table and block-sparse attention takes the capacity replay, and that its
+// compiled step finds the per-step values a replay must write: the block
+// selection's and the sparse attention's first query.
+func TestFlashNextDecodeReplaysItsStepInputs(t *testing.T) {
+	t.Parallel()
+	const (
+		pastTokens = uint32(7)
+		blocks     = uint32(2)
+		budget     = uint32(4)
+		ratio      = uint32(2)
+		width      = uint64(2)
+		context    = uint32(16)
+		embedding  = uint32(4)
+		values     = uint32(3)
+		streams    = uint32(4)
+		ngram      = uint32(3)
+		kernel     = uint32(4)
+	)
+	spec := model.Spec{CommonSpec: model.CommonSpec{Architecture: "qwen4exp", BlockCount: 1, ContextLength: context, EmbeddingLength: embedding, VocabularySize: 1},
+		AttentionSpec: model.AttentionSpec{KeyLength: uint32(width), ValueLength: values, HeadCountKV: 1}}
+	spec.RecurrentLayers, spec.CompressRatios = []bool{false}, []uint32{ratio}
+	spec.IndexerKeyLength, spec.IndexerTopK, spec.HyperConnectionCount = uint32(width), budget, streams
+	spec.NGram = &model.NGramSpec{Size: ngram, ConvKernel: kernel}
+	runner := fixtureRunner(spec, model.Weights{Layers: []model.LayerWeights{{}}})
+	runner.program.Decode.Session = modelrecipe.DecodeSessionCapacity
+	appends := []deviceBatchAppend{{Tokens: []tokenizer.TokenID{0}, Past: &deviceKVCache{
+		storage: &deviceCacheStorage{refs: 1}, Tokens: pastTokens,
+		Selection: executor.DeviceValue{Pointer: driver.DevicePtr(1)},
+	}}}
+	if got := runner.cacheAppendPlan(appends, deviceOutputPlan{mode: deviceOutputGreedy}); !got.replay {
+		t.Fatalf("a lexical block-sparse decode step was refused replay: %+v", got)
+	}
+	if !runner.program.Model.SelectsAttentionBlocks(pastTokens+1) || runner.program.Model.SelectsAttentionBlocks(budget) {
+		t.Fatal("the block-sparse plan does not select blocks past its budget alone")
+	}
+
+	builder := tensor.NewBuilder()
+	builder.SetCacheAppendPlan(tensor.CacheAppendPlan{ActiveTokens: pastTokens, CapacityTokens: blocks * budget})
+	scores := builder.Input("scores", dtype.F32, tensor.MustShape(uint64(blocks*budget/ratio), 1))
+	selected := builder.BlockTopK(scores, budget, ratio, pastTokens, blocks*budget)
+	query := builder.Input("query", dtype.F32, tensor.MustShape(width, 1, 1))
+	cache := builder.Input("cache", dtype.F32, tensor.MustShape(width, 1, uint64(blocks*budget)))
+	attention := builder.SparseAttentionWithOffset(query, cache, cache, selected, 1, true, pastTokens)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	compiled, err := executor.Compile(attention)
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := compileDecodeSessionPlan(
+		compiled, []deviceBatchGraph{{logits: attention, tokenInput: scores}}, []deviceCacheTargetPlan{{}},
+		decodeSessionIdentity{capacity: blocks * budget, branches: 1, tokenCount: 1, blockSelection: true},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	next := pastTokens - 1
+	if err := program.updateBranch(0, []uint32{0}, next, next); err != nil {
+		t.Fatal(err)
+	}
+	refreshed := map[tensor.Op]uint32{}
+	for _, slot := range program.dynamic {
+		if slot.kind == decodeDynamicQueryStart {
+			refreshed[slot.node.Op] = *slot.queryStart
+		}
+	}
+	if refreshed[tensor.OpTopK] != next || refreshed[tensor.OpSparseAttention] != next || len(refreshed) != 2 {
+		t.Fatalf("first queries after the update = %v, want the block selection and the sparse attention at %d", refreshed, next)
 	}
 }
 

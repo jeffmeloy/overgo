@@ -476,14 +476,18 @@ type deviceBatchGraph struct {
 	tokenInput   *tensor.Tensor
 	perLayerRows *tensor.Tensor
 	positionRows []*tensor.Tensor
-	keys         []*tensor.Tensor
-	values       []*tensor.Tensor
-	states       []deviceGraphStates
-	cacheInputs  []layerGraphCacheInputs
-	pastTokens   uint32
-	nextPosition uint32
-	tokenCount   uint32
-	sequences    uint32
+	// positionFeeds and the lexical inputs are host-fed inputs that follow the step, which a replay writes again.
+	positionFeeds  []*tensor.Tensor
+	ngramEmbedding *tensor.Tensor
+	ngramHistory   *tensor.Tensor
+	keys           []*tensor.Tensor
+	values         []*tensor.Tensor
+	states         []deviceGraphStates
+	cacheInputs    []layerGraphCacheInputs
+	pastTokens     uint32
+	nextPosition   uint32
+	tokenCount     uint32
+	sequences      uint32
 }
 
 type deviceCacheTargetLayer struct {
@@ -617,9 +621,8 @@ func (r *Runner) cacheAppendPlan(appends []deviceBatchAppend, plan deviceOutputP
 	if len(appends) == 0 || r.program.Decode.Session != modelrecipe.DecodeSessionCapacity || !r.program.Model.SupportsCapacityCache() {
 		return deviceCacheAppendPlan{}
 	}
-	result := deviceCacheAppendPlan{replay: r.program.Model.SupportsCapacityReplay()}
 	span := plan.is(deviceOutputGreedySpan)
-	result.replay = result.replay && (!span || len(appends) == 1)
+	result := deviceCacheAppendPlan{replay: !span || len(appends) == 1}
 	var count uint32
 	for index, item := range appends {
 		past := item.Past
@@ -654,6 +657,7 @@ func (r *Runner) executeParameterizedDecodeSession(
 			session.program.identity.source,
 			session.program.identity.tokenCount,
 			session.program.identity.output,
+			session.program.identity.blockSelection,
 			r.currentLoRASignature(),
 		) {
 		return nil, errors.New("inference: parameterized decode session is invalid")
@@ -674,6 +678,9 @@ func (r *Runner) executeParameterizedDecodeSession(
 		if err := session.program.updateBranch(
 			index, rows, item.Past.Position, item.Past.Tokens,
 		); err != nil {
+			return nil, err
+		}
+		if err := r.refreshDecodeHostFeeds(ctx, session, session.graphs[index], rows, item.Past); err != nil {
 			return nil, err
 		}
 	}
@@ -713,6 +720,41 @@ func (r *Runner) executeParameterizedDecodeSession(
 		session.replays++
 	}
 	return next, err
+}
+
+// refreshDecodeHostFeeds writes the host-fed inputs of one replayed branch from its step.
+//   - a block-sparse layer's current positions follow the step's position, as its RoPE positions do
+//   - the lexical rows and history follow the step's tokens and the past's history, so the replay loads them as a fresh step does
+func (r *Runner) refreshDecodeHostFeeds(
+	ctx context.Context,
+	session *deviceDecodeSession,
+	graph deviceBatchGraph,
+	rows []uint32,
+	past *deviceKVCache,
+) error {
+	for _, node := range graph.positionFeeds {
+		feed, ok := session.hostFeeds[node]
+		if !ok || uint64(len(feed.Data)) != node.Shape.Dims[0]*uint64(len(rows)) {
+			return fmt.Errorf("inference: replayed position input %q is not fed for %d tokens", node.Name, len(rows))
+		}
+		if err := writeCurrentPositions(feed.Data, int(node.Shape.Dims[0]), func(index, _ int) (uint32, error) {
+			return past.Position + uint32(index), nil
+		}); err != nil {
+			return err
+		}
+	}
+	if graph.ngramEmbedding == nil {
+		return nil
+	}
+	history, err := r.deviceNGramHistory(ctx, past)
+	if err != nil {
+		return err
+	}
+	load, err := r.feedNGramInputs(ctx, graph.ngramEmbedding, graph.ngramHistory, rows, history, session.hostFeeds)
+	if err != nil {
+		return err
+	}
+	return load()
 }
 
 func repeatDecodeSession(session *deviceDecodeSession, count int) []*deviceDecodeSession {
@@ -774,11 +816,34 @@ func bindParameterizedDecodeInputs(session *deviceDecodeSession, appends []devic
 	return nil
 }
 
-// spanDecodeSessionLimit bounds the retained span decode sessions: a
-// generation traverses power-of-two capacity bands times the speculation
-// window of span lengths, so the bound must hold every live combination —
-// measured 35 identities across a 512-token run — before a full clear.
-const spanDecodeSessionLimit = 64
+// decodeSessionLimit bounds the kept single-branch decode sessions.
+//   - a generation keeps one session for each capacity page, one for the step onto each page and, under speculation, one for each span length of a page
+//   - 35 span identities were measured across a 512-token run, so 64 holds every live combination of a generation before a full clear
+//   - reconsider when one generation clears the kept sessions
+const decodeSessionLimit = 64
+
+// keptDecodeSession finds the compiled session that serves the step's identity.
+//   - a single-branch session rebinds every cache input, state and greedy feedback on each replay, so a past of its identity made by any session is a valid boundary
+//   - a multi-branch session serves only the pasts it produced, each on its own branch
+func (r *Runner) keptDecodeSession(identity decodeSessionIdentity, appends []deviceBatchAppend) *deviceDecodeSession {
+	session := appends[0].Past.session
+	if session == nil || session.program.identity != identity {
+		session = r.decodeSession
+		if identity.branches == 1 {
+			session = r.decodeSessions[identity]
+		}
+	}
+	if session == nil || session.program.identity != identity {
+		return nil
+	}
+	for index, item := range appends {
+		if identity.branches > 1 && item.Past.session != nil &&
+			(item.Past.session != session || item.Past.sessionBranch != index) {
+			return nil
+		}
+	}
+	return session
+}
 
 func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	ctx context.Context,
@@ -788,38 +853,16 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	appendPlan := r.cacheAppendPlan(appends, plan)
 	capacity, source, parameterized := appendPlan.CapacityTokens, appendPlan.SourceCapacityTokens, appendPlan.replay
 	tokenCount := uint32(1)
+	var identity decodeSessionIdentity
 	if parameterized {
 		tokenCount = uint32(len(appends[0].Tokens))
-		identity := decodeSessionIdentity{
+		identity = decodeSessionIdentity{
 			capacity: capacity, source: source,
 			branches: uint32(len(appends)), tokenCount: tokenCount, output: plan,
-			lora: r.currentLoRASignature(),
+			blockSelection: r.program.Model.SelectsAttentionBlocks(appendPlan.ActiveTokens + tokenCount),
+			lora:           r.currentLoRASignature(),
 		}
-		session := appends[0].Past.session
-		if session == nil || session.program.identity != identity {
-			session = nil
-			if r.decodeSession != nil && r.decodeSession.program.identity == identity {
-				session = r.decodeSession
-			} else if cached, ok := r.spanDecodeSessions[identity]; ok {
-				session = cached
-			}
-		}
-		compatible := session != nil && session.program.identity.branches == uint32(len(appends)) &&
-			session.program.identity.matches(
-				capacity, source, tokenCount, plan, r.currentLoRASignature(),
-			)
-		for index, item := range appends {
-			// Span sessions rebind every cache input per replay and carry
-			// one branch, so a past cache produced by another session is
-			// still a valid boundary; the multi-branch decode session keeps
-			// its strict branch affinity.
-			if plan.is(deviceOutputGreedySpan) {
-				continue
-			}
-			compatible = compatible && (item.Past.session == nil ||
-				(item.Past.session == session && item.Past.sessionBranch == index))
-		}
-		if compatible {
+		if session := r.keptDecodeSession(identity, appends); session != nil {
 			return r.executeParameterizedDecodeSession(ctx, session, appends)
 		}
 	}
@@ -884,13 +927,7 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 			rebuilds += prior.rebuilds
 			replays = prior.replays
 		}
-		program, programErr := compileDecodeSessionPlan(
-			execution.Graph, graphs, targetPlans, decodeSessionIdentity{
-				capacity: capacity, source: source,
-				branches: uint32(len(graphs)), tokenCount: tokenCount, output: plan,
-				lora: r.currentLoRASignature(),
-			},
-		)
+		program, programErr := compileDecodeSessionPlan(execution.Graph, graphs, targetPlans, identity)
 		if programErr != nil {
 			return nil, programErr
 		}
@@ -900,14 +937,14 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 			rebuilds:  rebuilds, replays: replays,
 		}
 		session.owners = repeatDecodeSession(session, len(graphs))
-		if plan.is(deviceOutputGreedySpan) {
-			if r.spanDecodeSessions == nil {
-				r.spanDecodeSessions = make(map[decodeSessionIdentity]*deviceDecodeSession)
+		if len(graphs) == 1 {
+			if r.decodeSessions == nil {
+				r.decodeSessions = make(map[decodeSessionIdentity]*deviceDecodeSession)
 			}
-			if len(r.spanDecodeSessions) >= spanDecodeSessionLimit {
-				clear(r.spanDecodeSessions)
+			if len(r.decodeSessions) >= decodeSessionLimit {
+				clear(r.decodeSessions)
 			}
-			r.spanDecodeSessions[program.identity] = session
+			r.decodeSessions[program.identity] = session
 		} else {
 			r.decodeSession = session
 		}
@@ -1376,6 +1413,8 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	values := make([]*tensor.Tensor, len(r.weights.Layers))
 	states := make([]deviceGraphStates, len(r.weights.Layers))
 	cacheBindings := make([]layerGraphCacheInputs, len(r.weights.Layers))
+	var positionFeeds []*tensor.Tensor
+	var ngramEmbedding, ngramHistory *tensor.Tensor
 	decodeCatalog := plan.is(deviceOutputGreedy) && tokensPerSequence == 1 && r.decodeWeights != nil
 	bindLayerTensor := modeldevice.DeviceTensorBinder(r.deviceInput)
 	if decodeCatalog {
@@ -1401,6 +1440,9 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		if sideErr != nil {
 			return fail(sideErr)
 		}
+		if boundSideInputs.currentPositions != nil {
+			positionFeeds = append(positionFeeds, boundSideInputs.currentPositions)
+		}
 		cacheInputs := layerGraphCacheInputs{states: make(model.CacheStates[*tensor.Tensor])}
 		if plan.SharedKV {
 			cacheInputs.key, cacheInputs.value = keys[plan.KVSource], values[plan.KVSource]
@@ -1414,33 +1456,23 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			cacheBindings[layerIndex] = cacheInputs
 		}
 
-		var ngramHistory *tensor.Tensor
+		var layerHistory *tensor.Tensor
 		if n := r.spec.NGram; n != nil && n.Layer == uint32(layerIndex) {
 			if sequences != tensor.SingletonExtent {
 				return fail(errors.New("ngram embedding requires one sequence"))
 			}
-			var history []float32
-			if past != nil {
-				if layerIndex >= len(past.States) {
-					return fail(errors.New("ngram history layer is missing"))
-				}
-				state, ok := past.States[layerIndex][model.CacheStateNGramHistory]
-				if !ok {
-					return fail(errors.New("ngram token history is missing"))
-				}
-				values, readErr := r.cuda.ReadDeviceValues(ctx, []executor.DeviceValue{state.Value})
-				if readErr != nil {
-					return fail(readErr)
-				}
-				history = values[0]
+			history, historyErr := r.deviceNGramHistory(ctx, past)
+			if historyErr != nil {
+				return fail(historyErr)
 			}
-			graphWeights.PerLayerInput, ngramHistory, loadInputs, layerErr = r.planNGramGraphInputs(ctx, builder, tokenIndices, history, hostFeeds)
+			graphWeights.PerLayerInput, layerHistory, loadInputs, layerErr = r.planNGramGraphInputs(ctx, builder, tokenIndices, history, hostFeeds)
 			if layerErr != nil {
 				return fail(layerErr)
 			}
+			ngramEmbedding, ngramHistory = graphWeights.PerLayerInput, layerHistory
 		}
 		result, buildErr := program.Build(model.CachedBlockContext{
-			NGramHistory: ngramHistory,
+			NGramHistory: layerHistory,
 			Builder:      builder, Input: current, Positions: positions, TokenRows: tokenIndices,
 			PastKey: cacheInputs.key, PastValue: cacheInputs.value,
 			PastStates:       cacheInputs.states,
@@ -1512,6 +1544,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		loadInputs: loadInputs,
 		logits:     logits, selection: selection, candidates: candidates, feedback: feedback,
 		hidden: spanHidden, tokenInput: tokenRowInput, perLayerRows: perLayerRows, positionRows: positionRows,
+		positionFeeds: positionFeeds, ngramEmbedding: ngramEmbedding, ngramHistory: ngramHistory,
 		keys: keys, values: values, states: states, cacheInputs: cacheBindings,
 		pastTokens: pastTokens, nextPosition: nextPosition,
 		tokenCount: uint32(tokensPerSequence), sequences: uint32(sequences),

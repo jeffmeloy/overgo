@@ -55,24 +55,16 @@ func bindLayerSideInputs(
 			axes = tensor.MaxDimensions
 		}
 		data := make([]float32, len(positions)*axes)
-		for index, position := range positions {
-			for axis := range axes {
-				coordinate := position
-				if plan.AttentionGraph.BlockSize != 0 && inputs.multiPositions != nil {
-					if len(inputs.multiPositions[axis]) != len(positions) {
-						return boundLayerSideInputs{}, errors.New("cached multi-axis coordinate count differs from tokens")
-					}
-					coordinate = inputs.multiPositions[axis][index]
-				}
-				if coordinate > maxExactFloat32Position {
-					return boundLayerSideInputs{}, fmt.Errorf(
-						"%s position %d exceeds exact F32 cache representation",
-						spec.Architecture,
-						coordinate,
-					)
-				}
-				data[index*axes+axis] = float32(coordinate)
+		if err := writeCurrentPositions(data, axes, func(index, axis int) (uint32, error) {
+			if plan.AttentionGraph.BlockSize == 0 || inputs.multiPositions == nil {
+				return positions[index], nil
 			}
+			if len(inputs.multiPositions[axis]) != len(positions) {
+				return 0, errors.New("cached multi-axis coordinate count differs from tokens")
+			}
+			return inputs.multiPositions[axis][index], nil
+		}); err != nil {
+			return boundLayerSideInputs{}, fmt.Errorf("%s %w", spec.Architecture, err)
 		}
 		shape := tensor.MustShape(uint64(axes), tensor.SingletonExtent, uint64(len(positions)))
 		result.currentPositions = builder.Input(
@@ -81,6 +73,25 @@ func bindLayerSideInputs(
 		hostFeeds[result.currentPositions] = reference.Value{Shape: shape, Data: data}
 	}
 	return result, builder.Err()
+}
+
+// writeCurrentPositions lays a step's coordinates out as a layer's current-position input holds them.
+//   - data = tokens x axes, token-major
+//   - coordinate > maxExactFloat32Position => refused, because the F32 cache would round it
+func writeCurrentPositions(data []float32, axes int, coordinate func(index, axis int) (uint32, error)) error {
+	for index := range len(data) / axes {
+		for axis := range axes {
+			value, err := coordinate(index, axis)
+			if err != nil {
+				return err
+			}
+			if value > maxExactFloat32Position {
+				return fmt.Errorf("position %d exceeds exact F32 cache representation", value)
+			}
+			data[index*axes+axis] = float32(value)
+		}
+	}
+	return nil
 }
 
 func bindAttentionTemperature(

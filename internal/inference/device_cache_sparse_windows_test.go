@@ -79,7 +79,7 @@ func TestDeviceSparseCacheTargets(t *testing.T) {
 		t.Helper()
 		appends := []deviceBatchAppend{{Tokens: []tokenizer.TokenID{0}, Past: past}}
 		appendPlan := r.cacheAppendPlan(appends, deviceOutputPlan{})
-		if appendPlan.CapacityTokens == 0 || appendPlan.replay {
+		if appendPlan.CapacityTokens == 0 {
 			t.Fatalf("sparse append plan = %+v", appendPlan)
 		}
 		builder := tensor.NewBuilder()

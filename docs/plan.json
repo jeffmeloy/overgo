@@ -219,13 +219,24 @@
       },
       "steps": [
         {
+          "id": "refinement",
+          "title": "Compile rotary text refinement through the existing image graph owner",
+          "status": "open",
+          "verify": "go test ./internal/latentimage -count=1 -run '^TestMOSSRotaryRefinement'",
+          "rationale": "Serves: the MOSS transformer text-refinement stage independently of unresolved conditioner arithmetic.\nDisappears: a separate text-refinement executor through existing FusionProgram, tensor operators, resident graph binding and CUDA execution.\nEvidence: frozen native small-model fixtures for both refinement blocks and complete text projection, plus source-bound real-model CUDA stage comparisons.\nBatch: graph and image lanes with inference surface guard expiry.\nThe two biased refinement blocks use ordinary learned RMSNorm, per-head query/key normalization, supplied half-split rotary coefficients, bidirectional attention and bounded SITU.\nBF16 storage rounds follow native operator boundaries rather than changing every activation type.\nThe new compiler uses existing weight bindings and resident execution.\nA model-lane consumer exercises real-checkpoint execution before the complete generator is available.\nRequire exact source and input identities and keep CPU and CUDA comparison contracts distinct.\nComplete denoiser integration, all-block execution, branch skipping and full-image parity remain in forward.\nThe existing 1800-node transformer allowance remains an estimate until preflight measures the implementation.",
+          "depends_on": [
+            "moss-oracle/goldens"
+          ]
+        },
+        {
           "id": "forward",
           "title": "Match transformer arithmetic and branch skipping",
           "status": "open",
           "verify": "go test ./internal/latentimage -count=1 -run '^TestMOSSTransformerGolden$'",
           "rationale": "Represent the two text-refinement blocks, image-then-text joint attention, four-coordinate RoPE, fp64-to-fp32 timestep embedding, shared six-way modulation, RMSNorm and bounded SITU FFN using typed recipe-selected operators.\nDerive geometry and parameter bindings from the import description, including bias distinctions and full tensor coverage.\nPreserve fp32 RoPE construction before bf16 activation casts; do not reuse a superficially similar SwiGLU or positional scheme.\nImplement skip sets as validated zero-based transformer block indices; conditional execution never inherits negative-branch skipping.\nCompare intermediate tensors at first, middle and final blocks, text refinement and final velocity; include non-square images and unequal prompt lengths.\nServes: native MOSS denoising.\nDisappears: model-specific Python serving and duplicate matrix/attention machinery through tensor/graphruntime/CUDA reuse.\nEvidence: block and complete-forward numerical comparisons consumed by sampling and performance work.\nBatch: graph/kernel/media lanes; refresh kernel identities where changed, expire inference guards and reconcile model recipe dependencies.\nTestMOSSExistingGraphSITUReference composes existing Scale, Tanh, Sigmoid and Multiply operations.\nThe reference executor matches all seven upstream FP32 SITU values exactly and rejects ordinary SwiGLU substitution.\nThis probe does not establish BF16, device or complete-transformer parity.",
           "depends_on": [
-            "moss-conditioning/encode"
+            "moss-conditioning/encode",
+            "moss-transformer/refinement"
           ]
         }
       ]

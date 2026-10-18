@@ -35,7 +35,8 @@ func runArguments(ctx context.Context, args []string) error {
 	verb := args[0]
 	flags := flag.NewFlagSet("hf-hub "+verb, flag.ContinueOnError)
 	endpoint := flags.String("endpoint", "", "hub endpoint; empty means the public hub")
-	token := flags.String("token", os.Getenv("OVERGO_HF_TOKEN"), "bearer token (default OVERGO_HF_TOKEN)")
+	provider := flags.String("provider", "huggingface", "repository provider: huggingface or modelscope; ModelScope requires an immutable commit revision")
+	token := flags.String("token", "", "bearer token; defaults to OVERGO_HF_TOKEN or OVERGO_MODELSCOPE_TOKEN for the selected provider")
 	datasets := flags.Bool("datasets", false, "address the dataset namespace instead of models")
 	revision := flags.String("revision", "", "repository revision; empty resolves the default branch")
 	destination := flags.String("dest", "", "download destination directory")
@@ -53,7 +54,20 @@ func runArguments(ctx context.Context, args []string) error {
 		ctx, cancel = context.WithTimeoutCause(ctx, *timeout, fmt.Errorf("hf-hub caller budget: %w", context.DeadlineExceeded))
 		defer cancel()
 	}
-	client, err := hfhub.New(*endpoint, *token)
+	connect := hfhub.New
+	tokenEnvironment := "OVERGO_HF_TOKEN"
+	switch *provider {
+	case "huggingface":
+	case "modelscope":
+		connect = hfhub.NewModelScope
+		tokenEnvironment = "OVERGO_MODELSCOPE_TOKEN"
+	default:
+		return fmt.Errorf("hf-hub: unsupported provider %q; use huggingface or modelscope", *provider)
+	}
+	if *token == "" {
+		*token = os.Getenv(tokenEnvironment)
+	}
+	client, err := connect(*endpoint, *token)
 	if err != nil {
 		return err
 	}

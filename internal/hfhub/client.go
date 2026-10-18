@@ -36,10 +36,11 @@ const (
 // fixed request timeout, so the transfer client bounds only the wait
 // for response headers and leaves body time to context cancellation.
 type Client struct {
-	endpoint string
-	token    string
-	http     *http.Client
-	transfer *http.Client
+	endpoint   string
+	modelScope bool
+	token      string
+	http       *http.Client
+	transfer   *http.Client
 }
 
 // New returns a client for the endpoint; an empty endpoint means the public
@@ -97,6 +98,9 @@ type SearchQuery struct {
 
 // Search lists repositories matching the query, most-downloaded first.
 func (c *Client) Search(ctx context.Context, query SearchQuery) ([]Listing, error) {
+	if c.modelScope {
+		return nil, errors.New("hfhub: ModelScope search is unsupported; resolve a pinned model repository")
+	}
 	if !query.Kind.valid() {
 		return nil, fmt.Errorf("hfhub: invalid repository kind %q", query.Kind)
 	}
@@ -158,6 +162,9 @@ func (c *Client) Resolve(ctx context.Context, kind RepoKind, repository, revisio
 	if !validRepositoryID(repository) {
 		return RepoRevision{}, fmt.Errorf("hfhub: invalid repository id %q", repository)
 	}
+	if c.modelScope {
+		return c.resolveModelScope(ctx, kind, repository, revision)
+	}
 	path := "/api/" + string(kind) + "/" + repository
 	if strings.TrimSpace(revision) != "" {
 		path += "/revision/" + url.PathEscape(revision)
@@ -185,6 +192,9 @@ func (c *Client) Resolve(ctx context.Context, kind RepoKind, repository, revisio
 
 // fileURL is the raw-content location for one file at one revision.
 func (c *Client) fileURL(kind RepoKind, repository, revision, path string) string {
+	if c.modelScope {
+		return c.modelScopeFileURL(repository, revision, path)
+	}
 	prefix := ""
 	if kind == KindDataset {
 		prefix = "/datasets"

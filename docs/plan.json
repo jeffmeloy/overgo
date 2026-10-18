@@ -468,44 +468,15 @@
       ]
     },
     {
-      "id": "moss-reference",
-      "title": "Lock the complete reference and acquire immutable model components",
-      "owner": "overgo_moss",
-      "status": "open",
-      "budget": {
-        "nodes": 900,
-        "reason": "The verified source receipt draft adds 822 production syntax nodes across local source verification and the download command consumer. The remaining allowance covers command validation and error handling. Existing transfer, atomic file publication, content identity and catalog checks remain the owners."
-      },
-      "steps": [
-        {
-          "id": "acquire",
-          "title": "Acquire and verify the pinned ModelScope SFT components",
-          "status": "open",
-          "verify": "go test ./internal/hfrepo ./internal/hfhub ./cmd/hf-hub ./internal/modelartifact -count=1 -run '^(TestSourceReceipt|TestDownloadReceipt|TestModelScope.*|TestFromFiles.*)$'",
-          "rationale": "The pinned native acquisition contains all 37 repository files in C:/Users/jeffm/overgo_data/models/MOSS-Image-SFT-797fa8e678b4f.\nIndependent native validation checks every file size and SHA-256 against the pinned ModelScope inventory.\nThe three native safetensors catalogs contain 1473 tensors with complete shard indexes and valid payload ranges.\nThe text-encoder catalog has 759 BF16 tensors and 8392695024 elements, including 426 language and 333 vision tensors.\nThe native safetensors reader validates its complete shard index and payload ranges.\nThis structural check does not prove full-model numerical agreement.\nResolve dataroot outside this checkout and consume the pinned planning receipt.\nAcquire the required tokenizer and safetensors shards from the pinned ModelScope Git/LFS source through existing intake ownership, extending its transport support where needed.\nResolve Git LFS pointers into payloads and verify every object SHA-256 and size; a successful Git clone alone is not a complete model acquisition.\nUse resumable streaming, bounded memory and content-addressed reuse; do not silently substitute a Hugging Face source.\nCheck SHA-256 and byte size, safetensors offsets, shard indexes, tensor names, dimensions and dtypes; never activate a partially acquired model.\nEmit one portable receipt with upstream revisions, licenses, component ownership, file identities, architecture facts and unresolved dependencies.\nDo not load the unused vision tower for text conditioning; retain its provenance and document why its tensors are excluded from execution.\nAcceptance includes wrong digest, corrupt shard, missing tensor, duplicate tensor, changed revision, interrupted transfer and successful resume without duplicate payloads.\nServes: reproducible acquisition for MOSS inference.\nDisappears: manual downloads and model-specific path assumptions through hfhub, hfrepo, dataroot and artifact reuse.\nEvidence: immutable receipt consumed by import, oracle generation, activation and evaluation; fixture tests exercise the same checks without full models.\nBatch: intake and artifact lanes; acquisition-only changes should not move execution guards; media reconciliation starts with capability publication.\nThe acquisition command must emit a canonical source receipt without requiring a Git checkout.\nThe receipt binds publisher URL, immutable revision and every relative file path, SHA-256 and byte size.\nReceipt publication requires complete digest verification and must refuse a destination inside the model directory.\nThe source verifier canonicalizes enumeration order and checks cancellation between bounded reads.\nThe draft download command and independent verifier agree on all 37 acquired files.\nThe source receipt is file:sha256:7b61297431a2e8b648f1b5dfa922181078acc5ec12d226e5c6b17543720ec018 in OvergoDB.\nThe registered MOSS model depends on that receipt and the earlier complete checkpoint validation.\nRepeated source publication leaves the database commit and head unchanged.\nSource receipts prove declared payload identity and do not establish architecture support, numerical verification or activation.\nRegistration consumes the same receipt through the existing declaration and publication owners in moss-import.",
-          "depends_on": [
-            "moss-reference/transport"
-          ]
-        }
-      ]
-    },
-    {
       "id": "moss-oracle",
       "title": "Produce independent golden evidence before porting numerical behavior",
       "owner": "overgo_moss",
       "status": "open",
       "budget": {
-        "nodes": 0,
+        "nodes": -802,
         "reason": "Reference data and ignored Python golden producers do not require production runtime growth."
       },
       "steps": [
-        {
-          "id": "portable",
-          "title": "Retain bounded upstream fixtures with checkpoint provenance",
-          "status": "open",
-          "verify": "go test ./internal/latentimage -count=1 -run '^TestMOSSGoldenProvenance$'",
-          "rationale": "Keep the upstream synthetic arithmetic and real tokenizer fixtures in the repository so the gate reads their bytes without loading a model or invoking Python.\nBind exact source revision, checkpoint file identities, producer hashes, dependencies, shapes and recorded environment.\nUse the documented summary/items layout format and centered integer yxyx coordinates.\nServes: reproducible numerical development from independent references.\nDisappears: dependence on external local fixture paths for routine primitive and tokenizer checks.\nEvidence: TestMOSSGoldenProvenance rejects absent or changed fixture bytes and checks component provenance and required case coverage.\nBatch: fixture and test changes only; no production runtime or inference-surface change."
-        },
         {
           "id": "goldens",
           "title": "Freeze oracle environment and stage-level golden contracts",

@@ -40,11 +40,15 @@ func runArguments(ctx context.Context, args []string) error {
 	datasets := flags.Bool("datasets", false, "address the dataset namespace instead of models")
 	revision := flags.String("revision", "", "repository revision; empty resolves the default branch")
 	destination := flags.String("dest", "", "download destination directory")
+	receiptPath := flags.String("receipt", "", "write a verified source receipt outside the downloaded directory; requires SHA-256 for every repository file")
 	timeout := flags.Duration("timeout", 0, "total caller budget; zero runs until completion or interrupt")
 	limit := flags.Int("limit", 20, "search result bound")
 	filter := flags.String("filter", "", "hub tag filter, e.g. gguf")
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
+	}
+	if *receiptPath != "" && verb != "download" {
+		return errors.New("hf-hub: -receipt requires download")
 	}
 	if *timeout < 0 {
 		return errors.New("hf-hub: timeout must be non-negative")
@@ -114,6 +118,11 @@ func runArguments(ctx context.Context, args []string) error {
 		})
 		if err != nil {
 			return err
+		}
+		if *receiptPath != "" {
+			if err := writeSourceReceipt(ctx, *provider, *endpoint, kind, resolved, *destination, *receiptPath); err != nil {
+				return err
+			}
 		}
 		fmt.Printf("\ndownloaded %s @ %s: %d files into %s\n", resolved.ID, resolved.Revision, len(resolved.Files), *destination)
 		return nil

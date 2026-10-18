@@ -1,0 +1,237 @@
+{
+  "source": "https://www.modelscope.cn/openmoss/MOSS-Image-SFT.git",
+  "revision": "797fa8e678b4f0a766271bf5103e6cd7a2faa999",
+  "scope": "All pinned repository payload hashes and sizes match; native safetensors readers validate all component headers and shard indexes; numerical inference is a separate obligation",
+  "files": [
+    {
+      "path": ".gitattributes",
+      "sha256": "b0cb5b656532e9c554990f68448268b1423f374eafc4260de2cfcb65f035a6c1",
+      "bytes": 2353
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "bytes": 11358
+    },
+    {
+      "path": "README.md",
+      "sha256": "bd254144a8163c88b5dcbd93746c99cb67bfabbd1c95daf584cdd623186b14f3",
+      "bytes": 8703
+    },
+    {
+      "path": "assets/comparison/base.webp",
+      "sha256": "dd0eccae7f9c591b65c8161bb2d8515a3fdfe124d4be015f660ffa96c5c7a8b8",
+      "bytes": 101944
+    },
+    {
+      "path": "assets/comparison/sft.webp",
+      "sha256": "de1ba44f48d49e792b16aac26f2d260beefbcb9fbfa72f3ace363ff8a9917f71",
+      "bytes": 152796
+    },
+    {
+      "path": "assets/feishu-builders-badge.svg",
+      "sha256": "b33cf4aca202bdf42c564163f304891fa17e96413ae0748ffd2afce9f909a677",
+      "bytes": 8007
+    },
+    {
+      "path": "assets/lockup-dark.svg",
+      "sha256": "7484badabd9e56e29b4ca791d9e398b6b4d12cbbf5bc21a5b7913eca5a3557e4",
+      "bytes": 9826
+    },
+    {
+      "path": "assets/lockup-light.svg",
+      "sha256": "662aaecb531db075d93232d56f892fb2e80c95c540d3d604a4ec73a765c8e51e",
+      "bytes": 9826
+    },
+    {
+      "path": "assets/modelscope-base-badge.svg",
+      "sha256": "ae320543e3045204037a0952e3bc18c90abb26f8677750bb60d5136bedda710a",
+      "bytes": 1243
+    },
+    {
+      "path": "assets/modelscope-sft-badge.svg",
+      "sha256": "04795cebf6062ec8ea62641af4bea2e16acc8eb71f2fb67ed6262c3dec49b31c",
+      "bytes": 1239
+    },
+    {
+      "path": "assets/showcase/layout-bboxes.webp",
+      "sha256": "0cd091fbd9145b9dc640e1d70dc10e6776b661bb1f443bdefadc9a24f78214d1",
+      "bytes": 851254
+    },
+    {
+      "path": "assets/showcase/overview.webp",
+      "sha256": "ae5039bc1ea15b1be43662aabb90539332815230bbc7f56d9481ce53f79131f1",
+      "bytes": 1128906
+    },
+    {
+      "path": "assets/showcase/overview2.webp",
+      "sha256": "a51172680bcddd6fad2edf0bc6bd0c26e509aa52ac9e3b57f95e914bd6d223f0",
+      "bytes": 4626816
+    },
+    {
+      "path": "assets/showcase/text-rendering.webp",
+      "sha256": "e3dac88a40868bf4a51b27d74b09cbddd30260f1ce118c6d6ba60ad5b97ea83e",
+      "bytes": 1861652
+    },
+    {
+      "path": "assets/teaser.webp",
+      "sha256": "47d1ae8ebf4f7dc0db2c85dc7f71f182cd2205b19932211e831e1cb24b17efc1",
+      "bytes": 438380
+    },
+    {
+      "path": "configuration.json",
+      "sha256": "046761088180ccab971101c1b5b672f504012c6c25b0902fd33c47597bb123e4",
+      "bytes": 71
+    },
+    {
+      "path": "model_index.json",
+      "sha256": "ca80b1f562a506e0eb24afb1acb464fb583163e3c240c04e4bc69fea090db173",
+      "bytes": 412
+    },
+    {
+      "path": "pipeline_moss_image.py",
+      "sha256": "1dac1aca9feb1bfdfc727a401e4b67d61a505d3190706d1b7d2d784f88678b31",
+      "bytes": 25060
+    },
+    {
+      "path": "scheduler/pipeline_moss_image.py",
+      "sha256": "1dac1aca9feb1bfdfc727a401e4b67d61a505d3190706d1b7d2d784f88678b31",
+      "bytes": 25060
+    },
+    {
+      "path": "scheduler/scheduler_config.json",
+      "sha256": "707322832cc507dfb8c51c0e0cd04d44ee2d30a9b036b6f3c47d6c17aa71adf0",
+      "bytes": 494
+    },
+    {
+      "path": "text_encoder/config.json",
+      "sha256": "b31ee18a242bcfcccbe740f825f6b1d3ae231b0655eeecb5de3e98d504b7d68c",
+      "bytes": 2813
+    },
+    {
+      "path": "text_encoder/model-00001-of-00004.safetensors",
+      "sha256": "abfaa3d3a8612508c85ee8f6da9c734b862f10298b903765c4ad384177c32b0b",
+      "bytes": 4973910744
+    },
+    {
+      "path": "text_encoder/model-00002-of-00004.safetensors",
+      "sha256": "9112637fa6bf4d07bafd6ae268852b18d3d0c1242f4ee901c5579006e5bd4894",
+      "bytes": 4988364288
+    },
+    {
+      "path": "text_encoder/model-00003-of-00004.safetensors",
+      "sha256": "956f1ef51d0cfe610b0d22987c0b7821c36e3ce228abceccef523518bcf079dc",
+      "bytes": 4954202112
+    },
+    {
+      "path": "text_encoder/model-00004-of-00004.safetensors",
+      "sha256": "9e21d20e8adde88c3e0b65d4a0d251f143d98ee9d52db36b4348361091e4e208",
+      "bytes": 1869001848
+    },
+    {
+      "path": "text_encoder/model.safetensors.index.json",
+      "sha256": "0af6fa3fa36ba8dcbb6b7ad0325a36c5b1b69862a9a1f1486b1b80385bd8f5ee",
+      "bytes": 64641
+    },
+    {
+      "path": "tokenizer/chat_template.jinja",
+      "sha256": "a4aee8afcf2e0711942cf848899be66016f8d14a889ff9ede07bca099c28f715",
+      "bytes": 7756
+    },
+    {
+      "path": "tokenizer/tokenizer.json",
+      "sha256": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+      "bytes": 19989325
+    },
+    {
+      "path": "tokenizer/tokenizer_config.json",
+      "sha256": "bee8eba30f0eb4af73c0fe2cd06d0f89b657d7819941c438157ec42f7c80ea87",
+      "bytes": 1123
+    },
+    {
+      "path": "transformer/config.json",
+      "sha256": "3291c3a1c7adc22b8182a0de25ca8ec97474d72715ce84adbab09cc0be24f666",
+      "bytes": 240
+    },
+    {
+      "path": "transformer/diffusion_pytorch_model-00001-of-00003.safetensors",
+      "sha256": "e40d3444940a0b0fd7cd45ba7959a5bd3d5efd7ddf87aae5ce4d87ce8aa03d01",
+      "bytes": 4991978016
+    },
+    {
+      "path": "transformer/diffusion_pytorch_model-00002-of-00003.safetensors",
+      "sha256": "d106da790ec2924ffd8af04b4ffa8f8de281a974b58e55649c3ec596dc8ef033",
+      "bytes": 4983137016
+    },
+    {
+      "path": "transformer/diffusion_pytorch_model-00003-of-00003.safetensors",
+      "sha256": "11f637ab17c7093344a6110a1e87ffda8e56558dc55183d8e790222cfcdcf52d",
+      "bytes": 189549184
+    },
+    {
+      "path": "transformer/diffusion_pytorch_model.safetensors.index.json",
+      "sha256": "b609327fc75dbe5080e7e095d8b727d74d728b4f98e8b047133b0082cfa2fb03",
+      "bytes": 40298
+    },
+    {
+      "path": "transformer/pipeline_moss_image.py",
+      "sha256": "1dac1aca9feb1bfdfc727a401e4b67d61a505d3190706d1b7d2d784f88678b31",
+      "bytes": 25060
+    },
+    {
+      "path": "vae/config.json",
+      "sha256": "cc77f3f0ce0357039c71018dc19edaa4fcceb0c2f7488fdc2b9c0580d6baafa1",
+      "bytes": 838
+    },
+    {
+      "path": "vae/diffusion_pytorch_model.safetensors",
+      "sha256": "c3bdf94dc67ec69b30ea9fe1fa8340085679cae64d019f7c7e4a9921f1a7f17a",
+      "bytes": 249521372
+    }
+  ],
+  "catalogs": [
+    {
+      "name": "text_encoder",
+      "tensors": 759,
+      "elements": 8392695024,
+      "bytes": 16785390048,
+      "dtypes": {
+        "BF16": 759
+      },
+      "shards": [
+        "model-00001-of-00004.safetensors",
+        "model-00002-of-00004.safetensors",
+        "model-00003-of-00004.safetensors",
+        "model-00004-of-00004.safetensors"
+      ]
+    },
+    {
+      "name": "transformer",
+      "tensors": 463,
+      "elements": 5082308624,
+      "bytes": 10164617280,
+      "dtypes": {
+        "BF16": 462,
+        "F32": 1
+      },
+      "shards": [
+        "diffusion_pytorch_model-00001-of-00003.safetensors",
+        "diffusion_pytorch_model-00002-of-00003.safetensors",
+        "diffusion_pytorch_model-00003-of-00003.safetensors"
+      ]
+    },
+    {
+      "name": "vae",
+      "tensors": 251,
+      "elements": 62373348,
+      "bytes": 249493396,
+      "dtypes": {
+        "F32": 250,
+        "I64": 1
+      },
+      "shards": [
+        "diffusion_pytorch_model.safetensors"
+      ]
+    }
+  ]
+}

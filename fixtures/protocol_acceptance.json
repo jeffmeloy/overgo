@@ -1,0 +1,50 @@
+[
+  {
+    "name": "chat-arithmetic",
+    "route": "/v1/chat/completions",
+    "body": {"messages": [{"role": "user", "content": "What is 17 plus 25? Reply with only the integer."}], "temperature": 0, "max_tokens": 16, "chat_template_kwargs": {"enable_thinking": false}},
+    "expected": "42"
+  },
+  {
+    "name": "responses-grounding",
+    "route": "/v1/responses",
+    "body": {"input": "Record: The amber shipment has code ORBIT-731. The blue shipment has code MESA-284. What is the amber shipment code? Reply with only its code.", "temperature": 0, "max_output_tokens": 24, "reasoning": {"effort": "none"}},
+    "expected": "ORBIT-731"
+  },
+  {
+    "name": "messages-history",
+    "route": "/v1/messages",
+    "body": {"messages": [{"role": "user", "content": "Remember that my code is 719."}, {"role": "assistant", "content": "Your code is 719."}, {"role": "user", "content": "What is my code? Reply with only its digits."}], "temperature": 0, "max_tokens": 16, "thinking": {"type": "disabled"}},
+    "expected": "719"
+  },
+  {
+    "name": "responses-reasoning",
+    "route": "/v1/responses",
+    "body": {"input": "What is 7 plus 5? Give only the integer in your final answer.", "temperature": 0, "max_output_tokens": 128, "reasoning": {"effort": "low"}},
+    "expected": "12"
+  },
+  {
+    "name": "chat-tool",
+    "route": "/v1/chat/completions",
+    "body": {"messages": [{"role": "user", "content": "Use lookup_code to look up amber. Do not answer directly."}], "tools": [{"type": "function", "function": {"name": "lookup_code", "description": "Look up a shipment code by color.", "parameters": {"type": "object", "properties": {"color": {"type": "string"}}, "required": ["color"]}}}], "tool_choice": "required", "temperature": 0, "max_tokens": 96, "chat_template_kwargs": {"enable_thinking": false}},
+    "expected": "lookup_code:amber"
+  },
+  {
+    "name": "chat-stream",
+    "route": "/v1/chat/completions",
+    "body": {"messages": [{"role": "user", "content": "What is 3 plus 4? Reply with only the integer."}], "temperature": 0, "max_tokens": 16, "stream": true, "chat_template_kwargs": {"enable_thinking": false}},
+    "expected": "7"
+  },
+  {
+    "name": "chat-cancel",
+    "route": "/v1/chat/completions",
+    "body": {"messages": [{"role": "user", "content": "Count from 1 through 20."}], "temperature": 0, "max_tokens": 64, "stream": true, "chat_template_kwargs": {"enable_thinking": false}},
+    "cancel": true
+  },
+  {
+    "name": "chat-recovery",
+    "route": "/v1/chat/completions",
+    "body": {"messages": [{"role": "user", "content": "What is 5 plus 4? Reply with only the integer."}], "temperature": 0, "max_tokens": 16, "chat_template_kwargs": {"enable_thinking": false}},
+    "expected": "9"
+  }
+]

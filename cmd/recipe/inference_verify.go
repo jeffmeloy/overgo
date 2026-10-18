@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/binary"
 	"encoding/json"
@@ -11,11 +12,15 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"math"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/capabilityruntime"
+	"overgo/internal/cuda/driver"
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
 	"overgo/internal/mediacapability"
@@ -25,25 +30,32 @@ import (
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/server"
+	"overgo/internal/strictjson"
 	"overgo/internal/tokenizer"
 )
 
+// verifyInference verifies the inference recipe the code derives for the
+// model by the exact suite the input holds, or with protocol by the cases it lists.
 func verifyInference(
 	repository, path, input string,
 	override modelintake.SessionOverride,
 	residency recipe.ResidencyPolicy,
+	protocol bool,
 ) error {
 	revision, err := modelintake.CleanRevision(context.Background())
 	if err != nil {
 		return err
 	}
 	var suite evaluation.ExactSuite
-	if err := json.Unmarshal([]byte(input), &suite); err != nil {
-		return fmt.Errorf("recipe: decode inference suite: %w", err)
-	}
-	exactPlan, err := evaluation.CompileExact(suite)
-	if err != nil {
-		return fmt.Errorf("recipe: compile inference suite: %w", err)
+	var exactPlan evaluation.ExactPlan
+	if !protocol {
+		if err := json.Unmarshal([]byte(input), &suite); err != nil {
+			return fmt.Errorf("recipe: decode inference suite: %w", err)
+		}
+		if exactPlan, err = evaluation.CompileExact(suite); err != nil {
+			return fmt.Errorf("recipe: compile inference suite: %w", err)
+		}
 	}
 	ctx := context.Background()
 	store, err := overgodb.Open(repository)
@@ -55,10 +67,14 @@ func verifyInference(
 	if err != nil {
 		return err
 	}
-	runtime := &deferredExactRuntime{open: func(ctx context.Context) (exactRuntime, error) {
+	open := func(ctx context.Context) (exactRuntime, error) {
 		return openExactCandidate(ctx, path, candidate)
-	}}
-	_, err = verifyExactRuntime(ctx, store, candidate.Definition, revision, suite, exactPlan, candidate.Resolved.Document.ID, runtime)
+	}
+	if protocol {
+		_, err = acceptProtocol(ctx, store, candidate.Definition, revision, input, open)
+	} else {
+		_, err = verifyExactRuntime(ctx, store, candidate.Definition, revision, suite, exactPlan, candidate.Resolved.Document.ID, &deferredExactRuntime{open: open})
+	}
 	return err
 }
 
@@ -487,4 +503,167 @@ func verifyExactRuntime(ctx context.Context, store *overgodb.Store, definition r
 		"gate_id": verification.Gate.String(), "recipe_id": definition.ID.String(),
 		"run_id": verification.Run.String(), "report_id": reportID.String(),
 	})
+}
+
+// protocolObservation is the schema of what a protocol acceptance observed:
+// each case it sent, with what the served model gave for it.
+const protocolObservation = "overgo/protocol-acceptance/v1"
+
+// protocolCase is one request a protocol acceptance sends through the serving
+// handlers, with the answer an independent reader expects of it, and what
+// came back. A case that cancels hangs up once streamed content reaches it.
+type protocolCase struct {
+	Name     string          `json:"name"`
+	Route    string          `json:"route"`
+	Body     json.RawMessage `json:"body"`
+	Expected string          `json:"expected,omitzero"`
+	Cancel   bool            `json:"cancel,omitzero"`
+	Status   int             `json:"status,omitzero"`
+	Answer   string          `json:"answer,omitzero"`
+	Finish   string          `json:"finish,omitzero"`
+	Accepted bool            `json:"accepted,omitzero"`
+	Response string          `json:"response,omitzero"`
+}
+
+// acceptProtocol sends the listed cases through the serving handlers of the
+// runtime open loads. Only when every case is accepted, the runtime closes and
+// the process then holds no device memory does it publish the verification,
+// whose run binds the observation as its input; otherwise it publishes nothing.
+func acceptProtocol(ctx context.Context, store *overgodb.Store, definition recipe.Definition, revision, input string,
+	open func(context.Context) (exactRuntime, error),
+) (modelrecipe.Verification, error) {
+	var cases []protocolCase
+	if err := strictjson.DecodeBytes([]byte(input), &cases); err != nil || len(cases) == 0 {
+		return modelrecipe.Verification{}, errors.Join(errors.New("recipe: the protocol input lists no cases"), err)
+	}
+	started := time.Now()
+	runtime, err := open(ctx)
+	if err != nil {
+		return modelrecipe.Verification{}, err
+	}
+	handler, err := server.New(server.Config{MaxConcurrent: 1}, runtime)
+	if err != nil {
+		return modelrecipe.Verification{}, errors.Join(err, runtime.Close())
+	}
+	var failure error
+	for index := range cases {
+		if test := &cases[index]; !serveProtocolCase(ctx, handler, test) {
+			failure = errors.Join(failure, fmt.Errorf("recipe: protocol case %s answered %q, finishing %q", test.Name, test.Answer, test.Finish))
+		}
+	}
+	failure = errors.Join(failure, handler.Close(), runtime.Close())
+	if held := driver.ProcessCurrentBytes(); held != 0 {
+		failure = errors.Join(failure, fmt.Errorf("recipe: the process holds %d device bytes after close", held))
+	}
+	observation, err := artifact.JSONContent(artifact.JSONContract(artifact.KindEvidence, protocolObservation), cases)
+	failure = errors.Join(failure, err)
+	result := map[string]any{"recipe_id": definition.ID.String(), "observation_id": observation.Descriptor.ID.String(), "cases": cases}
+	var verification modelrecipe.Verification
+	if failure == nil {
+		verification, failure = modelintake.PublishMeasuredVerification(ctx, store, definition, revision, time.Since(started), "cuda:0", "cuda",
+			fmt.Sprintf("contract=protocol;observation=%s;cases=%d; every case answered as expected through the serving handlers, the runtime closed and the process held no device bytes after", observation.Descriptor.ID, len(cases)),
+			capabilityruntime.Measured{Input: observation})
+		result["gate_id"], result["run_id"] = verification.Gate.String(), verification.Run.String()
+	}
+	return verification, errors.Join(failure, json.NewEncoder(os.Stdout).Encode(result))
+}
+
+// serveProtocolCase sends one case through the handler and records what came
+// back. The answer is the text of whichever protocol's fields hold it, whole
+// or streamed, and a case is accepted when it is the expected answer of a
+// finished turn; a cancelled case is accepted when its turn did not finish.
+func serveProtocolCase(ctx context.Context, handler http.Handler, test *protocolCase) bool {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	request := httptest.NewRequestWithContext(ctx, http.MethodPost, test.Route, bytes.NewReader(test.Body))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	client := http.ResponseWriter(recorder)
+	if test.Cancel {
+		client = hangUp{recorder, cancel}
+	}
+	handler.ServeHTTP(client, request)
+	test.Status, test.Response, test.Answer, test.Finish = recorder.Code, recorder.Body.String(), "", ""
+	payloads := []string{test.Response}
+	stream := recorder.Header().Get("Content-Type") == "text/event-stream"
+	if stream {
+		payloads = nil
+		for line := range strings.Lines(test.Response) {
+			if payload, found := strings.CutPrefix(strings.TrimSpace(line), "data: "); found && payload != "[DONE]" {
+				payloads = append(payloads, payload)
+			}
+		}
+	}
+	parsed := !stream || strings.Contains(test.Response, "data: [DONE]")
+	for _, payload := range payloads {
+		var turn protocolTurn
+		parsed = json.Unmarshal([]byte(payload), &turn) == nil && parsed
+		answer, finish := turn.answer()
+		test.Answer, test.Finish = test.Answer+answer, cmp.Or(finish, test.Finish)
+	}
+	test.Accepted = parsed && test.Status == http.StatusOK && test.Finish == "stop" && strings.TrimSpace(test.Answer) == test.Expected
+	if test.Cancel {
+		test.Accepted = ctx.Err() != nil && test.Finish == ""
+	}
+	return test.Accepted
+}
+
+// hangUp is a client that hangs up once streamed content reaches it.
+type hangUp struct {
+	*httptest.ResponseRecorder
+	cancel context.CancelFunc
+}
+
+// Flush delivers what was written, and hangs up once that holds content.
+func (client hangUp) Flush() {
+	client.ResponseRecorder.Flush()
+	if strings.Contains(client.Body.String(), `"content":`) {
+		client.cancel()
+	}
+}
+
+// protocolTurn holds the fields a turn's answer and finish come in under the
+// chat, responses and messages protocols.
+type protocolTurn struct {
+	Choices []struct {
+		Message struct {
+			Content   string
+			ToolCalls []inference.ChatToolCall `json:"tool_calls"`
+		}
+		Delta        struct{ Content string }
+		FinishReason string `json:"finish_reason"`
+	}
+	Output     []struct{ Content []struct{ Text string } }
+	Content    []struct{ Text string }
+	Status     string
+	StopReason string `json:"stop_reason"`
+}
+
+// answer is the turn's text and how it finished, stop for a finished turn
+// under every protocol. A turn that ends in one call of a tool with one
+// argument answers the tool's name and the argument's value.
+func (turn protocolTurn) answer() (string, string) {
+	text, finish := "", ""
+	for _, choice := range turn.Choices {
+		text, finish = text+choice.Message.Content+choice.Delta.Content, cmp.Or(choice.FinishReason, finish)
+		var arguments map[string]string
+		if calls := choice.Message.ToolCalls; len(calls) == 1 && finish == "tool_calls" &&
+			json.Unmarshal([]byte(calls[0].Function.Arguments), &arguments) == nil && len(arguments) == 1 {
+			for _, value := range arguments {
+				return calls[0].Function.Name + ":" + value, "stop"
+			}
+		}
+	}
+	for _, item := range turn.Output {
+		for _, part := range item.Content {
+			text += part.Text
+		}
+	}
+	for _, part := range turn.Content {
+		text += part.Text
+	}
+	if turn.Status == "completed" || turn.StopReason == "end_turn" {
+		finish = "stop"
+	}
+	return text, finish
 }

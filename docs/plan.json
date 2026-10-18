@@ -117,17 +117,10 @@
       "title": "Decode Qwen3.8-Flash-Next at the speed Strata reaches on this PC",
       "status": "open",
       "budget": {
-        "nodes": 1100,
+        "nodes": 14,
         "reason": "serve-capacity measured +1086 production nodes in its worktree: recipe verify -protocol runs the eight chat protocol cases (reasoning, tools, cancellation, recovery) through the real handlers and publishes the gate and run, replacing the hand call of modelintake.PublishVerification; device-experts and decode-graph set theirs from measured figures before dispatch"
       },
       "steps": [
-        {
-          "id": "serve-capacity",
-          "title": "Verify and activate Flash-Next's capacity-session recipe through a command",
-          "status": "open",
-          "verify": "go test ./cmd/recipe -count=1 -run '^TestVerifyPublishesProtocolAcceptance$'",
-          "rationale": "From step session-reuse: a capacity-session Flash-Next recipe decodes the 100-token short chat in 3.53 to 3.59 s in place of 4.76 to 4.86 s with byte-identical text, but the active recipe (recipe:sha256:4b391840...) was derived at 20156d9b with the request session, which builds a graph every token; since 56a1cf1d8 the automatic session choice derives the capacity recipe (recipe:sha256:81d75bcb...).\nThe active recipe was accepted by the eight protocol cases of the stored probe (file:sha256:4d027ce8..., through the chat, responses and messages handlers), published by a direct call of modelintake.PublishVerification: no command runs those cases on a candidate and publishes its gate and run, so serving the capacity recipe is a hand step.\nThe step gives that acceptance a command (a recipe verify route that runs a stored protocol probe's cases on the derived candidate and publishes the observation, gate and run, deleting any one-off path it displaces), then verifies and activates Flash-Next with -session auto through it; the recipe's status names the capacity recipe.\nServes: throughput for Flash-Next's chat, about 21 to 28 tokens a second; setup-steps falls for every protocol-accepted recipe re-derived after a runtime change.\nBatch: device."
-        },
         {
           "id": "device-experts",
           "title": "Resolve routed experts on the card, so a layer runs without waiting for the host",

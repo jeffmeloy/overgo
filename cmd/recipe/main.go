@@ -76,6 +76,7 @@ func run() error {
 	input := flags.String("input", "", "task input as JSON; - reads standard input (verify, run)")
 	inputFile := flags.String("input-file", "", "a file holding the task input, in place of -input (verify, run)")
 	reverify := flags.Bool("reverify", false, "re-verify the model's active projection recipe on the verification this run records; refused when the code derives another recipe (verify -task projection)")
+	protocol := flags.Bool("protocol", false, "the input lists protocol cases sent through the serving handlers, each with its expected answer, in place of an exact suite; the verification is published only when every case is accepted and the closed runtime leaves no device bytes (verify -task inference)")
 	alias := flags.String("alias", "", "OvergoDB model alias (run)")
 	selection := flags.String("selection", string(modelrecipe.SessionWarm), "alias session selection: pin | warm | spillover (run)")
 	fresh := flags.Bool("fresh", false, "run the request as its own operation, where an identical request this build already answered is answered with what the store kept of it (run)")
@@ -144,7 +145,7 @@ func run() error {
 			if selectedTask == recipe.TaskProjection {
 				return verifyProjection(repository, path, roots.ResolveModelPath(*projectorPath), rawInput, sessionOverride, residency, *reverify)
 			}
-			return verifyInference(repository, path, rawInput, sessionOverride, residency)
+			return verifyInference(repository, path, rawInput, sessionOverride, residency, *protocol)
 		}
 		if !capabilityKnown {
 			return fmt.Errorf("task %q has no registered verifier runtime", selectedTask)

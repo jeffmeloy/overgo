@@ -78,11 +78,11 @@
       "Cells": [
         {
           "Task": "transcription",
-          "Recipe": "recipe:sha256:1b4b53fffac099482864cac908112d4da98319ef6c6670974505fe594a48c114",
+          "Recipe": "recipe:sha256:b0414e84b7eeb5c2528b6b14d188e3ed433d350d8f07c088f1f4b47ac9d93f08",
           "Proofs": [
             "speech-transcription-verification/do"
           ],
-          "Scope": "Exact transcripts on four reference recordings only: each is transcribed in one call by the packaged recognizer the onboarding path loads, through the checkpoint's own execution and processor declarations and its own tokenizer, and matches the reference exactly. An empty request is refused before a model is read. No word error rate and no broader accuracy claim."
+          "Scope": "Exact transcripts on four reference recordings only: each is transcribed in one call by the packaged recognizer the onboarding path loads, through the checkpoint's own execution and processor declarations and its own tokenizer, and matches the reference exactly. An empty request is refused before a model is read. That proof ran the CPU recipe recipe:sha256:1b4b53fffac099482864cac908112d4da98319ef6c6670974505fe594a48c114, which the resident recipe named here superseded on activation. The resident recipe runs the encoder on the CUDA device, where TestASRResidentReference/connectionist holds the same four recordings to exact PCM, exact CTC frame IDs and exact transcripts, with every encoder layer and the logits within the CPU reference's tolerances; it passed on the device before the activation, as the activating commit's message records, and is no store record, so its source is pinned among the inputs. No word error rate and no broader accuracy claim."
         }
       ]
     },
@@ -188,7 +188,9 @@
     "fixtures/pockettts/g7_generation.json": "1658f8b442d25adcbe7ed1b9306d333ba2cc81d7e7647ac6a48252c8a437eee1",
     "fixtures/tabfm_predict_golden.json": "c3d7c0c4d9b5f5cf04074d810a07756bc040e9e1e2e48a00270e0512aa79e9f9",
     "fixtures/timesfm_golden.json": "4ea782a5ac1173f7dfa829f9e618615e8cccd0faf3b06a3ade40a50cd5f0ff17",
+    "internal/audioparity/cpu_asr_test.go": "194cd6731c4bb15781a8089f7bf1497b8b4b6d3f0749eaf129da7b72a497b205",
     "internal/audioparity/recognizer_reference_test.go": "75348c247ba06895e903d53e29d9a2f09f980eac7defcd49aeddf6d673300514",
+    "internal/audioparity/resident_windows_test.go": "cc3938ffd3d6da457a811214e0dc96f2fea1c9663b645e7b9cb74d4f72bf77bb",
     "internal/audioparity/second_asr_test.go": "06dfefa81a16cc8f2983891ab34599a6f939a8caa44b33fe94482701c10e8f0d",
     "internal/seq2seq/oracle_golden_test.go": "f5f1cd86999a59713a1f003bbc4575b98a370d439c0ab6c453dcf1d8ba7df5b5",
     "internal/seq2seq/real_text_model_test.go": "b2868c3f7120caf79db9c7dc89ec04f24cc99731fcf79bbeeace51439c515290",

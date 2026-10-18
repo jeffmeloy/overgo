@@ -254,24 +254,6 @@
       ]
     },
     {
-      "id": "audio-serving",
-      "title": "Serve the faster measured speech paths and read speech quality from its largest suite",
-      "status": "open",
-      "budget": {
-        "nodes": 25,
-        "reason": "asr-resident measured +68 production nodes in its worktree; asr-activate's estimate is about 60 for recording device runs with a device environment label"
-      },
-      "steps": [
-        {
-          "id": "asr-activate",
-          "title": "Activate Granite's resident transcription recipe and rebind its coverage and held-out quality",
-          "status": "open",
-          "verify": "go run ./cmd/validate -media json",
-          "rationale": "From step asr-resident: Granite's transcription capability now compiles the resident recipe (recipe:sha256:b0414e84...) in place of its active CPU recipe (recipe:sha256:1b4b53ff...); Nemotron keeps its CPU recipe because a resident recipe serves no stream and a model has one active recipe per task.\nThe step verifies Granite's resident recipe on the request its CPU activation was verified on (scratchpad asr-activate.txt), activates it, and measures it with nothing else on the card.\nActivation breaks two bindings the step repairs in the same commit: docs/verification/specialized-coverage.json binds Granite's accepted transcription to the CPU recipe (cmd/validate/media_coverage.go carries acceptance only across a session-policy change), so the cell is rebound to the GPU run of the same reference acceptance (TestASRResidentReference/connectionist); and Granite's held-out quality is read by recipe, so the LibriSpeech transcription evaluation runs again on the resident recipe.\nDevice runs are recorded with a CPU or host environment label in TranscriptionWorkspace and capability verify; the step records them as device runs.\nServes: first-output for Granite's whole-clip transcription; worsens load-time by about 0.3 s and peak-device-memory by about 1.09 GB, as stated in asr-resident.\nBatch: device."
-        }
-      ]
-    },
-    {
       "id": "training-reuse",
       "title": "Stop repeating training's per-step device setup and its padding to the run's longest sequence",
       "status": "open",

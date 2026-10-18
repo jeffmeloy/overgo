@@ -33,6 +33,11 @@ type Inventory struct {
 
 // FromHFPath inventories one Hugging Face repository directory.
 func FromHFPath(path string) (Inventory, error) {
+	if _, err := os.Stat(filepath.Join(path, "model_index.json")); err == nil {
+		return fromHFPipeline(path)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return Inventory{}, err
+	}
 	repository, err := hfrepo.Open(path)
 	if err != nil {
 		return Inventory{}, err

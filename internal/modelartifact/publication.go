@@ -9,7 +9,7 @@ import (
 )
 
 // PreserveRawTextDescriptors keeps immutable catalog facts when two publishers
-// describe the same raw text bytes as plain text and Markdown. Their source
+// describe the same raw text bytes as plain text, Markdown or Python source. Their source
 // declarations retain each interpretation. Sizes, schemas, tensor containers
 // and every other media-type conflict remain strict.
 func PreserveRawTextDescriptors(ctx context.Context, reader artifact.Reader, batch *artifact.Batch) error {
@@ -30,8 +30,10 @@ func PreserveRawTextDescriptors(ctx context.Context, reader artifact.Reader, bat
 		if !found || existing == *declared {
 			return nil
 		}
-		textViews := existing.MediaType == "text/plain" && declared.MediaType == "text/markdown" ||
-			existing.MediaType == "text/markdown" && declared.MediaType == "text/plain"
+		rawText := func(media string) bool {
+			return media == "text/plain" || media == "text/markdown" || media == "text/x-python"
+		}
+		textViews := rawText(existing.MediaType) && rawText(declared.MediaType)
 		if existing.Size != declared.Size || existing.Schema != "" || declared.Schema != "" || !textViews {
 			return fmt.Errorf("model artifact: conflicting raw-file facts for %s", declared.ID)
 		}

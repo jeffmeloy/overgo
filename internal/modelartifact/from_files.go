@@ -164,6 +164,9 @@ func fileContract(role artifact.ComponentRole, path string) (artifact.Kind, stri
 		}
 		return artifact.KindTensorSet, safetensorsMediaType
 	default:
+		if role == artifact.ComponentCompanion && strings.EqualFold(filepath.Ext(path), ".py") {
+			return artifact.KindFile, "text/x-python"
+		}
 		return artifact.KindFile, binaryMediaType
 	}
 }

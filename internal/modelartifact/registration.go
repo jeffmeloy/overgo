@@ -10,18 +10,20 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/gitauthority"
+	"overgo/internal/hfrepo"
 	"overgo/internal/pathidentity"
 	"overgo/internal/processcontrol"
 	"overgo/internal/strictjson"
 )
 
 type modelRegistration struct {
-	Directory        string      `json:"directory"`
-	Model            artifact.ID `json:"model"`
-	TensorInventory  artifact.ID `json:"tensor_inventory"`
-	SourceRepository string      `json:"source_repository"`
-	SourceCommit     string      `json:"source_commit"`
-	Components       []FileSpec  `json:"components,omitempty"`
+	Directory        string                `json:"directory"`
+	Model            artifact.ID           `json:"model"`
+	TensorInventory  artifact.ID           `json:"tensor_inventory"`
+	SourceRepository string                `json:"source_repository"`
+	SourceCommit     string                `json:"source_commit"`
+	SourceReceipt    *hfrepo.SourceReceipt `json:"source_receipt,omitempty"`
+	Components       []FileSpec            `json:"components,omitempty"`
 	License          struct {
 		Path      string      `json:"path"`
 		Artifact  artifact.ID `json:"artifact"`
@@ -97,19 +99,30 @@ func registrationInventory(ctx context.Context, root string, specification model
 	if err != nil || !contained || !filepath.IsLocal(specification.Directory) {
 		return empty, noLicense, errors.New("model directory escapes root")
 	}
-	for _, check := range []struct {
-		arguments []string
-		expected  string
-	}{
-		{[]string{"rev-parse", "HEAD"}, specification.SourceCommit},
-		{[]string{"remote", "get-url", "origin"}, specification.SourceRepository},
-		{[]string{"diff", "--no-ext-diff", "--no-textconv", "--quiet", "HEAD", "--"}, ""},
-	} {
-		arguments := append([]string{"--no-replace-objects", "-C", directory}, check.arguments...)
-		var output strings.Builder
-		receipt, err := processcontrol.Run(ctx, processcontrol.Command{Path: "git", Args: arguments, Env: gitauthority.ReaderEnvironment(), Stdout: &output})
-		if err != nil || receipt.ExitCode != 0 || strings.TrimSpace(output.String()) != check.expected {
-			return empty, noLicense, errors.New("source repository, commit or tracked bytes differ")
+	if specification.SourceReceipt != nil {
+		verified, err := specification.SourceReceipt.Verify(ctx, directory)
+		if err != nil {
+			return empty, noLicense, err
+		}
+		if verified.Source != specification.SourceRepository || verified.Revision != specification.SourceCommit {
+			return empty, noLicense, errors.New("source receipt differs from declared repository or revision")
+		}
+		specification.SourceReceipt = &verified
+	} else {
+		for _, check := range []struct {
+			arguments []string
+			expected  string
+		}{
+			{[]string{"rev-parse", "HEAD"}, specification.SourceCommit},
+			{[]string{"remote", "get-url", "origin"}, specification.SourceRepository},
+			{[]string{"diff", "--no-ext-diff", "--no-textconv", "--quiet", "HEAD", "--"}, ""},
+		} {
+			arguments := append([]string{"--no-replace-objects", "-C", directory}, check.arguments...)
+			var output strings.Builder
+			receipt, err := processcontrol.Run(ctx, processcontrol.Command{Path: "git", Args: arguments, Env: gitauthority.ReaderEnvironment(), Stdout: &output})
+			if err != nil || receipt.ExitCode != 0 || strings.TrimSpace(output.String()) != check.expected {
+				return empty, noLicense, errors.New("source repository, commit or tracked bytes differ")
+			}
 		}
 	}
 	var inventory Inventory
@@ -129,6 +142,11 @@ func registrationInventory(ctx context.Context, root string, specification model
 	if err != nil {
 		return empty, noLicense, err
 	}
+	if specification.SourceReceipt != nil {
+		if err := inventory.VerifySource(directory, *specification.SourceReceipt); err != nil {
+			return empty, noLicense, err
+		}
+	}
 	if inventory.Manifest.ID != specification.Model || inventory.TensorInventory.ID != specification.TensorInventory {
 		return empty, noLicense, errors.New("model or tensor inventory differs from declaration")
 	}
@@ -147,6 +165,9 @@ func registrationInventory(ctx context.Context, root string, specification model
 	license := artifact.Content{Descriptor: artifact.Descriptor{ID: specification.License.Artifact, Size: uint64(len(data)), MediaType: specification.License.MediaType}, Data: data}
 	if license.Descriptor.ID.Kind() != artifact.KindFile || license.Validate() != nil {
 		return empty, noLicense, errors.New("license bytes differ from declaration")
+	}
+	if specification.SourceReceipt != nil && !specification.SourceReceipt.Covers(hfrepo.SourceFile{Path: filepath.ToSlash(specification.License.Path), SHA256: license.Descriptor.ID.DigestHex(), Bytes: int64(len(data))}) {
+		return empty, noLicense, errors.New("license is absent from the verified source")
 	}
 	return inventory, license, ctx.Err()
 }

@@ -247,6 +247,7 @@ func EntryAuthorityRules() []EntryAuthorityRule {
 			},
 			Detect: func(file *ast.File) int {
 				sites := 0
+				source := productionAuthoritySource{Imports: map[string]string{}}
 				for _, spec := range file.Imports {
 					if spec.Path == nil {
 						continue
@@ -254,19 +255,39 @@ func EntryAuthorityRules() []EntryAuthorityRule {
 					if spec.Path.Value == `"plugin"` || embeddedInterpreterImport(spec.Path.Value) {
 						sites++
 					}
+					if imported, ok := stringLiteral(spec.Path); ok {
+						alias := path.Base(imported)
+						if spec.Name != nil {
+							alias = spec.Name.Name
+						}
+						source.Imports[alias] = imported
+					}
 				}
 				sites += selectorSites(file, func(selector *ast.SelectorExpr) bool {
 					name := selector.Sel.Name
 					return name == "NewLazyDLL" || strings.HasPrefix(name, "LoadLibrary")
 				})
 				ast.Inspect(file, func(node ast.Node) bool {
+					if call, ok := node.(*ast.CallExpr); ok && authorityCallFromImport(source, call.Fun, "os/exec", "Command", "CommandContext") {
+						for _, argument := range call.Args {
+							ast.Inspect(argument, func(part ast.Node) bool {
+								if literal, ok := part.(*ast.BasicLit); ok {
+									if value, valid := stringLiteral(literal); valid && scriptEntrySuffix(value) {
+										sites++
+									}
+								}
+								return true
+							})
+						}
+					}
 					literal, ok := node.(*ast.BasicLit)
 					if !ok {
 						return true
 					}
-					if strings.Contains(literal.Value, ".claude/") ||
-						strings.HasSuffix(literal.Value, `.sh"`) || strings.HasSuffix(literal.Value, `.ps1"`) ||
-						strings.HasSuffix(literal.Value, `.bat"`) || strings.HasSuffix(literal.Value, `.py"`) {
+					value, valid := stringLiteral(literal)
+					// A bare extension classifies artifact bytes without naming an executable.
+					// Process arguments retain script checks even when a name is assembled.
+					if valid && (strings.Contains(value, ".claude/") || scriptEntrySuffix(value) && value != path.Ext(value)) {
 						sites++
 					}
 					return true
@@ -276,6 +297,10 @@ func EntryAuthorityRules() []EntryAuthorityRule {
 			Retire: "the runtime stops being Go-only by an explicit reviewed architecture decision",
 		},
 	}
+}
+
+func scriptEntrySuffix(value string) bool {
+	return slices.Contains([]string{".sh", ".ps1", ".bat", ".py"}, strings.ToLower(path.Ext(value)))
 }
 
 // EntryAuthorityRuleFor returns one domain's rule from the single policy

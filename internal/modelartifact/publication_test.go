@@ -14,6 +14,11 @@ func TestRawTextPublicationPreservesImmutableFacts(t *testing.T) {
 		kind                              artifact.Kind
 		sizeMismatch, reject              bool
 	}{
+		{name: "plain then python", priorType: "text/plain", nextType: "text/x-python", kind: artifact.KindFile},
+		{name: "python then plain", priorType: "text/x-python", nextType: "text/plain", kind: artifact.KindFile},
+		{name: "python size conflict", priorType: "text/plain", nextType: "text/x-python", kind: artifact.KindFile, sizeMismatch: true, reject: true},
+		{name: "python schema conflict", priorType: "text/plain", nextType: "text/x-python", schema: "fixture/v1", kind: artifact.KindFile, reject: true},
+		{name: "python binary conflict", priorType: "application/octet-stream", nextType: "text/x-python", kind: artifact.KindFile, reject: true},
 		{name: "plain then markdown", priorType: "text/plain", nextType: "text/markdown", kind: artifact.KindFile},
 		{name: "markdown then plain", priorType: "text/markdown", nextType: "text/plain", kind: artifact.KindFile},
 		{name: "binary conflict", priorType: "application/octet-stream", nextType: "text/markdown", kind: artifact.KindFile, reject: true},

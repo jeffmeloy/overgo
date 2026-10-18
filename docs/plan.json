@@ -491,21 +491,10 @@
       "owner": "overgo_moss",
       "status": "open",
       "budget": {
-        "nodes": 3000,
+        "nodes": 1498,
         "reason": "The measured pipeline inventory and receipt-backed registration draft adds 1500 production syntax nodes. The original 1500-node allowance remains for architecture resolution and lifecycle integration. Existing inventory, source verification, publication, recipe and intake owners retain their responsibilities."
       },
       "steps": [
-        {
-          "id": "source",
-          "title": "Register declared pipelines from verified acquisition receipts",
-          "status": "open",
-          "verify": "go test ./internal/modelartifact ./cmd/recipe -count=1 -run '^(TestPipelineInventory.*|TestRawTextPublicationPreservesImmutableFacts|TestRecipeSpec.*|TestModelRegistration.*)$'",
-          "rationale": "Model and upstream golden validation precede pipeline import changes.\nThe structural source path can land before numerical tolerance policy because it neither resolves execution support nor activates a model.\nThe remaining inspection and materialization steps retain their complete architecture and lifecycle obligations.\nServes: deterministic import of pinned multi-component repositories through recipe spec and recipe register.\nDisappears: hand-written component lists and a manufactured Git checkout after verified hub acquisition.\nEvidence: the draft commands register the acquired MOSS model with 19 components and 1473 tensors while preserving its model and tensor inventory identities.\nBatch: modelartifact and recipe command changes together because inventory belongs to the inference surface.\nThe declared pipeline components come from model_index.json and retain component policy bytes.\nScalar and numeric array policy values remain policy values rather than component declarations.\nSource receipts cover every inventoried payload and the selected license.\nAn inferred license identifier requires a verified model card.\nExplicit license identifiers record the caller's review of the verified license.\nLocal Python source is inventoried as bytes and never executed.\nExisting raw-text descriptor reconciliation preserves immutable plain-text, Markdown and Python-source metadata while refusing size, schema and binary conflicts.\nControlled tests require identical declarations across relocation and reversed receipt enumeration.\nRepeated publication leaves the journal unchanged and invalid source declarations publish nothing.\nActual draft registration retains model:sha256:fc5fd3cedb681bc901c4b03b9826339375bb94f7d960886833473213358f64c6 and tensor-inventory:sha256:7a8ba6d51f1ca4d03a7e6260e16fce2cf2097d9f6817e90a550a088d2fb35f6a.\nThe declaration is file:sha256:c5f627e3a77250712600bd561c3d594c7a0354d60b9f3d37e5653178d787c69b.\nActual readback confirms 19 components and 1473 tensors with no weight copying.\nThe same draft inventories the existing Krea2 checkpoint with 14 components and 1337 tensors.\nThe Krea2 probe does not establish recipe migration or numerical verification.\nAcquisition, structural inventory, numerical verification and activation remain distinct.",
-          "depends_on": [
-            "moss-reference/acquire",
-            "moss-oracle/portable"
-          ]
-        },
         {
           "id": "inspect",
           "title": "Derive a deterministic import description without loading weights",

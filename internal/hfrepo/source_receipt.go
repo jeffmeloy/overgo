@@ -31,6 +31,9 @@ type SourceFile struct {
 	Bytes  int64  `json:"bytes"`
 }
 
+// Covers reports whether a payload has exactly the declared source facts.
+func (r SourceReceipt) Covers(file SourceFile) bool { return slices.Contains(r.Files, file) }
+
 // Verify checks every declared payload and returns a canonical receipt.
 // Source authenticity belongs to the pinned acquisition that produced the receipt.
 // Additional files cannot acquire provenance from this receipt.

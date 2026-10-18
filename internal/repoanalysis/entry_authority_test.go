@@ -1,12 +1,44 @@
 package repoanalysis
 
 import (
+	"go/parser"
+	"go/token"
 	"path"
 	"strings"
 	"testing"
 
 	"overgo/internal/gosyntax"
 )
+
+func TestEntryAuthorityScriptSuffixIsData(t *testing.T) {
+	t.Parallel()
+	rule, found := EntryAuthorityRuleFor(EntryAuthorityGoOnly)
+	if !found {
+		t.Fatal("missing Go-only rule")
+	}
+	for _, tc := range []struct {
+		name, source string
+		refuse       bool
+	}{
+		{"file classification", `import ("path/filepath"; "strings"); func classify(path string) bool { return strings.EqualFold(filepath.Ext(path), ".py") }`, false},
+		{"source inventory", `func source(module string) string { return module + ".py" }`, false},
+		{"named script", `const command = "execute.py"`, true},
+		{"raw script name", "const command = `execute.py`", true},
+		{"script invocation", `import "os/exec"; func run() { _ = exec.Command("python", "execute.py").Run() }`, true},
+		{"extension invocation", `import runner "os/exec"; func run() { _ = runner.Command(".py").Run() }`, true},
+		{"assembled script invocation", `import "os/exec"; func run(name string) { _ = exec.Command(name+".py").Run() }`, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			file, err := parser.ParseFile(token.NewFileSet(), "case.go", "package fixture\n"+tc.source, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := rule.Detect(file) > 0; got != tc.refuse {
+				t.Fatalf("script classification=%v, want refusal=%v", got, tc.refuse)
+			}
+		})
+	}
+}
 
 // Each case is independent: another violation cannot mask a broken detector.
 func TestProductionAuthorityBoundaries(t *testing.T) {

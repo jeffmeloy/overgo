@@ -89,6 +89,7 @@ func copyRuntimeWords(destination, values []uint32) int {
 }
 
 // RuntimeAttributeWords compiles device-visible typed attributes.
+//   - every attribute a decode step changes is a word, because a replayed CUDA graph keeps the launch arguments it captured.
 func RuntimeAttributeWords(node *Tensor, attributes Attributes, destination []uint32) (int, error) {
 	var values []uint32
 	switch value := attributes.(type) {
@@ -121,6 +122,12 @@ func RuntimeAttributeWords(node *Tensor, attributes Attributes, destination []ui
 		values = []uint32{tokens}
 	case CacheAppendAttributes:
 		values = []uint32{value.Offset}
+	case TopKAttributes:
+		if value.BlockSize != FirstOffset {
+			values = []uint32{value.QueryStart}
+		}
+	case SparseAttentionAttributes:
+		values = []uint32{value.QueryStart}
 	}
 	return copyRuntimeWords(destination, values), nil
 }

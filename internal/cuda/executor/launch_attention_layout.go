@@ -202,6 +202,18 @@ func decodeSplits(keyCapacityTokens uint32, valueWidth uint64) uint32 {
 	return max(1, min(splits, attentionDecodeMaxSplits))
 }
 
+// decodeAttention reports an attention the decode kernel serves: one causal query after the keys before it, without relative bias, sinks, block mask, key bias, ALiBi, or symmetric or chunked window.
+//   - the decode kernel reads the key count from the device, and every other attention path takes the key count and first query as launch arguments
+func decodeAttention(node *tensor.Tensor, attributes tensor.AttentionAttributes) bool {
+	keys := uint64(attributes.KeyValueTokens)
+	if keys == 0 {
+		keys = node.Inputs[1].Shape.Dims[attentionTokenAxis]
+	}
+	return node.Inputs[0].Shape.Dims[attentionTokenAxis] == 1 && attributes.Causal && uint64(attributes.QueryStart)+1 == keys &&
+		attributes.RelativeBuckets == 0 && !attributes.HasSinks && !attributes.HasBlockMask && !attributes.HasKeyBias &&
+		attributes.MaxALiBiBias == 0 && !attributes.SymmetricWindow && !attributes.ChunkedWindow
+}
+
 // decodePartialBytes: compile-time staging reservation for the split
 // partials of a single-query causal attention node; the score staging
 // the strided-batched path reserves holds them, one stream at a time.
@@ -533,9 +545,7 @@ func launchAttentionLayout(
 		// gemma-4 sliding layers 1.3 ms per layer at a 250-token context, and
 		// the batched GEMM path below reads the whole capacity as keys, so a
 		// step the kernel cannot serve is refused rather than computed wrong.
-		if queryTokens == 1 && causal != 0 && queryStart+1 == keyValueTokens &&
-			relativeBias == 0 && sinks == 0 && blockIDs == 0 && keyBias == 0 &&
-			maxALiBiBias == 0 && symmetricWindow == uint32(windowModeNone) && hasTokenCount {
+		if decodeAttention(node, attributes) && hasTokenCount {
 			if sharedBytes > attentionDecodeSharedLimit {
 				return fmt.Errorf("decode attention tile of %d keys needs %d bytes of shared memory, past the %d limit", tileTokens, sharedBytes, attentionDecodeSharedLimit)
 			}

@@ -83,8 +83,9 @@ func TestFlashNextExpertResidency(t *testing.T) {
 	}, 0, 0)
 	file := f.parse(t)
 	const (
-		experts                = 3
-		tableBytes             = 2*experts*8 + 2*4
+		experts = 3
+		// A pointer an expert in each bank's table; the route flags are pinned host memory.
+		tableBytes             = 2 * experts * 8
 		gateStride, downStride = 256, 1024
 		// One expert of each bank fits on the card.
 		oneEach = tableBytes + gateStride + downStride
@@ -147,19 +148,15 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		}
 		return result
 	}
-	// route marks experts in the node's bitmap, as the route kernel does.
-	route := func(t *testing.T, cache *expertResidency, mem *fakeExpertDevice, indices ...uint32) {
+	// route sets the flags of experts the node routes, as the route kernel does in host memory the card maps.
+	route := func(t *testing.T, cache *expertResidency, indices ...uint32) {
 		t.Helper()
 		bitmap, err := (&DeviceWeights{experts: cache}).ExpertRoutes(nil, nodes(t))
 		if err != nil {
 			t.Fatal(err)
 		}
-		word, err := mem.at(bitmap, 4)
-		if err != nil {
-			t.Fatal(err)
-		}
 		for _, index := range indices {
-			binary.LittleEndian.PutUint32(word, binary.LittleEndian.Uint32(word)|1<<index)
+			cache.routed[uint64(bitmap-cache.routedMap)+uint64(index)] = 1
 		}
 	}
 	advance := func(t *testing.T, cache *expertResidency) {
@@ -171,8 +168,8 @@ func TestFlashNextExpertResidency(t *testing.T) {
 	t.Run("fill-splits-card-and-host", func(t *testing.T) {
 		cache, mem := open(t, oneEach)
 		readable(t, cache, mem, map[string][]uint32{"gate": {0}, "down": {0}})
-		// The tables, one card allocation and one pinned allocation a bank.
-		if len(cache.cards) != 2 || len(cache.pinned) != 2 || mem.liveCount() != 5 {
+		// The tables, the pinned route flags, and one card allocation and one pinned allocation a bank.
+		if len(cache.cards) != 2 || len(cache.pinned) != 3 || mem.liveCount() != 6 {
 			t.Fatalf("fill made %d card and %d pinned allocations, %d live", len(cache.cards), len(cache.pinned), mem.liveCount())
 		}
 		reclaimable, err := (&DeviceWeights{experts: cache}).ExpertMemory(nil)
@@ -180,7 +177,7 @@ func TestFlashNextExpertResidency(t *testing.T) {
 			t.Fatalf("reclaimable card bytes = %d: %v", reclaimable, err)
 		}
 		all, _ := open(t, tableBytes+experts*(gateStride+downStride))
-		if len(all.pinned) != 0 || len(all.entries) != 2*experts {
+		if len(all.pinned) != 1 || len(all.entries) != 2*experts {
 			t.Fatal("a limit that holds every expert left one in host memory")
 		}
 	})
@@ -191,18 +188,18 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		if mem.writes != writes {
 			t.Fatal("a run that routed nothing moved experts")
 		}
-		route(t, cache, mem, 2)
+		route(t, cache, 2)
 		advance(t, cache)
 		readable(t, cache, mem, map[string][]uint32{"gate": {2}, "down": {2}})
-		if bitmap, _ := mem.at(cache.routedMap, uint64(len(cache.cleared))); !bytes.Equal(bitmap, cache.cleared) {
+		if bytes.IndexByte(cache.routed, 1) >= 0 {
 			t.Fatal("the routes stayed marked after the advance")
 		}
 		pinned := len(cache.pinned)
 		// Expert 2 served this step too, so expert 0 stays in host memory.
-		route(t, cache, mem, 0, 2)
+		route(t, cache, 0, 2)
 		advance(t, cache)
 		readable(t, cache, mem, map[string][]uint32{"gate": {2}, "down": {2}})
-		route(t, cache, mem, 1)
+		route(t, cache, 1)
 		advance(t, cache)
 		readable(t, cache, mem, map[string][]uint32{"gate": {1}, "down": {1}})
 		if len(cache.pinned) != pinned {
@@ -211,7 +208,7 @@ func TestFlashNextExpertResidency(t *testing.T) {
 	})
 	t.Run("release-moves-a-card-allocation-to-host", func(t *testing.T) {
 		cache, mem := open(t, oneEach)
-		route(t, cache, mem, 0)
+		route(t, cache, 0)
 		advance(t, cache)
 		if err := cache.release(t.Context()); err != nil {
 			t.Fatal(err)
@@ -234,19 +231,19 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		if cache.bytes != tableBytes {
 			t.Fatal("releasing every card allocation left card bytes")
 		}
-		route(t, cache, mem, 1)
+		route(t, cache, 1)
 		advance(t, cache)
 		readable(t, cache, mem, map[string][]uint32{})
 	})
 	t.Run("failed-promotion-keeps-tables-readable", func(t *testing.T) {
 		for _, fail := range []string{"write", "pinning", "cancel"} {
 			cache, mem := open(t, oneEach)
-			route(t, cache, mem, 2)
+			route(t, cache, 2)
 			ctx, cancel := context.WithCancel(t.Context())
 			switch fail {
 			case "write":
-				// The bitmap clear, then the first copy to the card.
-				mem.failWrite = mem.writes + 2
+				// The first copy to the card.
+				mem.failWrite = mem.writes + 1
 			case "pinning":
 				mem.failHost = mem.hostCalls + 1
 			case "cancel":

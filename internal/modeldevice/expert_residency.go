@@ -1,11 +1,11 @@
 package modeldevice
 
 import (
+	"bytes"
 	"container/list"
 	"context"
 	"errors"
 	"fmt"
-	"math/bits"
 	"slices"
 	"sync"
 	"unsafe"
@@ -34,8 +34,6 @@ const (
 	// on that boundary gives a kernel the alignment the expert's own
 	// allocation would.
 	expertSlotAlignment = 256
-	// routedWordBits: the experts one word of a routed-expert bitmap marks.
-	routedWordBits = 32
 	// expertHostChunkSlots: the host slots one pinned allocation adds once a
 	// stride has none free. A promotion frees the slot of the expert it
 	// brings to the card, so slots are added only as the card shrinks; a few
@@ -64,7 +62,7 @@ type residentExpert struct {
 // expertBank keeps where each of its experts lives: pointers is the host
 // copy of its device table, and hosted holds the pinned bytes of each expert
 // not on the card. A routed node's first bank holds the node's banks in group
-// and the bitmap its routes mark at word routed.
+// and the flags its routes mark from flag routed.
 type expertBank struct {
 	info          gguf.TensorInfo
 	bytes, stride uint64
@@ -108,6 +106,7 @@ type expertMemory interface {
 // the card: a card copy, or pinned host memory the card maps. The card's
 // share is filled once under the limit; between runs the experts the last
 // run routed to host memory take the card slots of experts it did not route.
+// routed is pinned host memory the card maps at routedMap, one byte an expert, which the route kernel sets and the advance after the run reads and clears.
 type expertResidency struct {
 	file              *gguf.File
 	state             *device.State
@@ -119,8 +118,7 @@ type expertResidency struct {
 	cards             []expertChunk
 	pinned            [][]byte
 	tables, routedMap driver.DevicePtr
-	routed            []uint32
-	cleared           []byte
+	routed            []byte
 	bytes, tableBytes uint64
 	step              uint64
 }
@@ -157,8 +155,8 @@ func newExpertResidency(ctx context.Context, file *gguf.File, infos []gguf.Tenso
 	c := &expertResidency{file: file, mem: mem, banks: make(map[string]*expertBank),
 		entries: make(map[expertKey]*list.Element), classes: make(map[uint64]*expertClass)}
 	// Each table entry is a CUDA device address, whose ABI is uint64.
-	const pointerBytes, wordBytes = uint64(unsafe.Sizeof(driver.DevicePtr(0))), uint64(unsafe.Sizeof(uint32(0)))
-	var words uint64
+	const pointerBytes = uint64(unsafe.Sizeof(driver.DevicePtr(0)))
+	var flags uint64
 	for _, info := range infos {
 		listed, found := file.Tensor(info.Name)
 		experts := info.Shape[expertBankAxis]
@@ -169,7 +167,7 @@ func newExpertResidency(ctx context.Context, file *gguf.File, infos []gguf.Tenso
 		if !ok {
 			return nil, fmt.Errorf("expert bank %q slot size overflows", info.Name)
 		}
-		bank := &expertBank{info: info, bytes: info.Size / experts, stride: stride, routed: words,
+		bank := &expertBank{info: info, bytes: info.Size / experts, stride: stride, routed: flags,
 			pointers: make([]driver.DevicePtr, experts), hosted: make([][]byte, experts)}
 		if c.classes[stride] == nil {
 			c.classes[stride] = &expertClass{stride: stride}
@@ -177,9 +175,8 @@ func newExpertResidency(ctx context.Context, file *gguf.File, infos []gguf.Tenso
 		c.banks[info.Name] = bank
 		c.ordered = append(c.ordered, bank)
 		c.tableBytes += experts * pointerBytes
-		words += (experts + routedWordBits - 1) / routedWordBits
+		flags += experts
 	}
-	c.tableBytes += words * wordBytes
 	if c.tableBytes > limit {
 		return nil, errors.New("expert pointer tables exceed the residency limit")
 	}
@@ -192,8 +189,10 @@ func newExpertResidency(ctx context.Context, file *gguf.File, infos []gguf.Tenso
 		bank.table = pointer
 		pointer += driver.DevicePtr(uint64(len(bank.pointers)) * pointerBytes)
 	}
-	c.routedMap, c.routed, c.cleared = pointer, make([]uint32, words), make([]byte, words*wordBytes)
-	if err = mem.write(ctx, c.routedMap, c.cleared); err == nil {
+	routed, mapped, err := mem.hostAlloc(ctx, flags)
+	if err == nil {
+		clear(routed)
+		c.pinned, c.routedMap, c.routed = append(c.pinned, routed), mapped, routed
 		err = c.fill(ctx, limit)
 	}
 	if err != nil {
@@ -364,8 +363,9 @@ func (w *DeviceWeights) ExpertMemory(state *device.State) (uint64, error) {
 	return w.experts.bytes - w.experts.tableBytes, nil
 }
 
-// ExpertRoutes returns the bitmap a routed node's routes mark, for the
-// residency to read between runs. The nodes are the routed node's banks.
+// ExpertRoutes returns the flags a routed node's routes mark, in host
+// memory the card maps, for the residency to read between runs. The nodes
+// are the routed node's banks.
 func (w *DeviceWeights) ExpertRoutes(state *device.State, nodes []*tensor.Tensor) (driver.DevicePtr, error) {
 	if w == nil || w.experts == nil || w.experts.state != state || len(nodes) == 0 {
 		return 0, errors.New("expert routes require their owning CUDA worker")
@@ -384,7 +384,7 @@ func (w *DeviceWeights) ExpertRoutes(state *device.State, nodes []*tensor.Tensor
 		}
 		head.group = group
 	}
-	return c.routedMap + driver.DevicePtr(head.routed*uint64(unsafe.Sizeof(uint32(0)))), nil
+	return c.routedMap + driver.DevicePtr(head.routed), nil
 }
 
 // AdvanceExperts applies the last run's routes between runs: each expert it
@@ -396,33 +396,34 @@ func (w *DeviceWeights) AdvanceExperts(ctx context.Context, state *device.State)
 	return w.experts.advance(ctx)
 }
 
+// advance reads the flags the last run's routes set, which its synchronization made visible, and clears them for the next run.
 func (c *expertResidency) advance(ctx context.Context) error {
-	// A copy on the legacy stream waits for the last run's kernels.
-	if err := c.mem.read(ctx, driver.Bytes(c.routed), c.routedMap); err != nil {
-		return err
-	}
-	if !slices.ContainsFunc(c.routed, func(word uint32) bool { return word != 0 }) {
+	if bytes.IndexByte(c.routed, 1) < 0 {
 		return nil
-	}
-	if err := c.mem.write(ctx, c.routedMap, c.cleared); err != nil {
-		return err
 	}
 	c.step++
 	var missed []expertKey
 	for _, head := range c.ordered {
-		for word, set := range c.routed[head.routed : head.routed+(uint64(len(head.pointers))+routedWordBits-1)/routedWordBits] {
-			for ; set != 0; set &= set - 1 {
-				for _, bank := range head.group {
-					key := expertKey{bank.info.Name, uint32(word*routedWordBits + bits.TrailingZeros32(set))}
-					if entry := c.entries[key]; entry != nil {
-						entry.Value.(*residentExpert).step = c.step
-						c.classes[bank.stride].order.MoveToBack(entry)
-					} else {
-						missed = append(missed, key)
-					}
+		// Only a routed node's first bank has a group, and only its flags are set.
+		if head.group == nil {
+			continue
+		}
+		flags := c.routed[head.routed : head.routed+uint64(len(head.pointers))]
+		for index, flag := range flags {
+			if flag == 0 {
+				continue
+			}
+			for _, bank := range head.group {
+				key := expertKey{bank.info.Name, uint32(index)}
+				if entry := c.entries[key]; entry != nil {
+					entry.Value.(*residentExpert).step = c.step
+					c.classes[bank.stride].order.MoveToBack(entry)
+				} else {
+					missed = append(missed, key)
 				}
 			}
 		}
+		clear(flags)
 	}
 	for _, key := range missed {
 		if err := c.promote(ctx, key); err != nil {
@@ -592,7 +593,7 @@ func (c *expertResidency) close() error {
 	for _, host := range c.pinned {
 		errs = append(errs, c.mem.hostFree(host))
 	}
-	c.cards, c.tables, c.pinned, c.entries, c.classes = nil, 0, nil, nil, nil
+	c.cards, c.tables, c.pinned, c.routed, c.entries, c.classes = nil, 0, nil, nil, nil, nil
 	return errors.Join(errs...)
 }
 

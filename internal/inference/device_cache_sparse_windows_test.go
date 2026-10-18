@@ -153,7 +153,7 @@ func TestDeviceSparseCacheTargets(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		next, err := r.assembleDeviceBatchCaches(ctx, retained, storages, graphs, appends, plans, nil, deviceOutputPlan{})
+		next, err := r.assembleDeviceBatchCaches(ctx, retained, storages, graphs, appends, plans, nil, nil, deviceOutputPlan{})
 		if err != nil {
 			t.Fatal(err)
 		}

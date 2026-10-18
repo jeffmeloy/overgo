@@ -74,9 +74,13 @@ func (r *Runner) feedNGramInputs(ctx context.Context, embedding, nextHistory *te
 }
 
 // deviceNGramHistory reads the lexical history a device past carries, empty for a forward without a past.
+//   - a past a device step made carries the history the step fed, so a decode step waits for no copy from the card
 func (r *Runner) deviceNGramHistory(ctx context.Context, past *deviceKVCache) ([]float32, error) {
 	if past == nil {
 		return nil, nil
+	}
+	if past.ngramHistory != nil {
+		return past.ngramHistory, nil
 	}
 	layer := int(r.spec.NGram.Layer)
 	if layer >= len(past.States) {

@@ -143,7 +143,11 @@ func launchRecurrentSelection(
 				&input, &output, &width, &rows,
 			)
 		}
-		blockSize, queryStart, outputWidth := attributes.BlockSize, attributes.QueryStart, uint32(node.Shape.Dims[0])
+		// A block selection reads its first query from the device, so a replay follows the step.
+		blockSize, queryStart, outputWidth := attributes.BlockSize, pointers.attribute, uint32(node.Shape.Dims[0])
+		if blockSize != 0 && queryStart == 0 {
+			return errors.New("block selection first-query storage is unavailable")
+		}
 		return launch1DABI(state, functions[kernelTopKF32], rows, &input, &output, &width, &k, &rows, &blockSize, &queryStart, &outputWidth)
 	case tensor.OpTopKPairs:
 		attributes := node.Attrs.(tensor.TopKAttributes)
@@ -226,7 +230,10 @@ func launchRecurrentSelection(
 		value, indices := pointers.input(2), pointers.input(3)
 		scale := attributes.Scale
 		causal := kernelBool(attributes.Causal)
-		queryStart := attributes.QueryStart
+		queryStart := pointers.attribute
+		if queryStart == 0 {
+			return errors.New("sparse attention first-query storage is unavailable")
+		}
 		return launch1DABI(
 			state, functions[kernelSparseAttentionF32], count,
 			&query, &key, &value, &indices, &output, &keyWidth, &valueWidth,

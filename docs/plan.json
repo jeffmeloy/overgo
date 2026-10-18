@@ -212,20 +212,10 @@
       "title": "Decode Qwen3.8-Flash-Next at the speed Strata reaches on this PC",
       "status": "open",
       "budget": {
-        "nodes": 900,
+        "nodes": 646,
         "reason": "decode-graph measured about +600 production nodes in its first build and expects up to about 800 with execs kept across requests: capture of the decode step, TopK and sparse first queries as device words, routes collected into pinned host memory inside the graph, one packed upload of host feeds a token; fast-load sets its own from a measured figure before dispatch"
       },
       "steps": [
-        {
-          "id": "decode-graph",
-          "title": "Replay the fixed-shape decode step as one captured graph with one host synchronization a token",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestDecodeStepReplaysAsOneGraph$'",
-          "rationale": "Strata runs its verify windows as captured CUDA graphs (include/strata/core/graph.hpp) and drafts with the model's MTP layer, whose weights are already on this machine (overgo_data/references/strata/mtp/rt).\nOnce no layer waits for the host, the decode step's shape is fixed for a token.\nThe step captures it once and replays it, with positions and routes as device-resident inputs, so a token costs one graph launch and one synchronization.\nServes: throughput for every model the decode session serves.\nDisappears: per-kernel launch and per-operation synchronization of the decode step.\nEvidence: the executor's device test holding replay outputs bit-identical to the launched step, and the short chat's decode speed before and after.\nBatch: device.\n\nFrom the owner's review of 2026-10-18 (point 1): whole-step replay depends on device-experts' miss contract; its acceptance replays steps under forced misses and holds them to the uncaptured run's bits.",
-          "depends_on": [
-            "strata-decode/device-experts"
-          ]
-        },
         {
           "id": "fast-load",
           "title": "Read routed experts once, in the hashing pass, at the disk's rate",

@@ -2385,12 +2385,13 @@ extern "C" __global__ void top_k_f32(
 		unsigned int k,
 		unsigned int rows,
 		unsigned int block_size,
-		unsigned int query_start,
+		const unsigned int * first_query,
 		unsigned int output_width) {
 	const unsigned int row = blockIdx.x * blockDim.x + threadIdx.x;
 	if (row >= rows) {
 		return;
 	}
+	const unsigned int query_start = block_size ? *first_query : 0;
 	const size_t input_base = (size_t) row * width;
 	const size_t output_base = (size_t) row * output_width;
 	for (unsigned int slot = 0; slot < output_width; ++slot) {
@@ -2637,12 +2638,13 @@ extern "C" __global__ void sparse_attention_f32(
 		unsigned int selected,
 		float scale,
 		unsigned int causal,
-		unsigned int query_start,
+		const unsigned int * first_query,
 		unsigned int count) {
 	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
 	if (index >= count) {
 		return;
 	}
+	const unsigned int query_start = *first_query;
 	const unsigned int value_channel = index % value_width;
 	const unsigned int row = index / value_width;
 	const unsigned int query_head = row % query_heads;
@@ -3638,13 +3640,14 @@ extern "C" __global__ void moe_router_logits_f32(
 }
 
 // moe_route_f32 turns one token's expert logits into its routed experts and weights.
-//   - routed_experts != nullptr => each routed bank expert (expert / expert_index_divisor) sets its bit there
+//   - routed_experts != nullptr => each routed bank expert (expert / expert_index_divisor) sets its flag there
+//   - a flag is a plain store of one value, because the flags may be host memory the card maps, which a device atomic does not reach over PCIe
 extern "C" __global__ void moe_route_f32(
         const float * router_logits,
         const float * selection_bias,
         const float * selected_experts,
         unsigned int * route_state,
-        unsigned int * routed_experts,
+        unsigned char * routed_experts,
         unsigned int tokens,
         unsigned int experts,
         unsigned int top_k,
@@ -3759,8 +3762,7 @@ extern "C" __global__ void moe_route_f32(
     }
     if (routed_experts) {
         for (unsigned int slot = 0; slot < top_k; ++slot) {
-            const unsigned int expert = selected[slot] / expert_index_divisor;
-            atomicOr(routed_experts + expert / 32u, 1u << (expert % 32u));
+            routed_experts[selected[slot] / expert_index_divisor] = 1;
         }
     }
     if (routing == 3) {

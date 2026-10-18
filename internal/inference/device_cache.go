@@ -44,6 +44,8 @@ type deviceKVCache struct {
 	// append, one column per consumed position — the trunk states the
 	// NextN draft head seeds from.
 	SpanHidden reference.Value
+	// ngramHistory is the lexical history the step that made the cache fed, which its state holds on the card; nil => only the card holds it.
+	ngramHistory []float32
 }
 
 type deviceCacheStorage struct {
@@ -713,7 +715,7 @@ func (r *Runner) executeParameterizedDecodeSession(
 		return nil, errors.Join(err, releaseStorages())
 	}
 	next, err := r.assembleDeviceBatchCaches(
-		ctx, retained, storages, graphs, appends, plans, session.owners,
+		ctx, retained, storages, graphs, appends, plans, session.owners, session.hostFeeds,
 		session.program.identity.output,
 	)
 	if err == nil {
@@ -970,7 +972,7 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 		return nil, errors.Join(err, releaseStorages())
 	}
 	return r.assembleDeviceBatchCaches(
-		ctx, retained, storages, graphs, appends, targetPlans, sessions, plan,
+		ctx, retained, storages, graphs, appends, targetPlans, sessions, hostFeeds, plan,
 	)
 }
 
@@ -982,6 +984,7 @@ func (r *Runner) assembleDeviceBatchCaches(
 	appends []deviceBatchAppend,
 	targetPlans []deviceCacheTargetPlan,
 	sessions []*deviceDecodeSession,
+	hostFeeds map[*tensor.Tensor]reference.Value,
 	plan deviceOutputPlan,
 ) ([]*deviceKVCache, error) {
 	releaseStorages := func() error {
@@ -1007,6 +1010,9 @@ func (r *Runner) assembleDeviceBatchCaches(
 			States:   make([]deviceLayerStates, len(graph.states)),
 			Tokens:   graph.pastTokens + graph.tokenCount,
 			Position: graph.nextPosition + graph.tokenCount,
+		}
+		if graph.ngramHistory != nil {
+			cache.ngramHistory = hostFeeds[graph.ngramHistory].Data
 		}
 		if appends[index].Past != nil {
 			cache.session = appends[index].Past.session

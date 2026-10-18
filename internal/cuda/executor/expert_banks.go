@@ -12,7 +12,7 @@ import (
 
 // ExpertBanks owns encoded expert residency on the executor's CUDA worker.
 // An expert bank's input is its table of expert pointers, each always readable by the card.
-// ExpertRoutes names the bitmap a routed node's routes mark on the card.
+// ExpertRoutes names the flags a routed node's routes mark, in host memory the card maps, so a run's routes reach the host with no copy.
 // AdvanceExperts applies the last run's routes to residency before the next run.
 // ReserveExpertMemory releases only completed expert reads before another owner allocates.
 type ExpertBanks interface {

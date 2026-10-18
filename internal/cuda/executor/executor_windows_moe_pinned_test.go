@@ -578,10 +578,10 @@ func TestExecutorMoEMissedExpertsKeepResidentBits(t *testing.T) {
 		routing: tensor.MoERoutingSoftmax, activation: tensor.MoEActivationSiLU, normalize: true, scale: 1.25,
 		banks: banks, selected: true,
 	}
-	// The residency's tables hold a pointer an expert and a bitmap word a
-	// bank; one 256-byte-aligned slot of each bank holds expert 0 alone.
-	const pointerBytes, bitmapBytes, slotAlignment = 8, 4, 256
-	c.limit = uint64(len(banks)) * (c.experts*pointerBytes + bitmapBytes)
+	// The residency's tables hold a pointer an expert, and one
+	// 256-byte-aligned slot of each bank holds expert 0 alone.
+	const pointerBytes, slotAlignment = 8, 256
+	c.limit = uint64(len(banks)) * c.experts * pointerBytes
 	var smallest uint64
 	for _, storage := range banks {
 		expert, err := tensor.MustShape(c.hidden, c.intermediate).Bytes(storage)

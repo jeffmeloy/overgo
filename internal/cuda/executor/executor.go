@@ -94,6 +94,13 @@ type executionScratch struct {
 	replayFrame       []driver.DevicePtr
 }
 
+// stagedHostBytes is one part of the bytes a run writes from the host: the feed of the input at order index node, or the attribute words at node -1, at offset in the run's lease.
+type stagedHostBytes struct {
+	node   int
+	data   []byte
+	offset uint64
+}
+
 const (
 	gemmProductScale       = float32(1)
 	gemmAccumulatorScale   = float32(0)
@@ -533,6 +540,7 @@ type RuntimeAttributes struct {
 	values   []tensor.Attributes
 	// launchArguments holds whether an override reaches its kernel as a launch argument.
 	//   - a captured graph replays its launch arguments unchanged, so such a graph is never captured
+	//   - an attention the decode kernel does not serve is such an override (a multi-token span, sinks, ALiBi, a block mask)
 	launchArguments bool
 }
 
@@ -565,7 +573,8 @@ func (a *RuntimeAttributes) Set(node *tensor.Tensor, attributes tensor.Attribute
 		return err
 	}
 	a.values[index] = attributes
-	a.launchArguments = a.launchArguments || node.Op == tensor.OpTopK || node.Op == tensor.OpSparseAttention
+	attention, isAttention := resolved.(tensor.AttentionAttributes)
+	a.launchArguments = a.launchArguments || isAttention && !decodeAttention(node, attention)
 	return nil
 }
 
@@ -1675,7 +1684,8 @@ func (e *Executor) runCompiled(
 	if err != nil {
 		return nil, err
 	}
-	cacheGraph = cacheGraph && !usesExperts && !compiled.readsRoutes && (attributes == nil || !attributes.launchArguments)
+	// A replay reads each routed expert through its bank's table, whose address holds while the experts move between runs.
+	cacheGraph = cacheGraph && !compiled.readsRoutes && (attributes == nil || !attributes.launchArguments)
 	var result *executionResult
 	err = e.worker.Do(ctx, func(state *device.State) error {
 		resources, resourceErr := e.ensureResources(
@@ -1915,81 +1925,38 @@ func execute(
 	defer func() {
 		err = errors.Join(err, buffers.release(state, inputLeases...))
 	}()
+	attributePointers := prepareAttributePointers(&scratch.attributePointers, len(compiled.order))
+	auxiliaryLeases := make([]deviceBufferLease, 0)
+	defer func() {
+		err = errors.Join(err, buffers.release(state, auxiliaryLeases...))
+	}()
+	// The runtime attribute words and the host feeds reach the device in one lease and one copy a run.
+	//   - the words come first, and each part starts at an allocation boundary, so a kernel reads it as aligned as its own allocation
+	var staged []stagedHostBytes
+	if compiled.attributeWords > 0 {
+		if cap(scratch.attributeWords) < compiled.attributeWords {
+			scratch.attributeWords = make([]uint32, compiled.attributeWords)
+		}
+		words := scratch.attributeWords[:compiled.attributeWords]
+		clear(words)
+		for _, slot := range compiled.attributeSlots {
+			attributes := slot.node.Attrs
+			if resolvedAttributes != nil && resolvedAttributes[slot.index] != nil {
+				attributes = resolvedAttributes[slot.index]
+			}
+			written, writeErr := tensor.RuntimeAttributeWords(slot.node, attributes, words[slot.offset:slot.offset+slot.words])
+			if writeErr != nil {
+				return nil, writeErr
+			}
+			if written != slot.words {
+				return nil, errors.New("CUDA runtime attribute changes compiled slot size")
+			}
+		}
+		staged = append(staged, stagedHostBytes{node: -1, data: driver.Bytes(words)})
+	}
 	for nodeIndex, frame := range compiled.nodes {
 		node := compiled.order[nodeIndex]
-		if node.Op != tensor.OpInput && node.Type != dtype.F32 {
-			return nil, fmt.Errorf("CUDA executor does not support %s for tensor %d", node.Type, node.ID)
-		}
 		if node.Op != tensor.OpInput {
-			if frame.skipped {
-				continue
-			}
-			outputIndex, retainedOutput := compiled.outputIndexes[node]
-			retainStorage := retainedStorage[nodeIndex]
-			if frame.aliases {
-				offset, offsetErr := frame.view.ByteOffset(node.Type)
-				input := pointers.get(node.Inputs[frame.view.Input])
-				if offsetErr != nil || uint64(input) > math.MaxUint64-offset {
-					return nil, errors.New("CUDA storage view offset is invalid")
-				}
-				retainedAlias := retainedOutput && ownsOutput(outputIndex) && compiled.outputAliases[outputIndex]
-				retainedView := compiled.outputViews[outputIndex]
-				if retainedAlias ||
-					!(retainOutputs && retainedOutput) {
-					pointer := input + driver.DevicePtr(offset)
-					pointers.set(node, pointer)
-					if retainedAlias {
-						if retainedView.source == nil {
-							return nil, errors.New("CUDA retained storage view is invalid")
-						}
-						bytes, sizeErr := node.Shape.Bytes(node.Type)
-						if sizeErr != nil {
-							return nil, sizeErr
-						}
-						retainedValues[outputIndex] = DeviceValue{
-							Pointer: pointer, Shape: node.Shape, CapacityBytes: bytes,
-						}
-					}
-					continue
-				}
-			}
-			if retainOutputs && (retainedOutput || retainStorage) {
-				if retainedOutput && len(targetValues) != 0 && targetValues[outputIndex].Pointer != 0 {
-					target := targetValues[outputIndex]
-					if err := validateRetainedTargetAlias(
-						node, target, compiled.targetContracts[outputIndex], pointers,
-					); err != nil {
-						return nil, err
-					}
-					retainedValues[outputIndex] = target
-					pointers.set(node, target.Pointer)
-					continue
-				}
-				offset := retainedOffsets[nodeIndex]
-				if !retainStorage || uint64(retainedBase) > math.MaxUint64-offset {
-					return nil, errors.New("CUDA retained output layout is invalid")
-				}
-				pointer := retainedBase + driver.DevicePtr(offset)
-				if retainedOutput {
-					bytes, sizeErr := node.Shape.Bytes(node.Type)
-					if sizeErr != nil {
-						return nil, sizeErr
-					}
-					retainedValues[outputIndex] = DeviceValue{
-						Pointer: pointer, Shape: node.Shape, CapacityBytes: bytes,
-					}
-				}
-				pointers.set(node, pointer)
-				continue
-			}
-			allocation, ok := plan.Allocations[node]
-			if !ok {
-				return nil, fmt.Errorf("tensor %d has no arena allocation", node.ID)
-			}
-			if uint64(arena) > math.MaxUint64-allocation.Offset {
-				return nil, errors.New("device pointer offset overflows uint64")
-			}
-			pointers.set(node, arena+driver.DevicePtr(allocation.Offset))
 			continue
 		}
 		pointer, deviceFed := driver.DevicePtr(0), false
@@ -2062,6 +2029,10 @@ func execute(
 		if value.Storage == reference.ValueImplicitZero && len(value.Data) != 0 {
 			return nil, fmt.Errorf("implicit-zero feed %q has materialized data", node.Name)
 		}
+		if value.Storage == reference.ValueMaterialized && !retainedInput {
+			staged = append(staged, stagedHostBytes{node: nodeIndex, data: driver.Bytes(value.Data)})
+			continue
+		}
 		bytes, err := node.Shape.Bytes(node.Type)
 		if err != nil {
 			return nil, err
@@ -2094,43 +2065,112 @@ func execute(
 			return nil, fmt.Errorf("feed storage for %q is invalid", node.Name)
 		}
 	}
-
-	attributePointers := prepareAttributePointers(&scratch.attributePointers, len(compiled.order))
-	auxiliaryLeases := make([]deviceBufferLease, 0)
-	defer func() {
-		err = errors.Join(err, buffers.release(state, auxiliaryLeases...))
-	}()
-	if compiled.attributeWords > 0 {
-		if cap(scratch.attributeWords) < compiled.attributeWords {
-			scratch.attributeWords = make([]uint32, compiled.attributeWords)
+	if len(staged) > 0 {
+		var total uint64
+		for index := range staged {
+			staged[index].offset = total
+			next, ok := checked.Align(total+uint64(len(staged[index].data)), deviceAllocationAlignment)
+			if !ok {
+				return nil, errors.New("CUDA host feed bytes overflow uint64")
+			}
+			total = next
 		}
-		words := scratch.attributeWords[:compiled.attributeWords]
-		clear(words)
-		bytes := uint64(compiled.attributeWords) * uint64(unsafe.Sizeof(uint32(0)))
-		lease, allocateErr := buffers.acquire(state, bytes)
+		lease, allocateErr := buffers.acquire(state, total)
 		if allocateErr != nil {
 			return nil, allocateErr
 		}
 		auxiliaryLeases = append(auxiliaryLeases, lease)
+		host := make([]byte, total)
+		for _, part := range staged {
+			copy(host[part.offset:], part.data)
+			if part.node >= 0 {
+				pointers.values[part.node] = lease.pointer + driver.DevicePtr(part.offset)
+			}
+		}
 		for _, slot := range compiled.attributeSlots {
-			attributes := slot.node.Attrs
-			if resolvedAttributes != nil && resolvedAttributes[slot.index] != nil {
-				attributes = resolvedAttributes[slot.index]
-			}
-			destination := words[slot.offset : slot.offset+slot.words]
-			written, writeErr := tensor.RuntimeAttributeWords(slot.node, attributes, destination)
-			if writeErr != nil {
-				return nil, writeErr
-			}
-			if written != slot.words {
-				return nil, errors.New("CUDA runtime attribute changes compiled slot size")
-			}
-			offset := uint64(slot.offset) * uint64(unsafe.Sizeof(uint32(0)))
-			attributePointers[slot.index] = lease.pointer + driver.DevicePtr(offset)
+			attributePointers[slot.index] = lease.pointer + driver.DevicePtr(uint64(slot.offset)*uint64(unsafe.Sizeof(uint32(0))))
 		}
-		if copyErr := state.Driver.MemcpyHtoD(lease.pointer, driver.Bytes(words)); copyErr != nil {
-			return nil, copyErr
+		if err := state.Driver.MemcpyHtoD(lease.pointer, host); err != nil {
+			return nil, err
 		}
+	}
+	for nodeIndex, frame := range compiled.nodes {
+		node := compiled.order[nodeIndex]
+		if node.Op == tensor.OpInput {
+			continue
+		}
+		if node.Type != dtype.F32 {
+			return nil, fmt.Errorf("CUDA executor does not support %s for tensor %d", node.Type, node.ID)
+		}
+		if frame.skipped {
+			continue
+		}
+		outputIndex, retainedOutput := compiled.outputIndexes[node]
+		retainStorage := retainedStorage[nodeIndex]
+		if frame.aliases {
+			offset, offsetErr := frame.view.ByteOffset(node.Type)
+			input := pointers.get(node.Inputs[frame.view.Input])
+			if offsetErr != nil || uint64(input) > math.MaxUint64-offset {
+				return nil, errors.New("CUDA storage view offset is invalid")
+			}
+			retainedAlias := retainedOutput && ownsOutput(outputIndex) && compiled.outputAliases[outputIndex]
+			retainedView := compiled.outputViews[outputIndex]
+			if retainedAlias ||
+				!(retainOutputs && retainedOutput) {
+				pointer := input + driver.DevicePtr(offset)
+				pointers.set(node, pointer)
+				if retainedAlias {
+					if retainedView.source == nil {
+						return nil, errors.New("CUDA retained storage view is invalid")
+					}
+					bytes, sizeErr := node.Shape.Bytes(node.Type)
+					if sizeErr != nil {
+						return nil, sizeErr
+					}
+					retainedValues[outputIndex] = DeviceValue{
+						Pointer: pointer, Shape: node.Shape, CapacityBytes: bytes,
+					}
+				}
+				continue
+			}
+		}
+		if retainOutputs && (retainedOutput || retainStorage) {
+			if retainedOutput && len(targetValues) != 0 && targetValues[outputIndex].Pointer != 0 {
+				target := targetValues[outputIndex]
+				if err := validateRetainedTargetAlias(
+					node, target, compiled.targetContracts[outputIndex], pointers,
+				); err != nil {
+					return nil, err
+				}
+				retainedValues[outputIndex] = target
+				pointers.set(node, target.Pointer)
+				continue
+			}
+			offset := retainedOffsets[nodeIndex]
+			if !retainStorage || uint64(retainedBase) > math.MaxUint64-offset {
+				return nil, errors.New("CUDA retained output layout is invalid")
+			}
+			pointer := retainedBase + driver.DevicePtr(offset)
+			if retainedOutput {
+				bytes, sizeErr := node.Shape.Bytes(node.Type)
+				if sizeErr != nil {
+					return nil, sizeErr
+				}
+				retainedValues[outputIndex] = DeviceValue{
+					Pointer: pointer, Shape: node.Shape, CapacityBytes: bytes,
+				}
+			}
+			pointers.set(node, pointer)
+			continue
+		}
+		allocation, ok := plan.Allocations[node]
+		if !ok {
+			return nil, fmt.Errorf("tensor %d has no arena allocation", node.ID)
+		}
+		if uint64(arena) > math.MaxUint64-allocation.Offset {
+			return nil, errors.New("device pointer offset overflows uint64")
+		}
+		pointers.set(node, arena+driver.DevicePtr(allocation.Offset))
 	}
 
 	capturing := retainOutputs && execCache != nil

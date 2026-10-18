@@ -51,3 +51,27 @@ func TestPipelineInventoryCancellationDuringHashing(t *testing.T) {
 		})
 	}
 }
+
+func TestInventorySourceVerification(t *testing.T) {
+	inventory, err := FromHFPath(pipelineFixture(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := inventory.VerifySources(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if err := inventory.VerifySources(nil); err == nil {
+		t.Fatal("nil verification context accepted")
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	observed := &inventoryCancelContext{Context: ctx, cancel: cancel}
+	if err := inventory.VerifySources(observed); !errors.Is(err, context.Canceled) {
+		t.Fatalf("verification did not cancel during hashing: %v", err)
+	}
+	missing := inventory
+	missing.Components = inventory.Components[1:]
+	if err := missing.VerifySources(t.Context()); err == nil {
+		t.Fatal("missing component descriptor accepted")
+	}
+}

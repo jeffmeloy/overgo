@@ -323,6 +323,9 @@ func RegisterImport(ctx context.Context, store artifact.Repository, inspection I
 		!slices.Equal(description.Sources, inspection.Inventory.Manifest.Components) {
 		return errors.New("model intake: inspection does not bind the supplied source inventory")
 	}
+	if err := inspection.Inventory.VerifySources(ctx); err != nil {
+		return err
+	}
 	batch, err := inspection.Inventory.Batch("model/import/" + inspection.Content.Descriptor.ID.String())
 	if err != nil {
 		return err
@@ -339,5 +342,8 @@ func RegisterImport(ctx context.Context, store artifact.Repository, inspection I
 		parents = append(parents, profile.ID)
 	}
 	batch.Lineage = append(batch.Lineage, artifact.UniqueDependencyLineage(inspection.Content.Descriptor.ID, parents...)...)
+	if err := modelartifact.PreserveRawTextDescriptors(ctx, store, &batch); err != nil {
+		return err
+	}
 	return modelrecipe.PublishFacts(ctx, store, batch)
 }

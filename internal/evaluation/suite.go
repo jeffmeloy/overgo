@@ -44,12 +44,21 @@ type SuiteDescriptor struct {
 // this name is what says the two are one measure. The source alone would not:
 // one builder gives one source to the sets it builds at different sizes and
 // lengths, which ask different cases and are different measures. Cases is how
-// many the set holds, and Chance what a suite descriptor's is.
+// many the set holds, and Chance what a suite descriptor's is. Kind is the
+// profile's kind where its cases count one unit however the set was built, so
+// a reader may rank the set among others by them; empty for any other.
 type EvaluatedSet struct {
 	Measure string
+	Kind    string
 	Cases   uint64
 	Chance  float64
 }
+
+// casesOfOneUnit are the kinds of set whose every case is one item of one
+// unit whatever set it is built into: a speech round trip's cases are texts
+// read aloud. A reconstruction set's are frames at one cut or clips at
+// another, so its cases say nothing of which set says more.
+var casesOfOneUnit = []string{speechRoundTripKind}
 
 // EvaluatedMeasure reads the set a stored plan was run over. A plan the store
 // cannot read, or a profile without a source or with a case that has no name,
@@ -63,14 +72,23 @@ func EvaluatedMeasure(ctx context.Context, reader artifact.Reader, plan artifact
 	if err != nil || !found {
 		return EvaluatedSet{}, false
 	}
+	return evaluatedSet(profile.Data)
+}
+
+// evaluatedSet reads what a case profile says of its set.
+func evaluatedSet(profile []byte) (EvaluatedSet, bool) {
 	var named struct {
+		Kind   string `json:"kind"`
 		Source string `json:"source"`
 		Cases  []struct {
 			Name string `json:"name"`
 		} `json:"cases"`
 	}
-	if json.Unmarshal(profile.Data, &named) != nil || strings.TrimSpace(named.Source) == "" || len(named.Cases) == 0 {
+	if json.Unmarshal(profile, &named) != nil || strings.TrimSpace(named.Source) == "" || len(named.Cases) == 0 {
 		return EvaluatedSet{}, false
+	}
+	if !slices.Contains(casesOfOneUnit, named.Kind) {
+		named.Kind = ""
 	}
 	asked := sha256.New()
 	for _, testCase := range named.Cases {
@@ -81,7 +99,7 @@ func EvaluatedMeasure(ctx context.Context, reader artifact.Reader, plan artifact
 		asked.Write([]byte{'\n'})
 	}
 	return EvaluatedSet{
-		Measure: named.Source + " " + hex.EncodeToString(asked.Sum(nil)), Cases: uint64(len(named.Cases)), Chance: choiceChance(profile.Data),
+		Measure: named.Source + " " + hex.EncodeToString(asked.Sum(nil)), Kind: named.Kind, Cases: uint64(len(named.Cases)), Chance: choiceChance(profile),
 	}, true
 }
 

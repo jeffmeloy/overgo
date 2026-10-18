@@ -700,7 +700,8 @@ func throughputCell(task recipe.Task, benchmark evaluation.BenchmarkSummary, ben
 // name of the measure the set's plan was run for and the cases it holds, where
 // the store holds a case profile that gives them: a set's identity is that of
 // its cases, so only that name tells a measure built again from another
-// measure. Such a descriptor has no kind, which only a compiled suite has.
+// measure. Such a descriptor has a kind only where the set's cases count one
+// unit, as a speech round trip's texts do, so that the set is ranked by them.
 func nameEvaluatedSets(ctx context.Context, store *overgodb.Store, suites map[artifact.ID]string, descriptors map[string]evaluation.SuiteDescriptor) error {
 	_, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{
@@ -715,11 +716,16 @@ func nameEvaluatedSets(ctx context.Context, store *overgodb.Store, suites map[ar
 		name := evidence.Dataset.String()
 		suites[evidence.Dataset] = name
 		if set, ok := evaluation.EvaluatedMeasure(ctx, store, evidence.Plan); ok && descriptors != nil {
-			descriptors[name] = evaluation.SuiteDescriptor{Source: set.Measure, Cases: set.Cases, Chance: set.Chance}
+			descriptors[name] = evaluatedDescriptor(set)
 		}
 		return nil
 	})
 	return err
+}
+
+// evaluatedDescriptor is the descriptor an evaluated set is read by.
+func evaluatedDescriptor(set evaluation.EvaluatedSet) evaluation.SuiteDescriptor {
+	return evaluation.SuiteDescriptor{Kind: set.Kind, Source: set.Measure, Cases: set.Cases, Chance: set.Chance}
 }
 
 // verdictTasks are the served tasks whose held-out quality a held-out
@@ -910,9 +916,11 @@ func qualityCell(task recipe.Task, summaries []evaluation.EvalSummary, descripto
 				label, commit = label+", carried", summary.ScoredCommit
 			}
 			// A reading rests on the cases its record's reader counted, else on
-			// its set's. Only a suite the derived catalog compiled, which has a
-			// kind, is ranked by them: an evaluated set's cases are frames at one
-			// size or clips at another, and say nothing of which measure says more.
+			// its set's. Only a suite with a kind is ranked by them: one the
+			// derived catalog compiled, or an evaluated set whose cases count
+			// one unit, as a speech round trip's texts do. Another evaluated
+			// set's cases are frames at one size or clips at another, and say
+			// nothing of which measure says more.
 			descriptor := descriptors[summary.Suite]
 			cases, noise, ranked, constant := cmp.Or(summary.Cases, descriptor.Cases), summary.Noise, descriptor.Cases, summary.Constant
 			if name == shareMetric {

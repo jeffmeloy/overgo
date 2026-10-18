@@ -82,6 +82,37 @@ func TestHeldoutReadingStatesItsCasesAndNoise(t *testing.T) {
 	}
 }
 
+// TestQualityHeadlineIsTheLargestSpeechSuite holds pocket-tts's row of the
+// scorecard of 2026-10-16T21:36Z to its largest suite. Its speech round trips
+// are evaluated sets: a 4-case set of recordings and two builds of a 64-case
+// LibriSpeech measure, whose first build's identity sorts after the small
+// set's. A set's descriptor was given no kind, so all three ranked alike and
+// the identities put the 4-case set at the head. A speech round trip's cases
+// are texts in every set, so its descriptor states its kind and the newest
+// build of the 64-case measure heads the row.
+func TestQualityHeadlineIsTheLargestSpeechSuite(t *testing.T) {
+	t.Parallel()
+	summary := func(set string, value float64, cases uint64) evaluation.EvalSummary {
+		return evaluation.EvalSummary{
+			Suite: set, Prompting: "raw-completion", Record: testutil.ArtifactID(t, artifact.KindEvaluation, set), Cases: cases,
+			Metrics: map[string]float64{"word_error_rate": value}, Directions: map[string]runrecord.Direction{"word_error_rate": runrecord.DirectionMinimize},
+		}
+	}
+	const recordings, newest, first = "dataset:sha256:fc4bd398", "dataset:sha256:4faeb947", "dataset:sha256:fd1ccc53"
+	descriptors := map[string]evaluation.SuiteDescriptor{
+		recordings: evaluatedDescriptor(evaluation.EvaluatedSet{Measure: "native-base-recordings 5a1857be", Kind: "speech-round-trip", Cases: 4}),
+		newest:     evaluatedDescriptor(evaluation.EvaluatedSet{Measure: "librispeech-test-clean/round-trip e6e75305", Kind: "speech-round-trip", Cases: 64}),
+		first:      evaluatedDescriptor(evaluation.EvaluatedSet{Measure: "librispeech-test-clean/round-trip e6e75305", Kind: "speech-round-trip", Cases: 64}),
+	}
+	// The summaries arrive newest first.
+	cell, others := qualityCell(recipe.TaskSpeech, []evaluation.EvalSummary{
+		summary(recordings, 0.06, 4), summary(newest, 0.0216, 64), summary(first, 0.0515, 64),
+	}, descriptors)
+	if cell.Contract.Suite != newest || cell.Cases != 64 || len(others) != 2 {
+		t.Fatalf("the row is headed by %s on %d cases with %d other readings, want the newest build of the 64-case measure, %s, and the two others", cell.Contract.Suite, cell.Cases, len(others), newest)
+	}
+}
+
 // TestHeldoutShareAtAnEndReportsObservedCases preserves endpoint counts without population confidence.
 // A ceiling cannot establish generalization from unqualified case counts.
 func TestHeldoutShareAtAnEndReportsObservedCases(t *testing.T) {

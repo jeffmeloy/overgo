@@ -1,6 +1,7 @@
 package evaluation
 
 import (
+	"encoding/json"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -66,5 +67,34 @@ func TestEvaluatedMeasureNamesAMeasureBuiltAgain(t *testing.T) {
 	}
 	if set, ok := EvaluatedMeasure(t.Context(), store, planID(t, artifact.KindProfile, "no such plan")); ok {
 		t.Fatalf("a plan the store does not hold reads %+v", set)
+	}
+}
+
+// TestEvaluatedSetStatesAKindOnlyForCasesOfOneUnit reads a speech round trip's
+// profile, whose cases are texts read aloud however many a set holds, as
+// stating its kind, so a reader ranks it among a recipe's sets by its cases. A
+// reconstruction set's cases are frames at one cut or clips at another, and
+// its profile states no kind.
+func TestEvaluatedSetStatesAKindOnlyForCasesOfOneUnit(t *testing.T) {
+	t.Parallel()
+	read := func(profile any) EvaluatedSet {
+		t.Helper()
+		data, err := json.Marshal(profile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		set, ok := evaluatedSet(data)
+		if !ok {
+			t.Fatalf("the profile %s reads no set", data)
+		}
+		return set
+	}
+	speech := read(SpeechRoundTripSuite{Kind: speechRoundTripKind, Source: "librispeech-test-clean/round-trip", Cases: []SpeechRoundTripCase{{Name: "one", Text: "One."}, {Name: "two", Text: "Two."}}})
+	if speech.Kind != speechRoundTripKind || speech.Cases != 2 {
+		t.Fatalf("a speech round trip of two texts reads %+v, want its kind and its two cases", speech)
+	}
+	frames := read(ReconstructionSuite{Kind: reconstructionKind, Source: "frames", Cases: []ReconstructionCase{{Name: "clip"}}})
+	if frames.Kind != "" || frames.Cases != 1 {
+		t.Fatalf("a reconstruction set reads %+v, want its one case and no kind", frames)
 	}
 }

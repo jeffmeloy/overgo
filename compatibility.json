@@ -429,13 +429,13 @@
      "contains": "func ValidateDenseRepository(",
      "path": "internal/hfgguf/catalog.go",
      "role": "source",
-     "identity": "file:sha256:ff59461fd59f19b9d2277be6c4b3398d9cbcb35620d7fda362ecbd18cbba40fd"
+     "identity": "file:sha256:9a479cc020724eb89c25f7fdf145f8d6e53ec51acafb23e3844f189da4060429"
     },
     {
      "contains": "func TestValidateDenseRepositoryUsesRuntimeCatalog(",
      "path": "internal/hfgguf/catalog_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:d839cc150dd055108935cced7716410c2afd58a74024bfbc3c1d80e2e3c9cb2f"
+     "identity": "evidence:sha256:2f5d91111b13f5f25d372b691d8ea45e83312eaf07a67f40651b53e9e57f1e9a"
     }
    ],
    "id": "safetensors-gguf-dense-bridge",
@@ -450,13 +450,13 @@
      "contains": "func ValidateQwen35Repository(",
      "path": "internal/hfgguf/qwen35.go",
      "role": "source",
-     "identity": "file:sha256:1a3938016fa73d3a99ed210bf624075390967026e41d60e73c2237c63cbd5a77"
+     "identity": "file:sha256:002ff52a6c8869dce9174d9730d19e5685dc6920c6f9e1fcf6393f74b8789d0f"
     },
     {
      "contains": "func TestValidateQwen35RepositoryUsesRuntimeCatalog(",
      "path": "internal/hfgguf/catalog_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:d839cc150dd055108935cced7716410c2afd58a74024bfbc3c1d80e2e3c9cb2f"
+     "identity": "evidence:sha256:2f5d91111b13f5f25d372b691d8ea45e83312eaf07a67f40651b53e9e57f1e9a"
     }
    ],
    "id": "safetensors-gguf-qwen35-bridge",

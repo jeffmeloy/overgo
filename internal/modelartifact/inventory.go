@@ -1,8 +1,10 @@
 package modelartifact
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -33,8 +35,19 @@ type Inventory struct {
 
 // FromHFPath inventories one Hugging Face repository directory.
 func FromHFPath(path string) (Inventory, error) {
+	return FromHFPathContext(context.Background(), path)
+}
+
+// FromHFPathContext inventories an HF source with cancellation between hash reads.
+func FromHFPathContext(ctx context.Context, path string) (Inventory, error) {
+	if ctx == nil {
+		return Inventory{}, errors.New("model artifact: inventory requires a context")
+	}
+	if err := ctx.Err(); err != nil {
+		return Inventory{}, err
+	}
 	if _, err := os.Stat(filepath.Join(path, "model_index.json")); err == nil {
-		return fromHFPipeline(path)
+		return fromHFPipeline(ctx, path)
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return Inventory{}, err
 	}
@@ -42,7 +55,7 @@ func FromHFPath(path string) (Inventory, error) {
 	if err != nil {
 		return Inventory{}, err
 	}
-	inventory, inventoryErr := FromHFRepository(repository)
+	inventory, inventoryErr := fromHFRepository(ctx, repository)
 	return inventory, errors.Join(inventoryErr, repository.Close())
 }
 
@@ -74,7 +87,18 @@ func FromGGUFPath(path string) (Inventory, error) {
 
 // FromGGUF: typed inventory from an already-validated logical GGUF.
 func FromGGUF(file *gguf.File, kind artifact.Kind) (Inventory, error) {
-	inventory, _, err := FromGGUFClaimed(file, kind, nil)
+	return FromGGUFContext(context.Background(), file, kind)
+}
+
+// FromGGUFContext verifies GGUF source identities with cancellation between hash reads.
+func FromGGUFContext(ctx context.Context, file *gguf.File, kind artifact.Kind) (Inventory, error) {
+	if ctx == nil {
+		return Inventory{}, errors.New("model artifact: inventory requires a context")
+	}
+	if err := ctx.Err(); err != nil {
+		return Inventory{}, err
+	}
+	inventory, _, err := fromGGUFClaimed(ctx, file, kind, nil)
 	return inventory, err
 }
 
@@ -84,7 +108,7 @@ type Claimer func(path string) (artifact.ID, uint64, bool)
 
 // describeShard names a shard's identity from the claimer when it has one of
 // the size the parsed file has, and by hashing the file otherwise.
-func describeShard(path string, size uint64, claimer Claimer) (descriptor artifact.Descriptor, absolute string, claimed bool, err error) {
+func describeShard(ctx context.Context, path string, size uint64, claimer Claimer) (descriptor artifact.Descriptor, absolute string, claimed bool, err error) {
 	if claimer != nil {
 		if absolute, err = pathidentity.Canonical(path); err == nil {
 			if id, remembered, ok := claimer(absolute); ok && remembered == size && id.Kind() == artifact.KindTensorSet {
@@ -92,7 +116,7 @@ func describeShard(path string, size uint64, claimer Claimer) (descriptor artifa
 			}
 		}
 	}
-	descriptor, absolute, err = identifyFile(path, artifact.KindTensorSet, ggufMediaType)
+	descriptor, absolute, err = identifyFileContext(ctx, path, artifact.KindTensorSet, ggufMediaType)
 	return descriptor, absolute, false, err
 }
 
@@ -102,6 +126,10 @@ func describeShard(path string, size uint64, claimer Claimer) (descriptor artifa
 // must prove them before the model serves, by VerifyClaims or by a pass that
 // hashes the bytes it uploads. The claims are nil when every shard was hashed.
 func FromGGUFClaimed(file *gguf.File, kind artifact.Kind, claimer Claimer) (Inventory, []artifact.ID, error) {
+	return fromGGUFClaimed(context.Background(), file, kind, claimer)
+}
+
+func fromGGUFClaimed(ctx context.Context, file *gguf.File, kind artifact.Kind, claimer Claimer) (Inventory, []artifact.ID, error) {
 	if file == nil {
 		return Inventory{}, nil, errors.New("model artifact: nil GGUF")
 	}
@@ -124,7 +152,7 @@ func FromGGUFClaimed(file *gguf.File, kind artifact.Kind, claimer Claimer) (Inve
 	var claims []artifact.ID
 	anyClaimed := false
 	for index, path := range paths {
-		descriptor, absolute, claimed, err := describeShard(path, shards[index].Size, claimer)
+		descriptor, absolute, claimed, err := describeShard(ctx, path, shards[index].Size, claimer)
 		if err != nil {
 			return Inventory{}, nil, fmt.Errorf("model artifact: GGUF component %d: %w", index, err)
 		}
@@ -191,6 +219,10 @@ func tensorBearingKind(kind artifact.Kind) bool {
 
 // FromHFRepository: inventory from an already-validated Safetensors repository
 func FromHFRepository(repository *hfrepo.Repository) (Inventory, error) {
+	return fromHFRepository(context.Background(), repository)
+}
+
+func fromHFRepository(ctx context.Context, repository *hfrepo.Repository) (Inventory, error) {
 	if repository == nil || repository.Tensors == nil || repository.Directory == "" {
 		return Inventory{}, errors.New("model artifact: incomplete Hugging Face repository")
 	}
@@ -242,7 +274,7 @@ func FromHFRepository(repository *hfrepo.Repository) (Inventory, error) {
 	descriptors := make([]artifact.Descriptor, 0, len(specs))
 	locations := make([]artifact.Location, 0, len(specs)+1)
 	for _, spec := range specs {
-		descriptor, absolute, err := identifyFile(spec.path, spec.kind, spec.mediaType)
+		descriptor, absolute, err := identifyFileContext(ctx, spec.path, spec.kind, spec.mediaType)
 		if err != nil {
 			return Inventory{}, fmt.Errorf("model artifact: component %s: %w", spec.name, err)
 		}
@@ -271,6 +303,26 @@ func FromHFRepository(repository *hfrepo.Repository) (Inventory, error) {
 }
 
 func identifyFile(path string, kind artifact.Kind, mediaType string) (artifact.Descriptor, string, error) {
+	return identifyFileContext(context.Background(), path, kind, mediaType)
+}
+
+type inventoryReader struct {
+	ctx    context.Context
+	reader io.Reader
+}
+
+// Read refuses cancelled inventory work before reading more source bytes.
+func (r inventoryReader) Read(data []byte) (int, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return r.reader.Read(data)
+}
+
+func identifyFileContext(ctx context.Context, path string, kind artifact.Kind, mediaType string) (artifact.Descriptor, string, error) {
+	if err := ctx.Err(); err != nil {
+		return artifact.Descriptor{}, "", err
+	}
 	absolute, err := pathidentity.Canonical(path)
 	if err != nil {
 		return artifact.Descriptor{}, "", err
@@ -286,7 +338,7 @@ func identifyFile(path string, kind artifact.Kind, mediaType string) (artifact.D
 	if err != nil {
 		return artifact.Descriptor{}, "", err
 	}
-	id, size, hashErr := artifact.Identify(kind, file)
+	id, size, hashErr := artifact.Identify(kind, inventoryReader{ctx: ctx, reader: file})
 	closeErr := file.Close()
 	if hashErr != nil {
 		return artifact.Descriptor{}, "", hashErr

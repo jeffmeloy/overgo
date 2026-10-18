@@ -105,7 +105,8 @@ func validSHA256(value string) bool {
 	return artifact.ValidHexDigest(value)
 }
 
-func profilePublicationFacts(document ProfileDocument) (
+// ProfilePublicationFacts binds a profile to the derivation evidence it declares.
+func ProfilePublicationFacts(document ProfileDocument) (
 	[]artifact.Content,
 	[]artifact.Lineage,
 	error,

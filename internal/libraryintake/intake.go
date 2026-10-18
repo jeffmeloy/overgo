@@ -35,6 +35,9 @@ import (
 // alone, and the embedded cause speaks for itself.
 type refusal struct{ error }
 
+// Unwrap preserves cancellation and source errors through the library refusal.
+func (r refusal) Unwrap() error { return r.error }
+
 // LibraryRefused reports the refusal; one without a cause is no refusal.
 func (r refusal) LibraryRefused() bool { return r.error != nil }
 
@@ -51,6 +54,16 @@ func ModelFiles(path, explicitProjector string) (model, projectorPath string, er
 	}
 	candidates := []string{path}
 	if info.IsDir() {
+		for _, name := range []string{"model_index.json", "config.json"} {
+			if _, err := os.Stat(filepath.Join(path, name)); err == nil {
+				if strings.TrimSpace(explicitProjector) != "" {
+					return "", "", errors.New("library: HF directory import does not accept a separate projector")
+				}
+				return path, "", nil
+			} else if !errors.Is(err, os.ErrNotExist) {
+				return "", "", err
+			}
+		}
 		if candidates, err = filepath.Glob(filepath.Join(path, "*.gguf")); err != nil {
 			return "", "", err
 		}
@@ -90,6 +103,23 @@ func ModelFiles(path, explicitProjector string) (model, projectorPath string, er
 // store, not yet servable) and a projector with it as the model's
 // projection candidate; the receipt names what the store now holds.
 func Register(ctx context.Context, repository *overgodb.Store, path, projectorPath string) (map[string]any, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, refusal{err}
+	}
+	if info.IsDir() {
+		if strings.TrimSpace(projectorPath) != "" {
+			return nil, refusal{errors.New("library: HF directory import does not accept a separate projector")}
+		}
+		inspection, err := modelintake.InspectImport(ctx, path, "")
+		if err != nil {
+			return nil, refusal{err}
+		}
+		if err := modelintake.RegisterImport(ctx, repository, inspection); err != nil {
+			return nil, err
+		}
+		return map[string]any{"path": path, "model": inspection.Inventory.Manifest.ID, "inspection": inspection.Content.Descriptor.ID, "qualification": "structural-only"}, nil
+	}
 	candidate, err := modelintake.PrepareInferenceCandidate(ctx, repository, path, modelintake.SessionOverride{}, recipe.ResidencyHybridNative)
 	if err != nil {
 		return nil, refusal{err}

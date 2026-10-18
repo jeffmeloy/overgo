@@ -329,7 +329,7 @@ func publishDerivationResolvedDefinition(
 	name string,
 ) {
 	t.Helper()
-	profileContents, profileLineage, err := profilePublicationFacts(resolved.Profile)
+	profileContents, profileLineage, err := ProfilePublicationFacts(resolved.Profile)
 	if err != nil {
 		t.Fatal(err)
 	}

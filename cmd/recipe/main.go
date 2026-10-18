@@ -36,33 +36,37 @@ func main() {
 }
 
 func run() error {
-	if len(os.Args) < 2 {
-		return errors.New("usage: recipe <spec|register|verify|activate|retire|retire-orphan|run|status|policy> [options] <model>")
+	args := os.Args[1:]
+	if len(args) == 0 {
+		return errors.New("usage: recipe <inspect|spec|register|verify|activate|retire|retire-orphan|run|status|policy> [options] <model>")
 	}
-	verb := os.Args[1]
+	verb, arguments := args[0], args[1:]
+	if verb == "inspect" {
+		return inspectModel(arguments)
+	}
 	if verb == "register" {
-		return registerModels(os.Args[2:])
+		return registerModels(arguments)
 	}
 	if verb == "spec" {
-		return assembleSpecification(os.Args[2:])
+		return assembleSpecification(arguments)
 	}
 	if verb == "validate-candidate" {
-		return validateCandidate(os.Args[2:])
+		return validateCandidate(arguments)
 	}
 	if verb == "attribute" {
-		return attributeEvaluation(os.Args[2:])
+		return attributeEvaluation(arguments)
 	}
 	if verb == "rollback" {
-		return rollbackActivation(os.Args[2:])
+		return rollbackActivation(arguments)
 	}
 	if verb == "route" {
-		return routeDecision(os.Args[2:])
+		return routeDecision(arguments)
 	}
 	if verb == "select" {
-		return selectServing(os.Args[2:])
+		return selectServing(arguments)
 	}
 	if verb == "replay" {
-		return replayRouting(os.Args[2:])
+		return replayRouting(arguments)
 	}
 	flags := flag.NewFlagSet("recipe "+verb, flag.ContinueOnError)
 	repoFlag := flags.String("repo", "", "OvergoDB store; empty resolves via the data-root contract")
@@ -83,7 +87,7 @@ func run() error {
 	fresh := flags.Bool("fresh", false, "run the request as its own operation, where an identical request this build already answered is answered with what the store kept of it (run)")
 	journey := flags.Bool("journey", false, "print where a first request's time goes, three ways, and record nothing: the parts of a first load in this process, of a second load in it, and when the prompt is evaluated and the first token comes, on those and on a second request on a loaded model (measure -task inference)")
 	compatibility := flags.String("compatibility", "", "remote peer compatibility evidence ID (spillover run)")
-	if err := flags.Parse(os.Args[2:]); err != nil {
+	if err := flags.Parse(arguments); err != nil {
 		return err
 	}
 	if flags.NArg() != 1 {

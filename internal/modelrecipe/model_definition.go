@@ -89,7 +89,7 @@ func (r ResolvedModelDefinition) Batch(
 	if err != nil {
 		return artifact.Batch{}, err
 	}
-	profileContents, profileLineage, err := profilePublicationFacts(checked.Profile)
+	profileContents, profileLineage, err := ProfilePublicationFacts(checked.Profile)
 	if err != nil {
 		return artifact.Batch{}, err
 	}

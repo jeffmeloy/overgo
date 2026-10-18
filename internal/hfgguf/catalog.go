@@ -29,39 +29,8 @@ func ValidateDenseRepository(repository *hfrepo.Repository) (model.Spec, error) 
 	if architecture != "llama" && architecture != "qwen2" {
 		return model.Spec{}, fmt.Errorf("HF/GGUF adapter: unsupported model type %q", architecture)
 	}
-	metadata, err := denseMetadata(repository, architecture)
-	if err != nil {
-		return model.Spec{}, err
-	}
-	mappings, err := denseTensorMappings(repository.Tensors)
-	if err != nil {
-		return model.Spec{}, err
-	}
-	return validateMappedRepository(metadata, mappings, "")
-}
-
-func validateMappedRepository(
-	metadata []gguf.Metadata,
-	mappings []tensorMapping,
-	label string,
-) (model.Spec, error) {
-	tensors, err := mappedTensorCatalog(mappings)
-	if err != nil {
-		return model.Spec{}, err
-	}
-	context := "HF/GGUF adapter"
-	if label != "" {
-		context += ": " + label
-	}
-	file := &gguf.File{Metadata: metadata, Tensors: tensors}
-	spec, err := model.ReadSpec(file)
-	if err != nil {
-		return model.Spec{}, fmt.Errorf("%s model spec: %w", context, err)
-	}
-	if _, err := model.ReadWeights(file, spec); err != nil {
-		return model.Spec{}, fmt.Errorf("%s weight catalog: %w", context, err)
-	}
-	return spec, nil
+	catalog, err := InspectLanguageModel(repository, LanguageTokens)
+	return catalog.Spec, err
 }
 
 func denseMetadata(repository *hfrepo.Repository, architecture string) ([]gguf.Metadata, error) {
@@ -118,18 +87,16 @@ func denseMetadata(repository *hfrepo.Repository, architecture string) ([]gguf.M
 }
 
 type tensorMapping struct {
-	name    string
-	tensor  safetensors.Tensor
-	shape   []uint64
-	storage gguf.DType
-	// transform mutates the materialized payload (elementSize is the stored
-	// element width after F32 promotion).
-	transform func(data []byte, elementSize uint64) error
+	name       string
+	tensor     safetensors.Tensor
+	shape      []uint64
+	storage    gguf.DType
+	transforms []TensorTransform
 }
 
 type tensorNameMapper func(string) (string, bool, error)
 type tensorShapeMapper func(safetensors.Tensor) ([]uint64, error)
-type tensorValueMapper func(string) func(data []byte, elementSize uint64) error
+type tensorValueMapper func(string) []TensorTransform
 
 func mappedTensorCatalog(mappings []tensorMapping) ([]gguf.TensorInfo, error) {
 	tensors := make([]gguf.TensorInfo, 0, len(mappings))
@@ -150,10 +117,6 @@ func mappedTensorCatalog(mappings []tensorMapping) ([]gguf.TensorInfo, error) {
 		tensors = append(tensors, info)
 	}
 	return tensors, nil
-}
-
-func denseTensorMappings(source *safetensors.Source) ([]tensorMapping, error) {
-	return collectTensorMappings(source, denseTensorName, nil, nil)
 }
 
 func collectTensorMappings(
@@ -197,7 +160,7 @@ func collectTensorMappings(
 		}
 		mapping := tensorMapping{name: name, tensor: tensor, shape: shape, storage: storage}
 		if valueMapper != nil {
-			mapping.transform = valueMapper(sourceName)
+			mapping.transforms = valueMapper(sourceName)
 		}
 		mappings = append(mappings, mapping)
 	}
@@ -218,9 +181,16 @@ func mappedTensorData(mappings []tensorMapping) ([]gguf.TensorData, error) {
 			}
 			reader = converted
 		}
-		if mapping.transform != nil {
+		if len(mapping.transforms) != 0 {
 			traits, _ := storage.Traits()
-			transformed, err := transformPayload(reader, traits.TypeSize, mapping.transform)
+			transformed, err := transformPayload(reader, traits.TypeSize, func(data []byte, elementSize uint64) error {
+				for _, transform := range mapping.transforms {
+					if err := transform.apply(data, elementSize); err != nil {
+						return err
+					}
+				}
+				return nil
+			})
 			if err != nil {
 				return nil, fmt.Errorf("HF/GGUF adapter: tensor %q: %w", tensor.Name, err)
 			}

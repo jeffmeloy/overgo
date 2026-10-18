@@ -267,6 +267,24 @@ func TestFlashNextExpertResidency(t *testing.T) {
 			readable(t, cache, mem, nil)
 		}
 	})
+	t.Run("failed-publication-is-repaired-before-the-next-run", func(t *testing.T) {
+		// Both experts move, then the first table write fails: the tables still name
+		// the card slots the moves overwrote until a later advance writes them.
+		cache, mem := open(t, oneEach)
+		route(t, cache, 2)
+		mem.failWrite = mem.writes + 3
+		if err := cache.advance(t.Context()); err == nil {
+			t.Fatal("a failed table write was accepted")
+		}
+		// The next run brings no routes; it may run only after the tables are repaired.
+		mem.failWrite = mem.writes + 1
+		if err := cache.advance(t.Context()); err == nil {
+			t.Fatal("a run was admitted over tables a failed repair left stale")
+		}
+		mem.failWrite = 0
+		advance(t, cache)
+		readable(t, cache, mem, nil)
+	})
 	t.Run("failed-fill-releases-everything", func(t *testing.T) {
 		for _, fail := range []string{"table", "card", "pinning", "copy", "cancel"} {
 			mem := newFakeExpertDevice()

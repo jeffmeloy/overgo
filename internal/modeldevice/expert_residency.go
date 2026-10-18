@@ -433,7 +433,9 @@ func (w *DeviceWeights) AdvanceExperts(ctx context.Context, state *device.State)
 // advance reads the flags the last run's routes set, which its synchronization made visible, and clears them for the next run.
 func (c *expertResidency) advance(ctx context.Context) error {
 	if bytes.IndexByte(c.routed, 1) < 0 {
-		return nil
+		// A table a failed publication left naming a moved expert's old slot is
+		// written before any run reads it; a failed write refuses the run.
+		return c.publish(ctx)
 	}
 	c.step++
 	var missed []expertKey

@@ -49,21 +49,15 @@ func (e *Executor) CheckRetainedMemory(ctx context.Context, compiled *CompiledGr
 		if err != nil {
 			return err
 		}
-		var expertBytes uint64
+		// Card experts move to host memory to make room, and a routed node
+		// reads its experts where they are, so experts need no room of their own.
 		if resources.experts != nil {
-			reclaimable, limit, err := resources.experts.ExpertMemory(state)
+			reclaimable, err := resources.experts.ExpertMemory(state)
 			if err != nil {
 				return err
 			}
 			if free, err = addMemoryBytes(free, reclaimable); err != nil {
 				return err
-			}
-			expertBytes, err = compiled.expertWorkingBytes(resources.experts.IsExpertBank)
-			if err != nil {
-				return err
-			}
-			if expertBytes > limit {
-				return &MemoryCapacityError{Required: expertBytes, Available: limit}
 			}
 		}
 		// Staging grows before its predecessor is freed, unlike the arena.
@@ -90,10 +84,8 @@ func (e *Executor) CheckRetainedMemory(ctx context.Context, compiled *CompiledGr
 				return err
 			}
 		}
-		for _, bytes := range []uint64{pooled, expertBytes} {
-			if growth, err = addMemoryBytes(growth, bytes); err != nil {
-				return err
-			}
+		if growth, err = addMemoryBytes(growth, pooled); err != nil {
+			return err
 		}
 		required, err := addMemoryBytes(capacity, max(peak, growth))
 		if err != nil {
@@ -178,42 +170,4 @@ func (c *CompiledGraph) retainedAllocations(inputs *DeviceInputs, slots []Output
 		}
 	}
 	return arena, pooled, capacity, nil
-}
-
-func (c *CompiledGraph) expertWorkingBytes(isExpertBank func(string) bool) (uint64, error) {
-	var peak uint64
-	for _, node := range c.order {
-		if node.Op != tensor.OpMoE {
-			continue
-		}
-		group, _, err := moeScratchGroup(node)
-		if err != nil {
-			return 0, err
-		}
-		attributes := node.Attrs.(tensor.MoEAttributes)
-		end := moeFirstBankInput + tensor.PairedExtent
-		if attributes.Gated && !attributes.FusedGateUp {
-			end++
-		}
-		var bytes uint64
-		for _, bank := range node.Inputs[moeFirstBankInput:end] {
-			if !isExpertBank(bank.Name) {
-				continue
-			}
-			all, err := bank.Shape.Bytes(bank.Type)
-			if err != nil {
-				return 0, err
-			}
-			experts := bank.Shape.Dims[bank.Shape.Rank-1]
-			if experts == 0 || all%experts != 0 {
-				return 0, errors.New("CUDA expert bank extent is invalid")
-			}
-			selected := min(experts, uint64(group)*uint64(attributes.TopK))
-			if bytes, err = addMemoryBytes(bytes, all/experts*selected); err != nil {
-				return 0, err
-			}
-		}
-		peak = max(peak, bytes)
-	}
-	return peak, nil
 }

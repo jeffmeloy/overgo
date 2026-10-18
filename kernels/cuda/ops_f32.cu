@@ -3638,15 +3638,18 @@ extern "C" __global__ void moe_router_logits_f32(
 }
 
 // moe_route_f32 turns one token's expert logits into its routed experts and weights.
+//   - routed_experts != nullptr => each routed bank expert (expert / expert_index_divisor) sets its bit there
 extern "C" __global__ void moe_route_f32(
         const float * router_logits,
         const float * selection_bias,
         const float * selected_experts,
         unsigned int * route_state,
+        unsigned int * routed_experts,
         unsigned int tokens,
         unsigned int experts,
         unsigned int top_k,
-        unsigned int routing) {
+        unsigned int routing,
+        unsigned int expert_index_divisor) {
     const unsigned int token = blockIdx.x;
     if (token >= tokens) return;
     extern __shared__ float shared[];
@@ -3753,6 +3756,12 @@ extern "C" __global__ void moe_route_f32(
             __syncthreads();
         }
         if (threadIdx.x != 0u) return;
+    }
+    if (routed_experts) {
+        for (unsigned int slot = 0; slot < top_k; ++slot) {
+            const unsigned int expert = selected[slot] / expert_index_divisor;
+            atomicOr(routed_experts + expert / 32u, 1u << (expert % 32u));
+        }
     }
     if (routing == 3) {
         float selected_maximum = -3.402823466e+38F;

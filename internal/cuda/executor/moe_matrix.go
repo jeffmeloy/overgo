@@ -84,14 +84,13 @@ func launchMoEMatrices(ctx context.Context, state *device.State, functions funct
 	hidden, intermediate, topK := uint32(g.hidden), uint32(g.intermediate), a.TopK
 	divisor := max(a.ExpertIndexDivisor, 1)
 	routeWords := uint32(moeSlotRouteWords)*topK + uint32(moeTokenRouteWords)
-	if indexed == 0 {
-		if err := state.Driver.StreamSynchronize(state.Stream); err != nil {
-			return false, err
-		}
-		blas.moeRoutes = slices.Grow(blas.moeRoutes[:0], int(count*routeWords))[:count*routeWords]
-		if err := state.Driver.MemcpyDtoH(driver.Bytes(blas.moeRoutes), routeState); err != nil {
-			return false, err
-		}
+	// A prompt group's expert batches are planned on the host from its routes.
+	if err := state.Driver.StreamSynchronize(state.Stream); err != nil {
+		return false, err
+	}
+	blas.moeRoutes = slices.Grow(blas.moeRoutes[:0], int(count*routeWords))[:count*routeWords]
+	if err := state.Driver.MemcpyDtoH(driver.Bytes(blas.moeRoutes), routeState); err != nil {
+		return false, err
 	}
 	blas.moeCounts = slices.Grow(blas.moeCounts[:0], int(g.experts))[:g.experts]
 	clear(blas.moeCounts)

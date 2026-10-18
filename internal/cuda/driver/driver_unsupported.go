@@ -122,6 +122,16 @@ func (l *Library) MemsetD32Async(DevicePtr, uint32, uint64, Stream) error {
 	return errors.New("CUDA driver loading is currently supported only on Windows")
 }
 
+// MemHostAlloc reports that pinned, device-mapped host memory needs the Windows driver.
+func (l *Library) MemHostAlloc(uint64) ([]byte, DevicePtr, error) {
+	return nil, 0, errors.New("CUDA driver loading is currently supported only on Windows")
+}
+
+// MemFreeHost reports that pinned host memory needs the Windows driver.
+func (l *Library) MemFreeHost([]byte) error {
+	return errors.New("CUDA driver loading is currently supported only on Windows")
+}
+
 func (l *Library) ModuleLoadData(image []byte) (Module, error) {
 	return 0, errors.New("CUDA driver loading is currently supported only on Windows")
 }

@@ -64,7 +64,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "e01894312cf26e4dc9d7c04f75305ed56840d447b50496fc4f415ea480e22a55",
+      "sourceSha256": "457de5b82908abbfb340c58dba7437342c537377c73bfc7aec515ec0209f3002",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -72,7 +72,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "8ca8299eb07c85d23433b286b66ebf19f7cf6d4915a6a4d8fef05050df4e26bc",
+      "assetSha256": "896789f48433a2ae42d6b86baabd17ebda6fed91f48276d71103581dc294b9fc",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -1097,14 +1097,15 @@
             ".u64",
             ".u64",
             ".u64",
+            ".u64",
+            ".u32",
             ".u32",
             ".u32",
             ".u32",
             ".u32"
           ],
           "functions": [
-            "moe_route_f32",
-            "moe_scatter_f32"
+            "moe_route_f32"
           ]
         },
         {
@@ -1122,6 +1123,21 @@
             "mul_mat_bf16_append_f32",
             "mul_mat_bf16_gate_f32",
             "mul_mat_fp8_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "moe_scatter_f32"
           ]
         },
         {

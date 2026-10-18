@@ -157,10 +157,16 @@ func launchMoE(
 			return errors.New("grouped MoE launch size exceeds uint32")
 		}
 		logitBytes := experts * uint32(f32ScalarBytes)
+		// Indexed banks are tables of expert pointers; the route kernel marks
+		// the routed experts for the residency to read between runs.
 		indexed := uint32(0)
+		var routed driver.DevicePtr
 		banks := node.Inputs[moeFirstBankInput:wantInputs]
 		if pointers.experts != nil && pointers.experts.IsExpertBank(banks[0].Name) {
 			indexed = 1
+			if routed, err = pointers.experts.ExpertRoutes(state, banks); err != nil {
+				return err
+			}
 		}
 		for start := uint32(0); start < tokens; start += group {
 			if pointers.ctx != nil {
@@ -189,40 +195,10 @@ func launchMoE(
 				state, functions[kernelMoeRouteF32],
 				driver.Dim3{X: count, Y: 1, Z: 1},
 				driver.Dim3{X: moeThreads, Y: 1, Z: 1}, logitBytes,
-				&routerLogits, &selectionBias, &groupSelected, &routeState, &count, &experts, &topK, &routing,
+				&routerLogits, &selectionBias, &groupSelected, &routeState, &routed, &count, &experts, &topK, &routing,
+				&expertIndexDivisor,
 			); err != nil {
 				return err
-			}
-			if indexed != 0 {
-				if err := state.Driver.StreamSynchronize(state.Stream); err != nil {
-					return err
-				}
-				routeWords := uint32(moeSlotRouteWords)*topK + uint32(moeTokenRouteWords)
-				words := int(count) * int(routeWords)
-				if cap(blas.moeRoutes) < words {
-					blas.moeRoutes = make([]uint32, words)
-				}
-				routes := blas.moeRoutes[:words]
-				if err := state.Driver.MemcpyDtoH(driver.Bytes(routes), routeState); err != nil {
-					return err
-				}
-				blas.moeExperts = blas.moeExperts[:0]
-				for token := uint32(0); token < count; token++ {
-					for slot := uint32(0); slot < topK; slot++ {
-						blas.moeExperts = append(blas.moeExperts, routes[token*routeWords+slot]/expertIndexDivisor)
-					}
-				}
-				tables, err := pointers.experts.ResolveExpertBanks(pointers.ctx, state, banks, blas.moeExperts)
-				if err != nil {
-					return err
-				}
-				if len(tables) != len(banks) {
-					return errors.New("expert resolver returned an incomplete bank group")
-				}
-				up, down = tables[next-moeFirstBankInput], tables[next-moeFirstBankInput+1]
-				if attributes.Gated {
-					gate = tables[0]
-				}
 			}
 			if used, err := launchMoEMatrices(pointers.ctx, state, functions, blas, node,
 				groupInput, routeState, groupOutput, gate, up, down, gateBias, upBias, downBias, expertScale,

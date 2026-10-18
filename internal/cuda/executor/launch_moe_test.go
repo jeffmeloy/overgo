@@ -57,7 +57,7 @@ func TestMoELaunchesCoverTokenGroups(t *testing.T) {
 	const (
 		headerBytes  = 4 * 8
 		logitsRecord = headerBytes + 4*8 + 3*4
-		routeRecord  = headerBytes + 4*8 + 4*4
+		routeRecord  = headerBytes + 5*8 + 5*4
 		hiddenBytes  = headerBytes + 7*8 + 13*4
 		downRecord   = headerBytes + 6*8 + 9*4
 		// A group's activations lead its scratch and its route words follow.
@@ -90,7 +90,8 @@ func TestMoELaunchesCoverTokenGroups(t *testing.T) {
 			{"route logits input", word(route[32:]), scores + group*routeBytes + group*topK*intermediate*4},
 			{"route selection", word(route[48:]), selectedBase + start*topK*4},
 			{"route state", word(route[56:]), scores + routeOffset},
-			{"route tokens", uint64(scalar(route[64:])), count},
+			{"route marks no residency", word(route[64:]), 0},
+			{"route tokens", uint64(scalar(route[72:])), count},
 			{"hidden kernel", word(hiddenLaunch), uint64(kernelMoeHiddenF32)},
 			{"hidden grid", word(hiddenLaunch[8:]), count*topK*((intermediate+255)/256) | 1<<32 | 1<<48},
 			{"hidden shared bytes", word(hiddenLaunch[24:]), 256 * 9 * 4 * 2},
@@ -184,22 +185,12 @@ func TestCompileReservesMoEScratch(t *testing.T) {
 			if got := compiled.attentionScoreBytes; got != ocrTokenBytes {
 				t.Fatalf("%s decode scratch (fused %t) = %d, want %d", bankType, fused, got, ocrTokenBytes)
 			}
-			bytes, err := compiled.expertWorkingBytes(func(string) bool { return true })
-			want, _ := tensor.MustShape(1280, 896, 3*6).Bytes(bankType)
-			if err != nil || bytes != want {
-				t.Fatalf("%s routed working set (fused %t) = %d, want %d: %v", bankType, fused, bytes, want, err)
-			}
 		}
 	}
 	group := moeScratchLimitBytes / ocrTokenBytes
 	compiled := compile(group+1, 896, 6, dtype.BF16, false)
 	if got := compiled.attentionScoreBytes; got != group*ocrTokenBytes {
 		t.Fatalf("prefill scratch = %d, want %d tokens of %d", got, group, ocrTokenBytes)
-	}
-	bytes, err := compiled.expertWorkingBytes(func(string) bool { return true })
-	want, _ := tensor.MustShape(1280, 896, 3*64).Bytes(dtype.BF16)
-	if err != nil || bytes != want {
-		t.Fatalf("prefill expert working set = %d, want %d: %v", bytes, want, err)
 	}
 	// Sixteen slots of limit/4 rows: one token alone exceeds the limit.
 	const wideRows = moeScratchLimitBytes / 4

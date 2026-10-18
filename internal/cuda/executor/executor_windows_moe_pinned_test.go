@@ -4,6 +4,7 @@ package executor
 
 import (
 	"bytes"
+	"cmp"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
@@ -92,8 +93,10 @@ func TestExecutorMoEOutputBitsArePinned(t *testing.T) {
 // value is BF16-representable, so an F32 bank and a BF16 bank hold the same
 // numbers.
 type moePinnedCase struct {
-	compute                            tensor.MulMatCompute
-	offload                            bool
+	compute tensor.MulMatCompute
+	offload bool
+	// limit bounds the offloaded banks' residency; zero takes the automatic limit.
+	limit                              uint64
 	name                               string
 	hidden, routerHidden, intermediate uint64
 	experts, tokens                    uint64
@@ -398,7 +401,7 @@ func (c moePinnedCase) prepare(t testing.TB, cuda *Executor, bankType dtype.Type
 				t.Error(err)
 			}
 		})
-		if err := weights.EnableExpertResidency(t.Context(), file, file.Tensors, 0); err != nil {
+		if err := weights.EnableExpertResidency(t.Context(), file, file.Tensors, c.limit); err != nil {
 			t.Fatal(err)
 		}
 		if err := cuda.SetExpertBanks(weights); err != nil {
@@ -446,7 +449,7 @@ func TestExecutorMoENativeCompute(t *testing.T) {
 							}
 							compare(t, got, want, accuracyModel)
 							// The first expert batch follows the router logits, routing, input gathering and weight staging.
-							const firstProduct = (32 + 4*8 + 3*4) + (32 + 4*8 + 4*4) + (32 + 3*8 + 5*4) + (32 + 4*8 + 7*4)
+							const firstProduct = (32 + 4*8 + 3*4) + (32 + 5*8 + 5*4) + (32 + 3*8 + 5*4) + (32 + 4*8 + 7*4)
 							if tokens > 1 && (len(trace.Data()) < firstProduct+8 || binary.LittleEndian.Uint64(trace.Data()[firstProduct:]) != traceTagSGEMMStrided) {
 								t.Fatal("grouped expert matrix product did not execute")
 							}
@@ -470,7 +473,7 @@ func TestExecutorMoEExpertsUseBlockDots(t *testing.T) {
 		// A launch record is four header words, then eight bytes a pointer and four a scalar.
 		headerBytes  = 4 * 8
 		logitsRecord = headerBytes + 4*8 + 3*4
-		routeRecord  = headerBytes + 4*8 + 4*4
+		routeRecord  = headerBytes + 5*8 + 5*4
 		hiddenRecord = headerBytes + 7*8 + 13*4
 		// The hidden record's storages follow its pointers and four scalars, the down record's its pointers and five.
 		hiddenGateStorage = headerBytes + 7*8 + 4*4
@@ -557,6 +560,91 @@ func TestExecutorMoEExpertsUseBlockDots(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestExecutorMoEMissedExpertsKeepResidentBits routes three decode tokens of
+// Flash-Next's IQ4_XS and Q8_0 expert layer to six experts while the card
+// holds only expert 0 of each bank, so no routed expert was ever on the card
+// and the limit is below one layer's routed experts. The expert kernels read
+// each where it is, a run waits for the stream no more often than the
+// resident run, the next run finds routed experts moved to the card, and
+// every run keeps the resident run's output bits.
+func TestExecutorMoEMissedExpertsKeepResidentBits(t *testing.T) {
+	banks := [3]dtype.Type{dtype.IQ4XS, dtype.IQ4XS, dtype.Q8_0}
+	c := moePinnedCase{
+		name: "missed-experts", compute: tensor.MulMatComputeNativeTensorCore,
+		hidden: 512, routerHidden: 512, intermediate: 256, experts: 8, tokens: 3, divisor: 1, topK: 2,
+		routing: tensor.MoERoutingSoftmax, activation: tensor.MoEActivationSiLU, normalize: true, scale: 1.25,
+		banks: banks, selected: true,
+	}
+	// The residency's tables hold a pointer an expert and a bitmap word a
+	// bank; one 256-byte-aligned slot of each bank holds expert 0 alone.
+	const pointerBytes, bitmapBytes, slotAlignment = 8, 4, 256
+	c.limit = uint64(len(banks)) * (c.experts*pointerBytes + bitmapBytes)
+	var smallest uint64
+	for _, storage := range banks {
+		expert, err := tensor.MustShape(c.hidden, c.intermediate).Bytes(storage)
+		if err != nil {
+			t.Fatal(err)
+		}
+		c.limit += (expert + slotAlignment - 1) / slotAlignment * slotAlignment
+		smallest = min(cmp.Or(smallest, expert), expert)
+	}
+	// run executes the node once and returns its output bits and the
+	// executor's stream waits and host-to-device bytes during the run.
+	run := func(t *testing.T, cuda *Executor, output *tensor.Tensor, host map[*tensor.Tensor]reference.Value, pointers map[*tensor.Tensor]driver.DevicePtr) ([]byte, driver.ExecutionStats) {
+		t.Helper()
+		var before, after driver.ExecutionStats
+		stats := func(into *driver.ExecutionStats) {
+			if err := cuda.worker.Do(t.Context(), func(state *device.State) error { *into = state.Driver.ExecutionStats(); return nil }); err != nil {
+				t.Fatal(err)
+			}
+		}
+		stats(&before)
+		retained, err := cuda.executeRetainedWithDeviceFeeds(t.Context(), []*tensor.Tensor{output}, host, pointers)
+		if err != nil {
+			t.Fatal(err)
+		}
+		value, copyErr := retained.CopyToHost(t.Context(), output)
+		if err := errors.Join(copyErr, retained.Release(t.Context())); err != nil {
+			t.Fatal(err)
+		}
+		stats(&after)
+		return bytes.Clone(driver.Bytes(value.Data)), driver.ExecutionStats{
+			StreamSynchronizations: after.StreamSynchronizations - before.StreamSynchronizations,
+			HostToDeviceBytes:      after.HostToDeviceBytes - before.HostToDeviceBytes,
+		}
+	}
+	// Token t routes to experts t+1 and t+4, so none routes to expert 0.
+	reroute := func(host map[*tensor.Tensor]reference.Value) {
+		for node, value := range host {
+			if node.Name == "selected" {
+				for index := range value.Data {
+					value.Data[index] = float32(index/int(c.topK) + 1 + index%int(c.topK)*3)
+				}
+			}
+		}
+	}
+	cuda := newFixtureExecutor(t)
+	output, host, pointers, _ := c.prepare(t, cuda, dtype.F32)
+	reroute(host)
+	resident, residentStats := run(t, cuda, output, host, pointers)
+	c.offload = true
+	cuda = newFixtureExecutor(t)
+	output, host, pointers, _ = c.prepare(t, cuda, dtype.F32)
+	reroute(host)
+	for attempt := range 3 {
+		got, stats := run(t, cuda, output, host, pointers)
+		if !bytes.Equal(got, resident) {
+			t.Fatalf("run %d: missed experts changed the resident output bits", attempt)
+		}
+		if stats.StreamSynchronizations != residentStats.StreamSynchronizations {
+			t.Fatalf("run %d waited for the stream %d times, the resident run %d", attempt, stats.StreamSynchronizations, residentStats.StreamSynchronizations)
+		}
+		if attempt == 1 && stats.HostToDeviceBytes < smallest {
+			t.Fatalf("the run after the routes moved %d bytes to the card, less than one expert", stats.HostToDeviceBytes)
+		}
 	}
 }
 

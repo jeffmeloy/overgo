@@ -11,13 +11,16 @@ import (
 )
 
 // ExpertBanks owns encoded expert residency on the executor's CUDA worker.
-// ResolveExpertBanks runs after routing and stream completion and preserves expert indices.
+// An expert bank's input is its table of expert pointers, each always readable by the card.
+// ExpertRoutes names the bitmap a routed node's routes mark on the card.
+// AdvanceExperts applies the last run's routes to residency before the next run.
 // ReserveExpertMemory releases only completed expert reads before another owner allocates.
 type ExpertBanks interface {
 	IsExpertBank(string) bool
-	ResolveExpertBanks(context.Context, *device.State, []*tensor.Tensor, []uint32) ([]driver.DevicePtr, error)
+	ExpertRoutes(*device.State, []*tensor.Tensor) (driver.DevicePtr, error)
+	AdvanceExperts(context.Context, *device.State) error
 	ReserveExpertMemory(*device.State, uint64) error
-	ExpertMemory(*device.State) (reclaimable, capacity uint64, err error)
+	ExpertMemory(*device.State) (reclaimable uint64, err error)
 }
 
 // SetExpertBanks binds the existing weight owner to routed execution and memory admission.

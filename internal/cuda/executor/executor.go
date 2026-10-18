@@ -1690,6 +1690,12 @@ func (e *Executor) runCompiled(
 		if arenaErr != nil {
 			return arenaErr
 		}
+		// Between runs, so no expert moves while a kernel reads its table.
+		if usesExperts {
+			if err := resources.experts.AdvanceExperts(ctx, state); err != nil {
+				return err
+			}
+		}
 		var executeErr error
 		var graphExecs *graphExecCache
 		if cacheGraph {

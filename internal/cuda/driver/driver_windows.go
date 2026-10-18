@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math"
 	"os"
 	"runtime"
 	"runtime/debug"
@@ -97,6 +98,9 @@ type Library struct {
 	cuMemcpyDtoH         *syscall.Proc
 	cuMemcpyDtoD         *syscall.Proc
 	cuMemsetD32Async     *syscall.Proc
+	cuMemHostAlloc       *syscall.Proc
+	cuMemHostDevice      *syscall.Proc
+	cuMemFreeHost        *syscall.Proc
 	cuModuleLoadData     *syscall.Proc
 	cuModuleUnload       *syscall.Proc
 	cuModuleGetFunction  *syscall.Proc
@@ -148,6 +152,9 @@ func Open() (*Library, error) {
 		{"cuMemcpyDtoH_v2", &lib.cuMemcpyDtoH},
 		{"cuMemcpyDtoD_v2", &lib.cuMemcpyDtoD},
 		{"cuMemsetD32Async", &lib.cuMemsetD32Async},
+		{"cuMemHostAlloc", &lib.cuMemHostAlloc},
+		{"cuMemHostGetDevicePointer_v2", &lib.cuMemHostDevice},
+		{"cuMemFreeHost", &lib.cuMemFreeHost},
 		{"cuModuleLoadData", &lib.cuModuleLoadData},
 		{"cuModuleUnload", &lib.cuModuleUnload},
 		{"cuModuleGetFunction", &lib.cuModuleGetFunction},
@@ -800,6 +807,48 @@ func (l *Library) MemsetD32Async(
 	l.deviceMemsets.Add(1)
 	l.deviceMemsetBytes.Add(count * 4)
 	return nil
+}
+
+// cuMemHostAlloc flags of the CUDA Driver API: PORTABLE pins the pages for
+// every context, DEVICEMAP maps them into the device's address space.
+const (
+	hostAllocPortable  = 0x01
+	hostAllocDeviceMap = 0x02
+)
+
+// MemHostAlloc pins bytes of host memory and maps them into the device: the
+// host fills the returned slice and kernels read the returned address over
+// the bus. The pages stay pinned until MemFreeHost.
+func (l *Library) MemHostAlloc(bytes uint64) ([]byte, DevicePtr, error) {
+	if bytes == 0 || bytes > math.MaxInt {
+		return nil, 0, errors.New("cuMemHostAlloc: allocation size is invalid")
+	}
+	var host unsafe.Pointer
+	var pointer DevicePtr
+	var pinned runtime.Pinner
+	pinned.Pin(&host)
+	pinned.Pin(&pointer)
+	defer pinned.Unpin()
+	result, _, _ := l.cuMemHostAlloc.Call(uintptr(unsafe.Pointer(&host)), uintptr(bytes), hostAllocPortable|hostAllocDeviceMap)
+	if err := l.result("cuMemHostAlloc", result); err != nil {
+		return nil, 0, err
+	}
+	result, _, _ = l.cuMemHostDevice.Call(uintptr(unsafe.Pointer(&pointer)), uintptr(host), 0)
+	if err := l.result("cuMemHostGetDevicePointer_v2", result); err != nil {
+		freed, _, _ := l.cuMemFreeHost.Call(uintptr(host))
+		return nil, 0, errors.Join(err, l.result("cuMemFreeHost", freed))
+	}
+	return unsafe.Slice((*byte)(host), bytes), pointer, nil
+}
+
+// MemFreeHost releases host memory MemHostAlloc returned, after the device
+// has finished reading it.
+func (l *Library) MemFreeHost(data []byte) error {
+	if len(data) == 0 {
+		return nil
+	}
+	result, _, _ := l.cuMemFreeHost.Call(uintptr(unsafe.Pointer(&data[0])))
+	return l.result("cuMemFreeHost", result)
 }
 
 func (l *Library) ownsDeviceRange(pointer DevicePtr, bytes uint64) bool {

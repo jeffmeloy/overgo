@@ -113,6 +113,28 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "flashnext-expert-reuse",
+      "title": "Reuse completed equal-sized expert allocations across bank order changes",
+      "status": "open",
+      "budget": {
+        "nodes": 150,
+        "reason": "Estimated bound for selecting an existing equal-sized unused victim within expertResidency.resolve. No new allocator, index, pool, cache buffer or kernel. Extend the existing mixed-bank test with estimated growth below 80 test AST nodes and no new fixtures."
+      },
+      "steps": [
+        {
+          "id": "replace",
+          "title": "Remove avoidable frees and fresh physical admission from mixed-size replacement",
+          "status": "open",
+          "verify": "go test ./internal/modeldevice -run '^TestFlashNextExpertResidency$'",
+          "rationale": "Serves: Reduce expert replacement work through the existing residency owner.\nResolveExpertBanks and launchMoE are the production callers.\nThe first unused LRU entry currently supplies a replacement only if its encoded size matches.\nA later unused matching allocation can remove a free, a new allocation and its physical-memory admission query.\nDisappears: Prefer the oldest eligible equal-sized allocation before freeing the oldest eligible differently sized entry.\nReuse the current order, entries, reclaim and failure cleanup without a second index or pool.\nPreserve exact selected experts, encoded bytes, needed-entry protection, configured byte limits and physical admission of genuinely new allocations.\nPreserve cancellation, failed-copy cleanup and release after stream completion.\nEvidence: evidence:sha256:96dcd36e5a50df06304cb67042e78402cb45732f71792b98110e13729c22b304 identifies expert resolution, reads, uploads and per-allocation admission.\nExtend TestFlashNextExpertResidency/encoded-hit-miss-eviction at its existing reversed-bank call.\nThe added allocation-reuse assertion must fail before implementation.\nRetain the current byte comparison, physical-pressure, cancellation, failed-copy and close cases.\nThe current unprofiled screenshot baseline is source-bound by evidence:sha256:3f3f10286312c750e08c01e669ae960f894ee65095afc0d5a61a5850a5953ecb.\nAll eleven captured source hashes match the committed implementation and no other runtime source changed before the comparison.\nReuse that baseline rather than rerunning it for extra confidence.\nCompare one warm-up and one complete frozen screenshot repeat with unchanged request, image profile and output work.\nRequire identical output IDs, fewer allocator operations in the regression case and lower full request time before adoption.\nCount added list traversal in the full request comparison and reject a slower implementation.\nNo persistent storage or resource budget increase is allowed.\nReport host and owned-device peaks and distinguish retained encoded content from added scratch or allocation capacity.\nDo not interpret this local diagnostic as matched Strata time or physical-memory acceptance.\nBatch: Land through the existing Go checks and dependency lanes after the bounded comparison.\nRemove the provisional implementation if its comparison does not justify the extra search.\nFinal held-out quality, matched physical peaks and 256K acceptance remain open.",
+          "depends_on": [
+            "flashnext-expert-decode/compute",
+            "flashnext-expert-reuse-plan/do"
+          ]
+        }
+      ]
+    },
+    {
       "id": "flashnext-efficiency",
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",
@@ -157,7 +179,7 @@
           "title": "Reuse the vision projector and composer for image, OCR and multi-image conversations",
           "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 go test -json ./internal/projector ./internal/server -run '^(TestQwen3VLOriginalFixture|TestPreprocessQwen3VLImageMergedOrder|TestQwen3VLMultipleImagePrompt|TestChatMultimodalAttachments|TestNativeCompletionMultimodalRequiresProjector)$' \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowserMediaCapture$' -leg 'media capture leg'",
-          "rationale": "Serves: Complete image, OCR and multiple-image conversations through the existing projector and composer.\nPreserve the independently checked Qwen4 vision geometry, GELU-erf merger, embeddings, positions and prompt insertion.\nBind exact image bytes and preprocessing to prompt reuse.\nDisappears: Reuse Qwen3VLRunner, its independent fixture, image attachment fixtures and existing browser media journeys.\nDo not add a projector sidecar, alternate image UI or duplicate policy suite.\nRetain distinct Qwen3-VL deepstack and numerical coverage.\nEvidence: evidence:sha256:c8cf723f8fc528c51ca5b5fe604a35f6a99073df0782dbfda3c915f21550a872 owns the original-model merger comparison.\nevidence:sha256:31ff3f685bf7b2f4e392554732c8b4ba297d4f5d52c4160f8430324ca52407f5 rejects the refined projected-device path on peak memory despite identical output and faster completion.\nIts frozen screenshot request takes 75.2954038 seconds against 87.0796214 seconds.\nIts device peak is 39108315520 bytes against 38679048064 bytes.\nThe rejected projected route and its unadopted retained-view selection are absent from the current implementation.\nDo not repeat the already rejected independent down-partial parallelism without a distinct measured cause.\nClosure requires held-out image and OCR quality, missing-projector refusal and matched common image performance against Strata.\nBatch: Resolve the actual existing numerical and browser test owners before adding model-specific wiring.\nMatch image dimensions, preprocessing and output work.\nFull-model observations remain outside the landing gate.\nLong context and final Strata parity remain open.\nGrouped expert processing is supported by evidence:sha256:1c0cbae2dd78f0ac4f12f3dd58e59e409ba5a365999cf16c49bedc25a9df4f8e.\nThe text diagnostic reduces prefill by about 48 percent with an explained 47384576-byte device-peak increase and no complete-answer parity claim.\nMeasure the image route on the accepted grouped implementation before adding another projector or staging mechanism.\nThe next comparison must keep complete-answer quality and matched Strata peak memory explicit.\nThe current screenshot diagnostic is evidence:sha256:0ccea32240a21749423c2adac98df7dc76a43df86c7f76086e24b9773ba2052f.\nIts complete 71-token answer retains all four required readings and takes 60189974200 ns including projection and the handler.\nOwned device peak is 38731240320 bytes and host working-set peak is 1799204864 bytes.\nAll owned device bytes are released.\nThis diagnostic leaves matched Strata time, physical memory and held-out image quality open.\nRemaining language decode takes about 31.6 seconds and precedes speculative decoding work.\nThe cooperative expert result is evidence:sha256:3f3f10286312c750e08c01e669ae960f894ee65095afc0d5a61a5850a5953ecb.\nThe frozen screenshot preserves every output ID and completes in 51246634400 ns.\nThe 2790400-byte owned-device increase comes entirely from the expert-cache population.\nThe 64487424-byte host working-set increase is retained as an unassigned cost.\nNo local zero-growth or native Strata memory pass is claimed.\nImage prefill still takes about 27.5 seconds and the host-cache route still transfers retained state on each decoded token.\nUse the retained execution counters and a bounded profile to choose the next reduction before changing residency, projection or speculation.",
+          "rationale": "Serves: Deliver image, OCR and multiple-image conversations through the existing projector and composer.\nPreserve independently checked geometry, merger arithmetic, embeddings, positions and exact media identity.\nDisappears: Reuse Qwen3VLRunner and the existing numerical, attachment and browser tests.\nNo sidecar, alternate renderer or duplicate policy suite is added.\nEvidence: evidence:sha256:c8cf723f8fc528c51ca5b5fe604a35f6a99073df0782dbfda3c915f21550a872 owns original-model merger coverage.\nevidence:sha256:31ff3f685bf7b2f4e392554732c8b4ba297d4f5d52c4160f8430324ca52407f5 rejects the earlier retained projected state approach on device peak.\nevidence:sha256:3f3f10286312c750e08c01e669ae960f894ee65095afc0d5a61a5850a5953ecb owns the current complete screenshot comparison.\nThe identical 71-token answer takes 51246634400 ns with 27543008700 ns of prefill.\nThe recorded 2790400-byte expert-cache increase and 64487424-byte host peak increase earn no memory-improvement claim.\nevidence:sha256:96dcd36e5a50df06304cb67042e78402cb45732f71792b98110e13729c22b304 separates current cold expert loading and physical admission from arithmetic.\nIts language prefill route interval has 71777 physical-memory queries, 51375 allocations and 61898 uploads.\nGPU expert-weight expansion takes about 0.81 seconds in that instrumented interval.\nCold filling and profiler overhead prevent transferring these durations to warmed timing predictions.\nBatch: Reduce measured expert allocation and transfer churn before another arithmetic or projected-cache change.\nUse existing owners and retain previous rejected comparisons.\nClosure requires held-out image and OCR quality, missing-projector refusal and matched common image performance against Strata.\nMatch image bytes, preprocessing, output work and peak host commitment, working set and physical device memory.\nKeep full-model observations outside the landing gate.\nKeep 256K and final parity obligations open until demonstrated.",
           "depends_on": [
             "flashnext-chat/serve",
             "flashnext-vision/arithmetic",
@@ -168,7 +190,8 @@
             "flashnext-retained-slices/do",
             "flashnext-retained-rejection/do",
             "flashnext-expert-matrices/compute",
-            "flashnext-expert-decode/compute"
+            "flashnext-expert-decode/compute",
+            "flashnext-expert-reuse/replace"
           ]
         }
       ]
@@ -228,7 +251,8 @@
             "flashnext-indexer-plan/do",
             "flashnext-storage-plan/do",
             "flashnext-prefill-plan/do",
-            "flashnext-expert-decode-plan/do"
+            "flashnext-expert-decode-plan/do",
+            "flashnext-expert-reuse-plan/do"
           ]
         }
       ]

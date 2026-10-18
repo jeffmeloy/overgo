@@ -40,6 +40,15 @@ func buildGatedHyperMix(builder *tensor.Builder, input, norm, down, up, inject *
 	return mixed, injection, builder.Err()
 }
 
+// repeatHyperStreams copies each token's row of a [width, tokens] tensor into every stream, on the device.
+func repeatHyperStreams(builder *tensor.Builder, input *tensor.Tensor, streams uint32) *tensor.Tensor {
+	if input == nil || input.Shape.Rank != tensor.PairedExtent {
+		return builder.HyperConnectionInit(input, streams)
+	}
+	width, tokens := input.Shape.Dims[0], input.Shape.Dims[1]
+	return builder.RepeatHeads(builder.Reshape(input, width, tensor.SingletonExtent, tokens), streams)
+}
+
 func executeGatedHyperMix(options blockDispatchOptions, operator layerOperator, execution *layerExecution) error {
 	builder, spec, weights := options.Context.Builder, options.Spec, options.Weights
 	if operator == layerOperatorGatedHyperHead && options.Context.Layer+tensor.SingletonExtent != spec.BlockCount {
@@ -52,7 +61,7 @@ func executeGatedHyperMix(options blockDispatchOptions, operator layerOperator, 
 		return errors.New("gated hyperconnection input is nil")
 	}
 	if operator == layerOperatorGatedHyperAttention && execution.current.Shape.Rank == tensor.PairedExtent {
-		execution.current = builder.HyperConnectionInit(execution.current, spec.HyperConnectionCount)
+		execution.current = repeatHyperStreams(builder, execution.current, spec.HyperConnectionCount)
 	}
 	if operator == layerOperatorGatedHyperAttention && spec.NGram != nil && spec.NGram.Layer == options.Context.Layer {
 		result, err := buildNGramInjection(options, execution.current)

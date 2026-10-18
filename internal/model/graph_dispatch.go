@@ -341,7 +341,7 @@ func executeLayerInstruction(
 			return errors.New("gated hyperconnection combination operands are nil")
 		}
 		execution.current = c.Builder.Add(execution.residual, c.Builder.Multiply(
-			c.Builder.HyperConnectionInit(execution.current, options.Spec.HyperConnectionCount), execution.injection,
+			repeatHyperStreams(c.Builder, execution.current, options.Spec.HyperConnectionCount), execution.injection,
 		))
 		execution.result.Output = execution.current
 		return c.Builder.Err()

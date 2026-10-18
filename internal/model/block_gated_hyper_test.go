@@ -13,8 +13,31 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
+// hostBridgeOperation finds an operation among the outputs' inputs that the CUDA executor computes on the host.
+//   - each such operation waits for the device and copies its inputs to the host, once a token in decode
+func hostBridgeOperation(outputs ...*tensor.Tensor) (tensor.Op, bool) {
+	seen := map[*tensor.Tensor]bool{}
+	pending := append([]*tensor.Tensor(nil), outputs...)
+	for len(pending) > 0 {
+		node := pending[len(pending)-1]
+		pending = pending[:len(pending)-1]
+		if node == nil || seen[node] {
+			continue
+		}
+		seen[node] = true
+		switch node.Op {
+		case tensor.OpHyperConnectionInit, tensor.OpHyperConnectionPre, tensor.OpHyperConnectionPost,
+			tensor.OpHyperConnectionHead, tensor.OpCompressedAttention:
+			return node.Op, true
+		}
+		pending = append(pending, node.Inputs...)
+	}
+	return 0, false
+}
+
 // TestFlashNextGatedBlocks compares loaded GGUF-layout weights with the original
-// Python model's FP32 forward and continuation state, including distinct streams.
+// Python model's FP32 forward and continuation state, including distinct streams,
+// and holds the block to operations the device computes itself.
 func TestFlashNextGatedBlocks(t *testing.T) {
 	data, err := os.ReadFile("testdata/flashnext_gated.json")
 	if err != nil {
@@ -90,6 +113,9 @@ func TestFlashNextGatedBlocks(t *testing.T) {
 			})
 			if err != nil {
 				t.Fatal(err)
+			}
+			if op, found := hostBridgeOperation(result.Output, result.Key, result.Value); found {
+				t.Fatalf("the gated block holds %s, which the device runs through the host bridge", op)
 			}
 			values, err := reference.Execute([]*tensor.Tensor{result.Output, result.Key, result.Value}, feeds)
 			if err != nil {

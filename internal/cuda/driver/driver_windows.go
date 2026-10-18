@@ -92,6 +92,7 @@ type Library struct {
 	cuMemAlloc           *syscall.Proc
 	cuMemFree            *syscall.Proc
 	cuMemGetInfo         *syscall.Proc
+	cuMemGetAddressRange *syscall.Proc
 	cuMemcpyHtoD         *syscall.Proc
 	cuMemcpyDtoH         *syscall.Proc
 	cuMemcpyDtoD         *syscall.Proc
@@ -142,6 +143,7 @@ func Open() (*Library, error) {
 		{"cuMemAlloc_v2", &lib.cuMemAlloc},
 		{"cuMemFree_v2", &lib.cuMemFree},
 		{"cuMemGetInfo_v2", &lib.cuMemGetInfo},
+		{"cuMemGetAddressRange_v2", &lib.cuMemGetAddressRange},
 		{"cuMemcpyHtoD_v2", &lib.cuMemcpyHtoD},
 		{"cuMemcpyDtoH_v2", &lib.cuMemcpyDtoH},
 		{"cuMemcpyDtoD_v2", &lib.cuMemcpyDtoD},
@@ -805,10 +807,32 @@ func (l *Library) ownsDeviceRange(pointer DevicePtr, bytes uint64) bool {
 		return false
 	}
 	l.allocationMu.Lock()
-	defer l.allocationMu.Unlock()
-	if capacity, found := l.allocations[pointer]; found {
+	capacity, found := l.allocations[pointer]
+	l.allocationMu.Unlock()
+	if found {
 		return bytes <= capacity
 	}
+	if l.cuMemGetAddressRange != nil {
+		// The driver names the allocation a pointer lies in, so an interior
+		// pointer is checked against that one allocation of the ledger.
+		var base DevicePtr
+		var size uint64
+		var pinned runtime.Pinner
+		pinned.Pin(&base)
+		pinned.Pin(&size)
+		result, _, _ := l.cuMemGetAddressRange.Call(uintptr(unsafe.Pointer(&base)), uintptr(unsafe.Pointer(&size)), uintptr(pointer))
+		pinned.Unpin()
+		if result != 0 {
+			return false
+		}
+		l.allocationMu.Lock()
+		capacity, found = l.allocations[base]
+		l.allocationMu.Unlock()
+		offset := uint64(pointer - base)
+		return found && offset <= capacity && bytes <= capacity-offset
+	}
+	l.allocationMu.Lock()
+	defer l.allocationMu.Unlock()
 	for base, capacity := range l.allocations {
 		if pointer < base {
 			continue

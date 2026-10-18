@@ -212,14 +212,10 @@ func (c *expertResidency) resolve(ctx context.Context, names []string, indices [
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	// The device's free memory narrows the limit only when an expert must be
+	// loaded, so a step whose experts are all resident queries nothing.
 	limit := c.limit
-	if c.state != nil {
-		free, _, err := c.state.Driver.MemInfo()
-		if err != nil {
-			return nil, err
-		}
-		limit = min(limit, c.bytes+free)
-	}
+	refined := c.state == nil
 	needed := make(map[expertKey]bool, len(names)*len(indices))
 	var keys []expertKey
 	bytes := c.tableBytes
@@ -271,6 +267,16 @@ func (c *expertResidency) resolve(ctx context.Context, names []string, indices [
 		if entry := c.entries[key]; entry != nil {
 			c.order.MoveToBack(entry)
 			continue
+		}
+		if !refined {
+			free, _, err := c.state.Driver.MemInfo()
+			if err != nil {
+				return nil, err
+			}
+			limit, refined = min(limit, c.bytes+free), true
+			if bytes > limit {
+				return nil, errors.New("routed experts exceed the residency limit")
+			}
 		}
 		bank := c.banks[key.bank]
 		if uint64(cap(c.staging)) < bank.bytes {

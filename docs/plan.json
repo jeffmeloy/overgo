@@ -117,15 +117,15 @@
       "title": "Decode Qwen3.8-Flash-Next at the speed Strata reaches on this PC",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "measured by the preflight of step router: the launch of the router logits kernel, its scratch place and its block constant"
+        "nodes": 248,
+        "reason": "measured by the preflight of step host-work: the device copy of hyper-connection streams, the driver's allocation lookup and the residency's deferred memory query"
       },
       "steps": [
         {
           "id": "host-work",
           "title": "Remove the per-token host work of the decode step that the profile names",
           "status": "open",
-          "verify": "go test ./internal/inference -count=1 -run '^TestDecodeStepDoesNoPerTokenHostWork$'",
+          "verify": "go test ./internal/model -count=1 -run '^TestFlashNextGatedBlocks$' \u0026\u0026 go test ./internal/cuda/driver -count=1 -run '^TestOwnsDeviceRange$'",
           "rationale": "From the profile after step router: 100 short-chat tokens take 8.6 s of wall time for about 2.9 s of GPU time.\nThe CPU profile of trunk names the host work of each token.\nThe executor compiles graphs during decode (Compile and compileGraph, about 1.0 s of 14.4 s).\nDriver.ownsDeviceRange walks a map on every launch and copy (1.4 s).\nMemInfo queries the device during decode (0.7 s), and garbage collection takes about 1.6 s.\nEach routed layer waits for the device and copies its routes back to resolve indexed expert banks on the host (launch_moe.go), 48 waits a token.\nThe step removes what has no reason to run a token at a time through the existing owners, and measures each removal.\nServes: throughput and first-output for Flash-Next and every model the decode session serves.\nDisappears: per-token compilation, range walks, device queries and the allocation churn the profile names.\nEvidence: a test that holds a decode step to no compilation, no device query and no range walk, and the short chat's decode speed before and after.\nBatch: device; set the row's count from the change's measured figure before it.",
           "depends_on": [
             "strata-decode/router"
@@ -307,7 +307,8 @@
             "flashnext-expert-decode-plan/do",
             "flashnext-expert-reuse-plan/do",
             "plan-strata-review/do",
-            "plan-router-count/do"
+            "plan-router-count/do",
+            "plan-host-work/do"
           ]
         }
       ]

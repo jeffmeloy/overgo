@@ -1,7 +1,6 @@
 package hfgguf
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -183,43 +182,13 @@ func mappedTensorData(mappings []tensorMapping) ([]gguf.TensorData, error) {
 		}
 		if len(mapping.transforms) != 0 {
 			traits, _ := storage.Traits()
-			transformed, err := transformPayload(reader, traits.TypeSize, func(data []byte, elementSize uint64) error {
-				for _, transform := range mapping.transforms {
-					if err := transform.apply(data, elementSize); err != nil {
-						return err
-					}
-				}
-				return nil
-			})
-			if err != nil {
-				return nil, fmt.Errorf("HF/GGUF adapter: tensor %q: %w", tensor.Name, err)
-			}
-			reader = transformed
+			reader = &transformedPayload{source: reader, elementSize: traits.TypeSize, transforms: mapping.transforms, name: tensor.Name}
 		}
 		tensors = append(tensors, gguf.TensorData{
 			Name: mapping.name, Shape: gguf.ReverseShape(shape), Type: storage, Data: reader,
 		})
 	}
 	return tensors, nil
-}
-
-// transformPayload: materialize a payload stream, mutate in place, re-emit.
-func transformPayload(
-	reader io.Reader,
-	elementSize uint64,
-	transform func(data []byte, elementSize uint64) error,
-) (io.Reader, error) {
-	encoded, err := io.ReadAll(reader)
-	if err != nil {
-		return nil, err
-	}
-	if elementSize == 0 || uint64(len(encoded))%elementSize != 0 {
-		return nil, errors.New("payload size disagrees with element size")
-	}
-	if err := transform(encoded, elementSize); err != nil {
-		return nil, err
-	}
-	return bytes.NewReader(encoded), nil
 }
 
 func denseTensorName(name string) (string, bool, error) {

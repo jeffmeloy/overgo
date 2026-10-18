@@ -267,6 +267,11 @@ type deviceExecutionAPI interface {
 	DeviceExecutionStats(context.Context) (driver.ExecutionStats, error)
 }
 
+// cardReadingsAPI reads the served card's live load for /metrics.
+type cardReadingsAPI interface {
+	CardReadings(context.Context) ([]driver.CardReading, error)
+}
+
 type toolCallExecutor interface {
 	ExecuteTool(context.Context, recipe.ToolCall) (recipe.ToolResult, error)
 }
@@ -462,6 +467,8 @@ type servingWorkspace struct {
 	mediaFetcher        *remoteMediaFetcher
 	responseFiles       responseFileResolver
 	thinkingSigner      *anthropicThinkingSigner
+	// prefilledTokens counts the prompt tokens evaluated, the cached ones left out, and prefillNanos the time they took.
+	prefilledTokens, prefillNanos atomic.Uint64
 	// slotStates holds saved prompt states, nil without a writable store.
 	slotStates *objectstore.Store
 }

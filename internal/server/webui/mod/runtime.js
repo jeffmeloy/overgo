@@ -5,6 +5,18 @@
   // measure: a quantity and its unit held on one line.
   function measure(text) { return window.overgo.el("span", { class: "mono nowrap", text }); }
 
+  // The monitor reads /metrics once a second while the tab shows, and each trend keeps a minute of reads.
+  const monitorMS = 1000, monitorPoints = 60;
+  // metricValues: the samples a /metrics answer holds, by name; a line that opens with # describes one.
+  function metricValues(text) {
+    const values = new Map();
+    for (const line of text.split("\n")) {
+      const space = line.lastIndexOf(" ");
+      if (space > 0 && line[0] !== "#") values.set(line.slice(0, space), Number(line.slice(space + 1)));
+    }
+    return values;
+  }
+
   window.overgo.registerTab({
     id: "runtime",
     async mount(panel, overgo) {
@@ -15,7 +27,73 @@
       const slots = el("div");
       const trend = el("div");
       const loop = el("section", { class: "loop-status", role: "region", "aria-label": "unattended loop", hidden: true });
-      panel.append(el("div", { class: "section-title", text: "Runtime" }), loop, identity, summary, error, slots, trend);
+      const monitorStats = el("div", { class: "statgrid" }), monitorTrend = el("div", { class: "turn-trend" });
+      const monitor = el("section", { class: "monitor", role: "region", "aria-label": "monitor", hidden: true },
+        el("div", { class: "section-title", text: "Monitor" }), monitorStats, monitorTrend);
+      panel.append(el("div", { class: "section-title", text: "Runtime" }), loop, identity, monitor,
+        el("div", { class: "section-title", text: "Sessions" }), summary, error, slots, trend);
+
+      // The monitor draws the served card and its experts live. A rate is a counter's change between two reads:
+      // decode over the time between them, prefill over the time the prompts took, so a read with no prompt keeps
+      // the last; hits are the routed experts found on the card between two reads, or since the model loaded.
+      // A /metrics without a card's readings or experts draws none, and one that fails hides the monitor.
+      let previous = null, readAt = 0, decode = null, prefill = null, hits = null, reading = false, frame = 0;
+      const trends = new Map();
+      overgo.onRelease(() => cancelAnimationFrame(frame));
+      async function sample() {
+        if (reading || document.hidden) return;
+        reading = true;
+        try {
+          const values = metricValues(await (await overgo.api.stream("/metrics", null, { method: "GET", signal: overgo.signal })).text());
+          const now = performance.now();
+          // A new server process starts its counters again.
+          if (previous && values.get("overgo_process_uptime_seconds") < previous.get("overgo_process_uptime_seconds")) previous = null;
+          const change = (name) => previous ? values.get(name) - previous.get(name) : 0;
+          decode = previous ? change("overgo_generated_tokens_total") / ((now - readAt) / 1000) : null;
+          if (change("overgo_prompt_seconds_total") > 0) prefill = change("overgo_prompt_tokens_total") / change("overgo_prompt_seconds_total");
+          if (change("overgo_expert_routes_total") > 0) hits = change("overgo_expert_routes_card_total") / change("overgo_expert_routes_total");
+          else if (hits == null && values.get("overgo_expert_routes_total")) hits = values.get("overgo_expert_routes_card_total") / values.get("overgo_expert_routes_total");
+          previous = values;
+          readAt = now;
+          // Draws share the page's frame: a read that lands while one is pending draws in it.
+          if (!frame) frame = requestAnimationFrame(() => { frame = 0; drawMonitor(previous); });
+        } catch (err) {
+          if (!overgo.signal.aborted) monitor.hidden = true;
+        } finally { reading = false; }
+      }
+      function drawMonitor(values) {
+        const has = (name) => values.has(name), get = (name) => values.get(name);
+        const used = get("overgo_device_memory_total_bytes") - get("overgo_device_memory_free_bytes");
+        const rate = (value) => value == null ? ["—", ""] : [value.toFixed(1), "tok/s"];
+        const shown = [
+          ["Decode", ...rate(decode), decode],
+          ["Prefill", ...rate(prefill)],
+          has("overgo_card_utilization_percent") && ["GPU load", get("overgo_card_utilization_percent"), "%", get("overgo_card_utilization_percent")],
+          has("overgo_device_memory_total_bytes") && ["Card memory", fmt.bytes(used), "of " + fmt.bytes(get("overgo_device_memory_total_bytes")), used],
+          has("overgo_card_temperature_celsius") && ["Temperature", get("overgo_card_temperature_celsius"), "°C"],
+          has("overgo_card_power_watts") && ["Power", Math.round(get("overgo_card_power_watts")), has("overgo_card_power_limit_watts") ? "W of " + Math.round(get("overgo_card_power_limit_watts")) + " W" : "W"],
+          has("overgo_card_pcie_generation") && ["PCIe", "Gen" + get("overgo_card_pcie_generation") + (has("overgo_card_pcie_width") ? " x" + get("overgo_card_pcie_width") : ""),
+            has("overgo_card_pcie_received_bytes_per_second") ? fmt.bytes(get("overgo_card_pcie_received_bytes_per_second")) + "/s to the card" : ""],
+          has("overgo_experts_card") && ["Experts on the card", fmt.grouped(get("overgo_experts_card")), "in " + fmt.bytes(get("overgo_experts_card_bytes"))],
+          has("overgo_experts_host") && ["Experts in RAM", fmt.grouped(get("overgo_experts_host")), "in " + fmt.bytes(get("overgo_experts_host_bytes"))],
+          has("overgo_experts_card") && ["Expert hits", hits == null ? "—" : Math.round(100 * hits), hits == null ? "" : "% on the card", hits == null ? null : 100 * hits],
+        ].filter(Boolean);
+        monitor.hidden = false;
+        monitorStats.replaceChildren(...shown.map(([label, value, unit]) => overgo.stat(label, value, unit)));
+        // A measure with a trend keeps its last reads; the card's memory reads against its total, the shares against all.
+        const ceilings = { "GPU load": 100, "Card memory": get("overgo_device_memory_total_bytes"), "Expert hits": 100 };
+        for (const [label, , , point] of shown) if (point != null) trends.set(label, [...(trends.get(label) || []), point].slice(-monitorPoints));
+        const drawn = shown.map(([label]) => [label, trends.get(label) || []]).filter(([, points]) => points.length > 1);
+        monitorTrend.replaceChildren(...drawn.map(([label, points]) => el("div", { class: "turn-trend-line" },
+          el("div", { class: "note", text: label + " over the last " + points.length + " reads" }),
+          window.overgo.viz.sparkline(points, { height: 36, label, max: ceilings[label] }))));
+      }
+      overgo.whileActive(() => {
+        previous = null;
+        sample();
+        const timer = setInterval(sample, monitorMS);
+        return () => clearInterval(timer);
+      });
 
       // The unattended loop of the checkout the server runs from: whether it runs, the row it works, its
       // last landing, and a stop it honours. A server that runs from no such checkout shows none.

@@ -9,6 +9,7 @@ import (
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
+	"overgo/internal/modeldevice"
 	"overgo/internal/sampling"
 	"overgo/internal/tokenizer"
 )
@@ -31,11 +32,13 @@ func (r *Runner) ExecutionMetrics(ctx context.Context) (executor.ExecutionMetric
 }
 
 // DeviceMemory is the served device's memory: the driver's total and free
-// bytes and the runner's live bytes by owner, largest share first.
+// bytes, the runner's live bytes by owner, largest share first, and, for a
+// model whose experts are file-backed, where its experts are.
 type DeviceMemory struct {
-	TotalBytes uint64              `json:"total_bytes"`
-	FreeBytes  uint64              `json:"free_bytes"`
-	Owners     []DeviceMemoryOwner `json:"owners"`
+	TotalBytes uint64                       `json:"total_bytes"`
+	FreeBytes  uint64                       `json:"free_bytes"`
+	Owners     []DeviceMemoryOwner          `json:"owners"`
+	Experts    *modeldevice.ExpertPlacement `json:"experts,omitempty"`
 }
 
 // DeviceMemoryOwner is one owner of the runner's live device bytes.
@@ -61,6 +64,10 @@ func (r *Runner) DeviceMemory(ctx context.Context) (DeviceMemory, error) {
 		live = state.Driver.MemoryStats().CurrentBytes
 		free, total, infoErr := state.Driver.MemInfo()
 		memory.FreeBytes, memory.TotalBytes = free, total
+		if infoErr == nil && r.rawWeights.HasExpertResidency() {
+			placement, placementErr := r.rawWeights.ExpertPlacement(state)
+			memory.Experts, infoErr = &placement, placementErr
+		}
 		return infoErr
 	}); err != nil {
 		return DeviceMemory{}, err
@@ -84,6 +91,24 @@ func (r *Runner) DeviceMemory(ctx context.Context) (DeviceMemory, error) {
 	}
 	slices.SortStableFunc(memory.Owners, func(a, b DeviceMemoryOwner) int { return cmp.Compare(b.Bytes, a.Bytes) })
 	return memory, nil
+}
+
+// CardReadings reads the served card's live load, each reading the card's
+// management library answers. The reads run off the device worker, because
+// one samples the card's link for milliseconds.
+func (r *Runner) CardReadings(ctx context.Context) ([]driver.CardReading, error) {
+	if r == nil || r.worker == nil {
+		return nil, errRunnerNil
+	}
+	var uuid string
+	err := r.worker.Do(ctx, func(state *device.State) (uuidErr error) {
+		uuid, uuidErr = state.Driver.DeviceUUID(state.Device)
+		return uuidErr
+	})
+	if err != nil {
+		return nil, err
+	}
+	return driver.CardReadings(uuid), nil
 }
 
 // ResetDeviceMemoryPeak starts an allocation high-water window at the current

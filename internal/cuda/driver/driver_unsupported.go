@@ -38,6 +38,14 @@ func (l *Library) DeviceInfo(ordinal int) (DeviceInfo, error) {
 	return DeviceInfo{}, errors.New("CUDA driver loading is currently supported only on Windows")
 }
 
+// DeviceUUID is unavailable where no CUDA driver loads.
+func (l *Library) DeviceUUID(Device) (string, error) {
+	return "", errors.New("CUDA driver loading is currently supported only on Windows")
+}
+
+// CardReadings reads nothing where no card's management library is bound.
+func CardReadings(string) []CardReading { return nil }
+
 func (l *Library) DeviceProfile(device Device) (smCount, maxThreadsPerSM int, err error) {
 	return 0, 0, errors.New("CUDA driver loading is currently supported only on Windows")
 }

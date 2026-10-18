@@ -121,6 +121,8 @@ type expertResidency struct {
 	routed            []byte
 	bytes, tableBytes uint64
 	step              uint64
+	// routes and cardRoutes are ExpertPlacement's counts.
+	routes, cardRoutes uint64
 }
 
 // EnableExpertResidency binds file-backed banks after the ordinary weight load succeeds.
@@ -346,6 +348,18 @@ func (c *expertResidency) readRuns(ctx context.Context, runs <-chan expertRun, f
 	return nil
 }
 
+// ExpertPlacement is where a residency's experts are and where its runs found the experts they routed.
+//   - bytes are slot bytes, card memory and pinned host memory
+//   - Routes counts the experts the runs' routes named, a bank's expert once a run
+//   - CardRoutes counts those a run read on the card, and the rest it read over the PCIe link
+//
+// A run's routes count when the next run starts, because the residency reads them only between runs.
+type ExpertPlacement struct {
+	CardExperts, HostExperts uint64
+	CardBytes, HostBytes     uint64
+	Routes, CardRoutes       uint64
+}
+
 // IsExpertBank reports a bank whose experts are found through its table on the owning worker.
 func (w *DeviceWeights) IsExpertBank(name string) bool {
 	return w != nil && w.experts != nil && w.experts.banks[name] != nil
@@ -361,6 +375,26 @@ func (w *DeviceWeights) ExpertMemory(state *device.State) (uint64, error) {
 		return 0, errors.New("expert memory query requires its owning worker")
 	}
 	return w.experts.bytes - w.experts.tableBytes, nil
+}
+
+// ExpertPlacement reports where the experts are on their owning worker.
+func (w *DeviceWeights) ExpertPlacement(state *device.State) (ExpertPlacement, error) {
+	if w == nil || w.experts == nil || w.experts.state != state {
+		return ExpertPlacement{}, errors.New("expert placement requires its owning worker")
+	}
+	c := w.experts
+	placement := ExpertPlacement{Routes: c.routes, CardRoutes: c.cardRoutes}
+	for _, class := range c.classes {
+		placement.CardExperts += uint64(class.order.Len())
+		placement.CardBytes += uint64(class.order.Len()) * class.stride
+	}
+	for _, bank := range c.ordered {
+		placement.HostExperts += uint64(len(bank.pointers))
+		placement.HostBytes += uint64(len(bank.pointers)) * bank.stride
+	}
+	placement.HostExperts -= placement.CardExperts
+	placement.HostBytes -= placement.CardBytes
+	return placement, nil
 }
 
 // ExpertRoutes returns the flags a routed node's routes mark, in host
@@ -415,7 +449,9 @@ func (c *expertResidency) advance(ctx context.Context) error {
 			}
 			for _, bank := range head.group {
 				key := expertKey{bank.info.Name, uint32(index)}
+				c.routes++
 				if entry := c.entries[key]; entry != nil {
+					c.cardRoutes++
 					entry.Value.(*residentExpert).step = c.step
 					c.classes[bank.stride].order.MoveToBack(entry)
 				} else {

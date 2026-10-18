@@ -285,27 +285,6 @@
       ]
     },
     {
-      "id": "strata-monitor",
-      "title": "Show the running model, the device and each request live in the GUI, as Strata's Monitor does",
-      "status": "open",
-      "budget": {
-        "nodes": 1150,
-        "reason": "monitor measured +1,113 production nodes in its worktree: an optional nvml.dll binding (+374) for GPU load, temperature, power and PCIe, the /metrics additions (+254), expert placement and hit counters in the residency (+192), per-request prefill accounting (+138)"
-      },
-      "steps": [
-        {
-          "id": "monitor",
-          "title": "Add a live monitor to the runtime view from the metrics the server already measures",
-          "status": "open",
-          "verify": "go test ./internal/server -count=1 -run '^TestMetricsReportDeviceAndExpertState$' \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowserMonitor$' -leg 'monitor leg'",
-          "rationale": "From the lead's review of Strata's GUI on 2026-10-17 (serve/web/app.js renderMonitor, renderConvCache, renderAbout).\nStrata's Monitor polls /metrics once a second and draws decode and prefill speed, GPU load, card memory, temperature, power, PCIe, CPU and disk, a context gauge, experts on the card and in RAM, and each recent request's prompt, reused, output, prefill and decode speed and hit rate.\nOvergo's runtime and requests views show none of the device's live state and no expert placement.\nThe step adds what is missing to the existing /metrics answer and to webui/mod/runtime.js and requests.js, in the page's existing frame-coalesced updates.\nIt adds no second page and no telemetry stream.\nServes: setup-steps and failure-rate as a person meets them: they see where the time and memory go while the model answers.\nDisappears: nothing.\nEvidence: the server test of the metrics answer and the browser leg of the monitor.\nBatch: host for the server and page; the browser leg in the webui lane.",
-          "depends_on": [
-            "strata-decode/device-experts"
-          ]
-        }
-      ]
-    },
-    {
       "id": "flashnext-efficiency",
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",

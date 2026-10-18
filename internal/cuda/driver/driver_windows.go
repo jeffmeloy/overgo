@@ -369,7 +369,7 @@ func (l *Library) DeviceInfo(ordinal int) (DeviceInfo, error) {
 	if err != nil {
 		return DeviceInfo{}, err
 	}
-	uuid, err := l.deviceUUID(device)
+	uuid, err := l.DeviceUUID(device)
 	if err != nil {
 		return DeviceInfo{}, err
 	}
@@ -404,7 +404,7 @@ func (l *Library) ContextCreate(device Device, flags uint32) (Context, error) {
 		if l.dll == nil {
 			return errors.New("CUDA library is closed")
 		}
-		uuid, err := l.deviceUUID(device)
+		uuid, err := l.DeviceUUID(device)
 		if err != nil {
 			return err
 		}
@@ -518,7 +518,7 @@ func (l *Library) MemAlloc(bytes uint64) (DevicePtr, error) {
 	if err := l.result("cuCtxGetDevice", result); err != nil {
 		return 0, err
 	}
-	uuid, err := l.deviceUUID(device)
+	uuid, err := l.DeviceUUID(device)
 	if err != nil {
 		return 0, err
 	}

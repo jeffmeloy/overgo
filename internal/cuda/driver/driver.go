@@ -112,6 +112,12 @@ type ExecutionStats struct {
 	GraphLaunches           uint64 `json:"graphLaunches"`
 }
 
+// CardReading is one live reading of a card's load, by the name /metrics gives it after overgo_card_.
+type CardReading struct {
+	Name  string
+	Value float64
+}
+
 // Version: CUDA's integer driver/toolkit version representation
 type Version int
 

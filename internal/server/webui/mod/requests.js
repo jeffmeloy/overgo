@@ -23,6 +23,23 @@
     return parts.join(" · ");
   }
 
+  // tokens: what a request's generations read and wrote, with the prompt tokens the cache already held and their share.
+  function tokens(item) {
+    if (!item.prompt_tokens && !item.completion_tokens) return "";
+    const reused = item.cached_tokens ? " (" + item.cached_tokens + " reused, " + Math.round(100 * item.cached_tokens / item.prompt_tokens) + "%)" : "";
+    return item.prompt_tokens + " in" + reused + " · " + item.completion_tokens + " out";
+  }
+
+  // speeds: prefill reads the prompt tokens the cache did not hold over the time they took, decode the output tokens
+  // over the time after; each shows only when the server measured it.
+  function speeds(item) {
+    const rate = (count, ms) => (count / (ms / 1000)).toFixed(1) + " tok/s";
+    const parts = [];
+    if (item.prefill_ms) parts.push("prefill " + rate(item.prompt_tokens - (item.cached_tokens || 0), item.prefill_ms));
+    if (item.decode_ms && item.completion_tokens) parts.push("decode " + rate(item.completion_tokens, item.decode_ms));
+    return parts.join(" · ");
+  }
+
   // waited: what a request spent before it generated, waiting for a place to run (after a stop, the slot before it
   // unwinding) and preparing its prompt, each shown only when the server measured it.
   function waited(item, fmt) {
@@ -46,13 +63,14 @@
         if (!latest) return;
         summary.textContent = totals(latest, fmt);
         const shown = latest.requests.filter((item) => show.value === "all" || (show.value === "in-flight" ? item.in_flight : failed(item)));
-        listHost.replaceChildren(overgo.table(["time", "method", "route", "status", "duration", "tokens", "waited"], shown.map((item) => [
+        listHost.replaceChildren(overgo.table(["time", "method", "route", "status", "duration", "tokens", "speed", "waited"], shown.map((item) => [
           new Date(item.started_ms).toLocaleTimeString(),
           item.method,
           item.route,
           item.in_flight ? el("span", { class: "tag", text: "in flight" }) : failed(item) ? el("span", { class: "tag caution", text: String(item.status) }) : String(item.status),
           fmt.elapsed(item.duration_ms),
-          item.prompt_tokens || item.completion_tokens ? item.prompt_tokens + " in · " + item.completion_tokens + " out" : "",
+          tokens(item),
+          speeds(item),
           waited(item, fmt),
         ]), "request-grid", "No requests match."));
       }

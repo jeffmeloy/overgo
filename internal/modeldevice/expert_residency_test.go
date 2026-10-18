@@ -176,6 +176,11 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		if err != nil || reclaimable != gateStride+downStride {
 			t.Fatalf("reclaimable card bytes = %d: %v", reclaimable, err)
 		}
+		placement, err := (&DeviceWeights{experts: cache}).ExpertPlacement(nil)
+		want := ExpertPlacement{CardExperts: 2, HostExperts: 2*experts - 2, CardBytes: gateStride + downStride, HostBytes: (experts - 1) * (gateStride + downStride)}
+		if err != nil || placement != want {
+			t.Fatalf("placement = %+v, want %+v: %v", placement, want, err)
+		}
 		all, _ := open(t, tableBytes+experts*(gateStride+downStride))
 		if len(all.pinned) != 1 || len(all.entries) != 2*experts {
 			t.Fatal("a limit that holds every expert left one in host memory")
@@ -204,6 +209,11 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		readable(t, cache, mem, map[string][]uint32{"gate": {1}, "down": {1}})
 		if len(cache.pinned) != pinned {
 			t.Fatal("swaps pinned more host memory")
+		}
+		// Three runs named expert 2, then 0 and 2, then 1, in both banks; only the second found its expert 2 on the card.
+		placement, err := (&DeviceWeights{experts: cache}).ExpertPlacement(nil)
+		if err != nil || placement.Routes != 8 || placement.CardRoutes != 2 || placement.CardExperts != 2 {
+			t.Fatalf("placement after the runs = %+v: %v", placement, err)
 		}
 	})
 	t.Run("release-moves-a-card-allocation-to-host", func(t *testing.T) {

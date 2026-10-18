@@ -36,12 +36,15 @@ type monitoredRequest struct {
 	duration         time.Duration
 	status           int
 	promptTokens     uint64
+	cachedTokens     uint64
 	completionTokens uint64
 	// admission is how long the request waited for a place to run, which is the time the slot
 	// before it took to unwind when one was just stopped, and preparation how long its prompt
 	// took to prepare (tokenized, or its media projected); each is the sum over the request's
 	// own, and neither is the request's generation, which the duration and tokens show.
 	admission, preparation time.Duration
+	// prefill is how long its prompts took to evaluate, and decode how long its generations ran after that.
+	prefill, decode time.Duration
 }
 
 // requestMonitor keeps what the server answered, for the Requests tab: the requests in flight and
@@ -80,8 +83,9 @@ func (m *requestMonitor) begin(request *http.Request, route string) (*http.Reque
 	}
 }
 
-// addTokens adds the tokens one generation made to the request its context belongs to.
-func (m *requestMonitor) addTokens(ctx context.Context, prompt, completion uint64) {
+// addTokens adds what one generation read and made to the request its context belongs to: its
+// prompt tokens, the cached ones among them, its output tokens, and its prefill and decode time.
+func (m *requestMonitor) addTokens(ctx context.Context, prompt, cached, completion uint64, prefill, decode time.Duration) {
 	record, monitored := ctx.Value(monitoredKey{}).(*monitoredRequest)
 	if !monitored {
 		return
@@ -89,7 +93,10 @@ func (m *requestMonitor) addTokens(ctx context.Context, prompt, completion uint6
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	record.promptTokens += prompt
+	record.cachedTokens += cached
 	record.completionTokens += completion
+	record.prefill += prefill
+	record.decode += decode
 }
 
 // addWaits adds time a request spent before it generated, waiting for a place to run and
@@ -116,9 +123,12 @@ type requestEntry struct {
 	DurationMS       float64 `json:"duration_ms"`
 	InFlight         bool    `json:"in_flight,omitzero"`
 	PromptTokens     uint64  `json:"prompt_tokens,omitzero"`
+	CachedTokens     uint64  `json:"cached_tokens,omitzero"`
 	CompletionTokens uint64  `json:"completion_tokens,omitzero"`
 	AdmissionMS      float64 `json:"admission_ms,omitzero"`
 	PreparationMS    float64 `json:"preparation_ms,omitzero"`
+	PrefillMS        float64 `json:"prefill_ms,omitzero"`
+	DecodeMS         float64 `json:"decode_ms,omitzero"`
 }
 
 type requestLogResponse struct {
@@ -144,14 +154,15 @@ func (m *requestMonitor) snapshot() requestLogResponse {
 }
 
 func entryOf(record *monitoredRequest, inFlight bool) requestEntry {
+	ms := func(span time.Duration) float64 { return float64(span) / float64(time.Millisecond) }
 	entry := requestEntry{
 		ID: record.id, Method: record.method, Route: record.route, StartedUnixMS: record.started.UnixMilli(),
-		DurationMS: float64(record.duration) / float64(time.Millisecond), PromptTokens: record.promptTokens, CompletionTokens: record.completionTokens,
-		AdmissionMS: float64(record.admission) / float64(time.Millisecond), PreparationMS: float64(record.preparation) / float64(time.Millisecond),
+		DurationMS: ms(record.duration), PromptTokens: record.promptTokens, CachedTokens: record.cachedTokens, CompletionTokens: record.completionTokens,
+		AdmissionMS: ms(record.admission), PreparationMS: ms(record.preparation), PrefillMS: ms(record.prefill), DecodeMS: ms(record.decode),
 	}
 	if inFlight {
 		entry.InFlight = true
-		entry.DurationMS = float64(time.Since(record.started)) / float64(time.Millisecond)
+		entry.DurationMS = ms(time.Since(record.started))
 	} else {
 		entry.Status = record.status
 	}

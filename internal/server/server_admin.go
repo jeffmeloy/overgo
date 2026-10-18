@@ -912,6 +912,11 @@ func (h *Handler) metrics(response http.ResponseWriter, request *http.Request) {
 			"overgo_generation_errors_total %d\n"+
 			"# TYPE overgo_generated_tokens_total counter\n"+
 			"overgo_generated_tokens_total %d\n"+
+			"# HELP overgo_prompt_tokens_total Prompt tokens evaluated, those the cache held left out.\n"+
+			"# TYPE overgo_prompt_tokens_total counter\n"+
+			"overgo_prompt_tokens_total %d\n"+
+			"# TYPE overgo_prompt_seconds_total counter\n"+
+			"overgo_prompt_seconds_total %g\n"+
 			"# TYPE overgo_process_uptime_seconds gauge\n"+
 			"overgo_process_uptime_seconds %.3f\n",
 		h.requestsTotal.Load(),
@@ -919,8 +924,37 @@ func (h *Handler) metrics(response http.ResponseWriter, request *http.Request) {
 		h.generationRequests.Load(),
 		h.generationErrors.Load(),
 		h.generatedTokens.Load(),
+		h.prefilledTokens.Load(),
+		time.Duration(h.prefillNanos.Load()).Seconds(),
 		time.Since(h.started).Seconds(),
 	)
+	if api, ok := h.generator.(deviceMemoryOwnersAPI); ok {
+		if memory, err := api.DeviceMemory(request.Context()); err == nil {
+			_, _ = fmt.Fprintf(response,
+				"# TYPE overgo_device_memory_total_bytes gauge\novergo_device_memory_total_bytes %d\n"+
+					"# TYPE overgo_device_memory_free_bytes gauge\novergo_device_memory_free_bytes %d\n",
+				memory.TotalBytes, memory.FreeBytes)
+			if experts := memory.Experts; experts != nil {
+				_, _ = fmt.Fprintf(response,
+					"# TYPE overgo_experts_card gauge\novergo_experts_card %d\n"+
+						"# TYPE overgo_experts_host gauge\novergo_experts_host %d\n"+
+						"# TYPE overgo_experts_card_bytes gauge\novergo_experts_card_bytes %d\n"+
+						"# TYPE overgo_experts_host_bytes gauge\novergo_experts_host_bytes %d\n"+
+						"# HELP overgo_expert_routes_total Experts the runs' routes named, a bank's expert once a run.\n"+
+						"# TYPE overgo_expert_routes_total counter\novergo_expert_routes_total %d\n"+
+						"# TYPE overgo_expert_routes_card_total counter\novergo_expert_routes_card_total %d\n",
+					experts.CardExperts, experts.HostExperts, experts.CardBytes, experts.HostBytes, experts.Routes, experts.CardRoutes)
+			}
+		}
+	}
+	// A reading the card's management library does not answer is left out.
+	if api, ok := h.generator.(cardReadingsAPI); ok {
+		if readings, err := api.CardReadings(request.Context()); err == nil {
+			for _, reading := range readings {
+				_, _ = fmt.Fprintf(response, "# TYPE overgo_card_%[1]s gauge\novergo_card_%[1]s %[2]g\n", reading.Name, reading.Value)
+			}
+		}
+	}
 	if api, ok := h.generator.(deviceMemoryAPI); ok {
 		if stats, err := api.DeviceMemoryStats(request.Context()); err == nil {
 			_, _ = fmt.Fprintf(
@@ -979,7 +1013,7 @@ func (h *Handler) generate(
 	clock := processmeasure.NewStopwatch()
 	hardware := newServingHardwareCollector(h.generator, clock)
 	hardware.sample(ctx, runrecord.ServingHardwareStart)
-	var promptTokens, outputTokens, promptEvaluated atomic.Uint64
+	var promptTokens, cachedTokens, outputTokens, promptEvaluated atomic.Uint64
 	var promptDuration atomic.Int64
 	before := driver.ExecutionStats{}
 	if api, ok := h.generator.(deviceExecutionAPI); ok {
@@ -1002,7 +1036,10 @@ func (h *Handler) generate(
 		}
 		hardware.sample(ctx, runrecord.ServingHardwarePrefill)
 		promptTokens.Add(uint64(max(evaluation.Tokens, 0)))
+		cachedTokens.Add(uint64(max(evaluation.Cached, 0)))
 		promptDuration.Add(max(evaluation.Duration.Nanoseconds(), 0))
+		h.prefilledTokens.Add(uint64(max(evaluation.Tokens-evaluation.Cached, 0)))
+		h.prefillNanos.Add(uint64(max(evaluation.Duration.Nanoseconds(), 0)))
 		if stats != nil {
 			stats.promptTokens.Add(uint64(max(evaluation.Tokens, 0)))
 			stats.cachedTokens.Add(uint64(max(evaluation.Cached, 0)))
@@ -1037,7 +1074,10 @@ func (h *Handler) generate(
 		return nil
 	}
 	ids, text, err := session.Model().Generate(ctx, prompt, options)
-	h.requests.addTokens(ctx, promptTokens.Load(), outputTokens.Load())
+	// Decode runs from the prompt's first evaluation to the end, or the whole generation when no prompt was evaluated.
+	finished := hardware.walls.Elapsed(clock)
+	h.requests.addTokens(ctx, promptTokens.Load(), cachedTokens.Load(), outputTokens.Load(),
+		time.Duration(promptDuration.Load()), time.Duration(finished-min(promptEvaluated.Load(), finished)))
 	hardware.finish(ctx)
 	if err != nil {
 		h.generationErrors.Add(1)

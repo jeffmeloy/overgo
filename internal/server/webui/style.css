@@ -252,6 +252,8 @@ table.grid.hide-empty:not(:has(tbody tr)) { display:none; }
 /* The recent turns' trend: one labelled sparkline per measure. */
 .turn-trend { display:grid; gap:var(--s2); margin:var(--s2) 0; }
 .turn-trend-line svg { display:block; }
+/* The monitor's trends stand in columns, as its facts do. */
+.monitor .turn-trend { grid-template-columns:repeat(auto-fill, minmax(min(100%, 260px), 1fr)); column-gap:var(--s6); }
 .support-rungs { list-style:none; margin:var(--s1) 0; padding:0; display:flex; flex-direction:column; gap:var(--s1); }
 .support-rungs li { color:var(--dim); overflow-wrap:anywhere; }
 .support-rungs li.held { color:var(--ink); }

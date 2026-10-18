@@ -12,7 +12,8 @@ import (
 // cudaUUIDBytes is sizeof(CUuuid.bytes), the CUDA Driver API's 16-octet UUID.
 const cudaUUIDBytes = 16
 
-func (l *Library) deviceUUID(device Device) (string, error) {
+// DeviceUUID answers a device's physical UUID as NVML names the card (GPU-...).
+func (l *Library) DeviceUUID(device Device) (string, error) {
 	var uuid [cudaUUIDBytes]byte
 	var pinned runtime.Pinner
 	pinned.Pin(&uuid)

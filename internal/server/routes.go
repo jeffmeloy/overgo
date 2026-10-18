@@ -26,8 +26,8 @@ type routeDescriptor struct {
 	// path's first segment names, and the event hub tells every workspace.
 	Inventory bool
 	// Unrecorded: the request monitor leaves the route out, the monitor's own reads, the health
-	// probes the page and any supervisor repeat every few seconds, and a subscription that is held
-	// open for as long as a page listens.
+	// probes and metrics the page and any supervisor repeat every few seconds, and a subscription
+	// that is held open for as long as a page listens.
 	Unrecorded bool
 	// HeldOpen: the answer is a subscription a page holds open for as long as it listens. The response says so, so a swap
 	// proxy in front of the server does not wait for it to end when the model changes.
@@ -38,7 +38,7 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/health", Authentication: routePublic, Methods: []string{http.MethodGet}, Handler: (*Handler).health, Unrecorded: true},
 	{Path: "/healthz", Authentication: routePublic, Methods: []string{http.MethodGet}, Handler: (*Handler).health, Unrecorded: true},
 	{Path: "/v1/health", Authentication: routePublic, Methods: []string{http.MethodGet}, Handler: (*Handler).health, Unrecorded: true},
-	{Path: "/metrics", Authentication: routePublic, Methods: []string{http.MethodGet}, Handler: (*Handler).metrics},
+	{Path: "/metrics", Authentication: routePublic, Methods: []string{http.MethodGet}, Handler: (*Handler).metrics, Unrecorded: true},
 	{Path: "/v1/models", Authentication: routePublic, Methods: []string{http.MethodGet}, Handler: (*Handler).models},
 	{Path: "/models", Authentication: routePublic, Methods: []string{http.MethodGet}, Handler: (*Handler).models},
 	{Path: "/v1/completions", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).completions},

@@ -412,7 +412,8 @@
             "plan-retire-reopened/do",
             "plan-graph-count/do",
             "plan-monitor-count/do",
-            "plan-decode-kernels/do"
+            "plan-decode-kernels/do",
+            "plan-sqa164/do"
           ]
         }
       ]

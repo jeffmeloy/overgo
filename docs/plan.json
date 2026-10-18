@@ -217,6 +217,13 @@
       },
       "steps": [
         {
+          "id": "decode-kernels",
+          "title": "Bring the decode step's top kernels toward the card's memory bandwidth",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestDecodeKernelsMatchTheirReferences$'",
+          "rationale": "From step decode-graph: with each decode step replayed as one graph, Flash-Next's warm short chat (capacity recipe, 100 tokens) takes 2.20 s, 45.3 tokens a second, and a warm run spends 87 percent of its time waiting on the card: kernels take about 19 ms a token, against Strata's 148.7 tokens a second (6.7 ms a token) on this PC.\nNsight Systems over a trunk run (d306d4821) ranks the kernels, ms a run: mul_mat_q8_0_input_f32 497 (26 percent), cuBLAS gemv2T on F32 weights 315 (16.5), moe_router_logits_f32 239 (12.5), moe_hidden_dot_f32 159, moe_down_dot_f32 92, moe_route_f32 61, mul_mat_q6_K_input_f32 58, group_slice_f32 57, gated_delta_net_f32 49, attention_decode_f32 44.\nMeasure first on the current trunk with --cuda-graph-trace=node: the per-kernel table, the bytes each kernel reads a token and its achieved bandwidth against the card's, and which weights the F32 gemv reads.\nThe step brings the top kernels toward the card's memory bandwidth on the decode shape (one token): the Q8_0 matrix-vector product by the block-dot pattern of the expert kernels (a lane's eight weights, the block scale read once, 16-byte reads, one warp a row or a tile of rows); the F32 gemv by a native kernel on the weights' stored type where cuBLAS's is slow for this shape; and the router logits by a warp-parallel reduction, which changes their summation order (owner doctrine: a fast native path outranks output identity; held-out quality is the guard, and routing near ties may change).\nAcceptance: each kernel's output within the reference tolerance on the executor's fixtures, the chat's text compared with trunk and any change explained, the per-kernel table and the chat's speed before and after.\nServes: throughput and first-output for Flash-Next and every model with Q8_0 or F32 dense weights.\nBatch: device."
+        },
+        {
           "id": "fast-load",
           "title": "Read routed experts once, in the hashing pass, at the disk's rate",
           "status": "open",
@@ -432,7 +439,8 @@
             "plan-experts-count/do",
             "plan-retire-reopened/do",
             "plan-graph-count/do",
-            "plan-monitor-count/do"
+            "plan-monitor-count/do",
+            "plan-decode-kernels/do"
           ]
         }
       ]

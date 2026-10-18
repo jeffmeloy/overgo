@@ -501,10 +501,21 @@
       "owner": "overgo_moss",
       "status": "open",
       "budget": {
-        "nodes": 1500,
-        "reason": "A typed multi-component import description and its executor extend existing intake; no second registry or general compiler is planned."
+        "nodes": 3000,
+        "reason": "The measured pipeline inventory and receipt-backed registration draft adds 1500 production syntax nodes. The original 1500-node allowance remains for architecture resolution and lifecycle integration. Existing inventory, source verification, publication, recipe and intake owners retain their responsibilities."
       },
       "steps": [
+        {
+          "id": "source",
+          "title": "Register declared pipelines from verified acquisition receipts",
+          "status": "open",
+          "verify": "go test ./internal/modelartifact ./cmd/recipe -count=1 -run '^(TestPipelineInventory.*|TestRawTextPublicationPreservesImmutableFacts|TestRecipeSpec.*|TestModelRegistration.*)$'",
+          "rationale": "Model and upstream golden validation precede pipeline import changes.\nThe structural source path can land before numerical tolerance policy because it neither resolves execution support nor activates a model.\nThe remaining inspection and materialization steps retain their complete architecture and lifecycle obligations.\nServes: deterministic import of pinned multi-component repositories through recipe spec and recipe register.\nDisappears: hand-written component lists and a manufactured Git checkout after verified hub acquisition.\nEvidence: the draft commands register the acquired MOSS model with 19 components and 1473 tensors while preserving its model and tensor inventory identities.\nBatch: modelartifact and recipe command changes together because inventory belongs to the inference surface.\nThe declared pipeline components come from model_index.json and retain component policy bytes.\nScalar and numeric array policy values remain policy values rather than component declarations.\nSource receipts cover every inventoried payload and the selected license.\nAn inferred license identifier requires a verified model card.\nExplicit license identifiers record the caller's review of the verified license.\nLocal Python source is inventoried as bytes and never executed.\nExisting raw-text descriptor reconciliation preserves immutable plain-text, Markdown and Python-source metadata while refusing size, schema and binary conflicts.\nControlled tests require identical declarations across relocation and reversed receipt enumeration.\nRepeated publication leaves the journal unchanged and invalid source declarations publish nothing.\nActual draft registration retains model:sha256:fc5fd3cedb681bc901c4b03b9826339375bb94f7d960886833473213358f64c6 and tensor-inventory:sha256:7a8ba6d51f1ca4d03a7e6260e16fce2cf2097d9f6817e90a550a088d2fb35f6a.\nThe declaration is file:sha256:c5f627e3a77250712600bd561c3d594c7a0354d60b9f3d37e5653178d787c69b.\nActual readback confirms 19 components and 1473 tensors with no weight copying.\nThe same draft inventories the existing Krea2 checkpoint with 14 components and 1337 tensors.\nThe Krea2 probe does not establish recipe migration or numerical verification.\nAcquisition, structural inventory, numerical verification and activation remain distinct.",
+          "depends_on": [
+            "moss-reference/acquire",
+            "moss-oracle/portable"
+          ]
+        },
         {
           "id": "inspect",
           "title": "Derive a deterministic import description without loading weights",
@@ -512,7 +523,8 @@
           "verify": "go test ./internal/modelintake -count=1 -run '^TestDeterministicComponentImportDescription$'",
           "rationale": "Extend intake to inspect immutable configs, tokenizer metadata, indexes and safetensors headers for multi-component artifacts as well as current single-file inputs.\nProduce a canonical, versioned description of source hashes, components, tensors, shapes, dtypes, names and transforms, required operators, tokenizer policy, scheduler, capabilities, recipe dependencies and resource estimates.\nResolve known architectures from registered profiles and validate config facts against actual tensor shapes.\nUnknown architectures or operations produce an explicit unsupported report; do not execute remote code or use model inference to guess mappings.\nCanonical content excludes timestamps, local absolute paths, map iteration and transfer order; record physical locations separately.\nAcceptance proves identical descriptions across input enumeration order, worker count, repeated execution and relocation, plus exact invalidation when a source or policy changes.\nServes: deterministic model import and early compatibility reporting.\nDisappears: repeated manual tensor mapping through modelartifact, tensorcatalog and modelrecipe ownership.\nEvidence: canonical import artifact and refusal cases consumed by both CLI and library intake.\nBatch: intake/profile lanes; inventory changes alone should not expire execution guards; reconcile public contract if operation schema changes.\nCompose the import description from existing manifests, TensorInventoryDocument, architecture profiles, resolved model definitions and recipe graphs.\nDo not create a second registry or parallel import state machine.\nExisting stage receipts retain progress and failures, artifact.Publish commits atomic batches, and recipe activation retains rollback.\nReuse requires identical source, mapping, transformation, policy and validation identities.\nLocations and transient transfer state do not enter logical content identities.\nAcquired, structurally valid, numerically verified and activated states remain distinct.\nA new document contract is justified only by a fact the existing records cannot represent.",
           "depends_on": [
-            "moss-oracle/goldens"
+            "moss-oracle/goldens",
+            "moss-import/source"
           ]
         },
         {

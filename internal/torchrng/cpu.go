@@ -1,4 +1,4 @@
-package rae
+package torchrng
 
 import (
 	"fmt"
@@ -88,13 +88,14 @@ func (m *mersenne) uniform() float32 {
 	return float32(m.word()&uniformMask) / uniformScale
 }
 
-// torchNormal draws count standard normals as torch.randn does for a
-// contiguous float32 tensor on the CPU from a generator seeded with seed:
-// every uniform first, then Box-Muller over each chunk of sixteen, and a
-// count that leaves a partial chunk redraws the last sixteen uniforms.
-func torchNormal(seed int64, count int) ([]float32, error) {
+// CPUNormal draws contiguous float32 normals with pinned PyTorch CPU AVX2 semantics.
+//   - The seed initializes a fresh MT19937 generator from its low word.
+//   - Counts below one reference chunk are refused because they use a different Torch algorithm.
+//   - Scalar float32 arithmetic preserves the pinned AVX2 result on every host.
+//   - Partial chunks redraw the last complete chunk as the reference does.
+func CPUNormal(seed int64, count int) ([]float32, error) {
 	if count < normalChunk {
-		return nil, fmt.Errorf("rae: seeded noise of %d values is shorter than torch's %d-value fill", count, normalChunk)
+		return nil, fmt.Errorf("torchrng: seeded CPU noise of %d values is shorter than torch's %d-value fill", count, normalChunk)
 	}
 	generator := newMersenne(seed)
 	values := make([]float32, count)
@@ -118,9 +119,10 @@ func torchNormal(seed int64, count int) ([]float32, error) {
 // reference's float32 arithmetic.
 func boxMuller(chunk []float32) {
 	for index := range normalHalf {
-		radius := float32(math.Sqrt(float64(logScale * float32(math.Log(float64(1-chunk[index]))))))
-		theta := float32(fullTurn * float64(chunk[index+normalHalf]))
-		chunk[index] = radius * float32(math.Cos(float64(theta)))
-		chunk[index+normalHalf] = radius * float32(math.Sin(float64(theta)))
+		radius := float32(math.Sqrt(float64(logScale * cpuLog(1-chunk[index]))))
+		theta := float32(fullTurn) * chunk[index+normalHalf]
+		s, c := cpuSinCos(theta)
+		chunk[index] = radius * c
+		chunk[index+normalHalf] = radius * s
 	}
 }

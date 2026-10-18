@@ -1,4 +1,4 @@
-// Package torchrng is a family-neutral, PyTorch-bit-exact CUDA normal source.
+// Package torchrng reproduces pinned PyTorch CPU and CUDA normal generation.
 //
 // It ports the seed-matched TorchCUDARandn generator from adaptive_new
 // (go/extmodel NewTorchCUDARandnCUDAStream): a Philox counter-based kernel plus

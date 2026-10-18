@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/jsonfile"
 	"overgo/internal/testutil"
+	"overgo/internal/torchrng"
 )
 
 // generationReference is fixtures/rae/generation.json: seeded noise, a class
@@ -35,7 +36,7 @@ func TestSeededNoiseMatchesReference(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := loadReference(t, fixtures, reference.Noise)
-	got, err := torchNormal(int64(reference.Seed), len(want))
+	got, err := torchrng.CPUNormal(int64(reference.Seed), len(want))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +45,7 @@ func TestSeededNoiseMatchesReference(t *testing.T) {
 	if worst > 1e-6*scale {
 		t.Fatalf("seeded noise differs from the reference by up to %.3g", worst)
 	}
-	if _, err := torchNormal(int64(reference.Seed), normalHalf); err == nil {
+	if _, err := torchrng.CPUNormal(int64(reference.Seed), 8); err == nil {
 		t.Fatal("a draw shorter than torch's fill was accepted")
 	}
 }

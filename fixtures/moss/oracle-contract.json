@@ -1,0 +1,8797 @@
+{
+  "cases": [
+    {
+      "artifact": "tensor-set:sha256:f55669402c6d12d20d047a461e90fa9e2da3f8bdb7b3d55cc189cc85f84b2160",
+      "backend_policy": "cpu-sdpa-auto",
+      "environment": {
+        "device": "cpu",
+        "package_Pillow": "12.2.0",
+        "package_accelerate": "1.14.0",
+        "package_diffusers": "0.39.0",
+        "package_safetensors": "0.8.0",
+        "package_torch": "2.12.0+cu126",
+        "package_transformers": "5.14.1",
+        "python": "3.13.5",
+        "seed": "42"
+      },
+      "inputs": {},
+      "metadata_sha256": "6d964acccefcf80c49d37430c796b114d926c362f38f2f536d9195583e48cd37",
+      "name": "primitives",
+      "producer": "file:sha256:c041bf2d6926f35bd4660ec6801cfae0dd2b71f20fb02cdb7c70df92ea90140d",
+      "repeatability": "Two CPU float32 transformer forwards are bitwise equal; masked padding is invariant",
+      "tensors": {
+        "rope.rectangular": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            10,
+            128
+          ]
+        },
+        "schedule.1.initial": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            1,
+            1,
+            1,
+            3
+          ]
+        },
+        "schedule.1.latent.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            1,
+            1,
+            3
+          ]
+        },
+        "schedule.1.prediction": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            1,
+            1,
+            1,
+            3
+          ]
+        },
+        "schedule.1.sigmas": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            2
+          ]
+        },
+        "schedule.1.timesteps": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            1
+          ]
+        },
+        "schedule.1001.initial": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            1,
+            1,
+            1,
+            3
+          ]
+        },
+        "schedule.1001.latent.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            1,
+            1,
+            3
+          ]
+        },
+        "schedule.1001.latent.615": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            1,
+            1,
+            3
+          ]
+        },
+        "schedule.1001.prediction": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            1,
+            1,
+            1,
+            3
+          ]
+        },
+        "schedule.1001.sigmas": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            617
+          ]
+        },
+        "schedule.1001.timesteps": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            616
+          ]
+        },
+        "schedule.2.initial": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            1,
+            1,
+            1,
+            3
+          ]
+        },
+        "schedule.2.latent.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            1,
+            1,
+            3
+          ]
+        },
+        "schedule.2.latent.1": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            1,
+            1,
+            3
+          ]
+        },
+        "schedule.2.prediction": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            1,
+            1,
+            1,
+            3
+          ]
+        },
+        "schedule.2.sigmas": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            3
+          ]
+        },
+        "schedule.2.timesteps": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            2
+          ]
+        },
+        "schedule.50.initial": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            1,
+            1,
+            1,
+            3
+          ]
+        },
+        "schedule.50.latent.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            1,
+            1,
+            3
+          ]
+        },
+        "schedule.50.latent.49": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            1,
+            1,
+            3
+          ]
+        },
+        "schedule.50.prediction": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            1,
+            1,
+            1,
+            3
+          ]
+        },
+        "schedule.50.sigmas": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            51
+          ]
+        },
+        "schedule.50.timesteps": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            50
+          ]
+        },
+        "situ.gate": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            7
+          ]
+        },
+        "situ.hidden": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            7
+          ]
+        },
+        "situ.output": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            7
+          ]
+        },
+        "transformer.context": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            2,
+            4,
+            8
+          ]
+        },
+        "transformer.input": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            2,
+            4,
+            2,
+            3
+          ]
+        },
+        "transformer.mask": {
+          "comparison": "exact",
+          "dtype": "BOOL",
+          "shape": [
+            2,
+            4
+          ]
+        },
+        "transformer.output": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            2,
+            4,
+            2,
+            3
+          ]
+        },
+        "transformer.skip_one": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            2,
+            4,
+            2,
+            3
+          ]
+        },
+        "transformer.times": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            2
+          ]
+        },
+        "transformer.weights.final_linear_video.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            4,
+            16
+          ]
+        },
+        "transformer.weights.final_norm_video.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16
+          ]
+        },
+        "transformer.weights.layers.0.k_norm.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            8
+          ]
+        },
+        "transformer.weights.layers.0.norm1.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16
+          ]
+        },
+        "transformer.weights.layers.0.norm2.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16
+          ]
+        },
+        "transformer.weights.layers.0.proj.ffn_down.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16,
+            32
+          ]
+        },
+        "transformer.weights.layers.0.proj.ffn_up_gate.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            64,
+            16
+          ]
+        },
+        "transformer.weights.layers.0.proj.k.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16,
+            16
+          ]
+        },
+        "transformer.weights.layers.0.proj.o.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16,
+            16
+          ]
+        },
+        "transformer.weights.layers.0.proj.q.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16,
+            16
+          ]
+        },
+        "transformer.weights.layers.0.proj.v.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16,
+            16
+          ]
+        },
+        "transformer.weights.layers.0.q_norm.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            8
+          ]
+        },
+        "transformer.weights.layers.1.k_norm.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            8
+          ]
+        },
+        "transformer.weights.layers.1.norm1.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16
+          ]
+        },
+        "transformer.weights.layers.1.norm2.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16
+          ]
+        },
+        "transformer.weights.layers.1.proj.ffn_down.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16,
+            32
+          ]
+        },
+        "transformer.weights.layers.1.proj.ffn_up_gate.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            64,
+            16
+          ]
+        },
+        "transformer.weights.layers.1.proj.k.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16,
+            16
+          ]
+        },
+        "transformer.weights.layers.1.proj.o.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16,
+            16
+          ]
+        },
+        "transformer.weights.layers.1.proj.q.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16,
+            16
+          ]
+        },
+        "transformer.weights.layers.1.proj.v.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16,
+            16
+          ]
+        },
+        "transformer.weights.layers.1.q_norm.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            8
+          ]
+        },
+        "transformer.weights.rope.bands": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            1
+          ]
+        },
+        "transformer.weights.shared_block_modulation.bias": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            96
+          ]
+        },
+        "transformer.weights.shared_block_modulation.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            96,
+            16
+          ]
+        },
+        "transformer.weights.text_embedder.blocks.0.ffn_down.bias": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16
+          ]
+        },
+        "transformer.weights.text_embedder.blocks.0.ffn_down.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16,
+            32
+          ]
+        },
+        "transformer.weights.text_embedder.blocks.0.ffn_gate.bias": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            32
+          ]
+        },
+        "transformer.weights.text_embedder.blocks.0.ffn_gate.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            32,
+            16
+          ]
+        },
+        "transformer.weights.text_embedder.blocks.0.ffn_up.bias": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            32
+          ]
+        },
+        "transformer.weights.text_embedder.blocks.0.ffn_up.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            32,
+            16
+          ]
+        },
+        "transformer.weights.text_embedder.blocks.0.k_norm.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            8
+          ]
+        },
+        "transformer.weights.text_embedder.blocks.0.norm1.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16
+          ]
+        },
+        "transformer.weights.text_embedder.blocks.0.norm2.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16
+          ]
+        },
+        "transformer.weights.text_embedder.blocks.0.proj.bias": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16
+          ]
+        },
+        "transformer.weights.text_embedder.blocks.0.proj.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16,
+            16
+          ]
+        },
+        "transformer.weights.text_embedder.blocks.0.q_norm.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            8
+          ]
+        },
+        "transformer.weights.text_embedder.blocks.0.qkv.bias": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            48
+          ]
+        },
+        "transformer.weights.text_embedder.blocks.0.qkv.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            48,
+            16
+          ]
+        },
+        "transformer.weights.text_embedder.blocks.1.ffn_down.bias": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16
+          ]
+        },
+        "transformer.weights.text_embedder.blocks.1.ffn_down.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16,
+            32
+          ]
+        },
+        "transformer.weights.text_embedder.blocks.1.ffn_gate.bias": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            32
+          ]
+        },
+        "transformer.weights.text_embedder.blocks.1.ffn_gate.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            32,
+            16
+          ]
+        },
+        "transformer.weights.text_embedder.blocks.1.ffn_up.bias": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            32
+          ]
+        },
+        "transformer.weights.text_embedder.blocks.1.ffn_up.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            32,
+            16
+          ]
+        },
+        "transformer.weights.text_embedder.blocks.1.k_norm.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            8
+          ]
+        },
+        "transformer.weights.text_embedder.blocks.1.norm1.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16
+          ]
+        },
+        "transformer.weights.text_embedder.blocks.1.norm2.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16
+          ]
+        },
+        "transformer.weights.text_embedder.blocks.1.proj.bias": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16
+          ]
+        },
+        "transformer.weights.text_embedder.blocks.1.proj.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16,
+            16
+          ]
+        },
+        "transformer.weights.text_embedder.blocks.1.q_norm.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            8
+          ]
+        },
+        "transformer.weights.text_embedder.blocks.1.qkv.bias": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            48
+          ]
+        },
+        "transformer.weights.text_embedder.blocks.1.qkv.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            48,
+            16
+          ]
+        },
+        "transformer.weights.text_embedder.proj.bias": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16
+          ]
+        },
+        "transformer.weights.text_embedder.proj.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16,
+            8
+          ]
+        },
+        "transformer.weights.time_embedding.0.bias": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16
+          ]
+        },
+        "transformer.weights.time_embedding.0.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16,
+            8
+          ]
+        },
+        "transformer.weights.time_embedding.2.bias": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16
+          ]
+        },
+        "transformer.weights.time_embedding.2.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16,
+            16
+          ]
+        },
+        "transformer.weights.video_embedder.bias": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16
+          ]
+        },
+        "transformer.weights.video_embedder.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            16,
+            4
+          ]
+        },
+        "transformer.weights.video_head_modulation.bias": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            32
+          ]
+        },
+        "transformer.weights.video_head_modulation.weight": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            32,
+            16
+          ]
+        }
+      }
+    },
+    {
+      "artifact": "tensor-set:sha256:78cb6fb6b261f4cb61405bace3a19815f0a535a0ece4a34e4183a905fb8563aa",
+      "backend_policy": "cpu-tokenizer",
+      "environment": {
+        "package_safetensors": "0.8.0",
+        "package_torch": "2.12.0+cu126",
+        "package_transformers": "5.14.1",
+        "python": "3.13.5",
+        "seed": "none; deterministic tokenizer has no RNG",
+        "settings": "add_generation_prompt=true; enable_thinking=true; truncation=true; max_length=4096; individual unpadded encoding"
+      },
+      "inputs": {},
+      "metadata_sha256": "039879090b6f084ec6f5e0fecfc734178e7261199acc780c6f5b24301a927039",
+      "name": "tokenizer",
+      "producer": "file:sha256:853e49d6b55e722d98510e3e9ac95b005f2a0b59876ce1689e0b60a5e4e8b135",
+      "repeatability": "Repeated tokenization and Qwen2Tokenizer versus AutoTokenizer agree for every case, checked by the pinned producer.",
+      "tensors": {
+        "chinese.attention_mask": {
+          "comparison": "exact",
+          "dtype": "I64",
+          "shape": [
+            1,
+            22
+          ]
+        },
+        "chinese.input_ids": {
+          "comparison": "exact",
+          "dtype": "I64",
+          "shape": [
+            1,
+            22
+          ]
+        },
+        "empty.attention_mask": {
+          "comparison": "exact",
+          "dtype": "I64",
+          "shape": [
+            1,
+            10
+          ]
+        },
+        "empty.input_ids": {
+          "comparison": "exact",
+          "dtype": "I64",
+          "shape": [
+            1,
+            10
+          ]
+        },
+        "english.attention_mask": {
+          "comparison": "exact",
+          "dtype": "I64",
+          "shape": [
+            1,
+            22
+          ]
+        },
+        "english.input_ids": {
+          "comparison": "exact",
+          "dtype": "I64",
+          "shape": [
+            1,
+            22
+          ]
+        },
+        "layout.attention_mask": {
+          "comparison": "exact",
+          "dtype": "I64",
+          "shape": [
+            1,
+            151
+          ]
+        },
+        "layout.input_ids": {
+          "comparison": "exact",
+          "dtype": "I64",
+          "shape": [
+            1,
+            151
+          ]
+        },
+        "truncation.attention_mask": {
+          "comparison": "exact",
+          "dtype": "I64",
+          "shape": [
+            1,
+            4096
+          ]
+        },
+        "truncation.input_ids": {
+          "comparison": "exact",
+          "dtype": "I64",
+          "shape": [
+            1,
+            4096
+          ]
+        },
+        "whitespace.attention_mask": {
+          "comparison": "exact",
+          "dtype": "I64",
+          "shape": [
+            1,
+            20
+          ]
+        },
+        "whitespace.input_ids": {
+          "comparison": "exact",
+          "dtype": "I64",
+          "shape": [
+            1,
+            20
+          ]
+        }
+      }
+    },
+    {
+      "artifact": "tensor-set:sha256:909d2b0b5205a147c3c9e23cd271e8b75a76343dbc5a35ec56c41a269711dd2f",
+      "backend_policy": "cpu-sdpa-auto",
+      "environment": {
+        "attention": "sdpa",
+        "device": "cpu",
+        "dtype": "bfloat16",
+        "package_diffusers": "0.39.0",
+        "package_safetensors": "0.8.0",
+        "package_torch": "2.12.0+cu126",
+        "package_transformers": "5.14.1",
+        "python": "3.13.5",
+        "seed": "42",
+        "threads": "1"
+      },
+      "inputs": {
+        "tokenizer_fixture_sha256": "tensor-set:sha256:245bdf0160438342440f85bf2430ab3facb7ac918e8effd9a00d798602fe7259"
+      },
+      "metadata_sha256": "526b482e3f4f9c05be3498795e763c8b063e10f6cc2d67eab625ec98697baa12",
+      "name": "conditioning",
+      "producer": "file:sha256:b7970ae74ae8844a62fc3b737e6d67612f4ef2bc5e2fa3b1e3ac09cb7cb2ec99",
+      "repeatability": "Two independent encode_prompt calls are bitwise identical; normalized states are unchanged; masked padding is zero",
+      "tensors": {
+        "batch.attention_mask": {
+          "comparison": "exact",
+          "dtype": "BOOL",
+          "shape": [
+            3,
+            22
+          ]
+        },
+        "batch.last_hidden_state": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            3,
+            22,
+            4096
+          ]
+        },
+        "chinese.final_norm": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            22,
+            4096
+          ]
+        },
+        "chinese.layer.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            22,
+            4096
+          ]
+        },
+        "chinese.layer.16": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            22,
+            4096
+          ]
+        },
+        "chinese.layer.31": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            22,
+            4096
+          ]
+        },
+        "empty.final_norm": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            10,
+            4096
+          ]
+        },
+        "empty.layer.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            10,
+            4096
+          ]
+        },
+        "empty.layer.16": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            10,
+            4096
+          ]
+        },
+        "empty.layer.31": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            10,
+            4096
+          ]
+        },
+        "english.final_norm": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            22,
+            4096
+          ]
+        },
+        "english.layer.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            22,
+            4096
+          ]
+        },
+        "english.layer.16": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            22,
+            4096
+          ]
+        },
+        "english.layer.31": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            22,
+            4096
+          ]
+        }
+      }
+    },
+    {
+      "artifact": "tensor-set:sha256:f2ce176c186cc19b45c09852b985a01560ef85ee9ac7a4c54af3caac2096899e",
+      "backend_policy": "cpu-sdpa-auto",
+      "environment": {
+        "device": "cpu",
+        "package_diffusers": "0.39.0",
+        "package_safetensors": "0.8.0",
+        "package_torch": "2.12.0+cu126",
+        "package_transformers": "5.14.1",
+        "python": "3.13.5",
+        "seed": "42",
+        "settings": "height=32;width=48;steps=2;guidance=1,3;negative_skip_layers=[22];BF16 transformer;FP32 VAE/noise/CFG/Euler",
+        "threads": "1"
+      },
+      "inputs": {
+        "checkpoint_receipt_sha256": "file:sha256:0d9b600f6232957565c26e86c9f9b0d19411b87fe97d665bbe7b93bd7770a9db",
+        "conditioning_sha256": "tensor-set:sha256:909d2b0b5205a147c3c9e23cd271e8b75a76343dbc5a35ec56c41a269711dd2f"
+      },
+      "metadata_sha256": "48b46ab70434d89f02c548fe736744169cd982e2506454800c8950a026d6939f",
+      "name": "image-cpu",
+      "producer": "file:sha256:a340e7f5ce348b55980d7de070161c11e571bd62cca1f2a88a38d05d2fa3d630",
+      "repeatability": "All captured stages of two executions per guidance value are bitwise equal and finite",
+      "tensors": {
+        "cfg1.block.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            28,
+            3072
+          ]
+        },
+        "cfg1.block.21": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            28,
+            3072
+          ]
+        },
+        "cfg1.block.41": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            28,
+            3072
+          ]
+        },
+        "cfg1.latents.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg1.latents.1": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg1.pixels": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            3,
+            32,
+            48
+          ]
+        },
+        "cfg1.prediction.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg1.prediction.1": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg1.schedule.sigmas": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            3
+          ]
+        },
+        "cfg1.schedule.timesteps": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            2
+          ]
+        },
+        "cfg1.text_refinement": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            22,
+            3072
+          ]
+        },
+        "cfg1.vae.decoded": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            3,
+            32,
+            48
+          ]
+        },
+        "cfg1.vae.unpacked": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            32,
+            4,
+            6
+          ]
+        },
+        "cfg1.velocity.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg1.velocity.1": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg3.block.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            28,
+            3072
+          ]
+        },
+        "cfg3.block.21": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            28,
+            3072
+          ]
+        },
+        "cfg3.block.41": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            28,
+            3072
+          ]
+        },
+        "cfg3.latents.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg3.latents.1": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg3.pixels": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            3,
+            32,
+            48
+          ]
+        },
+        "cfg3.prediction.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg3.prediction.1": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg3.prediction.2": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg3.prediction.3": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg3.schedule.sigmas": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            3
+          ]
+        },
+        "cfg3.schedule.timesteps": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            2
+          ]
+        },
+        "cfg3.text_refinement": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            22,
+            3072
+          ]
+        },
+        "cfg3.vae.decoded": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            3,
+            32,
+            48
+          ]
+        },
+        "cfg3.vae.unpacked": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            32,
+            4,
+            6
+          ]
+        },
+        "cfg3.velocity.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg3.velocity.1": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "input.latents": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "input.negative": {
+          "comparison": "exact",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            22,
+            4096
+          ]
+        },
+        "input.negative_mask": {
+          "comparison": "exact",
+          "dtype": "BOOL",
+          "shape": [
+            1,
+            22
+          ]
+        },
+        "input.positive": {
+          "comparison": "exact",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            22,
+            4096
+          ]
+        },
+        "input.positive_mask": {
+          "comparison": "exact",
+          "dtype": "BOOL",
+          "shape": [
+            1,
+            22
+          ]
+        }
+      }
+    },
+    {
+      "artifact": "tensor-set:sha256:2678d42f33c02c72537e4735d45148086b4be5c1d50fded629f34ede6f116d2c",
+      "backend_policy": "cuda-sdpa-auto",
+      "environment": {
+        "attention_dispatch": "[\"aten::_scaled_dot_product_efficient_attention\", \"aten::scaled_dot_product_attention\"]",
+        "attention_policy": "auto",
+        "cuda": "12.6",
+        "device": "NVIDIA GeForce RTX 4090 D",
+        "package_diffusers": "0.39.0",
+        "package_safetensors": "0.8.0",
+        "package_torch": "2.12.0+cu126",
+        "package_transformers": "5.14.1",
+        "python": "3.13.5",
+        "seed": "42",
+        "settings": "height=32;width=48;steps=2;guidance=1,3;negative_skip_layers=[22];BF16 transformer;FP32 VAE/noise/CFG/Euler",
+        "threads": "1"
+      },
+      "inputs": {
+        "checkpoint_receipt_sha256": "file:sha256:0d9b600f6232957565c26e86c9f9b0d19411b87fe97d665bbe7b93bd7770a9db",
+        "conditioning_sha256": "tensor-set:sha256:909d2b0b5205a147c3c9e23cd271e8b75a76343dbc5a35ec56c41a269711dd2f",
+        "parent_producer_sha256": "file:sha256:a340e7f5ce348b55980d7de070161c11e571bd62cca1f2a88a38d05d2fa3d630"
+      },
+      "metadata_sha256": "60b27919d299f3ec694ae5f4ac83e9df6f53fcb06c179cece99bd4f736bce9bb",
+      "name": "image-cuda-auto",
+      "producer": "file:sha256:5f1036a439eea3084939084c24759622d454453349f92bafafb2fb8a267407bf",
+      "repeatability": "All captured stages of two executions per guidance value are bitwise equal and finite",
+      "tensors": {
+        "cfg1.block.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            28,
+            3072
+          ]
+        },
+        "cfg1.block.21": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            28,
+            3072
+          ]
+        },
+        "cfg1.block.41": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            28,
+            3072
+          ]
+        },
+        "cfg1.latents.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg1.latents.1": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg1.pixels": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            3,
+            32,
+            48
+          ]
+        },
+        "cfg1.prediction.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg1.prediction.1": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg1.schedule.sigmas": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            3
+          ]
+        },
+        "cfg1.schedule.timesteps": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            2
+          ]
+        },
+        "cfg1.text_refinement": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            22,
+            3072
+          ]
+        },
+        "cfg1.vae.decoded": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            3,
+            32,
+            48
+          ]
+        },
+        "cfg1.vae.unpacked": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            32,
+            4,
+            6
+          ]
+        },
+        "cfg1.velocity.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg1.velocity.1": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg3.block.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            28,
+            3072
+          ]
+        },
+        "cfg3.block.21": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            28,
+            3072
+          ]
+        },
+        "cfg3.block.41": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            28,
+            3072
+          ]
+        },
+        "cfg3.latents.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg3.latents.1": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg3.pixels": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            3,
+            32,
+            48
+          ]
+        },
+        "cfg3.prediction.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg3.prediction.1": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg3.prediction.2": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg3.prediction.3": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg3.schedule.sigmas": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            3
+          ]
+        },
+        "cfg3.schedule.timesteps": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            2
+          ]
+        },
+        "cfg3.text_refinement": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            22,
+            3072
+          ]
+        },
+        "cfg3.vae.decoded": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            3,
+            32,
+            48
+          ]
+        },
+        "cfg3.vae.unpacked": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            32,
+            4,
+            6
+          ]
+        },
+        "cfg3.velocity.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg3.velocity.1": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "input.latents": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "input.negative": {
+          "comparison": "exact",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            22,
+            4096
+          ]
+        },
+        "input.negative_mask": {
+          "comparison": "exact",
+          "dtype": "BOOL",
+          "shape": [
+            1,
+            22
+          ]
+        },
+        "input.positive": {
+          "comparison": "exact",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            22,
+            4096
+          ]
+        },
+        "input.positive_mask": {
+          "comparison": "exact",
+          "dtype": "BOOL",
+          "shape": [
+            1,
+            22
+          ]
+        }
+      }
+    },
+    {
+      "artifact": "tensor-set:sha256:7ee9662b33ac54b73a14e08e66358c662bff8df8a08edccaae502109f3439cb7",
+      "backend_policy": "cuda-sdpa-math",
+      "environment": {
+        "attention_dispatch": "[\"aten::_scaled_dot_product_attention_math\", \"aten::scaled_dot_product_attention\"]",
+        "attention_policy": "math",
+        "cuda": "12.6",
+        "device": "NVIDIA GeForce RTX 4090 D",
+        "package_diffusers": "0.39.0",
+        "package_safetensors": "0.8.0",
+        "package_torch": "2.12.0+cu126",
+        "package_transformers": "5.14.1",
+        "python": "3.13.5",
+        "seed": "42",
+        "settings": "height=32;width=48;steps=2;guidance=1,3;negative_skip_layers=[22];BF16 transformer;FP32 VAE/noise/CFG/Euler",
+        "threads": "1"
+      },
+      "inputs": {
+        "checkpoint_receipt_sha256": "file:sha256:0d9b600f6232957565c26e86c9f9b0d19411b87fe97d665bbe7b93bd7770a9db",
+        "conditioning_sha256": "tensor-set:sha256:909d2b0b5205a147c3c9e23cd271e8b75a76343dbc5a35ec56c41a269711dd2f",
+        "parent_producer_sha256": "file:sha256:a340e7f5ce348b55980d7de070161c11e571bd62cca1f2a88a38d05d2fa3d630"
+      },
+      "metadata_sha256": "1fcd68d63e79d4467e7e8d75fa993dc98de3d6bf89f49869ca959811810e6d2e",
+      "name": "image-cuda-math",
+      "producer": "file:sha256:5f1036a439eea3084939084c24759622d454453349f92bafafb2fb8a267407bf",
+      "repeatability": "All captured stages of two executions per guidance value are bitwise equal and finite",
+      "tensors": {
+        "cfg1.block.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            28,
+            3072
+          ]
+        },
+        "cfg1.block.21": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            28,
+            3072
+          ]
+        },
+        "cfg1.block.41": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            28,
+            3072
+          ]
+        },
+        "cfg1.latents.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg1.latents.1": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg1.pixels": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            3,
+            32,
+            48
+          ]
+        },
+        "cfg1.prediction.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg1.prediction.1": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg1.schedule.sigmas": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            3
+          ]
+        },
+        "cfg1.schedule.timesteps": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            2
+          ]
+        },
+        "cfg1.text_refinement": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            22,
+            3072
+          ]
+        },
+        "cfg1.vae.decoded": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            3,
+            32,
+            48
+          ]
+        },
+        "cfg1.vae.unpacked": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            32,
+            4,
+            6
+          ]
+        },
+        "cfg1.velocity.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg1.velocity.1": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg3.block.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            28,
+            3072
+          ]
+        },
+        "cfg3.block.21": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            28,
+            3072
+          ]
+        },
+        "cfg3.block.41": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            28,
+            3072
+          ]
+        },
+        "cfg3.latents.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg3.latents.1": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg3.pixels": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            3,
+            32,
+            48
+          ]
+        },
+        "cfg3.prediction.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg3.prediction.1": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg3.prediction.2": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg3.prediction.3": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg3.schedule.sigmas": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            3
+          ]
+        },
+        "cfg3.schedule.timesteps": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            2
+          ]
+        },
+        "cfg3.text_refinement": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            22,
+            3072
+          ]
+        },
+        "cfg3.vae.decoded": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            3,
+            32,
+            48
+          ]
+        },
+        "cfg3.vae.unpacked": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            32,
+            4,
+            6
+          ]
+        },
+        "cfg3.velocity.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "cfg3.velocity.1": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "input.latents": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            2,
+            3
+          ]
+        },
+        "input.negative": {
+          "comparison": "exact",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            22,
+            4096
+          ]
+        },
+        "input.negative_mask": {
+          "comparison": "exact",
+          "dtype": "BOOL",
+          "shape": [
+            1,
+            22
+          ]
+        },
+        "input.positive": {
+          "comparison": "exact",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            22,
+            4096
+          ]
+        },
+        "input.positive_mask": {
+          "comparison": "exact",
+          "dtype": "BOOL",
+          "shape": [
+            1,
+            22
+          ]
+        }
+      }
+    },
+    {
+      "artifact": "tensor-set:sha256:88de812dba7af834b44863064343fd89337c8df6d41368fcafaa861c84cfc97d",
+      "backend_policy": "cuda-sdpa-auto",
+      "environment": {
+        "cuda": "12.6",
+        "device": "NVIDIA GeForce RTX 4090 D",
+        "package_Pillow": "12.2.0",
+        "package_accelerate": "1.14.0",
+        "package_diffusers": "0.39.0",
+        "package_safetensors": "0.8.0",
+        "package_torch": "2.12.0+cu126",
+        "package_transformers": "5.14.1",
+        "python": "3.13.5",
+        "seed": "42",
+        "settings": "BF16 text encoder/denoiser; FP32 VAE/noise/CFG/Euler; deterministic algorithms; TF32 disabled; negative branch skips layer 22"
+      },
+      "inputs": {
+        "checkpoint_receipt_sha256": "file:sha256:0d9b600f6232957565c26e86c9f9b0d19411b87fe97d665bbe7b93bd7770a9db"
+      },
+      "metadata_sha256": "115517873c844878b2454d468cd307496ae11e048e5f1ca78b7d807c5271b99a",
+      "name": "full-english",
+      "producer": "file:sha256:f5ea6d9279bbe9572f4e5b554d6ec2585311f530f87df9729d826282a97bee17",
+      "repeatability": "Every captured tensor is finite and bitwise identical across two upstream runs.",
+      "tensors": {
+        "block.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            4118,
+            3072
+          ]
+        },
+        "block.21": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            4118,
+            3072
+          ]
+        },
+        "block.41": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            4118,
+            3072
+          ]
+        },
+        "conditioning.0.hidden": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            22,
+            4096
+          ]
+        },
+        "conditioning.0.ids": {
+          "comparison": "exact",
+          "dtype": "I64",
+          "shape": [
+            1,
+            22
+          ]
+        },
+        "conditioning.0.mask": {
+          "comparison": "exact",
+          "dtype": "I64",
+          "shape": [
+            1,
+            22
+          ]
+        },
+        "conditioning.1.hidden": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            10,
+            4096
+          ]
+        },
+        "conditioning.1.ids": {
+          "comparison": "exact",
+          "dtype": "I64",
+          "shape": [
+            1,
+            10
+          ]
+        },
+        "conditioning.1.mask": {
+          "comparison": "exact",
+          "dtype": "I64",
+          "shape": [
+            1,
+            10
+          ]
+        },
+        "initial_latents": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.1": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.10": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.11": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.12": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.13": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.14": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.15": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.16": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.17": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.18": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.19": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.2": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.20": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.21": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.22": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.23": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.24": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.25": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.26": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.27": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.28": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.29": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.3": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.30": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.31": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.32": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.33": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.34": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.35": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.36": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.37": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.38": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.39": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.4": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.40": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.41": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.42": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.43": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.44": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.45": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.46": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.47": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.48": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.49": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.5": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.6": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.7": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.8": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.9": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "modulation": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            18432
+          ]
+        },
+        "pixels": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            3,
+            1024,
+            1024
+          ]
+        },
+        "prediction.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.1": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.10": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.11": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.12": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.13": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.14": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.15": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.16": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.17": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.18": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.19": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.2": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.20": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.21": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.22": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.23": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.24": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.25": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.26": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.27": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.28": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.29": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.3": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.30": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.31": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.32": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.33": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.34": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.35": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.36": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.37": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.38": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.39": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.4": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.40": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.41": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.42": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.43": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.44": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.45": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.46": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.47": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.48": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.49": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.5": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.50": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.51": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.52": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.53": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.54": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.55": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.56": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.57": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.58": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.59": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.6": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.60": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.61": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.62": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.63": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.64": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.65": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.66": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.67": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.68": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.69": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.7": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.70": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.71": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.72": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.73": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.74": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.75": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.76": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.77": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.78": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.79": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.8": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.80": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.81": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.82": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.83": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.84": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.85": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.86": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.87": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.88": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.89": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.9": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.90": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.91": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.92": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.93": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.94": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.95": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.96": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.97": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.98": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.99": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "rope": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            4118,
+            128
+          ]
+        },
+        "schedule.sigmas": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            51
+          ]
+        },
+        "schedule.timesteps": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            50
+          ]
+        },
+        "text_refinement": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            22,
+            3072
+          ]
+        },
+        "timestep_embedding": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            3072
+          ]
+        },
+        "timestep_embedding.input": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            256
+          ]
+        },
+        "vae.decoded": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            3,
+            1024,
+            1024
+          ]
+        },
+        "vae.unpacked": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            32,
+            128,
+            128
+          ]
+        },
+        "velocity.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.1": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.10": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.11": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.12": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.13": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.14": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.15": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.16": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.17": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.18": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.19": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.2": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.20": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.21": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.22": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.23": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.24": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.25": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.26": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.27": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.28": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.29": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.3": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.30": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.31": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.32": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.33": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.34": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.35": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.36": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.37": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.38": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.39": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.4": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.40": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.41": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.42": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.43": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.44": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.45": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.46": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.47": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.48": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.49": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.5": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.6": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.7": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.8": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.9": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        }
+      }
+    },
+    {
+      "artifact": "tensor-set:sha256:972464914a558ad9eeeb2c377faff7fbf069ad51f09ef0f8b7bfeb67ac35bb3f",
+      "backend_policy": "cuda-sdpa-auto",
+      "environment": {
+        "cuda": "12.6",
+        "device": "NVIDIA GeForce RTX 4090 D",
+        "package_Pillow": "12.2.0",
+        "package_accelerate": "1.14.0",
+        "package_diffusers": "0.39.0",
+        "package_safetensors": "0.8.0",
+        "package_torch": "2.12.0+cu126",
+        "package_transformers": "5.14.1",
+        "python": "3.13.5",
+        "seed": "42",
+        "settings": "BF16 text encoder/denoiser; FP32 VAE/noise/CFG/Euler; deterministic algorithms; TF32 disabled; negative branch skips layer 22"
+      },
+      "inputs": {
+        "checkpoint_receipt_sha256": "file:sha256:0d9b600f6232957565c26e86c9f9b0d19411b87fe97d665bbe7b93bd7770a9db"
+      },
+      "metadata_sha256": "4b82b78180942354a33c0172edc9135e2641b156bb89ae7b21cb025cc4e237c4",
+      "name": "full-chinese-rectangle",
+      "producer": "file:sha256:f5ea6d9279bbe9572f4e5b554d6ec2585311f530f87df9729d826282a97bee17",
+      "repeatability": "Every captured tensor is finite and bitwise identical across two upstream runs.",
+      "tensors": {
+        "block.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            3094,
+            3072
+          ]
+        },
+        "block.21": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            3094,
+            3072
+          ]
+        },
+        "block.41": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            3094,
+            3072
+          ]
+        },
+        "conditioning.0.hidden": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            22,
+            4096
+          ]
+        },
+        "conditioning.0.ids": {
+          "comparison": "exact",
+          "dtype": "I64",
+          "shape": [
+            1,
+            22
+          ]
+        },
+        "conditioning.0.mask": {
+          "comparison": "exact",
+          "dtype": "I64",
+          "shape": [
+            1,
+            22
+          ]
+        },
+        "conditioning.1.hidden": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            10,
+            4096
+          ]
+        },
+        "conditioning.1.ids": {
+          "comparison": "exact",
+          "dtype": "I64",
+          "shape": [
+            1,
+            10
+          ]
+        },
+        "conditioning.1.mask": {
+          "comparison": "exact",
+          "dtype": "I64",
+          "shape": [
+            1,
+            10
+          ]
+        },
+        "initial_latents": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.1": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.10": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.11": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.12": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.13": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.14": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.15": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.16": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.17": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.18": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.19": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.2": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.20": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.21": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.22": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.23": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.24": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.25": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.26": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.27": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.28": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.29": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.3": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.30": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.31": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.32": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.33": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.34": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.35": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.36": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.37": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.38": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.39": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.4": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.40": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.41": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.42": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.43": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.44": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.45": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.46": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.47": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.48": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.49": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.5": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.6": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.7": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.8": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "latents.9": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "modulation": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            18432
+          ]
+        },
+        "pixels": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            3,
+            768,
+            1024
+          ]
+        },
+        "prediction.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.1": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.10": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.11": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.12": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.13": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.14": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.15": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.16": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.17": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.18": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.19": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.2": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.20": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.21": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.22": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.23": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.24": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.25": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.26": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.27": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.28": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.29": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.3": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.30": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.31": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.32": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.33": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.34": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.35": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.36": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.37": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.38": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.39": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.4": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.40": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.41": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.42": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.43": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.44": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.45": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.46": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.47": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.48": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.49": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.5": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.50": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.51": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.52": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.53": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.54": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.55": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.56": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.57": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.58": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.59": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.6": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.60": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.61": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.62": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.63": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.64": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.65": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.66": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.67": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.68": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.69": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.7": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.70": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.71": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.72": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.73": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.74": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.75": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.76": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.77": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.78": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.79": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.8": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.80": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.81": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.82": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.83": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.84": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.85": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.86": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.87": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.88": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.89": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.9": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.90": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.91": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.92": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.93": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.94": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.95": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.96": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.97": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.98": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "prediction.99": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "rope": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            3094,
+            128
+          ]
+        },
+        "schedule.sigmas": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            51
+          ]
+        },
+        "schedule.timesteps": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            50
+          ]
+        },
+        "text_refinement": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            22,
+            3072
+          ]
+        },
+        "timestep_embedding": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            3072
+          ]
+        },
+        "timestep_embedding.input": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            256
+          ]
+        },
+        "vae.decoded": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            3,
+            768,
+            1024
+          ]
+        },
+        "vae.unpacked": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            32,
+            96,
+            128
+          ]
+        },
+        "velocity.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.1": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.10": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.11": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.12": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.13": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.14": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.15": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.16": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.17": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.18": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.19": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.2": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.20": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.21": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.22": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.23": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.24": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.25": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.26": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.27": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.28": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.29": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.3": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.30": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.31": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.32": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.33": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.34": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.35": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.36": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.37": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.38": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.39": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.4": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.40": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.41": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.42": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.43": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.44": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.45": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.46": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.47": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.48": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.49": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.5": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.6": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.7": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.8": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        },
+        "velocity.9": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            48,
+            64
+          ]
+        }
+      }
+    },
+    {
+      "artifact": "tensor-set:sha256:37d02b7270d3f9cc77c0b3ac12e4b505a59b23b22aed392b64afe189ee11fb80",
+      "backend_policy": "cuda-sdpa-auto",
+      "environment": {
+        "cuda": "12.6",
+        "device": "NVIDIA GeForce RTX 4090 D",
+        "package_Pillow": "12.2.0",
+        "package_accelerate": "1.14.0",
+        "package_diffusers": "0.39.0",
+        "package_safetensors": "0.8.0",
+        "package_torch": "2.12.0+cu126",
+        "package_transformers": "5.14.1",
+        "python": "3.13.5",
+        "seed": "42",
+        "settings": "BF16 text encoder/denoiser; FP32 VAE/noise/CFG/Euler; deterministic algorithms; TF32 disabled; negative branch skips layer 22"
+      },
+      "inputs": {
+        "checkpoint_receipt_sha256": "file:sha256:0d9b600f6232957565c26e86c9f9b0d19411b87fe97d665bbe7b93bd7770a9db"
+      },
+      "metadata_sha256": "80dba4ddc9f0a139f2851c737bbc149479035b394455241a5263faba6cc8fe90",
+      "name": "full-layout",
+      "producer": "file:sha256:50437649e0aa4caedc4bbfa1d49c5bb4add99a8e98c1e6a8934a80c825a600e3",
+      "repeatability": "Every captured tensor is finite and bitwise identical across two upstream runs.",
+      "tensors": {
+        "block.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            4247,
+            3072
+          ]
+        },
+        "block.21": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            4247,
+            3072
+          ]
+        },
+        "block.41": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            4247,
+            3072
+          ]
+        },
+        "conditioning.0.hidden": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            151,
+            4096
+          ]
+        },
+        "conditioning.0.ids": {
+          "comparison": "exact",
+          "dtype": "I64",
+          "shape": [
+            1,
+            151
+          ]
+        },
+        "conditioning.0.mask": {
+          "comparison": "exact",
+          "dtype": "I64",
+          "shape": [
+            1,
+            151
+          ]
+        },
+        "conditioning.1.hidden": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            10,
+            4096
+          ]
+        },
+        "conditioning.1.ids": {
+          "comparison": "exact",
+          "dtype": "I64",
+          "shape": [
+            1,
+            10
+          ]
+        },
+        "conditioning.1.mask": {
+          "comparison": "exact",
+          "dtype": "I64",
+          "shape": [
+            1,
+            10
+          ]
+        },
+        "initial_latents": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.1": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.10": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.11": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.12": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.13": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.14": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.15": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.16": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.17": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.18": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.19": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.2": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.20": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.21": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.22": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.23": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.24": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.25": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.26": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.27": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.28": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.29": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.3": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.30": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.31": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.32": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.33": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.34": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.35": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.36": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.37": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.38": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.39": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.4": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.40": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.41": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.42": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.43": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.44": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.45": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.46": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.47": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.48": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.49": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.5": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.6": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.7": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.8": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "latents.9": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "modulation": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            18432
+          ]
+        },
+        "pixels": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            3,
+            1024,
+            1024
+          ]
+        },
+        "prediction.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.1": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.10": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.11": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.12": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.13": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.14": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.15": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.16": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.17": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.18": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.19": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.2": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.20": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.21": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.22": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.23": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.24": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.25": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.26": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.27": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.28": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.29": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.3": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.30": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.31": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.32": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.33": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.34": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.35": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.36": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.37": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.38": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.39": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.4": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.40": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.41": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.42": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.43": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.44": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.45": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.46": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.47": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.48": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.49": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.5": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.50": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.51": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.52": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.53": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.54": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.55": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.56": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.57": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.58": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.59": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.6": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.60": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.61": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.62": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.63": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.64": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.65": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.66": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.67": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.68": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.69": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.7": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.70": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.71": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.72": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.73": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.74": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.75": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.76": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.77": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.78": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.79": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.8": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.80": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.81": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.82": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.83": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.84": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.85": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.86": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.87": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.88": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.89": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.9": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.90": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.91": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.92": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.93": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.94": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.95": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.96": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.97": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.98": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "prediction.99": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "rope": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            4247,
+            128
+          ]
+        },
+        "schedule.sigmas": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            51
+          ]
+        },
+        "schedule.timesteps": {
+          "comparison": "exact",
+          "dtype": "F32",
+          "shape": [
+            50
+          ]
+        },
+        "text_refinement": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            151,
+            3072
+          ]
+        },
+        "timestep_embedding": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            3072
+          ]
+        },
+        "timestep_embedding.input": {
+          "comparison": "upstream-dtype",
+          "dtype": "BF16",
+          "shape": [
+            1,
+            256
+          ]
+        },
+        "vae.decoded": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            3,
+            1024,
+            1024
+          ]
+        },
+        "vae.unpacked": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            32,
+            128,
+            128
+          ]
+        },
+        "velocity.0": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.1": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.10": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.11": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.12": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.13": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.14": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.15": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.16": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.17": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.18": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.19": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.2": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.20": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.21": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.22": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.23": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.24": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.25": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.26": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.27": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.28": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.29": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.3": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.30": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.31": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.32": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.33": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.34": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.35": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.36": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.37": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.38": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.39": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.4": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.40": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.41": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.42": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.43": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.44": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.45": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.46": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.47": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.48": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.49": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.5": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.6": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.7": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.8": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        },
+        "velocity.9": {
+          "comparison": "upstream-dtype",
+          "dtype": "F32",
+          "shape": [
+            1,
+            128,
+            64,
+            64
+          ]
+        }
+      }
+    }
+  ],
+  "checkpoint": "file:sha256:0d9b600f6232957565c26e86c9f9b0d19411b87fe97d665bbe7b93bd7770a9db",
+  "comparison": {
+    "dtype_tolerances": {
+      "BF16": {
+        "atol": 0.00001,
+        "rtol": 0.016
+      },
+      "F32": {
+        "atol": 0.00001,
+        "rtol": 0.0000013
+      }
+    },
+    "finite_only": true,
+    "reference_and_backend": "exact",
+    "repeatability_atol": 0,
+    "repeatability_rtol": 0,
+    "rule": "abs(actual - expected) \u003c= atol + rtol * abs(expected)",
+    "scope": "Initial native parity policy uses the upstream testing defaults for each captured dtype, including every composed latent and final floating-point pixel tensor. Token IDs, masks, schedules, fixed inputs and CPU-seeded noise require exact equality. These thresholds are independent declarations, not measured MOSS quality limits or evidence of native agreement. Native mismatches do not authorize wider tolerances. Backend comparisons are diagnostic and cannot substitute for matched-reference acceptance. Held-out image quality and resource budgets remain separate obligations.",
+    "shape_and_dtype": "exact",
+    "source_sha256": "679d499d12941216627732cc0d7c220a7be09766aa4b97518df9b0754069fc4c",
+    "source_url": "https://docs.pytorch.org/docs/2.12/testing.html#torch.testing.assert_close",
+    "source_version": "torch 2.12.0+cu126"
+  },
+  "corpus": "dataset:sha256:fb09c610a25c80eb6c2a017a6da1c178bfe095e7fd48e84f1b74c63a58b7e964",
+  "host_audit": {
+    "cpu": "AMD Ryzen 9 9950X 16-Core Processor",
+    "logical_processors": 32,
+    "os": "Microsoft Windows 11 Pro 10.0.26200 64-bit",
+    "physical_cores": 16,
+    "scope": "Host provenance only; installed capacity is not an execution budget. GPU identity and CUDA version are embedded in each CUDA reference. Full-image references bind the upstream automatic SDPA policy through the producer; exact dispatched operator names were captured only for the paired small-canvas CUDA cases.",
+    "source": "Win32_Processor and Win32_OperatingSystem queried on the same local oracle host after capture"
+  },
+  "source": "file:sha256:1dac1aca9feb1bfdfc727a401e4b67d61a505d3190706d1b7d2d784f88678b31",
+  "version": 1
+}

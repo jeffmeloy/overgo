@@ -15,6 +15,7 @@ import (
 	"overgo/internal/latentimage"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/strictjson"
+	"overgo/internal/torchrng"
 	"overgo/internal/workflowruntime"
 )
 
@@ -182,7 +183,7 @@ func (g *Generator) prepare(ctx context.Context, request Request) (samplePlan, e
 	if request.Class >= g.model.classes {
 		return samplePlan{}, fmt.Errorf("rae: class %d is outside the DiT's %d classes", request.Class, g.model.classes)
 	}
-	noise, err := torchNormal(request.Seed, g.model.latent*g.model.grid*g.model.grid)
+	noise, err := torchrng.CPUNormal(request.Seed, g.model.latent*g.model.grid*g.model.grid)
 	if err != nil {
 		return samplePlan{}, err
 	}

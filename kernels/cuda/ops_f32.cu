@@ -4319,6 +4319,10 @@ extern "C" __global__ void attention_f32(
 // 12k keys, on the batched GEMM path at a hundred launches per token
 // with a graph instantiated every third token, and that path read the
 // whole capacity as keys.
+// query_tokens > 1 is a causal span (a speculative verify step): its
+// queries are the last query_tokens positions, so query t reads the keys
+// through its own position, the device count less the queries after it,
+// and its row walks them exactly as a one-query step at that count does.
 extern "C" __global__ void attention_decode_f32(
         const float * query,
         const float * key,
@@ -4331,24 +4335,27 @@ extern "C" __global__ void attention_decode_f32(
         const unsigned int * key_value_token_count,
         unsigned int key_value_stride,
         unsigned int sequences,
+        unsigned int query_tokens,
         float scale,
         unsigned int window,
         float softcap,
         unsigned int tile_tokens,
         unsigned int splits,
         float * partials) {
-    // splits blocks share one (sequence, head) row, each walking its
-    // slice of the keys; with one split the block writes the output,
+    // splits blocks share one (sequence, query, head) row, each walking
+    // its slice of the keys; with one split the block writes the output,
     // with more it leaves its maximum, sum, and unnormalized output for
     // attention_decode_combine_f32.
     const unsigned int row = blockIdx.x / splits;
     const unsigned int split = blockIdx.x % splits;
     const unsigned int query_head = row % query_heads;
-    const unsigned int sequence = row / query_heads;
+    const unsigned int query_row = row / query_heads;
+    const unsigned int query_token = query_row % query_tokens;
+    const unsigned int sequence = query_row / query_tokens;
     if (sequence >= sequences) {
         return;
     }
-    const unsigned int key_value_tokens = key_value_token_count[0];
+    const unsigned int key_value_tokens = key_value_token_count[0] - (query_tokens - 1 - query_token);
     const unsigned int window_first = window > 0 && key_value_tokens > window ? key_value_tokens - window : 0;
     const unsigned int span = (key_value_tokens - window_first + splits - 1) / splits;
     const unsigned int key_first = window_first + split * span;
@@ -4369,7 +4376,7 @@ extern "C" __global__ void attention_decode_f32(
     const unsigned int group_size = query_heads / key_value_heads;
     const unsigned int key_value_head = query_head / group_size;
     const unsigned int query_offset =
-        (sequence * query_heads + query_head) * key_width;
+        (query_row * query_heads + query_head) * key_width;
     extern __shared__ float shared[];
     float * scores = shared;
     float * partial = shared + tile_tokens;
@@ -4453,7 +4460,7 @@ extern "C" __global__ void attention_decode_f32(
     }
     if (splits == 1) {
         for (unsigned int channel = threadIdx.x; channel < value_width; channel += blockDim.x) {
-            output[(sequence * query_heads + query_head) * value_width + channel] = accumulator[channel] / running_sum;
+            output[row * value_width + channel] = accumulator[channel] / running_sum;
         }
         return;
     }
@@ -4466,7 +4473,7 @@ extern "C" __global__ void attention_decode_f32(
     }
 }
 
-// attention_decode_combine_f32: one block per (sequence, head) row folds
+// attention_decode_combine_f32: one block per (sequence, query, head) row folds
 // the split partials of attention_decode_f32 into the output, each split
 // weighted by the exponential of its maximum against the row maximum
 // (the flash-attention combine of the llama.cpp lineage).

@@ -202,31 +202,34 @@ func decodeSplits(keyCapacityTokens uint32, valueWidth uint64) uint32 {
 	return max(1, min(splits, attentionDecodeMaxSplits))
 }
 
-// decodeAttention reports an attention the decode kernel serves: one causal query after the keys before it, without relative bias, sinks, block mask, key bias, ALiBi, or symmetric or chunked window.
-//   - the decode kernel reads the key count from the device, and every other attention path takes the key count and first query as launch arguments
+// decodeAttention reports an attention the decode kernel serves: up to q8InputSpanColumns causal queries (a speculative verify span) that end at the last key, without relative bias, sinks, block mask, key bias, ALiBi, or symmetric or chunked window.
+//   - the decode kernel reads the key count from the device and derives each query's from it, and every other attention path takes the key count and first query as launch arguments
+//   - a span on the online kernel took 0.55 ms a layer (two Flash-Next queries over 100 keys), one block a query head walking the keys
 func decodeAttention(node *tensor.Tensor, attributes tensor.AttentionAttributes) bool {
 	keys := uint64(attributes.KeyValueTokens)
 	if keys == 0 {
 		keys = node.Inputs[1].Shape.Dims[attentionTokenAxis]
 	}
-	return node.Inputs[0].Shape.Dims[attentionTokenAxis] == 1 && attributes.Causal && uint64(attributes.QueryStart)+1 == keys &&
+	queries := node.Inputs[0].Shape.Dims[attentionTokenAxis]
+	return queries >= 1 && queries <= q8InputSpanColumns && attributes.Causal && uint64(attributes.QueryStart)+queries == keys &&
 		attributes.RelativeBuckets == 0 && !attributes.HasSinks && !attributes.HasBlockMask && !attributes.HasKeyBias &&
 		attributes.MaxALiBiBias == 0 && !attributes.SymmetricWindow && !attributes.ChunkedWindow
 }
 
 // decodePartialBytes: compile-time staging reservation for the split
-// partials of a single-query causal attention node; the score staging
-// the strided-batched path reserves holds them, one stream at a time.
+// partials of a causal attention node of up to q8InputSpanColumns
+// queries; the score staging the strided-batched path reserves holds
+// them, one stream at a time.
 func decodePartialBytes(node *tensor.Tensor) (uint64, bool) {
 	attributes, ok := node.Attrs.(tensor.AttentionAttributes)
 	if !ok || !attributes.Causal || len(node.Inputs) < 3 {
 		return 0, false
 	}
 	queryNode, keyNode, valueNode := node.Inputs[0], node.Inputs[1], node.Inputs[2]
-	if queryNode.Shape.Rank < 3 || keyNode.Shape.Rank < 3 || queryNode.Shape.Dims[2] != 1 {
+	if queryNode.Shape.Rank < 3 || keyNode.Shape.Rank < 3 || queryNode.Shape.Dims[attentionTokenAxis] > q8InputSpanColumns {
 		return 0, false
 	}
-	rows := queryNode.Shape.Dims[1]
+	rows := queryNode.Shape.Dims[1] * queryNode.Shape.Dims[attentionTokenAxis]
 	if queryNode.Shape.Rank == 4 {
 		rows *= queryNode.Shape.Dims[3]
 	}
@@ -526,7 +529,7 @@ func launchAttentionLayout(
 		// partials combine through the score staging when it holds them,
 		// and a graph without that staging decodes in one block per head.
 		splits := decodeSplits(keyCapacityTokens, uint64(valueWidth))
-		rows := uint64(queryHeads) * uint64(sequences)
+		rows := uint64(queryHeads) * uint64(queryTokens) * uint64(sequences)
 		partialBytes := rows * uint64(splits) * (uint64(valueWidth) + attentionDecodeMetaFloats) * f32Bytes
 		if splits > 1 && (blas == nil || blas.scores == 0 || partialBytes > blas.scoreBytes) {
 			splits = 1
@@ -559,7 +562,7 @@ func launchAttentionLayout(
 				driver.Dim3{X: attentionDecodeThreads, Y: 1, Z: 1}, uint32(sharedBytes),
 				&query, &key, &value, &output, &keyWidth, &valueWidth,
 				&queryHeads, &keyValueHeads, &tokenCountPointer, &keyCapacityTokens,
-				&sequences, &scale, &window, &softcap, &tileTokens, &splits, &partials,
+				&sequences, &queryTokens, &scale, &window, &softcap, &tileTokens, &splits, &partials,
 			); err != nil || splits == 1 {
 				return err
 			}

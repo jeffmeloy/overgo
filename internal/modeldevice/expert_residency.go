@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"sync"
 	"unsafe"
 
 	"overgo/internal/checked"
@@ -44,14 +43,11 @@ const (
 	// allocate outside the reservation hook, and a short request's scratch
 	// (Flash-Next's short chat holds under 1 GiB beyond weights and experts).
 	expertFillHeadroomBytes = 2 << 30
-	// expertFillReaders: the file readers of a fill. Four read Flash-Next's
-	// 59.5 GB of experts at 6.2 GB/s on the development PC, eight no faster,
-	// one at 4.9 GB/s.
-	expertFillReaders = 4
-	// expertFillStagingBytes bounds the pinned buffer a reader fills with
-	// experts bound for the card, so one copy moves many experts.
-	expertFillStagingBytes = 64 << 20
 )
+
+// expertDevice runs residency work where the residency's memory is usable:
+// on the worker's thread, with its state, for a store with a worker.
+type expertDevice func(context.Context, func(*device.State, expertMemory) error) error
 
 // residentExpert is an expert on the card and the last advance whose routes named it.
 type residentExpert struct {
@@ -104,11 +100,11 @@ type expertMemory interface {
 
 // expertResidency keeps every expert of the file-backed banks readable by
 // the card: a card copy, or pinned host memory the card maps. The card's
-// share is filled once under the limit; between runs the experts the last
-// run routed to host memory take the card slots of experts it did not route.
+// share is filled once under the limit, by the load pass that reads the file;
+// between runs the experts the last run routed to host memory take the card
+// slots of experts it did not route.
 // routed is pinned host memory the card maps at routedMap, one byte an expert, which the route kernel sets and the advance after the run reads and clears.
 type expertResidency struct {
-	file              *gguf.File
 	state             *device.State
 	mem               expertMemory
 	banks             map[string]*expertBank
@@ -125,36 +121,13 @@ type expertResidency struct {
 	routes, cardRoutes uint64
 }
 
-// EnableExpertResidency binds file-backed banks after the ordinary weight load succeeds.
-// The limit includes pointer tables and card experts but excludes other weight stores;
-// zero takes the free device memory less expertFillHeadroomBytes.
-func (w *DeviceWeights) EnableExpertResidency(ctx context.Context, file *gguf.File, infos []gguf.TensorInfo, limit uint64) error {
-	if w == nil || w.worker == nil || file == nil || len(infos) == 0 {
-		return errors.New("expert residency requires a worker, file and bank descriptors")
-	}
-	return w.worker.Do(ctx, func(state *device.State) error {
-		if w.experts != nil {
-			return errors.New("expert residency is already configured")
-		}
-		if limit == 0 {
-			free, _, err := state.Driver.MemInfo()
-			if err != nil {
-				return err
-			}
-			limit = free - min(free, expertFillHeadroomBytes)
-		}
-		cache, err := newExpertResidency(ctx, file, infos, limit, stateMemory{state})
-		if err != nil {
-			return err
-		}
-		cache.state = state
-		w.experts = cache
-		return nil
-	})
-}
-
+// newExpertResidency allocates the tables, the route flags and every
+// expert's slot for the file's banks, under the limit, which includes the
+// tables and the card experts but no other weight store. The slots hold the
+// experts once a load pass places them, and the tables name them once it
+// publishes.
 func newExpertResidency(ctx context.Context, file *gguf.File, infos []gguf.TensorInfo, limit uint64, mem expertMemory) (*expertResidency, error) {
-	c := &expertResidency{file: file, mem: mem, banks: make(map[string]*expertBank),
+	c := &expertResidency{mem: mem, banks: make(map[string]*expertBank),
 		entries: make(map[expertKey]*list.Element), classes: make(map[uint64]*expertClass)}
 	// Each table entry is a CUDA device address, whose ABI is uint64.
 	const pointerBytes = uint64(unsafe.Sizeof(driver.DevicePtr(0)))
@@ -195,7 +168,7 @@ func newExpertResidency(ctx context.Context, file *gguf.File, infos []gguf.Tenso
 	if err == nil {
 		clear(routed)
 		c.pinned, c.routedMap, c.routed = append(c.pinned, routed), mapped, routed
-		err = c.fill(ctx, limit)
+		err = c.allocate(ctx, limit)
 	}
 	if err != nil {
 		return nil, errors.Join(err, c.close())
@@ -203,20 +176,11 @@ func newExpertResidency(ctx context.Context, file *gguf.File, infos []gguf.Tenso
 	return c, nil
 }
 
-// expertRun is a run of a bank's experts the fill reads: into pinned host
-// memory at host, or through a staging buffer to the card at card.
-type expertRun struct {
-	bank         *expertBank
-	first, count uint64
-	host         []byte
-	card         driver.DevicePtr
-}
-
-// fill places experts in index order across the banks on the card while the
-// limit allows, so each bank keeps the same share there, and every other
-// expert in pinned host memory. Readers fill pinned memory concurrently, and
-// the worker copies the card's runs as they arrive.
-func (c *expertResidency) fill(ctx context.Context, limit uint64) (err error) {
+// allocate places experts in index order across the banks on the card while
+// the limit allows, so each bank keeps the same share there, and every other
+// expert in pinned host memory: one card allocation and one pinned
+// allocation a bank.
+func (c *expertResidency) allocate(ctx context.Context, limit uint64) error {
 	cards := make([]uint64, len(c.ordered))
 	for index := range uint64(len(slices.MaxFunc(c.ordered, func(left, right *expertBank) int { return len(left.pointers) - len(right.pointers) }).pointers)) {
 		for i, bank := range c.ordered {
@@ -226,13 +190,9 @@ func (c *expertResidency) fill(ctx context.Context, limit uint64) (err error) {
 			}
 		}
 	}
-	// staged: the staging buffer that holds any run bound for the card.
-	var pending []expertRun
-	var staged uint64
 	for i, bank := range c.ordered {
 		experts, onCard := uint64(len(bank.pointers)), cards[i]
 		if onCard > 0 {
-			staged = max(staged, bank.stride, min(expertFillStagingBytes, onCard*bank.stride))
 			card, err := c.mem.alloc(ctx, onCard*bank.stride)
 			if err != nil {
 				return err
@@ -242,9 +202,6 @@ func (c *expertResidency) fill(ctx context.Context, limit uint64) (err error) {
 				bank.pointers[index] = card + driver.DevicePtr(index*bank.stride)
 				key := expertKey{bank.info.Name, uint32(index)}
 				c.entries[key] = c.classes[bank.stride].order.PushBack(&residentExpert{key: key})
-			}
-			for first, step := uint64(0), max(1, expertFillStagingBytes/bank.stride); first < onCard; first += step {
-				pending = append(pending, expertRun{bank: bank, first: first, count: min(step, onCard-first), card: bank.pointers[first]})
 			}
 		}
 		if onCard < experts {
@@ -257,95 +214,42 @@ func (c *expertResidency) fill(ctx context.Context, limit uint64) (err error) {
 				offset := (index - onCard) * bank.stride
 				bank.hosted[index], bank.pointers[index] = host[offset:offset+bank.stride], mapped+driver.DevicePtr(offset)
 			}
-			pending = append(pending, expertRun{bank: bank, first: onCard, count: experts - onCard, host: host})
 		}
 		bank.changed = true
 	}
-	runs := make(chan expertRun, len(pending))
-	for _, run := range pending {
-		runs <- run
-	}
-	close(runs)
-	free := make(chan []byte, expertFillReaders)
-	var staging [][]byte
-	defer func() {
-		for _, host := range staging {
-			err = errors.Join(err, c.mem.hostFree(host))
-		}
-	}()
-	for range expertFillReaders {
-		if staged == 0 {
-			break
-		}
-		host, _, allocErr := c.mem.hostAlloc(ctx, staged)
-		if allocErr != nil {
-			return allocErr
-		}
-		staging = append(staging, host)
-		free <- host
-	}
-	readCtx, cancel := context.WithCancelCause(ctx)
-	defer cancel(nil)
-	uploads := make(chan expertRun)
-	var readers sync.WaitGroup
-	for range expertFillReaders {
-		readers.Go(func() {
-			if readErr := c.readRuns(readCtx, runs, free, uploads); readErr != nil {
-				cancel(readErr)
-			}
-		})
-	}
-	go func() {
-		readers.Wait()
-		close(uploads)
-	}()
-	for run := range uploads {
-		if readCtx.Err() == nil {
-			if writeErr := c.mem.write(readCtx, run.card, run.host[:run.count*run.bank.stride]); writeErr != nil {
-				cancel(writeErr)
-			}
-		}
-		free <- run.host
-	}
-	if err = context.Cause(readCtx); err == nil {
-		err = c.publish(ctx)
-	}
-	return err
+	return nil
 }
 
-// readRuns reads runs until none is left: a host run into its pinned memory,
-// a card run into a staging buffer it passes on to the upload.
-func (c *expertResidency) readRuns(ctx context.Context, runs <-chan expertRun, free <-chan []byte, uploads chan<- expertRun) error {
-	for run := range runs {
-		if run.host == nil {
-			select {
-			case run.host = <-free:
-			case <-ctx.Done():
-				return nil
-			}
+// place copies file bytes of a bank, offset bytes into it, to their experts'
+// slots: into pinned host memory directly, and to the card through onDevice,
+// one copy for each run of card slots the bytes fill back to back.
+func (c *expertResidency) place(ctx context.Context, onDevice expertDevice, bank *expertBank, offset uint64, data []byte) error {
+	var card driver.DevicePtr
+	var pending []byte
+	flush := func() error {
+		at, bytes := card, pending
+		pending = nil
+		if len(bytes) == 0 {
+			return nil
 		}
-		// A bank's experts lie back to back in the file, and in a run whose slots add no padding.
-		together := uint64(1)
-		if run.bank.stride == run.bank.bytes {
-			together = run.count
-		}
-		for index := uint64(0); index < run.count; index += together {
-			if ctx.Err() != nil {
-				return nil
-			}
-			if err := c.file.ReadTensorRange(run.bank.info, (run.first+index)*run.bank.bytes, run.host[index*run.bank.stride:][:together*run.bank.bytes]); err != nil {
+		return onDevice(ctx, func(*device.State, expertMemory) error { return c.mem.write(ctx, at, bytes) })
+	}
+	for done := uint64(0); done < uint64(len(data)); {
+		index, within := (offset+done)/bank.bytes, (offset+done)%bank.bytes
+		length := min(uint64(len(data))-done, bank.bytes-within)
+		if host := bank.hosted[index]; host != nil {
+			copy(host[within:], data[done:done+length])
+		} else if pointer := bank.pointers[index] + driver.DevicePtr(within); len(pending) != 0 && card+driver.DevicePtr(len(pending)) == pointer {
+			pending = data[done-uint64(len(pending)) : done+length]
+		} else {
+			if err := flush(); err != nil {
 				return err
 			}
+			card, pending = pointer, data[done:done+length]
 		}
-		if run.card != 0 {
-			select {
-			case uploads <- run:
-			case <-ctx.Done():
-				return nil
-			}
-		}
+		done += length
 	}
-	return nil
+	return flush()
 }
 
 // ExpertPlacement is where a residency's experts are and where its runs found the experts they routed.

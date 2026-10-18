@@ -165,21 +165,34 @@ func TestResolveCandidateGGUFRequiresExactDefinition(t *testing.T) {
 	inventory, resolved := publishProgramFacts(t, store, path)
 	definition := definitionRecipe(t, inventory, resolved)
 
-	loaded, err := ResolveCandidateGGUF(path, definition, resolved)
+	loaded, err := ResolveCandidateGGUF(path, definition, resolved, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer loaded.Close()
 	if loaded.state.Program.Identity.Recipe != definition.ID ||
-		loaded.state.EvidenceTier != recipe.EvidenceVerified {
-		t.Fatalf("candidate program = %+v tier=%s", loaded.state.Program.Identity, loaded.state.EvidenceTier)
+		loaded.state.EvidenceTier != recipe.EvidenceVerified || len(loaded.state.Claims) != 0 {
+		t.Fatalf("candidate program = %+v tier=%s claims %v", loaded.state.Program.Identity, loaded.state.EvidenceTier, loaded.state.Claims)
+	}
+	// The candidate's own inventory claims its shard: the program carries the
+	// claim for the open to prove.
+	claimed, err := ResolveCandidateGGUF(path, definition, resolved, inventory.Claim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer claimed.Close()
+	if len(claimed.state.Claims) != 1 || claimed.state.Claims[0] != inventory.Components[0].ID {
+		t.Fatalf("claimed candidate carries claims %v", claimed.state.Claims)
 	}
 
 	otherPath := t.TempDir() + "/other.gguf"
 	writeServingDefinitionGGUF(t, otherPath, true)
 	otherInventory, otherResolved := publishProgramFacts(t, store, otherPath)
 	otherDefinition := definitionRecipe(t, otherInventory, otherResolved)
-	_, err = ResolveCandidateGGUF(path, otherDefinition, otherResolved)
+	_, err = ResolveCandidateGGUF(path, otherDefinition, otherResolved, nil)
+	assertProgramError(t, err, "does not name the loaded inference model")
+	// Another candidate's inventory claims nothing for this file, which is hashed.
+	_, err = ResolveCandidateGGUF(path, otherDefinition, otherResolved, otherInventory.Claim)
 	assertProgramError(t, err, "does not name the loaded inference model")
 }
 

@@ -362,6 +362,10 @@ func loadResidentWeights(
 			}
 		}
 		loader.Raw(*rawWeights, quantized)
+		if len(fileBackedExperts) != 0 {
+			// The pass that reads, and with claims hashes, the file fills the experts.
+			loader.Experts(*rawWeights, fileBackedExperts, 0)
+		}
 		// native 2D BF16 matmul weights now live in the raw store (above),
 		// serving both decode (native kernel) and prefill (upconvert + SGEMM)
 		// from a single 2-byte copy. The decode catalog covers only tensors that
@@ -391,13 +395,7 @@ func loadResidentWeights(
 		}
 	}
 	loader.Converted(*deviceWeights, f32Tensors)
-	if err := loader.Load(ctx, claims); err != nil {
-		return err
-	}
-	if len(fileBackedExperts) != 0 {
-		return (*rawWeights).EnableExpertResidency(ctx, file, fileBackedExperts, 0)
-	}
-	return nil
+	return loader.Load(ctx, claims)
 }
 
 func (r *Runner) Close() error {

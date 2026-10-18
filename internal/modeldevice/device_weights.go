@@ -23,7 +23,8 @@ type DeviceTensor struct {
 // DeviceWeights owns persistent raw GGUF tensors in one CUDA context.
 type DeviceWeights struct {
 	*deviceTensorStore
-	experts *expertResidency
+	experts  *expertResidency
+	onDevice expertDevice
 }
 
 // NewDeviceWeights opens a raw tensor store on the worker.
@@ -33,6 +34,9 @@ func NewDeviceWeights(worker *device.Worker) (*DeviceWeights, error) {
 	}
 	return &DeviceWeights{
 		deviceTensorStore: newDeviceTensorStore(worker, "device"),
+		onDevice: func(ctx context.Context, work func(*device.State, expertMemory) error) error {
+			return worker.Do(ctx, func(state *device.State) error { return work(state, stateMemory{state}) })
+		},
 	}, nil
 }
 

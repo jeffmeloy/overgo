@@ -224,7 +224,9 @@ func TestDecodeStepReplaysAsOneGraph(t *testing.T) {
 	for _, bank := range encoded {
 		limit += (uint64(len(bank))/g.experts + slotAlignment - 1) / slotAlignment * slotAlignment
 	}
-	if err := weights.EnableExpertResidency(t.Context(), parsed, parsed.Tensors, limit); err != nil {
+	loader := modeldevice.NewLoader(parsed)
+	loader.Experts(weights, parsed.Tensors, limit)
+	if err := loader.Load(t.Context(), nil); err != nil {
 		t.Fatal(err)
 	}
 	if err := replayed.SetExpertBanks(weights); err != nil {

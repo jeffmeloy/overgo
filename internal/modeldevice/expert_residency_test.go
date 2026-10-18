@@ -10,6 +10,8 @@ import (
 	"slices"
 	"testing"
 
+	"overgo/internal/artifact"
+	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/gguf"
 	"overgo/internal/tensor"
@@ -62,6 +64,28 @@ func (d *fakeExpertDevice) read(_ context.Context, data []byte, source driver.De
 	return err
 }
 
+// onDevice runs residency work on the fake directly, where a worker would run
+// it on its thread.
+func (d *fakeExpertDevice) onDevice(_ context.Context, work func(*device.State, expertMemory) error) error {
+	return work(nil, d)
+}
+
+// weights is a raw store on the fake.
+func (d *fakeExpertDevice) weights() *DeviceWeights {
+	weights := &DeviceWeights{deviceTensorStore: newDeviceTensorStore(nil, "device"), onDevice: d.onDevice}
+	weights.mem = d
+	return weights
+}
+
+// loadExperts fills a residency of every bank of the file through a load pass
+// on the fake, verifying expect when given.
+func (d *fakeExpertDevice) loadExperts(ctx context.Context, file *gguf.File, limit uint64, expect []artifact.ID) (*DeviceWeights, error) {
+	weights := d.weights()
+	loader := NewLoader(file)
+	loader.Experts(weights, file.Tensors, limit)
+	return weights, loader.Load(ctx, expect)
+}
+
 // at returns the bytes of a range inside one live allocation.
 func (d *fakeExpertDevice) at(pointer driver.DevicePtr, size uint64) ([]byte, error) {
 	d.mu.Lock()
@@ -94,10 +118,11 @@ func TestFlashNextExpertResidency(t *testing.T) {
 	open := func(t *testing.T, limit uint64) (*expertResidency, *fakeExpertDevice) {
 		t.Helper()
 		mem := newFakeExpertDevice()
-		cache, err := newExpertResidency(t.Context(), file, file.Tensors, limit, mem)
+		weights, err := mem.loadExperts(t.Context(), file, limit, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
+		cache := weights.experts
 		t.Cleanup(func() {
 			if err := cache.close(); err != nil {
 				t.Error(err)
@@ -301,7 +326,8 @@ func TestFlashNextExpertResidency(t *testing.T) {
 			case "cancel":
 				mem.onWrite = cancel
 			}
-			if _, err := newExpertResidency(ctx, file, file.Tensors, oneEach, mem); err == nil {
+			weights, err := mem.loadExperts(ctx, file, oneEach, nil)
+			if err == nil || weights.HasExpertResidency() {
 				t.Fatalf("%s: a failed fill was accepted", fail)
 			}
 			cancel()

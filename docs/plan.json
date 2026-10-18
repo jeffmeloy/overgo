@@ -212,17 +212,10 @@
       "title": "Decode Qwen3.8-Flash-Next at the speed Strata reaches on this PC",
       "status": "open",
       "budget": {
-        "nodes": 1550,
+        "nodes": 64,
         "reason": "fast-load measured +1,479 production nodes (12 files, landing-rules counting): one load pass that reads every shard unbuffered with several reads in flight, hashes in file order and routes each tensor's bytes to device uploads, converters and expert slots, replacing the residency's own fill (expert_residency.go 451 smaller); mtp sets its own from a measured figure before dispatch"
       },
       "steps": [
-        {
-          "id": "fast-load",
-          "title": "Read routed experts once, in the hashing pass, at the disk's rate",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/modeldevice -count=1 -run '^TestExpertFillReadsEachRangeOnce$'",
-          "rationale": "From step device-experts: Flash-Next's open grows from 1.7 s to about 36 s because the load reads all 59.5 GB of routed experts into the card and pinned host memory; the fill's profile is 74 percent file reads, and those ranges read at 2.8 GB/s with a cold file cache and 6.2 GB/s warm, while Strata reads the same experts at 6.3 GiB/s cold on this SSD. Model resolution already reads all 93.7 GB once to hash the file (46 to 50 s).\nThe step reads each expert range once: in the pass that hashes the file, handing the bytes to the residency fill as they are hashed, and with unbuffered, sector-aligned reads into the pinned buffers where the file system admits them, so open plus resolution approaches one read of the file at the disk's rate. Load integrity holds: the bytes the card holds are the bytes hashed.\nAcceptance: open time and open plus the first request against 36.1 s and 90.5 s, from a cold file cache and a warm one; the decode's output bits unchanged.\nServes: load-time for every file-backed routed-expert model, Flash-Next first; first-output of a fresh process.\nBatch: device."
-        },
         {
           "id": "mtp",
           "title": "Draft with Flash-Next's MTP layer and verify the drafts in one step",

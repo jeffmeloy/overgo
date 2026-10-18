@@ -92,7 +92,7 @@ func prepareExactCandidate(ctx context.Context, store *overgodb.Store, path stri
 }
 
 func openExactCandidate(ctx context.Context, path string, candidate modelintake.Candidate) (*inference.Runner, error) {
-	loaded, err := modelrecipe.ResolveCandidateGGUF(path, candidate.Definition, candidate.Resolved)
+	loaded, err := modelrecipe.ResolveCandidateGGUF(path, candidate.Definition, candidate.Resolved, candidate.Inventory.Claim)
 	if err != nil {
 		return nil, err
 	}

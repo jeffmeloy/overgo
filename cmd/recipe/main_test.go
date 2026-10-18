@@ -55,7 +55,7 @@ func TestExactVerificationCandidateBinding(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		loaded, err := modelrecipe.ResolveCandidateGGUF(path, candidate.Definition, candidate.Resolved)
+		loaded, err := modelrecipe.ResolveCandidateGGUF(path, candidate.Definition, candidate.Resolved, candidate.Inventory.Claim)
 		if err != nil {
 			t.Fatal(err)
 		}

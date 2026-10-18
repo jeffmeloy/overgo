@@ -113,12 +113,15 @@ func ResolveClaimedGGUF(
 }
 
 // ResolveCandidateGGUF verifies one explicit candidate before promotion.
+// Shards the claimer knows are claimed as ResolveClaimedGGUF claims them: not
+// hashed here, and proved by whoever takes the program.
 func ResolveCandidateGGUF(
 	path string,
 	definition recipe.Definition,
 	resolved ResolvedModelDefinition,
+	claimer modelartifact.Claimer,
 ) (LoadedProgram, error) {
-	loaded, err := loadGGUFFacts(path, nil)
+	loaded, err := loadGGUFFacts(path, claimer)
 	if err != nil {
 		return LoadedProgram{}, err
 	}

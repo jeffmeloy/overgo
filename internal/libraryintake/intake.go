@@ -184,7 +184,7 @@ func validate(ctx context.Context, repository *overgodb.Store, reporter operatio
 			return operation.Completion{}, err
 		}
 	}
-	loaded, err := modelrecipe.ResolveCandidateGGUF(path, candidate.Definition, candidate.Resolved)
+	loaded, err := modelrecipe.ResolveCandidateGGUF(path, candidate.Definition, candidate.Resolved, candidate.Inventory.Claim)
 	if err != nil {
 		return operation.Completion{}, err
 	}

@@ -401,7 +401,9 @@ func (c moePinnedCase) prepare(t testing.TB, cuda *Executor, bankType dtype.Type
 				t.Error(err)
 			}
 		})
-		if err := weights.EnableExpertResidency(t.Context(), file, file.Tensors, c.limit); err != nil {
+		loader := modeldevice.NewLoader(file)
+		loader.Experts(weights, file.Tensors, c.limit)
+		if err := loader.Load(t.Context(), nil); err != nil {
 			t.Fatal(err)
 		}
 		if err := cuda.SetExpertBanks(weights); err != nil {

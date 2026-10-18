@@ -2,6 +2,7 @@ package modeldevice
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -471,8 +472,9 @@ func (r *readRecorder) ReadAt(buffer []byte, offset int64) (int, error) {
 }
 
 // TestLoaderReadsEachByteOnce is the single pass itself: with a claim the
-// reads tile the whole file exactly once, in order, so the bytes hashed are the
-// bytes uploaded; without one they are exactly the routed tensors.
+// reads tile the whole file exactly once, so the bytes hashed are the bytes
+// uploaded; without one they are exactly the routed tensors. Several reads
+// are in flight, so the reads are compared in file order.
 func TestLoaderReadsEachByteOnce(t *testing.T) {
 	random := rand.New(rand.NewPCG(7, 8))
 	source := mixedFixture(t, random)
@@ -503,13 +505,14 @@ func TestLoaderReadsEachByteOnce(t *testing.T) {
 			}
 		}
 		next := int64(0)
+		slices.SortFunc(recorder.ranges, func(left, right [2]int64) int { return cmp.Compare(left[0], right[0]) })
 		for _, span := range recorder.ranges {
 			reads += span[1] - span[0]
 			if claimed && span[0] != next {
 				t.Fatalf("read [%d,%d) after %d: the pass skipped or repeated bytes", span[0], span[1], next)
 			}
 			if !claimed && span[0] < next {
-				t.Fatalf("read [%d,%d) before %d: tensors were not read in file order", span[0], span[1], next)
+				t.Fatalf("read [%d,%d) before %d: the pass read bytes twice", span[0], span[1], next)
 			}
 			next = span[1]
 		}

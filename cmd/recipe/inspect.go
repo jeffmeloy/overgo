@@ -4,11 +4,14 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"os"
 
+	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/hfgguf"
 	"overgo/internal/modelintake"
+	"overgo/internal/overgodb"
 )
 
 func inspectModel(args []string) error {
@@ -31,4 +34,25 @@ func inspectModel(args []string) error {
 	}
 	_, err = os.Stdout.Write(data)
 	return err
+}
+
+func registerInspection(ctx context.Context, repository, path, declaration string) error {
+	data, err := artifact.ReadContentFile(declaration)
+	if err != nil {
+		return err
+	}
+	inspection, err := modelintake.ReplayImport(ctx, path, data)
+	if err != nil {
+		return err
+	}
+	store, err := overgodb.Open(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	if err := modelintake.RegisterImport(ctx, store, inspection); err != nil {
+		return err
+	}
+	fmt.Printf("model=%s inspection=%s qualification=structural-only; model bytes copied=0; runtime execution and activation did not run\n", inspection.Inventory.Manifest.ID, inspection.Content.Descriptor.ID)
+	return nil
 }

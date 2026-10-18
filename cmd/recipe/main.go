@@ -773,8 +773,15 @@ func registerModels(args []string) error {
 	repository := flags.String("repo", "", "OvergoDB store")
 	root := flags.String("root", "", "root containing the declared model directories")
 	declaration := flags.String("spec", "", "JSON array of exact model, tensor, source and license identities")
+	inspection := flags.String("inspection", "", "saved inspection JSON to replay against one model directory or GGUF")
 	if err := flags.Parse(args); err != nil {
 		return err
+	}
+	if *inspection != "" {
+		if flags.NArg() != 1 || *repository == "" || *root != "" || *declaration != "" {
+			return errors.New("usage: recipe register -repo STORE -inspection JSON MODEL_DIRECTORY_OR_GGUF")
+		}
+		return registerInspection(context.Background(), *repository, flags.Arg(0), *inspection)
 	}
 	if flags.NArg() != 0 || *repository == "" || *root == "" || *declaration == "" {
 		return errors.New("usage: recipe register -repo STORE -root MODELS -spec JSON")

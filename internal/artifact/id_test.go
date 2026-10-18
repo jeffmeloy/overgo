@@ -12,6 +12,10 @@ const (
 	fixtureMediaType    = "application/vnd.overgo.model"
 )
 
+// TestIDRoundTrip holds an identity to its text and its JSON. A store open
+// decodes every identity it holds, so a plain quoted identity decodes in place
+// without a nested JSON decode, an escaped one still decodes as JSON does, and
+// a malformed one is refused.
 func TestIDRoundTrip(t *testing.T) {
 	id, err := IdentifyBytes(KindModel, []byte(fixtureModelPayload))
 	if err != nil {
@@ -29,28 +33,9 @@ func TestIDRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	var decoded ID
-	if err := json.Unmarshal(encoded, &decoded); err != nil {
-		t.Fatal(err)
+	if err := json.Unmarshal(encoded, &decoded); err != nil || decoded != id {
+		t.Fatalf("JSON round trip = %v, %v, want %v", decoded, err, id)
 	}
-	if decoded != id {
-		t.Fatalf("JSON round trip = %v, want %v", decoded, id)
-	}
-}
-
-// TestIDDecodesInPlace holds an identity's JSON decode to its own bytes: a
-// store open decodes every identity it holds, so a plain quoted identity
-// parses without a nested JSON decode, and an escaped or malformed one still
-// decodes or refuses as JSON does.
-func TestIDDecodesInPlace(t *testing.T) {
-	id, err := IdentifyBytes(KindModel, []byte(fixtureModelPayload))
-	if err != nil {
-		t.Fatal(err)
-	}
-	encoded, err := json.Marshal(id)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var decoded ID
 	if allocations := testing.AllocsPerRun(100, func() {
 		if err := decoded.UnmarshalJSON(encoded); err != nil {
 			t.Fatal(err)
@@ -58,7 +43,11 @@ func TestIDDecodesInPlace(t *testing.T) {
 	}); allocations > 2 || decoded != id {
 		t.Fatalf("decoding an identity allocated %.0f times, decoded %v", allocations, decoded)
 	}
-	escaped := bytes.Replace(encoded, []byte(":"), []byte(`:`), 1)
+	escaped := bytes.Replace(encoded, []byte(":"), []byte("\x5cu003a"), 1)
+	if bytes.Equal(escaped, encoded) {
+		t.Fatal("the escaped identity is the plain one")
+	}
+	decoded = ID{}
 	if err := decoded.UnmarshalJSON(escaped); err != nil || decoded != id {
 		t.Fatalf("escaped identity = %v, %v", decoded, err)
 	}

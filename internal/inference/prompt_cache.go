@@ -288,14 +288,17 @@ func (r *Runner) storePromptCache(
 		release = append(release, r.promptCaches[capacity:]...)
 		r.promptCaches = r.promptCaches[:capacity]
 	}
-	var errs []error
+	evicted := release[:0]
 	for _, candidate := range release {
 		if candidate.Device != nil && candidate.Device != next.Device {
-			errs = append(errs, candidate.Device.Release(ctx))
-			candidate.Device = nil
+			evicted = append(evicted, candidate)
 		}
 	}
-	return errors.Join(errs...)
+	// The request that stores the prompt may be cancelled, but the evicted caches' memory is released
+	// regardless; a release that still fails keeps its owner listed, so a later eviction or Close retries it.
+	failed, err := releasePromptCaches(context.WithoutCancel(ctx), evicted)
+	r.promptCaches = append(r.promptCaches, failed...)
+	return err
 }
 
 func projectedInputsSignature(inputs ProjectedInputs) [32]byte {

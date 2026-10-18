@@ -886,13 +886,13 @@
      "contains": "func (r *Runner) selectPromptCache(",
      "path": "internal/inference/prompt_cache.go",
      "role": "source",
-     "identity": "file:sha256:1d22595d807e3adf86a3c6c37672b1818a310efdc61d2053a8e99b8b5209b4b3"
+     "identity": "file:sha256:d5d00e46127fc2143710ffdfb854a91b65bd9d49b033a3305ed15ba71ca0014c"
     },
     {
      "contains": "func TestProjectedPromptCacheRequiresExactMediaSignature(",
      "path": "internal/inference/prompt_cache_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:0352f5dfd8c2f42fd1f77de55f9fc114f7c643d066aa16041c64e8392587cded"
+     "identity": "evidence:sha256:2c9b81c36c6cb6322ee500b8a4176afbe37790ff8e89efb3d6d0ea603a074cf1"
     }
    ],
    "id": "editable-prompt-cache",

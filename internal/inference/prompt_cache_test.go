@@ -1,6 +1,7 @@
 package inference
 
 import (
+	"context"
 	"reflect"
 	"testing"
 
@@ -78,6 +79,23 @@ func TestMultiplePromptCacheSelectionAndEviction(t *testing.T) {
 		runner.promptCaches[0] != third ||
 		runner.promptCaches[1] != second {
 		t.Fatalf("cache order after eviction = %+v", runner.promptCaches)
+	}
+	// A cancelled request still releases the device cache it evicts, once, and never the one it shares
+	// with the cache it stores.
+	evictedOwner, sharedOwner := newDeviceCacheOwner(&executor.RetainedOutputs{}, 2), newDeviceCacheOwner(&executor.RetainedOutputs{}, 2)
+	shared := &deviceKVCache{owner: sharedOwner}
+	second.Device, third.Device = &deviceKVCache{owner: evictedOwner}, shared
+	fourth := &cachedPrompt{Tokens: []tokenizer.TokenID{6, 7}, Cache: &KVCache{}, Device: shared}
+	runner.promptCacheCapacity = 1
+	cancelled, cancel := context.WithCancel(t.Context())
+	cancel()
+	if err := runner.storePromptCache(cancelled, fourth); err != nil {
+		t.Fatalf("eviction under a cancelled request = %v", err)
+	}
+	if len(runner.promptCaches) != 1 || runner.promptCaches[0] != fourth || second.Device != nil || evictedOwner.refs != 1 ||
+		third.Device != shared || sharedOwner.refs != 2 {
+		t.Fatalf("after eviction under a cancelled request: caches %+v, evicted device %v with %d refs, shared device %v with %d refs",
+			runner.promptCaches, second.Device, evictedOwner.refs, third.Device, sharedOwner.refs)
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"runtime"
 
 	"overgo/internal/artifact"
+	"overgo/internal/recipe"
 	"overgo/internal/textcheck"
 )
 
@@ -55,6 +56,18 @@ func CurrentEnvironment(device, backend string) (Environment, error) {
 		Host: host, OS: runtime.GOOS, Arch: runtime.GOARCH,
 		Device: device, Backend: backend, Driver: "process", Runtime: runtime.Version(),
 	})
+}
+
+// RecipeDevice names where a recipe's work is done, as its environment
+// records it: the host when every node is placed there, and otherwise the
+// CUDA device a recipe with a node off the host is loaded on.
+func RecipeDevice(definition recipe.Definition) (device, backend string) {
+	for _, node := range definition.Nodes {
+		if node.Placement != recipe.PlacementHost {
+			return "cuda:0", "cuda"
+		}
+	}
+	return "host", "go"
 }
 
 func (e Environment) ValidateIdentity() error {

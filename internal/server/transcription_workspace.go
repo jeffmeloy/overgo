@@ -61,7 +61,7 @@ type TranscriptionWorkspace struct {
 	name, location string
 }
 
-// NewTranscriptionWorkspace loads one exact recipe on the CPU. The assembly
+// NewTranscriptionWorkspace loads one exact recipe where it is placed. The assembly
 // caller supplies the verified source commit; all inference runs retain it.
 func NewTranscriptionWorkspace(ctx context.Context, store *overgodb.Store, policy TranscriptionPolicy, commit string) (*TranscriptionWorkspace, error) {
 	revision, revisionErr := runrecord.NewCodeRevision(strings.ToLower(commit))
@@ -95,7 +95,7 @@ func NewTranscriptionWorkspace(ctx context.Context, store *overgodb.Store, polic
 		return nil, err
 	}
 	audio := speechrecognition.InputRequirements{Format: contract.Format, MaximumEncodedBytes: policy.Inspection.MaximumEncodedBytes, MaximumSamples: policy.Inspection.MaximumSamples}
-	environment, err := runrecord.CurrentEnvironment("cpu", "go")
+	environment, err := runrecord.CurrentEnvironment(runrecord.RecipeDevice(definition))
 	if err != nil {
 		return nil, err
 	}

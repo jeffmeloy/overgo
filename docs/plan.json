@@ -235,6 +235,13 @@
           "depends_on": [
             "strata-decode/device-experts"
           ]
+        },
+        {
+          "id": "fast-load",
+          "title": "Read routed experts once, in the hashing pass, at the disk's rate",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/modeldevice -count=1 -run '^TestExpertFillReadsEachRangeOnce$'",
+          "rationale": "From step device-experts: Flash-Next's open grows from 1.7 s to about 36 s because the load reads all 59.5 GB of routed experts into the card and pinned host memory; the fill's profile is 74 percent file reads, and those ranges read at 2.8 GB/s with a cold file cache and 6.2 GB/s warm, while Strata reads the same experts at 6.3 GiB/s cold on this SSD. Model resolution already reads all 93.7 GB once to hash the file (46 to 50 s).\nThe step reads each expert range once: in the pass that hashes the file, handing the bytes to the residency fill as they are hashed, and with unbuffered, sector-aligned reads into the pinned buffers where the file system admits them, so open plus resolution approaches one read of the file at the disk's rate. Load integrity holds: the bytes the card holds are the bytes hashed.\nAcceptance: open time and open plus the first request against 36.1 s and 90.5 s, from a cold file cache and a warm one; the decode's output bits unchanged.\nServes: load-time for every file-backed routed-expert model, Flash-Next first; first-output of a fresh process.\nBatch: device."
         }
       ]
     },
@@ -261,17 +268,10 @@
       "title": "Serve the faster measured speech paths and read speech quality from its largest suite",
       "status": "open",
       "budget": {
-        "nodes": 62,
+        "nodes": 25,
         "reason": "asr-resident measured +68 production nodes in its worktree; asr-activate's estimate is about 60 for recording device runs with a device environment label"
       },
       "steps": [
-        {
-          "id": "device-label",
-          "title": "Record runs and verifications on the device their recipe is placed on",
-          "status": "open",
-          "verify": "go test ./internal/runrecord -count=1 -run '^TestRecipeDeviceFollowsPlacement$' \u0026\u0026 go test ./internal/server -count=1 -run '^TestTranscriptionWorkspaceRecordsWhereItsRecipeRuns$'",
-          "rationale": "From step asr-activate's preparation: once Granite's resident recipe is verified and served, two writers would record its work on the wrong device: TranscriptionWorkspace labels every served transcription run device \"cpu\", and capability verify labels its gate and run \"host\", whatever the recipe's placement; cmd/evaluate already names the CUDA device for a recipe with a node off the host, by its own copy of the rule.\nThe step adds runrecord.RecipeDevice (host when every node is on the host, else cuda:0) and makes all three writers use it, deleting evaluate's copy. It lands before asr-activate's store commands, because recipe verify refuses an uncommitted tree and its record must name the device.\nServes: correct evidence for every device-placed capability; no served value changes.\nBatch: device."
-        },
         {
           "id": "asr-activate",
           "title": "Activate Granite's resident transcription recipe and rebind its coverage and held-out quality",

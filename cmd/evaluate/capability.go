@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 
 	"overgo/internal/artifact"
 	"overgo/internal/cuda/device"
@@ -173,8 +172,8 @@ func openCapabilitySession(
 // another ordinal is refused rather than recorded over the default card's work.
 func capabilityEnvironment(task recipe.Task, definition recipe.Definition, ordinal int) (runrecord.Environment, error) {
 	if task != recipe.TaskImageGen && task != recipe.TaskVideoGen {
-		if !slices.ContainsFunc(definition.Nodes, func(node recipe.Node) bool { return node.Placement != recipe.PlacementHost }) {
-			return runrecord.CurrentEnvironment("host", "go")
+		if place, backend := runrecord.RecipeDevice(definition); place == "host" {
+			return runrecord.CurrentEnvironment(place, backend)
 		}
 		if ordinal != device.DefaultOrdinal() {
 			return runrecord.Environment{}, fmt.Errorf("evaluate: a %s model is loaded on CUDA device %d only, and the manifest names device %d", task, device.DefaultOrdinal(), ordinal)

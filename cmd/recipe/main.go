@@ -27,6 +27,7 @@ import (
 	"overgo/internal/processmeasure"
 	"overgo/internal/quietmachine"
 	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
 	"overgo/internal/servingattempt"
 )
 
@@ -391,8 +392,9 @@ func verifyCapability(repository, path string, task recipe.Task, capability medi
 	if envelope, ok := output.(capabilityruntime.Measured); ok {
 		measured = envelope
 	}
+	device, backend := runrecord.RecipeDevice(definition)
 	verification, err := modelintake.PublishMeasuredVerification(
-		ctx, store, definition, revision, time.Since(started), "host", "go", "candidate output validated", measured,
+		ctx, store, definition, revision, time.Since(started), device, backend, "candidate output validated", measured,
 	)
 	if err != nil {
 		return err

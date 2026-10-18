@@ -226,6 +226,24 @@
       ]
     },
     {
+      "id": "sqa-expert-tables",
+      "title": "Repair the expert-table recovery defect the reviewer found at 1d9930161",
+      "status": "open",
+      "budget": {
+        "nodes": 20,
+        "reason": "measured +3 production nodes in master: advance publishes pending tables on its no-route branch"
+      },
+      "steps": [
+        {
+          "id": "tables",
+          "title": "Repair pending expert tables before any run reads them",
+          "status": "open",
+          "verify": "go test ./internal/modeldevice -count=1 -run '^TestFlashNextExpertResidency$'",
+          "rationale": "From docs/sqa_findings.json at 1d9930161: SQA-164 (P2, confirmed defect) in d306d4821's expert residency. advance clears the route flags before it moves experts; when the final table publication fails or is cancelled after a promotion overwrote a card slot, the next run brings no route flags, advance returns before publishing, and the run reads tables that name the overwritten slot: another expert's weights.\nThe step makes every advance publish pending tables before any run reads them, the no-route branch included, so a failed repair keeps refusing the run.\nServes: held-out-quality and failure-rate under cancelled or failed table writes on file-backed routed-expert models.\nBatch: host.\n"
+        }
+      ]
+    },
+    {
       "id": "training-reuse",
       "title": "Stop repeating training's per-step device setup and its padding to the run's longest sequence",
       "status": "open",
@@ -413,7 +431,8 @@
             "plan-graph-count/do",
             "plan-monitor-count/do",
             "plan-decode-kernels/do",
-            "plan-sqa164/do"
+            "plan-sqa164/do",
+            "plan-sqa164-row/do"
           ]
         }
       ]

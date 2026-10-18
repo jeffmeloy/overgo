@@ -92,6 +92,9 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		if _, err := cache.resolve(t.Context(), []string{"down", "gate"}, []uint32{0}); err != nil {
 			t.Fatalf("replacement across different bank sizes: %v", err)
 		}
+		if mem.allocs != allocs {
+			t.Fatal("bank order change discarded available equal-sized allocations")
+		}
 		check([]uint32{0})
 	})
 	t.Run("physical-allocation-pressure", func(t *testing.T) {

@@ -245,9 +245,19 @@ func (c *expertResidency) resolve(ctx context.Context, names []string, indices [
 		}
 	}
 	reclaimUnused := func(size uint64) (driver.DevicePtr, error) {
-		victim := c.order.Front()
-		for victim != nil && needed[victim.Value.(residentExpert).key] {
-			victim = victim.Next()
+		var victim *list.Element
+		for entry := c.order.Front(); entry != nil; entry = entry.Next() {
+			value := entry.Value.(residentExpert)
+			if needed[value.key] {
+				continue
+			}
+			if victim == nil {
+				victim = entry
+			}
+			if value.bytes == size {
+				victim = entry
+				break
+			}
 		}
 		if victim == nil {
 			return 0, errors.New("expert residency has no releasable entry")

@@ -212,8 +212,8 @@
       "title": "Decode Qwen3.8-Flash-Next at the speed Strata reaches on this PC",
       "status": "open",
       "budget": {
-        "nodes": 107,
-        "reason": "device-experts measured about +1589 production nodes (go/ast over its changed files, net of the deleted per-layer resolution): card and mapped-host residency for every expert, between-token promotion from a route bitmap, two driver calls; decode-graph and fast-load set theirs from measured figures before dispatch"
+        "nodes": 900,
+        "reason": "decode-graph measured about +600 production nodes in its first build and expects up to about 800 with execs kept across requests: capture of the decode step, TopK and sparse first queries as device words, routes collected into pinned host memory inside the graph, one packed upload of host feeds a token; fast-load sets its own from a measured figure before dispatch"
       },
       "steps": [
         {
@@ -436,7 +436,8 @@
             "plan-sqa-p2/do",
             "plan-device-label/do",
             "plan-experts-count/do",
-            "plan-retire-reopened/do"
+            "plan-retire-reopened/do",
+            "plan-graph-count/do"
           ]
         }
       ]

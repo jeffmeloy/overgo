@@ -108,6 +108,101 @@
     {
       "governs": "campaign",
       "text": "The owner requires a 262144-token working context on this PC.\nThe request's output reservation counts inside that limit.\nLong-context acceptance includes real-document retrieval across the beginning, middle and end, cached follow-ups, cancellation and recovery, and coexistence with the accepted projector.\nThe context is admitted from current available resources and never achieved by silent truncation.\nThe existing 131072-token Strata baseline remains separately identified.\nA 262144-token comparison requires both engines to use the same 262144-token context budget and actual input and output lengths.\nRecord any supported Strata configuration change as a new reference identity before comparing.\nIf Strata cannot execute that workload, report the limit and keep comparative 256K acceptance unestablished rather than substituting its 128K memory or timings.\nA declared context limit or a tiny fixture does not establish practical long-context operation."
+    },
+    {
+      "governs": "row",
+      "rows": [
+        "moss-reference",
+        "moss-oracle",
+        "moss-import",
+        "moss-conditioning",
+        "moss-transformer",
+        "moss-sampling",
+        "moss-decoder",
+        "moss-runtime",
+        "moss-interface",
+        "moss-efficiency",
+        "moss-import-reuse",
+        "moss-evaluation",
+        "moss-closeout"
+      ],
+      "text": "MOSS-Image-SFT from https://www.modelscope.cn/openmoss/MOSS-Image-SFT.git is the model target.\nThe overgo_moss lane implements the complete image-generation and deterministic-import plan.\nEach iteration integrates current master, updates the plan from evidence, implements the next coherent steps and commits through the landing gate.\nAll imported master rows and their ownership remain intact.\nTraining, LoRA, image-to-image, video and automatic prompt enhancement are outside this campaign.\nBase acquisition and serving are outside this campaign."
+    },
+    {
+      "governs": "row",
+      "rows": [
+        "moss-reference",
+        "moss-oracle",
+        "moss-import",
+        "moss-conditioning",
+        "moss-transformer",
+        "moss-sampling",
+        "moss-decoder",
+        "moss-runtime",
+        "moss-interface",
+        "moss-efficiency",
+        "moss-import-reuse",
+        "moss-evaluation",
+        "moss-closeout"
+      ],
+      "text": "Reference authority: https://openmoss.ai/MOSS-Image/ identifies the official project.\nPrimary model source selected by the owner is https://www.modelscope.cn/openmoss/MOSS-Image-SFT.git at commit 797fa8e678b4f0a766271bf5103e6cd7a2faa999 (master/HEAD observed during this planning update).\nA shallow no-checkout reference clone is retained at C:/Users/jeffm/overgo_data/references/moss-image/modelscope-sft-797fa8e678b4f0a766271bf5103e6cd7a2faa999; Git source and LFS pointers are present, but large model payloads have not been downloaded.\nThe ModelScope pipeline_moss_image.py is the numerical oracle source, SHA-256 1dac1aca9feb1bfdfc727a401e4b67d61a505d3190706d1b7d2d784f88678b31.\nCode packaging and runtime reference remains https://github.com/OpenMOSS/MOSS-Image/tree/c1355e6b1986dfe8fba3c0455783a05899212342.\nPreviously pinned Hugging Face SFT revision fc5de0d56fc910cbca6f6625a70f5f582b26deb1 is a corroborating reference, not the acquisition target.\nCompared all eight ModelScope safetensors LFS object identities and the tokenizer payload identity against that SFT inventory, and compared eleven source/configuration/index/license files byte for byte; all matched.\nThese comparisons establish expected artifact identity and preserve the existing architecture research; downloaded weight bytes still require checksum verification before use.\nThe comparison receipt is C:/Users/jeffm/overgo_data/references/moss-image/modelscope-sft-reference-2026-10-18.json, SHA-256 b92c378380aae4dedd0aa7ad825667e130f3cd2a815a264dbdfca36593ce50a1.\nThe earlier planning-references-2026-10-18.json receipt is retained as historical provenance, including unused Base metadata; it does not authorize Base acquisition.\nRetain Apache-2.0 notices from the selected repository and inventory component notices when materializing the oracle.\nExact oracle dependency versions remain to be locked before generating golden evidence; the upstream lower bounds do not define a reproducible environment."
+    },
+    {
+      "governs": "row",
+      "rows": [
+        "moss-reference",
+        "moss-oracle",
+        "moss-import",
+        "moss-conditioning",
+        "moss-transformer",
+        "moss-sampling",
+        "moss-decoder",
+        "moss-runtime",
+        "moss-interface",
+        "moss-efficiency",
+        "moss-import-reuse",
+        "moss-evaluation",
+        "moss-closeout"
+      ],
+      "text": "Pinned model_index.json declares MOSSImagePipeline, MOSSImageTransformer, MOSSImageScheduler, Qwen3_5Model, Qwen2Tokenizer and AutoencoderKLFlux2.\nThe transformer config declares 42 layers, hidden width 3072, FFN width 8192, 24 heads, text width 4096, timestep frequency width 256 and 128 packed latent channels.\nThe text encoder config declares 32 hybrid linear/full-attention layers with hidden width 4096; reuse Overgo's Qwen3.5 execution where its hidden-state contract matches.\nThe bundled VAE has 32 latent channels, a 2-by-2 latent patch, batch-normalization statistics and the small decoder widths [96,192,384,384]; the current latentimage QwenImage VAE and selected-layer Qwen3-VL conditioner are not drop-in implementations.\nPinned SFT safetensors sizes are 16785478992 bytes for the text encoder, 10164664216 bytes for the transformer and 249521372 bytes for the VAE: 27199664580 bytes before tokenizer, metadata, runtime buffers or caches.\nOnly the SFT checkpoint is an acquisition, serving and evaluation target; previously collected Base metadata remains historical reference material.\nResident inference memory is unmeasured and must include activations, attention workspace, decoder buffers, graph allocations and host staging; the 5B marketing size describes the transformer rather than the complete pipeline."
+    },
+    {
+      "governs": "row",
+      "rows": [
+        "moss-reference",
+        "moss-oracle",
+        "moss-import",
+        "moss-conditioning",
+        "moss-transformer",
+        "moss-sampling",
+        "moss-decoder",
+        "moss-runtime",
+        "moss-interface",
+        "moss-efficiency",
+        "moss-import-reuse",
+        "moss-evaluation",
+        "moss-closeout"
+      ],
+      "text": "Parity targets the pinned released pipeline, not an unavailable training-time fp32-master implementation.\nDefault workload uses a CPU generator seeded with 42, 1024-by-1024 output, 50 requested steps, guidance 3, shift 5, empty negative prompt and negative-branch skip index 22.\nMOSSImageScheduler snaps shifted sigmas to the nearest training grid and removes consecutive duplicates, so actual step count must come from the resulting schedule.\nThe pipeline wraps prompts with apply_chat_template(add_generation_prompt=true, enable_thinking=true), runs individual unpadded encoder forwards with use_cache=false, and consumes last_hidden_state with a true-length mask.\nDiT and conditioner use bf16; initial noise, prediction combination, Euler updates and VAE decoding use fp32; timestep sinusoids use fp64 before conversion and RoPE frequencies and phases use fp32.\nDimensions are positive multiples of 16 and prompt maximum length is 4096; preserve or explicitly expose upstream truncation rather than silently rewriting prompts.\nDefault CFG performs two transformer forwards per step; guidance 1 removes the negative branch.\nOptional positive-branch SLG adds another forward and is deferred; unsupported controls must be rejected rather than silently ignored.\nDeterministic import means the same pinned bytes and policy produce the same content identities, tensor mappings and recipe; it does not promise GPU bit identity across hardware or library versions.\nFreeze numerical tolerance from independently measured oracle repeatability and datatype effects before comparing native outputs; do not widen it to accept a failed port."
+    },
+    {
+      "governs": "row",
+      "rows": [
+        "moss-reference",
+        "moss-oracle",
+        "moss-import",
+        "moss-conditioning",
+        "moss-transformer",
+        "moss-sampling",
+        "moss-decoder",
+        "moss-runtime",
+        "moss-interface",
+        "moss-efficiency",
+        "moss-import-reuse",
+        "moss-evaluation",
+        "moss-closeout"
+      ],
+      "text": "Reuse artifact, hfhub, hfrepo, safetensors, tensorcatalog, modelartifact, modelintake, libraryintake and modelrecipe for acquisition, inventory, lifecycle and capability publication.\nExtend the existing intake operation and CLI surfaces instead of adding a MOSS-only downloader, registry or serving process.\nKeep architecture facts and defaults in versioned artifacts and recipes; implement missing numerical operations in the existing tensor, graph and media owners.\nGeneralize only where MOSS and a second real supported model demonstrate the same contract; preserve distinct conditioner, transformer, scheduler and decoder semantics.\nApply the broader Strata direction through exact dependency identities, stage-local execution, bounded residency and reuse of valid intermediate results, without inventing a parallel graph or cache framework.\nTraining-time gains are not an acceptance claim for this inference campaign.\nVerification selectors below name acceptance work to be added by their rows; they are not claims that tests already exist or passed.\nUse cmd/plan or the landing gate to execute row verifiers so missing tests and skips are rejected as vacuous evidence.\nHermetic and small-device parity belongs to the landing gate; full weight loads, quality sets and performance runs belong to the model-tagged improvement cycle.\nProduction syntax-node counts below are planning estimates for new behavior, not measured performance targets; narrow them when the first implementation diff establishes the required scope."
     }
   ],
   "lane": "master-lead",
@@ -140,6 +235,24 @@
           "depends_on": [
             "strata-decode/device-experts"
           ]
+        }
+      ]
+    },
+    {
+      "id": "sqa-repairs",
+      "title": "Repair the two confirmed P2 defects the reviewer found at 9118d624c",
+      "status": "open",
+      "budget": {
+        "nodes": 40,
+        "reason": "estimate: storePromptCache releases through releasePromptCaches; the escaped-ID test merges into the round trip"
+      },
+      "steps": [
+        {
+          "id": "p2",
+          "title": "Keep evicted prompt caches owned until released, and give the escaped-ID case a real escape",
+          "status": "open",
+          "verify": "go test ./internal/inference -count=1 -run '^TestMultiplePromptCacheSelectionAndEviction$' \u0026\u0026 go test ./internal/artifact -count=1 -run '^TestIDRoundTrip$'",
+          "rationale": "From docs/sqa_findings.json at 0bd657bf2 (review of 9118d624c): SQA-159 (P2, confirmed defect) and SQA-156 (P2, confirmed test defect); no P1 is open.\nSQA-159: Runner.storePromptCache (internal/inference/prompt_cache.go) released evicted device caches with the storing request's context and cleared their owner even on error; deviceKVCache.Release returns a cancellation before releasing anything, so a request cancelled between storing and eviction left the evicted cache's device memory checked out with no owner able to release it until the executor closed.\nSQA-156: TestIDDecodesInPlace replaced a colon with the same colon, so its escaped case never reached ID.UnmarshalJSON's JSON fallback.\nSQA-155 (P2, measurement hypothesis) is covered by strata-decode/device-experts, flashnext-vision/images and flashnext-context/accept; the P3 findings wait for a step they serve.\nServes: failure-rate and peak-device-memory under cancelled requests; test validity.\nBatch: host."
         }
       ]
     },
@@ -385,6 +498,335 @@
             "flashnext-video-audio/journeys",
             "flashnext-context/reservation",
             "flashnext-expert-matrices/compute"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "moss-reference",
+      "title": "Lock the complete reference and acquire immutable model components",
+      "owner": "overgo_moss",
+      "status": "open",
+      "budget": {
+        "nodes": 1200,
+        "reason": "Planning estimate for a ModelScope transport consumer in hfhub, CLI wiring and typed reference receipts; reuse verified download, resume and publication mechanics."
+      },
+      "steps": [
+        {
+          "id": "transport",
+          "title": "Acquire pinned ModelScope files through the existing downloader",
+          "status": "open",
+          "verify": "go test ./internal/hfhub ./cmd/hf-hub -count=1 -run '^TestModelScope'",
+          "rationale": "ModelScope exposes immutable revision file inventories and declared SHA-256 identities through its repository API.\nReuse hfhub download and resume rather than retain Git LFS payloads beside a second materialized model copy.\nThe ModelScope consumer rejects mutable revisions, failed API envelopes, unsupported repository kinds, duplicate file paths and missing payload identities.\nServes: reproducible SFT acquisition from the owner-selected repository.\nDisappears: manual Git LFS materialization and duplicate download logic.\nEvidence: HTTP fixture comparisons cover resolve, checksum failure, resume and CLI selection.\nBatch: intake and command lanes; no model execution surface changes."
+        },
+        {
+          "id": "acquire",
+          "title": "Acquire and verify the pinned ModelScope SFT components",
+          "status": "open",
+          "verify": "go test ./internal/modelintake -count=1 -run '^TestMOSSReferenceReceipt$'",
+          "rationale": "Resolve dataroot outside this checkout and consume the pinned planning receipt.\nAcquire the required tokenizer and safetensors shards from the pinned ModelScope Git/LFS source through existing intake ownership, extending its transport support where needed.\nResolve Git LFS pointers into payloads and verify every object SHA-256 and size; a successful Git clone alone is not a complete model acquisition.\nUse resumable streaming, bounded memory and content-addressed reuse; do not silently substitute a Hugging Face source.\nCheck SHA-256 and byte size, safetensors offsets, shard indexes, tensor names, dimensions and dtypes; never activate a partially acquired model.\nEmit one portable receipt with upstream revisions, licenses, component ownership, file identities, architecture facts and unresolved dependencies.\nDo not load the unused vision tower for text conditioning; retain its provenance and document why its tensors are excluded from execution.\nAcceptance includes wrong digest, corrupt shard, missing tensor, duplicate tensor, changed revision, interrupted transfer and successful resume without duplicate payloads.\nServes: reproducible acquisition for MOSS inference.\nDisappears: manual downloads and model-specific path assumptions through hfhub, hfrepo, dataroot and artifact reuse.\nEvidence: immutable receipt consumed by import, oracle generation, activation and evaluation; fixture tests exercise the same checks without full models.\nBatch: intake and artifact lanes; acquisition-only changes should not move execution guards; media reconciliation starts with capability publication.",
+          "depends_on": [
+            "moss-reference/transport"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "moss-oracle",
+      "title": "Produce independent golden evidence before porting numerical behavior",
+      "owner": "overgo_moss",
+      "status": "open",
+      "budget": {
+        "nodes": 0,
+        "reason": "Reference data and ignored Python golden producers do not require production runtime growth."
+      },
+      "steps": [
+        {
+          "id": "goldens",
+          "title": "Freeze oracle environment and stage-level golden contracts",
+          "status": "open",
+          "verify": "go test ./internal/latentimage -count=1 -run '^TestMOSSGoldenProvenance$'",
+          "rationale": "Review the pinned bundled pipeline before executing it and lock exact oracle dependencies in an isolated environment.\nKeep Python producers only in scripts/python_golden_references; Go tests and runtime read their data and never execute Python.\nCapture tokenizer IDs, rendered template, masks, normalized last hidden states, initial noise, RoPE, timestep embeddings, text refinement, representative first/middle/last blocks, conditional and skipped-negative predictions, schedule, CFG, every latent step, VAE unpacking, decoder output and RGB pixels.\nInclude fixed latents to isolate denoising from RNG and separately verify the CPU-seeded RNG contract.\nFixtures cover English, Chinese text, empty negative prompts, unequal prompt lengths, serialized layout, a rectangular canvas, guidance 1 and default guidance, bound to the pinned ModelScope SFT component identities.\nSmall deterministic fixtures prove arithmetic; full-sized cases prove the released model path.\nRecord hardware, library versions, dtype, attention backend, deterministic settings, seed, inputs and output hashes; measure oracle repeatability and freeze stage and end-to-end tolerances before port comparison.\nThe oracle is independent of the native implementation and must not use native outputs as expected values.\nServes: numerical correctness and reproducibility.\nDisappears: screenshot-only or self-generated parity claims; reuse existing golden and runrecord storage.\nEvidence: one signed-by-identity provenance chain and measured tolerance contract read by every numerical row and the final cycle.\nBatch: golden/fixture lanes, no runtime surface change; full model golden generation stays outside the landing gate.",
+          "depends_on": [
+            "moss-reference/acquire"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "moss-import",
+      "title": "Mechanize inspection and materialization through existing intake",
+      "owner": "overgo_moss",
+      "status": "open",
+      "budget": {
+        "nodes": 1500,
+        "reason": "A typed multi-component import description and its executor extend existing intake; no second registry or general compiler is planned."
+      },
+      "steps": [
+        {
+          "id": "inspect",
+          "title": "Derive a deterministic import description without loading weights",
+          "status": "open",
+          "verify": "go test ./internal/modelintake -count=1 -run '^TestDeterministicComponentImportDescription$'",
+          "rationale": "Extend intake to inspect immutable configs, tokenizer metadata, indexes and safetensors headers for multi-component artifacts as well as current single-file inputs.\nProduce a canonical, versioned description of source hashes, components, tensors, shapes, dtypes, names and transforms, required operators, tokenizer policy, scheduler, capabilities, recipe dependencies and resource estimates.\nResolve known architectures from registered profiles and validate config facts against actual tensor shapes.\nUnknown architectures or operations produce an explicit unsupported report; do not execute remote code or use model inference to guess mappings.\nCanonical content excludes timestamps, local absolute paths, map iteration and transfer order; record physical locations separately.\nAcceptance proves identical descriptions across input enumeration order, worker count, repeated execution and relocation, plus exact invalidation when a source or policy changes.\nServes: deterministic model import and early compatibility reporting.\nDisappears: repeated manual tensor mapping through modelartifact, tensorcatalog and modelrecipe ownership.\nEvidence: canonical import artifact and refusal cases consumed by both CLI and library intake.\nBatch: intake/profile lanes; inventory changes alone should not expire execution guards; reconcile public contract if operation schema changes.",
+          "depends_on": [
+            "moss-reference/acquire"
+          ]
+        },
+        {
+          "id": "materialize",
+          "title": "Execute an import description idempotently and retain rollback",
+          "status": "open",
+          "verify": "go test ./internal/modelintake ./internal/libraryintake -count=1 -run '^TestComponentImportLifecycle$'",
+          "rationale": "Execute the frozen description using bounded streaming reads, existing artifact publication and exact tensor transforms; preserve native safetensors when conversion has no demonstrated consumer.\nKeep acquire, verify, prepare, validate and activate as durable lifecycle states under existing owners.\nDeduplicate verified SFT components across retries and existing cached artifacts by content and atomically publish a candidate only when all references resolve.\nCancellation, restart and repeated import must reuse verified chunks and produce the same logical artifact identity; a failed write must never become verified state.\nAn import can be complete while serving remains unverified; activation requires the later numerical and capability evidence, with rollback to the previous activation.\nTest corruption, interrupted conversion, duplicate retries, stale verification, disk failure and missing component without touching a live store.\nServes: reliable operator and unattended model intake.\nDisappears: bespoke installer state and duplicate component copies through artifact/modelintake lifecycle reuse.\nEvidence: import receipt and candidate lineage read by library, recipe and final validation.\nBatch: intake, lifecycle and API lanes; activation changes may expire execution guards and require media reconciliation.",
+          "depends_on": [
+            "moss-import/inspect"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "moss-conditioning",
+      "title": "Reuse Qwen3.5 to produce MOSS prompt conditioning",
+      "owner": "overgo_moss",
+      "status": "open",
+      "budget": {
+        "nodes": 1000,
+        "reason": "Add a hidden-state consumer and prompt contract to existing Qwen3.5 and media owners, without a second text decoder."
+      },
+      "steps": [
+        {
+          "id": "encode",
+          "title": "Match prompt rendering and final hidden states",
+          "status": "open",
+          "verify": "go test ./internal/latentimage -count=1 -run '^TestMOSSConditioningGolden$'",
+          "rationale": "Bind the pinned Qwen2 tokenizer and chat template, including enable_thinking=true, exact special tokens, truncation and Unicode bytes.\nExpose the existing Qwen3.5 model's normalized final hidden states with use_cache=false for its hybrid GDN/full-attention stack; do not substitute selected Qwen3-VL layers or sampled token logits.\nPreserve per-prompt true lengths so padding cannot alter GDN recurrence or joint attention.\nProve CPU and device conditioning against independent IDs, masks and hidden-state goldens before caching.\nOnly text-path weights participate in resident execution; inventory still accounts for unused visual components.\nServes: natural-language and layout conditioning.\nDisappears: a separate MOSS text model; reuse tokenizer, Qwen3.5 model execution and media bindings.\nEvidence: prompt and hidden-state golden record consumed by transformer and end-to-end parity.\nBatch: tokenizer/model/media lanes; inference surface changes expire guards; update image capability bindings together.",
+          "depends_on": [
+            "moss-import/materialize",
+            "moss-oracle/goldens"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "moss-transformer",
+      "title": "Implement the MOSS transformer in the native graph",
+      "owner": "overgo_moss",
+      "status": "open",
+      "budget": {
+        "nodes": 1800,
+        "reason": "Missing text refinement, shared modulation and bounded SITU arithmetic are expected; reuse existing attention, normalization, linear and graph kernels."
+      },
+      "steps": [
+        {
+          "id": "forward",
+          "title": "Match transformer arithmetic and branch skipping",
+          "status": "open",
+          "verify": "go test ./internal/latentimage -count=1 -run '^TestMOSSTransformerGolden$'",
+          "rationale": "Represent the two text-refinement blocks, image-then-text joint attention, four-coordinate RoPE, fp64-to-fp32 timestep embedding, shared six-way modulation, RMSNorm and bounded SITU FFN using typed recipe-selected operators.\nDerive geometry and parameter bindings from the import description, including bias distinctions and full tensor coverage.\nPreserve fp32 RoPE construction before bf16 activation casts; do not reuse a superficially similar SwiGLU or positional scheme.\nImplement skip sets as validated zero-based transformer block indices; conditional execution never inherits negative-branch skipping.\nCompare intermediate tensors at first, middle and final blocks, text refinement and final velocity; include non-square images and unequal prompt lengths.\nServes: native MOSS denoising.\nDisappears: model-specific Python serving and duplicate matrix/attention machinery through tensor/graphruntime/CUDA reuse.\nEvidence: block and complete-forward numerical comparisons consumed by sampling and performance work.\nBatch: graph/kernel/media lanes; refresh kernel identities where changed, expire inference guards and reconcile model recipe dependencies.",
+          "depends_on": [
+            "moss-conditioning/encode"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "moss-sampling",
+      "title": "Preserve custom schedule, seeded noise and guidance",
+      "owner": "overgo_moss",
+      "status": "open",
+      "budget": {
+        "nodes": 600,
+        "reason": "Extend existing scheduler and sampling operators for the pinned nearest-grid semantics; avoid a parallel sampling loop."
+      },
+      "steps": [
+        {
+          "id": "trajectory",
+          "title": "Match every denoising step and its actual schedule",
+          "status": "open",
+          "verify": "go test ./internal/latentimage -count=1 -run '^TestMOSSSamplingGolden$'",
+          "rationale": "Implement nearest-training-grid sigma snapping, tie direction, unique-consecutive removal and terminal handling from MOSSImageScheduler.\nDo not substitute an ordinary FlowMatchEuler scheduler or apply shift twice.\nPreserve fp32 Gaussian generation, separate prediction casts before CFG, Euler accumulation and negative-branch skip 22 over the configured interval.\nProve default two-forward behavior, guidance 1, skipping disabled, custom negative text and short schedules whose snapped count differs from the requested count.\nBind exact CPU-generator noise through existing torchrng or accept externally supplied golden latents; any alternate RNG is a separately declared mode.\nReject nonfinite settings, invalid skip indices, empty prompt masks and invalid dimensions.\nServes: deterministic request semantics and faithful generation.\nDisappears: handwritten model-specific timestep and guidance paths through existing sampler ownership.\nEvidence: schedule/noise/CFG and per-step latent records read by decoder and final parity.\nBatch: sampling/media lanes; expire inference guards and reconcile generation policy identity.",
+          "depends_on": [
+            "moss-transformer/forward"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "moss-decoder",
+      "title": "Decode packed MOSS latents through the FLUX.2 VAE",
+      "owner": "overgo_moss",
+      "status": "open",
+      "budget": {
+        "nodes": 1300,
+        "reason": "Support the small decoder and batch-normalized packed latents in existing image/graph owners; reuse convolution, normalization and attention primitives."
+      },
+      "steps": [
+        {
+          "id": "pixels",
+          "title": "Match latent unpacking, decoder output and pixels",
+          "status": "open",
+          "verify": "go test ./internal/latentimage -count=1 -run '^TestMOSSDecoderGolden$'",
+          "rationale": "Apply stored batch-normalization mean and variance with the pinned epsilon to the 128-channel latents before the exact 2-by-2 unpack into 32 channels.\nLoad the bundled AutoencoderKLFlux2 small decoder, including post-quant convolution, decoder blocks, normalization and mid-block attention in fp32.\nMatch clamping, range conversion, tensor layout, rounding and encoded image behavior to the chosen oracle output contract.\nDo not reuse QwenImage VAE normalization or assume identical FLUX decoder channel widths.\nCompare unpacked tensors, decoder boundaries, floating RGB and final pixel output on square and rectangular inputs.\nServes: usable generated images.\nDisappears: a separate VAE process; reuse latentimage/diffusionimage primitives where numerical contracts match.\nEvidence: VAE and pixel goldens consumed by native end-to-end parity and UI rendering.\nBatch: convolution/graph/media lanes; expire inference guards and reconcile decoder artifact dependencies.",
+          "depends_on": [
+            "moss-import/materialize",
+            "moss-oracle/goldens"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "moss-runtime",
+      "title": "Connect components into a cancellable resident inference session",
+      "owner": "overgo_moss",
+      "status": "open",
+      "budget": {
+        "nodes": 900,
+        "reason": "Compose existing graph, residency and media session owners; no parallel executor or resource manager."
+      },
+      "steps": [
+        {
+          "id": "session",
+          "title": "Execute complete image requests through native recipes",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentimage -count=1 -run '^TestMOSSResidentSession$'",
+          "rationale": "Compose conditioning, denoising and decoding using resident graph bindings and existing admission accounting.\nKeep latent, prediction, guidance and Euler buffers on the device across steps; transfer output only for declared observation or final publication.\nSeparate model loading, prompt encoding, denoising, decoding and publication measurements using existing run records.\nRelease temporary allocations and leases on success, failure and cancellation, and prevent cancelled work from publishing a completed image.\nCover concurrent requests, cold/warm reuse, SFT selection and reload, resource refusal and cancellation at each stage with small device fixtures.\nServes: complete native inference and responsive cancellation.\nDisappears: per-step host transfers and duplicated session orchestration through graphruntime and mediacapability.\nEvidence: lifecycle, transfer and stage records consumed by UI and full-model evaluation.\nBatch: graph/runtime/media lanes; expire inference guards, update recipe and media bindings together.",
+          "depends_on": [
+            "moss-sampling/trajectory",
+            "moss-decoder/pixels"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "moss-interface",
+      "title": "Expose model import and image generation through existing UI/API",
+      "owner": "overgo_moss",
+      "status": "open",
+      "budget": {
+        "nodes": 700,
+        "reason": "Extend library and generation schemas and views with capability-derived controls; no new application or MOSS-specific route family."
+      },
+      "steps": [
+        {
+          "id": "serve",
+          "title": "Publish image capabilities and request provenance",
+          "status": "open",
+          "verify": "go test ./internal/mediacapability ./internal/server -count=1 -run '^TestMOSSImageGenerationContract$'",
+          "rationale": "Register the pinned MOSS-Image-SFT checkpoint as the image-generation target with verified component identities and ModelScope provenance.\nExtend existing generation operations with prompt, dimensions, seed, steps, guidance and negative prompt; encode policy defaults in the selected recipe.\nAccept serialized layout prompts without changing whitespace or Unicode after the request is committed; structured input, if offered, uses one defined serialization and validates centered yxyx coordinates against the canvas.\nReject unsupported training, editing and SLG requests explicitly.\nBind output to checkpoint, tokenizer/template, import description, recipe, sampling settings and input identity; report pending, failed and cancelled states accurately.\nServes: discoverable, reproducible image generation.\nDisappears: model-name dispatch and duplicated API defaults through existing capability and generation ownership.\nEvidence: request/response and artifact tests feed API manifest and compatibility publication.\nBatch: server/media/schema lanes; expire guards as required and regenerate public/media contracts through their owners.",
+          "depends_on": [
+            "moss-runtime/session"
+          ]
+        },
+        {
+          "id": "journey",
+          "title": "Finish the library-to-image user journey",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserMOSSGeneration$' -leg moss-generation",
+          "rationale": "Reuse Library import and the Generation view for acquisition progress, component reuse, readiness, model choice, prompt input, image size, generate, cancel, preview and download.\nShow clear progress through model loading, prompt processing, image generation and decoding; advanced sampling options stay secondary.\nExpose layout input as an optional prompt mode with a simple example and clear coordinate errors, not a new canvas editor.\nShow resource refusal and recovery without leaving controls stuck or claiming success for incomplete work.\nBrowser acceptance covers import readiness, SFT selection, normal and layout generation, preview/download, invalid inputs, cancellation and retry using hermetic operations; real model evidence remains in the cycle.\nServes: an understandable image-generation workflow.\nDisappears: bespoke Gradio/ComfyUI dependency and duplicate UI orchestration through current library/generation views.\nEvidence: browser-lane journey record and operation provenance reused by closeout.\nBatch: web UI and server lanes; media/API reconciliation follows schema changes, and browser checks run only in the required lane.",
+          "depends_on": [
+            "moss-interface/serve"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "moss-efficiency",
+      "title": "Reduce repeated work and peak memory without changing the default model",
+      "owner": "overgo_moss",
+      "status": "open",
+      "budget": {
+        "nodes": 900,
+        "reason": "Use existing cache, graph and resource owners; add only identity and residency support demonstrated by measured repeated work."
+      },
+      "steps": [
+        {
+          "id": "bounded",
+          "title": "Measure and improve whole-request resource use",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentimage -count=1 -run '^TestMOSSBoundedResidency$'",
+          "rationale": "Establish cold/warm time and peak host/device memory before optimization with matching inputs and output contracts.\nPrefer stage residency: encode once, release the conditioner, retain transformer weights through denoising, then decode; use bounded block streaming only where admission requires it.\nCache prompt conditioning and deterministic text refinement only with complete model/tokenizer/template/input/dtype/policy identities and bounded eviction; reuse across models or revisions requires identical component identities.\nReuse scratch buffers and graph programs, avoid materializing dense attention matrices, and key graph reuse by shape, prompt length, branch policy and resource lifetime.\nVAE tiling must prove correct boundary behavior and no seams; quantization, reduced steps or resolution are explicit quality-changing modes, not an invisible way to claim parity or speed.\nMeasure actual GPU allocation lifetimes, transfer bytes, host RSS and time per stage; admission includes workspace and graph allocations.\nVerify cache invalidation, budget adherence and cancellation with small fixtures; the model cycle measures performance and quality against the frozen baseline.\nServes: lower latency and memory under the same default generation contract.\nDisappears: repeated component loading, recomputation and allocation through existing graph/residency/cache owners.\nEvidence: comparable baseline/candidate records with required quality cells, consumed by final evaluation and resource guidance.\nBatch: runtime/media/kernel lanes; batch execution-surface changes before refreshing guards and reusing model evidence.",
+          "depends_on": [
+            "moss-runtime/session"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "moss-import-reuse",
+      "title": "Demonstrate model import reuse beyond MOSS",
+      "owner": "overgo_moss",
+      "status": "open",
+      "budget": {
+        "nodes": 500,
+        "reason": "The second real consumer justifies only the shared intake mechanics it exercises; remove its replaced manual path in the same change."
+      },
+      "steps": [
+        {
+          "id": "second-consumer",
+          "title": "Run the deterministic importer on an existing supported family",
+          "status": "open",
+          "verify": "go test ./internal/modelintake ./internal/libraryintake -count=1 -run '^TestDeterministicImportAcrossFamilies$'",
+          "rationale": "Use the existing Krea2 multi-component image profile as the second consumer and an existing single-file GGUF intake as a regression control.\nKeep Krea's Qwen3-VL conditioner, selected-layer fusion, QwenImage VAE and scheduler facts distinct from MOSS; share acquisition, inventory, validation, recipe materialization and lifecycle only where the contracts match.\nUse small representative checkpoint fixtures to prove reproducible canonical identities, explicit unsupported-operator reports and idempotent restart across both image families.\nRemove the displaced manual importer glue and duplicated fixture scaffolding in the same landing.\nThe importer supports declared profiles; adding a wholly new architecture still requires an audited numerical implementation and independent evidence.\nServes: mechanized model onboarding across Overgo.\nDisappears: repeated family-specific intake code through existing shared owners, with concrete deleted paths recorded in the landing.\nEvidence: cross-family import and legacy compatibility records used by the final campaign assessment.\nBatch: intake/profile lanes; inference guards move only if recipe execution changes; reconcile media mappings if affected.",
+          "depends_on": [
+            "moss-import/materialize",
+            "moss-interface/serve"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "moss-evaluation",
+      "title": "Validate the SFT model and publish honest capability evidence",
+      "owner": "overgo_moss",
+      "status": "open",
+      "budget": {
+        "nodes": 300,
+        "reason": "Extend current evaluation protocols and compatibility records; no standalone benchmark service or scorecard."
+      },
+      "steps": [
+        {
+          "id": "model-parity",
+          "title": "Compare native SFT inference with the pinned SFT oracle",
+          "status": "open",
+          "verify": "go test -tags models ./internal/evaluation -count=1 -run '^TestMOSSRetainedEvidence$/parity'",
+          "rationale": "Add full-model cycle coverage for the ModelScope SFT checkpoint over the frozen prompt, layout, language, size, negative-prompt and seed matrix.\nRequire stage tolerances and end-to-end output acceptance independently; pleasing pictures or finite tensors alone are insufficient.\nEvaluate rendered text and layout adherence on a frozen held-out set, preserving independent human or established metric judgments where needed.\nBind every result to exact implementation, source, checkpoint, recipe, suite and environment identities; unavailable devices or missing artifacts remain missing evidence.\nPublish image-generation capability verification only after required cells complete; do not advertise training capability.\nServes: trustworthy native model support.\nDisappears: unverified support labels through existing evaluation and activation evidence.\nEvidence: retained native-versus-upstream stage and quality records read by activation, compatibility and closeout.\nBatch: evaluation/claim lanes; full-model work runs in the cycle, after all execution-surface changes and guard renewal.",
+          "depends_on": [
+            "moss-interface/journey",
+            "moss-efficiency/bounded",
+            "moss-import-reuse/second-consumer"
+          ]
+        },
+        {
+          "id": "resources",
+          "title": "Measure latency and memory on supported hardware",
+          "status": "open",
+          "verify": "go test -tags models ./internal/evaluation -count=1 -run '^TestMOSSRetainedEvidence$/resources'",
+          "rationale": "Compare native and pinned upstream runs with equal checkpoint, prompt, image size, guidance, actual step schedule, precision and quality requirements.\nReport cold acquisition/load separately from warm generation; include prompt encoding, transformer time, decoder time, wall-clock latency, peak host/GPU memory and transfer volume.\nMeasure resident and bounded-memory modes at 1024 square and a rectangular case, plus the largest admitted case established by evidence.\nRecord hardware and warmup/repeat protocol before comparing results; do not invent a consumer-GPU fit claim from weight size alone.\nA faster setting that changes precision, step count or image size gets its own quality/performance record.\nServes: measurable capability under realistic memory constraints.\nDisappears: unsupported speed or memory claims through existing benchmark/evaluation records.\nEvidence: one resource comparison record reused by UI guidance, documentation and closeout.\nBatch: cycle-only model evaluation; unchanged execution identities permit evidence reuse without rerunning the landing gate.",
+          "depends_on": [
+            "moss-evaluation/model-parity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "moss-closeout",
+      "title": "Reconcile support, documentation and remaining limitations",
+      "owner": "overgo_moss",
+      "status": "open",
+      "budget": {
+        "nodes": 0,
+        "reason": "Closeout changes records and documentation, with no production growth."
+      },
+      "steps": [
+        {
+          "id": "close",
+          "title": "Publish verified support and retire campaign-only doctrine",
+          "status": "open",
+          "verify": "go test -tags models ./internal/evaluation -count=1 -run '^TestMOSSRetainedEvidence$/complete' \u0026\u0026 go run ./cmd/validate -claims",
+          "rationale": "Check the full request-to-image journey, the ModelScope SFT checkpoint receipt, independent parity, deterministic cross-family import, resource measurements, cancellation and rollback against the earlier acceptance contracts.\nRegenerate compatibility/API/media documentation through existing generators and retain all source, license and environment identities.\nDocument supported controls, measured hardware limits and intentionally unsupported training/editing/SLG features.\nAudit added versus removed production mechanisms and keep the shared importer only where both real consumers demonstrate its value.\nRemove obsolete temporary artifacts and campaign-only doctrine when its work ends; retain evidence under the existing data lifecycle.\nImplementation lands through the repository gate.\nPush requires a separate owner request.\nServes: a complete, maintainable image capability and repeatable onboarding path.\nDisappears: stale campaign rules and displaced import mechanisms; preserve durable reference/evaluation evidence.\nEvidence: complete campaign record consumed by capability claims and documentation; incomplete required cells prevent closure.\nBatch: claims/documentation and any generated-contract lanes; no new execution-surface change is expected at closeout.",
+          "depends_on": [
+            "moss-evaluation/resources"
           ]
         }
       ]

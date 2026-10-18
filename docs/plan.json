@@ -155,20 +155,10 @@
       "title": "Serve the faster measured speech paths and read speech quality from its largest suite",
       "status": "open",
       "budget": {
-        "nodes": 130,
+        "nodes": 62,
         "reason": "asr-resident measured +68 production nodes in its worktree; asr-activate's estimate is about 60 for recording device runs with a device environment label"
       },
       "steps": [
-        {
-          "id": "asr-resident",
-          "title": "Serve whole-clip transcription on the resident device recipes, or record why not",
-          "status": "open",
-          "verify": "go test ./internal/mediacapability -count=1 -run '^TestWholeClipTranscriptionServesTheResidentRecipe$'",
-          "rationale": "From the owner's audio review of 2026-10-18 and commit 90e0d23f2 (audio-asr-device/resident).\nThe retained comparison measured whole-clip transcription 37% faster for Granite and 23 to 29% faster for Nemotron on the resident device recipes (Placement hybrid: internal/speechrecognition/transcriber.go binds the encoder's feed-forward to the device). No recipe was activated, so the scorecard's transcription first-output improved only 7 to 9% (Granite 3,338 to 3,113 ms, Nemotron 4,874 to 4,455 ms).\nCosts the commit measured: load-time about +306 ms (Granite) and +415 ms (Nemotron), and peak-device-memory by the resident weights. A hybrid transducer has no stream frontend, so native streaming stays on the CPU recipe.\nThe step activates the resident recipe through recipe activate where it loses no served capability: Granite at once; Nemotron only if a stream request still reaches its CPU recipe, else it records why the CPU recipe stays.\nThe test holds whole-clip transcription to the resident recipe and a stream to the CPU one.\nServes: first-output for whole-clip transcription.\nWorsens, stated: load-time by about 0.3 to 0.4 s, and peak-device-memory by the resident encoder weights.\nEvidence: the next full measurement run's transcription first-output against 3,113 and 4,455 ms.\nBatch: device.",
-          "depends_on": [
-            "audio-serving/headline"
-          ]
-        },
         {
           "id": "asr-activate",
           "title": "Activate Granite's resident transcription recipe and rebind its coverage and held-out quality",

@@ -30,18 +30,7 @@ func TestTranscriptionCapabilityCompilesTheSpeechRecipe(t *testing.T) {
 		t.Run(modelType, func(t *testing.T) {
 			t.Parallel()
 			ctx := t.Context()
-			directory := t.TempDir()
-			if err := safetensors.Save(filepath.Join(directory, "model.safetensors"), map[string][]float32{"weight": {1}}, map[string][]int{"weight": {1}}, nil); err != nil {
-				t.Fatal(err)
-			}
-			for name, body := range map[string]string{
-				"config.json":    `{"model_type":"` + modelType + `"}`,
-				"tokenizer.json": `{"added_tokens":[],"model":{"type":"BPE","vocab":{"a":0},"merges":[],"byte_fallback":false}}`,
-			} {
-				if err := os.WriteFile(filepath.Join(directory, name), []byte(body), 0o600); err != nil {
-					t.Fatal(err)
-				}
-			}
+			directory := speechCheckpoint(t, modelType)
 			source, err := Catalog[recipe.TaskTranscription].Resolve(directory)
 			if err != nil {
 				t.Fatal(err)
@@ -87,4 +76,72 @@ func TestTranscriptionCapabilityCompilesTheSpeechRecipe(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestWholeClipTranscriptionServesTheResidentRecipe holds the transcription
+// capability to registering the resident device recipe wherever it loses no
+// kind of request. A model has one active transcription recipe, and the
+// server loads that one recipe for whole clips and for streams alike. A
+// recognizer with no recurrent decoder transcribes whole clips only, so it
+// registers the resident recipe; a recurrent recognizer streams only on its
+// CPU recipe, so it keeps that one. A recognizer judging another model's
+// speech runs on the CPU, and is named by its CPU recipe either way.
+func TestWholeClipTranscriptionServesTheResidentRecipe(t *testing.T) {
+	t.Parallel()
+	for modelType, placement := range map[string]recipe.Placement{
+		"granite_speech5_ctc": recipe.PlacementHybrid,
+		"nemotron3_5_asr":     recipe.PlacementHost,
+	} {
+		t.Run(modelType, func(t *testing.T) {
+			t.Parallel()
+			directory := speechCheckpoint(t, modelType)
+			source, err := Catalog[recipe.TaskTranscription].Resolve(directory)
+			if err != nil {
+				t.Fatal(err)
+			}
+			definition, _, err := source.Define(source.Inventory.Manifest.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var dependencies [5]artifact.ID
+			for index, role := range []recipe.DependencyRole{recipe.DependencyModel, recipe.DependencyProfile, recipe.DependencyProcessorProfile, recipe.DependencyTokenizer, recipe.DependencyTensorInventory} {
+				dependencies[index], _ = definition.PrimaryDependency(role)
+			}
+			host, err := modelrecipe.TranscriptionDefinition(dependencies[0], dependencies[1], dependencies[2], dependencies[3], dependencies[4])
+			if err != nil {
+				t.Fatal(err)
+			}
+			served := host
+			if placement == recipe.PlacementHybrid {
+				if served, err = modelrecipe.DeviceTranscriptionDefinition(host); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if definition.ID != served.ID || definition.Nodes[0].Placement != placement {
+				t.Fatalf("%s registers recipe %s placed %s, want %s placed %s", modelType, definition.ID, definition.Nodes[0].Placement, served.ID, placement)
+			}
+			if judge, err := RecognizerRecipe(directory); err != nil || judge != host.ID {
+				t.Fatalf("a judging %s, which runs on the CPU, is named %s (%v), want its CPU recipe %s", modelType, judge, err, host.ID)
+			}
+		})
+	}
+}
+
+// speechCheckpoint writes a speech checkpoint of the model type the reviewed
+// declarations answer for: one tensor, its configuration and a tokenizer.
+func speechCheckpoint(t *testing.T, modelType string) string {
+	t.Helper()
+	directory := t.TempDir()
+	if err := safetensors.Save(filepath.Join(directory, "model.safetensors"), map[string][]float32{"weight": {1}}, map[string][]int{"weight": {1}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	for name, body := range map[string]string{
+		"config.json":    `{"model_type":"` + modelType + `"}`,
+		"tokenizer.json": `{"added_tokens":[],"model":{"type":"BPE","vocab":{"a":0},"merges":[],"byte_fallback":false}}`,
+	} {
+		if err := os.WriteFile(filepath.Join(directory, name), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return directory
 }

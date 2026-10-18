@@ -179,7 +179,11 @@ var Catalog = map[recipe.Task]Capability{
 // transcription recipe the speech runtime loads: its Hugging Face inventory,
 // the identity that runtime recomputes, compiled with the execution profile
 // and audio contract its reviewed declarations give. It executes through the
-// same declarations.
+// same declarations. A model has one active transcription recipe, which
+// serves its whole clips and its streams alike, and a resident recipe builds
+// no stream. So a recognizer with no recurrent decoder, which transcribes
+// whole clips only, registers the resident recipe, and a recurrent one keeps
+// the CPU recipe its streams need.
 func transcriptionCapability() Capability {
 	return Capability{
 		Resolve: func(path string) (Source, error) {
@@ -188,32 +192,53 @@ func transcriptionCapability() Capability {
 				return Source{}, err
 			}
 			return Source{Inventory: inventory, Define: func(artifact.ID) (recipe.Definition, []artifact.Content, error) {
-				spec, err := reviewedRecognizer(path)
-				if err != nil {
-					return recipe.Definition{}, nil, err
+				spec, definition, facts, err := hostTranscription(path, inventory)
+				if err == nil && spec.Transducer == nil {
+					definition, err = modelrecipe.DeviceTranscriptionDefinition(definition)
 				}
-				profile, err := spec.Profile()
-				if err != nil {
-					return recipe.Definition{}, nil, err
-				}
-				definition, contract, err := modelrecipe.CompileTranscription(inventory, profile.ID, uint64(profile.Frontend.SampleRate), profile.Frontend.Geometry)
-				if err != nil {
-					return recipe.Definition{}, nil, err
-				}
-				var facts []artifact.Content
-				for _, fact := range []func() (artifact.Content, error){profile.Content, contract.Content} {
-					content, err := fact()
-					if err != nil {
-						return recipe.Definition{}, nil, err
-					}
-					facts = append(facts, content)
-				}
-				return definition, facts, nil
+				return definition, facts, err
 			}}, nil
 		},
 		Execute: capabilityruntime.JSONScalar[speechrecognition.TranscriptionRequest, *speechrecognition.Recognizer, string](
 			"transcription", speechrecognition.ValidateTranscriptionRequest, loadRecognizer, speechrecognition.RegisterRuntime),
 	}
+}
+
+// hostTranscription compiles the CPU transcription recipe of the checkpoint
+// at path with the profile and contract it publishes beside its inventory.
+func hostTranscription(path string, inventory modelartifact.Inventory) (speechrecognition.RecognizerSpec, recipe.Definition, []artifact.Content, error) {
+	spec, err := reviewedRecognizer(path)
+	if err != nil {
+		return spec, recipe.Definition{}, nil, err
+	}
+	profile, err := spec.Profile()
+	if err != nil {
+		return spec, recipe.Definition{}, nil, err
+	}
+	definition, contract, err := modelrecipe.CompileTranscription(inventory, profile.ID, uint64(profile.Frontend.SampleRate), profile.Frontend.Geometry)
+	if err != nil {
+		return spec, recipe.Definition{}, nil, err
+	}
+	var facts []artifact.Content
+	for _, fact := range []func() (artifact.Content, error){profile.Content, contract.Content} {
+		content, err := fact()
+		if err != nil {
+			return spec, recipe.Definition{}, nil, err
+		}
+		facts = append(facts, content)
+	}
+	return spec, definition, facts, nil
+}
+
+// RecognizerRecipe identifies the CPU recipe of the recognizer at path, the
+// one OpenRecognizer runs, so an evaluation it judges names what judged.
+func RecognizerRecipe(path string) (artifact.ID, error) {
+	inventory, err := modelartifact.FromHFPath(path)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	_, definition, _, err := hostTranscription(path, inventory)
+	return definition.ID, err
 }
 
 // reviewedRecognizer resolves the reviewed declarations for what the

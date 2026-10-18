@@ -116,6 +116,10 @@
       "id": "strata-decode",
       "title": "Decode Qwen3.8-Flash-Next at the speed Strata reaches on this PC",
       "status": "open",
+      "budget": {
+        "nodes": 91,
+        "reason": "measured by the preflight of step router: the launch of the router logits kernel, its scratch place and its block constant"
+      },
       "steps": [
         {
           "id": "router",
@@ -309,7 +313,8 @@
             "flashnext-prefill-plan/do",
             "flashnext-expert-decode-plan/do",
             "flashnext-expert-reuse-plan/do",
-            "plan-strata-review/do"
+            "plan-strata-review/do",
+            "plan-router-count/do"
           ]
         }
       ]

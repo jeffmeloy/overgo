@@ -144,6 +144,24 @@
       ]
     },
     {
+      "id": "sqa-repairs",
+      "title": "Repair the two confirmed P2 defects the reviewer found at 9118d624c",
+      "status": "open",
+      "budget": {
+        "nodes": 40,
+        "reason": "estimate: storePromptCache releases through releasePromptCaches; the escaped-ID test merges into the round trip"
+      },
+      "steps": [
+        {
+          "id": "p2",
+          "title": "Keep evicted prompt caches owned until released, and give the escaped-ID case a real escape",
+          "status": "open",
+          "verify": "go test ./internal/inference -count=1 -run '^TestMultiplePromptCacheSelectionAndEviction$' \u0026\u0026 go test ./internal/artifact -count=1 -run '^TestIDRoundTrip$'",
+          "rationale": "From docs/sqa_findings.json at 0bd657bf2 (review of 9118d624c): SQA-159 (P2, confirmed defect) and SQA-156 (P2, confirmed test defect); no P1 is open.\nSQA-159: Runner.storePromptCache (internal/inference/prompt_cache.go) released evicted device caches with the storing request's context and cleared their owner even on error; deviceKVCache.Release returns a cancellation before releasing anything, so a request cancelled between storing and eviction left the evicted cache's device memory checked out with no owner able to release it until the executor closed.\nSQA-156: TestIDDecodesInPlace replaced a colon with the same colon, so its escaped case never reached ID.UnmarshalJSON's JSON fallback.\nSQA-155 (P2, measurement hypothesis) is covered by strata-decode/device-experts, flashnext-vision/images and flashnext-context/accept; the P3 findings wait for a step they serve.\nServes: failure-rate and peak-device-memory under cancelled requests; test validity.\nBatch: host."
+        }
+      ]
+    },
+    {
       "id": "audio-serving",
       "title": "Serve the faster measured speech paths and read speech quality from its largest suite",
       "status": "open",
@@ -156,7 +174,7 @@
           "id": "asr-activate",
           "title": "Activate Granite's resident transcription recipe and rebind its coverage and held-out quality",
           "status": "open",
-          "verify": "go run ./cmd/validate -media",
+          "verify": "go run ./cmd/validate -media json",
           "rationale": "From step asr-resident: Granite's transcription capability now compiles the resident recipe (recipe:sha256:b0414e84...) in place of its active CPU recipe (recipe:sha256:1b4b53ff...); Nemotron keeps its CPU recipe because a resident recipe serves no stream and a model has one active recipe per task.\nThe step verifies Granite's resident recipe on the request its CPU activation was verified on (scratchpad asr-activate.txt), activates it, and measures it with nothing else on the card.\nActivation breaks two bindings the step repairs in the same commit: docs/verification/specialized-coverage.json binds Granite's accepted transcription to the CPU recipe (cmd/validate/media_coverage.go carries acceptance only across a session-policy change), so the cell is rebound to the GPU run of the same reference acceptance (TestASRResidentReference/connectionist); and Granite's held-out quality is read by recipe, so the LibriSpeech transcription evaluation runs again on the resident recipe.\nDevice runs are recorded with a CPU or host environment label in TranscriptionWorkspace and capability verify; the step records them as device runs.\nServes: first-output for Granite's whole-clip transcription; worsens load-time by about 0.3 s and peak-device-memory by about 1.09 GB, as stated in asr-resident.\nBatch: device."
         }
       ]
@@ -358,7 +376,8 @@
             "plan-reuse-review/do",
             "plan-decode-count/do",
             "plan-reuse-contracts/do",
-            "plan-capacity-count/do"
+            "plan-capacity-count/do",
+            "plan-sqa-p2/do"
           ]
         }
       ]

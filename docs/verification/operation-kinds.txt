@@ -74,7 +74,7 @@ The preamble's row is the plan's step shape-reading/launch-checks, and TestNoLau
 == switches ==
 family: internal/tensor.Op
 switches: 10
-lines: 1577
+lines: 1585
 functions: 10
 packages: 4
 constants: 66
@@ -99,7 +99,7 @@ row: the entry of each operation, while attention's choice of path is attention'
 table: yes
 
 switch: internal/cuda/executor/launch_linear_layout.go#launchLinearLayout
-lines: 402
+lines: 410
 constants: 11
 clauses: 12
 dispatch-lines: 15

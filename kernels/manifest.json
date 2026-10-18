@@ -64,7 +64,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "040b463c99b7b898959283f70e59d8662d55820a9df897dedf502648734004b9",
+      "sourceSha256": "4c9bb83c7dc344983c88d5560d1103a50099de380fb3434fb9a853d3262bb524",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -72,7 +72,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "3b03fd322c5ff25795a2501043ba82a22b607dd71b8d5c05e559e3b9c89ea283",
+      "assetSha256": "4a29ee9bcda75e2130dc77cabb66afb3da33e4ccaefb8029df645cb7ee6adcb3",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -183,6 +183,7 @@
         "moe_hidden_dot_f32",
         "moe_hidden_f32",
         "moe_route_f32",
+        "moe_router_dot_f32",
         "moe_router_logits_f32",
         "moe_scatter_f32",
         "moe_stage_down_f32",
@@ -856,6 +857,7 @@
           "functions": [
             "gather_last_f32",
             "gather_last_q8_0_f32",
+            "mul_mat_q8_0_input_f32",
             "ssm_conv_f32"
           ]
         },
@@ -1118,6 +1120,7 @@
             ".u32"
           ],
           "functions": [
+            "moe_router_dot_f32",
             "moe_router_logits_f32",
             "mul_mat_bf16_append_f32",
             "mul_mat_bf16_gate_f32",
@@ -1196,7 +1199,6 @@
             "mul_mat_q6_K_f32",
             "mul_mat_q6_K_input_f32",
             "mul_mat_q8_0_f32",
-            "mul_mat_q8_0_input_f32",
             "mul_mat_q8_1_f32",
             "mul_mat_q8_K_f32",
             "mul_mat_tq1_0_f32",

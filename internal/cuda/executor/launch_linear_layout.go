@@ -305,12 +305,20 @@ func launchLinearLayout(
 					q8Input.stagedNode = rightNode
 				}
 				return launchQ8InputSpans(
-					state, functions[inputKernel], left, q8Input.staging, output, inner, leftRows, rightRows,
+					state, functions[inputKernel], leftNode.Type, left, q8Input.staging, output, inner, leftRows, rightRows,
 				)
 			}
 			function := functions[quantKernels[leftNode.Type].mulMat]
 			return launchQuantMulMatSpans(
 				state, function, leftNode.Type, left, right, output, inner, leftRows, rightRows,
+			)
+		}
+		if rightRows <= q8InputSpanColumns {
+			// A decode span multiplies F32 weights natively, a block a row: cuBLAS's
+			// gemv gave the hyper-connections' four 10240-wide rows one block of the card.
+			return launchGridABI(
+				state, functions[kernelMulMatF32], kernel.Grid1D(int(leftRows)), kernel.DefaultBlock1D(),
+				&left, &right, &output, &inner, &leftRows, &rightRows,
 			)
 		}
 		if blas == nil {
@@ -816,10 +824,12 @@ func q8InputMulMatLaunchCount(leftRows, rightRows uint32) (uint32, error) {
 // kernel's span throughput (the 27B BBH pass measured 33 ms per prompt
 // token on the per-column kernel, one full weight stream per token).
 // The staged input is row-major q8 blocks; the output is column-major
-// [rightRows][leftRows] f32, so both advance by whole spans.
+// [rightRows][leftRows] f32, so both advance by whole spans. Q8_0 rows
+// take q8_0RowWarps warps each.
 func launchQ8InputSpans(
 	state *device.State,
 	function boundKernel,
+	storage dtype.Type,
 	left, staged, output driver.DevicePtr,
 	inner, leftRows, rightRows uint32,
 ) error {
@@ -827,20 +837,47 @@ func launchQ8InputSpans(
 	if err != nil {
 		return err
 	}
+	// More than one warp a row only below q8_0SplitRowLimit rows, so the count stays a kernel word.
+	rowWarps := q8_0RowWarps(inner, leftRows)
 	inputStride := uint64(inner) / q8InputTraits.BlockSize * q8InputTraits.TypeSize
 	outputStride := uint64(leftRows) * f32ScalarBytes
 	for start := uint32(0); start < rightRows; start += q8InputSpanColumns {
 		columns := min(q8InputSpanColumns, rightRows-start)
 		spanInput := staged + driver.DevicePtr(uint64(start)*inputStride)
 		spanOutput := output + driver.DevicePtr(uint64(start)*outputStride)
-		if err := launch1DABI(
-			state, function, launchCount,
-			&left, &spanInput, &spanOutput, &inner, &leftRows, &columns,
-		); err != nil {
+		if storage == dtype.Q8_0 {
+			err = launch1DABI(state, function, launchCount*rowWarps, &left, &spanInput, &spanOutput, &inner, &leftRows, &columns, &rowWarps)
+		} else {
+			err = launch1DABI(state, function, launchCount, &left, &spanInput, &spanOutput, &inner, &leftRows, &columns)
+		}
+		if err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+const (
+	// q8_0SplitWarps: the warps that share a long Q8_0 row among few rows; it
+	// divides the eight warps of the kernel's block (Q8_INPUT_BLOCK_WARPS).
+	q8_0SplitWarps = uint32(4)
+	// q8_0SplitRowLimit and q8_0SplitBlockFloor: fewer rows than this, of at
+	// least that many blocks, share each row. A warp a row gave Flash-Next's
+	// 320 hyper-connection rows of 320 blocks 40 blocks of the card's 114
+	// multiprocessors (7.75 us, 450 GB/s); its 512- and 640-row products of
+	// 80 blocks take about 3.5 us either way, bound by the launch.
+	q8_0SplitRowLimit   = uint32(2048)
+	q8_0SplitBlockFloor = uint32(256)
+)
+
+// q8_0RowWarps returns the warps that share one weight row of
+// mul_mat_q8_0_input_f32: q8_0SplitWarps for a long row among few rows,
+// else one warp a row.
+func q8_0RowWarps(inner, leftRows uint32) uint32 {
+	if leftRows < q8_0SplitRowLimit && inner/uint32(q8InputTraits.BlockSize) >= q8_0SplitBlockFloor {
+		return q8_0SplitWarps
+	}
+	return 1
 }
 
 func launchQ8InputQuantization(
@@ -1412,9 +1449,10 @@ func launchQ8ArgmaxReduction(
 }
 
 // q8InputSpanColumns: input columns one warp serves per weight read in
-// the q8-input mul_mat kernels — mirrors the kernels' Q8_INPUT_SPAN_MAX
-// and bounds the speculation verify batch; wider prefills chunk into
-// spans of this width (launchQ8InputSpans).
+// the q8-input mul_mat kernels and mul_mat_f32 — mirrors the kernels'
+// Q8_INPUT_SPAN_MAX and bounds the speculation verify batch; wider
+// prefills chunk into spans of this width (launchQ8InputSpans) or take
+// cuBLAS (F32).
 const q8InputSpanColumns = 8
 
 // q8InputMulMatKernels names the q8-input path per storage type: the

@@ -44,8 +44,17 @@ constexpr unsigned int Q8_0_SCALE_BYTES = 2;
 constexpr unsigned int Q8_0_VECTORS_PER_WARP = 4;
 constexpr unsigned int Q8_INPUT_BLOCK_BYTES = 36;
 // Q8_INPUT_SPAN_MAX: input columns one warp serves per weight read in the
-// q8-input mul_mat kernels — the speculation verify batch bound.
+// q8-input mul_mat kernels and mul_mat_f32 — the speculation verify batch bound.
 constexpr unsigned int Q8_INPUT_SPAN_MAX = 8;
+// Q8_INPUT_BLOCK_WARPS = the warps of a mul_mat_q8_0_input_f32 block (the default 256 threads), which take a row each or share rows.
+constexpr unsigned int Q8_INPUT_BLOCK_WARPS = 8;
+// F32_QUAD_WIDTH = the floats of one 16-byte read.
+constexpr unsigned int F32_QUAD_WIDTH = sizeof(float4) / sizeof(float);
+// F32_ROW_WARPS_MAX = the warps of the largest block, which bounds the warps that share a row of mul_mat_f32.
+constexpr unsigned int F32_ROW_WARPS_MAX = 32;
+// ROW_READS_IN_FLIGHT = the weight reads a thread of an F32 row dot issues before it uses any.
+//   - a one-token product reads each weight once, so the reads in flight bound its rate where few warps share the card
+constexpr unsigned int ROW_READS_IN_FLIGHT = 4;
 
 __device__ __forceinline__ int load_i32_unaligned(const unsigned char * source) {
     const size_t address = reinterpret_cast<size_t>(source);
@@ -53,6 +62,19 @@ __device__ __forceinline__ int load_i32_unaligned(const unsigned char * source) 
         address & ~(size_t) (sizeof(unsigned int) - 1));
     const unsigned int shift = (unsigned int) (address & (sizeof(unsigned int) - 1)) * 8;
     return (int) __funnelshift_r(aligned[0], aligned[1], shift);
+}
+
+// load_f32x4 reads four consecutive activations that start 16-byte aligned.
+__device__ __forceinline__ float4 load_f32x4(const float * source) {
+    return *reinterpret_cast<const float4 *>(source);
+}
+
+// warp_sum_down adds a value across a warp's lanes by halving shuffles, and lane 0 holds the sum.
+__device__ __forceinline__ float warp_sum_down(float value) {
+    for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
+        value += __shfl_down_sync(0xffffffffu, value, offset);
+    }
+    return value;
 }
 
 __device__ __forceinline__ void store_q8_input_warp(
@@ -3205,6 +3227,53 @@ extern "C" __global__ void reduce_gqa_heads_f32(
     reduced[index] = sum;
 }
 
+// f32_row_dots adds one thread's share of an F32 weight row's dot with each of columns input columns to sums.
+//   - input column c starts at input + c * inner, and SPAN >= columns
+//   - the row, the input and inner keep 16-byte alignment => the thread takes every threads-th quad of weights from quad thread, read 16 bytes at a time
+//   - otherwise the thread takes every threads-th weight from weight thread
+template <unsigned int SPAN>
+__device__ __forceinline__ void f32_row_dots(
+        const float * weights, const float * input, unsigned int inner, unsigned int thread, unsigned int threads,
+        unsigned int columns, float * sums) {
+    if (((reinterpret_cast<size_t>(weights) | reinterpret_cast<size_t>(input)) & (sizeof(float4) - 1)) == 0 &&
+            inner % F32_QUAD_WIDTH == 0) {
+        const unsigned int quads = inner / F32_QUAD_WIDTH;
+        for (unsigned int turn = thread; turn < quads; turn += ROW_READS_IN_FLIGHT * threads) {
+            // The reads of ROW_READS_IN_FLIGHT quads are issued before any is used, so they are in flight together.
+            float4 weight[ROW_READS_IN_FLIGHT];
+            #pragma unroll
+            for (unsigned int read = 0; read < ROW_READS_IN_FLIGHT; ++read) {
+                const unsigned int quad = turn + read * threads;
+                weight[read] = quad < quads ? load_f32x4(weights + F32_QUAD_WIDTH * quad) : make_float4(0.0f, 0.0f, 0.0f, 0.0f);
+            }
+            #pragma unroll
+            for (unsigned int read = 0; read < ROW_READS_IN_FLIGHT; ++read) {
+                const unsigned int quad = turn + read * threads;
+                #pragma unroll
+                for (unsigned int column = 0; column < SPAN; ++column) {
+                    if (column < columns && quad < quads) {
+                        const float4 x = load_f32x4(input + (size_t) column * inner + F32_QUAD_WIDTH * quad);
+                        const float4 w = weight[read];
+                        sums[column] += w.x * x.x + w.y * x.y + w.z * x.z + w.w * x.w;
+                    }
+                }
+            }
+        }
+        return;
+    }
+    for (unsigned int index = thread; index < inner; index += threads) {
+        const float weight = weights[index];
+        #pragma unroll
+        for (unsigned int column = 0; column < SPAN; ++column) {
+            if (column < columns) sums[column] += weight * input[(size_t) column * inner + index];
+        }
+    }
+}
+
+// mul_mat_f32 multiplies F32 weight rows by up to Q8_INPUT_SPAN_MAX input columns, a block a row.
+//   - the block's threads split the row by f32_row_dots, so a few long rows still fill the card
+//   - each warp sums its lanes, and thread 0 adds the warps' sums in warp order
+//   - output column c holds left_rows values from output + c * left_rows
 extern "C" __global__ void mul_mat_f32(
         const float * left,
         const float * right,
@@ -3212,18 +3281,31 @@ extern "C" __global__ void mul_mat_f32(
         unsigned int inner,
         unsigned int left_rows,
         unsigned int right_rows) {
-    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-    const unsigned int count = left_rows * right_rows;
-    if (index >= count) {
-        return;
+    __shared__ float partials[F32_ROW_WARPS_MAX][Q8_INPUT_SPAN_MAX];
+    const unsigned int row = blockIdx.x;
+    if (row >= left_rows || right_rows > Q8_INPUT_SPAN_MAX) return;
+    const unsigned int warp = threadIdx.x / CUDA_WARP_WIDTH;
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const float * weights = left + (size_t) row * inner;
+    float sums[Q8_INPUT_SPAN_MAX] = {};
+    if (right_rows == 1) {
+        f32_row_dots<1>(weights, right, inner, threadIdx.x, blockDim.x, right_rows, sums);
+    } else {
+        f32_row_dots<Q8_INPUT_SPAN_MAX>(weights, right, inner, threadIdx.x, blockDim.x, right_rows, sums);
     }
-    const unsigned int left_row = index % left_rows;
-    const unsigned int right_row = index / left_rows;
-    float sum = 0.0f;
-    for (unsigned int column = 0; column < inner; ++column) {
-        sum += left[left_row * inner + column] * right[right_row * inner + column];
+    #pragma unroll
+    for (unsigned int column = 0; column < Q8_INPUT_SPAN_MAX; ++column) {
+        if (column >= right_rows) break;
+        const float sum = warp_sum_down(sums[column]);
+        if (lane == 0) partials[warp][column] = sum;
     }
-    output[index] = sum;
+    __syncthreads();
+    if (threadIdx.x != 0) return;
+    for (unsigned int column = 0; column < right_rows; ++column) {
+        float sum = 0.0f;
+        for (unsigned int part = 0; part < blockDim.x / CUDA_WARP_WIDTH; ++part) sum += partials[part][column];
+        output[(size_t) column * left_rows + row] = sum;
+    }
 }
 
 extern "C" __global__ void get_rows_f32(
@@ -3637,6 +3719,27 @@ extern "C" __global__ void moe_router_logits_f32(
         }
     }
     if (lane == 0u) logits[(size_t) token * experts + expert] = router_bias ? logit + router_bias[expert] : logit;
+}
+
+// moe_router_dot_f32 is moe_router_logits_f32 for native execution: the warp splits each logit's channels.
+//   - each lane sums its share of the channels by f32_row_dots, and the warp adds the lanes' sums by halving shuffles
+extern "C" __global__ void moe_router_dot_f32(
+        const float * router_input,
+        const float * router,
+        const float * router_bias,
+        float * logits,
+        unsigned int router_hidden,
+        unsigned int tokens,
+        unsigned int experts) {
+    const unsigned int token = blockIdx.y;
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const unsigned int expert = blockIdx.x * (blockDim.x / CUDA_WARP_WIDTH) + threadIdx.x / CUDA_WARP_WIDTH;
+    if (token >= tokens || expert >= experts) return;
+    float logit = 0.0f;
+    f32_row_dots<1>(router + (size_t) expert * router_hidden, router_input + (size_t) token * router_hidden,
+        router_hidden, lane, CUDA_WARP_WIDTH, 1, &logit);
+    logit = warp_sum_down(logit);
+    if (lane == 0) logits[(size_t) token * experts + expert] = router_bias ? logit + router_bias[expert] : logit;
 }
 
 // moe_route_f32 turns one token's expert logits into its routed experts and weights.
@@ -5269,17 +5372,22 @@ extern "C" __global__ void mul_mat_q8_0_f32(
     }
 }
 
+// q8_0_input_dot_row returns in lane 0 a Q8_0 weight row's dot with one q8 input column over its blocks first,
+// first + step, ...; a lane takes whole blocks.
+//   - first = lane and step = CUDA_WARP_WIDTH => the warp alone takes the row, as the greedy head's argmax partials
+//     and mul_mat_q8_0_input_f32's one-warp rows do, so the argmax reads the logits' bits
 __device__ __forceinline__ float q8_0_input_dot_row(
         const unsigned char * left,
         const unsigned char * right,
         unsigned int inner,
         unsigned int left_row,
-        unsigned int lane) {
+        unsigned int first,
+        unsigned int step) {
     const unsigned int blocks_per_row = inner / Q8_0_BLOCK_WIDTH;
     const unsigned char * weight_row =
         left + (size_t) left_row * blocks_per_row * Q8_0_BLOCK_BYTES;
     float sum = 0.0f;
-    for (unsigned int block = lane; block < blocks_per_row; block += CUDA_WARP_WIDTH) {
+    for (unsigned int block = first; block < blocks_per_row; block += step) {
         const unsigned char * weight_block = weight_row + block * Q8_0_BLOCK_BYTES;
         const unsigned char * input_block = right + block * Q8_INPUT_BLOCK_BYTES;
         const int * input_quants = reinterpret_cast<const int *>(
@@ -5302,39 +5410,21 @@ __device__ __forceinline__ float q8_0_input_dot_row(
     return sum;
 }
 
-// mul_mat_q8_0_input_f32: one warp per output row serves every input
-// column from a single weight read — the span verify batch reads the
-// weights once for the whole draft.
-extern "C" __global__ void mul_mat_q8_0_input_f32(
+// q8_0_input_span_dots sets sums[span] in lane 0 to a Q8_0 weight row's dot with each of right_rows q8 input
+// columns over its blocks first, first + step, ...; a lane takes whole blocks and reads each once for every column.
+__device__ __forceinline__ void q8_0_input_span_dots(
         const unsigned char * left,
         const unsigned char * right,
-        float * output,
-        unsigned int inner,
-        unsigned int left_rows,
-        unsigned int right_rows) {
-    const unsigned int thread_index = blockIdx.x * blockDim.x + threadIdx.x;
-    const unsigned int left_row = thread_index / CUDA_WARP_WIDTH;
-    if (left_row >= left_rows || right_rows > Q8_INPUT_SPAN_MAX) {
-        return;
-    }
-    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
-    const unsigned int blocks_per_row = inner / Q8_0_BLOCK_WIDTH;
-    if (right_rows == 1) {
-        const float sum = q8_0_input_dot_row(left, right, inner, left_row, lane);
-        if (lane == 0) {
-            output[left_row] = sum;
-        }
-        return;
-    }
+        unsigned int blocks_per_row,
+        unsigned int left_row,
+        unsigned int first,
+        unsigned int step,
+        unsigned int right_rows,
+        float * sums) {
     const unsigned char * weight_row =
         left + (size_t) left_row * blocks_per_row * Q8_0_BLOCK_BYTES;
     const unsigned int input_stride = blocks_per_row * Q8_INPUT_BLOCK_BYTES;
-    float sums[Q8_INPUT_SPAN_MAX];
-#pragma unroll
-    for (unsigned int span = 0; span < Q8_INPUT_SPAN_MAX; ++span) {
-        sums[span] = 0.0f;
-    }
-    for (unsigned int block = lane; block < blocks_per_row; block += CUDA_WARP_WIDTH) {
+    for (unsigned int block = first; block < blocks_per_row; block += step) {
         const unsigned char * weight_block = weight_row + block * Q8_0_BLOCK_BYTES;
         int weight_words[Q8_0_BLOCK_WIDTH / sizeof(int)];
 #pragma unroll
@@ -5367,13 +5457,72 @@ extern "C" __global__ void mul_mat_q8_0_input_f32(
         if (span >= right_rows) {
             break;
         }
-        float sum = sums[span];
-        for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
-            sum += __shfl_down_sync(0xffffffffu, sum, offset);
-        }
+        sums[span] = warp_sum_down(sums[span]);
+    }
+}
+
+// mul_mat_q8_0_input_f32: one warp per output row serves every input
+// column from a single weight read — the span verify batch reads the
+// weights once for the whole draft. row_warps warps share a row, taking
+// its blocks in turn, when a long row sits among few rows, so the launch
+// still fills the card; the row's first warp adds their sums in warp order.
+extern "C" __global__ void mul_mat_q8_0_input_f32(
+        const unsigned char * left,
+        const unsigned char * right,
+        float * output,
+        unsigned int inner,
+        unsigned int left_rows,
+        unsigned int right_rows,
+        unsigned int row_warps) {
+    __shared__ float partials[Q8_INPUT_BLOCK_WARPS][Q8_INPUT_SPAN_MAX];
+    if (right_rows > Q8_INPUT_SPAN_MAX) {
+        return;
+    }
+    const unsigned int warp = threadIdx.x / CUDA_WARP_WIDTH;
+    const unsigned int part = warp % row_warps;
+    const unsigned int left_row = blockIdx.x * (Q8_INPUT_BLOCK_WARPS / row_warps) + warp / row_warps;
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const unsigned int first = part * CUDA_WARP_WIDTH + lane;
+    const unsigned int step = row_warps * CUDA_WARP_WIDTH;
+    const unsigned int blocks_per_row = inner / Q8_0_BLOCK_WIDTH;
+    float sums[Q8_INPUT_SPAN_MAX];
+#pragma unroll
+    for (unsigned int span = 0; span < Q8_INPUT_SPAN_MAX; ++span) {
+        sums[span] = 0.0f;
+    }
+    if (left_row < left_rows && right_rows == 1) {
+        sums[0] = q8_0_input_dot_row(left, right, inner, left_row, first, step);
+    } else if (left_row < left_rows) {
+        q8_0_input_span_dots(left, right, blocks_per_row, left_row, first, step, right_rows, sums);
+    }
+    if (row_warps > 1) {
         if (lane == 0) {
-            output[span * left_rows + left_row] = sum;
+#pragma unroll
+            for (unsigned int span = 0; span < Q8_INPUT_SPAN_MAX; ++span) {
+                partials[warp][span] = sums[span];
+            }
         }
+        __syncthreads();
+        if (part == 0 && lane == 0) {
+#pragma unroll
+            for (unsigned int span = 0; span < Q8_INPUT_SPAN_MAX; ++span) {
+                float sum = 0.0f;
+                for (unsigned int other = 0; other < row_warps; ++other) {
+                    sum += partials[warp + other][span];
+                }
+                sums[span] = sum;
+            }
+        }
+    }
+    if (left_row >= left_rows || part != 0 || lane != 0) {
+        return;
+    }
+#pragma unroll
+    for (unsigned int span = 0; span < Q8_INPUT_SPAN_MAX; ++span) {
+        if (span >= right_rows) {
+            break;
+        }
+        output[span * left_rows + left_row] = sums[span];
     }
 }
 
@@ -5633,7 +5782,7 @@ extern "C" __global__ void mul_mat_q8_0_input_argmax_partials_f32(
     const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
     const unsigned int row = blockIdx.x * warps_per_block + warp;
     const bool valid = row < left_rows;
-    const float sum = valid ? q8_0_input_dot_row(left, right, inner, row, lane) : 0.0f;
+    const float sum = valid ? q8_0_input_dot_row(left, right, inner, row, lane, CUDA_WARP_WIDTH) : 0.0f;
     __shared__ float values[warps_per_block];
     __shared__ unsigned int indices[warps_per_block];
     __shared__ unsigned int invalids[warps_per_block];
@@ -7398,11 +7547,6 @@ __device__ __forceinline__ void block_dot_codebooks_load(
     __syncthreads();
 }
 
-// load_f32x4 reads four consecutive activations that start 16-byte aligned.
-__device__ __forceinline__ float4 load_f32x4(const float * source) {
-    return *reinterpret_cast<const float4 *>(source);
-}
-
 // The block loads read weight bytes through the read-only cache.
 __device__ __forceinline__ unsigned int load_u8(const unsigned char * source) {
     return __ldg(source);
@@ -7643,14 +7787,6 @@ __device__ __forceinline__ float block_slots_dot(
         }
     }
     return sum;
-}
-
-// warp_sum_down adds a value across a warp's lanes by halving shuffles, and lane 0 holds the sum.
-__device__ __forceinline__ float warp_sum_down(float value) {
-    for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
-        value += __shfl_down_sync(0xffffffffu, value, offset);
-    }
-    return value;
 }
 
 // moe_down_channel sums one output channel of one token over the token's routed slots.

@@ -157,6 +157,11 @@ func launchMoE(
 			return errors.New("grouped MoE launch size exceeds uint32")
 		}
 		logitBytes := experts * uint32(f32ScalarBytes)
+		// Native execution splits each router logit's channels across a warp; strict keeps each logit's serial sum.
+		routerKernel := functions[kernelMoeRouterLogitsF32]
+		if attributes.Compute == tensor.MulMatComputeNativeTensorCore {
+			routerKernel = functions[kernelMoeRouterDotF32]
+		}
 		// Indexed banks are tables of expert pointers; the route kernel marks
 		// the routed experts for the residency to read between runs.
 		indexed := uint32(0)
@@ -184,7 +189,7 @@ func launchMoE(
 				groupSelected += driver.DevicePtr(tokenOffset * uint64(topK))
 			}
 			if err := launchGridSharedABI(
-				state, functions[kernelMoeRouterLogitsF32],
+				state, routerKernel,
 				driver.Dim3{X: (experts-1)/moeRouterExpertsPerBlock + 1, Y: count, Z: 1},
 				driver.Dim3{X: moeThreads, Y: 1, Z: 1}, 0,
 				&groupRouterInput, &router, &routerBias, &routerLogits, &routerHidden, &count, &experts,

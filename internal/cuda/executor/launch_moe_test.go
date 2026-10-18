@@ -43,7 +43,7 @@ func TestMoELaunchesCoverTokenGroups(t *testing.T) {
 		slots:  []int{0, 1, 2, 3, 4, 5, 6, 7},
 	}
 	var functions functionSet
-	for _, id := range []kernelFunctionID{kernelMoeRouterLogitsF32, kernelMoeRouteF32, kernelMoeHiddenF32, kernelMoeDownF32, kernelMoeHiddenDotF32, kernelMoeDownDotF32} {
+	for _, id := range []kernelFunctionID{kernelMoeRouterLogitsF32, kernelMoeRouterDotF32, kernelMoeRouteF32, kernelMoeHiddenF32, kernelMoeDownF32, kernelMoeHiddenDotF32, kernelMoeDownDotF32} {
 		functions[id] = boundKernel{id: id, argumentCount: kernelFunctionArgumentCounts[id]}
 	}
 	tokenBytes := uint64(routeBytes + topK*intermediate*4 + experts*4)
@@ -126,6 +126,9 @@ func TestMoELaunchesCoverTokenGroups(t *testing.T) {
 		t.Fatal(err)
 	}
 	const nativeHiddenBlocks = (topK*intermediate*32 + 255) / 256
+	if kernel := word(trace.Data()); kernel != uint64(kernelMoeRouterDotF32) {
+		t.Fatalf("native router kernel %d, want %d with one warp per logit", kernel, kernelMoeRouterDotF32)
+	}
 	native := trace.Data()[logitsRecord+routeRecord:]
 	if kernel, grid := word(native), word(native[8:]); kernel != uint64(kernelMoeHiddenDotF32) || grid != nativeHiddenBlocks|1<<32|1<<48 {
 		t.Fatalf("native expert kernel %d grid %#x, want kernel %d with one warp per dot product", kernel, grid, kernelMoeHiddenDotF32)

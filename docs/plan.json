@@ -151,6 +151,34 @@
       ]
     },
     {
+      "id": "audio-serving",
+      "title": "Serve the faster measured speech paths and read speech quality from its largest suite",
+      "status": "open",
+      "budget": {
+        "nodes": 160,
+        "reason": "estimate: a ranking rule in qualityCell and its test, and the activation's receipt; no measured figure yet"
+      },
+      "steps": [
+        {
+          "id": "headline",
+          "title": "Rank speech round-trip sets by their cases so the largest suite is the quality headline",
+          "status": "open",
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestQualityHeadlineIsTheLargestSpeechSuite$'",
+          "rationale": "From the owner's audio review of 2026-10-18 and scorecards 20261016T043647Z and 20261016T213653Z.\npocket-tts's quality headline moved from word_error_rate 2.2% on the 64-case LibriSpeech round-trip (set 4faeb947…, measure librispeech-test-clean/round-trip e6e75305…) to 6.0% on a 4-case set fc4bd398… (measure …/native-base-recordings/…). No reading changed: the 64-case reading is still among the row's other held-out qualities.\nCause (internal/scorecard/scorecard.go, qualityCell): a reading is ranked by its suite's cases only when the derived catalog compiled the suite (descriptor.Kind != \"\"). Speech round-trip sets are built by evaluate and only named, so both rank 0, and the tie falls to the name of each measure's first build: fc4b… sorts before fd1c…, the LibriSpeech measure's first build.\nThe step ranks sets whose cases count one unit, speech round-trip texts read and transcribed, by the cases their records counted, so 64 outranks 4 whatever the hashes. Reconstruction sets, whose cases are frames at one size or clips at another, keep rank 0.\nThe test builds the two summaries of the 2026-10-16 row with hashes that sort the small set first and holds the headline to the 64-case reading.\nServes: held-out-quality reads the reading that says most; no value changes.\nDisappears: a headline chosen by hash order.\nBatch: host."
+        },
+        {
+          "id": "asr-resident",
+          "title": "Serve whole-clip transcription on the resident device recipes, or record why not",
+          "status": "open",
+          "verify": "go test ./internal/mediacapability -count=1 -run '^TestWholeClipTranscriptionServesTheResidentRecipe$'",
+          "rationale": "From the owner's audio review of 2026-10-18 and commit 90e0d23f2 (audio-asr-device/resident).\nThe retained comparison measured whole-clip transcription 37% faster for Granite and 23 to 29% faster for Nemotron on the resident device recipes (Placement hybrid: internal/speechrecognition/transcriber.go binds the encoder's feed-forward to the device). No recipe was activated, so the scorecard's transcription first-output improved only 7 to 9% (Granite 3,338 to 3,113 ms, Nemotron 4,874 to 4,455 ms).\nCosts the commit measured: load-time about +306 ms (Granite) and +415 ms (Nemotron), and peak-device-memory by the resident weights. A hybrid transducer has no stream frontend, so native streaming stays on the CPU recipe.\nThe step activates the resident recipe through recipe activate where it loses no served capability: Granite at once; Nemotron only if a stream request still reaches its CPU recipe, else it records why the CPU recipe stays.\nThe test holds whole-clip transcription to the resident recipe and a stream to the CPU one.\nServes: first-output for whole-clip transcription.\nWorsens, stated: load-time by about 0.3 to 0.4 s, and peak-device-memory by the resident encoder weights.\nEvidence: the next full measurement run's transcription first-output against 3,113 and 4,455 ms.\nBatch: device.",
+          "depends_on": [
+            "audio-serving/headline"
+          ]
+        }
+      ]
+    },
+    {
       "id": "strata-prefill",
       "title": "Read long prompts at the speed Strata reaches on this PC",
       "status": "open",
@@ -307,7 +335,8 @@
             "plan-router-count/do",
             "plan-host-work/do",
             "plan-decode-steps/do",
-            "plan-session-note/do"
+            "plan-session-note/do",
+            "plan-audio-serving/do"
           ]
         }
       ]

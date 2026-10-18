@@ -217,6 +217,13 @@
       },
       "steps": [
         {
+          "id": "verify-span",
+          "title": "Replay a verify span captured, its block-sparse attention on a decode-style kernel",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestVerifySpanReplaysCaptured$'",
+          "rationale": "From step mtp's first measurement (served Flash-Next, capacity recipe, short chat, warm): a one-token step replays captured in 15.1 ms, but a launched verify span of T tokens takes 34.7 ms at T=2, 39.0 at T=4 and 48.9 at T=8. Nsight Systems over T=2 spans: 4,096 kernel launches and 28.5 ms of kernels a span, about 6 ms of launch overhead; the largest single cost is attention_online_f32, 6.6 ms a span (12 block-sparse layers, 0.55 ms each at about 100 keys), because a span's block-sparse attention carries a block mask and so misses both the decode kernel and the matrix path and lands on one block a query head.\nWith three drafts accepted at about 0.8 each (Strata's chain rate), a round yields about 2.95 tokens: today about 45 to 55 tokens a second, below the 60 to 66 of plain decode; with the span captured and its attention on a decode-style multi-query kernel, about 90 to 95.\nThe step serves a causal block-sparse attention span of up to 8 queries from a decode-style kernel that reads the key count and first query from the run's device words, as the decode kernel does since b84a522c3, so a verify span replays as one captured graph.\nAcceptance: TestVerifySpanReplaysCaptured holds a captured span's outputs to the launched span's bits or the host reference, and the span's cost at T=2, 4 and 8 before and after.\nServes: throughput through MTP drafting (step mtp), and every model whose speculation verifies spans.\nBatch: device."
+        },
+        {
           "id": "mtp",
           "title": "Draft with Flash-Next's MTP layer and verify the drafts in one step",
           "status": "open",
@@ -415,7 +422,8 @@
             "plan-decode-kernels/do",
             "plan-sqa164/do",
             "plan-sqa164-row/do",
-            "plan-fastload-count/do"
+            "plan-fastload-count/do",
+            "plan-verify-span/do"
           ]
         }
       ]

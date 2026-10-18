@@ -113,6 +113,84 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "strata-decode",
+      "title": "Decode Qwen3.8-Flash-Next at the speed Strata reaches on this PC",
+      "status": "open",
+      "steps": [
+        {
+          "id": "router",
+          "title": "Compute every expert's router logit across the card, keeping each logit's serial sum",
+          "status": "open",
+          "verify": "go test ./internal/cuda/executor -count=1 -run '^TestMoELaunchesCoverTokenGroups$' \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestExecutorMoEOutputBitsArePinned$'",
+          "rationale": "From the lead's review of C:/Users/jeffm/Strata on 2026-10-17 and a profile of trunk 7d07daefb on 2026-10-18.\nStrata's frozen bench on this PC (overgo_data/references/strata/baseline-20261016) decodes the short chat at 148.7 tokens a second with first token at 0.19 s, and agent follow-ups at 138.4 with first token at 2.27 s.\nOn the same PC and file, Overgo decodes a 100-token short chat at 7.2 tokens a second and the frozen 1,561-token document at 5.5.\nNsight Systems over the short chat's 100 tokens gives 8.5 s of GPU time, of which moe_route_f32 takes 5,992 ms, 1.25 ms in each of its 4,800 launches.\nThe kernel runs one 256-thread block a token, so one token's router reads its 512 rows of 2,560 channels from one multiprocessor, one thread an expert in serial order.\nThe step adds moe_router_logits_f32, which gives each expert a warp anywhere on the card.\nThe warp reads 32 channels at once, and lane 0 adds their products in channel order, so each logit keeps the bits of the serial sum.\nmoe_route_f32 then reads the logits, sums the softmax denominator in expert order and picks each slot in parallel with the lowest index on a tie, so routing keeps its bits.\nServes: throughput and first-output for every routed-expert model, Flash-Next first.\nDisappears: the serial router inside moe_route_f32.\nEvidence: the pinned output bits of every MoE case unchanged, and the short chat at 12.3 tokens a second with the same text.\nBatch: device."
+        },
+        {
+          "id": "host-work",
+          "title": "Remove the per-token host work of the decode step that the profile names",
+          "status": "open",
+          "verify": "go test ./internal/inference -count=1 -run '^TestDecodeStepDoesNoPerTokenHostWork$'",
+          "rationale": "From the profile after step router: 100 short-chat tokens take 8.6 s of wall time for about 2.9 s of GPU time.\nThe CPU profile of trunk names the host work of each token.\nThe executor compiles graphs during decode (Compile and compileGraph, about 1.0 s of 14.4 s).\nDriver.ownsDeviceRange walks a map on every launch and copy (1.4 s).\nMemInfo queries the device during decode (0.7 s), and garbage collection takes about 1.6 s.\nEach routed layer waits for the device and copies its routes back to resolve indexed expert banks on the host (launch_moe.go), 48 waits a token.\nThe step removes what has no reason to run a token at a time through the existing owners, and measures each removal.\nServes: throughput and first-output for Flash-Next and every model the decode session serves.\nDisappears: per-token compilation, range walks, device queries and the allocation churn the profile names.\nEvidence: a test that holds a decode step to no compilation, no device query and no range walk, and the short chat's decode speed before and after.\nBatch: device; set the row's count from the change's measured figure before it.",
+          "depends_on": [
+            "strata-decode/router"
+          ]
+        },
+        {
+          "id": "device-experts",
+          "title": "Resolve routed experts on the card, so a layer runs without waiting for the host",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestFlashNextExpertCacheServesRankedExperts$'",
+          "rationale": "Strata keeps the most-used experts on the card in their quantized form, ranked from a profile and adapted to the conversation, and looks each routed expert up on the card (docs/DETAILS.md lines 360-365 and 1698-1709).\nIts log of this PC caches 17,031 of the 24,576 experts in 38.4 GiB and hits 97 to 99 percent of decode lookups.\nOvergo resolves indexed expert banks on the host after a device wait at every layer (launch_moe.go, ResolveExpertBanks).\nThe step keeps a device-resident table from expert to cached slot, filled by the existing residency owners (internal/modeldevice/expert_residency.go), and lets the expert kernels read it.\nA miss is served from host memory over the link or computed on the CPU at the share the profile shows best.\nEvery output token stays identical on the frozen workloads.\nServes: throughput and first-output for Flash-Next.\nDisappears: the per-layer device wait and route copy, and the host expert resolution of decode.\nEvidence: the mechanism's device test, and the short chat's and the document's decode speed before and after, beside Strata's 148.7 tokens a second.\nBatch: device; set the row's count from a measured figure before the change.",
+          "depends_on": [
+            "strata-decode/host-work"
+          ]
+        },
+        {
+          "id": "decode-graph",
+          "title": "Replay the fixed-shape decode step as one captured graph with one host synchronization a token",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestDecodeStepReplaysAsOneGraph$'",
+          "rationale": "Strata runs its verify windows as captured CUDA graphs (include/strata/core/graph.hpp) and drafts with the model's MTP layer, whose weights are already on this machine (overgo_data/references/strata/mtp/rt).\nOnce no layer waits for the host, the decode step's shape is fixed for a token.\nThe step captures it once and replays it, with positions and routes as device-resident inputs, so a token costs one graph launch and one synchronization.\nServes: throughput for every model the decode session serves.\nDisappears: per-kernel launch and per-operation synchronization of the decode step.\nEvidence: the executor's device test holding replay outputs bit-identical to the launched step, and the short chat's decode speed before and after.\nBatch: device.",
+          "depends_on": [
+            "strata-decode/device-experts"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "strata-prefill",
+      "title": "Read long prompts at the speed Strata reaches on this PC",
+      "status": "open",
+      "steps": [
+        {
+          "id": "chunked",
+          "title": "Prefill in large chunks with grouped quantized expert matrices, streaming the next layer's experts while attention runs",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestFlashNextChunkedPrefillMatchesWholePrefill$'",
+          "rationale": "From the lead's review of Strata on 2026-10-17.\nStrata's frozen bench on this PC reads 4K prompts at 1,836.7 tokens a second and 16K at 3,229.0, and its log reads the same 1,561-token document prompt in 2.16 s, 723 tokens a second.\nOvergo reads that prompt in 17.4 s at trunk 7d07daefb, about 90 tokens a second.\nStrata reads up to 8,192 tokens a chunk with quantized grouped matrix kernels, and streams the next layer's experts over PCIe while the current layer's attention runs (docs/DETAILS.md lines 332-342).\nThe step first profiles the document's prefill as step router profiled decode, then changes the chunk and the expert matrix path the profile names, through the bounded device prefill admission (644977f39, a8ca2588a) and grouped expert computation (e136f49d5, fb7dc9936).\nEvery prompt token's state stays identical to the whole prefill within the arithmetic the current path keeps.\nServes: first-output for every long Flash-Next prompt, image and follow-up.\nDisappears: the per-row expert work and serial uploads the profile names.\nEvidence: the device test of chunked against whole prefill, and the document's prefill speed before and after, beside Strata's.\nBatch: device; set the row's count from the profile before the change.",
+          "depends_on": [
+            "strata-decode/router"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "strata-monitor",
+      "title": "Show the running model, the device and each request live in the GUI, as Strata's Monitor does",
+      "status": "open",
+      "steps": [
+        {
+          "id": "monitor",
+          "title": "Add a live monitor to the runtime view from the metrics the server already measures",
+          "status": "open",
+          "verify": "go test ./internal/server -count=1 -run '^TestMetricsReportDeviceAndExpertState$' \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowserMonitor$' -leg 'monitor leg'",
+          "rationale": "From the lead's review of Strata's GUI on 2026-10-17 (serve/web/app.js renderMonitor, renderConvCache, renderAbout).\nStrata's Monitor polls /metrics once a second and draws decode and prefill speed, GPU load, card memory, temperature, power, PCIe, CPU and disk, a context gauge, experts on the card and in RAM, and each recent request's prompt, reused, output, prefill and decode speed and hit rate.\nOvergo's runtime and requests views show none of the device's live state and no expert placement.\nThe step adds what is missing to the existing /metrics answer and to webui/mod/runtime.js and requests.js, in the page's existing frame-coalesced updates.\nIt adds no second page and no telemetry stream.\nServes: setup-steps and failure-rate as a person meets them: they see where the time and memory go while the model answers.\nDisappears: nothing.\nEvidence: the server test of the metrics answer and the browser leg of the monitor.\nBatch: host for the server and page; the browser leg in the webui lane.",
+          "depends_on": [
+            "strata-decode/device-experts"
+          ]
+        }
+      ]
+    },
+    {
       "id": "flashnext-efficiency",
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",
@@ -230,7 +308,8 @@
             "flashnext-storage-plan/do",
             "flashnext-prefill-plan/do",
             "flashnext-expert-decode-plan/do",
-            "flashnext-expert-reuse-plan/do"
+            "flashnext-expert-reuse-plan/do",
+            "plan-strata-review/do"
           ]
         }
       ]

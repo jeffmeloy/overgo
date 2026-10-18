@@ -266,6 +266,13 @@
       },
       "steps": [
         {
+          "id": "device-label",
+          "title": "Record runs and verifications on the device their recipe is placed on",
+          "status": "open",
+          "verify": "go test ./internal/runrecord -count=1 -run '^TestRecipeDeviceFollowsPlacement$' \u0026\u0026 go test ./internal/server -count=1 -run '^TestTranscriptionWorkspaceRecordsWhereItsRecipeRuns$'",
+          "rationale": "From step asr-activate's preparation: once Granite's resident recipe is verified and served, two writers would record its work on the wrong device: TranscriptionWorkspace labels every served transcription run device \"cpu\", and capability verify labels its gate and run \"host\", whatever the recipe's placement; cmd/evaluate already names the CUDA device for a recipe with a node off the host, by its own copy of the rule.\nThe step adds runrecord.RecipeDevice (host when every node is on the host, else cuda:0) and makes all three writers use it, deleting evaluate's copy. It lands before asr-activate's store commands, because recipe verify refuses an uncommitted tree and its record must name the device.\nServes: correct evidence for every device-placed capability; no served value changes.\nBatch: device."
+        },
+        {
           "id": "asr-activate",
           "title": "Activate Granite's resident transcription recipe and rebind its coverage and held-out quality",
           "status": "open",
@@ -472,7 +479,8 @@
             "plan-decode-count/do",
             "plan-reuse-contracts/do",
             "plan-capacity-count/do",
-            "plan-sqa-p2/do"
+            "plan-sqa-p2/do",
+            "plan-device-label/do"
           ]
         }
       ]

@@ -38,7 +38,7 @@ func TestParitySubcommandsReplaceTheirCommands(t *testing.T) {
 		})
 	}
 	for _, args := range [][]string{{"-parity"}, {"-parity", "absent"}} {
-		if err := runArgs(t.Context(), args, io.Discard); err == nil || !strings.Contains(err.Error(), "audio-oracle, moss-refinement, sensenova, vqa") {
+		if err := runArgs(t.Context(), args, io.Discard); err == nil || !strings.Contains(err.Error(), "audio-oracle, moss-transformer, sensenova, vqa") {
 			t.Errorf("validate %v = %v, want the parities listed", args, err)
 		}
 	}

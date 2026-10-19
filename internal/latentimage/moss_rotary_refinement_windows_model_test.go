@@ -12,6 +12,15 @@ import (
 )
 
 func TestMOSSRotaryRefinementCheckpoint(t *testing.T) {
+	verifyMOSSModelStage(t, "refinement")
+}
+
+func TestMOSSRotaryJointCheckpoint(t *testing.T) {
+	verifyMOSSModelStage(t, "joint")
+}
+
+func verifyMOSSModelStage(t *testing.T, stage string) {
+	t.Helper()
 	cudatest.Require(t)
 	modelRoot := testutil.ModelArtifactDir(t, "MOSS-Image-SFT-797fa8e678b4f")
 	referenceRoot := os.Getenv("OVERGO_MOSS_REFERENCE_DIR")
@@ -19,7 +28,7 @@ func TestMOSSRotaryRefinementCheckpoint(t *testing.T) {
 		t.Fatal("OVERGO_MOSS_REFERENCE_DIR must name the frozen MOSS reference directory")
 	}
 	var report bytes.Buffer
-	err := VerifyMOSSRefinement(t.Context(), modelRoot, referenceRoot, filepath.Join("..", "..", "fixtures", "moss"), &report)
+	err := VerifyMOSSTransformer(t.Context(), modelRoot, referenceRoot, filepath.Join("..", "..", "fixtures", "moss"), stage, &report)
 	t.Log(report.String())
 	if err != nil {
 		t.Fatal(err)

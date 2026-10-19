@@ -8,7 +8,7 @@ import (
 )
 
 func TestCompileBF16LinearBoundaries(t *testing.T) {
-	for _, mode := range []string{"rounded", "unrounded-bias", "retained-product", "retained-add", "shared-product"} {
+	for _, mode := range []string{"rounded", "biasless", "biasless-retained", "biasless-shared", "unrounded-bias", "retained-product", "retained-add", "shared-product"} {
 		t.Run(mode, func(t *testing.T) {
 			b := tensor.NewBuilder()
 			b.SetMulMatCompute(tensor.MulMatComputeBF16TensorCore)
@@ -21,13 +21,16 @@ func TestCompileBF16LinearBoundaries(t *testing.T) {
 			product := b.MulMat(w, x)
 			add := b.Add(product, bias)
 			output := b.BF16Round(add)
+			if mode == "biasless" || mode == "biasless-retained" || mode == "biasless-shared" {
+				output = b.BF16Round(product)
+			}
 			outputs := []*tensor.Tensor{output}
 			switch mode {
-			case "retained-product":
+			case "retained-product", "biasless-retained":
 				outputs = append(outputs, product)
 			case "retained-add":
 				outputs = append(outputs, add)
-			case "shared-product":
+			case "shared-product", "biasless-shared":
 				outputs = append(outputs, b.Scale(product, 2))
 			}
 			compiled, err := Compile(outputs...)
@@ -35,10 +38,10 @@ func TestCompileBF16LinearBoundaries(t *testing.T) {
 				t.Fatal(err)
 			}
 			fusion := compiled.nodes[compiled.orderIndexes[output]].fusion
-			if got := fusion != nil && fusion.kind == compiledFusionBF16Linear; got != (mode == "rounded") {
+			if got := fusion != nil && fusion.kind == compiledFusionBF16Linear; got != (mode == "rounded" || mode == "biasless") {
 				t.Fatalf("BF16 linear fusion=%v", got)
 			}
-			if mode == "rounded" {
+			if mode == "rounded" || mode == "biasless" {
 				want, err := bf16LinearStagingBytes([]*tensor.Tensor{w, x, bias})
 				if err != nil || compiled.matmulStagingBytes != want || !compiled.needBlas {
 					t.Fatalf("shared staging=%d want=%d error=%v", compiled.matmulStagingBytes, want, err)

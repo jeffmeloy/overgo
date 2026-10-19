@@ -13,10 +13,10 @@ import (
 // name, each once its own command: the external audio-oracle election and
 // the SenseNova and RxBrain VQA ladders against their pinned fixtures.
 var paritySubcommands = map[string]func(flags *flag.FlagSet, args []string) error{
-	"audio-oracle":    audioOracleParity,
-	"sensenova":       senseNovaParity,
-	"vqa":             vqaParity,
-	"moss-refinement": mossRefinementParity,
+	"audio-oracle":     audioOracleParity,
+	"sensenova":        senseNovaParity,
+	"vqa":              vqaParity,
+	"moss-transformer": mossTransformerParity,
 }
 
 // runParity dispatches args (the parity name, then its flags) to the named

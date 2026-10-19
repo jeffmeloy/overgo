@@ -2850,7 +2850,9 @@ extern "C" __global__ void rms_norm_f32(
     }
     __shared__ float partial[256];
     sum_squares = block_sum_f32(sum_squares, partial);
-    const float inverse = rsqrtf(__fadd_rn(__fdiv_rn(sum_squares, (float) width), epsilon));
+    // Native mean projects the sum with a separately rounded element-count ratio.
+    const float factor = __fdiv_rn((float) rows, (float) ((unsigned long long) rows * width));
+    const float inverse = rsqrtf(__fadd_rn(__fmul_rn(sum_squares, factor), epsilon));
     for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
         output[offset + column] = input[offset + column] * inverse;
     }
@@ -5098,7 +5100,7 @@ extern "C" __global__ void __launch_bounds__(512, 1) attention_tiled_bf16_f32(
     const unsigned int bk_row = (lane & 7u) + (lane >> 4u) * 8u;        // tiles: column-halves first
     const unsigned int bk_col = ((lane >> 3u) & 1u) * 8u;
 
-    // O accumulators: four 16x8 column tiles, register-resident across the
+    // O accumulators: two 16x8 column tiles, register-resident across the
     // whole stream; element rows are architected (g and g+8).
     float weighted[2][4];
     for (unsigned int tile = 0; tile < 2u; ++tile) {
@@ -5118,7 +5120,7 @@ extern "C" __global__ void __launch_bounds__(512, 1) attention_tiled_bf16_f32(
     }
     __syncthreads();
 
-    // Pre-offset K/V to the sequence and KV head; preload K panel 0.
+    // K/V pointers start at the sequence and KV head.
     const unsigned int kv_token_stride = key_value_heads * head_width;
     const unsigned short * key_base = key +
         sequence * key_value_tokens * kv_token_stride + key_value_head * head_width;
@@ -5225,7 +5227,7 @@ extern "C" __global__ void __launch_bounds__(512, 1) attention_tiled_bf16_f32(
 
         {
             // Value product: P fragments load once per token quarter and
-            // feed all four O column tiles.
+            // feed both O column tiles.
             for (unsigned int k = 0; k < 8u; ++k) {
                 unsigned int p_frag[4];
                 attention_ldx4(

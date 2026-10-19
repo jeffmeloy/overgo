@@ -26,7 +26,7 @@ func TestMOSSRefinementVerificationRejectsChangedContract(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			err := VerifyMOSSRefinement(t.Context(), "absent-checkpoint", "absent-reference", root, io.Discard)
+			err := VerifyMOSSTransformer(t.Context(), "absent-checkpoint", "absent-reference", root, "refinement", io.Discard)
 			if err == nil || !strings.Contains(err.Error(), "identity differs") || !strings.Contains(err.Error(), name) {
 				t.Fatalf("changed %s reached model/device execution: %v", name, err)
 			}

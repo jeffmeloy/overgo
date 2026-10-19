@@ -7,10 +7,11 @@ import (
 	"fmt"
 )
 
-func mossRefinementParity(flags *flag.FlagSet, args []string) error {
+func mossTransformerParity(flags *flag.FlagSet, args []string) error {
 	flags.String("model", "", "pinned MOSS-Image-SFT checkpoint directory")
 	flags.String("references", "", "native full-reference case directory")
 	flags.String("contract", "fixtures/moss", "frozen MOSS checkpoint and oracle contract directory")
+	flags.String("stage", "refinement", "native transformer boundary: refinement or joint (first joint block)")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}

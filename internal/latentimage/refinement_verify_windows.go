@@ -27,10 +27,13 @@ const (
 	mossRefinementEpsilon = 1e-6
 )
 
-// VerifyMOSSRefinement compares resident refinement with the pinned native cases.
+// VerifyMOSSTransformer compares a resident transformer stage with pinned native cases.
 // Checkpoint and oracle documents must retain their frozen content identities.
 // Every case must meet upstream BF16 tolerance and repeat bitwise.
-func VerifyMOSSRefinement(ctx context.Context, modelRoot, referenceRoot, contractRoot string, output io.Writer) error {
+func VerifyMOSSTransformer(ctx context.Context, modelRoot, referenceRoot, contractRoot, stage string, output io.Writer) error {
+	if stage != "refinement" && stage != "joint" {
+		return fmt.Errorf("MOSS stage %q must be refinement or joint", stage)
+	}
 	verify := func(path, digest string) error {
 		id, err := artifact.IdentifyFile(artifact.KindFile, path)
 		if err != nil {
@@ -63,15 +66,16 @@ func VerifyMOSSRefinement(ctx context.Context, modelRoot, referenceRoot, contrac
 		}
 	}
 	var config struct {
-		Dim   int `json:"dim"`
-		FFN   int `json:"ffn_dim"`
-		Heads int `json:"num_heads"`
-		Text  int `json:"text_dim"`
+		Layers int `json:"num_layers"`
+		Dim    int `json:"dim"`
+		FFN    int `json:"ffn_dim"`
+		Heads  int `json:"num_heads"`
+		Text   int `json:"text_dim"`
 	}
 	if err := readJSON(filepath.Join(modelRoot, "transformer", "config.json"), &config); err != nil {
 		return err
 	}
-	spec := TransformerSpec{Hidden: config.Dim, Heads: config.Heads, HeadDim: config.Dim / config.Heads, Intermediate: config.FFN, TextHidden: config.Text, RefinerTextBlocks: mossRefinementBlocks}
+	spec := TransformerSpec{Layers: config.Layers, Hidden: config.Dim, Heads: config.Heads, HeadDim: config.Dim / config.Heads, Intermediate: config.FFN, TextHidden: config.Text, RefinerTextBlocks: mossRefinementBlocks}
 	var contract struct {
 		Cases []struct {
 			Name     string
@@ -87,6 +91,12 @@ func VerifyMOSSRefinement(ctx context.Context, modelRoot, referenceRoot, contrac
 	if err := readJSON(contractPath, &contract); err != nil {
 		return err
 	}
+	jointPath := filepath.Join(referenceRoot, "joint-checkpoint.safetensors")
+	if stage == "joint" {
+		if err := verify(jointPath, "17497c2fffae48c580104e1cd2b9f849af064802d45777895cc38122fd793347"); err != nil {
+			return err
+		}
+	}
 	runtime, err := graphruntime.NewResidentSession(0)
 	if err != nil {
 		return err
@@ -100,42 +110,63 @@ func VerifyMOSSRefinement(ctx context.Context, modelRoot, referenceRoot, contrac
 		if err := verify(path, c.Artifact.DigestHex()); err != nil {
 			return err
 		}
+		hiddenName, ropeName, wantName, hiddenWidth := "conditioning.0.hidden", "rope", "text_refinement", spec.TextHidden
+		if stage == "joint" {
+			path = jointPath
+			hiddenName, ropeName, wantName, hiddenWidth = c.Name+".input", c.Name+".rope", c.Name+".output", spec.Hidden
+		}
 		err := func() error {
 			source, err := safetensors.OpenFile(path)
 			if err != nil {
 				return err
 			}
 			defer source.Close()
-			hidden := source.Tensors["conditioning.0.hidden"]
-			if len(hidden.Shape) != tensor.TripleExtent || hidden.Shape[0] != tensor.SingletonExtent || hidden.Shape[tensor.PairedExtent] != uint64(spec.TextHidden) {
-				return fmt.Errorf("MOSS conditioning shape differs: %v", hidden.Shape)
+			hidden := source.Tensors[hiddenName]
+			if len(hidden.Shape) != tensor.TripleExtent || hidden.Shape[0] != tensor.SingletonExtent || hidden.Shape[tensor.PairedExtent] != uint64(hiddenWidth) {
+				return fmt.Errorf("MOSS stage input shape differs: %v", hidden.Shape)
 			}
 			tokens := int(hidden.Shape[1])
-			p, err := compileRotaryRefinementProgram(spec, mossRefinementEpsilon, tokens, dtype.BF16)
-			if err != nil {
-				return err
+			inputs := map[string]*tensor.Tensor{}
+			feeds := map[*tensor.Tensor]reference.Value{}
+			var result, rotary *tensor.Tensor
+			var weights tensor.WeightBindings
+			if stage == "refinement" {
+				p, err := compileRotaryRefinementProgram(spec, mossRefinementEpsilon, tokens, dtype.BF16)
+				if err != nil {
+					return err
+				}
+				inputs[hiddenName], inputs[ropeName] = p.InEncoder, p.InRoPE
+				result, rotary, weights = p.Fused, p.InRoPE, p.weightInputs
+			} else {
+				p, err := compileRotaryJointProgram(spec, mossRefinementEpsilon, tokens, 0, dtype.BF16)
+				if err != nil {
+					return err
+				}
+				inputs[hiddenName], inputs[ropeName], inputs[c.Name+".modulation"] = p.input, p.rope, p.modulation
+				unit := make([]float32, spec.Hidden)
+				for i := range unit {
+					unit[i] = tensor.UnitScale
+				}
+				feeds[p.unit] = reference.Value{Shape: p.unit.Shape, Data: unit}
+				result, rotary, weights = p.output, p.rope, p.weightInputs
 			}
-			program, err := compileResidentWeights(ctx, runtime, "MOSS rotary refinement", filepath.Join(modelRoot, "transformer"), p.weightInputs, nil, p.Fused)
+			program, err := compileResidentWeights(ctx, runtime, "MOSS "+stage, filepath.Join(modelRoot, "transformer"), weights, nil, result)
 			if err != nil {
 				return err
 			}
 			defer runtime.Release(context.WithoutCancel(ctx), program)
-			feeds := map[*tensor.Tensor]reference.Value{}
-			for _, input := range []struct {
-				name string
-				node *tensor.Tensor
-			}{{"conditioning.0.hidden", p.InEncoder}, {"rope", p.InRoPE}} {
-				values, err := safetensors.ReadF32(source.Tensors[input.name])
+			for name, node := range inputs {
+				values, err := safetensors.ReadF32(source.Tensors[name])
 				if err != nil {
 					return err
 				}
-				if input.node == p.InRoPE {
+				if node == rotary {
 					if len(values) < tokens*spec.HeadDim {
 						return fmt.Errorf("MOSS rotary values are truncated")
 					}
 					values = values[len(values)-tokens*spec.HeadDim:]
 				}
-				feeds[input.node] = reference.Value{Shape: input.node.Shape, Data: values}
+				feeds[node] = reference.Value{Shape: node.Shape, Data: values}
 			}
 			got, err := runtime.Execute(ctx, program, feeds)
 			if err != nil {
@@ -145,11 +176,11 @@ func VerifyMOSSRefinement(ctx context.Context, modelRoot, referenceRoot, contrac
 			if err != nil {
 				return err
 			}
-			want, err := safetensors.ReadF32(source.Tensors["text_refinement"])
+			want, err := safetensors.ReadF32(source.Tensors[wantName])
 			if err != nil {
 				return err
 			}
-			actual, repeated := got[p.Fused].Data, repeat[p.Fused].Data
+			actual, repeated := got[result].Data, repeat[result].Data
 			if len(actual) != len(want) || len(repeated) != len(want) {
 				return fmt.Errorf("MOSS refinement output lengths differ")
 			}
@@ -171,11 +202,11 @@ func VerifyMOSSRefinement(ctx context.Context, modelRoot, referenceRoot, contrac
 					repeatFailures++
 				}
 			}
-			if err := json.NewEncoder(output).Encode(map[string]any{"case": c.Name, "reference": c.Artifact, "values": len(want), "failed": failures, "unequal": unequal, "repeat_failed": repeatFailures, "max_abs": worst, "resident_weight_bytes": runtime.StaticBytes()}); err != nil {
+			if err := json.NewEncoder(output).Encode(map[string]any{"stage": stage, "case": c.Name, "reference": c.Artifact, "values": len(want), "failed": failures, "unequal": unequal, "repeat_failed": repeatFailures, "max_abs": worst, "resident_weight_bytes": runtime.StaticBytes()}); err != nil {
 				return err
 			}
 			if failures != 0 || repeatFailures != 0 {
-				return fmt.Errorf("MOSS refinement violates frozen comparison in %s", c.Name)
+				return fmt.Errorf("MOSS %s violates frozen comparison in %s", stage, c.Name)
 			}
 			return nil
 		}()

@@ -10,15 +10,16 @@ import (
 	"overgo/internal/latentimage"
 )
 
-func mossRefinementParity(flags *flag.FlagSet, args []string) error {
+func mossTransformerParity(flags *flag.FlagSet, args []string) error {
 	model := flags.String("model", "", "pinned MOSS-Image-SFT checkpoint directory")
 	references := flags.String("references", "", "native full-reference case directory")
 	contract := flags.String("contract", "fixtures/moss", "frozen MOSS checkpoint and oracle contract directory")
+	stage := flags.String("stage", "refinement", "native transformer boundary: refinement or joint (first joint block)")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if *model == "" || *references == "" || flags.NArg() != 0 {
 		return fmt.Errorf("MOSS refinement requires -model and -references with no positional arguments")
 	}
-	return latentimage.VerifyMOSSRefinement(context.Background(), *model, *references, *contract, flags.Output())
+	return latentimage.VerifyMOSSTransformer(context.Background(), *model, *references, *contract, *stage, flags.Output())
 }

@@ -18365,9 +18365,9 @@ $L__BB85_27:
 )
 {
 	.reg .pred 	%p<15>;
-	.reg .f32 	%f<61>;
+	.reg .f32 	%f<63>;
 	.reg .b32 	%r<34>;
-	.reg .b64 	%rd<18>;
+	.reg .b64 	%rd<19>;
 	// demoted variable
 	.shared .align 4 .b8 _ZZ12rms_norm_f32E7partial[1024];
 
@@ -18387,7 +18387,7 @@ $L__BB85_27:
 	setp.gt.u32 	%p3, %r17, 127;
 	and.pred  	%p4, %p3, %p2;
 	mov.u32 	%r33, %tid.x;
-	mov.f32 	%f60, 0f00000000;
+	mov.f32 	%f62, 0f00000000;
 	@%p4 bra 	$L__BB86_5;
 	bra.uni 	$L__BB86_2;
 
@@ -18397,13 +18397,13 @@ $L__BB86_5:
 
 	shl.b32 	%r31, %r33, 2;
 	setp.ge.u32 	%p8, %r31, %r17;
-	mov.f32 	%f56, 0f00000000;
-	mov.f32 	%f57, %f56;
-	mov.f32 	%f58, %f56;
-	mov.f32 	%f59, %f56;
+	mov.f32 	%f58, 0f00000000;
+	mov.f32 	%f59, %f58;
+	mov.f32 	%f60, %f58;
+	mov.f32 	%f61, %f58;
 	@%p8 bra 	$L__BB86_9;
 
-	mov.f32 	%f56, 0f00000000;
+	mov.f32 	%f58, 0f00000000;
 
 $L__BB86_8:
 	add.s32 	%r21, %r31, %r2;
@@ -18411,40 +18411,40 @@ $L__BB86_8:
 	add.s64 	%rd8, %rd1, %rd7;
 	ld.global.f32 	%f32, [%rd8];
 	mul.rn.ftz.f32 	%f33, %f32, %f32;
-	add.ftz.f32 	%f59, %f33, %f59;
+	add.ftz.f32 	%f61, %f33, %f61;
 	add.s32 	%r22, %r21, 1;
 	mul.wide.u32 	%rd9, %r22, 4;
 	add.s64 	%rd10, %rd1, %rd9;
 	ld.global.f32 	%f34, [%rd10];
 	mul.rn.ftz.f32 	%f35, %f34, %f34;
-	add.ftz.f32 	%f58, %f35, %f58;
+	add.ftz.f32 	%f60, %f35, %f60;
 	add.s32 	%r23, %r21, 2;
 	mul.wide.u32 	%rd11, %r23, 4;
 	add.s64 	%rd12, %rd1, %rd11;
 	ld.global.f32 	%f36, [%rd12];
 	mul.rn.ftz.f32 	%f37, %f36, %f36;
-	add.ftz.f32 	%f57, %f37, %f57;
+	add.ftz.f32 	%f59, %f37, %f59;
 	add.s32 	%r24, %r21, 3;
 	mul.wide.u32 	%rd13, %r24, 4;
 	add.s64 	%rd14, %rd1, %rd13;
 	ld.global.f32 	%f38, [%rd14];
 	mul.rn.ftz.f32 	%f39, %f38, %f38;
-	add.ftz.f32 	%f56, %f39, %f56;
+	add.ftz.f32 	%f58, %f39, %f58;
 	add.s32 	%r31, %r31, 128;
 	setp.lt.u32 	%p9, %r31, %r17;
 	@%p9 bra 	$L__BB86_8;
 
 $L__BB86_9:
-	add.ftz.f32 	%f40, %f59, %f58;
-	add.ftz.f32 	%f41, %f40, %f57;
-	add.ftz.f32 	%f60, %f41, %f56;
+	add.ftz.f32 	%f40, %f61, %f60;
+	add.ftz.f32 	%f41, %f40, %f59;
+	add.ftz.f32 	%f62, %f41, %f58;
 	bra.uni 	$L__BB86_10;
 
 $L__BB86_2:
 	setp.ge.u32 	%p5, %r33, %r17;
 	@%p5 bra 	$L__BB86_10;
 
-	mov.f32 	%f60, 0f00000000;
+	mov.f32 	%f62, 0f00000000;
 	mov.u32 	%r4, %ntid.x;
 	mov.u32 	%r30, %r33;
 
@@ -18453,7 +18453,7 @@ $L__BB86_4:
 	mul.wide.u32 	%rd5, %r20, 4;
 	add.s64 	%rd6, %rd1, %rd5;
 	ld.global.f32 	%f22, [%rd6];
-	fma.rn.ftz.f32 	%f60, %f22, %f22, %f60;
+	fma.rn.ftz.f32 	%f62, %f22, %f22, %f62;
 	add.s32 	%r30, %r30, %r4;
 	setp.lt.u32 	%p6, %r30, %r17;
 	@%p6 bra 	$L__BB86_4;
@@ -18462,7 +18462,7 @@ $L__BB86_10:
 	shl.b32 	%r25, %r33, 2;
 	mov.u32 	%r26, _ZZ12rms_norm_f32E7partial;
 	add.s32 	%r10, %r26, %r25;
-	st.shared.f32 	[%r10], %f60;
+	st.shared.f32 	[%r10], %f62;
 	bar.sync 	0;
 	mov.u32 	%r11, %ntid.x;
 	shr.u32 	%r32, %r11, 1;
@@ -18493,19 +18493,22 @@ $L__BB86_14:
 	@%p13 bra 	$L__BB86_17;
 
 	cvta.to.global.u64 	%rd2, %rd3;
-	cvt.rn.f32.u32 	%f45, %r17;
-	div.rn.ftz.f32 	%f46, %f17, %f45;
-	add.rn.ftz.f32 	%f47, %f46, %f19;
-	rsqrt.approx.ftz.f32 	%f18, %f47;
+	cvt.rn.f32.u32 	%f45, %r18;
+	mul.wide.u32 	%rd15, %r18, %r17;
+	cvt.rn.f32.u64 	%f46, %rd15;
+	div.rn.ftz.f32 	%f47, %f45, %f46;
+	mul.rn.ftz.f32 	%f48, %f17, %f47;
+	add.rn.ftz.f32 	%f49, %f48, %f19;
+	rsqrt.approx.ftz.f32 	%f18, %f49;
 
 $L__BB86_16:
 	add.s32 	%r29, %r33, %r2;
-	mul.wide.u32 	%rd15, %r29, 4;
-	add.s64 	%rd16, %rd1, %rd15;
-	ld.global.f32 	%f48, [%rd16];
-	mul.ftz.f32 	%f49, %f18, %f48;
-	add.s64 	%rd17, %rd2, %rd15;
-	st.global.f32 	[%rd17], %f49;
+	mul.wide.u32 	%rd16, %r29, 4;
+	add.s64 	%rd17, %rd1, %rd16;
+	ld.global.f32 	%f50, [%rd17];
+	mul.ftz.f32 	%f51, %f18, %f50;
+	add.s64 	%rd18, %rd2, %rd16;
+	st.global.f32 	[%rd18], %f51;
 	add.s32 	%r33, %r33, %r11;
 	setp.lt.u32 	%p14, %r33, %r17;
 	@%p14 bra 	$L__BB86_16;

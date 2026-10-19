@@ -1802,7 +1802,7 @@ func launchCompiledFusion(
 	case compiledFusionBF16Attention:
 		return "bf16_attention", launchBF16Attention(state, functions, blas, node, fusion.bf16Attention, pointers)
 	case compiledFusionBF16Linear:
-		return "bf16_linear", launchBF16Linear(state, functions, blas, fusion.bf16ProjAdd.projection.Inputs, pointers)
+		return "bf16_linear", launchBF16Linear(state, functions, blas, fusion.bf16ProjAdd.projection.Inputs, pointers, fusion.bf16ProjAdd.addend != nil)
 	case compiledFusionQ8ArgmaxPartials:
 		return "q8_argmax", launchQ8ArgmaxPartials(state, functions, q8Input, node, pointers)
 	case compiledFusionQ8ArgmaxReduction:

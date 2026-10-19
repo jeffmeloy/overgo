@@ -146,26 +146,30 @@ var graphRewriteCatalog = [...]graphRewrite{
 	{name: "bf16-argmax", apply: applyBF16ArgmaxRewrite},
 }
 
-// applyBF16LinearRewrite folds explicitly rounded BF16 products and channel bias into cuBLASLt.
+// applyBF16LinearRewrite preserves explicitly rounded BF16 product storage and optional bias epilogues.
 func applyBF16LinearRewrite(context *rewriteContext) {
 	for _, node := range context.order {
 		if node.Op != tensor.OpBF16Round {
 			continue
 		}
-		add := node.Inputs[0]
-		if add.Op != tensor.OpAdd {
+		product := node.Inputs[0]
+		parts := []*tensor.Tensor{product}
+		var bias *tensor.Tensor
+		if product.Op == tensor.OpAdd {
+			product, bias = product.Inputs[0], product.Inputs[1]
+			if product.Op != tensor.OpMulMat {
+				product, bias = bias, product
+			}
+			parts = append(parts, product)
+		}
+		if !tensorCoreMulMat(product) || product.Op != tensor.OpMulMat || product.Inputs[0].Type != dtype.BF16 {
 			continue
 		}
-		product, bias := add.Inputs[0], add.Inputs[1]
-		if product.Op != tensor.OpMulMat {
-			product, bias = bias, product
-		}
-		if !tensorCoreMulMat(product) || product.Op != tensor.OpMulMat || product.Inputs[0].Type != dtype.BF16 ||
-			bias.Op != tensor.OpBF16Round || bias.Shape.Rank != 1 || bias.Shape.Dims[0] != product.Shape.Dims[0] {
+		if bias != nil && (bias.Op != tensor.OpBF16Round || bias.Shape.Rank != 1 || bias.Shape.Dims[0] != product.Shape.Dims[0]) {
 			continue
 		}
 		eligible := true
-		for _, part := range []*tensor.Tensor{add, product} {
+		for _, part := range parts {
 			_, retained := context.outputSet[part]
 			_, skipped := context.compiled.skipped[part]
 			if retained || skipped || context.uses[part] != 1 {
@@ -176,11 +180,17 @@ func applyBF16LinearRewrite(context *rewriteContext) {
 			continue
 		}
 		compiled := context.compiled
-		compiled.setFusion(node, &compiledFusion{kind: compiledFusionBF16Linear, operands: []*tensor.Tensor{product.Inputs[0], product.Inputs[1], bias}, bf16ProjAdd: bf16ProjAddFusion{projection: product, addend: bias}})
+		operands := slices.Clone(product.Inputs)
+		if bias != nil {
+			operands = append(operands, bias)
+		}
+		compiled.setFusion(node, &compiledFusion{kind: compiledFusionBF16Linear, operands: operands, bf16ProjAdd: bf16ProjAddFusion{projection: product, addend: bias}})
 		if compiled.skipped == nil {
 			compiled.skipped = make(map[*tensor.Tensor]struct{})
 		}
-		compiled.skipped[add], compiled.skipped[product] = struct{}{}, struct{}{}
+		for _, part := range parts {
+			compiled.skipped[part] = struct{}{}
+		}
 	}
 }
 

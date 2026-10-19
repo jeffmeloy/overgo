@@ -42,6 +42,8 @@ type DenseBlockResult struct {
 	Value     *tensor.Tensor
 	Auxiliary *tensor.Tensor
 	States    CacheStates[*tensor.Tensor]
+	// Streams: the residual streams a hyper-connection head mixed into Output, [embedding, streams, tokens]; nil elsewhere.
+	Streams *tensor.Tensor
 	// Optional exact-attention replay inputs.
 	Query          *tensor.Tensor
 	AttentionScale float32

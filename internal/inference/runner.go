@@ -201,6 +201,9 @@ type preparedModel struct {
 	audioTables         *audioWaveformTables
 	audioTablesOnce     sync.Once
 
+	// hyperDraft is the attached draft layer of a hyper-connection trunk, nil without one.
+	hyperDraft *hyperDraft
+
 	grammarVocabulary   func() (*sampling.GBNFVocabulary, error)
 	grammarVocabularyMu sync.Mutex
 }
@@ -246,6 +249,9 @@ type OpenOptions struct {
 	// Zero: selects default capacity of one
 	PromptCacheEntries int
 	LoRAAdapters       []LoRAConfig
+	// Draft names a draft file that attaches a draft layer to the trunk (a qwen4exp-mtp file for Flash-Next);
+	// raw-greedy device decoding drafts with it when a request asks for speculation.
+	Draft string
 }
 
 func (r *Runner) Spec() model.Spec {

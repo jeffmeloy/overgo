@@ -1436,6 +1436,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	}
 	keys := make([]*tensor.Tensor, len(r.weights.Layers))
 	values := make([]*tensor.Tensor, len(r.weights.Layers))
+	var streams *tensor.Tensor
 	states := make([]deviceGraphStates, len(r.weights.Layers))
 	cacheBindings := make([]layerGraphCacheInputs, len(r.weights.Layers))
 	var positionFeeds []*tensor.Tensor
@@ -1509,14 +1510,18 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		if buildErr != nil {
 			return fail(buildErr)
 		}
-		current = result.Output
+		current, streams = result.Output, result.Streams
 		keys[layerIndex], values[layerIndex] = result.Key, result.Value
 		states[layerIndex] = result.States
 	}
 	// Span plans retain the pre-output-norm hidden rows: the NextN draft
 	// head normalizes the trunk hidden itself, so speculation seeds from
-	// the un-normed rows.
+	// the un-normed rows. A hyper-connection trunk's draft head reads the
+	// residual streams its head mixed, so those are the rows it keeps.
 	preNormHidden := current
+	if streams != nil {
+		preNormHidden = streams
+	}
 	current, err = r.applyDeviceOutputNorm(builder, current, deviceFeeds)
 	if err != nil {
 		return fail(err)

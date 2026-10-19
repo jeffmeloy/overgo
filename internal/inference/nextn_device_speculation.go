@@ -17,6 +17,20 @@ import (
 // under-drafts and four over-pays for decayed tail acceptance.
 const deviceSpeculationDraftTokens = 3
 
+// hyperDraftTokens: a hyper-connection draft layer's depth per verify span.
+// On Flash-Next's short chat a draft from a fresh session holds 63 percent
+// at depth one and 43 and 27 percent at depths two and three, so deeper
+// spans pay more in verify and draft time than their accepted tokens return.
+const hyperDraftTokens = 1
+
+// speculationDraftTokens is the depth the runner's draft program drafts per verify span.
+func (r *Runner) speculationDraftTokens() int {
+	if r.hyperDraft != nil {
+		return hyperDraftTokens
+	}
+	return deviceSpeculationDraftTokens
+}
+
 // q8InputSpanColumnsWindow mirrors the executor's q8-input span-column
 // window: a verify span longer than this falls off the single-weight-read
 // kernels, so drafting is gated to keep spans inside it.
@@ -24,14 +38,14 @@ const q8InputSpanColumnsWindow = 8
 
 // deviceSpeculationReady reports whether raw-greedy device generation can
 // ride NextN speculation: a complete single-head draft catalog in the same
-// model, device-resident weights, and no context shifting (spans append
-// monotonically).
+// model or an attached hyper-connection draft layer, device-resident
+// weights, and no context shifting (spans append monotonically).
 func (r *Runner) deviceSpeculationReady(options GenerateOptions) bool {
 	if r == nil || !options.SpeculativeDecode || options.ContextShift ||
 		!r.hasPreloadedWeights() {
 		return false
 	}
-	if r.validateNextNMTP() == nil {
+	if r.hyperDraft != nil || r.validateNextNMTP() == nil {
 		return true
 	}
 	_, catalog, ok := r.lookupSingleHeadMTP()
@@ -45,7 +59,7 @@ func (r *Runner) SpeculativeDraftTokens() int {
 	if !r.deviceSpeculationReady(GenerateOptions{SpeculativeDecode: true}) {
 		return 0
 	}
-	return deviceSpeculationDraftTokens
+	return r.speculationDraftTokens()
 }
 
 func greedyTokenID(logits []float32) tokenizer.TokenID {
@@ -73,9 +87,16 @@ func (r *Runner) newDeviceMTPSessionLocked(
 		PendingHidden: hidden, MTPStart: position, Position: position,
 		targetModel: targetModel, deviceTrunk: true,
 	}
-	if r.validateNextNMTP() == nil {
+	switch {
+	case r.hyperDraft != nil:
+		// A hyper draft's cell sits at its streams' position, one before the token they selected; the draft step checks the streams.
+		if position == 0 {
+			return nil, errors.New("inference: hyper-connection draft seed has no position")
+		}
+		session.MTPStart, session.Position = position-1, position-1
+	case r.validateNextNMTP() == nil:
 		err = r.validateNextNMTPSession(session)
-	} else {
+	default:
 		err = r.validateMTPSession(session)
 	}
 	if err != nil {
@@ -84,17 +105,25 @@ func (r *Runner) newDeviceMTPSessionLocked(
 	return session, nil
 }
 
-// advanceDeviceDraftLocked runs one draft step through whichever single-head
-// program the model declares.
-func (r *Runner) advanceDeviceDraftLocked(
+// draftDeviceTokenLocked runs one draft step through whichever draft program
+// the runner holds and returns its greedy token.
+func (r *Runner) draftDeviceTokenLocked(
 	ctx context.Context,
 	tokenID tokenizer.TokenID,
 	session *MTPSession,
-) (reference.Value, *MTPSession, error) {
-	if r.validateNextNMTP() == nil {
-		return r.advanceNextNMTPLocked(ctx, tokenID, session)
+) (tokenizer.TokenID, *MTPSession, error) {
+	if r.hyperDraft != nil {
+		return r.advanceHyperDraftLocked(ctx, tokenID, session)
 	}
-	return r.advanceMTPLocked(ctx, tokenID, session)
+	advance := r.advanceMTPLocked
+	if r.validateNextNMTP() == nil {
+		advance = r.advanceNextNMTPLocked
+	}
+	logits, next, err := advance(ctx, tokenID, session)
+	if err != nil {
+		return 0, nil, err
+	}
+	return greedyTokenID(logits.Data), next, nil
 }
 
 // spanHiddenRow extracts one pre-output-norm hidden column from a span
@@ -110,7 +139,7 @@ func spanHiddenRow(hidden reference.Value, width uint64, row int) (reference.Val
 }
 
 // generateDeviceSpeculativeGreedy: the NextN MTP generation loop. Each round
-// drafts up to deviceSpeculationDraftTokens successors with the NextN head,
+// drafts up to speculationDraftTokens successors with the draft head,
 // then verifies the pending emitted tokens plus the draft in ONE device span
 // forward — one trunk weight read that commits acceptedTokens+1 emissions.
 // The boundary cache is the recurrent-state checkpoint: a fully accepted
@@ -141,7 +170,11 @@ func (r *Runner) generateDeviceSpeculativeGreedy(
 		return nil, boundary, "", err
 	}
 	pending := []tokenizer.TokenID{boundary.Selected}
+	depth := r.speculationDraftTokens()
 	width := uint64(r.spec.EmbeddingLength)
+	if r.hyperDraft != nil {
+		width = r.hyperDraftWidth()
+	}
 	var seedHidden reference.Value
 	var seedPosition uint32
 	haveSeed := false
@@ -149,19 +182,22 @@ func (r *Runner) generateDeviceSpeculativeGreedy(
 		var drafts []tokenizer.TokenID
 		// A long pending run means the last drafts were rejected twice
 		// over; run a draft-less span to collapse it into a new boundary.
-		if haveSeed && len(pending)+deviceSpeculationDraftTokens <= int(q8InputSpanColumnsWindow) {
+		// A one-draft round collapses after every rejection, so each span
+		// it verifies is two tokens long and replays one of two frames a
+		// cache capacity.
+		if haveSeed && len(pending)+depth <= int(q8InputSpanColumnsWindow) && (depth > 1 || len(pending) == 1) {
 			session, sessionErr := r.newDeviceMTPSessionLocked(seedHidden, seedPosition)
 			if sessionErr != nil {
 				return nil, boundary, "", sessionErr
 			}
 			token := pending[len(pending)-1]
-			for len(drafts) < deviceSpeculationDraftTokens {
-				logits, next, draftErr := r.advanceDeviceDraftLocked(ctx, token, session)
+			for len(drafts) < depth {
+				drafted, next, draftErr := r.draftDeviceTokenLocked(ctx, token, session)
 				if draftErr != nil {
 					return nil, boundary, "", draftErr
 				}
 				session = next
-				token = greedyTokenID(logits.Data)
+				token = drafted
 				drafts = append(drafts, token)
 			}
 		}

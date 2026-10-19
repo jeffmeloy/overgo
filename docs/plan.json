@@ -208,24 +208,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "strata-decode",
-      "title": "Decode Qwen3.8-Flash-Next at the speed Strata reaches on this PC",
-      "status": "open",
-      "budget": {
-        "nodes": 2750,
-        "reason": "mtp measured +3,042 production nodes at preflight on 347a47475, trimmed to about +2,689 (dead multi-cell draft path removed): the draft file bound to the trunk's layer shape, the draft step as one replayed graph, k=1 speculation with draftless two-token re-spans, the trunk's 4-stream residual handed to the draft, lazy speculation start"
-      },
-      "steps": [
-        {
-          "id": "mtp",
-          "title": "Draft with Flash-Next's MTP layer and verify the drafts in one step",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestFlashNextMTPKeepsGreedyText$'",
-          "rationale": "From steps decode-graph and decode-kernels: Flash-Next's warm short chat takes 1.67 s (60 tokens a second), its kernels about 13.6 ms a token; Strata decodes the same file at 145 to 151 tokens a second on this PC because it drafts with the model's MTP layer and verifies the drafts in one pass: its log (C:/Users/jeffm/Strata/strata-unsloth-ud-iq4_xs.log) shows the draft layer at 835 MiB of VRAM (experts 675, dense 111), drafts accepted 76 of 89 on the 1,551-token document and 17 of 21 on a follow-up, with a draft head over 106,299 tokens (212.9 MiB).\nThe MTP block is on this machine: overgo_data/references/strata/mtp (mtp-inventory.md: 31 BF16 tensors, 5.2 GB, one routed-expert layer of Flash-Next's shape; mtp-q2_0.gguf; Strata's runtime files under rt/). Overgo already owns NextN/MTP speculation (internal/inference/nextn_mtp.go, nextn_device_speculation.go, multi_head_mtp_speculative.go, greedy_draft.go).\nMeasure first: the acceptance rate of one-token and two-token MTP drafts on the frozen short chat and document, with the MTP layer quantized as the served model is (its experts in a compact type), and the verify step's cost; the step proceeds where accepted tokens a second rise.\nThe step loads Flash-Next's MTP layer through the existing NextN owner (its experts under the same residency as the main model's), drafts greedily, and verifies the drafts as one span in a replayed step: decode-graph left a multi-query span launched rather than captured, so the verify step's attention gets the decode kernel's device-word path or stays launched with its cost measured.\nAcceptance: greedy output identical to non-speculative decode on the frozen workloads (speculation must not change greedy text), accepted drafts reported, and tokens a second before and after; the draft layer's memory is counted in peak-device-memory.\nServes: throughput for Flash-Next, toward Strata's 148.7 tokens a second.\nBatch: device."
-        }
-      ]
-    },
-    {
       "id": "training-reuse",
       "title": "Stop repeating training's per-step device setup and its padding to the run's longest sequence",
       "status": "open",

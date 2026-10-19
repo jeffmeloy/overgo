@@ -16,9 +16,12 @@ import (
 // Flash-Next short chat made 19 instantiations and 25 updates a request,
 // each capture of a 4,000-node span costing 13 to 60 ms. A request whose
 // frames outnumber the kept graphs still recaptures nearly all of them,
-// since it cycles through them in order (the 27B's three-draft loop: 23
-// span graphs, 46 frames).
-const speculatingGraphExecs = 8
+// since it cycles through them in order: Flash-Next's one-draft short chat
+// (six span graphs, two frames each, and the draft step) made six
+// instantiations and three updates a request with eight kept and none with
+// sixteen (1.45 against 1.32 s); the 27B's three-draft loop (23 span
+// graphs, 46 frames) outnumbers both.
+const speculatingGraphExecs = 16
 
 // spanSlotAlignment: each output's offset in a span slot, the device allocation alignment.
 const spanSlotAlignment = 256

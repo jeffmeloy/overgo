@@ -58,12 +58,22 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 	var deviceWeights *modeldevice.DeviceConvertedWeights
 	var rawWeights *modeldevice.DeviceWeights
 	var decodeWeights *modeldevice.DeviceConvertedWeights
+	var draft *hyperDraft
 	fail := func(openErr error) (*Runner, error) {
 		return nil, errors.Join(
 			openErr,
 			closeAcceleratorResources(decodeWeights, rawWeights, deviceWeights, cuda, worker),
+			draft.close(),
 			file.Close(),
 		)
+	}
+	if options.Draft != "" {
+		if !residency.deviceF32 && !residency.deviceNative {
+			return fail(errors.New("inference: a draft layer needs device-resident weights"))
+		}
+		if draft, err = openHyperDraft(options.Draft, program.Model, spec); err != nil {
+			return fail(err)
+		}
 	}
 	// Claimed shard identities are proved by the pass that uploads the weights.
 	// A residency that uploads none proves them by hashing before it serves.
@@ -133,7 +143,7 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 		uploaded := processmeasure.Stage(ctx, "weights")
 		recovered, err = loadWithHostRecovery(residency.hostRecovery, func() error {
 			return loadResidentWeights(
-				ctx, file, weights, outputProjection, loraAdapters, residency, worker, claims,
+				ctx, file, weights, outputProjection, loraAdapters, residency, worker, claims, draft,
 				&deviceWeights, &rawWeights, &decodeWeights,
 			)
 		}, func() error {
@@ -170,6 +180,7 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 		weights:           weights, vocab: vocab,
 		cuda: cuda, worker: worker, deviceWeights: deviceWeights, rawWeights: rawWeights, decodeWeights: decodeWeights,
 		hostWeights:         hostWeights,
+		hyperDraft:          draft,
 		outputBias:          outputBias,
 		outputExclusions:    vocab.NonTextGenerationRanges(),
 		promptCacheCapacity: promptCacheCapacity,
@@ -293,6 +304,7 @@ func loadResidentWeights(
 	residency residencyBinding,
 	worker *device.Worker,
 	claims []artifact.ID,
+	draft *hyperDraft,
 	deviceWeights **modeldevice.DeviceConvertedWeights,
 	rawWeights **modeldevice.DeviceWeights,
 	decodeWeights **modeldevice.DeviceConvertedWeights,
@@ -300,6 +312,14 @@ func loadResidentWeights(
 	var err error
 	*deviceWeights, err = modeldevice.NewDeviceConvertedWeights(worker, dtype.F32)
 	if err != nil {
+		return err
+	}
+	if residency.deviceNative {
+		if *rawWeights, err = modeldevice.NewDeviceWeights(worker); err != nil {
+			return err
+		}
+	}
+	if err := loadHyperDraft(ctx, draft, *rawWeights, *deviceWeights); err != nil {
 		return err
 	}
 	loader := modeldevice.NewLoader(file)
@@ -342,10 +362,6 @@ func loadResidentWeights(
 			} else {
 				f32Tensors = append(f32Tensors, info)
 			}
-		}
-		*rawWeights, err = modeldevice.NewDeviceWeights(worker)
-		if err != nil {
-			return err
 		}
 		if residency.hostRecovery {
 			var available uint64
@@ -476,17 +492,18 @@ type preparedResources struct {
 	deviceWeights *modeldevice.DeviceConvertedWeights
 	cuda          *executor.Executor
 	worker        *device.Worker
+	draft         *hyperDraft
 }
 
 func (m *preparedModel) detachResources() preparedResources {
 	resources := preparedResources{
 		file: m.file, hostWeights: m.hostWeights,
 		decodeWeights: m.decodeWeights, rawWeights: m.rawWeights,
-		deviceWeights: m.deviceWeights, cuda: m.cuda, worker: m.worker,
+		deviceWeights: m.deviceWeights, cuda: m.cuda, worker: m.worker, draft: m.hyperDraft,
 	}
 	m.file, m.hostWeights = nil, nil
 	m.decodeWeights, m.rawWeights, m.deviceWeights = nil, nil, nil
-	m.cuda, m.worker = nil, nil
+	m.cuda, m.worker, m.hyperDraft = nil, nil, nil
 	return resources
 }
 
@@ -499,6 +516,7 @@ func (m *preparedResources) close() error {
 	errs = append(errs, closeAcceleratorResources(
 		m.decodeWeights, m.rawWeights, m.deviceWeights, m.cuda, m.worker,
 	))
+	errs = append(errs, m.draft.close())
 	if m.file != nil {
 		errs = append(errs, m.file.Close())
 	}

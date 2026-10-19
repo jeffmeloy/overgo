@@ -214,6 +214,10 @@ type runnerState struct {
 	decodeSession *deviceDecodeSession
 	// decodeSessions keeps the single-branch decode sessions by identity, so each capacity page and span length compiles once a process.
 	decodeSessions map[decodeSessionIdentity]*deviceDecodeSession
+	// speculating: a request has speculated, so the verify spans keep fixed output slots and the executor more captured graphs.
+	speculating bool
+	// spanSlots are the two buffers a speculating runner's verify spans write their non-token outputs into.
+	spanSlots [spanSlotCount]*spanSlot
 }
 
 // Runner: prepared assets + mutable request state.

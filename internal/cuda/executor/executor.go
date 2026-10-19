@@ -1502,7 +1502,7 @@ func (e *Executor) Metrics(ctx context.Context) (ExecutionMetrics, error) {
 			GraphUpdateFallbacks:   cache.updateFallbacks,
 			GraphDrops:             cache.drops,
 			GraphCacheEntries:      uint64(len(cache.entries)),
-			GraphCacheCapacity:     uint64(graphExecCacheCapacity),
+			GraphCacheCapacity:     uint64(max(cache.capacity, graphExecCacheCapacity)),
 			ArenaRequiredBytes:     arena.requiredBytes,
 			ArenaPeakRequiredBytes: arena.peakRequiredBytes,
 			ArenaCommittedBytes:    e.resources.arenaSize,
@@ -1727,8 +1727,12 @@ func (e *Executor) runCompiled(
 			graphExecs,
 			retain,
 		)
+		// A cache keeping its frames (a speculating runner's) keeps the
+		// reservation through one-shot runs too: a release moves the
+		// staging every kept frame names, and a regrowth for a longer
+		// verify span drops every exec.
 		if executeErr == nil && !cacheGraph && compiled.matmulStagingBytes > 0 &&
-			resources.blas != nil && resources.blas.staging != 0 {
+			resources.blas != nil && resources.blas.staging != 0 && !resources.graphExecs.keepsFrames() {
 			// A one-shot staged run (no replay-cache ownership -- prefill,
 			// not steady-state decode) releases the multi-token weight
 			// staging reservation at completion instead of riding the
@@ -2075,11 +2079,23 @@ func execute(
 			}
 			total = next
 		}
-		lease, allocateErr := buffers.acquire(state, total)
-		if allocateErr != nil {
-			return nil, allocateErr
+		// A cache keeping its frames stages a captured run through its one
+		// buffer: a pooled lease's address follows the pool's reuse order,
+		// which other holders of its size class reorder, and a replay keys
+		// on it.
+		var lease deviceBufferLease
+		if retainOutputs && execCache.keepsFrames() {
+			lease, err = execCache.stagedLease(state, buffers, total)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			lease, err = buffers.acquire(state, total)
+			if err != nil {
+				return nil, err
+			}
+			auxiliaryLeases = append(auxiliaryLeases, lease)
 		}
-		auxiliaryLeases = append(auxiliaryLeases, lease)
 		host := make([]byte, total)
 		for _, part := range staged {
 			copy(host[part.offset:], part.data)

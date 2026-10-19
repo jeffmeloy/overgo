@@ -44,6 +44,8 @@ type deviceKVCache struct {
 	// append, one column per consumed position — the trunk states the
 	// NextN draft head seeds from.
 	SpanHidden reference.Value
+	// spanSlot holds the outputs a speculating runner's span wrote outside the token caches; nil => the pool holds them.
+	spanSlot *spanSlot
 	// ngramHistory is the lexical history the step that made the cache fed, which its state holds on the card; nil => only the card holds it.
 	ngramHistory []float32
 }
@@ -220,6 +222,10 @@ func (c *deviceKVCache) Release(ctx context.Context) error {
 	}
 	c.storage = nil
 	c.session = nil
+	if c.spanSlot != nil {
+		c.spanSlot.refs--
+		c.spanSlot = nil
+	}
 	return nil
 }
 
@@ -708,6 +714,10 @@ func (r *Runner) executeParameterizedDecodeSession(
 		}
 		return errors.Join(errs...)
 	}
+	slot, err := r.bindSpanSlot(ctx, session.execution.Graph, graphs, appends, plans, targets, session.program.identity.output)
+	if err != nil {
+		return nil, errors.Join(err, releaseStorages())
+	}
 	retained, err := r.cuda.ExecuteRetainedCompiled(
 		ctx, session.execution.Graph, session.hostFeeds, session.execution.Inputs, targets, session.program.attributes,
 	)
@@ -720,6 +730,7 @@ func (r *Runner) executeParameterizedDecodeSession(
 	)
 	if err == nil {
 		session.replays++
+		holdSpanSlot(next, slot)
 	}
 	return next, err
 }
@@ -963,6 +974,10 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 		}
 		return errors.Join(errs...)
 	}
+	slot, err := r.bindSpanSlot(ctx, execution.Graph, graphs, appends, targetPlans, targets, plan)
+	if err != nil {
+		return nil, errors.Join(err, releaseStorages())
+	}
 	execute := r.cuda.ExecuteRetainedCompiledOnce
 	if retainable {
 		execute = r.cuda.ExecuteRetainedCompiled
@@ -971,9 +986,13 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	if err != nil {
 		return nil, errors.Join(err, releaseStorages())
 	}
-	return r.assembleDeviceBatchCaches(
+	next, err := r.assembleDeviceBatchCaches(
 		ctx, retained, storages, graphs, appends, targetPlans, sessions, hostFeeds, plan,
 	)
+	if err == nil {
+		holdSpanSlot(next, slot)
+	}
+	return next, err
 }
 
 func (r *Runner) assembleDeviceBatchCaches(

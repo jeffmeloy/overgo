@@ -80,9 +80,18 @@ func (p *deviceBufferPool) acquireBucket(
 	state *device.State,
 	bucket uint64,
 ) (deviceBufferLease, error) {
+	// The lowest free address, not the last released: a request then
+	// takes the same buffers whatever order the last one released them
+	// in, so the graphs it captured name them again.
 	if available := p.free[bucket]; len(available) > 0 {
-		pointer := available[len(available)-1]
-		p.free[bucket] = available[:len(available)-1]
+		lowest := 0
+		for index, pointer := range available {
+			if pointer < available[lowest] {
+				lowest = index
+			}
+		}
+		pointer := available[lowest]
+		p.free[bucket] = slices.Delete(available, lowest, lowest+1)
 		p.freeBytes -= bucket
 		return deviceBufferLease{pointer: pointer, size: bucket}, nil
 	}

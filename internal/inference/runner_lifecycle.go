@@ -414,6 +414,7 @@ func (r *Runner) Close() error {
 	_, cacheErr := releasePromptCaches(context.Background(), caches)
 	return errors.Join(
 		cacheErr,
+		r.releaseSpanSlots(context.Background()),
 		resources.close(),
 	)
 }

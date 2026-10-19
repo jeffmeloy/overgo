@@ -311,6 +311,9 @@ func (r *Runner) Generate(
 	}
 
 	if deviceGreedy && deviceCache != nil && r.deviceSpeculationReady(options) {
+		if err := r.startSpeculatingLocked(); err != nil {
+			return nil, "", err
+		}
 		var speculatedText string
 		ids, deviceCache, speculatedText, err = r.generateDeviceSpeculativeGreedy(
 			ctx, ids, deviceCache, options,

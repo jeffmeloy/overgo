@@ -212,8 +212,8 @@
       "title": "Decode Qwen3.8-Flash-Next at the speed Strata reaches on this PC",
       "status": "open",
       "budget": {
-        "nodes": 2374,
-        "reason": "mtp measured about +3,170 production nodes in its worktree (draft file binding to the trunk's layer shape, the draft step as one graph, k=1 speculation wiring, the trunk's 4-stream residual handed to the draft); span-frames is an estimate of about 400 (fixed double-buffered slots for recurrent-state outputs and the staged feed buffer)"
+        "nodes": 2750,
+        "reason": "mtp measured +3,042 production nodes at preflight on 347a47475, trimmed to about +2,689 (dead multi-cell draft path removed): the draft file bound to the trunk's layer shape, the draft step as one replayed graph, k=1 speculation with draftless two-token re-spans, the trunk's 4-stream residual handed to the draft, lazy speculation start"
       },
       "steps": [
         {
@@ -416,7 +416,8 @@
             "plan-verify-span/do",
             "plan-prefill-rescope/do",
             "plan-span-frames/do",
-            "plan-advance/do"
+            "plan-advance/do",
+            "plan-mtp-count/do"
           ]
         }
       ]

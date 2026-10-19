@@ -70,6 +70,7 @@ type Spec struct {
 
 // CommonSpec: shared model metadata.
 type CommonSpec struct {
+	Arithmetic            ArithmeticPolicy `json:",omitzero"`
 	Architecture          string
 	Name                  string
 	BlockCount            uint32

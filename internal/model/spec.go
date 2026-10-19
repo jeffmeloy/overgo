@@ -753,6 +753,9 @@ func (s Spec) validate() error {
 	if _, ok := s.boundProfile(); !ok {
 		return fmt.Errorf("model profile for %q is not bound", s.Architecture)
 	}
+	if err := s.validateArithmetic(s.Profile()); err != nil {
+		return err
+	}
 	if err := s.validateBaseMetadata(); err != nil {
 		return err
 	}

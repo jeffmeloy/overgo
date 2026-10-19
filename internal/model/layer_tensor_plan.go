@@ -78,6 +78,7 @@ func applyRoPEPairWithOptions(
 
 // rotaryPlan: compiled per-layer rotary graph.
 type rotaryPlan struct {
+	nativeBF16          bool
 	interleavedSections bool
 	kind                rotaryGraphKind
 	layout              tensor.RoPELayout
@@ -158,6 +159,7 @@ func (p rotaryPlan) applyOne(
 			resolved = *multiPositions
 		}
 		input = builder.RoPEWithOptions(input, tensor.RoPEOptions{
+			NativeBF16:     p.nativeBF16,
 			Layout:         p.layout,
 			MultiPositions: &resolved, Sections: p.sections, RotaryDimensions: p.rotaryDimensions,
 			FrequencyBase: p.frequencyBase, FrequencyScale: p.frequencyScale,
@@ -165,7 +167,8 @@ func (p rotaryPlan) applyOne(
 		})
 	case rotaryGraphSingle:
 		options := tensor.RoPEOptions{
-			Layout: p.layout, Positions: positions, FrequencyFactors: frequencyFactors,
+			NativeBF16: p.nativeBF16,
+			Layout:     p.layout, Positions: positions, FrequencyFactors: frequencyFactors,
 			RotaryDimensions: p.rotaryDimensions, FrequencyBase: p.frequencyBase,
 			FrequencyScale: p.frequencyScale, YaRN: p.yarn,
 			OriginalContext: p.originalContext, ExtFactor: p.extFactor,
@@ -188,7 +191,8 @@ func (s Spec) rotaryPlan(profile ArchitectureProfile, layer uint32) rotaryPlan {
 		rotaryDimensions = s.LayerRopeDimensionCount(layer)
 	}
 	plan := rotaryPlan{
-		kind: rotaryGraphSingle, layout: tensor.RoPELayoutNeoX,
+		nativeBF16: s.Arithmetic == ArithmeticTransformersBF16,
+		kind:       rotaryGraphSingle, layout: tensor.RoPELayoutNeoX,
 		rotaryDimensions: rotaryDimensions, frequencyBase: s.RopeFrequencyBase,
 		frequencyScale: tensor.UnitScale,
 	}

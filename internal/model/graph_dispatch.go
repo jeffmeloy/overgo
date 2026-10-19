@@ -67,6 +67,16 @@ func executeCompiledLayer(options blockDispatchOptions) (DenseBlockResult, error
 	if plan.Layer != context.Layer || plan.Recurrent != context.Recurrent {
 		return DenseBlockResult{}, errors.New("compiled layer plan differs from dispatch context")
 	}
+	if options.Spec.Arithmetic == ArithmeticTransformersBF16 {
+		if context.CurrentPositions != nil || context.MultiPositions != nil || context.Sequences != tensor.SingletonExtent || len(context.Positions) == 0 {
+			return DenseBlockResult{}, errors.New("native BF16 conditioning requires one unpadded prompt with static text positions")
+		}
+		for i, position := range context.Positions {
+			if position != uint32(i) {
+				return DenseBlockResult{}, errors.New("native BF16 conditioning requires contiguous positions starting at zero")
+			}
+		}
+	}
 	return executeLayerProgram(options, plan)
 }
 
@@ -482,7 +492,7 @@ func executeLayerInstruction(
 			)
 		case layerOperatorFeedForwardRoutedSwiGLU:
 			feedForward, err = buildRoutedSwiGLUFeedForwardMix(
-				c.Builder, execution.current, options.Weights,
+				c.Builder, execution.current, options.Spec, options.Weights,
 				plan.Experts, plan.ExpertComposition,
 			)
 		case layerOperatorFeedForwardParallelGatedGELU:
@@ -549,7 +559,7 @@ func executeLayerInstruction(
 		if execution.current == nil || execution.residual == nil {
 			return errors.New("compiled residual stage is invalid")
 		}
-		execution.current = c.Builder.Add(execution.residual, execution.current)
+		execution.current = options.Spec.Arithmetic.round(c.Builder, c.Builder.Add(execution.residual, execution.current))
 		execution.residual = execution.current
 		execution.result.Output = execution.current
 		return c.Builder.Err()

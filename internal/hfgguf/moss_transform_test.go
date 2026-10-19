@@ -78,7 +78,7 @@ func TestMOSSTransformGolden(t *testing.T) {
 		t.Fatal("missing F32 tolerance")
 	}
 	// Norm and decay are scalar vectors, so each head block contains one scalar.
-	transforms := qwen35TensorTransforms(qwen35LinearDims{keyHeads: groups, valueHeads: heads, valueWidth: 1})
+	transforms := qwen35TensorTransforms(qwen35LinearDims{keyHeads: groups, valueHeads: heads, valueWidth: 1}, false)
 	for _, name := range []string{"norm", "decay"} {
 		t.Run(name, func(t *testing.T) {
 			input, ok := source.Tensors[name+".source"]

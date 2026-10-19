@@ -229,6 +229,7 @@ const (
 
 // normalizationPlan: compiled operation, placement, bias, and tensor layout.
 type normalizationPlan struct {
+	Arithmetic        ArithmeticPolicy
 	Operation         NormalizationPolicy
 	PreAttention      bool
 	PreFeedForward    bool

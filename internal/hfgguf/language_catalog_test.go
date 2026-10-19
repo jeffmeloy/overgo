@@ -1,14 +1,104 @@
 package hfgguf
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"overgo/internal/hfrepo"
 	"overgo/internal/model"
 	"overgo/internal/safetensors"
 	"strings"
 	"testing"
 )
+
+func TestLanguageCatalogNativeArithmetic(t *testing.T) {
+	native := func() *hfrepo.Repository {
+		repository := baseLanguageFixture(t)
+		repository.Config["dtype"] = json.RawMessage(`"bfloat16"`)
+		for name, item := range repository.Tensors.Tensors {
+			if !strings.HasPrefix(name, "language_model.") {
+				continue
+			}
+			data := make([]byte, item.Elements()*2)
+			value, err := safetensors.NewTensor(name, "BF16", item.Shape, bytes.NewReader(data), 0, int64(len(data)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			repository.Tensors.Tensors[name] = value
+		}
+		return repository
+	}
+	for _, mode := range []string{"native", "default", "mixed-storage", "mixed-declaration"} {
+		t.Run(mode, func(t *testing.T) {
+			repository := native()
+			switch mode {
+			case "default":
+				delete(repository.Config, "dtype")
+			case "mixed-storage":
+				item := repository.Tensors.Tensors["language_model.norm.weight"]
+				item.DType = "F32"
+				repository.Tensors.Tensors[item.Name] = item
+			case "mixed-declaration":
+				text, err := qwen35TextConfig(repository.Config)
+				if err != nil {
+					t.Fatal(err)
+				}
+				text["dtype"] = json.RawMessage(`"float32"`)
+				repository.Config["text_config"], err = json.Marshal(text)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			catalog, err := InspectLanguageModel(repository, LanguageHidden)
+			if strings.HasPrefix(mode, "mixed-") {
+				if err == nil {
+					t.Fatal("inconsistent source arithmetic accepted")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := model.ArithmeticPolicy("")
+			if mode == "native" {
+				want = model.ArithmeticTransformersBF16
+			}
+			if catalog.Spec.Arithmetic != want {
+				t.Fatal("source arithmetic differs", catalog.Spec.Arithmetic)
+			}
+			encoded, err := json.Marshal(catalog.Spec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if bytes.Contains(encoded, []byte(model.ArithmeticTransformersBF16)) != (mode == "native") {
+				t.Fatal("serialized import loses source arithmetic")
+			}
+			for _, binding := range catalog.Bindings() {
+				isNorm := strings.HasSuffix(binding.Source, "norm.weight") && !strings.HasSuffix(binding.Source, ".linear_attn.norm.weight")
+				if mode == "native" && !isNorm && len(binding.Transforms) != 0 {
+					t.Fatal("native source layout changed", binding)
+				}
+				if mode == "default" && strings.HasSuffix(binding.Source, ".linear_attn.A_log") && len(binding.Transforms) == 0 {
+					t.Fatal("default decay transform lost")
+				}
+				for repeat := range 2 {
+					payload, err := catalog.Payload(binding.Target)
+					if err != nil {
+						t.Fatal(err)
+					}
+					data, err := io.ReadAll(payload.Data)
+					if err != nil || uint64(len(data)) != binding.TargetBytes {
+						t.Fatal("catalog payload", repeat, len(data), err)
+					}
+				}
+			}
+			if _, err := catalog.Payload("missing"); err == nil {
+				t.Fatal("unknown payload accepted")
+			}
+		})
+	}
+}
 
 func TestLanguageCatalogBindings(t *testing.T) {
 	repository := baseLanguageFixture(t)

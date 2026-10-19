@@ -231,7 +231,7 @@ func qwen35TensorMappings(repository *hfrepo.Repository, blockCount uint32) ([]t
 	}
 	return collectTensorMappings(repository.Tensors, func(name string) (string, bool, error) {
 		return qwen35TensorName(name, blockCount)
-	}, qwen35TensorShape, qwen35TensorTransforms(dims))
+	}, qwen35TensorShape, qwen35TensorTransforms(dims, false))
 }
 
 type qwen35LinearDims struct {
@@ -261,10 +261,10 @@ func qwen35LinearDimensions(repository *hfrepo.Repository) (qwen35LinearDims, er
 	return dims, nil
 }
 
-// qwen35TensorTransforms: llama.cpp GGUF conventions the runtime consumes —
-// the GDN decay base is stored as -exp(A_log), and V-head-major payloads
-// reorder from HF K-grouped order to tiled order when valueHeads > keyHeads.
-func qwen35TensorTransforms(dims qwen35LinearDims) tensorValueMapper {
+// qwen35TensorTransforms binds payload layout to the selected arithmetic.
+// Native BF16 conditioning retains source head order and raw decay parameters.
+// Default execution consumes tiled heads and negative exponentiated decay.
+func qwen35TensorTransforms(dims qwen35LinearDims, native bool) tensorValueMapper {
 	reorder := dims.keyHeads != dims.valueHeads
 	qkRows := 2 * dims.keyHeads * dims.keyWidth
 	vRows := dims.valueHeads * dims.valueWidth
@@ -275,11 +275,14 @@ func qwen35TensorTransforms(dims qwen35LinearDims) tensorValueMapper {
 		return []TensorTransform{{Operation: transformHeadRows, Groups: dims.keyHeads, Heads: dims.valueHeads, Width: dims.valueWidth, Rows: total, Start: start, Block: block}}
 	}
 	return func(name string) []TensorTransform {
-		if strings.HasSuffix(name, ".linear_attn.A_log") {
-			return append(rows(dims.valueHeads, 0, 1), TensorTransform{Operation: transformNegateExp})
-		}
 		if strings.HasSuffix(name, "norm.weight") && !strings.HasSuffix(name, ".linear_attn.norm.weight") {
 			return []TensorTransform{{Operation: transformAddOne}}
+		}
+		if native {
+			return nil
+		}
+		if strings.HasSuffix(name, ".linear_attn.A_log") {
+			return append(rows(dims.valueHeads, 0, 1), TensorTransform{Operation: transformNegateExp})
 		}
 		switch {
 		case strings.HasSuffix(name, ".linear_attn.dt_bias"), strings.HasSuffix(name, ".linear_attn.in_proj_a.weight"), strings.HasSuffix(name, ".linear_attn.in_proj_b.weight"):

@@ -108,7 +108,8 @@ func (p runtimePolicy) normalizationPlan(spec Spec, profile ArchitectureProfile)
 		bias = true
 	}
 	return normalizationPlan{
-		Operation: operation, PreAttention: pre, PreFeedForward: pre,
+		Arithmetic: spec.Arithmetic,
+		Operation:  operation, PreAttention: pre, PreFeedForward: pre,
 		PostAttention: post, PostFeedForward: post, Bias: bias,
 		RMSBias:        profile.DenseWeights.RMSNormBias,
 		Epsilon:        epsilon,

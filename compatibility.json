@@ -450,7 +450,7 @@
      "contains": "func ValidateQwen35Repository(",
      "path": "internal/hfgguf/qwen35.go",
      "role": "source",
-     "identity": "file:sha256:002ff52a6c8869dce9174d9730d19e5685dc6920c6f9e1fcf6393f74b8789d0f"
+     "identity": "file:sha256:e8c647e2ea8d5ad220c0867c0c600222faa0008a7276481e32f41c1e8768430f"
     },
     {
      "contains": "func TestValidateQwen35RepositoryUsesRuntimeCatalog(",
@@ -823,7 +823,7 @@
      "contains": "func CompileModelPlanWithProfile(",
      "path": "internal/model/layer_plan.go",
      "role": "source",
-     "identity": "file:sha256:3c6d25b3eb3fa84d033db0b37e92b06410381258b78640739179f3b98095bd72"
+     "identity": "file:sha256:440ebfb31ace6b0717742b02eccfb93d68dd59ab020bee2acfc29ea54c61172b"
     },
     {
      "contains": "func TestCompileModelPlanPinsLayerPolicies(",
@@ -1250,7 +1250,7 @@
      "contains": "func LookupArchitecture(",
      "path": "internal/model/architecture.go",
      "role": "source",
-     "identity": "file:sha256:9eddd57e50620221c8eeb1347ec5601fd80a055f8aff5a5be8d734305c260108"
+     "identity": "file:sha256:efbc3c722b4fbabbf3fc5fb6c79b390ed1d7201dd0861b163abd3f3edfec1804"
     },
     {
      "contains": "func TestArchitectureRegistryProfiles(",
@@ -1271,7 +1271,7 @@
      "contains": "func (p CompiledLayerProgram) Build(",
      "path": "internal/model/graph_dispatch.go",
      "role": "source",
-     "identity": "file:sha256:399af04162d2a7718d358c591129c10e33ad78fa5e55e41b4db85a3ae9ee4fa0"
+     "identity": "file:sha256:710431f2f9caa7840abaecb4e6c4fa7f609cd28a1b262c65327a5c7b9e91bfd7"
     },
     {
      "contains": "func ReadWeights(",

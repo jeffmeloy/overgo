@@ -58,8 +58,8 @@ func compareMOSSValues(actual, want []float32, tolerance mossStageTolerance) (in
 // Checkpoint and oracle documents must retain their frozen content identities.
 // Every case must meet upstream BF16 tolerance and repeat bitwise.
 func VerifyMOSSTransformer(ctx context.Context, modelRoot, referenceRoot, contractRoot, stage string, output io.Writer) error {
-	if stage != "refinement" && stage != "joint" && stage != "denoiser" && stage != "sampling" && stage != "decoder" && stage != "conditioning-delta" && stage != "conditioning-math" && stage != "conditioning-attention" && stage != "conditioning-rotary" && stage != "conditioning-l2" {
-		return fmt.Errorf("MOSS stage %q must be refinement, joint, denoiser, sampling, decoder, conditioning-delta, conditioning-math, conditioning-attention, conditioning-rotary or conditioning-l2", stage)
+	if stage != "refinement" && stage != "joint" && stage != "denoiser" && stage != "sampling" && stage != "decoder" && stage != "conditioning-delta" && stage != "conditioning-math" && stage != "conditioning-attention" && stage != "conditioning-rotary" && stage != "conditioning-l2" && stage != "conditioning-model" {
+		return fmt.Errorf("MOSS stage %q must be refinement, joint, denoiser, sampling, decoder, conditioning-delta, conditioning-math, conditioning-attention, conditioning-rotary, conditioning-l2 or conditioning-model", stage)
 	}
 	verify := func(path, digest string) error {
 		id, err := artifact.IdentifyFile(artifact.KindFile, path)
@@ -86,7 +86,7 @@ func VerifyMOSSTransformer(ctx context.Context, modelRoot, referenceRoot, contra
 		return err
 	}
 	for _, f := range checkpoint.Files {
-		if filepath.Dir(f.Path) == "transformer" || (stage == "sampling" && filepath.Dir(f.Path) == "scheduler") || (stage == "decoder" && filepath.Dir(f.Path) == "vae") {
+		if filepath.Dir(f.Path) == "transformer" || (stage == "sampling" && filepath.Dir(f.Path) == "scheduler") || (stage == "decoder" && filepath.Dir(f.Path) == "vae") || (stage == "conditioning-model" && filepath.Dir(f.Path) == "text_encoder") {
 			if err := verify(filepath.Join(modelRoot, f.Path), f.SHA256); err != nil {
 				return err
 			}
@@ -132,6 +132,9 @@ func VerifyMOSSTransformer(ctx context.Context, modelRoot, referenceRoot, contra
 		return err
 	}
 	defer runtime.Close(context.WithoutCancel(ctx))
+	if stage == "conditioning-model" {
+		return verifyMOSSConditioningModel(ctx, runtime, modelRoot, referenceRoot, output)
+	}
 	if stage == "conditioning-delta" {
 		return verifyMOSSConditioningDelta(ctx, runtime, referenceRoot, output)
 	}

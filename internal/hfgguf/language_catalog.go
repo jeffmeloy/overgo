@@ -59,6 +59,21 @@ func (c LanguageCatalog) Bindings() []TensorBinding {
 	return bindings
 }
 
+// Payload opens a fresh stream with the catalog's declared storage and transforms.
+// The source repository must remain open until the stream has been consumed.
+func (c LanguageCatalog) Payload(name string) (gguf.TensorData, error) {
+	for _, mapping := range c.mappings {
+		if mapping.name == name {
+			data, err := mappedTensorData([]tensorMapping{mapping})
+			if err != nil {
+				return gguf.TensorData{}, err
+			}
+			return data[0], nil
+		}
+	}
+	return gguf.TensorData{}, fmt.Errorf("HF/GGUF adapter: tensor %q has no catalog payload", name)
+}
+
 // InspectLanguageModel resolves an explicit output contract through existing mappings.
 // Base-model conditioning does not establish token-generation eligibility.
 func InspectLanguageModel(repository *hfrepo.Repository, output LanguageOutput) (LanguageCatalog, error) {
@@ -86,7 +101,14 @@ func InspectLanguageModel(repository *hfrepo.Repository, output LanguageOutput) 
 		var blocks uint32
 		items, blocks, err = qwen35MetadataForOutput(repository, output)
 		if err == nil {
-			mappings, err = qwen35MappingsForOutput(repository, blocks, output)
+			var native bool
+			native, err = qwen35NativeConditioning(repository, output)
+			if err == nil {
+				mappings, err = qwen35MappingsForOutput(repository, blocks, output, native)
+				if native {
+					items = append(items, metadata("general.source_arithmetic", gguf.ValueTypeString, string(model.ArithmeticTransformersBF16)))
+				}
+			}
 		}
 	default:
 		return LanguageCatalog{}, fmt.Errorf("HF/GGUF adapter: unsupported language model type %q", repository.Identity.ModelType)
@@ -120,7 +142,7 @@ func qwen35BaseModel(repository *hfrepo.Repository) bool {
 	return slices.Contains(repository.Identity.Architectures, "Qwen3_5Model")
 }
 
-func qwen35MappingsForOutput(repository *hfrepo.Repository, blocks uint32, output LanguageOutput) ([]tensorMapping, error) {
+func qwen35MappingsForOutput(repository *hfrepo.Repository, blocks uint32, output LanguageOutput, native bool) ([]tensorMapping, error) {
 	dims, err := qwen35LinearDimensions(repository)
 	if err != nil {
 		return nil, err
@@ -140,5 +162,35 @@ func qwen35MappingsForOutput(repository *hfrepo.Repository, blocks uint32, outpu
 			name = "model." + name
 		}
 		return qwen35TensorName(name, blocks)
-	}, qwen35TensorShape, qwen35TensorTransforms(dims))
+	}, qwen35TensorShape, qwen35TensorTransforms(dims, native))
+}
+
+func qwen35NativeConditioning(repository *hfrepo.Repository, output LanguageOutput) (bool, error) {
+	if output != LanguageHidden || !qwen35BaseModel(repository) {
+		return false, nil
+	}
+	storage, present, err := optional[string](repository.Config, "dtype")
+	if err != nil {
+		return false, err
+	}
+	if !present || storage != "bfloat16" {
+		return false, nil
+	}
+	text, err := qwen35TextConfig(repository.Config)
+	if err != nil {
+		return false, err
+	}
+	textStorage, declared, err := optional[string](text, "dtype")
+	if err != nil {
+		return false, err
+	}
+	if declared && textStorage != storage {
+		return false, fmt.Errorf("HF/GGUF adapter: text dtype %q differs from native BF16 storage %q", textStorage, storage)
+	}
+	for name, tensor := range repository.Tensors.Tensors {
+		if strings.HasPrefix(name, "language_model.") && tensor.DType != "BF16" {
+			return false, fmt.Errorf("HF/GGUF adapter: native BF16 tensor %q declares %s storage", name, tensor.DType)
+		}
+	}
+	return true, nil
 }

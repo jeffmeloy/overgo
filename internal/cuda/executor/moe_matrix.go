@@ -73,14 +73,21 @@ func (g moeMatrixGeometry) stagingBytes(group uint32, topK uint32) uint64 {
 	return perExpert*experts + slots
 }
 
+// launchMoEMatrices computes a prompt group's routed experts as staged matrix products when they read fewer bytes than its rows' dots.
+//   - residency != nil => the banks are indexed tables, and its host experts' reads cost moeHostReadCost card bytes a byte
 func launchMoEMatrices(ctx context.Context, state *device.State, functions functionSet, blas *blasState, node *tensor.Tensor,
 	input, routeState, output, gate, up, down, gateBias, upBias, downBias, expertScale driver.DevicePtr,
-	count, indexed uint32) (bool, error) {
+	count uint32, residency ExpertBanks) (bool, error) {
 	g, eligible := nativeMoEMatrix(node)
 	if !eligible {
 		return false, nil
 	}
+	indexed := kernelBool(residency != nil)
 	a := node.Attrs.(tensor.MoEAttributes)
+	upAt := moeFirstBankInput
+	if !a.FusedGateUp {
+		upAt++
+	}
 	hidden, intermediate, topK := uint32(g.hidden), uint32(g.intermediate), a.TopK
 	divisor := max(a.ExpertIndexDivisor, 1)
 	routeWords := uint32(moeSlotRouteWords)*topK + uint32(moeTokenRouteWords)
@@ -113,7 +120,20 @@ func launchMoEMatrices(ctx context.Context, state *device.State, functions funct
 	paired := uint64(count) * uint64(topK)
 	// Include expansion, its read, input gathering and two output passes.
 	staged := uint64(len(blas.moeExperts))*(g.encodedBytes+tensor.PairedExtent*decoded) + (tensor.PairedExtent+1)*paired*g.hidden*f32ScalarBytes
-	if paired*g.encodedBytes <= staged {
+	dots := paired * g.encodedBytes
+	if residency != nil {
+		// The dots read a host expert over the link once a routed row, the staging once.
+		blas.moeHosted = slices.Grow(blas.moeHosted[:0], int(g.experts))[:g.experts]
+		if err := residency.HostedExpertBytes(state, node.Inputs[moeFirstBankInput:upAt+tensor.PairedExtent], blas.moeHosted); err != nil {
+			return false, err
+		}
+		for _, expert := range blas.moeExperts {
+			link := (moeHostReadCost - 1) * blas.moeHosted[expert]
+			dots += uint64(blas.moeCounts[expert]) * link
+			staged += link
+		}
+	}
+	if dots <= staged {
 		return false, nil
 	}
 	if blas.staging == 0 || blas.stagingBytes < g.stagingBytes(count, topK) {
@@ -136,10 +156,6 @@ func launchMoEMatrices(ctx context.Context, state *device.State, functions funct
 		}
 	}
 	gateType := uint32(node.Inputs[moeFirstBankInput].Type)
-	upAt := moeFirstBankInput
-	if !a.FusedGateUp {
-		upAt++
-	}
 	upType, downType := uint32(node.Inputs[upAt].Type), uint32(node.Inputs[upAt+1].Type)
 	fused, activation, routing := kernelBool(a.FusedGateUp), uint32(a.Activation), uint32(a.Routing)
 	clamp := a.SwiGLUClamp

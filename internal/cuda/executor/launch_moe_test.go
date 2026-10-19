@@ -190,10 +190,11 @@ func TestCompileReservesMoEScratch(t *testing.T) {
 			}
 		}
 	}
+	// One token past a group's scratch runs as two groups of one size.
 	group := moeScratchLimitBytes / ocrTokenBytes
 	compiled := compile(group+1, 896, 6, dtype.BF16, false)
-	if got := compiled.attentionScoreBytes; got != group*ocrTokenBytes {
-		t.Fatalf("prefill scratch = %d, want %d tokens of %d", got, group, ocrTokenBytes)
+	if got, half := compiled.attentionScoreBytes, group/2+1; got != half*ocrTokenBytes {
+		t.Fatalf("prefill scratch = %d, want %d tokens of %d", got, half, ocrTokenBytes)
 	}
 	// Sixteen slots of limit/4 rows: one token alone exceeds the limit.
 	const wideRows = moeScratchLimitBytes / 4

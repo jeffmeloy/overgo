@@ -15,9 +15,11 @@ import (
 // ExpertRoutes names the flags a routed node's routes mark, in host memory the card maps, so a run's routes reach the host with no copy.
 // AdvanceExperts applies the last run's routes to residency before the next run.
 // ReserveExpertMemory releases only completed expert reads before another owner allocates.
+// HostedExpertBytes writes, for each expert of a routed node's banks, the bytes of its banks in host memory.
 type ExpertBanks interface {
 	IsExpertBank(string) bool
 	ExpertRoutes(*device.State, []*tensor.Tensor) (driver.DevicePtr, error)
+	HostedExpertBytes(*device.State, []*tensor.Tensor, []uint64) error
 	AdvanceExperts(context.Context, *device.State) error
 	ReserveExpertMemory(*device.State, uint64) error
 	ExpertMemory(*device.State) (reclaimable uint64, err error)

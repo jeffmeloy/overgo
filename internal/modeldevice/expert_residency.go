@@ -325,6 +325,28 @@ func (w *DeviceWeights) ExpertRoutes(state *device.State, nodes []*tensor.Tensor
 	return c.routedMap + driver.DevicePtr(head.routed), nil
 }
 
+// HostedExpertBytes writes into hosted, for each expert of a routed node's
+// banks, the bytes of its banks in pinned host memory, which the card reads
+// over the PCIe link. The nodes are the routed node's banks.
+func (w *DeviceWeights) HostedExpertBytes(state *device.State, nodes []*tensor.Tensor, hosted []uint64) error {
+	if w == nil || w.experts == nil || w.experts.state != state {
+		return errors.New("expert residency requires its owning CUDA worker")
+	}
+	clear(hosted)
+	for _, node := range nodes {
+		bank := w.experts.banks[node.Name]
+		if bank == nil || len(bank.hosted) != len(hosted) {
+			return fmt.Errorf("expert bank %q differs from its routed node", node.Name)
+		}
+		for index, host := range bank.hosted {
+			if host != nil {
+				hosted[index] += bank.bytes
+			}
+		}
+	}
+	return nil
+}
+
 // AdvanceExperts applies the last run's routes between runs: each expert it
 // routed to host memory moves to the card slot of an expert it did not route.
 func (w *DeviceWeights) AdvanceExperts(ctx context.Context, state *device.State) error {

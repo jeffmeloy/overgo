@@ -166,9 +166,10 @@ func launchMoE(
 		// the routed experts for the residency to read between runs.
 		indexed := uint32(0)
 		var routed driver.DevicePtr
+		var residency ExpertBanks
 		banks := node.Inputs[moeFirstBankInput:wantInputs]
 		if pointers.experts != nil && pointers.experts.IsExpertBank(banks[0].Name) {
-			indexed = 1
+			indexed, residency = 1, pointers.experts
 			if routed, err = pointers.experts.ExpertRoutes(state, banks); err != nil {
 				return err
 			}
@@ -207,7 +208,7 @@ func launchMoE(
 			}
 			if used, err := launchMoEMatrices(pointers.ctx, state, functions, blas, node,
 				groupInput, routeState, groupOutput, gate, up, down, gateBias, upBias, downBias, expertScale,
-				count, indexed); err != nil {
+				count, residency); err != nil {
 				return err
 			} else if used {
 				continue
@@ -273,6 +274,10 @@ const (
 	// moeScratchLimitBytes bounds the scratch one launch group holds; a
 	// longer prompt runs as several groups.
 	moeScratchLimitBytes = uint64(32 << 20)
+	// moeHostReadCost: the card-memory bytes one byte a kernel reads from mapped host memory costs.
+	//   - the RTX 4090 D reads its own memory at 1,008 GB/s, and its PCIe 4.0 x16 link carries 31.5 GB/s
+	//   - Flash-Next's 351-token prompt group read the gate and up rows of its host-heavy layers by row dots at 9 to 33 GB/s
+	moeHostReadCost = uint64(32)
 )
 
 // moeScratchGroup: the tokens one routed-expert launch group covers and the
@@ -292,11 +297,16 @@ func moeScratchGroup(node *tensor.Tensor) (uint32, uint64, error) {
 		intermediate == 0 || intermediate > math.MaxUint32/uint64(attributes.TopK) {
 		return 0, 0, errors.New("invalid grouped MoE dimensions")
 	}
-	tokenLimit := tokens
+	tokenLimit, scratchLimit := tokens, moeScratchLimitBytes
 	if geometry, ok := nativeMoEMatrix(node); ok {
 		tokenLimit = min(tokenLimit, (quantStagedChunkBytes-geometry.weightBytes-f32ScalarBytes)/(geometry.rowBytes*geometry.rowsPerToken+geometry.slotBytes))
+		// A matrix group stages each routed expert once, so a group takes as many tokens as the staging holds.
+		scratchLimit = quantStagedChunkBytes
 	}
 	activations := uint64(attributes.TopK) * intermediate
 	tokenBytes := (uint64(attributes.TopK)*moeSlotRouteWords + moeTokenRouteWords + activations + uint64(attributes.Experts)) * f32ScalarBytes
-	return uint32(max(1, min(tokenLimit, moeScratchLimitBytes/tokenBytes))), tokenBytes, nil
+	group := max(1, min(tokenLimit, scratchLimit/tokenBytes))
+	// Groups of one size leave no short last group, which would fall below the matrix products' reuse.
+	groups := (tokens-1)/group + 1
+	return uint32((tokens-1)/groups + 1), tokenBytes, nil
 }

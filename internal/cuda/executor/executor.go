@@ -2363,6 +2363,7 @@ func quantKernel(dataType dtype.Type) (quantKernelDescriptor, bool) {
 }
 
 type blasState struct {
+	moeHosted    []uint64
 	moeRoutes    []uint32
 	moeExperts   []uint32
 	moeCounts    []uint32

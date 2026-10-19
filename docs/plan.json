@@ -258,17 +258,10 @@
       "title": "Read long prompts at the speed Strata reaches on this PC",
       "status": "open",
       "budget": {
-        "nodes": 400,
+        "nodes": 104,
         "reason": "estimate for groups: group sizing by the staging bound with an even split, and a residency-aware price in the matrix decision (ExpertBanks reports host residency per routed expert); chunked sets its own from a measured figure"
       },
       "steps": [
-        {
-          "id": "groups",
-          "title": "Keep a prompt's expert groups on the matrix path, pricing host-resident experts at the link's rate",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestPromptExpertGroupsTakeTheMatrixPath$'",
-          "rationale": "From the prefill profile of the frozen 1,561-token document at cdc917f19 (Flash-Next UD-IQ4_XS, no prompt cache): prefill takes 9.9 to 11.7 s, 133 to 158 tokens a second, against Strata's 2.16 to 2.33 s. GPU busy 10.78 s: moe_hidden_dot_f32 4,503 ms and moe_down_dot_f32 2,239 ms (62.6 percent), moe_stage_f32 970, transfers 1,208, moe_stage_down_f32 465, gated_delta_net_f32 387, the staged expert SGEMMs 380; the dense Q8_0 prefill about 150 ms.\nThe routed-expert node splits the prompt into launch groups of 1,210 and 351 tokens (moeScratchGroup: 32 MiB of scratch at 27.7 KB a token). launchMoEMatrices takes the staged matrix path for the 1,210 group and refuses the 351 group by a cost model that does not count where an expert lives, so that group runs the per-row dot kernels, which on layers 28 to 47, whose experts sit mostly in mapped host memory, read each expert over PCIe once per routed row: 6.3 of the 6.74 s of dot time.\nThe step sizes a matrix-eligible node's groups by the staging bound (1,897 tokens here) and splits a longer prompt evenly, so no small remainder group appears, and prices host-resident experts' per-row reads at the PCIe rate in the matrix decision, so a prompt of any size takes the path that reads each host expert once.\nAcceptance: TestPromptExpertGroupsTakeTheMatrixPath (a host-resident bank and a prompt of the document's size take the matrix path; a small all-on-card group keeps the dots; outputs within the reference) and the document's prefill before and after (expected about 5 s).\nServes: first-output for long Flash-Next prompts.\nBatch: device."
-        },
         {
           "id": "chunked",
           "title": "Prefill in large chunks with grouped quantized expert matrices, streaming the next layer's experts while attention runs",

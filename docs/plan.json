@@ -265,8 +265,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 500,
-        "reason": "estimate: event and async-copy driver calls with a second stream for the copies, and a residency refill in whole allocations"
+        "nodes": 900,
+        "reason": "copy-overlap measured +477 (a second copy stream with event waits, two copy buffers) and load-guard +417 (a between-run refill of the card once memory frees, and the load's card placement in /metrics) at preflight"
       },
       "steps": [
         {
@@ -519,7 +519,8 @@
             "plan-fh-count/do",
             "plan-parity-first/do",
             "strata-bench/do",
-            "plan-bench-count/do"
+            "plan-bench-count/do",
+            "plan-residency-count/do"
           ]
         }
       ]

@@ -23,6 +23,7 @@ import (
 
 type Request struct {
 	Prompt            string  `json:"prompt"`
+	NegativePrompt    string  `json:"negative_prompt,omitempty"`
 	Width             int     `json:"width"`
 	Height            int     `json:"height"`
 	Steps             int     `json:"steps,omitzero"`
@@ -38,6 +39,8 @@ type Generator struct {
 	modelDir   string
 	tokenizer  *hfbpe.Tokenizer
 	pipeline   *ResidentImagePipeline
+	rotary     *rotaryGeneration
+	observe    func(string, []float32) error
 	embed      []float32
 	schedule   FlowSchedule
 	shape      LatentShape
@@ -68,6 +71,12 @@ func LoadGenerator(ctx context.Context, modelDir string, profile Profile, reques
 	}
 	if err := profile.validateIdentity(); err != nil {
 		return nil, err
+	}
+	if profile.Rotary != nil {
+		return loadRotaryGenerator(ctx, modelDir, profile, request)
+	}
+	if request.NegativePrompt != "" {
+		return nil, errors.New("latent image: selected profile does not support negative prompts")
 	}
 	spec, err := Derive(modelDir)
 	if err != nil {
@@ -204,6 +213,12 @@ func (g *Generator) Reset(ctx context.Context, request Request) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	if g != nil && g.rotary != nil {
+		return g.resetRotary(ctx, request)
+	}
+	if request.NegativePrompt != "" {
+		return errors.New("latent image: selected profile does not support negative prompts")
+	}
 	if g == nil || g.pipeline == nil || !g.completed {
 		return errors.New("latent image: resident session is unavailable")
 	}
@@ -242,6 +257,9 @@ func (g *Generator) Reset(ctx context.Context, request Request) error {
 func (g *Generator) prepare(ctx context.Context, request Request) (*Generator, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
+	}
+	if g != nil && g.rotary != nil {
+		return g.prepareRotary(ctx, request)
 	}
 	if g == nil || g.pipeline == nil || request.withPolicy(g.profile.Sampling, g.pipeline.Denoiser.GH*g.pipeline.Denoiser.GW, g.spec.Distilled) != g.request || g.prepared {
 		return nil, errors.New("latent image: generation session is unavailable")
@@ -282,6 +300,9 @@ func (g *Generator) integrate(ctx context.Context, session *Generator) (*Generat
 	if g == nil || session != g || !g.prepared || g.integrated {
 		return nil, errors.New("latent image: integration session is unavailable")
 	}
+	if g.rotary != nil {
+		return g.integrateRotary(ctx)
+	}
 	for step := range g.schedule.Steps {
 		if err := g.pipeline.Advance(ctx, g.schedule.Sigmas[step], g.schedule.Deltas[step]); err != nil {
 			return nil, err
@@ -295,6 +316,9 @@ func (g *Generator) decode(ctx context.Context, session *Generator) (EncodedImag
 	if g == nil || session != g || !g.integrated {
 		return EncodedImage{}, errors.New("latent image: decode session is unavailable")
 	}
+	if g.rotary != nil {
+		return g.decodeRotary(ctx)
+	}
 	pixels, height, width, err := g.pipeline.DecodeHWC(ctx)
 	if err != nil {
 		return EncodedImage{}, err
@@ -307,6 +331,9 @@ func (g *Generator) decode(ctx context.Context, session *Generator) (EncodedImag
 }
 
 func (g *Generator) Close(ctx context.Context) error {
+	if g != nil && g.rotary != nil {
+		return g.closeRotary(ctx)
+	}
 	if g == nil || g.pipeline == nil {
 		return nil
 	}
@@ -317,7 +344,7 @@ func (g *Generator) Close(ctx context.Context) error {
 }
 
 func RegisterRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, generator *Generator) error {
-	if generator == nil || generator.pipeline == nil {
+	if generator == nil || (generator.pipeline == nil && generator.rotary == nil) {
 		return errors.New("latent image: incomplete runtime binding")
 	}
 	return workflowruntime.RegisterContextPipeline(

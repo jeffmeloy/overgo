@@ -18,6 +18,7 @@ func TestResolveGenerationSource(t *testing.T) {
 	}{
 		{hfrepo.Identity{ModelType: "neo_chat", Architectures: []string{"NEOChatModel"}}, recipe.TaskImageGen, ModuleRoutedImagePrepare},
 		{hfrepo.Identity{Pipeline: "Krea2Pipeline"}, recipe.TaskImageGen, ModuleLatentImagePrepare},
+		{hfrepo.Identity{Pipeline: "MOSSImagePipeline"}, recipe.TaskImageGen, ModuleLatentImagePrepare},
 		{hfrepo.Identity{ModelType: "uvit"}, recipe.TaskImageGen, ModuleDiffusionImagePrepare},
 		{hfrepo.Identity{ModelType: "un0"}, recipe.TaskImageGen, ModuleOscillatorImagePrepare},
 		{hfrepo.Identity{ModelType: "un0"}, recipe.TaskVideoGen, ModuleOscillatorVideoPrepare},

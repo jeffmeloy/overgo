@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"overgo/internal/artifact"
@@ -65,30 +66,49 @@ type Profile struct {
 	Classes  classPolicy    `json:"classes"`
 	Prompt   textTemplate   `json:"prompt"`
 	Sampling samplingPolicy `json:"sampling"`
+	Rotary   *rotaryPolicy  `json:"rotary,omitempty"`
+}
+
+// rotaryPolicy binds joint rotary execution and its fixed training-grid sampler.
+type rotaryPolicy struct {
+	Guidance      float32 `json:"guidance"`
+	NegativeSkip  []int   `json:"negative_skip"`
+	Shift         float64 `json:"shift"`
+	TrainingShift float64 `json:"training_shift"`
+	SpatialScale  int     `json:"spatial_scale"`
 }
 
 type catalogProfile struct {
-	Pipeline              string       `json:"pipeline"`
-	Transformer           string       `json:"transformer"`
-	VAE                   string       `json:"vae"`
-	TextEncoderModule     string       `json:"text_encoder_module"`
-	TextEncoder           string       `json:"text_encoder"`
-	Tokenizer             string       `json:"tokenizer"`
-	Scheduler             string       `json:"scheduler"`
-	DefaultSteps          int          `json:"default_steps"`
-	TimestepFrequencyBase float64      `json:"timestep_frequency_base"`
-	Prompt                textTemplate `json:"prompt"`
+	Pipeline              string        `json:"pipeline"`
+	Transformer           string        `json:"transformer"`
+	VAE                   string        `json:"vae"`
+	TextEncoderModule     string        `json:"text_encoder_module"`
+	TextEncoder           string        `json:"text_encoder"`
+	Tokenizer             string        `json:"tokenizer"`
+	Scheduler             string        `json:"scheduler"`
+	DefaultSteps          int           `json:"default_steps"`
+	TimestepFrequencyBase float64       `json:"timestep_frequency_base"`
+	Prompt                textTemplate  `json:"prompt"`
+	Rotary                *rotaryPolicy `json:"rotary,omitempty"`
 }
 
 type schedulerProfile struct {
-	ClassName       string  `json:"_class_name"`
-	BaseImageSeqLen int     `json:"base_image_seq_len"`
-	BaseShift       float64 `json:"base_shift"`
-	MaxImageSeqLen  int     `json:"max_image_seq_len"`
-	MaxShift        float64 `json:"max_shift"`
-	TrainTimesteps  int     `json:"num_train_timesteps"`
-	TimeShiftType   string  `json:"time_shift_type"`
-	DynamicShifting bool    `json:"use_dynamic_shifting"`
+	ClassName       string   `json:"_class_name"`
+	BaseImageSeqLen int      `json:"base_image_seq_len"`
+	BaseShift       float64  `json:"base_shift"`
+	MaxImageSeqLen  int      `json:"max_image_seq_len"`
+	MaxShift        float64  `json:"max_shift"`
+	TrainTimesteps  int      `json:"num_train_timesteps"`
+	TimeShiftType   string   `json:"time_shift_type"`
+	DynamicShifting bool     `json:"use_dynamic_shifting"`
+	Shift           float64  `json:"shift"`
+	TrainingShift   float64  `json:"training_shift"`
+	Invert          bool     `json:"invert_sigmas"`
+	Stochastic      bool     `json:"stochastic_sampling"`
+	Beta            bool     `json:"use_beta_sigmas"`
+	Exponential     bool     `json:"use_exponential_sigmas"`
+	Karras          bool     `json:"use_karras_sigmas"`
+	Terminal        *float64 `json:"shift_terminal"`
 }
 
 func ResolveProfile(modelDir string) (Profile, error) {
@@ -119,13 +139,25 @@ func ResolveProfile(modelDir string) (Profile, error) {
 	if index.Transformer[1] != classes.Transformer || index.VAE[1] != classes.VAE ||
 		index.TextEncoder[1] != classes.TextEncoderModule || index.Tokenizer[1] != classes.Tokenizer ||
 		index.Scheduler[1] != classes.Scheduler || tokenizer.ClassName != classes.Tokenizer ||
-		scheduler.ClassName != classes.Scheduler || !scheduler.DynamicShifting || scheduler.TimeShiftType != "exponential" {
+		scheduler.ClassName != classes.Scheduler || scheduler.DynamicShifting != (catalog.Rotary == nil) || scheduler.TimeShiftType != "exponential" {
 		return Profile{}, errors.New("latent image: artifact classes differ from image profile")
 	}
 	prompt := catalog.Prompt
 	prompt.PadToken = tokenizer.PadToken
+	rotary := catalog.Rotary
+	if rotary != nil {
+		if scheduler.Invert || scheduler.Stochastic || scheduler.Beta || scheduler.Exponential || scheduler.Karras || scheduler.Terminal != nil {
+			return Profile{}, errors.New("latent image: unsupported training-grid scheduler policy")
+		}
+		text, err := os.ReadFile(filepath.Join(modelDir, "tokenizer", "chat_template.jinja"))
+		if err != nil {
+			return Profile{}, err
+		}
+		prompt.ChatTemplate = string(text)
+		rotary.Shift, rotary.TrainingShift = scheduler.Shift, scheduler.TrainingShift
+	}
 	return profileCodec.New(Profile{
-		Version: profileVersion, Classes: classes, Prompt: prompt,
+		Version: profileVersion, Classes: classes, Prompt: prompt, Rotary: rotary,
 		Sampling: samplingPolicy{
 			DefaultSteps: catalog.DefaultSteps, TrainTimesteps: scheduler.TrainTimesteps,
 			TimestepFrequencyBase: catalog.TimestepFrequencyBase,
@@ -167,12 +199,25 @@ func (p Profile) validateIdentity() error { return profileCodec.ValidateIdentity
 func (p Profile) validate() error {
 	if !checked.Equal(p.Version, profileVersion) || !checked.NonzeroAll(
 		p.Classes.Pipeline, p.Classes.Transformer, p.Classes.VAE, p.Classes.TextEncoderModule,
-		p.Classes.TextEncoder, p.Classes.Tokenizer, p.Classes.Scheduler, p.Prompt.Prefix,
-		p.Prompt.Suffix, p.Prompt.PadToken) ||
-		!checked.PositiveInts(p.Prompt.MaxTokens, p.Prompt.PrefixTokens, p.Prompt.SuffixTokens) {
+		p.Classes.TextEncoder, p.Classes.Tokenizer, p.Classes.Scheduler, p.Prompt.PadToken) ||
+		!checked.PositiveInts(p.Prompt.MaxTokens) {
 		return errors.New("latent image: incomplete image profile")
 	}
 	sampling := p.Sampling
+	if p.Rotary != nil {
+		if p.Prompt.ChatTemplate == "" || !checked.PositiveInts(sampling.DefaultSteps, sampling.TrainTimesteps, p.Rotary.SpatialScale) || !checked.PositiveFinite64(sampling.TimestepFrequencyBase) || !checked.PositiveFinite64(p.Rotary.Shift) || !checked.PositiveFinite64(p.Rotary.TrainingShift) || !checked.NonNegativeFinite32(p.Rotary.Guidance) {
+			return errors.New("latent image: invalid rotary image profile")
+		}
+		for _, index := range p.Rotary.NegativeSkip {
+			if index < 0 {
+				return errors.New("latent image: negative skipped block")
+			}
+		}
+		return nil
+	}
+	if !checked.NonzeroAll(p.Prompt.Prefix, p.Prompt.Suffix) || !checked.PositiveInts(p.Prompt.PrefixTokens, p.Prompt.SuffixTokens) {
+		return errors.New("latent image: incomplete padded prompt profile")
+	}
 	if !checked.PositiveInts(sampling.DefaultSteps, sampling.TrainTimesteps, sampling.BaseImageSequence) ||
 		!checked.GreaterInt(sampling.MaxImageSequence, sampling.BaseImageSequence) ||
 		!checked.PositiveFinite64(sampling.TimestepFrequencyBase) || !checked.PositiveFinite64(sampling.BaseShift) ||

@@ -2,39 +2,59 @@
   "version": 1,
   "profiles": [
     {
-      "task": "image-gen",
-      "selector": {"model_type": "neo_chat", "architecture": "NEOChatModel"},
       "inventory": "hf",
+      "prepare": "model.routed-image-prepare",
       "profile": "flow-profile",
-      "prepare": "model.routed-image-prepare"
+      "selector": {
+        "architecture": "NEOChatModel",
+        "model_type": "neo_chat"
+      },
+      "task": "image-gen"
     },
     {
-      "task": "image-gen",
-      "selector": {"pipeline": "Krea2Pipeline"},
       "inventory": "latent-image",
+      "prepare": "model.latent-image-prepare",
       "profile": "profile",
-      "prepare": "model.latent-image-prepare"
+      "selector": {
+        "pipeline": "Krea2Pipeline"
+      },
+      "task": "image-gen"
     },
     {
-      "task": "image-gen",
-      "selector": {"model_type": "uvit"},
       "inventory": "root-safetensors",
+      "prepare": "model.diffusion-image-prepare",
       "profile": "",
-      "prepare": "model.diffusion-image-prepare"
+      "selector": {
+        "model_type": "uvit"
+      },
+      "task": "image-gen"
     },
     {
-      "task": "image-gen",
-      "selector": {"model_type": "un0"},
       "inventory": "root-safetensors",
+      "prepare": "model.oscillator-image-prepare",
       "profile": "",
-      "prepare": "model.oscillator-image-prepare"
+      "selector": {
+        "model_type": "un0"
+      },
+      "task": "image-gen"
     },
     {
-      "task": "video-gen",
-      "selector": {"model_type": "un0"},
       "inventory": "root-safetensors",
+      "prepare": "model.oscillator-video-prepare",
       "profile": "",
-      "prepare": "model.oscillator-video-prepare"
+      "selector": {
+        "model_type": "un0"
+      },
+      "task": "video-gen"
+    },
+    {
+      "inventory": "hf",
+      "prepare": "model.latent-image-prepare",
+      "profile": "profile",
+      "selector": {
+        "pipeline": "MOSSImagePipeline"
+      },
+      "task": "image-gen"
     }
   ]
 }

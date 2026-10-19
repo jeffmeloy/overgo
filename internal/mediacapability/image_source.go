@@ -127,7 +127,7 @@ func latentImageComponentBindings(
 	source modelrecipe.GenerationSourceProfile,
 	inventory modelartifact.Inventory,
 ) ([]modelrecipe.ComponentBinding, []artifact.Manifest, error) {
-	if source.Inventory != modelrecipe.SourceInventoryLatentImage {
+	if source.Inventory != modelrecipe.SourceInventoryLatentImage && source.Prepare != modelrecipe.ModuleLatentImagePrepare {
 		return nil, nil, nil
 	}
 	groups := []struct {

@@ -21,13 +21,6 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
-// mossRefinementBlocks and mossRefinementEpsilon belong to the pinned TextEmbedder.
-// Reconsider these constants only when admitting a different source revision.
-const (
-	mossRefinementBlocks  = 2
-	mossRefinementEpsilon = 1e-6
-)
-
 type mossStageTolerance struct {
 	Absolute float64 `json:"atol"`
 	Relative float64 `json:"rtol"`
@@ -58,8 +51,8 @@ func compareMOSSValues(actual, want []float32, tolerance mossStageTolerance) (in
 // Checkpoint and oracle documents must retain their frozen content identities.
 // Every case must meet upstream BF16 tolerance and repeat bitwise.
 func VerifyMOSSTransformer(ctx context.Context, modelRoot, referenceRoot, contractRoot, stage string, output io.Writer) error {
-	if stage != "refinement" && stage != "joint" && stage != "denoiser" && stage != "sampling" && stage != "decoder" && stage != "conditioning-delta" && stage != "conditioning-math" && stage != "conditioning-attention" && stage != "conditioning-rotary" && stage != "conditioning-l2" && stage != "conditioning-model" && stage != "conditioning" {
-		return fmt.Errorf("MOSS stage %q must be refinement, joint, denoiser, sampling, decoder, conditioning-delta, conditioning-math, conditioning-attention, conditioning-rotary, conditioning-l2, conditioning-model or conditioning", stage)
+	if stage != "refinement" && stage != "joint" && stage != "denoiser" && stage != "sampling" && stage != "decoder" && stage != "conditioning-delta" && stage != "conditioning-math" && stage != "conditioning-attention" && stage != "conditioning-rotary" && stage != "conditioning-l2" && stage != "conditioning-model" && stage != "conditioning" && stage != "generation" {
+		return fmt.Errorf("MOSS stage %q must be refinement, joint, denoiser, sampling, decoder, conditioning-delta, conditioning-math, conditioning-attention, conditioning-rotary, conditioning-l2, conditioning-model, conditioning or generation", stage)
 	}
 	verify := func(path, digest string) error {
 		id, err := artifact.IdentifyFile(artifact.KindFile, path)
@@ -86,29 +79,16 @@ func VerifyMOSSTransformer(ctx context.Context, modelRoot, referenceRoot, contra
 		return err
 	}
 	for _, f := range checkpoint.Files {
-		if filepath.Dir(f.Path) == "transformer" || (stage == "sampling" && filepath.Dir(f.Path) == "scheduler") || (stage == "decoder" && filepath.Dir(f.Path) == "vae") || ((stage == "conditioning-model" || stage == "conditioning") && filepath.Dir(f.Path) == "text_encoder") || (stage == "conditioning" && filepath.Dir(f.Path) == "tokenizer") {
+		if stage == "generation" || filepath.Dir(f.Path) == "transformer" || (stage == "sampling" && filepath.Dir(f.Path) == "scheduler") || (stage == "decoder" && filepath.Dir(f.Path) == "vae") || ((stage == "conditioning-model" || stage == "conditioning") && filepath.Dir(f.Path) == "text_encoder") || (stage == "conditioning" && filepath.Dir(f.Path) == "tokenizer") {
 			if err := verify(filepath.Join(modelRoot, f.Path), f.SHA256); err != nil {
 				return err
 			}
 		}
 	}
-	var config struct {
-		Layers    int     `json:"num_layers"`
-		Dim       int     `json:"dim"`
-		FFN       int     `json:"ffn_dim"`
-		Heads     int     `json:"num_heads"`
-		Text      int     `json:"text_dim"`
-		Channels  int     `json:"latent_channels"`
-		Frequency int     `json:"freq_dim"`
-		RopeBase  float64 `json:"rope_base"`
-	}
-	if err := readJSON(filepath.Join(modelRoot, "transformer", "config.json"), &config); err != nil {
+	spec, err := readRotaryTransformer(modelRoot)
+	if err != nil {
 		return err
 	}
-	if config.Heads <= 0 {
-		return fmt.Errorf("MOSS head count must be positive")
-	}
-	spec := TransformerSpec{Layers: config.Layers, Hidden: config.Dim, Heads: config.Heads, HeadDim: config.Dim / config.Heads, Intermediate: config.FFN, TextHidden: config.Text, RefinerTextBlocks: mossRefinementBlocks, InChannels: config.Channels, TimestepEmbed: config.Frequency, RopeTheta: config.RopeBase}
 	var contract struct {
 		Cases []struct {
 			Name     string
@@ -127,11 +107,14 @@ func VerifyMOSSTransformer(ctx context.Context, modelRoot, referenceRoot, contra
 			return err
 		}
 	}
-	runtime, err := graphruntime.NewResidentSession(0)
-	if err != nil {
-		return err
+	var runtime *graphruntime.ResidentSession
+	if stage != "generation" {
+		runtime, err = graphruntime.NewResidentSession(0)
+		if err != nil {
+			return err
+		}
+		defer runtime.Close(context.WithoutCancel(ctx))
 	}
-	defer runtime.Close(context.WithoutCancel(ctx))
 	if stage == "conditioning-model" || stage == "conditioning" {
 		return verifyMOSSConditioningModel(ctx, runtime, modelRoot, referenceRoot, stage == "conditioning", output)
 	}
@@ -169,6 +152,9 @@ func VerifyMOSSTransformer(ctx context.Context, modelRoot, referenceRoot, contra
 				return err
 			}
 			defer source.Close()
+			if stage == "generation" {
+				return verifyMOSSGeneration(ctx, modelRoot, c.Name, c.Artifact, source, contract.Comparison.Tolerances, output)
+			}
 			if stage == "decoder" {
 				return verifyMOSSDecoder(ctx, runtime, modelRoot, referenceRoot, c.Name, c.Artifact, source, contract.Comparison.Tolerances, output)
 			}

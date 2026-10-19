@@ -241,6 +241,32 @@
       ]
     },
     {
+      "id": "expert-residency",
+      "title": "Keep routed experts on the card when it frees and copy them beside the compute",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 500,
+        "reason": "estimate: event and async-copy driver calls with a second stream for the copies, and a residency refill in whole allocations"
+      },
+      "steps": [
+        {
+          "id": "copy-overlap",
+          "title": "Overlap a prompt's host-expert copies with the layer before it",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestPromptExpertCopiesOverlapCompute$'",
+          "rationale": "From the chunked step's Nsight trace: with about 45 percent of each layer's experts in host memory, a 1,561-token prompt spends 1.15 s of 2.95 s copying routed host experts to the card before the grouped kernels read them, on the compute stream, with the card idle during each copy; gated_delta_net_f32 follows at 0.39 s (one block a head, a serial token loop).\nThe step copies the next layer's routed host experts on a second stream while the current layer computes, bounded by the staging, with events ordering the reads (the driver package gains the event and async-copy calls it needs), as Strata streams the next layer's experts during attention.\nAcceptance: the document's prompt time before and after, with outputs bit-identical to the serial copy.\nServes: first-output for long Flash-Next prompts, toward Strata's 2.16 to 2.33 s.\nBatch: device."
+        },
+        {
+          "id": "load-guard",
+          "title": "Move experts to the card when it frees after a load that found it held",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/modeldevice -count=1 -run '^TestExpertResidencyFillsTheCardWhenItFrees$'",
+          "rationale": "From the chunked step's re-measure at 969b07704: a Flash-Next load that started while another process held the card (right after the executor's device tests) found about 0.9 GB free, filled almost every routed expert into pinned host memory, took 47 s to acquire instead of about 20, and then made no visible progress for nine minutes with the card idle: a served model whose experts all sit behind PCIe is unusably slow, though nothing failed.\nThe step makes the residency move experts to the card when card memory frees after the load (between runs, as the advance already moves single experts, but in whole allocations up to free memory less the reserve), and reports a load that found the card held, so a request is not served for minutes at host-memory speed without a sign.\nAcceptance: a residency filled under a held card moves its experts to the card once memory frees, and the short chat then runs at its usual speed; the load records how much of the experts it placed on the card.\nServes: failure-rate and throughput for file-backed routed-expert models loaded while the card is shared.\nBatch: device."
+        }
+      ]
+    },
+    {
       "id": "training-reuse",
       "title": "Stop repeating training's per-step device setup and its padding to the run's longest sequence",
       "status": "open",
@@ -413,7 +439,8 @@
             "plan-advance/do",
             "plan-mtp-count/do",
             "speculation/do",
-            "plan-advance-rule/do"
+            "plan-advance-rule/do",
+            "expert-residency/do"
           ]
         }
       ]

@@ -28,12 +28,38 @@ const (
 	mossRefinementEpsilon = 1e-6
 )
 
+type mossStageTolerance struct {
+	Absolute float64 `json:"atol"`
+	Relative float64 `json:"rtol"`
+}
+
+func compareMOSSValues(actual, want []float32, tolerance mossStageTolerance) (int, int, float64) {
+	var failures, unequal int
+	var worst float64
+	if len(actual) != len(want) {
+		return max(len(actual), len(want)), max(len(actual), len(want)), math.Inf(1)
+	}
+	for i, x := range actual {
+		difference := math.Abs(float64(x) - float64(want[i]))
+		if !checked.Finite32(x) || !checked.Finite32(want[i]) || difference > tolerance.Absolute+tolerance.Relative*math.Abs(float64(want[i])) {
+			failures++
+		}
+		if checked.Finite64(difference) {
+			worst = max(worst, difference)
+		}
+		if math.Float32bits(x) != math.Float32bits(want[i]) {
+			unequal++
+		}
+	}
+	return failures, unequal, worst
+}
+
 // VerifyMOSSTransformer compares a resident transformer stage with pinned native cases.
 // Checkpoint and oracle documents must retain their frozen content identities.
 // Every case must meet upstream BF16 tolerance and repeat bitwise.
 func VerifyMOSSTransformer(ctx context.Context, modelRoot, referenceRoot, contractRoot, stage string, output io.Writer) error {
-	if stage != "refinement" && stage != "joint" && stage != "denoiser" {
-		return fmt.Errorf("MOSS stage %q must be refinement, joint or denoiser", stage)
+	if stage != "refinement" && stage != "joint" && stage != "denoiser" && stage != "sampling" {
+		return fmt.Errorf("MOSS stage %q must be refinement, joint, denoiser or sampling", stage)
 	}
 	verify := func(path, digest string) error {
 		id, err := artifact.IdentifyFile(artifact.KindFile, path)
@@ -60,7 +86,7 @@ func VerifyMOSSTransformer(ctx context.Context, modelRoot, referenceRoot, contra
 		return err
 	}
 	for _, f := range checkpoint.Files {
-		if filepath.Dir(f.Path) == "transformer" {
+		if filepath.Dir(f.Path) == "transformer" || (stage == "sampling" && filepath.Dir(f.Path) == "scheduler") {
 			if err := verify(filepath.Join(modelRoot, f.Path), f.SHA256); err != nil {
 				return err
 			}
@@ -89,10 +115,7 @@ func VerifyMOSSTransformer(ctx context.Context, modelRoot, referenceRoot, contra
 			Artifact artifact.ID
 		}
 		Comparison struct {
-			Tolerances map[string]struct {
-				Absolute float64 `json:"atol"`
-				Relative float64 `json:"rtol"`
-			} `json:"dtype_tolerances"`
+			Tolerances map[string]mossStageTolerance `json:"dtype_tolerances"`
 		}
 	}
 	if err := readJSON(contractPath, &contract); err != nil {
@@ -128,6 +151,9 @@ func VerifyMOSSTransformer(ctx context.Context, modelRoot, referenceRoot, contra
 				return err
 			}
 			defer source.Close()
+			if stage == "sampling" {
+				return verifyMOSSTrajectory(ctx, runtime, modelRoot, spec, c.Name, c.Artifact, source, contract.Comparison.Tolerances, output)
+			}
 			hidden := source.Tensors[hiddenName]
 			if len(hidden.Shape) != tensor.TripleExtent || hidden.Shape[0] != tensor.SingletonExtent || hidden.Shape[tensor.PairedExtent] != uint64(hiddenWidth) {
 				return fmt.Errorf("MOSS stage input shape differs: %v", hidden.Shape)
@@ -233,20 +259,9 @@ func VerifyMOSSTransformer(ctx context.Context, modelRoot, referenceRoot, contra
 				if len(actual) != len(want) || len(repeated) != len(want) {
 					return fmt.Errorf("MOSS %s output lengths differ", name)
 				}
-				failures, unequal, repeatFailures := 0, 0, 0
-				var worst float64
-				tolerance := contract.Comparison.Tolerances["BF16"]
+				failures, unequal, worst := compareMOSSValues(actual, want, contract.Comparison.Tolerances["BF16"])
+				repeatFailures := 0
 				for i, x := range actual {
-					difference := math.Abs(float64(x) - float64(want[i]))
-					if !checked.Finite32(x) || !checked.Finite32(want[i]) || difference > tolerance.Absolute+tolerance.Relative*math.Abs(float64(want[i])) {
-						failures++
-					}
-					if checked.Finite64(difference) {
-						worst = max(worst, difference)
-					}
-					if math.Float32bits(x) != math.Float32bits(want[i]) {
-						unequal++
-					}
 					if math.Float32bits(x) != math.Float32bits(repeated[i]) {
 						repeatFailures++
 					}

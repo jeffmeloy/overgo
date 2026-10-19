@@ -46,11 +46,16 @@ func compileResidentWeights(
 	inputs tensor.WeightBindings,
 	dynamic []*tensor.Tensor,
 	outputs ...*tensor.Tensor,
-) (*graphruntime.ResidentProgram, error) {
+) (_ *graphruntime.ResidentProgram, err error) {
 	program, err := session.Compile(ctx, label, dynamic, outputs...)
 	if err != nil || len(inputs) == 0 {
 		return program, err
 	}
+	defer func() {
+		if err != nil {
+			err = errors.Join(err, session.Release(context.WithoutCancel(ctx), program))
+		}
+	}()
 	source, err := safetensors.OpenSource(sourcePath)
 	if err != nil {
 		return nil, fmt.Errorf("%s: open weights: %w", label, err)

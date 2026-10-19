@@ -18,6 +18,11 @@ var VectorAddPTX []byte
 //go:embed ops_f32.ptx
 var OpsF32PTX []byte
 
+// OpsNativePTX preserves native tensor arithmetic at standard precision.
+//
+//go:embed ops_native.ptx
+var OpsNativePTX []byte
+
 // VectorAdd: executes Phase 1 smoke-test kernel; owns all
 // allocations so complete module, launch, transfer, and cleanup path is
 // exercised

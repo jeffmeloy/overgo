@@ -1,9 +1,42 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"testing"
 )
+
+func TestBindingModuleRolesAndCollisions(t *testing.T) {
+	module := func(asset, name string, executor bool) kernelModule {
+		return kernelModule{Asset: asset, Executor: executor, Functions: []string{name}, ArgumentLayouts: []kernelArgumentLayout{{Functions: []string{name}, Parameters: []string{".u64"}}}}
+	}
+	m := kernelManifest{Modules: []kernelModule{module("ops_f32.ptx", "fast", true), module("ops_native.ptx", "precise", true), module("vector_add.ptx", "fast", false)}}
+	data, err := json.Marshal(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = generateBindings(data); err != nil {
+		t.Fatal("distinct active modules or excluded duplicate refused", err)
+	}
+	m.Modules[2].Executor = true
+	data, err = json.Marshal(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = generateBindings(data); err == nil {
+		t.Fatal("ambiguous cross-module entry admitted")
+	}
+	for i := range m.Modules {
+		m.Modules[i].Executor = false
+	}
+	data, err = json.Marshal(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = generateBindings(data); err == nil {
+		t.Fatal("empty tensor execution role admitted")
+	}
+}
 
 func TestGeneratedBindingsMatchManifest(t *testing.T) {
 	document, err := os.ReadFile("../../kernels/manifest.json")

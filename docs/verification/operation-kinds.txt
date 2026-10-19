@@ -74,7 +74,7 @@ The preamble's row is the plan's step shape-reading/launch-checks, and TestNoLau
 == switches ==
 family: internal/tensor.Op
 switches: 10
-lines: 1602
+lines: 1617
 functions: 10
 packages: 4
 constants: 66
@@ -99,7 +99,7 @@ row: the entry of each operation, while attention's choice of path is attention'
 table: yes
 
 switch: internal/cuda/executor/launch_linear_layout.go#launchLinearLayout
-lines: 410
+lines: 413
 constants: 11
 clauses: 12
 dispatch-lines: 15
@@ -108,7 +108,7 @@ row: the entry of each operation, while mul_mat's choice by element type is a de
 table: yes
 
 switch: internal/cuda/executor/launch_math_vision.go#launchMathVision
-lines: 223
+lines: 229
 constants: 27
 clauses: 16
 dispatch-lines: 19
@@ -162,7 +162,7 @@ row: a column of internal/tensor/operation.go#operationDescriptors naming each o
 table: yes
 
 switch: internal/tensor/reference/executor.go#executeNode
-lines: 211
+lines: 217
 constants: 63
 clauses: 64
 dispatch-lines: 67

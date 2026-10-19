@@ -39,6 +39,7 @@ type manifest struct {
 }
 
 type module struct {
+	Executor           bool               `json:"executor,omitempty"`
 	Source             string             `json:"source"`
 	SourceSHA256       string             `json:"sourceSha256"`
 	SourceDependencies []sourceDependency `json:"sourceDependencies,omitempty"`
@@ -101,6 +102,7 @@ func run(root string, update bool) error {
 	runtimePins := map[string]string{
 		"internal/cuda/kernel/vector_add.ptx": cudaKernel.VectorAddSHA256,
 		"internal/cuda/kernel/ops_f32.ptx":    cudaKernel.OpsF32SHA256,
+		"internal/cuda/kernel/ops_native.ptx": cudaKernel.OpsNativeSHA256,
 	}
 	seenSource := map[string]struct{}{}
 	seenAsset := map[string]struct{}{}

@@ -58,6 +58,16 @@ func (b *Builder) RMSNorm(input *Tensor, epsilon float32) *Tensor {
 	return b.unary(OpRMSNorm, input, RMSNormAttributes{Epsilon: epsilon})
 }
 
+// RMSNormNative selects Torch CUDA's F32 reduction and reciprocal-root arithmetic.
+// Unsupported device reduction geometry is refused during compilation.
+func (b *Builder) RMSNormNative(input *Tensor, epsilon float32) *Tensor {
+	if epsilon <= 0 || math.IsNaN(float64(epsilon)) || math.IsInf(float64(epsilon), 0) {
+		b.setError(errors.New("native RMSNorm requires positive finite epsilon"))
+		return nil
+	}
+	return b.unary(OpRMSNorm, input, RMSNormAttributes{Epsilon: epsilon, Native: true})
+}
+
 // MADNorm applies row-wise rank/MAD normalization.
 func (b *Builder) MADNorm(input *Tensor, epsilon float32) *Tensor {
 	if input == nil || epsilon <= 0 || math.IsNaN(float64(epsilon)) || math.IsInf(float64(epsilon), 0) {
@@ -476,6 +486,20 @@ func (b *Builder) Atan(input *Tensor) *Tensor {
 
 func (b *Builder) Exp(input *Tensor) *Tensor {
 	return b.unary(OpExp, input, nil)
+}
+
+// ExpNative selects the precise CUDA exponential used by native F32 tensor arithmetic.
+func (b *Builder) ExpNative(input *Tensor) *Tensor {
+	return b.unary(OpExp, input, NativeMathAttributes{})
+}
+
+// NativeSoftplusThreshold follows Torch's default F32 softplus branch boundary.
+// Reconsider this threshold when admitting another native scalar policy.
+const NativeSoftplusThreshold = 20
+
+// SoftplusNative preserves Torch's separately rounded exponential and logarithm.
+func (b *Builder) SoftplusNative(input *Tensor) *Tensor {
+	return b.unary(OpSoftplus, input, NativeMathAttributes{})
 }
 
 func (b *Builder) L2Norm(input *Tensor, epsilon float32) *Tensor {

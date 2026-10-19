@@ -23,6 +23,7 @@ type kernelManifest struct {
 }
 
 type kernelModule struct {
+	Executor        bool                   `json:"executor"`
 	Asset           string                 `json:"asset"`
 	AssetSHA256     string                 `json:"assetSha256"`
 	Functions       []string               `json:"functions"`
@@ -152,13 +153,17 @@ func generateBindings(document []byte) ([]byte, error) {
 		return nil, errors.New("CUDA kernel manifest contains no modules")
 	}
 	var functions []string
+	var moduleAssets []string
+	var functionModules []int
 	argumentCounts := make(map[string]int)
 	seenNames := make(map[string]struct{})
 	seenIDs := make(map[string]string)
 	for _, module := range manifest.Modules {
-		if !strings.HasSuffix(filepath.ToSlash(module.Asset), "/ops_f32.ptx") {
+		if !module.Executor {
 			continue
 		}
+		moduleIndex := len(moduleAssets)
+		moduleAssets = append(moduleAssets, assetIdentifier(module.Asset))
 		for _, name := range module.Functions {
 			if name == "" {
 				return nil, errors.New("CUDA kernel manifest contains an empty function")
@@ -176,6 +181,7 @@ func generateBindings(document []byte) ([]byte, error) {
 			seenNames[name] = struct{}{}
 			seenIDs[identifier] = name
 			functions = append(functions, name)
+			functionModules = append(functionModules, moduleIndex)
 		}
 		for _, layout := range module.ArgumentLayouts {
 			for _, name := range layout.Functions {
@@ -200,7 +206,17 @@ func generateBindings(document []byte) ([]byte, error) {
 	fmt.Fprintln(&output)
 	fmt.Fprintln(&output, "package executor")
 	fmt.Fprintln(&output)
-	fmt.Fprintln(&output, `import "overgo/internal/cuda/driver"`)
+	fmt.Fprintln(&output, "import (\"errors\"; \"overgo/internal/cuda/driver\"; \"overgo/internal/cuda/kernel\")")
+	fmt.Fprintln(&output, "var kernelModuleAssets = [...][]byte{")
+	for _, asset := range moduleAssets {
+		fmt.Fprintf(&output, "kernel.%sPTX,\n", asset)
+	}
+	fmt.Fprintln(&output, "}")
+	fmt.Fprintln(&output, "var kernelFunctionModules = [...]int{")
+	for _, module := range functionModules {
+		fmt.Fprintf(&output, "%d,\n", module)
+	}
+	fmt.Fprintln(&output, "}")
 	fmt.Fprintln(&output)
 	fmt.Fprintln(&output, "type kernelFunctionID uint16")
 	fmt.Fprintln(&output)
@@ -235,10 +251,11 @@ func generateBindings(document []byte) ([]byte, error) {
 	fmt.Fprintln(&output)
 	fmt.Fprintln(&output, "type functionSet [kernelFunctionCount]boundKernel")
 	fmt.Fprintln(&output)
-	fmt.Fprintln(&output, "func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, error) {")
+	fmt.Fprintln(&output, "func loadFunctions(lib *driver.Library, modules []driver.Module) (functionSet, error) {")
 	fmt.Fprintln(&output, "\tvar result functionSet")
+	fmt.Fprintln(&output, "if len(modules) != len(kernelModuleAssets) { return result, errors.New(\"CUDA module bindings differ from manifest\") }")
 	fmt.Fprintln(&output, "\tfor id, name := range kernelFunctionNames {")
-	fmt.Fprintln(&output, "\t\tfunction, err := lib.ModuleFunction(module, name)")
+	fmt.Fprintln(&output, "\t\tfunction, err := lib.ModuleFunction(modules[kernelFunctionModules[id]], name)")
 	fmt.Fprintln(&output, "\t\tif err != nil {")
 	fmt.Fprintln(&output, "\t\t\treturn functionSet{}, err")
 	fmt.Fprintln(&output, "\t\t}")
@@ -256,7 +273,7 @@ func generateBindings(document []byte) ([]byte, error) {
 func kernelIdentifier(name string) string {
 	var result strings.Builder
 	result.WriteString("kernel")
-	for _, part := range strings.Split(name, "_") {
+	for part := range strings.SplitSeq(name, "_") {
 		if part == "" {
 			continue
 		}

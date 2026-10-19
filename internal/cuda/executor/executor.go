@@ -35,7 +35,7 @@ type Executor struct {
 
 type executorResources struct {
 	experts    ExpertBanks
-	module     driver.Module
+	modules    []driver.Module
 	functions  functionSet
 	blas       *blasState
 	q8Input    q8InputState
@@ -1156,6 +1156,11 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 			}
 			compiled.needBlas = true
 			compiled.matmulStagingBytes = max(compiled.matmulStagingBytes, bytes)
+		}
+		if node.Op == tensor.OpRMSNorm && node.Attrs.(tensor.RMSNormAttributes).Native {
+			if _, _, err := nativeRMSGeometry(node.Shape); err != nil {
+				return nil, err
+			}
 		}
 		if (node.Op == tensor.OpMulMat || node.Op == tensor.OpGroupedMulMat) &&
 			(node.Inputs[0].Type == dtype.F32 || node.Inputs[0].Type == dtype.BF16) {
@@ -2429,6 +2434,26 @@ type q8InputState struct {
 	stagedNode   *tensor.Tensor
 }
 
+func loadKernelModules(library *driver.Library) (modules []driver.Module, functions functionSet, err error) {
+	defer func() {
+		if err != nil {
+			for _, module := range modules {
+				_ = library.ModuleUnload(module)
+			}
+			modules = nil
+		}
+	}()
+	for _, asset := range kernelModuleAssets {
+		module, loadErr := library.ModuleLoadData(asset)
+		if loadErr != nil {
+			return modules, functions, loadErr
+		}
+		modules = append(modules, module)
+	}
+	functions, err = loadFunctions(library, modules)
+	return modules, functions, err
+}
+
 func (e *Executor) ensureResources(
 	state *device.State,
 	needBlas bool,
@@ -2437,24 +2462,21 @@ func (e *Executor) ensureResources(
 	matmulStagingBytes uint64,
 	convolutions ...cudnn.Shape,
 ) (*executorResources, error) {
-	if e.resources.module == 0 {
+	if len(e.resources.modules) == 0 {
 		if err := kernel.ValidateAssets(); err != nil {
 			return nil, err
 		}
-		module, err := state.Driver.ModuleLoadData(kernel.OpsF32PTX)
+		modules, functions, err := loadKernelModules(state.Driver)
 		if err != nil {
-			return nil, err
-		}
-		functions, err := loadFunctions(state.Driver, module)
-		if err != nil {
-			_ = state.Driver.ModuleUnload(module)
 			return nil, err
 		}
 		if err := configureLargeSharedKernels(state.Driver, functions); err != nil {
-			_ = state.Driver.ModuleUnload(module)
+			for _, module := range modules {
+				_ = state.Driver.ModuleUnload(module)
+			}
 			return nil, err
 		}
-		e.resources.module = module
+		e.resources.modules = modules
 		e.resources.functions = functions
 	}
 	if needBlas && e.resources.blas == nil {
@@ -2620,12 +2642,12 @@ func (e *Executor) closeResources(state *device.State) error {
 		errs = append(errs, state.Driver.MemFree(e.resources.q8Input.staging))
 		e.resources.q8Input = q8InputState{}
 	}
-	if e.resources.module != 0 {
-		if err := state.Driver.ModuleUnload(e.resources.module); err != nil {
+	for _, module := range e.resources.modules {
+		if err := state.Driver.ModuleUnload(module); err != nil {
 			errs = append(errs, err)
 		}
-		e.resources.module = 0
-		e.resources.functions = functionSet{}
 	}
+	e.resources.modules = nil
+	e.resources.functions = functionSet{}
 	return errors.Join(errs...)
 }

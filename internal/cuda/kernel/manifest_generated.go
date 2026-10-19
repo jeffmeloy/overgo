@@ -3,17 +3,19 @@
 package kernel
 
 const (
-	BundleABIVersion     = 55
+	BundleABIVersion     = 57
 	BundleTarget         = "compute_89"
 	BundleDefaultThreads = 256
 	BundleVAEConvTile    = 96
 	VectorAddSHA256      = "f0c6eedbbae221be3342bbbb8f782e5413c84515f362cca533905f7f9510c974"
 	TorchCUDARandnSHA256 = "e0a682f3821e61e9be8aa13192986c38010b60d588c027887a07e2681118df59"
 	OpsF32SHA256         = "44621af2d5fc8b04514dab2d47a6d51ad62d8f02a76b5645b9097cac739c73e5"
+	OpsNativeSHA256      = "3244c7bf5c4d2c4f95794aff3d5a573709e96972eb3d491ceddfddea29c7e066"
 )
 
 var bundleAssets = [...]bundleAsset{
 	{name: "vector_add.ptx", data: VectorAddPTX, sha256: VectorAddSHA256},
 	{name: "torch_cuda_randn.ptx", data: TorchCUDARandnPTX, sha256: TorchCUDARandnSHA256},
 	{name: "ops_f32.ptx", data: OpsF32PTX, sha256: OpsF32SHA256},
+	{name: "ops_native.ptx", data: OpsNativePTX, sha256: OpsNativeSHA256},
 }

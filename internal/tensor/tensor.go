@@ -100,7 +100,11 @@ type ClampAttributes struct {
 
 type RMSNormAttributes struct {
 	Epsilon float32
+	Native  bool
 }
+
+// NativeMathAttributes selects native F32 scalar arithmetic instead of fast approximations.
+type NativeMathAttributes struct{}
 
 type MADNormAttributes struct {
 	Epsilon float32

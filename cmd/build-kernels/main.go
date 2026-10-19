@@ -21,22 +21,21 @@ const deviceArch = "compute_89"
 
 type kernel struct {
 	source, output string
-	// noFastMath omits -use_fast_math for this module. torch_cuda_randn draws
-	// normals through logf/sqrtf/sincospif; the fast-math intrinsics change
-	// those last bits and break byte-parity with PyTorch's standard-precision
-	// curand. Bit-exact RNG is an ABI requirement, not a knob.
+	// noFastMath preserves native arithmetic and subnormals in source-pinned modules.
 	noFastMath bool
 }
 
 var kernels = []kernel{
 	{source: "kernels/cuda/vector_add.cu", output: "internal/cuda/kernel/vector_add.ptx"},
 	{source: "kernels/cuda/ops_f32.cu", output: "internal/cuda/kernel/ops_f32.ptx"},
+	{source: "kernels/cuda/ops_native.cu", output: "internal/cuda/kernel/ops_native.ptx", noFastMath: true},
 	{source: "kernels/cuda/torch_cuda_randn.cu", output: "internal/cuda/kernel/torch_cuda_randn.ptx", noFastMath: true},
 }
 
 var runtimePins = map[string]string{
 	"VectorAddSHA256":      "internal/cuda/kernel/vector_add.ptx",
 	"OpsF32SHA256":         "internal/cuda/kernel/ops_f32.ptx",
+	"OpsNativeSHA256":      "internal/cuda/kernel/ops_native.ptx",
 	"TorchCUDARandnSHA256": "internal/cuda/kernel/torch_cuda_randn.ptx",
 }
 
@@ -54,8 +53,7 @@ func run() error {
 		if !item.noFastMath {
 			args = append(args, "-use_fast_math")
 		} else {
-			// curand device headers are C++17 and resolve from the toolkit
-			// include dir; keep standard precision for bit-exact normals.
+			// Source-pinned scalar math and curand require standard precision.
 			args = append(args, "--std=c++17")
 		}
 		args = append(args, "-ccbin", compiler, "-o", filepath.FromSlash(item.output), filepath.FromSlash(item.source))

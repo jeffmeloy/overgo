@@ -120,6 +120,12 @@ func launchMathVision(
 		} else if node.Op == tensor.OpExp {
 			function = functions[kernelExpF32]
 		}
+		if _, native := node.Attrs.(tensor.NativeMathAttributes); native {
+			function = functions[kernelExpNativeF32]
+			if node.Op == tensor.OpSoftplus {
+				function = functions[kernelSoftplusNativeF32]
+			}
+		}
 		return launch1DABI(state, function, count, &input, &output, &count)
 	case tensor.OpXIELU:
 		count := shapeCount32(node.Shape)

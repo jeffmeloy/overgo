@@ -78,6 +78,9 @@ func launchLinearLayout(
 		input := pointers.input(0)
 		return launch1DABI(state, functions[kernelFlatSliceF32], count, &input, &output, &offset, &count)
 	case tensor.OpRMSNorm:
+		if runtimeAttributes.(tensor.RMSNormAttributes).Native {
+			return launchNativeRMS(state, functions, node, pointers)
+		}
 		width, rows := rowWords(node.Shape)
 		input := pointers.input(0)
 		epsilon := runtimeAttributes.(tensor.RMSNormAttributes).Epsilon

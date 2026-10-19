@@ -228,6 +228,9 @@ func applyWeightedRMSRewrite(context *rewriteContext) {
 		if normalization.Op != tensor.OpRMSNorm || context.uses[normalization] != 1 {
 			continue
 		}
+		if normalization.Attrs.(tensor.RMSNormAttributes).Native {
+			continue
+		}
 		if _, retained := context.outputSet[normalization]; retained ||
 			!rmsWeightCompatible(normalization, weight) {
 			continue

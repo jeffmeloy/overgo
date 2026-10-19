@@ -273,10 +273,17 @@
       "title": "Read long prompts at the speed Strata reaches on this PC",
       "status": "open",
       "budget": {
-        "nodes": 372,
-        "reason": "advance measured +28 production nodes; chunked replaces the F32 staging and strided SGEMM with grouped tensor-core products over the encoded weights, estimated net flat or negative after its deletions"
+        "nodes": 300,
+        "reason": "advance-rule estimate: the previous run's token count passed to the residency's advance; chunked measured on its build later"
       },
       "steps": [
+        {
+          "id": "advance-rule",
+          "title": "Judge a run broad by its token count, not the share of a bank it routed",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestExecutorMoEMissedExpertsKeepResidentBits$' \u0026\u0026 go test ./internal/modeldevice -count=1 -run '^TestFlashNextExpertResidency$'",
+          "rationale": "From the chunked helper's run at 85d30c973: TestExecutorMoEMissedExpertsKeepResidentBits fails on master with \"the run after the routes moved 22784 bytes to the card, less than one expert\" since step advance (887d54ada), whose commit's device lane did not run the executor package. That test routes three decode tokens to six of a bank's eight experts; advance skips promotions for a node whose run flagged more than half its experts, so the decode run promotes nothing. The same fraction rule skips promotions for any small bank (eight experts, two a token) on a verify span of three or four tokens.\nThe step judges a run broad by what it was, not by the share of a bank it touched: a run of more tokens than the decode span limit is a prompt and moves no experts; a decode step or a verify span promotes as before.\nAcceptance: TestExecutorMoEMissedExpertsKeepResidentBits passes again, and TestFlashNextExpertResidency/broad-routes-move-nothing holds with a prompt-sized run.\nServes: throughput for routed-expert models whose banks are small or whose spans route a large share; failure-rate of the checks.\nBatch: device."
+        },
         {
           "id": "chunked",
           "title": "Prefill in large chunks with grouped quantized expert matrices, streaming the next layer's experts while attention runs",
@@ -433,7 +440,8 @@
             "plan-span-frames/do",
             "plan-advance/do",
             "plan-mtp-count/do",
-            "speculation/do"
+            "speculation/do",
+            "plan-advance-rule/do"
           ]
         }
       ]

@@ -265,8 +265,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 600,
-        "reason": "estimate: a context clamp in the speculation round (small), the draft layer's kept cache filled from the prompt (largest), and NextN's span policy shared with MTP's"
+        "nodes": 1100,
+        "reason": "full-history measured by host simulation (document 79 to about 104 tokens a second with the prompt filled into the draft layer's cache); its design (the draft layer inside the span and prefill graphs over a device cache) is estimated at 800 to 1,000 production nodes; clamp measured +24"
       },
       "steps": [
         {
@@ -496,7 +496,8 @@
             "flashnext-cells/do",
             "plan-journey/do",
             "lane-failures/do",
-            "plan-liveedit/do"
+            "plan-liveedit/do",
+            "plan-fh-count/do"
           ]
         }
       ]

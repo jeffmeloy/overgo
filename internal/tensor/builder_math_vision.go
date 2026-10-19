@@ -64,6 +64,16 @@ func (b *Builder) RMSNorm(input *Tensor, epsilon float32) *Tensor {
 	return b.unary(OpRMSNorm, input, RMSNormAttributes{Epsilon: epsilon})
 }
 
+// RMSNormNativeMean preserves the vectorized source reduction and mean rounding.
+// The element-count ratio and sum multiplication round separately.
+func (b *Builder) RMSNormNativeMean(input *Tensor, epsilon float32) *Tensor {
+	if epsilon <= 0 || math.IsNaN(float64(epsilon)) || math.IsInf(float64(epsilon), 0) {
+		b.setError(errors.New("native RMS mean requires positive finite epsilon"))
+		return nil
+	}
+	return b.unary(OpRMSNorm, input, RMSNormAttributes{Epsilon: epsilon, NativeMean: true})
+}
+
 // RMSNormNative selects Torch CUDA's F32 reduction and reciprocal-root arithmetic.
 // Unsupported device reduction geometry is refused during compilation.
 func (b *Builder) RMSNormNative(input *Tensor, epsilon float32) *Tensor {
@@ -107,6 +117,11 @@ func (b *Builder) Softmax(input *Tensor) *Tensor {
 
 func (b *Builder) SiLU(input *Tensor) *Tensor {
 	return b.unary(OpSiLU, input, nil)
+}
+
+// SiLUNative preserves separately rounded source exponential, addition and division.
+func (b *Builder) SiLUNative(input *Tensor) *Tensor {
+	return b.unary(OpSiLU, input, NativeMathAttributes{})
 }
 
 func (b *Builder) GELU(input *Tensor) *Tensor {

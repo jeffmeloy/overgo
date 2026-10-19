@@ -14,6 +14,9 @@ func TestRawTextPublicationPreservesImmutableFacts(t *testing.T) {
 		kind                              artifact.Kind
 		sizeMismatch, reject              bool
 	}{
+		{name: "generic inherits json", priorType: "application/json", nextType: "application/octet-stream", kind: artifact.KindFile},
+		{name: "generic schema conflict", priorType: "application/json", nextType: "application/octet-stream", schema: "fixture/v1", kind: artifact.KindFile, reject: true},
+		{name: "generic size conflict", priorType: "application/json", nextType: "application/octet-stream", kind: artifact.KindFile, sizeMismatch: true, reject: true},
 		{name: "plain then python", priorType: "text/plain", nextType: "text/x-python", kind: artifact.KindFile},
 		{name: "python then plain", priorType: "text/x-python", nextType: "text/plain", kind: artifact.KindFile},
 		{name: "python size conflict", priorType: "text/plain", nextType: "text/x-python", kind: artifact.KindFile, sizeMismatch: true, reject: true},
@@ -53,7 +56,7 @@ func TestRawTextPublicationPreservesImmutableFacts(t *testing.T) {
 				} else {
 					batch.Artifacts = []artifact.Descriptor{next}
 				}
-				err := PreserveRawTextDescriptors(t.Context(), store, &batch)
+				err := PreserveRawFileDescriptors(t.Context(), store, &batch)
 				if err == nil {
 					_, err = artifact.CommitBatch(t.Context(), store, batch)
 				}

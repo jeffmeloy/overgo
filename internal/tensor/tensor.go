@@ -101,6 +101,8 @@ type ClampAttributes struct {
 type RMSNormAttributes struct {
 	Epsilon float32
 	Native  bool
+	// NativeMean preserves the vectorized source reduction and rounded count ratio.
+	NativeMean bool
 }
 
 // NativeMathAttributes selects native F32 scalar arithmetic instead of fast approximations.

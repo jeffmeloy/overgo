@@ -751,7 +751,7 @@ func registerModels(args []string) error {
 		return err
 	}
 	defer store.Close()
-	if err := modelartifact.PreserveRawTextDescriptors(ctx, store, &batch); err != nil {
+	if err := modelartifact.PreserveRawFileDescriptors(ctx, store, &batch); err != nil {
 		return err
 	}
 	// Include physical locations in the idempotency key: the same exact models

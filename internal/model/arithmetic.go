@@ -29,6 +29,13 @@ func (p ArithmeticPolicy) round(b *tensor.Builder, x *tensor.Tensor) *tensor.Ten
 	return x
 }
 
+func (p ArithmeticPolicy) silu(b *tensor.Builder, x *tensor.Tensor) *tensor.Tensor {
+	if p == ArithmeticTransformersBF16 {
+		return b.SiLUNative(x)
+	}
+	return b.SiLU(x)
+}
+
 func (p ArithmeticPolicy) project(b *tensor.Builder, w, x *tensor.Tensor) *tensor.Tensor {
 	if p == ArithmeticTransformersBF16 {
 		return b.BF16RoundNative(b.MulMatWithCompute(w, x, tensor.MulMatComputeNativeTensorCore))

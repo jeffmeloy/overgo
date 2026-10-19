@@ -59,7 +59,7 @@ func compileRotaryDenoiserProgram(t TransformerSpec, epsilon float32, height, wi
 	p.unit = b.Input("unit", dtype.F32, tensor.MustShape(g.width))
 	p.rope = g.rotaryInput("rotary")
 	time := g.linear("time_embedding.0", g.round(p.embedding), uint64(t.TimestepEmbed), g.width, true)
-	time = g.linear("time_embedding.2", g.round(b.SiLU(time)), g.width, g.width, true)
+	time = g.linear("time_embedding.2", g.round(b.SiLUNative(time)), g.width, g.width, true)
 	mod := b.Reshape(g.linear("shared_block_modulation", time, g.width, jointModulationFields*g.width, true), jointModulationFields*g.width)
 	head := b.Reshape(g.linear("video_head_modulation", time, g.width, tensor.PairedExtent*g.width, true), tensor.PairedExtent*g.width)
 	p.boundaries["timestep_embedding"], p.boundaries["modulation"], p.boundaries["head_modulation"] = time, mod, head

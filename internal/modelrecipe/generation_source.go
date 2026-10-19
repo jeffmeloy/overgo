@@ -23,8 +23,6 @@ type SourceInventory string
 const (
 	// SourceInventoryHF is a HuggingFace repository layout.
 	SourceInventoryHF SourceInventory = "hf"
-	// SourceInventoryLatentImage is a latent-image generation layout.
-	SourceInventoryLatentImage SourceInventory = "latent-image"
 	// SourceInventoryRootSafetensors is a root-level safetensors layout.
 	SourceInventoryRootSafetensors SourceInventory = "root-safetensors"
 )
@@ -140,7 +138,7 @@ func mustGenerationSources() []GenerationSourceProfile {
 	for _, profile := range catalog.Profiles {
 		binding, ok := generationCapabilities[profile.Prepare]
 		if !ok || binding.task != profile.Task || profile.Selector == (SourceSelector{}) || !slices.Contains(
-			[]SourceInventory{SourceInventoryHF, SourceInventoryLatentImage, SourceInventoryRootSafetensors}, profile.Inventory,
+			[]SourceInventory{SourceInventoryHF, SourceInventoryRootSafetensors}, profile.Inventory,
 		) || profile.Profile != binding.profile {
 			panic("model recipe: invalid generation source profile")
 		}

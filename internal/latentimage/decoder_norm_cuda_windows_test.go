@@ -35,7 +35,7 @@ func TestMOSSDecoderSiLU(t *testing.T) {
 	values := refinementValues(t, source, "input")
 	b := tensor.NewBuilder()
 	x := b.Input("x", dtype.F32, tensor.MustShape(uint64(len(values))))
-	out := b.SiLU(x)
+	out := b.SiLUNative(x)
 	got, err := run([]*tensor.Tensor{out}, map[*tensor.Tensor]reference.Value{x: {Shape: x.Shape, Data: values}})
 	if err != nil {
 		t.Fatal(err)

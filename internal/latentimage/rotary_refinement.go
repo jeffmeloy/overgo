@@ -47,7 +47,7 @@ func (g *rotaryGraph) linear(name string, x *tensor.Tensor, in, out uint64, bias
 	return g.round(y)
 }
 func (g *rotaryGraph) norm(name string, x *tensor.Tensor, channels uint64) *tensor.Tensor {
-	return g.round(g.b.Multiply(g.round(g.b.RMSNorm(x, g.epsilon)), g.bind.Input(name+".weight", channels)))
+	return g.round(g.b.Multiply(g.round(g.b.RMSNormNativeMean(x, g.epsilon)), g.bind.Input(name+".weight", channels)))
 }
 func (g *rotaryGraph) part(x *tensor.Tensor, start, count uint64) *tensor.Tensor {
 	dimensions := x.Shape.Slice()

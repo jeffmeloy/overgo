@@ -2,8 +2,6 @@ package mediacapability
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -39,8 +37,6 @@ func resolveImageSource(path string) (Source, error) {
 	switch source.Inventory {
 	case modelrecipe.SourceInventoryHF:
 		inventory, err = modelartifact.FromHFPath(path)
-	case modelrecipe.SourceInventoryLatentImage:
-		inventory, err = latentImageInventory(path)
 	case modelrecipe.SourceInventoryRootSafetensors:
 		inventory, err = imageGenInventory(path)
 	default:
@@ -127,7 +123,7 @@ func latentImageComponentBindings(
 	source modelrecipe.GenerationSourceProfile,
 	inventory modelartifact.Inventory,
 ) ([]modelrecipe.ComponentBinding, []artifact.Manifest, error) {
-	if source.Inventory != modelrecipe.SourceInventoryLatentImage && source.Prepare != modelrecipe.ModuleLatentImagePrepare {
+	if source.Prepare != modelrecipe.ModuleLatentImagePrepare {
 		return nil, nil, nil
 	}
 	groups := []struct {
@@ -150,6 +146,12 @@ func latentImageComponentBindings(
 		if len(members) == 0 {
 			return nil, nil, fmt.Errorf("image-gen: component group %q is empty", group.directory)
 		}
+		slices.SortFunc(members, func(a, b artifact.Component) int { return strings.Compare(a.Name, b.Name) })
+		ordinals := map[artifact.ComponentRole]uint32{}
+		for i := range members {
+			members[i].Ordinal = ordinals[members[i].Role]
+			ordinals[members[i].Role]++
+		}
 		manifest, err := artifact.NewManifest(artifact.KindModel, members)
 		if err != nil {
 			return nil, nil, fmt.Errorf("image-gen: component group %q: %w", group.directory, err)
@@ -158,66 +160,4 @@ func latentImageComponentBindings(
 		manifests = append(manifests, manifest)
 	}
 	return bindings, manifests, nil
-}
-
-func latentImageInventory(path string) (modelartifact.Inventory, error) {
-	files := []struct {
-		path string
-		name string
-		role artifact.ComponentRole
-	}{
-		{"model_index.json", "pipeline/config", artifact.ComponentConfig},
-		{"scheduler/scheduler_config.json", "scheduler/config", artifact.ComponentConfig},
-		{"text_encoder/config.json", "text_encoder/config", artifact.ComponentConfig},
-		{"tokenizer/tokenizer.json", "tokenizer", artifact.ComponentTokenizer},
-		{"tokenizer/tokenizer_config.json", "tokenizer/config", artifact.ComponentConfig},
-		{"transformer/config.json", "transformer/config", artifact.ComponentConfig},
-		{"vae/config.json", "vae/config", artifact.ComponentConfig},
-	}
-	for _, directory := range []string{"text_encoder", "transformer", "vae"} {
-		entries, err := os.ReadDir(filepath.Join(path, directory))
-		if err != nil {
-			return modelartifact.Inventory{}, err
-		}
-		var weights []string
-		indexName := ""
-		for _, entry := range entries {
-			if !entry.IsDir() && strings.HasSuffix(strings.ToLower(entry.Name()), ".safetensors") {
-				weights = append(weights, entry.Name())
-			}
-			if !entry.IsDir() && strings.HasSuffix(strings.ToLower(entry.Name()), ".safetensors.index.json") {
-				indexName = entry.Name()
-			}
-		}
-		slices.Sort(weights)
-		if len(weights) == 0 {
-			return modelartifact.Inventory{}, fmt.Errorf("latent image Inventory: no %s weights", directory)
-		}
-		if len(weights) > 1 && indexName == "" {
-			return modelartifact.Inventory{}, fmt.Errorf("latent image Inventory: %s shards have no index", directory)
-		}
-		if indexName != "" {
-			files = append(files, struct {
-				path string
-				name string
-				role artifact.ComponentRole
-			}{filepath.Join(directory, indexName), directory + "/shard-index", artifact.ComponentShardIndex})
-		}
-		for index, name := range weights {
-			logical, role := directory+"/weights", artifact.ComponentWeights
-			if len(weights) > 1 {
-				logical, role = fmt.Sprintf("%s/weights-%05d", directory, index), artifact.ComponentWeightsShard
-			}
-			files = append(files, struct {
-				path string
-				name string
-				role artifact.ComponentRole
-			}{filepath.Join(directory, name), logical, role})
-		}
-	}
-	specs := make([]modelartifact.FileSpec, len(files))
-	for index, file := range files {
-		specs[index] = modelartifact.FileSpec{Path: filepath.Join(path, file.path), Name: file.name, Role: file.role}
-	}
-	return modelartifact.FromFiles(path, specs)
 }

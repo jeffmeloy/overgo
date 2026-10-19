@@ -229,7 +229,7 @@ func applyWeightedRMSRewrite(context *rewriteContext) {
 		if normalization.Op != tensor.OpRMSNorm || context.uses[normalization] != 1 {
 			continue
 		}
-		if normalization.Attrs.(tensor.RMSNormAttributes).Native {
+		if attributes := normalization.Attrs.(tensor.RMSNormAttributes); attributes.Native || attributes.NativeMean {
 			continue
 		}
 		if _, retained := context.outputSet[normalization]; retained ||
@@ -845,6 +845,9 @@ func (context *rewriteContext) compileDependencies() {
 
 func activatedGateKindFor(node *tensor.Tensor) (activatedGateKind, bool) {
 	if node == nil || len(node.Inputs) != 1 {
+		return 0, false
+	}
+	if _, native := node.Attrs.(tensor.NativeMathAttributes); native {
 		return 0, false
 	}
 	switch node.Op {

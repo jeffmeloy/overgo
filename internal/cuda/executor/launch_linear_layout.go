@@ -84,7 +84,11 @@ func launchLinearLayout(
 		width, rows := rowWords(node.Shape)
 		input := pointers.input(0)
 		epsilon := runtimeAttributes.(tensor.RMSNormAttributes).Epsilon
-		return launchNormalizationABI(state, functions[kernelRmsNormF32], rows, &input, &output, &width, &rows, &epsilon)
+		function := functions[kernelRmsNormF32]
+		if runtimeAttributes.(tensor.RMSNormAttributes).NativeMean {
+			function = functions[kernelRmsNormMeanF32]
+		}
+		return launchNormalizationABI(state, function, rows, &input, &output, &width, &rows, &epsilon)
 	case tensor.OpMADNorm:
 		width, rows := rowWords(node.Shape)
 		input := pointers.input(0)

@@ -342,7 +342,7 @@ func RegisterImport(ctx context.Context, store artifact.Repository, inspection I
 		parents = append(parents, profile.ID)
 	}
 	batch.Lineage = append(batch.Lineage, artifact.UniqueDependencyLineage(inspection.Content.Descriptor.ID, parents...)...)
-	if err := modelartifact.PreserveRawTextDescriptors(ctx, store, &batch); err != nil {
+	if err := modelartifact.PreserveRawFileDescriptors(ctx, store, &batch); err != nil {
 		return err
 	}
 	return modelrecipe.PublishFacts(ctx, store, batch)

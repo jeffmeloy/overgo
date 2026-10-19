@@ -124,6 +124,8 @@ func launchMathVision(
 			function = functions[kernelExpNativeF32]
 			if node.Op == tensor.OpSoftplus {
 				function = functions[kernelSoftplusNativeF32]
+			} else if node.Op == tensor.OpSiLU {
+				function = functions[kernelSiluNativeF32]
 			}
 		}
 		return launch1DABI(state, function, count, &input, &output, &count)

@@ -26,13 +26,15 @@ func TestNativeMathSelection(t *testing.T) {
 			t.Fatalf("unsupported native width %d admitted", width)
 		}
 	}
-	for _, native := range []bool{false, true} {
+	for _, mode := range []string{"default", "native", "native-mean"} {
 		b := tensor.NewBuilder()
 		x := b.Input("x", dtype.F32, tensor.MustShape(4096, 10))
 		w := b.Input("w", dtype.F32, tensor.MustShape(4096))
 		norm := b.RMSNorm(x, 1e-6)
-		if native {
+		if mode == "native" {
 			norm = b.RMSNormNative(x, 1e-6)
+		} else if mode == "native-mean" {
+			norm = b.RMSNormNativeMean(x, 1e-6)
 		}
 		out := b.Multiply(norm, w)
 		graph, err := Compile(out)
@@ -40,8 +42,29 @@ func TestNativeMathSelection(t *testing.T) {
 			t.Fatal(err)
 		}
 		fusion := graph.nodes[graph.orderIndexes[out]].fusion
-		if fused := fusion != nil && fusion.kind == compiledFusionWeightedRMS; fused == native {
-			t.Fatalf("normalization fusion violates arithmetic selection: native=%v", native)
+		if fused := fusion != nil && fusion.kind == compiledFusionWeightedRMS; fused != (mode == "default") {
+			t.Fatalf("normalization fusion violates arithmetic selection: mode=%s", mode)
+		}
+	}
+}
+
+func TestNativeSiLUSelection(t *testing.T) {
+	for _, native := range []bool{false, true} {
+		b := tensor.NewBuilder()
+		x := b.Input("x", dtype.F32, tensor.MustShape(16))
+		y := b.Input("y", dtype.F32, x.Shape)
+		activation := b.SiLU(x)
+		if native {
+			activation = b.SiLUNative(x)
+		}
+		out := b.Multiply(activation, y)
+		graph, err := Compile(out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fusion := graph.nodes[graph.orderIndexes[out]].fusion
+		if fused := fusion != nil && fusion.kind == compiledFusionActivatedGate; fused == native {
+			t.Fatalf("activation fusion violates source arithmetic: native=%v", native)
 		}
 	}
 }

@@ -52,7 +52,7 @@ func Prepare(
 	}
 	batch.Contents = append(batch.Contents, facts...)
 	batch.Manifests = append(batch.Manifests, source.Manifests...)
-	if err := modelartifact.PreserveRawTextDescriptors(ctx, store, &batch); err != nil {
+	if err := modelartifact.PreserveRawFileDescriptors(ctx, store, &batch); err != nil {
 		return artifact.ID{}, recipe.Definition{}, err
 	}
 	if err := modelrecipe.PublishFacts(ctx, store, batch); err != nil {

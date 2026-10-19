@@ -997,7 +997,7 @@ func buildGatedDeltaMixCached(
 			nextConvState, uint64(spec.SSMConvKernel-tensor.SingletonExtent), convChannels, sequences,
 		)
 	}
-	convolved := spec.Arithmetic.round(builder, builder.SiLU(spec.Arithmetic.round(builder, builder.SSMConv(convInput, weights.SSMConv1D))))
+	convolved := spec.Arithmetic.round(builder, spec.Arithmetic.silu(builder, spec.Arithmetic.round(builder, builder.SSMConv(convInput, weights.SSMConv1D))))
 	query := builder.GroupSlice(convolved, tensor.FirstOffset, stateWidth, keyHeads, stateWidth)
 	key := builder.GroupSlice(convolved, keyDimension, stateWidth, keyHeads, stateWidth)
 	value := builder.GroupSlice(convolved, tensor.PairedExtent*keyDimension, stateWidth, valueHeads, stateWidth)
@@ -1040,7 +1040,7 @@ func buildGatedDeltaMixCached(
 	if deltaPolicy == gatedDeltaSeparateSigmoid {
 		z = builder.Sigmoid(z)
 	} else {
-		z = builder.SiLU(z)
+		z = spec.Arithmetic.silu(builder, z)
 	}
 	if spec.Arithmetic == ArithmeticTransformersBF16 {
 		attention = builder.BF16Round(attention)
@@ -1090,7 +1090,7 @@ func buildRoutedSwiGLUFeedForwardMix(
 		up := spec.Arithmetic.project(builder, weights.FeedForwardUp, normalized)
 		var mixed *tensor.Tensor
 		if spec.Arithmetic == ArithmeticTransformersBF16 {
-			mixed = builder.BF16Round(builder.Multiply(builder.BF16Round(builder.SiLU(gate)), up))
+			mixed = builder.BF16Round(builder.Multiply(builder.BF16Round(builder.SiLUNative(gate)), up))
 		} else {
 			mixed = builder.SwiGLU(gate, up)
 		}

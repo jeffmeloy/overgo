@@ -575,7 +575,7 @@ extern "C" __global__ void silu_f32(
     const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
     if (index < count) {
         const float value = input[index];
-        output[index] = __fdiv_rn(value, __fadd_rn(1.0f, __nv_expf(-value)));
+        output[index] = value / (1.0f + expf(-value));
     }
 }
 
@@ -3003,29 +3003,13 @@ extern "C" __global__ void rms_norm_f32(
     }
     const unsigned int offset = row * width;
     float sum_squares = 0.0f;
-    if (width >= 128u && width % 4u == 0u) {
-        // Four adjacent values per lane preserve the vectorized reduction order.
-        float sums[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-        if (threadIdx.x < 32u) {
-            for (unsigned int column = threadIdx.x * 4u; column < width; column += 128u) {
-                for (unsigned int part = 0; part < 4u; ++part) {
-                    const float value = input[offset + column + part];
-                    sums[part] += __fmul_rn(value, value);
-                }
-            }
-            sum_squares = ((sums[0] + sums[1]) + sums[2]) + sums[3];
-        }
-    } else {
-        for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
-            const float value = input[offset + column];
-            sum_squares += value * value;
-        }
+    for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
+        const float value = input[offset + column];
+        sum_squares += value * value;
     }
     __shared__ float partial[256];
     sum_squares = block_sum_f32(sum_squares, partial);
-    // Native mean projects the sum with a separately rounded element-count ratio.
-    const float factor = __fdiv_rn((float) rows, (float) ((unsigned long long) rows * width));
-    const float inverse = rsqrtf(__fadd_rn(__fmul_rn(sum_squares, factor), epsilon));
+    const float inverse = rsqrtf(sum_squares / (float) width + epsilon);
     for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
         output[offset + column] = input[offset + column] * inverse;
     }
@@ -9398,5 +9382,56 @@ extern "C" __global__ void __launch_bounds__(512, 1) attention_tiled_bf16_f32(
             output[((sequence * query_tokens + token) * query_heads + query_head) * W + channel] =
                 o_tile[row * OLD + channel] / sum_row[row];
         }
+    }
+}
+
+extern "C" __global__ void silu_native_f32(
+        const float * input,
+        float * output,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < count) {
+        const float value = input[index];
+        output[index] = __fdiv_rn(value, __fadd_rn(1.0f, __nv_expf(-value)));
+    }
+}
+
+extern "C" __global__ void rms_norm_mean_f32(
+        const float * input,
+        float * output,
+        unsigned int width,
+        unsigned int rows,
+        float epsilon) {
+    const unsigned int row = blockIdx.x;
+    if (row >= rows) {
+        return;
+    }
+    const unsigned int offset = row * width;
+    float sum_squares = 0.0f;
+    if (width >= 128u && width % 4u == 0u) {
+        // Four adjacent values per lane preserve the vectorized reduction order.
+        float sums[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+        if (threadIdx.x < 32u) {
+            for (unsigned int column = threadIdx.x * 4u; column < width; column += 128u) {
+                for (unsigned int part = 0; part < 4u; ++part) {
+                    const float value = input[offset + column + part];
+                    sums[part] += __fmul_rn(value, value);
+                }
+            }
+            sum_squares = ((sums[0] + sums[1]) + sums[2]) + sums[3];
+        }
+    } else {
+        for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
+            const float value = input[offset + column];
+            sum_squares += value * value;
+        }
+    }
+    __shared__ float partial[256];
+    sum_squares = block_sum_f32(sum_squares, partial);
+    // Native mean projects the sum with a separately rounded element-count ratio.
+    const float factor = __fdiv_rn((float) rows, (float) ((unsigned long long) rows * width));
+    const float inverse = rsqrtf(__fadd_rn(__fmul_rn(sum_squares, factor), epsilon));
+    for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
+        output[offset + column] = input[offset + column] * inverse;
     }
 }

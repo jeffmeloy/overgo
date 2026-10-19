@@ -12,7 +12,7 @@
       "task": "image-gen"
     },
     {
-      "inventory": "latent-image",
+      "inventory": "hf",
       "prepare": "model.latent-image-prepare",
       "profile": "profile",
       "selector": {

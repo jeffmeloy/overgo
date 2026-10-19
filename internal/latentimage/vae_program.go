@@ -181,9 +181,9 @@ func (g *vaeGraphBuilder) buildOp(op media.CodecOperation[[]float32], x *tensor.
 	case media.CodecResidual:
 		gamma0, w0, b0 := op.Bindings.NormInput, op.Bindings.WeightInput, op.Bindings.BiasInput
 		gamma1, w1, b1 := op.Bindings.NormOutput, op.Bindings.WeightOutput, op.Bindings.BiasOutput
-		n0 := b.SiLU(g.normalize(op, x, gamma0, op.Bindings.NormInputBias, c))
+		n0 := g.silu(op, g.normalize(op, x, gamma0, op.Bindings.NormInputBias, c))
 		h0 := g.convolution(n0, w0, b0, c, op.OutputChannels, ch, cw, op.Convolution)
-		n1 := b.SiLU(g.normalize(op, h0, gamma1, op.Bindings.NormOutputBias, op.OutputChannels))
+		n1 := g.silu(op, g.normalize(op, h0, gamma1, op.Bindings.NormOutputBias, op.OutputChannels))
 		out := g.convolution(n1, w1, b1, op.OutputChannels, op.OutputChannels, ch, cw, op.Convolution)
 		if !op.RequiresProjection() {
 			return b.Add(out, x), op.OutputChannels, ch, cw, nil
@@ -223,7 +223,7 @@ func (g *vaeGraphBuilder) buildOp(op media.CodecOperation[[]float32], x *tensor.
 		if g.boundaries != nil {
 			g.boundaries[op.Name+".norm"] = normalized
 		}
-		norm := b.SiLU(normalized)
+		norm := g.silu(op, normalized)
 		out := g.convolution(norm, weight, bias, c, op.OutputChannels, ch, cw, op.Convolution)
 		return out, op.OutputChannels, ch, cw, nil
 	}
@@ -272,6 +272,13 @@ func (g *vaeGraphBuilder) normalize(op media.CodecOperation[[]float32], x *tenso
 		return g.b.GroupNorm(x, g.weight(gamma, uint64(channels)), g.weight(bias, uint64(channels)), op.NormGroups, op.NormEpsilon)
 	}
 	return g.channelNorm(x, gamma, channels)
+}
+
+func (g *vaeGraphBuilder) silu(op media.CodecOperation[[]float32], x *tensor.Tensor) *tensor.Tensor {
+	if op.Spatial {
+		return g.b.SiLUNative(x)
+	}
+	return g.b.SiLU(x)
 }
 
 // upsample: nearest-2x spatial upsample (RepeatHeads along width then height --

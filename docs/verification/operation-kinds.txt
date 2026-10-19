@@ -74,14 +74,14 @@ The preamble's row is the plan's step shape-reading/launch-checks, and TestNoLau
 == switches ==
 family: internal/tensor.Op
 switches: 10
-lines: 1617
+lines: 1623
 functions: 10
 packages: 4
 constants: 66
 operations-by-switches: 1=3 2=30 3=25 4=8
 
 switch: internal/cuda/executor/executor.go#validateRuntimeAttributes
-lines: 75
+lines: 78
 constants: 8
 clauses: 8
 dispatch-lines: 11
@@ -90,7 +90,7 @@ row: a method of each of the seven attribute types with per-step values, in one 
 table: yes
 
 switch: internal/cuda/executor/launch_attention_layout.go#launchAttentionLayout
-lines: 295
+lines: 298
 constants: 4
 clauses: 5
 dispatch-lines: 8

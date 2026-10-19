@@ -658,6 +658,9 @@ func validateRuntimeAttributes(node *tensor.Tensor, attributes tensor.Attributes
 		}
 	case tensor.OpAttention:
 		initial, next := node.Attrs.(tensor.AttentionAttributes), attributes.(tensor.AttentionAttributes)
+		if initial.NativeMath && initial != next {
+			return errors.New("CUDA native math attention requires its compiled static policy")
+		}
 		queryStart, logicalTokens := uint64(next.QueryStart), uint64(next.KeyValueTokens)
 		initial.QueryStart, next.QueryStart = 0, 0
 		initial.KeyValueTokens, next.KeyValueTokens = 0, 0
@@ -1156,6 +1159,14 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 			}
 			compiled.needBlas = true
 			compiled.matmulStagingBytes = max(compiled.matmulStagingBytes, bytes)
+		}
+		if node.Op == tensor.OpAttention && node.Attrs.(tensor.AttentionAttributes).NativeMath {
+			geometry, err := nativeAttentionGeometry(node)
+			if err != nil {
+				return nil, err
+			}
+			compiled.needBlas = true
+			compiled.matmulStagingBytes = max(compiled.matmulStagingBytes, geometry.bytes)
 		}
 		if node.Op == tensor.OpRMSNorm && node.Attrs.(tensor.RMSNormAttributes).Native {
 			if _, _, err := nativeRMSGeometry(node.Shape); err != nil {

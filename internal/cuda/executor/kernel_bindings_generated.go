@@ -235,6 +235,8 @@ var kernelFunctionModules = [...]int{
 	1,
 	1,
 	1,
+	1,
+	1,
 }
 
 type kernelFunctionID uint16
@@ -459,6 +461,8 @@ const (
 	kernelWindowPartition2dF32
 	kernelWindowUnpartition2dF32
 	kernelXieluF32
+	kernelAttentionNativePackF32
+	kernelAttentionNativeSoftmaxF32
 	kernelExpNativeF32
 	kernelRmsNormNativeF32
 	kernelSoftplusNativeF32
@@ -685,6 +689,8 @@ var kernelFunctionNames = [...]string{
 	"window_partition_2d_f32",
 	"window_unpartition_2d_f32",
 	"xielu_f32",
+	"attention_native_pack_f32",
+	"attention_native_softmax_f32",
 	"exp_native_f32",
 	"rms_norm_native_f32",
 	"softplus_native_f32",
@@ -910,6 +916,8 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	7,
 	7,
 	7,
+	18,
+	5,
 	3,
 	7,
 	3,

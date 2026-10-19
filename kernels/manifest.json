@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "abiVersion": 57,
+  "abiVersion": 58,
   "cudaToolkit": "12.9",
   "nvcc": "12.9.86",
   "target": "compute_89",
@@ -1631,20 +1631,59 @@
     {
       "executor": true,
       "source": "kernels/cuda/ops_native.cu",
-      "sourceSha256": "21d08cabb77b7e1107e098f1eebfcea8969e3655c7902bc8a32b1a4bc84241e5",
+      "sourceSha256": "aa56f71393ea9d9c89180b0b176f196446e6ca97849cc7cd490167e459a774f8",
       "asset": "internal/cuda/kernel/ops_native.ptx",
-      "assetSha256": "3244c7bf5c4d2c4f95794aff3d5a573709e96972eb3d491ceddfddea29c7e066",
+      "assetSha256": "550ee502d6bff3cdf633d1643f933afd16546f644fa412c86b905a6511da5a1e",
       "compilerFlags": [
         "-ptx",
         "-arch=compute_89",
         "--std=c++17"
       ],
       "functions": [
+        "attention_native_pack_f32",
+        "attention_native_softmax_f32",
         "exp_native_f32",
         "rms_norm_native_f32",
         "softplus_native_f32"
       ],
       "argumentLayouts": [
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".f32",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "attention_native_pack_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "attention_native_softmax_f32"
+          ]
+        },
         {
           "parameters": [
             ".u64",

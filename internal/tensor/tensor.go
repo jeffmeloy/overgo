@@ -183,6 +183,8 @@ type RoPEMultiAttributes struct {
 }
 
 type AttentionAttributes struct {
+	// NativeMath preserves source F32 matrix and softmax arithmetic.
+	NativeMath            bool
 	Scale                 float32
 	Softcap               float32
 	MaxALiBiBias          float32

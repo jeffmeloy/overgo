@@ -297,11 +297,14 @@ type attentionOptions struct {
 	chunkedWindow         bool
 	naiveF32              bool
 	memoryEfficientF32    bool
+	nativeMath            bool
 	queryStart, window    uint32
 }
 
 // AttentionOptions: attention graph controls.
 type AttentionOptions struct {
+	// NativeMath selects source F32 matrix and softmax arithmetic.
+	NativeMath            bool
 	Bias                  *Tensor
 	Sinks                 *Tensor
 	BlockIDs              *Tensor
@@ -322,6 +325,10 @@ type AttentionOptions struct {
 	MemoryEfficientF32 bool
 }
 
+// NativeAttentionSoftmaxWidth is Torch SoftMax.cu's persistent F32 row limit.
+// Reconsider this bound when selecting a different native softmax reduction.
+const NativeAttentionSoftmaxWidth = 2048
+
 // AttentionWithOptions: typed attention construction.
 func (b *Builder) AttentionWithOptions(
 	query, key, value *Tensor,
@@ -340,6 +347,7 @@ func (b *Builder) AttentionWithOptions(
 		relativeBidirectional: options.RelativeBidirectional,
 		chunkedWindow:         options.ChunkedWindow, queryStart: options.QueryStart,
 		window: options.Window, naiveF32: options.NaiveF32, memoryEfficientF32: options.MemoryEfficientF32,
+		nativeMath: options.NativeMath,
 	})
 }
 
@@ -373,6 +381,14 @@ func (b *Builder) buildAttention(
 	}
 	if query.Shape.Dims[0] != key.Shape.Dims[0] {
 		b.setError(errors.New("attention query/key widths differ"))
+		return nil
+	}
+	if options.nativeMath && (query.Type != dtype.F32 || options.naiveF32 || options.memoryEfficientF32 ||
+		options.symmetricWindow || options.relativeBidirectional || options.chunkedWindow ||
+		options.queryStart != 0 || options.window != 0 || options.softcap != 0 || options.maxALiBiBias != 0 ||
+		options.bias != nil || options.sinks != nil || options.blockIDs != nil || options.keyBias != nil ||
+		key.Shape.Dims[PairedExtent] > NativeAttentionSoftmaxWidth || math.IsInf(float64(options.scale), 0) || math.IsNaN(float64(options.scale))) {
+		b.setError(errors.New("native math attention requires F32 inputs, at most 2048 keys, finite scale and only an optional causal mask"))
 		return nil
 	}
 	if key.Shape.Dims[1] != value.Shape.Dims[1] {
@@ -514,7 +530,8 @@ func (b *Builder) buildAttention(
 		OpAttention,
 		inputs,
 		AttentionAttributes{
-			Scale: options.scale, Softcap: options.softcap, MaxALiBiBias: options.maxALiBiBias,
+			NativeMath: options.nativeMath,
+			Scale:      options.scale, Softcap: options.softcap, MaxALiBiBias: options.maxALiBiBias,
 			Causal:                options.causal,
 			HasSinks:              options.sinks != nil,
 			HasBlockMask:          options.blockIDs != nil,

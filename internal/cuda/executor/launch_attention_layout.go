@@ -169,7 +169,7 @@ func blasAttentionGeometry(
 	queryHeads, keyValueHeads, queryTokens, keyValueTokens, keyCapacityTokens, keyWidth, valueWidth uint32,
 	attributes tensor.AttentionAttributes,
 ) (uint32, uint32, uint64, bool) {
-	if attributes.MemoryEfficientF32 || attributes.HasBlockMask || attributes.HasSinks ||
+	if attributes.NativeMath || attributes.MemoryEfficientF32 || attributes.HasBlockMask || attributes.HasSinks ||
 		attributes.MaxALiBiBias != 0 ||
 		attributes.SymmetricWindow || attributes.ChunkedWindow ||
 		attributes.RelativeBuckets != 0 ||
@@ -455,6 +455,9 @@ func launchAttentionLayout(
 		return launch1DABI(state, functions[kernelCopyF32], count, &input, &output, &count)
 	case tensor.OpAttention:
 		attributes := runtimeAttributes.(tensor.AttentionAttributes)
+		if attributes.NativeMath {
+			return launchNativeAttention(state, functions, blas, node, pointers)
+		}
 		count := shapeCount32(node.Shape)
 		queryNode := node.Inputs[0]
 		keyNode := node.Inputs[1]

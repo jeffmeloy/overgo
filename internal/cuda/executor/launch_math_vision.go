@@ -251,6 +251,9 @@ func launchMathVision(
 			&input, &weight, &bias, &output, &channels, &tokens, &groups, &epsilon, &count,
 		)
 	case tensor.OpL2Norm:
+		if node.Attrs.(tensor.L2NormAttributes).NativeBF16 {
+			return launchNativeNormalization(state, functions, node, pointers)
+		}
 		width, rows := rowWords(node.Shape)
 		input := pointers.input(0)
 		epsilon := node.Attrs.(tensor.L2NormAttributes).Epsilon

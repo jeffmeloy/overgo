@@ -922,7 +922,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	18,
 	5,
 	3,
-	7,
+	8,
 	13,
 	3,
 }

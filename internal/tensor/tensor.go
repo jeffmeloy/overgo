@@ -115,7 +115,8 @@ type LayerNormAttributes struct {
 }
 
 type L2NormAttributes struct {
-	Epsilon float32
+	Epsilon    float32
+	NativeBF16 bool
 }
 
 type XIELUAttributes struct {

@@ -25,6 +25,7 @@ func TestNativeMathLifetime(t *testing.T) {
 		b := tensor.NewBuilder()
 		x := b.Input("x", dtype.F32, tensor.MustShape(4096, rows))
 		out := b.RMSNormNative(b.SoftplusNative(b.ExpNative(x)), 1e-6)
+		out = b.L2NormNativeBF16(b.BF16Round(out), 1e-6)
 		feeds := map[*tensor.Tensor]reference.Value{x: patternedValue(x.Shape, 7, .125, -.5)}
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()

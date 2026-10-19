@@ -14,7 +14,7 @@ func TestNativeMathSelection(t *testing.T) {
 	}{
 		{128, 1, 32, 1}, {4096, 1, 512, 1}, {4096, 10, 64, 1}, {4096, 22, 32, 1}, {8192, 22, 32, 16}, {32768, 22, 32, 16},
 	} {
-		x, y, err := nativeRMSGeometry(tensor.MustShape(tc.width, tc.rows))
+		x, y, err := tensor.NativeReductionGeometry(tensor.MustShape(tc.width, tc.rows), false)
 		if err != nil || x != tc.lanes || y != tc.reductions {
 			t.Fatalf("geometry %+v: %d/%d %v", tc, x, y, err)
 		}

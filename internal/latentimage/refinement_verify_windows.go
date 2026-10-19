@@ -58,8 +58,8 @@ func compareMOSSValues(actual, want []float32, tolerance mossStageTolerance) (in
 // Checkpoint and oracle documents must retain their frozen content identities.
 // Every case must meet upstream BF16 tolerance and repeat bitwise.
 func VerifyMOSSTransformer(ctx context.Context, modelRoot, referenceRoot, contractRoot, stage string, output io.Writer) error {
-	if stage != "refinement" && stage != "joint" && stage != "denoiser" && stage != "sampling" && stage != "decoder" && stage != "conditioning-delta" && stage != "conditioning-math" && stage != "conditioning-attention" && stage != "conditioning-rotary" {
-		return fmt.Errorf("MOSS stage %q must be refinement, joint, denoiser, sampling, decoder, conditioning-delta, conditioning-math, conditioning-attention or conditioning-rotary", stage)
+	if stage != "refinement" && stage != "joint" && stage != "denoiser" && stage != "sampling" && stage != "decoder" && stage != "conditioning-delta" && stage != "conditioning-math" && stage != "conditioning-attention" && stage != "conditioning-rotary" && stage != "conditioning-l2" {
+		return fmt.Errorf("MOSS stage %q must be refinement, joint, denoiser, sampling, decoder, conditioning-delta, conditioning-math, conditioning-attention, conditioning-rotary or conditioning-l2", stage)
 	}
 	verify := func(path, digest string) error {
 		id, err := artifact.IdentifyFile(artifact.KindFile, path)
@@ -140,6 +140,9 @@ func VerifyMOSSTransformer(ctx context.Context, modelRoot, referenceRoot, contra
 	}
 	if stage == "conditioning-attention" {
 		return verifyMOSSConditioningAttention(ctx, runtime, referenceRoot, output)
+	}
+	if stage == "conditioning-l2" {
+		return verifyMOSSConditioningL2(ctx, runtime, referenceRoot, output)
 	}
 	if stage == "conditioning-rotary" {
 		return verifyMOSSConditioningRotary(ctx, runtime, referenceRoot, output)

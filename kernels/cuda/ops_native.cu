@@ -103,19 +103,24 @@ extern "C" __global__ void softplus_native_f32(const float * input, float * outp
 
 extern "C" __global__ void rms_norm_native_f32(
         const float * input, float * output, unsigned int width, unsigned int rows,
-        float epsilon, unsigned int lanes, unsigned int reduction_rows) {
+        float epsilon, unsigned int lanes, unsigned int reduction_rows, unsigned int bf16_l2) {
     const unsigned int row = blockIdx.x, lane = threadIdx.x;
     const size_t base = (size_t) row * width;
     const unsigned int threads = lanes * reduction_rows;
-    float sums[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-    for (unsigned int col = lane * 4; col < width; col += threads * 4) {
-        for (unsigned int part = 0; part < 4; ++part) {
+    // ReduceSumProdKernel.cu loads eight BF16 values and four F32 values per lane.
+    const unsigned int vector = bf16_l2 ? 8 : 4;
+    float sums[8] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    for (unsigned int col = lane * vector; col < width; col += threads * vector) {
+        for (unsigned int part = 0; part < vector; ++part) {
             const float x = input[base + col + part];
-            sums[part] = __fadd_rn(sums[part], __fmul_rn(x, x));
+            const float square = __fmul_rn(x, x);
+            sums[part] = __fadd_rn(sums[part], bf16_l2 ? native_bf16(square) : square);
         }
     }
     __shared__ float partial[512];
-    partial[lane] = __fadd_rn(__fadd_rn(__fadd_rn(sums[0], sums[1]), sums[2]), sums[3]);
+    float sum = sums[0];
+    for (unsigned int part = 1; part < vector; ++part) sum = __fadd_rn(sum, sums[part]);
+    partial[lane] = sum;
     __syncthreads();
     for (unsigned int offset = lanes / 2; offset > 0; offset >>= 1) {
         if (lane % lanes < offset) partial[lane] = __fadd_rn(partial[lane], partial[lane + offset]);
@@ -125,8 +130,12 @@ extern "C" __global__ void rms_norm_native_f32(
         if (lane % lanes == 0 && lane / lanes < offset) partial[lane] = __fadd_rn(partial[lane], partial[lane + offset * lanes]);
         __syncthreads();
     }
-    const float mean = __fmul_rn(partial[0], __fdiv_rn((float) rows, (float) ((size_t) rows * width)));
-    const float inverse = rsqrtf(__fadd_rn(mean, epsilon));
-    for (unsigned int col = lane; col < width; col += threads) output[base + col] = __fmul_rn(input[base + col], inverse);
+    const float mean = bf16_l2 ? native_bf16(partial[0]) : __fmul_rn(partial[0], __fdiv_rn((float) rows, (float) ((size_t) rows * width)));
+    const float shifted = __fadd_rn(mean, epsilon);
+    const float inverse = bf16_l2 ? native_bf16(rsqrtf(native_bf16(shifted))) : rsqrtf(shifted);
+    for (unsigned int col = lane; col < width; col += threads) {
+        const float value = __fmul_rn(input[base + col], inverse);
+        output[base + col] = bf16_l2 ? native_bf16(value) : value;
+    }
 }
 

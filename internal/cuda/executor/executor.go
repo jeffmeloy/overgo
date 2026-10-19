@@ -657,6 +657,11 @@ func validateRuntimeAttributes(node *tensor.Tensor, attributes tensor.Attributes
 			initial.FrequencyBase != next.FrequencyBase || initial.FrequencyScale != next.FrequencyScale {
 			return errors.New("CUDA runtime multi-RoPE override changes compiled policy")
 		}
+	case tensor.OpL2Norm:
+		initial, next := node.Attrs.(tensor.L2NormAttributes), attributes.(tensor.L2NormAttributes)
+		if initial.NativeBF16 != next.NativeBF16 || initial.NativeBF16 && initial != next {
+			return errors.New("CUDA runtime L2Norm override changes compiled source policy")
+		}
 	case tensor.OpAttention:
 		initial, next := node.Attrs.(tensor.AttentionAttributes), attributes.(tensor.AttentionAttributes)
 		if initial.NativeMath && initial != next {
@@ -1170,7 +1175,12 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 			compiled.matmulStagingBytes = max(compiled.matmulStagingBytes, geometry.bytes)
 		}
 		if node.Op == tensor.OpRMSNorm && node.Attrs.(tensor.RMSNormAttributes).Native {
-			if _, _, err := nativeRMSGeometry(node.Shape); err != nil {
+			if _, _, err := tensor.NativeReductionGeometry(node.Shape, false); err != nil {
+				return nil, err
+			}
+		}
+		if node.Op == tensor.OpL2Norm && node.Attrs.(tensor.L2NormAttributes).NativeBF16 {
+			if _, _, err := tensor.NativeReductionGeometry(node.Shape, true); err != nil {
 				return nil, err
 			}
 		}

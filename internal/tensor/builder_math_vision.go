@@ -509,3 +509,17 @@ func (b *Builder) L2Norm(input *Tensor, epsilon float32) *Tensor {
 	}
 	return b.unary(OpL2Norm, input, L2NormAttributes{Epsilon: epsilon})
 }
+
+// L2NormNativeBF16 preserves Torch's BF16 squares, sum and reciprocal-root rounding.
+// Input stores BF16 values in F32 and epsilon is added to the rounded squared norm.
+func (b *Builder) L2NormNativeBF16(input *Tensor, epsilon float32) *Tensor {
+	if input == nil || input.Type != dtype.F32 || epsilon <= 0 || math.IsNaN(float64(epsilon)) || math.IsInf(float64(epsilon), 0) {
+		b.setError(errors.New("native BF16 L2Norm requires F32 storage and positive finite epsilon"))
+		return nil
+	}
+	if _, _, err := NativeReductionGeometry(input.Shape, true); err != nil {
+		b.setError(err)
+		return nil
+	}
+	return b.unary(OpL2Norm, input, L2NormAttributes{Epsilon: epsilon, NativeBF16: true})
+}

@@ -269,6 +269,9 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 			return float32(math.Exp(float64(value)))
 		}), nil
 	case tensor.OpL2Norm:
+		if node.Attrs.(tensor.L2NormAttributes).NativeBF16 {
+			return nativeL2Norm(node.Shape, inputs[0], node.Attrs.(tensor.L2NormAttributes).Epsilon)
+		}
 		return l2Norm(node.Shape, inputs[0], node.Attrs.(tensor.L2NormAttributes).Epsilon)
 	case tensor.OpSSMConv:
 		return ssmConv(node.Shape, inputs[0], inputs[1])

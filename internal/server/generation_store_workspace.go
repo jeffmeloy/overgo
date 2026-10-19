@@ -50,6 +50,8 @@ func BindGenerationCatalog[
 		Bounded() (defaultValue, step, rate int, declared bool)
 		// Secondary reports whether the page should collapse an optional tuning control.
 		Secondary() bool
+		// Guidance describes the control's accepted input.
+		Guidance() string
 	},
 ](
 	catalog map[recipe.Task]Capability,
@@ -68,7 +70,7 @@ func BindGenerationCatalog[
 			for _, control := range declared {
 				name, kind, required, choices := control.Declared()
 				label, media := control.Slot()
-				wire := workflowControl{Name: name, Type: workflowControlType(kind), Required: required, Advanced: control.Secondary(), Choices: choices, Label: label, Media: media}
+				wire := workflowControl{Name: name, Type: workflowControlType(kind), Required: required, Advanced: control.Secondary(), Choices: choices, Label: label, Media: media, Help: control.Guidance()}
 				if defaultValue, step, rate, declared := control.Bounded(); declared {
 					wire.Bounds = &workflowControlBounds{Default: defaultValue, Step: step, Rate: rate}
 				}

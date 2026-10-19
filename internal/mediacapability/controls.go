@@ -25,6 +25,7 @@ type Control struct {
 	Required bool
 	// Advanced places optional tuning fields behind the page's disclosure.
 	Advanced bool
+	Help     string
 	// Choices are the values the model's own artifact exports for the
 	// field (a speech model's voices); empty when any value may be typed.
 	Choices []string
@@ -66,6 +67,9 @@ func (control Control) Slot() (label, media string) { return control.Label, cont
 
 // Secondary reports whether a page should collapse this tuning control.
 func (control Control) Secondary() bool { return control.Advanced }
+
+// Guidance supplies explanatory text for an optional control.
+func (control Control) Guidance() string { return control.Help }
 
 const (
 	// ControlArtifact is a request field naming an artifact the store holds,
@@ -182,6 +186,9 @@ func describe(request reflect.Type) ([]Control, string) {
 		// A field whose type names its values (a clip's format) offers them as choices.
 		if values, named := reflect.Zero(field.Type).Interface().(interface{ Choices() []string }); named {
 			control.Choices = values.Choices()
+		}
+		if help, named := reflect.Zero(field.Type).Interface().(interface{ Help() string }); named {
+			control.Help = help.Help()
 		}
 		typed := field.Type
 		if typed.Kind() == reflect.Pointer {

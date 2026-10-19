@@ -191,6 +191,9 @@ func TestMOSSGoldenProvenance(t *testing.T) {
 			if layout.Summary.Caption == "" || len(layout.Items) != 2 || layout.Format != "yxyx" || layout.Space != "abs_centralized" {
 				t.Fatal("layout fixture must use documented format")
 			}
+			if err := validatePrompt(promptLayout, prompts["layout"], 1024, 1024); err != nil {
+				t.Fatal("native layout fixture refused", err)
+			}
 		}
 		for name, count := range map[string]int{"english": 22, "chinese": 22, "empty": 10, "whitespace": 20, "layout": 151, "truncation": 4096} {
 			for _, suffix := range []string{"input_ids", "attention_mask"} {

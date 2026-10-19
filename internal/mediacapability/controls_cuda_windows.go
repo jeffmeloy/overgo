@@ -23,7 +23,9 @@ func imageControls(directory string, controls []Control) ([]Control, error) {
 		return nil, err
 	}
 	if profile.Rotary == nil {
-		return slices.DeleteFunc(controls, func(c Control) bool { return c.Name == "negative_prompt" || c.Name == "guidance_scale" }), nil
+		return slices.DeleteFunc(controls, func(c Control) bool {
+			return c.Name == "negative_prompt" || c.Name == "guidance_scale" || c.Name == "prompt_mode"
+		}), nil
 	}
 	policy := profile.Rotary
 	if policy.DefaultSize <= 0 || float32(int(policy.Guidance)) != policy.Guidance {

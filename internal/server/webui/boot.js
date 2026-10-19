@@ -862,7 +862,7 @@
       applyCapabilities();
       const current = target || location.hash.slice(1) || (tabs[0] && tabs[0].id);
       if (current && (capabilityDocument || routeOf(location.hash.slice(1)).tab)) {
-        const ready = await activate(current);
+        const ready = await activate(current, true);
         if (attempt !== remountAttempt) return false;
         if (!ready) throw new Error("The selected workspace could not load. Choose the model again to retry.");
       }
@@ -887,12 +887,14 @@
         el("button", { class: "btn alt", text: "Open the Library", onclick: () => activate("library") }))));
   }
 
-  function activate(id) {
+  function activate(id, refreshed = false) {
     const route = routeOf(id);
     if (route.view) requestView(route.tab, route.view);
     id = route.tab;
     const tab = tabs.find((t) => t.id === id);
     if (!tab) return;
+    // Returning to the composer reads capabilities activated while another tab was open.
+    if (id === 'chat' && !refreshed && !tab.panel.classList.contains('active')) return remountActive(null, id);
     window.dispatchEvent(new Event("overgo-panel-change"));
     closeNavigation();
     document.querySelector(".shell").classList.toggle("conversation-view", id === "chat");

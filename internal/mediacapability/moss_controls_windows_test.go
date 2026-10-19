@@ -22,12 +22,12 @@ func TestMOSSImageGenerationContract(t *testing.T) {
 	for _, c := range controls {
 		held[c.Name] = c
 	}
-	for _, name := range []string{"prompt", "negative_prompt", "width", "height", "steps", "seed", "guidance_scale"} {
+	for _, name := range []string{"prompt", "prompt_mode", "negative_prompt", "width", "height", "steps", "seed", "guidance_scale"} {
 		if _, ok := held[name]; !ok {
 			t.Fatal("missing supported control", name)
 		}
 	}
-	if len(held) != 7 || held["guidance_scale"].Type != ControlNumber {
+	if len(held) != 8 || held["guidance_scale"].Type != ControlNumber || len(held["prompt_mode"].Choices) != 2 || held["prompt_mode"].Help == "" {
 		t.Fatal("unsupported controls", held)
 	}
 	for _, name := range []string{"negative_prompt", "steps", "seed", "guidance_scale"} {
@@ -58,7 +58,7 @@ func TestMOSSImageGenerationContract(t *testing.T) {
 		t.Fatal(refusal)
 	}
 	for _, c := range controls {
-		if c.Name == "negative_prompt" || c.Name == "guidance_scale" {
+		if c.Name == "negative_prompt" || c.Name == "guidance_scale" || c.Name == "prompt_mode" {
 			t.Fatal("unsupported override offered for another profile", c)
 		}
 	}

@@ -140,6 +140,7 @@
       const slot = control.type === "artifact" ? intakeStrip(control, input) : null;
       const target = control.advanced && !control.required ? advanced : host;
       target.appendChild(el("label", { class: "control" }, el("span", { text: control.label || control.name.replace(/_/g, " ") }), input, slot));
+      if (control.help) target.appendChild(el('details', { class: 'control-help' }, el('summary', { text: 'About ' + (control.label || control.name.replace(/_/g, ' ')) }), el('p', { class: 'note', text: control.help })));
     }
     const chips = presetChips(fields);
     if (chips) host.appendChild(chips);

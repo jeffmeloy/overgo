@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"sync"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -25,29 +26,54 @@ import (
 	"overgo/internal/testutil"
 )
 
-// TestMOSSImageGenerationContract exercises source registration, activation and HTTP publication.
+// mossGenerationFixture binds real source registration to hermetic execution and activation.
 //   - Model execution is hermetic here and is compared with native fixtures in latentimage.
 //   - Functional validation is exercised with the native compact model in libraryintake.
-func TestMOSSImageGenerationContract(t *testing.T) {
+type mossGenerationFixture struct {
+	handler   *Handler
+	workspace *storeGenerationWorkspace
+	store     *overgodb.Store
+	root      string
+	mu        sync.Mutex
+	inputs    []latentimage.Request
+}
+
+func (fixture *mossGenerationFixture) requests() []latentimage.Request {
+	fixture.mu.Lock()
+	defer fixture.mu.Unlock()
+	return append([]latentimage.Request(nil), fixture.inputs...)
+}
+
+func newMOSSGenerationFixture(t *testing.T, onRequest func(context.Context, latentimage.Request) error) *mossGenerationFixture {
+	t.Helper()
 	root := testutil.ExtractTarGzip(t, testutil.FixturePath(t, "moss", "generator-compact.tar.gz"), "150c4263057d72476ef4399a442c2b7dbadcb955670232fc2ea869c71f07c5db")
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	var executed latentimage.Request
+	fixture := &mossGenerationFixture{store: store, root: root}
 	image := tinyPNG(t)
 	inputContract := artifact.JSONContract(artifact.KindFile, "overgo.test-moss-request.v1")
 	catalog := map[recipe.Task]mediacapability.Capability{recipe.TaskImageGen: {
 		Execute: func(ctx context.Context, _ artifact.Repository, path string, execution modelrecipe.CapabilityEvidenceSelection, raw string) (any, error) {
+			var executed latentimage.Request
 			if path != root || len(execution.Program.Stages()) != 3 {
 				t.Error("component execution lost", path)
 			}
 			if err := strictjson.DecodeBytes([]byte(raw), &executed); err != nil {
 				return nil, err
 			}
+			fixture.mu.Lock()
+			fixture.inputs = append(fixture.inputs, executed)
+			fixture.mu.Unlock()
 			if err := latentimage.ValidateRequest(executed); err != nil {
 				return nil, err
+			}
+			if onRequest != nil {
+				if err := onRequest(ctx, executed); err != nil {
+					return nil, err
+				}
 			}
 			if executed.Prompt == "cancel" {
 				<-ctx.Done()
@@ -82,9 +108,19 @@ func TestMOSSImageGenerationContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = handler.Close() })
+	fixture.handler, fixture.workspace = handler, workspace
+	return fixture
+}
+
+// TestMOSSImageGenerationContract checks registration, activation and retained HTTP outcomes.
+func TestMOSSImageGenerationContract(t *testing.T) {
+	fixture := newMOSSGenerationFixture(t, nil)
+	handler, workspace, store, root := fixture.handler, fixture.workspace, fixture.store, fixture.root
+	image := tinyPNG(t)
 	request := func(method, path string, body any, status int, out any) {
 		t.Helper()
 		var raw []byte
+		var err error
 		if body != nil {
 			raw, err = json.Marshal(body)
 			if err != nil {
@@ -138,7 +174,7 @@ func TestMOSSImageGenerationContract(t *testing.T) {
 		t.Fatal("activation not offered", listed, err)
 	}
 	controls := listed[0].Controls
-	if len(controls) != 7 {
+	if len(controls) != 8 {
 		t.Fatal("unsupported controls offered", controls)
 	}
 	for _, c := range controls {
@@ -150,6 +186,8 @@ func TestMOSSImageGenerationContract(t *testing.T) {
 		input := map[string]any{"prompt": prompt, "width": 32, "height": 48, "steps": 3, "guidance_scale": 0}
 		request(http.MethodPost, "/generation/run", map[string]any{"task": recipe.TaskImageGen, "recipe": receipt.Recipe, "input": input}, http.StatusAccepted, &submission)
 		request(http.MethodGet, "/operations/wait?id="+submission.Operation.String(), nil, http.StatusOK, &status)
+		inputs := fixture.requests()
+		executed := inputs[len(inputs)-1]
 		if status.State != operation.StateCompleted || len(status.Outputs) != 1 || executed.Prompt != prompt || executed.GuidanceScale == nil || *executed.GuidanceScale != 0 {
 			t.Fatal("request or output differs", status, executed)
 		}

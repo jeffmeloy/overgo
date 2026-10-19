@@ -22,15 +22,16 @@ import (
 )
 
 type Request struct {
-	Prompt            string   `json:"prompt"`
-	NegativePrompt    string   `json:"negative_prompt,omitempty"`
-	GuidanceScale     *float32 `json:"guidance_scale,omitempty"`
-	Width             int      `json:"width"`
-	Height            int      `json:"height"`
-	Steps             int      `json:"steps,omitzero"`
-	Seed              int64    `json:"seed"`
-	DynamicShiftMu    float64  `json:"mu,omitzero"`
-	NumTrainTimesteps int      `json:"num_train_timesteps,omitzero"`
+	Prompt            string     `json:"prompt"`
+	PromptMode        PromptMode `json:"prompt_mode,omitempty"`
+	NegativePrompt    string     `json:"negative_prompt,omitempty"`
+	GuidanceScale     *float32   `json:"guidance_scale,omitempty"`
+	Width             int        `json:"width"`
+	Height            int        `json:"height"`
+	Steps             int        `json:"steps,omitzero"`
+	Seed              int64      `json:"seed"`
+	DynamicShiftMu    float64    `json:"mu,omitzero"`
+	NumTrainTimesteps int        `json:"num_train_timesteps,omitzero"`
 }
 
 type Generator struct {
@@ -63,7 +64,7 @@ func ValidateRequest(request Request) error {
 	if request.GuidanceScale != nil && !checked.NonNegativeFinite32(*request.GuidanceScale) {
 		return errors.New("latent image: guidance must be finite and nonnegative")
 	}
-	return nil
+	return validatePrompt(request.PromptMode, request.Prompt, request.Width, request.Height)
 }
 
 func LoadGenerator(ctx context.Context, modelDir string, profile Profile, request Request) (*Generator, error) {
@@ -79,8 +80,8 @@ func LoadGenerator(ctx context.Context, modelDir string, profile Profile, reques
 	if profile.Rotary != nil {
 		return loadRotaryGenerator(ctx, modelDir, profile, request)
 	}
-	if request.NegativePrompt != "" || request.GuidanceScale != nil {
-		return nil, errors.New("latent image: selected profile does not support negative prompts or guidance overrides")
+	if request.NegativePrompt != "" || request.GuidanceScale != nil || request.PromptMode == promptLayout {
+		return nil, errors.New("latent image: selected profile does not support negative prompts, guidance overrides or layout validation")
 	}
 	spec, err := Derive(modelDir)
 	if err != nil {
@@ -220,8 +221,8 @@ func (g *Generator) Reset(ctx context.Context, request Request) error {
 	if g != nil && g.rotary != nil {
 		return g.resetRotary(ctx, request)
 	}
-	if request.NegativePrompt != "" || request.GuidanceScale != nil {
-		return errors.New("latent image: selected profile does not support negative prompts or guidance overrides")
+	if request.NegativePrompt != "" || request.GuidanceScale != nil || request.PromptMode == promptLayout {
+		return errors.New("latent image: selected profile does not support negative prompts, guidance overrides or layout validation")
 	}
 	if g == nil || g.pipeline == nil || !g.completed {
 		return errors.New("latent image: resident session is unavailable")

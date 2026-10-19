@@ -62,11 +62,56 @@ extern "C" __global__ void attention_native_pack_f32(
 }
 
 // PersistentSoftmax.cuh uses at most 2048 values and 32 lanes per F32 row.
-// Keep the source XOR reduction, exponential and division order.
+// Wider validated rows use SoftMax.cu's 1024-thread register and block reduction.
 extern "C" __global__ void attention_native_softmax_f32(
         float * scores, unsigned int keys, unsigned int queries, unsigned int rows, unsigned int causal) {
     const unsigned int row = blockIdx.x, lane = threadIdx.x, warp = blockDim.x;
     if (row >= rows) return;
+    if (keys > 2048) {
+        __shared__ float partial[32];
+        float values[4];
+        const unsigned int local_lane = lane % 32, group = lane / 32;
+        const float lowest = -3.4028234663852886e+38f;
+        const float negative_infinity = __int_as_float(0xff800000);
+        float maximum = lowest;
+        const unsigned int iterations = (keys + blockDim.x - 1) / blockDim.x;
+        for (unsigned int i = 0; i < iterations; ++i) {
+            const unsigned int k = lane + i * blockDim.x;
+            values[i] = k < keys && (!causal || k <= row % queries) ? scores[(size_t) row * keys + k] : negative_infinity;
+            if (k < keys) maximum = fmaxf(maximum, values[i]);
+        }
+        for (unsigned int offset = 16; offset > 0; offset >>= 1) maximum = fmaxf(maximum, __shfl_down_sync(0xffffffff, maximum, offset));
+        __syncthreads();
+        if (local_lane == 0) partial[group] = maximum;
+        __syncthreads();
+        maximum = lane < 32 ? partial[local_lane] : lowest;
+        if (group == 0) {
+            for (unsigned int offset = 16; offset > 0; offset >>= 1) maximum = fmaxf(maximum, __shfl_down_sync(0xffffffff, maximum, offset));
+        }
+        if (lane == 0) partial[0] = maximum;
+        __syncthreads();
+        maximum = partial[0];
+        float sum = 0.0f;
+        for (unsigned int i = 0; i < iterations; ++i) {
+            if (lane + i * blockDim.x < keys) sum = __fadd_rn(sum, expf(__fsub_rn(values[i], maximum)));
+        }
+        for (unsigned int offset = 16; offset > 0; offset >>= 1) sum = __fadd_rn(sum, __shfl_down_sync(0xffffffff, sum, offset));
+        __syncthreads();
+        if (local_lane == 0) partial[group] = sum;
+        __syncthreads();
+        sum = lane < 32 ? partial[local_lane] : 0.0f;
+        if (group == 0) {
+            for (unsigned int offset = 16; offset > 0; offset >>= 1) sum = __fadd_rn(sum, __shfl_down_sync(0xffffffff, sum, offset));
+        }
+        if (lane == 0) partial[0] = sum;
+        __syncthreads();
+        sum = partial[0];
+        for (unsigned int i = 0; i < iterations; ++i) {
+            const unsigned int k = lane + i * blockDim.x;
+            if (k < keys) scores[(size_t) row * keys + k] = __fdiv_rn(expf(__fsub_rn(values[i], maximum)), sum);
+        }
+        return;
+    }
     float values[64];
     const unsigned int iterations = (keys + warp - 1) / warp;
     const float negative_infinity = __int_as_float(0xff800000);

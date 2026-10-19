@@ -325,9 +325,9 @@ type AttentionOptions struct {
 	MemoryEfficientF32 bool
 }
 
-// NativeAttentionSoftmaxWidth is Torch SoftMax.cu's persistent F32 row limit.
-// Reconsider this bound when selecting a different native softmax reduction.
-const NativeAttentionSoftmaxWidth = 2048
+// NativeAttentionSoftmaxWidth bounds the native F32 reductions validated through the source prompt limit.
+// Reconsider the bound with native fixtures beyond the MOSS pipeline's 4096-token contract.
+const NativeAttentionSoftmaxWidth = 4096
 
 // AttentionWithOptions: typed attention construction.
 func (b *Builder) AttentionWithOptions(
@@ -388,7 +388,7 @@ func (b *Builder) buildAttention(
 		options.queryStart != 0 || options.window != 0 || options.softcap != 0 || options.maxALiBiBias != 0 ||
 		options.bias != nil || options.sinks != nil || options.blockIDs != nil || options.keyBias != nil ||
 		key.Shape.Dims[PairedExtent] > NativeAttentionSoftmaxWidth || math.IsInf(float64(options.scale), 0) || math.IsNaN(float64(options.scale))) {
-		b.setError(errors.New("native math attention requires F32 inputs, at most 2048 keys, finite scale and only an optional causal mask"))
+		b.setError(fmt.Errorf("native math attention requires F32 inputs, at most %d keys, finite scale and only an optional causal mask", NativeAttentionSoftmaxWidth))
 		return nil
 	}
 	if key.Shape.Dims[1] != value.Shape.Dims[1] {

@@ -17,9 +17,16 @@ import (
 )
 
 func TestMOSSConditioningAttentionGolden(t *testing.T) {
+	testConditioningAttentionGolden(t, "attention-cuda.safetensors", "199ea7dd97daa70a80952b3b377d14f4d721f75ef975f959bf29e7d68b7306db", 12)
+}
+
+func TestMOSSConditioningLongAttentionGolden(t *testing.T) {
+	testConditioningAttentionGolden(t, "attention-long-cuda.safetensors", "9afc4a5eeb81f1557cb8a9153c07a90ba0061d0bb02bff9cb406c02c5c60bb1c", 5)
+}
+
+func testConditioningAttentionGolden(t *testing.T, file, digest string, count int) {
 	cudatest.Require(t)
-	const file = "attention-cuda.safetensors"
-	mossFixtureBytes(t, file, "199ea7dd97daa70a80952b3b377d14f4d721f75ef975f959bf29e7d68b7306db")
+	mossFixtureBytes(t, file, digest)
 	s, err := safetensors.OpenFile(filepath.Join("..", "..", "fixtures", "moss", file))
 	if err != nil {
 		t.Fatal(err)
@@ -34,7 +41,7 @@ func TestMOSSConditioningAttentionGolden(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if len(policies) != 12 {
+	if len(policies) != count {
 		t.Fatal("native case coverage", len(policies))
 	}
 	run, _, close := cudaVAERunner(t)

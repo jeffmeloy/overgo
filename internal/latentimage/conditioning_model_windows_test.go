@@ -20,9 +20,16 @@ import (
 )
 
 func TestMOSSConditioningModelGolden(t *testing.T) {
+	testConditioningModelGolden(t, "model-small-v3-cuda.safetensors", "c96f1e0e709c9569840b10356bc55a47fd002585477fbe2e2692c37bb150786b", []string{"t1", "t22", "t65", "t151"})
+}
+
+func TestMOSSConditioningLongContextGolden(t *testing.T) {
+	testConditioningModelGolden(t, "model-long-cuda.safetensors", "2247d845a1546b6501de4e6c979b77d0cd41f7474b9fd8b9872730dc1ecc31b0", []string{"t2049", "t4096"})
+}
+
+func testConditioningModelGolden(t *testing.T, fixture, digest string, cases []string) {
 	cudatest.Require(t)
-	const fixture = "model-small-v3-cuda.safetensors"
-	mossFixtureBytes(t, fixture, "c96f1e0e709c9569840b10356bc55a47fd002585477fbe2e2692c37bb150786b")
+	mossFixtureBytes(t, fixture, digest)
 	weights := mossFixtureBytes(t, "model-small-v3-weights.safetensors", "b5364f94c71b0134562493d8e09e8884d63859ce328cf4be4daa2a6440784e2e")
 	s, err := safetensors.OpenFile(filepath.Join("..", "..", "fixtures", "moss", fixture))
 	if err != nil {
@@ -30,7 +37,7 @@ func TestMOSSConditioningModelGolden(t *testing.T) {
 	}
 	defer s.Close()
 	root := t.TempDir()
-	if len(s.Metadata) != 1 || len(s.Tensors) != 28 {
+	if len(s.Metadata) != 1 || len(s.Tensors) != len(cases)*7 {
 		t.Fatal("native model fixture coverage")
 	}
 	for _, metadata := range s.Metadata {
@@ -58,7 +65,7 @@ func TestMOSSConditioningModelGolden(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer session.Close(context.Background())
-	for _, name := range []string{"t1", "t22", "t65", "t151"} {
+	for _, name := range cases {
 		t.Run(name, func(t *testing.T) {
 			hidden := refinementValues(t, s, name+".embedding")
 			p, err := compileModelEncoder(catalog, len(hidden)/int(catalog.Spec.EmbeddingLength), 0, int(catalog.Spec.BlockCount))

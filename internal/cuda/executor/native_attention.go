@@ -26,6 +26,13 @@ const (
 // Native softmax uses CUDA warp shuffles from Torch PersistentSoftmax.cuh.
 const nativeAttentionWarp = 32
 
+// Native softmax follows Torch SoftMax.cu's persistent threshold and block reduction size.
+// Reconsider these values with a different source reduction implementation.
+const (
+	nativeAttentionPersistentWidth = 2048
+	nativeAttentionBlockThreads    = 1024
+)
+
 type nativeAttentionShape struct {
 	width, valueWidth, heads, keyHeads, queries, keys, batches, groups uint32
 	sizes                                                              [nativeAttentionBuffers]uint64
@@ -114,6 +121,9 @@ func launchNativeAttention(state *device.State, functions functionSet, blas *bla
 	}
 	rows, causal := g.groups*g.queries, kernelBool(a.Causal)
 	lanes := min(uint32(nativeAttentionWarp), uint32(1)<<bits.Len32(g.keys-1))
+	if g.keys > nativeAttentionPersistentWidth {
+		lanes = nativeAttentionBlockThreads
+	}
 	if err = launchGridABI(state, functions[kernelAttentionNativeSoftmaxF32], driver.Dim3{X: rows, Y: 1, Z: 1}, driver.Dim3{X: lanes, Y: 1, Z: 1}, &buffers[nativeAttentionScores], &g.keys, &g.queries, &rows, &causal); err != nil {
 		return err
 	}

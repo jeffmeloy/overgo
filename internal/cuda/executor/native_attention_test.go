@@ -53,7 +53,7 @@ func TestNativeAttentionSelection(t *testing.T) {
 	if err := parameters.Set(native, policy); err == nil {
 		t.Fatal("native static key extent changed at runtime")
 	}
-	for _, tokens := range []uint64{1, 10, 22, 151, 2048} {
+	for _, tokens := range []uint64{1, 10, 22, 151, 2048, 2049, 4096} {
 		node := nativeAttentionTestGraph(t, tokens)
 		graph, err := Compile(node)
 		if err != nil {
@@ -82,7 +82,7 @@ func TestNativeAttentionSelection(t *testing.T) {
 			node := nativeAttentionTestGraph(t, 22)
 			switch invalid {
 			case "keys":
-				node.Inputs[1].Shape.Dims[2] = 2049
+				node.Inputs[1].Shape.Dims[2] = tensor.NativeAttentionSoftmaxWidth + 1
 			case "width":
 				node.Inputs[0].Shape.Dims[0] = math.MaxInt32 + 1
 			case "groups":
@@ -100,7 +100,7 @@ func TestNativeAttentionSelection(t *testing.T) {
 		})
 	}
 	b := tensor.NewBuilder()
-	x := b.Input("x", dtype.F32, tensor.MustShape(8, 2, 2049))
+	x := b.Input("x", dtype.F32, tensor.MustShape(8, 2, tensor.NativeAttentionSoftmaxWidth+1))
 	if b.AttentionWithOptions(x, x, x, tensor.AttentionOptions{Scale: 1, NativeMath: true}) != nil || b.Err() == nil {
 		t.Fatal("native softmax limit ignored")
 	}

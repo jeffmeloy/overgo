@@ -214,10 +214,17 @@
       "owner": "overgo_moss",
       "status": "open",
       "budget": {
-        "nodes": 1493,
-        "reason": "Joint-block composition consumed 1507 measured production nodes from the 3000-node allowance. Remaining growth covers transformer composition through shared graph owners."
+        "nodes": 4500,
+        "reason": "Full denoiser composition adds native coordinate construction, timestep and head arithmetic, skip validation and a source-bound complete-forward consumer. Shared rotary construction replaces isolated compiler duplication. Joint blocks consumed 1507 nodes in the preceding checked commit."
       },
       "steps": [
+        {
+          "id": "denoiser",
+          "title": "Match the complete denoiser with frozen native conditioning",
+          "status": "open",
+          "verify": "go test ./internal/latentimage -count=1 -run '^TestMOSSRotary(Denoiser|Joint|Refinement)'",
+          "rationale": "Freeze portable native complete-forward outputs with unequal text lengths and explicit skipped-block variants before implementation.\nCompose verified rotary refinement and joint arithmetic through shared builders and the existing resident graph runtime.\nDerive channel counts, frequencies, spatial dimensions and layer depth from typed configuration.\nGenerate four-coordinate rotary inputs with F32 phase arithmetic and native BF16 casts.\nReuse the existing F64 sinusoidal timestep owner and preserve native BF16 MLP, shared modulation and output head boundaries.\nReject invalid skip indices and keep skip sets local to each compiled branch.\nCompare all 42 released blocks through first, middle and last native boundaries and final predictions for three frozen full-image cases.\nFull-model inputs use retained native conditioning and do not establish production prompt encoding or end-to-end image support.\nKeep frozen tolerances, exact repeated execution and checkpoint/source identity validation.\nServes: complete native MOSS denoising arithmetic.\nDisappears: duplicated isolated graph construction through shared composition helpers.\nEvidence: portable native fixtures, frozen full-model predictions and retained command comparisons.\nBatch: graph, CUDA and repository invariant checks."
+        },
         {
           "id": "forward",
           "title": "Match transformer arithmetic and branch skipping",
@@ -227,7 +234,8 @@
           "depends_on": [
             "moss-conditioning/encode",
             "moss-transformer/refinement",
-            "moss-transformer/joint"
+            "moss-transformer/joint",
+            "moss-transformer/denoiser"
           ]
         }
       ]

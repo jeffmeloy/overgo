@@ -495,7 +495,8 @@
             "expert-residency/do",
             "flashnext-cells/do",
             "plan-journey/do",
-            "lane-failures/do"
+            "lane-failures/do",
+            "plan-liveedit/do"
           ]
         }
       ]
@@ -816,7 +817,7 @@
           "title": "Restore LiveEdit video-gen first-output to 16151.3154 ms",
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-f2941c57e89b46db -target 16151.315400000001",
-          "rationale": "- LiveEdit first-output, {Metric:time to the whole output Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:7cd66ed08ebee5e566dca3682e7d6d9f0b06f8384f19b1f1dfb416a272126965}: 10743.0574 to 18322.4581 (+7579.4007, +70.6%, allowed 5408.258; serving time to the whole output, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261019T081031Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+          "rationale": "- LiveEdit first-output, {Metric:time to the whole output Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:7cd66ed08ebee5e566dca3682e7d6d9f0b06f8384f19b1f1dfb416a272126965}: 10743.0574 to 18322.4581 (+7579.4007, +70.6%, allowed 5408.258; serving time to the whole output, the median of the newest measured attempts)\n\nLead's reading (2026-10-19, card quiet, master 7a396356b): recipe measure -task video-gen on LiveEdit took 19.76 s, then 13.88 s; the stage \"files beside the model named\" (internal/capabilityruntime/runtime.go Reading, Contents: every file the model reads beside its inventory is hashed whole on every request) took 11.21 s, then 6.57 s, and the session lease 4.44, then 3.03 s; the run's reading had 10.65 s of naming in 18.32 s. The decline follows the file cache, so the cause is per-request hashing of large companion files (Contents is meant for files small enough to read every request): find which files LiveEdit names and how large they are, and name them once per session or by their registered identity, keeping integrity (a changed file must not reuse an answer).\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261019T081031Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
         }
       ]
     },

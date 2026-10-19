@@ -208,6 +208,25 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "flashnext-cells",
+      "title": "Measure Flash-Next on the scorecard",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 200,
+        "reason": "estimate: recipe verify -protocol also runs a short exact suite on the candidate and binds its plan to the gate"
+      },
+      "steps": [
+        {
+          "id": "cells",
+          "title": "Bind an exact plan to protocol acceptance and publish Flash-Next's benchmark",
+          "status": "open",
+          "verify": "go test ./cmd/recipe -count=1 -run '^TestVerifyProtocolBindsAnExactPlan$'",
+          "rationale": "From the measurement run at 32b26610e (log overgo_data/scratch/measure-run-20261018.log), Flash-Next's first cells: the guard cell failed (\"has no bound finite positive short-prompt benchmark; publish one with cmd/benchmark before measurement\") and the serving cell failed (\"the verification of model:sha256:d7ff4ba5... names no exact plan; verify it again with -input\"): recipe measure replays the first case of the exact suite the activation's gate ran, and a recipe accepted by recipe verify -protocol (93d566915) binds the protocol observation, not an exact plan.\nThe step lets a protocol-accepted recipe be measured: recipe verify -protocol also runs and binds a short exact suite on the same candidate (Flash-Next's smoke oracle, integer addition, already declared in docs/verification/smoke-oracles.json), so the gate's first step names an exact plan recipe measure can replay; then Flash-Next is verified again with it, and a short-prompt benchmark is published for its active recipe with cmd/benchmark.\nAcceptance: recipe measure on Flash-Next records a serving attempt, the guard cell's benchmark exists, and both cells pass in the next measurement run.\nServes: setup-steps and the scorecard's first-output, throughput, load-time and peak-device-memory cells for Flash-Next.\nBatch: device."
+        }
+      ]
+    },
+    {
       "id": "speculation",
       "title": "Speculate safely and further on Flash-Next and NextN models",
       "owner": "master-lead",
@@ -440,7 +459,8 @@
             "plan-mtp-count/do",
             "speculation/do",
             "plan-advance-rule/do",
-            "expert-residency/do"
+            "expert-residency/do",
+            "flashnext-cells/do"
           ]
         }
       ]
@@ -747,6 +767,66 @@
           "depends_on": [
             "moss-evaluation/resources"
           ]
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-f2941c57e89b46db",
+      "title": "Restore LiveEdit video-gen first-output to 16151.3154 ms",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore LiveEdit video-gen first-output to 16151.3154 ms",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-f2941c57e89b46db -target 16151.315400000001",
+          "rationale": "- LiveEdit first-output, {Metric:time to the whole output Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:7cd66ed08ebee5e566dca3682e7d6d9f0b06f8384f19b1f1dfb416a272126965}: 10743.0574 to 18322.4581 (+7579.4007, +70.6%, allowed 5408.258; serving time to the whole output, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261019T081031Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unmeasured-image-gen",
+      "title": "Measure image-gen's unmeasured cells",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure image-gen's unmeasured cells",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-image-gen",
+          "rationale": "- MOSS-Image-SFT-797fa8e678b4f first-output: no benchmark time to first token and no serving prefill sample\n- MOSS-Image-SFT-797fa8e678b4f failure-rate: no completed serving attempts recorded\n- MOSS-Image-SFT-797fa8e678b4f load-time: no benchmark load time and no recorded load phase\n- MOSS-Image-SFT-797fa8e678b4f peak-device-memory: no benchmark or serving peak device memory\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261019T081031Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unmeasured-inference",
+      "title": "Measure inference's unmeasured cells",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure inference's unmeasured cells",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-inference",
+          "rationale": "- Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003 first-output: no benchmark time to first token and no serving prefill sample\n- Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003 throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003 held-out-quality: no held-out evaluation of this recipe\n- Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003 failure-rate: no completed serving attempts recorded\n- Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003 load-time: no benchmark load time and no recorded load phase\n- Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003 peak-device-memory: no benchmark or serving peak device memory\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261019T081031Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unscored-image-gen",
+      "title": "Define the held-out evaluation that measures image-gen quality",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Define the held-out evaluation that measures image-gen quality",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-image-gen",
+          "rationale": "- MOSS-Image-SFT-797fa8e678b4f held-out-quality: no held-out evaluation for image-gen yet; proposed: TIFA v1.0 (github.com/Yushi-Hu/tifa, 10 MB) question answering over each image by a local vision-language model\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261019T081031Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
         }
       ]
     }

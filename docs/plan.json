@@ -212,10 +212,17 @@
       "title": "Decode Qwen3.8-Flash-Next at the speed Strata reaches on this PC",
       "status": "open",
       "budget": {
-        "nodes": 41,
-        "reason": "fast-load measured +1,479 production nodes (12 files, landing-rules counting): one load pass that reads every shard unbuffered with several reads in flight, hashes in file order and routes each tensor's bytes to device uploads, converters and expert slots, replacing the residency's own fill (expert_residency.go 451 smaller); mtp sets its own from a measured figure before dispatch"
+        "nodes": 3600,
+        "reason": "mtp measured about +3,170 production nodes in its worktree (draft file binding to the trunk's layer shape, the draft step as one graph, k=1 speculation wiring, the trunk's 4-stream residual handed to the draft); span-frames is an estimate of about 400 (fixed double-buffered slots for recurrent-state outputs and the staged feed buffer)"
       },
       "steps": [
+        {
+          "id": "span-frames",
+          "title": "Give a speculating session's span and draft steps two fixed frames so they replay",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestSpeculatingSessionReplaysItsFrames$'",
+          "rationale": "From step mtp's diagnosis (served Flash-Next, k=1 drafts with the MTP layer, captured draft step, text identical): a speculating chat runs 1.93 to 2.00 s against 1.63 to 1.66 s plain, because each verify round captures a new graph (35 to 41 captures a request even with 16 exec entries and no drops). Frame diffs show a span's frames differ at the past recurrent-state inputs (gated-delta conv and ssm states, ngram_convolution of every layer): those states are not token targets, so each run writes them into a fresh retained-output pool lease, and with a boundary step and a span alive at once the pool's last-in-first-out hands out three or more leases in rotation. The draft step misses the same way through its host-feed and attribute-word lease. Prefill also released the BLAS matmul staging and each longer span regrew it, dropping every exec five times a request.\nThe step gives a speculating session's recurrent-state outputs and its staged host-feed and attribute buffer fixed double-buffered slots, as the token caches already alternate between two halves of one storage, and keeps the BLAS staging for a runner that speculates, so each span session has exactly two frames and replays.\nAcceptance: a speculating session's span and draft steps replay with no recapture after warm-up and keep their outputs' bits; the speculative chat's captures a request and its time before and after.\nServes: throughput through MTP (step mtp); simulated with measured costs, k=1 drafting then reaches about 79 to 88 tokens a second on the chat against about 61 plain.\nWorsens, stated: peak-device-memory by the kept 256 MiB BLAS staging for a speculating runner.\nBatch: device."
+        },
         {
           "id": "mtp",
           "title": "Draft with Flash-Next's MTP layer and verify the drafts in one step",
@@ -414,7 +421,8 @@
             "plan-sqa164-row/do",
             "plan-fastload-count/do",
             "plan-verify-span/do",
-            "plan-prefill-rescope/do"
+            "plan-prefill-rescope/do",
+            "plan-span-frames/do"
           ]
         }
       ]

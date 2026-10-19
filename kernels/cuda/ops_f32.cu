@@ -1975,6 +1975,138 @@ extern "C" __global__ void flat_slice_f32(
     }
 }
 
+// Native chunk phases share the executor's bounded BLAS workspace.
+// The 64-token boundary follows transformers 5.14.1 torch_chunk_gated_delta_rule.
+// Scan and four-accumulator reduction orders follow pinned Torch CUDA owners.
+extern "C" __global__ void gated_delta_chunk_f32(
+        const float * query, const float * key, const float * value,
+        const float * gate, const float * beta, const float * initial,
+        float * output, float * workspace,
+        unsigned int width, unsigned int q_heads, unsigned int k_heads,
+        unsigned int heads, unsigned int tokens, unsigned int sequences,
+        unsigned int start, unsigned int scan_block, unsigned int repeat_interleave,
+        unsigned int phase, float scale) {
+    constexpr unsigned int chunk = 64;
+    constexpr unsigned int vector_slots = 9;
+    const unsigned int group = blockIdx.x;
+    const unsigned int head = group % heads, sequence = group / heads;
+    const size_t groups = (size_t) heads * sequences;
+    const size_t tile = (size_t) chunk * width;
+    const size_t matrix = (size_t) chunk * chunk;
+    const size_t state_size = (size_t) width * width;
+    float * q = workspace + group * tile;
+    float * k = q + groups * tile;
+    float * kb = k + groups * tile;
+    float * vb = kb + groups * tile;
+    float * mixed = vb + groups * tile;
+    float * cumulative_key = mixed + groups * tile;
+    float * v_new = cumulative_key + groups * tile;
+    float * q_exp = v_new + groups * tile;
+    float * temporary = q_exp + groups * tile;
+    float * triangle = workspace + vector_slots * groups * tile + group * matrix;
+    float * scores = triangle + groups * matrix;
+    float * g = workspace + vector_slots * groups * tile + 2 * groups * matrix + group * chunk;
+    float * state = workspace + vector_slots * groups * tile + 2 * groups * matrix + groups * chunk + group * state_size;
+    float * update = state + groups * state_size;
+    const unsigned int lane = threadIdx.x;
+    __shared__ float scan[chunk];
+    __shared__ float row_before[chunk];
+    if (phase == 0) {
+        if (lane < chunk) {
+            scan[lane] = start + lane < tokens ? gate[((size_t) sequence * tokens + start + lane) * heads + head] : 0.0f;
+        }
+        __syncthreads();
+        for (unsigned int base = 0; base < chunk; base += scan_block) {
+            if (lane == 0 && base != 0) scan[base] = __fadd_rn(scan[base], scan[base - 1]);
+            __syncthreads();
+            for (unsigned int stride = 1; stride < scan_block; stride <<= 1) {
+                if (lane < scan_block / 2) {
+                    const unsigned int split = (lane / stride) * (2 * stride) + stride;
+                    const unsigned int target = base + split + lane % stride;
+                    scan[target] = __fadd_rn(scan[target], scan[base + split - 1]);
+                }
+                __syncthreads();
+            }
+        }
+        if (lane < chunk) g[lane] = scan[lane];
+        const unsigned int qh = repeat_interleave ? head / (heads / q_heads) : head % q_heads;
+        const unsigned int kh = repeat_interleave ? head / (heads / k_heads) : head % k_heads;
+        for (size_t index = lane; index < tile; index += blockDim.x) {
+            const unsigned int row = (unsigned int) (index / width), col = (unsigned int) (index % width);
+            float qi = 0.0f, ki = 0.0f, vi = 0.0f, bi = 0.0f;
+            if (start + row < tokens) {
+                const size_t token = (size_t) sequence * tokens + start + row;
+                qi = query[(token * q_heads + qh) * width + col];
+                ki = key[(token * k_heads + kh) * width + col];
+                vi = value[(token * heads + head) * width + col];
+                bi = beta[token * heads + head];
+            }
+            q[index] = __fmul_rn(qi, scale);
+            k[index] = ki;
+            kb[index] = __fmul_rn(ki, bi);
+            vb[index] = __fmul_rn(vi, bi);
+        }
+        if (start == 0) {
+            for (size_t index = lane; index < state_size; index += blockDim.x) {
+                state[index] = initial[group * state_size + (index % width) * width + index / width];
+            }
+        }
+    } else if (phase == 1) {
+        for (size_t index = lane; index < matrix; index += blockDim.x) {
+            const unsigned int row = (unsigned int) (index / chunk), col = (unsigned int) (index % chunk);
+            triangle[index] = col < row ? -__fmul_rn(triangle[index], __nv_expf(__fsub_rn(g[row], g[col]))) : -0.0f;
+        }
+        __syncthreads();
+        for (unsigned int row = 1; row < chunk; ++row) {
+            if (lane < row) row_before[lane] = triangle[row * chunk + lane];
+            __syncthreads();
+            if (lane < row) {
+                float partial[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+                for (unsigned int inner = 0; inner < row; ++inner) {
+                    partial[inner % 4] = __fadd_rn(partial[inner % 4], __fmul_rn(row_before[inner], triangle[inner * chunk + lane]));
+                }
+                const float sum = __fadd_rn(__fadd_rn(__fadd_rn(partial[0], partial[1]), partial[2]), partial[3]);
+                triangle[row * chunk + lane] = __fadd_rn(row_before[lane], sum);
+            }
+            __syncthreads();
+        }
+        for (size_t index = lane; index < matrix; index += blockDim.x) {
+            triangle[index] = __fadd_rn(triangle[index], index / chunk == index % chunk ? 1.0f : 0.0f);
+        }
+    } else if (phase == 2) {
+        for (size_t index = lane; index < tile; index += blockDim.x) {
+            const float decay = __nv_expf(g[index / width]);
+            kb[index] = __fmul_rn(kb[index], decay);
+            q_exp[index] = __fmul_rn(q[index], decay);
+        }
+    } else if (phase == 3) {
+        for (size_t index = lane; index < tile; index += blockDim.x) v_new[index] = __fsub_rn(mixed[index], temporary[index]);
+        for (size_t index = lane; index < matrix; index += blockDim.x) {
+            const unsigned int row = (unsigned int) (index / chunk), col = (unsigned int) (index % chunk);
+            const float decay = col <= row ? __nv_expf(__fsub_rn(g[row], g[col])) : 0.0f;
+            scores[index] = __fmul_rn(scores[index], decay);
+        }
+    } else if (phase == 4) {
+        for (size_t index = lane; index < tile; index += blockDim.x) {
+            const unsigned int row = (unsigned int) (index / width), col = (unsigned int) (index % width);
+            if (start + row < tokens) {
+                output[(((size_t) sequence * tokens + start + row) * heads + head) * width + col] = __fadd_rn(temporary[index], vb[index]);
+            }
+            kb[index] = __fmul_rn(k[index], __nv_expf(__fsub_rn(g[chunk - 1], g[row])));
+        }
+        const float decay = __nv_expf(g[chunk - 1]);
+        for (size_t index = lane; index < state_size; index += blockDim.x) state[index] = __fmul_rn(state[index], decay);
+    } else if (phase == 5) {
+        for (size_t index = lane; index < state_size; index += blockDim.x) {
+            state[index] = __fadd_rn(state[index], update[index]);
+            if ((size_t) start + chunk >= tokens) {
+                const size_t output_base = (size_t) tokens * groups * width + group * state_size;
+                output[output_base + (index % width) * width + index / width] = state[index];
+            }
+        }
+    }
+}
+
 extern "C" __global__ void gated_delta_net_f32(
         const float * query,
         const float * key,

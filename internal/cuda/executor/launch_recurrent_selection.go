@@ -56,6 +56,9 @@ func launchRecurrentSelection(
 		)
 	case tensor.OpGatedDeltaNet:
 		attributes := node.Attrs.(tensor.GatedDeltaNetAttributes)
+		if attributes.Chunked {
+			return launchDeltaChunk(state, functions, blas, node, pointers)
+		}
 		valueDimensions := shapeDimensions32(node.Inputs[2].Shape)
 		size, heads, tokens, sequences := valueDimensions[0], valueDimensions[1], valueDimensions[2], valueDimensions[3]
 		qHeads, kHeads := uint32(node.Inputs[0].Shape.Dims[1]), uint32(node.Inputs[1].Shape.Dims[1])

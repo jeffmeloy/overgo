@@ -1149,6 +1149,14 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 		}
 	}
 	for _, node := range order {
+		if node.Op == tensor.OpGatedDeltaNet && node.Attrs.(tensor.GatedDeltaNetAttributes).Chunked {
+			bytes, err := deltaChunkStagingBytes(node)
+			if err != nil {
+				return nil, err
+			}
+			compiled.needBlas = true
+			compiled.matmulStagingBytes = max(compiled.matmulStagingBytes, bytes)
+		}
 		if (node.Op == tensor.OpMulMat || node.Op == tensor.OpGroupedMulMat) &&
 			(node.Inputs[0].Type == dtype.F32 || node.Inputs[0].Type == dtype.BF16) {
 			compiled.needBlas = true

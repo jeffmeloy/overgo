@@ -99,16 +99,30 @@ func (b *Builder) SSMScan(state, x, dt, a, beta, c *Tensor) *Tensor {
 // sequences], and state is [state,state,valueHeads,sequences]; output
 // packs attention values followed by newest state snapshot
 func (b *Builder) GatedDeltaNet(q, k, v, gate, beta, state *Tensor) *Tensor {
-	return b.gatedDeltaNet(q, k, v, gate, beta, state, false)
+	return b.gatedDeltaNet(q, k, v, gate, beta, state, GatedDeltaNetAttributes{})
 }
 
 func (b *Builder) GatedDeltaNetRepeatInterleave(q, k, v, gate, beta, state *Tensor) *Tensor {
-	return b.gatedDeltaNet(q, k, v, gate, beta, state, true)
+	return b.gatedDeltaNet(q, k, v, gate, beta, state, GatedDeltaNetAttributes{RepeatInterleave: true})
+}
+
+// GatedDeltaChunkSize follows transformers 5.14.1 torch_chunk_gated_delta_rule.
+// Reconsider this source arithmetic boundary when admitting another chunk policy.
+const GatedDeltaChunkSize = 64
+
+// GatedDeltaNetChunked applies the native uncached chunk update to normalized Q/K.
+// Scalar gates and F32 recurrence preserve packed output and final-state layout.
+func (b *Builder) GatedDeltaNetChunked(q, k, v, gate, beta, state *Tensor, repeatInterleave bool) *Tensor {
+	if gate != nil && gate.Shape.Dims[0] != SingletonExtent {
+		b.setError(errors.New("chunked GatedDeltaNet requires scalar gates"))
+		return nil
+	}
+	return b.gatedDeltaNet(q, k, v, gate, beta, state, GatedDeltaNetAttributes{RepeatInterleave: repeatInterleave, Chunked: true})
 }
 
 func (b *Builder) gatedDeltaNet(
 	q, k, v, gate, beta, state *Tensor,
-	repeatInterleave bool,
+	attributes GatedDeltaNetAttributes,
 ) *Tensor {
 	if b.err != nil {
 		return nil
@@ -148,7 +162,7 @@ func (b *Builder) gatedDeltaNet(
 	}
 	return b.add(
 		"", dtype.F32, shape, OpGatedDeltaNet, inputs,
-		GatedDeltaNetAttributes{RepeatInterleave: repeatInterleave},
+		attributes,
 	)
 }
 

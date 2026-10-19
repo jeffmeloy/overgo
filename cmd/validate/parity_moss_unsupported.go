@@ -11,7 +11,7 @@ func mossTransformerParity(flags *flag.FlagSet, args []string) error {
 	flags.String("model", "", "pinned MOSS-Image-SFT checkpoint directory")
 	flags.String("references", "", "native full-reference case directory")
 	flags.String("contract", "fixtures/moss", "frozen MOSS checkpoint and oracle contract directory")
-	flags.String("stage", "refinement", "native transformer boundary: refinement, joint (first block), denoiser (complete forward), sampling (complete trajectory), or decoder (pixels); denoiser and sampling use native conditioning")
+	flags.String("stage", "refinement", "native transformer boundary: refinement, joint (first block), denoiser (complete forward), sampling (complete trajectory), decoder (pixels), or conditioning-delta (native chunk attention); denoiser and sampling use native conditioning")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}

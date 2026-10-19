@@ -56,6 +56,7 @@ const (
 	kernelFp8ToF16
 	kernelFp8ToF32
 	kernelFwhtF32
+	kernelGatedDeltaChunkF32
 	kernelGatedDeltaNetBackwardF32
 	kernelGatedDeltaNetF32
 	kernelGatedLinearAttentionF32
@@ -278,6 +279,7 @@ var kernelFunctionNames = [...]string{
 	"fp8_to_f16",
 	"fp8_to_f32",
 	"fwht_f32",
+	"gated_delta_chunk_f32",
 	"gated_delta_net_backward_f32",
 	"gated_delta_net_f32",
 	"gated_linear_attention_f32",
@@ -499,6 +501,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	5,
 	5,
 	4,
+	19,
 	23,
 	15,
 	12,

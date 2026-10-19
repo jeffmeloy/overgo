@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "abiVersion": 54,
+  "abiVersion": 55,
   "cudaToolkit": "12.9",
   "nvcc": "12.9.86",
   "target": "compute_89",
@@ -64,7 +64,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "0469a5f872026f188fe6fa9c5c00d9e522ac60a2bc8fbaff7ac74588089fb5c5",
+      "sourceSha256": "870b571949720e5d3e523bbd8f8c7a89524d202fba9736e6bd354026ed762099",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -72,7 +72,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "267ae354f83dea5b607d603e08c9494a4a9f6abc94eab0783631621e672fc74d",
+      "assetSha256": "44621af2d5fc8b04514dab2d47a6d51ad62d8f02a76b5645b9097cac739c73e5",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -123,6 +123,7 @@
         "fp8_to_f16",
         "fp8_to_f32",
         "fwht_f32",
+        "gated_delta_chunk_f32",
         "gated_delta_net_backward_f32",
         "gated_delta_net_f32",
         "gated_linear_attention_f32",
@@ -772,6 +773,32 @@
           "functions": [
             "conv_2d_input_backward_f32",
             "conv_2d_weight_backward_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".f32"
+          ],
+          "functions": [
+            "gated_delta_chunk_f32"
           ]
         },
         {

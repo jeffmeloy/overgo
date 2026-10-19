@@ -312,6 +312,7 @@ type CompressedAttentionAttributes struct {
 
 type GatedDeltaNetAttributes struct {
 	RepeatInterleave bool
+	Chunked          bool
 }
 
 type GatedLinearAttentionAttributes struct {

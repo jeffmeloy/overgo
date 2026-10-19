@@ -191,8 +191,8 @@
       "owner": "overgo_moss",
       "status": "open",
       "budget": {
-        "nodes": 2720,
-        "reason": "Complete denoiser composition consumed 1780 measured production nodes from its 4500-node allowance. Remaining growth covers production integration through shared owners."
+        "nodes": 0,
+        "reason": "Remaining integration allowance moves to the shared runtime composition step without increasing the campaign allowance."
       },
       "steps": [
         {
@@ -216,8 +216,8 @@
       "owner": "overgo_moss",
       "status": "open",
       "budget": {
-        "nodes": 375,
-        "reason": "Native trajectory composition consumed 3125 measured production nodes from its 3500-node allowance. Remaining growth covers request integration through existing owners."
+        "nodes": 0,
+        "reason": "Remaining integration allowance moves to the shared runtime composition step without increasing the campaign allowance."
       },
       "steps": [
         {
@@ -240,10 +240,23 @@
       "owner": "overgo_moss",
       "status": "open",
       "budget": {
-        "nodes": 900,
-        "reason": "Compose existing graph, residency and media session owners; no parallel executor or resource manager."
+        "nodes": 6722,
+        "reason": "Composition reuses 900 runtime nodes, 2720 transformer nodes, 375 sampling nodes and 2727 unspent conditioning nodes. The 6722-node combined allowance covers typed source profiles, existing Generator lifecycle and shared resident graph composition. No new executor or publication owner is introduced."
       },
       "steps": [
+        {
+          "id": "compose",
+          "title": "Compose prompt-to-image execution through the shared generator",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentimage -count=1 -run '^TestMOSSGeneratorComposition$'",
+          "rationale": "Resolve typed image composition and sampler policy from source-bound profile data.\nBind the upstream chat template, prompt limit, fixed nearest-grid schedule and default negative-branch skipping into the profile identity.\nExtend the existing Generator lifecycle to compose the verified hidden-state encoder, rotary sampler and spatial VAE.\nUse the existing graph session and resource admission rather than introduce an executor.\nKeep latent handoff on the device from sampling through decoding.\nActual prompt and negative-prompt bytes enter the encoder without frozen hidden-state substitution.\nSeeded CPU source noise and the frozen schedule drive native sampling.\nReject unsupported request policies and mismatched component geometry before execution.\nUse one existing workflow recipe for prepare, integrate and decode.\nRegister source discovery only after the executable generator exists.\nFreeze native comparison at the existing full-image authorities and tolerances.\nCompare complete prompt-to-image requests including repeat identity and cancellation.\nRetain separate import activation, UI, reuse and resource measurements until their checks pass.\nServes: usable MOSS inference through the existing image workflow.\nDisappears: disconnected validation-only composition and duplicate configuration decoding.\nEvidence: original native fixtures, complete image authority comparisons and request lifecycle checks.\nBatch: image, profile, recipe and media owners plus repository preflight.",
+          "depends_on": [
+            "moss-conditioning/encode",
+            "moss-transformer/native-denoiser",
+            "moss-sampling/native-trajectory",
+            "moss-decoder/pixels"
+          ]
+        },
         {
           "id": "session",
           "title": "Execute complete image requests through native recipes",

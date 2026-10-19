@@ -2,63 +2,17 @@
   "branch": "master",
   "candidate_review": {
     "source": "Pinned committed master",
-    "selection": "Twenty production/test Go files plus bounded callers and retained results; not a full census.",
-    "status": "Ten active findings, three conditional deferrals. Expert recovery finding leads; two checked repairs removed. Tiny RAE assertion simplification recorded in sampled-test decisions without a separate backlog."
+    "selection": "Rotating20-file AST plus bounded source, callers and retained results; no recurring census.",
+    "status": "Ten active recommendations, three conditional deferrals. Checked expert-table repair removed; existing graph-fixture consolidation now included. Fresh sample established no additional serious defect or safe deletion of the new frame regression."
   },
   "committed_plan": {
-    "git_blob": "f4c2afb81a21704de1477cb9c81f99327215adc4",
+    "git_blob": "e267af22f2430cc7b1cbaffebee19bebb9c123d3",
     "path": "docs/plan.json",
-    "revision": "edbaa2e330588e58d36c20312c450ca016e57ba7",
-    "sha256": "c11fd875156decb4304b089ae5f472ce0f298ca56430931f9753435bd6e96732",
-    "working_tree_status": "Pinned committed plan is review authority; working plan has identical Git content. Historical lead response names an older plan."
+    "revision": "d9b48acbccd0d5f184d012ffcad4034e11171652",
+    "sha256": "47cb1384d0853e43c8e6d9915420488006acc5d16972485d6d58184a47f4a5c5",
+    "working_tree_status": "Working plan differs; it was not used as review authority. Its SHA256 is 4548c079ac9af99d7c9d98c0ca2ae1333f648c83a3ce503fe5495342fa88e199. Historical lead response remains unchanged."
   },
   "findings": [
-    {
-      "id": "SQA-164",
-      "status": "open",
-      "severity": "P2",
-      "category": "inference-recovery-and-resource-identity",
-      "classification": "confirmed-defect",
-      "title": "Repair pending expert pointer tables before allowing a retry to execute",
-      "evidence_commit": "edbaa2e330588e58d36c20312c450ca016e57ba7",
-      "sources": [
-        {
-          "path": "internal/modeldevice/expert_residency.go",
-          "symbol": "expertResidency.advance434, promote476, demote497, publish523"
-        },
-        {
-          "path": "internal/cuda/executor/executor.go",
-          "symbol": "executeCompiled1705: AdvanceExperts failure returns; persistent resources retained"
-        },
-        {
-          "path": "internal/modeldevice/expert_residency_test.go",
-          "symbol": "TestFlashNextExpertResidency/failed-promotion-keeps-tables-readable; readable follows actual table pointers"
-        },
-        {
-          "path": "internal/cuda/executor/executor_windows_decode_graph_test.go",
-          "symbol": "TestDecodeStepReplaysAsOneGraph: replay with promoted/offloaded experts"
-        }
-      ],
-      "evidence": "advance clears mapped route flags before promotion. demote changes host pointers; promote overwrites a victim's card slot with another expert. Final publish(ctx) can fail/cancel after that copy, leaving bank.changed true and an old device pointer at overwritten bytes. With flags clear, next advance returns nil before publish, so executeCompiled can run with stale expert identities. The promote-error branch attempts noncancelable publication, but failure there has the same retry hole. Existing table injects first-copy/pinning/early-cancel errors, not failed final publication with retry. New graph replay leaves this predicate unchanged.",
-      "impact": "A request cancellation or table-write failure can leave retained expert resources unsafe for the next request; a successful retry may read another expert's weights. Source-confirmed recovery path; no observed incorrect output or measured incident claimed.",
-      "recommended_change": "Use existing bank.changed/publish ownership to ensure every successful advance, including the no-route branch, has repaired pending tables before kernels run. A failed repair must continue to refuse execution. Preserve noncancelable cleanup, mapping/slot identities and lifetime; no second state ledger or fallback execution path.",
-      "displaced_surface": "Remove the unconditional no-route success that bypasses outstanding publication. Extend the existing failed-promotion subtest and readable assertion; keep one fixture/fake memory owner. Retain card/host split, miss/hit, capacity, release and CUDA bit-equivalence tests; no existing test deletion justified.",
-      "likely_effort": "Small local recovery repair plus existing-fixture cases; independent of graph-capture optimization.",
-      "expected_benefit": {
-        "outcome": "Prevents reuse of stale expert mappings after interruption through the existing dirty-table owner.",
-        "uncertainty": "Estimated production +5..+35/test +80..+180 AST nodes after replacing the unsafe branch, including retry assertions. Necessary correctness growth, not code reduction. No new fixture file, wrapper, gate or telemetry; no elapsed or memory saving claimed."
-      },
-      "plan_references": [
-        "strata-decode/decode-kernels",
-        "strata-decode/fast-load",
-        "flashnext-efficiency/reuse"
-      ],
-      "plan_coverage": "Persistent experts/replay landed; current kernel/load work uses this owner. No open step explicitly repairs publication retry. Recommend a local repair without another mandatory row/gate.",
-      "closure_criteria": [
-        "Failure on the first or a later pointer-table publication after successful promotion, and cancellation at final publication, cannot permit execution with stale mappings. Retry with no new route bits repairs every dirty bank or returns error. Actual GPU-table pointers still name each expert's own bytes; repeated failure, capacity and actual-completion release remain correct."
-      ],
-      "comparison": "Extend overgo/internal/modeldevice.TestFlashNextExpertResidency/failed-promotion-keeps-tables-readable using existing failWrite/onWrite/readable. Inject at table publication after successful expert copies, clear the failure, call advance without routing again and verify every actual table pointer. Repeated failed repair must return error. Native go test ./internal/modeldevice -run '^TestFlashNextExpertResidency$' is the focused owner after implementation; retain the existing Windows/CUDA missed-expert bit test in its current lane. No SQA execution."
-    },
     {
       "id": "SQA-163",
       "status": "open",
@@ -66,7 +20,7 @@
       "category": "bounded-processing-and-test-consolidation",
       "classification": "confirmed-defect",
       "title": "Charge the GGUF sampling budget before allocating and reading its samples",
-      "evidence_commit": "edbaa2e330588e58d36c20312c450ca016e57ba7",
+      "evidence_commit": "d9b48acbccd0d5f184d012ffcad4034e11171652",
       "sources": [
         {
           "path": "internal/modelartifact/tensor_measurement_reader.go",
@@ -118,7 +72,7 @@
       "comparison": "Extend overgodb.TestSmallBlobsArePacked with post-copy packed-backup cancellation, no publication and successful resume; keep TestBlobStorePublicationContract and TestBackupWriterReleaseAcceptance. Include canceled-empty/between-read cases using existing fixtures, no sleeps. Native go test ./internal/overgodb -run 'Test(SmallBlobsArePacked|BlobStorePublicationContract|BackupWriterReleaseAcceptance)'. Required-ID backup checks cannot become whole-pack checks: released/irrelevant members differ.",
       "displaced_surface": "Replace context-free verification reads and Backup's context-discarding call boundary through the existing shared copy/hash owner. Keep bounded buffers, identity/error checks, file closes, destination locking and atomic publication. No existing test deletion justified; correctness coverage may grow.",
       "evidence": "VerifyBlobs calls context-free verifyPack under RLock before ctx.Err; canceled empty store can succeed. Backup's packed-ID verify loop also discards ctx after cancellable copy. copyVerified uses io.CopyBuffer with no ctx; backupReader already checks between reads. Prior unchanged-source AST: copyVerified body90, backupReader.Read25. No runtime reproduction.",
-      "evidence_commit": "edbaa2e330588e58d36c20312c450ca016e57ba7",
+      "evidence_commit": "d9b48acbccd0d5f184d012ffcad4034e11171652",
       "expected_benefit": {
         "outcome": "Stops repeated verification work after cancellation and permits prompt release through one existing IO owner.",
         "uncertainty": "Estimated total repair +40..+100 production/+100..+240 test AST nodes including context migration and the packed-backup case. Necessary correctness growth, not a net code reduction. No new fixture/schema/gate. In-flight OS reads are not preempted; elapsed, allocation and physical-storage effects are unmeasured."
@@ -167,16 +121,16 @@
       ],
       "comparison": "Same model/recipe/image/context/output work, warm submit-to-complete and prefill/decode, exact media/positions, cancellation/release, owned+physical device peak and process commitment. Retain TestProjectedPromptCacheRequiresExactMediaSignature/recurrent-session tests; add only missing binding cases. Earlier retained-state candidate31ff3f685bf7b2f4e392554732c8b4ba297d4f5d52c4160f8430324ca52407f5 raised device peak429MB and was rejected.",
       "displaced_surface": "If adopted, remove projected per-layer cache readback/re-upload and any replacement-only wrapper in the same change; keep one retained storage/lifetime owner. Keep necessary media-signature, multi-axis positions, recurrent/selection state, host-reference fallback and actual-completion release. No test deletion is currently justified.",
-      "evidence": "ProjectedInputs still excludes persistent device cache at runner_generation.go:92; runLayerCached returns host Key/Value/States. Current graph replay supports stable expert tables and dynamic block/sparse attributes; prefill readsRoutes and unsupported attention overrides still run launched. Older image evidence (1065 prompt/71 output IDs) was51.2466 ->37.6887s, owned peak38,734,030,720 ->38,622,966,400B; it predates current replay and does not measure this proposal.",
-      "evidence_commit": "edbaa2e330588e58d36c20312c450ca016e57ba7",
+      "evidence": "ProjectedInputs still excludes persistent device cache at runner_generation.go:92; runLayerCached returns host Key/Value/States. The sampled retained session already shares storage/lifetime and graph replay; projected admission remains distinct. Older image evidence (1065 prompt/71 output IDs) was 51.2466 -> 37.6887s, owned peak 38,734,030,720 -> 38,622,966,400B; it predates current kernels/replay and does not measure this proposal. Current spanSlot/retained-target ownership is shared by initial and replayed spans, but applies only to speculating single-branch greedy spans; removing ProjectedInputs admission alone is unsafe.",
+      "evidence_commit": "d9b48acbccd0d5f184d012ffcad4034e11171652",
       "expected_benefit": {
         "outcome": "Potentially fewer per-layer host/device copies and less duplicate state representation.",
         "uncertainty": "Elapsed and memory gain unmeasured for the proposed change. Estimated production/test AST delta unresolved until a shared ownership design exists; fixtures/gates/schema additions should be zero. Necessary new numerical/lifetime coverage may add test nodes."
       },
       "id": "SQA-155",
-      "impact": "Projected per-layer host state round trips remain plausible overhead. b84a522c3 improves warm text decode to~45.3tok/s but observed physical GPU peak grows148MiB; neither text timing nor owned-memory ledger proves image/256K or Strata parity.",
+      "impact": "Projected per-layer host state round trips remain plausible overhead. New fixed speculative frames reserve more memory: the retained 27B comparison grows owned peak by 474 MiB while speculation remains slower than plain decode. Flash-Next without speculation is unchanged. Neither improvement in text prefill nor unchanged driver-ledger peaks establishes image/256K or total physical-memory parity.",
       "likely_effort": "Medium; bounded comparison before implementation. A net reduction in state movement is required; code-size savings cannot yet be credibly estimated.",
-      "plan_coverage": "Persistent experts and graph replay landed. Existing images/reuse/256K acceptance own this handoff; no new row/cache. decode-kernels and fast-load address distinct measured costs, not projected-state acceptance.",
+      "plan_coverage": "Existing images/reuse/256K and final-parity steps own the projected handoff and matched memory/time acceptance. Fixed span frames and broad-route advance landed; Flash-Next MTP is still dirty/unlanded work. No new row/cache is needed.",
       "plan_references": [
         "flashnext-vision/images",
         "flashnext-efficiency/reuse",
@@ -200,15 +154,55 @@
         },
         {
           "path": "internal/modeldevice/expert_residency.go",
-          "symbol": "advance434/promote476/publish523: persistent tables/mapped route flags"
-        },
-        {
-          "path": "internal/cuda/executor/executor.go",
-          "symbol": "executeCompiled1688: readsRoutes/launchArguments capture restrictions; experts admitted"
+          "symbol": "expertResidency.advance/publish: broad-route filtering retains no-route dirty-table repair"
         }
       ],
       "status": "open",
       "title": "Consolidate projected generation with existing device-state ownership only when it removes transfers without raising peak memory"
+    },
+    {
+      "id": "SQA-166",
+      "status": "open",
+      "severity": "P3",
+      "category": "native-go-test-surface",
+      "classification": "source-opportunity",
+      "title": "Share the existing decode graph fixture with the new verify-span tests",
+      "evidence_commit": "d9b48acbccd0d5f184d012ffcad4034e11171652",
+      "sources": [
+        {
+          "path": "internal/cuda/executor/executor_windows_decode_graph_test.go",
+          "symbol": "decodeStepGraph25; buildDecodeStepGraph37; TestDecodeStepReplaysAsOneGraph109; bind145/stats163/readCaches170/logits186"
+        },
+        {
+          "path": "internal/cuda/executor/executor_windows_verify_span_test.go",
+          "symbol": "verifySpanGraph22; buildVerifySpanGraph35; TestVerifySpanReplaysCaptured112; bind148/stats166/readCaches173/logits189; TestExecutorSpanDecodeAttentionMatchesReference296"
+        },
+        {
+          "path": "internal/cuda/executor/launch_attention_layout.go",
+          "symbol": "decodeAttention208/decodePartialBytes223: up to eight causal queries"
+        },
+        {
+          "path": "internal/cuda/executor/executor_compare_windows_test.go",
+          "symbol": "newFixtureExecutor193: existing device creation/cudatest.Require/cleanup owner"
+        }
+      ],
+      "evidence": "Earlier bounded AST at 012d06200, with both test blobs unchanged at this pin: builders 692+707=1399 declaration nodes. Both construct the same width128/heads2/hidden256, capacity32/block4, sparse-attention plus IQ4_XS/Q8 MoE graph; differences are token rows, span-shaped tensors and rotary positions. Existing decode fixture additionally retains width/experts/topK for offload setup. Each caller duplicates bind(147), stats(68), readCaches(110), logits(87) function-literal nodes; last three bodies hash identically, bind differs only graph type/local size name. c248593af added 2746 test AST versus 23 production AST. Unique correctness coverage remains necessary; duplicated scaffolding can share the existing owner.",
+      "impact": "Two Windows tests maintain the same mixed graph and device binding/copy/release operations. Sharing this fixture reduces maintenance surface while retaining every distinct replay, offload and rejected-span assertion. No runtime speed or memory saving established.",
+      "recommended_change": "Extend existing decodeStepGraph/buildDecodeStepGraph to take rows []uint32 and derive span/positions; single-token caller passes one row. Remove verifySpanGraph/buildVerifySpanGraph. Share only the private bind/stats/readCaches/logits operations with explicit arguments in that existing Windows test owner. Retain newFixtureExecutor, moePinnedValues/moePinnedQuantize and copyFixtureDeviceBytes. Other cached dense-block builders do not represent this mixed sparse/MoE graph; no new package, options framework or universal fixture.",
+      "displaced_surface": "Delete the second struct/builder and duplicate four local closures after migrating both callers. Retain separate tests/executors and workload counts: decode's six one-token steps with mapped-host/promoted experts versus launched all-resident experts, HtoD/actual-pointer lifetime and exact logits/cache bits; verify's three-token spans starting 9,12,13,16,19, including backtracking, runtime positions/counts and per-query selections. Keep graph-launch/kernel-launch/wait assertions and independent TestExecutorSpanDecodeAttentionMatchesReference, with spans2/5/8, window0/3, softcap0/1.5, small and split attention. Do not share away the independent reference oracle or weaken cancellation/error propagation and retained-result release.",
+      "likely_effort": "Small-to-medium private test-fixture migration; no production or model change.",
+      "expected_benefit": {
+        "outcome": "One mixed graph definition and one copy of shared device fixture operations serve two concrete tests.",
+        "uncertainty": "Estimated net production0/test -750..-1000 AST nodes, including union fields, span/position adaptation, helper parameters/calls and maintenance; measure actual delta after migration. No fixture files, schema, gate or CUDA additions. Runtime setup/executor/graph/workload counts intentionally unchanged, so this is test-code reduction, not an elapsed/allocation claim."
+      },
+      "plan_references": [
+        "strata-decode/mtp"
+      ],
+      "plan_coverage": "Verify-span prerequisite has landed; MTP is its current consumer. This bounded cleanup can accompany that work, without a new mandatory row or gate.",
+      "closure_criteria": [
+        "Both graph tests use the existing fixture with no duplicate struct/builder or migrated closures, all unique cases and independent attention reference remain, and net test AST decreases after counting replacement helpers/calls. Supported Windows/CUDA execution confirms all three intended tests ran, not skipped."
+      ],
+      "comparison": "Before:1399 builder declaration nodes plus two copies of412 closure nodes, two fixture structs. After:one span-capable existing fixture and shared operations; estimated net -750..-1000 test nodes with unchanged GPU workloads. In supported Windows/CUDA, set OVERGO_CUDA_TEST=1 and use native go test ./internal/cuda/executor -run '^(TestDecodeStepReplaysAsOneGraph|TestVerifySpanReplaysCaptured|TestExecutorSpanDecodeAttentionMatchesReference)$'; current CUDA lane already owns these tests. No SQA validation or new test framework."
     },
     {
       "category": "native-go-test-surface",
@@ -219,7 +213,7 @@
       "comparison": "Map exact-prompt/capacity=1 uncanceled ID equality to assertPromptCacheAfterDecode, retaining logits/tolerance/cache accounting. Native go test ./internal/inference -run 'Test(PromptCacheReuseAfterDecodeTokensHost|PromptCacheRetainsDecodedTokens)' is the focused host owner; Windows counterparts remain in OVERGO_CUDA_TEST=1 lane. No consumer of timing logs found.",
       "displaced_surface": "One test body/declaration, one import, one HermeticLlamaGGUF/open/close setup and six Generate invocations disappear. Keep TestPromptCacheReuseAfterDecodeTokensHost, TestPromptCacheRetainsDecodedTokens and Windows counterparts; no helper, fixture file, wrapper or gate replacement.",
       "evidence": "TestPromptCacheTotalTurnCostHost opens another model/runner, makes2 warmups+4 ABBA generations and logs clocks with no timing criterion or retained result. Its ID comparison is already covered by TestPromptCacheReuseAfterDecodeTokensHost via assertPromptCacheAfterDecode (also logits/cache accounting/capacity). No committed caller/name/log consumer found.",
-      "evidence_commit": "edbaa2e330588e58d36c20312c450ca016e57ba7",
+      "evidence_commit": "d9b48acbccd0d5f184d012ffcad4034e11171652",
       "expected_benefit": {
         "outcome": "Less test code and repeated host execution without retiring numerical or interruption coverage.",
         "uncertainty": "Estimated production 0/test -160..-180 AST nodes including declaration/import; measured body count 152. One setup and six generation calls removed, zero replacement helpers/fixtures/gates. Elapsed improvement not measured; no new timing threshold."
@@ -263,7 +257,7 @@
       "comparison": "Retain overgo/internal/overgodb.TestSmallBlobsArePacked (different kinds, repack, reopen, backup and corruption), TestPackStreamsItsMembers (many same-kind digests and bounded allocation) and TestPackIndexRejectsImpossibleCounts. Native go test ./internal/overgodb -run '^(TestSmallBlobsArePacked|TestPackStreamsItsMembers|TestPackIndexRejectsImpossibleCounts)$' when implemented; no SQA run. Optional one-time matched-ID native comparison if timing matters, without a permanent ratchet.",
       "displaced_surface": "One closure and two packKey calls per comparison disappear. Existing artifact comparator serves rebuild and packing. No test/helper/fixture addition or deletion.",
       "evidence": "Every packBlobsUnder sort comparison constructs two packKey slices by hex-encoding then decoding each digest and prepending its uint8 kind. artifact.CompareID compares exactly the same numeric kind and raw [32]byte digest. Supplemental AST: old sort expression 37 nodes; slices.SortFunc(small, artifact.CompareID) 8 nodes.",
-      "evidence_commit": "edbaa2e330588e58d36c20312c450ca016e57ba7",
+      "evidence_commit": "d9b48acbccd0d5f184d012ffcad4034e11171652",
       "expected_benefit": {
         "outcome": "Less production Go and no comparator key serialization.",
         "uncertainty": "Expected production -29 AST from exact expression counts; test/setup/fixture/gate/schema 0. Actual allocation/time gains unmeasured. Index bytes, payloads, temporary disk and migration remain unchanged."
@@ -301,7 +295,7 @@
       "comparison": "Before722 declaration nodes,2 stores/4 commits/2 handlers/2 GETs. After estimated502..562 nodes,1 store/2 commits/1 handler/2 GETs. Native go test ./internal/server -run 'Test(BrowseRunsReadsOvergoDBRecords|ShapeRunProjectsRecord|BrowseRunsUnconfigured)'; list/detail failures remain separately observable. No browser/model workload or absence test.",
       "displaced_surface": "Remove the second standalone test and one Open/facts-commit/run-commit/Close/New/Cleanup sequence; keep both GETs and unique detail assertions. Production, fixture files, schemas, gates and helper maintenance unchanged. Preserve the compatibility test name; use the existing generator for any required evidence-identity refresh.",
       "evidence": "Prior AST on source unchanged at this pin counts list/detail tests at 342/380 declaration nodes (722 total). Both Open a temporary store, commit facts and a run, Close, reopen through Handler.New and register cleanup before a read-only GET. Detail uniquely adds an input and verifies immutable lineage; move these requirements. Neither route mutates the store. The list test is the compatibility owner; no separate committed reference to the detail test was found outside its definition.",
-      "evidence_commit": "edbaa2e330588e58d36c20312c450ca016e57ba7",
+      "evidence_commit": "d9b48acbccd0d5f184d012ffcad4034e11171652",
       "expected_benefit": {
         "outcome": "Less test code and one fewer durable-store setup/handler lifecycle, retaining both HTTP contracts.",
         "uncertainty": "AST delta estimated; setup counts are source facts, not measured wall/memory savings. The old detail fixture used default config; retain the list's configured handler and do not invent a default-config acceptance requirement."
@@ -343,7 +337,7 @@
       "comparison": "Native go test ./internal/artifact with existing tests. Missing location.Artifact assignment must fail the retained location test; noncanonical two-component ordering must fail the manifest test; kind collapse must fail the identity test. Same untagged package, Windows file semantics retained. No production, fixture or gate expansion.",
       "displaced_surface": "Entire 266-node body plus declaration/imports removed; one small location binding assertion moves. TestIdentityIncludesKind retains same-payload/different-kind and equal-digest behavior; TestManifestIdentityUsesCanonicalComponents retains real order independence, descriptor and clone isolation.",
       "evidence": "The boundary test rechecks kind-separated hashes already owned by TestIdentityIncludesKind. Its components slice contains one member, so slices.Reverse changes nothing; the manifest owner already compares two genuinely reversed components and their canonical output. The location section creates another temporary file and checks identity binding; CanonicalLocalLocation receives only the ID, not the manifest, so revalidating the untouched manifest afterward adds no cross-component mutation contract.",
-      "evidence_commit": "edbaa2e330588e58d36c20312c450ca016e57ba7",
+      "evidence_commit": "d9b48acbccd0d5f184d012ffcad4034e11171652",
       "expected_benefit": {
         "outcome": "Less test code and one fewer physical-file setup without weakening demonstrated contracts.",
         "uncertainty": "Estimated production 0/test -220..-260 AST nodes net, one test file/TempDir/file write and repeated identity/manifest setup removed. No elapsed-time claim; exact delta is for implementation to report."
@@ -389,7 +383,7 @@
       "comparison": "Retain overgodb.TestQueryFiltersAndFollowsImmutableCatalog, TestQueryBoundsAndCycleRejection, TestQueryCursorBindsHeadAndContract and TestProjectionQueryPlanEfficiency. Add a mixed-kind/mixed-relation order assertion to the existing query fixture only if its current assertions do not pin this order. Preserve bounded traversal, duplicate compaction, cursor and historical semantics; native go test ./internal/overgodb is the existing owner. No SQA validation.",
       "displaced_surface": "One duplicate comparator body and compactLineage wrapper disappear. Two actual query callers share the same operation. No exported API, new package, format, index, cache or migration.",
       "evidence": "Prior AST over unchanged source found two identical 64-node comparator bodies in the same query owner. sortedQueryLineage also calls compactLineage, a single-use seven-body-node wrapper over slices.Compact. Existing cross-package comparators are not equivalent: query sorts relation first, then lexical child/parent ID strings; numeric Kind order and child-first canonicalization would change visible order and traversal under bounds.",
-      "evidence_commit": "edbaa2e330588e58d36c20312c450ca016e57ba7",
+      "evidence_commit": "d9b48acbccd0d5f184d012ffcad4034e11171652",
       "expected_benefit": {
         "outcome": "One local ordering policy and less production Go.",
         "uncertainty": "Estimated production -45..-65/test 0..+40 AST nodes, no new setup/fixture/gate/schema. Total saving may be small after necessary ordering coverage; decline if helper/migration cost erases it. String formatting cost remains intentionally unchanged."
@@ -427,7 +421,7 @@
       "comparison": "Retain the5 operational markers/layout table in overgodb.TestRSIStorageClassContract, schema admission in runrecord.TestRSIStorageClassContract, exact metadata/identity/atomicity/recovery in runrecord.TestObservationChunkPublication. Native go test ./internal/overgodb ./internal/runrecord -run 'Test(RSIStorageClassContract|ObservationChunkPublication)'; existing inventory owns its row update. No new test.",
       "displaced_surface": "One production declaration, two artificial descriptor examples, repeated wrapper assertions in three tests, two unused artifact imports and one declaration-inventory entry disappear. All three test bodies remain, with existing setup. LayoutStorageClass and its audio-recovery caller remain separate. No new helper/package, fixture, migration, schema or gate.",
       "evidence": "Prior AST: wrapper38 declaration/21body nodes. Only3 test callers; declaration inventory independently marks it test-held. Commit admission directly uses IsOperationalSignalSchema; runrecord's table already checks that predicate. Observation test directly checks schema/media, identity, atomicity and round trips.",
-      "evidence_commit": "edbaa2e330588e58d36c20312c450ca016e57ba7",
+      "evidence_commit": "d9b48acbccd0d5f184d012ffcad4034e11171652",
       "expected_benefit": {
         "outcome": "Less production and test surface through the already-used admission owner.",
         "uncertainty": "Measured removable production declaration: 38 AST nodes. Estimated net test reduction 120..180 AST nodes including migrated predicate assertions and imports; no new helper or replacement setup. Three in-memory descriptor constructions disappear; no file/model fixture or lane invocation is removed. Existing inventory loses one row and its group metadata changes. No elapsed, allocation or physical storage saving measured."
@@ -485,7 +479,7 @@
       },
       "displaced_surface": "Conditional partial-name build/admission and nonempty-edge trust; retain committed whole-or-refuse naming and immutable charges.",
       "evidence": "At the pinned revision nameEarlierParts still bypasses named uncharged parts and trusts existing edges for whole mappings; containContents can skip unknown content. No current producer or retained mixed/partial legacy instance was established. Current exploratory publication supplies complete content identities. Conditional exposure risk is not a demonstrated current failure.",
-      "evidence_commit": "edbaa2e330588e58d36c20312c450ca016e57ba7",
+      "evidence_commit": "d9b48acbccd0d5f184d012ffcad4034e11171652",
       "expected_benefit": {
         "outcome": "An explicit supported-input boundary could prevent exposure loss without repeated reconstruction.",
         "uncertainty": "No present consumer/incident or performance gain. Estimated +30..+100 production/+100..+300 test AST if repair is adopted; necessary growth, not simplification. Existing fixture only, no census/framework."
@@ -553,7 +547,7 @@
       },
       "displaced_surface": "Ambiguous concatenated-regex key; remove only redundant admission code whose retained caller enforces the same constraint.",
       "evidence": "preTokenizerName still indexes splitRegexPre with strings.Join(regexes,\"\\n\"). A single expression containing the delimiter can equal the key of separate sequential Splits. Kinds/options are validated but ordered boundaries are lost. No known admitted checkpoint uses this constructed collision.",
-      "evidence_commit": "edbaa2e330588e58d36c20312c450ca016e57ba7",
+      "evidence_commit": "d9b48acbccd0d5f184d012ffcad4034e11171652",
       "expected_benefit": {
         "outcome": "Preserve exact tokenizer rule boundaries at the existing admission owner.",
         "uncertainty": "Estimated +10..+70 production/+30..+100 test AST, no new setup beyond the refusal table. No elapsed/memory saving established; correctness growth only if adopted."
@@ -595,7 +589,7 @@
       },
       "displaced_surface": "Silent present-state filtering in an as-of completeness claim; retain query, content locators and retention owners.",
       "evidence": "documentAt filters current locator.released before the ThroughSequence cutoff; a cutoff therefore queries presently retained content, not a reconstruction of all past content. DerivedCacheSchemas currently admits only five legacy cache schemas and excludes verdicts. No current historical caller of an affected releasable schema was demonstrated.",
-      "evidence_commit": "edbaa2e330588e58d36c20312c450ca016e57ba7",
+      "evidence_commit": "d9b48acbccd0d5f184d012ffcad4034e11171652",
       "expected_benefit": {
         "outcome": "A precise retained-before-cutoff versus complete-as-of contract avoids future misuse.",
         "uncertainty": "Clarification alone may require no Go/test growth. A bounded explicit refusal is provisionally +10..+60 production/+40..+120 test AST in existing fixtures; no physical-storage saving or migration justified."
@@ -635,68 +629,83 @@
   ],
   "gate_test_assessment": {
     "ast_analysis": {
-      "tool": "Ephemeral wrapper around existing internal/gosyntax Snapshot.Overlay/Syntax; exact git-show blobs, go/ast traversal/local bindings, go/format body hashes and partial go/types. One successful parser invocation; no repository analyzer/recurring dependency.",
-      "revision": "edbaa2e330588e58d36c20312c450ca016e57ba7",
-      "snapshot_identity": "ab52b0c4e353b630dd988a1fa8ca2434736166e9c654ec8a6b0e8f700f92d655",
+      "tool": "Ephemeral wrapper around existing internal/gosyntax Snapshot.Overlay/Syntax using exact pinned git-show blobs, go/ast counts/local bindings and formatted function-body hashes; partial go/types on device_buffer_pool.go. Corrected two missing filename selections before the successful pass; no repository analyzer/framework added.",
+      "revision": "d9b48acbccd0d5f184d012ffcad4034e11171652",
+      "snapshot_identity": "e12e5db4b416d2dd3b5a4af93f58c929e9bfff3ac7f1e70d9bc79e1c90fc160d",
       "files": [
         {
-          "path": "internal/cuda/driver/card_windows.go",
-          "nodes": 374,
+          "path": "cmd/loop/improve_resume_test.go",
+          "nodes": 1226,
+          "test": true
+        },
+        {
+          "path": "internal/cuda/executor/device_buffer_pool.go",
+          "nodes": 922,
           "test": false
         },
         {
-          "path": "internal/cuda/executor/executor_windows_decode_graph_test.go",
-          "nodes": 2365,
+          "path": "internal/cuda/executor/executor_windows_buffer_pool_test.go",
+          "nodes": 423,
+          "test": true
+        },
+        {
+          "path": "internal/cuda/executor/executor_windows_graph_drop_test.go",
+          "nodes": 402,
           "test": true
         },
         {
           "path": "internal/cuda/executor/graph_exec_cache.go",
-          "nodes": 581,
+          "nodes": 844,
           "test": false
         },
         {
-          "path": "internal/inference/sampling_vocab.go",
-          "nodes": 1281,
+          "path": "internal/inference/device_cache.go",
+          "nodes": 11051,
           "test": false
         },
         {
-          "path": "internal/landing/lanes.go",
-          "nodes": 2206,
-          "test": false
-        },
-        {
-          "path": "internal/latentimage/moss_contract_test.go",
-          "nodes": 2135,
+          "path": "internal/inference/device_span_session_windows_test.go",
+          "nodes": 484,
           "test": true
         },
         {
-          "path": "internal/modelartifact/pipeline.go",
-          "nodes": 806,
+          "path": "internal/inference/nextn_device_speculation.go",
+          "nodes": 1053,
           "test": false
         },
         {
-          "path": "internal/modelartifact/pipeline_test.go",
-          "nodes": 1079,
+          "path": "internal/inference/span_slots.go",
+          "nodes": 749,
+          "test": false
+        },
+        {
+          "path": "internal/inference/speculating_frames_windows_test.go",
+          "nodes": 888,
           "test": true
         },
         {
           "path": "internal/modeldevice/expert_residency.go",
-          "nodes": 4117,
+          "nodes": 3822,
           "test": false
         },
         {
           "path": "internal/modeldevice/expert_residency_test.go",
-          "nodes": 2131,
+          "nodes": 2509,
           "test": true
         },
         {
-          "path": "internal/overgodb/blob_pack.go",
-          "nodes": 1580,
+          "path": "internal/overgodb/query.go",
+          "nodes": 3800,
           "test": false
         },
         {
-          "path": "internal/overgodb/blob_pack_test.go",
-          "nodes": 1393,
+          "path": "internal/overgodb/query_test.go",
+          "nodes": 3044,
+          "test": true
+        },
+        {
+          "path": "internal/overgodb/release_test.go",
+          "nodes": 2512,
           "test": true
         },
         {
@@ -710,110 +719,95 @@
           "test": true
         },
         {
-          "path": "internal/server/device_monitor_test.go",
-          "nodes": 553,
+          "path": "internal/server/speculative_option_test.go",
+          "nodes": 670,
           "test": true
         },
         {
-          "path": "internal/server/request_monitor.go",
-          "nodes": 932,
-          "test": false
-        },
-        {
-          "path": "internal/server/webui_browser_monitor_test.go",
-          "nodes": 316,
+          "path": "internal/server/webui_browser_speculative_decoding_test.go",
+          "nodes": 198,
           "test": true
         },
         {
-          "path": "internal/torchrng/cpu.go",
-          "nodes": 515,
-          "test": false
-        },
-        {
-          "path": "internal/torchrng/cpu_polynomial.go",
-          "nodes": 496,
-          "test": false
-        },
-        {
-          "path": "internal/torchrng/cpu_test.go",
-          "nodes": 432,
+          "path": "internal/server/webui_composer_budget_test.go",
+          "nodes": 184,
           "test": true
         }
       ],
-      "production_nodes": 14332,
-      "test_nodes": 11505,
-      "local_identifier_bindings": 6178,
-      "type_resolution": "request_monitor.go:339 resolved Uses/79 Selections with standard-library importer; four missing sibling declarations (statusRecorder twice, Handler, writeJSON). Other owners checked with local bindings and source/callers. Windows files parsed, not built; no full package/SSA resolution.",
-      "results": "No exact formatted function-body duplicate above10 nodes. expertResidency.advance declaration/body205/186, publish65/46; actual mutation/publication order supports SQA-164, not similarity. Existing graph/monitor helpers have multiple test callers. CPUNormal serves RAE; MOSS is a planned second production consumer. Existing CompareID owns binary identity order, different from query lexical order. Older unchanged-source counts are retained estimates, not this fresh AST pass."
+      "production_nodes": 23685,
+      "test_nodes": 13641,
+      "local_identifier_bindings": 9412,
+      "type_resolution": "305 Uses/43 Selections, six diagnostics: checked/device/driver imports unresolved and sibling deviceAllocationAlignment absent. Other shared operations traced with local bindings and source/callers. Windows files parsed, not built.",
+      "results": "No exact whole-function body duplicate above10 nodes. Both initial/replayed spans already call bindSpanSlot and holdSpanSlot; spanHiddenRow copying preserves seed lifetime across rejected-span release. Current query source still has identical relation-first sort closures and a thin Compact wrapper(SQA-154); earlier nested-AST counts remain labeled earlier evidence. Reporting/resume tests duplicate two synthetic scenarios but retain different assertions. Device pool release/trim/acquire and graph staging retain distinct actual-completion and invalidation duties."
     },
     "test_decisions": [
       {
-        "tests": "overgo/internal/cuda/executor.TestDecodeStepReplaysAsOneGraph",
+        "tests": "overgo/internal/inference.TestSpeculatingSessionReplaysItsFrames; TestSpanDecodeSession",
         "decision": "retain",
-        "reason": "New1583-node declaration compares six launched/all-resident tokens with one compiled replay/offloaded path across two block boundaries. IQ4_XS/Q8_0, dynamic first-query/routes, final logits/cache bits and launch/copy/wait facts are distinct combined regressions. Reuses moePinnedValues/moePinnedQuantize/newFixtureExecutor. b84a522c3 adds254 production/2311 test AST: justified correctness growth, not simplification. Retained seeded stale-query/route failures distinguish it from individual MoE checks; no safe wholesale deletion."
+        "reason": "New870-node declaration/888-node file checks lazy activation, served loop, seven accepting/rejecting spans at both parities and several cache pages, no recapture, selected/hidden exact bits under F32/native. Existing474-node span test uses an independent teacher-forced host oracle and session reuse; no safe replacement/deletion established. Reuse existing hermetic Qwen35/open-runner fixtures. Native Windows/CUDA, OVERGO_CUDA_TEST=1, no -short; requireIntegration only checks testing.Short."
       },
       {
-        "tests": "overgo/internal/server.TestMetricsReportDeviceAndExpertState; TestWebUIBrowserMonitor",
+        "tests": "overgo/internal/cuda/executor.TestDeviceBufferPoolReusesClassesAndTrims; TestDeviceBufferClass; TestExecutorDropsGraphExecsBeforeFreedMemoryReplays",
         "decision": "retain",
-        "reason": "HTTP numeric facts/optional absence differ from browser counter deltas and present/absent-device rendering. Both reuse testMonitoredGenerator. One-second polling/five worker crossings are source proxies, not measured bottlenecks; no new abstraction warranted."
+        "reason": "Allocation classes/free-share bound, pure bucket geometry and graph invalidation/compile serial are different requirements. Memory counts are mechanism contracts, not arbitrary elapsed ratchets. Existing newFixtureExecutor owns creation/cleanup; no generic fixture needed."
       },
       {
-        "tests": "overgo/internal/torchrng.TestCPUNormalGolden; TestCPUNormalRefusesScalarFill; overgo/internal/rae.TestSeededNoiseMatchesReference",
-        "decision": "simplify",
-        "reason": "Retain60 independent exact upstream RNG cases across six seeds/ten counts, scalar-refusal owner, and RAE full model-shape golden. Remove only generation_test.go:48's CPUNormal(seed,8) refusal assertion: torchrng's table already covers8 plus MinInt/-1/0/1/15 and nil result. No unique case to move. Estimated production0/test-20..-30 AST nodes, one redundant call/assertion removed; fixture/setup/gate0. Native go test ./internal/torchrng ./internal/rae remains the owner after implementation; no SQA run."
-      },
-      {
-        "tests": "overgo/internal/latentimage.TestMOSSGoldenContract",
+        "tests": "overgo/internal/modeldevice.TestFlashNextExpertResidency/broad-routes-move-nothing; failed-publication-is-repaired-before-the-next-run; failed-promotion-keeps-tables-readable",
         "decision": "retain",
-        "reason": "Oracle identity/geometry/backend/stage, exact signed-zero/discrete values, finite/tolerance and negative comparisons differ from RNG checks. addc1b63e adds483 production/2573 test AST and two fixture files (oracle-contract.json187949B, cpu-normal.safetensors175952B), despite footer fixtures0. Coverage growth, not native-MOSS parity. Displaced RAE RNG was removed; no duplicate production implementation."
+        "reason": "New113 test AST extends existing fake-memory/route/advance/readable setup: broad routes clear without moving bytes, following narrow routes still promote. Publication-repair and copy/pinning/cancel failures remain distinct. +28 production nodes remove real repeated copying; no test-surface saving claimed."
       },
       {
-        "tests": "overgo/internal/modelartifact.TestPipelineInventoryDeterministic; TestPipelineInventoryRefusesIncompleteOrEscapingComponents",
+        "tests": "overgo/internal/overgodb.TestReleaseKeepsChainAuthority; TestReleaseSurvivesReplayAndCheckpoints; TestReleaseRefusals; TestReleaseThenBackupAndRebuild; TestReleasedContentReintroduces; TestReleaseFollowsChildrenOfPolicyRecords",
         "decision": "retain",
-        "reason": "pipelineFixture shares tiny setup. Relocation identity, metadata invalidation, source companion handling, traversal refusal and shard-index mismatches are distinct. Numeric config arrays remain configuration, not components. Inventory import does not establish execution."
+        "reason": "newReleaseFixture/retentionContent/assertReleased already consolidate setup. Idempotent physical cleanup, replay/checkpoints, alias/never-durable/contradictory refusal, migration, concurrent reintroduction and typed downward reach differ. No safe removal or replacement by compiler/vet established."
       },
       {
-        "tests": "overgo/internal/overgodb.TestRetentionTypedLineage; TestRetentionPinnedRootsSurvive; TestRetentionRefusesLiveStoreLocalAlias; TestSmallBlobsArePacked; TestPackStreamsItsMembers; TestPackIndexRejectsImpossibleCounts",
+        "tests": "overgo/internal/overgodb.TestRetentionTypedLineage; TestRetentionPinnedRootsSurvive; TestRetentionRefusesLiveStoreLocalAlias; TestQueryCursorBindsHeadAndContract; TestQueryProjectionReturnsRequestedFactsOnly; TestNewestFirstCursor",
         "decision": "retain",
-        "reason": "Typed liveness/pinned aliases, isolation and pack identity/reopen/repack/backup/corruption are distinct; shared retentionContent already exists. Logical release bytes do not imply physical reclamation. SQA-157 removes comparator work while preserving tests; SQA-158 extends existing cancellation coverage."
+        "reason": "Typed versus untyped references, alias-less/missing pins, live local authority, stale head/contract, projection selection and newest ordering are distinct. Query uses indexes and bounded projections; no evidence warrants dropping correctness assertions or rebuilding query ownership."
       },
       {
-        "tests": "overgo/internal/modeldevice.TestFlashNextExpertResidency/failed-promotion-keeps-tables-readable",
-        "decision": "retain",
-        "reason": "First-copy/pinning/early-cancel cases miss final table-publication failure followed by no-new-flags retry. Extend existing fake/readable for SQA-164; necessary growth. Retain independent Windows/CUDA missed-expert bit equivalence."
+        "tests": "overgo/internal/server.TestSpeculativeDecodingDeclaredOption; TestWebUIBrowserSpeculativeDecoding; TestWebUIComposerBudget",
+        "decision": "retain; narrow reader only if worthwhile",
+        "reason": "Shared draftGenerator fixture serves API and browser: capability admission/greedy options/stored counts versus real toggle/request/inspector behavior. ComposerBudget checks event vocabulary, despite its historical name; it is not a performance threshold. Its webuiJavaScript helper scans all embedded JS; dataset-drafting also reads one file, while route-table legitimately needs all. Direct fs.ReadFile could avoid two scans but adds code unless sharing pays; no demonstrated net test reduction or ranked finding."
       },
       {
-        "tests": "Prior prompt-cache, run-browser, artifact and storage-class groups",
-        "decision": "remove/merge/simplify as SQA-160/162/153/161 specifies",
-        "reason": "Bodies/owners rechecked. TestIDDecodesInPlace already merged into TestIDRoundTrip with a real escape; SQA-156 removed after source and retained negative checks. No absence suites/new helper/fixture-only saving."
+        "tests": "overgo/cmd/loop.TestCycleReportsWhatItCreditedAndEachPhaseWall; TestInterruptedCycleResumesAtItsFirstUnpassedPhase",
+        "decision": "merge candidate, lower priority",
+        "reason": "Fresh AST220+254=474 declaration nodes. Move unique wording and3-versus1 phase-wall assertions into the existing first failure/resume rows before deleting reporting-only setup/two synthetic calls; net -40..-90 test AST estimated after additions. Retain keys, errors, consumed inputs and publication-before-lanes owners. No extra backlog item or recovery machinery."
+      },
+      {
+        "tests": "Graph replay fixtures; prompt-cache timing; run-browser; typed identity; storage-class groups",
+        "decision": "merge/remove/simplify as SQA-166/160/162/153/161",
+        "reason": "Retained requirements and source/callers rechecked. Graph helpers can share while keeping workloads; six timing-only generations can disappear; one store setup can serve list/detail; move unique location binding; use actual admission predicate. No new assertion framework, absence test or repeated model workload."
       }
     ],
-    "efficiency": "One landing shares its gate across steps. Native go test -json -timeout=0 ./... owns matching package reuse, including early invariant overlap. CUDA lane: go test -p=1 -timeout=0 with OVERGO_CUDA_TEST=1/supported Windows files. Audio parity alone uses -count=1; external fresh measurements separately scoped. Unknown dependencies retain coverage. No new selector/input graph or broad cache changes.",
-    "static_overlap": "Landing runs go vet -tags modeltest,integration ./... and go fix with those tags. No specific compiler/vet analyzer replaces numeric equivalence, publication recovery, browser behavior or budget-before-read requirements. No unspecified linter coverage or custom-analyzer deletion assumed.",
+    "efficiency": "One landing shares a gate across its steps; native go test -json -timeout=0 ./... owns ordinary test-input reuse. CUDA uses go test -p=1 -timeout=0 with OVERGO_CUDA_TEST=1 and supported Windows tests; device uses cmd/device-lane -paths-file; webui uses its existing lane. Audio's external-effect acceptance specifically uses -count=1. Discovery/build/admission/execution/retry/invalidation are distinct; unknown dependencies retain coverage. No second selector/input graph or broad cache disablement.",
+    "static_overlap": "Landing go vet and go fix use tags modeltest,integration; ordinary gate lanes do not compile those real-model tests. No named compiler/vet diagnostic establishes numeric equivalence, table repair, report semantics or budget-before-read. No custom-analyzer deletion or unspecified linter overlap assumed.",
     "retained_landings": [
       {
-        "commit": "b84a522c3",
-        "evidence": "Warm chat2.701/2.694/2.700 ->2.221/2.199/2.197s; same135 IDs/text in8 runs, first token142..147ms holds. Kernel launches379777 ->38227; HtoD1614 ->212, DtoH347 ->148, synchronizations148 hold. Owned peak48420392572 vs48420379260B nearly holds, physical GPU46716 ->46864MiB (+148MiB): graph resources are outside ledger. Cache16 experiment gave no timing benefit over4 and cost~30MB/exec. Host gate2m42.252s, lanes11m13.301s,16 CUDA packages executed. Retained lead evidence, not SQA measurements or Strata parity."
+        "commit": "730fc1dda",
+        "evidence": "Frozen1561-token document first output9.77/10.07 ->3.58/3.68s by grouping once and pricing mapped-host reads; repeated per-row PCIe reads disappear. Same1673 prompt/answer IDs, answer decode roughly holds, reported peak49.37GB. Scratch33.5 ->43.3MB within reclaimed expert capacity. +296 production/+710 test AST. This is earlier retained evidence, not new SQA measurement."
       },
       {
-        "commit": "00f597b7d",
-        "evidence": "Monitor+1113 production/+976 test AST. Optional scalar NVML outside CUDA worker, PCIe observation20ms. Host gate2m51; lanes11m24,16 CUDA packages; turn wait10m42 is admission, not execution. No throughput benefit attributed to monitoring."
+        "commit": "347a47475",
+        "evidence": "Fixed recurrent/output slots, captured-feed buffer, kept BLAS staging and lowest-address pool reuse. Hermetic loop warm requests replay7/7, capture0 versus6 captures previously. 27B speculation26.1..26.5 ->26.4..26.7 tokens/s, still below plain27.7..27.9; owned peak22,796,672,640 ->23,293,763,200B(+474MiB). Four extra graph execs about30MB each on Flash-Next outside ledger, kept staging256MiB and two slots~236MB are declared costs, not all measured together as peak. Non-speculating Flash-Next1.645..1.667s and48,420,379,260B hold. +1226 production/+888 test AST,0 fixtures/CUDA/schema. Gate host3m1.432,lanes11m10.718(discovery732ms,wait1ms,device5m40.420 admission3ms,web2m52.086,CUDA5m29.564 executed11/cached5),verify2.233s. Real27B still cycles46 frames, so fixed addresses do not guarantee zero recapture."
       },
       {
-        "commit": "addc1b63e",
-        "evidence": "Old RNG fails60 exact upstream cases; retained corrected code matches them and four original MOSS noise captures. Host gate9m16.570s; lanes4m20.279s, CUDA5 executed/11 cached; scorecard not reached. No native MOSS conditioning/trajectory/image or latency parity inferred."
+        "commit": "887d54ada",
+        "evidence": "Broad-route advance removes about19,866 copies after the frozen document. Whole request7.30..7.34 ->6.32..6.33s; answer3.55..3.58 ->2.58s; document prompt holds3.74..3.75s. Following short prompt478..491 ->166..170ms. Same document1673 IDs, but short-chat text varies on baseline itself; no independent held-out result. Reported peak49.37GB unchanged. +28 production/+113 test AST; gate host2m34.319,lanes3m19.025(discovery769ms,wait0,device18.572 admission1ms,web2m56.032,CUDA2m59.683 executed6/cached10),verify2.449s. Lane times overlap, not summed serially."
       },
       {
-        "commit": "3e6df361b00081148c020a8325dcc046108a863c",
-        "evidence": "SQA-159/156 repairs checked: eviction uses noncancelable release/retained failed owners/shared-device exception; real escaped ID merged into roundtrip. Retained prechange failures distinguish both. Landing+5 production/+122 test AST, no fixtures; necessary ownership coverage exceeds local test deletion. No SQA rerun."
+        "commit": "2b032e49b",
+        "evidence": "Unchanged loader owner: one93.7GB pass removes59.5GB expert reread, resolution+open65.0..76.6 ->20.0..20.9s; host working set18.82 ->19.11GB, owned device peak48.42GB unchanged. No matched physical-memory parity established."
       }
     ],
-    "responsiveness": "Composer already appends Text deltas, retains header, coalesces scroll per frame, disposes observer/frame, renders terminal markdown in finally. No remaining prefix/per-token-header finding. Monitor overlap guard/visible-view lifetime already bound polling; SVG redraw is not a measured defect. Replay removes feed/route copies, retained short-chat profile is now kernel-dominated. Physical graph memory must accompany owned memory in acceptance.",
-    "database": "Typed lineage/roots/aliases feed Release's existing writer transaction/retry cleanup. Pack bytes/locators differ from logical counts. Pack query/index, VerifyBlobs and Backup owners inspected: reuse binary CompareID only where order agrees and backupReader for cancellation; preserve lexical query order, required-ID backup scope, atomic publication/history/snapshots. No live census/new format/compaction/deletion or measured stored-byte saving.",
-    "plan_verification": "26 open steps. session-reuse/device-experts/decode-graph/monitor have landed. decode-kernels requires current-trunk profiling; fast-load addresses extra59.5GB expert read after93.7GB hashing. Prefill/media/follow-up/256K acceptance remain open. MOSS layer0 evidence is prototype comparison, not complete native conditioning. Small-model scorecard and earlier Strata figures do not close matched final parity.",
-    "recovery": "Existing cmd/loop first-unpassed-phase resume and footer/cycle evidence remain owners; no new repeated-phase defect established. Expert publication retry is a separate concrete resource defect. No new gate/telemetry/validity mechanism."
+    "responsiveness": "startSpeculatingLocked is reached only for eligible requested raw-greedy device speculation. Spans alternate retained outputs while past refs are held; pooled copies and hidden-row copies preserve rejection lifetime. Initial/replay callers share binding/hold owners; loader waits for its pass and verifies claims before publication. Fixed staging removes pointer churn at an explicit memory cost. Current MTP worker changes excluded. GUI already appendData, stable header, requestAnimationFrame scroll and disposal; no new rendering framework or unmeasured latency claim.",
+    "database": "collectLiveSet copies descriptors, lineage and manifests under a read lock before traversing the closure; this preserves a captured view and policy callbacks, so a live streaming shortcut is not established. Release appends facts with expected-head admission, then rechecks released locators inside writer ownership before deleting loose blobs, including no-new-fact retries; inline frames and shared pack bytes are not equal to reclaimed physical space. Existing query indexes/cursor identities/projected facts and blob copy/hash owners remain. SQA-158 cancellation and SQA-157/154 sort reductions survive. No new format/index/cache, physical dedup claim, live census or content deletion.",
+    "plan_verification": "24 open steps. groups, span-frames and advance have landed and leave the plan. chunked owns remaining encoded expert products/F32 staging; MTP's plan-only count adjustment reports candidate1.66 ->1.32s/about82 tokens/s after trimming, but its implementation remains dirty and is not accepted here. Reuse, projected/image,256K and final parity still require matched complete requests and host working set/commitment plus physical device peaks. Stable-buffer memory growth must be counted with draft weights/caches. Strata is a measured comparison, not presumed optimal.",
+    "recovery": "New broad-route filtering preserves dirty-table publication and existing failed-repair refusal. Device slots retain outputs until cache release; run errors release acquired storage and actual execution precedes reuse. No new serious lifetime defect established in this bounded sample. Existing cycle first-unpassed-phase/native test cache and gate footer remain owners; duplicate test setup does not justify a new resume mechanism."
   },
-  "hygiene_assessment": "README/skill/plan remain instruction/sequencing owners. Generated graph kernels/bindings/SBOM have consumers; CPU polynomial upstream notice and oracle fixtures retain provenance. No doc/tmp deletion based on age/name. Remove only this review's ephemeral tooling after use.",
+  "hygiene_assessment": "README/skill and sampled source comments retain architecture, numerical, alignment and resource-lifetime rationale. The sampling readMeter comment should agree with pre-read admission after SQA-163. Snapshot/checkpoint and evidence paths have active producers/recovery consumers; no age-based deletion or shared tmp cleanup is justified. Only this run's own ephemeral review files are removed.",
   "implementation_review": {
     "agent": "Overgo lead developer in the former SQA chat",
     "comments": [
@@ -1138,11 +1132,12 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
   "limitations": [
-    "Bounded20-file AST:14332 production/11505 test nodes,6178 local bindings. Partial server types339 uses/79 selections/four missing-sibling diagnostics; no full-package/platform/SSA analysis.",
-    "No tests/gates/services/browser/model/GPU/benchmark/profile/live-store execution or implementation. Retained gate/timing evidence is lead-produced, not independently measured.",
-    "Selected plan rationales and all open-step identities inspected; giant full-plan output was truncated, so no full-content review claimed. Omitted source excerpts were reread.",
-    "Recovery defect follows source mutation/publication/retry order, not reproduced wrong output. Savings are estimates unless counted; necessary numerical/recovery coverage can grow total code.",
-    "Historical implementation fields retained verbatim. Stale response is not a defect/gate failure; SQA does not author a current lead reply."
+    "AST: 23,685 production/13,641 test nodes, 9,412 local bindings. go/types on device_buffer_pool.go resolves 305 Uses/43 Selections with six diagnostics from three unresolved project imports and missing sibling alignment constant. No whole-package, SSA or Windows build claim.",
+    "Initial parser invocation refused two nonexistent test filenames; corrected to existing executor_windows_buffer_pool_test.go and executor_windows_graph_drop_test.go and completed. No tests, gates, services, model/GPU workloads, profiles, benchmarks or live-store census ran.",
+    "Retained implementation measurements are not fresh SQA measurements. New 27B speculative frames increase owned memory 474 MiB for a small speed improvement and remain slower than plain decode; graph execs also consume memory outside that ledger. No matched final physical GPU/process-commitment acceptance.",
+    "Frozen output identity/replay bits do not establish independent held-out quality. MTP was excluded at the pinned revision and landed as c2daef77f after assessment; only its commit evidence was inspected afterward. Multimodal/256K and final physical-memory/commitment acceptance remain open.",
+    "AST similarity/counts are cost evidence, not behavioral equivalence. Test-reduction estimates include migration/helpers; necessary coverage may grow code. Source reads are bounded and some batched output was truncated, with decision-critical portions reread.",
+    "Implementation-owned historical fields remain verbatim. Missing/stale replies and reasonable deferrals are not defects, approvals or automatic gate failures."
   ],
   "master_lead_triage": {
     "at": "2026-09-24",
@@ -1212,12 +1207,18 @@
       }
     }
   },
-  "next_finding_number": 165,
+  "next_finding_number": 167,
+  "post_review_landing": {
+    "commit": "c2daef77f6739e43f3b96a47aedd68598ce6e524",
+    "source_reviewed": false,
+    "evidence": "Retained landing message: Flash-Next short chat1.661/1.667 ->1.334/1.327s, about64 ->81 decode tokens/s;36/49 drafts accepted, no warm graph instantiations/updates. Document pairs6.680/6.273 ->6.348/5.883s used a nearby draft-output variant; first output worsened3.48..3.64 ->3.62..3.82s. Chat ledger peak48.420 ->48.505GB;16 kept graphs estimated~480MB outside ledger. +2689 production/+1634 test AST. Frozen token IDs match, not an independent held-out result.",
+    "assessment": "Meaningful landed throughput progress; exact final-code whole-document comparison, total memory and final Strata parity remain distinct acceptance work. This observation does not re-pin the preceding AST/source assessment."
+  },
   "ranked_active_finding_ids": [
-    "SQA-164",
     "SQA-163",
     "SQA-158",
     "SQA-155",
+    "SQA-166",
     "SQA-160",
     "SQA-157",
     "SQA-162",
@@ -1228,35 +1229,37 @@
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Codex acting as SQA; this chat previously implemented Overgo changes. This is not an independent third-party review.",
   "review_notes": [
-    "SQA-159/156 removed after checking3e6df361b source repairs and retained negative checks, not merely absence; combined landing+5 production/+122 test AST.",
-    "SQA-164: graph replay changed routes to mapped byte flags but left final-publication/no-flags retry hole. Current symbols replace old bitmap references.",
-    "SQA-155 remains a comparison hypothesis; obsolete resolve/capture exclusions removed. Text replay gains/physical memory cost do not close media/256K acceptance.",
-    "Other active predicates and three conditional deferrals remain supported. Tiny duplicated RAE scalar-refusal assertion is a sampled simplification, not another priority."
+    "Expert-table recovery remains checked repaired after broad-route filtering: dirty tables are published even with no new routes; failed-publication actual-pointer regression remains. Remove SQA-164 from active findings, not a resolved-item ledger.",
+    "SQA-166 retains a large, concrete duplicate graph-fixture reduction on unchanged source. New TestSpeculatingSessionReplaysItsFrames has a distinct no-recapture/rejection/parity requirement and is retained alongside the independent teacher-forced span oracle.",
+    "887d54ada removes measured broad-route churn: whole document request 7.30..7.34 to 6.32..6.33 seconds. 347a47475 stabilizes speculative frames but grows 27B owned peak by 474 MiB and does not make its speculation faster than plain decode. Memory and independent quality acceptance remain material.",
+    "At the reviewed pin the plan has24 open steps after removing groups, span-frames and advance. MTP landed afterward as c2daef77f; post-review retained results are distinguished below, not treated as a fresh source review."
   ],
-  "reviewed_at": "2026-10-18T20:39:55.0832268Z",
-  "reviewed_master": "edbaa2e330588e58d36c20312c450ca016e57ba7",
+  "reviewed_at": "2026-10-19T02:43:02.8351663Z",
+  "reviewed_master": "d9b48acbccd0d5f184d012ffcad4034e11171652",
   "schema_version": 1,
   "scope": [
-    "Read repository skill.md, README and committed plan identity first. Pin edbaa2e330588e58d36c20312c450ca016e57ba7; committed source, not dirty files, is review authority. This chat previously implemented changes: not independent third-party SQA.",
-    "Fresh rotating sample: graph/runtime attributes and expert residency; device/request monitoring; pipeline inventory and CPU RNG/MOSS oracle tests; older blob packing, retention/query callers; composer streaming and landing commands. Beyond the latest diff.",
-    "Actual selected-file AST/partial types completed and provisional conclusions recorded before prior-report access. Then rechecked old predicates and 3e6df361b repairs. Relevant old paths remain unchanged since9118d624 except repaired prompt cache/ID test; unrelated environment additions do not alter findings."
+    "Read current root skill.md, pinned README architecture and committed plan identity first. Pin d9b48acbccd0d5f184d012ffcad4034e11171652. This chat previously implemented changes and is not independent third-party SQA. MTP was dirty during the assessment and excluded.",
+    "Fresh rotating 20-file AST covers speculative frames, retained cache/pool and NextN lifetimes, expert residency, database retention/release/query, GUI speculation/streaming vocabulary, and cycle resume tests. Bounded source/callers extend to loader publication, browser compositor and gate commands beyond the latest diff.",
+    "Provisional conclusions were recorded before reading prior findings or implementation response. Then rechecked unchanged blob identities, changed callers and old predicates. Prior graph-fixture AST counts are explicitly earlier evidence on unchanged files, not part of this fresh pass.",
+    "Committed plan e267af22f2430cc7b1cbaffebee19bebb9c123d3 has 24 open steps. All open identities/commands and selected Strata rationale reviewed; no full-plan or all-model audit. Fixed frames and broad-route advance landed; MTP measurements in a plan-only commit are not landed implementation.",
+    "Master advanced to c2daef77f6739e43f3b96a47aedd68598ce6e524 after the pinned assessment. Only that new landing's retained commit evidence and changed-path list were read; source/AST conclusions remain bound to d9b48acbc. The report can be published atop that newer commit without implying its source was reviewed."
   ],
   "sqa_response": {
-    "reviewed_master": "edbaa2e330588e58d36c20312c450ca016e57ba7",
-    "assessment": "Fresh review supports leading expert-table retry defect and confirms two repairs. Read-budget/cancellation issues precede small production/test consolidations. New graph, monitor and numerical tests have distinct requirements; redundant RAE scalar-refusal assertion has a small additional safe simplification.",
-    "evidence": "Twenty committed Go files parsed before previous report; current callers and retained b84a522c3/00f597b7d/addc1b63e/3e6df361b evidence. No new validation/performance execution.",
-    "recommendation": "Repair pending expert-table publication through existing bank.changed/publish. Adopt bounded budget/cancellation repairs and named test/setup removal as lead prioritizes. Keep Strata work on measured kernels/load and whole-request memory; graph launch counts alone do not justify more retention.",
-    "uncertainty": "No observed wrong expert output; source establishes recovery hole. Physical graph memory grows despite stable owned ledger. Image/long-context/final Strata acceptance remain incomplete; MOSS oracle/prototypes do not establish full native support.",
-    "next_action": "Lead owns adoption, scope and sequencing. Report-only publication uses existing nonblocking mutation locks; preserve workers, impose no plan rows/gates or new owner decision.",
+    "reviewed_master": "d9b48acbccd0d5f184d012ffcad4034e11171652",
+    "assessment": "Current committed code improves document processing and expert movement. Fixed speculative frames add substantial retained memory, and the measured27B loop remains slower than plain decode; final memory/time acceptance remains open. Budget/cancellation defects and concrete old consolidation candidates survive. The new span regression has unique coverage; no safe deletion of it was established.",
+    "evidence": "Fresh20-file committed AST/type-limited analysis and provisional conclusions preceded prior-report access. Rechecked old predicates/current callers, unchanged graph fixtures and retained730fc1dda/347a47475/887d54ada evidence. No validation workloads.",
+    "recommendation": "Keep existing MTP/encoded-products owners and judge full-request benefit including extra staging, slots, graphs and draft resources. Reuse decode graph test scaffolding(SQA-166), retain new frame/reference tests, and prefer existing budget/IO/admission owners for repairs. No mandatory plan row, gate or framework.",
+    "uncertainty": "Fixed addresses remove one recapture cause; capacity churn remains on27B. At the reviewed pin MTP was unlanded; it landed afterward as c2daef77f and only its retained message was inspected. Frozen IDs are not held-out quality; total physical memory/commitment, multimodal and256K acceptance remain incomplete.",
+    "next_action": "Lead owns adoption, scope and sequencing. Publish this report under existing nonblocking mutation locks, preserving all implementation fields and worker changes. No new owner decision required.",
     "implementation_response_context": {
       "reviewed_at": "2026-10-15T18:25:52.1302923Z",
       "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
       "plan_git_blob": "a22ca7b01f13c6ab65ca38a35415348a4d9d0421",
-      "status": "Historical response names an older completed plan; committed current identity is separate. 3e6df361b is later source/commit evidence, not a refreshed lead reply. All implementation-owned/legacy fields retained exactly. Missing/stale reply is not a defect, approval or gate failure."
+      "status": "Historical response still names the older completed plan and remains unchanged. Current committed-plan identity is separate; no newer response to this review is fabricated. Recovery repair directly engaged the old evidence. New performance commits disclose mechanism and memory growth, but predictions labeled held-out-quality only retain frozen output/bit comparisons. Reasonable deferral and stale response are observations, not defects or gate failures."
     },
     "user_findings": [
       "SQA-110"
     ],
-    "user_finding_assessment": "Substantive lead deferral remains justified: no actual mixed/partial legacy producer or inventory established. Reconsider on admission change or demonstrated input; no new pending question."
+    "user_finding_assessment": "Existing substantive mixed-legacy deferral remains justified with no actual newly admitted partial inventory. Keep stated reconsideration triggers; no new probing question."
   }
 }

@@ -241,6 +241,21 @@ func TestFlashNextExpertResidency(t *testing.T) {
 			t.Fatalf("placement after the runs = %+v: %v", placement, err)
 		}
 	})
+	t.Run("broad-routes-move-nothing", func(t *testing.T) {
+		// Two of three experts are most of each bank, as a prompt's routes are: every expert stays where it is.
+		cache, mem := open(t, oneEach)
+		writes := mem.writes
+		route(t, cache, 1, 2)
+		advance(t, cache)
+		readable(t, cache, mem, map[string][]uint32{"gate": {0}, "down": {0}})
+		if mem.writes != writes || bytes.IndexByte(cache.routed, 1) >= 0 {
+			t.Fatal("broad routes moved experts or stayed marked")
+		}
+		// The next run's narrow routes move their expert.
+		route(t, cache, 2)
+		advance(t, cache)
+		readable(t, cache, mem, map[string][]uint32{"gate": {2}, "down": {2}})
+	})
 	t.Run("release-moves-a-card-allocation-to-host", func(t *testing.T) {
 		cache, mem := open(t, oneEach)
 		route(t, cache, 0)

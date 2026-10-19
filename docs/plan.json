@@ -258,17 +258,10 @@
       "title": "Read long prompts at the speed Strata reaches on this PC",
       "status": "open",
       "budget": {
-        "nodes": 400,
+        "nodes": 372,
         "reason": "advance measured +28 production nodes; chunked replaces the F32 staging and strided SGEMM with grouped tensor-core products over the encoded weights, estimated net flat or negative after its deletions"
       },
       "steps": [
-        {
-          "id": "advance",
-          "title": "Keep the residency's moves off a prompt whose routes name most experts",
-          "status": "open",
-          "verify": "go test ./internal/modeldevice -count=1 -run '^TestFlashNextExpertResidency$'",
-          "rationale": "From the prefill profile at cdc917f19 and step groups: the expert residency's advance moves experts between card and host by the previous run's routes, and after a prompt, whose routes name nearly every expert of every layer, it makes about 19,900 copies (1.15 s of copy time, about 1.9 s in all) at the head of the next run: the first decode step of the answer in a normal chat.\nThe step skips promotions for a routed node whose run flagged more than half of its experts (a prompt's routes favour none of them), while card experts still take their recency and route counts still count; a decode step (ten of 512 experts a token) or a verify span promotes as before.\nAcceptance: TestFlashNextExpertResidency/broad-routes-move-nothing (fails before: the card's expert is demoted); the document's prefill and the answer's decode right after the prompt, and a second request in the same process, before and after.\nServes: first-output and throughput of the first answer after a long prompt.\nBatch: device."
-        },
         {
           "id": "chunked",
           "title": "Prefill in large chunks with grouped quantized expert matrices, streaming the next layer's experts while attention runs",

@@ -152,7 +152,25 @@ func verifyMOSSDecoder(ctx context.Context, runtime *graphruntime.ResidentSessio
 			} else {
 				repeatEqual = hashes[key] == hash
 			}
-			if e := json.NewEncoder(output).Encode(map[string]any{"stage": "decoder", "case": name, "boundary": key, "reference": references[key], "pass": pass, "values": len(want), "failed": failed, "unequal": unequal, "max_abs": worst, "repeat_checked": pass != 0, "repeat_equal": repeatEqual, "resident_weight_and_static_bytes": runtime.StaticBytes()}); e != nil {
+			var encoded *artifact.Descriptor
+			if key == "pixels" {
+				image, e := encodeUnitPNG(hwc, p.OutH, p.OutW)
+				if e != nil {
+					return e
+				}
+				content, e := PNGContent(image)
+				if e != nil {
+					return e
+				}
+				encoded = &content.Descriptor
+				imageHash := sha256.Sum256(content.Data)
+				if pass == 0 {
+					hashes["png"] = imageHash
+				} else {
+					repeatEqual = repeatEqual && hashes["png"] == imageHash
+				}
+			}
+			if e := json.NewEncoder(output).Encode(map[string]any{"stage": "decoder", "case": name, "boundary": key, "reference": references[key], "pass": pass, "values": len(want), "failed": failed, "unequal": unequal, "max_abs": worst, "repeat_checked": pass != 0, "repeat_equal": repeatEqual, "resident_weight_and_static_bytes": runtime.StaticBytes(), "encoded_image": encoded}); e != nil {
 				return e
 			}
 			failures += failed

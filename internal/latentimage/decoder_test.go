@@ -107,7 +107,10 @@ func decoderGolden(t *testing.T, backend string, run graphruntime.Runner) {
 	}
 }
 
-func TestMOSSDecoderGolden(t *testing.T) { decoderGolden(t, "cpu-f32", reference.Execute) }
+func TestMOSSDecoderGolden(t *testing.T) {
+	decoderGolden(t, "cpu-f32", reference.Execute)
+	t.Run("native-pixel-export", mossPixelGolden)
+}
 
 func TestMOSSDecoderRejectsInvalidWeights(t *testing.T) {
 	_, cfg, weights := decoderFixture(t)

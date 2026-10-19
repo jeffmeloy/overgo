@@ -34,6 +34,7 @@ type normalizedRGBImage struct {
 	pixels                     []float32
 	width, height              int
 	pixelStride, channelStride int
+	quantize                   func(float32) uint8
 }
 
 // ColorModel returns the standard RGBA color model.
@@ -49,9 +50,9 @@ func (i normalizedRGBImage) At(x, y int) color.Color {
 	}
 	offset := (y*i.width + x) * i.pixelStride
 	return color.RGBA{
-		R: normalizedPixel8(i.pixels[offset]),
-		G: normalizedPixel8(i.pixels[offset+i.channelStride]),
-		B: normalizedPixel8(i.pixels[offset+(RGBChannels-1)*i.channelStride]),
+		R: i.quantize(i.pixels[offset]),
+		G: i.quantize(i.pixels[offset+i.channelStride]),
+		B: i.quantize(i.pixels[offset+(RGBChannels-1)*i.channelStride]),
 		A: ^uint8(0),
 	}
 }
@@ -65,6 +66,19 @@ func normalizedPixel8(value float32) uint8 {
 // EncodeNormalizedRGBPNG encodes normalized [-1,1] RGB pixels without a
 // layout conversion. planar selects CHW; false selects HWC.
 func EncodeNormalizedRGBPNG(pixels []float32, height, width int, planar bool) ([]byte, float32, float32, error) {
+	return encodeRGBPNG(pixels, height, width, planar, normalizedPixel8)
+}
+
+// EncodeUnitRGBPNG encodes finite HWC unit RGB with NumPy F32 ties-to-even rounding.
+// Values outside the unit interval are clamped before conversion.
+func EncodeUnitRGBPNG(pixels []float32, height, width int) ([]byte, float32, float32, error) {
+	return encodeRGBPNG(pixels, height, width, false, func(value float32) uint8 {
+		scaled := float32(min(max(value, 0), 1) * float32(^uint8(0)))
+		return uint8(math.RoundToEven(float64(scaled)))
+	})
+}
+
+func encodeRGBPNG(pixels []float32, height, width int, planar bool, quantize func(float32) uint8) ([]byte, float32, float32, error) {
 	if height <= 0 || width <= 0 || len(pixels) != height*width*RGBChannels {
 		return nil, 0, 0, errors.New("media: invalid normalized RGB output")
 	}
@@ -82,6 +96,7 @@ func EncodeNormalizedRGBPNG(pixels []float32, height, width int, planar bool) ([
 	source := normalizedRGBImage{
 		pixels: pixels, width: width, height: height,
 		pixelStride: pixelStride, channelStride: channelStride,
+		quantize: quantize,
 	}
 	var encoded bytes.Buffer
 	encoder := png.Encoder{CompressionLevel: png.DefaultCompression}

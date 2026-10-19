@@ -31,6 +31,18 @@ const (
 		3*4*attentionBF16RowTile) // alpha/max/sum rows
 )
 
+// The native wide-head F32 kernel owns 32 query rows and one 128-key panel.
+// Four padding floats avoid shared-bank conflicts and three rows hold max, sum and rescale.
+// Sixteen threads per row reproduce the four-quad reduction order.
+// These launch constants must follow attention_fast_f32 when its source policy changes.
+const (
+	attentionF32Rows        = uint32(32)
+	attentionF32Keys        = uint32(tensor.AttentionF32PanelWidth)
+	attentionF32Padding     = uint32(4)
+	attentionF32Threads     = uint32(512)
+	attentionF32SharedWords = attentionF32Rows*(attentionF32Keys+attentionF32Padding) + tensor.TripleExtent*attentionF32Rows
+)
+
 // configureLargeSharedKernels: one-time dynamic-shared opt-in for kernels
 // above the 48KB default.
 func configureLargeSharedKernels(lib *driver.Library, functions functionSet) error {
@@ -157,7 +169,7 @@ func blasAttentionGeometry(
 	queryHeads, keyValueHeads, queryTokens, keyValueTokens, keyCapacityTokens, keyWidth, valueWidth uint32,
 	attributes tensor.AttentionAttributes,
 ) (uint32, uint32, uint64, bool) {
-	if attributes.HasBlockMask || attributes.HasSinks ||
+	if attributes.MemoryEfficientF32 || attributes.HasBlockMask || attributes.HasSinks ||
 		attributes.MaxALiBiBias != 0 ||
 		attributes.SymmetricWindow || attributes.ChunkedWindow ||
 		attributes.RelativeBuckets != 0 ||
@@ -573,6 +585,13 @@ func launchAttentionLayout(
 		// Strided-batched SGEMM path: exact F32 gemm+softmax+gemm with the
 		// score tile bounded by the derived query chunk; owns every
 		// qualifying dense-MHA workload when the score staging is resident.
+		if attributes.MemoryEfficientF32 {
+			return launchGridSharedABI(state, functions[kernelAttentionTiledF32],
+				driver.Dim3{X: (queryTokens + attentionF32Rows - 1) / attentionF32Rows, Y: queryHeads, Z: sequences},
+				driver.Dim3{X: attentionF32Threads, Y: 1, Z: 1}, attentionF32SharedWords*uint32(f32ScalarBytes),
+				&query, &key, &value, &keyBias, &output, &keyWidth, &valueWidth,
+				&queryHeads, &keyValueHeads, &queryTokens, &keyValueTokens, &sequences, &scale)
+		}
 		if !attributes.NaiveF32 && blas != nil && blas.scores != 0 &&
 			relativeBias == 0 && sinks == 0 && blockIDs == 0 {
 			chunk, keyChunk, scoreBytes, ok := blasAttentionGeometry(

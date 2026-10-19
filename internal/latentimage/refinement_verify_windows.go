@@ -58,8 +58,8 @@ func compareMOSSValues(actual, want []float32, tolerance mossStageTolerance) (in
 // Checkpoint and oracle documents must retain their frozen content identities.
 // Every case must meet upstream BF16 tolerance and repeat bitwise.
 func VerifyMOSSTransformer(ctx context.Context, modelRoot, referenceRoot, contractRoot, stage string, output io.Writer) error {
-	if stage != "refinement" && stage != "joint" && stage != "denoiser" && stage != "sampling" {
-		return fmt.Errorf("MOSS stage %q must be refinement, joint, denoiser or sampling", stage)
+	if stage != "refinement" && stage != "joint" && stage != "denoiser" && stage != "sampling" && stage != "decoder" {
+		return fmt.Errorf("MOSS stage %q must be refinement, joint, denoiser, sampling or decoder", stage)
 	}
 	verify := func(path, digest string) error {
 		id, err := artifact.IdentifyFile(artifact.KindFile, path)
@@ -86,7 +86,7 @@ func VerifyMOSSTransformer(ctx context.Context, modelRoot, referenceRoot, contra
 		return err
 	}
 	for _, f := range checkpoint.Files {
-		if filepath.Dir(f.Path) == "transformer" || (stage == "sampling" && filepath.Dir(f.Path) == "scheduler") {
+		if filepath.Dir(f.Path) == "transformer" || (stage == "sampling" && filepath.Dir(f.Path) == "scheduler") || (stage == "decoder" && filepath.Dir(f.Path) == "vae") {
 			if err := verify(filepath.Join(modelRoot, f.Path), f.SHA256); err != nil {
 				return err
 			}
@@ -151,6 +151,9 @@ func VerifyMOSSTransformer(ctx context.Context, modelRoot, referenceRoot, contra
 				return err
 			}
 			defer source.Close()
+			if stage == "decoder" {
+				return verifyMOSSDecoder(ctx, runtime, modelRoot, referenceRoot, c.Name, c.Artifact, source, contract.Comparison.Tolerances, output)
+			}
 			if stage == "sampling" {
 				return verifyMOSSTrajectory(ctx, runtime, modelRoot, spec, c.Name, c.Artifact, source, contract.Comparison.Tolerances, output)
 			}

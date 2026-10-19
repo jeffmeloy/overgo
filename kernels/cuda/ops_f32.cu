@@ -1,4 +1,5 @@
 extern "C" __device__ float __nv_exp2f(float);
+extern "C" __device__ float __nv_expf(float);
 #include <cuda_fp16.h>
 #include <cuda_bf16.h>
 #include <cuda_fp8.h>
@@ -574,7 +575,7 @@ extern "C" __global__ void silu_f32(
     const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
     if (index < count) {
         const float value = input[index];
-        output[index] = value / (1.0f + expf(-value));
+        output[index] = __fdiv_rn(value, __fadd_rn(1.0f, __nv_expf(-value)));
     }
 }
 
@@ -1348,6 +1349,33 @@ extern "C" __global__ void sam_attention_f32(
 	output[index] = result / sum;
 }
 
+// Torch WelfordOps and block_reduce.cuh at 7661cd9c define this reduction.
+// Reduction order follows planar channels while storage stays channel-innermost.
+struct group_moments_f32 {
+	float mean, m2, count;
+};
+
+__device__ __forceinline__ group_moments_f32 group_combine_f32(group_moments_f32 a, group_moments_f32 b) {
+	if (a.count == 0.0f) return b;
+	if (b.count == 0.0f) return a;
+	const float delta = __fsub_rn(b.mean, a.mean);
+	const float count = __fadd_rn(a.count, b.count);
+	const float ratio = __fdiv_rn(b.count, count);
+	return {fmaf(delta, ratio, a.mean),
+		fmaf(__fmul_rn(__fmul_rn(delta, delta), a.count), ratio, __fadd_rn(a.m2, b.m2)), count};
+}
+
+__device__ __forceinline__ group_moments_f32 group_warp_f32(group_moments_f32 value) {
+	for (unsigned int offset = 16; offset; offset >>= 1) {
+		group_moments_f32 other = {
+			__shfl_down_sync(0xffffffff, value.mean, offset),
+			__shfl_down_sync(0xffffffff, value.m2, offset),
+			__shfl_down_sync(0xffffffff, value.count, offset)};
+		value = group_combine_f32(value, other);
+	}
+	return value;
+}
+
 extern "C" __global__ void group_norm_f32(
 		const float * input,
 		const float * weight,
@@ -1358,30 +1386,43 @@ extern "C" __global__ void group_norm_f32(
 		unsigned int groups,
 		float epsilon,
 		unsigned int count) {
-	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-	if (index >= count) {
-		return;
-	}
-	const unsigned int channel = index % channels;
 	const unsigned int channels_per_group = channels / groups;
-	const unsigned int first_channel = (channel / channels_per_group) * channels_per_group;
+	const unsigned int first_channel = blockIdx.x * channels_per_group;
 	const unsigned int values_per_group = channels_per_group * tokens;
-	float mean = 0.0f;
-	for (unsigned int token = 0; token < tokens; ++token) {
-		for (unsigned int item = 0; item < channels_per_group; ++item) {
-			mean += input[token * channels + first_channel + item];
+	group_moments_f32 value = {0.0f, 0.0f, 0.0f};
+	unsigned int observations = 0;
+	for (unsigned int j = threadIdx.x; j < values_per_group; j += blockDim.x) {
+		const float x = input[(j % tokens) * channels + first_channel + j / tokens];
+		const float delta = __fsub_rn(x, value.mean);
+		value.count = (float) ++observations;
+		value.mean = __fadd_rn(value.mean, __fdiv_rn(delta, value.count));
+		value.m2 = fmaf(delta, __fsub_rn(x, value.mean), value.m2);
+	}
+	value = group_warp_f32(value);
+	__shared__ group_moments_f32 partials[32];
+	__shared__ float mean, inverse;
+	if (blockDim.x > 32) {
+		if ((threadIdx.x % 32) == 0) partials[threadIdx.x / 32] = value;
+		__syncthreads();
+		value = threadIdx.x < blockDim.x / 32 ? partials[threadIdx.x] : group_moments_f32{0.0f, 0.0f, 0.0f};
+		if (threadIdx.x < 32) value = group_warp_f32(value);
+	}
+	if (threadIdx.x == 0) {
+		mean = value.mean;
+		inverse = rsqrtf(__fadd_rn(__fdiv_rn(value.m2, value.count), epsilon));
+	}
+	__syncthreads();
+	for (unsigned int j = threadIdx.x; j < values_per_group; j += blockDim.x) {
+		const unsigned int channel = first_channel + j % channels_per_group;
+		const unsigned int index = (j / channels_per_group) * channels + channel;
+		if (tokens == 1) {
+			output[index] = fmaf(__fmul_rn(__fsub_rn(input[index], mean), inverse), weight[channel], bias[channel]);
+		} else {
+			const float scale = __fmul_rn(inverse, weight[channel]);
+			const float shift = __fadd_rn(__fmul_rn(-scale, mean), bias[channel]);
+			output[index] = fmaf(scale, input[index], shift);
 		}
 	}
-	mean /= (float) values_per_group;
-	float variance = 0.0f;
-	for (unsigned int token = 0; token < tokens; ++token) {
-		for (unsigned int item = 0; item < channels_per_group; ++item) {
-			const float delta = input[token * channels + first_channel + item] - mean;
-			variance += delta * delta;
-		}
-	}
-	const float normalized = (input[index] - mean) * rsqrtf(variance / (float) values_per_group + epsilon);
-	output[index] = normalized * weight[channel] + bias[channel];
 }
 
 extern "C" __global__ void conv_2d_input_backward_f32(
@@ -4808,6 +4849,170 @@ extern "C" __global__ void attention_online_finalize_f32(
     }
 }
 
+// Fast F32 attention follows Torch 7661cd9c and CUTLASS da5e086d.
+// TF32x3 products retain the source small-big, big-small, big-big order.
+// Each 128-key panel has its own accumulator and source epilogue rescaling.
+__device__ __forceinline__ void attention_tf32_split(float x, unsigned int &big, unsigned int &small) {
+    big = __float_as_uint(x) & 0xffffe000u;
+    const float residual = __fsub_rn(x, __uint_as_float(big));
+    small = (__float_as_uint(residual) + 0x1000u) & 0xffffe000u;
+}
+
+__device__ __forceinline__ void attention_tf32_mma(float *c, const unsigned int *a, const unsigned int *b) {
+    asm volatile("mma.sync.aligned.m16n8k8.row.col.f32.tf32.tf32.f32 "
+                 "{%0,%1,%2,%3}, {%4,%5,%6,%7}, {%8,%9}, {%0,%1,%2,%3};"
+                 : "+f"(c[0]), "+f"(c[1]), "+f"(c[2]), "+f"(c[3])
+                 : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b[0]), "r"(b[1]));
+}
+
+__device__ __forceinline__ void attention_tf32_product(float *c, const float *a, const float *b) {
+    unsigned int ah[4], al[4], bh[2], bl[2];
+    for (unsigned int i = 0; i < 4; ++i)
+        attention_tf32_split(a[i], ah[i], al[i]);
+    for (unsigned int i = 0; i < 2; ++i)
+        attention_tf32_split(b[i], bh[i], bl[i]);
+    attention_tf32_mma(c, al, bh);
+    attention_tf32_mma(c, ah, bl);
+    attention_tf32_mma(c, ah, bh);
+}
+
+__device__ void attention_fast_f32(const float *query, const float *key, const float *value,
+                                   const float *key_bias, float *output, unsigned int key_width,
+                                   unsigned int value_width, unsigned int query_heads,
+                                   unsigned int key_value_heads, unsigned int query_tokens,
+                                   unsigned int key_value_tokens, unsigned int sequences, float scale) {
+    const unsigned int BM = 32, BN = 128, LD = 132;
+    const unsigned int warp = threadIdx.x / 32, lane = threadIdx.x % 32;
+    const unsigned int g = lane / 4, t = lane % 4;
+    const unsigned int row0 = (warp % 2) * 16, col0 = (warp / 2) * 16;
+    const unsigned int row_base = blockIdx.x * BM, head = blockIdx.y, seq = blockIdx.z;
+    const unsigned int kvhead = head / (query_heads / key_value_heads);
+    extern __shared__ float attention_fast_shared[];
+    float *p = attention_fast_shared, *maximum = p + BM * LD, *sum = maximum + BM, *rescale = sum + BM;
+    if (threadIdx.x < BM) {
+        maximum[threadIdx.x] = -3.402823466e+38F;
+        sum[threadIdx.x] = 0;
+    }
+    __syncthreads();
+    for (unsigned int base = 0; base < key_value_tokens; base += BN) {
+        float scores[2][4] = {{0, 0, 0, 0}, {0, 0, 0, 0}};
+        float score_stage[2][4] = {{0, 0, 0, 0}, {0, 0, 0, 0}};
+        for (unsigned int ch = 0; ch < key_width; ch += 8) {
+            float a[4];
+            for (unsigned int i = 0; i < 4; ++i) {
+                unsigned int r = row_base + row0 + g + (i % 2) * 8, c = ch + t + (i / 2) * 4;
+                a[i] = r < query_tokens && c < key_width
+                           ? query[((seq * query_tokens + r) * query_heads + head) * key_width + c]
+                           : 0;
+            }
+            for (unsigned int tile = 0; tile < 2; ++tile) {
+                float b[2];
+                for (unsigned int i = 0; i < 2; ++i) {
+                    unsigned int r = base + col0 + tile * 8 + g, c = ch + t + i * 4;
+                    b[i] =
+                        r < key_value_tokens && c < key_width
+                            ? key[((seq * key_value_tokens + r) * key_value_heads + kvhead) * key_width + c]
+                            : 0;
+                }
+                attention_tf32_product(score_stage[tile], a, b);
+                if (ch % 32 == 0)
+                    for (unsigned int i = 0; i < 4; ++i) {
+                        scores[tile][i] = __fadd_rn(scores[tile][i], score_stage[tile][i]);
+                        score_stage[tile][i] = 0;
+                    }
+            }
+        }
+        for (unsigned int tile = 0; tile < 2; ++tile)
+            for (unsigned int i = 0; i < 4; ++i)
+                p[(row0 + g + (i / 2) * 8) * LD + col0 + tile * 8 + 2 * t + i % 2] =
+                    __fadd_rn(scores[tile][i], score_stage[tile][i]);
+        __syncthreads();
+        {
+            const unsigned int row = threadIdx.x / 16, part = threadIdx.x % 16;
+            float scaled[8], mx = -3.402823466e+38F;
+            for (unsigned int i = 0; i < 8; ++i) {
+                unsigned int col = (part / 4) * 32 + (part % 4) * 2 + i % 2 + 8 * (i / 2);
+                float s = __fmul_rn(p[row * LD + col], scale);
+                if (key_bias && base + col < key_value_tokens)
+                    s = __fadd_rn(s, key_bias[base + col]);
+                scaled[i] = __fmul_rn(s, 1.4426950408889634074f);
+                if (base + col < key_value_tokens)
+                    mx = fmaxf(mx, scaled[i]);
+            }
+            for (unsigned int offset = 1; offset <= 8; offset *= 2)
+                mx = fmaxf(mx, __shfl_xor_sync(0xffffffffu, mx, offset));
+            mx = fmaxf(mx, maximum[row]);
+            const float alpha = __nv_exp2f(maximum[row] - mx);
+            float total = 0;
+            for (unsigned int i = 0; i < 8; ++i) {
+                unsigned int col = (part / 4) * 32 + (part % 4) * 2 + i % 2 + 8 * (i / 2);
+                float probability = base + col < key_value_tokens ? __nv_exp2f(scaled[i] - mx) : 0;
+                p[row * LD + col] = probability;
+                total = __fadd_rn(total, probability);
+            }
+            total = __fadd_rn(total, __shfl_xor_sync(0xffffffffu, total, 1));
+            total = __fadd_rn(total, __shfl_xor_sync(0xffffffffu, total, 2));
+            float s1 = __shfl_sync(0xffffffffu, total, (threadIdx.x & 16) + 4);
+            float s2 = __shfl_sync(0xffffffffu, total, (threadIdx.x & 16) + 8);
+            float s3 = __shfl_sync(0xffffffffu, total, (threadIdx.x & 16) + 12);
+            if (part == 0) {
+                sum[row] = __fadd_rn(__fmul_rn(sum[row], alpha), total);
+                sum[row] = __fadd_rn(sum[row], s1);
+                sum[row] = __fadd_rn(sum[row], s2);
+                sum[row] = __fadd_rn(sum[row], s3);
+                maximum[row] = mx;
+                rescale[row] = alpha;
+            }
+        }
+        __syncthreads();
+        for (unsigned int out_base = 0; out_base < value_width; out_base += BN) {
+            float accum[2][4] = {{0, 0, 0, 0}, {0, 0, 0, 0}};
+            float accum_stage[2][4] = {{0, 0, 0, 0}, {0, 0, 0, 0}};
+            for (unsigned int k = 0; k < BN; k += 8) {
+                float a[4];
+                for (unsigned int i = 0; i < 4; ++i)
+                    a[i] = p[(row0 + g + (i % 2) * 8) * LD + k + t + (i / 2) * 4];
+                for (unsigned int tile = 0; tile < 2; ++tile) {
+                    float b[2];
+                    for (unsigned int i = 0; i < 2; ++i) {
+                        unsigned int r = base + k + t + i * 4, c = out_base + col0 + tile * 8 + g;
+                        b[i] = r < key_value_tokens && c < value_width
+                                   ? value[((seq * key_value_tokens + r) * key_value_heads + kvhead) *
+                                               value_width +
+                                           c]
+                                   : 0;
+                    }
+                    attention_tf32_product(accum_stage[tile], a, b);
+                    if (k % 32 == 0)
+                        for (unsigned int i = 0; i < 4; ++i) {
+                            accum[tile][i] = __fadd_rn(accum[tile][i], accum_stage[tile][i]);
+                            accum_stage[tile][i] = 0;
+                        }
+                }
+            }
+            for (unsigned int tile = 0; tile < 2; ++tile)
+                for (unsigned int i = 0; i < 4; ++i) {
+                    accum[tile][i] = __fadd_rn(accum[tile][i], accum_stage[tile][i]);
+                    unsigned int row = row0 + g + (i / 2) * 8, r = row_base + row,
+                                 c = out_base + col0 + tile * 8 + 2 * t + i % 2;
+                    if (r < query_tokens && c < value_width) {
+                        unsigned int index =
+                            ((seq * query_tokens + r) * query_heads + head) * value_width + c;
+                        float alpha = base + BN >= key_value_tokens ? __frcp_rn(sum[row]) : 1;
+                        output[index] =
+                            base == 0
+                                ? __fmul_rn(alpha, accum[tile][i])
+                                : (base + BN >= key_value_tokens
+                                       ? __fmaf_rn(alpha, accum[tile][i],
+                                                   __fmul_rn(__fmul_rn(alpha, rescale[row]), output[index]))
+                                       : __fmaf_rn(rescale[row], output[index], accum[tile][i]));
+                    }
+                }
+        }
+        __syncthreads();
+    }
+}
+
 // Tiled exact flash-style attention for large non-causal workloads with
 // optional per-key bias (no relative bias/sinks/blocks/softcap/alibi/window). One block owns a
 // 32-query-row tile of one head; K/V stream through shared memory in
@@ -4830,6 +5035,11 @@ extern "C" __global__ void attention_tiled_f32(
         unsigned int key_value_tokens,
         unsigned int sequences,
         float scale) {
+    if (key_width > 128u) {
+        attention_fast_f32(query, key, value, key_bias, output, key_width, value_width,
+            query_heads, key_value_heads, query_tokens, key_value_tokens, sequences, scale);
+        return;
+    }
     const unsigned int TILE = 32u;
     const unsigned int CW = 4u; // output channels per lane (width <= 128)
     const unsigned int row_tile = blockIdx.x;

@@ -13,6 +13,7 @@ import (
 
 	"overgo/internal/checked"
 	"overgo/internal/cuda/cublas"
+	"overgo/internal/cuda/cudnn"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/kernel"
@@ -769,6 +770,7 @@ type CompiledGraph struct {
 	q8InputBytes    uint64
 	// matmulStagingBytes: shared exact-weight or tensor-core-input scratch.
 	matmulStagingBytes uint64
+	convolutions       []cudnn.Shape
 	// attentionScoreBytes: cuBLAS attention score staging ([heads][chunk][keys] F32)
 	// and the routed-expert scratch, each live only inside its own node.
 	attentionScoreBytes uint64
@@ -1214,10 +1216,18 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 		}
 		if node.Op == tensor.OpConv2D {
 			attributes, ok := node.Attrs.(tensor.Conv2DAttributes)
+			if ok && attributes.WinogradF32 {
+				shape := spatialConvolutionShape(node)
+				if !slices.Contains(compiled.convolutions, shape) {
+					compiled.convolutions = append(compiled.convolutions, shape)
+				}
+			}
 			if ok && !attributes.Depthwise && node.Inputs[0].Type == dtype.F32 &&
 				node.Inputs[1].Type == dtype.F32 {
 				compiled.needBlas = true
-				compiled.matmulStagingBytes = max(compiled.matmulStagingBytes, conv2DStagingBytes)
+				if !attributes.WinogradF32 {
+					compiled.matmulStagingBytes = max(compiled.matmulStagingBytes, conv2DStagingBytes)
+				}
 			}
 		}
 		if node.Op == tensor.OpMoE {
@@ -1618,7 +1628,7 @@ func (e *Executor) PrepareCompiled(ctx context.Context, compiled *CompiledGraph)
 	return e.worker.Do(ctx, func(state *device.State) error {
 		resources, err := e.ensureResources(
 			state, compiled.needBlas, compiled.q8InputBytes,
-			compiled.attentionScoreBytes, compiled.matmulStagingBytes,
+			compiled.attentionScoreBytes, compiled.matmulStagingBytes, compiled.convolutions...,
 		)
 		if err != nil {
 			return err
@@ -1699,7 +1709,7 @@ func (e *Executor) runCompiled(
 	err = e.worker.Do(ctx, func(state *device.State) error {
 		resources, resourceErr := e.ensureResources(
 			state, compiled.needBlas, compiled.q8InputBytes,
-			compiled.attentionScoreBytes, compiled.matmulStagingBytes,
+			compiled.attentionScoreBytes, compiled.matmulStagingBytes, compiled.convolutions...,
 		)
 		if resourceErr != nil {
 			return resourceErr
@@ -2392,9 +2402,11 @@ type blasState struct {
 	scores     driver.DevicePtr
 	scoreBytes uint64
 	// lt owns native tensor-core products with one bounded shape cache per token count.
-	lt                cublas.LtHandle
-	matmulPlans       map[matmulWeightShape]*cublas.MatmulPlan
-	matmulPlanColumns uint32
+	lt                 cublas.LtHandle
+	matmulPlans        map[matmulWeightShape]*cublas.MatmulPlan
+	matmulPlanColumns  uint32
+	convolutionLibrary *cudnn.Library
+	convolutionPlans   map[cudnn.Shape]cudnn.Convolution
 }
 
 var (
@@ -2415,6 +2427,7 @@ func (e *Executor) ensureResources(
 	q8InputBytes uint64,
 	attentionScoreBytes uint64,
 	matmulStagingBytes uint64,
+	convolutions ...cudnn.Shape,
 ) (*executorResources, error) {
 	if e.resources.module == 0 {
 		if err := kernel.ValidateAssets(); err != nil {
@@ -2458,6 +2471,16 @@ func (e *Executor) ensureResources(
 			return nil, err
 		}
 		e.resources.blas = &blasState{library: library, handle: handle, lt: lt}
+	}
+	if len(convolutions) > 0 {
+		if e.resources.blas == nil {
+			return nil, errors.New("winograd convolution requires prepared BLAS resources")
+		}
+		bytes, err := e.resources.blas.convolutionStaging(state, convolutions)
+		if err != nil {
+			return nil, err
+		}
+		matmulStagingBytes = max(matmulStagingBytes, bytes)
 	}
 	if matmulStagingBytes > 0 && e.resources.blas != nil && e.resources.blas.stagingBytes < matmulStagingBytes {
 		staging, err := e.resources.allocate(state, matmulStagingBytes)
@@ -2573,6 +2596,7 @@ func (e *Executor) closeResources(state *device.State) error {
 			e.resources.blas.scoreBytes = 0
 		}
 		errs = append(errs, e.resources.blas.dropMatmulPlans())
+		errs = append(errs, e.resources.blas.closeConvolutions())
 		if err := e.resources.blas.library.DestroyLt(e.resources.blas.lt); err != nil {
 			errs = append(errs, err)
 		}

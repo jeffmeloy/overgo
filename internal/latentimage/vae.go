@@ -34,12 +34,16 @@ import (
 // VAEDecoder: a compiled + weight-resident QwenImage spatial decoder.
 type VAEDecoder struct {
 	media.CodecProgram[[]float32]
-	ZDim         int
-	OutChannels  int
-	SpatialScale int // derived 2^(upsampler count); 8 for dim_mult [1,2,4,4]
-	LatentsMean  []float32
-	LatentsStd   []float32
-	WeightBytes  int64
+	ZDim                int
+	OutChannels         int
+	SpatialScale        int // derived 2^(upsampler count); 8 for dim_mult [1,2,4,4]
+	LatentsMean         []float32
+	LatentsStd          []float32
+	WeightBytes         int64
+	patch               int
+	batchEpsilon        float32
+	latentVariance      []float32
+	convolutionWinograd bool
 }
 
 // vaeConfigJSON: the fields DecodeImage derives structure/denorm from.
@@ -99,7 +103,7 @@ func loadVAEWeights(vaeDir string) (map[string][]float32, error) {
 	for name, tensor := range src.Tensors {
 		// Only the decode path needs decoder.* and post_quant_conv.*; skip the
 		// encoder and quant_conv (encode side) to keep host residency small.
-		if !strings.HasPrefix(name, "decoder.") && !strings.HasPrefix(name, "post_quant_conv.") {
+		if !strings.HasPrefix(name, "decoder.") && !strings.HasPrefix(name, "post_quant_conv.") && name != "bn.running_mean" && name != "bn.running_var" {
 			continue
 		}
 		reader, err := safetensors.F32Reader(tensor)

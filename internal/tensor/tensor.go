@@ -202,6 +202,8 @@ type AttentionAttributes struct {
 	// (skip the blas-chunked scores path) so the reduction matches a reference
 	// per-query two-pass attn_fwd; opt-in for F32 parity-critical towers.
 	NaiveF32 bool
+	// MemoryEfficientF32 uses native TF32x3 products and 128-key panel accumulation.
+	MemoryEfficientF32 bool
 }
 
 type Conv1DAttributes struct {
@@ -212,6 +214,8 @@ type Conv2DAttributes struct {
 	StrideX, StrideY                     uint32
 	PadLeft, PadRight, PadTop, PadBottom uint32
 	Depthwise, HasBias                   bool
+	// WinogradF32 requires deterministic cuDNN Winograd with full F32 arithmetic.
+	WinogradF32 bool
 }
 
 type Window2DAttributes struct {

@@ -27,6 +27,10 @@ func TestMOSSSamplingCheckpoint(t *testing.T) {
 	verifyMOSSModelStage(t, "sampling")
 }
 
+func TestMOSSDecoderCheckpoint(t *testing.T) {
+	verifyMOSSModelStage(t, "decoder")
+}
+
 func verifyMOSSModelStage(t *testing.T, stage string) {
 	t.Helper()
 	cudatest.Require(t)

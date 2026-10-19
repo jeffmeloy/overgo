@@ -10,6 +10,9 @@ type Library struct{}
 // Convolution is a planned forward convolution.
 type Convolution struct{ Workspace uint64 }
 
+// PlanSpatialWinograd requires the supported CUDA host.
+func (l *Library) PlanSpatialWinograd(Shape) (Convolution, error) { return Convolution{}, ErrAbsent }
+
 // Open loads nothing here: ErrAbsent.
 func Open(driver.Stream) (*Library, error) { return nil, ErrAbsent }
 

@@ -14,6 +14,11 @@ const (
 	NegativeUnitScale = -UnitScale
 )
 
+// AttentionF32PanelWidth is the native memory-efficient attention register limit.
+// Wider heads use 128-key panels and global output accumulation.
+// Reconsider this boundary when admitting another source attention policy.
+const AttentionF32PanelWidth = 128
+
 // Reshape: changes only logical dimensions and preserves contiguous order
 func (b *Builder) Reshape(input *Tensor, dimensions ...uint64) *Tensor {
 	if b.err != nil {
@@ -291,6 +296,7 @@ type attentionOptions struct {
 	relativeBidirectional bool
 	chunkedWindow         bool
 	naiveF32              bool
+	memoryEfficientF32    bool
 	queryStart, window    uint32
 }
 
@@ -312,6 +318,8 @@ type AttentionOptions struct {
 	// NaiveF32: route dense F32 attention through the per-query online kernel
 	// (skip the blas-chunked scores path) for reference-parity reductions.
 	NaiveF32 bool
+	// MemoryEfficientF32 selects the native wide-head F32 panel arithmetic.
+	MemoryEfficientF32 bool
 }
 
 // AttentionWithOptions: typed attention construction.
@@ -331,7 +339,7 @@ func (b *Builder) AttentionWithOptions(
 		causal: options.Causal, symmetricWindow: options.SymmetricWindow,
 		relativeBidirectional: options.RelativeBidirectional,
 		chunkedWindow:         options.ChunkedWindow, queryStart: options.QueryStart,
-		window: options.Window, naiveF32: options.NaiveF32,
+		window: options.Window, naiveF32: options.NaiveF32, memoryEfficientF32: options.MemoryEfficientF32,
 	})
 }
 
@@ -349,6 +357,13 @@ func (b *Builder) buildAttention(
 	}
 	if query.Type != key.Type || query.Type != value.Type {
 		b.setError(errors.New("attention input types differ"))
+		return nil
+	}
+	if options.memoryEfficientF32 && (query.Type != dtype.F32 || options.naiveF32 ||
+		options.causal || options.symmetricWindow || options.relativeBidirectional || options.chunkedWindow ||
+		options.queryStart != 0 || options.window != 0 || options.softcap != 0 || options.maxALiBiBias != 0 ||
+		options.bias != nil || options.sinks != nil || options.blockIDs != nil || query.Shape.Dims[0] <= AttentionF32PanelWidth) {
+		b.setError(errors.New("memory-efficient F32 attention requires unmasked F32 heads wider than 128 channels"))
 		return nil
 	}
 	if (query.Shape.Rank != 3 && query.Shape.Rank != 4) ||
@@ -512,6 +527,7 @@ func (b *Builder) buildAttention(
 			RelativeBidirectional: options.relativeBidirectional,
 			HasKeyBias:            options.keyBias != nil,
 			NaiveF32:              options.naiveF32,
+			MemoryEfficientF32:    options.memoryEfficientF32,
 		},
 	)
 }

@@ -271,6 +271,25 @@ func (b *Builder) PixelShuffle2D(input *Tensor, scale uint32) *Tensor {
 	return b.add("", input.Type, shape, OpPixelShuffle2D, []*Tensor{input}, PixelShuffle2DAttributes{Scale: scale})
 }
 
+// Conv2DWinogradF32 applies a padded spatial filter with native Winograd arithmetic.
+// The filter must be three by three and all operands must use F32 storage.
+func (b *Builder) Conv2DWinogradF32(input, weight, bias *Tensor) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if input == nil || weight == nil || input.Type != dtype.F32 || weight.Shape.Rank != MaxDimensions || weight.Shape.Dims[0] != TripleExtent || weight.Shape.Dims[1] != TripleExtent {
+		b.setError(errors.New("winograd F32 convolution requires an F32 input and three-by-three filter"))
+		return nil
+	}
+	node := b.Conv2D(input, weight, bias, SingletonExtent, SingletonExtent, SingletonExtent, SingletonExtent, SingletonExtent, SingletonExtent, false)
+	if node != nil {
+		attrs := node.Attrs.(Conv2DAttributes)
+		attrs.WinogradF32 = true
+		node.Attrs = attrs
+	}
+	return node
+}
+
 // SAMAttention: batched decomposed-relative 2D attention.
 func (b *Builder) SAMAttention(query, key, value, relativeW, relativeH *Tensor, scale, relativeScale float32, spatialSize uint32) *Tensor {
 	if b.err != nil {

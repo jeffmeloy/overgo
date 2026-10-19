@@ -8,7 +8,15 @@ import (
 	"overgo/internal/cuda/cublas"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/cuda/kernel"
 	"overgo/internal/tensor"
+)
+
+// Torch group_norm_kernel.cu selects one warp below 512 values.
+// Keep this reduction geometry with the pinned Welford arithmetic.
+const (
+	groupReductionThreads = uint32(512)
+	groupWarpThreads      = uint32(32)
 )
 
 func launchMathVision(
@@ -146,6 +154,9 @@ func launchMathVision(
 		if attributes.HasBias {
 			bias = pointers.input(2)
 		}
+		if attributes.WinogradF32 {
+			return launchSpatialConvolution(state, functions, blas, node, input, weight, bias, output)
+		}
 		channelsIn := uint32(node.Inputs[0].Shape.Dims[0])
 		inputW, inputH := uint32(node.Inputs[0].Shape.Dims[1]), uint32(node.Inputs[0].Shape.Dims[2])
 		kernelW, kernelH := uint32(node.Inputs[1].Shape.Dims[0]), uint32(node.Inputs[1].Shape.Dims[1])
@@ -225,8 +236,12 @@ func launchMathVision(
 		tokens := uint32(node.Shape.Dims[1])
 		groups := attributes.Groups
 		epsilon := attributes.Epsilon
-		return launch1DABI(
-			state, functions[kernelGroupNormF32], count,
+		threads := groupReductionThreads
+		if count/groups < groupReductionThreads {
+			threads = groupWarpThreads
+		}
+		return launchGridABI(
+			state, functions[kernelGroupNormF32], kernel.Grid1D(int(groups)), kernel.Grid1D(int(threads)),
 			&input, &weight, &bias, &output, &channels, &tokens, &groups, &epsilon, &count,
 		)
 	case tensor.OpL2Norm:

@@ -74,7 +74,7 @@ The preamble's row is the plan's step shape-reading/launch-checks, and TestNoLau
 == switches ==
 family: internal/tensor.Op
 switches: 10
-lines: 1585
+lines: 1599
 functions: 10
 packages: 4
 constants: 66
@@ -90,11 +90,11 @@ row: a method of each of the seven attribute types with per-step values, in one 
 table: yes
 
 switch: internal/cuda/executor/launch_attention_layout.go#launchAttentionLayout
-lines: 288
+lines: 295
 constants: 4
 clauses: 5
 dispatch-lines: 8
-decides: the device launch of reshape as a copy, of attention by one of five paths (the split single-query decode kernel, the batched matrix products, the tiled kernel, the online kernel and the plain kernel), of concat as an append in place when its output is its left input, and of cache_append as a copy and a write at a device-resident offset
+decides: the device launch of reshape as a copy, of attention by one of six paths (the split single-query decode kernel, native wide-head F32 panels, the batched matrix products, the tiled kernel, the online kernel and the plain kernel), of concat as an append in place when its output is its left input, and of cache_append as a copy and a write at a device-resident offset
 row: the entry of each operation, while attention's choice of path is attention's own and stays whole in its function
 table: yes
 
@@ -108,11 +108,11 @@ row: the entry of each operation, while mul_mat's choice by element type is a de
 table: yes
 
 switch: internal/cuda/executor/launch_math_vision.go#launchMathVision
-lines: 216
+lines: 223
 constants: 27
 clauses: 16
 dispatch-lines: 19
-decides: the device launch of lora_merge, of add, multiply and divide as a same-shape or a broadcast kernel, of scale, clamp, bf16_round, signed_sqrt and xielu, of the unary activations through one launch whose kernel an if chain picks by operation, and of the vision operations (conv_1d_same, conv_2d by cuBLAS over im2col or a direct kernel, the window partitions, pixel_shuffle_2d, sam_attention, group_norm, l2_norm)
+decides: the device launch of lora_merge, of add, multiply and divide as a same-shape or a broadcast kernel, of scale, clamp, bf16_round, signed_sqrt and xielu, of the unary activations through one launch whose kernel an if chain picks by operation, and of the vision operations (conv_1d_same, conv_2d by cuBLAS over im2col, native F32 cuDNN Winograd or a direct kernel, the window partitions, pixel_shuffle_2d, sam_attention, group_norm, l2_norm)
 row: the entry of each operation and, as a column, the kernel each elementwise operation launches, which replaces the if chains
 table: yes
 

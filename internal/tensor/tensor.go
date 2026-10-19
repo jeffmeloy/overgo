@@ -106,6 +106,10 @@ type RMSNormAttributes struct {
 // NativeMathAttributes selects native F32 scalar arithmetic instead of fast approximations.
 type NativeMathAttributes struct{}
 
+// NativeBF16Attributes preserves native BF16 linear output and 128-key attention panels.
+// Unmarked BF16 rounding retains the existing F32 producer arithmetic.
+type NativeBF16Attributes struct{}
+
 type MADNormAttributes struct {
 	Epsilon float32
 }

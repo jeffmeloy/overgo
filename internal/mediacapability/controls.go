@@ -23,6 +23,8 @@ type Control struct {
 	Name     string
 	Type     string
 	Required bool
+	// Advanced places optional tuning fields behind the page's disclosure.
+	Advanced bool
 	// Choices are the values the model's own artifact exports for the
 	// field (a speech model's voices); empty when any value may be typed.
 	Choices []string
@@ -62,17 +64,8 @@ func (control Control) Declared() (name, kind string, required bool, choices []s
 // Slot reports an artifact control's label and media kind (empty for a typed field).
 func (control Control) Slot() (label, media string) { return control.Label, control.Media }
 
-// choiceProviders name, per entry module, the request fields whose values
-// the model directory exports; the provider reads them from the artifact.
-var choiceProviders = map[recipe.ModuleID]func(directory string) (map[string][]string, error){
-	modelrecipe.ModuleSpeechTokenize: func(directory string) (map[string][]string, error) {
-		voices, err := speechsynth.ListVoices(directory)
-		if err != nil {
-			return nil, err
-		}
-		return map[string][]string{"voice": voices}, nil
-	},
-}
+// Secondary reports whether a page should collapse this tuning control.
+func (control Control) Secondary() bool { return control.Advanced }
 
 const (
 	// ControlArtifact is a request field naming an artifact the store holds,
@@ -117,30 +110,31 @@ func Controls(entry recipe.ModuleID, directory string) ([]Control, string) {
 	if refusal != "" || directory == "" {
 		return controls, refusal
 	}
-	if provider, provides := choiceProviders[entry]; provides {
-		choices, err := provider(directory)
+	if provider, provides := controlProviders[entry]; provides {
+		declared, err := provider(directory, controls)
 		if err != nil {
-			return nil, fmt.Sprintf("the model directory exports no choices: %v", err)
+			return nil, fmt.Sprintf("the model controls are unavailable: %v", err)
 		}
-		for index := range controls {
-			controls[index].Choices = choices[controls[index].Name]
-		}
-	}
-	if provider, provides := boundsProviders[entry]; provides {
-		bounds, err := provider(directory)
-		if err != nil {
-			return nil, fmt.Sprintf("the model directory declares no bounds: %v", err)
-		}
-		applyBounds(controls, bounds)
+		controls = declared
 	}
 	return controls, ""
 }
 
-// boundsProviders name, per entry module, the request fields whose bounds
-// the model's profile and strides declare; the provider reads them from
-// the model directory.
-var boundsProviders = map[recipe.ModuleID]func(directory string) (map[string]Bounds, error){
-	modelrecipe.ModuleLatentVideoPrepare: func(directory string) (map[string]Bounds, error) {
+// controlProviders apply source-declared choices, bounds and supported fields.
+var controlProviders = map[recipe.ModuleID]func(string, []Control) ([]Control, error){
+	modelrecipe.ModuleSpeechTokenize: func(directory string, controls []Control) ([]Control, error) {
+		voices, err := speechsynth.ListVoices(directory)
+		if err != nil {
+			return nil, err
+		}
+		for i := range controls {
+			if controls[i].Name == "voice" {
+				controls[i].Choices = voices
+			}
+		}
+		return controls, nil
+	},
+	modelrecipe.ModuleLatentVideoPrepare: func(directory string, controls []Control) ([]Control, error) {
 		declared, err := latentvideo.ControlBounds(directory)
 		if err != nil {
 			return nil, err
@@ -149,7 +143,8 @@ var boundsProviders = map[recipe.ModuleID]func(directory string) (map[string]Bou
 		for name, bound := range declared {
 			bounds[name] = Bounds{Default: bound.Default, Step: bound.Step, Rate: bound.Rate}
 		}
-		return bounds, nil
+		applyBounds(controls, bounds)
+		return controls, nil
 	},
 }
 
@@ -188,7 +183,11 @@ func describe(request reflect.Type) ([]Control, string) {
 		if values, named := reflect.Zero(field.Type).Interface().(interface{ Choices() []string }); named {
 			control.Choices = values.Choices()
 		}
-		switch field.Type.Kind() {
+		typed := field.Type
+		if typed.Kind() == reflect.Pointer {
+			typed = typed.Elem()
+		}
+		switch typed.Kind() {
 		case reflect.String:
 			control.Type, control.Required = ControlText, !optional
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,

@@ -115,6 +115,7 @@
   window.overgo.controlInputs = function (host, controls) {
     const el = window.overgo.el;
     const fields = new Map();
+    const advanced = el("details", { class: "advanced-controls" }, el("summary", { text: "Advanced options" }));
     host.replaceChildren();
     for (const control of controls || []) {
       let input;
@@ -137,10 +138,12 @@
       }
       fields.set(control.name, { control, input });
       const slot = control.type === "artifact" ? intakeStrip(control, input) : null;
-      host.appendChild(el("label", { class: "control" }, el("span", { text: control.label || control.name.replace(/_/g, " ") }), input, slot));
+      const target = control.advanced && !control.required ? advanced : host;
+      target.appendChild(el("label", { class: "control" }, el("span", { text: control.label || control.name.replace(/_/g, " ") }), input, slot));
     }
     const chips = presetChips(fields);
     if (chips) host.appendChild(chips);
+    if (advanced.children.length > 1) host.appendChild(advanced);
     return fields;
   };
 

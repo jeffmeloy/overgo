@@ -41,6 +41,12 @@ func (b *Builder) BF16Round(input *Tensor) *Tensor {
 	return b.unary(OpBF16Round, input, nil)
 }
 
+// BF16RoundNative marks a native BF16 producer boundary for linear and attention lowering.
+// Other producers retain ordinary ties-to-even BF16 conversion.
+func (b *Builder) BF16RoundNative(input *Tensor) *Tensor {
+	return b.unary(OpBF16Round, input, NativeBF16Attributes{})
+}
+
 // SignedSqrt maps x to sign(x)*sqrt(max(abs(x),minimum)), preserving zero.
 func (b *Builder) SignedSqrt(input *Tensor, minimum float32) *Tensor {
 	if minimum <= 0 || math.IsNaN(float64(minimum)) || math.IsInf(float64(minimum), 0) {

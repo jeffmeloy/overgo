@@ -8,7 +8,7 @@ import (
 )
 
 func TestCompileBF16LinearBoundaries(t *testing.T) {
-	for _, mode := range []string{"rounded", "biasless", "biasless-retained", "biasless-shared", "unrounded-bias", "retained-product", "retained-add", "shared-product"} {
+	for _, mode := range []string{"rounded", "biasless", "ordinary", "ordinary-biasless", "biasless-retained", "biasless-shared", "unrounded-bias", "retained-product", "retained-add", "shared-product"} {
 		t.Run(mode, func(t *testing.T) {
 			b := tensor.NewBuilder()
 			b.SetMulMatCompute(tensor.MulMatComputeBF16TensorCore)
@@ -20,9 +20,16 @@ func TestCompileBF16LinearBoundaries(t *testing.T) {
 			}
 			product := b.MulMat(w, x)
 			add := b.Add(product, bias)
-			output := b.BF16Round(add)
+			round := b.BF16RoundNative
+			if mode == "ordinary" || mode == "ordinary-biasless" {
+				round = b.BF16Round
+			}
+			output := round(add)
 			if mode == "biasless" || mode == "biasless-retained" || mode == "biasless-shared" {
-				output = b.BF16Round(product)
+				output = round(product)
+			}
+			if mode == "ordinary-biasless" {
+				output = round(product)
 			}
 			outputs := []*tensor.Tensor{output}
 			switch mode {

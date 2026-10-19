@@ -24,14 +24,14 @@ func (s Spec) validateArithmetic(profile ArchitectureProfile) error {
 
 func (p ArithmeticPolicy) round(b *tensor.Builder, x *tensor.Tensor) *tensor.Tensor {
 	if p == ArithmeticTransformersBF16 {
-		return b.BF16Round(x)
+		return b.BF16RoundNative(x)
 	}
 	return x
 }
 
 func (p ArithmeticPolicy) project(b *tensor.Builder, w, x *tensor.Tensor) *tensor.Tensor {
 	if p == ArithmeticTransformersBF16 {
-		return b.BF16Round(b.MulMatWithCompute(w, x, tensor.MulMatComputeNativeTensorCore))
+		return b.BF16RoundNative(b.MulMatWithCompute(w, x, tensor.MulMatComputeNativeTensorCore))
 	}
 	return b.MulMat(w, x)
 }

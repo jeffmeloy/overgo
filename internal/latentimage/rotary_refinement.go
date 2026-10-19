@@ -35,7 +35,7 @@ func newRotaryGraph(t TransformerSpec, epsilon float32, tokens int, storage dtyp
 }
 func (g *rotaryGraph) round(x *tensor.Tensor) *tensor.Tensor {
 	if g.storage == dtype.BF16 {
-		return g.b.BF16Round(x)
+		return g.b.BF16RoundNative(x)
 	}
 	return x
 }
@@ -71,7 +71,7 @@ func (g *rotaryGraph) rotate(x *tensor.Tensor) *tensor.Tensor {
 	return g.round(g.b.Add(g.round(g.b.Multiply(x, g.cosine)), g.round(g.b.Multiply(turned, g.sine))))
 }
 func (g *rotaryGraph) attention(q, k, v *tensor.Tensor) *tensor.Tensor {
-	q, k, v = roundAttentionForStorage(g.b, g.storage, g.rotate(q), g.rotate(k), v)
+	q, k, v = g.round(g.rotate(q)), g.round(g.rotate(k)), g.round(v)
 	return g.b.Reshape(g.round(g.b.AttentionWithOptions(q, k, v, tensor.AttentionOptions{Scale: float32(float64(tensor.UnitScale) / math.Sqrt(float64(g.headWidth)))})), g.width, g.sequence)
 }
 func (g *rotaryGraph) situ(up, gate *tensor.Tensor) *tensor.Tensor {

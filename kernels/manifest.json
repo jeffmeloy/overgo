@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "abiVersion": 60,
+  "abiVersion": 61,
   "cudaToolkit": "12.9",
   "nvcc": "12.9.86",
   "target": "compute_89",
@@ -65,7 +65,7 @@
     {
       "executor": true,
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "870b571949720e5d3e523bbd8f8c7a89524d202fba9736e6bd354026ed762099",
+      "sourceSha256": "4a8ad572b7bda7cff63180c4ae805b5ed9f29722bbca97f3787b62e7157d0c2a",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -73,7 +73,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "44621af2d5fc8b04514dab2d47a6d51ad62d8f02a76b5645b9097cac739c73e5",
+      "assetSha256": "69dd888b220c3afa8ee5d68ed54da1f836874e7e306397c0174d741b87856f44",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -293,7 +293,8 @@
         "weighted_rms_norm_q8_0_f32",
         "window_partition_2d_f32",
         "window_unpartition_2d_f32",
-        "xielu_f32"
+        "xielu_f32",
+        "attention_native_bf16_f32"
       ],
       "argumentLayouts": [
         {
@@ -606,7 +607,8 @@
             ".f32"
           ],
           "functions": [
-            "attention_tiled_bf16_f32"
+            "attention_tiled_bf16_f32",
+            "attention_native_bf16_f32"
           ]
         },
         {

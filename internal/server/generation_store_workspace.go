@@ -48,6 +48,8 @@ func BindGenerationCatalog[
 		Slot() (label, media string)
 		// Bounded reports a numeric control's declared default, step and rate; declared is false without them.
 		Bounded() (defaultValue, step, rate int, declared bool)
+		// Secondary reports whether the page should collapse an optional tuning control.
+		Secondary() bool
 	},
 ](
 	catalog map[recipe.Task]Capability,
@@ -66,7 +68,7 @@ func BindGenerationCatalog[
 			for _, control := range declared {
 				name, kind, required, choices := control.Declared()
 				label, media := control.Slot()
-				wire := workflowControl{Name: name, Type: workflowControlType(kind), Required: required, Choices: choices, Label: label, Media: media}
+				wire := workflowControl{Name: name, Type: workflowControlType(kind), Required: required, Advanced: control.Secondary(), Choices: choices, Label: label, Media: media}
 				if defaultValue, step, rate, declared := control.Bounded(); declared {
 					wire.Bounds = &workflowControlBounds{Default: defaultValue, Step: step, Rate: rate}
 				}

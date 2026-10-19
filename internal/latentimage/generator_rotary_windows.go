@@ -25,6 +25,7 @@ type rotaryGeneration struct {
 	decoder            *VAEProgram
 	latent             *residentLatent
 	positive, negative []float32
+	guidance           float32
 }
 
 func loadRotaryGenerator(ctx context.Context, root string, profile Profile, request Request) (_ *Generator, err error) {
@@ -95,11 +96,16 @@ func (g *Generator) configureRotary(request Request) error {
 	if err != nil {
 		return err
 	}
-	settings := rotarySamplingSpec{schedule: schedule, guidance: g.profile.Rotary.Guidance, skip: g.profile.Rotary.NegativeSkip, stop: 1}
+	guidance := g.profile.Rotary.Guidance
+	if request.GuidanceScale != nil {
+		guidance = *request.GuidanceScale
+	}
+	settings := rotarySamplingSpec{schedule: schedule, guidance: guidance, skip: g.profile.Rotary.NegativeSkip, stop: 1}
 	if err = settings.validate(g.rotary.transformer.Layers); err != nil {
 		return err
 	}
 	g.request, g.schedule = request, schedule
+	g.rotary.guidance = guidance
 	return nil
 }
 
@@ -128,7 +134,13 @@ func (g *Generator) prepareRotary(ctx context.Context, request Request) (*Genera
 	if normalized.NumTrainTimesteps == 0 {
 		normalized.NumTrainTimesteps = g.profile.Sampling.TrainTimesteps
 	}
-	if normalized != g.request {
+	expected := g.request
+	actualGuidance := g.profile.Rotary.Guidance
+	if normalized.GuidanceScale != nil {
+		actualGuidance = *normalized.GuidanceScale
+	}
+	normalized.GuidanceScale, expected.GuidanceScale = nil, nil
+	if normalized != expected || actualGuidance != g.rotary.guidance {
 		return nil, errors.New("rotary image: request differs from loaded session")
 	}
 	if g.observe != nil {
@@ -170,7 +182,7 @@ func (g *Generator) prepareRotary(ctx context.Context, request Request) (*Genera
 		return nil, err
 	}
 	var negative []float32
-	if g.profile.Rotary.Guidance != tensor.UnitScale {
+	if g.rotary.guidance != tensor.UnitScale {
 		negative, err = encode(request.NegativePrompt, 1)
 		if err != nil {
 			return nil, err
@@ -190,7 +202,7 @@ func (g *Generator) integrateRotary(ctx context.Context) (*Generator, error) {
 	if err != nil {
 		return nil, err
 	}
-	settings := rotarySamplingSpec{schedule: g.schedule, guidance: g.profile.Rotary.Guidance, skip: g.profile.Rotary.NegativeSkip, stop: 1}
+	settings := rotarySamplingSpec{schedule: g.schedule, guidance: g.rotary.guidance, skip: g.profile.Rotary.NegativeSkip, stop: 1}
 	result, err := runRotarySampling(ctx, g.rotary.runtime, g.modelDir, g.rotary.transformer, g.shape.Height, g.shape.Width, initial, g.rotary.positive, g.rotary.negative, settings, g.observe)
 	if err != nil {
 		return nil, err

@@ -195,8 +195,8 @@ func TestAnOperationsRecordIsFoundAgainOrIsNotWritten(t *testing.T) {
 		Register: func(context.Context, *overgodb.Store, string, string) (map[string]any, error) {
 			return nil, errors.New("the operation record fixture registers no model")
 		},
-		Validate: func(context.Context, *overgodb.Store, string, string) (artifact.ID, operation.Executor, error) {
-			return validated, func(ctx context.Context, _ operation.Reporter) (operation.Completion, error) {
+		Validate: func(context.Context, *overgodb.Store, string, string) (operation.Request, operation.Executor, error) {
+			return operation.Request{Task: recipe.TaskInference, Recipe: validated}, func(ctx context.Context, _ operation.Reporter) (operation.Completion, error) {
 				validations.Add(1)
 				_, err := store.Commit(ctx, artifact.Batch{Key: "fixture/operation-record/validation", Artifacts: []artifact.Descriptor{{ID: validationRun}}})
 				return operation.Completion{Run: validationRun}, err

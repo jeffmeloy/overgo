@@ -47,7 +47,11 @@ func TestExecutorBF16AttentionMatchesRoundedReference(t *testing.T) {
 			if testCase.masked {
 				keyBias = builder.Input("key_bias", dtype.F32, tensor.MustShape(testCase.kvTokens))
 			}
-			roundedQuery, roundedKey, roundedValue := builder.BF16Round(query), builder.BF16Round(key), builder.BF16Round(value)
+			round := builder.BF16Round
+			if width < uint64(attentionBF16Width) {
+				round = builder.BF16RoundNative
+			}
+			roundedQuery, roundedKey, roundedValue := round(query), round(key), round(value)
 			var attention *tensor.Tensor
 			if keyBias != nil {
 				attention = builder.AttentionWithOptions(roundedQuery, roundedKey, roundedValue, tensor.AttentionOptions{KeyBias: keyBias, Scale: testCase.scale, Causal: false})

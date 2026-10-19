@@ -43,6 +43,7 @@ type workflowControl struct {
 	Name     string              `json:"name"`
 	Type     workflowControlType `json:"type"`
 	Required bool                `json:"required,omitzero"`
+	Advanced bool                `json:"advanced,omitzero"`
 	// Choices are the values the model's artifact exports for the field;
 	// a page offers them instead of a free input.
 	Choices []string `json:"choices,omitempty"`

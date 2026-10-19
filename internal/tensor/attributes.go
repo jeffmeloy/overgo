@@ -34,6 +34,7 @@ func (ClampAttributes) validFor(op Op) bool      { return sameOp(op, OpClamp) }
 func (SignedSqrtAttributes) validFor(op Op) bool { return sameOp(op, OpSignedSqrt) }
 func (RMSNormAttributes) validFor(op Op) bool    { return sameOp(op, OpRMSNorm) }
 func (NativeMathAttributes) validFor(op Op) bool { return sameOp(op, OpExp) || sameOp(op, OpSoftplus) }
+func (NativeBF16Attributes) validFor(op Op) bool { return sameOp(op, OpBF16Round) }
 func (MADNormAttributes) validFor(op Op) bool    { return sameOp(op, OpMADNorm) }
 func (LayerNormAttributes) validFor(op Op) bool  { return sameOp(op, OpLayerNorm) }
 func (L2NormAttributes) validFor(op Op) bool     { return sameOp(op, OpL2Norm) }

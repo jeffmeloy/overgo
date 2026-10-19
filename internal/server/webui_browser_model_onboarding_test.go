@@ -10,6 +10,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
+	"overgo/internal/recipe"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -47,8 +48,8 @@ func TestWebUIBrowserModelOnboarding(t *testing.T) {
 		Register: func(_ context.Context, _ *overgodb.Store, path, _ string) (map[string]any, error) {
 			return map[string]any{"recipe": recipeID.String(), "path": path}, nil
 		},
-		Validate: func(context.Context, *overgodb.Store, string, string) (artifact.ID, operation.Executor, error) {
-			return recipeID, func(context.Context, operation.Reporter) (operation.Completion, error) {
+		Validate: func(context.Context, *overgodb.Store, string, string) (operation.Request, operation.Executor, error) {
+			return operation.Request{Task: recipe.TaskInference, Recipe: recipeID}, func(context.Context, operation.Reporter) (operation.Completion, error) {
 				return operation.Completion{Run: runID}, nil
 			}, nil
 		},

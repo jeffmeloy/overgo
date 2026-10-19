@@ -69,11 +69,55 @@ func TestCPUNormalGolden(t *testing.T) {
 	}
 }
 
-func TestCPUNormalRefusesScalarFill(t *testing.T) {
+func TestCPUNormalRefusesInvalidCount(t *testing.T) {
 	t.Parallel()
-	for _, count := range []int{math.MinInt, -1, 0, 1, 8, 15} {
+	for _, count := range []int{math.MinInt, -1, 0} {
 		if values, err := CPUNormal(42, count); err == nil || values != nil {
 			t.Fatalf("unsupported scalar fill %d accepted", count)
+		}
+	}
+}
+
+func TestCPUNormalScalarGolden(t *testing.T) {
+	path := testutil.FixturePath(t, "torchrng", "cpu-short-normal.safetensors")
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fmt.Sprintf("%x", sha256.Sum256(b)) != "0c11dea5db75d3aeaba0fd0d019da7514a1bb37b0ffe7d76fcbd4141118a3f4c" {
+		t.Fatal("native short noise identity")
+	}
+	source, err := safetensors.OpenFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	if len(source.Tensors) != 90 {
+		t.Fatal("native short noise coverage")
+	}
+	for _, seed := range []int64{0, 1, 42, -1, 4294967338, math.MaxInt64} {
+		for count := 1; count < 16; count++ {
+			name := fmt.Sprintf("seed.%d.count.%d", seed, count)
+			v, found := source.Tensors[name]
+			if !found || v.DType != "F32" {
+				t.Fatal("native short noise case", name)
+			}
+			want, err := io.ReadAll(v.Reader())
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := CPUNormal(seed, count)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got) != count || len(want) != count*4 {
+				t.Fatal("short noise extent")
+			}
+			for i, x := range got {
+				if math.Float32bits(x) != binary.LittleEndian.Uint32(want[i*4:]) {
+					t.Fatalf("%s value %d differs", name, i)
+				}
+			}
 		}
 	}
 }

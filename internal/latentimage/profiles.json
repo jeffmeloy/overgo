@@ -25,6 +25,7 @@
       "max_tokens": 4096
     },
     "rotary": {
+      "default_size": 1024,
       "guidance": 3,
       "negative_skip": [
         22

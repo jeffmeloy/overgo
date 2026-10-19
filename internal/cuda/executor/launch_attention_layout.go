@@ -15,7 +15,7 @@ import (
 // BF16 attention uses 128-channel tiles with zero-filled narrower heads.
 // Native memory-efficient attention defines the 128-token probability panel.
 // Thirty-two query rows and shared K/V storage keep the tile within consumer-device limits.
-// Shared bytes mirror attention_tiled_bf16_f32.
+// Shared bytes mirror attention_native_bf16_f32.
 const (
 	attentionMinimumRank = 3
 	attentionBF16Width   = uint32(128)
@@ -29,6 +29,19 @@ const (
 		4*attentionBF16RowTile*(attentionBF16KVTile+4) + // S is the O spill alias tail.
 		2*attentionBF16RowTile*(attentionBF16KVTile+8) + // P holds BF16 probabilities.
 		3*4*attentionBF16RowTile) // alpha/max/sum rows
+)
+
+// The established BF16 attention contract uses 64-row tiles and 64-key panels.
+// Shared storage follows attention_tiled_bf16_f32 including double-buffered K.
+const (
+	attentionBF16EstablishedRows   = uint32(64)
+	attentionBF16EstablishedKeys   = uint32(64)
+	attentionBF16EstablishedShared = uint32(2*2*attentionBF16EstablishedKeys*(attentionBF16Width+8) +
+		2*attentionBF16EstablishedKeys*(attentionBF16Width+8) +
+		2*attentionBF16EstablishedRows*(attentionBF16Width+8) +
+		4*attentionBF16EstablishedRows*(attentionBF16EstablishedKeys+4) +
+		2*attentionBF16EstablishedRows*(attentionBF16EstablishedKeys+8) +
+		3*4*attentionBF16EstablishedRows)
 )
 
 // The native wide-head F32 kernel owns 32 query rows and one 128-key panel.
@@ -46,8 +59,9 @@ const (
 // configureLargeSharedKernels: one-time dynamic-shared opt-in for kernels
 // above the 48KB default.
 func configureLargeSharedKernels(lib *driver.Library, functions functionSet) error {
-	return lib.FuncSetMaxDynamicShared(
-		functions[kernelAttentionTiledBf16F32].function, attentionBF16SharedBytes,
+	return errors.Join(
+		lib.FuncSetMaxDynamicShared(functions[kernelAttentionTiledBf16F32].function, attentionBF16EstablishedShared),
+		lib.FuncSetMaxDynamicShared(functions[kernelAttentionNativeBf16F32].function, attentionBF16SharedBytes),
 	)
 }
 
@@ -134,14 +148,20 @@ func launchBF16Attention(
 			return err
 		}
 	}
+	function, rows, shared := functions[kernelAttentionTiledBf16F32], attentionBF16EstablishedRows, attentionBF16EstablishedShared
+	if fusion.native {
+		function, rows, shared = functions[kernelAttentionNativeBf16F32], attentionBF16RowTile, attentionBF16SharedBytes
+	} else if keyWidth != attentionBF16Width {
+		return errors.New("established BF16 attention requires 128-channel heads")
+	}
 	grid := driver.Dim3{
-		X: (queryTokens + attentionBF16RowTile - 1) / attentionBF16RowTile,
+		X: (queryTokens + rows - 1) / rows,
 		Y: queryHeads,
 		Z: sequences,
 	}
 	return launchGridSharedABI(
-		state, functions[kernelAttentionTiledBf16F32],
-		grid, driver.Dim3{X: attentionBF16Threads, Y: 1, Z: 1}, attentionBF16SharedBytes,
+		state, function,
+		grid, driver.Dim3{X: attentionBF16Threads, Y: 1, Z: 1}, shared,
 		&query, &keyStage, &valueStage, &keyBias, &output,
 		&queryHeads, &keyValueHeads, &queryTokens, &keyValueTokens,
 		&sequences, &keyWidth, &scale,

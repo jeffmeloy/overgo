@@ -99,6 +99,7 @@ type bf16AppendFusion struct {
 // product (declared kernel semantics, measured by the differential fixture).
 type bf16AttentionFusion struct {
 	query, key, value, keyBias *tensor.Tensor
+	native                     bool
 }
 
 type rewriteContext struct {
@@ -149,7 +150,7 @@ var graphRewriteCatalog = [...]graphRewrite{
 // applyBF16LinearRewrite preserves explicitly rounded BF16 product storage and optional bias epilogues.
 func applyBF16LinearRewrite(context *rewriteContext) {
 	for _, node := range context.order {
-		if node.Op != tensor.OpBF16Round {
+		if _, native := node.Attrs.(tensor.NativeBF16Attributes); node.Op != tensor.OpBF16Round || !native {
 			continue
 		}
 		product := node.Inputs[0]
@@ -781,9 +782,12 @@ func applyBF16AttentionRewrite(context *rewriteContext) {
 		if query == key || query == value || key == value {
 			continue
 		}
-		fusable := true
+		_, native := query.Attrs.(tensor.NativeBF16Attributes)
+		fusable := native || query.Shape.Dims[0] == uint64(attentionBF16Width)
 		for _, round := range [...]*tensor.Tensor{query, key, value} {
+			_, nativeRound := round.Attrs.(tensor.NativeBF16Attributes)
 			if round.Op != tensor.OpBF16Round || context.uses[round] != 1 ||
+				nativeRound != native ||
 				round.Shape.Rank < attentionMinimumRank || round.Shape.Dims[0] != query.Shape.Dims[0] ||
 				round.Shape.Dims[0] > uint64(attentionBF16Width) || round.Shape.Dims[0]%attentionBF16CopyChannels != 0 {
 				fusable = false
@@ -806,10 +810,12 @@ func applyBF16AttentionRewrite(context *rewriteContext) {
 		}
 		fusion := bf16AttentionFusion{
 			query: query.Inputs[0], key: key.Inputs[0], value: value.Inputs[0],
+			native: native,
 		}
 		if attributes.HasKeyBias {
 			fusion = bf16AttentionFusion{
 				query: query.Inputs[0], key: key.Inputs[0], value: value.Inputs[0], keyBias: node.Inputs[3],
+				native: native,
 			}
 		}
 		operands := []*tensor.Tensor{fusion.query, fusion.key, fusion.value}

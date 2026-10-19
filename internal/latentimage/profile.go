@@ -76,6 +76,7 @@ type rotaryPolicy struct {
 	Shift         float64 `json:"shift"`
 	TrainingShift float64 `json:"training_shift"`
 	SpatialScale  int     `json:"spatial_scale"`
+	DefaultSize   int     `json:"default_size,omitempty"`
 }
 
 type catalogProfile struct {
@@ -205,6 +206,9 @@ func (p Profile) validate() error {
 	}
 	sampling := p.Sampling
 	if p.Rotary != nil {
+		if p.Rotary.DefaultSize != 0 && (p.Rotary.SpatialScale <= 0 || p.Rotary.DefaultSize < p.Rotary.SpatialScale || p.Rotary.DefaultSize%p.Rotary.SpatialScale != 0) {
+			return errors.New("latent image: default image extent differs from the source stride")
+		}
 		if p.Prompt.ChatTemplate == "" || !checked.PositiveInts(sampling.DefaultSteps, sampling.TrainTimesteps, p.Rotary.SpatialScale) || !checked.PositiveFinite64(sampling.TimestepFrequencyBase) || !checked.PositiveFinite64(p.Rotary.Shift) || !checked.PositiveFinite64(p.Rotary.TrainingShift) || !checked.NonNegativeFinite32(p.Rotary.Guidance) {
 			return errors.New("latent image: invalid rotary image profile")
 		}

@@ -191,10 +191,17 @@
       "owner": "overgo_moss",
       "status": "open",
       "budget": {
-        "nodes": 3777,
-        "reason": "Add an estimated 1300 nodes for source BF16 L2 normalization, shared reduction geometry, native fixtures and verification. Preserve the remaining 3726 nodes for composed conditioning."
+        "nodes": 6777,
+        "reason": "Add an estimated 3000 nodes to select identity-bound native arithmetic and original head order through HF catalog and shared model blocks. Preserve the remaining 3777 nodes for prompt conditioning and integration."
       },
       "steps": [
+        {
+          "id": "native-model",
+          "title": "Bind native conditioning arithmetic through shared model blocks",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentimage -count=1 -run '^TestMOSSConditioningModelGolden$'",
+          "rationale": "The native conditioning corpus = dataset:sha256:26542ad2a14f22e1d8742be3d267aed029e9cd35ffa14d7c6473633d6d9b2ff3.\nAll 32 layers and final normalization match native exactly in the composed diagnostic across six cases and 60825600 values including repeats.\nThe diagnostic still assembles model topology outside the shared model owner.\nRecord a typed source arithmetic policy in model metadata and import identity.\nDerive native conditioning selection from the declared Qwen3_5Model hidden-state contract and BF16 source storage.\nPreserve source head ordering and raw decay parameters for native arithmetic.\nReuse shifted F32 normalization weights from the existing importer.\nSelect verified projections, normalization, rotary, attention and recurrent operations in the existing layer programs.\nPreserve native BF16 residual and feed-forward rounding.\nRefuse unverified cached decoding and unsupported source-policy topology.\nKeep existing token-generation mappings and arithmetic unchanged.\nCompare compact original native model fixtures and all released conditioning layers through the shared model program.\nRetain source identities and failed comparisons in OvergoDB.\nServes: deterministic MOSS model loading through existing model execution owners.\nDisappears: manually assembled diagnostic model topology.\nEvidence: original native compact and released model comparisons with frozen tolerances.\nBatch: catalog, model, shared CUDA graph, import identity and parity command."
+        },
         {
           "id": "encode",
           "title": "Match prompt rendering and final hidden states",
@@ -208,7 +215,8 @@
             "moss-conditioning/native-math",
             "moss-conditioning/native-attention",
             "moss-conditioning/native-rotary",
-            "moss-conditioning/native-l2"
+            "moss-conditioning/native-l2",
+            "moss-conditioning/native-model"
           ]
         }
       ]

@@ -237,6 +237,7 @@ var kernelFunctionModules = [...]int{
 	1,
 	1,
 	1,
+	1,
 }
 
 type kernelFunctionID uint16
@@ -465,6 +466,7 @@ const (
 	kernelAttentionNativeSoftmaxF32
 	kernelExpNativeF32
 	kernelRmsNormNativeF32
+	kernelRopeNativeBf16F32
 	kernelSoftplusNativeF32
 	kernelFunctionCount
 )
@@ -693,6 +695,7 @@ var kernelFunctionNames = [...]string{
 	"attention_native_softmax_f32",
 	"exp_native_f32",
 	"rms_norm_native_f32",
+	"rope_native_bf16_f32",
 	"softplus_native_f32",
 }
 
@@ -920,6 +923,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	5,
 	3,
 	7,
+	13,
 	3,
 }
 

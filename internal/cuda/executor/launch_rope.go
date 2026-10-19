@@ -22,6 +22,9 @@ func launchRoPE(
 	switch node.Op {
 	case tensor.OpRoPENeoX, tensor.OpRoPENormal:
 		attributes := runtimeAttributes.(tensor.RoPEAttributes)
+		if attributes.NativeBF16 {
+			return launchNativeRotary(state, functions, node, pointers, attributes.RotaryDimensions, [tensor.MaxDimensions]int32{}, false, false)
+		}
 		count := shapeCount32(node.Shape)
 		width, heads, tokens := uint32(node.Shape.Dims[0]), uint32(node.Shape.Dims[1]), uint32(node.Shape.Dims[2])
 		input := pointers.input(0)
@@ -53,6 +56,9 @@ func launchRoPE(
 		)
 	case tensor.OpRoPEMulti:
 		attributes := runtimeAttributes.(tensor.RoPEMultiAttributes)
+		if attributes.NativeBF16 {
+			return launchNativeRotary(state, functions, node, pointers, attributes.RotaryDimensions, attributes.Sections, true, len(node.Inputs) == tensor.TripleExtent)
+		}
 		count := shapeCount32(node.Shape)
 		width, heads, tokens := uint32(node.Shape.Dims[0]), uint32(node.Shape.Dims[1]), uint32(node.Shape.Dims[2])
 		input := pointers.input(0)
@@ -88,4 +94,20 @@ func launchRoPE(
 	default:
 		return fmt.Errorf("unsupported CUDA operation %s", node.Op)
 	}
+}
+
+func launchNativeRotary(state *device.State, functions functionSet, node *tensor.Tensor, pointers launchPointerFrame, rotary uint32, sections [tensor.MaxDimensions]int32, multi, positionsInput bool) error {
+	count := shapeCount32(node.Shape)
+	width, heads, tokens := uint32(node.Shape.Dims[0]), uint32(node.Shape.Dims[1]), uint32(node.Shape.Dims[tensor.PairedExtent])
+	input, output := pointers.input(0), pointers.output()
+	frequencies := pointers.input(len(node.Inputs) - 1)
+	positions := pointers.attribute
+	if positionsInput {
+		positions = pointers.input(1)
+	}
+	if positions == 0 {
+		return errors.New("native BF16 RoPE position storage is unavailable")
+	}
+	multiFlag, floatFlag := kernelBool(multi), kernelBool(positionsInput)
+	return launch1DABI(state, functions[kernelRopeNativeBf16F32], count, &input, &positions, &frequencies, &output, &width, &heads, &tokens, &rotary, &sections[1], &sections[tensor.PairedExtent], &multiFlag, &floatFlag, &count)
 }

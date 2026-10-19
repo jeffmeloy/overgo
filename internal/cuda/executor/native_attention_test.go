@@ -22,6 +22,21 @@ func nativeAttentionTestGraph(t *testing.T, tokens uint64) *tensor.Tensor {
 }
 
 func TestNativeAttentionSelection(t *testing.T) {
+	for _, native := range []bool{false, true} {
+		b := tensor.NewBuilder()
+		q := b.BF16Round(b.Input("q", dtype.F32, tensor.MustShape(32, 4, 16)))
+		k := b.BF16Round(b.Input("k", dtype.F32, tensor.MustShape(32, 2, 16)))
+		v := b.BF16Round(b.Input("v", dtype.F32, tensor.MustShape(32, 2, 16)))
+		out := b.AttentionWithOptions(q, k, v, tensor.AttentionOptions{Scale: .25, NativeMath: native})
+		compiled, err := Compile(out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fusion := compiled.nodes[compiled.orderIndexes[out]].fusion
+		if fused := fusion != nil && fusion.kind == compiledFusionBF16Attention; fused == native {
+			t.Fatalf("attention fusion violates source selection: native=%v", native)
+		}
+	}
 	native := nativeAttentionTestGraph(t, 22)
 	policy := native.Attrs.(tensor.AttentionAttributes)
 	policy.Causal = false

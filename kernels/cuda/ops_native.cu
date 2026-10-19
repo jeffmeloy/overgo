@@ -1,4 +1,32 @@
 #include <math.h>
+#include <cuda_bf16.h>
+
+__device__ __forceinline__ float native_bf16(float value) {
+    return __bfloat162float(__float2bfloat16_rn(value));
+}
+
+// Native rotary coefficients and both products round separately before the sum.
+// The first axis owns pairs outside the height and width interleaved sections.
+extern "C" __global__ void rope_native_bf16_f32(
+        const float * input, const unsigned int * positions, const float * frequencies, float * output,
+        unsigned int width, unsigned int heads, unsigned int tokens, unsigned int rotary,
+        unsigned int height_section, unsigned int width_section, unsigned int multi,
+        unsigned int positions_f32, unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) return;
+    const unsigned int column = index % width;
+    if (column >= rotary) { output[index] = input[index]; return; }
+    const unsigned int half = rotary / 2, pair = column % half, token = (index / width / heads) % tokens;
+    unsigned int axis = 0;
+    if (multi && pair % 3 == 1 && pair < height_section * 3) axis = 1;
+    if (multi && pair % 3 == 2 && pair < width_section * 3) axis = 2;
+    const float position = positions_f32 ? reinterpret_cast<const float *>(positions)[token * 4 + axis] : (float)positions[axis * tokens + token];
+    const float angle = __fmul_rn(position, frequencies[pair]);
+    const float cosine = native_bf16(cosf(angle)), sine = native_bf16(sinf(angle));
+    const unsigned int partner = column < half ? index + half : index - half;
+    const float rotated = column < half ? -input[partner] : input[partner];
+    output[index] = native_bf16(__fadd_rn(native_bf16(__fmul_rn(input[index], cosine)), native_bf16(__fmul_rn(rotated, sine))));
+}
 
 // Native attention preserves full head batching and symmetric source scaling.
 // Staging is admitted and reused by the shared BLAS owner.

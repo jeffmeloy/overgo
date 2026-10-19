@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "abiVersion": 58,
+  "abiVersion": 59,
   "cudaToolkit": "12.9",
   "nvcc": "12.9.86",
   "target": "compute_89",
@@ -1631,9 +1631,9 @@
     {
       "executor": true,
       "source": "kernels/cuda/ops_native.cu",
-      "sourceSha256": "aa56f71393ea9d9c89180b0b176f196446e6ca97849cc7cd490167e459a774f8",
+      "sourceSha256": "df21c46653b7369fb376213e328669675fc336e38d53fa1eae8c1a136d60f22c",
       "asset": "internal/cuda/kernel/ops_native.ptx",
-      "assetSha256": "550ee502d6bff3cdf633d1643f933afd16546f644fa412c86b905a6511da5a1e",
+      "assetSha256": "ae13c210fcbd048dac71577b4074b47834aea9169d131166acce3212ff6454f5",
       "compilerFlags": [
         "-ptx",
         "-arch=compute_89",
@@ -1644,6 +1644,7 @@
         "attention_native_softmax_f32",
         "exp_native_f32",
         "rms_norm_native_f32",
+        "rope_native_bf16_f32",
         "softplus_native_f32"
       ],
       "argumentLayouts": [
@@ -1707,6 +1708,26 @@
           ],
           "functions": [
             "rms_norm_native_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "rope_native_bf16_f32"
           ]
         }
       ]

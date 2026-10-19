@@ -635,6 +635,7 @@ func validateRuntimeAttributes(node *tensor.Tensor, attributes tensor.Attributes
 	case tensor.OpRoPENeoX, tensor.OpRoPENormal:
 		initial, next := node.Attrs.(tensor.RoPEAttributes), attributes.(tensor.RoPEAttributes)
 		if !sameLength(node.Attrs.(tensor.RoPEAttributes).Positions, attributes.(tensor.RoPEAttributes).Positions) ||
+			initial.NativeBF16 != next.NativeBF16 ||
 			initial.RotaryDimensions != next.RotaryDimensions ||
 			initial.FrequencyBase != next.FrequencyBase ||
 			initial.FrequencyScale != next.FrequencyScale ||
@@ -651,7 +652,7 @@ func validateRuntimeAttributes(node *tensor.Tensor, attributes tensor.Attributes
 				return errors.New("CUDA runtime multi-RoPE position count changes compiled shape")
 			}
 		}
-		if initial.Layout != next.Layout || initial.InterleavedSections != next.InterleavedSections ||
+		if initial.NativeBF16 != next.NativeBF16 || initial.Layout != next.Layout || initial.InterleavedSections != next.InterleavedSections ||
 			initial.Sections != next.Sections || initial.RotaryDimensions != next.RotaryDimensions ||
 			initial.FrequencyBase != next.FrequencyBase || initial.FrequencyScale != next.FrequencyScale {
 			return errors.New("CUDA runtime multi-RoPE override changes compiled policy")

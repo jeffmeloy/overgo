@@ -161,6 +161,8 @@ type GetRowsAttributes struct {
 }
 
 type RoPEAttributes struct {
+	// NativeBF16 preserves native BF16 coefficients, products and sums.
+	NativeBF16       bool
 	Positions        []uint32
 	RotaryDimensions uint32
 	FrequencyBase    float32
@@ -173,6 +175,8 @@ type RoPEAttributes struct {
 }
 
 type RoPEMultiAttributes struct {
+	// NativeBF16 preserves native BF16 coefficients, products and sums.
+	NativeBF16          bool
 	Layout              RoPELayout
 	InterleavedSections bool
 	Positions           [4][]uint32

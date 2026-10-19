@@ -734,7 +734,7 @@ func applyRopeAppendRewrite(context *rewriteContext) {
 		}
 		rope := node.Inputs[1]
 		if (rope.Op != tensor.OpRoPENormal && rope.Op != tensor.OpRoPENeoX) ||
-			context.uses[rope] != 1 {
+			context.uses[rope] != 1 || rope.Attrs.(tensor.RoPEAttributes).NativeBF16 {
 			continue
 		}
 		if _, skipped := compiled.skipped[rope]; skipped {
@@ -767,7 +767,7 @@ func applyBF16AttentionRewrite(context *rewriteContext) {
 			continue
 		}
 		attributes, ok := node.Attrs.(tensor.AttentionAttributes)
-		if !ok || attributes.Causal || attributes.HasSinks || attributes.HasBlockMask ||
+		if !ok || attributes.NativeMath || attributes.Causal || attributes.HasSinks || attributes.HasBlockMask ||
 			attributes.SymmetricWindow || attributes.ChunkedWindow ||
 			attributes.Softcap != 0 || attributes.MaxALiBiBias != 0 ||
 			attributes.QueryStart != 0 || attributes.KeyValueTokens != 0 ||

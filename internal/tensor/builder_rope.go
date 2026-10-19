@@ -13,6 +13,7 @@ import (
 const UnitFrequencyScale = float32(1)
 
 type ropeOptions struct {
+	nativeBF16                    bool
 	operation                     Op
 	name                          string
 	positions                     []uint32
@@ -36,6 +37,8 @@ const (
 
 // RoPEOptions defines rotary coordinates and channel pairing.
 type RoPEOptions struct {
+	// NativeBF16 selects unscaled native split-half BF16 arithmetic.
+	NativeBF16     bool
 	Layout         RoPELayout
 	Positions      []uint32
 	MultiPositions *[MaxDimensions][]uint32
@@ -59,6 +62,13 @@ type RoPEOptions struct {
 
 // RoPEWithOptions builds single-axis or multi-axis rotary operations.
 func (b *Builder) RoPEWithOptions(input *Tensor, options RoPEOptions) *Tensor {
+	if options.NativeBF16 && (input == nil || input.Type != dtype.F32 || options.Layout != RoPELayoutNeoX ||
+		options.FrequencyFactors != nil || options.YaRN || options.Reverse || options.FrequencyScale != UnitFrequencyScale ||
+		options.OriginalContext != 0 || options.ExtFactor != 0 || options.AttentionFactor != 0 || options.BetaFast != 0 || options.BetaSlow != 0 ||
+		math.IsNaN(float64(options.FrequencyBase)) || math.IsInf(float64(options.FrequencyBase), 0)) {
+		b.setError(errors.New("native BF16 RoPE requires F32 inputs, split-half pairs, finite base and unscaled positions without frequency overrides"))
+		return nil
+	}
 	if options.MultiPositions != nil || options.PositionInput != nil {
 		if options.MultiPositions != nil && options.PositionInput != nil {
 			b.setError(errors.New("multi-axis RoPE has two position sources"))
@@ -85,7 +95,8 @@ func (b *Builder) RoPEWithOptions(input *Tensor, options RoPEOptions) *Tensor {
 		return nil
 	}
 	return b.buildRoPE(input, ropeOptions{
-		operation: operation, name: name, positions: options.Positions,
+		nativeBF16: options.NativeBF16,
+		operation:  operation, name: name, positions: options.Positions,
 		frequencyFactors: options.FrequencyFactors,
 		rotaryDimensions: options.RotaryDimensions,
 		frequencyBase:    options.FrequencyBase, frequencyScale: options.FrequencyScale,
@@ -136,12 +147,17 @@ func (b *Builder) buildRoPEMulti(input *Tensor, options RoPEOptions) *Tensor {
 		b.setError(errors.New("rope_multi sections are empty"))
 		return nil
 	}
+	if options.NativeBF16 && (!options.InterleavedSections || sections[TripleExtent] != 0 || sectionPairs != int64(rotaryDimensions/PairedExtent)) {
+		b.setError(errors.New("native BF16 multi-axis RoPE requires three interleaved sections covering every rotary pair"))
+		return nil
+	}
 	if frequencyBase <= 0 || frequencyScale <= 0 ||
 		math.IsNaN(float64(frequencyScale)) || math.IsInf(float64(frequencyScale), 0) {
 		b.setError(errors.New("rope_multi frequency parameters must be positive and finite"))
 		return nil
 	}
 	attributes := RoPEMultiAttributes{
+		NativeBF16:          options.NativeBF16,
 		Layout:              options.Layout,
 		InterleavedSections: options.InterleavedSections,
 		Sections:            sections,
@@ -155,6 +171,9 @@ func (b *Builder) buildRoPEMulti(input *Tensor, options RoPEOptions) *Tensor {
 	inputs := []*Tensor{input}
 	if options.PositionInput != nil {
 		inputs = append(inputs, options.PositionInput)
+	}
+	if options.NativeBF16 {
+		inputs = append(inputs, b.nativeRotaryFrequencies(frequencyBase, rotaryDimensions))
 	}
 	return b.add("", input.Type, input.Shape, OpRoPEMulti, inputs, attributes)
 }
@@ -212,6 +231,7 @@ func (b *Builder) buildRoPE(input *Tensor, options ropeOptions) *Tensor {
 		}
 	}
 	attributes := RoPEAttributes{
+		NativeBF16:       options.nativeBF16,
 		Positions:        slices.Clone(options.positions),
 		RotaryDimensions: options.rotaryDimensions,
 		FrequencyBase:    options.frequencyBase,
@@ -232,5 +252,17 @@ func (b *Builder) buildRoPE(input *Tensor, options ropeOptions) *Tensor {
 	if options.frequencyFactors != nil {
 		inputs = append(inputs, options.frequencyFactors)
 	}
+	if options.nativeBF16 {
+		inputs = append(inputs, b.nativeRotaryFrequencies(options.frequencyBase, options.rotaryDimensions))
+	}
 	return b.add("", input.Type, input.Shape, options.operation, inputs, attributes)
+}
+
+func (b *Builder) nativeRotaryFrequencies(base float32, dimensions uint32) *Tensor {
+	data := make([]float32, dimensions/PairedExtent)
+	for pair := range data {
+		exponent := float32(pair*PairedExtent) / float32(dimensions)
+		data[pair] = 1 / float32(math.Pow(float64(base), float64(exponent)))
+	}
+	return b.add("rope.inverse_frequency", dtype.F32, MustShape(uint64(len(data))), OpInput, nil, EmbeddedInputAttributes{Data: data})
 }

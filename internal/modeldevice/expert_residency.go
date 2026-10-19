@@ -325,24 +325,20 @@ func (w *DeviceWeights) ExpertRoutes(state *device.State, nodes []*tensor.Tensor
 	return c.routedMap + driver.DevicePtr(head.routed), nil
 }
 
-// HostedExpertBytes writes into hosted, for each expert of a routed node's
-// banks, the bytes of its banks in pinned host memory, which the card reads
-// over the PCIe link. The nodes are the routed node's banks.
-func (w *DeviceWeights) HostedExpertBytes(state *device.State, nodes []*tensor.Tensor, hosted []uint64) error {
+// ExpertSources writes, for each expert of a routed node's bank, the address
+// its table names into pointers and, for an expert in host memory, its pinned
+// bytes into hosted, which a copy to the card reads at the link's rate.
+func (w *DeviceWeights) ExpertSources(state *device.State, node *tensor.Tensor, pointers []driver.DevicePtr, hosted [][]byte) error {
 	if w == nil || w.experts == nil || w.experts.state != state {
 		return errors.New("expert residency requires its owning CUDA worker")
 	}
-	clear(hosted)
-	for _, node := range nodes {
-		bank := w.experts.banks[node.Name]
-		if bank == nil || len(bank.hosted) != len(hosted) {
-			return fmt.Errorf("expert bank %q differs from its routed node", node.Name)
-		}
-		for index, host := range bank.hosted {
-			if host != nil {
-				hosted[index] += bank.bytes
-			}
-		}
+	bank := w.experts.banks[node.Name]
+	if bank == nil || len(bank.pointers) != len(pointers) || len(bank.hosted) != len(hosted) {
+		return fmt.Errorf("expert bank %q differs from its routed node", node.Name)
+	}
+	copy(pointers, bank.pointers)
+	for index, host := range bank.hosted {
+		hosted[index] = host[:min(uint64(len(host)), bank.bytes)]
 	}
 	return nil
 }

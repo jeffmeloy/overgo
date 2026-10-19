@@ -206,8 +206,8 @@ func launchMoE(
 			); err != nil {
 				return err
 			}
-			if used, err := launchMoEMatrices(pointers.ctx, state, functions, blas, node,
-				groupInput, routeState, groupOutput, gate, up, down, gateBias, upBias, downBias, expertScale,
+			if used, err := launchMoEMatrices(state, functions, blas, node,
+				groupInput, routeState, activations, groupOutput, gate, up, down, gateBias, upBias, downBias, expertScale,
 				count, residency); err != nil {
 				return err
 			} else if used {
@@ -274,10 +274,6 @@ const (
 	// moeScratchLimitBytes bounds the scratch one launch group holds; a
 	// longer prompt runs as several groups.
 	moeScratchLimitBytes = uint64(32 << 20)
-	// moeHostReadCost: the card-memory bytes one byte a kernel reads from mapped host memory costs.
-	//   - the RTX 4090 D reads its own memory at 1,008 GB/s, and its PCIe 4.0 x16 link carries 31.5 GB/s
-	//   - Flash-Next's 351-token prompt group read the gate and up rows of its host-heavy layers by row dots at 9 to 33 GB/s
-	moeHostReadCost = uint64(32)
 )
 
 // moeScratchGroup: the tokens one routed-expert launch group covers and the
@@ -299,8 +295,8 @@ func moeScratchGroup(node *tensor.Tensor) (uint32, uint64, error) {
 	}
 	tokenLimit, scratchLimit := tokens, moeScratchLimitBytes
 	if geometry, ok := nativeMoEMatrix(node); ok {
-		tokenLimit = min(tokenLimit, (quantStagedChunkBytes-geometry.weightBytes-f32ScalarBytes)/(geometry.rowBytes*geometry.rowsPerToken+geometry.slotBytes))
-		// A matrix group stages each routed expert once, so a group takes as many tokens as the staging holds.
+		tokenLimit = min(tokenLimit, geometry.tokenLimit())
+		// A matrix group reads its experts once a tile, so a group takes as many tokens as the staging holds.
 		scratchLimit = quantStagedChunkBytes
 	}
 	activations := uint64(attributes.TopK) * intermediate

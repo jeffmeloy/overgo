@@ -108,19 +108,16 @@ const (
 	kernelLoraMergeF32
 	kernelMadNormBackwardF32
 	kernelMadNormF32
-	kernelMoeActivateF32
 	kernelMoeCombineF32
 	kernelMoeDownDotF32
 	kernelMoeDownF32
-	kernelMoeGatherF32
+	kernelMoeGroupedDownF32
+	kernelMoeGroupedHiddenF32
 	kernelMoeHiddenDotF32
 	kernelMoeHiddenF32
 	kernelMoeRouteF32
 	kernelMoeRouterDotF32
 	kernelMoeRouterLogitsF32
-	kernelMoeScatterF32
-	kernelMoeStageDownF32
-	kernelMoeStageF32
 	kernelMulMatBf16AddF32
 	kernelMulMatBf16AppendF32
 	kernelMulMatBf16ArgmaxPartialsF32
@@ -330,19 +327,16 @@ var kernelFunctionNames = [...]string{
 	"lora_merge_f32",
 	"mad_norm_backward_f32",
 	"mad_norm_f32",
-	"moe_activate_f32",
 	"moe_combine_f32",
 	"moe_down_dot_f32",
 	"moe_down_f32",
-	"moe_gather_f32",
+	"moe_grouped_down_f32",
+	"moe_grouped_hidden_f32",
 	"moe_hidden_dot_f32",
 	"moe_hidden_f32",
 	"moe_route_f32",
 	"moe_router_dot_f32",
 	"moe_router_logits_f32",
-	"moe_scatter_f32",
-	"moe_stage_down_f32",
-	"moe_stage_f32",
 	"mul_mat_bf16_add_f32",
 	"mul_mat_bf16_append_f32",
 	"mul_mat_bf16_argmax_partials_f32",
@@ -552,18 +546,15 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	7,
 	5,
 	10,
+	15,
+	15,
 	10,
-	15,
-	15,
-	8,
+	18,
 	20,
 	20,
 	10,
 	7,
 	7,
-	8,
-	8,
-	11,
 	6,
 	7,
 	5,

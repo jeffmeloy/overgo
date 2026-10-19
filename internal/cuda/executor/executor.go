@@ -2383,13 +2383,16 @@ func quantKernel(dataType dtype.Type) (quantKernelDescriptor, bool) {
 }
 
 type blasState struct {
-	moeHosted    []uint64
-	moeRoutes    []uint32
-	moeExperts   []uint32
-	moeCounts    []uint32
-	moeOffsets   []uint32
-	moeSlots     []uint32
-	moeTable     []uint32
+	moeRoutes  []uint32
+	moeCounts  []uint32
+	moeOffsets []uint32
+	moeTable   []uint32
+	// moeSources and moeHosted hold a group's expert addresses and host bytes a bank, and moeCopyTable a batch's copied addresses.
+	moeSources   []driver.DevicePtr
+	moeHosted    [][]byte
+	moeCopyTable []driver.DevicePtr
+	moeBatches   []moeBatch
+	moeCopied    []uint32
 	library      *cublas.Library
 	handle       cublas.Handle
 	staging      driver.DevicePtr

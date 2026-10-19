@@ -208,27 +208,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "strata-prefill",
-      "title": "Read long prompts at the speed Strata reaches on this PC",
-      "status": "open",
-      "budget": {
-        "nodes": 272,
-        "reason": "advance-rule estimate: the previous run's token count passed to the residency's advance; chunked measured on its build later"
-      },
-      "steps": [
-        {
-          "id": "chunked",
-          "title": "Prefill in large chunks with grouped quantized expert matrices, streaming the next layer's experts while attention runs",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestPromptExpertsMultiplyEncodedWeights$'",
-          "rationale": "From the lead's review of Strata on 2026-10-17.\nStrata's frozen bench on this PC reads 4K prompts at 1,836.7 tokens a second and 16K at 3,229.0, and its log reads the same 1,561-token document prompt in 2.16 s, 723 tokens a second.\nOvergo reads that prompt in 17.4 s at trunk 7d07daefb, about 90 tokens a second.\nStrata reads up to 8,192 tokens a chunk with quantized grouped matrix kernels, and streams the next layer's experts over PCIe while the current layer's attention runs (docs/DETAILS.md lines 332-342).\nThe step first profiles the document's prefill as step router profiled decode, then changes the chunk and the expert matrix path the profile names, through the bounded device prefill admission (644977f39, a8ca2588a) and grouped expert computation (e136f49d5, fb7dc9936).\nEvery prompt token's state stays identical to the whole prefill within the arithmetic the current path keeps.\nServes: first-output for every long Flash-Next prompt, image and follow-up.\nDisappears: the per-row expert work and serial uploads the profile names.\nEvidence: the device test of chunked against whole prefill, and the document's prefill speed before and after, beside Strata's.\nBatch: device; set the row's count from the profile before the change.\n\nFrom the prefill profile at cdc917f19: after step groups, the prompt's remaining expert costs are the F32 staging and SGEMM of the matrix path (moe_stage_f32 970 ms, moe_stage_down_f32 465, products 380) and the per-request residency advance (about 1.9 s of demote and promote copies at the head of the request, AdvanceExperts moving experts by the previous request's routes). This step replaces the F32 staging with grouped products over the encoded weights (block dots with a token tile, or f16 tensor-core staging), reads each host expert once a prompt overlapped with attention, and keeps the advance's churn off a prompt whose routes touch nearly every expert.",
-          "depends_on": [
-            "strata-decode/router"
-          ]
-        }
-      ]
-    },
-    {
       "id": "speculation",
       "title": "Speculate safely and further on Flash-Next and NextN models",
       "owner": "master-lead",

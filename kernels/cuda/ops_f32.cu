@@ -4027,73 +4027,6 @@ extern "C" __global__ void moe_down_f32(
         index, 0, 1, nullptr);
 }
 
-extern "C" __global__ void moe_gather_f32(
-        const float * input, const unsigned int * table, float * output,
-        unsigned int hidden, unsigned int rows, unsigned int batch, unsigned int top_k, unsigned int count) {
-    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index >= count) return;
-    const unsigned int slot = table[batch + index / hidden];
-    output[index] = slot == 0xffffffffu ? 0.0f : input[(size_t) (slot / top_k) * hidden + index % hidden];
-}
-
-extern "C" __global__ void moe_stage_f32(
-        const void * gate, const void * up, const unsigned int * table, float * output,
-        unsigned int hidden, unsigned int intermediate, unsigned int gate_storage, unsigned int up_storage,
-        unsigned int fused, unsigned int indexed, unsigned int count) {
-    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index >= count) return;
-    const size_t bank_elements = (size_t) hidden * intermediate;
-    const unsigned int expert = table[index / (2 * bank_elements)];
-    const size_t within = index % (2 * bank_elements);
-    const bool is_up = within >= bank_elements;
-    const void * bank = is_up ? up : gate;
-    if (indexed) bank = reinterpret_cast<const void * const *>(bank)[expert];
-    const size_t base = indexed ? 0 : (size_t) expert * (fused ? 2 : 1) * bank_elements;
-    const size_t offset = within % bank_elements + (fused && is_up ? bank_elements : 0);
-    output[index] = moe_expert_value(bank, base + offset, is_up ? up_storage : gate_storage);
-}
-
-extern "C" __global__ void moe_activate_f32(
-        float * gu, const unsigned int * table, const float * gate_bias, const float * up_bias,
-        unsigned int intermediate, unsigned int rows, unsigned int activation, unsigned int routing,
-        float swiglu_clamp, unsigned int count) {
-    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index >= count) return;
-    const unsigned int inner = index % intermediate;
-    const size_t offset = (size_t) (index / intermediate) * 2 * intermediate + inner;
-    float gate_dot = gu[offset], up_dot = gu[offset + intermediate];
-    if (gate_bias) {
-        const unsigned int expert = table[index / (rows * intermediate)];
-        gate_dot += gate_bias[(size_t) expert * intermediate + inner];
-        up_dot += up_bias[(size_t) expert * intermediate + inner];
-    }
-    gu[offset] = moe_activation(gate_dot, up_dot, 1, activation, routing, swiglu_clamp);
-}
-
-extern "C" __global__ void moe_stage_down_f32(
-        const void * down, const unsigned int * table, float * output,
-        unsigned int hidden, unsigned int intermediate, unsigned int storage, unsigned int indexed, unsigned int count) {
-    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index >= count) return;
-    const size_t bank_elements = (size_t) hidden * intermediate;
-    const unsigned int expert = table[index / bank_elements];
-    const void * bank = indexed ? reinterpret_cast<const void * const *>(down)[expert] : down;
-    output[index] = moe_expert_value(bank, (indexed ? 0 : (size_t) expert * bank_elements) + index % bank_elements, storage);
-}
-
-extern "C" __global__ void moe_scatter_f32(
-        const float * input, const unsigned int * table, float * slots, const float * down_bias,
-        unsigned int hidden, unsigned int rows, unsigned int batch, unsigned int count) {
-    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index >= count) return;
-    const unsigned int slot = table[batch + index / hidden];
-    if (slot == 0xffffffffu) return;
-    const unsigned int channel = index % hidden;
-    float value = input[index];
-    if (down_bias) value += down_bias[(size_t) table[index / (rows * hidden)] * hidden + channel];
-    slots[(size_t) slot * hidden + channel] = value;
-}
-
 extern "C" __global__ void moe_combine_f32(
         const unsigned int * route_state, const float * slots, const float * expert_scale, float * output,
         unsigned int hidden, unsigned int top_k, unsigned int normalize, float scale,
@@ -7614,31 +7547,81 @@ __device__ __forceinline__ float q8_quad_dot(unsigned int bytes, float4 x) {
         signed_byte_float<2>(bytes) * x.z + signed_byte_float<3>(bytes) * x.w;
 }
 
-// A block format names a storage's block width in weights, its block bytes and its block dot.
+// iq3_s_quad_weights writes the four magnitudes of an IQ3_S grid entry, bit i of signs negating magnitude i.
+__device__ __forceinline__ void iq3_s_quad_weights(unsigned int grid, unsigned int signs, float * w) {
+    const float w0 = byte_float<0>(grid);
+    const float w1 = byte_float<1>(grid);
+    const float w2 = byte_float<2>(grid);
+    const float w3 = byte_float<3>(grid);
+    w[0] = signs & 1 ? -w0 : w0;
+    w[1] = signs & 2 ? -w1 : w1;
+    w[2] = signs & 4 ? -w2 : w2;
+    w[3] = signs & 8 ? -w3 : w3;
+}
+
+// iq4_nibble_weights writes the eight IQ4_NL codebook values packed in four bytes: the low nibbles, then the high.
+__device__ __forceinline__ void iq4_nibble_weights(unsigned int packed, const float * values, float * w) {
+    #pragma unroll
+    for (unsigned int i = 0; i < BLOCK_DOT_WEIGHTS / 2; ++i) {
+        w[i] = values[(packed >> (8 * i)) & 0x0f];
+        w[BLOCK_DOT_WEIGHTS / 2 + i] = values[(packed >> (8 * i + 4)) & 0x0f];
+    }
+}
+
+// q8_quad_weights writes four signed bytes.
+__device__ __forceinline__ void q8_quad_weights(unsigned int bytes, float * w) {
+    w[0] = signed_byte_float<0>(bytes);
+    w[1] = signed_byte_float<1>(bytes);
+    w[2] = signed_byte_float<2>(bytes);
+    w[3] = signed_byte_float<3>(bytes);
+}
+
+// A block format names a storage's block width in weights, its block bytes, its block dot and its weights.
 //   - width and bytes = ggml's layout, which the storage's dequant_*_value function reads
 //   - dot(block, group, x, codebooks) dots BLOCK_DOT_WEIGHTS weights of the block with x
 //   - x starts at the block's first weight, 16-byte aligned
-//   - the weights decode as the storage's dequant_*_value function decodes them
+//   - weights(block, group, codebooks, w) writes the same weights as whole numbers and returns their scale:
+//     w[0..3] from weight offset(group), w[4..7] from offset(group) + split, all in one BLOCK_SCALE_WEIGHTS-weight span of one scale
+//   - the weights times their scale decode as the storage's dequant_*_value function decodes them
+
+// BLOCK_SCALE_WEIGHTS: the weights one scale of every block format covers, a sub-block or a block of 32.
+constexpr unsigned int BLOCK_SCALE_WEIGHTS = 32;
 
 // iq3_s_blocks dots weights 8 * group to 8 * group + 7.
 struct iq3_s_blocks {
     static constexpr unsigned int width = 256;
     static constexpr unsigned int bytes = 110;
-    __device__ static __forceinline__ float dot(
-            const unsigned char * block, unsigned int group, const float * x, const block_dot_codebooks & codebooks) {
+    static constexpr unsigned int split = BLOCK_DOT_WEIGHTS / 2;
+    __device__ static __forceinline__ unsigned int offset(unsigned int group) { return BLOCK_DOT_WEIGHTS * group; }
+    // entries reads a group's two grid entries and its signs, and returns its scale.
+    __device__ static __forceinline__ float entries(const unsigned char * block, unsigned int group,
+            const block_dot_codebooks & codebooks, unsigned int & first, unsigned int & second, unsigned int & signs) {
         const unsigned int pair = group / 8;
         const unsigned int half = group / 4 % 2;
         const unsigned int sub_group = group % 4;
         const unsigned int indices = load_u16(block + 2 + pair * 16 + half * 8 + sub_group * 2);
         const unsigned int high = load_u8(block + 66 + pair * 2 + half);
-        const unsigned int signs = load_u8(block + 74 + pair * 8 + half * 4 + sub_group);
+        signs = load_u8(block + 74 + pair * 8 + half * 4 + sub_group);
         const unsigned int group_scale = (load_u8(block + 106 + pair) >> (4 * half)) & 0x0f;
-        const unsigned int first = codebooks.iq3_s[(indices & 0xff) | ((high << (8 - 2 * sub_group)) & 0x0100)];
-        const unsigned int second = codebooks.iq3_s[(indices >> 8) | ((high << (7 - 2 * sub_group)) & 0x0100)];
-        const float scale = load_half(block) * (float) (1 + 2 * group_scale);
+        first = codebooks.iq3_s[(indices & 0xff) | ((high << (8 - 2 * sub_group)) & 0x0100)];
+        second = codebooks.iq3_s[(indices >> 8) | ((high << (7 - 2 * sub_group)) & 0x0100)];
+        return load_half(block) * (float) (1 + 2 * group_scale);
+    }
+    __device__ static __forceinline__ float dot(
+            const unsigned char * block, unsigned int group, const float * x, const block_dot_codebooks & codebooks) {
+        unsigned int first, second, signs;
+        const float scale = entries(block, group, codebooks, first, second, signs);
         const float * group_x = x + BLOCK_DOT_WEIGHTS * group;
         return scale * (iq3_s_quad_dot(first, signs, load_f32x4(group_x)) +
             iq3_s_quad_dot(second, signs >> 4, load_f32x4(group_x + 4)));
+    }
+    __device__ static __forceinline__ float weights(
+            const unsigned char * block, unsigned int group, const block_dot_codebooks & codebooks, float * w) {
+        unsigned int first, second, signs;
+        const float scale = entries(block, group, codebooks, first, second, signs);
+        iq3_s_quad_weights(first, signs, w);
+        iq3_s_quad_weights(second, signs >> 4, w + split);
+        return scale;
     }
 };
 
@@ -7646,11 +7629,18 @@ struct iq3_s_blocks {
 struct iq4_nl_blocks {
     static constexpr unsigned int width = 32;
     static constexpr unsigned int bytes = 18;
+    static constexpr unsigned int split = width / 2;
+    __device__ static __forceinline__ unsigned int offset(unsigned int group) { return BLOCK_DOT_WEIGHTS / 2 * group; }
     __device__ static __forceinline__ float dot(
             const unsigned char * block, unsigned int group, const float * x, const block_dot_codebooks & codebooks) {
         const unsigned int packed = load_u32_halves(block + 2 + 4 * group);
         return load_half(block) *
             iq4_nibble_dot(packed, load_f32x4(x + 4 * group), load_f32x4(x + 16 + 4 * group), codebooks.iq4_nl);
+    }
+    __device__ static __forceinline__ float weights(
+            const unsigned char * block, unsigned int group, const block_dot_codebooks & codebooks, float * w) {
+        iq4_nibble_weights(load_u32_halves(block + 2 + 4 * group), codebooks.iq4_nl, w);
+        return load_half(block);
     }
 };
 
@@ -7659,19 +7649,34 @@ struct iq4_nl_blocks {
 struct iq4_xs_blocks {
     static constexpr unsigned int width = 256;
     static constexpr unsigned int bytes = 136;
+    static constexpr unsigned int split = iq4_nl_blocks::split;
+    __device__ static __forceinline__ unsigned int offset(unsigned int group) {
+        return iq4_nl_blocks::width * (group / 4) + iq4_nl_blocks::offset(group % 4);
+    }
+    // sub_block_scale returns the scale of the group's sub-block.
+    __device__ static __forceinline__ float sub_block_scale(const unsigned char * block, unsigned int sub_block) {
+        const unsigned int high_scales = load_u16(block + 2);
+        const unsigned int sub_scale = ((load_u8(block + 4 + sub_block / 2) >> (4 * (sub_block % 2))) & 0x0f) |
+            (((high_scales >> (2 * sub_block)) & 0x03) << 4);
+        return load_half(block) * (float) ((int) sub_scale - 32);
+    }
+    __device__ static __forceinline__ const unsigned char * nibbles(const unsigned char * block, unsigned int group) {
+        return block + 8 + 16 * (group / 4) + 4 * (group % 4);
+    }
     __device__ static __forceinline__ float dot(
             const unsigned char * block, unsigned int group, const float * x, const block_dot_codebooks & codebooks) {
         const unsigned int sub_block = group / 4;
         const unsigned int quarter = group % 4;
-        const unsigned int high_scales = load_u16(block + 2);
-        const unsigned int sub_scale = ((load_u8(block + 4 + sub_block / 2) >> (4 * (sub_block % 2))) & 0x0f) |
-            (((high_scales >> (2 * sub_block)) & 0x03) << 4);
-        const unsigned int packed =
-            __ldg(reinterpret_cast<const unsigned int *>(block + 8 + 16 * sub_block + 4 * quarter));
+        const unsigned int packed = __ldg(reinterpret_cast<const unsigned int *>(nibbles(block, group)));
         const float * sub_x = x + iq4_nl_blocks::width * sub_block;
-        return load_half(block) * (float) ((int) sub_scale - 32) *
+        return sub_block_scale(block, sub_block) *
             iq4_nibble_dot(packed, load_f32x4(sub_x + 4 * quarter), load_f32x4(sub_x + 16 + 4 * quarter),
                 codebooks.iq4_nl);
+    }
+    __device__ static __forceinline__ float weights(
+            const unsigned char * block, unsigned int group, const block_dot_codebooks & codebooks, float * w) {
+        iq4_nibble_weights(__ldg(reinterpret_cast<const unsigned int *>(nibbles(block, group))), codebooks.iq4_nl, w);
+        return sub_block_scale(block, group / 4);
     }
 };
 
@@ -7679,6 +7684,8 @@ struct iq4_xs_blocks {
 struct q8_0_blocks {
     static constexpr unsigned int width = Q8_0_BLOCK_WIDTH;
     static constexpr unsigned int bytes = Q8_0_BLOCK_BYTES;
+    static constexpr unsigned int split = BLOCK_DOT_WEIGHTS / 2;
+    __device__ static __forceinline__ unsigned int offset(unsigned int group) { return BLOCK_DOT_WEIGHTS * group; }
     __device__ static __forceinline__ float dot(
             const unsigned char * block, unsigned int group, const float * x, const block_dot_codebooks &) {
         const unsigned char * quantized = block + Q8_0_SCALE_BYTES + BLOCK_DOT_WEIGHTS * group;
@@ -7686,14 +7693,18 @@ struct q8_0_blocks {
         return load_half(block) * (q8_quad_dot(load_u32_halves(quantized), load_f32x4(group_x)) +
             q8_quad_dot(load_u32_halves(quantized + 4), load_f32x4(group_x + 4)));
     }
+    __device__ static __forceinline__ float weights(
+            const unsigned char * block, unsigned int group, const block_dot_codebooks &, float * w) {
+        const unsigned char * quantized = block + Q8_0_SCALE_BYTES + BLOCK_DOT_WEIGHTS * group;
+        q8_quad_weights(load_u32_halves(quantized), w);
+        q8_quad_weights(load_u32_halves(quantized + split), w + split);
+        return load_half(block);
+    }
 };
 
-// visit_block_format calls visit with the block format of a storage.
-//   - it refuses a storage without a block dot, or activations x that do not start 16-byte aligned, and then does not call visit
-//   - a row of a block storage spans whole blocks of at least 32 weights, so each of its activation rows keeps x's alignment
+// visit_block_storage calls visit with the block format of a storage, and refuses a storage without one.
 template <typename Visit>
-__device__ __forceinline__ bool visit_block_format(unsigned int storage, const float * x, Visit visit) {
-    if ((reinterpret_cast<size_t>(x) & (sizeof(float4) - 1)) != 0) return false;
+__device__ __forceinline__ bool visit_block_storage(unsigned int storage, Visit visit) {
     switch (storage) {
     case GGML_IQ3_S: visit(iq3_s_blocks{}); return true;
     case GGML_IQ4_XS: visit(iq4_xs_blocks{}); return true;
@@ -7701,6 +7712,15 @@ __device__ __forceinline__ bool visit_block_format(unsigned int storage, const f
     case GGML_Q8_0: visit(q8_0_blocks{}); return true;
     default: return false;
     }
+}
+
+// visit_block_format calls visit with the block format of a storage.
+//   - it refuses a storage without a block dot, or activations x that do not start 16-byte aligned, and then does not call visit
+//   - a row of a block storage spans whole blocks of at least 32 weights, so each of its activation rows keeps x's alignment
+template <typename Visit>
+__device__ __forceinline__ bool visit_block_format(unsigned int storage, const float * x, Visit visit) {
+    if ((reinterpret_cast<size_t>(x) & (sizeof(float4) - 1)) != 0) return false;
+    return visit_block_storage(storage, visit);
 }
 
 // block_row returns the first block of the row of a bank that starts at weight first.
@@ -7969,6 +7989,307 @@ extern "C" __global__ void moe_down_dot_f32(
         intermediate, normalize_top_k, routed_scale, expert_storage, expert_index_divisor, indexed_experts,
         index, lane, CUDA_WARP_WIDTH, &codebooks);
     if (lane == 0) output[index] = result;
+}
+
+// ---- Grouped expert products ----
+// A prompt group's routed rows, ordered by expert, multiply as tiles on the tensor cores.
+//   - tiles[MOE_TILE_WORDS * t] = the tile's expert, then its first position and its rows, at most MOE_TILE_TOKENS
+//   - positions[p] = the routed slot, token * top_k + slot, of the p-th routed row in expert order
+//   - a block computes MOE_TILE_ROWS weight rows of one tile, and a warp MOE_MMA_ROWS of them
+//   - a step decodes MOE_TILE_DEPTH weights of each row into shared memory: a block format's whole numbers, which f16 holds
+//     exactly, and their scale a BLOCK_SCALE_WEIGHTS-weight span; and it gathers the tile's inputs as a high and a low f16 part
+//   - mma.m16n8k16 multiplies a span's whole numbers by both input parts into F32, and the span's scale weighs that sum,
+//     so a product keeps an input to about 2^-22 of its value
+//   - a tile reads each weight of its expert once for all its rows
+constexpr unsigned int MOE_TILE_WORDS = 3;
+constexpr unsigned int MOE_TILE_TOKENS = 32;
+constexpr unsigned int MOE_TILE_ROWS = 64;
+constexpr unsigned int MOE_TILE_DEPTH = 64;
+constexpr unsigned int MOE_TILE_SPANS = MOE_TILE_DEPTH / BLOCK_SCALE_WEIGHTS;
+// MOE_MMA_ROWS, MOE_MMA_TOKENS, MOE_MMA_DEPTH: the rows, columns and inner width of one mma tile; a warp takes one row tile.
+constexpr unsigned int MOE_MMA_ROWS = 16;
+constexpr unsigned int MOE_MMA_TOKENS = 8;
+constexpr unsigned int MOE_MMA_DEPTH = 16;
+constexpr unsigned int MOE_TILE_THREADS = MOE_TILE_ROWS / MOE_MMA_ROWS * CUDA_WARP_WIDTH;
+constexpr unsigned int MOE_TILE_COLUMNS = MOE_TILE_TOKENS / MOE_MMA_TOKENS;
+// MOE_TILE_STRIDE: a tile row's f16 stride; eight halves of padding keep rows 16-byte aligned and put ldmatrix's eight rows in distinct banks.
+constexpr unsigned int MOE_TILE_STRIDE = MOE_TILE_DEPTH + 8;
+// MOE_MMA_ELEMENTS: the accumulators a lane holds of one mma tile, rows g and g + 8 by columns 2t and 2t + 1.
+constexpr unsigned int MOE_MMA_ELEMENTS = 4;
+// MOE_INPUT_PARTS: an input's high f16 part and the low f16 part of what the high part rounds away.
+constexpr unsigned int MOE_INPUT_PARTS = 2;
+
+// half_mma accumulates the product of a 16x16 f16 A fragment and a 16x8 f16 B fragment into a 16x8 F32 tile.
+__device__ __forceinline__ void half_mma(float * c, const unsigned int * a, unsigned int b0, unsigned int b1) {
+    asm volatile("mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 "
+        "{%0,%1,%2,%3}, {%4,%5,%6,%7}, {%8,%9}, {%0,%1,%2,%3};"
+        : "+f"(c[0]), "+f"(c[1]), "+f"(c[2]), "+f"(c[3])
+        : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b0), "r"(b1));
+}
+
+// moe_tile_store writes four weights as f16.
+__device__ __forceinline__ void moe_tile_store(__half * at, const float * w) {
+    const __half2 low = __floats2half2_rn(w[0], w[1]);
+    const __half2 high = __floats2half2_rn(w[2], w[3]);
+    *reinterpret_cast<uint2 *>(at) = make_uint2(
+        *reinterpret_cast<const unsigned int *>(&low), *reinterpret_cast<const unsigned int *>(&high));
+}
+
+// moe_tile_source names a tile's MOE_TILE_ROWS weight rows of a bank: the weight that starts the first, the
+// weights a row holds, which are also the inner width, the rows that lie in the bank, and the bank's storage.
+struct moe_tile_source {
+    const void * bank;
+    size_t first;
+    unsigned int depth;
+    unsigned int rows;
+    unsigned int storage;
+};
+
+// moe_tile_elements decodes weights k0 to k0 + MOE_TILE_DEPTH of a tile's rows one weight a thread in turn, as f16 under a scale of 1.
+//   - it serves a storage without a block format, and stays out of line so the block formats' steps keep their code compact
+__device__ __noinline__ void moe_tile_elements(__half * tile, float * scales, moe_tile_source source, unsigned int k0) {
+    for (unsigned int item = threadIdx.x; item < MOE_TILE_ROWS * MOE_TILE_DEPTH; item += MOE_TILE_THREADS) {
+        const unsigned int row = item / MOE_TILE_DEPTH;
+        const unsigned int column = item % MOE_TILE_DEPTH;
+        tile[row * MOE_TILE_STRIDE + column] = __float2half_rn(row < source.rows && k0 + column < source.depth
+            ? moe_expert_value(source.bank, source.first + (size_t) row * source.depth + k0 + column, source.storage)
+            : 0.0f);
+        if (column % BLOCK_SCALE_WEIGHTS == 0) scales[row * MOE_TILE_SPANS + column / BLOCK_SCALE_WEIGHTS] = 1.0f;
+    }
+}
+
+// moe_tile_blocks decodes weights k0 to k0 + MOE_TILE_DEPTH of a tile's rows of a block storage and their scales.
+//   - a thread takes a group of BLOCK_DOT_WEIGHTS weights of a row in each pass, and the passes' reads are in flight together
+//   - the groups of a span write its scale alike; rows past the bank, and blocks past the row, take zeros
+template <typename Format>
+__device__ __forceinline__ void moe_tile_blocks(__half * tile, float * scales, const moe_tile_source & source, unsigned int k0,
+        const block_dot_codebooks & codebooks) {
+    constexpr unsigned int groups = MOE_TILE_DEPTH / BLOCK_DOT_WEIGHTS;
+    constexpr unsigned int block_groups = Format::width / BLOCK_DOT_WEIGHTS;
+    #pragma unroll 2
+    for (unsigned int pass = 0; pass < MOE_TILE_ROWS * groups / MOE_TILE_THREADS; ++pass) {
+        const unsigned int item = pass * MOE_TILE_THREADS + threadIdx.x;
+        const unsigned int row = item / groups;
+        const unsigned int global = k0 / BLOCK_DOT_WEIGHTS + item % groups;
+        const unsigned int block = global / block_groups;
+        const unsigned int group = global % block_groups;
+        float w[BLOCK_DOT_WEIGHTS] = {};
+        float scale = 0.0f;
+        if (row < source.rows && block * Format::width < source.depth) {
+            scale = Format::weights(block_row<Format>(source.bank, source.first + (size_t) row * source.depth) +
+                (size_t) block * Format::bytes, group, codebooks, w);
+        }
+        const unsigned int column = block * Format::width + Format::offset(group) - k0;
+        __half * at = tile + row * MOE_TILE_STRIDE + column;
+        moe_tile_store(at, w);
+        moe_tile_store(at + Format::split, w + BLOCK_DOT_WEIGHTS / 2);
+        scales[row * MOE_TILE_SPANS + column / BLOCK_SCALE_WEIGHTS] = scale;
+    }
+}
+
+// moe_tile_weights decodes weights k0 to k0 + MOE_TILE_DEPTH of a tile's rows and their spans' scales into shared memory.
+__device__ __forceinline__ void moe_tile_weights(__half * tile, float * scales, const moe_tile_source & source, unsigned int k0,
+        const block_dot_codebooks & codebooks) {
+    if (!visit_block_storage(source.storage, [&](auto format) {
+            moe_tile_blocks<decltype(format)>(tile, scales, source, k0, codebooks);
+        })) {
+        moe_tile_elements(tile, scales, source, k0);
+    }
+}
+
+// moe_tile_inputs gathers columns k0 to k0 + MOE_TILE_DEPTH of a tile's input rows as their high and low f16 parts,
+// all of whose reads are in flight together.
+//   - row_input(row) = the input row of tile row row; rows from count and columns from depth take zeros
+template <typename RowInput>
+__device__ __forceinline__ void moe_tile_inputs(__half * tile, unsigned int count, unsigned int k0, unsigned int depth, RowInput row_input) {
+    #pragma unroll 4
+    for (unsigned int pass = 0; pass < MOE_TILE_TOKENS * MOE_TILE_DEPTH / MOE_TILE_THREADS; ++pass) {
+        const unsigned int item = pass * MOE_TILE_THREADS + threadIdx.x;
+        const unsigned int row = item / MOE_TILE_DEPTH;
+        const unsigned int column = item % MOE_TILE_DEPTH;
+        const float value = row < count && k0 + column < depth ? row_input(row)[k0 + column] : 0.0f;
+        const __half high = __float2half_rn(value);
+        tile[row * MOE_TILE_STRIDE + column] = high;
+        tile[(MOE_TILE_TOKENS + row) * MOE_TILE_STRIDE + column] = __float2half_rn(value - __half2float(high));
+    }
+}
+
+// moe_tile_product adds a step's products of a warp's MOE_MMA_ROWS decoded rows with the tile's inputs to sums.
+//   - each span's whole numbers multiply both input parts, and the span's scale of each row weighs the span's sums
+//   - the lane addresses of ldmatrix are attention_tiled_bf16_f32's: A takes row halves first, B column halves first
+__device__ __forceinline__ void moe_tile_product(const __half * weights, const float * scales, const __half * inputs,
+        float (&sums)[MOE_TILE_COLUMNS][MOE_MMA_ELEMENTS]) {
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const unsigned int a_row = (lane & 7) + ((lane >> 3) & 1) * 8;
+    const unsigned int a_column = (lane >> 4) * 8;
+    const unsigned int b_row = (lane & 7) + (lane >> 4) * 8;
+    const unsigned int b_column = ((lane >> 3) & 1) * 8;
+    #pragma unroll
+    for (unsigned int span = 0; span < MOE_TILE_SPANS; ++span) {
+        float parts[MOE_TILE_COLUMNS][MOE_MMA_ELEMENTS] = {};
+        #pragma unroll
+        for (unsigned int k = span * BLOCK_SCALE_WEIGHTS; k < (span + 1) * BLOCK_SCALE_WEIGHTS; k += MOE_MMA_DEPTH) {
+            unsigned int a[4];
+            attention_ldx4(attention_shared_address(weights + a_row * MOE_TILE_STRIDE + k + a_column), a[0], a[1], a[2], a[3]);
+            #pragma unroll
+            for (unsigned int part = 0; part < MOE_INPUT_PARTS; ++part) {
+                #pragma unroll
+                for (unsigned int column = 0; column < MOE_TILE_COLUMNS; column += 2) {
+                    unsigned int b0, b1, b2, b3;
+                    attention_ldx4(attention_shared_address(inputs +
+                            ((part * MOE_TILE_TOKENS + column * MOE_MMA_TOKENS) + b_row) * MOE_TILE_STRIDE + k + b_column),
+                        b0, b1, b2, b3);
+                    half_mma(parts[column], a, b0, b1);
+                    half_mma(parts[column + 1], a, b2, b3);
+                }
+            }
+        }
+        // A lane's elements 0 and 1 lie in row g and 2 and 3 in row g + 8.
+        const float low = scales[(lane / 4) * MOE_TILE_SPANS + span];
+        const float high = scales[(lane / 4 + 8) * MOE_TILE_SPANS + span];
+        #pragma unroll
+        for (unsigned int column = 0; column < MOE_TILE_COLUMNS; ++column) {
+            sums[column][0] += low * parts[column][0];
+            sums[column][1] += low * parts[column][1];
+            sums[column][2] += high * parts[column][2];
+            sums[column][3] += high * parts[column][3];
+        }
+    }
+}
+
+// moe_tile_element names the row and the tile token of a lane's accumulator element of one mma tile column.
+__device__ __forceinline__ void moe_tile_element(unsigned int column, unsigned int element, unsigned int & row, unsigned int & token) {
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    row = threadIdx.x / CUDA_WARP_WIDTH * MOE_MMA_ROWS + lane / 4 + element / 2 * 8;
+    token = column * MOE_MMA_TOKENS + lane % 4 * 2 + element % 2;
+}
+
+// moe_grouped_hidden_f32 gives a tile's routed rows their activations: a block takes MOE_TILE_ROWS gate rows and the same up rows.
+//   - activations[p * intermediate + r] = the activation of position p's row r
+extern "C" __global__ void __launch_bounds__(MOE_TILE_THREADS) moe_grouped_hidden_f32(
+        const float * input,
+        const unsigned int * tiles,
+        const unsigned int * positions,
+        const void * gate,
+        const void * up,
+        const float * gate_bias,
+        const float * up_bias,
+        float * activations,
+        unsigned int hidden,
+        unsigned int intermediate,
+        unsigned int top_k,
+        unsigned int gate_storage,
+        unsigned int up_storage,
+        unsigned int fused,
+        unsigned int activation,
+        unsigned int routing,
+        float swiglu_clamp,
+        unsigned int indexed) {
+    __shared__ block_dot_codebooks codebooks;
+    __shared__ __align__(16) __half weights[2 * MOE_TILE_ROWS * MOE_TILE_STRIDE];
+    __shared__ float scales[2 * MOE_TILE_ROWS * MOE_TILE_SPANS];
+    __shared__ __align__(16) __half inputs[MOE_INPUT_PARTS * MOE_TILE_TOKENS * MOE_TILE_STRIDE];
+    __shared__ const float * input_rows[MOE_TILE_TOKENS];
+    block_dot_codebooks_load(codebooks, gate_storage, up_storage);
+    const unsigned int * tile = tiles + (size_t) MOE_TILE_WORDS * blockIdx.x;
+    const unsigned int expert = tile[0], first = tile[1], count = tile[2];
+    const unsigned int row0 = blockIdx.y * MOE_TILE_ROWS;
+    if (indexed) {
+        gate = reinterpret_cast<const void * const *>(gate)[expert];
+        up = reinterpret_cast<const void * const *>(up)[expert];
+    }
+    const size_t gate_first = (indexed ? 0 : (size_t) expert * (fused ? 2 : 1) * intermediate * hidden) + (size_t) row0 * hidden;
+    const unsigned int rows = min(MOE_TILE_ROWS, intermediate - row0);
+    // Gate rows fill the tile's first half and the same up rows its second; a fused bank holds its up rows after its gate rows.
+    const moe_tile_source sources[2] = {
+        {gate, gate_first, hidden, rows, gate_storage},
+        {up, gate_first + (fused ? (size_t) intermediate * hidden : 0), hidden, rows, up_storage},
+    };
+    // The tile's input rows, read once; the first step's barrier publishes them.
+    if (threadIdx.x < count) input_rows[threadIdx.x] = input + (size_t) (positions[first + threadIdx.x] / top_k) * hidden;
+    const auto input_row = [&](unsigned int row) { return input_rows[row]; };
+    const unsigned int warp_row = threadIdx.x / CUDA_WARP_WIDTH * MOE_MMA_ROWS;
+    float gate_sums[MOE_TILE_COLUMNS][MOE_MMA_ELEMENTS] = {};
+    float up_sums[MOE_TILE_COLUMNS][MOE_MMA_ELEMENTS] = {};
+    for (unsigned int k0 = 0; k0 < hidden; k0 += MOE_TILE_DEPTH) {
+        __syncthreads();
+        #pragma unroll 1
+        for (unsigned int half = 0; half < 2; ++half) {
+            moe_tile_weights(weights + half * MOE_TILE_ROWS * MOE_TILE_STRIDE, scales + half * MOE_TILE_ROWS * MOE_TILE_SPANS,
+                sources[half], k0, codebooks);
+        }
+        moe_tile_inputs(inputs, count, k0, hidden, input_row);
+        __syncthreads();
+        moe_tile_product(weights + warp_row * MOE_TILE_STRIDE, scales + warp_row * MOE_TILE_SPANS, inputs, gate_sums);
+        moe_tile_product(weights + (MOE_TILE_ROWS + warp_row) * MOE_TILE_STRIDE,
+            scales + (MOE_TILE_ROWS + warp_row) * MOE_TILE_SPANS, inputs, up_sums);
+    }
+    #pragma unroll
+    for (unsigned int column = 0; column < MOE_TILE_COLUMNS; ++column) {
+        #pragma unroll
+        for (unsigned int element = 0; element < MOE_MMA_ELEMENTS; ++element) {
+            unsigned int row, token;
+            moe_tile_element(column, element, row, token);
+            row += row0;
+            if (token >= count || row >= intermediate) continue;
+            float gate_dot = gate_sums[column][element];
+            float up_dot = up_sums[column][element];
+            if (gate_bias) {
+                gate_dot += gate_bias[(size_t) expert * intermediate + row];
+                up_dot += up_bias[(size_t) expert * intermediate + row];
+            }
+            activations[(size_t) (first + token) * intermediate + row] =
+                moe_activation(gate_dot, up_dot, 1, activation, routing, swiglu_clamp);
+        }
+    }
+}
+
+// moe_grouped_down_f32 gives a tile's routed slots their down products: a block takes MOE_TILE_ROWS output channels.
+//   - slots[s * hidden + h] = routed slot s's channel h, its down bias added
+extern "C" __global__ void __launch_bounds__(MOE_TILE_THREADS) moe_grouped_down_f32(
+        const float * activations,
+        const unsigned int * tiles,
+        const unsigned int * positions,
+        const void * down,
+        const float * down_bias,
+        float * slots,
+        unsigned int hidden,
+        unsigned int intermediate,
+        unsigned int storage,
+        unsigned int indexed) {
+    __shared__ block_dot_codebooks codebooks;
+    __shared__ __align__(16) __half weights[MOE_TILE_ROWS * MOE_TILE_STRIDE];
+    __shared__ float scales[MOE_TILE_ROWS * MOE_TILE_SPANS];
+    __shared__ __align__(16) __half inputs[MOE_INPUT_PARTS * MOE_TILE_TOKENS * MOE_TILE_STRIDE];
+    block_dot_codebooks_load(codebooks, storage, storage);
+    const unsigned int * tile = tiles + (size_t) MOE_TILE_WORDS * blockIdx.x;
+    const unsigned int expert = tile[0], first = tile[1], count = tile[2];
+    const unsigned int row0 = blockIdx.y * MOE_TILE_ROWS;
+    if (indexed) down = reinterpret_cast<const void * const *>(down)[expert];
+    const moe_tile_source source = {down, (indexed ? 0 : (size_t) expert * hidden * intermediate) + (size_t) row0 * intermediate,
+        intermediate, min(MOE_TILE_ROWS, hidden - row0), storage};
+    const auto input_row = [&](unsigned int row) { return activations + (size_t) (first + row) * intermediate; };
+    const unsigned int warp_row = threadIdx.x / CUDA_WARP_WIDTH * MOE_MMA_ROWS;
+    float sums[MOE_TILE_COLUMNS][MOE_MMA_ELEMENTS] = {};
+    for (unsigned int k0 = 0; k0 < intermediate; k0 += MOE_TILE_DEPTH) {
+        __syncthreads();
+        moe_tile_weights(weights, scales, source, k0, codebooks);
+        moe_tile_inputs(inputs, count, k0, intermediate, input_row);
+        __syncthreads();
+        moe_tile_product(weights + warp_row * MOE_TILE_STRIDE, scales + warp_row * MOE_TILE_SPANS, inputs, sums);
+    }
+    #pragma unroll
+    for (unsigned int column = 0; column < MOE_TILE_COLUMNS; ++column) {
+        #pragma unroll
+        for (unsigned int element = 0; element < MOE_MMA_ELEMENTS; ++element) {
+            unsigned int channel, token;
+            moe_tile_element(column, element, channel, token);
+            channel += row0;
+            if (token >= count || channel >= hidden) continue;
+            slots[(size_t) positions[first + token] * hidden + channel] =
+                sums[column][element] + (down_bias ? down_bias[(size_t) expert * hidden + channel] : 0.0f);
+        }
+    }
 }
 
 // ---- Wan causal 3-D VAE decode (streamed chunk-major, latentvideo) ----

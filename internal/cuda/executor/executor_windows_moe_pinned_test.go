@@ -449,11 +449,15 @@ func TestExecutorMoENativeCompute(t *testing.T) {
 							if !offload {
 								want = reference
 							}
-							compare(t, got, want, accuracyModel)
-							// The first expert batch follows the router logits, routing, input gathering and weight staging.
-							const firstProduct = (32 + 4*8 + 3*4) + (32 + 5*8 + 5*4) + (32 + 3*8 + 5*4) + (32 + 4*8 + 7*4)
-							if tokens > 1 && (len(trace.Data()) < firstProduct+8 || binary.LittleEndian.Uint64(trace.Data()[firstProduct:]) != traceTagSGEMMStrided) {
-								t.Fatal("grouped expert matrix product did not execute")
+							if tokens == 1 {
+								compare(t, got, want, accuracyModel)
+								return
+							}
+							// The grouped products follow the router logits and routing; an F32 bank's weights multiply as f16.
+							compare(t, got, want, accuracyHalfStaged)
+							const firstProduct = (32 + 4*8 + 3*4) + (32 + 5*8 + 5*4)
+							if len(trace.Data()) < firstProduct+8 || binary.LittleEndian.Uint64(trace.Data()[firstProduct:]) != uint64(kernelMoeGroupedHiddenF32) {
+								t.Fatal("grouped expert products did not execute")
 							}
 						})
 					}
@@ -565,17 +569,20 @@ func TestExecutorMoEExpertsUseBlockDots(t *testing.T) {
 	}
 }
 
-// TestPromptExpertGroupsTakeTheMatrixPath holds a prompt's routed experts to
-// the staged matrix products wherever its rows' dots would read more bytes:
-//   - Flash-Next's routed layer takes the staging's tokens a group, so the 1,561-token document is one group and the 4,019-token prompt three groups of one size
-//   - on a fixture of Flash-Next's IQ4_XS and Q8_0 layer, 32 tokens keep the row dots while every expert is on the card
-//   - the same 32 tokens, and a prompt of the document's 1,561 tokens, take the matrix products while the experts are in host memory
-//   - the 32-token runs stay within the host reference over the dequantized banks, and the document's run keeps the direct banks' bits
-func TestPromptExpertGroupsTakeTheMatrixPath(t *testing.T) {
+// TestPromptExpertsMultiplyEncodedWeights holds a prompt's routed experts to
+// the grouped products over their encoded weights:
+//   - Flash-Next's routed layer takes the staging's tokens a group, so the 1,561-token document is one group and the 4,019-token prompt three of one size
+//   - fixtures of Flash-Next's IQ3_S and IQ4_NL layer and its IQ4_XS and Q8_0 layer, fused IQ4_XS gate and up, and BF16 banks
+//     of 96 weights a row, which decode a weight at a time, keep the row dots for 16 tokens, under a tile
+//   - 64 tokens launch the grouped kernels with the banks' storages and stay within the model tolerance of the host reference,
+//     with the experts on the card and in host memory alike: block formats' whole numbers and BF16 weights hold exactly in f16,
+//     and each input splits into two f16 parts; three experts take 128 routed rows, so one of them takes two tiles;
+//     experts in host memory are copied to the card and multiply in a batch after the card's
+//   - the document's 1,561 tokens on experts in host memory keep the direct banks' bits
+func TestPromptExpertsMultiplyEncodedWeights(t *testing.T) {
 	// Serial: device fixtures share the one card.
 	// documentTokens: the frozen Strata document's prompt tokens under Flash-Next's chat template.
 	const documentTokens = 1561
-	// The dot scratch alone left a last group of 351 and of 389 tokens, under the matrix products' reuse.
 	for _, c := range []struct {
 		tokens uint64
 		group  uint32
@@ -598,62 +605,98 @@ func TestPromptExpertGroupsTakeTheMatrixPath(t *testing.T) {
 			t.Fatalf("%d Flash-Next tokens: group %d (%v), want %d", c.tokens, group, err, c.group)
 		}
 	}
-	banks := [3]dtype.Type{dtype.IQ4XS, dtype.IQ4XS, dtype.Q8_0}
-	c := moePinnedCase{
-		name: "prompt-groups", compute: tensor.MulMatComputeNativeTensorCore,
-		hidden: 512, routerHidden: 512, intermediate: 256, experts: 8, divisor: 1, topK: 2,
-		routing: tensor.MoERoutingSoftmax, activation: tensor.MoEActivationSiLU, normalize: true, scale: 1.25,
-		banks: banks, reference: true,
-	}
-	// The host placement keeps expert 0 of each bank on the card, beside the tables of a pointer an expert.
-	const pointerBytes, slotAlignment = 8, 256
-	hostLimit := uint64(len(banks)) * c.experts * pointerBytes
-	for _, storage := range banks {
-		expert, err := tensor.MustShape(c.hidden, c.intermediate).Bytes(storage)
-		if err != nil {
-			t.Fatal(err)
-		}
-		hostLimit += (expert + slotAlignment - 1) / slotAlignment * slotAlignment
-	}
-	// products counts the traced gate and up products: a strided-batch record, then its weights, input and output, its rows, columns, inner width and batch.
-	products := func(raw []byte) int {
-		const rowsOffset, innerOffset = 4 * 8, 6 * 8
-		found := 0
-		for at := 0; at+innerOffset+8 <= len(raw); at++ {
-			word := func(offset int) uint64 { return binary.LittleEndian.Uint64(raw[at+offset:]) }
-			if word(0) == traceTagSGEMMStrided && word(rowsOffset) == tensor.PairedExtent*c.intermediate && word(innerOffset) == c.hidden {
-				found++
+	const (
+		// A launch record is four header words, then eight bytes a pointer and four a scalar.
+		headerBytes = 4 * 8
+		// The hidden launch follows the router logits and the routing.
+		firstProduct = (headerBytes + 4*8 + 3*4) + (headerBytes + 5*8 + 5*4)
+		// The grouped hidden launch's storages follow its eight pointers and three scalars, the down launch's its six pointers and two of four.
+		hiddenRecord = headerBytes + 8*8 + 10*4
+		gateStorage  = headerBytes + 8*8 + 3*4
+		downStorage  = headerBytes + 6*8 + 2*4
+		downRecord   = headerBytes + 6*8 + 4*4
+		gridWord     = 8
+		// The card keeps expert 0 of each bank beside the tables of a pointer an expert.
+		pointerBytes, slotAlignment = 8, 256
+	)
+	word, scalar := binary.LittleEndian.Uint64, binary.LittleEndian.Uint32
+	for _, fixture := range []struct {
+		name   string
+		banks  [3]dtype.Type
+		fused  bool
+		hidden uint64
+	}{
+		{"iq3_s-iq4_nl", [3]dtype.Type{dtype.IQ3S, dtype.IQ3S, dtype.IQ4NL}, false, 256},
+		{"iq4_xs-q8_0", [3]dtype.Type{dtype.IQ4XS, dtype.IQ4XS, dtype.Q8_0}, false, 512},
+		{"fused-iq4_xs-iq4_nl", [3]dtype.Type{dtype.IQ4XS, dtype.IQ4XS, dtype.IQ4NL}, true, 512},
+		{"bf16", [3]dtype.Type{dtype.BF16, dtype.BF16, dtype.BF16}, false, 96},
+	} {
+		t.Run(fixture.name, func(t *testing.T) {
+			c := moePinnedCase{
+				name: "encoded-" + fixture.name, compute: tensor.MulMatComputeNativeTensorCore,
+				hidden: fixture.hidden, routerHidden: fixture.hidden, intermediate: 128, experts: 3, divisor: 1, topK: 2,
+				routing: tensor.MoERoutingSoftmax, activation: tensor.MoEActivationSiLU, normalize: true, scale: 1.25,
+				banks: fixture.banks, fused: fixture.fused,
 			}
-		}
-		return found
-	}
-	for _, run := range []struct {
-		placement     string
-		tokens, limit uint64
-		matrices      bool
-	}{{"card", 32, 0, false}, {"host", 32, hostLimit, true}, {"host", documentTokens, hostLimit, true}} {
-		t.Run(fmt.Sprintf("%s/tokens=%d", run.placement, run.tokens), func(t *testing.T) {
-			// The resident run on direct banks sets the reference; the host takes minutes over the document's tokens,
-			// so there the indexed run keeps the resident run's bits, both taking the matrix products.
-			c.tokens, c.offload, c.reference = run.tokens, false, run.tokens < documentTokens
-			resident, want := c.run(t, newFixtureExecutor(t), dtype.F32)
-			cuda := newFixtureExecutor(t)
-			trace := &device.LaunchTrace{}
-			if err := cuda.worker.Do(t.Context(), func(state *device.State) error { state.Trace = trace; return nil }); err != nil {
-				t.Fatal(err)
+			banks := []tensor.Shape{tensor.MustShape(c.hidden, c.intermediate), tensor.MustShape(c.hidden, c.intermediate), tensor.MustShape(c.intermediate, c.hidden)}
+			if c.fused {
+				banks = []tensor.Shape{tensor.MustShape(c.hidden, 2*c.intermediate), banks[2]}
 			}
-			c.offload, c.limit = true, run.limit
-			got, _ := c.run(t, cuda, dtype.F32)
-			if found := products(trace.Data()); (found > 0) != run.matrices {
-				t.Fatalf("%d gate and up matrix products, want matrices %t", found, run.matrices)
-			}
-			if want == nil {
-				if !bytes.Equal(driver.Bytes(got), driver.Bytes(resident)) {
-					t.Fatal("host experts changed the resident output bits")
+			hostLimit := uint64(len(banks)) * c.experts * pointerBytes
+			for index, shape := range banks {
+				expert, err := shape.Bytes(fixture.banks[3-len(banks)+index])
+				if err != nil {
+					t.Fatal(err)
 				}
-				return
+				hostLimit += (expert + slotAlignment - 1) / slotAlignment * slotAlignment
 			}
-			compare(t, got, want, accuracyModel)
+			for _, run := range []struct {
+				placement     string
+				tokens, limit uint64
+				grouped       bool
+			}{{"card", 16, 0, false}, {"card", 64, 0, true}, {"host", 64, hostLimit, true}, {"host", documentTokens, hostLimit, true}} {
+				t.Run(fmt.Sprintf("%s/tokens=%d", run.placement, run.tokens), func(t *testing.T) {
+					// The direct banks' run sets the reference; over the document's tokens the host's takes minutes, so there it sets the bits.
+					c.tokens, c.offload, c.reference = run.tokens, false, run.tokens < documentTokens
+					direct, want := c.run(t, newFixtureExecutor(t), dtype.F32)
+					cuda := newFixtureExecutor(t)
+					trace := &device.LaunchTrace{}
+					if err := cuda.worker.Do(t.Context(), func(state *device.State) error { state.Trace = trace; return nil }); err != nil {
+						t.Fatal(err)
+					}
+					c.offload, c.limit = true, run.limit
+					got, _ := c.run(t, cuda, dtype.F32)
+					hidden := trace.Data()[firstProduct:]
+					if !run.grouped {
+						if word(hidden) != uint64(kernelMoeHiddenDotF32) {
+							t.Fatalf("a group under a tile launched kernel %d, not the row dots", word(hidden))
+						}
+						compare(t, got, want, accuracyModel)
+						return
+					}
+					down := hidden[hiddenRecord:]
+					storages := [3]dtype.Type{dtype.Type(scalar(hidden[gateStorage:])), dtype.Type(scalar(hidden[gateStorage+4:])), dtype.Type(scalar(down[downStorage:]))}
+					if word(hidden) != uint64(kernelMoeGroupedHiddenF32) || word(down) != uint64(kernelMoeGroupedDownF32) || storages != fixture.banks {
+						t.Fatalf("launches %d and %d with storages %v, want the grouped kernels with %v", word(hidden), word(down), storages, fixture.banks)
+					}
+					// The card's experts, then each batch of experts copied from host memory, take a hidden and a down launch.
+					tiles, batches := uint64(0), 0
+					for raw := hidden; len(raw) >= hiddenRecord+downRecord && word(raw) == uint64(kernelMoeGroupedHiddenF32); raw = raw[hiddenRecord+downRecord:] {
+						tiles += uint64(scalar(raw[gridWord:]))
+						batches++
+					}
+					if tiles <= c.experts || (batches > 1) != (run.placement == "host") {
+						t.Fatalf("%d tiles in %d batches for %d experts, want more tiles than experts and a copied batch in host memory", tiles, batches, c.experts)
+					}
+					if want == nil {
+						if !bytes.Equal(driver.Bytes(got), driver.Bytes(direct)) {
+							t.Fatal("experts in host memory changed the direct banks' bits")
+						}
+						return
+					}
+					compare(t, got, want, accuracyModel)
+				})
+			}
 		})
 	}
 }

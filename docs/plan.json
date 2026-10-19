@@ -208,6 +208,27 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "strata-prefill",
+      "title": "Read long prompts at the speed Strata reaches on this PC",
+      "status": "open",
+      "budget": {
+        "nodes": 272,
+        "reason": "advance-rule estimate: the previous run's token count passed to the residency's advance; chunked measured on its build later"
+      },
+      "steps": [
+        {
+          "id": "chunked",
+          "title": "Prefill in large chunks with grouped quantized expert matrices, streaming the next layer's experts while attention runs",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestPromptExpertsMultiplyEncodedWeights$'",
+          "rationale": "From the lead's review of Strata on 2026-10-17.\nStrata's frozen bench on this PC reads 4K prompts at 1,836.7 tokens a second and 16K at 3,229.0, and its log reads the same 1,561-token document prompt in 2.16 s, 723 tokens a second.\nOvergo reads that prompt in 17.4 s at trunk 7d07daefb, about 90 tokens a second.\nStrata reads up to 8,192 tokens a chunk with quantized grouped matrix kernels, and streams the next layer's experts over PCIe while the current layer's attention runs (docs/DETAILS.md lines 332-342).\nThe step first profiles the document's prefill as step router profiled decode, then changes the chunk and the expert matrix path the profile names, through the bounded device prefill admission (644977f39, a8ca2588a) and grouped expert computation (e136f49d5, fb7dc9936).\nEvery prompt token's state stays identical to the whole prefill within the arithmetic the current path keeps.\nServes: first-output for every long Flash-Next prompt, image and follow-up.\nDisappears: the per-row expert work and serial uploads the profile names.\nEvidence: the device test of chunked against whole prefill, and the document's prefill speed before and after, beside Strata's.\nBatch: device; set the row's count from the profile before the change.\n\nFrom the prefill profile at cdc917f19: after step groups, the prompt's remaining expert costs are the F32 staging and SGEMM of the matrix path (moe_stage_f32 970 ms, moe_stage_down_f32 465, products 380) and the per-request residency advance (about 1.9 s of demote and promote copies at the head of the request, AdvanceExperts moving experts by the previous request's routes). This step replaces the F32 staging with grouped products over the encoded weights (block dots with a token tile, or f16 tensor-core staging), reads each host expert once a prompt overlapped with attention, and keeps the advance's churn off a prompt whose routes touch nearly every expert.",
+          "depends_on": [
+            "strata-decode/router"
+          ]
+        }
+      ]
+    },
+    {
       "id": "speculation",
       "title": "Speculate safely and further on Flash-Next and NextN models",
       "owner": "master-lead",
@@ -264,34 +285,6 @@
           "rationale": "From the owner's reuse review of 2026-10-18 (point 5), checked against the code.\ninternal/densecausaltrain/train_resident_cuda_windows.go, trainDeviceResident: the run's length is its longest sequence's, and every group runs at that length.\nMeasure first: the padded share of positions over the registered training datasets the dense recipes train on; the step proceeds where it is a measured share of the run's work.\nThe step keeps the buffers sized once for the longest sequence and runs each group at its own length (a few length classes where graphs are reused), preserving masks, token weights, gradient accumulation and update boundaries.\nThe test trains the same groups padded and at their own lengths and holds losses and updated weights within the reference tolerance, and the work to the group's length.\nServes: training time on the resident dense lane; held-out-quality holds (the same updates); peak-device-memory holds.\nBatch: device.\n\nFrom the owner's review of 2026-10-18 (point 3): the step removes padded arithmetic, not memory: buffers stay sized for the longest sequence, so peak-device-memory is expected to hold and is reported as such.\nAcceptance also measures preparation across varied lengths: graphs compiled, their preparation time and the retained host memory of the graph cache, so saved arithmetic is not replaced by compilation; length classes are bounded and chosen from the measured length distribution.",
           "depends_on": [
             "training-reuse/muon-scratch"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "strata-prefill",
-      "title": "Read long prompts at the speed Strata reaches on this PC",
-      "status": "open",
-      "budget": {
-        "nodes": 300,
-        "reason": "advance-rule estimate: the previous run's token count passed to the residency's advance; chunked measured on its build later"
-      },
-      "steps": [
-        {
-          "id": "advance-rule",
-          "title": "Judge a run broad by its token count, not the share of a bank it routed",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestExecutorMoEMissedExpertsKeepResidentBits$' \u0026\u0026 go test ./internal/modeldevice -count=1 -run '^TestFlashNextExpertResidency$'",
-          "rationale": "From the chunked helper's run at 85d30c973: TestExecutorMoEMissedExpertsKeepResidentBits fails on master with \"the run after the routes moved 22784 bytes to the card, less than one expert\" since step advance (887d54ada), whose commit's device lane did not run the executor package. That test routes three decode tokens to six of a bank's eight experts; advance skips promotions for a node whose run flagged more than half its experts, so the decode run promotes nothing. The same fraction rule skips promotions for any small bank (eight experts, two a token) on a verify span of three or four tokens.\nThe step judges a run broad by what it was, not by the share of a bank it touched: a run of more tokens than the decode span limit is a prompt and moves no experts; a decode step or a verify span promotes as before.\nAcceptance: TestExecutorMoEMissedExpertsKeepResidentBits passes again, and TestFlashNextExpertResidency/broad-routes-move-nothing holds with a prompt-sized run.\nServes: throughput for routed-expert models whose banks are small or whose spans route a large share; failure-rate of the checks.\nBatch: device."
-        },
-        {
-          "id": "chunked",
-          "title": "Prefill in large chunks with grouped quantized expert matrices, streaming the next layer's experts while attention runs",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestPromptExpertsMultiplyEncodedWeights$'",
-          "rationale": "From the lead's review of Strata on 2026-10-17.\nStrata's frozen bench on this PC reads 4K prompts at 1,836.7 tokens a second and 16K at 3,229.0, and its log reads the same 1,561-token document prompt in 2.16 s, 723 tokens a second.\nOvergo reads that prompt in 17.4 s at trunk 7d07daefb, about 90 tokens a second.\nStrata reads up to 8,192 tokens a chunk with quantized grouped matrix kernels, and streams the next layer's experts over PCIe while the current layer's attention runs (docs/DETAILS.md lines 332-342).\nThe step first profiles the document's prefill as step router profiled decode, then changes the chunk and the expert matrix path the profile names, through the bounded device prefill admission (644977f39, a8ca2588a) and grouped expert computation (e136f49d5, fb7dc9936).\nEvery prompt token's state stays identical to the whole prefill within the arithmetic the current path keeps.\nServes: first-output for every long Flash-Next prompt, image and follow-up.\nDisappears: the per-row expert work and serial uploads the profile names.\nEvidence: the device test of chunked against whole prefill, and the document's prefill speed before and after, beside Strata's.\nBatch: device; set the row's count from the profile before the change.\n\nFrom the prefill profile at cdc917f19: after step groups, the prompt's remaining expert costs are the F32 staging and SGEMM of the matrix path (moe_stage_f32 970 ms, moe_stage_down_f32 465, products 380) and the per-request residency advance (about 1.9 s of demote and promote copies at the head of the request, AdvanceExperts moving experts by the previous request's routes). This step replaces the F32 staging with grouped products over the encoded weights (block dots with a token tile, or f16 tensor-core staging), reads each host expert once a prompt overlapped with attention, and keeps the advance's churn off a prompt whose routes touch nearly every expert.",
-          "depends_on": [
-            "strata-decode/router"
           ]
         }
       ]

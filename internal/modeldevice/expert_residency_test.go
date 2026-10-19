@@ -184,9 +184,10 @@ func TestFlashNextExpertResidency(t *testing.T) {
 			cache.routed[uint64(bitmap-cache.routedMap)+uint64(index)] = 1
 		}
 	}
+	// advance applies a decode run's routes.
 	advance := func(t *testing.T, cache *expertResidency) {
 		t.Helper()
-		if err := cache.advance(t.Context()); err != nil {
+		if err := cache.advance(t.Context(), false); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -241,20 +242,23 @@ func TestFlashNextExpertResidency(t *testing.T) {
 			t.Fatalf("placement after the runs = %+v: %v", placement, err)
 		}
 	})
-	t.Run("broad-routes-move-nothing", func(t *testing.T) {
-		// Two of three experts are most of each bank, as a prompt's routes are: every expert stays where it is.
+	t.Run("prompt-routes-move-nothing", func(t *testing.T) {
+		// A prompt's routes move no expert, however few experts they name.
 		cache, mem := open(t, oneEach)
 		writes := mem.writes
-		route(t, cache, 1, 2)
-		advance(t, cache)
+		route(t, cache, 1)
+		if err := cache.advance(t.Context(), true); err != nil {
+			t.Fatal(err)
+		}
 		readable(t, cache, mem, map[string][]uint32{"gate": {0}, "down": {0}})
 		if mem.writes != writes || bytes.IndexByte(cache.routed, 1) >= 0 {
-			t.Fatal("broad routes moved experts or stayed marked")
+			t.Fatal("a prompt's routes moved experts or stayed marked")
 		}
-		// The next run's narrow routes move their expert.
-		route(t, cache, 2)
+		// A decode run's routes move their experts though they name two of three, as a verify span may of a small bank:
+		// expert 1 takes expert 0's slot, and expert 2 finds the slot taken by an expert this run routed.
+		route(t, cache, 1, 2)
 		advance(t, cache)
-		readable(t, cache, mem, map[string][]uint32{"gate": {2}, "down": {2}})
+		readable(t, cache, mem, map[string][]uint32{"gate": {1}, "down": {1}})
 	})
 	t.Run("release-moves-a-card-allocation-to-host", func(t *testing.T) {
 		cache, mem := open(t, oneEach)
@@ -299,7 +303,7 @@ func TestFlashNextExpertResidency(t *testing.T) {
 			case "cancel":
 				mem.onWrite = cancel
 			}
-			if err := cache.advance(ctx); err == nil {
+			if err := cache.advance(ctx, false); err == nil {
 				t.Fatalf("%s: a failed promotion was accepted", fail)
 			}
 			cancel()
@@ -313,12 +317,12 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		cache, mem := open(t, oneEach)
 		route(t, cache, 2)
 		mem.failWrite = mem.writes + 3
-		if err := cache.advance(t.Context()); err == nil {
+		if err := cache.advance(t.Context(), false); err == nil {
 			t.Fatal("a failed table write was accepted")
 		}
 		// The next run brings no routes; it may run only after the tables are repaired.
 		mem.failWrite = mem.writes + 1
-		if err := cache.advance(t.Context()); err == nil {
+		if err := cache.advance(t.Context(), false); err == nil {
 			t.Fatal("a run was admitted over tables a failed repair left stale")
 		}
 		mem.failWrite = 0

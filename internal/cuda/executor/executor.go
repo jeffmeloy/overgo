@@ -44,6 +44,8 @@ type executorResources struct {
 	buffers    deviceBufferPool
 	graphExecs graphExecCache
 	arenaUse   arenaMetrics
+	// promptRouted: the last run through the expert banks was a prompt.
+	promptRouted bool
 }
 
 // ExecutionMetrics is a point-in-time, executor-owned evidence view. Counters
@@ -1680,7 +1682,7 @@ func (e *Executor) runCompiled(
 	if e.closed || e.worker == nil {
 		return nil, errors.New("CUDA executor is closed")
 	}
-	usesExperts, err := validateExpertUses(compiled, e.resources.experts)
+	usesExperts, routedTokens, err := validateExpertUses(compiled, e.resources.experts)
 	if err != nil {
 		return nil, err
 	}
@@ -1702,9 +1704,11 @@ func (e *Executor) runCompiled(
 		}
 		// Between runs, so no expert moves while a kernel reads its table.
 		if usesExperts {
-			if err := resources.experts.AdvanceExperts(ctx, state); err != nil {
+			if err := resources.experts.AdvanceExperts(ctx, state, resources.promptRouted); err != nil {
 				return err
 			}
+			// A run of more tokens than a verify span is a prompt, whose routes the next advance applies without moves.
+			resources.promptRouted = routedTokens > q8InputSpanColumns
 		}
 		var executeErr error
 		var graphExecs *graphExecCache

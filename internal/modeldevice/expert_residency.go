@@ -43,10 +43,6 @@ const (
 	// allocate outside the reservation hook, and a short request's scratch
 	// (Flash-Next's short chat holds under 1 GiB beyond weights and experts).
 	expertFillHeadroomBytes = 2 << 30
-	// expertBroadRouteShare: a run that routed more than 1/expertBroadRouteShare of a node's experts moves none to the card.
-	//   - a decode step of Flash-Next routes 10 of 512 experts a token, a verify span a few times that
-	//   - after its 1,561-token document the advance made about 19,900 copies, 1.9 s before the next run
-	expertBroadRouteShare = 2
 )
 
 // expertDevice runs residency work where the residency's memory is usable:
@@ -353,16 +349,19 @@ func (w *DeviceWeights) HostedExpertBytes(state *device.State, nodes []*tensor.T
 
 // AdvanceExperts applies the last run's routes between runs: each expert it
 // routed to host memory moves to the card slot of an expert it did not route,
-// unless the run routed most of the node's experts.
-func (w *DeviceWeights) AdvanceExperts(ctx context.Context, state *device.State) error {
+// unless the run was a prompt. A prompt's routes name most of a node's
+// experts and favour none of them: after Flash-Next's 1,561-token document
+// the moves took about 19,900 copies, 1.9 s before the next run. A decode
+// step or a verify span moves its experts whatever share of a bank it names.
+func (w *DeviceWeights) AdvanceExperts(ctx context.Context, state *device.State, prompt bool) error {
 	if w == nil || w.experts == nil || w.experts.state != state {
 		return errors.New("expert residency requires its owning CUDA worker")
 	}
-	return w.experts.advance(ctx)
+	return w.experts.advance(ctx, prompt)
 }
 
 // advance reads the flags the last run's routes set, which its synchronization made visible, and clears them for the next run.
-func (c *expertResidency) advance(ctx context.Context) error {
+func (c *expertResidency) advance(ctx context.Context, prompt bool) error {
 	if bytes.IndexByte(c.routed, 1) < 0 {
 		// A table a failed publication left naming a moved expert's old slot is
 		// written before any run reads it; a failed write refuses the run.
@@ -376,8 +375,6 @@ func (c *expertResidency) advance(ctx context.Context) error {
 			continue
 		}
 		flags := c.routed[head.routed : head.routed+uint64(len(head.pointers))]
-		// A run that routed most of a node's experts, a prompt, favours none of them, so its host experts stay there.
-		broad := bytes.Count(flags, []byte{1})*expertBroadRouteShare > len(flags)
 		for index, flag := range flags {
 			if flag == 0 {
 				continue
@@ -389,7 +386,7 @@ func (c *expertResidency) advance(ctx context.Context) error {
 					c.cardRoutes++
 					entry.Value.(*residentExpert).step = c.step
 					c.classes[bank.stride].order.MoveToBack(entry)
-				} else if !broad {
+				} else if !prompt {
 					missed = append(missed, key)
 				}
 			}

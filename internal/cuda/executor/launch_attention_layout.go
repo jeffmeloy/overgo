@@ -12,22 +12,22 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
-// BF16 tensor-core flash attention geometry (attention_tiled_bf16_f32):
-// width fixed at 128, 64 query rows per 512-thread (16-warp) block,
-// 64-token K/V panels (K double-buffered, V single-buffered through the
-// cp.async pipeline; the O spill scratch aliases the dead Q+S region).
-// Shared bytes mirror the kernel's layout exactly.
+// BF16 attention uses 128-channel tiles with zero-filled narrower heads.
+// Native memory-efficient attention defines the 128-token probability panel.
+// Thirty-two query rows and shared K/V storage keep the tile within consumer-device limits.
+// Shared bytes mirror attention_tiled_bf16_f32.
 const (
-	attentionMinimumRank     = 3
-	attentionBF16Width       = uint32(128)
-	attentionBF16RowTile     = uint32(64)
-	attentionBF16KVTile      = uint32(64)
-	attentionBF16Threads     = uint32(512)
-	attentionBF16SharedBytes = uint32(2*2*attentionBF16KVTile*(attentionBF16Width+8) + // K bf16 [2][64][136]
-		2*attentionBF16KVTile*(attentionBF16Width+8) + // V bf16 [64][136]
-		2*attentionBF16RowTile*(attentionBF16Width+8) + // Q bf16 [64][136] (O spill alias base)
-		4*attentionBF16RowTile*(attentionBF16KVTile+4) + // S f32 [64][68] (O spill alias tail)
-		2*attentionBF16RowTile*(attentionBF16KVTile+8) + // P bf16 [64][72]
+	attentionMinimumRank = 3
+	attentionBF16Width   = uint32(128)
+	// attentionBF16CopyChannels is one 16-byte asynchronous transfer of BF16 values.
+	attentionBF16CopyChannels = uint64(8)
+	attentionBF16RowTile      = uint32(32)
+	attentionBF16KVTile       = uint32(128)
+	attentionBF16Threads      = uint32(512)
+	attentionBF16SharedBytes  = uint32(2*attentionBF16KVTile*(attentionBF16Width+8) + // K and V share one BF16 panel.
+		2*attentionBF16RowTile*(attentionBF16Width+8) + // Q is the O spill alias base.
+		4*attentionBF16RowTile*(attentionBF16KVTile+4) + // S is the O spill alias tail.
+		2*attentionBF16RowTile*(attentionBF16KVTile+8) + // P holds BF16 probabilities.
 		3*4*attentionBF16RowTile) // alpha/max/sum rows
 )
 
@@ -70,8 +70,8 @@ func launchBF16Attention(
 	if err != nil {
 		return err
 	}
-	if keyWidth != attentionBF16Width || fusion.value.Shape.Dims[0] != uint64(attentionBF16Width) {
-		return errors.New("fused attention width must be 128")
+	if keyWidth == 0 || keyWidth > attentionBF16Width || uint64(keyWidth)%attentionBF16CopyChannels != 0 || fusion.value.Shape.Dims[0] != uint64(keyWidth) {
+		return errors.New("fused attention requires equal head widths divisible by eight and at most 128")
 	}
 	queryHeads, err := uint32Checked(queryNode.Shape.Dims[1], "fused attention query heads")
 	if err != nil {
@@ -132,7 +132,7 @@ func launchBF16Attention(
 		grid, driver.Dim3{X: attentionBF16Threads, Y: 1, Z: 1}, attentionBF16SharedBytes,
 		&query, &keyStage, &valueStage, &keyBias, &output,
 		&queryHeads, &keyValueHeads, &queryTokens, &keyValueTokens,
-		&sequences, &scale,
+		&sequences, &keyWidth, &scale,
 	)
 }
 

@@ -19,22 +19,26 @@ import (
 func TestExecutorBF16AttentionMatchesRoundedReference(t *testing.T) {
 	cases := []struct {
 		name                    string
+		width                   uint64
 		queryHeads, keyValHeads uint64
 		queryTokens, kvTokens   uint64
 		scale                   float32
 		tolerance               float64
 		masked                  bool
 	}{
-		{"mha_dense", 4, 4, 128, 96, 0.0883883, 5e-3, false},
-		{"mha_tail", 4, 4, 100, 77, 0.0883883, 5e-3, false},
-		{"gqa_tail", 4, 2, 70, 33, 0.0883883, 5e-3, false},
-		{"cross_long", 12, 12, 64, 512, 0.0883883, 5e-3, false},
-		{"gqa_key_mask", 4, 2, 70, 96, 0.0883883, 5e-3, true},
+		{"mha_dense", 128, 4, 4, 128, 96, 0.0883883, 5e-3, false},
+		{"mha_tail", 128, 4, 4, 100, 77, 0.0883883, 5e-3, false},
+		{"gqa_tail", 128, 4, 2, 70, 33, 0.0883883, 5e-3, false},
+		{"cross_long", 128, 12, 12, 64, 512, 0.0883883, 5e-3, false},
+		{"gqa_key_mask", 128, 4, 2, 70, 96, 0.0883883, 5e-3, true},
+		{"narrow_one_copy", 8, 4, 2, 2, 3, 0.3535534, 5e-3, false},
+		{"narrow_panel_tail", 64, 4, 2, 65, 129, 0.125, 5e-3, false},
+		{"narrow_key_mask", 120, 4, 2, 67, 73, 0.0912871, 5e-3, true},
 	}
 	cuda := newFixtureExecutor(t)
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			const width = uint64(128)
+			width := testCase.width
 			builder := tensor.NewBuilder()
 			query := builder.Input("q", dtype.F32, tensor.MustShape(width, testCase.queryHeads, testCase.queryTokens))
 			key := builder.Input("k", dtype.F32, tensor.MustShape(width, testCase.keyValHeads, testCase.kvTokens))

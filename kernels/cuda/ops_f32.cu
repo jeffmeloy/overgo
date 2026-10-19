@@ -1,3 +1,4 @@
+extern "C" __device__ float __nv_exp2f(float);
 #include <cuda_fp16.h>
 #include <cuda_bf16.h>
 #include <cuda_fp8.h>
@@ -2829,13 +2830,27 @@ extern "C" __global__ void rms_norm_f32(
     }
     const unsigned int offset = row * width;
     float sum_squares = 0.0f;
-    for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
-        const float value = input[offset + column];
-        sum_squares += value * value;
+    if (width >= 128u && width % 4u == 0u) {
+        // Four adjacent values per lane preserve the vectorized reduction order.
+        float sums[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+        if (threadIdx.x < 32u) {
+            for (unsigned int column = threadIdx.x * 4u; column < width; column += 128u) {
+                for (unsigned int part = 0; part < 4u; ++part) {
+                    const float value = input[offset + column + part];
+                    sums[part] += __fmul_rn(value, value);
+                }
+            }
+            sum_squares = ((sums[0] + sums[1]) + sums[2]) + sums[3];
+        }
+    } else {
+        for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
+            const float value = input[offset + column];
+            sum_squares += value * value;
+        }
     }
     __shared__ float partial[256];
     sum_squares = block_sum_f32(sum_squares, partial);
-    const float inverse = rsqrtf(sum_squares / (float) width + epsilon);
+    const float inverse = rsqrtf(__fadd_rn(__fdiv_rn(sum_squares, (float) width), epsilon));
     for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
         output[offset + column] = input[offset + column] * inverse;
     }
@@ -4936,7 +4951,7 @@ extern "C" __global__ void attention_tiled_f32(
     }
 }
 
-// attention_bf16_stage_rows: issue one 64-token panel's cp.async copies of a
+// attention_bf16_stage_rows issues one 128-token panel's cp.async copies of a
 // pre-packed BF16 tensor into the given shared stage (16 bytes = 8 bf16
 // channels per copy; pointer pre-offset to the sequence and KV head); rows
 // past the sequence zero-fill directly.
@@ -4945,9 +4960,10 @@ __device__ __forceinline__ void attention_bf16_stage_rows(
         __nv_bfloat16 * stage,
         unsigned int tile_base,
         unsigned int key_value_tokens,
-        unsigned int token_stride) {
+        unsigned int token_stride,
+        unsigned int head_width) {
     const unsigned int W = 128u;
-    const unsigned int BN = 64u;
+    const unsigned int BN = 128u;
     const unsigned int LD = W + 8u;
     const unsigned int copies = BN * (W / 8u);
     for (unsigned int copy = threadIdx.x; copy < copies; copy += blockDim.x) {
@@ -4955,7 +4971,7 @@ __device__ __forceinline__ void attention_bf16_stage_rows(
         const unsigned int channel = (copy % (W / 8u)) * 8u;
         __nv_bfloat16 * destination = stage + token * LD + channel;
         const unsigned int kv = tile_base + token;
-        if (kv < key_value_tokens) {
+        if (kv < key_value_tokens && channel < head_width) {
             __pipeline_memcpy_async(
                 destination, base + (size_t) kv * token_stride + channel, 16);
         } else {
@@ -5002,24 +5018,13 @@ __device__ __forceinline__ void attention_mma(
         : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b0), "r"(b1));
 }
 
-// BF16 tensor-core flash attention for head width 128 (the fused
-// Attention(BF16Round(q), BF16Round(k), BF16Round(v)) form). Storage
-// rounding only: Q rounds to BF16 on stage-in (round-to-nearest-even,
-// identical to bf16_round_f32) and K/V arrive pre-rounded to BF16 by the
-// launcher's f32_to_bf16 pack (the same rounding class); products
-// accumulate in F32 through mma.m16n8k16 fragments (ldmatrix-fed), and the
-// online softmax runs in exact F32 on the staged score tile; probabilities
-// round to BF16 for the value product. One 512-thread block (16 warps) owns
-// 64 query rows of one head; K/V stream in 64-token panels: K
-// double-buffers through cp.async (the next panel loads during the value
-// product) while V single-buffers (its load overlaps scores and softmax).
-// O accumulators stay register-resident with architected row mapping, so
-// the online rescale is a per-register multiply (alpha is exactly 1 on
-// steady-state panels, and x*1.0f is exact). The O spill scratch used by
-// the final store aliases the Q+S region (Q is register-resident after the
-// fragment preload and S is consumed into P first), keeping dynamic shared
-// at K(2x64x136 bf16) + V(64x136 bf16) + Q/S-alias(64x136 bf16 + 64x68
-// f32, >= O 64x132 f32) + P(64x72 bf16) + row stats = 97024 bytes.
+// BF16 attention retains F32 accumulators and unnormalized BF16 probabilities.
+// The native memory-efficient attention contract uses forward 128-token panels.
+// Scale and log2(e) multiplication retain separate F32 rounding boundaries.
+// Each 32-column group uses a quad reduction before ordered row accumulation.
+// One 512-thread block owns 32 query rows and 128 padded channels.
+// K and V share their panel because the score product completes before V loads.
+// O spills into dead Q/S storage and the shared footprint is 69504 bytes.
 extern "C" __global__ void __launch_bounds__(512, 1) attention_tiled_bf16_f32(
         const float * query,
         const unsigned short * key,
@@ -5031,10 +5036,11 @@ extern "C" __global__ void __launch_bounds__(512, 1) attention_tiled_bf16_f32(
         unsigned int query_tokens,
         unsigned int key_value_tokens,
         unsigned int sequences,
+        unsigned int head_width,
         float scale) {
     const unsigned int W = 128u;
-    const unsigned int BM = 64u;
-    const unsigned int BN = 64u;
+    const unsigned int BM = 32u;
+    const unsigned int BN = 128u;
     const unsigned int QLD = W + 8u;  // bf16 lds, multiple of 8
     const unsigned int KLD = W + 8u;
     const unsigned int VLD = W + 8u;
@@ -5052,8 +5058,8 @@ extern "C" __global__ void __launch_bounds__(512, 1) attention_tiled_bf16_f32(
     const unsigned int lane = threadIdx.x & 31u;
 
     extern __shared__ unsigned char attention_shared[];
-    __nv_bfloat16 * k_tile = (__nv_bfloat16 *) attention_shared;    // [2][BN][KLD]
-    __nv_bfloat16 * v_tile = k_tile + 2u * BN * KLD;                // [BN][VLD]
+    __nv_bfloat16 * k_tile = (__nv_bfloat16 *) attention_shared;    // [BN][KLD]
+    __nv_bfloat16 * v_tile = k_tile;                // [BN][VLD]
     unsigned char * qs_region = (unsigned char *) (v_tile + BN * VLD);
     __nv_bfloat16 * q_tile = (__nv_bfloat16 *) qs_region;           // [BM][QLD]
     float * s_tile = (float *) (q_tile + BM * QLD);                 // [BM][SLD]
@@ -5070,8 +5076,8 @@ extern "C" __global__ void __launch_bounds__(512, 1) attention_tiled_bf16_f32(
         const unsigned int row = index >> 7;
         const unsigned int channel = index & 127u;
         const unsigned int token = row_base + row;
-        q_tile[row * QLD + channel] = __float2bfloat16(token < query_tokens
-            ? query[((sequence * query_tokens + token) * query_heads + query_head) * W + channel]
+        q_tile[row * QLD + channel] = __float2bfloat16(token < query_tokens && channel < head_width
+            ? query[((sequence * query_tokens + token) * query_heads + query_head) * head_width + channel]
             : 0.0f);
     }
     for (unsigned int index = threadIdx.x; index < BM; index += blockDim.x) {
@@ -5079,12 +5085,11 @@ extern "C" __global__ void __launch_bounds__(512, 1) attention_tiled_bf16_f32(
         sum_row[index] = 0.0f;
     }
 
-    // Warp tiling: warp w owns S rows (w%4)*16 x columns (w/4)*16 and O rows
-    // (w%4)*16 x columns (w/4)*32. Architected fragment lane roles: g = row
+    // Each warp owns a 16-by-16 score and output tile. Fragment g is the row
     // within the 8-row group, t = the lane's element pair.
-    const unsigned int s_row0 = (warp & 3u) * 16u;
-    const unsigned int s_column0 = (warp >> 2) * 16u;
-    const unsigned int o_column_base = (warp >> 2) * 32u;
+    const unsigned int s_row0 = (warp & 1u) * 16u;
+    const unsigned int s_column0 = (warp >> 1) * 16u;
+    const unsigned int o_column_base = (warp >> 1) * 16u;
     const unsigned int g = lane >> 2;
     const unsigned int t = lane & 3u;
     // ldmatrix lane->address roles (16x16 operand = four 8x8 tiles).
@@ -5095,8 +5100,8 @@ extern "C" __global__ void __launch_bounds__(512, 1) attention_tiled_bf16_f32(
 
     // O accumulators: four 16x8 column tiles, register-resident across the
     // whole stream; element rows are architected (g and g+8).
-    float weighted[4][4];
-    for (unsigned int tile = 0; tile < 4u; ++tile) {
+    float weighted[2][4];
+    for (unsigned int tile = 0; tile < 2u; ++tile) {
         for (unsigned int element = 0; element < 4u; ++element) {
             weighted[tile][element] = 0.0f;
         }
@@ -5114,27 +5119,18 @@ extern "C" __global__ void __launch_bounds__(512, 1) attention_tiled_bf16_f32(
     __syncthreads();
 
     // Pre-offset K/V to the sequence and KV head; preload K panel 0.
-    const unsigned int kv_token_stride = key_value_heads * W;
+    const unsigned int kv_token_stride = key_value_heads * head_width;
     const unsigned short * key_base = key +
-        sequence * key_value_tokens * kv_token_stride + key_value_head * W;
+        sequence * key_value_tokens * kv_token_stride + key_value_head * head_width;
     const unsigned short * value_base = value +
-        sequence * key_value_tokens * kv_token_stride + key_value_head * W;
-    attention_bf16_stage_rows(key_base, k_tile, 0u, key_value_tokens, kv_token_stride);
-    __pipeline_commit();
-
-    unsigned int stage = 0u;
-    for (unsigned int tile_base = 0; tile_base < key_value_tokens; tile_base += BN, stage ^= 1u) {
-        const bool has_next = tile_base + BN < key_value_tokens;
-        // K for this tile is the only outstanding group; the barrier both
-        // publishes it and closes out the previous value product, so v_tile
-        // is free for this panel's V copy (which then overlaps scores).
+        sequence * key_value_tokens * kv_token_stride + key_value_head * head_width;
+    for (unsigned int tile_base = 0; tile_base < key_value_tokens; tile_base += BN) {
+        __syncthreads();
+        attention_bf16_stage_rows(key_base, k_tile, tile_base, key_value_tokens, kv_token_stride, head_width);
+        __pipeline_commit();
         __pipeline_wait_prior(0);
         __syncthreads();
-        attention_bf16_stage_rows(
-            value_base, v_tile, tile_base, key_value_tokens, kv_token_stride);
-        __pipeline_commit();
-        const __nv_bfloat16 * k_stage = k_tile + stage * BN * KLD;
-
+        const __nv_bfloat16 * k_stage = k_tile;
         {
             // S tile: two n-halves of the warp's 16x16 score tile.
             float scores[2][4] = {{0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}};
@@ -5153,63 +5149,63 @@ extern "C" __global__ void __launch_bounds__(512, 1) attention_tiled_bf16_f32(
             *(float2 *) (s_low + 8u) = make_float2(scores[1][0], scores[1][1]);
             *(float2 *) (s_high + 8u) = make_float2(scores[1][2], scores[1][3]);
         }
-        // The next K panel loads during softmax and the value product.
-        if (has_next) {
-            attention_bf16_stage_rows(
-                key_base, k_tile + (stage ^ 1u) * BN * KLD,
-                tile_base + BN, key_value_tokens, kv_token_stride);
-            __pipeline_commit();
-        }
+        // K is dead after scores and shares storage with this panel's V.
         __syncthreads();
-
-        // Exact online softmax on the staged F32 scores: eight threads per
-        // row, reduced with warp shuffles.
+        attention_bf16_stage_rows(value_base, v_tile, tile_base, key_value_tokens, kv_token_stride, head_width);
+        __pipeline_commit();
+        // Sixteen lanes per row preserve the native four-quad reduction order.
         {
-            const unsigned int row = threadIdx.x >> 3;
-            const unsigned int part = threadIdx.x & 7u;
+            const unsigned int row = threadIdx.x >> 4;
+            const unsigned int part = threadIdx.x & 15u;
             const unsigned int remaining = key_value_tokens - tile_base;
             const unsigned int valid = remaining < BN ? remaining : BN;
             // One shared read per column: the scaled scores stay in
             // registers across the max and probability passes.
+            const float log2e = 1.4426950408889634074f;
             float scaled[8];
             for (unsigned int i = 0; i < 8u; ++i) {
-                const unsigned int key_token = tile_base + part + 8u * i;
-                scaled[i] = s_tile[row * SLD + part + 8u * i] * scale +
+                const unsigned int key_token = tile_base + (part / 4u) * 32u + (part % 4u) * 2u + (i % 2u) + 8u * (i / 2u);
+                const float score = __fmul_rn(s_tile[row * SLD + (part / 4u) * 32u + (part % 4u) * 2u + (i % 2u) + 8u * (i / 2u)], scale) +
                     (key_bias != nullptr && key_token < key_value_tokens ? key_bias[key_token] : 0.0f);
+                scaled[i] = __fmul_rn(score, log2e);
             }
             float local_maximum = -3.402823466e+38F;
             for (unsigned int i = 0; i < 8u; ++i) {
-                if (part + 8u * i < valid) {
+                if ((part / 4u) * 32u + (part % 4u) * 2u + (i % 2u) + 8u * (i / 2u) < valid) {
                     local_maximum = fmaxf(local_maximum, scaled[i]);
                 }
             }
             local_maximum = fmaxf(local_maximum, __shfl_xor_sync(0xffffffffu, local_maximum, 1));
             local_maximum = fmaxf(local_maximum, __shfl_xor_sync(0xffffffffu, local_maximum, 2));
             local_maximum = fmaxf(local_maximum, __shfl_xor_sync(0xffffffffu, local_maximum, 4));
+            local_maximum = fmaxf(local_maximum, __shfl_xor_sync(0xffffffffu, local_maximum, 8));
             const float next_maximum = fmaxf(maximum_row[row], local_maximum);
-            const float alpha = expf(maximum_row[row] - next_maximum);
+            const float alpha = __nv_exp2f(maximum_row[row] - next_maximum);
             float local_sum = 0.0f;
             for (unsigned int i = 0; i < 8u; ++i) {
-                const float probability = part + 8u * i < valid
-                    ? expf(scaled[i] - next_maximum)
+                const float probability = (part / 4u) * 32u + (part % 4u) * 2u + (i % 2u) + 8u * (i / 2u) < valid
+                    ? __nv_exp2f(scaled[i] - next_maximum)
                     : 0.0f;
-                p_tile[row * PLD + part + 8u * i] = __float2bfloat16(probability);
+                p_tile[row * PLD + (part / 4u) * 32u + (part % 4u) * 2u + (i % 2u) + 8u * (i / 2u)] = __float2bfloat16(probability);
                 local_sum += probability;
             }
             local_sum += __shfl_xor_sync(0xffffffffu, local_sum, 1);
             local_sum += __shfl_xor_sync(0xffffffffu, local_sum, 2);
-            local_sum += __shfl_xor_sync(0xffffffffu, local_sum, 4);
+            const float second_group = __shfl_sync(0xffffffffu, local_sum, (threadIdx.x & 16u) + 4u);
+            const float third_group = __shfl_sync(0xffffffffu, local_sum, (threadIdx.x & 16u) + 8u);
+            const float fourth_group = __shfl_sync(0xffffffffu, local_sum, (threadIdx.x & 16u) + 12u);
             __syncwarp();
             if (part == 0) {
                 maximum_row[row] = next_maximum;
-                sum_row[row] = sum_row[row] * alpha + local_sum;
+                sum_row[row] = __fmul_rn(sum_row[row], alpha) + local_sum;
+                sum_row[row] += second_group;
+                sum_row[row] += third_group;
+                sum_row[row] += fourth_group;
                 alpha_row[row] = alpha;
             }
         }
-        // V panel must be resident before the value product: all-but-one
-        // leaves only the next K (or nothing on the last panel)
-        // outstanding. One barrier publishes P, the row stats, and V.
-        __pipeline_wait_prior(has_next ? 1 : 0);
+        // V, P and row statistics must be published before the value product.
+        __pipeline_wait_prior(0);
         __syncthreads();
 
         {
@@ -5219,7 +5215,7 @@ extern "C" __global__ void __launch_bounds__(512, 1) attention_tiled_bf16_f32(
             // panels carry alpha == 1 exactly and x*1.0f is exact.
             const float alpha_low = alpha_row[s_row0 + g];
             const float alpha_high = alpha_row[s_row0 + 8u + g];
-            for (unsigned int tile = 0; tile < 4u; ++tile) {
+            for (unsigned int tile = 0; tile < 2u; ++tile) {
                 weighted[tile][0] *= alpha_low;
                 weighted[tile][1] *= alpha_low;
                 weighted[tile][2] *= alpha_high;
@@ -5230,7 +5226,7 @@ extern "C" __global__ void __launch_bounds__(512, 1) attention_tiled_bf16_f32(
         {
             // Value product: P fragments load once per token quarter and
             // feed all four O column tiles.
-            for (unsigned int k = 0; k < 4u; ++k) {
+            for (unsigned int k = 0; k < 8u; ++k) {
                 unsigned int p_frag[4];
                 attention_ldx4(
                     attention_shared_address(
@@ -5243,17 +5239,13 @@ extern "C" __global__ void __launch_bounds__(512, 1) attention_tiled_bf16_f32(
                     attention_shared_address(v_rows), b0, b1, b2, b3);
                 attention_mma(weighted[0], p_frag, b0, b1);
                 attention_mma(weighted[1], p_frag, b2, b3);
-                attention_ldx4_trans(
-                    attention_shared_address(v_rows + 16u), b0, b1, b2, b3);
-                attention_mma(weighted[2], p_frag, b0, b1);
-                attention_mma(weighted[3], p_frag, b2, b3);
+
             }
         }
-        // No trailing barrier: the next panel's top barrier (after the K
-        // wait) closes this value product before v_tile is rewritten.
+        // The next panel barrier protects shared K/V storage until this product completes.
     }
 
-    for (unsigned int tile = 0; tile < 4u; ++tile) {
+    for (unsigned int tile = 0; tile < 2u; ++tile) {
         const unsigned int column = o_column_base + tile * 8u + 2u * t;
         *(float2 *) (o_tile + (s_row0 + g) * OLD + column) =
             make_float2(weighted[tile][0], weighted[tile][1]);
@@ -5266,9 +5258,9 @@ extern "C" __global__ void __launch_bounds__(512, 1) attention_tiled_bf16_f32(
         const unsigned int row = index >> 7;
         const unsigned int channel = index & 127u;
         const unsigned int token = row_base + row;
-        if (token < query_tokens && sum_row[row] > 0.0f) {
-            output[((sequence * query_tokens + token) * query_heads + query_head) * W + channel] =
-                o_tile[row * OLD + channel] / sum_row[row];
+        if (token < query_tokens && channel < head_width && sum_row[row] > 0.0f) {
+            output[((sequence * query_tokens + token) * query_heads + query_head) * head_width + channel] =
+                o_tile[row * OLD + channel] * __frcp_rn(sum_row[row]);
         }
     }
 }

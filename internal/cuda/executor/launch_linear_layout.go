@@ -548,9 +548,9 @@ func quantStagedMulMat(node *tensor.Tensor) bool {
 	return staged
 }
 
-// fp8GemmWorkspaceBytes: the cuBLASLt workspace the FP8 product may
-// use, at the staging's start; cuBLAS's own default before Hopper.
-const fp8GemmWorkspaceBytes = uint64(4 << 20)
+// ltGemmWorkspaceBytes bounds cuBLASLt tensor-core product workspace.
+// Four MiB matches the existing pre-Hopper allocation contract.
+const ltGemmWorkspaceBytes = uint64(4 << 20)
 
 // fp8TensorCoreAlignment: cuBLASLt's FP8 kernels need 16-byte aligned
 // operands and leading dimensions -- e4m3 rows of inner bytes and F32
@@ -561,9 +561,10 @@ const fp8TensorCoreAlignment = uint64(16)
 // four output rows per thread.
 const fp8QuadWidth = uint64(4)
 
-// fp8WeightShape keys the cuBLASLt FP8 plans by weight geometry.
-type fp8WeightShape struct {
+// matmulWeightShape keys native tensor-core products by geometry and epilogue.
+type matmulWeightShape struct {
 	inner, rows uint32
+	bf16Bias    bool
 }
 
 // fp8TensorCoreMulMat reports whether a mul_mat node multiplies native
@@ -582,7 +583,7 @@ func fp8TensorCoreMulMat(node *tensor.Tensor) bool {
 // fp8TensorCoreStagingBytes: the cuBLASLt workspace, then the e4m3
 // activation and its per-column F32 scales.
 func fp8TensorCoreStagingBytes(inner, rightRows uint64) uint64 {
-	return fp8GemmWorkspaceBytes + inner*rightRows + rightRows*f32ScalarBytes
+	return ltGemmWorkspaceBytes + inner*rightRows + rightRows*f32ScalarBytes
 }
 
 // launchFP8TensorCoreMulMat multiplies resident fp8 weights by the
@@ -611,7 +612,7 @@ func launchFP8TensorCoreMulMat(
 			return errors.New("fp8 tensor-core mul_mat operand is not 16-byte aligned")
 		}
 	}
-	activation := blas.staging + driver.DevicePtr(fp8GemmWorkspaceBytes)
+	activation := blas.staging + driver.DevicePtr(ltGemmWorkspaceBytes)
 	columnScale := activation + driver.DevicePtr(uint64(inner)*uint64(rightRows))
 	if blas.stagedNode != rightNode || blas.stagedType != dtype.F8E4M3 {
 		if err := launchGridABI(
@@ -628,12 +629,12 @@ func launchFP8TensorCoreMulMat(
 		uint64(left), uint64(activation), uint64(output),
 		uint64(leftRows), uint64(rightRows), uint64(inner),
 	) {
-		plan, err := blas.fp8Plan(inner, leftRows, rightRows)
+		plan, err := blas.matmulPlan(inner, leftRows, rightRows, false)
 		if err != nil {
 			return err
 		}
-		if err := blas.library.MatmulFP8(
-			blas.lt, plan, left, activation, output, blas.staging, fp8GemmWorkspaceBytes, state.Stream,
+		if err := blas.library.Matmul(
+			blas.lt, plan, left, activation, output, 0, blas.staging, ltGemmWorkspaceBytes, state.Stream,
 		); err != nil {
 			return err
 		}
@@ -645,36 +646,40 @@ func launchFP8TensorCoreMulMat(
 	)
 }
 
-// fp8Plan returns the cuBLASLt FP8 product for a weight shape at this
+// matmulPlan returns a native tensor-core product for a weight shape at this
 // column count, dropping the plans of a previous column count.
-func (b *blasState) fp8Plan(inner, leftRows, rightRows uint32) (*cublas.FP8Plan, error) {
-	if b.fp8PlanColumns != rightRows {
-		if err := b.dropFP8Plans(); err != nil {
+func (b *blasState) matmulPlan(inner, leftRows, rightRows uint32, bf16Bias bool) (*cublas.MatmulPlan, error) {
+	if b.matmulPlanColumns != rightRows {
+		if err := b.dropMatmulPlans(); err != nil {
 			return nil, err
 		}
-		b.fp8PlanColumns = rightRows
+		b.matmulPlanColumns = rightRows
 	}
-	shape := fp8WeightShape{inner: inner, rows: leftRows}
-	if plan, ok := b.fp8Plans[shape]; ok {
+	shape := matmulWeightShape{inner: inner, rows: leftRows, bf16Bias: bf16Bias}
+	if plan, ok := b.matmulPlans[shape]; ok {
 		return plan, nil
 	}
-	plan, err := b.library.PlanFP8(b.lt, uint64(leftRows), uint64(rightRows), uint64(inner), fp8GemmWorkspaceBytes)
+	build := b.library.PlanFP8
+	if bf16Bias {
+		build = b.library.PlanBF16Bias
+	}
+	plan, err := build(b.lt, uint64(leftRows), uint64(rightRows), uint64(inner), ltGemmWorkspaceBytes)
 	if err != nil {
 		return nil, err
 	}
-	if b.fp8Plans == nil {
-		b.fp8Plans = make(map[fp8WeightShape]*cublas.FP8Plan)
+	if b.matmulPlans == nil {
+		b.matmulPlans = make(map[matmulWeightShape]*cublas.MatmulPlan)
 	}
-	b.fp8Plans[shape] = plan
+	b.matmulPlans[shape] = plan
 	return plan, nil
 }
 
-// dropFP8Plans releases every cached cuBLASLt FP8 plan.
-func (b *blasState) dropFP8Plans() error {
+// dropMatmulPlans releases every cached cuBLASLt product.
+func (b *blasState) dropMatmulPlans() error {
 	var errs []error
-	for shape, plan := range b.fp8Plans {
-		errs = append(errs, b.library.DestroyFP8Plan(plan))
-		delete(b.fp8Plans, shape)
+	for shape, plan := range b.matmulPlans {
+		errs = append(errs, b.library.DestroyMatmulPlan(plan))
+		delete(b.matmulPlans, shape)
 	}
 	return errors.Join(errs...)
 }

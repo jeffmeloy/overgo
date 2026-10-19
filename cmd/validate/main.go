@@ -90,7 +90,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	budget := flags.Duration("budget", 0, "with -smoke: the total discovery and execution budget; required")
 	smokeModel := flags.String("model", "", "with -smoke: the exact model identity to serve; omitted models receive no evidence credit")
 	diagnostic := flags.Bool("diagnostic", false, "with -smoke: inspect behavior without recording a run")
-	parityRun := flags.Bool("parity", false, "run the reference comparison the first argument names, with the flags after it: audio-oracle, sensenova or vqa")
+	parityRun := flags.Bool("parity", false, "run the named reference comparison with the flags after it: audio-oracle, moss-refinement, sensenova or vqa")
 	testLane := flags.Bool("tests", false, "run the hermetic short test lane over the packages after the flags (default ./...): a failed, unfinished or unclassified skipped test refuses it")
 	receipt := flags.Bool("receipt", false, "run go test -json, one package at a time, with the go test arguments after the flags, and keep the passing stream in the store as a receipt")
 	command := clioptions.Command{

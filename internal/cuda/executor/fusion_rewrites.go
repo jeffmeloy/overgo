@@ -92,7 +92,7 @@ type bf16AppendFusion struct {
 }
 
 // bf16AttentionFusion: Attention(BF16Round(q), BF16Round(k), BF16Round(v))
-// collapsed into the width-128 tensor-core flash kernel. The kernel rounds
+// collapsed into the tensor-core attention kernel. The kernel rounds
 // the pre-round F32 inputs on stage-in (round-to-nearest-even, identical to
 // the elided bf16_round launches), accumulates products in F32, and keeps
 // the online softmax exact F32; probabilities round to BF16 for the value
@@ -131,6 +131,7 @@ func (c *CompiledGraph) hasFusion(node *tensor.Tensor, kinds ...compiledFusionKi
 }
 
 var graphRewriteCatalog = [...]graphRewrite{
+	{name: "bf16-linear", apply: applyBF16LinearRewrite},
 	{name: "weighted-rms", apply: applyWeightedRMSRewrite},
 	{name: "activated-gate", apply: applyActivatedGateRewrite},
 	{name: "gelu-tanh", apply: applyGELUTanhRewrite},
@@ -143,6 +144,44 @@ var graphRewriteCatalog = [...]graphRewrite{
 	{name: "bf16-append", apply: applyBF16AppendRewrite},
 	{name: "bf16-attention", apply: applyBF16AttentionRewrite},
 	{name: "bf16-argmax", apply: applyBF16ArgmaxRewrite},
+}
+
+// applyBF16LinearRewrite folds explicitly rounded BF16 products and channel bias into cuBLASLt.
+func applyBF16LinearRewrite(context *rewriteContext) {
+	for _, node := range context.order {
+		if node.Op != tensor.OpBF16Round {
+			continue
+		}
+		add := node.Inputs[0]
+		if add.Op != tensor.OpAdd {
+			continue
+		}
+		product, bias := add.Inputs[0], add.Inputs[1]
+		if product.Op != tensor.OpMulMat {
+			product, bias = bias, product
+		}
+		if !tensorCoreMulMat(product) || product.Op != tensor.OpMulMat || product.Inputs[0].Type != dtype.BF16 ||
+			bias.Op != tensor.OpBF16Round || bias.Shape.Rank != 1 || bias.Shape.Dims[0] != product.Shape.Dims[0] {
+			continue
+		}
+		eligible := true
+		for _, part := range []*tensor.Tensor{add, product} {
+			_, retained := context.outputSet[part]
+			_, skipped := context.compiled.skipped[part]
+			if retained || skipped || context.uses[part] != 1 {
+				eligible = false
+			}
+		}
+		if !eligible {
+			continue
+		}
+		compiled := context.compiled
+		compiled.setFusion(node, &compiledFusion{kind: compiledFusionBF16Linear, operands: []*tensor.Tensor{product.Inputs[0], product.Inputs[1], bias}, bf16ProjAdd: bf16ProjAddFusion{projection: product, addend: bias}})
+		if compiled.skipped == nil {
+			compiled.skipped = make(map[*tensor.Tensor]struct{})
+		}
+		compiled.skipped[add], compiled.skipped[product] = struct{}{}, struct{}{}
+	}
 }
 
 func compileGraphRewrites(
@@ -705,7 +744,7 @@ func applyRopeAppendRewrite(context *rewriteContext) {
 	}
 }
 
-// applyBF16AttentionRewrite: featureless non-causal width-128 attention whose
+// applyBF16AttentionRewrite: aligned non-causal attention up to width 128 whose
 // three inputs are single-use BF16Round nodes fuses into the tensor-core
 // flash kernel; the rounds elide entirely (the kernel rounds on stage-in).
 func applyBF16AttentionRewrite(context *rewriteContext) {
@@ -732,7 +771,8 @@ func applyBF16AttentionRewrite(context *rewriteContext) {
 		fusable := true
 		for _, round := range [...]*tensor.Tensor{query, key, value} {
 			if round.Op != tensor.OpBF16Round || context.uses[round] != 1 ||
-				round.Shape.Rank < attentionMinimumRank || round.Shape.Dims[0] != uint64(attentionBF16Width) {
+				round.Shape.Rank < attentionMinimumRank || round.Shape.Dims[0] != query.Shape.Dims[0] ||
+				round.Shape.Dims[0] > uint64(attentionBF16Width) || round.Shape.Dims[0]%attentionBF16CopyChannels != 0 {
 				fusable = false
 				break
 			}

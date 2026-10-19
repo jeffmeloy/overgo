@@ -45,23 +45,28 @@ func (l *Library) DestroyLt(handle LtHandle) error {
 }
 
 // PlanFP8 builds an FP8 product plan.
-func (l *Library) PlanFP8(handle LtHandle, m, n, k, workspaceLimit uint64) (*FP8Plan, error) {
+func (l *Library) PlanFP8(handle LtHandle, m, n, k, workspaceLimit uint64) (*MatmulPlan, error) {
 	return nil, errors.New("cuBLAS loading is currently supported only on Windows")
 }
 
-// MatmulFP8 enqueues an FP8 product.
-func (l *Library) MatmulFP8(
+// PlanBF16Bias selects a BF16 product with native bias and output rounding.
+func (l *Library) PlanBF16Bias(handle LtHandle, m, n, k, workspaceLimit uint64) (*MatmulPlan, error) {
+	return nil, errors.New("cuBLAS loading is currently supported only on Windows")
+}
+
+// Matmul enqueues the planned product with its current bias address.
+func (l *Library) Matmul(
 	handle LtHandle,
-	plan *FP8Plan,
-	a, b, d, workspace driver.DevicePtr,
+	plan *MatmulPlan,
+	a, b, d, bias, workspace driver.DevicePtr,
 	workspaceBytes uint64,
 	stream driver.Stream,
 ) error {
 	return errors.New("cuBLAS loading is currently supported only on Windows")
 }
 
-// DestroyFP8Plan releases a plan's descriptors.
-func (l *Library) DestroyFP8Plan(plan *FP8Plan) error {
+// DestroyMatmulPlan releases a plan's descriptors.
+func (l *Library) DestroyMatmulPlan(plan *MatmulPlan) error {
 	return errors.New("cuBLAS loading is currently supported only on Windows")
 }
 

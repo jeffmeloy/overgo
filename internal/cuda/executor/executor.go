@@ -805,6 +805,7 @@ const (
 	compiledFusionBF16Gate
 	compiledFusionBF16ProjAdd
 	compiledFusionBF16Attention
+	compiledFusionBF16Linear
 	compiledFusionQ8ArgmaxPartials
 	compiledFusionQ8ArgmaxReduction
 )
@@ -1251,6 +1252,14 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 	}
 	dependencies := compileGraphRewrites(compiled, order, uses, consumers, outputSet)
 	for _, node := range order {
+		if descriptor := compiled.fusions[node]; descriptor != nil && descriptor.kind == compiledFusionBF16Linear {
+			bytes, err := bf16LinearStagingBytes(descriptor.operands)
+			if err != nil {
+				return nil, err
+			}
+			compiled.needBlas = true
+			compiled.matmulStagingBytes = max(compiled.matmulStagingBytes, bytes)
+		}
 		if node.Op != tensor.OpAttention {
 			continue
 		}
@@ -1792,6 +1801,8 @@ func launchCompiledFusion(
 		return "bf16_projection_add", launchBF16ProjAdd(state, functions, node, fusion.bf16ProjAdd, pointers)
 	case compiledFusionBF16Attention:
 		return "bf16_attention", launchBF16Attention(state, functions, blas, node, fusion.bf16Attention, pointers)
+	case compiledFusionBF16Linear:
+		return "bf16_linear", launchBF16Linear(state, functions, blas, fusion.bf16ProjAdd.projection.Inputs, pointers)
 	case compiledFusionQ8ArgmaxPartials:
 		return "q8_argmax", launchQ8ArgmaxPartials(state, functions, q8Input, node, pointers)
 	case compiledFusionQ8ArgmaxReduction:
@@ -2380,12 +2391,10 @@ type blasState struct {
 	// scores: attention score staging for the strided-batched SGEMM path
 	scores     driver.DevicePtr
 	scoreBytes uint64
-	// lt is the cuBLASLt context of the FP8 tensor-core prefill; fp8Plans
-	// holds its products per weight shape, all planned for fp8PlanColumns
-	// activation columns and rebuilt when a forward brings another count.
-	lt             cublas.LtHandle
-	fp8Plans       map[fp8WeightShape]*cublas.FP8Plan
-	fp8PlanColumns uint32
+	// lt owns native tensor-core products with one bounded shape cache per token count.
+	lt                cublas.LtHandle
+	matmulPlans       map[matmulWeightShape]*cublas.MatmulPlan
+	matmulPlanColumns uint32
 }
 
 var (
@@ -2563,7 +2572,7 @@ func (e *Executor) closeResources(state *device.State) error {
 			e.resources.blas.scores = 0
 			e.resources.blas.scoreBytes = 0
 		}
-		errs = append(errs, e.resources.blas.dropFP8Plans())
+		errs = append(errs, e.resources.blas.dropMatmulPlans())
 		if err := e.resources.blas.library.DestroyLt(e.resources.blas.lt); err != nil {
 			errs = append(errs, err)
 		}

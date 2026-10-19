@@ -263,10 +263,17 @@
       "owner": "overgo_moss",
       "status": "open",
       "budget": {
-        "nodes": 1300,
-        "reason": "Support the small decoder and batch-normalized packed latents in existing image/graph owners; reuse convolution, normalization and attention primitives."
+        "nodes": 5500,
+        "reason": "Estimate for native FLUX.2 decoder composition, packed batch-normalized latent input, shared group-normalization arithmetic, checkpoint validation and command integration. Reuse the existing codec graph, convolution, attention and resident-session owners. The existing 1300-node estimate omitted normalization bindings and source-compatible device arithmetic."
       },
       "steps": [
+        {
+          "id": "native-decoder",
+          "title": "Match native decoder boundaries before request integration",
+          "status": "open",
+          "verify": "go test ./internal/latentimage -count=1 -run '^TestMOSSDecoder'",
+          "rationale": "Native portable decoder captures are frozen before implementation.\nThe portable authority contains 294 tensors for square and rectangular F32 CPU and CUDA decoder boundaries with exact repeats.\nIts identity is sha256:e660997ebb8b0d2eff6b4116fff8eeba8b7655be8c22aed144087ad2c3d87ae5.\nThe released English decoder capture matches the existing full-image authority and repeats exactly at all 11 captured boundaries.\nIts identity is sha256:ca8c61f787085e268202e098970cb1a58f2df6029e856d6ccd8786372e140314.\nThe initial released capture reached exact output but failed metadata serialization and remains retained separately from the successful recovery producer.\nExtend existing codec normalization bindings and graph composition for F32 group normalization and spatial convolution.\nThe current group-normalization kernel repeats the complete group reduction for every output and requires linear-work replacement for image geometry.\nUse the pinned Torch Welford reduction and affine rounding when native comparison requires it.\nPreserve existing consumers through their numerical contracts.\nDerive decoder widths, block counts, groups and latent packing from configuration and tensor geometry.\nCompare unpacking, all portable boundaries and released decoder outputs before publishing numerical acceptance.\nReuse convolution and attention owners and change their policies only against isolated native failure evidence.\nExpose decoder validation through the existing MOSS parity command.\nKeep frozen F32 tolerance and repeat identity.\nServes: source-correct MOSS pixels.\nDisappears: a parallel decoder executor and quadratic repeated normalization reductions.\nEvidence: native fixtures, source identities, failing-before and passing-after comparisons retained in OvergoDB.\nBatch: codec, image, tensor and CUDA checks plus repository preflight."
+        },
         {
           "id": "pixels",
           "title": "Match latent unpacking, decoder output and pixels",
@@ -275,7 +282,8 @@
           "rationale": "Apply stored batch-normalization mean and variance with the pinned epsilon to the 128-channel latents before the exact 2-by-2 unpack into 32 channels.\nLoad the bundled AutoencoderKLFlux2 small decoder, including post-quant convolution, decoder blocks, normalization and mid-block attention in fp32.\nMatch clamping, range conversion, tensor layout, rounding and encoded image behavior to the chosen oracle output contract.\nDo not reuse QwenImage VAE normalization or assume identical FLUX decoder channel widths.\nCompare unpacked tensors, decoder boundaries, floating RGB and final pixel output on square and rectangular inputs.\nServes: usable generated images.\nDisappears: a separate VAE process; reuse latentimage/diffusionimage primitives where numerical contracts match.\nEvidence: VAE and pixel goldens consumed by native end-to-end parity and UI rendering.\nBatch: convolution/graph/media lanes; expire inference guards and reconcile decoder artifact dependencies.",
           "depends_on": [
             "moss-import/materialize",
-            "moss-oracle/goldens"
+            "moss-oracle/goldens",
+            "moss-decoder/native-decoder"
           ]
         }
       ]

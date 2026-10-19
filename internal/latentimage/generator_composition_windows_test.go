@@ -3,13 +3,10 @@
 package latentimage
 
 import (
-	"archive/tar"
 	"bytes"
-	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -26,42 +23,13 @@ import (
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testutil"
 	"overgo/internal/workflowruntime"
 )
 
 func compactGeneratorFixture(t *testing.T) (string, *safetensors.Source) {
 	t.Helper()
-	data := mossFixtureBytes(t, "generator-compact.tar.gz", "150c4263057d72476ef4399a442c2b7dbadcb955670232fc2ea869c71f07c5db")
-	gz, err := gzip.NewReader(bytes.NewReader(data))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer gz.Close()
-	root := t.TempDir()
-	tr := tar.NewReader(gz)
-	for {
-		h, e := tr.Next()
-		if e == io.EOF {
-			break
-		}
-		if e != nil {
-			t.Fatal(e)
-		}
-		if h.Typeflag != tar.TypeReg || !filepath.IsLocal(h.Name) {
-			t.Fatal("unsafe native fixture member")
-		}
-		path := filepath.Join(root, h.Name)
-		if e = os.MkdirAll(filepath.Dir(path), 0700); e != nil {
-			t.Fatal(e)
-		}
-		b, e := io.ReadAll(tr)
-		if e != nil {
-			t.Fatal(e)
-		}
-		if e = os.WriteFile(path, b, 0600); e != nil {
-			t.Fatal(e)
-		}
-	}
+	root := testutil.ExtractTarGzip(t, filepath.Join("..", "..", "fixtures", "moss", "generator-compact.tar.gz"), "150c4263057d72476ef4399a442c2b7dbadcb955670232fc2ea869c71f07c5db")
 	id, err := artifact.IdentifyFile(artifact.KindFile, filepath.Join(root, "reference.safetensors"))
 	if err != nil || id.DigestHex() != "084332711dc6be4bae81d54cec4fd5319beb5d209d61855706c16874e9d50d86" {
 		t.Fatal("reference identity", err)

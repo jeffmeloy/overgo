@@ -50,12 +50,16 @@ type generationSourceCatalog struct {
 	Profiles []GenerationSourceProfile `json:"profiles"`
 }
 
+// ErrGenerationSourceAbsent means no catalog profile matches the source identity.
+var ErrGenerationSourceAbsent = errors.New("model recipe: no registered generation source profile")
+
 // ResolveGenerationSource selects one declared task profile.
+// An empty task selects across tasks and refuses ambiguous source identities.
 func ResolveGenerationSource(task recipe.Task, identity hfrepo.Identity) (GenerationSourceProfile, error) {
 	var found *GenerationSourceProfile
 	for index := range generationSources {
 		profile := &generationSources[index]
-		if profile.Task != task || !profile.Selector.matches(identity) {
+		if task != "" && profile.Task != task || !profile.Selector.matches(identity) {
 			continue
 		}
 		if found != nil {
@@ -64,7 +68,7 @@ func ResolveGenerationSource(task recipe.Task, identity hfrepo.Identity) (Genera
 		found = profile
 	}
 	if found == nil {
-		return GenerationSourceProfile{}, fmt.Errorf("model recipe: artifact has no registered %s source profile", task)
+		return GenerationSourceProfile{}, fmt.Errorf("%w for task %q", ErrGenerationSourceAbsent, task)
 	}
 	return *found, nil
 }

@@ -287,7 +287,7 @@ func verifyProjection(repository, path, projectorPath, input string,
 		return err
 	}
 	defer store.Close()
-	_, definition, err := prepareCapability(ctx, store, path, recipe.TaskProjection, mediacapability.Projection(ctx, store, projectorPath))
+	_, definition, err := mediacapability.Prepare(ctx, store, path, recipe.TaskProjection, mediacapability.Projection(ctx, store, projectorPath))
 	if err != nil {
 		return err
 	}

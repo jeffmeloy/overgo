@@ -23,15 +23,18 @@ func PreserveRawTextDescriptors(ctx context.Context, reader artifact.Reader, bat
 		if declared.ID.Kind() != artifact.KindFile {
 			return nil
 		}
+		rawText := func(media string) bool {
+			return media == "text/plain" || media == "text/markdown" || media == "text/x-python"
+		}
+		if !rawText(declared.MediaType) {
+			return nil
+		}
 		existing, found, err := reader.Artifact(ctx, declared.ID)
 		if err != nil {
 			return err
 		}
 		if !found || existing == *declared {
 			return nil
-		}
-		rawText := func(media string) bool {
-			return media == "text/plain" || media == "text/markdown" || media == "text/x-python"
 		}
 		textViews := rawText(existing.MediaType) && rawText(declared.MediaType)
 		if existing.Size != declared.Size || existing.Schema != "" || declared.Schema != "" || !textViews {

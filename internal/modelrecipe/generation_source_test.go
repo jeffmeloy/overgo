@@ -1,6 +1,7 @@
 package modelrecipe
 
 import (
+	"errors"
 	"slices"
 	"testing"
 
@@ -51,5 +52,20 @@ func TestResolveGenerationSource(t *testing.T) {
 func TestResolveGenerationSourceRejectsUnknownIdentity(t *testing.T) {
 	if _, err := ResolveGenerationSource(recipe.TaskImageGen, hfrepo.Identity{ModelType: "unknown"}); err == nil {
 		t.Fatal("expected unknown source rejection")
+	}
+}
+
+func TestResolveGenerationSourceInfersTask(t *testing.T) {
+	for _, pipeline := range []string{"MOSSImagePipeline", "Krea2Pipeline"} {
+		profile, err := ResolveGenerationSource("", hfrepo.Identity{Pipeline: pipeline})
+		if err != nil || profile.Task != recipe.TaskImageGen {
+			t.Fatal(pipeline, profile, err)
+		}
+	}
+	if _, err := ResolveGenerationSource("", hfrepo.Identity{ModelType: "un0"}); err == nil || errors.Is(err, ErrGenerationSourceAbsent) {
+		t.Fatal("ambiguous image/video source was not refused", err)
+	}
+	if _, err := ResolveGenerationSource("", hfrepo.Identity{ModelType: "unknown"}); !errors.Is(err, ErrGenerationSourceAbsent) {
+		t.Fatal("unknown source lacks typed absence", err)
 	}
 }

@@ -18,7 +18,9 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
+	"overgo/internal/hfrepo"
 	"overgo/internal/inference"
+	"overgo/internal/mediacapability"
 	"overgo/internal/modelintake"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/operation"
@@ -110,6 +112,28 @@ func Register(ctx context.Context, repository *overgodb.Store, path, projectorPa
 	if info.IsDir() {
 		if strings.TrimSpace(projectorPath) != "" {
 			return nil, refusal{errors.New("library: HF directory import does not accept a separate projector")}
+		}
+		identity, err := hfrepo.InspectIdentity(path)
+		if err != nil {
+			return nil, refusal{err}
+		}
+		source, err := modelrecipe.ResolveGenerationSource("", identity)
+		if err != nil && !errors.Is(err, modelrecipe.ErrGenerationSourceAbsent) {
+			return nil, refusal{err}
+		}
+		if err == nil {
+			modelID, definition, err := mediacapability.Prepare(ctx, repository, path, source.Task, mediacapability.Catalog[source.Task])
+			if err != nil {
+				return nil, refusal{err}
+			}
+			if _, published, err := modelrecipe.Status(ctx, repository, definition.ID); err != nil {
+				return nil, err
+			} else if !published {
+				if _, _, err := modelrecipe.PublishCandidate(ctx, repository, "recipe/candidate/"+definition.ID.String(), definition); err != nil {
+					return nil, err
+				}
+			}
+			return map[string]any{"path": path, "model": modelID, "recipe": definition.ID, "qualification": "candidate"}, nil
 		}
 		inspection, err := modelintake.InspectImport(ctx, path, "")
 		if err != nil {

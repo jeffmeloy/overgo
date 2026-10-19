@@ -463,7 +463,7 @@
             if (work.stopRequested) await cancelBackgroundOperation(work);
             if (overgo.signal.aborted && controller) controller.abort();
           },
-          observe: current => { if (!overgo.signal.aborted) status.textContent = work.failure && !['completed', 'failed', 'cancelled'].includes(current.state) ? work.failure : current.state + (current.progress && current.progress.total != null ? ' · ' + current.progress.completed + ' / ' + current.progress.total : ''); },
+          observe: current => { if (!overgo.signal.aborted) status.textContent = work.failure && !['completed', 'failed', 'cancelled'].includes(current.state) ? work.failure : (current.text || current.state) + (current.progress && current.progress.total != null ? ' · ' + current.progress.completed + ' / ' + current.progress.total : ''); },
         };
         return work;
       }

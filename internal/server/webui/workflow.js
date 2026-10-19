@@ -409,7 +409,7 @@
         });
         function renderOperation(current) {
           const suffix = current.run ? " / " + fmt.shortID(current.run) : "";
-          status.textContent = current.state + suffix + (current.failure ? " / " + current.failure : "");
+          status.textContent = (definition.scope === 'generation' && current.text || current.state) + suffix + (current.failure ? " / " + current.failure : "");
           const total = current.progress && current.progress.total;
           const completed = current.progress ? current.progress.completed : 0;
           progress.hidden = !total;

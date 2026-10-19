@@ -213,7 +213,13 @@ func (workspace *storeGenerationWorkspace) ExecuteWorkflow(ctx context.Context, 
 	sources := workflowSources(ctx)
 	started := time.Now()
 	begin, _ := processmeasure.Counter()
-	output, err := execute(ctx, workspace.store, capability.directory, capability.execution, string(raw))
+	var repository artifact.Repository = workspace.store
+	phases := generationPhases(capability.Stages)
+	if len(phases) != 0 {
+		reporter.Text("Loading model")
+		repository = &generationProgressRepository{Store: workspace.store, recipe: recipeID, phases: phases, reporter: reporter}
+	}
+	output, err := execute(ctx, repository, capability.directory, capability.execution, string(raw))
 	end, _ := processmeasure.Counter()
 	measured, _ := output.(capabilityruntime.Measured)
 	var content artifact.Content
@@ -249,6 +255,56 @@ func (workspace *storeGenerationWorkspace) ExecuteWorkflow(ctx context.Context, 
 	workspace.observe(ctx, capability.Model, recipeID, run.ID, task, started, end-begin, measured, nil)
 	reporter.Publishing()
 	return operation.Completion{Run: run.ID, Outputs: []artifact.ID{content.Descriptor.ID}}, nil
+}
+
+// generationPhases names the existing image pipeline's user-visible stages.
+func generationPhases(stages []recipe.Stage) map[recipe.NodeID]string {
+	labels := map[recipe.NodeID]string{}
+	for _, stage := range stages {
+		var label string
+		switch stage.Module.ID {
+		case modelrecipe.ModuleLatentImagePrepare:
+			label = "Processing prompt"
+		case modelrecipe.ModuleLatentImageIntegrate:
+			label = "Generating image"
+		case modelrecipe.ModuleLatentImageDecode:
+			label = "Decoding image"
+		}
+		if label != "" {
+			labels[stage.Node.ID] = label
+		}
+	}
+	return labels
+}
+
+// generationProgressRepository projects durable stages onto the operation stream.
+// Failed commits and receipts for other recipes publish no progress.
+type generationProgressRepository struct {
+	*overgodb.Store
+	recipe   artifact.ID
+	phases   map[recipe.NodeID]string
+	reporter operation.Reporter
+}
+
+// Commit publishes progress only after the underlying stage batch is durable.
+func (repository *generationProgressRepository) Commit(ctx context.Context, batch artifact.Batch) (artifact.CommitID, error) {
+	id, err := repository.Store.Commit(ctx, batch)
+	if err != nil {
+		return id, err
+	}
+	for _, content := range batch.Contents {
+		if content.Descriptor.Schema != runrecord.StageReceiptSchema {
+			continue
+		}
+		receipt, parseErr := runrecord.ParseStageReceipt(content.Data)
+		if parseErr != nil || receipt.Recipe != repository.recipe || receipt.State != runrecord.StageRunning {
+			continue
+		}
+		if label := repository.phases[receipt.Node]; label != "" {
+			repository.reporter.Text(label)
+		}
+	}
+	return id, nil
 }
 
 // generationFailure is the failure code a failed media execution records.

@@ -44,7 +44,7 @@ func (fixture *mossGenerationFixture) requests() []latentimage.Request {
 	return append([]latentimage.Request(nil), fixture.inputs...)
 }
 
-func newMOSSGenerationFixture(t *testing.T, onRequest func(context.Context, latentimage.Request) error) *mossGenerationFixture {
+func newMOSSGenerationFixture(t *testing.T, onRequest func(context.Context, artifact.Repository, modelrecipe.CapabilityEvidenceSelection, latentimage.Request) error) *mossGenerationFixture {
 	t.Helper()
 	root := testutil.ExtractTarGzip(t, testutil.FixturePath(t, "moss", "generator-compact.tar.gz"), "150c4263057d72476ef4399a442c2b7dbadcb955670232fc2ea869c71f07c5db")
 	store, err := overgodb.Open(t.TempDir())
@@ -56,7 +56,7 @@ func newMOSSGenerationFixture(t *testing.T, onRequest func(context.Context, late
 	image := tinyPNG(t)
 	inputContract := artifact.JSONContract(artifact.KindFile, "overgo.test-moss-request.v1")
 	catalog := map[recipe.Task]mediacapability.Capability{recipe.TaskImageGen: {
-		Execute: func(ctx context.Context, _ artifact.Repository, path string, execution modelrecipe.CapabilityEvidenceSelection, raw string) (any, error) {
+		Execute: func(ctx context.Context, repository artifact.Repository, path string, execution modelrecipe.CapabilityEvidenceSelection, raw string) (any, error) {
 			var executed latentimage.Request
 			if path != root || len(execution.Program.Stages()) != 3 {
 				t.Error("component execution lost", path)
@@ -71,7 +71,7 @@ func newMOSSGenerationFixture(t *testing.T, onRequest func(context.Context, late
 				return nil, err
 			}
 			if onRequest != nil {
-				if err := onRequest(ctx, executed); err != nil {
+				if err := onRequest(ctx, repository, execution, executed); err != nil {
 					return nil, err
 				}
 			}

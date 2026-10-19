@@ -11,8 +11,10 @@ import (
 	"strconv"
 	"testing"
 
+	"overgo/internal/artifact"
 	"overgo/internal/latentimage"
 	"overgo/internal/mediacapability"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/webuilane"
 )
 
@@ -21,7 +23,23 @@ import (
 func TestWebUIBrowserMOSSGeneration(t *testing.T) {
 	requireWebUILane(t, "MOSS controls run through cmd/webui-lane")
 	started := make(chan struct{})
-	fixture := newMOSSGenerationFixture(t, func(_ context.Context, request latentimage.Request) error {
+	phaseReady, phaseContinue := make(chan struct{}), make(chan struct{})
+	fixture := newMOSSGenerationFixture(t, func(ctx context.Context, store artifact.Repository, execution modelrecipe.CapabilityEvidenceSelection, request latentimage.Request) error {
+		if request.Prompt == "blue cube" {
+			return publishMOSSProgressFixture(t, ctx, store, execution, func() error {
+				select {
+				case phaseReady <- struct{}{}:
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+				select {
+				case <-phaseContinue:
+					return nil
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			})
+		}
 		if request.Prompt == "resource refusal" {
 			return errors.New("image generation needs more device memory; release another model and retry")
 		}
@@ -36,6 +54,7 @@ func TestWebUIBrowserMOSSGeneration(t *testing.T) {
 	}
 	server := httptest.NewServer(fixture.handler)
 	defer server.Close()
+	defer fixture.handler.Close()
 	_, browser, check, settle := openBrowserLeg(t, server.URL)
 	defer browser.Close()
 	check(`(() => { location.hash='library'; return true; })()`)
@@ -65,7 +84,17 @@ func TestWebUIBrowserMOSSGeneration(t *testing.T) {
 	check(`(() => { const help=document.querySelector('.composer .control-help'); help.querySelector('summary').click(); return help.open && help.textContent.includes('canvas center') && help.textContent.includes('"bbox_format":"yxyx"'); })()`)
 	check(`(() => {document.querySelector('.composer .advanced-controls summary').click();mossField('guidance scale').value='0';mossField('seed').value='42';return true;})()`)
 	check(`(() => {mossSend('blue cube');return true;})()`)
+	for _, phase := range []string{"Processing prompt", "Generating image", "Decoding image"} {
+		select {
+		case <-phaseReady:
+		case <-t.Context().Done():
+			t.Fatal(t.Context().Err())
+		}
+		settle(`document.querySelector('.chat-log').textContent.includes(` + strconv.Quote(phase) + `)`)
+		phaseContinue <- struct{}{}
+	}
 	settle(`!!document.querySelector('.artifact.msg.media img') && document.querySelector('.artifact.msg.media img').naturalWidth===2 && !document.querySelector('.send-button').disabled`)
+	check(`!document.querySelector('.chat-log').textContent.includes('Decoding image')`)
 	check(`(async () => {const content=await overgo.api.blob(overgo.contentURL('` + content.Descriptor.ID.String() + `'));return content.type.includes('image/png') && content.size>0;})()`)
 	const layout = `{"summary":{"caption":"蓝色方块"},"items":[{"label":"object","caption":"blue cube","bbox":[-128,-128,128,128]}],"bbox_format":"yxyx","bbox_coord_space":"abs_centralized"}`
 	encoded, err := json.Marshal(layout)

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"path/filepath"
 	"slices"
@@ -31,8 +32,8 @@ const (
 // Checkpoint and oracle documents must retain their frozen content identities.
 // Every case must meet upstream BF16 tolerance and repeat bitwise.
 func VerifyMOSSTransformer(ctx context.Context, modelRoot, referenceRoot, contractRoot, stage string, output io.Writer) error {
-	if stage != "refinement" && stage != "joint" {
-		return fmt.Errorf("MOSS stage %q must be refinement or joint", stage)
+	if stage != "refinement" && stage != "joint" && stage != "denoiser" {
+		return fmt.Errorf("MOSS stage %q must be refinement, joint or denoiser", stage)
 	}
 	verify := func(path, digest string) error {
 		id, err := artifact.IdentifyFile(artifact.KindFile, path)
@@ -66,16 +67,22 @@ func VerifyMOSSTransformer(ctx context.Context, modelRoot, referenceRoot, contra
 		}
 	}
 	var config struct {
-		Layers int `json:"num_layers"`
-		Dim    int `json:"dim"`
-		FFN    int `json:"ffn_dim"`
-		Heads  int `json:"num_heads"`
-		Text   int `json:"text_dim"`
+		Layers    int     `json:"num_layers"`
+		Dim       int     `json:"dim"`
+		FFN       int     `json:"ffn_dim"`
+		Heads     int     `json:"num_heads"`
+		Text      int     `json:"text_dim"`
+		Channels  int     `json:"latent_channels"`
+		Frequency int     `json:"freq_dim"`
+		RopeBase  float64 `json:"rope_base"`
 	}
 	if err := readJSON(filepath.Join(modelRoot, "transformer", "config.json"), &config); err != nil {
 		return err
 	}
-	spec := TransformerSpec{Layers: config.Layers, Hidden: config.Dim, Heads: config.Heads, HeadDim: config.Dim / config.Heads, Intermediate: config.FFN, TextHidden: config.Text, RefinerTextBlocks: mossRefinementBlocks}
+	if config.Heads <= 0 {
+		return fmt.Errorf("MOSS head count must be positive")
+	}
+	spec := TransformerSpec{Layers: config.Layers, Hidden: config.Dim, Heads: config.Heads, HeadDim: config.Dim / config.Heads, Intermediate: config.FFN, TextHidden: config.Text, RefinerTextBlocks: mossRefinementBlocks, InChannels: config.Channels, TimestepEmbed: config.Frequency, RopeTheta: config.RopeBase}
 	var contract struct {
 		Cases []struct {
 			Name     string
@@ -130,6 +137,7 @@ func VerifyMOSSTransformer(ctx context.Context, modelRoot, referenceRoot, contra
 			feeds := map[*tensor.Tensor]reference.Value{}
 			var result, rotary *tensor.Tensor
 			var weights tensor.WeightBindings
+			named := map[string]*tensor.Tensor{}
 			if stage == "refinement" {
 				p, err := compileRotaryRefinementProgram(spec, mossRefinementEpsilon, tokens, dtype.BF16)
 				if err != nil {
@@ -137,7 +145,7 @@ func VerifyMOSSTransformer(ctx context.Context, modelRoot, referenceRoot, contra
 				}
 				inputs[hiddenName], inputs[ropeName] = p.InEncoder, p.InRoPE
 				result, rotary, weights = p.Fused, p.InRoPE, p.weightInputs
-			} else {
+			} else if stage == "joint" {
 				p, err := compileRotaryJointProgram(spec, mossRefinementEpsilon, tokens, 0, dtype.BF16)
 				if err != nil {
 					return err
@@ -149,8 +157,48 @@ func VerifyMOSSTransformer(ctx context.Context, modelRoot, referenceRoot, contra
 				}
 				feeds[p.unit] = reference.Value{Shape: p.unit.Shape, Data: unit}
 				result, rotary, weights = p.output, p.rope, p.weightInputs
+			} else {
+				latent := source.Tensors["initial_latents"]
+				if len(latent.Shape) != rotaryCoordinateAxes || latent.Shape[0] != tensor.SingletonExtent || latent.Shape[1] != uint64(spec.InChannels) {
+					return fmt.Errorf("MOSS latent input shape differs: %v", latent.Shape)
+				}
+				p, err := compileRotaryDenoiserProgram(spec, mossRefinementEpsilon, int(latent.Shape[tensor.PairedExtent]), int(latent.Shape[tensor.TripleExtent]), tokens, nil, dtype.BF16)
+				if err != nil {
+					return err
+				}
+				values, err := safetensors.ReadF32(latent)
+				if err != nil {
+					return err
+				}
+				context, err := safetensors.ReadF32(hidden)
+				if err != nil {
+					return err
+				}
+				times, err := safetensors.ReadF32(source.Tensors["schedule.timesteps"])
+				if err != nil {
+					return err
+				}
+				if len(times) == 0 {
+					return fmt.Errorf("MOSS timestep schedule is empty")
+				}
+				feeds, err = p.feeds(values, context, times[0])
+				if err != nil {
+					return err
+				}
+				result, weights, wantName = p.output, p.weightInputs, "prediction.0"
+				for name, node := range p.boundaries {
+					if _, ok := source.Tensors[name]; ok {
+						named[name] = node
+					}
+				}
 			}
-			program, err := compileResidentWeights(ctx, runtime, "MOSS "+stage, filepath.Join(modelRoot, "transformer"), weights, nil, result)
+			named[wantName] = result
+			names := slices.Sorted(maps.Keys(named))
+			outputs := make([]*tensor.Tensor, 0, len(names))
+			for _, name := range names {
+				outputs = append(outputs, named[name])
+			}
+			program, err := compileResidentWeights(ctx, runtime, "MOSS "+stage, filepath.Join(modelRoot, "transformer"), weights, nil, outputs...)
 			if err != nil {
 				return err
 			}
@@ -176,37 +224,39 @@ func VerifyMOSSTransformer(ctx context.Context, modelRoot, referenceRoot, contra
 			if err != nil {
 				return err
 			}
-			want, err := safetensors.ReadF32(source.Tensors[wantName])
-			if err != nil {
-				return err
-			}
-			actual, repeated := got[result].Data, repeat[result].Data
-			if len(actual) != len(want) || len(repeated) != len(want) {
-				return fmt.Errorf("MOSS refinement output lengths differ")
-			}
-			failures, unequal, repeatFailures := 0, 0, 0
-			var worst float64
-			tolerance := contract.Comparison.Tolerances["BF16"]
-			for i, x := range actual {
-				difference := math.Abs(float64(x) - float64(want[i]))
-				if !checked.Finite32(x) || !checked.Finite32(want[i]) || difference > tolerance.Absolute+tolerance.Relative*math.Abs(float64(want[i])) {
-					failures++
+			for _, name := range names {
+				want, err := safetensors.ReadF32(source.Tensors[name])
+				if err != nil {
+					return err
 				}
-				if checked.Finite64(difference) {
-					worst = max(worst, difference)
+				actual, repeated := got[named[name]].Data, repeat[named[name]].Data
+				if len(actual) != len(want) || len(repeated) != len(want) {
+					return fmt.Errorf("MOSS %s output lengths differ", name)
 				}
-				if math.Float32bits(x) != math.Float32bits(want[i]) {
-					unequal++
+				failures, unequal, repeatFailures := 0, 0, 0
+				var worst float64
+				tolerance := contract.Comparison.Tolerances["BF16"]
+				for i, x := range actual {
+					difference := math.Abs(float64(x) - float64(want[i]))
+					if !checked.Finite32(x) || !checked.Finite32(want[i]) || difference > tolerance.Absolute+tolerance.Relative*math.Abs(float64(want[i])) {
+						failures++
+					}
+					if checked.Finite64(difference) {
+						worst = max(worst, difference)
+					}
+					if math.Float32bits(x) != math.Float32bits(want[i]) {
+						unequal++
+					}
+					if math.Float32bits(x) != math.Float32bits(repeated[i]) {
+						repeatFailures++
+					}
 				}
-				if math.Float32bits(x) != math.Float32bits(repeated[i]) {
-					repeatFailures++
+				if err := json.NewEncoder(output).Encode(map[string]any{"stage": stage, "boundary": name, "case": c.Name, "reference": c.Artifact, "values": len(want), "failed": failures, "unequal": unequal, "repeat_failed": repeatFailures, "max_abs": worst, "resident_weight_bytes": runtime.StaticBytes()}); err != nil {
+					return err
 				}
-			}
-			if err := json.NewEncoder(output).Encode(map[string]any{"stage": stage, "case": c.Name, "reference": c.Artifact, "values": len(want), "failed": failures, "unequal": unequal, "repeat_failed": repeatFailures, "max_abs": worst, "resident_weight_bytes": runtime.StaticBytes()}); err != nil {
-				return err
-			}
-			if failures != 0 || repeatFailures != 0 {
-				return fmt.Errorf("MOSS %s violates frozen comparison in %s", stage, c.Name)
+				if failures != 0 || repeatFailures != 0 {
+					return fmt.Errorf("MOSS %s violates frozen comparison in %s", stage, c.Name)
+				}
 			}
 			return nil
 		}()

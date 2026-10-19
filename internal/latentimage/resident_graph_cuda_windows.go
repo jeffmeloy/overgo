@@ -57,6 +57,9 @@ func compileResidentWeights(
 	}
 	defer source.Close()
 	for _, node := range inputs {
+		if _, required := program.Graph.InputSlot(node); !required {
+			continue
+		}
 		name := node.Name
 		if err := ctx.Err(); err != nil {
 			return nil, err

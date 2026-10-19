@@ -40,32 +40,36 @@ func compileRotaryJointProgram(t TransformerSpec, epsilon float32, tokens, index
 	p.modulation = b.Input("joint_modulation", dtype.F32, tensor.MustShape(uint64(t.ModFieldsOr6())*g.width))
 	p.unit = b.Input("unit", dtype.F32, tensor.MustShape(g.width))
 	p.rope = g.rotaryInput("joint_rotary")
+	p.output = g.joint(p.input, p.modulation, p.unit, index)
+	if err := b.Err(); err != nil {
+		return nil, fmt.Errorf("rotary joint: %w", err)
+	}
+	return p, nil
+}
+
+func (g *rotaryGraph) modulate(x, shift, scale, unit *tensor.Tensor) *tensor.Tensor {
+	b := g.b
+	return g.round(b.Add(g.round(b.Multiply(x, g.round(b.Add(scale, unit)))), shift))
+}
+
+func (g *rotaryGraph) joint(input, modulation, unit *tensor.Tensor, index int) *tensor.Tensor {
+	b := g.b
 	prefix := fmt.Sprintf("layers.%d.", index)
-	mod := g.round(p.modulation)
-	parts := make([]*tensor.Tensor, t.ModFieldsOr6())
+	mod := g.round(modulation)
+	parts := make([]*tensor.Tensor, jointModulationFields)
 	for i := range parts {
 		parts[i] = b.FlatSlice(mod, uint64(i)*g.width, g.width)
 	}
 	attentionShift, attentionScale, attentionGate := parts[jointAttentionShift], parts[jointAttentionScale], parts[jointAttentionGate]
 	feedShift, feedScale, feedGate := parts[jointFeedShift], parts[jointFeedScale], parts[jointFeedGate]
-	modulate := func(x, shift, scale *tensor.Tensor) *tensor.Tensor {
-		return g.round(b.Add(g.round(b.Multiply(x, g.round(b.Add(scale, p.unit)))), shift))
-	}
-	hidden := g.round(p.input)
-	y := modulate(g.norm(prefix+"norm1", hidden, g.width), attentionShift, attentionScale)
-	if err := b.Err(); err != nil {
-		return nil, err
-	}
+	hidden := g.round(input)
+	y := g.modulate(g.norm(prefix+"norm1", hidden, g.width), attentionShift, attentionScale, unit)
 	q := g.norm(prefix+"q_norm", b.Reshape(g.linear(prefix+"proj.q", y, g.width, g.width, false), g.headWidth, g.heads, g.sequence), g.headWidth)
 	k := g.norm(prefix+"k_norm", b.Reshape(g.linear(prefix+"proj.k", y, g.width, g.width, false), g.headWidth, g.heads, g.sequence), g.headWidth)
 	v := b.Reshape(g.linear(prefix+"proj.v", y, g.width, g.width, false), g.headWidth, g.heads, g.sequence)
 	hidden = g.round(b.Add(hidden, g.round(b.Multiply(g.linear(prefix+"proj.o", g.attention(q, k, v), g.width, g.width, false), attentionGate))))
-	y = modulate(g.norm(prefix+"norm2", hidden, g.width), feedShift, feedScale)
+	y = g.modulate(g.norm(prefix+"norm2", hidden, g.width), feedShift, feedScale, unit)
 	fused := g.linear(prefix+"proj.ffn_up_gate", y, g.width, tensor.PairedExtent*g.intermediate, false)
 	up, gate := g.part(fused, tensor.FirstOffset, g.intermediate), g.part(fused, g.intermediate, g.intermediate)
-	p.output = g.round(b.Add(hidden, g.round(b.Multiply(g.linear(prefix+"proj.ffn_down", g.situ(up, gate), g.intermediate, g.width, false), feedGate))))
-	if err := b.Err(); err != nil {
-		return nil, fmt.Errorf("rotary joint: %w", err)
-	}
-	return p, nil
+	return g.round(b.Add(hidden, g.round(b.Multiply(g.linear(prefix+"proj.ffn_down", g.situ(up, gate), g.intermediate, g.width, false), feedGate))))
 }

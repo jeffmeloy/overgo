@@ -96,7 +96,17 @@ func compileRotaryRefinementProgram(t TransformerSpec, epsilon float32, tokens i
 	b := g.b
 	p.InEncoder = b.Input("encoder_hidden", dtype.F32, tensor.MustShape(uint64(t.TextHidden), g.sequence))
 	p.InRoPE = g.rotaryInput("text_rotary")
-	hidden := g.linear("text_embedder.proj", g.round(p.InEncoder), uint64(t.TextHidden), g.width, true)
+	p.Fused, p.RefinementOutputs = g.refine(t, p.InEncoder)
+	if e := b.Err(); e != nil {
+		return nil, fmt.Errorf("rotary refinement: %w", e)
+	}
+	return p, nil
+}
+
+func (g *rotaryGraph) refine(t TransformerSpec, input *tensor.Tensor) (*tensor.Tensor, []*tensor.Tensor) {
+	b := g.b
+	hidden := g.linear("text_embedder.proj", g.round(input), uint64(t.TextHidden), g.width, true)
+	var outputs []*tensor.Tensor
 	for index := range t.RefinerTextBlocks {
 		prefix := fmt.Sprintf("text_embedder.blocks.%d.", index)
 		qkv := g.linear(prefix+"qkv", g.norm(prefix+"norm1", hidden, g.width), g.width, tensor.TripleExtent*g.width, true)
@@ -108,11 +118,7 @@ func compileRotaryRefinementProgram(t TransformerSpec, epsilon float32, tokens i
 		up := g.linear(prefix+"ffn_up", y, g.width, g.intermediate, true)
 		gate := g.linear(prefix+"ffn_gate", y, g.width, g.intermediate, true)
 		hidden = g.round(b.Add(hidden, g.linear(prefix+"ffn_down", g.situ(up, gate), g.intermediate, g.width, true)))
-		p.RefinementOutputs = append(p.RefinementOutputs, hidden)
+		outputs = append(outputs, hidden)
 	}
-	p.Fused = hidden
-	if e := b.Err(); e != nil {
-		return nil, fmt.Errorf("rotary refinement: %w", e)
-	}
-	return p, nil
+	return hidden, outputs
 }

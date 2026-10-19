@@ -19,6 +19,10 @@ func TestMOSSRotaryJointCheckpoint(t *testing.T) {
 	verifyMOSSModelStage(t, "joint")
 }
 
+func TestMOSSRotaryDenoiserCheckpoint(t *testing.T) {
+	verifyMOSSModelStage(t, "denoiser")
+}
+
 func verifyMOSSModelStage(t *testing.T, stage string) {
 	t.Helper()
 	cudatest.Require(t)

@@ -208,6 +208,39 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "speculation",
+      "title": "Speculate safely and further on Flash-Next and NextN models",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 600,
+        "reason": "estimate: a context clamp in the speculation round (small), the draft layer's kept cache filled from the prompt (largest), and NextN's span policy shared with MTP's"
+      },
+      "steps": [
+        {
+          "id": "clamp",
+          "title": "Stop a speculating request at its context limit as plain decoding does",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestSpeculationStopsAtTheContextLimit$'",
+          "rationale": "From step mtp: the speculation loop can push a request past the end of its context: a 16-token fixture asked for more new tokens than fit failed with \"cached plus new token count 17 exceeds context length 16\", where plain decoding stops at the limit. A speculating request near its context end fails instead of finishing.\nThe step clamps each round's draft and verify span to the tokens left in the context (no draft when one token is left), so a speculating request ends where plain decoding would, with the same text.\nAcceptance: a speculating request that reaches its context limit finishes with plain decoding's tokens and finish reason.\nServes: failure-rate for speculating requests near their context limit.\nBatch: device."
+        },
+        {
+          "id": "full-history",
+          "title": "Draft over the draft layer's own history, up to two tokens a round",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestFlashNextFullHistoryDraftKeepsGreedyText$'",
+          "rationale": "From step mtp: Flash-Next drafts one token a round from a fresh draft cell. A host reference of the MTP layer that attends over its earlier cells, as Strata's draft does, accepts at depths one to three 67/99, 35/66 and 17/35 on the chat and 100/118, 83/99 and 66/82 on the document; simulated with measured costs, two drafts a round on the document come to about 104 tokens a second against about 79 measured with the fresh cell.\nThe step keeps the draft layer's key and value cache across rounds, fills it from the prompt, and drafts up to two tokens a round where acceptance pays, keeping every span length the replayed frames allow (span-frames).\nAcceptance: greedy text identical to plain decoding; drafts accepted and tokens a second on the chat and the document before and after.\nServes: throughput for Flash-Next, most on long answers.\nBatch: device."
+        },
+        {
+          "id": "nextn-spans",
+          "title": "Give NextN speculation span lengths its kept graphs can replay",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestNextNSpeculationReplaysItsSpans$'",
+          "rationale": "From step span-frames: Qwen3.8-27B's NextN speculation (three drafts a round) runs at 26.4 to 26.7 tokens a second against 27.7 to 27.9 plain, because its loop compiles 23 span graphs (span lengths 4 to 8 and draftless spans across four cache capacities), 46 frames a request, more than the kept graphs hold, so nearly every round recaptures.\nThe step gives NextN the policy MTP uses (a draftless two-token re-span after a rejection, or a single span length a round) so its frames fit the kept graphs, or stops speculating where acceptance does not pay, measured per model.\nAcceptance: the 27B's speculative decoding at or above plain, text identical; recaptures a warm request.\nServes: throughput for NextN models; failure-rate unchanged.\nBatch: device."
+        }
+      ]
+    },
+    {
       "id": "training-reuse",
       "title": "Stop repeating training's per-step device setup and its padding to the run's longest sequence",
       "status": "open",
@@ -399,7 +432,8 @@
             "plan-prefill-rescope/do",
             "plan-span-frames/do",
             "plan-advance/do",
-            "plan-mtp-count/do"
+            "plan-mtp-count/do",
+            "speculation/do"
           ]
         }
       ]

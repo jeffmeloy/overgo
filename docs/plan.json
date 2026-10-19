@@ -213,8 +213,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 600,
-        "reason": "estimate: a Go client for the bench suite's chat, long-prompt and agent-session requests and its comparison table"
+        "nodes": 2050,
+        "reason": "suite measured +2,004 production nodes after cutting the CPython word-list port: cmd/benchmark strata sends Strata's suite 1 (three chat questions, 4K and 16K fresh prompts, three five-turn agent sessions with four tools) to the served chat route and reports Strata's measures"
       },
       "steps": [
         {
@@ -518,7 +518,8 @@
             "plan-liveedit/do",
             "plan-fh-count/do",
             "plan-parity-first/do",
-            "strata-bench/do"
+            "strata-bench/do",
+            "plan-bench-count/do"
           ]
         }
       ]

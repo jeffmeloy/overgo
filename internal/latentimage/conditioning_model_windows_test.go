@@ -4,6 +4,7 @@ package latentimage
 
 import (
 	"context"
+	"errors"
 	"maps"
 	"os"
 	cudatest "overgo/internal/cuda/testutil"
@@ -97,6 +98,40 @@ func TestMOSSConditioningModelGolden(t *testing.T) {
 					}
 				}
 				previous = actual
+			}
+			conditioner := modelConditioner{catalog: catalog, root: root}
+			text := textInput{IDs: make([]int, len(hidden)/int(catalog.Spec.EmbeddingLength))}
+			text.Mask = make([]bool, len(text.IDs))
+			for i := range text.Mask {
+				text.Mask[i] = true
+			}
+			before := session.StaticBytes()
+			final, err := conditioner.encode(t.Context(), session, text, hidden, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			failed, unequal, _ := compareMOSSValues(final, refinementValues(t, s, name+".final_norm"), mossStageTolerance{})
+			if failed != 0 || unequal != 0 {
+				t.Fatal("final-output-only graph differs from native")
+			}
+			if session.StaticBytes() != before {
+				t.Fatal("conditioner retained temporary weights")
+			}
+			stop := errors.New("observer stopped")
+			if _, err := conditioner.encode(t.Context(), session, text, hidden, func(string, []float32) error { return stop }); !errors.Is(err, stop) {
+				t.Fatal("observer failure lost", err)
+			}
+			if session.StaticBytes() != before {
+				t.Fatal("observer failure retained temporary weights")
+			}
+			cancelled, cancel := context.WithCancel(t.Context())
+			cancel()
+			if _, err := conditioner.encode(cancelled, session, text, hidden, nil); !errors.Is(err, context.Canceled) {
+				t.Fatal("cancelled conditioning accepted", err)
+			}
+			text.Mask[0] = false
+			if _, err := conditioner.encode(t.Context(), session, text, hidden, nil); err == nil {
+				t.Fatal("padded conditioner input accepted")
 			}
 		})
 	}

@@ -5,6 +5,7 @@ import (
 
 	"overgo/internal/checked"
 	"overgo/internal/hfbpe"
+	"overgo/internal/jinja"
 	"overgo/internal/representation"
 )
 
@@ -12,6 +13,10 @@ import (
 
 // textTemplate: recipe-bound conditioner facts.
 type textTemplate struct {
+	// ChatTemplate preserves an artifact's unpadded chat formatting and whole-sequence truncation.
+	ChatTemplate string `json:"chat_template,omitempty"`
+	// EnableThinking binds the template option selected by the conditioning pipeline.
+	EnableThinking bool `json:"enable_thinking,omitzero"`
 	// Prefix is prepended to the user prompt before tokenization. Verbatim from
 	// krea-2/encoder.py:35 Qwen3VLConditioner.prompt_template_encode_prefix
 	// (adaptive repodb fact text.prompt_template.prefix).
@@ -49,6 +54,34 @@ type textInput struct {
 // renderTextInput builds templated ids plus the attention mask.
 func renderTextInput(tok *hfbpe.Tokenizer, prompt string, tmpl textTemplate) (textInput, error) {
 	var out textInput
+	if tok == nil || tmpl.MaxTokens <= 0 {
+		return out, fmt.Errorf("image conditioning requires a tokenizer and positive max_tokens, got %d", tmpl.MaxTokens)
+	}
+	if tmpl.ChatTemplate != "" {
+		env := jinja.New()
+		env.SetLimits(jinja.ChatLimits())
+		formatted, err := env.Render(tmpl.ChatTemplate, map[string]any{
+			"messages":              []any{map[string]any{"role": "user", "content": prompt}},
+			"add_generation_prompt": true, "enable_thinking": tmpl.EnableThinking,
+			"tools": jinja.None, "documents": jinja.None,
+		})
+		if err != nil {
+			return out, fmt.Errorf("image conditioning template: %w", err)
+		}
+		ids, err := tok.Encode(formatted)
+		if err != nil {
+			return out, err
+		}
+		ids = ids[:min(len(ids), tmpl.MaxTokens)]
+		if len(ids) == 0 {
+			return out, fmt.Errorf("image conditioning template produced no tokens")
+		}
+		mask := make([]bool, len(ids))
+		for i := range mask {
+			mask[i] = true
+		}
+		return textInput{IDs: ids, Mask: mask, PromptRows: len(ids)}, nil
+	}
 	if !checked.NonzeroAll(tmpl.Prefix, tmpl.Suffix) {
 		return out, fmt.Errorf("image text template prefix/suffix is empty")
 	}

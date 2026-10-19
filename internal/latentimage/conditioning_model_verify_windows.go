@@ -5,6 +5,7 @@ package latentimage
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,9 +20,14 @@ import (
 	"overgo/internal/tensor/reference"
 	"path/filepath"
 	"slices"
+	"strings"
 )
 
-func verifyMOSSConditioningModel(ctx context.Context, runtime *graphruntime.ResidentSession, modelRoot, root string, output io.Writer) error {
+// mossConditioningTokens is the pinned pipeline's default max_sequence_length.
+// Reconsider it with a separately captured prompt-truncation contract.
+const mossConditioningTokens = 4096
+
+func verifyMOSSConditioningModel(ctx context.Context, runtime *graphruntime.ResidentSession, modelRoot, root string, fromPrompt bool, output io.Writer) error {
 	open := func(name, digest string) (*safetensors.Source, error) {
 		path := filepath.Join(root, "conditioning-cuda", name)
 		id, err := artifact.IdentifyFile(artifact.KindFile, path)
@@ -43,6 +49,9 @@ func verifyMOSSConditioningModel(ctx context.Context, runtime *graphruntime.Resi
 		return err
 	}
 	defer embeddings.Close()
+	if fromPrompt {
+		return verifyMOSSConditioningPrompts(ctx, runtime, modelRoot, authority, embeddings, output)
+	}
 	repo, err := hfrepo.Open(filepath.Join(modelRoot, "text_encoder"))
 	if err != nil {
 		return err
@@ -102,6 +111,87 @@ func verifyMOSSConditioningModel(ctx context.Context, runtime *graphruntime.Resi
 				}
 				return nil
 			}()
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func verifyMOSSConditioningPrompts(ctx context.Context, runtime *graphruntime.ResidentSession, modelRoot string, authority, embeddings *safetensors.Source, output io.Writer) error {
+	c, err := loadModelConditioner(modelRoot, textTemplate{MaxTokens: mossConditioningTokens, EnableThinking: true})
+	if err != nil {
+		return err
+	}
+	defer c.source.Close()
+	var prompts map[string][]string
+	for _, metadata := range authority.Metadata {
+		if err := json.Unmarshal([]byte(metadata["prompts"]), &prompts); err != nil {
+			return err
+		}
+	}
+	for _, name := range []string{"english.0", "english.1", "chinese.0", "chinese.1", "layout.0", "layout.1"} {
+		base, branch, _ := strings.Cut(name, ".")
+		entry, ok := prompts[base]
+		if !ok || len(entry) != tensor.PairedExtent {
+			return fmt.Errorf("MOSS native prompt %s missing", base)
+		}
+		prompt := entry[0]
+		if branch == "1" {
+			prompt = ""
+		}
+		text, embedding, err := c.input(prompt)
+		if err != nil {
+			return err
+		}
+		ids, err := io.ReadAll(authority.Tensors[name+".ids"].Reader())
+		if err != nil {
+			return err
+		}
+		if len(ids) != len(text.IDs)*binary.Size(int64(0)) {
+			return fmt.Errorf("MOSS prompt %s token count differs", name)
+		}
+		for i, id := range text.IDs {
+			if int64(binary.LittleEndian.Uint64(ids[i*binary.Size(int64(0)):])) != int64(id) {
+				return fmt.Errorf("MOSS prompt %s token %d differs", name, i)
+			}
+		}
+		wantEmbedding, err := safetensors.ReadF32(embeddings.Tensors[name+".embedding"])
+		if err != nil {
+			return err
+		}
+		if failed, unequal, _ := compareMOSSValues(embedding, wantEmbedding, mossStageTolerance{}); failed != 0 || unequal != 0 {
+			return fmt.Errorf("MOSS prompt %s embedding lookup differs", name)
+		}
+		previous := map[string][sha256.Size]byte{}
+		for pass := range tensor.PairedExtent + tensor.SingletonExtent {
+			report := func(label string, got []float32) error {
+				want, err := safetensors.ReadF32(authority.Tensors[name+"."+label])
+				if err != nil {
+					return err
+				}
+				failed, unequal, worst := compareMOSSValues(got, want, mossStageTolerance{})
+				hash := sha256.Sum256(driver.Bytes(got))
+				repeated := pass == 0 || previous[label] == hash
+				previous[label] = hash
+				if err := json.NewEncoder(output).Encode(map[string]any{"stage": "conditioning", "case": name, "boundary": label, "pass": pass, "tokens": len(text.IDs), "tokens_equal": true, "embedding_equal": true, "values": len(want), "failed": failed, "unequal": unequal, "max_abs": worst, "repeat_checked": pass != 0, "repeat_equal": repeated}); err != nil {
+					return err
+				}
+				if failed != 0 || unequal != 0 || !repeated {
+					return fmt.Errorf("MOSS prompt conditioning %s %s differs", name, label)
+				}
+				return nil
+			}
+			if pass < tensor.PairedExtent {
+				_, err = c.encode(ctx, runtime, text, embedding, report)
+			} else {
+				var final []float32
+				final, err = c.encode(ctx, runtime, text, embedding, nil)
+				if err == nil {
+					err = report("final_norm", final)
+				}
+			}
 			if err != nil {
 				return err
 			}

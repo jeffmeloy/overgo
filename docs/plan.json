@@ -208,58 +208,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "flashnext-cells",
-      "title": "Measure Flash-Next on the scorecard",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 200,
-        "reason": "estimate: recipe verify -protocol also runs a short exact suite on the candidate and binds its plan to the gate"
-      },
-      "steps": [
-        {
-          "id": "cells",
-          "title": "Bind an exact plan to protocol acceptance and publish Flash-Next's benchmark",
-          "status": "open",
-          "verify": "go test ./cmd/recipe -count=1 -run '^TestVerifyProtocolBindsAnExactPlan$'",
-          "rationale": "From the measurement run at 32b26610e (log overgo_data/scratch/measure-run-20261018.log), Flash-Next's first cells: the guard cell failed (\"has no bound finite positive short-prompt benchmark; publish one with cmd/benchmark before measurement\") and the serving cell failed (\"the verification of model:sha256:d7ff4ba5... names no exact plan; verify it again with -input\"): recipe measure replays the first case of the exact suite the activation's gate ran, and a recipe accepted by recipe verify -protocol (93d566915) binds the protocol observation, not an exact plan.\nThe step lets a protocol-accepted recipe be measured: recipe verify -protocol also runs and binds a short exact suite on the same candidate (Flash-Next's smoke oracle, integer addition, already declared in docs/verification/smoke-oracles.json), so the gate's first step names an exact plan recipe measure can replay; then Flash-Next is verified again with it, and a short-prompt benchmark is published for its active recipe with cmd/benchmark.\nAcceptance: recipe measure on Flash-Next records a serving attempt, the guard cell's benchmark exists, and both cells pass in the next measurement run.\nServes: setup-steps and the scorecard's first-output, throughput, load-time and peak-device-memory cells for Flash-Next.\nBatch: device.\n\nSQA-168 (P2, 2026-10-19) names the same gap independently: protocol-accepted recipes must be consumable by the existing serving measurement."
-        },
-        {
-          "id": "coverage",
-          "title": "Carry or rebind Flash-Next's accepted coverage to its capacity recipe",
-          "status": "open",
-          "verify": "go run ./cmd/validate -media json",
-          "rationale": "From the measurement run's models lane at 32b26610e: TestAcceptedModalityCoverage/text-vision and TestAcceptedProtocolCoverageProjection fail with \"coverage: missing, duplicate or changed activation model:sha256:d7ff4ba5.../inference\": Flash-Next's accepted coverage binds the request-session recipe (recipe:sha256:4b391840...), and the capacity recipe activated on 2026-10-18 (recipe:sha256:81d75bcb...) is not carried, although acceptanceCovers carries acceptance across a session-policy change by recipe.Definition.SameComputation; the two definitions must differ beyond their sessions.\nThe step finds what differs, carries the acceptance where only execution policy differs and the protocol acceptance (recipe verify -protocol, eight cases) re-ran on the new recipe, else rebinds the coverage cell to the capacity recipe with that acceptance, as 77f131776 rebound Granite's.\nAcceptance: go run ./cmd/validate -media json and the model-tagged coverage tests pass with the capacity recipe active.\nServes: failure-rate of the checks; setup-steps.\nBatch: host."
-        },
-        {
-          "id": "journey",
-          "title": "Let the first-run journey serve Flash-Next from the picker",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestModelJourneyFirstRun$'",
-          "rationale": "From the measurement run at 32b26610e: the model-journey lane's TestModelJourneyFirstRun chose Qwen3.8-Flash-Next (first-run journey: model Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf) and failed: after the cold-page declaration leg the picker's row for the model, with its Serve button, never appeared (internal/server/webui_browser_firstrun_test.go:267). The 2026-10-14 run failed the same test on Qwen2.5-0.5B differently.\nThe step finds why the picker does not list Flash-Next's row in the journey (a load-size or memory filter, a slow catalog, or the row's text) and fixes the page or the journey's choice, so the first-run journey serves the model a new user would pick.\nAcceptance: TestModelJourneyFirstRun passes in the model-journey lane with Flash-Next active.\nServes: setup-steps and failure-rate of a person's first run.\nBatch: browser."
-        }
-      ]
-    },
-    {
-      "id": "lane-failures",
-      "title": "Repair the measurement run's lane failures",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 200,
-        "reason": "estimate for the diffusion fix once its cause is found"
-      },
-      "steps": [
-        {
-          "id": "diffusion",
-          "title": "Find and fix why a frozen diffusion request does no GPU work",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/diffusionimage -count=1 -run '^TestFrozenDiffusionGeneration$'",
-          "rationale": "From the measurement run's models lane at 32b26610e: internal/diffusionimage TestFrozenDiffusionGeneration/case-2 fails with \"request performed no GPU work\" (frozen_generation_cuda_windows_test.go:145; resource task=SimpleDiffusion state=not_busy scope=owned-session close=completed). The 2026-10-14 run passed the lane. Between them master took the decode, residency, buffer-pool and graph-capture changes of strata-decode and strata-prefill and the MOSS lane's pipeline registration.\nThe step finds the commit that broke it (the test at a few commits between the two runs) and fixes the cause.\nAcceptance: TestFrozenDiffusionGeneration passes on the card.\nServes: failure-rate for diffusion image generation.\nBatch: device."
-        }
-      ]
-    },
-    {
       "id": "speculation",
       "title": "Speculate safely and further on Flash-Next and NextN models",
       "owner": "master-lead",
@@ -315,6 +263,58 @@
           "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 go test ./internal/modeldevice -count=1 -run '^TestExpertResidencyFillsTheCardWhenItFrees$'",
           "rationale": "From the chunked step's re-measure at 969b07704: a Flash-Next load that started while another process held the card (right after the executor's device tests) found about 0.9 GB free, filled almost every routed expert into pinned host memory, took 47 s to acquire instead of about 20, and then made no visible progress for nine minutes with the card idle: a served model whose experts all sit behind PCIe is unusably slow, though nothing failed.\nThe step makes the residency move experts to the card when card memory frees after the load (between runs, as the advance already moves single experts, but in whole allocations up to free memory less the reserve), and reports a load that found the card held, so a request is not served for minutes at host-memory speed without a sign.\nAcceptance: a residency filled under a held card moves its experts to the card once memory frees, and the short chat then runs at its usual speed; the load records how much of the experts it placed on the card.\nServes: failure-rate and throughput for file-backed routed-expert models loaded while the card is shared.\nBatch: device."
+        }
+      ]
+    },
+    {
+      "id": "flashnext-cells",
+      "title": "Measure Flash-Next on the scorecard",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 200,
+        "reason": "estimate: recipe verify -protocol also runs a short exact suite on the candidate and binds its plan to the gate"
+      },
+      "steps": [
+        {
+          "id": "cells",
+          "title": "Bind an exact plan to protocol acceptance and publish Flash-Next's benchmark",
+          "status": "open",
+          "verify": "go test ./cmd/recipe -count=1 -run '^TestVerifyProtocolBindsAnExactPlan$'",
+          "rationale": "From the measurement run at 32b26610e (log overgo_data/scratch/measure-run-20261018.log), Flash-Next's first cells: the guard cell failed (\"has no bound finite positive short-prompt benchmark; publish one with cmd/benchmark before measurement\") and the serving cell failed (\"the verification of model:sha256:d7ff4ba5... names no exact plan; verify it again with -input\"): recipe measure replays the first case of the exact suite the activation's gate ran, and a recipe accepted by recipe verify -protocol (93d566915) binds the protocol observation, not an exact plan.\nThe step lets a protocol-accepted recipe be measured: recipe verify -protocol also runs and binds a short exact suite on the same candidate (Flash-Next's smoke oracle, integer addition, already declared in docs/verification/smoke-oracles.json), so the gate's first step names an exact plan recipe measure can replay; then Flash-Next is verified again with it, and a short-prompt benchmark is published for its active recipe with cmd/benchmark.\nAcceptance: recipe measure on Flash-Next records a serving attempt, the guard cell's benchmark exists, and both cells pass in the next measurement run.\nServes: setup-steps and the scorecard's first-output, throughput, load-time and peak-device-memory cells for Flash-Next.\nBatch: device.\n\nSQA-168 (P2, 2026-10-19) names the same gap independently: protocol-accepted recipes must be consumable by the existing serving measurement."
+        },
+        {
+          "id": "coverage",
+          "title": "Carry or rebind Flash-Next's accepted coverage to its capacity recipe",
+          "status": "open",
+          "verify": "go run ./cmd/validate -media json",
+          "rationale": "From the measurement run's models lane at 32b26610e: TestAcceptedModalityCoverage/text-vision and TestAcceptedProtocolCoverageProjection fail with \"coverage: missing, duplicate or changed activation model:sha256:d7ff4ba5.../inference\": Flash-Next's accepted coverage binds the request-session recipe (recipe:sha256:4b391840...), and the capacity recipe activated on 2026-10-18 (recipe:sha256:81d75bcb...) is not carried, although acceptanceCovers carries acceptance across a session-policy change by recipe.Definition.SameComputation; the two definitions must differ beyond their sessions.\nThe step finds what differs, carries the acceptance where only execution policy differs and the protocol acceptance (recipe verify -protocol, eight cases) re-ran on the new recipe, else rebinds the coverage cell to the capacity recipe with that acceptance, as 77f131776 rebound Granite's.\nAcceptance: go run ./cmd/validate -media json and the model-tagged coverage tests pass with the capacity recipe active.\nServes: failure-rate of the checks; setup-steps.\nBatch: host."
+        },
+        {
+          "id": "journey",
+          "title": "Let the first-run journey serve Flash-Next from the picker",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane -run '^TestModelJourneyFirstRun$'",
+          "rationale": "From the measurement run at 32b26610e: the model-journey lane's TestModelJourneyFirstRun chose Qwen3.8-Flash-Next (first-run journey: model Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf) and failed: after the cold-page declaration leg the picker's row for the model, with its Serve button, never appeared (internal/server/webui_browser_firstrun_test.go:267). The 2026-10-14 run failed the same test on Qwen2.5-0.5B differently.\nThe step finds why the picker does not list Flash-Next's row in the journey (a load-size or memory filter, a slow catalog, or the row's text) and fixes the page or the journey's choice, so the first-run journey serves the model a new user would pick.\nAcceptance: TestModelJourneyFirstRun passes in the model-journey lane with Flash-Next active.\nServes: setup-steps and failure-rate of a person's first run.\nBatch: browser."
+        }
+      ]
+    },
+    {
+      "id": "lane-failures",
+      "title": "Repair the measurement run's lane failures",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 200,
+        "reason": "estimate for the diffusion fix once its cause is found"
+      },
+      "steps": [
+        {
+          "id": "diffusion",
+          "title": "Find and fix why a frozen diffusion request does no GPU work",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/diffusionimage -count=1 -run '^TestFrozenDiffusionGeneration$'",
+          "rationale": "From the measurement run's models lane at 32b26610e: internal/diffusionimage TestFrozenDiffusionGeneration/case-2 fails with \"request performed no GPU work\" (frozen_generation_cuda_windows_test.go:145; resource task=SimpleDiffusion state=not_busy scope=owned-session close=completed). The 2026-10-14 run passed the lane. Between them master took the decode, residency, buffer-pool and graph-capture changes of strata-decode and strata-prefill and the MOSS lane's pipeline registration.\nThe step finds the commit that broke it (the test at a few commits between the two runs) and fixes the cause.\nAcceptance: TestFrozenDiffusionGeneration passes on the card.\nServes: failure-rate for diffusion image generation.\nBatch: device."
         }
       ]
     },
@@ -497,7 +497,8 @@
             "plan-journey/do",
             "lane-failures/do",
             "plan-liveedit/do",
-            "plan-fh-count/do"
+            "plan-fh-count/do",
+            "plan-parity-first/do"
           ]
         }
       ]

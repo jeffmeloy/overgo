@@ -191,10 +191,17 @@
       "owner": "overgo_moss",
       "status": "open",
       "budget": {
-        "nodes": 3275,
-        "reason": "Add an estimated 2000 nodes for source-selected math attention, shared CUDA staging, native softmax, fixtures and command verification. Preserve the remaining 3350 nodes for composed conditioning. Native head batching uses admitted reusable workspace and does not claim a memory reduction."
+        "nodes": 5075,
+        "reason": "Add an estimated 1800 nodes for native BF16 rotary selection, immutable inverse-frequency inputs, shared reference and CUDA execution, fusion compatibility and golden verification. Preserve the remaining 3275 nodes for composed conditioning."
       },
       "steps": [
+        {
+          "id": "native-rotary",
+          "title": "Preserve native BF16 rotary arithmetic and fusion policy",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentimage -count=1 -run '^TestMOSSConditioningRotaryGolden$'",
+          "rationale": "The native layer3 corpus = dataset:sha256:0a2eee89f7797db697e4c35108af58c4e7c3031344a20c8732cf79fcecaefc58.\nCalculated inverse frequencies and BF16 rotary products match six retained native cases exactly.\nThe composed layer3 diagnostic matches 72 boundaries and 13593600 values exactly using calculated rotary coefficients.\nSelect native BF16 arithmetic on existing RoPE operations.\nBuild immutable source-ordered F32 inverse frequencies through existing graph-owned inputs.\nPreserve native BF16 trigonometric values, separate rounded products and rounded sums.\nReuse existing position storage and reject unsupported rotary combinations.\nKeep source arithmetic out of incompatible append and BF16 attention fusions.\nThe BF16 attention fusion currently ignores the new NativeMath attribute for rounded noncausal inputs and must be excluded.\nCompare independent native fixtures across position layouts and rotary widths.\nExpose released rotary comparison through the existing MOSS parity command.\nServes: source-accurate positional conditioning for MOSS.\nDisappears: manually assembled rotary diagnostic graphs and implicit fusion substitutions.\nEvidence: native module fixtures and shared CPU and CUDA comparison with unchanged tolerances.\nBatch: tensor, reference, CUDA, command, manifest and repository checks."
+        },
         {
           "id": "encode",
           "title": "Match prompt rendering and final hidden states",
@@ -206,7 +213,8 @@
             "moss-oracle/goldens",
             "moss-conditioning/native-delta",
             "moss-conditioning/native-math",
-            "moss-conditioning/native-attention"
+            "moss-conditioning/native-attention",
+            "moss-conditioning/native-rotary"
           ]
         }
       ]

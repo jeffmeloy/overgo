@@ -213,15 +213,15 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "measured: long-prompt/kernel-audit adds 80 production syntax nodes (the grouped group-norm launch)"
+        "nodes": 108,
+        "reason": "measured: long-prompt/kernel-audit-attention adds 108 production syntax nodes (the grouped SAM attention launch)"
       },
       "steps": [
         {
           "id": "kernel-audit-attention",
           "title": "Compute SAM attention's scores once a head, as the grouped sparse attention does",
           "status": "open",
-          "verify": "go run ./cmd/plan -status",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestExecutorSAMVisionOpsMatchReference$'",
           "rationale": "From long-prompt/kernel-audit's scan of kernels/cuda/ops_f32.cu on 2026-10-20 (owner direction: general objects for every model).\nOf the 46 kernels that launch a thread per output element and loop inside, three recompute a reduction their row shares: sparse_attention_f32 (replaced by the grouped and tensor-core kernels), group_norm_f32 (94.8% of SimpleDiffusion's GPU time, replaced by group_norm_grouped_f32 in kernel-audit), and sam_attention_f32, whose thread for each (token, head, value channel) recomputes every key's score with its relative-position terms twice, so a head's channels repeat the softmax once each.\nsam_attention_f32 serves the DeepSeek-OCR vision projector (internal/projector/deepseekocr.go); attention_f32, the attention fallback past the online and BLAS paths, has the same shape for the requests that reach it.\nThe step measures an OCR request's SAM attention, rewrites sam_attention_f32 as the grouped sparse attention was (each key's score once a head in shared memory, the same operations and order, bits held against the old kernel through a scratch switch and its SASS read for fused products), and lists which requests reach attention_f32.\nEvidence: the OCR request's time and outputs before and after, and the list.\nServes: first-output for OCR and SAM-encoder image understanding.\nBatch: device."
         },
         {
@@ -520,7 +520,8 @@
             "plan-prompt-memory-check/do",
             "plan-prompt-memory-count/do",
             "plan-attention-mma-count/do",
-            "plan-kernel-audit/do"
+            "plan-kernel-audit/do",
+            "plan-sam-attention/do"
           ]
         }
       ]

@@ -303,6 +303,15 @@ func (s *Sampler) Config() Config {
 
 // IsRawGreedy: exact device-argmax compatibility.
 func (s *Sampler) IsRawGreedy() bool {
+	return s.greedyBeyondGrammar() && s.config.Grammar == nil && s.config.GBNF == nil
+}
+
+// greedyBeyondGrammar reports whether the sampler is raw greedy apart from a
+// grammar. A grammar masks the logits before the selection, so the token
+// chosen among those it allows is their argmax, which a scan finds where the
+// candidate pipeline sorts the whole vocabulary: a tool request's lazy grammar
+// cost Flash-Next 24 ms a token that way.
+func (s *Sampler) greedyBeyondGrammar() bool {
 	if s == nil {
 		return false
 	}
@@ -310,8 +319,7 @@ func (s *Sampler) IsRawGreedy() bool {
 	return config.Temperature == 0 && config.DynatempRange == 0 && config.Mirostat == mirostatDisabled &&
 		(config.RepeatPenalty == 0 || config.RepeatPenalty == 1) && config.PresencePenalty == 0 &&
 		config.FrequencyPenalty == 0 && config.NoRepeatNgramSize == 0 && config.DryMultiplier == 0 &&
-		config.XTCProbability == 0 && config.Grammar == nil && config.GBNF == nil &&
-		len(config.LogitBiases) == 0 && config.Infill == nil &&
+		config.XTCProbability == 0 && len(config.LogitBiases) == 0 && config.Infill == nil &&
 		slices.Contains(s.stages, SamplerTemperature) &&
 		!slices.Contains(s.stages, SamplerAdaptiveP) &&
 		!slices.Contains(s.stages, SamplerInfill)
@@ -412,8 +420,8 @@ func (s *Sampler) SampleWithHistory(logits []float32, history []int) (int, error
 	if err := applyNoRepeatNgram(adjusted, history, s.config.NoRepeatNgramSize, s.config.NgramWindow); err != nil {
 		return 0, err
 	}
-	if s.IsRawGreedy() {
-		// full candidate pipeline reduces to argmax; skip vocab-wide sort
+	if s.greedyBeyondGrammar() {
+		// full candidate pipeline reduces to argmax over what the grammar allowed; skip vocab-wide sort
 		best := 0
 		for index, value := range adjusted {
 			if value > adjusted[best] {

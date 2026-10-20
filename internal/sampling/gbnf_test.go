@@ -1,6 +1,7 @@
 package sampling
 
 import (
+	"math/rand/v2"
 	"strings"
 	"testing"
 )
@@ -355,6 +356,56 @@ func TestLazyGBNFTokenTriggerIsIncludedInGrammar(t *testing.T) {
 	}
 	if gbnfAcceptsTokens(t, grammar, []int{0, 2, 1, 4}) {
 		t.Fatal("token-triggered lazy grammar accepted invalid constrained suffix")
+	}
+}
+
+// TestGreedyGrammarSamplerChoosesThePipelinesToken holds a greedy sampler that
+// carries a grammar to the token the full candidate pipeline chooses: the
+// argmax of what the grammar allows, every token while a lazy grammar waits
+// for its trigger and the grammar's own once it has fired. A neutral bias
+// keeps the reference sampler on the pipeline; over random logits, through a
+// sequence that fires the trigger, the two choose alike at every step.
+func TestGreedyGrammarSamplerChoosesThePipelinesToken(t *testing.T) {
+	t.Parallel()
+	vocabulary, err := NewGBNFVocabulary(bytePieces("free", "other", "<trigger>", "x", "y", ""), []int{5}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const steps = 64
+	for name, lazy := range map[string]GBNFLazyOptions{
+		"strict": {},
+		"lazy":   {Enabled: true, Tokens: []int{2}},
+	} {
+		grammar, err := vocabulary.Compile(`root ::= <[2]> [xy]+`, "root", lazy)
+		if err != nil {
+			t.Fatal(err)
+		}
+		greedy, err := New(Config{GBNF: grammar})
+		if err != nil {
+			t.Fatal(err)
+		}
+		pipeline, err := New(Config{GBNF: grammar, LogitBiases: []LogitBias{{Token: 0, Bias: 0}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		source := rand.New(rand.NewPCG(steps, uint64(len(name))))
+		for step := range steps {
+			logits := make([]float32, len(vocabulary.pieces))
+			for index := range logits {
+				logits[index] = source.Float32()
+			}
+			// The end never outweighs a word, so the grammar never closes.
+			logits[len(logits)-1] = -1
+			// The fourth step's trigger token outweighs every other, so a lazy grammar fires there.
+			if step == 3 {
+				logits[2] = 2
+			}
+			got, gotErr := greedy.Sample(logits)
+			want, wantErr := pipeline.Sample(logits)
+			if gotErr != nil || wantErr != nil || got != want {
+				t.Fatalf("%s step %d: greedy chose %d (%v), the pipeline %d (%v)", name, step, got, gotErr, want, wantErr)
+			}
+		}
 	}
 }
 

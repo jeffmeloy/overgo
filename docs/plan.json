@@ -213,17 +213,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 131,
+        "nodes": 35,
         "reason": "measured: sqa-repairs/agent-thread adds 96 production syntax nodes (the paged read and its truncation); release-deltas is SQA-173's estimate of 15 to 35"
       },
       "steps": [
-        {
-          "id": "agent-thread",
-          "title": "Bound an agent thread's read by its exact session's entries, not its name's prefix",
-          "status": "open",
-          "verify": "go test ./internal/server -count=1 -run '^TestAgentThreadSurvivesRestart$'",
-          "rationale": "SQA-171 (P2, confirmed defect, 2026-10-20, at 38879a6e1): agentThread (internal/server/agent_session_recovery.go) queries interaction documents under \u003cagent\u003e:\u003csession\u003e- with MaxStoredResponses and discards, in its visitor, names that only extend the session. VisitDocuments applies its cap before the visitor, so older turns of an extending session (s1-2 before s1) use up the bound and a reload restores part or none of the thread. The browser (webui/composer.js restoreAgentThread) takes the entries as the whole history and ignores Truncated.\nThe step follows the existing conversations paging (workspace_conversations.go) over VisitDecodedDocuments until the bound's worth of exact-session entries are read or the input ends, with the stale-cursor refusal and cancellation kept. The response says where the target thread itself is truncated, and the browser does not take a partial history as complete.\nTestAgentThreadSurvivesRestart gains extending-session entries before and between the target's, a lower bound, and an overflowing target, on its existing fixture.\nServes: failure-rate of agent sessions resumed after a reload.\nBatch: host."
-        },
         {
           "id": "release-deltas",
           "title": "Return the resync directive when a head-bound delta crosses a content release",

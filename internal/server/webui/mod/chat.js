@@ -149,6 +149,8 @@
         if (!restored || overgo.signal.aborted) return;
         if (restored.history.length) { welcome.remove(); histories.set(agentPicker.value, restored.history); }
         if (restored.steps && toolSurface) toolSurface.guard.textContent = "steps " + restored.steps + " / " + restored.bound + " · " + (restored.bound - restored.steps) + " remaining";
+        // A thread longer than the bound restores its first entries only, and says so.
+        if (restored.truncated) composer.extras.appendChild(el("div", { class: "note", role: "status", text: "Only the first " + restored.bound + " turns and steps of this session were restored; replies continue from them." }));
       }
 
       const system = el("textarea", { "aria-label": "System prompt", class: "text system-prompt", placeholder: "system prompt (optional)" });

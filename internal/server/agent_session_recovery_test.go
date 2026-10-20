@@ -185,7 +185,10 @@ func TestAgentThreadSurvivesRestart(t *testing.T) {
 			t.Fatalf("agent chat status=%d body=%s", answered.Code, answered.Body.String())
 		}
 	}
+	// Sessions whose names extend s1's are stored before and between its entries.
+	chat(first, "s1-2", "an older session")
 	chat(first, "s1", "hello")
+	chat(first, "s1-3", "a session between")
 	if step := serveTestRequest(first.handler, http.MethodPost, "/agents/step", `{"agent":"research-agent","session":"s1","tool":"store.head"}`); step.Code != http.StatusOK || !strings.Contains(step.Body.String(), `"steps":1`) {
 		t.Fatalf("step status=%d body=%s", step.Code, step.Body.String())
 	}
@@ -195,19 +198,31 @@ func TestAgentThreadSurvivesRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// A restarted server over the same store reads the thread back.
+	// A restarted server over the same store reads the thread back, bounded by its own entries alone.
 	second := newAgentWorkspaceFixture(t, store, nil, nil)
-	read := serveTestRequest(second.handler, http.MethodGet, "/agents/thread?agent=research-agent&session=s1", "")
-	var thread agentThreadResponse
-	if err := json.Unmarshal(read.Body.Bytes(), &thread); read.Code != http.StatusOK || err != nil {
-		t.Fatalf("thread status=%d body=%s", read.Code, read.Body.String())
+	read := func(bound int) agentThreadResponse {
+		t.Helper()
+		second.handler.config.MaxStoredResponses = bound
+		read := serveTestRequest(second.handler, http.MethodGet, "/agents/thread?agent=research-agent&session=s1", "")
+		var thread agentThreadResponse
+		if err := json.Unmarshal(read.Body.Bytes(), &thread); read.Code != http.StatusOK || err != nil {
+			t.Fatalf("thread status=%d body=%s", read.Code, read.Body.String())
+		}
+		kinds := make([]string, len(thread.Entries))
+		for index, entry := range thread.Entries {
+			kinds[index] = entry.Kind
+		}
+		if want := strings.Join([]string{"turn", "step", "turn"}[:min(bound, 3)], ","); strings.Join(kinds, ",") != want || thread.Session != "research-agent:s1" {
+			t.Fatalf("bound %d: thread = %+v, want %s", bound, thread, want)
+		}
+		return thread
 	}
-	kinds := make([]string, len(thread.Entries))
-	for index, entry := range thread.Entries {
-		kinds[index] = entry.Kind
+	if overflow := read(2); !overflow.Truncated || overflow.Steps != 1 {
+		t.Fatalf("a thread past its bound = %+v, want truncated", overflow)
 	}
-	if strings.Join(kinds, ",") != "turn,step,turn" || thread.Steps != 1 || thread.Session != "research-agent:s1" {
-		t.Fatalf("thread = %+v", thread)
+	thread := read(3)
+	if thread.Truncated || thread.Steps != 1 {
+		t.Fatalf("a thread at its bound = %+v", thread)
 	}
 	if thread.Entries[0].User != "hello" || thread.Entries[0].Assistant == "" || thread.Entries[2].User != "again" ||
 		thread.Entries[1].Tool != "store.head" || thread.Entries[1].Result == "" || thread.Entries[1].Error {

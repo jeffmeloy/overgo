@@ -93,6 +93,85 @@ func mmaSparseAttention(keyWidth, valueWidth, queryHeads, keyValueHeads, queryTo
 		queryTokens*keyValueHeads >= sparseAttentionGroupedWideRows
 }
 
+const (
+	// sparseAttentionSplitThreads, sparseAttentionSplitLanes, sparseAttentionSplitHeads and
+	// sparseAttentionSplitKeyLanes mirror the split kernel: 8 warps of 32 lanes, at most
+	// 16 query heads a key/value head, at most 8 key channels a lane.
+	sparseAttentionSplitThreads  = uint32(256)
+	sparseAttentionSplitLanes    = uint32(32)
+	sparseAttentionSplitHeads    = uint32(16)
+	sparseAttentionSplitKeyLanes = uint32(8)
+	// sparseAttentionSplitBlocks is the blocks a step's spans aim to give the
+	// card, about two a multiprocessor; a span holds at least
+	// sparseAttentionSplitMinSpan slots, a warp's four, and at most
+	// sparseAttentionSplitMaxSpan, which bounds the block's scores.
+	sparseAttentionSplitBlocks  = uint32(256)
+	sparseAttentionSplitMinSpan = uint32(32)
+	sparseAttentionSplitMaxSpan = uint32(256)
+)
+
+// sparseAttentionSplit sizes a split sparse attention launch: the selected
+// slots a block scores, the spans they split into, and the block's shared
+// memory, its query heads' queries, their scores and the span's rows.
+type sparseAttentionSplit struct {
+	span, splits, sharedBytes uint32
+}
+
+// splitSparseAttention reports the split kernel's geometry for a step too
+// narrow for tensor cores, a decode step's: spans that give the step about
+// sparseAttentionSplitBlocks blocks, each of sparseAttentionSplitMinSpan to
+// sparseAttentionSplitMaxSpan slots; false where a key/value head's query
+// heads or a width exceed the kernel's.
+func splitSparseAttention(keyWidth, valueWidth, queryHeads, keyValueHeads, queryTokens, selected uint32) (sparseAttentionSplit, bool) {
+	if keyWidth == 0 || valueWidth == 0 || keyValueHeads == 0 || queryTokens == 0 || selected == 0 || queryHeads%keyValueHeads != 0 ||
+		queryHeads/keyValueHeads > sparseAttentionSplitHeads || keyWidth > sparseAttentionSplitKeyLanes*sparseAttentionSplitLanes ||
+		valueWidth > sparseAttentionSplitThreads {
+		return sparseAttentionSplit{}, false
+	}
+	rows := queryTokens * keyValueHeads
+	splits := max(1, (sparseAttentionSplitBlocks+rows-1)/rows)
+	span := min(max(sparseAttentionSplitMinSpan, (selected+splits-1)/splits), sparseAttentionSplitMaxSpan)
+	group := queryHeads / keyValueHeads
+	words := group*keyWidth + group*span + span
+	return sparseAttentionSplit{span: span, splits: (selected + span - 1) / span, sharedBytes: words * uint32(f32ScalarBytes)}, true
+}
+
+// The inputs of a selected attention node: its queries, keys, values and
+// selected slots.
+const (
+	sparseAttentionQuery = iota
+	sparseAttentionKey
+	sparseAttentionValue
+	sparseAttentionIndices
+	sparseAttentionInputs
+)
+
+// sparseAttentionTokenAxis is the queries' token axis, after their channels
+// and heads.
+const sparseAttentionTokenAxis = 2
+
+// sparseSplitPartialBytes is the score staging a selected attention node's
+// split launch folds its spans through, and false where the node takes one
+// span or another kernel.
+func sparseSplitPartialBytes(node *tensor.Tensor) (uint64, bool) {
+	if node.Op != tensor.OpSparseAttention || len(node.Inputs) < sparseAttentionInputs {
+		return 0, false
+	}
+	query, key := node.Inputs[sparseAttentionQuery].Shape, node.Inputs[sparseAttentionKey].Shape
+	value, indices := node.Inputs[sparseAttentionValue].Shape, node.Inputs[sparseAttentionIndices].Shape
+	keyWidth, valueWidth := uint32(query.Dims[0]), uint32(value.Dims[0])
+	queryHeads, keyValueHeads := uint32(query.Dims[1]), uint32(key.Dims[1])
+	queryTokens, selected := uint32(query.Dims[sparseAttentionTokenAxis]), uint32(indices.Dims[0])
+	if mmaSparseAttention(keyWidth, valueWidth, queryHeads, keyValueHeads, queryTokens) {
+		return 0, false
+	}
+	geometry, ok := splitSparseAttention(keyWidth, valueWidth, queryHeads, keyValueHeads, queryTokens, selected)
+	if !ok || geometry.splits == 1 {
+		return 0, false
+	}
+	return uint64(queryTokens) * uint64(queryHeads) * uint64(geometry.splits) * (uint64(valueWidth) + attentionDecodeMetaFloats) * f32ScalarBytes, true
+}
+
 // sparseAttentionGrouped sizes a grouped sparse attention launch: the query
 // heads a block takes, the selected slots each tile stages, and the shared
 // memory the block holds.
@@ -372,6 +451,35 @@ func launchRecurrentSelection(
 				&queryHeads, &keyValueHeads, &queryTokens, &keyValueTokens, &selected,
 				&scale, &causal, &queryStart,
 			)
+		}
+		// A narrower step splits its slots across blocks, whose partials fold through the score staging where
+		// it holds them: one block a query head walked 2,048 slots in 2.3 ms of each Flash-Next decode layer.
+		if geometry, ok := splitSparseAttention(keyWidth, valueWidth, queryHeads, keyValueHeads, queryTokens, selected); ok {
+			rows := uint64(queryTokens) * uint64(queryHeads)
+			partialBytes, _ := sparseSplitPartialBytes(node)
+			if geometry.splits == 1 || blas != nil && blas.scores != 0 && partialBytes <= blas.scoreBytes {
+				span, splits := geometry.span, geometry.splits
+				var partials driver.DevicePtr
+				if splits > 1 {
+					partials = blas.scores
+				}
+				if err := launchGridSharedABI(
+					state, functions[kernelSparseAttentionSplitF32],
+					driver.Dim3{X: queryTokens, Y: keyValueHeads, Z: splits},
+					driver.Dim3{X: sparseAttentionSplitThreads, Y: 1, Z: 1}, geometry.sharedBytes,
+					&query, &key, &value, &indices, &output, &partials, &keyWidth, &valueWidth,
+					&queryHeads, &keyValueHeads, &queryTokens, &keyValueTokens, &selected,
+					&scale, &causal, &queryStart, &span, &splits,
+				); err != nil || splits == 1 {
+					return err
+				}
+				rowCount := uint32(rows)
+				return launchGridABI(
+					state, functions[kernelAttentionDecodeCombineF32],
+					driver.Dim3{X: rowCount, Y: 1, Z: 1}, driver.Dim3{X: attentionDecodeThreads, Y: 1, Z: 1},
+					&partials, &output, &valueWidth, &splits, &rowCount,
+				)
+			}
 		}
 		if geometry, ok := groupedSparseAttention(keyWidth, valueWidth, queryHeads, keyValueHeads, queryTokens); ok {
 			chunkHeads, tile := geometry.chunkHeads, geometry.tile

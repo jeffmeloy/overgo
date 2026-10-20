@@ -4,9 +4,11 @@ package executor
 
 import (
 	"context"
+	"encoding/binary"
 	"math"
 	"testing"
 
+	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/model"
 	"overgo/internal/modeltest"
@@ -250,6 +252,92 @@ func TestExecutorGroupedSparseAttentionMatchesReference(t *testing.T) {
 			indices: {Shape: indices.Shape, Data: slots},
 		}
 		checkCUDAGraph(t, feeds, uniformGraphChecks([]*tensor.Tensor{attention}, accuracySparse)...)
+	}
+}
+
+// TestExecutorSplitSparseAttentionMatchesReference runs Flash-Next's selected
+// attention, 24 query heads over 2 key/value heads of 256 channels, over 2,048
+// selected slots of a 3,000-token cache as a decode step and as a speculative
+// span of three tokens, and as a step of 20 slots, one span. Skipped slots
+// and slots after the query are spread through each. Each runs the split kernel, its
+// spans folded by the decode combine where they are more than one, against
+// the reference.
+func TestExecutorSplitSparseAttentionMatchesReference(t *testing.T) {
+	const (
+		width, heads, keyValueHeads, cache = 256, 24, 2, 3000
+		// skippedSlot marks a slot the attention skips, every skipEvery-th.
+		skippedSlot      = -1
+		skipEvery        = 13
+		indexTokenStride = 31
+		indexSlotStride  = 7
+		inputScale       = 0.01
+		// A launch record is four header words, then eight bytes a pointer and four a scalar; the split
+		// kernel takes seven pointers and eleven scalars.
+		splitRecord = 4*8 + 7*8 + 11*4
+	)
+	word := binary.LittleEndian.Uint64
+	for _, f := range []struct {
+		name                  string
+		queryTokens, selected uint64
+		queryStart            uint32
+	}{
+		{"decode", 1, 2048, cache - 1},
+		{"span", 3, 2048, cache - 3},
+		{"one-span", 1, 20, cache - 1},
+	} {
+		t.Run(f.name, func(t *testing.T) {
+			builder := tensor.NewBuilder()
+			query := builder.Input("query", dtype.F32, tensor.MustShape(width, heads, f.queryTokens))
+			key := builder.Input("key", dtype.F32, tensor.MustShape(width, keyValueHeads, cache))
+			value := builder.Input("value", dtype.F32, tensor.MustShape(width, keyValueHeads, cache))
+			indices := builder.Input("indices", dtype.F32, tensor.MustShape(f.selected, f.queryTokens))
+			attention := builder.SparseAttentionWithOffset(query, key, value, indices, 1/float32(math.Sqrt(width)), true, f.queryStart)
+			if err := builder.Err(); err != nil {
+				t.Fatal(err)
+			}
+			slots := make([]float32, f.selected*f.queryTokens)
+			for token := range f.queryTokens {
+				for slot := range f.selected {
+					index := float32((token*indexTokenStride + slot*indexSlotStride + uint64(f.queryStart)/2) % cache)
+					if slot%skipEvery == skipEvery-1 {
+						index = skippedSlot
+					}
+					slots[token*f.selected+slot] = index
+				}
+			}
+			feeds := map[*tensor.Tensor]reference.Value{
+				query:   patternedValue(query.Shape, 3, inputScale, 0),
+				key:     patternedValue(key.Shape, 5, inputScale, 0),
+				value:   patternedValue(value.Shape, 7, 1, 0),
+				indices: {Shape: indices.Shape, Data: slots},
+			}
+			program, err := tensor.CompileProgram(attention)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want, err := reference.Execute(program.Outputs(), feeds)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cuda := newFixtureExecutor(t)
+			trace := &device.LaunchTrace{}
+			if err := cuda.worker.Do(t.Context(), func(state *device.State) error { state.Trace = trace; return nil }); err != nil {
+				t.Fatal(err)
+			}
+			got, err := cuda.ExecuteProgram(context.WithoutCancel(t.Context()), program, feeds)
+			if err != nil {
+				t.Fatal(err)
+			}
+			compare(t, got[attention].Data, want[attention].Data, accuracySparse)
+			geometry, _ := splitSparseAttention(width, width, heads, keyValueHeads, uint32(f.queryTokens), uint32(f.selected))
+			data := trace.Data()
+			if len(data) < splitRecord+8 && geometry.splits > 1 || len(data) < 8 || word(data) != uint64(kernelSparseAttentionSplitF32) {
+				t.Fatal("the split kernel did not run first")
+			}
+			if folded := geometry.splits > 1; folded != (len(data) > splitRecord && word(data[splitRecord:]) == uint64(kernelAttentionDecodeCombineF32)) {
+				t.Fatalf("%d spans, and the decode combine ran %t", geometry.splits, !folded)
+			}
+		})
 	}
 }
 

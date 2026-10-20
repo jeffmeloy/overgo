@@ -213,17 +213,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 650,
+        "nodes": 0,
         "reason": "measured: agent-turns/sparse-decode adds 650 production syntax nodes (the split kernel, its geometry, partial reservation and launch, the combine's zero guard)"
       },
       "steps": [
-        {
-          "id": "sparse-decode",
-          "title": "Split a decode step's selected attention across blocks",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^(TestExecutorSplitSparseAttentionMatchesReference|TestExecutorGroupedSparseAttentionMatchesReference)$'",
-          "rationale": "From long-prompt/bench's agent turns (12.8 tokens a second, Strata 138.4) and Nsight over Flash-Next's decode at a 5,099-token context on master, 2026-10-20.\nDecode slows once the context passes 2,048 tokens: fresh 4K and 16K prompts decoded at 22.2 and 18.6 where the short chat decodes at 61.3.\nsparse_attention_grouped_f32 took 1.43 s of the decode's 2.66 s, 2.3 ms a launch: a decode step's one query token gives it 24 blocks, each walking 2,048 slots with one thread adding maxima and sums in order.\nThe step splits a narrow step's selected slots across about 256 blocks with the decode combine folding their partials.\nMeasured: decode at a 5,099-token context 23.6 to 66 tokens a second, the answer identical.\nServes: throughput of decode past 2,048 tokens on selected-attention models, every agent turn.\nBatch: device."
-        },
         {
           "id": "tool-decode",
           "title": "Decode a request that carries tools at the rate of one that does not",

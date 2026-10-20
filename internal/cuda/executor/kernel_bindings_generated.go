@@ -197,6 +197,7 @@ const (
 	kernelSparseAttentionF32
 	kernelSparseAttentionGroupedF32
 	kernelSparseAttentionMmaF32
+	kernelSparseAttentionSplitF32
 	kernelSsmConvF32
 	kernelSsmScanF32
 	kernelStridedRowCopyF32
@@ -422,6 +423,7 @@ var kernelFunctionNames = [...]string{
 	"sparse_attention_f32",
 	"sparse_attention_grouped_f32",
 	"sparse_attention_mma_f32",
+	"sparse_attention_split_f32",
 	"ssm_conv_f32",
 	"ssm_scan_f32",
 	"strided_row_copy_f32",
@@ -646,6 +648,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	16,
 	17,
 	13,
+	18,
 	7,
 	14,
 	8,

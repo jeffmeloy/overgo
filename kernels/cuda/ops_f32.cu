@@ -3279,6 +3279,166 @@ extern "C" __global__ void sparse_attention_grouped_f32(
 	}
 }
 
+#define SPARSE_ATTENTION_SPLIT_THREADS 256
+#define SPARSE_ATTENTION_SPLIT_HEADS 16
+#define SPARSE_ATTENTION_SPLIT_KEY_LANES 8
+
+// sparse_attention_split_f32 computes sparse_attention_f32's outputs for a
+// step of few query tokens, a decode step's: the selected slots split into
+// spans of span slots across gridDim.z, and a block takes one query token, one
+// key/value head and one span. A warp scores a slot for every query head that
+// shares the key/value head, its lanes splitting the channels; each head's
+// maximum and sum reduce over the span's valid slots; and a thread a value
+// channel weighs the span's values for every head. With one span the block
+// writes the outputs; with more, each head's maximum, sum and weighted values
+// as attention_decode_f32's partials, which attention_decode_combine_f32
+// folds. Sums run in another order than the per-channel kernel's, so outputs
+// differ at rounding level. A head with no valid slot outputs zeros.
+//   - at most SPARSE_ATTENTION_SPLIT_HEADS query heads a key/value head, key
+//     and value widths at most SPARSE_ATTENTION_SPLIT_THREADS
+//   - scores[h * span + s] = slot s's scaled dot product for head h, then its
+//     exponential against the head's maximum; a slot the per-channel kernel
+//     skips weighs zero
+extern "C" __global__ void __launch_bounds__(SPARSE_ATTENTION_SPLIT_THREADS) sparse_attention_split_f32(
+		const float * query,
+		const float * key,
+		const float * value,
+		const float * indices,
+		float * output,
+		float * partials,
+		unsigned int key_width,
+		unsigned int value_width,
+		unsigned int query_heads,
+		unsigned int key_value_heads,
+		unsigned int query_tokens,
+		unsigned int key_value_tokens,
+		unsigned int selected,
+		float scale,
+		unsigned int causal,
+		const unsigned int * first_query,
+		unsigned int span,
+		unsigned int splits) {
+	extern __shared__ float shared[];
+	__shared__ float maxima[SPARSE_ATTENTION_SPLIT_HEADS];
+	__shared__ float sums[SPARSE_ATTENTION_SPLIT_HEADS];
+	const unsigned int query_token = blockIdx.x;
+	const unsigned int key_value_head = blockIdx.y;
+	const unsigned int split = blockIdx.z;
+	if (query_token >= query_tokens) {
+		return;
+	}
+	const unsigned int group = query_heads / key_value_heads;
+	const unsigned int first_head = key_value_head * group;
+	const unsigned int first_slot = split * span;
+	const unsigned int slots = first_slot < selected ? min(span, selected - first_slot) : 0;
+	const unsigned int query_start = *first_query;
+	const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+	const unsigned int warp = threadIdx.x / CUDA_WARP_WIDTH;
+	const unsigned int warps = blockDim.x / CUDA_WARP_WIDTH;
+	float * queries = shared;
+	float * scores = queries + group * key_width;
+	int * rows = reinterpret_cast<int *>(scores + group * span);
+	for (unsigned int element = threadIdx.x; element < group * key_width; element += blockDim.x) {
+		queries[element] = query[((size_t) query_token * query_heads + first_head) * key_width + element];
+	}
+	for (unsigned int slot = threadIdx.x; slot < slots; slot += blockDim.x) {
+		const float raw = indices[(size_t) query_token * selected + first_slot + slot];
+		int row = -1;
+		if (isfinite(raw) && raw >= 0.0f && raw < (float) key_value_tokens) {
+			const unsigned int key_token = (unsigned int) raw;
+			if (!(raw != (float) key_token || causal && key_token > query_start + query_token)) {
+				row = (int) key_token;
+			}
+		}
+		rows[slot] = row;
+	}
+	__syncthreads();
+	for (unsigned int slot = warp; slot < slots; slot += warps) {
+		const int row = rows[slot];
+		if (row < 0) {
+			continue;
+		}
+		const float * slot_key = key + ((size_t) row * key_value_heads + key_value_head) * key_width;
+		float keys[SPARSE_ATTENTION_SPLIT_KEY_LANES];
+#pragma unroll
+		for (unsigned int part = 0; part < SPARSE_ATTENTION_SPLIT_KEY_LANES; ++part) {
+			const unsigned int channel = part * CUDA_WARP_WIDTH + lane;
+			keys[part] = channel < key_width ? slot_key[channel] : 0.0f;
+		}
+		for (unsigned int head = 0; head < group; ++head) {
+			float dot = 0.0f;
+#pragma unroll
+			for (unsigned int part = 0; part < SPARSE_ATTENTION_SPLIT_KEY_LANES; ++part) {
+				const unsigned int channel = part * CUDA_WARP_WIDTH + lane;
+				if (channel < key_width) {
+					dot += queries[head * key_width + channel] * keys[part];
+				}
+			}
+			dot = warp_sum_down(dot);
+			if (lane == 0) {
+				scores[head * span + slot] = dot * scale;
+			}
+		}
+	}
+	__syncthreads();
+	for (unsigned int head = warp; head < group; head += warps) {
+		float maximum = -3.402823466e+38F;
+		for (unsigned int slot = lane; slot < slots; slot += CUDA_WARP_WIDTH) {
+			if (rows[slot] >= 0) {
+				maximum = fmaxf(maximum, scores[head * span + slot]);
+			}
+		}
+		for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
+			maximum = fmaxf(maximum, __shfl_xor_sync(0xffffffffu, maximum, offset));
+		}
+		float sum = 0.0f;
+		for (unsigned int slot = lane; slot < slots; slot += CUDA_WARP_WIDTH) {
+			const float probability = rows[slot] >= 0 ? expf(scores[head * span + slot] - maximum) : 0.0f;
+			scores[head * span + slot] = probability;
+			sum += probability;
+		}
+		sum = warp_sum_down(sum);
+		if (lane == 0) {
+			maxima[head] = maximum;
+			sums[head] = sum;
+		}
+	}
+	__syncthreads();
+	for (unsigned int channel = threadIdx.x; channel < value_width; channel += blockDim.x) {
+		float weighted[SPARSE_ATTENTION_SPLIT_HEADS] = {};
+		for (unsigned int slot = 0; slot < slots; ++slot) {
+			const int row = rows[slot];
+			if (row < 0) {
+				continue;
+			}
+			const float slot_value = value[((size_t) row * key_value_heads + key_value_head) * value_width + channel];
+#pragma unroll
+			for (unsigned int head = 0; head < SPARSE_ATTENTION_SPLIT_HEADS; ++head) {
+				if (head < group) {
+					weighted[head] += scores[head * span + slot] * slot_value;
+				}
+			}
+		}
+#pragma unroll
+		for (unsigned int head = 0; head < SPARSE_ATTENTION_SPLIT_HEADS; ++head) {
+			if (head >= group) {
+				continue;
+			}
+			const size_t row = (size_t) query_token * query_heads + first_head + head;
+			if (splits == 1) {
+				output[row * value_width + channel] = sums[head] > 0.0f ? weighted[head] / sums[head] : 0.0f;
+				continue;
+			}
+			float * partial = partials + (row * splits + split) * (value_width + 2);
+			partial[2 + channel] = weighted[head];
+			if (channel == 0) {
+				partial[0] = maxima[head];
+				partial[1] = sums[head];
+			}
+		}
+	}
+}
+
 #define SPARSE_ATTENTION_MMA_WIDTH 256
 #define SPARSE_ATTENTION_MMA_ROWS 16
 #define SPARSE_ATTENTION_MMA_CELLS 32
@@ -5174,7 +5334,8 @@ extern "C" __global__ void attention_decode_f32(
 // attention_decode_combine_f32: one block per (sequence, query, head) row folds
 // the split partials of attention_decode_f32 into the output, each split
 // weighted by the exponential of its maximum against the row maximum
-// (the flash-attention combine of the llama.cpp lineage).
+// (the flash-attention combine of the llama.cpp lineage). A row no split
+// weighed, a selected attention's with no valid slot, outputs zeros.
 extern "C" __global__ void attention_decode_combine_f32(
         const float * partials,
         float * output,
@@ -5201,7 +5362,7 @@ extern "C" __global__ void attention_decode_combine_f32(
             const float * partial_row = partial_rows + split * (value_width + 2);
             numerator += expf(partial_row[0] - maximum) * partial_row[2 + channel];
         }
-        output[row * value_width + channel] = numerator / denominator;
+        output[row * value_width + channel] = denominator > 0.0f ? numerator / denominator : 0.0f;
     }
 }
 

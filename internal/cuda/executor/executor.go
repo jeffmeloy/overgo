@@ -1297,6 +1297,13 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 			compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, bytes)
 		}
 	}
+	// A selected attention too narrow for tensor cores folds its spans' partials through the score staging.
+	for _, node := range order {
+		if bytes, ok := sparseSplitPartialBytes(node); ok {
+			compiled.needBlas = true
+			compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, bytes)
+		}
+	}
 	// Retained outputs already own storage, whether pooled or caller-bound.
 	plannerExcluded := make(map[*tensor.Tensor]struct{}, len(compiled.skipped)+len(outputs))
 	for node := range compiled.skipped {

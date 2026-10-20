@@ -192,6 +192,7 @@ const (
 	kernelSoftmaxF32
 	kernelSoftplusF32
 	kernelSparseAttentionF32
+	kernelSparseAttentionGroupedF32
 	kernelSsmConvF32
 	kernelSsmScanF32
 	kernelStridedRowCopyF32
@@ -411,6 +412,7 @@ var kernelFunctionNames = [...]string{
 	"softmax_f32",
 	"softplus_f32",
 	"sparse_attention_f32",
+	"sparse_attention_grouped_f32",
 	"ssm_conv_f32",
 	"ssm_scan_f32",
 	"strided_row_copy_f32",
@@ -629,6 +631,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	4,
 	3,
 	16,
+	17,
 	7,
 	14,
 	8,

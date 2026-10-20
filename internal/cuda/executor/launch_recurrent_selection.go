@@ -13,6 +13,58 @@ import (
 
 const topKPairWidth = 2
 
+const (
+	// sparseAttentionGroupedThreads and sparseAttentionGroupedPairs mirror the
+	// grouped kernel's block width and the (head, channel) outputs each of its
+	// threads accumulates.
+	sparseAttentionGroupedThreads = uint32(256)
+	sparseAttentionGroupedPairs   = uint32(16)
+	// sparseAttentionGroupedSharedLimit is the shared memory a launch takes
+	// without the dynamic opt-in.
+	sparseAttentionGroupedSharedLimit = uint64(48 << 10)
+	// sparseAttentionGroupedMaxTile bounds the slots a tile stages.
+	sparseAttentionGroupedMaxTile = uint32(64)
+	// sparseAttentionGroupedHeadWords: a head's maximum and sum.
+	sparseAttentionGroupedHeadWords = uint64(2)
+	// sparseAttentionGroupedWideRows: a step whose query rows across the
+	// key/value heads reach this many fills the card with whole head groups;
+	// a shorter step, a decode step, gives each query head a block of its own.
+	sparseAttentionGroupedWideRows = uint32(256)
+)
+
+// sparseAttentionGrouped sizes a grouped sparse attention launch: the query
+// heads a block takes, the selected slots each tile stages, and the shared
+// memory the block holds.
+type sparseAttentionGrouped struct {
+	chunkHeads, tile, sharedBytes uint32
+}
+
+// groupedSparseAttention reports the grouped kernel's geometry, the widest
+// head chunk whose tile of at least one slot fits the shared memory, or false
+// when one head's outputs exceed a block's accumulators or one head and one
+// slot exceed the shared memory, where the per-channel kernel serves.
+func groupedSparseAttention(keyWidth, valueWidth, queryHeads, keyValueHeads, queryTokens uint32) (sparseAttentionGrouped, bool) {
+	if keyWidth == 0 || valueWidth == 0 || keyValueHeads == 0 || queryHeads%keyValueHeads != 0 {
+		return sparseAttentionGrouped{}, false
+	}
+	group := queryHeads / keyValueHeads
+	chunkHeads := min(group, sparseAttentionGroupedThreads*sparseAttentionGroupedPairs/valueWidth)
+	if queryTokens*keyValueHeads < sparseAttentionGroupedWideRows {
+		chunkHeads = min(chunkHeads, tensor.SingletonExtent)
+	}
+	for ; chunkHeads > 0; chunkHeads-- {
+		for tile := sparseAttentionGroupedMaxTile; tile > 0; tile /= tensor.PairedExtent {
+			heads, slots := uint64(chunkHeads), uint64(tile)
+			words := heads*uint64(keyWidth) + slots*uint64(keyWidth+1) + slots*uint64(valueWidth) +
+				heads*slots + sparseAttentionGroupedHeadWords*heads + slots
+			if bytes := words * f32ScalarBytes; bytes <= sparseAttentionGroupedSharedLimit {
+				return sparseAttentionGrouped{chunkHeads: chunkHeads, tile: tile, sharedBytes: uint32(bytes)}, true
+			}
+		}
+	}
+	return sparseAttentionGrouped{}, false
+}
+
 func launchRecurrentSelection(
 	state *device.State,
 	functions functionSet,
@@ -233,6 +285,17 @@ func launchRecurrentSelection(
 		queryStart := pointers.attribute
 		if queryStart == 0 {
 			return errors.New("sparse attention first-query storage is unavailable")
+		}
+		if geometry, ok := groupedSparseAttention(keyWidth, valueWidth, queryHeads, keyValueHeads, queryTokens); ok {
+			chunkHeads, tile := geometry.chunkHeads, geometry.tile
+			grid := driver.Dim3{X: queryTokens, Y: keyValueHeads, Z: (queryHeads/keyValueHeads-1)/chunkHeads + 1}
+			return launchGridSharedABI(
+				state, functions[kernelSparseAttentionGroupedF32], grid,
+				driver.Dim3{X: sparseAttentionGroupedThreads, Y: 1, Z: 1}, geometry.sharedBytes,
+				&query, &key, &value, &indices, &output, &keyWidth, &valueWidth,
+				&queryHeads, &keyValueHeads, &queryTokens, &keyValueTokens, &selected,
+				&scale, &causal, &queryStart, &chunkHeads, &tile,
+			)
 		}
 		return launch1DABI(
 			state, functions[kernelSparseAttentionF32], count,

@@ -183,6 +183,76 @@ func TestExecutorSparsePrimitivesMatchReference(t *testing.T) {
 	checkCUDAGraph(t, feeds, uniformGraphChecks(outputs, accuracyProjection)...)
 }
 
+// TestExecutorGroupedSparseAttentionMatchesReference runs Flash-Next's
+// selected attention, 24 query heads over 2 key/value heads of 256 channels,
+// as a prompt (whole head groups a block, several tiles of slots) and as a
+// short step (a head a block), with skipped slots and slots after the query;
+// and a value row wider than a block's accumulators, which the per-channel
+// kernel serves.
+func TestExecutorGroupedSparseAttentionMatchesReference(t *testing.T) {
+	type fixture struct {
+		keyWidth, valueWidth, queryHeads, keyValueHeads uint64
+		queryTokens, keyValueTokens, selected           uint64
+		queryStart                                      uint32
+	}
+	const (
+		flashNextWidth    = 256
+		flashNextHeads    = 24
+		flashNextKVHeads  = 2
+		flashNextCache    = 300
+		flashNextSelected = 64
+		promptQueries     = 130
+		promptStart       = 170
+		stepQueries       = 2
+		stepStart         = 298
+		wideValueWidth    = 8192
+		wideKeyWidth      = 4
+		wideCache         = 6
+		wideQueries       = 3
+		wideSelected      = 4
+		wideStart         = 3
+		// skippedSlot marks a slot the attention skips, every skipEvery-th.
+		skippedSlot      = -1
+		skipEvery        = 13
+		indexTokenStride = 31
+		indexSlotStride  = 7
+		inputScale       = 0.01
+	)
+	fixtures := []fixture{
+		{flashNextWidth, flashNextWidth, flashNextHeads, flashNextKVHeads, promptQueries, flashNextCache, flashNextSelected, promptStart},
+		{flashNextWidth, flashNextWidth, flashNextHeads, flashNextKVHeads, stepQueries, flashNextCache, flashNextSelected, stepStart},
+		{wideKeyWidth, wideValueWidth, 1, 1, wideQueries, wideCache, wideSelected, wideStart},
+	}
+	for _, f := range fixtures {
+		builder := tensor.NewBuilder()
+		query := builder.Input("query", dtype.F32, tensor.MustShape(f.keyWidth, f.queryHeads, f.queryTokens))
+		key := builder.Input("key", dtype.F32, tensor.MustShape(f.keyWidth, f.keyValueHeads, f.keyValueTokens))
+		value := builder.Input("value", dtype.F32, tensor.MustShape(f.valueWidth, f.keyValueHeads, f.keyValueTokens))
+		indices := builder.Input("indices", dtype.F32, tensor.MustShape(f.selected, f.queryTokens))
+		attention := builder.SparseAttentionWithOffset(query, key, value, indices, 1/float32(math.Sqrt(float64(f.keyWidth))), true, f.queryStart)
+		if err := builder.Err(); err != nil {
+			t.Fatal(err)
+		}
+		slots := make([]float32, f.selected*f.queryTokens)
+		for token := range f.queryTokens {
+			for slot := range f.selected {
+				index := float32((token*indexTokenStride + slot*indexSlotStride) % f.keyValueTokens)
+				if slot%skipEvery == skipEvery-1 {
+					index = skippedSlot
+				}
+				slots[token*f.selected+slot] = index
+			}
+		}
+		feeds := map[*tensor.Tensor]reference.Value{
+			query:   patternedValue(query.Shape, 3, inputScale, 0),
+			key:     patternedValue(key.Shape, 5, inputScale, 0),
+			value:   patternedValue(value.Shape, 7, 1, 0),
+			indices: {Shape: indices.Shape, Data: slots},
+		}
+		checkCUDAGraph(t, feeds, uniformGraphChecks([]*tensor.Tensor{attention}, accuracySparse)...)
+	}
+}
+
 func TestExecutorTopKPairsMultiChunkMatchesReference(t *testing.T) {
 	const (
 		fixtureWidth = 4099

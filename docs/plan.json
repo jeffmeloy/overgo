@@ -213,17 +213,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 700,
+        "nodes": 370,
         "reason": "measured: long-prompt/attention adds 330 production syntax nodes (gate preflight at 30bd35375); the built block top-k, delta-net row kernel launches and the grouped expert staging cap add about 270 more"
       },
       "steps": [
-        {
-          "id": "attention",
-          "title": "Compute each selected slot's dot product once per query head, not once per value channel",
-          "status": "open",
-          "verify": "go test ./internal/cuda/executor -count=1 -run '^TestGroupedSparseAttentionGeometry$' \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^(TestExecutorGroupedSparseAttentionMatchesReference|TestExecutorSparsePrimitivesMatchReference)$'",
-          "rationale": "From the Strata bench run on master 005407b91 on 2026-10-19 and the prompt-length sweep and Nsight profiles after it.\nStrata reads a fresh 4K prompt at 1,836.7 tokens a second (first token 2.21 s) and a 16K prompt at 3,229.0 (5.01 s) on this PC.\nOvergo's server read the bench's prompts at 33 tokens a second; the bench could not finish in an hour.\nThe sweep on master: a 1,561-token prompt 3.1 s, 2,625 tokens 56 s, 5,099 tokens 139 s, 10,673 tokens 334 s, 20,605 tokens 715 s.\nPast 2,048 tokens Flash-Next's 12 full-attention layers attend to each query's top 2,048 selected cells; Nsight gives sparse_attention_f32 94.8% of the 2,625-token prompt's GPU time, 4.15 s a layer.\nThe kernel runs a thread for each (query, head, value channel), so each of a head's 256 channels recomputes the query's dot product with every selected key, twice.\nThe step adds sparse_attention_grouped_f32: a block takes a query token, a key/value head and a chunk of the query heads sharing it, stages each tile of selected keys and values in shared memory, and computes a dot product once a head, with the same operations in the same order (the exponent's product and difference as one fused multiply-add, as the per-channel kernel's code generator fuses them).\nWidths whose block exceeds the shared memory or the accumulators keep the per-channel kernel.\nMeasured with the step built: 2,625 tokens 7.4 s, 5,099 tokens 14.1 s, 10,673 tokens 34.7 s, 20,605 tokens 93.1 s, every prompt's and answer's token ids identical to master's; outputs bit-identical to the per-channel kernel over 4.5 million values of 11 shapes, scales exact and not.\nServes: first-output for Flash-Next prompts and contexts past 2,048 tokens; throughput of decode past 2,048 tokens, which ran the same kernel.\nDisappears: the per-channel recomputation.\nBatch: device."
-        },
         {
           "id": "topk",
           "title": "Select each query's top cells with a block per query row",

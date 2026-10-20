@@ -2728,6 +2728,186 @@ extern "C" __global__ void sparse_attention_f32(
 	output[index] = weighted / sum;
 }
 
+#define SPARSE_ATTENTION_GROUPED_THREADS 256
+#define SPARSE_ATTENTION_GROUPED_PAIRS 16
+
+// sparse_attention_grouped_f32 computes sparse_attention_f32's outputs with
+// the same operations in the same order, once per query head instead of once
+// per value channel. A block takes one query token, one key/value head and a
+// chunk of the query heads that share it; each tile of selected slots stages
+// its keys and values in shared memory. A slot's dot product runs over the
+// channels in order, each head's maximum over its valid slots, and each
+// head's sum and each (head, channel) output accumulate over the slots in
+// order.
+extern "C" __global__ void sparse_attention_grouped_f32(
+		const float * query,
+		const float * key,
+		const float * value,
+		const float * indices,
+		float * output,
+		unsigned int key_width,
+		unsigned int value_width,
+		unsigned int query_heads,
+		unsigned int key_value_heads,
+		unsigned int query_tokens,
+		unsigned int key_value_tokens,
+		unsigned int selected,
+		float scale,
+		unsigned int causal,
+		const unsigned int * first_query,
+		unsigned int chunk_heads,
+		unsigned int tile) {
+	extern __shared__ float shared[];
+	__shared__ unsigned int valid_count;
+	const unsigned int query_token = blockIdx.x;
+	const unsigned int key_value_head = blockIdx.y;
+	const unsigned int group = query_heads / key_value_heads;
+	const unsigned int chunk_start = blockIdx.z * chunk_heads;
+	if (query_token >= query_tokens || chunk_start >= group) {
+		return;
+	}
+	const unsigned int first_head = key_value_head * group + chunk_start;
+	const unsigned int heads = min(chunk_heads, group - chunk_start);
+	const unsigned int query_start = *first_query;
+	const unsigned int key_stride = key_width + 1;
+	float * queries = shared;
+	float * keys = queries + chunk_heads * key_width;
+	float * values = keys + tile * key_stride;
+	float * scores = values + tile * value_width;
+	float * maxima = scores + chunk_heads * tile;
+	float * sums = maxima + chunk_heads;
+	int * rows = reinterpret_cast<int *>(sums + chunk_heads);
+	const size_t index_base = (size_t) query_token * selected;
+	for (unsigned int element = threadIdx.x; element < heads * key_width; element += blockDim.x) {
+		const unsigned int head = element / key_width;
+		queries[element] = query[((size_t) query_token * query_heads + first_head + head) * key_width + element % key_width];
+	}
+	for (unsigned int head = threadIdx.x; head < heads; head += blockDim.x) {
+		maxima[head] = -3.402823466e+38F;
+		sums[head] = 0.0f;
+	}
+	if (threadIdx.x == 0) {
+		valid_count = 0;
+	}
+	// Each pass stages a tile's slots: its rows (-1 for a slot the scalar
+	// kernel skips) and the rows' keys, and the second pass their values.
+	for (unsigned int pass = 0; pass < 2; ++pass) {
+		float weighted[SPARSE_ATTENTION_GROUPED_PAIRS];
+#pragma unroll
+		for (unsigned int pair = 0; pair < SPARSE_ATTENTION_GROUPED_PAIRS; ++pair) {
+			weighted[pair] = 0.0f;
+		}
+		for (unsigned int base = 0; base < selected; base += tile) {
+			const unsigned int count = min(tile, selected - base);
+			__syncthreads();
+			for (unsigned int slot = threadIdx.x; slot < count; slot += blockDim.x) {
+				const float raw = indices[index_base + base + slot];
+				int row = -1;
+				if (isfinite(raw) && raw >= 0.0f && raw < (float) key_value_tokens) {
+					const unsigned int key_token = (unsigned int) raw;
+					if (!(raw != (float) key_token || causal && key_token > query_start + query_token)) {
+						row = (int) key_token;
+					}
+				}
+				rows[slot] = row;
+			}
+			__syncthreads();
+			for (unsigned int element = threadIdx.x; element < count * key_width; element += blockDim.x) {
+				const unsigned int slot = element / key_width;
+				if (rows[slot] >= 0) {
+					keys[slot * key_stride + element % key_width] =
+						key[((size_t) rows[slot] * key_value_heads + key_value_head) * key_width + element % key_width];
+				}
+			}
+			if (pass == 1) {
+				for (unsigned int element = threadIdx.x; element < count * value_width; element += blockDim.x) {
+					const unsigned int slot = element / value_width;
+					if (rows[slot] >= 0) {
+						values[element] =
+							value[((size_t) rows[slot] * key_value_heads + key_value_head) * value_width + element % value_width];
+					}
+				}
+			}
+			__syncthreads();
+			for (unsigned int item = threadIdx.x; item < heads * count; item += blockDim.x) {
+				const unsigned int head = item / count;
+				const unsigned int slot = item % count;
+				if (rows[slot] < 0) {
+					continue;
+				}
+				const float * head_query = queries + head * key_width;
+				const float * slot_key = keys + slot * key_stride;
+				float dot = 0.0f;
+				for (unsigned int channel = 0; channel < key_width; ++channel) {
+					dot += head_query[channel] * slot_key[channel];
+				}
+				if (pass == 0) {
+					scores[head * tile + slot] = dot * scale;
+				} else {
+					// The per-channel kernel's code generator fuses this
+					// product and difference; an explicit fused multiply-add
+					// keeps the same rounding whatever this kernel's
+					// generator would choose.
+					scores[head * tile + slot] = expf(__fmaf_rn(dot, scale, -maxima[head]));
+				}
+			}
+			__syncthreads();
+			for (unsigned int head = threadIdx.x; head < heads; head += blockDim.x) {
+				for (unsigned int slot = 0; slot < count; ++slot) {
+					if (rows[slot] < 0) {
+						continue;
+					}
+					if (pass == 0) {
+						maxima[head] = fmaxf(maxima[head], scores[head * tile + slot]);
+					} else {
+						sums[head] += scores[head * tile + slot];
+					}
+				}
+			}
+			if (pass == 0 && threadIdx.x == 0) {
+				for (unsigned int slot = 0; slot < count; ++slot) {
+					valid_count += rows[slot] >= 0;
+				}
+			}
+			if (pass == 1) {
+#pragma unroll
+				for (unsigned int pair = 0; pair < SPARSE_ATTENTION_GROUPED_PAIRS; ++pair) {
+					const unsigned int item = threadIdx.x + pair * blockDim.x;
+					if (item >= heads * value_width) {
+						continue;
+					}
+					const unsigned int head = item / value_width;
+					const unsigned int channel = item % value_width;
+					for (unsigned int slot = 0; slot < count; ++slot) {
+						if (rows[slot] < 0) {
+							continue;
+						}
+						weighted[pair] += scores[head * tile + slot] * values[slot * value_width + channel];
+					}
+				}
+			}
+		}
+		__syncthreads();
+		if (pass == 0 && valid_count == 0) {
+			for (unsigned int item = threadIdx.x; item < heads * value_width; item += blockDim.x) {
+				output[((size_t) query_token * query_heads + first_head + item / value_width) * value_width + item % value_width] = 0.0f;
+			}
+			return;
+		}
+		if (pass == 1) {
+#pragma unroll
+			for (unsigned int pair = 0; pair < SPARSE_ATTENTION_GROUPED_PAIRS; ++pair) {
+				const unsigned int item = threadIdx.x + pair * blockDim.x;
+				if (item < heads * value_width) {
+					const unsigned int head = item / value_width;
+					output[((size_t) query_token * query_heads + first_head + head) * value_width + item % value_width] =
+						weighted[pair] / sums[head];
+				}
+			}
+		}
+	}
+}
+
 extern "C" __global__ void indexer_score_f32(
 		const float * query,
 		const float * key,

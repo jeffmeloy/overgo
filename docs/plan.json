@@ -213,15 +213,15 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "measured: agent-turns/sparse-decode adds 650 production syntax nodes (the split kernel, its geometry, partial reservation and launch, the combine's zero guard)"
+        "nodes": 28,
+        "reason": "measured: agent-turns/tool-decode adds 28 production syntax nodes (the sampler's greedy scan past a grammar)"
       },
       "steps": [
         {
           "id": "tool-decode",
           "title": "Decode a request that carries tools at the rate of one that does not",
           "status": "open",
-          "verify": "go run ./cmd/plan -status",
+          "verify": "go test ./internal/sampling -count=1 -run '^TestGreedyGrammarSamplerChoosesThePipelinesToken$'",
           "rationale": "From Strata's frozen bench re-run on master on 2026-10-20 (long-prompt/bench), against Strata's baseline-20261016 on this PC.\nThe agent sessions' turns, each carrying the four tools, decode at 12.8 tokens a second (Strata 138.4); the same server decodes the short chat, which carries none, at 61.3.\nA request with tools is decoded under the tool-call grammar (ChatToolGrammar), which may run a token's mask on the host and leave speculation off; the step profiles one agent turn (pprof and nsys), finds where its token's time goes beside a chat token's, and moves it off the decode path (a lazy grammar that applies only once a tool call opens, as Strata's does, or the mask on the device).\nEvidence: the bench's agent decode median, its answers unchanged.\nServes: throughput of every agent client's requests on every chat model.\nBatch: device.\n\nRe-measured on 2026-10-20: most of the agent turns' slow decode was decode past 2,048 tokens of context, not the tools: fresh 4K and 16K prompts, which carry no tools, decoded at 22.2 and 18.6 tokens a second, and agent-turns/sparse-decode takes a 5,099-token context's decode from 23.6 to 66. The step re-runs the bench's agent sessions after it and profiles what the tools add beside a turn without them."
         },
         {
@@ -553,7 +553,8 @@
             "bench-terms/do",
             "router-flush-terms/do",
             "stream-complete-terms/do",
-            "sparse-decode-terms/do"
+            "sparse-decode-terms/do",
+            "tool-decode-terms/do"
           ]
         }
       ]

@@ -56,6 +56,16 @@ type layerNormModulateFusion struct {
 	adaptive      bool
 }
 
+// streamSumFusion: a token's streams, consecutive slices of width values of
+// values, summed in stream order and scaled, in one pass; gate, where set,
+// is an activated gate of kind folded into each value.
+type streamSumFusion struct {
+	gate, values   *tensor.Tensor
+	kind           activatedGateKind
+	width, streams uint64
+	scale          float32
+}
+
 // broadcastGateAddFusion: residual + value*gate with a rank-1 gate
 // broadcast, joined in one pass.
 type broadcastGateAddFusion struct {
@@ -133,6 +143,7 @@ func (c *CompiledGraph) hasFusion(node *tensor.Tensor, kinds ...compiledFusionKi
 var graphRewriteCatalog = [...]graphRewrite{
 	{name: "weighted-rms", apply: applyWeightedRMSRewrite},
 	{name: "activated-gate", apply: applyActivatedGateRewrite},
+	{name: "stream-sum", apply: applyStreamSumRewrite},
 	{name: "gelu-tanh", apply: applyGELUTanhRewrite},
 	{name: "layer-norm-modulate", apply: applyLayerNormModulateRewrite},
 	{name: "q8-emission", apply: applyQ8EmissionRewrite},
@@ -251,6 +262,80 @@ func applyActivatedGateRewrite(context *rewriteContext) {
 		}})
 		compiled.skipped[activation] = struct{}{}
 	}
+}
+
+// applyStreamSumRewrite: the reduction of a gated hyper-connection mix,
+// Scale(((p0 + p1) + p2) + ...) where each p_s reshapes
+// GroupSlice(x, s*width, width, 1, ·) of one [width*streams, tokens] x,
+// becomes one kernel: Flash-Next's decode ran its group slices, adds and
+// scale as eight kernels a mix, two mixes a layer. Where x is an activated
+// gate read by the slices alone, the gate folds in and x is never written.
+func applyStreamSumRewrite(context *rewriteContext) {
+	compiled := context.compiled
+	for _, node := range context.order {
+		scale, ok := scaleFactorFor(node)
+		if !ok || node.Type != dtype.F32 || node.Shape.Rank != tensor.PairedExtent {
+			continue
+		}
+		var parts, interior []*tensor.Tensor
+		sum := node.Inputs[0]
+		for sum.Op == tensor.OpAdd && len(sum.Inputs) == tensor.PairedExtent && sum.Shape.Equal(node.Shape) && context.fusableIntermediate(sum, 1) {
+			interior = append(interior, sum)
+			parts = append(parts, sum.Inputs[1])
+			sum = sum.Inputs[0]
+		}
+		parts = append(parts, sum)
+		slices.Reverse(parts)
+		source, ok := streamSlices(context, parts, node.Shape)
+		if !ok {
+			continue
+		}
+		fusion := streamSumFusion{values: source, width: node.Shape.Dims[0], streams: uint64(len(parts)), scale: scale}
+		operands := []*tensor.Tensor{source}
+		if prior := compiled.fusions[source]; prior != nil && prior.kind == compiledFusionActivatedGate && context.fusableIntermediate(source, len(parts)) {
+			gate := prior.activatedGate
+			fusion.gate, fusion.values, fusion.kind = gate.gate, gate.up, gate.kind
+			operands = []*tensor.Tensor{gate.gate, gate.up}
+			delete(compiled.fusions, source)
+			interior = append(interior, source)
+		}
+		if compiled.skipped == nil {
+			compiled.skipped = make(map[*tensor.Tensor]struct{})
+		}
+		for _, part := range parts {
+			interior = append(interior, part, part.Inputs[0])
+		}
+		for _, item := range interior {
+			compiled.skipped[item] = struct{}{}
+		}
+		compiled.setFusion(node, &compiledFusion{kind: compiledFusionStreamSum, operands: operands, streamSum: fusion})
+	}
+}
+
+// streamSlices returns the one tensor parts slice in stream order: each part
+// reshapes, to shape, GroupSlice(source, s*width, width, 1, ·) of a
+// [width*len(parts), tokens] F32 source, and nothing else reads either.
+func streamSlices(context *rewriteContext, parts []*tensor.Tensor, shape tensor.Shape) (*tensor.Tensor, bool) {
+	width := shape.Dims[0]
+	var source *tensor.Tensor
+	for stream, part := range parts {
+		if part.Op != tensor.OpReshape || !part.Shape.Equal(shape) || !context.fusableIntermediate(part, 1) {
+			return nil, false
+		}
+		slice := part.Inputs[0]
+		attributes, ok := slice.Attrs.(tensor.GroupSliceAttributes)
+		if slice.Op != tensor.OpGroupSlice || !ok || !context.fusableIntermediate(slice, 1) ||
+			attributes.Offset != uint64(stream)*width || attributes.Width != width || attributes.Groups != 1 ||
+			source != nil && slice.Inputs[0] != source {
+			return nil, false
+		}
+		source = slice.Inputs[0]
+	}
+	if len(parts) < tensor.PairedExtent || source.Type != dtype.F32 || source.Shape.Rank != tensor.PairedExtent ||
+		source.Shape.Dims[0] != width*uint64(len(parts)) || source.Shape.Dims[1] != shape.Dims[1] {
+		return nil, false
+	}
+	return source, true
 }
 
 func scaleFactorFor(node *tensor.Tensor) (float32, bool) {
@@ -492,7 +577,7 @@ func applyQ8EmissionRewrite(context *rewriteContext) {
 		}
 		producer := node.Inputs[1]
 		if !compiled.hasFusion(
-			producer, compiledFusionWeightedRMS, compiledFusionActivatedGate, compiledFusionWeightedRMSGate,
+			producer, compiledFusionWeightedRMS, compiledFusionActivatedGate, compiledFusionWeightedRMSGate, compiledFusionStreamSum,
 		) {
 			continue
 		}

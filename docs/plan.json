@@ -213,17 +213,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 907,
+        "nodes": 0,
         "reason": "measured: flashnext-decode/fewer-kernels adds 907 production syntax nodes (the stream-sum rewrite, its launcher and kernels)"
       },
       "steps": [
-        {
-          "id": "fewer-kernels",
-          "title": "Fuse the decode graph's chains of small elementwise kernels",
-          "status": "open",
-          "verify": "go test ./internal/cuda/executor -count=1 -run '^TestCompileFusesStreamSum$' \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestExecutorStreamSumMatchesTheUnfusedGraph$'",
-          "rationale": "From an Nsight trace with graph nodes of the same decode: 4,012 kernels a token. About 2,300 of them are elementwise kernels of about 1 us each: group_slice_f32 560 a token, add_f32 440, scale_f32 387, quantize_q8_0_input_f32 325, broadcast_multiply_f32 285, sigmoid_f32 181 and silu_f32 134. Together they take about 2.5 ms a token of kernel time, plus each node's launch gap in the graph.\nThe kernels doing the work take the rest of the card's 12.8 ms: dense Q8_0 products 4.8 ms, expert products 3.9 ms, the route 0.6 ms and the output head 0.6 ms.\nThe step finds the chains these small kernels come from (the delta-net's gates and slices, residual adds and scales, quantizing a product's input) and fuses each into the kernel that produces or reads its values, as a rewrite of the compiled graph that every model's decode uses.\nEvidence: kernels a token and the probe's decode milliseconds a token, a decode-graph device test holding each fused chain to the unfused one.\nServes: throughput of every model's decode.\nBatch: device."
-        },
         {
           "id": "hyper-gates",
           "title": "Fuse a hyper-connection mix's injection gate and its stream combine",

@@ -930,6 +930,80 @@ extern "C" __global__ void activated_gate_q8_0_f32(
     store_q8_input_warp(quantized, block, value, lane);
 }
 
+// stream_value is a stream's value at at: the gate's activation times values
+// where a gate is given, values alone otherwise, rounded as activated_gate_f32
+// rounds it.
+__device__ __forceinline__ float stream_value(
+        const float * gate,
+        const float * values,
+        unsigned int at,
+        unsigned int activation) {
+    if (gate == nullptr) {
+        return values[at];
+    }
+    return __fmul_rn(activated_gate_value(gate[at], activation), values[at]);
+}
+
+// stream_sum_value sums a token's streams, each a slice of width values, in
+// stream order and scales the sum, each step rounded as the group slices, adds
+// and scale it replaces round theirs: no product folds into an add.
+__device__ __forceinline__ float stream_sum_value(
+        const float * gate,
+        const float * values,
+        unsigned int index,
+        unsigned int activation,
+        unsigned int width,
+        unsigned int streams,
+        float scale) {
+    const unsigned int base = (index / width) * width * streams + index % width;
+    float sum = stream_value(gate, values, base, activation);
+    for (unsigned int stream = 1; stream < streams; ++stream) {
+        sum = __fadd_rn(sum, stream_value(gate, values, base + stream * width, activation));
+    }
+    return __fmul_rn(sum, scale);
+}
+
+// stream_sum_f32 writes each token's scaled sum of its streams: a gated
+// hyper-connection mix's group slices, adds and scale in one pass, with the
+// activated gate folded in where gate is given.
+extern "C" __global__ void stream_sum_f32(
+        const float * gate,
+        const float * values,
+        float * output,
+        unsigned int activation,
+        unsigned int width,
+        unsigned int streams,
+        float scale,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < count) {
+        output[index] = stream_sum_value(gate, values, index, activation, width, streams, scale);
+    }
+}
+
+// stream_sum_q8_0_f32 is stream_sum_f32 that also writes its output as the
+// Q8_0 input of the product reading it, a block of 32 values a warp.
+extern "C" __global__ void stream_sum_q8_0_f32(
+        const float * gate,
+        const float * values,
+        float * output,
+        unsigned char * quantized,
+        unsigned int activation,
+        unsigned int width,
+        unsigned int streams,
+        float scale,
+        unsigned int count) {
+    const unsigned int block = blockIdx.x;
+    const unsigned int lane = threadIdx.x;
+    const unsigned int index = block * Q8_0_BLOCK_WIDTH + lane;
+    if (index >= count || lane >= Q8_0_BLOCK_WIDTH) {
+        return;
+    }
+    const float value = stream_sum_value(gate, values, index, activation, width, streams, scale);
+    output[index] = value;
+    store_q8_input_warp(quantized, block, value, lane);
+}
+
 extern "C" __global__ void gelu_f32(
         const float * input,
         float * output,

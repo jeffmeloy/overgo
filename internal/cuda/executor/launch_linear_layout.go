@@ -1081,6 +1081,50 @@ func launchActivatedGate(
 	return nil
 }
 
+// launchStreamSum writes each token's scaled sum of its streams, with the
+// activated gate folded in where the fusion has one, and its Q8_0 blocks
+// where a product reads them.
+func launchStreamSum(
+	state *device.State,
+	functions functionSet,
+	q8Input *q8InputState,
+	output *tensor.Tensor,
+	fusion streamSumFusion,
+	emitQ8 bool,
+	pointers launchPointerFrame,
+) error {
+	count, err := elementCount32(output.Shape)
+	if err != nil {
+		return err
+	}
+	width, streams := uint32(fusion.width), uint32(fusion.streams)
+	if uint64(width) != fusion.width || uint64(streams) != fusion.streams || uint64(count)*fusion.streams > math.MaxUint32 {
+		return errors.New("stream sum exceeds uint32 indexing")
+	}
+	var gate driver.DevicePtr
+	values, result := pointers.input(0), pointers.output()
+	if fusion.gate != nil {
+		gate, values = pointers.input(0), pointers.input(1)
+	}
+	kind, scale := uint32(fusion.kind), fusion.scale
+	if !emitQ8 {
+		return launch1DABI(state, functions[kernelStreamSumF32], count, &gate, &values, &result, &kind, &width, &streams, &scale, &count)
+	}
+	if q8Input == nil || q8Input.staging == 0 || uint64(count)%q8InputTraits.BlockSize != 0 {
+		return errors.New("stream-sum Q8 workspace is unavailable")
+	}
+	blocks, threads := count/uint32(q8InputTraits.BlockSize), uint32(q8InputTraits.BlockSize)
+	if err := launchGridABI(
+		state, functions[kernelStreamSumQ80F32],
+		kernel.Grid1D(int(blocks)), kernel.Grid1D(int(threads)),
+		&gate, &values, &result, &q8Input.staging, &kind, &width, &streams, &scale, &count,
+	); err != nil {
+		return err
+	}
+	q8Input.stagedNode = output
+	return nil
+}
+
 func launchWeightedRMSGate(
 	state *device.State,
 	functions functionSet,

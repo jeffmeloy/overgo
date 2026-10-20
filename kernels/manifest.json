@@ -64,7 +64,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "6f21b14b4b15958fb42279e935bdeda99342878e7fe5fef1d791b50926b57aac",
+      "sourceSha256": "bdf6af83f3523d0573976c9b84c11e24b3cb4def70b1455a9ae534c237b28371",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -72,7 +72,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "11e0e4d1d9f91c53ace31def210ff945e270a50e12ebd333d655c1d120e0b62d",
+      "assetSha256": "a23b93c4599abb7ca730a218f5ce6b15c24ad866720dec371ade30e329ae9a5d",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -268,6 +268,8 @@
         "sparse_attention_split_f32",
         "ssm_conv_f32",
         "ssm_scan_f32",
+        "stream_sum_f32",
+        "stream_sum_q8_0_f32",
         "strided_row_copy_f32",
         "sum_rows_f32",
         "tanh_f32",
@@ -895,7 +897,8 @@
             ".u32"
           ],
           "functions": [
-            "group_norm_f32"
+            "group_norm_f32",
+            "stream_sum_q8_0_f32"
           ]
         },
         {
@@ -1552,6 +1555,21 @@
           ],
           "functions": [
             "ssm_scan_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".f32",
+            ".u32"
+          ],
+          "functions": [
+            "stream_sum_f32"
           ]
         },
         {

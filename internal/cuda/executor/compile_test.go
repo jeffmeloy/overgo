@@ -617,6 +617,71 @@ func TestCompileKeepsBroadcastAddOutOfWeightedRMSNorm(t *testing.T) {
 	}
 }
 
+// streamMix builds a gated hyper-connection mix's reduction over streams
+// slices of width values of x: Scale(((p0 + p1) + p2) + p3, 1/streams), each
+// p_s a reshaped GroupSlice. It returns the scaled sum and the first add.
+func streamMix(builder *tensor.Builder, x *tensor.Tensor, width, streams uint64) (*tensor.Tensor, *tensor.Tensor) {
+	tokens := x.Shape.Dims[1]
+	var sum, first *tensor.Tensor
+	for stream := range streams {
+		part := builder.Reshape(builder.GroupSlice(x, stream*width, width, 1, width), width, tokens)
+		if sum == nil {
+			sum = part
+			continue
+		}
+		sum = builder.Add(sum, part)
+		if first == nil {
+			first = sum
+		}
+	}
+	return builder.Scale(sum, 1/float32(streams)), first
+}
+
+// TestCompileFusesStreamSum holds a mix's reduction to one stream-sum
+// fusion: of a gated x, the gate folded in and x skipped; of a plain x, x
+// read; and none where an add is itself an output.
+func TestCompileFusesStreamSum(t *testing.T) {
+	const width, streams, tokens = 8, 4, 2
+	builder := tensor.NewBuilder()
+	gate := builder.Input("gate", dtype.F32, tensor.MustShape(width*streams, tokens))
+	up := builder.Input("up", dtype.F32, gate.Shape)
+	gated := builder.Multiply(builder.Sigmoid(gate), up)
+	output, first := streamMix(builder, gated, width, streams)
+	compiled, err := Compile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	descriptor := compiled.nodes[compiled.orderIndexes[output]].fusion
+	if descriptor == nil || descriptor.kind != compiledFusionStreamSum {
+		t.Fatalf("stream-sum fusion = %+v", descriptor)
+	}
+	fusion := descriptor.streamSum
+	if fusion.gate != gate || fusion.values != up || fusion.kind != activatedGateSigmoid ||
+		fusion.width != width || fusion.streams != streams || fusion.scale != 1/float32(streams) {
+		t.Fatalf("stream-sum fusion = %+v", fusion)
+	}
+	for _, skipped := range []*tensor.Tensor{gated, first} {
+		if !compiled.nodes[compiled.orderIndexes[skipped]].skipped {
+			t.Fatalf("fused tensor %d was not skipped", skipped.ID)
+		}
+	}
+	plain := builder.Input("plain", dtype.F32, gate.Shape)
+	plainOutput, _ := streamMix(builder, plain, width, streams)
+	if compiled, err = Compile(plainOutput); err != nil {
+		t.Fatal(err)
+	}
+	if descriptor := compiled.nodes[compiled.orderIndexes[plainOutput]].fusion; descriptor == nil ||
+		descriptor.kind != compiledFusionStreamSum || descriptor.streamSum.gate != nil || descriptor.streamSum.values != plain {
+		t.Fatalf("plain stream-sum fusion = %+v", descriptor)
+	}
+	if compiled, err = Compile(output, first); err != nil {
+		t.Fatal(err)
+	}
+	if descriptor := compiled.nodes[compiled.orderIndexes[output]].fusion; descriptor != nil {
+		t.Fatalf("a reduction whose add is an output fused: %+v", descriptor)
+	}
+}
+
 func TestCompileFusesWeightedRMSNormAndActivatedGate(t *testing.T) {
 	const fixtureWidth = 8
 	builder := tensor.NewBuilder()

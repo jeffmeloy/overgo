@@ -201,6 +201,8 @@ const (
 	kernelSparseAttentionSplitF32
 	kernelSsmConvF32
 	kernelSsmScanF32
+	kernelStreamSumF32
+	kernelStreamSumQ80F32
 	kernelStridedRowCopyF32
 	kernelSumRowsF32
 	kernelTanhF32
@@ -428,6 +430,8 @@ var kernelFunctionNames = [...]string{
 	"sparse_attention_split_f32",
 	"ssm_conv_f32",
 	"ssm_scan_f32",
+	"stream_sum_f32",
+	"stream_sum_q8_0_f32",
 	"strided_row_copy_f32",
 	"sum_rows_f32",
 	"tanh_f32",
@@ -654,6 +658,8 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	18,
 	7,
 	14,
+	8,
+	9,
 	8,
 	4,
 	3,

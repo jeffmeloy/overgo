@@ -810,6 +810,7 @@ const (
 	compiledFusionBF16Attention
 	compiledFusionQ8ArgmaxPartials
 	compiledFusionQ8ArgmaxReduction
+	compiledFusionStreamSum
 )
 
 type compiledFusion struct {
@@ -830,6 +831,7 @@ type compiledFusion struct {
 	bf16Gate      bf16GateFusion
 	bf16ProjAdd   bf16ProjAddFusion
 	bf16Attention bf16AttentionFusion
+	streamSum     streamSumFusion
 }
 
 type dynamicAttributeSlot struct {
@@ -1841,6 +1843,8 @@ func launchCompiledFusion(
 		return "q8_argmax", launchQ8ArgmaxPartials(state, functions, q8Input, node, pointers)
 	case compiledFusionQ8ArgmaxReduction:
 		return "q8_argmax", launchQ8ArgmaxReduction(state, functions, fusion.peer, node, pointers)
+	case compiledFusionStreamSum:
+		return "stream_sum", launchStreamSum(state, functions, q8Input, node, fusion.streamSum, fusion.emitQ8, pointers)
 	default:
 		return "", errors.New("compiled CUDA fusion is invalid")
 	}

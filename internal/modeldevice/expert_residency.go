@@ -43,6 +43,10 @@ const (
 	// allocate outside the reservation hook, and a short request's scratch
 	// (Flash-Next's short chat holds under 1 GiB beyond weights and experts).
 	expertFillHeadroomBytes = 2 << 30
+	// expertRefillBytes: the card memory free beyond the headroom that moves
+	// experts in host memory to the card between runs, as when a load found
+	// the card held; memory a run frees for a moment moves none.
+	expertRefillBytes = 2 << 30
 )
 
 // expertDevice runs residency work where the residency's memory is usable:
@@ -96,6 +100,7 @@ type expertMemory interface {
 	read(ctx context.Context, destination []byte, source driver.DevicePtr) error
 	hostAlloc(ctx context.Context, size uint64) ([]byte, driver.DevicePtr, error)
 	hostFree(data []byte) error
+	available(ctx context.Context) (uint64, error)
 }
 
 // expertResidency keeps every expert of the file-backed banks readable by
@@ -117,8 +122,10 @@ type expertResidency struct {
 	routed            []byte
 	bytes, tableBytes uint64
 	step              uint64
-	// routes and cardRoutes are ExpertPlacement's counts.
-	routes, cardRoutes uint64
+	// routes, cardRoutes and loadCard are ExpertPlacement's counts.
+	routes, cardRoutes, loadCard uint64
+	// limit bounds the card bytes a refill reaches: the load's limit, or none where the load read it from free memory.
+	limit uint64
 }
 
 // newExpertResidency allocates the tables, the route flags and every
@@ -169,6 +176,7 @@ func newExpertResidency(ctx context.Context, file *gguf.File, infos []gguf.Tenso
 		clear(routed)
 		c.pinned, c.routedMap, c.routed = append(c.pinned, routed), mapped, routed
 		err = c.allocate(ctx, limit)
+		c.loadCard = uint64(len(c.entries))
 	}
 	if err != nil {
 		return nil, errors.Join(err, c.close())
@@ -256,12 +264,14 @@ func (c *expertResidency) place(ctx context.Context, onDevice expertDevice, bank
 //   - bytes are slot bytes, card memory and pinned host memory
 //   - Routes counts the experts the runs' routes named, a bank's expert once a run
 //   - CardRoutes counts those a run read on the card, and the rest it read over the PCIe link
+//   - LoadCardExperts counts the experts the load placed on the card, few when it found the card held
 //
 // A run's routes count when the next run starts, because the residency reads them only between runs.
 type ExpertPlacement struct {
 	CardExperts, HostExperts uint64
 	CardBytes, HostBytes     uint64
 	Routes, CardRoutes       uint64
+	LoadCardExperts          uint64
 }
 
 // IsExpertBank reports a bank whose experts are found through its table on the owning worker.
@@ -287,7 +297,7 @@ func (w *DeviceWeights) ExpertPlacement(state *device.State) (ExpertPlacement, e
 		return ExpertPlacement{}, errors.New("expert placement requires its owning worker")
 	}
 	c := w.experts
-	placement := ExpertPlacement{Routes: c.routes, CardRoutes: c.cardRoutes}
+	placement := ExpertPlacement{Routes: c.routes, CardRoutes: c.cardRoutes, LoadCardExperts: c.loadCard}
 	for _, class := range c.classes {
 		placement.CardExperts += uint64(class.order.Len())
 		placement.CardBytes += uint64(class.order.Len()) * class.stride
@@ -358,6 +368,9 @@ func (w *DeviceWeights) AdvanceExperts(ctx context.Context, state *device.State,
 
 // advance reads the flags the last run's routes set, which its synchronization made visible, and clears them for the next run.
 func (c *expertResidency) advance(ctx context.Context, prompt bool) error {
+	if err := c.refill(ctx); err != nil {
+		return errors.Join(err, c.publish(context.WithoutCancel(ctx)))
+	}
 	if bytes.IndexByte(c.routed, 1) < 0 {
 		// A table a failed publication left naming a moved expert's old slot is
 		// written before any run reads it; a failed write refuses the run.
@@ -398,21 +411,70 @@ func (c *expertResidency) advance(ctx context.Context, prompt bool) error {
 	return c.publish(ctx)
 }
 
+// refill moves experts in host memory to the card once expertRefillBytes
+// beyond the headroom is free, up to free memory less the headroom and
+// within the limit, bank by bank in one card allocation a bank. Memory
+// another process takes first ends the refill.
+func (c *expertResidency) refill(ctx context.Context) error {
+	free, err := c.mem.available(ctx)
+	if err != nil || free < expertFillHeadroomBytes+expertRefillBytes {
+		return err
+	}
+	budget := min(free-expertFillHeadroomBytes, c.limit-min(c.limit, c.bytes))
+	for _, bank := range c.ordered {
+		var count uint64
+		for _, host := range bank.hosted {
+			if host != nil {
+				count++
+			}
+		}
+		if count = min(count, budget/bank.stride); count == 0 {
+			continue
+		}
+		card, err := c.mem.alloc(ctx, count*bank.stride)
+		if driver.IsOutOfMemory(err) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		budget -= count * bank.stride
+		c.cards, c.bytes = append(c.cards, expertChunk{card, count * bank.stride, bank.stride}), c.bytes+count*bank.stride
+		for index := 0; count > 0; index++ {
+			if bank.hosted[index] != nil {
+				if err := c.move(ctx, expertKey{bank.info.Name, uint32(index)}, card); err != nil {
+					return err
+				}
+				card += driver.DevicePtr(bank.stride)
+				count--
+			}
+		}
+	}
+	return nil
+}
+
 // promote copies a host expert to the card slot of the card expert of its
 // stride the routes left longest unnamed; it stays in host memory when every
 // such card expert was routed this step.
 func (c *expertResidency) promote(ctx context.Context, key expertKey) error {
-	bank := c.banks[key.bank]
-	class := c.classes[bank.stride]
+	class := c.classes[c.banks[key.bank].stride]
 	victim := class.order.Front()
 	if err := ctx.Err(); err != nil || victim == nil || victim.Value.(*residentExpert).step == c.step {
 		return err
 	}
 	card, err := c.demote(ctx, victim)
-	if err == nil {
-		err = c.mem.write(ctx, card, bank.hosted[key.index][:bank.bytes])
-	}
 	if err != nil {
+		return err
+	}
+	return c.move(ctx, key, card)
+}
+
+// move copies a host expert to its card slot, whose table entry it becomes;
+// the host slot stays pinned for a later demotion.
+func (c *expertResidency) move(ctx context.Context, key expertKey, card driver.DevicePtr) error {
+	bank := c.banks[key.bank]
+	class := c.classes[bank.stride]
+	if err := c.mem.write(ctx, card, bank.hosted[key.index][:bank.bytes]); err != nil {
 		return err
 	}
 	class.free = append(class.free, expertSlot{bank.pointers[key.index], bank.hosted[key.index]})
@@ -596,3 +658,7 @@ func (m stateMemory) hostAlloc(ctx context.Context, size uint64) ([]byte, driver
 	return m.state.Driver.MemHostAlloc(size)
 }
 func (m stateMemory) hostFree(data []byte) error { return m.state.Driver.MemFreeHost(data) }
+func (m stateMemory) available(context.Context) (uint64, error) {
+	free, _, err := m.state.Driver.MemInfo()
+	return free, err
+}

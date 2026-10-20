@@ -38,7 +38,7 @@ func (generator *monitoredGenerator) setCard(card []driver.CardReading) {
 func testMonitoredGenerator() *monitoredGenerator {
 	memory := testDeviceMemory()
 	memory.Experts = &modeldevice.ExpertPlacement{
-		CardExperts: 1536, HostExperts: 6144, CardBytes: 6 * gibibyte, HostBytes: 24 * gibibyte, Routes: 4000, CardRoutes: 3000,
+		CardExperts: 1536, HostExperts: 6144, CardBytes: 6 * gibibyte, HostBytes: 24 * gibibyte, Routes: 4000, CardRoutes: 3000, LoadCardExperts: 512,
 	}
 	return &monitoredGenerator{
 		memoryOwnersGenerator: &memoryOwnersGenerator{
@@ -84,6 +84,7 @@ func TestMetricsReportDeviceAndExpertState(t *testing.T) {
 		"overgo_experts_host_bytes 25769803776",
 		"overgo_expert_routes_total 4000",
 		"overgo_expert_routes_card_total 3000",
+		"overgo_experts_load_card 512",
 		"overgo_card_utilization_percent 87",
 		"overgo_card_temperature_celsius 64",
 		"overgo_card_power_watts 312.5",

@@ -213,17 +213,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 542,
+        "nodes": 125,
         "reason": "125 left after attention (+330), top-k (+132), delta-net (+99) and expert groups (+491), and load-guard's measured +417 moved from expert-residency: long-prompt/residency carries that change"
       },
       "steps": [
-        {
-          "id": "residency",
-          "title": "Return the experts a long prompt moves off the card and size a prompt's memory to Strata's",
-          "status": "open",
-          "verify": "go test ./internal/modeldevice -count=1 -run '^TestExpertResidencyFillsTheCardWhenItFrees$'",
-          "rationale": "From the Strata bench run on 2026-10-19: Overgo's server ended with 17,014 of 73,728 expert matrices on the card (13.95 GB), where the probe of the same recipe holds 42,354 (32.8 GB); routes found on the card fell to 72%.\nA 20,605-token prompt asked for 46 GB beyond the weights (about 2.2 MB a token) and ran as two chunks; memory a prompt reserves moves experts to host memory (ReserveExpertMemory), and nothing returns them.\nStrata lends a prompt its coldest cache slots and copies them back after it (generate.cpp:11416-11427, 11823), and its prompt takes about 0.4 MB a token, the attention and expert halves sharing their scratch (prefill.cpp:974-978).\nThe step returns lent experts after the prompt and measures and cuts the per-token prompt memory.\nEvidence: the experts on the card after a long prompt, the per-token reservation, decode speed after a long prompt.\nServes: throughput after long prompts; first-output of prompts that now split.\nBatch: device.\n\nFrom the owner's direction of 2026-10-20: the lend-and-refill arena is a residency object for every routed-expert model, not for Flash-Next alone: every MoE model's long prompt makes room for its staging by moving experts off the card (15.7 GB copied back to host and 2,449 pinned allocations in a 20,605-token Flash-Next prompt), and every one decodes slower after. The step builds it in internal/modeldevice's expert residency, which all of them load through, and measures it on Flash-Next and on a second MoE model."
-        },
         {
           "id": "prompt-memory",
           "title": "Cut a long prompt's memory a token toward Strata's 0.4 MB",

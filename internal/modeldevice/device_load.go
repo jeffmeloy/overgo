@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"slices"
 	"sync"
 
@@ -263,7 +264,7 @@ func (r *loadRun) prepareExperts(ctx context.Context, file *gguf.File, experts *
 		}
 		limit := experts.limit
 		if limit == 0 {
-			free, _, err := state.Driver.MemInfo()
+			free, err := mem.available(ctx)
 			if err != nil {
 				return err
 			}
@@ -273,7 +274,7 @@ func (r *loadRun) prepareExperts(ctx context.Context, file *gguf.File, experts *
 		if err != nil {
 			return err
 		}
-		residency.state, r.experts = state, residency
+		residency.state, residency.limit, r.experts = state, cmp.Or(experts.limit, math.MaxUint64), residency
 		for _, routed := range r.segments {
 			for _, piece := range routed {
 				piece.bank = residency.banks[piece.info.Name]

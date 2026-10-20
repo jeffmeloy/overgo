@@ -942,8 +942,10 @@ func (h *Handler) metrics(response http.ResponseWriter, request *http.Request) {
 						"# TYPE overgo_experts_host_bytes gauge\novergo_experts_host_bytes %d\n"+
 						"# HELP overgo_expert_routes_total Experts the runs' routes named, a bank's expert once a run.\n"+
 						"# TYPE overgo_expert_routes_total counter\novergo_expert_routes_total %d\n"+
-						"# TYPE overgo_expert_routes_card_total counter\novergo_expert_routes_card_total %d\n",
-					experts.CardExperts, experts.HostExperts, experts.CardBytes, experts.HostBytes, experts.Routes, experts.CardRoutes)
+						"# TYPE overgo_expert_routes_card_total counter\novergo_expert_routes_card_total %d\n"+
+						"# HELP overgo_experts_load_card Experts the load placed on the card, few where it found the card held; more move there once memory frees.\n"+
+						"# TYPE overgo_experts_load_card gauge\novergo_experts_load_card %d\n",
+					experts.CardExperts, experts.HostExperts, experts.CardBytes, experts.HostBytes, experts.Routes, experts.CardRoutes, experts.LoadCardExperts)
 			}
 		}
 	}

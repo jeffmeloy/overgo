@@ -208,21 +208,42 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "hybrid-experts",
-      "title": "Compute a routed-expert model's host experts on the CPU beside the card's, as Strata does",
+      "id": "flashnext-decode",
+      "title": "Decode Flash-Next at the rate Strata reaches on this PC",
       "owner": "master-lead",
       "status": "open",
       "budget": {
         "nodes": 0,
-        "reason": "measured: hybrid-experts/hybrid-layer adds 2852 production syntax nodes (the IQ3_S and Q8_0 kernels, the exported pool and formats, and the executor's host-expert plan, gather, compute and placement)"
+        "reason": "each step's count is measured when it is built"
       },
       "steps": [
         {
-          "id": "copy-or-compute",
-          "title": "Copy a host expert to the card or compute it in place, by what it costs",
+          "id": "ngram-reads",
+          "title": "Read a token's n-gram rows together and keep the rows read, not one file read after another",
           "status": "open",
           "verify": "go run ./cmd/plan -status",
-          "rationale": "A host expert used by many tokens of a long prompt costs less copied (its bytes once over the link) than computed on the CPU (its tokens' work at the CPU's rate); one used by a few tokens costs less in place.\nThe step chooses per expert from its routed tokens and the two measured rates, as Strata's prefill does.\nEvidence: the bench's 4K and 16K prompts hold or improve beside its turns.\nServes: first-output across prompt sizes.\nBatch: device."
+          "rationale": "From a Go CPU profile and an Nsight trace of the short chat's decode on master 4edd2eba4 on 2026-10-20 (tmp/strata-decode's probe, 200 tokens, plain greedy).\nA token takes 16.9 ms: the card runs its graph for about 13 ms and waits about 3.7 ms while the host works.\ninference/ngram.go loads each token's n-gram embedding rows with model.LoadHostRows, one ReadAt of the GGUF file after another: 1.35 ms a token, and more where the file cache has not kept the table.\nStrata's ple_reader (src/ngram/ple_reader.cpp) submits a step's rows together from an I/O thread, up to 256 reads in flight, into a bounded set-associative cache of 1,048,576 rows; --ple-io ram locks the table in memory.\nThe step reads a step's rows concurrently and keeps a bounded cache of the rows read, in the host-row reader every host lookup table goes through (model.LoadHostRows, which training's embedding reads also use), on the decode and prompt paths both: a prompt reads a row for each of a token's offsets.\nEvidence: the probe's decode milliseconds a token and the bench's 4K and 16K first outputs, the generated ids identical.\nServes: throughput, and first-output of a prompt whose rows the file cache lacks.\nBatch: host."
+        },
+        {
+          "id": "quiet-residency",
+          "title": "Move decode's experts between host and card without stopping the card",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "From the same profile: expertResidency.advance takes 1.35 ms a token between graph runs. Each expert a decode token routes to host memory is promoted at once, by a synchronous copy to the card and a synchronous copy of the evicted expert back to a pinned slot, and then the tables are written.\nStrata's decode tier (src/program/generate.cpp, adapt_every 4, adapt_decay 0.7, adapt_min_gain 1.5) swaps every 4 windows, only where an expert's decayed route count is 1.5 times the one it evicts. It keeps every expert's bytes pinned in host memory, so an eviction copies nothing; this PC has 96 GB, and Flash-Next's experts take about 60 GB.\nThe step keeps an evicted expert's pinned host copy, so a demotion only changes the table. It queues promotions as asynchronous copies ordered before the next run's table write, and promotes by decayed route counts at Strata's cadence.\nEvidence: the probe's decode milliseconds a token and the card's share of routes before and after, the generated ids identical.\nServes: throughput of every routed-expert model larger than its card.\nBatch: device."
+        },
+        {
+          "id": "fewer-kernels",
+          "title": "Fuse the decode graph's chains of small elementwise kernels",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "From an Nsight trace with graph nodes of the same decode: 4,012 kernels a token. About 2,300 of them are elementwise kernels of about 1 us each: group_slice_f32 560 a token, add_f32 440, scale_f32 387, quantize_q8_0_input_f32 325, broadcast_multiply_f32 285, sigmoid_f32 181 and silu_f32 134. Together they take about 2.5 ms a token of kernel time, plus each node's launch gap in the graph.\nThe kernels doing the work take the rest of the card's 12.8 ms: dense Q8_0 products 4.8 ms, expert products 3.9 ms, the route 0.6 ms and the output head 0.6 ms.\nThe step finds the chains these small kernels come from (the delta-net's gates and slices, residual adds and scales, quantizing a product's input) and fuses each into the kernel that produces or reads its values, as a rewrite of the compiled graph that every model's decode uses.\nEvidence: kernels a token and the probe's decode milliseconds a token, a decode-graph device test holding each fused chain to the unfused one.\nServes: throughput of every model's decode.\nBatch: device."
+        },
+        {
+          "id": "decode-experts",
+          "title": "Compute a share of a decode token's host experts on the CPU while the card reads the rest",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "From the same trace: moe_hidden_dot_f32's median is 27 us a layer and its mean 51 us, and moe_down_dot_f32's 15 and 30 us. The tail is the experts the card reads over the link from host memory.\nStrata's decode (src/core/expert_source.cpp:3720-3776) sends the last pcie_frac of a window's missed experts, in routing order, over the link: 0.55 for native packs, refined from link / (link + 1.85 x the pool's rate) within [0.10, 0.60]. It computes the rest on the CPU pool at the same time.\nThe step reuses hybrid-layer's pool, formats and slot placement for a decode window. It splits the window's missed experts by the measured rates, the card's share read over the link as now, with the CPU's rows returned before the combine.\nEvidence: the probe's decode milliseconds a token after quiet-residency, with the generated ids held to the card path's over the bench's short chat.\nServes: throughput of every routed-expert model larger than its card.\nBatch: device."
         }
       ]
     },
@@ -242,6 +263,32 @@
           "status": "open",
           "verify": "go run ./cmd/plan -status",
           "rationale": "From Strata's frozen bench re-run on master on 2026-10-20 (long-prompt/bench), against Strata's baseline-20261016 on this PC.\nA fresh 4K prompt's first token takes 3.43 s at 1,204 tokens a second (Strata 2.21 s, 1,837) and a fresh 16K prompt's 13.1 s at 1,249 (Strata 5.01 s, 3,229); the first prompt of each size took 5.96 and 23.7 s, after the short chat's answers.\nThe steps above took the 20,605-token prompt from 714.8 s to about 19.5 s; Nsight at 20,605 tokens before attention-mma gave grouped expert products about 3.4 s, delta-net about 2 s, the router about 1 s and host-to-device copies about 4.5 s, with stream waits between.\nThe step profiles the 16K prompt on master (nsys, cuda_gpu_kern_sum and cuda_gpu_mem_time_sum), cuts the largest remaining cost, and finds why a size's first prompt is slower (residency refill after the chat, or a lazy allocation).\nEvidence: the bench's 4K and 16K medians, and Flash-Next's 4K and 16K scorecard cells.\nServes: first-output of Flash-Next prompts past 2,048 tokens.\nBatch: device.\n\nProfiled on master on 2026-10-20 (Nsight, the 20,605-token prompt, warm 18.9 s, cold 21.8 s with the file cache warm and 42.1 s without it): kernels 13.84 s, expert copies 4.18 s (54 GB) with none beside a kernel, grouped expert products 3.32 + 0.98 s, sparse attention 2.09 s, delta-net 2.07 s, router 1.09 s. long-prompt/router-flush takes the copies' submission and the router (16.4 s); what remains is the products, delta-net and attention on tensor cores, the copies that still wait (2.7 s), and the cold prompt's reads of the model file (Strata keeps every expert in one pinned arena from the load)."
+        }
+      ]
+    },
+    {
+      "id": "sqa-repairs",
+      "title": "Repair the confirmed defects SQA found in agent-thread recovery and store deltas",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 0,
+        "reason": "each step's count is measured when it is built"
+      },
+      "steps": [
+        {
+          "id": "agent-thread",
+          "title": "Bound an agent thread's read by its exact session's entries, not its name's prefix",
+          "status": "open",
+          "verify": "go test ./internal/server -count=1 -run '^TestAgentThreadSurvivesRestart$'",
+          "rationale": "SQA-171 (P2, confirmed defect, 2026-10-20, at 38879a6e1): agentThread (internal/server/agent_session_recovery.go) queries interaction documents under \u003cagent\u003e:\u003csession\u003e- with MaxStoredResponses and discards, in its visitor, names that only extend the session. VisitDocuments applies its cap before the visitor, so older turns of an extending session (s1-2 before s1) use up the bound and a reload restores part or none of the thread. The browser (webui/composer.js restoreAgentThread) takes the entries as the whole history and ignores Truncated.\nThe step follows the existing conversations paging (workspace_conversations.go) over VisitDecodedDocuments until the bound's worth of exact-session entries are read or the input ends, with the stale-cursor refusal and cancellation kept. The response says where the target thread itself is truncated, and the browser does not take a partial history as complete.\nTestAgentThreadSurvivesRestart gains extending-session entries before and between the target's, a lower bound, and an overflowing target, on its existing fixture.\nServes: failure-rate of agent sessions resumed after a reload.\nBatch: host."
+        },
+        {
+          "id": "release-deltas",
+          "title": "Return the resync directive when a head-bound delta crosses a content release",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -count=1 -run '^Test(ReleaseKeepsChainAuthority|HeadBoundDeltaReconciliation)$'",
+          "rationale": "SQA-173 (P2, confirmed defect, 2026-10-20, at 38879a6e1): Store.DeltasSince (internal/overgodb/head_bound_delta.go) copies a walked commit's artifacts, contents, aliases and lineage and advances the head without looking at its Releases. A peer at the head before a release is then told it has reconciled (resync false) while the released bytes are gone.\nThe step returns the existing empty delta with resync true when a walked commit holds Releases, before crediting any part of the window. Ordinary windows, continuation, cancellation and divergence keep their behaviour.\nTestReleaseKeepsChainAuthority gains the one-commit delta from its captured pre-release head, before and after reopening, on its existing fixture.\nServes: failure-rate of store peers reconciling across a release.\nBatch: host."
         }
       ]
     },
@@ -551,7 +598,8 @@
             "hybrid-plan/do",
             "cpu-dots-terms/do",
             "cpu-pool-terms/do",
-            "hybrid-layer-terms/do"
+            "hybrid-layer-terms/do",
+            "decode-plan/do"
           ]
         }
       ]

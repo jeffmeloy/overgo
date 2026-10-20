@@ -213,15 +213,15 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "measured: long-prompt/kernel-audit-attention adds 108 production syntax nodes (the grouped SAM attention launch)"
+        "nodes": 1733,
+        "reason": "measured: long-prompt/length-cells adds 1733 production syntax nodes (the measurement's longer prompts, the scorecard's length cells, their judging, history, table and page)"
       },
       "steps": [
         {
           "id": "length-cells",
           "title": "Time every chat model's first output at about 4K and 16K prompt tokens on the scorecard",
           "status": "open",
-          "verify": "go run ./cmd/plan -status",
+          "verify": "go test ./internal/scorecard ./cmd/recipe ./cmd/validate -run '^(TestALongerPromptIsTimedAsItsLengthAlone|TestInferenceMeasurementReadsLongerPrompts|TestALongerPromptsFirstOutputIsPrintedBesideTheRows)$'",
           "rationale": "From the owner's direction of 2026-10-20 (general objects for every model) and the long-prompt row's finding.\nThe scorecard times each chat model's first output at one short prompt (Flash-Next's 1,561-token document), so the 18 times slower token past 2,048 tokens stayed unseen until Strata's 4K and 16K bench ran.\nThe step adds long-prompt first-output cells, a fresh prompt of about 4K and 16K tokens within each model's context, to every inference model's scorecard measurement, with Strata's word-list prompts so Flash-Next's cells compare with Strata's baseline directly.\nEvidence: the cells on the next measurement run for every inference model the scorecard holds.\nServes: first-output measurement for every chat model; finds length cliffs where they are.\nBatch: device."
         },
         {
@@ -514,7 +514,8 @@
             "plan-prompt-memory-count/do",
             "plan-attention-mma-count/do",
             "plan-kernel-audit/do",
-            "plan-sam-attention/do"
+            "plan-sam-attention/do",
+            "length-cells-terms/do"
           ]
         }
       ]

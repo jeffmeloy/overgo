@@ -213,8 +213,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "measured: sqa-repairs/own-findings adds 62 production syntax nodes (the staging budget counted over every staged and staging copy)"
+        "nodes": 131,
+        "reason": "measured: sqa-repairs/agent-thread adds 96 production syntax nodes (the paged read and its truncation); release-deltas is SQA-173's estimate of 15 to 35"
       },
       "steps": [
         {
@@ -586,7 +586,8 @@
             "hyper-norms-terms/do",
             "hyper-norms-terms2/do",
             "own-findings-plan/do",
-            "own-findings-terms/do"
+            "own-findings-terms/do",
+            "agent-thread-terms/do"
           ]
         }
       ]

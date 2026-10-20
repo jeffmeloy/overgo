@@ -208,21 +208,38 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "agent-turns",
-      "title": "Answer Flash-Next's agent turns at the speed Strata reaches on this PC",
+      "id": "hybrid-experts",
+      "title": "Compute a routed-expert model's host experts on the CPU beside the card's, as Strata does",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "measured: agent-turns/tool-decode adds 28 production syntax nodes (the sampler's greedy scan past a grammar)"
-      },
       "steps": [
         {
-          "id": "turn-prefill",
-          "title": "Read an agent turn's new tokens at the fresh prompt's rate",
+          "id": "cpu-dots",
+          "title": "Compute IQ4_XS and IQ4_NL expert rows on the CPU against quantized activations",
           "status": "open",
           "verify": "go run ./cmd/plan -status",
-          "rationale": "From Strata's frozen bench re-run on master on 2026-10-20 (long-prompt/bench), against Strata's baseline-20261016 on this PC.\nA follow-up turn's first token takes 4.34 s (Strata 2.27 s) for about 1,500 to 3,400 new tokens after a 68.9 % cache hit (Strata 68.8 %), so the turn reads its new tokens at about 680 tokens a second where a fresh 4K prompt is read at 1,204; the first turn, 645 tokens with the tools, takes 2.63 s (Strata 0.80).\nThe step profiles a follow-up turn and the first turn, and removes what the cached prefix and the tools' template cost beyond reading the new tokens.\nEvidence: the bench's agent first-token medians.\nServes: first-output of every agent client's turns.\nBatch: device."
+          "rationale": "From agent-turns/turn-prefill's measurements on master, 2026-10-20, and Strata's design (docs/HOW_IT_WORKS.md: every expert pinned in RAM, the CPU computing those the card lacks in place, beside the card).\nFlash-Next's card holds 52,106 of its 73,728 expert matrices (42.1 GB), 21,622 in host memory (17.5 GB); every other use of the card is about 7.5 GB, so no reservation is there to reclaim.\nA 930-token prompt takes 1.60 s warm, 1.02 s of it copying 13.4 GB of host experts to the card at the link's rate; Strata answers the bench's 609-token first turn in 0.80 s and its follow-up turns in 2.27 s, where overgo takes 2.32 and 3.76 s: no copy over the link reaches that, a computation in host memory does.\nIn decode a token's host experts are about 350 MB, 27 ms over the link and about 4 ms read from host memory.\nThe step ports Strata's AVX-2 i-quant expert kernels (src/kernels/cpu/iq_avx2.cpp: iq256_gu_rows, iq256_rows, iq4nl256_down_rows, q8k_quant_avx2, with the AVX-VNNI variant) to Go assembly with a scalar Go formula beside them, each held to ggml's formula by tests over random blocks, and measures their rate on the 9950X's cores.\nServes: the hybrid execution the steps below build.\nBatch: host."
+        },
+        {
+          "id": "cpu-pool",
+          "title": "Spread an expert layer's host rows across the CPU's cores",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "Strata's pool (src/kernels/cpu/pool.cpp) keeps a worker on each physical core and hands each a span of an expert's rows, so one layer's host experts finish in the time one core takes for its share.\nThe step builds that pool over cpu-dots' kernels: a worker a physical core, an expert layer's (expert, row span) tasks shared out, held by tests to the serial result.\nServes: the hybrid execution below.\nBatch: host."
+        },
+        {
+          "id": "hybrid-layer",
+          "title": "Compute a layer's host experts on the CPU while the card computes its own",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "The routed-expert launch copies every host expert a prompt group routes to the card (moe_matrix.go) and decode reads them over the link.\nThe step routes on the card as now, brings the routes and the routed rows' activations to host memory, computes the host experts' rows on the pool into pinned output while the card computes its own, and folds both in the combine.\nEvidence: the bench's first and follow-up turns and decode, the answers held against the copy path by top log-probabilities.\nServes: first-output and throughput of every routed-expert model larger than its card.\nBatch: device."
+        },
+        {
+          "id": "copy-or-compute",
+          "title": "Copy a host expert to the card or compute it in place, by what it costs",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "A host expert used by many tokens of a long prompt costs less copied (its bytes once over the link) than computed on the CPU (its tokens' work at the CPU's rate); one used by a few tokens costs less in place.\nThe step chooses per expert from its routed tokens and the two measured rates, as Strata's prefill does.\nEvidence: the bench's 4K and 16K prompts hold or improve beside its turns.\nServes: first-output across prompt sizes.\nBatch: device."
         }
       ]
     },
@@ -547,7 +564,8 @@
             "router-flush-terms/do",
             "stream-complete-terms/do",
             "sparse-decode-terms/do",
-            "tool-decode-terms/do"
+            "tool-decode-terms/do",
+            "hybrid-plan/do"
           ]
         }
       ]

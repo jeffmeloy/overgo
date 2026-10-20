@@ -64,7 +64,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "952347ba76dc390ff1fd2bf39bb31cdae5290058773fe17b1565333789565cba",
+      "sourceSha256": "fc20bcf9ad985e8674116419333440f54689992c6bc5d78aeeecd8996ef2fd18",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -72,7 +72,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "276fe251267bc50d2e3b65a70ccefae26795a75ab42df168d350b90a8ccbd2c6",
+      "assetSha256": "a37ba835048b18f103436407f657351ee059f126786e47c688aabf5e84d623ce",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -162,6 +162,7 @@
         "get_rows_tq1_0_f32",
         "get_rows_tq2_0_f32",
         "group_norm_f32",
+        "group_norm_grouped_f32",
         "group_norm_input_backward_f32",
         "group_norm_parameter_backward_f32",
         "group_slice_f32",
@@ -891,6 +892,21 @@
           ],
           "functions": [
             "group_norm_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".f32"
+          ],
+          "functions": [
+            "group_norm_grouped_f32"
           ]
         },
         {

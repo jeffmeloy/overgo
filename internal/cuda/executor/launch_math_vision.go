@@ -11,6 +11,9 @@ import (
 	"overgo/internal/tensor"
 )
 
+// groupNormGroupedThreads: the block that normalizes one group's values.
+const groupNormGroupedThreads = uint32(256)
+
 func launchMathVision(
 	state *device.State,
 	functions functionSet,
@@ -225,6 +228,14 @@ func launchMathVision(
 		tokens := uint32(node.Shape.Dims[1])
 		groups := attributes.Groups
 		epsilon := attributes.Epsilon
+		// A block a group sums the group's statistics once.
+		if groups > 0 && channels%groups == 0 && uint64(count) == uint64(channels)*uint64(tokens) {
+			return launchGridABI(
+				state, functions[kernelGroupNormGroupedF32],
+				driver.Dim3{X: groups, Y: 1, Z: 1}, driver.Dim3{X: groupNormGroupedThreads, Y: 1, Z: 1},
+				&input, &weight, &bias, &output, &channels, &tokens, &groups, &epsilon,
+			)
+		}
 		return launch1DABI(
 			state, functions[kernelGroupNormF32], count,
 			&input, &weight, &bias, &output, &channels, &tokens, &groups, &epsilon, &count,

@@ -74,7 +74,7 @@ The preamble's row is the plan's step shape-reading/launch-checks, and TestNoLau
 == switches ==
 family: internal/tensor.Op
 switches: 10
-lines: 1622
+lines: 1630
 functions: 10
 packages: 4
 constants: 66
@@ -108,7 +108,7 @@ row: the entry of each operation, while mul_mat's choice by element type is a de
 table: yes
 
 switch: internal/cuda/executor/launch_math_vision.go#launchMathVision
-lines: 216
+lines: 224
 constants: 27
 clauses: 16
 dispatch-lines: 19

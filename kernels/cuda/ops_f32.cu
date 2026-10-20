@@ -1383,6 +1383,56 @@ extern "C" __global__ void group_norm_f32(
 	output[index] = normalized * weight[channel] + bias[channel];
 }
 
+// group_norm_grouped_f32 computes group_norm_f32's outputs with a block a
+// group: its first thread sums the group's mean and variance once, in
+// group_norm_f32's order, and the block normalizes the group's values,
+// where group_norm_f32 summed the whole group again for every value.
+extern "C" __global__ void group_norm_grouped_f32(
+		const float * input,
+		const float * weight,
+		const float * bias,
+		float * output,
+		unsigned int channels,
+		unsigned int tokens,
+		unsigned int groups,
+		float epsilon) {
+	__shared__ float statistics[2];
+	const unsigned int group = blockIdx.x;
+	if (group >= groups) {
+		return;
+	}
+	const unsigned int channels_per_group = channels / groups;
+	const unsigned int first_channel = group * channels_per_group;
+	const unsigned int values_per_group = channels_per_group * tokens;
+	if (threadIdx.x == 0) {
+		float mean = 0.0f;
+		for (unsigned int token = 0; token < tokens; ++token) {
+			for (unsigned int item = 0; item < channels_per_group; ++item) {
+				mean += input[token * channels + first_channel + item];
+			}
+		}
+		mean /= (float) values_per_group;
+		float variance = 0.0f;
+		for (unsigned int token = 0; token < tokens; ++token) {
+			for (unsigned int item = 0; item < channels_per_group; ++item) {
+				const float delta = input[token * channels + first_channel + item] - mean;
+				variance += delta * delta;
+			}
+		}
+		statistics[0] = mean;
+		statistics[1] = variance;
+	}
+	__syncthreads();
+	const float mean = statistics[0];
+	const float variance = statistics[1];
+	for (unsigned int item = threadIdx.x; item < values_per_group; item += blockDim.x) {
+		const unsigned int index = (item / channels_per_group) * channels + first_channel + item % channels_per_group;
+		const unsigned int channel = index % channels;
+		const float normalized = (input[index] - mean) * rsqrtf(variance / (float) values_per_group + epsilon);
+		output[index] = normalized * weight[channel] + bias[channel];
+	}
+}
+
 extern "C" __global__ void conv_2d_input_backward_f32(
 		const float * weight,
 		const float * incoming,

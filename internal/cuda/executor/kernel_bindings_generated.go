@@ -95,6 +95,7 @@ const (
 	kernelGetRowsTq10F32
 	kernelGetRowsTq20F32
 	kernelGroupNormF32
+	kernelGroupNormGroupedF32
 	kernelGroupNormInputBackwardF32
 	kernelGroupNormParameterBackwardF32
 	kernelGroupSliceF32
@@ -318,6 +319,7 @@ var kernelFunctionNames = [...]string{
 	"get_rows_tq1_0_f32",
 	"get_rows_tq2_0_f32",
 	"group_norm_f32",
+	"group_norm_grouped_f32",
 	"group_norm_input_backward_f32",
 	"group_norm_parameter_backward_f32",
 	"group_slice_f32",
@@ -540,6 +542,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	5,
 	5,
 	9,
+	8,
 	10,
 	10,
 	8,

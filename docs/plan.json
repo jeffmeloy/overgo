@@ -213,17 +213,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 80,
+        "nodes": 0,
         "reason": "measured: long-prompt/kernel-audit adds 80 production syntax nodes (the grouped group-norm launch)"
       },
       "steps": [
-        {
-          "id": "kernel-audit",
-          "title": "Rewrite every kernel whose output element recomputes a reduction its row shares, where models reach it",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestExecutorAudioConvolutionPrimitivesMatchReference$'",
-          "rationale": "From the owner's direction of 2026-10-20: the Strata effort's point is durable lessons and general code objects that every model uses, applied throughout for speed and memory.\nThe long-prompt row found sparse_attention_f32 spending 94.8% of a 2,625-token prompt because each thread computed one output channel and recomputed the row's whole dot product and softmax for it, 512 times the work; the grouped kernel that replaced it is bit-identical and 9 to 12 times faster across the sweep.\nOther kernels launch a thread per output element over a shared reduction the same way: attention_f32 (the attention fallback), indexer_score_f32 (a thread per query and key, looping over heads), and the per-row routed-expert fallbacks among them.\nThe step lists every kernel whose output element recomputes a reduction its row shares (a scan of kernels/cuda/ops_f32.cu), records for each the models and request shapes that reach it (the operation's launch conditions), measures the reached ones on those models, and rewrites the costly ones as the grouped attention was: the shared reduction once, the same operations and order, bits held against the old kernel.\nEvidence: the list with each kernel's reach, and before-and-after times on the models that reach the rewritten ones.\nServes: first-output and throughput of every model whose paths reach such a kernel.\nBatch: device."
-        },
         {
           "id": "kernel-audit-attention",
           "title": "Compute SAM attention's scores once a head, as the grouped sparse attention does",

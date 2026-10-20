@@ -221,7 +221,7 @@
           "id": "prompt-memory",
           "title": "Cut a long prompt's memory a token toward Strata's 0.4 MB",
           "status": "open",
-          "verify": "go run ./cmd/plan -status",
+          "verify": "go test ./internal/cuda/executor -count=1 -run '^TestRetainedSmallViewCopiesOutOfItsSource$'",
           "rationale": "From a residency measurement on master 1b8a1c3bb's server on 2026-10-20: one 10,673-token Flash-Next prompt moved 27,128 of the card's 52,106 expert matrices (22 GB) to host memory to make room, copying 24 GB back across the link, and a 20,605-token prompt asked for 46 GB beyond the weights and ran as two chunks: about 2.2 MB a prompt token.\nStrata reads an 8,192-token chunk in 4.55 GiB borrowed from its cache's coldest slots, about 0.4 MB a token, its attention and expert halves sharing one scratch region (prefill.cpp:974-978).\nThe step measures which tensors a long prompt's graph holds at its peak (the executor's memory plan for the prefill graph), and cuts the per-token memory by sharing the halves' scratch and freeing each layer's intermediates as Strata's walk does, so a long prompt moves fewer experts and runs as fewer chunks; it serves every model's long prompts, not Flash-Next's alone.\nEvidence: the per-token reservation before and after, the experts a 10,673-token prompt moves, the chunks of a 20,605-token prompt, and its time.\nServes: first-output for long prompts; peak-device-memory; throughput after a long prompt.\nBatch: device."
         },
         {
@@ -533,7 +533,8 @@
             "plan-long-prompt-owner/do",
             "plan-long-prompt-general/do",
             "plan-fold-overlap/do",
-            "plan-fold-loadguard/do"
+            "plan-fold-loadguard/do",
+            "plan-prompt-memory-check/do"
           ]
         }
       ]

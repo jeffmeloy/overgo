@@ -213,15 +213,15 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "measured: flashnext-decode/ngram-reads adds 1157 production syntax nodes (the host-row reader's handles, concurrent reads and row cache, less the serial loader it replaces)"
+        "nodes": 1550,
+        "reason": "measured: flashnext-decode/quiet-residency adds 1550 production syntax nodes (staging, landing and promotion beside the runs on the residency's copy stream, and the driver's asynchronous copy to host memory)"
       },
       "steps": [
         {
           "id": "quiet-residency",
           "title": "Move decode's experts between host and card without stopping the card",
           "status": "open",
-          "verify": "go run ./cmd/plan -status",
+          "verify": "go test ./internal/modeldevice -count=1 -run '^TestFlashNextExpertResidency$' \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/modeldevice -count=1 -run '^TestExpertPromotionsCopyBesideTheRunsOnTheCard$'",
           "rationale": "From the same profile: expertResidency.advance takes 1.35 ms a token between graph runs. Each expert a decode token routes to host memory is promoted at once, by a synchronous copy to the card and a synchronous copy of the evicted expert back to a pinned slot, and then the tables are written.\nStrata's decode tier (src/program/generate.cpp, adapt_every 4, adapt_decay 0.7, adapt_min_gain 1.5) swaps every 4 windows, only where an expert's decayed route count is 1.5 times the one it evicts. It keeps every expert's bytes pinned in host memory, so an eviction copies nothing; this PC has 96 GB, and Flash-Next's experts take about 60 GB.\nThe step keeps an evicted expert's pinned host copy, so a demotion only changes the table. It queues promotions as asynchronous copies ordered before the next run's table write, and promotes by decayed route counts at Strata's cadence.\nEvidence: the probe's decode milliseconds a token and the card's share of routes before and after, the generated ids identical.\nServes: throughput of every routed-expert model larger than its card.\nBatch: device."
         },
         {
@@ -593,7 +593,8 @@
             "cpu-pool-terms/do",
             "hybrid-layer-terms/do",
             "decode-plan/do",
-            "ngram-reads-terms/do"
+            "ngram-reads-terms/do",
+            "quiet-residency-terms/do"
           ]
         }
       ]

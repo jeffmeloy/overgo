@@ -255,6 +255,9 @@ func parseOptions(args []string) (options, error) {
 }
 
 func run(args []string) error {
+	if len(args) != 0 && args[0] == "strata" {
+		return runStrata(args[1:], os.Stdout)
+	}
 	options, err := parseOptions(args)
 	if err != nil {
 		return err

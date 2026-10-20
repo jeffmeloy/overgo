@@ -47,6 +47,17 @@ const (
 	// experts in host memory to the card between runs, as when a load found
 	// the card held; memory a run frees for a moment moves none.
 	expertRefillBytes = 2 << 30
+	// expertStagedVictims: the coldest card experts of a stride kept copied to
+	// pinned host memory ahead of need, so a promotion displaces one with no
+	// copy back. Flash-Next's short chat promotes about five experts a token.
+	expertStagedVictims = 32
+	// expertVictimSearch: the coldest card experts of a stride a promotion looks
+	// through for a staged one, those staged and those the routes named since.
+	expertVictimSearch = 2 * expertStagedVictims
+	// expertStreamNonBlocking is CU_STREAM_NON_BLOCKING: the residency's
+	// copies run beside the synchronous writes of the legacy stream, which
+	// would otherwise wait for them.
+	expertStreamNonBlocking = 1
 )
 
 // expertDevice runs residency work where the residency's memory is usable:
@@ -88,6 +99,14 @@ type expertSlot struct {
 	host   []byte
 }
 
+// expertMove is a copy of an expert in flight: to its card slot card from
+// its host slot, or from the card into its host slot.
+type expertMove struct {
+	key  expertKey
+	card driver.DevicePtr
+	slot expertSlot
+}
+
 // expertChunk is one card allocation of slots of one stride.
 type expertChunk struct {
 	pointer       driver.DevicePtr
@@ -101,6 +120,14 @@ type expertMemory interface {
 	hostAlloc(ctx context.Context, size uint64) ([]byte, driver.DevicePtr, error)
 	hostFree(data []byte) error
 	available(ctx context.Context) (uint64, error)
+	// newStream makes a stream that copies beside the runs, and dropStream ends it.
+	newStream(ctx context.Context) (driver.Stream, error)
+	dropStream(stream driver.Stream) error
+	// copyToCard and copyToHost queue a copy on stream of pinned host bytes to the card and of card bytes to pinned
+	// host memory; copied reports whether every copy queued on stream has landed, waiting for them where wait is set.
+	copyToCard(ctx context.Context, stream driver.Stream, destination driver.DevicePtr, source []byte) error
+	copyToHost(ctx context.Context, stream driver.Stream, destination []byte, source driver.DevicePtr) error
+	copied(ctx context.Context, stream driver.Stream, wait bool) (bool, error)
 }
 
 // expertResidency keeps every expert of the file-backed banks readable by
@@ -126,6 +153,14 @@ type expertResidency struct {
 	routes, cardRoutes, loadCard uint64
 	// limit bounds the card bytes a refill reaches: the load's limit, or none where the load read it from free memory.
 	limit uint64
+	// copies is the stream the residency copies on beside the runs. promoting are the promotions whose copies to
+	// the card are in flight and staging the copies of card experts to host memory in flight, moving the experts
+	// of either, and staged the card experts whose copy in host memory has landed.
+	copies    driver.Stream
+	promoting []expertMove
+	staging   []expertMove
+	moving    map[expertKey]bool
+	staged    map[expertKey]expertSlot
 }
 
 // newExpertResidency allocates the tables, the route flags and every
@@ -135,7 +170,8 @@ type expertResidency struct {
 // publishes.
 func newExpertResidency(ctx context.Context, file *gguf.File, infos []gguf.TensorInfo, limit uint64, mem expertMemory) (*expertResidency, error) {
 	c := &expertResidency{mem: mem, banks: make(map[string]*expertBank),
-		entries: make(map[expertKey]*list.Element), classes: make(map[uint64]*expertClass)}
+		entries: make(map[expertKey]*list.Element), classes: make(map[uint64]*expertClass),
+		moving: make(map[expertKey]bool), staged: make(map[expertKey]expertSlot)}
 	// Each table entry is a CUDA device address, whose ABI is uint64.
 	const pointerBytes = uint64(unsafe.Sizeof(driver.DevicePtr(0)))
 	var flags uint64
@@ -367,7 +403,11 @@ func (w *DeviceWeights) AdvanceExperts(ctx context.Context, state *device.State,
 }
 
 // advance reads the flags the last run's routes set, which its synchronization made visible, and clears them for the next run.
+// The copies an earlier advance queued apply once they have landed, and the coldest card experts are staged for the next.
 func (c *expertResidency) advance(ctx context.Context, prompt bool) error {
+	if err := c.land(ctx, false); err != nil {
+		return errors.Join(err, c.publish(context.WithoutCancel(ctx)))
+	}
 	if err := c.refill(ctx); err != nil {
 		return errors.Join(err, c.publish(context.WithoutCancel(ctx)))
 	}
@@ -394,8 +434,14 @@ func (c *expertResidency) advance(ctx context.Context, prompt bool) error {
 				if entry := c.entries[key]; entry != nil {
 					c.cardRoutes++
 					entry.Value.(*residentExpert).step = c.step
-					c.classes[bank.stride].order.MoveToBack(entry)
-				} else if !prompt {
+					class := c.classes[bank.stride]
+					class.order.MoveToBack(entry)
+					// An expert the routes name is no victim; its staged copy's slot serves another.
+					if slot, staged := c.staged[key]; staged {
+						delete(c.staged, key)
+						class.free = append(class.free, slot)
+					}
+				} else if !prompt && !c.moving[key] {
 					missed = append(missed, key)
 				}
 			}
@@ -408,7 +454,92 @@ func (c *expertResidency) advance(ctx context.Context, prompt bool) error {
 			return errors.Join(err, c.publish(context.WithoutCancel(ctx)))
 		}
 	}
-	return c.publish(ctx)
+	if err := c.publish(ctx); err != nil || len(missed) == 0 {
+		return err
+	}
+	return c.stage(ctx)
+}
+
+// land applies the copies the residency queued once they have landed,
+// waiting for them where wait is set: a promoted expert takes its card slot
+// and frees its host slot, and a staged copy is kept while its expert is on
+// the card.
+func (c *expertResidency) land(ctx context.Context, wait bool) error {
+	if len(c.promoting) == 0 && len(c.staging) == 0 {
+		return nil
+	}
+	done, err := c.mem.copied(ctx, c.copies, wait)
+	if err != nil || !done {
+		return err
+	}
+	for _, move := range c.promoting {
+		bank := c.banks[move.key.bank]
+		class := c.classes[bank.stride]
+		bank.pointers[move.key.index], bank.hosted[move.key.index], bank.changed = move.card, nil, true
+		class.free = append(class.free, move.slot)
+		c.entries[move.key] = class.order.PushBack(&residentExpert{key: move.key, step: c.step})
+		delete(c.moving, move.key)
+	}
+	for _, move := range c.staging {
+		delete(c.moving, move.key)
+		if c.entries[move.key] != nil {
+			c.staged[move.key] = move.slot
+		} else {
+			class := c.classes[c.banks[move.key.bank].stride]
+			class.free = append(class.free, move.slot)
+		}
+	}
+	c.promoting, c.staging = c.promoting[:0], c.staging[:0]
+	return nil
+}
+
+// stage copies the coldest card experts of each stride, those the routes
+// left unnamed longest and not this step, to pinned host memory beside the
+// next run, until expertStagedVictims of the stride are staged or staging.
+func (c *expertResidency) stage(ctx context.Context) error {
+	for _, class := range c.classes {
+		count := 0
+		for entry := class.order.Front(); entry != nil && count < expertStagedVictims; entry = entry.Next() {
+			resident := entry.Value.(*residentExpert)
+			if resident.step == c.step {
+				break
+			}
+			count++
+			if _, staged := c.staged[resident.key]; staged || c.moving[resident.key] {
+				continue
+			}
+			if err := c.stream(ctx); err != nil {
+				return err
+			}
+			slot, err := c.hostSlot(ctx, class)
+			if err != nil {
+				return err
+			}
+			bank := c.banks[resident.key.bank]
+			if err := c.mem.copyToHost(ctx, c.copies, slot.host[:bank.bytes], bank.pointers[resident.key.index]); err != nil {
+				class.free = append(class.free, slot)
+				return err
+			}
+			c.staging = append(c.staging, expertMove{key: resident.key, slot: slot})
+			c.moving[resident.key] = true
+		}
+	}
+	if len(c.staging) == 0 && len(c.promoting) == 0 {
+		return nil
+	}
+	// Asking after the copies submits them, which the driver may otherwise hold until the next run's wait.
+	_, err := c.mem.copied(ctx, c.copies, false)
+	return err
+}
+
+// stream makes the stream the residency copies on, once.
+func (c *expertResidency) stream(ctx context.Context) error {
+	if c.copies != 0 {
+		return nil
+	}
+	stream, err := c.mem.newStream(ctx)
+	c.copies = stream
+	return err
 }
 
 // refill moves experts in host memory to the card once expertRefillBytes
@@ -421,7 +552,18 @@ func (c *expertResidency) refill(ctx context.Context) error {
 		return err
 	}
 	budget := min(free-expertFillHeadroomBytes, c.limit-min(c.limit, c.bytes))
+	landed := false
 	for _, bank := range c.ordered {
+		if budget < bank.stride {
+			continue
+		}
+		if !landed {
+			// A promotion in flight still names its expert's host slot: the copies land before host experts are counted.
+			if err := c.land(ctx, true); err != nil {
+				return err
+			}
+			landed = true
+		}
 		var count uint64
 		for _, host := range bank.hosted {
 			if host != nil {
@@ -453,14 +595,42 @@ func (c *expertResidency) refill(ctx context.Context) error {
 	return nil
 }
 
-// promote copies a host expert to the card slot of the card expert of its
-// stride the routes left longest unnamed; it stays in host memory when every
-// such card expert was routed this step.
+// promote moves a host expert the routes named to the card. It takes the
+// card slot of the coldest staged expert the routes did not name this step,
+// which goes to its staged copy at once, and is copied there beside the
+// next run, staying in host memory until the copy lands. Where none is
+// staged it takes the slot of the coldest card expert at once, copying that
+// expert back first; it stays in host memory when every card expert of its
+// stride was routed this step.
 func (c *expertResidency) promote(ctx context.Context, key expertKey) error {
-	class := c.classes[c.banks[key.bank].stride]
-	victim := class.order.Front()
-	if err := ctx.Err(); err != nil || victim == nil || victim.Value.(*residentExpert).step == c.step {
+	bank := c.banks[key.bank]
+	class := c.classes[bank.stride]
+	if err := ctx.Err(); err != nil {
 		return err
+	}
+	for entry, seen := class.order.Front(), 0; entry != nil && seen < expertVictimSearch; entry, seen = entry.Next(), seen+1 {
+		resident := entry.Value.(*residentExpert)
+		if resident.step == c.step {
+			break
+		}
+		if _, staged := c.staged[resident.key]; !staged {
+			continue
+		}
+		if err := c.stream(ctx); err != nil {
+			return err
+		}
+		card := c.banks[resident.key.bank].pointers[resident.key.index]
+		if err := c.mem.copyToCard(ctx, c.copies, card, bank.hosted[key.index][:bank.bytes]); err != nil {
+			return err
+		}
+		c.promoting = append(c.promoting, expertMove{key, card, expertSlot{bank.pointers[key.index], bank.hosted[key.index]}})
+		c.moving[key] = true
+		_, err := c.demote(ctx, entry)
+		return err
+	}
+	victim := class.order.Front()
+	if victim == nil || victim.Value.(*residentExpert).step == c.step {
+		return nil
 	}
 	card, err := c.demote(ctx, victim)
 	if err != nil {
@@ -483,30 +653,48 @@ func (c *expertResidency) move(ctx context.Context, key expertKey, card driver.D
 	return nil
 }
 
-// demote copies a card expert to a pinned host slot and returns the card slot it left.
+// demote moves a card expert to its staged copy, or else copies it to a
+// pinned host slot, and returns the card slot it left.
 func (c *expertResidency) demote(ctx context.Context, entry *list.Element) (driver.DevicePtr, error) {
 	key := entry.Value.(*residentExpert).key
 	bank := c.banks[key.bank]
 	class := c.classes[bank.stride]
+	card := bank.pointers[key.index]
+	slot, staged := c.staged[key]
+	if staged {
+		delete(c.staged, key)
+	} else {
+		var err error
+		if slot, err = c.hostSlot(ctx, class); err != nil {
+			return 0, err
+		}
+		if err := c.mem.read(ctx, slot.host[:bank.bytes], card); err != nil {
+			class.free = append(class.free, slot)
+			return 0, err
+		}
+	}
+	bank.pointers[key.index], bank.hosted[key.index], bank.changed = slot.device, slot.host, true
+	class.order.Remove(entry)
+	delete(c.entries, key)
+	return card, nil
+}
+
+// hostSlot takes a free pinned host slot of class, pinning
+// expertHostChunkSlots more where none is free.
+func (c *expertResidency) hostSlot(ctx context.Context, class *expertClass) (expertSlot, error) {
 	if len(class.free) == 0 {
 		host, mapped, err := c.mem.hostAlloc(ctx, expertHostChunkSlots*class.stride)
 		if err != nil {
-			return 0, err
+			return expertSlot{}, err
 		}
 		c.pinned = append(c.pinned, host)
 		for offset := uint64(0); offset < uint64(len(host)); offset += class.stride {
 			class.free = append(class.free, expertSlot{mapped + driver.DevicePtr(offset), host[offset : offset+class.stride]})
 		}
 	}
-	slot, card := class.free[len(class.free)-1], bank.pointers[key.index]
-	if err := c.mem.read(ctx, slot.host[:bank.bytes], card); err != nil {
-		return 0, err
-	}
+	slot := class.free[len(class.free)-1]
 	class.free = class.free[:len(class.free)-1]
-	bank.pointers[key.index], bank.hosted[key.index], bank.changed = slot.device, slot.host, true
-	class.order.Remove(entry)
-	delete(c.entries, key)
-	return card, nil
+	return slot, nil
 }
 
 // publish writes the tables whose experts moved.
@@ -553,6 +741,10 @@ func (w *DeviceWeights) ReserveExpertMemory(state *device.State, required uint64
 // release moves the experts of the last card allocation to host memory,
 // publishes their tables and frees the allocation.
 func (c *expertResidency) release(ctx context.Context) error {
+	// Copies in flight land first: a promotion may be copying into this allocation.
+	if err := c.land(ctx, true); err != nil {
+		return err
+	}
 	chunk := c.cards[len(c.cards)-1]
 	class := c.classes[chunk.stride]
 	for entry := class.order.Front(); entry != nil; {
@@ -610,6 +802,11 @@ func (c *expertResidency) close() error {
 		return nil
 	}
 	var errs []error
+	if c.copies != 0 {
+		_, err := c.mem.copied(context.Background(), c.copies, true)
+		errs = append(errs, err, c.mem.dropStream(c.copies))
+		c.copies = 0
+	}
 	for _, chunk := range c.cards {
 		errs = append(errs, c.mem.free(context.Background(), []driver.DevicePtr{chunk.pointer}))
 	}
@@ -658,6 +855,33 @@ func (m stateMemory) hostAlloc(ctx context.Context, size uint64) ([]byte, driver
 	return m.state.Driver.MemHostAlloc(size)
 }
 func (m stateMemory) hostFree(data []byte) error { return m.state.Driver.MemFreeHost(data) }
+func (m stateMemory) newStream(ctx context.Context) (driver.Stream, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	return m.state.Driver.StreamCreate(expertStreamNonBlocking)
+}
+func (m stateMemory) dropStream(stream driver.Stream) error {
+	return m.state.Driver.StreamDestroy(stream)
+}
+func (m stateMemory) copyToCard(ctx context.Context, stream driver.Stream, destination driver.DevicePtr, source []byte) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return m.state.Driver.MemcpyHtoDAsync(destination, source, stream)
+}
+func (m stateMemory) copyToHost(ctx context.Context, stream driver.Stream, destination []byte, source driver.DevicePtr) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return m.state.Driver.MemcpyDtoHAsync(destination, source, stream)
+}
+func (m stateMemory) copied(_ context.Context, stream driver.Stream, wait bool) (bool, error) {
+	if wait {
+		return true, m.state.Driver.StreamSynchronize(stream)
+	}
+	return m.state.Driver.StreamQuery(stream)
+}
 func (m stateMemory) available(context.Context) (uint64, error) {
 	free, _, err := m.state.Driver.MemInfo()
 	return free, err

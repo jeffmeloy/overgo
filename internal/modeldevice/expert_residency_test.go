@@ -27,6 +27,44 @@ type fakeExpertDevice struct {
 	failHost  int // the host allocation that fails; 0 for none
 	hostCalls int
 	freeBytes uint64 // the card memory the fake reports free
+	// queued are the copies a stream holds, which land when the residency asks after them unless hold is set.
+	queued  []func() error
+	hold    bool
+	streams int
+}
+
+func (d *fakeExpertDevice) newStream(context.Context) (driver.Stream, error) {
+	d.streams++
+	return driver.Stream(d.streams), nil
+}
+
+func (d *fakeExpertDevice) dropStream(driver.Stream) error {
+	if len(d.queued) != 0 {
+		return errors.New("a stream ended with copies in flight")
+	}
+	return nil
+}
+
+func (d *fakeExpertDevice) copyToCard(ctx context.Context, _ driver.Stream, destination driver.DevicePtr, source []byte) error {
+	d.queued = append(d.queued, func() error { return d.write(ctx, destination, source) })
+	return nil
+}
+
+func (d *fakeExpertDevice) copyToHost(ctx context.Context, _ driver.Stream, destination []byte, source driver.DevicePtr) error {
+	d.queued = append(d.queued, func() error { return d.read(ctx, destination, source) })
+	return nil
+}
+
+func (d *fakeExpertDevice) copied(_ context.Context, _ driver.Stream, wait bool) (bool, error) {
+	if d.hold && !wait {
+		return false, nil
+	}
+	var errs []error
+	for _, copy := range d.queued {
+		errs = append(errs, copy())
+	}
+	d.queued = nil
+	return true, errors.Join(errs...)
 }
 
 func (d *fakeExpertDevice) available(context.Context) (uint64, error) {
@@ -167,7 +205,7 @@ func TestFlashNextExpertResidency(t *testing.T) {
 				}
 			}
 		}
-		if cache.bytes > oneEach {
+		if cache.bytes > cache.limit {
 			t.Fatal("card bytes exceed the limit")
 		}
 	}
@@ -247,6 +285,38 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		placement, err := (&DeviceWeights{experts: cache}).ExpertPlacement(nil)
 		if err != nil || placement.Routes != 8 || placement.CardRoutes != 2 || placement.CardExperts != 2 {
 			t.Fatalf("placement after the runs = %+v: %v", placement, err)
+		}
+	})
+	t.Run("promotions-land-beside-the-next-run", func(t *testing.T) {
+		// Two experts of each bank fit: 0 and 1 on the card, 2 in host memory.
+		cache, mem := open(t, tableBytes+2*(gateStride+downStride))
+		// Expert 2's miss takes the coldest slot, expert 0's, at once, none being staged yet; the coldest card expert
+		// the step left unnamed, 1, is staged beside the next run.
+		route(t, cache, 2)
+		advance(t, cache)
+		readable(t, cache, mem, map[string][]uint32{"gate": {1, 2}, "down": {1, 2}})
+		if len(cache.staging) != 2 {
+			t.Fatalf("%d copies of card experts are staging, want expert 1 of each bank", len(cache.staging))
+		}
+		advance(t, cache)
+		if len(cache.staged) != 2 || len(cache.staging) != 0 {
+			t.Fatalf("%d staged copies landed and %d in flight, want both landed", len(cache.staged), len(cache.staging))
+		}
+		// Expert 0's miss takes staged expert 1's slot: 1 reads its staged copy at once, with no copy back, and 0 stays
+		// in host memory while its copy to the card is in flight.
+		route(t, cache, 0)
+		mem.hold = true
+		writes, pinned := mem.writes, len(cache.pinned)
+		advance(t, cache)
+		readable(t, cache, mem, map[string][]uint32{"gate": {2}, "down": {2}})
+		if len(cache.promoting) != 2 || mem.writes-writes != 2 {
+			t.Fatalf("%d promotions in flight after %d writes, want two promotions and their two table writes", len(cache.promoting), mem.writes-writes)
+		}
+		mem.hold = false
+		advance(t, cache)
+		readable(t, cache, mem, map[string][]uint32{"gate": {0, 2}, "down": {0, 2}})
+		if len(cache.pinned) != pinned || len(cache.promoting) != 0 {
+			t.Fatalf("the promotions pinned %d more allocations and left %d in flight", len(cache.pinned)-pinned, len(cache.promoting))
 		}
 	})
 	t.Run("prompt-routes-move-nothing", func(t *testing.T) {

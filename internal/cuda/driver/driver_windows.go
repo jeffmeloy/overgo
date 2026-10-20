@@ -102,6 +102,7 @@ type Library struct {
 	cuMemcpyHtoD         *syscall.Proc
 	cuMemcpyHtoDAsync    *syscall.Proc
 	cuMemcpyDtoH         *syscall.Proc
+	cuMemcpyDtoHAsync    *syscall.Proc
 	cuMemcpyDtoD         *syscall.Proc
 	cuMemsetD32Async     *syscall.Proc
 	cuMemHostAlloc       *syscall.Proc
@@ -162,6 +163,7 @@ func Open() (*Library, error) {
 		{"cuMemcpyHtoD_v2", &lib.cuMemcpyHtoD},
 		{"cuMemcpyHtoDAsync_v2", &lib.cuMemcpyHtoDAsync},
 		{"cuMemcpyDtoH_v2", &lib.cuMemcpyDtoH},
+		{"cuMemcpyDtoHAsync_v2", &lib.cuMemcpyDtoHAsync},
 		{"cuMemcpyDtoD_v2", &lib.cuMemcpyDtoD},
 		{"cuMemsetD32Async", &lib.cuMemsetD32Async},
 		{"cuMemHostAlloc", &lib.cuMemHostAlloc},
@@ -774,22 +776,29 @@ func (l *Library) memcpyHtoD(proc *syscall.Proc, destination DevicePtr, source [
 
 // MemcpyDtoH: copies device memory into host byte slice
 func (l *Library) MemcpyDtoH(destination []byte, source DevicePtr) error {
+	return l.memcpyDtoH(l.cuMemcpyDtoH, destination, source)
+}
+
+// MemcpyDtoHAsync queues a copy of device memory into pinned host memory on
+// stream; the bytes are the device's once the stream reaches the copy.
+func (l *Library) MemcpyDtoHAsync(destination []byte, source DevicePtr, stream Stream) error {
+	return l.memcpyDtoH(l.cuMemcpyDtoHAsync, destination, source, uintptr(stream))
+}
+
+// memcpyDtoH copies source into destination through proc, given an asynchronous copy's stream.
+func (l *Library) memcpyDtoH(proc *syscall.Proc, destination []byte, source DevicePtr, stream ...uintptr) error {
 	if len(destination) == 0 {
 		return nil
 	}
 	if !l.ownsDeviceRange(source, uint64(len(destination))) {
-		return errors.New("cuMemcpyDtoH_v2: source range is not allocated")
+		return fmt.Errorf("%s: source range is not allocated", proc.Name)
 	}
 	var pinned runtime.Pinner
 	pinned.Pin(&destination[0])
 	defer pinned.Unpin()
-	result, _, _ := l.cuMemcpyDtoH.Call(
-		uintptr(unsafe.Pointer(&destination[0])),
-		uintptr(source),
-		uintptr(len(destination)),
-	)
+	result, _, _ := proc.Call(append([]uintptr{uintptr(unsafe.Pointer(&destination[0])), uintptr(source), uintptr(len(destination))}, stream...)...)
 	runtime.KeepAlive(destination)
-	if err := l.result("cuMemcpyDtoH_v2", result); err != nil {
+	if err := l.result(proc.Name, result); err != nil {
 		return err
 	}
 	l.deviceToHostCopies.Add(1)

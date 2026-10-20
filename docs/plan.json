@@ -208,25 +208,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "flashnext-decode",
-      "title": "Decode Flash-Next at the rate Strata reaches on this PC",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "measured: flashnext-decode/hyper-norms adds 632 production syntax nodes; devicemath's three direct launches of weighted_rms_norm_f32 pass its new weight-rows argument"
-      },
-      "steps": [
-        {
-          "id": "decode-experts",
-          "title": "Compute a share of a decode token's host experts on the CPU while the card reads the rest",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "From the same trace: moe_hidden_dot_f32's median is 27 us a layer and its mean 51 us, and moe_down_dot_f32's 15 and 30 us. The tail is the experts the card reads over the link from host memory.\nStrata's decode (src/core/expert_source.cpp:3720-3776) sends the last pcie_frac of a window's missed experts, in routing order, over the link: 0.55 for native packs, refined from link / (link + 1.85 x the pool's rate) within [0.10, 0.60]. It computes the rest on the CPU pool at the same time.\nThe step reuses hybrid-layer's pool, formats and slot placement for a decode window. It splits the window's missed experts by the measured rates, the card's share read over the link as now, with the CPU's rows returned before the combine.\nEvidence: the probe's decode milliseconds a token after quiet-residency, with the generated ids held to the card path's over the bench's short chat.\nServes: throughput of every routed-expert model larger than its card.\nBatch: device."
-        }
-      ]
-    },
-    {
       "id": "long-prompt",
       "title": "Read Flash-Next prompts longer than 2,048 tokens at the speed Strata reaches on this PC",
       "owner": "master-lead",
@@ -241,7 +222,40 @@
           "title": "Read a fresh 16K Flash-Next prompt at the rate Strata reaches",
           "status": "open",
           "verify": "go run ./cmd/plan -status",
-          "rationale": "From Strata's frozen bench re-run on master on 2026-10-20 (long-prompt/bench), against Strata's baseline-20261016 on this PC.\nA fresh 4K prompt's first token takes 3.43 s at 1,204 tokens a second (Strata 2.21 s, 1,837) and a fresh 16K prompt's 13.1 s at 1,249 (Strata 5.01 s, 3,229); the first prompt of each size took 5.96 and 23.7 s, after the short chat's answers.\nThe steps above took the 20,605-token prompt from 714.8 s to about 19.5 s; Nsight at 20,605 tokens before attention-mma gave grouped expert products about 3.4 s, delta-net about 2 s, the router about 1 s and host-to-device copies about 4.5 s, with stream waits between.\nThe step profiles the 16K prompt on master (nsys, cuda_gpu_kern_sum and cuda_gpu_mem_time_sum), cuts the largest remaining cost, and finds why a size's first prompt is slower (residency refill after the chat, or a lazy allocation).\nEvidence: the bench's 4K and 16K medians, and Flash-Next's 4K and 16K scorecard cells.\nServes: first-output of Flash-Next prompts past 2,048 tokens.\nBatch: device.\n\nProfiled on master on 2026-10-20 (Nsight, the 20,605-token prompt, warm 18.9 s, cold 21.8 s with the file cache warm and 42.1 s without it): kernels 13.84 s, expert copies 4.18 s (54 GB) with none beside a kernel, grouped expert products 3.32 + 0.98 s, sparse attention 2.09 s, delta-net 2.07 s, router 1.09 s. long-prompt/router-flush takes the copies' submission and the router (16.4 s); what remains is the products, delta-net and attention on tensor cores, the copies that still wait (2.7 s), and the cold prompt's reads of the model file (Strata keeps every expert in one pinned arena from the load)."
+          "rationale": "From Strata's frozen bench re-run on master on 2026-10-20 (long-prompt/bench), against Strata's baseline-20261016 on this PC.\nA fresh 4K prompt's first token takes 3.43 s at 1,204 tokens a second (Strata 2.21 s, 1,837) and a fresh 16K prompt's 13.1 s at 1,249 (Strata 5.01 s, 3,229); the first prompt of each size took 5.96 and 23.7 s, after the short chat's answers.\nThe steps above took the 20,605-token prompt from 714.8 s to about 19.5 s; Nsight at 20,605 tokens before attention-mma gave grouped expert products about 3.4 s, delta-net about 2 s, the router about 1 s and host-to-device copies about 4.5 s, with stream waits between.\nThe step profiles the 16K prompt on master (nsys, cuda_gpu_kern_sum and cuda_gpu_mem_time_sum), cuts the largest remaining cost, and finds why a size's first prompt is slower (residency refill after the chat, or a lazy allocation).\nEvidence: the bench's 4K and 16K medians, and Flash-Next's 4K and 16K scorecard cells.\nServes: first-output of Flash-Next prompts past 2,048 tokens.\nBatch: device.\n\nProfiled on master on 2026-10-20 (Nsight, the 20,605-token prompt, warm 18.9 s, cold 21.8 s with the file cache warm and 42.1 s without it): kernels 13.84 s, expert copies 4.18 s (54 GB) with none beside a kernel, grouped expert products 3.32 + 0.98 s, sparse attention 2.09 s, delta-net 2.07 s, router 1.09 s. long-prompt/router-flush takes the copies' submission and the router (16.4 s); what remains is the products, delta-net and attention on tensor cores, the copies that still wait (2.7 s), and the cold prompt's reads of the model file (Strata keeps every expert in one pinned arena from the load).\n\nStrata's bench on master 070b9fee3 (2026-10-20), after the hybrid prompt experts and the n-gram reader: a fresh 4K prompt's first token 2.41-3.03 s (median 2.48; Strata 2.21), a fresh 16K prompt's 9.90-11.80 s (median 10.36; Strata 5.01), an agent's follow-up turns 2.14-2.70 s (Strata 2.27). The 16K prompt is the gap. The earlier Nsight trace of 20,605 tokens copied 54 GB of host experts, about three times their 17.5 GB, because each prompt group copies every host expert it routes; a profile on master names what remains."
+        }
+      ]
+    },
+    {
+      "id": "flashnext-speculation",
+      "title": "Decode Flash-Next through its MTP draft at the rate Strata's MTP windows reach",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 0,
+        "reason": "each step's count is measured when it is built"
+      },
+      "steps": [
+        {
+          "id": "window-cost",
+          "title": "Verify a draft window at close to one token's cost",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "From Strata's bench re-run on master 070b9fee3 on 2026-10-20: the short chat decodes at 70.6 tokens a second (Strata 148.7) and an agent turn at about 45 (Strata 138.4), the first token at parity or better (0.156 s against 0.19). Strata's baseline speculates through Flash-Next's MTP layer (--mtp rt --spec 4); Overgo's server attaches no draft, so its bench decodes plainly.\nWith Strata's MTP layer attached (tmp/strata-decode's probe, -draft mtp-q2_0.gguf -speculative, one draft a window), 62% of drafts are kept, but a verify window of two tokens costs about 1.3 times a plain token (17 ms against 13), so speculation gains about 8%.\nStrata's verify window (src/core/verify.hpp:3-18) runs every token through all 48 layers in one captured graph, the dense weights read once and the experts the window's tokens share read once; its cost priors (src/spec/controller.hpp:27,30) put a two-token window's dense pass at 1.05 times a token's and its distinct experts at 1.70. The gated delta-net state is never changed speculatively: the window runs the recurrence from the untouched state and the commit replays only the kept tokens.\nThe step profiles a verify window against a plain token (nsys, cuda_gpu_kern_sum) and cuts what costs past Strata's priors.\nEvidence: the probe's milliseconds a token, plain against speculative, the generated ids identical.\nServes: throughput of every model that speculates.\nBatch: device."
+        },
+        {
+          "id": "draft-depth",
+          "title": "Draft up to three tokens a window while the draft is confident, as Strata's min-p window does",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "Strata drafts with its MTP layer chaining the layer's own residual, one step graph a draft (src/core/mtp.cpp:1313-1336), its own K/V over the last 32,768 cells filled at prefill (mtp.cpp:360-363, generate.cpp:8504-8518), and grows the window while the last draft's top probability is at least 0.5 (--spec-min-p, mtp.cpp:1651, generate.cpp:13754-13758), to four tokens with --spec 4. Its documents report 66% acceptance on stories and 90% on code (INTEL.md:782-783), 2 to 3 tokens a window.\nOvergo's hyper draft drafts one token a window (hyperDraftTokens, nextn_device_speculation.go:24): from a fresh session 63% held at depth one and 43 and 27 at depths two and three.\nThe step drafts while the draft's top probability stays above Strata's 0.5, to three drafts, with the draft's history filled from the prompt, once window-cost has made a window cheap.\nEvidence: tokens a window and the probe's milliseconds a token, the generated ids identical to plain greedy decoding.\nServes: throughput.\nBatch: device."
+        },
+        {
+          "id": "serve-draft",
+          "title": "Serve Flash-Next with its MTP draft and speculate greedy requests by default, keeping the prompt cache",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "The server opens no draft (inference.OpenOptions.Draft is set only by probes and tests), and a speculative request turns the prompt cache off (protocol_common.go:298-300), so an agent's follow-up turns would read their whole prompt again.\nThe step binds the draft to the model's library entry as the projector is bound, speculates a greedy request when the draft pays (measured by window-cost and draft-depth), and keeps the prompt cache for speculative requests.\nEvidence: Strata's bench on master, the short chat's and agent turns' decode against plain, follow-up turns' cached tokens unchanged.\nServes: throughput and setup-steps.\nBatch: device."
         }
       ]
     },
@@ -561,7 +575,8 @@
             "hyper-norms-terms2/do",
             "own-findings-plan/do",
             "own-findings-terms/do",
-            "agent-thread-terms/do"
+            "agent-thread-terms/do",
+            "spec-plan/do"
           ]
         }
       ]

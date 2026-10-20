@@ -213,8 +213,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "measured: long-prompt/prompt-memory adds 197 production syntax nodes (the retained-view copy rule and the planner's released outputs)"
+        "nodes": 223,
+        "reason": "measured: long-prompt/attention-mma adds 223 production syntax nodes (the tensor-core launch, its geometry and shared-memory opt-in)"
       },
       "steps": [
         {
@@ -528,7 +528,8 @@
             "plan-fold-overlap/do",
             "plan-fold-loadguard/do",
             "plan-prompt-memory-check/do",
-            "plan-prompt-memory-count/do"
+            "plan-prompt-memory-count/do",
+            "plan-attention-mma-count/do"
           ]
         }
       ]

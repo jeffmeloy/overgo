@@ -33,6 +33,15 @@ const (
 )
 
 const (
+	// gatedDeltaNetWarpWidth, gatedDeltaNetRowColumns and gatedDeltaNetBlockRows
+	// mirror the row kernel: a warp a state row, a lane at most 8 of the
+	// row's columns in registers, 4 rows a block.
+	gatedDeltaNetWarpWidth  = uint32(32)
+	gatedDeltaNetRowColumns = uint32(8)
+	gatedDeltaNetBlockRows  = uint32(4)
+)
+
+const (
 	// topKBlockThreads mirrors the block-per-row selection's block width.
 	topKBlockThreads = uint32(256)
 	// topKBlockKeyBytes: a candidate's 64-bit ordering key in shared memory.
@@ -144,6 +153,15 @@ func launchRecurrentSelection(
 		gate := pointers.input(3)
 		beta := pointers.input(4)
 		stateInput := pointers.input(5)
+		if size <= gatedDeltaNetRowColumns*gatedDeltaNetWarpWidth {
+			return launchGridABI(
+				state, functions[kernelGatedDeltaNetRowsF32],
+				driver.Dim3{X: count, Y: (size-1)/gatedDeltaNetBlockRows + 1, Z: 1},
+				driver.Dim3{X: gatedDeltaNetBlockRows * gatedDeltaNetWarpWidth, Y: 1, Z: 1},
+				&query, &key, &value, &gate, &beta, &stateInput, &output,
+				&size, &qHeads, &kHeads, &heads, &tokens, &sequences, &gateWidth, &repeatInterleave,
+			)
+		}
 		return launchGridABI(
 			state, functions[kernelGatedDeltaNetF32],
 			driver.Dim3{X: count, Y: 1, Z: 1},

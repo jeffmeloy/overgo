@@ -2025,6 +2025,120 @@ extern "C" __global__ void gated_delta_net_f32(
     }
 }
 
+#define GATED_DELTA_NET_ROW_COLUMNS 8
+
+// gated_delta_net_rows_f32 computes gated_delta_net_f32's outputs and final
+// state with the same operations in the same order, a warp a state row with
+// the row in registers: a lane holds the columns lane, lane + 32, ..., as the
+// per-head kernel's lane reads them, so each dot product and update keeps its
+// order, and the blocks of a head's rows spread across the card.
+extern "C" __global__ void gated_delta_net_rows_f32(
+        const float * query,
+        const float * key,
+        const float * value,
+        const float * gate,
+        const float * beta,
+        const float * input_state,
+        float * output,
+        unsigned int size,
+        unsigned int query_heads,
+        unsigned int key_heads,
+        unsigned int heads,
+        unsigned int tokens,
+        unsigned int sequences,
+        unsigned int gate_width,
+        unsigned int repeat_interleave) {
+    const unsigned int index = blockIdx.x;
+    if (index >= heads * sequences) {
+        return;
+    }
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const unsigned int row = blockIdx.y * (blockDim.x / CUDA_WARP_WIDTH) + threadIdx.x / CUDA_WARP_WIDTH;
+    if (row >= size) {
+        return;
+    }
+    const unsigned int head = index % heads;
+    const unsigned int sequence = index / heads;
+    const unsigned int attention_elements = size * heads * tokens * sequences;
+    const unsigned int state_elements = size * size;
+    float * state_row = output + attention_elements + index * state_elements + row * size;
+    const float * source_row = input_state + index * state_elements + row * size;
+    const float scale = rsqrtf((float) size);
+    const unsigned int query_head = repeat_interleave ? head / (heads / query_heads) : head % query_heads;
+    const unsigned int key_head = repeat_interleave ? head / (heads / key_heads) : head % key_heads;
+    float state[GATED_DELTA_NET_ROW_COLUMNS];
+#pragma unroll
+    for (unsigned int part = 0; part < GATED_DELTA_NET_ROW_COLUMNS; ++part) {
+        const unsigned int column = lane + part * CUDA_WARP_WIDTH;
+        state[part] = column < size ? source_row[column] : 0.0f;
+    }
+    for (unsigned int token = 0; token < tokens; ++token) {
+        const unsigned int value_base = ((sequence * tokens + token) * heads + head) * size;
+        const unsigned int query_base = ((sequence * tokens + token) * query_heads + query_head) * size;
+        const unsigned int key_base = ((sequence * tokens + token) * key_heads + key_head) * size;
+        const unsigned int gate_base = ((sequence * tokens + token) * heads + head) * gate_width;
+        const float beta_value = beta[(sequence * tokens + token) * heads + head];
+        if (gate_width == 1) {
+            const float gate_scale = expf(gate[gate_base]);
+#pragma unroll
+            for (unsigned int part = 0; part < GATED_DELTA_NET_ROW_COLUMNS; ++part) {
+                if (lane + part * CUDA_WARP_WIDTH < size) {
+                    state[part] *= gate_scale;
+                }
+            }
+        } else {
+#pragma unroll
+            for (unsigned int part = 0; part < GATED_DELTA_NET_ROW_COLUMNS; ++part) {
+                const unsigned int column = lane + part * CUDA_WARP_WIDTH;
+                if (column < size) {
+                    state[part] *= expf(gate[gate_base + column]);
+                }
+            }
+        }
+        float dot = 0.0f;
+#pragma unroll
+        for (unsigned int part = 0; part < GATED_DELTA_NET_ROW_COLUMNS; ++part) {
+            const unsigned int column = lane + part * CUDA_WARP_WIDTH;
+            if (column < size) {
+                dot += state[part] * key[key_base + column];
+            }
+        }
+        for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
+            dot += __shfl_down_sync(0xffffffff, dot, offset);
+        }
+        dot = __shfl_sync(0xffffffff, dot, 0);
+        const float delta = (value[value_base + row] - dot) * beta_value;
+#pragma unroll
+        for (unsigned int part = 0; part < GATED_DELTA_NET_ROW_COLUMNS; ++part) {
+            const unsigned int column = lane + part * CUDA_WARP_WIDTH;
+            if (column < size) {
+                state[part] += delta * key[key_base + column];
+            }
+        }
+        dot = 0.0f;
+#pragma unroll
+        for (unsigned int part = 0; part < GATED_DELTA_NET_ROW_COLUMNS; ++part) {
+            const unsigned int column = lane + part * CUDA_WARP_WIDTH;
+            if (column < size) {
+                dot += state[part] * query[query_base + column];
+            }
+        }
+        for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
+            dot += __shfl_down_sync(0xffffffff, dot, offset);
+        }
+        if (lane == 0) {
+            output[value_base + row] = dot * scale;
+        }
+    }
+#pragma unroll
+    for (unsigned int part = 0; part < GATED_DELTA_NET_ROW_COLUMNS; ++part) {
+        const unsigned int column = lane + part * CUDA_WARP_WIDTH;
+        if (column < size) {
+            state_row[column] = state[part];
+        }
+    }
+}
+
 // gated_delta_net_backward_f32: VJP of gated_delta_net_f32, the BPTT through the
 // per-(sequence,head,row) gated delta recurrence. One thread per (sequence,head,
 // row): the token loop is inherently sequential per row, rows are independent.

@@ -58,6 +58,7 @@ const (
 	kernelFwhtF32
 	kernelGatedDeltaNetBackwardF32
 	kernelGatedDeltaNetF32
+	kernelGatedDeltaNetRowsF32
 	kernelGatedLinearAttentionF32
 	kernelGatherLastF32
 	kernelGatherLastQ80F32
@@ -279,6 +280,7 @@ var kernelFunctionNames = [...]string{
 	"fwht_f32",
 	"gated_delta_net_backward_f32",
 	"gated_delta_net_f32",
+	"gated_delta_net_rows_f32",
 	"gated_linear_attention_f32",
 	"gather_last_f32",
 	"gather_last_q8_0_f32",
@@ -498,6 +500,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	5,
 	4,
 	23,
+	15,
 	15,
 	12,
 	7,

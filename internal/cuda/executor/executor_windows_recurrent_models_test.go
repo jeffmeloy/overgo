@@ -413,6 +413,42 @@ func TestExecutorGatedDeltaNetMatchesReference(t *testing.T) {
 			})
 		}
 	}
+	// Flash-Next's linear-attention state, 128 channels over 16 key heads and
+	// 48 value heads, and a 200-channel state whose last lanes hold a column
+	// fewer, run as a warp a state row.
+	const (
+		flashNextState, flashNextKeyHeads, flashNextValueHeads = 128, 16, 48
+		partialState, partialKeyHeads, partialValueHeads       = 200, 2, 4
+		rowTokens                                              = 24
+	)
+	for _, shape := range [][3]uint64{
+		{flashNextState, flashNextKeyHeads, flashNextValueHeads},
+		{partialState, partialKeyHeads, partialValueHeads},
+	} {
+		t.Run(fmt.Sprintf("rows_%d", shape[0]), func(t *testing.T) {
+			size, keyHeads, heads := shape[0], shape[1], shape[2]
+			builder := tensor.NewBuilder()
+			q := builder.Input("q", dtype.F32, tensor.MustShape(size, keyHeads, rowTokens, 1))
+			k := builder.Input("k", dtype.F32, tensor.MustShape(size, keyHeads, rowTokens, 1))
+			v := builder.Input("v", dtype.F32, tensor.MustShape(size, heads, rowTokens, 1))
+			gate := builder.Input("gate", dtype.F32, tensor.MustShape(1, heads, rowTokens, 1))
+			beta := builder.Input("beta", dtype.F32, tensor.MustShape(1, heads, rowTokens, 1))
+			state := builder.Input("state", dtype.F32, tensor.MustShape(size, size, heads, 1))
+			output := builder.GatedDeltaNetRepeatInterleave(q, k, v, gate, beta, state)
+			if err := builder.Err(); err != nil {
+				t.Fatal(err)
+			}
+			feeds := map[*tensor.Tensor]reference.Value{
+				q:     patternedValue(q.Shape, 7, 0.008, -0.015),
+				k:     patternedValue(k.Shape, 11, 0.006, -0.01),
+				v:     patternedValue(v.Shape, 13, 0.09, 0.03),
+				gate:  patternedValue(gate.Shape, 5, 0.02, -0.08),
+				beta:  patternedValue(beta.Shape, 3, 0.03, 0.4),
+				state: patternedValue(state.Shape, 17, 0.004, -0.007),
+			}
+			checkCUDAGraph(t, feeds, graphOutputCheck{output: output, tolerance: 3e-5})
+		})
+	}
 }
 
 func TestExecutorQwen35LayoutOperationsMatchReference(t *testing.T) {

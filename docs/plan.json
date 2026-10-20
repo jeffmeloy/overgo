@@ -213,17 +213,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 238,
+        "nodes": 139,
         "reason": "measured: long-prompt/attention adds 330 production syntax nodes (gate preflight at 30bd35375); the built block top-k, delta-net row kernel launches and the grouped expert staging cap add about 270 more"
       },
       "steps": [
-        {
-          "id": "gdn",
-          "title": "Run the gated delta-net recurrence with its state held across the card",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestExecutorGatedDeltaNetMatchesReference$'",
-          "rationale": "From Nsight over a 5,099-token Flash-Next prompt with long-prompt/attention built: gated_delta_net_f32 takes 40 ms in each of the 36 linear-attention layers, 1.45 s of the prompt's 14.3 s; it runs one block a head over a serial token loop.\nStrata's gdn_rec_kh_kernel (src/prefill/kernels.cu:596-688) holds the state in registers over 64 blocks, a thread the three value heads sharing a key head, staging 8 tokens at a time; its notes give a 2K prompt's recurrence 34 ms.\nThe step spreads the recurrence the same way and keeps the token order of every state update.\nEvidence: the same outputs on the fixtures and the sweep's prompts, and the prompt's time.\nServes: first-output for every Flash-Next prompt.\nBatch: device."
-        },
         {
           "id": "expert-groups",
           "title": "Copy a layer's host experts once a prompt chunk, beside the compute",

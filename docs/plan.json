@@ -208,6 +208,39 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "agent-turns",
+      "title": "Answer Flash-Next's agent turns at the speed Strata reaches on this PC",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 650,
+        "reason": "measured: agent-turns/sparse-decode adds 650 production syntax nodes (the split kernel, its geometry, partial reservation and launch, the combine's zero guard)"
+      },
+      "steps": [
+        {
+          "id": "sparse-decode",
+          "title": "Split a decode step's selected attention across blocks",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^(TestExecutorSplitSparseAttentionMatchesReference|TestExecutorGroupedSparseAttentionMatchesReference)$'",
+          "rationale": "From long-prompt/bench's agent turns (12.8 tokens a second, Strata 138.4) and Nsight over Flash-Next's decode at a 5,099-token context on master, 2026-10-20.\nDecode slows once the context passes 2,048 tokens: fresh 4K and 16K prompts decoded at 22.2 and 18.6 where the short chat decodes at 61.3.\nsparse_attention_grouped_f32 took 1.43 s of the decode's 2.66 s, 2.3 ms a launch: a decode step's one query token gives it 24 blocks, each walking 2,048 slots with one thread adding maxima and sums in order.\nThe step splits a narrow step's selected slots across about 256 blocks with the decode combine folding their partials.\nMeasured: decode at a 5,099-token context 23.6 to 66 tokens a second, the answer identical.\nServes: throughput of decode past 2,048 tokens on selected-attention models, every agent turn.\nBatch: device."
+        },
+        {
+          "id": "tool-decode",
+          "title": "Decode a request that carries tools at the rate of one that does not",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "From Strata's frozen bench re-run on master on 2026-10-20 (long-prompt/bench), against Strata's baseline-20261016 on this PC.\nThe agent sessions' turns, each carrying the four tools, decode at 12.8 tokens a second (Strata 138.4); the same server decodes the short chat, which carries none, at 61.3.\nA request with tools is decoded under the tool-call grammar (ChatToolGrammar), which may run a token's mask on the host and leave speculation off; the step profiles one agent turn (pprof and nsys), finds where its token's time goes beside a chat token's, and moves it off the decode path (a lazy grammar that applies only once a tool call opens, as Strata's does, or the mask on the device).\nEvidence: the bench's agent decode median, its answers unchanged.\nServes: throughput of every agent client's requests on every chat model.\nBatch: device.\n\nRe-measured on 2026-10-20: most of the agent turns' slow decode was decode past 2,048 tokens of context, not the tools: fresh 4K and 16K prompts, which carry no tools, decoded at 22.2 and 18.6 tokens a second, and agent-turns/sparse-decode takes a 5,099-token context's decode from 23.6 to 66. The step re-runs the bench's agent sessions after it and profiles what the tools add beside a turn without them."
+        },
+        {
+          "id": "turn-prefill",
+          "title": "Read an agent turn's new tokens at the fresh prompt's rate",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "From Strata's frozen bench re-run on master on 2026-10-20 (long-prompt/bench), against Strata's baseline-20261016 on this PC.\nA follow-up turn's first token takes 4.34 s (Strata 2.27 s) for about 1,500 to 3,400 new tokens after a 68.9 % cache hit (Strata 68.8 %), so the turn reads its new tokens at about 680 tokens a second where a fresh 4K prompt is read at 1,204; the first turn, 645 tokens with the tools, takes 2.63 s (Strata 0.80).\nThe step profiles a follow-up turn and the first turn, and removes what the cached prefix and the tools' template cost beyond reading the new tokens.\nEvidence: the bench's agent first-token medians.\nServes: first-output of every agent client's turns.\nBatch: device."
+        }
+      ]
+    },
+    {
       "id": "long-prompt",
       "title": "Read Flash-Next prompts longer than 2,048 tokens at the speed Strata reaches on this PC",
       "owner": "master-lead",
@@ -245,28 +278,6 @@
           "status": "open",
           "verify": "go run ./cmd/plan -status",
           "rationale": "From long-prompt/length-cells' 4K and 16K first outputs, measured on a copy of the store on 2026-10-20.\nQwen3.8-27B Q6_K reads a 4K prompt in 7.75 s (528 tokens a second) and a 16K prompt in 31.9 s, 4.1 times for 4 times the tokens: the cost grows with the tokens, so the matrix products, not attention, set it; Bonsai-27B Q1_0 reads 4K in 2.84 s.\nA 27B model's 4K prompt is about 221 TFLOP of products; at 528 tokens a second the card delivers about 29 TFLOPS of the RTX 4090 D's tensor-core rate.\nThe step profiles the 4K prompt (nsys, cuda_gpu_kern_sum), finds the kernels the k-quant products run on, and moves the largest onto tensor cores (dequantized tiles into mma, as the expert products' grouped path does), held to the reference by the quantized-product device tests.\nEvidence: Qwen3.8-27B's 4K and 16K cells on the next measurement run, held-out quality holding.\nServes: first-output of every k-quant dense chat model.\nBatch: device."
-        }
-      ]
-    },
-    {
-      "id": "agent-turns",
-      "title": "Answer Flash-Next's agent turns at the speed Strata reaches on this PC",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "tool-decode",
-          "title": "Decode a request that carries tools at the rate of one that does not",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "From Strata's frozen bench re-run on master on 2026-10-20 (long-prompt/bench), against Strata's baseline-20261016 on this PC.\nThe agent sessions' turns, each carrying the four tools, decode at 12.8 tokens a second (Strata 138.4); the same server decodes the short chat, which carries none, at 61.3.\nA request with tools is decoded under the tool-call grammar (ChatToolGrammar), which may run a token's mask on the host and leave speculation off; the step profiles one agent turn (pprof and nsys), finds where its token's time goes beside a chat token's, and moves it off the decode path (a lazy grammar that applies only once a tool call opens, as Strata's does, or the mask on the device).\nEvidence: the bench's agent decode median, its answers unchanged.\nServes: throughput of every agent client's requests on every chat model.\nBatch: device."
-        },
-        {
-          "id": "turn-prefill",
-          "title": "Read an agent turn's new tokens at the fresh prompt's rate",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "From Strata's frozen bench re-run on master on 2026-10-20 (long-prompt/bench), against Strata's baseline-20261016 on this PC.\nA follow-up turn's first token takes 4.34 s (Strata 2.27 s) for about 1,500 to 3,400 new tokens after a 68.9 % cache hit (Strata 68.8 %), so the turn reads its new tokens at about 680 tokens a second where a fresh 4K prompt is read at 1,204; the first turn, 645 tokens with the tools, takes 2.63 s (Strata 0.80).\nThe step profiles a follow-up turn and the first turn, and removes what the cached prefix and the tools' template cost beyond reading the new tokens.\nEvidence: the bench's agent first-token medians.\nServes: first-output of every agent client's turns.\nBatch: device."
         }
       ]
     },
@@ -548,7 +559,8 @@
             "length-cells-terms/do",
             "bench-terms/do",
             "router-flush-terms/do",
-            "stream-complete-terms/do"
+            "stream-complete-terms/do",
+            "sparse-decode-terms/do"
           ]
         }
       ]

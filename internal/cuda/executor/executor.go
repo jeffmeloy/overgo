@@ -946,8 +946,30 @@ func resolveRetainedStorageView(output *tensor.Tensor) (retainedStorageView, boo
 	if current == output || current.Op == tensor.OpInput {
 		return retainedStorageView{}, false, nil
 	}
+	// A view holding less than half a source of at least 1 MiB is copied into
+	// storage of its own, so the source dies with the run's other
+	// intermediates: a long prompt's recurrent state, a few MB at the tail of
+	// an output of every token's activations, kept each layer's whole output
+	// alive. A smaller source keeps the view an alias, a copy saving little.
+	viewBytes, viewErr := output.Shape.Bytes(output.Type)
+	sourceBytes, sourceErr := current.Shape.Bytes(current.Type)
+	if viewErr != nil || sourceErr != nil {
+		return retainedStorageView{}, false, errors.Join(viewErr, sourceErr)
+	}
+	if sourceBytes >= retainedViewCopyFloorBytes && viewBytes < sourceBytes/retainedViewCopyRatio {
+		return retainedStorageView{}, false, nil
+	}
 	return retainedStorageView{source: current, byteOffset: byteOffset}, true, nil
 }
+
+const (
+	// retainedViewCopyRatio: a retained view smaller than its source divided
+	// by this is copied out rather than keeping its source alive.
+	retainedViewCopyRatio = 2
+	// retainedViewCopyFloorBytes: the source size below which a retained view
+	// stays an alias.
+	retainedViewCopyFloorBytes = uint64(1 << 20)
+)
 
 type deviceAddressRange struct {
 	first uint64
@@ -1283,7 +1305,14 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 	for _, output := range outputs {
 		plannerExcluded[output] = struct{}{}
 	}
-	memory, err := planner.BuildWithRewrites(outputs, deviceAllocationAlignment, dependencies, plannerExcluded)
+	// A retained view the run copies out holds its source only to the copy.
+	copiedViews := make(map[*tensor.Tensor]struct{})
+	for index, output := range outputs {
+		if _, aliases, viewErr := tensor.ResolveStorageView(output); viewErr == nil && aliases && !compiled.outputAliases[index] {
+			copiedViews[output] = struct{}{}
+		}
+	}
+	memory, err := planner.BuildReleasing(outputs, deviceAllocationAlignment, dependencies, plannerExcluded, copiedViews)
 	if err != nil {
 		return nil, err
 	}
@@ -1313,7 +1342,7 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 			}
 		}
 		if retainedSlices {
-			aliasMemory, err := planner.BuildWithRewrites(outputs, deviceAllocationAlignment, dependencies, plannerExcluded)
+			aliasMemory, err := planner.BuildReleasing(outputs, deviceAllocationAlignment, dependencies, plannerExcluded, copiedViews)
 			if err != nil {
 				return nil, err
 			}

@@ -14,7 +14,7 @@ func TestCompiledRetainedMemory(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(1024))
 	producer := builder.Add(input, input)
-	view := builder.FlatSlice(producer, 1000, 24)
+	view := builder.FlatSlice(producer, 24, 1000)
 	compiled, err := Compile(view)
 	if err != nil {
 		t.Fatal(err)
@@ -27,7 +27,7 @@ func TestCompiledRetainedMemory(t *testing.T) {
 			t.Fatalf("allocation bytes = %d/%d/%d, want %d/%d/%d: %v", a, p, c, arena, pooled, owned, err)
 		}
 	}
-	// The 24-value view retains its 1024-value producer exactly once.
+	// The 1000-value view retains its 1024-value producer exactly once.
 	check(nil, nil, 0, 8192, 0)
 	if err := inputs.Set(input, driver.DevicePtr(deviceAllocationAlignment)); err != nil {
 		t.Fatal(err)
@@ -276,11 +276,70 @@ func TestRetainedPlanDoesNotIncreaseArena(t *testing.T) {
 	}
 }
 
+// TestRetainedSmallViewCopiesOutOfItsSource holds a retained view smaller
+// than half its source to storage of its own: the 24 values at the tail of
+// a 4 MiB producer pool only their own buffer, and the producer joins
+// the arena with the run's other intermediates, as a long prompt's recurrent
+// state at the tail of a layer's packed output does.
+func TestRetainedSmallViewCopiesOutOfItsSource(t *testing.T) {
+	const (
+		producerValues, viewValues = 1 << 20, 24
+		producerBytes              = producerValues * 4
+		viewBucket                 = 256
+	)
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(producerValues))
+	producer := builder.Add(input, input)
+	view := builder.FlatSlice(producer, producerValues-viewValues, viewValues)
+	compiled, err := Compile(view)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if compiled.outputAliases[0] {
+		t.Fatal("small retained view still aliases its source")
+	}
+	inputs := compiled.NewDeviceInputs()
+	check := func(arena, pooled uint64) {
+		t.Helper()
+		a, p, c, err := compiled.retainedAllocations(inputs, nil, nil)
+		if err != nil || a != arena || p != pooled || c != 0 {
+			t.Fatalf("allocation bytes = %d/%d/%d, want %d/%d/0: %v", a, p, c, arena, pooled, err)
+		}
+	}
+	check(producerBytes, viewBucket+producerBytes)
+	if err := inputs.Set(input, driver.DevicePtr(deviceAllocationAlignment)); err != nil {
+		t.Fatal(err)
+	}
+	check(producerBytes, viewBucket)
+	// Layers whose small states are copied out reuse one another's storage:
+	// three chained producers with a retained tail each hold at most two at
+	// once, where holding each source to the end held all three.
+	const layers = 3
+	value := producer
+	var views []*tensor.Tensor
+	for range layers {
+		views = append(views, builder.FlatSlice(value, producerValues-viewValues, viewValues))
+		value = builder.Scale(value, 2)
+	}
+	chained, err := Compile(views...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if arena := chained.retainedMemory.ArenaSize; arena != 2*producerBytes {
+		t.Fatalf("chained retained arena = %d, want %d", arena, 2*producerBytes)
+	}
+	// A view holding at least half its source keeps aliasing it.
+	half := builder.FlatSlice(producer, producerValues/2, producerValues/2)
+	if compiled, err = Compile(half); err != nil || !compiled.outputAliases[0] {
+		t.Fatalf("half view does not alias its source: %v", err)
+	}
+}
+
 func TestRetainedAliasPlanOmitsProducerStorage(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(1024))
 	producer := builder.Scale(input, 2)
-	view := builder.FlatSlice(producer, 1000, 24)
+	view := builder.FlatSlice(producer, 24, 1000)
 	compiled, err := Compile(view)
 	if err != nil {
 		t.Fatal(err)
@@ -292,7 +351,7 @@ func TestRetainedAliasPlanOmitsProducerStorage(t *testing.T) {
 		t.Fatal("host output lost its producer storage")
 	}
 	targets := compiled.NewRetainedTargets()
-	if err := targets.Set(view, DeviceValue{Pointer: driver.DevicePtr(deviceAllocationAlignment), Shape: view.Shape, CapacityBytes: 24 * 4}); err != nil {
+	if err := targets.Set(view, DeviceValue{Pointer: driver.DevicePtr(deviceAllocationAlignment), Shape: view.Shape, CapacityBytes: 1000 * 4}); err != nil {
 		t.Fatal(err)
 	}
 	if compiled.executionMemory(true, targets).ArenaSize == 0 {
@@ -304,7 +363,7 @@ func TestRetainedAliasPlanPreservesBoundWholeViews(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(1024))
 	producer := builder.Scale(input, 2)
-	view := builder.FlatSlice(producer, 1000, 24)
+	view := builder.FlatSlice(producer, 24, 1000)
 	other := builder.Scale(input, 3)
 	whole := builder.Reshape(other, 32, 32)
 	compiled, err := Compile(view, whole)

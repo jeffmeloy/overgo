@@ -2461,6 +2461,145 @@ extern "C" __global__ void top_k_f32(
 	}
 }
 
+#define TOP_K_BLOCK_RADIX_BITS 8
+#define TOP_K_BLOCK_RADIX_BINS 256
+#define TOP_K_BLOCK_KEY_BITS 64
+
+// top_k_key orders a candidate as top_k_before does, larger first: a
+// finite value before a NaN, a larger value before a smaller, and equal
+// values (zero, its sign and a subnormal compare equal under the flushed
+// comparison) the lower index first. The value takes the high word, the
+// reversed index the low, so every candidate of a row has its own key.
+__device__ __forceinline__ unsigned long long top_k_key(float value, unsigned int index) {
+	unsigned int high = 0u;
+	if (!isnan(value)) {
+		unsigned int bits = __float_as_uint(value);
+		if ((bits & 0x7fffffffu) < 0x00800000u) {
+			bits = 0u;
+		}
+		high = (bits & 0x80000000u) ? ~bits : (bits | 0x80000000u);
+	}
+	return ((unsigned long long) high << 32) | (unsigned long long) (0xffffffffu - index);
+}
+
+// top_k_block_f32 writes top_k_f32's output with a block a row: a radix
+// select finds the row's k-th key, the keys at or above it are gathered and
+// sorted larger first in shared memory, and the row's output is written
+// from them, a selected block's tokens and the incomplete block's tokens
+// after them as top_k_f32 writes them.
+extern "C" __global__ void top_k_block_f32(
+		const float * input,
+		float * output,
+		unsigned int width,
+		unsigned int k,
+		unsigned int rows,
+		unsigned int block_size,
+		const unsigned int * first_query,
+		unsigned int output_width,
+		unsigned int capacity) {
+	extern __shared__ unsigned long long selected[];
+	__shared__ unsigned int histogram[TOP_K_BLOCK_RADIX_BINS];
+	__shared__ unsigned long long prefix;
+	__shared__ unsigned int remaining;
+	__shared__ unsigned int gathered;
+	const unsigned int row = blockIdx.x;
+	if (row >= rows) {
+		return;
+	}
+	const unsigned int query_start = block_size ? *first_query : 0;
+	const size_t input_base = (size_t) row * width;
+	const size_t output_base = (size_t) row * output_width;
+	const unsigned int visible = block_size ? min(width, (query_start + row + 1) / block_size) : width;
+	const unsigned int chosen = min(k, visible);
+	unsigned long long threshold = 0ull;
+	if (visible > k) {
+		if (threadIdx.x == 0) {
+			prefix = 0ull;
+			remaining = k;
+		}
+		for (int shift = TOP_K_BLOCK_KEY_BITS - TOP_K_BLOCK_RADIX_BITS; shift >= 0; shift -= TOP_K_BLOCK_RADIX_BITS) {
+			for (unsigned int bin = threadIdx.x; bin < TOP_K_BLOCK_RADIX_BINS; bin += blockDim.x) {
+				histogram[bin] = 0u;
+			}
+			__syncthreads();
+			const unsigned long long resolved = shift == TOP_K_BLOCK_KEY_BITS - TOP_K_BLOCK_RADIX_BITS
+				? 0ull : ~0ull << (shift + TOP_K_BLOCK_RADIX_BITS);
+			const unsigned long long want = prefix;
+			for (unsigned int candidate = threadIdx.x; candidate < visible; candidate += blockDim.x) {
+				const unsigned long long key = top_k_key(input[input_base + candidate], candidate);
+				if ((key & resolved) == want) {
+					atomicAdd(&histogram[(key >> shift) & (TOP_K_BLOCK_RADIX_BINS - 1)], 1u);
+				}
+			}
+			__syncthreads();
+			if (threadIdx.x == 0) {
+				unsigned int above = 0u;
+				unsigned int bin = TOP_K_BLOCK_RADIX_BINS - 1;
+				while (above + histogram[bin] < remaining) {
+					above += histogram[bin];
+					--bin;
+				}
+				prefix |= (unsigned long long) bin << shift;
+				remaining -= above;
+			}
+			__syncthreads();
+		}
+		threshold = prefix;
+	}
+	if (threadIdx.x == 0) {
+		gathered = 0u;
+	}
+	__syncthreads();
+	for (unsigned int candidate = threadIdx.x; candidate < visible; candidate += blockDim.x) {
+		const unsigned long long key = top_k_key(input[input_base + candidate], candidate);
+		if (key >= threshold) {
+			selected[atomicAdd(&gathered, 1u)] = key;
+		}
+	}
+	unsigned int padded = 1u;
+	while (padded < chosen) {
+		padded <<= 1;
+	}
+	for (unsigned int slot = chosen + threadIdx.x; slot < padded; slot += blockDim.x) {
+		selected[slot] = 0ull;
+	}
+	__syncthreads();
+	for (unsigned int size = 2u; size <= padded; size <<= 1) {
+		for (unsigned int stride = size >> 1; stride > 0u; stride >>= 1) {
+			for (unsigned int slot = threadIdx.x; slot < padded; slot += blockDim.x) {
+				const unsigned int partner = slot ^ stride;
+				if (partner > slot) {
+					const unsigned long long left = selected[slot];
+					const unsigned long long right = selected[partner];
+					if (((slot & size) == 0u) ? left < right : left > right) {
+						selected[slot] = right;
+						selected[partner] = left;
+					}
+				}
+			}
+			__syncthreads();
+		}
+	}
+	for (unsigned int position = threadIdx.x; position < output_width; position += blockDim.x) {
+		float value = -1.0f;
+		if (block_size) {
+			const unsigned int rank = position / block_size;
+			if (rank < chosen) {
+				const unsigned int block = 0xffffffffu - (unsigned int) selected[rank];
+				value = (float) (block * block_size + position % block_size);
+			} else if (position >= chosen * block_size) {
+				const unsigned int token = visible * block_size + position - chosen * block_size;
+				if (token <= query_start + row) {
+					value = (float) token;
+				}
+			}
+		} else if (position < chosen) {
+			value = (float) (0xffffffffu - (unsigned int) selected[position]);
+		}
+		output[output_base + position] = value;
+	}
+}
+
 extern "C" __global__ void top_k_pairs_f32(
 		const float * partials,
 		float * output,

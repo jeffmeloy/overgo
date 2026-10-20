@@ -198,6 +198,7 @@ const (
 	kernelStridedRowCopyF32
 	kernelSumRowsF32
 	kernelTanhF32
+	kernelTopKBlockF32
 	kernelTopKF32
 	kernelTopKPairsF32
 	kernelTopKPartialsF32
@@ -418,6 +419,7 @@ var kernelFunctionNames = [...]string{
 	"strided_row_copy_f32",
 	"sum_rows_f32",
 	"tanh_f32",
+	"top_k_block_f32",
 	"top_k_f32",
 	"top_k_pairs_f32",
 	"top_k_partials_f32",
@@ -637,6 +639,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	8,
 	4,
 	3,
+	9,
 	8,
 	5,
 	7,

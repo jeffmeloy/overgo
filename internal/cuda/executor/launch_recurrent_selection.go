@@ -32,6 +32,26 @@ const (
 	sparseAttentionGroupedWideRows = uint32(256)
 )
 
+const (
+	// topKBlockThreads mirrors the block-per-row selection's block width.
+	topKBlockThreads = uint32(256)
+	// topKBlockKeyBytes: a candidate's 64-bit ordering key in shared memory.
+	topKBlockKeyBytes = uint32(8)
+	// topKBlockMaxCapacity bounds the selected keys a block sorts in shared
+	// memory; a larger selection keeps the one-thread kernel.
+	topKBlockMaxCapacity = uint32(4096)
+)
+
+// topKBlockCapacity reports the keys the block-per-row selection sorts for
+// k selected, the power of two at or above k, or false past the bound.
+func topKBlockCapacity(k uint32) (uint32, bool) {
+	capacity := uint32(tensor.SingletonExtent)
+	for capacity < k && capacity < topKBlockMaxCapacity {
+		capacity *= tensor.PairedExtent
+	}
+	return capacity, k <= capacity
+}
+
 // sparseAttentionGrouped sizes a grouped sparse attention launch: the query
 // heads a block takes, the selected slots each tile stages, and the shared
 // memory the block holds.
@@ -199,6 +219,13 @@ func launchRecurrentSelection(
 		blockSize, queryStart, outputWidth := attributes.BlockSize, pointers.attribute, uint32(node.Shape.Dims[0])
 		if blockSize != 0 && queryStart == 0 {
 			return errors.New("block selection first-query storage is unavailable")
+		}
+		if capacity, ok := topKBlockCapacity(k); ok && rows > 0 {
+			return launchGridSharedABI(
+				state, functions[kernelTopKBlockF32],
+				driver.Dim3{X: rows, Y: 1, Z: 1}, driver.Dim3{X: topKBlockThreads, Y: 1, Z: 1}, capacity*topKBlockKeyBytes,
+				&input, &output, &width, &k, &rows, &blockSize, &queryStart, &outputWidth, &capacity,
+			)
 		}
 		return launch1DABI(state, functions[kernelTopKF32], rows, &input, &output, &width, &k, &rows, &blockSize, &queryStart, &outputWidth)
 	case tensor.OpTopKPairs:

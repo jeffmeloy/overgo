@@ -253,6 +253,55 @@ func TestExecutorGroupedSparseAttentionMatchesReference(t *testing.T) {
 	}
 }
 
+// TestExecutorTopKRowsMatchReference selects Flash-Next's indexer blocks, a
+// budget of 2,048 tokens in blocks of 4, for prompt rows that see more blocks
+// than the budget and rows that see fewer, and a plain top 2,048 of 5,000,
+// over scores on a coarse grid (ties) with NaN, signed zeros and infinities.
+func TestExecutorTopKRowsMatchReference(t *testing.T) {
+	const (
+		flashNextBudget    = 2048
+		flashNextBlockSize = 4
+		blocks             = 1300
+		cached             = blocks * flashNextBlockSize
+		tailRows           = 64
+		tailStart          = cached - tailRows
+		headRows           = 700
+		plainWidth         = 5000
+		plainRows          = 4
+		gridSteps          = 64
+		gridCenter         = 2048
+		specialEvery       = 9
+	)
+	specials := []float32{float32(math.NaN()), float32(math.Copysign(0, -1)), 0, float32(math.Inf(1)), float32(math.Inf(-1))}
+	scores := func(shape tensor.Shape) reference.Value {
+		elements, _ := shape.Elements()
+		data := make([]float32, elements)
+		state := uint32(11)
+		for index := range data {
+			state = state*1664525 + 1013904223
+			data[index] = float32(int32(state>>20)-gridCenter) / gridSteps
+			if index%specialEvery == 0 {
+				data[index] = specials[int(state>>8)%len(specials)]
+			}
+		}
+		return reference.Value{Shape: shape, Data: data}
+	}
+	builder := tensor.NewBuilder()
+	tail := builder.Input("tail", dtype.F32, tensor.MustShape(blocks, tailRows))
+	head := builder.Input("head", dtype.F32, tensor.MustShape(blocks, headRows))
+	plain := builder.Input("plain", dtype.F32, tensor.MustShape(plainWidth, plainRows))
+	outputs := []*tensor.Tensor{
+		builder.BlockTopK(tail, flashNextBudget, flashNextBlockSize, tailStart, cached),
+		builder.BlockTopK(head, flashNextBudget, flashNextBlockSize, 0, cached),
+		builder.TopK(plain, flashNextBudget),
+	}
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	feeds := map[*tensor.Tensor]reference.Value{tail: scores(tail.Shape), head: scores(head.Shape), plain: scores(plain.Shape)}
+	checkCUDAGraph(t, feeds, uniformGraphChecks(outputs, accuracyExact)...)
+}
+
 func TestExecutorTopKPairsMultiChunkMatchesReference(t *testing.T) {
 	const (
 		fixtureWidth = 4099

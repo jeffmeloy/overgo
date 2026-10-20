@@ -213,20 +213,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 370,
+        "nodes": 238,
         "reason": "measured: long-prompt/attention adds 330 production syntax nodes (gate preflight at 30bd35375); the built block top-k, delta-net row kernel launches and the grouped expert staging cap add about 270 more"
       },
       "steps": [
-        {
-          "id": "topk",
-          "title": "Select each query's top cells with a block per query row",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestExecutorTopKRowsMatchReference$'",
-          "rationale": "From Nsight over a 5,099-token Flash-Next prompt with long-prompt/attention built: top_k_f32 takes 69 ms in each of the 12 full-attention layers, 0.83 s of the prompt's 14.3 s, and grows with the cells each query scores.\nIts launch gives each query row one thread, which selects the row's top 2,048 cells alone.\nStrata selects them with qsa_block_topk over block scores (src/prefill/prefill.cpp:2812-2827).\nThe step gives each row a block that selects in parallel and returns the indices the one-thread kernel returns, ties to the lower index.\nEvidence: the same indices on the fixtures and the sweep's prompts, and the prompt's time.\nServes: first-output for prompts past 2,048 tokens.\nBatch: device.",
-          "depends_on": [
-            "long-prompt/attention"
-          ]
-        },
         {
           "id": "gdn",
           "title": "Run the gated delta-net recurrence with its state held across the card",

@@ -208,6 +208,75 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "long-prompt",
+      "title": "Read Flash-Next prompts longer than 2,048 tokens at the speed Strata reaches on this PC",
+      "status": "open",
+      "steps": [
+        {
+          "id": "attention",
+          "title": "Compute each selected slot's dot product once per query head, not once per value channel",
+          "status": "open",
+          "verify": "go test ./internal/cuda/executor -count=1 -run '^TestGroupedSparseAttentionGeometry$' \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^(TestExecutorGroupedSparseAttentionMatchesReference|TestExecutorSparsePrimitivesMatchReference)$'",
+          "rationale": "From the Strata bench run on master 005407b91 on 2026-10-19 and the prompt-length sweep and Nsight profiles after it.\nStrata reads a fresh 4K prompt at 1,836.7 tokens a second (first token 2.21 s) and a 16K prompt at 3,229.0 (5.01 s) on this PC.\nOvergo's server read the bench's prompts at 33 tokens a second; the bench could not finish in an hour.\nThe sweep on master: a 1,561-token prompt 3.1 s, 2,625 tokens 56 s, 5,099 tokens 139 s, 10,673 tokens 334 s, 20,605 tokens 715 s.\nPast 2,048 tokens Flash-Next's 12 full-attention layers attend to each query's top 2,048 selected cells; Nsight gives sparse_attention_f32 94.8% of the 2,625-token prompt's GPU time, 4.15 s a layer.\nThe kernel runs a thread for each (query, head, value channel), so each of a head's 256 channels recomputes the query's dot product with every selected key, twice.\nThe step adds sparse_attention_grouped_f32: a block takes a query token, a key/value head and a chunk of the query heads sharing it, stages each tile of selected keys and values in shared memory, and computes a dot product once a head, with the same operations in the same order (the exponent's product and difference as one fused multiply-add, as the per-channel kernel's code generator fuses them).\nWidths whose block exceeds the shared memory or the accumulators keep the per-channel kernel.\nMeasured with the step built: 2,625 tokens 7.4 s, 5,099 tokens 14.1 s, 10,673 tokens 34.7 s, 20,605 tokens 93.1 s, every prompt's and answer's token ids identical to master's; outputs bit-identical to the per-channel kernel over 4.5 million values of 11 shapes, scales exact and not.\nServes: first-output for Flash-Next prompts and contexts past 2,048 tokens; throughput of decode past 2,048 tokens, which ran the same kernel.\nDisappears: the per-channel recomputation.\nBatch: device."
+        },
+        {
+          "id": "topk",
+          "title": "Select each query's top cells with a block per query row",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestExecutorTopKRowsMatchReference$'",
+          "rationale": "From Nsight over a 5,099-token Flash-Next prompt with long-prompt/attention built: top_k_f32 takes 69 ms in each of the 12 full-attention layers, 0.83 s of the prompt's 14.3 s, and grows with the cells each query scores.\nIts launch gives each query row one thread, which selects the row's top 2,048 cells alone.\nStrata selects them with qsa_block_topk over block scores (src/prefill/prefill.cpp:2812-2827).\nThe step gives each row a block that selects in parallel and returns the indices the one-thread kernel returns, ties to the lower index.\nEvidence: the same indices on the fixtures and the sweep's prompts, and the prompt's time.\nServes: first-output for prompts past 2,048 tokens.\nBatch: device.",
+          "depends_on": [
+            "long-prompt/attention"
+          ]
+        },
+        {
+          "id": "gdn",
+          "title": "Run the gated delta-net recurrence with its state held across the card",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestExecutorGatedDeltaNetMatchesReference$'",
+          "rationale": "From Nsight over a 5,099-token Flash-Next prompt with long-prompt/attention built: gated_delta_net_f32 takes 40 ms in each of the 36 linear-attention layers, 1.45 s of the prompt's 14.3 s; it runs one block a head over a serial token loop.\nStrata's gdn_rec_kh_kernel (src/prefill/kernels.cu:596-688) holds the state in registers over 64 blocks, a thread the three value heads sharing a key head, staging 8 tokens at a time; its notes give a 2K prompt's recurrence 34 ms.\nThe step spreads the recurrence the same way and keeps the token order of every state update.\nEvidence: the same outputs on the fixtures and the sweep's prompts, and the prompt's time.\nServes: first-output for every Flash-Next prompt.\nBatch: device."
+        },
+        {
+          "id": "expert-groups",
+          "title": "Copy a layer's host experts once a prompt chunk, beside the compute",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestPromptExpertCopiesOverlapCompute$'",
+          "rationale": "From the sweep and Nsight with long-prompt/attention built: a prompt's routed experts run in groups of at most 1,962 tokens a layer, the tokens whose plan and outputs the 256 MiB staging holds beside 64 MiB of copies, and each group copies every host expert it routes again: 3 groups a layer at 5,099 tokens, 6 at 10,673; the 5,099-token prompt spends about 5 s of its 14.3 s copying, one synchronous copy an expert, the card idle during each.\nStrata streams every non-resident expert once per 8,192-token chunk through a 384-slot ring on its own copy stream, so the copies run beside the attention halves (src/prefill/prefill.cpp:2337-2502), and its 16K prompt copies about 46 GB in 5 s.\nThe step sizes a layer's group to the prompt chunk, copies each routed host expert once a chunk, and queues the copies on a second stream ahead of the compute (the expert-residency/copy-overlap change, measured without gain on a one-group prompt).\nEvidence: the same outputs, the bytes copied a prompt, and the prompt's time.\nServes: first-output for every prompt longer than one group.\nBatch: device."
+        },
+        {
+          "id": "residency",
+          "title": "Return the experts a long prompt moves off the card and size a prompt's memory to Strata's",
+          "status": "open",
+          "verify": "go test ./internal/modeldevice -count=1 -run '^TestPromptReservationRestoresExperts$'",
+          "rationale": "From the Strata bench run on 2026-10-19: Overgo's server ended with 17,014 of 73,728 expert matrices on the card (13.95 GB), where the probe of the same recipe holds 42,354 (32.8 GB); routes found on the card fell to 72%.\nA 20,605-token prompt asked for 46 GB beyond the weights (about 2.2 MB a token) and ran as two chunks; memory a prompt reserves moves experts to host memory (ReserveExpertMemory), and nothing returns them.\nStrata lends a prompt its coldest cache slots and copies them back after it (generate.cpp:11416-11427, 11823), and its prompt takes about 0.4 MB a token, the attention and expert halves sharing their scratch (prefill.cpp:974-978).\nThe step returns lent experts after the prompt and measures and cuts the per-token prompt memory.\nEvidence: the experts on the card after a long prompt, the per-token reservation, decode speed after a long prompt.\nServes: throughput after long prompts; first-output of prompts that now split.\nBatch: device."
+        },
+        {
+          "id": "attention-mma",
+          "title": "Compute the selected attention on tensor cores",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestExecutorGroupedSparseAttentionMatchesReference$'",
+          "rationale": "From Nsight over a 5,099-token Flash-Next prompt with long-prompt/attention built: sparse_attention_grouped_f32 takes 124 ms a layer, 1.5 s of the prompt's 14.3 s, about 3 TFLOPS on CUDA cores, with two dot passes.\nStrata's prompt_attn_i8_kernel walks the selected cells 32 at a time with an online softmax on m16n8k16 FP16 MMAs, q and p split high and low for FP32-level accuracy (src/kernels/cuda/qsa_prompt_attn.cu:681-702).\nThe step computes the same attention in one pass on tensor cores; its outputs change at rounding level, so held-out quality is its guard (quantized formats: the fast native path outranks output identity).\nEvidence: the reference tolerance, held-out quality unchanged, and the prompt's time.\nServes: first-output past 2,048 tokens.\nBatch: device.",
+          "depends_on": [
+            "long-prompt/attention"
+          ]
+        },
+        {
+          "id": "bench",
+          "title": "Re-run Strata's frozen bench with each request's figures kept as it runs",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "The 2026-10-19 bench run reached its one-hour limit inside the agent sessions, and the suite writes its result only at the end, so every per-request figure was lost; the server's counters kept the totals.\nThe step writes each request's figures as it completes and re-runs the suite against the server built from the steps above, against Strata's baseline-20261016 medians.\nServes: the parity measurement every step above is judged by.\nBatch: device.",
+          "depends_on": [
+            "long-prompt/attention",
+            "long-prompt/topk",
+            "long-prompt/gdn",
+            "long-prompt/expert-groups",
+            "long-prompt/residency"
+          ]
+        }
+      ]
+    },
+    {
       "id": "strata-bench",
       "title": "Measure Overgo on Strata's whole frozen bench",
       "owner": "master-lead",
@@ -242,13 +311,6 @@
           "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestSpeculationStopsAtTheContextLimit$'",
           "rationale": "From step mtp: the speculation loop can push a request past the end of its context: a 16-token fixture asked for more new tokens than fit failed with \"cached plus new token count 17 exceeds context length 16\", where plain decoding stops at the limit. A speculating request near its context end fails instead of finishing.\nThe step clamps each round's draft and verify span to the tokens left in the context (no draft when one token is left), so a speculating request ends where plain decoding would, with the same text.\nAcceptance: a speculating request that reaches its context limit finishes with plain decoding's tokens and finish reason.\nServes: failure-rate for speculating requests near their context limit.\nBatch: device.\n\nSQA-167 (P2, 2026-10-19) names the same gap independently: bound speculative verification by the remaining context and the requested output."
-        },
-        {
-          "id": "full-history",
-          "title": "Draft over the draft layer's own history, up to two tokens a round",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestFlashNextFullHistoryDraftKeepsGreedyText$'",
-          "rationale": "From step mtp: Flash-Next drafts one token a round from a fresh draft cell. A host reference of the MTP layer that attends over its earlier cells, as Strata's draft does, accepts at depths one to three 67/99, 35/66 and 17/35 on the chat and 100/118, 83/99 and 66/82 on the document; simulated with measured costs, two drafts a round on the document come to about 104 tokens a second against about 79 measured with the fresh cell.\nThe step keeps the draft layer's key and value cache across rounds, fills it from the prompt, and drafts up to two tokens a round where acceptance pays, keeping every span length the replayed frames allow (span-frames).\nAcceptance: greedy text identical to plain decoding; drafts accepted and tokens a second on the chat and the document before and after.\nServes: throughput for Flash-Next, most on long answers.\nBatch: device."
         },
         {
           "id": "nextn-spans",
@@ -520,7 +582,8 @@
             "plan-parity-first/do",
             "strata-bench/do",
             "plan-bench-count/do",
-            "plan-residency-count/do"
+            "plan-residency-count/do",
+            "plan-long-prompt/do"
           ]
         }
       ]

@@ -213,8 +213,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 602,
-        "reason": "measured: flashnext-decode/hyper-norms adds 602 production syntax nodes (multi-row weighted RMS, Q8_0 emission through reshapes, the scaled-activation rewrite and kernels)"
+        "nodes": 632,
+        "reason": "measured: flashnext-decode/hyper-norms adds 632 production syntax nodes; devicemath's three direct launches of weighted_rms_norm_f32 pass its new weight-rows argument"
       },
       "steps": [
         {
@@ -597,7 +597,8 @@
             "quiet-residency-terms/do",
             "fewer-kernels-terms/do",
             "hyper-gates-terms/do",
-            "hyper-norms-terms/do"
+            "hyper-norms-terms/do",
+            "hyper-norms-terms2/do"
           ]
         }
       ]

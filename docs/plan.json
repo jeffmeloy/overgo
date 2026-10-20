@@ -210,10 +210,11 @@
     {
       "id": "long-prompt",
       "title": "Read Flash-Next prompts longer than 2,048 tokens at the speed Strata reaches on this PC",
+      "owner": "master-lead",
       "status": "open",
       "budget": {
         "nodes": 700,
-        "reason": "measured: long-prompt/attention adds 330 production syntax nodes (gate preflight on f11552522's successor 30bd35375); the built block top-k, delta-net row kernel launches and the grouped expert staging cap add about 270 more"
+        "reason": "measured: long-prompt/attention adds 330 production syntax nodes (gate preflight at 30bd35375); the built block top-k, delta-net row kernel launches and the grouped expert staging cap add about 270 more"
       },
       "steps": [
         {
@@ -571,7 +572,8 @@
             "plan-long-prompt/do",
             "plan-media-pending/do",
             "media-pending/do",
-            "plan-long-prompt-count/do"
+            "plan-long-prompt-count/do",
+            "plan-long-prompt-owner/do"
           ]
         }
       ]

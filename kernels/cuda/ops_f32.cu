@@ -4952,6 +4952,17 @@ extern "C" __global__ void moe_down_f32(
         index, 0, 1, nullptr);
 }
 
+// moe_host_slots_f32 places the slot outputs the CPU computed for experts in
+// host memory, packed row after row, at their slots for moe_combine_f32.
+//   - slots[positions[r] * hidden + c] = rows[r * hidden + c]
+extern "C" __global__ void moe_host_slots_f32(
+        const float * rows, const unsigned int * positions, float * slots, unsigned int hidden, unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) return;
+    const unsigned int row = index / hidden, channel = index % hidden;
+    slots[(size_t) positions[row] * hidden + channel] = rows[index];
+}
+
 extern "C" __global__ void moe_combine_f32(
         const unsigned int * route_state, const float * slots, const float * expert_scale, float * output,
         unsigned int hidden, unsigned int top_k, unsigned int normalize, float scale,

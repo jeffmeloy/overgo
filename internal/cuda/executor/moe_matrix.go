@@ -87,9 +87,16 @@ func moeAlign(bytes uint64) uint64 {
 	return (bytes + moeSlotAlignment - 1) / moeSlotAlignment * moeSlotAlignment
 }
 
-// copyBytes is the staging the copied experts and their tables take, with the plan's and the outputs' alignment.
+// copyBytes is the staging the copied experts and their tables take, with the plan's and the outputs' alignment,
+// and the outputs of the experts the CPU computes.
 func (g moeMatrixGeometry) copyBytes() uint64 {
-	return moeAlign(moeBanks*g.experts*uint64(unsafe.Sizeof(driver.DevicePtr(0)))) + moeCopyBytes + moeBanks*moeSlotAlignment
+	return moeAlign(moeBanks*g.experts*uint64(unsafe.Sizeof(driver.DevicePtr(0)))) + moeCopyBytes + moeBanks*moeSlotAlignment +
+		g.hostRowsReserve()
+}
+
+// hostRowsReserve is the staging the CPU's outputs take at most: hostExpertSlots slots an expert of every expert.
+func (g moeMatrixGeometry) hostRowsReserve() uint64 {
+	return hostRowsBytes(g, uint32(min(hostExpertSlots*g.experts, math.MaxUint32)))
 }
 
 // tokenLimit is the tokens whose plan and outputs the staging holds beside the copies.
@@ -107,8 +114,14 @@ func (g moeMatrixGeometry) copiesAt(group uint32, topK uint32) uint64 {
 	return g.planBytes(group, topK) + moeAlign(uint64(group)*uint64(topK)*g.hidden*f32ScalarBytes)
 }
 
+// hostRowsAt is the staging offset of the CPU's outputs and their positions, after the plan, the outputs and the
+// copies.
+func (g moeMatrixGeometry) hostRowsAt(group uint32, topK uint32) uint64 {
+	return moeAlign(g.copiesAt(group, topK) + moeAlign(moeBanks*g.experts*uint64(unsafe.Sizeof(driver.DevicePtr(0)))) + moeCopyBytes)
+}
+
 func (g moeMatrixGeometry) stagingBytes(group uint32, topK uint32) uint64 {
-	return g.copiesAt(group, topK) + moeAlign(moeBanks*g.experts*uint64(unsafe.Sizeof(driver.DevicePtr(0)))) + moeCopyBytes
+	return g.hostRowsAt(group, topK) + g.hostRowsReserve()
 }
 
 // launchMoEMatrices computes a prompt group's routed experts as grouped
@@ -172,6 +185,10 @@ func launchMoEMatrices(state *device.State, functions functionSet, blas *blasSta
 			}
 		}
 	}
+	// Experts wholly in host memory that few slots route to are computed on the CPU where they lie, beside the
+	// card's products (hybrid-experts); the others are copied or read as before.
+	host, onHost := blas.planHostExperts(a, banks, g, count, gateBias != 0 || upBias != 0 || downBias != 0, residency)
+	onCPU := func(expert uint32) bool { return onHost && host.onCPU[expert] }
 	// copyBytes is an expert's bytes in host memory, aligned as copied; an
 	// expert larger than a batch is read where it lies.
 	copyBytes := func(expert uint32) uint64 {
@@ -197,7 +214,7 @@ func launchMoEMatrices(state *device.State, functions functionSet, blas *blasSta
 		}
 	}
 	for expert := range experts {
-		if blas.moeOffsets[expert+1] > blas.moeOffsets[expert] && copyBytes(expert) == 0 {
+		if blas.moeOffsets[expert+1] > blas.moeOffsets[expert] && copyBytes(expert) == 0 && !onCPU(expert) {
 			addTiles(expert)
 		}
 	}
@@ -208,7 +225,7 @@ func launchMoEMatrices(state *device.State, functions functionSet, blas *blasSta
 	free := uint64(0)
 	for expert := range experts {
 		bytes := copyBytes(expert)
-		if bytes == 0 || blas.moeOffsets[expert+1] == blas.moeOffsets[expert] {
+		if bytes == 0 || blas.moeOffsets[expert+1] == blas.moeOffsets[expert] || onCPU(expert) {
 			continue
 		}
 		if bytes > free {
@@ -290,6 +307,11 @@ func launchMoEMatrices(state *device.State, functions functionSet, blas *blasSta
 	if err := state.Driver.MemcpyHtoD(copyTables, driver.Bytes(blas.moeCopyTable)); err != nil {
 		return false, err
 	}
+	if onHost {
+		if err := blas.gatherHostInputs(state, functions, host, g, a, input, count, positions); err != nil {
+			return false, err
+		}
+	}
 	for batch := 0; batch <= hostBatches; batch++ {
 		if err := state.Driver.StreamWait(state.Stream, blas.moeCopyStream); err != nil {
 			return false, err
@@ -324,6 +346,11 @@ func launchMoEMatrices(state *device.State, functions functionSet, blas *blasSta
 			return false, err
 		}
 		if _, err := state.Driver.StreamQuery(state.Stream); err != nil {
+			return false, err
+		}
+	}
+	if onHost {
+		if err := blas.computeHostExperts(state, functions, host, g, a, slots, count, positions); err != nil {
 			return false, err
 		}
 	}

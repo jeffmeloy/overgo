@@ -63,7 +63,7 @@ func TestQuantizersRoundAsGGML(t *testing.T) {
 	}
 }
 
-// TestRowsMatchTheFormulas holds iq4XSRows and iq4NLRows, the AVX2 kernels
+// TestRowsMatchTheFormulas holds the row functions of each format, the AVX2 kernels
 // where the processor runs them, to ggml's formulas for 1 to 9 tokens over
 // rows of Flash-Next's 2,560 values, and the formulas to the float64 sums of
 // the same quantized weights and activations.
@@ -87,6 +87,8 @@ func TestRowsMatchTheFormulas(t *testing.T) {
 	}{
 		{"iq4_xs", dtype.IQ4XS, superBlockValues, quantizeQ8K, q8KBlockBytes, iq4XSRows, iq4XSDot, dequantizeQ8K},
 		{"iq4_nl", dtype.IQ4NL, blockValues, quantizeQ80, q80BlockBytes, iq4NLRows, iq4NLDot, dequantizeQ80},
+		{"iq3_s", dtype.IQ3S, superBlockValues, quantizeQ8K, q8KBlockBytes, iq3SRows, iq3SDot, dequantizeQ8K},
+		{"q8_0", dtype.Q8_0, blockValues, quantizeQ80, q80BlockBytes, q80Rows, q80Dot, dequantizeQ80},
 	} {
 		values := make([]float32, depth*rows)
 		for index := range values {

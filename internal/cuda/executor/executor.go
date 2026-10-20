@@ -16,6 +16,7 @@ import (
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/kernel"
+	"overgo/internal/hostexpert"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/planner"
@@ -2429,6 +2430,14 @@ type blasState struct {
 	moeCopyTable []driver.DevicePtr
 	moeBatches   []moeBatch
 	moeCopied    []uint32
+	// hostPool computes experts in host memory on the CPU; hostInput and hostRows are its pinned input rows
+	// and output slots, hostQuantized its tokens' Q8_K activations, hostTokens and hostQuantizedAt which.
+	hostPool        *hostexpert.Pool
+	hostInput       []byte
+	hostRows        []byte
+	hostQuantized   []byte
+	hostTokens      []uint32
+	hostQuantizedAt []int
 	// moeCopyStream copies host experts beside the compute stream.
 	moeCopyStream driver.Stream
 	library       *cublas.Library
@@ -2617,6 +2626,15 @@ func (e *Executor) closeResources(state *device.State) error {
 		// The copy stream is idle once a run ends, whose compute stream waited for each of its copies.
 		if e.resources.blas.moeCopyStream != 0 {
 			errs = append(errs, state.Driver.StreamDestroy(e.resources.blas.moeCopyStream))
+		}
+		// The host experts' buffers are idle once a run ends, whose stream finished each upload from them.
+		for _, buffer := range [][]byte{e.resources.blas.hostInput, e.resources.blas.hostRows} {
+			if len(buffer) > 0 {
+				errs = append(errs, state.Driver.MemFreeHost(buffer))
+			}
+		}
+		if e.resources.blas.hostPool != nil {
+			e.resources.blas.hostPool.Close()
 		}
 		if e.resources.blas.staging != 0 {
 			errs = append(errs, state.Driver.MemFree(e.resources.blas.staging))

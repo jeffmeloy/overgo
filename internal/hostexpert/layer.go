@@ -1,14 +1,14 @@
 package hostexpert
 
-// expertWork is one routed expert's work in a layer on the host: its gate
+// Expert is one routed expert's work in a layer on the host: its gate
 // and up weights, IQ4_XS rows of the hidden width, intermediate rows each;
 // its down weights, IQ4_NL rows of the intermediate width, hidden rows each;
 // the Q8_K activations of the tokens routed to it; and where each token's
 // down product goes, hidden values a token.
-type expertWork struct {
-	gate, up, down []byte
-	activations    [][]byte
-	out            [][]float32
+type Expert struct {
+	Gate, Up, Down []byte
+	Activations    [][]byte
+	Out            [][]float32
 }
 
 // layerSpan is how many rows a task of a layer computes: enough that a
@@ -24,21 +24,23 @@ type layerScratch struct {
 	quantized  []byte
 }
 
-// layer computes each expert's down products of its tokens, Strata's
+// Layer computes each expert's down products of its tokens, Strata's
 // native_expert order: the gate and up rows, activation(gate, up) of each,
 // those quantized as Q8_0, and the down rows, each of the three spread across
-// the pool's workers. A pool computes one layer at a time.
-func (p *pool) layer(experts []expertWork, hidden, intermediate int, activation func(gate, up float32) float32,
-	scratch *layerScratch) error {
-	if intermediate%blockValues != 0 {
-		return errDepth(intermediate, blockValues)
+// the pool's workers, the banks stored as formats says. A pool computes one
+// layer at a time.
+func (p *Pool) Layer(experts []Expert, formats Formats, hidden, intermediate int, activation func(gate, up float32) float32) error {
+	scratch := &p.scratch
+	if !Supported(formats, hidden, intermediate) {
+		return errFormats
 	}
+	gateRows, upRows, downRows := rowsOf[formats.Gate], rowsOf[formats.Up], rowsOf[formats.Down]
 	firsts := make([]int, len(experts)+1)
 	for index, work := range experts {
-		if len(work.out) != len(work.activations) {
+		if len(work.Out) != len(work.Activations) {
 			return errShape
 		}
-		firsts[index+1] = firsts[index] + len(work.activations)
+		firsts[index+1] = firsts[index] + len(work.Activations)
 	}
 	tokens := firsts[len(experts)]
 	quantizedBytes := intermediate / blockValues * q80BlockBytes
@@ -60,10 +62,10 @@ func (p *pool) layer(experts []expertWork, hidden, intermediate int, activation 
 		end := min(first+layerSpan, intermediate)
 		work := experts[expert]
 		gate, up := gates[firsts[expert]:firsts[expert+1]], ups[firsts[expert]:firsts[expert+1]]
-		if err := iq4XSRows(work.gate, hidden, work.activations, gate, first, end); err != nil {
+		if err := gateRows(work.Gate, hidden, work.Activations, gate, first, end); err != nil {
 			return err
 		}
-		if err := iq4XSRows(work.up, hidden, work.activations, up, first, end); err != nil {
+		if err := upRows(work.Up, hidden, work.Activations, up, first, end); err != nil {
 			return err
 		}
 		for token := range gate {
@@ -84,6 +86,6 @@ func (p *pool) layer(experts []expertWork, hidden, intermediate int, activation 
 	return p.run(len(experts)*spans, func(task int) error {
 		expert, first := task/spans, task%spans*layerSpan
 		work := experts[expert]
-		return iq4NLRows(work.down, intermediate, quantized[firsts[expert]:firsts[expert+1]], work.out, first, min(first+layerSpan, hidden))
+		return downRows(work.Down, intermediate, quantized[firsts[expert]:firsts[expert+1]], work.Out, first, min(first+layerSpan, hidden))
 	})
 }

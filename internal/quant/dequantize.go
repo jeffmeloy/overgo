@@ -804,3 +804,7 @@ func scalarScale(block []byte, field codecField) float32 {
 func Float16ToFloat32(value uint16) float32 {
 	return dtype.Float16ToFloat32(value)
 }
+
+// IQ3SGrid is ggml's iq3s_grid, the four magnitudes each 9-bit IQ3_S grid
+// index stands for, a byte each from the lowest.
+func IQ3SGrid() *[len(iq3SGrid)]uint32 { return &iq3SGrid }

@@ -20,6 +20,18 @@ func iq4NLDots4(row *byte, blocks int, activations *[tokensPerKernel]*byte, resu
 //go:noescape
 func iq4NLDots1(row *byte, blocks int, activation *byte) float32
 
+//go:noescape
+func iq3SDots4(row *byte, blocks int, activations *[tokensPerKernel]*byte, results *[tokensPerKernel]float32)
+
+//go:noescape
+func iq3SDots1(row *byte, blocks int, activation *byte) float32
+
+//go:noescape
+func q80Dots4(row *byte, blocks int, activations *[tokensPerKernel]*byte, results *[tokensPerKernel]float32)
+
+//go:noescape
+func q80Dots1(row *byte, blocks int, activation *byte) float32
+
 // cpuid and xgetbv read the processor's features and the state the system
 // saves for it.
 func cpuid(leaf, subleaf uint32) (eax, ebx, ecx, edx uint32)
@@ -59,6 +71,8 @@ var avx2 = func() bool {
 var (
 	iq4XSKernel = vectorKernel(iq4XSDots4, iq4XSDots1, iq4XSDot)
 	iq4NLKernel = vectorKernel(iq4NLDots4, iq4NLDots1, iq4NLDot)
+	iq3SKernel  = vectorKernel(iq3SDots4, iq3SDots1, iq3SDot)
+	q80Kernel   = vectorKernel(q80Dots4, q80Dots1, q80Dot)
 )
 
 // vectorKernel is the AVX2 kernel where the processor runs it and the scalar

@@ -285,3 +285,232 @@ TEXT ·xgetbv(SB), NOSPLIT, $0-8
 	MOVL AX, eax+0(FP)
 	MOVL DX, edx+4(FP)
 	RET
+
+// The IQ3_S constants: each dword lane's shift to its index's high bit, a
+// dword of one, the shuffle that spreads 4 sign bytes over 32 values (each
+// byte over 8) and each value's sign bit in its byte.
+DATA iq3sshifts<>+0(SB)/8, $0x0000000100000000
+DATA iq3sshifts<>+8(SB)/8, $0x0000000300000002
+DATA iq3sshifts<>+16(SB)/8, $0x0000000500000004
+DATA iq3sshifts<>+24(SB)/8, $0x0000000700000006
+GLOBL iq3sshifts<>(SB), RODATA|NOPTR, $32
+DATA iq3sones<>+0(SB)/8, $0x0000000100000001
+DATA iq3sones<>+8(SB)/8, $0x0000000100000001
+DATA iq3sones<>+16(SB)/8, $0x0000000100000001
+DATA iq3sones<>+24(SB)/8, $0x0000000100000001
+GLOBL iq3sones<>(SB), RODATA|NOPTR, $32
+DATA iq3sspread<>+0(SB)/8, $0x0000000000000000
+DATA iq3sspread<>+8(SB)/8, $0x0101010101010101
+DATA iq3sspread<>+16(SB)/8, $0x0202020202020202
+DATA iq3sspread<>+24(SB)/8, $0x0303030303030303
+GLOBL iq3sspread<>(SB), RODATA|NOPTR, $32
+DATA iq3sbits<>+0(SB)/8, $0x8040201008040201
+DATA iq3sbits<>+8(SB)/8, $0x8040201008040201
+DATA iq3sbits<>+16(SB)/8, $0x8040201008040201
+DATA iq3sbits<>+24(SB)/8, $0x8040201008040201
+GLOBL iq3sbits<>(SB), RODATA|NOPTR, $32
+
+// S3SUB decodes IQ3_S sub-block H of the block at SI into Y0 (its 32
+// magnitudes, the grid entries of its eight 9-bit indices, gathered from the
+// grid at R12), Y1 (their signs, a sign bit a value spread to bytes of -1 or
+// one) and Y2 (its odd scale 2s+1, a word in every lane).
+#define S3SUB(H) \
+	VPMOVZXBD (2+8*(H))(SI), Y11; \
+	MOVBLZX (66+(H))(SI), AX; \
+	VMOVD AX, X12; \
+	VPBROADCASTD X12, Y12; \
+	VPSRLVD iq3sshifts<>(SB), Y12, Y12; \
+	VPAND iq3sones<>(SB), Y12, Y12; \
+	VPSLLD $8, Y12, Y12; \
+	VPOR Y12, Y11, Y11; \
+	VPCMPEQD Y12, Y12, Y12; \
+	VPGATHERDD Y12, (R12)(Y11*4), Y0; \
+	VPBROADCASTD (74+4*(H))(SI), Y1; \
+	VPSHUFB iq3sspread<>(SB), Y1, Y1; \
+	VPAND iq3sbits<>(SB), Y1, Y1; \
+	VPCMPEQB iq3sbits<>(SB), Y1, Y1; \
+	VPOR Y13, Y1, Y1; \
+	MOVBLZX (106+(H)/2)(SI), AX; \
+	SHRL $(4*((H)&1)), AX; \
+	ANDL $15, AX; \
+	LEAL 1(AX)(AX*1), AX; \
+	VMOVD AX, X2; \
+	VPBROADCASTW X2, Y2
+
+#define S3SUB4(H) \
+	S3SUB(H); \
+	XSTOK(H, R8, Y3); \
+	XSTOK(H, R9, Y4); \
+	XSTOK(H, R10, Y5); \
+	XSTOK(H, R11, Y6)
+
+#define S3SUB1(H) \
+	S3SUB(H); \
+	XSTOK(H, R8, Y3)
+
+// func iq3SDots4(row *byte, blocks int, activations *[4]*byte, results *[4]float32)
+TEXT ·iq3SDots4(SB), NOSPLIT, $0-32
+	MOVQ row+0(FP), SI
+	MOVQ blocks+8(FP), CX
+	MOVQ activations+16(FP), DI
+	MOVQ results+24(FP), DX
+	MOVQ 0(DI), R8
+	MOVQ 8(DI), R9
+	MOVQ 16(DI), R10
+	MOVQ 24(DI), R11
+	MOVQ ·iq3SGrid(SB), R12
+	SETUP
+	VXORPS Y7, Y7, Y7
+	VXORPS Y8, Y8, Y8
+	VXORPS Y9, Y9, Y9
+	VXORPS Y10, Y10, Y10
+	TESTQ CX, CX
+	JZ s34done
+
+s34block:
+	VPXOR Y3, Y3, Y3
+	VPXOR Y4, Y4, Y4
+	VPXOR Y5, Y5, Y5
+	VPXOR Y6, Y6, Y6
+	S3SUB4(0)
+	S3SUB4(1)
+	S3SUB4(2)
+	S3SUB4(3)
+	S3SUB4(4)
+	S3SUB4(5)
+	S3SUB4(6)
+	S3SUB4(7)
+	WEIGHT(0(SI))
+	XSFOLD(R8, Y3, Y7)
+	XSFOLD(R9, Y4, Y8)
+	XSFOLD(R10, Y5, Y9)
+	XSFOLD(R11, Y6, Y10)
+	ADDQ $110, SI
+	ADDQ $292, R8
+	ADDQ $292, R9
+	ADDQ $292, R10
+	ADDQ $292, R11
+	DECQ CX
+	JNZ s34block
+
+s34done:
+	HSUM(Y7, X7)
+	VMOVSS X7, 0(DX)
+	HSUM(Y8, X8)
+	VMOVSS X8, 4(DX)
+	HSUM(Y9, X9)
+	VMOVSS X9, 8(DX)
+	HSUM(Y10, X10)
+	VMOVSS X10, 12(DX)
+	VZEROUPPER
+	RET
+
+// func iq3SDots1(row *byte, blocks int, activation *byte) float32
+TEXT ·iq3SDots1(SB), NOSPLIT, $0-28
+	MOVQ row+0(FP), SI
+	MOVQ blocks+8(FP), CX
+	MOVQ activation+16(FP), R8
+	MOVQ ·iq3SGrid(SB), R12
+	SETUP
+	VXORPS Y7, Y7, Y7
+	TESTQ CX, CX
+	JZ s31done
+
+s31block:
+	VPXOR Y3, Y3, Y3
+	S3SUB1(0)
+	S3SUB1(1)
+	S3SUB1(2)
+	S3SUB1(3)
+	S3SUB1(4)
+	S3SUB1(5)
+	S3SUB1(6)
+	S3SUB1(7)
+	WEIGHT(0(SI))
+	XSFOLD(R8, Y3, Y7)
+	ADDQ $110, SI
+	ADDQ $292, R8
+	DECQ CX
+	JNZ s31block
+
+s31done:
+	HSUM(Y7, X7)
+	VMOVSS X7, ret+24(FP)
+	VZEROUPPER
+	RET
+
+// Q8CODES loads the Q8_0 block's 32 weights at SI into Y1 (themselves, whose
+// signs the activations take) and Y0 (their magnitudes).
+#define Q8CODES \
+	VMOVDQU 2(SI), Y1; \
+	VPSIGNB Y1, Y1, Y0
+
+// func q80Dots4(row *byte, blocks int, activations *[4]*byte, results *[4]float32)
+TEXT ·q80Dots4(SB), NOSPLIT, $0-32
+	MOVQ row+0(FP), SI
+	MOVQ blocks+8(FP), CX
+	MOVQ activations+16(FP), DI
+	MOVQ results+24(FP), DX
+	MOVQ 0(DI), R8
+	MOVQ 8(DI), R9
+	MOVQ 16(DI), R10
+	MOVQ 24(DI), R11
+	NLSETUP
+	VXORPS Y7, Y7, Y7
+	VXORPS Y8, Y8, Y8
+	VXORPS Y9, Y9, Y9
+	VXORPS Y10, Y10, Y10
+	TESTQ CX, CX
+	JZ q84done
+
+q84block:
+	Q8CODES
+	WEIGHT(0(SI))
+	NLTOK(R8, Y7)
+	NLTOK(R9, Y8)
+	NLTOK(R10, Y9)
+	NLTOK(R11, Y10)
+	ADDQ $34, SI
+	ADDQ $34, R8
+	ADDQ $34, R9
+	ADDQ $34, R10
+	ADDQ $34, R11
+	DECQ CX
+	JNZ q84block
+
+q84done:
+	HSUM(Y7, X7)
+	VMOVSS X7, 0(DX)
+	HSUM(Y8, X8)
+	VMOVSS X8, 4(DX)
+	HSUM(Y9, X9)
+	VMOVSS X9, 8(DX)
+	HSUM(Y10, X10)
+	VMOVSS X10, 12(DX)
+	VZEROUPPER
+	RET
+
+// func q80Dots1(row *byte, blocks int, activation *byte) float32
+TEXT ·q80Dots1(SB), NOSPLIT, $0-28
+	MOVQ row+0(FP), SI
+	MOVQ blocks+8(FP), CX
+	MOVQ activation+16(FP), R8
+	NLSETUP
+	VXORPS Y7, Y7, Y7
+	TESTQ CX, CX
+	JZ q81done
+
+q81block:
+	Q8CODES
+	WEIGHT(0(SI))
+	NLTOK(R8, Y7)
+	ADDQ $34, SI
+	ADDQ $34, R8
+	DECQ CX
+	JNZ q81block
+
+q81done:
+	HSUM(Y7, X7)
+	VMOVSS X7, ret+24(FP)
+	VZEROUPPER
+	RET

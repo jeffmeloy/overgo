@@ -213,17 +213,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 854,
+        "nodes": 0,
         "reason": "measured: hybrid-experts/cpu-pool adds 854 production syntax nodes (the worker pool and the expert layer)"
       },
       "steps": [
-        {
-          "id": "cpu-pool",
-          "title": "Spread an expert layer's host rows across the CPU's cores",
-          "status": "open",
-          "verify": "go test ./internal/hostexpert -count=1 -run '^TestLayerMatchesTheSerialLayer$'",
-          "rationale": "Strata's pool (src/kernels/cpu/pool.cpp) keeps a worker on each physical core and hands each a span of an expert's rows, so one layer's host experts finish in the time one core takes for its share.\nThe step builds that pool over cpu-dots' kernels: a worker a physical core, an expert layer's (expert, row span) tasks shared out, held by tests to the serial result.\nServes: the hybrid execution below.\nBatch: host."
-        },
         {
           "id": "hybrid-layer",
           "title": "Compute a layer's host experts on the CPU while the card computes its own",

@@ -213,15 +213,15 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "measured: hybrid-experts/cpu-dots adds 1911 production syntax nodes (the activation quantizers, the row formulas, the AVX2 kernels and their dispatch)"
+        "nodes": 854,
+        "reason": "measured: hybrid-experts/cpu-pool adds 854 production syntax nodes (the worker pool and the expert layer)"
       },
       "steps": [
         {
           "id": "cpu-pool",
           "title": "Spread an expert layer's host rows across the CPU's cores",
           "status": "open",
-          "verify": "go run ./cmd/plan -status",
+          "verify": "go test ./internal/hostexpert -count=1 -run '^TestLayerMatchesTheSerialLayer$'",
           "rationale": "Strata's pool (src/kernels/cpu/pool.cpp) keeps a worker on each physical core and hands each a span of an expert's rows, so one layer's host experts finish in the time one core takes for its share.\nThe step builds that pool over cpu-dots' kernels: a worker a physical core, an expert layer's (expert, row span) tasks shared out, held by tests to the serial result.\nServes: the hybrid execution below.\nBatch: host."
         },
         {
@@ -563,7 +563,8 @@
             "sparse-decode-terms/do",
             "tool-decode-terms/do",
             "hybrid-plan/do",
-            "cpu-dots-terms/do"
+            "cpu-dots-terms/do",
+            "cpu-pool-terms/do"
           ]
         }
       ]

@@ -1018,32 +1018,6 @@ func launchLayerNormModulate(
 	)
 }
 
-// launchBroadcastGateAdd: residual + value*gate joined in one pass.
-func launchBroadcastGateAdd(
-	state *device.State,
-	functions functionSet,
-	output *tensor.Tensor,
-	fusion broadcastGateAddFusion,
-	pointers launchPointerFrame,
-) error {
-	count, err := elementCount32(output.Shape)
-	if err != nil {
-		return err
-	}
-	width, err := uint32Checked(fusion.gate.Shape.Dims[0], "broadcast gate width")
-	if err != nil {
-		return err
-	}
-	value := pointers.input(0)
-	gate := pointers.input(1)
-	residual := pointers.input(2)
-	result := pointers.output()
-	return launch1DABI(
-		state, functions[kernelBroadcastGateAddF32], count,
-		&value, &gate, &residual, &result, &width, &count,
-	)
-}
-
 func launchActivatedGate(
 	state *device.State,
 	functions functionSet,
@@ -1123,6 +1097,35 @@ func launchStreamSum(
 	}
 	q8Input.stagedNode = output
 	return nil
+}
+
+// The operands of a stream-combine fusion, in order.
+const (
+	streamCombineResidual = iota
+	streamCombineCurrent
+	streamCombineGate
+)
+
+// launchStreamCombine writes residual + current*gate over every stream of
+// every token, the gate's scaled sigmoid folded in where the fusion has one.
+func launchStreamCombine(
+	state *device.State,
+	functions functionSet,
+	output *tensor.Tensor,
+	fusion streamCombineFusion,
+	pointers launchPointerFrame,
+) error {
+	count, err := elementCount32(output.Shape)
+	if err != nil {
+		return err
+	}
+	width, streams := uint32(output.Shape.Dims[0]), uint32(output.Shape.Dims[1])
+	residual, current, gate, result := pointers.input(streamCombineResidual), pointers.input(streamCombineCurrent),
+		pointers.input(streamCombineGate), pointers.output()
+	scaled := kernelBool(fusion.scaled)
+	inner, outer := fusion.inner, fusion.outer
+	return launch1DABI(state, functions[kernelStreamCombineF32], count,
+		&residual, &current, &gate, &result, &width, &streams, &scaled, &inner, &outer, &count)
 }
 
 func launchWeightedRMSGate(

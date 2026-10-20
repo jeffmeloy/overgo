@@ -799,7 +799,6 @@ const (
 	compiledFusionActivatedGate
 	compiledFusionGELUTanh
 	compiledFusionLayerNormModulate
-	compiledFusionBroadcastGateAdd
 	compiledFusionWeightedRMSGate
 	compiledFusionBF16Append
 	compiledFusionBF16ArgmaxPartials
@@ -811,6 +810,7 @@ const (
 	compiledFusionQ8ArgmaxPartials
 	compiledFusionQ8ArgmaxReduction
 	compiledFusionStreamSum
+	compiledFusionStreamCombine
 )
 
 type compiledFusion struct {
@@ -824,7 +824,6 @@ type compiledFusion struct {
 	activatedGate activatedGateFusion
 	geluTanh      geluTanhFusion
 	layerNorm     layerNormModulateFusion
-	broadcastGate broadcastGateAddFusion
 	weightedGate  weightedRMSGateFusion
 	bf16Append    bf16AppendFusion
 	ropeAppend    ropeAppendFusion
@@ -832,6 +831,7 @@ type compiledFusion struct {
 	bf16ProjAdd   bf16ProjAddFusion
 	bf16Attention bf16AttentionFusion
 	streamSum     streamSumFusion
+	streamCombine streamCombineFusion
 }
 
 type dynamicAttributeSlot struct {
@@ -993,6 +993,7 @@ func deviceRangesOverlap(left, right deviceAddressRange) bool {
 
 func validateRetainedTargetAlias(
 	node *tensor.Tensor,
+	fusion *compiledFusion,
 	target DeviceValue,
 	contract tensor.OutputTargetContract,
 	pointers graphPointerTable,
@@ -1001,7 +1002,16 @@ func validateRetainedTargetAlias(
 	if err != nil {
 		return err
 	}
-	for index, input := range node.Inputs {
+	// A fused node reads its fusion's operands; the inputs it skipped hold no memory.
+	inputs := node.Inputs
+	if fusion != nil {
+		inputs = fusion.operands
+	}
+	for position, input := range inputs {
+		index := position
+		if fusion != nil {
+			index = slices.Index(node.Inputs, input)
+		}
 		inputBytes, sizeErr := input.Shape.Bytes(input.Type)
 		if sizeErr != nil {
 			return sizeErr
@@ -1816,8 +1826,6 @@ func launchCompiledFusion(
 		return "gelu_tanh", launchGELUTanh(state, functions, node, fusion.geluTanh, pointers)
 	case compiledFusionLayerNormModulate:
 		return "layer_norm_modulate", launchLayerNormModulate(state, functions, node, fusion.layerNorm, pointers)
-	case compiledFusionBroadcastGateAdd:
-		return "broadcast_gate_add", launchBroadcastGateAdd(state, functions, node, fusion.broadcastGate, pointers)
 	case compiledFusionWeightedRMSGate:
 		return "weighted_rms_gate", launchWeightedRMSGate(state, functions, q8Input, node, fusion.weightedGate, fusion.emitQ8, pointers)
 	case compiledFusionBF16Append:
@@ -1845,6 +1853,8 @@ func launchCompiledFusion(
 		return "q8_argmax", launchQ8ArgmaxReduction(state, functions, fusion.peer, node, pointers)
 	case compiledFusionStreamSum:
 		return "stream_sum", launchStreamSum(state, functions, q8Input, node, fusion.streamSum, fusion.emitQ8, pointers)
+	case compiledFusionStreamCombine:
+		return "stream_combine", launchStreamCombine(state, functions, node, fusion.streamCombine, pointers)
 	default:
 		return "", errors.New("compiled CUDA fusion is invalid")
 	}
@@ -2199,7 +2209,7 @@ func execute(
 			if retainedOutput && len(targetValues) != 0 && targetValues[outputIndex].Pointer != 0 {
 				target := targetValues[outputIndex]
 				if err := validateRetainedTargetAlias(
-					node, target, compiled.targetContracts[outputIndex], pointers,
+					node, frame.fusion, target, compiled.targetContracts[outputIndex], pointers,
 				); err != nil {
 					return nil, err
 				}

@@ -682,6 +682,61 @@ func TestCompileFusesStreamSum(t *testing.T) {
 	}
 }
 
+// streamCombine builds a hyper-connection combine: residual
+// [width, streams, tokens] plus current [width, tokens] repeated over the
+// streams times the gate Scale(Sigmoid(Scale(x, 1/streams)), 2) of x
+// [streams, tokens]. It returns the combine, its product and the gate.
+func streamCombine(builder *tensor.Builder, residual, current, x *tensor.Tensor) (*tensor.Tensor, *tensor.Tensor, *tensor.Tensor) {
+	width, streams, tokens := residual.Shape.Dims[0], residual.Shape.Dims[1], residual.Shape.Dims[2]
+	gate := builder.Scale(builder.Sigmoid(builder.Scale(x, 1/float32(streams))), 2)
+	repeated := builder.RepeatHeads(builder.Reshape(current, width, 1, tokens), uint32(streams))
+	product := builder.Multiply(repeated, builder.Reshape(gate, 1, streams, tokens))
+	return builder.Add(residual, product), product, gate
+}
+
+// TestCompileFusesStreamCombine holds a combine to one stream-combine
+// fusion with its scaled-sigmoid gate folded in; a gate that is itself an
+// output stays a tensor the fusion reads, and a product that is an output
+// leaves the combine unfused.
+func TestCompileFusesStreamCombine(t *testing.T) {
+	const width, streams, tokens = 8, 4, 2
+	builder := tensor.NewBuilder()
+	residual := builder.Input("residual", dtype.F32, tensor.MustShape(width, streams, tokens))
+	current := builder.Input("current", dtype.F32, tensor.MustShape(width, tokens))
+	x := builder.Input("x", dtype.F32, tensor.MustShape(streams, tokens))
+	output, product, gate := streamCombine(builder, residual, current, x)
+	compiled, err := Compile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	descriptor := compiled.nodes[compiled.orderIndexes[output]].fusion
+	if descriptor == nil || descriptor.kind != compiledFusionStreamCombine {
+		t.Fatalf("stream-combine fusion = %+v", descriptor)
+	}
+	fusion := descriptor.streamCombine
+	if fusion.residual != residual || fusion.current != current || fusion.gate != x || !fusion.scaled ||
+		fusion.inner != 1/float32(streams) || fusion.outer != 2 {
+		t.Fatalf("stream-combine fusion = %+v", fusion)
+	}
+	for _, skipped := range []*tensor.Tensor{product, gate} {
+		if !compiled.nodes[compiled.orderIndexes[skipped]].skipped {
+			t.Fatalf("fused tensor %d was not skipped", skipped.ID)
+		}
+	}
+	if compiled, err = Compile(output, gate); err != nil {
+		t.Fatal(err)
+	}
+	if descriptor := compiled.nodes[compiled.orderIndexes[output]].fusion; descriptor == nil || descriptor.streamCombine.scaled {
+		t.Fatalf("a combine whose gate is an output = %+v", descriptor)
+	}
+	if compiled, err = Compile(output, product); err != nil {
+		t.Fatal(err)
+	}
+	if descriptor := compiled.nodes[compiled.orderIndexes[output]].fusion; descriptor != nil {
+		t.Fatalf("a combine whose product is an output fused: %+v", descriptor)
+	}
+}
+
 func TestCompileFusesWeightedRMSNormAndActivatedGate(t *testing.T) {
 	const fixtureWidth = 8
 	builder := tensor.NewBuilder()

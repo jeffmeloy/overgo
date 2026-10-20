@@ -844,13 +844,13 @@
      "contains": "func Compile(",
      "path": "internal/cuda/executor/executor.go",
      "role": "source",
-     "identity": "file:sha256:12780186d324f33e0dc6d260672d2251222385cd553bff9d10ad544dd5738a09"
+     "identity": "file:sha256:9589809a35ace17b93298890d7c47226562f7ac46529c0e879419fcb4175003a"
     },
     {
      "contains": "func TestIndexedGraphOwnsCompilation(",
      "path": "internal/cuda/executor/compile_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:649dc16ecf4adeca0b899212718270122f5815e7630716f5da835aec5e09a74b"
+     "identity": "evidence:sha256:bfe1b71ebb3a1ff205922ea446680eec7b0286db0fd92395ef04000f769a67a4"
     }
    ],
    "id": "compiled-cuda-graph",

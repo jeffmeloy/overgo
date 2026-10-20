@@ -27,7 +27,6 @@ const (
 	kernelBf16ToF32
 	kernelBroadcastAddF32
 	kernelBroadcastDivideF32
-	kernelBroadcastGateAddF32
 	kernelBroadcastMultiplyF32
 	kernelCausalSoftmaxBatchedF32
 	kernelCausalSoftmaxF32
@@ -201,6 +200,7 @@ const (
 	kernelSparseAttentionSplitF32
 	kernelSsmConvF32
 	kernelSsmScanF32
+	kernelStreamCombineF32
 	kernelStreamSumF32
 	kernelStreamSumQ80F32
 	kernelStridedRowCopyF32
@@ -256,7 +256,6 @@ var kernelFunctionNames = [...]string{
 	"bf16_to_f32",
 	"broadcast_add_f32",
 	"broadcast_divide_f32",
-	"broadcast_gate_add_f32",
 	"broadcast_multiply_f32",
 	"causal_softmax_batched_f32",
 	"causal_softmax_f32",
@@ -430,6 +429,7 @@ var kernelFunctionNames = [...]string{
 	"sparse_attention_split_f32",
 	"ssm_conv_f32",
 	"ssm_scan_f32",
+	"stream_combine_f32",
 	"stream_sum_f32",
 	"stream_sum_q8_0_f32",
 	"strided_row_copy_f32",
@@ -484,7 +484,6 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	3,
 	15,
 	15,
-	6,
 	15,
 	4,
 	3,
@@ -658,6 +657,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	18,
 	7,
 	14,
+	10,
 	8,
 	9,
 	8,

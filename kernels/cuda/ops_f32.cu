@@ -1004,6 +1004,34 @@ extern "C" __global__ void stream_sum_q8_0_f32(
     store_q8_input_warp(quantized, block, value, lane);
 }
 
+// stream_combine_f32 adds to each stream of residual the token's current row
+// times the stream's gate, as broadcast_multiply_f32 and add_f32 round it: a
+// hyper-connection combine's repeat, product and add in one pass. With scaled
+// set the gate is outer * sigmoid(inner * gate), rounded as the injection's
+// scale_f32, sigmoid_f32 and scale_f32 round it.
+extern "C" __global__ void stream_combine_f32(
+        const float * residual,
+        const float * current,
+        const float * gate,
+        float * output,
+        unsigned int width,
+        unsigned int streams,
+        unsigned int scaled,
+        float inner,
+        float outer,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    const unsigned int row = index / width;
+    float value = gate[row];
+    if (scaled != 0) {
+        value = __fmul_rn(1.0f / (1.0f + expf(-__fmul_rn(value, inner))), outer);
+    }
+    output[index] = __fadd_rn(residual[index], __fmul_rn(current[(row / streams) * width + index % width], value));
+}
+
 extern "C" __global__ void gelu_f32(
         const float * input,
         float * output,
@@ -4098,22 +4126,6 @@ extern "C" __global__ void layer_norm_modulate_f32(
         const float scaled = __fmul_rn(normalized, scale_vector[column]);
         const float value = adaptive != 0u ? __fadd_rn(normalized, scaled) : scaled;
         output[offset + column] = __fadd_rn(value, shift_vector[column]);
-    }
-}
-
-// broadcast_gate_add_f32: out = residual + value*gate[channel] — the gated
-// residual join (rank-1 gate broadcast over tokens) in one pass, rounding
-// exactly like the broadcast_multiply + add pair it replaces.
-extern "C" __global__ void broadcast_gate_add_f32(
-        const float * value,
-        const float * gate,
-        const float * residual,
-        float * output,
-        unsigned int width,
-        unsigned int count) {
-    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index < count) {
-        output[index] = __fadd_rn(residual[index], __fmul_rn(value[index], gate[index % width]));
     }
 }
 

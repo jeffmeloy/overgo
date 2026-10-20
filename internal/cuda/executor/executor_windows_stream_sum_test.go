@@ -71,3 +71,40 @@ func TestExecutorStreamSumMatchesTheUnfusedGraph(t *testing.T) {
 			return builder.MulMat(left, sum)
 		}, inputQuantizedDecodeTolerance)
 }
+
+// TestExecutorStreamCombineMatchesTheUnfusedGraph runs a combine of 4
+// streams of 64 values over 3 tokens as one stream-combine kernel, its
+// scaled-sigmoid gate folded in, and, with its product kept as an output, as
+// its repeat, product, add and the gate's three kernels: the outputs agree
+// bit for bit.
+func TestExecutorStreamCombineMatchesTheUnfusedGraph(t *testing.T) {
+	cudatest.Require(t)
+	const width, streams, tokens = 64, 4, 3
+	builder := tensor.NewBuilder()
+	residual := builder.Input("residual", dtype.F32, tensor.MustShape(width, streams, tokens))
+	current := builder.Input("current", dtype.F32, tensor.MustShape(width, tokens))
+	x := builder.Input("x", dtype.F32, tensor.MustShape(streams, tokens))
+	output, product, _ := streamCombine(builder, residual, current, x)
+	if compiled, err := Compile(output); err != nil || compiled.nodes[compiled.orderIndexes[output]].fusion == nil {
+		t.Fatalf("the combine did not fuse: %v", err)
+	}
+	feeds := map[*tensor.Tensor]reference.Value{
+		residual: patternedValue(residual.Shape, 5, 0.29, -0.4),
+		current:  patternedValue(current.Shape, 9, 0.17, 0.1),
+		x:        patternedValue(x.Shape, 13, 0.73, -0.3),
+	}
+	cuda := newFixtureExecutor(t)
+	run := func(outputs ...*tensor.Tensor) []float32 {
+		program, err := tensor.CompileProgram(outputs...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := cuda.ExecuteProgram(context.WithoutCancel(t.Context()), program, feeds)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got[output].Data
+	}
+	compareBits(t, run(output), run(output, product))
+	checkCUDAGraph(t, feeds, graphOutputCheck{output: output, tolerance: accuracyProjection})
+}

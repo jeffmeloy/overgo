@@ -66,12 +66,13 @@ type streamSumFusion struct {
 	scale          float32
 }
 
-// broadcastGateAddFusion: residual + value*gate with a rank-1 gate
-// broadcast, joined in one pass.
-type broadcastGateAddFusion struct {
-	value    *tensor.Tensor
-	gate     *tensor.Tensor
-	residual *tensor.Tensor
+// streamCombineFusion: residual + current*gate, current a token's row
+// repeated over its streams and gate one value a stream and token, in one
+// pass; scaled folds outer*sigmoid(inner*gate) into the gate.
+type streamCombineFusion struct {
+	residual, current, gate *tensor.Tensor
+	scaled                  bool
+	inner, outer            float32
 }
 
 // bf16ProjAddFusion: one-token BF16 matvec with the residual add folded into
@@ -144,6 +145,7 @@ var graphRewriteCatalog = [...]graphRewrite{
 	{name: "weighted-rms", apply: applyWeightedRMSRewrite},
 	{name: "activated-gate", apply: applyActivatedGateRewrite},
 	{name: "stream-sum", apply: applyStreamSumRewrite},
+	{name: "stream-combine", apply: applyStreamCombineRewrite},
 	{name: "gelu-tanh", apply: applyGELUTanhRewrite},
 	{name: "layer-norm-modulate", apply: applyLayerNormModulateRewrite},
 	{name: "q8-emission", apply: applyQ8EmissionRewrite},
@@ -310,6 +312,82 @@ func applyStreamSumRewrite(context *rewriteContext) {
 		}
 		compiled.setFusion(node, &compiledFusion{kind: compiledFusionStreamSum, operands: operands, streamSum: fusion})
 	}
+}
+
+// applyStreamCombineRewrite: a hyper-connection combine,
+// Add(residual, Multiply(RepeatHeads(Reshape(current)), gate)) with gate a
+// [1, streams, tokens] value a stream and token, becomes one kernel; a gate
+// that reshapes Scale(Sigmoid(Scale(x))) read by the combine alone folds in.
+// Flash-Next's decode ran the repeat, product and add, and the gate's scale,
+// sigmoid and scale, as six kernels a combine, two combines a layer.
+func applyStreamCombineRewrite(context *rewriteContext) {
+	compiled := context.compiled
+	for _, node := range context.order {
+		if node.Op != tensor.OpAdd || len(node.Inputs) != tensor.PairedExtent || node.Type != dtype.F32 ||
+			node.Shape.Rank != tensor.TripleExtent || compiled.fusions[node] != nil {
+			continue
+		}
+		if _, skipped := compiled.skipped[node]; skipped {
+			continue
+		}
+		residual, product := node.Inputs[0], node.Inputs[1]
+		if product.Op != tensor.OpMultiply {
+			residual, product = product, residual
+		}
+		if product.Op != tensor.OpMultiply || len(product.Inputs) != tensor.PairedExtent || !residual.Shape.Equal(node.Shape) ||
+			!product.Shape.Equal(node.Shape) || compiled.fusions[product] != nil || !context.fusableIntermediate(product, 1) {
+			continue
+		}
+		repeated, gate := product.Inputs[0], product.Inputs[1]
+		if repeated.Op != tensor.OpRepeatHeads {
+			repeated, gate = gate, repeated
+		}
+		streams, tokens := node.Shape.Dims[1], node.Shape.Dims[tensor.PairedExtent]
+		if repeated.Op != tensor.OpRepeatHeads || !context.fusableIntermediate(repeated, 1) || gate.Type != dtype.F32 ||
+			gate.Shape.Rank != tensor.TripleExtent || gate.Shape.Dims[0] != 1 || gate.Shape.Dims[1] != streams || gate.Shape.Dims[tensor.PairedExtent] != tokens {
+			continue
+		}
+		interior := []*tensor.Tensor{product, repeated}
+		current := repeated.Inputs[0]
+		if current.Op == tensor.OpReshape && context.fusableIntermediate(current, 1) {
+			interior, current = append(interior, current), current.Inputs[0]
+		}
+		fusion := streamCombineFusion{residual: residual, current: current, gate: gate}
+		if chain, ok := scaledSigmoid(context, gate); ok {
+			innerScale := chain[len(chain)-1]
+			inner, _ := scaleFactorFor(innerScale)
+			outer, _ := scaleFactorFor(gate.Inputs[0])
+			fusion.gate, fusion.scaled, fusion.inner, fusion.outer = innerScale.Inputs[0], true, inner, outer
+			interior = append(interior, chain...)
+		}
+		if compiled.skipped == nil {
+			compiled.skipped = make(map[*tensor.Tensor]struct{})
+		}
+		for _, item := range interior {
+			compiled.skipped[item] = struct{}{}
+		}
+		compiled.setFusion(node, &compiledFusion{
+			kind: compiledFusionStreamCombine, operands: []*tensor.Tensor{residual, current, fusion.gate}, streamCombine: fusion,
+		})
+	}
+}
+
+// scaledSigmoid returns, where view reshapes Scale(Sigmoid(Scale(x))) and
+// each is read once and by nothing else, the chain from view to the inner
+// scale: view, the outer scale, the sigmoid and the inner scale.
+func scaledSigmoid(context *rewriteContext, view *tensor.Tensor) ([]*tensor.Tensor, bool) {
+	if view.Op != tensor.OpReshape || !context.fusableIntermediate(view, 1) {
+		return nil, false
+	}
+	chain := []*tensor.Tensor{view}
+	for _, op := range []tensor.Op{tensor.OpScale, tensor.OpSigmoid, tensor.OpScale} {
+		next := chain[len(chain)-1].Inputs[0]
+		if next.Op != op || len(next.Inputs) != 1 || next.Type != dtype.F32 || !context.fusableIntermediate(next, 1) {
+			return nil, false
+		}
+		chain = append(chain, next)
+	}
+	return chain, true
 }
 
 // streamSlices returns the one tensor parts slice in stream order: each part

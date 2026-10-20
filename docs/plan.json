@@ -213,8 +213,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 125,
-        "reason": "125 left after attention (+330), top-k (+132), delta-net (+99) and expert groups (+491), and load-guard's measured +417 moved from expert-residency: long-prompt/residency carries that change"
+        "nodes": 197,
+        "reason": "measured: long-prompt/prompt-memory adds 197 production syntax nodes (the retained-view copy rule and the planner's released outputs)"
       },
       "steps": [
         {
@@ -534,7 +534,8 @@
             "plan-long-prompt-general/do",
             "plan-fold-overlap/do",
             "plan-fold-loadguard/do",
-            "plan-prompt-memory-check/do"
+            "plan-prompt-memory-check/do",
+            "plan-prompt-memory-count/do"
           ]
         }
       ]

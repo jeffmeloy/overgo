@@ -110,6 +110,7 @@ type strataChunk struct {
 			Content   string
 			Reasoning string `json:"reasoning_content"`
 		}
+		FinishReason string `json:"finish_reason"`
 	}
 	Usage struct {
 		Prompt     int `json:"prompt_tokens"`
@@ -280,7 +281,7 @@ func (s *strataSuite) chat(messages []strataMessage, maxTokens int, tools bool) 
 	var request strataRequest
 	var chunk strataChunk
 	var text strings.Builder
-	pieces, clock := 0, processmeasure.NewStopwatch()
+	pieces, finished, clock := 0, false, processmeasure.NewStopwatch()
 	var walls processmeasure.Walls
 	response, err := http.Post(s.url+"/v1/chat/completions", "application/json", bytes.NewReader(data))
 	if err == nil {
@@ -288,11 +289,21 @@ func (s *strataSuite) chat(messages []strataMessage, maxTokens int, tools bool) 
 		if response.StatusCode != http.StatusOK {
 			err = errors.New(response.Status)
 		}
-		for lines := bufio.NewScanner(response.Body); err == nil && lines.Scan(); {
+		lines := bufio.NewScanner(response.Body)
+		for err == nil && lines.Scan() {
 			payload, found := strings.CutPrefix(lines.Text(), "data:")
-			chunk.Choices = nil
-			if !found || json.Unmarshal([]byte(strings.TrimSpace(payload)), &chunk) != nil {
+			if payload = strings.TrimSpace(payload); !found || payload == "" {
 				continue
+			}
+			// The stream ends at [DONE]; the usage and timings may come with the finish or after it.
+			if payload == "[DONE]" {
+				finished = true
+				break
+			}
+			chunk.Choices = nil
+			if json.Unmarshal([]byte(payload), &chunk) != nil {
+				err = fmt.Errorf("malformed stream data %.40q", payload)
+				break
 			}
 			for _, choice := range chunk.Choices {
 				if choice.Delta.Content+choice.Delta.Reasoning != "" {
@@ -301,10 +312,16 @@ func (s *strataSuite) chat(messages []strataMessage, maxTokens int, tools bool) 
 					}
 					text.WriteString(choice.Delta.Content)
 				}
+				finished = finished || choice.FinishReason != ""
 			}
 			if chunk.Error != nil {
 				err = errors.New(string(chunk.Error))
 			}
+		}
+		// An answer is one the stream finished: a read that failed or a stream cut short is no answer,
+		// whatever pieces came before.
+		if err = cmp.Or(err, lines.Err()); err == nil && !finished {
+			err = errors.New("the stream ended before its answer finished")
 		}
 	}
 	request.Total = time.Duration(walls.Elapsed(clock)).Seconds()

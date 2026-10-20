@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -18,10 +20,15 @@ import (
 // strataServed is a served model off the device as the suite meets it over
 // HTTP: it counts a word as a token beside a template of templateTokens,
 // reuses the tokens of the messages its last request shares with this one,
-// as a conversation cache does, and streams a reply of a token a word.
+// as a conversation cache does, and streams a reply of a token a word. The
+// request at an index breaks names breaks its stream after the reply's first
+// word: "eof" ends it there, "malformed" sends data that is no JSON and then
+// finishes, "oversize" sends a line longer than a reader holds, and "error"
+// sends an error event.
 type strataServed struct {
 	mu       sync.Mutex
 	requests []strataServedRequest
+	breaks   map[int]string
 }
 
 type strataServedRequest struct {
@@ -74,6 +81,7 @@ func (served *strataServed) ServeHTTP(response http.ResponseWriter, request *htt
 		words[index] = fmt.Sprintf("w%d", len(served.requests)*100+index)
 	}
 	body.reply = strings.Join(words, " ")
+	breaks := served.breaks[len(served.requests)]
 	served.requests = append(served.requests, body)
 	response.Header().Set("Content-Type", "text/event-stream")
 	write := func(value any) {
@@ -86,6 +94,19 @@ func (served *strataServed) ServeHTTP(response http.ResponseWriter, request *htt
 			word = " " + word
 		}
 		write(map[string]any{"choices": []any{map[string]any{"delta": map[string]string{"content": word}}}})
+		if index > 0 {
+			continue
+		}
+		switch breaks {
+		case "eof":
+			return
+		case "malformed":
+			fmt.Fprint(response, "data: {\"choices\": [\n\n")
+		case "oversize":
+			fmt.Fprintf(response, "data: %s\n\n", strings.Repeat("x", bufio.MaxScanTokenSize))
+		case "error":
+			write(map[string]any{"error": map[string]string{"message": "the server stopped"}})
+		}
 	}
 	write(map[string]any{
 		"choices": []any{map[string]any{"delta": map[string]string{}, "finish_reason": "length"}},
@@ -212,5 +233,44 @@ func TestStrataSuiteAgainstAServedModel(t *testing.T) {
 	want := slices.Concat(slices.Repeat([]string{"chat"}, 9), slices.Repeat([]string{"4K"}, 3), slices.Repeat([]string{"16K"}, 3), slices.Repeat([]string{"agent"}, 18))
 	if !slices.Equal(parts, want) {
 		t.Fatalf("kept parts %q, want %q", parts, want)
+	}
+}
+
+// TestStrataRefusesUnfinishedStreams holds a request to the stream that
+// answered it: after the reply's first word, a stream cut short, data that is
+// no JSON, a line longer than the reader holds and an error event each leave
+// the request unanswered with why, and the finished request after it is
+// answered. An agent session stops at its unanswered turn, which is kept as
+// such and joins neither the medians nor a next turn.
+func TestStrataRefusesUnfinishedStreams(t *testing.T) {
+	question := []strataMessage{{"role": "user", "content": "q"}}
+	for _, mode := range []string{"eof", "malformed", "oversize", "error"} {
+		served := &strataServed{breaks: map[int]string{0: mode}}
+		server := httptest.NewServer(served)
+		suite := &strataSuite{url: server.URL, nonce: mode, kept: io.Discard}
+		broken, finished := suite.chat(question, strataChatTokens, false), suite.chat(question, strataChatTokens, false)
+		server.Close()
+		if broken.OK || broken.Err == "" || !finished.OK {
+			t.Fatalf("%s: requests %+v then %+v, want the first unanswered with why and the second answered", mode, broken, finished)
+		}
+	}
+	// The third request, the first session's second file turn, is cut short.
+	served := &strataServed{breaks: map[int]string{2: "eof"}}
+	server := httptest.NewServer(served)
+	defer server.Close()
+	var kept bytes.Buffer
+	suite := &strataSuite{url: server.URL, nonce: "agent", kept: &kept}
+	result := suite.agent(strataFiles(""))
+	if sent := len(served.requests); sent != 3+2*(strataAgentTurns+1) {
+		t.Fatalf("%d requests, want the cut session's three and two sessions of %d", sent, strataAgentTurns+1)
+	}
+	if next := served.requests[3].Messages; len(next) != 2 {
+		t.Fatalf("the request after the cut turn holds %d messages, want a new session's two", len(next))
+	}
+	if decode := result["turns"].(map[string]any)["decode_tps"].(*strataStat); decode.N != 1+2*strataAgentTurns {
+		t.Fatalf("the follow-up turns' decode median is of %d, want the cut session's one answered and two sessions' %d", decode.N, strataAgentTurns)
+	}
+	if unanswered := strings.Count(kept.String(), `"ok":false`); unanswered != 1 {
+		t.Fatalf("%d unanswered requests kept, want the cut turn", unanswered)
 	}
 }

@@ -2394,6 +2394,184 @@ extern "C" __global__ void gated_delta_net_rows_f32(
     }
 }
 
+// The key-head kernel's shape (Strata's gdn_rec_kh_kernel, src/prefill/kernels.cu): a block takes a key head's
+// GDN_KH_COLUMNS value columns of every value head sharing the key head, GDN_KH_GROUPS row groups of
+// GDN_KH_ROWS key rows a thread, and stages GDN_KH_TOKENS tokens' inputs a buffer while the block computes the
+// tokens before.
+constexpr unsigned int GDN_KH_SIZE = 128;
+constexpr unsigned int GDN_KH_COLUMNS = 32;
+constexpr unsigned int GDN_KH_GROUPS = 4;
+constexpr unsigned int GDN_KH_ROWS = GDN_KH_SIZE / GDN_KH_GROUPS;
+constexpr unsigned int GDN_KH_TOKENS = 8;
+constexpr unsigned int GDN_KH_THREADS = GDN_KH_COLUMNS * GDN_KH_GROUPS;
+
+__device__ __forceinline__ void gdn_kh_copy4(float * shared, const float * global) {
+    asm volatile("cp.async.ca.shared.global [%0], [%1], 4;\n" ::"r"((unsigned int) __cvta_generic_to_shared(shared)), "l"(global));
+}
+
+__device__ __forceinline__ void gdn_kh_copy16(float * shared, const float * global) {
+    asm volatile("cp.async.cg.shared.global [%0], [%1], 16;\n" ::"r"((unsigned int) __cvta_generic_to_shared(shared)), "l"(global));
+}
+
+// gated_delta_net_keyhead computes gated_delta_net_rows_f32's outputs and final state for VPK value heads a
+// key head, a 128-wide state and one gate a head: each thread holds GDN_KH_ROWS key rows of one value column
+// of each of the key head's value heads, so a token's key and query are read once for the VPK heads, and the
+// inputs of the next GDN_KH_TOKENS tokens arrive by cp.async while these are computed. A token decays the
+// state, takes its key product, updates the state and takes its query product as the rows kernel does; the
+// products sum in another order.
+template <unsigned int VPK>
+__device__ __forceinline__ void gated_delta_net_keyhead(
+        const float * query,
+        const float * key,
+        const float * value,
+        const float * gate,
+        const float * beta,
+        const float * input_state,
+        float * output,
+        unsigned int key_heads,
+        unsigned int heads,
+        unsigned int tokens,
+        unsigned int sequences,
+        unsigned int repeat_interleave) {
+    __shared__ __align__(16) float sq[2][GDN_KH_TOKENS][GDN_KH_SIZE];
+    __shared__ __align__(16) float sk[2][GDN_KH_TOKENS][GDN_KH_SIZE];
+    __shared__ __align__(16) float sv[2][GDN_KH_TOKENS][VPK][GDN_KH_COLUMNS];
+    __shared__ float sg[2][GDN_KH_TOKENS][VPK];
+    __shared__ float sb[2][GDN_KH_TOKENS][VPK];
+    __shared__ float key_sums[VPK][GDN_KH_GROUPS][GDN_KH_COLUMNS];
+    __shared__ float query_sums[VPK][GDN_KH_GROUPS][GDN_KH_COLUMNS];
+    const unsigned int column_blocks = GDN_KH_SIZE / GDN_KH_COLUMNS;
+    const unsigned int block = blockIdx.x % column_blocks;
+    const unsigned int key_head = (blockIdx.x / column_blocks) % key_heads;
+    const unsigned int sequence = blockIdx.x / (column_blocks * key_heads);
+    if (sequence >= sequences) {
+        return;
+    }
+    const unsigned int lane = threadIdx.x, group = threadIdx.y, thread = group * GDN_KH_COLUMNS + lane;
+    const unsigned int column = block * GDN_KH_COLUMNS + lane;
+    const size_t state_elements = (size_t) GDN_KH_SIZE * GDN_KH_SIZE;
+    const size_t attention_elements = (size_t) GDN_KH_SIZE * heads * tokens * sequences;
+    unsigned int head_of[VPK];
+    float state[VPK][GDN_KH_ROWS];
+#pragma unroll
+    for (unsigned int j = 0; j < VPK; ++j) {
+        head_of[j] = repeat_interleave ? key_head * VPK + j : key_head + j * key_heads;
+        const float * source = input_state + (sequence * heads + head_of[j]) * state_elements + (size_t) column * GDN_KH_SIZE + group * GDN_KH_ROWS;
+#pragma unroll
+        for (unsigned int r = 0; r < GDN_KH_ROWS; ++r) {
+            state[j][r] = source[r];
+        }
+    }
+    const unsigned int staged_blocks = (tokens + GDN_KH_TOKENS - 1) / GDN_KH_TOKENS;
+    auto stage = [&](unsigned int staged) {
+        const unsigned int buffer = staged & 1, first = staged * GDN_KH_TOKENS;
+        const unsigned int pieces = GDN_KH_SIZE / 4;
+        for (unsigned int p = thread; p < GDN_KH_TOKENS * 2 * pieces; p += GDN_KH_THREADS) {
+            const unsigned int i = p / (2 * pieces), which = (p % (2 * pieces)) / pieces, at = (p % pieces) * 4;
+            if (first + i < tokens) {
+                const size_t row = ((size_t) (sequence * tokens + first + i) * key_heads + key_head) * GDN_KH_SIZE + at;
+                gdn_kh_copy16(which ? &sk[buffer][i][at] : &sq[buffer][i][at], (which ? key : query) + row);
+            }
+        }
+        const unsigned int value_pieces = GDN_KH_COLUMNS / 4;
+        for (unsigned int p = thread; p < GDN_KH_TOKENS * VPK * value_pieces; p += GDN_KH_THREADS) {
+            const unsigned int i = p / (VPK * value_pieces), j = (p % (VPK * value_pieces)) / value_pieces, at = (p % value_pieces) * 4;
+            if (first + i < tokens) {
+                gdn_kh_copy16(&sv[buffer][i][j][at], value + ((size_t) (sequence * tokens + first + i) * heads + head_of[j]) * GDN_KH_SIZE + block * GDN_KH_COLUMNS + at);
+            }
+        }
+        for (unsigned int p = thread; p < 2 * GDN_KH_TOKENS * VPK; p += GDN_KH_THREADS) {
+            const unsigned int which = p / (GDN_KH_TOKENS * VPK), i = (p % (GDN_KH_TOKENS * VPK)) / VPK, j = p % VPK;
+            if (first + i < tokens) {
+                const size_t at = (size_t) (sequence * tokens + first + i) * heads + head_of[j];
+                gdn_kh_copy4(which ? &sb[buffer][i][j] : &sg[buffer][i][j], (which ? beta : gate) + at);
+            }
+        }
+    };
+    const float scale = rsqrtf((float) GDN_KH_SIZE);
+    if (staged_blocks > 0) {
+        stage(0);
+    }
+    asm volatile("cp.async.commit_group;\n" ::);
+    for (unsigned int staged = 0; staged < staged_blocks; ++staged) {
+        // The buffer staged next was last read by the block before, whose last token's second barrier every thread has passed.
+        if (staged + 1 < staged_blocks) {
+            stage(staged + 1);
+        }
+        asm volatile("cp.async.commit_group;\n" ::);
+        asm volatile("cp.async.wait_group 1;\n" ::);
+        __syncthreads();
+        const unsigned int buffer = staged & 1, first = staged * GDN_KH_TOKENS;
+        const unsigned int count = min(GDN_KH_TOKENS, tokens - first);
+        for (unsigned int i = 0; i < count; ++i) {
+            float keys[GDN_KH_ROWS];
+#pragma unroll
+            for (unsigned int r = 0; r < GDN_KH_ROWS; ++r) {
+                keys[r] = sk[buffer][i][group * GDN_KH_ROWS + r];
+            }
+#pragma unroll
+            for (unsigned int j = 0; j < VPK; ++j) {
+                const float decay = expf(sg[buffer][i][j]);
+                float dot = 0.0f;
+#pragma unroll
+                for (unsigned int r = 0; r < GDN_KH_ROWS; ++r) {
+                    state[j][r] *= decay;
+                    dot += state[j][r] * keys[r];
+                }
+                key_sums[j][group][lane] = dot;
+            }
+            __syncthreads();
+            float queried[VPK];
+#pragma unroll
+            for (unsigned int j = 0; j < VPK; ++j) {
+                float dot = 0.0f;
+#pragma unroll
+                for (unsigned int g = 0; g < GDN_KH_GROUPS; ++g) {
+                    dot += key_sums[j][g][lane];
+                }
+                const float delta = (sv[buffer][i][j][lane] - dot) * sb[buffer][i][j];
+                queried[j] = 0.0f;
+#pragma unroll
+                for (unsigned int r = 0; r < GDN_KH_ROWS; ++r) {
+                    state[j][r] += delta * keys[r];
+                    queried[j] += state[j][r] * sq[buffer][i][group * GDN_KH_ROWS + r];
+                }
+                query_sums[j][group][lane] = queried[j];
+            }
+            __syncthreads();
+            if (group < VPK) {
+                float dot = 0.0f;
+#pragma unroll
+                for (unsigned int g = 0; g < GDN_KH_GROUPS; ++g) {
+                    dot += query_sums[group][g][lane];
+                }
+                output[((size_t) (sequence * tokens + first + i) * heads + head_of[group]) * GDN_KH_SIZE + column] = dot * scale;
+            }
+        }
+    }
+#pragma unroll
+    for (unsigned int j = 0; j < VPK; ++j) {
+        float * target = output + attention_elements + (sequence * heads + head_of[j]) * state_elements + (size_t) column * GDN_KH_SIZE + group * GDN_KH_ROWS;
+#pragma unroll
+        for (unsigned int r = 0; r < GDN_KH_ROWS; ++r) {
+            target[r] = state[j][r];
+        }
+    }
+}
+
+#define GATED_DELTA_NET_KEYHEAD(VPK)                                                                                     \
+    extern "C" __global__ void __launch_bounds__(GDN_KH_THREADS) gated_delta_net_keyhead##VPK##_f32(                     \
+            const float * query, const float * key, const float * value, const float * gate, const float * beta,      \
+            const float * input_state, float * output, unsigned int key_heads, unsigned int heads, unsigned int tokens, \
+            unsigned int sequences, unsigned int repeat_interleave) {                                                 \
+        gated_delta_net_keyhead<VPK>(query, key, value, gate, beta, input_state, output, key_heads, heads, tokens,  \
+            sequences, repeat_interleave);                                                                            \
+    }
+GATED_DELTA_NET_KEYHEAD(1)
+GATED_DELTA_NET_KEYHEAD(2)
+GATED_DELTA_NET_KEYHEAD(3)
+GATED_DELTA_NET_KEYHEAD(4)
+
 // gated_delta_net_backward_f32: VJP of gated_delta_net_f32, the BPTT through the
 // per-(sequence,head,row) gated delta recurrence. One thread per (sequence,head,
 // row): the token loop is inherently sequential per row, rows are independent.

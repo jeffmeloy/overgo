@@ -39,7 +39,19 @@ const (
 	gatedDeltaNetWarpWidth  = uint32(32)
 	gatedDeltaNetRowColumns = uint32(8)
 	gatedDeltaNetBlockRows  = uint32(4)
+	// gatedDeltaNetKeyheadSize, Columns and Groups mirror the key-head kernel: a 128-wide state, a block
+	// 32 value columns of every value head of a key head in 4 row groups. It reads a step of at least
+	// gatedDeltaNetKeyheadTokens tokens, a prompt's; a decode step's single token spreads wider as rows.
+	gatedDeltaNetKeyheadSize    = uint32(128)
+	gatedDeltaNetKeyheadColumns = uint32(32)
+	gatedDeltaNetKeyheadGroups  = uint32(4)
+	gatedDeltaNetKeyheadTokens  = uint32(16)
 )
+
+// gatedDeltaNetKeyheadKernels are the key-head kernels for one value head a key head, then two, three and four.
+var gatedDeltaNetKeyheadKernels = [...]kernelFunctionID{
+	kernelGatedDeltaNetKeyhead1F32, kernelGatedDeltaNetKeyhead2F32, kernelGatedDeltaNetKeyhead3F32, kernelGatedDeltaNetKeyhead4F32,
+}
 
 const (
 	// topKBlockThreads mirrors the block-per-row selection's block width.
@@ -264,6 +276,16 @@ func launchRecurrentSelection(
 		gate := pointers.input(3)
 		beta := pointers.input(4)
 		stateInput := pointers.input(5)
+		if perKey := heads / max(kHeads, 1); perKey >= 1 && perKey <= uint32(len(gatedDeltaNetKeyheadKernels)) && size == gatedDeltaNetKeyheadSize &&
+			gateWidth == 1 && qHeads == kHeads && heads%kHeads == 0 && tokens >= gatedDeltaNetKeyheadTokens {
+			return launchGridABI(
+				state, functions[gatedDeltaNetKeyheadKernels[perKey-1]],
+				driver.Dim3{X: kHeads * (size / gatedDeltaNetKeyheadColumns) * sequences, Y: 1, Z: 1},
+				driver.Dim3{X: gatedDeltaNetKeyheadColumns, Y: gatedDeltaNetKeyheadGroups, Z: 1},
+				&query, &key, &value, &gate, &beta, &stateInput, &output,
+				&kHeads, &heads, &tokens, &sequences, &repeatInterleave,
+			)
+		}
 		if size <= gatedDeltaNetRowColumns*gatedDeltaNetWarpWidth {
 			return launchGridABI(
 				state, functions[kernelGatedDeltaNetRowsF32],

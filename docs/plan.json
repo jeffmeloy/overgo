@@ -213,15 +213,15 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "each step's count is measured when it is built"
+        "nodes": 1157,
+        "reason": "measured: flashnext-decode/ngram-reads adds 1157 production syntax nodes (the host-row reader's handles, concurrent reads and row cache, less the serial loader it replaces)"
       },
       "steps": [
         {
           "id": "ngram-reads",
           "title": "Read a token's n-gram rows together and keep the rows read, not one file read after another",
           "status": "open",
-          "verify": "go run ./cmd/plan -status",
+          "verify": "go test ./internal/model -count=1 -run '^(TestHostRowsReadEachRowOnceAndKeepIt|TestLoadHostRowsAndDotRows)$'",
           "rationale": "From a Go CPU profile and an Nsight trace of the short chat's decode on master 4edd2eba4 on 2026-10-20 (tmp/strata-decode's probe, 200 tokens, plain greedy).\nA token takes 16.9 ms: the card runs its graph for about 13 ms and waits about 3.7 ms while the host works.\ninference/ngram.go loads each token's n-gram embedding rows with model.LoadHostRows, one ReadAt of the GGUF file after another: 1.35 ms a token, and more where the file cache has not kept the table.\nStrata's ple_reader (src/ngram/ple_reader.cpp) submits a step's rows together from an I/O thread, up to 256 reads in flight, into a bounded set-associative cache of 1,048,576 rows; --ple-io ram locks the table in memory.\nThe step reads a step's rows concurrently and keeps a bounded cache of the rows read, in the host-row reader every host lookup table goes through (model.LoadHostRows, which training's embedding reads also use), on the decode and prompt paths both: a prompt reads a row for each of a token's offsets.\nEvidence: the probe's decode milliseconds a token and the bench's 4K and 16K first outputs, the generated ids identical.\nServes: throughput, and first-output of a prompt whose rows the file cache lacks.\nBatch: host."
         },
         {
@@ -599,7 +599,8 @@
             "cpu-dots-terms/do",
             "cpu-pool-terms/do",
             "hybrid-layer-terms/do",
-            "decode-plan/do"
+            "decode-plan/do",
+            "ngram-reads-terms/do"
           ]
         }
       ]

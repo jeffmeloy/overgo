@@ -208,25 +208,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "sqa-repairs",
-      "title": "Repair the confirmed defects SQA found in agent-thread recovery and store deltas",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 35,
-        "reason": "measured: sqa-repairs/agent-thread adds 96 production syntax nodes (the paged read and its truncation); release-deltas is SQA-173's estimate of 15 to 35"
-      },
-      "steps": [
-        {
-          "id": "release-deltas",
-          "title": "Return the resync directive when a head-bound delta crosses a content release",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -count=1 -run '^Test(ReleaseKeepsChainAuthority|HeadBoundDeltaReconciliation)$'",
-          "rationale": "SQA-173 (P2, confirmed defect, 2026-10-20, at 38879a6e1): Store.DeltasSince (internal/overgodb/head_bound_delta.go) copies a walked commit's artifacts, contents, aliases and lineage and advances the head without looking at its Releases. A peer at the head before a release is then told it has reconciled (resync false) while the released bytes are gone.\nThe step returns the existing empty delta with resync true when a walked commit holds Releases, before crediting any part of the window. Ordinary windows, continuation, cancellation and divergence keep their behaviour.\nTestReleaseKeepsChainAuthority gains the one-commit delta from its captured pre-release head, before and after reopening, on its existing fixture.\nServes: failure-rate of store peers reconciling across a release.\nBatch: host."
-        }
-      ]
-    },
-    {
       "id": "flashnext-decode",
       "title": "Decode Flash-Next at the rate Strata reaches on this PC",
       "owner": "master-lead",

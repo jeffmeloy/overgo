@@ -85,6 +85,15 @@ func TestReleaseKeepsChainAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// A consumer at the head before the release resyncs: no delta names the bytes the release took.
+	crossesRelease := func(store *Store) {
+		t.Helper()
+		delta, resync, err := store.DeltasSince(ctx, headBefore, sequenceBefore, ProjectionContractVersion(), 1)
+		if err != nil || !resync || len(delta.Commits) != 0 || len(delta.Artifacts) != 0 {
+			t.Fatalf("a delta across the release = %+v, resync %t: %v", delta, resync, err)
+		}
+	}
+	crossesRelease(store)
 	if report.Unreachable != 2 || report.Released != 1 || report.ReleasedBytes != int64(fixture.orphan.Descriptor.Size) ||
 		report.Commits != 1 || report.BlobsRemoved != 1 || report.BlobsAbsent != 0 ||
 		report.HeadBefore != headBefore || report.SequenceBefore != sequenceBefore ||
@@ -118,6 +127,7 @@ func TestReleaseKeepsChainAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
+	crossesRelease(store)
 	again, err := Release(ctx, store, nil, RetentionPolicy{}, releasable)
 	if err != nil {
 		t.Fatal(err)

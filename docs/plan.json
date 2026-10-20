@@ -213,16 +213,23 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "measured: long-prompt/bench adds 160 production syntax nodes (the kept request lines, cached tokens on a serving attempt and the scorecard's sizing by tokens read)"
+        "nodes": 342,
+        "reason": "measured: long-prompt/router-flush adds 342 production syntax nodes (the stream query, the copies' and products' submission, the router's product)"
       },
       "steps": [
+        {
+          "id": "router-flush",
+          "title": "Submit expert copies as they are queued, and take a prompt's router logits as one product",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/driver ./internal/cuda/executor -count=1 -run '^(TestStreamQueryReportsCompletedWork|TestExecutorMoENativeCompute|TestPromptExpertCopiesOverlapCompute|TestPromptExpertsMultiplyEncodedWeights)$'",
+          "rationale": "From long-prompt/prefill-rate's Nsight profile of Flash-Next's 20,605-token prompt on master, 2026-10-20 (warm 18.9 s).\nThe card ran 4.18 s of expert copies and 13.84 s of kernels with 0.005 s of overlap, although the grouped products queue each batch's copies on a second stream: under Windows' display driver model the queued copies wait in the driver's buffer until the compute before them ends.\nmoe_router_dot_f32 took 1.09 s over 96 launches: its warp a logit reads the 2,560 x 512 router again for every token.\nThe step submits each stream's queued work as it is queued (cuStreamQuery) and takes a native group's router logits as one F32 cuBLAS product with the router's bias after.\nMeasured: 18.91 s to 16.40 s; 95 of 96 answer tokens the same on the four sweep prompts, one near-tie flipped.\nServes: first-output of every routed-expert model's prompts.\nBatch: device."
+        },
         {
           "id": "prefill-rate",
           "title": "Read a fresh 16K Flash-Next prompt at the rate Strata reaches",
           "status": "open",
           "verify": "go run ./cmd/plan -status",
-          "rationale": "From Strata's frozen bench re-run on master on 2026-10-20 (long-prompt/bench), against Strata's baseline-20261016 on this PC.\nA fresh 4K prompt's first token takes 3.43 s at 1,204 tokens a second (Strata 2.21 s, 1,837) and a fresh 16K prompt's 13.1 s at 1,249 (Strata 5.01 s, 3,229); the first prompt of each size took 5.96 and 23.7 s, after the short chat's answers.\nThe steps above took the 20,605-token prompt from 714.8 s to about 19.5 s; Nsight at 20,605 tokens before attention-mma gave grouped expert products about 3.4 s, delta-net about 2 s, the router about 1 s and host-to-device copies about 4.5 s, with stream waits between.\nThe step profiles the 16K prompt on master (nsys, cuda_gpu_kern_sum and cuda_gpu_mem_time_sum), cuts the largest remaining cost, and finds why a size's first prompt is slower (residency refill after the chat, or a lazy allocation).\nEvidence: the bench's 4K and 16K medians, and Flash-Next's 4K and 16K scorecard cells.\nServes: first-output of Flash-Next prompts past 2,048 tokens.\nBatch: device."
+          "rationale": "From Strata's frozen bench re-run on master on 2026-10-20 (long-prompt/bench), against Strata's baseline-20261016 on this PC.\nA fresh 4K prompt's first token takes 3.43 s at 1,204 tokens a second (Strata 2.21 s, 1,837) and a fresh 16K prompt's 13.1 s at 1,249 (Strata 5.01 s, 3,229); the first prompt of each size took 5.96 and 23.7 s, after the short chat's answers.\nThe steps above took the 20,605-token prompt from 714.8 s to about 19.5 s; Nsight at 20,605 tokens before attention-mma gave grouped expert products about 3.4 s, delta-net about 2 s, the router about 1 s and host-to-device copies about 4.5 s, with stream waits between.\nThe step profiles the 16K prompt on master (nsys, cuda_gpu_kern_sum and cuda_gpu_mem_time_sum), cuts the largest remaining cost, and finds why a size's first prompt is slower (residency refill after the chat, or a lazy allocation).\nEvidence: the bench's 4K and 16K medians, and Flash-Next's 4K and 16K scorecard cells.\nServes: first-output of Flash-Next prompts past 2,048 tokens.\nBatch: device.\n\nProfiled on master on 2026-10-20 (Nsight, the 20,605-token prompt, warm 18.9 s, cold 21.8 s with the file cache warm and 42.1 s without it): kernels 13.84 s, expert copies 4.18 s (54 GB) with none beside a kernel, grouped expert products 3.32 + 0.98 s, sparse attention 2.09 s, delta-net 2.07 s, router 1.09 s. long-prompt/router-flush takes the copies' submission and the router (16.4 s); what remains is the products, delta-net and attention on tensor cores, the copies that still wait (2.7 s), and the cold prompt's reads of the model file (Strata keeps every expert in one pinned arena from the load)."
         }
       ]
     },
@@ -546,7 +553,8 @@
             "plan-kernel-audit/do",
             "plan-sam-attention/do",
             "length-cells-terms/do",
-            "bench-terms/do"
+            "bench-terms/do",
+            "router-flush-terms/do"
           ]
         }
       ]

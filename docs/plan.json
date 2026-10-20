@@ -236,7 +236,7 @@
           "title": "Return the experts a long prompt moves off the card and size a prompt's memory to Strata's",
           "status": "open",
           "verify": "go test ./internal/modeldevice -count=1 -run '^TestPromptReservationRestoresExperts$'",
-          "rationale": "From the Strata bench run on 2026-10-19: Overgo's server ended with 17,014 of 73,728 expert matrices on the card (13.95 GB), where the probe of the same recipe holds 42,354 (32.8 GB); routes found on the card fell to 72%.\nA 20,605-token prompt asked for 46 GB beyond the weights (about 2.2 MB a token) and ran as two chunks; memory a prompt reserves moves experts to host memory (ReserveExpertMemory), and nothing returns them.\nStrata lends a prompt its coldest cache slots and copies them back after it (generate.cpp:11416-11427, 11823), and its prompt takes about 0.4 MB a token, the attention and expert halves sharing their scratch (prefill.cpp:974-978).\nThe step returns lent experts after the prompt and measures and cuts the per-token prompt memory.\nEvidence: the experts on the card after a long prompt, the per-token reservation, decode speed after a long prompt.\nServes: throughput after long prompts; first-output of prompts that now split.\nBatch: device."
+          "rationale": "From the Strata bench run on 2026-10-19: Overgo's server ended with 17,014 of 73,728 expert matrices on the card (13.95 GB), where the probe of the same recipe holds 42,354 (32.8 GB); routes found on the card fell to 72%.\nA 20,605-token prompt asked for 46 GB beyond the weights (about 2.2 MB a token) and ran as two chunks; memory a prompt reserves moves experts to host memory (ReserveExpertMemory), and nothing returns them.\nStrata lends a prompt its coldest cache slots and copies them back after it (generate.cpp:11416-11427, 11823), and its prompt takes about 0.4 MB a token, the attention and expert halves sharing their scratch (prefill.cpp:974-978).\nThe step returns lent experts after the prompt and measures and cuts the per-token prompt memory.\nEvidence: the experts on the card after a long prompt, the per-token reservation, decode speed after a long prompt.\nServes: throughput after long prompts; first-output of prompts that now split.\nBatch: device.\n\nFrom the owner's direction of 2026-10-20: the lend-and-refill arena is a residency object for every routed-expert model, not for Flash-Next alone: every MoE model's long prompt makes room for its staging by moving experts off the card (15.7 GB copied back to host and 2,449 pinned allocations in a 20,605-token Flash-Next prompt), and every one decodes slower after. The step builds it in internal/modeldevice's expert residency, which all of them load through, and measures it on Flash-Next and on a second MoE model."
         },
         {
           "id": "attention-mma",
@@ -247,6 +247,20 @@
           "depends_on": [
             "long-prompt/attention"
           ]
+        },
+        {
+          "id": "kernel-audit",
+          "title": "Rewrite every kernel whose output element recomputes a reduction its row shares, where models reach it",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "From the owner's direction of 2026-10-20: the Strata effort's point is durable lessons and general code objects that every model uses, applied throughout for speed and memory.\nThe long-prompt row found sparse_attention_f32 spending 94.8% of a 2,625-token prompt because each thread computed one output channel and recomputed the row's whole dot product and softmax for it, 512 times the work; the grouped kernel that replaced it is bit-identical and 9 to 12 times faster across the sweep.\nOther kernels launch a thread per output element over a shared reduction the same way: attention_f32 (the attention fallback), indexer_score_f32 (a thread per query and key, looping over heads), and the per-row routed-expert fallbacks among them.\nThe step lists every kernel whose output element recomputes a reduction its row shares (a scan of kernels/cuda/ops_f32.cu), records for each the models and request shapes that reach it (the operation's launch conditions), measures the reached ones on those models, and rewrites the costly ones as the grouped attention was: the shared reduction once, the same operations and order, bits held against the old kernel.\nEvidence: the list with each kernel's reach, and before-and-after times on the models that reach the rewritten ones.\nServes: first-output and throughput of every model whose paths reach such a kernel.\nBatch: device."
+        },
+        {
+          "id": "length-cells",
+          "title": "Time every chat model's first output at about 4K and 16K prompt tokens on the scorecard",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "From the owner's direction of 2026-10-20 (general objects for every model) and the long-prompt row's finding.\nThe scorecard times each chat model's first output at one short prompt (Flash-Next's 1,561-token document), so the 18 times slower token past 2,048 tokens stayed unseen until Strata's 4K and 16K bench ran.\nThe step adds long-prompt first-output cells, a fresh prompt of about 4K and 16K tokens within each model's context, to every inference model's scorecard measurement, with Strata's word-list prompts so Flash-Next's cells compare with Strata's baseline directly.\nEvidence: the cells on the next measurement run for every inference model the scorecard holds.\nServes: first-output measurement for every chat model; finds length cliffs where they are.\nBatch: device."
         },
         {
           "id": "bench",
@@ -556,7 +570,8 @@
             "plan-media-pending/do",
             "media-pending/do",
             "plan-long-prompt-count/do",
-            "plan-long-prompt-owner/do"
+            "plan-long-prompt-owner/do",
+            "plan-long-prompt-general/do"
           ]
         }
       ]

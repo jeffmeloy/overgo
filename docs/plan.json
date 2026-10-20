@@ -213,24 +213,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 160,
+        "nodes": 0,
         "reason": "measured: long-prompt/bench adds 160 production syntax nodes (the kept request lines, cached tokens on a serving attempt and the scorecard's sizing by tokens read)"
       },
       "steps": [
-        {
-          "id": "bench",
-          "title": "Re-run Strata's frozen bench with each request's figures kept as it runs",
-          "status": "open",
-          "verify": "go test ./cmd/benchmark ./internal/scorecard -run '^(TestStrataSuiteAgainstAServedModel|TestALongerPromptIsTimedAsItsLengthAlone)$'",
-          "rationale": "The 2026-10-19 bench run reached its one-hour limit inside the agent sessions, and the suite writes its result only at the end, so every per-request figure was lost; the server's counters kept the totals.\nThe step writes each request's figures as it completes and re-runs the suite against the server built from the steps above, against Strata's baseline-20261016 medians.\nServes: the parity measurement every step above is judged by.\nBatch: device.",
-          "depends_on": [
-            "long-prompt/attention",
-            "long-prompt/topk",
-            "long-prompt/gdn",
-            "long-prompt/expert-groups",
-            "long-prompt/residency"
-          ]
-        },
         {
           "id": "prefill-rate",
           "title": "Read a fresh 16K Flash-Next prompt at the rate Strata reaches",

@@ -201,6 +201,7 @@ func summarizeOperationEvidence(projection operationEvidenceProjection) (operati
 	for _, document := range projection.Serving {
 		observation := document.Value
 		if err := addOperationEvidenceMetric(&summary.Usage.InputTokens, observation.Usage.InputTokens); err != nil ||
+			addOperationEvidenceMetric(&summary.Usage.CachedTokens, observation.Usage.CachedTokens) != nil ||
 			addOperationEvidenceMetric(&summary.Usage.OutputTokens, observation.Usage.OutputTokens) != nil ||
 			addOperationEvidenceMetric(&summary.Usage.InputBytes, observation.Usage.InputBytes) != nil ||
 			addOperationEvidenceMetric(&summary.Usage.OutputBytes, observation.Usage.OutputBytes) != nil ||

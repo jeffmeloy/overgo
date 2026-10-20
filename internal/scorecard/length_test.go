@@ -20,11 +20,12 @@ import (
 // about 4K tokens (300 ms) and one of about 16K (1,500 ms) give the row's
 // own first output 10 ms and two longer-prompt cells of 300 and 1,500 ms, each
 // on its own contract; a user's 9,000-token prompt of 4,000 ms lies between
-// the two lengths and is timed by neither, nor by the row's own cell. A
-// longer prompt's cell is judged on its own readings: after five of 300 ms
-// one of 600 ms is filed as a decline of that cell with 300 as its target,
-// and the history says it moved, beside the row's own first output, which
-// did not.
+// the two lengths and is timed by neither, nor by the row's own cell, and a
+// conversation's 4,500-token prompt of which a prompt cache answered 4,000
+// read 500 tokens and is no 4K reading. A longer prompt's cell is judged on
+// its own readings: after five of 300 ms one of 600 ms is filed as a decline
+// of that cell with 300 as its target, and the history says it moved, beside
+// the row's own first output, which did not.
 func TestALongerPromptIsTimedAsItsLengthAlone(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
@@ -43,13 +44,16 @@ func TestALongerPromptIsTimedAsItsLengthAlone(t *testing.T) {
 	// Committed oldest first: the verified request on a fresh load, then the two longer prompts and a
 	// user's prompt between them on the loaded model.
 	for index, attempt := range []struct {
-		tokens  uint64
-		prefill time.Duration
-		loaded  bool
-	}{{5, 10 * time.Millisecond, true}, {uint64(short) + 1, 300 * time.Millisecond, false}, {uint64(long) + 1, 1500 * time.Millisecond, false}, {9000, 4 * time.Second, false}} {
+		tokens, cached uint64
+		prefill        time.Duration
+		loaded         bool
+	}{
+		{5, 0, 10 * time.Millisecond, true}, {uint64(short) + 1, 0, 300 * time.Millisecond, false}, {uint64(long) + 1, 0, 1500 * time.Millisecond, false},
+		{9000, 0, 4 * time.Second, false}, {4500, 4000, 50 * time.Millisecond, false},
+	} {
 		observation := runrecord.ServingObservation{
 			Model: model, Recipe: served, Environment: environment, Task: recipe.TaskInference, Outcome: runrecord.OutcomeSucceeded,
-			StartedUnixNS: int64(index + 1), MeasuredNS: uint64(attempt.prefill), Usage: runrecord.ServingUsage{InputTokens: attempt.tokens, OutputTokens: 1},
+			StartedUnixNS: int64(index + 1), MeasuredNS: uint64(attempt.prefill), Usage: runrecord.ServingUsage{InputTokens: attempt.tokens, CachedTokens: attempt.cached, OutputTokens: 1},
 			Hardware: []runrecord.ServingHardwareSample{{Stage: runrecord.ServingHardwarePrefill, ElapsedNS: uint64(attempt.prefill)}},
 		}
 		if attempt.loaded {

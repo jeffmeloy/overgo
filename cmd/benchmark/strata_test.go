@@ -102,7 +102,8 @@ func (served *strataServed) ServeHTTP(response http.ResponseWriter, request *htt
 // file turns at 64 with the four tools, each turn resending the conversation
 // with the model's own answers; every request streamed, greedy and with
 // thinking off. The medians come from the engine's timings and the reuse from
-// its usage, as the reference reads them.
+// its usage, as the reference reads them. Each measured request is kept as it
+// completes, a line of JSON naming its part, in the order it was sent.
 func TestStrataSuiteAgainstAServedModel(t *testing.T) {
 	served := &strataServed{}
 	server := httptest.NewServer(served)
@@ -120,8 +121,8 @@ func TestStrataSuiteAgainstAServedModel(t *testing.T) {
 	write("README.md", 2400)
 	write("docs/HOW_IT_WORKS.md", 800)
 	write("docs/DETAILS.md", 100)
-	var output bytes.Buffer
-	if err := runStrata([]string{server.URL + "/", docs}, &output); err != nil {
+	var output, kept bytes.Buffer
+	if err := runStrata([]string{server.URL + "/", docs}, &output, &kept); err != nil {
 		t.Fatal(err)
 	}
 
@@ -194,5 +195,22 @@ func TestStrataSuiteAgainstAServedModel(t *testing.T) {
 	hit, reread, last := median(result.Agent["hit_pct"]), median(result.Agent["reread_tokens"]), median(result.Agent["last_turn_prompt_tokens"])
 	if hit.N != 3 || hit.Median <= 0 || hit.Median >= strataPercent || reread.Max != 0 || last.Median <= 0 || median(turns["decode_tps"]).N != 15 {
 		t.Fatalf("agent hit %+v, read again %+v, last turn %+v", hit, reread, last)
+	}
+
+	var parts []string
+	for line := range strings.Lines(kept.String()) {
+		var request struct {
+			Part      string  `json:"part"`
+			OK        bool    `json:"ok"`
+			PromptTPS float64 `json:"prompt_tps"`
+		}
+		if err := json.Unmarshal([]byte(line), &request); err != nil || !request.OK || request.PromptTPS != servedPrefill {
+			t.Fatalf("kept request %q = %+v, %v; want an answered request with the engine's prefill rate", line, request, err)
+		}
+		parts = append(parts, request.Part)
+	}
+	want := slices.Concat(slices.Repeat([]string{"chat"}, 9), slices.Repeat([]string{"4K"}, 3), slices.Repeat([]string{"16K"}, 3), slices.Repeat([]string{"agent"}, 18))
+	if !slices.Equal(parts, want) {
+		t.Fatalf("kept parts %q, want %q", parts, want)
 	}
 }

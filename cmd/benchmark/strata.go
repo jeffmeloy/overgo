@@ -140,17 +140,30 @@ type strataStat struct {
 type strataSuite struct {
 	url, nonce        string
 	perWord, overhead float64
+	// kept is where each measured request is written as it completes, so a run stopped short keeps
+	// what it measured.
+	kept io.Writer
+}
+
+// keep writes a measured request of a part to the kept stream, a line of JSON.
+func (s *strataSuite) keep(part string, request strataRequest) {
+	line, _ := json.Marshal(struct {
+		Part string `json:"part"`
+		strataRequest
+	}{part, request})
+	fmt.Fprintln(s.kept, string(line))
 }
 
 // runStrata sends Strata's frozen bench to the HTTP API at the URL and writes
 // every request with the medians, under the reference's names. The agent
 // session reads the documents of the folder named after it, as the reference
-// reads its own folder's, and generated word lists without one.
-func runStrata(args []string, output io.Writer) error {
+// reads its own folder's, and generated word lists without one. Each measured
+// request is also written to kept as it completes.
+func runStrata(args []string, output, kept io.Writer) error {
 	if len(args) == 0 || len(args) > strataArguments {
 		return errors.New("usage: benchmark strata URL [FOLDER]")
 	}
-	suite := &strataSuite{url: strings.TrimSuffix(args[0], "/"), nonce: fmt.Sprint(time.Now().Unix())}
+	suite := &strataSuite{url: strings.TrimSuffix(args[0], "/"), nonce: fmt.Sprint(time.Now().Unix()), kept: kept}
 	return clioptions.WritePrettyJSON(output, suite.run(append(args, "")[1]))
 }
 
@@ -173,18 +186,21 @@ func (s *strataSuite) run(docs string) map[string]any {
 		for index, question := range strataQuestions {
 			request := s.chat(user(fmt.Sprintf("[%d-%d-c-%s] %s", run, index, s.nonce, question)), strataChatTokens, false)
 			request.Run, request.Index = run, index
+			s.keep("chat", request)
 			chat = append(chat, request)
 		}
 	}
 	prompts := map[string]any{}
 	for _, size := range []int{strataShortPrompt, strataLongPrompt} {
 		var requests []strataRequest
+		part := strconv.Itoa(size/strataPrimeSize) + "K"
 		for run := range strataRuns {
 			request := s.chat(user(s.prompt(size, run)), strataPromptTokens, false)
 			request.Run = run
+			s.keep(part, request)
 			requests = append(requests, request)
 		}
-		prompts[strconv.Itoa(size/strataPrimeSize)+"K"] = strataSummary(requests)
+		prompts[part] = strataSummary(requests)
 	}
 	return map[string]any{"chat": strataSummary(chat), "prompts": prompts, "agent": s.agent(strataFiles(docs))}
 }
@@ -217,6 +233,7 @@ func (s *strataSuite) agent(files []strataFile) map[string]any {
 			}
 			request := s.chat(messages, strataAgentTokens, true)
 			request.Run, request.Index = run, turn
+			s.keep("agent", request)
 			if turns = append(turns, request); !request.OK {
 				break
 			}

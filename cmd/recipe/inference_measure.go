@@ -317,7 +317,8 @@ func observeRequest(ctx context.Context, model servedModel, request evaluation.E
 	// decode the request past its prefill.
 	decode := total - min(cmp.Or(generation.evaluated, prefill), total)
 	observation.MeasuredNS, observation.Hardware = total, generation.samples
-	observation.Usage.InputTokens, observation.Usage.OutputTokens = generation.tokens, uint64(max(result.GeneratedTokens, 0))
+	observation.Usage.InputTokens, observation.Usage.CachedTokens = generation.tokens, min(generation.cached, generation.tokens)
+	observation.Usage.OutputTokens = uint64(max(result.GeneratedTokens, 0))
 	observation.Phases = slices.DeleteFunc([]runrecord.PhaseMetric{
 		{Phase: runrecord.PhasePrefill, DurationNS: prefill}, {Phase: runrecord.PhaseDecode, DurationNS: decode},
 	}, func(phase runrecord.PhaseMetric) bool { return phase.DurationNS == 0 })
@@ -329,15 +330,15 @@ func observeRequest(ctx context.Context, model servedModel, request evaluation.E
 // device memory sampled at the stages of the request. It also keeps three
 // moments of the request, each from its start: when the prompt was evaluated,
 // when device memory had been sampled for it, and when the first token was
-// emitted, and how many tokens its prompt was read as. A zero is a moment
-// the request did not reach.
+// emitted, and how many tokens its prompt was read as and a prompt cache
+// answered of them. A zero is a moment the request did not reach.
 type observedGeneration struct {
 	servedModel
 	clock                     processmeasure.Stopwatch
 	walls                     processmeasure.Walls
 	prefill                   uint64
 	evaluated, sampled, first uint64
-	tokens                    uint64
+	tokens, cached            uint64
 	samples                   []runrecord.ServingHardwareSample
 }
 
@@ -351,6 +352,7 @@ func (generation *observedGeneration) Generate(ctx context.Context, prompt strin
 		generation.prefill += uint64(max(prompted.Duration, 0))
 		if generation.evaluated == 0 {
 			generation.tokens = uint64(max(prompted.Tokens, 0))
+			generation.cached = uint64(max(prompted.Cached, 0))
 			generation.evaluated = generation.walls.Elapsed(generation.clock)
 		}
 		generation.sample(ctx, runrecord.ServingHardwarePrefill)

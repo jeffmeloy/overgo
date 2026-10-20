@@ -1098,7 +1098,10 @@ func (h *Handler) generate(
 		h.publishServing(ctx, runrecord.ServingObservation{
 			Model: modelID, Recipe: recipeID, Task: recipe.TaskInference,
 			Outcome: outcome, Failure: failure, StartedUnixNS: started.UnixNano(), MeasuredNS: wall,
-			Usage: runrecord.ServingUsage{InputTokens: promptTokens.Load(), OutputTokens: outputTokens.Load(), InputBytes: uint64(len(prompt)), OutputBytes: uint64(len(text))},
+			Usage: runrecord.ServingUsage{
+				InputTokens: promptTokens.Load(), CachedTokens: min(cachedTokens.Load(), promptTokens.Load()), OutputTokens: outputTokens.Load(),
+				InputBytes: uint64(len(prompt)), OutputBytes: uint64(len(text)),
+			},
 			Resources: runrecord.ServingResources{
 				PeakDeviceBytes:   hardware.peakDeviceBytes(),
 				HostToDeviceBytes: servingTransferDelta(before.HostToDeviceBytes, after.HostToDeviceBytes),

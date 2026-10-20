@@ -660,8 +660,9 @@ func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.I
 		if counted {
 			summary.attempts++
 		}
-		// An attempt at a longer prompt counts as an attempt, and is timed as its length's alone.
-		if length, long := longPrompt(observation.Task, observation.Usage.InputTokens); long {
+		// An attempt that read a longer prompt counts as an attempt, and is timed as its length's alone: the
+		// tokens it read, not those a prompt cache answered, set its length.
+		if length, long := longPrompt(observation.Task, observation.Usage.InputTokens-min(observation.Usage.CachedTokens, observation.Usage.InputTokens)); long {
 			if length != 0 && observation.Outcome == runrecord.OutcomeSucceeded {
 				summary.readLength(length, observation)
 			}

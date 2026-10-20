@@ -40,9 +40,11 @@ type ServingHardwareSample struct {
 	DeviceAllocations  uint64               `json:"device_allocations"`
 }
 
-// ServingUsage defines payload-free request accounting.
+// ServingUsage defines payload-free request accounting. CachedTokens is how
+// many of the input tokens a prompt cache answered, which no prefill read.
 type ServingUsage struct {
 	InputTokens  uint64 `json:"input_tokens,omitzero"`
+	CachedTokens uint64 `json:"cached_tokens,omitzero"`
 	OutputTokens uint64 `json:"output_tokens,omitzero"`
 	InputBytes   uint64 `json:"input_bytes,omitzero"`
 	OutputBytes  uint64 `json:"output_bytes,omitzero"`

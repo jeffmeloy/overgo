@@ -137,7 +137,10 @@ func checkImageVideoReference(root string, reference imageVideoReference) error 
 	return nil
 }
 
-func checkImageVideoDefinitions(ctx context.Context, store *overgodb.Store, value imageVideoInventory) error {
+// checkImageVideoDefinitions holds the inventory's cells to their active
+// records, and every inactive media recipe in the store to the inventory's
+// inactive list or the pending additions.
+func checkImageVideoDefinitions(ctx context.Context, store *overgodb.Store, value imageVideoInventory, pending mediaPending) error {
 	for _, cell := range value.Cells {
 		active, found, err := modelrecipe.ActiveRecord(ctx, store, cell.Model, cell.Task)
 		if err != nil || !found || active.Definition.ID != cell.Recipe {
@@ -168,7 +171,7 @@ func checkImageVideoDefinitions(ctx context.Context, store *overgodb.Store, valu
 		}
 	}
 	want := map[artifact.ID]recipe.Status{}
-	for _, inactive := range value.Inactive {
+	for _, inactive := range slices.Concat(value.Inactive, pending.Inactive) {
 		if _, duplicate := want[inactive.Recipe]; duplicate || inactive.Status == recipe.StatusActive {
 			return errors.New("media inventory: duplicate or active entry in inactive inventory")
 		}
@@ -223,6 +226,10 @@ func TestImageVideoInventoryAcceptance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	pending, err := loadMediaPending(root)
+	if err != nil {
+		t.Fatal(err)
+	}
 	roots, err := dataroot.Resolve(root)
 	if err != nil {
 		t.Fatal(err)
@@ -269,7 +276,9 @@ func TestImageVideoInventoryAcceptance(t *testing.T) {
 	if err != nil || truncated {
 		t.Fatalf("live registered catalog: truncated=%t: %v", truncated, err)
 	}
-	if !sameCensusModels(mediaScopeModels(current.Models, value.Tasks), mediaScopeModels(censusModels(live), value.Tasks)) {
+	// A pending addition (media_pending.json) is set aside: the rest of the
+	// live media scope answers to the binding as before.
+	if !sameCensusModels(mediaScopeModels(current.Models, value.Tasks), mediaScopeModels(pending.censusModels(censusModels(live)), value.Tasks)) {
 		t.Fatal("the live media-scope entries differ from the bound census; record a new disposition")
 	}
 	if _, err := readCensusVerifications(t.Context(), store, current); err != nil {
@@ -287,7 +296,7 @@ func TestImageVideoInventoryAcceptance(t *testing.T) {
 	if err := checkImageVideoCoverage(value, census, value.Tasks); err != nil {
 		t.Fatal(err)
 	}
-	if err := checkImageVideoDefinitions(t.Context(), store, value); err != nil {
+	if err := checkImageVideoDefinitions(t.Context(), store, value, pending); err != nil {
 		t.Fatal(err)
 	}
 	for _, cell := range value.Cells {

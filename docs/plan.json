@@ -208,21 +208,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "media-pending",
-      "title": "Record MOSS-Image-SFT's activation as a pending media addition, so commits pass until the MOSS lane freezes its inventory cell",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Record MOSS-Image-SFT's activation as a pending media addition, so commits pass until the MOSS lane freezes its inventory cell",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^(TestImageVideoInventoryAcceptance|TestImageVideoMergedCapabilitiesAcceptance|TestMediaPendingAdditions)$'",
-          "rationale": "From finding 8385bce1 and the owner's direction of 2026-10-19 (\"don't worry about moss\", \"dont fuck with moss\").\nSince 07:57 on 2026-10-19 every code commit is refused by TestImageVideoInventoryAcceptance and TestImageVideoMergedCapabilitiesAcceptance: the MOSS lane activated MOSS-Image-SFT for image-gen (model fc5fd3ce, recipe 9055169a) in the shared store and left three inactive image-gen recipes (9e72b2ef and 404afc8b of MOSS, b935833b of Krea-2-Turbo's text encoder), and the frozen image-video inventory, its merged evidence and the media protocol hold none of them; the media denominator may change only by a new frozen inventory, which is the MOSS lane's to record with its evidence, and that lane is paused.\nThe step lists exactly those four entries in cmd/validate/testdata/media_pending.json, owned by the MOSS lane under the finding; the two acceptance tests set them aside and check every frozen cell and the rest of the live media scope as before, and TestMediaPendingAdditions refuses an entry the live store no longer holds as listed or the inventory now freezes, so the list is removed when MOSS freezes its cell.\nTouches nothing of MOSS's: not its worktree, branch, store records or recipes.\nServes: every commit's checks (failure-rate of the commit path); no scorecard metric moves.\nBatch: host."
-        }
-      ]
-    },
-    {
       "id": "long-prompt",
       "title": "Read Flash-Next prompts longer than 2,048 tokens at the speed Strata reaches on this PC",
       "status": "open",

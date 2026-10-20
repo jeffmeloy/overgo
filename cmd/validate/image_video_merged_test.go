@@ -89,7 +89,11 @@ func TestImageVideoMergedCapabilitiesAcceptance(t *testing.T) {
 	if err := checkImageVideoCoverage(inventory, census, inventory.Tasks); err != nil {
 		t.Fatal(err)
 	}
-	if err := checkImageVideoDefinitions(t.Context(), store, inventory); err != nil {
+	pending, err := loadMediaPending(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := checkImageVideoDefinitions(t.Context(), store, inventory, pending); err != nil {
 		t.Fatal(err)
 	}
 	scope, err := resolveMediaReportScope("image-video")
@@ -100,6 +104,9 @@ func TestImageVideoMergedCapabilitiesAcceptance(t *testing.T) {
 	if err != nil || truncated {
 		t.Fatalf("current media catalog incomplete: %v", err)
 	}
+	// A pending addition has no protocol case or frozen cell yet; the merged
+	// cells answer for the rest.
+	entries = pending.catalogEntries(entries)
 	if _, err := loadMediaSampleSelection(t.Context(), root, store, scope, entries); err != nil {
 		t.Fatal(err)
 	}

@@ -98,6 +98,10 @@ type Cell struct {
 	// is counted wrong, so a reading with many says as much of how answers are
 	// read as of what the model knows.
 	Unread uint64 `json:"unread,omitzero"`
+	// Prompt is the length, in tokens, of the fresh prompts a first output
+	// read at a longer prompt was timed at (Row.Lengths); zero for every other
+	// cell.
+	Prompt int `json:"prompt,omitzero"`
 	// allowed and unjudged are a reference's alone (Reference) and are never
 	// published: how far, in the cell's unit, a later reading may stand worse
 	// than the reference's value, and why nothing is judged against it, said
@@ -213,6 +217,9 @@ func (c Cell) Measured() bool { return c.Reason == "" }
 // Heldout holds the recipe's current held-out qualities besides the
 // headline one, each on its own contract: the headline is what a user reads,
 // and a baseline compares every one, whichever is the headline since.
+// Lengths holds a chat model's first output at each longer prompt it was
+// timed at (evaluation.PromptLengths), each on its own contract, shortest
+// first, beside the headline's at its verified request.
 type Row struct {
 	Model        artifact.ID          `json:"model,omitzero"`
 	Name         string               `json:"name"`
@@ -221,18 +228,32 @@ type Row struct {
 	Architecture string               `json:"architecture,omitzero"`
 	Cells        map[metric.Name]Cell `json:"cells"`
 	Heldout      []Cell               `json:"heldout,omitempty"`
+	Lengths      []Cell               `json:"lengths,omitempty"`
 }
 
-// Measured lists the row's measured cells of a column: of held-out quality,
-// the headline and each other held-out quality, on its own contract; of any
-// other metric, its one cell. A baseline row's are what it holds a later
-// record to, and a later row's are where each is found again.
+// Measured lists the row's measured cells of a column: its one cell, then
+// the others it holds of the column, each on its own contract: of held-out
+// quality, every other held-out quality, and of first output, each longer
+// prompt's. A baseline row's are what it holds a later record to, and a
+// later row's are where each is found again.
 func (row Row) Measured(column metric.Name) []Cell {
 	cells := []Cell{row.Cells[column]}
-	if column == metric.Quality {
-		cells = append(cells, row.Heldout...)
+	if others := row.others(column); others != nil {
+		cells = append(cells, *others...)
 	}
 	return slices.DeleteFunc(cells, func(cell Cell) bool { return !cell.Measured() })
+}
+
+// others are the cells the row holds of a column besides its one cell, nil
+// for a column that has none.
+func (row *Row) others(column metric.Name) *[]Cell {
+	switch column {
+	case metric.Quality:
+		return &row.Heldout
+	case metric.FirstOutput:
+		return &row.Lengths
+	}
+	return nil
 }
 
 // Build reads the scorecard from the store: one row for every activation
@@ -284,6 +305,7 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 			measured := benchmarked && capability.Task == recipe.TaskInference
 			observed := serving[capability.Recipe]
 			row.Cells[metric.FirstOutput] = firstOutputCell(capability.Task, benchmark, measured, observed)
+			row.Lengths = lengthCells(capability.Task, observed)
 			row.Cells[metric.Throughput] = throughputCell(capability.Task, benchmark, measured, observed)
 			row.Cells[metric.Quality], row.Heldout = qualityCell(capability.Task, index.EvaluationsByRecipe[capability.Recipe], descriptors)
 			if record, found := heldout[capability.Recipe]; found {
@@ -454,6 +476,29 @@ type servingSummary struct {
 	// window is the measured attempt and, after it, the next older ones that timed their load under its
 	// environment, recentAttempts at most: an attempt under another environment is no repeat of it.
 	window []servingSample
+	// lengths reads, by each of evaluation.PromptLengths, the successes whose prompt was of about that
+	// length: the newest, under whose environment its window is, and the next older ones under it.
+	lengths map[int]*servingSummary
+}
+
+// lengthSpan is the share of a prompt length, one over it, that a prompt may be shorter or longer
+// and still read at that length: a quarter.
+const lengthSpan = 4
+
+// longPrompt reports whether a chat model's attempt read a longer prompt than its verified request
+// does, and the length it read at, if any: a prompt within a quarter of a length either side is that
+// length's. A prompt more than a quarter short of the shortest length is the request a row's own
+// cells read; a longer one between two lengths is timed by neither.
+func longPrompt(task recipe.Task, tokens uint64) (length int, long bool) {
+	if task != recipe.TaskInference {
+		return 0, false
+	}
+	for _, length := range evaluation.PromptLengths {
+		if quarter := uint64(length / lengthSpan); tokens+quarter >= uint64(length) && tokens <= uint64(length)+quarter {
+			return length, true
+		}
+	}
+	return 0, tokens+uint64(evaluation.PromptLengths[0]/lengthSpan) >= uint64(evaluation.PromptLengths[0])
 }
 
 // recentAttempts is how many of a recipe's newest measured attempts a serving timing is read from. One
@@ -510,6 +555,48 @@ func (summary *servingSummary) timed(timing int, unit, metric, label string) (Ce
 	}
 	cell.Spread = median(values) / middle
 	return cell, true
+}
+
+// readLength adds a success at a longer prompt to its length's window: the newest opens it under its
+// environment, and the next older ones under that environment join it, recentAttempts at most. A length
+// is read from its prompt alone, so a success that timed no prefill is no first output and is passed.
+func (summary *servingSummary) readLength(length int, observation runrecord.ServingObservation) {
+	at := slices.IndexFunc(observation.Hardware, func(sample runrecord.ServingHardwareSample) bool {
+		return sample.Stage == runrecord.ServingHardwarePrefill && sample.ElapsedNS != 0
+	})
+	if at < 0 {
+		return
+	}
+	if summary.lengths == nil {
+		summary.lengths = map[int]*servingSummary{}
+	}
+	read := summary.lengths[length]
+	if read == nil {
+		read = &servingSummary{measured: observation.ID, recipe: observation.Recipe, environment: observation.Environment}
+		summary.lengths[length] = read
+	}
+	if len(read.window) >= recentAttempts || observation.Environment != read.environment {
+		return
+	}
+	sample := servingSample{attempt: observation.ID}
+	sample.took[timingFirstOutput] = milliseconds(observation.Hardware[at].ElapsedNS)
+	read.window = append(read.window, sample)
+}
+
+// lengthCells are a row's first outputs at the longer prompts its attempts read, shortest first.
+func lengthCells(task recipe.Task, observed *servingSummary) []Cell {
+	if task != recipe.TaskInference || observed == nil {
+		return nil
+	}
+	var cells []Cell
+	for _, length := range evaluation.PromptLengths {
+		at := fmt.Sprintf("a fresh prompt of %d tokens", length)
+		if cell, measured := observed.lengths[length].timed(timingFirstOutput, "ms", "time to prefill, "+at, "serving time to prefill "+at+", the median of the newest attempts"); measured {
+			cell.Prompt = length
+			cells = append(cells, cell)
+		}
+	}
+	return cells
 }
 
 // cell is a value read from source, an attempt of the summary's window or
@@ -573,12 +660,19 @@ func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.I
 		if counted {
 			summary.attempts++
 		}
+		// An attempt at a longer prompt counts as an attempt, and is timed as its length's alone.
+		if length, long := longPrompt(observation.Task, observation.Usage.InputTokens); long {
+			if length != 0 && observation.Outcome == runrecord.OutcomeSucceeded {
+				summary.readLength(length, observation)
+			}
+			return nil
+		}
 		// Past the attempt that timed its load, an older success is read only for the timings the
 		// medians are of, and for nothing once the window is full.
 		if observation.Outcome != runrecord.OutcomeSucceeded || summary.loaded && len(summary.window) >= recentAttempts {
 			return nil
 		}
-		measured := servingSummary{measured: observation.ID, environment: observation.Environment}
+		measured := servingSummary{measured: observation.ID, environment: observation.Environment, lengths: summary.lengths}
 		timings := servingSample{attempt: observation.ID}
 		for _, sample := range observation.Hardware {
 			if sample.Stage == runrecord.ServingHardwarePrefill {

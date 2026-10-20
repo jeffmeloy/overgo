@@ -147,7 +147,7 @@ func scorecardMoves(previous, current scorecard.Record) []string {
 			unknown := false
 			for _, compared := range pair.Compare(column) {
 				if compared.Verdict == scorecard.Unknown {
-					moved, unknown = append(moved, "- "+heading+": "+compared.Why), true
+					moved, unknown = append(moved, "- "+heading+promptText(compared.Then)+": "+compared.Why), true
 				}
 			}
 			switch {
@@ -161,8 +161,30 @@ func scorecardMoves(previous, current scorecard.Record) []string {
 				moved = append(moved, fmt.Sprintf("- %s: %.4g to %.4g %s (%+.4g)", heading, then.Value, now.Value, now.Unit, now.Value-then.Value))
 			}
 		}
+		// A longer prompt's first output that is newly measured or moved on its contract; one it no
+		// longer holds is Unknown above.
+		for _, now := range pair.After.Lengths {
+			heading := pair.After.Name + " " + string(pair.After.Task) + ", " + scorecardHeadings[metric.FirstOutput] + promptText(now)
+			at := slices.IndexFunc(pair.Before.Lengths, func(then scorecard.Cell) bool { return then.Prompt == now.Prompt })
+			switch {
+			case at < 0:
+				moved = append(moved, fmt.Sprintf("- %s: now measured, %.4g %s", heading, now.Value, now.Unit))
+			case pair.Before.Lengths[at].Contract == now.Contract && pair.Before.Lengths[at].Value != now.Value:
+				then := pair.Before.Lengths[at]
+				moved = append(moved, fmt.Sprintf("- %s: %.4g to %.4g %s (%+.4g)", heading, then.Value, now.Value, now.Unit, now.Value-then.Value))
+			}
+		}
 	}
 	return moved
+}
+
+// promptText names the prompt a longer prompt's first output was read at,
+// and nothing for every other cell.
+func promptText(cell scorecard.Cell) string {
+	if cell.Prompt == 0 {
+		return ""
+	}
+	return fmt.Sprintf(" at a %d-token prompt", cell.Prompt)
 }
 
 // printScorecard writes the table, the declaration share and the gaps.
@@ -190,7 +212,15 @@ func printScorecard(ctx context.Context, rows []scorecard.Row, root string, outp
 		fmt.Fprintf(&table, "| %s | %s |", row.Name, row.Task)
 		for _, column := range metric.Columns {
 			cell := row.Cells[column]
-			table.WriteString(" " + cellText(column, cell) + " |")
+			var text strings.Builder
+			text.WriteString(cellText(column, cell))
+			// A chat model's first output at its longer prompts follows its own.
+			for _, length := range row.Lengths {
+				if column == metric.FirstOutput {
+					text.WriteString(fmt.Sprintf("; %s at %d tokens", cellText(column, length), length.Prompt))
+				}
+			}
+			table.WriteString(" " + text.String() + " |")
 			line := fmt.Sprintf("- %s %s, %s: %s", row.Name, row.Task, scorecardHeadings[column], cell.Reason)
 			switch {
 			case cell.NotApplicable:

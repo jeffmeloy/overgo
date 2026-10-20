@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/rand/v2"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -18,13 +17,14 @@ import (
 	"time"
 
 	"overgo/internal/clioptions"
+	"overgo/internal/evaluation"
 	"overgo/internal/processmeasure"
 )
 
 // Strata's frozen bench, suite 1 of its tools/strata_bench.py at 296b59d2:
 // the runs of each part and the new tokens of each request; the warm-up's
-// short answer and 1K prompt; the two sizes of fresh prompt; the word list's
-// seed (ab_engine.long_prompt), the word counts whose prompt tokens calibrate
+// short answer and 1K prompt; the two sizes of fresh prompt (word lists,
+// evaluation.WordList); the word counts whose prompt tokens calibrate
 // the tokens per word, the fewest words of a prompt and the fallbacks where
 // calibration measures nothing; the agent session's turns and the words of
 // the file each adds, of which a document must hold half to be read; a
@@ -40,7 +40,6 @@ const (
 	strataPrimeSize     = 1024
 	strataShortPrompt   = 4096
 	strataLongPrompt    = 16384
-	strataSeed          = 7
 	strataCalibrateLow  = 200
 	strataCalibrateHigh = 800
 	strataMinimumWords  = 50
@@ -53,18 +52,16 @@ const (
 	strataArguments     = 2
 )
 
-// The reference's three short questions (ab_engine.PROMPTS), the words its
-// lists are drawn from, and its agent session's system prompt, opening
-// request, four tools (agent_turns_bench) and the documents of its own folder
-// the session reads.
+// The reference's three short questions (ab_engine.PROMPTS), and its agent
+// session's system prompt, opening request, four tools (agent_turns_bench)
+// and the documents of its own folder the session reads.
 var (
 	strataQuestions = []string{
 		"Write a Python function that merges two sorted lists into one sorted list, with a docstring and two tests.",
 		"Explain in two paragraphs how a refrigerator moves heat from inside to outside.",
 		"List ten practical tips for learning a new language as an adult, one sentence each.",
 	}
-	strataVocabulary = strings.Fields("river stone market lantern copper winter garden signal harbor needle orbit velvet canyon ember ledger quartz meadow anchor violet thunder")
-	strataDocs       = []string{"README.md", "docs/HOW_IT_WORKS.md", "docs/DETAILS.md", "docs/INSTALL.md", "docs/MODELS.md", "docs/COMMUNITY_BENCHMARKS.md"}
+	strataDocs = []string{"README.md", "docs/HOW_IT_WORKS.md", "docs/DETAILS.md", "docs/INSTALL.md", "docs/MODELS.md", "docs/COMMUNITY_BENCHMARKS.md"}
 )
 
 const (
@@ -163,8 +160,8 @@ func runStrata(args []string, output io.Writer) error {
 func (s *strataSuite) run(docs string) map[string]any {
 	user := func(content string) []strataMessage { return []strataMessage{{"role": "user", "content": content}} }
 	s.chat(user(strataQuestions[0]), strataWarmTokens, false)
-	low := s.chat(user(fmt.Sprintf("[cal-%d-%s]\n%s", strataCalibrateLow, s.nonce, strataWords(strataCalibrateLow))), 1, false).Prompt
-	high := s.chat(user(fmt.Sprintf("[cal-%d-%s]\n%s", strataCalibrateHigh, s.nonce, strataWords(strataCalibrateHigh))), 1, false).Prompt
+	low := s.chat(user(fmt.Sprintf("[cal-%d-%s]\n%s", strataCalibrateLow, s.nonce, evaluation.WordList(strataCalibrateLow))), 1, false).Prompt
+	high := s.chat(user(fmt.Sprintf("[cal-%d-%s]\n%s", strataCalibrateHigh, s.nonce, evaluation.WordList(strataCalibrateHigh))), 1, false).Prompt
 	s.perWord, s.overhead = strataPerWord, strataOverhead
 	if low > 0 && high > low {
 		s.perWord = float64(high-low) / (strataCalibrateHigh - strataCalibrateLow)
@@ -196,7 +193,7 @@ func (s *strataSuite) run(docs string) map[string]any {
 // the calibrated words.
 func (s *strataSuite) prompt(tokens, run int) string {
 	words := max(strataMinimumWords, int((float64(tokens)-s.overhead)/s.perWord))
-	return fmt.Sprintf("[bench %d-%d-p-%s]\n%s", run, tokens, s.nonce, strataWords(words))
+	return fmt.Sprintf("[bench %d-%d-p-%s]\n%s", run, tokens, s.nonce, evaluation.WordList(words))
 }
 
 // agent runs the agent sessions: the system prompt and four tools, then a
@@ -337,19 +334,6 @@ func strataStats(values []float64) *strataStat {
 	return &strataStat{Median: median(values), Min: values[0], Max: values[len(values)-1], N: len(values)}
 }
 
-// strataWords is a word list of the given length between the reference's
-// opening and question: its words drawn by a generator seeded as the
-// reference seeds its own, so the calibrated sizes, not the words, set the
-// prompts' rates.
-func strataWords(count int) string {
-	draws := rand.New(rand.NewPCG(strataSeed, strataSeed))
-	words := make([]string, count)
-	for index := range words {
-		words[index] = strataVocabulary[draws.IntN(len(strataVocabulary))]
-	}
-	return "Here is a list of words:\n" + strings.Join(words, " ") + "\n\nSummarize what kinds of words appear in the list, in five sentences."
-}
-
 // strataFiles are the files the agent session adds: the first words of each
 // document under docs that holds half a turn's words, then generated word
 // lists, as the reference reads its own folder.
@@ -365,7 +349,7 @@ func strataFiles(docs string) []strataFile {
 		}
 	}
 	for index := 0; len(files) < strataAgentTurns; index++ {
-		files = append(files, strataFile{fmt.Sprintf("generated/part%d.txt", index), strataWords(strataAgentWords)})
+		files = append(files, strataFile{fmt.Sprintf("generated/part%d.txt", index), evaluation.WordList(strataAgentWords)})
 	}
 	return files[:strataAgentTurns]
 }

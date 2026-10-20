@@ -1,8 +1,10 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -34,12 +36,25 @@ const (
 // servedFixture is a loaded model off the device: it evaluates every prompt as
 // servedPromptTokens tokens and answers servedOutput, taking time the clock can
 // measure, and reports fixed device memory. Given a stall, it first waits that
-// long before its prefill, and keeps the wait it took in stalled.
+// long before its prefill, and keeps the wait it took in stalled. Its context
+// holds servedContext tokens, or context where given; its tokenizer reads a
+// word as a token, and where context is given, so does its prefill.
 type servedFixture struct {
 	t       *testing.T
 	prompts []string
 	stall   time.Duration
 	stalled time.Duration
+	context uint32
+}
+
+// ModelProperties reports the fixture's context.
+func (fixture *servedFixture) ModelProperties() inference.ModelProperties {
+	return inference.ModelProperties{ContextLength: cmp.Or(fixture.context, servedContext)}
+}
+
+// TokenizeSamplingText reads each word of text as a token.
+func (*servedFixture) TokenizeSamplingText(text string) ([]tokenizer.TokenID, error) {
+	return make([]tokenizer.TokenID, len(strings.Fields(text))), nil
 }
 
 // tick waits on the clock's own progress until its counter passes since, so
@@ -66,7 +81,11 @@ func (fixture *servedFixture) Generate(_ context.Context, prompt string, options
 	}
 	started := tick(fixture.t, 0)
 	evaluated := tick(fixture.t, started)
-	options.OnPromptEvaluated(inference.PromptEvaluation{Tokens: servedPromptTokens, Duration: evaluated - started})
+	tokens := servedPromptTokens
+	if fixture.context != 0 {
+		tokens = len(strings.Fields(prompt))
+	}
+	options.OnPromptEvaluated(inference.PromptEvaluation{Tokens: tokens, Duration: evaluated - started})
 	tick(fixture.t, evaluated)
 	ids := make([]tokenizer.TokenID, servedPromptTokens, servedPromptTokens+len(servedOutput))
 	for index, piece := range strings.Split(servedOutput, "") {
@@ -214,5 +233,35 @@ func TestInferenceMeasurementFillsTheServingCells(t *testing.T) {
 	request := observed[0].MeasuredNS - phases[runrecord.PhaseLoad]
 	if request < uint64(model.stalled) || phases[runrecord.PhaseDecode] > request-uint64(model.stalled) {
 		t.Fatalf("decode %d ns of a %d ns request that waited %d ns before prefill", phases[runrecord.PhaseDecode], request, model.stalled)
+	}
+}
+
+// TestInferenceMeasurementReadsLongerPrompts holds a measurement to the
+// attempts the scorecard's longer-prompt first outputs read: after the
+// verified request, the loaded model reads a fresh prompt of each length its
+// context holds, sized by its own tokenizer, each recorded under the recipe
+// with the tokens it read and no load of its own; a length the context cannot
+// hold is not asked for.
+func TestInferenceMeasurementReadsLongerPrompts(t *testing.T) {
+	t.Parallel()
+	directory, path, model, active, _ := measuredFixture(t)
+	read := evaluation.PromptLengths[0]
+	verified := len(model.prompts)
+	model.context = uint32(evaluation.PromptLengths[1] - 1)
+	_, attempt, err := measureInference(t.Context(), directory, path, func(context.Context) (servedModel, error) { return model, nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	observed := servingAttempts(t, directory)
+	if len(observed) != 2 || observed[1].ID != attempt || len(model.prompts) != verified+2 {
+		t.Fatalf("serving attempts = %+v after %d prompts; want the verified request's, then one longer prompt's", observed, len(model.prompts)-verified)
+	}
+	longer := observed[0]
+	prefilled := slices.ContainsFunc(longer.Hardware, func(sample runrecord.ServingHardwareSample) bool {
+		return sample.Stage == runrecord.ServingHardwarePrefill && sample.ElapsedNS != 0
+	})
+	loaded := slices.ContainsFunc(longer.Phases, func(phase runrecord.PhaseMetric) bool { return phase.Phase == runrecord.PhaseLoad })
+	if longer.Recipe != active || longer.Outcome != runrecord.OutcomeSucceeded || longer.Usage.InputTokens != uint64(read) || !prefilled || loaded {
+		t.Fatalf("longer attempt = %+v; want a succeeded attempt of the recipe that read %d tokens, sampled its prefill and timed no load", longer, read)
 	}
 }

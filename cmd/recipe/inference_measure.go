@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"slices"
+	"sort"
 	"time"
 
 	"overgo/internal/artifact"
@@ -36,6 +37,8 @@ const (
 type servedModel interface {
 	evaluation.Generator
 	DeviceMemoryStats(context.Context) (driver.MemoryStats, error)
+	ModelProperties() inference.ModelProperties
+	TokenizeSamplingText(string) ([]tokenizer.TokenID, error)
 	Close() error
 }
 
@@ -116,7 +119,7 @@ func journeyInference(ctx context.Context, repository, path string, open func(co
 	}
 	for _, way := range ways {
 		fmt.Fprintf(said, "recipe: %s\n", way.name)
-		if _, _, err := observeInference(ctx, way.open, way.request, said); err != nil {
+		if _, _, err := observeInference(ctx, way.open, way.request, said, nil); err != nil {
 			return err
 		}
 	}
@@ -125,23 +128,93 @@ func journeyInference(ctx context.Context, repository, path string, open func(co
 
 // measureInference runs the active inference recipe of the model at path once,
 // on the first request its verification ran, and records the run as the
-// serving attempt the scorecard reads; open loads the model. The store is
-// written only once the model is closed, so the writer never spans model
-// execution. Where the load's time went, and when the first token came, goes
-// beside the result on the other stream.
+// serving attempt the scorecard reads; open loads the model. On the model it
+// loaded it then reads a fresh prompt of each of evaluation.PromptLengths its
+// context holds, each recorded as an attempt of its own (observeLengths). The
+// store is written only once the model is closed, so the writer never spans
+// model execution. Where the load's time went, and when the first token came,
+// goes beside the result on the other stream.
 func measureInference(ctx context.Context, repository, path string, open func(context.Context) (servedModel, error)) (evaluation.ExactResult, artifact.ID, error) {
 	model, active, requests, err := measuredRequest(ctx, repository, path)
 	if err != nil {
 		return evaluation.ExactResult{}, artifact.ID{}, err
 	}
-	observation, result, cause := observeInference(ctx, open, requests[0], os.Stderr)
-	observation.Model, observation.Recipe = model, active
+	var lengths []runrecord.ServingObservation
+	observation, result, cause := observeInference(ctx, open, requests[0], os.Stderr, func(loaded servedModel) {
+		lengths = observeLengths(ctx, loaded, os.Stderr)
+	})
 	store, err := overgodb.Open(repository)
 	if err != nil {
 		return result, artifact.ID{}, errors.Join(cause, err)
 	}
-	recorded, recordErr := recordInference(context.WithoutCancel(ctx), store, observation)
-	return result, recorded.ID, errors.Join(cause, recordErr, store.Close())
+	var recorded runrecord.ServingObservation
+	for index, attempt := range append([]runrecord.ServingObservation{observation}, lengths...) {
+		attempt.Model, attempt.Recipe = model, active
+		published, recordErr := recordInference(context.WithoutCancel(ctx), store, attempt)
+		if index == 0 {
+			recorded = published
+		}
+		cause = errors.Join(cause, recordErr)
+	}
+	return result, recorded.ID, errors.Join(cause, store.Close())
+}
+
+// lengthTokens is how many tokens a longer prompt's request generates:
+// Strata's for its fresh prompts, enough for a first token and a decode.
+const lengthTokens = 24
+
+// observeLengths reads, on a model loaded and served once, a fresh prompt of
+// each of evaluation.PromptLengths that its context holds with its answer,
+// and returns each as a serving attempt with no load of its own: its first
+// output is how long a user waits on a prompt of that size. A prompt is
+// Strata's word list sized by the model's own tokenizer, opened by a line
+// that names its size, so no prompt begins as another did and a prefix cache
+// gives none of it. A length the model cannot read is said and left out; a
+// request that fails is a failed attempt.
+func observeLengths(ctx context.Context, model servedModel, said io.Writer) []runrecord.ServingObservation {
+	var observed []runrecord.ServingObservation
+	context := int(model.ModelProperties().ContextLength)
+	for _, length := range evaluation.PromptLengths {
+		if context != 0 && length+lengthTokens > context {
+			fmt.Fprintf(said, "recipe: no %d-token prompt: the context holds %d tokens\n", length, context)
+			continue
+		}
+		prompt, err := lengthPrompt(model, length)
+		if err != nil {
+			fmt.Fprintf(said, "recipe: no %d-token prompt: %v\n", length, err)
+			continue
+		}
+		fmt.Fprintf(said, "recipe: a fresh %d-token prompt\n", length)
+		observation, _, err := observeRequest(ctx, model, evaluation.ExactCase{Name: fmt.Sprintf("prompt-%d", length), Prompt: prompt, MaxTokens: lengthTokens}, said)
+		if err != nil {
+			fmt.Fprintf(said, "recipe: the %d-token prompt failed: %v\n", length, err)
+		}
+		observed = append(observed, observation)
+	}
+	return observed
+}
+
+// lengthPrompt is the longest of Strata's word lists, opened by a line naming
+// length, that the model's tokenizer reads as no more than length tokens.
+func lengthPrompt(model servedModel, length int) (string, error) {
+	prompt := func(words int) string {
+		return fmt.Sprintf("[prompt of %d tokens]\n%s", length, evaluation.WordList(words))
+	}
+	// The most words a prompt may hold: the fewest whose one word more is past length. Every word is
+	// at least a token, so length words with their opening are more than length tokens.
+	var failed error
+	words := sort.Search(length, func(words int) bool {
+		ids, err := model.TokenizeSamplingText(prompt(words + 1))
+		failed = cmp.Or(failed, err)
+		return err != nil || len(ids) > length
+	})
+	switch {
+	case failed != nil:
+		return "", failed
+	case words == 0:
+		return "", fmt.Errorf("a word with its opening is more than %d tokens", length)
+	}
+	return prompt(words), nil
 }
 
 // verifiedCase finds the requests an active inference recipe's verification
@@ -176,20 +249,20 @@ func verifiedCase(ctx context.Context, store *overgodb.Store, model artifact.ID)
 
 // observeInference loads the model and runs the request on it the way its
 // verification ran it, and returns the attempt as a serving observation: the
-// load, prefill and decode it timed, the tokens it gave, and device memory at
-// the start, the prefill and the finish, timed from the request's start as the
-// server times a page's. It also returns the request's result and the failure
-// the attempt met: a model that did not load or a request that did not
-// generate is a failed attempt. A span the clock could not time is left out.
+// load, prefill and decode it timed, the tokens it read and gave, and device
+// memory at the start, the prefill and the finish, timed from the request's
+// start as the server times a page's. It also returns the request's result
+// and the failure the attempt met: a model that did not load or a request
+// that did not generate is a failed attempt. A span the clock could not time
+// is left out. Where the request was served, then, if given, reads more of
+// the loaded model before it is closed.
 //
 // It writes to said where the load's time went, by the parts of the load that
 // name themselves, and when the request's prompt was evaluated, when device
 // memory was sampled for it, which is the time the scorecard reads as first
 // output, and when its first token came, each from the request's start.
-func observeInference(ctx context.Context, open func(context.Context) (servedModel, error), request evaluation.ExactCase, said io.Writer) (runrecord.ServingObservation, evaluation.ExactResult, error) {
-	observation := runrecord.ServingObservation{
-		Version: artifact.InitialDocumentVersion, Task: recipe.TaskInference, Outcome: runrecord.OutcomeSucceeded, StartedUnixNS: time.Now().UnixNano(),
-	}
+func observeInference(ctx context.Context, open func(context.Context) (servedModel, error), request evaluation.ExactCase, said io.Writer, then func(servedModel)) (runrecord.ServingObservation, evaluation.ExactResult, error) {
+	started := time.Now().UnixNano()
 	var walls processmeasure.Walls
 	clock := processmeasure.NewStopwatch()
 	staged, stages := processmeasure.WithStages(ctx)
@@ -199,20 +272,43 @@ func observeInference(ctx context.Context, open func(context.Context) (servedMod
 	if _, reportErr := stages.Report(said, time.Duration(load)); reportErr != nil {
 		fmt.Fprintf(said, "recipe: its parts are no division of it: %v\n", reportErr)
 	}
-	generation := &observedGeneration{servedModel: model, clock: processmeasure.NewStopwatch()}
+	observation := runrecord.ServingObservation{Version: artifact.InitialDocumentVersion, Task: recipe.TaskInference, Outcome: runrecord.OutcomeFailed, Failure: loadFailed}
 	var result evaluation.ExactResult
-	var total uint64
-	failure, released := loadFailed, error(nil)
+	released := error(nil)
 	if err == nil {
-		generation.sample(ctx, runrecord.ServingHardwareStart)
-		result, err = evaluation.Record(ctx, generation, request.Name, request.Prompt, request.MaxTokens)
-		generation.sample(ctx, runrecord.ServingHardwareFinish)
-		total, failure, released = generation.walls.Elapsed(generation.clock), generationFailed, model.Close()
-		fmt.Fprintf(said, "recipe: from the request's start, the prompt was evaluated at %s, device memory was sampled at %s and the first token came at %s\n",
-			time.Duration(generation.evaluated), time.Duration(generation.sampled), time.Duration(generation.first))
+		observation, result, err = observeRequest(ctx, model, request, said)
+		if err == nil && then != nil {
+			then(model)
+		}
+		released = model.Close()
 	}
+	observation.StartedUnixNS, observation.MeasuredNS = started, load+observation.MeasuredNS
+	if load != 0 {
+		observation.Phases = append([]runrecord.PhaseMetric{{Phase: runrecord.PhaseLoad, DurationNS: load}}, observation.Phases...)
+	}
+	// A model that served its request but did not release is no failed
+	// attempt; its release failure is still the command's.
+	return observation, result, errors.Join(err, released)
+}
+
+// observeRequest runs the request on a loaded model and returns it as a
+// serving attempt with no load: its prefill and decode, the tokens it read
+// and gave, and device memory at its start, prefill and finish, each timed
+// from the request's start. A request that did not generate is a failed
+// attempt.
+func observeRequest(ctx context.Context, model servedModel, request evaluation.ExactCase, said io.Writer) (runrecord.ServingObservation, evaluation.ExactResult, error) {
+	observation := runrecord.ServingObservation{
+		Version: artifact.InitialDocumentVersion, Task: recipe.TaskInference, Outcome: runrecord.OutcomeSucceeded, StartedUnixNS: time.Now().UnixNano(),
+	}
+	generation := &observedGeneration{servedModel: model, clock: processmeasure.NewStopwatch()}
+	generation.sample(ctx, runrecord.ServingHardwareStart)
+	result, err := evaluation.Record(ctx, generation, request.Name, request.Prompt, request.MaxTokens)
+	generation.sample(ctx, runrecord.ServingHardwareFinish)
+	total := generation.walls.Elapsed(generation.clock)
+	fmt.Fprintf(said, "recipe: from the request's start, the prompt was evaluated at %s, device memory was sampled at %s and the first token came at %s\n",
+		time.Duration(generation.evaluated), time.Duration(generation.sampled), time.Duration(generation.first))
 	if err != nil {
-		observation.Outcome, observation.Failure = runrecord.OutcomeFailed, failure
+		observation.Outcome, observation.Failure = runrecord.OutcomeFailed, generationFailed
 	}
 	prefill := min(generation.prefill, total)
 	// Decode runs from the moment the prompt was evaluated, so what the request
@@ -220,14 +316,12 @@ func observeInference(ctx context.Context, open func(context.Context) (servedMod
 	// first output alone and never in decode; a prompt never evaluated leaves
 	// decode the request past its prefill.
 	decode := total - min(cmp.Or(generation.evaluated, prefill), total)
-	observation.MeasuredNS, observation.Hardware = load+total, generation.samples
-	observation.Usage.OutputTokens = uint64(max(result.GeneratedTokens, 0))
+	observation.MeasuredNS, observation.Hardware = total, generation.samples
+	observation.Usage.InputTokens, observation.Usage.OutputTokens = generation.tokens, uint64(max(result.GeneratedTokens, 0))
 	observation.Phases = slices.DeleteFunc([]runrecord.PhaseMetric{
-		{Phase: runrecord.PhaseLoad, DurationNS: load}, {Phase: runrecord.PhasePrefill, DurationNS: prefill}, {Phase: runrecord.PhaseDecode, DurationNS: decode},
+		{Phase: runrecord.PhasePrefill, DurationNS: prefill}, {Phase: runrecord.PhaseDecode, DurationNS: decode},
 	}, func(phase runrecord.PhaseMetric) bool { return phase.DurationNS == 0 })
-	// A model that served its request but did not release is no failed
-	// attempt; its release failure is still the command's.
-	return observation, result, errors.Join(err, released)
+	return observation, result, err
 }
 
 // observedGeneration is a loaded model whose generation reports what the
@@ -235,13 +329,15 @@ func observeInference(ctx context.Context, open func(context.Context) (servedMod
 // device memory sampled at the stages of the request. It also keeps three
 // moments of the request, each from its start: when the prompt was evaluated,
 // when device memory had been sampled for it, and when the first token was
-// emitted. A zero is a moment the request did not reach.
+// emitted, and how many tokens its prompt was read as. A zero is a moment
+// the request did not reach.
 type observedGeneration struct {
 	servedModel
 	clock                     processmeasure.Stopwatch
 	walls                     processmeasure.Walls
 	prefill                   uint64
 	evaluated, sampled, first uint64
+	tokens                    uint64
 	samples                   []runrecord.ServingHardwareSample
 }
 
@@ -254,6 +350,7 @@ func (generation *observedGeneration) Generate(ctx context.Context, prompt strin
 	options.OnPromptEvaluated = func(prompted inference.PromptEvaluation) {
 		generation.prefill += uint64(max(prompted.Duration, 0))
 		if generation.evaluated == 0 {
+			generation.tokens = uint64(max(prompted.Tokens, 0))
 			generation.evaluated = generation.walls.Elapsed(generation.clock)
 		}
 		generation.sample(ctx, runrecord.ServingHardwarePrefill)

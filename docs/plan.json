@@ -213,8 +213,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 139,
-        "reason": "measured: long-prompt/attention adds 330 production syntax nodes (gate preflight at 30bd35375); the built block top-k, delta-net row kernel launches and the grouped expert staging cap add about 270 more"
+        "nodes": 616,
+        "reason": "139 left after attention (+330), top-k (+132) and delta-net (+99), and copy-overlap's measured +477 moved from expert-residency: long-prompt/expert-groups measured +491 (the copy stream, its two buffers and the grouped staging cap)"
       },
       "steps": [
         {
@@ -303,17 +303,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 900,
-        "reason": "copy-overlap measured +477 (a second copy stream with event waits, two copy buffers) and load-guard +417 (a between-run refill of the card once memory frees, and the load's card placement in /metrics) at preflight"
+        "nodes": 423,
+        "reason": "load-guard measured +417; copy-overlap's +477 moved to long-prompt/expert-groups, which carries that change"
       },
       "steps": [
-        {
-          "id": "copy-overlap",
-          "title": "Overlap a prompt's host-expert copies with the layer before it",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestPromptExpertCopiesOverlapCompute$'",
-          "rationale": "From the chunked step's Nsight trace: with about 45 percent of each layer's experts in host memory, a 1,561-token prompt spends 1.15 s of 2.95 s copying routed host experts to the card before the grouped kernels read them, on the compute stream, with the card idle during each copy; gated_delta_net_f32 follows at 0.39 s (one block a head, a serial token loop).\nThe step copies the next layer's routed host experts on a second stream while the current layer computes, bounded by the staging, with events ordering the reads (the driver package gains the event and async-copy calls it needs), as Strata streams the next layer's experts during attention.\nAcceptance: the document's prompt time before and after, with outputs bit-identical to the serial copy.\nServes: first-output for long Flash-Next prompts, toward Strata's 2.16 to 2.33 s.\nBatch: device."
-        },
         {
           "id": "load-guard",
           "title": "Move experts to the card when it frees after a load that found it held",
@@ -564,7 +557,8 @@
             "media-pending/do",
             "plan-long-prompt-count/do",
             "plan-long-prompt-owner/do",
-            "plan-long-prompt-general/do"
+            "plan-long-prompt-general/do",
+            "plan-fold-overlap/do"
           ]
         }
       ]

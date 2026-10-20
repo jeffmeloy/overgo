@@ -213,16 +213,23 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 125,
-        "reason": "139 left after attention (+330), top-k (+132) and delta-net (+99), and copy-overlap's measured +477 moved from expert-residency: long-prompt/expert-groups measured +491 (the copy stream, its two buffers and the grouped staging cap)"
+        "nodes": 542,
+        "reason": "125 left after attention (+330), top-k (+132), delta-net (+99) and expert groups (+491), and load-guard's measured +417 moved from expert-residency: long-prompt/residency carries that change"
       },
       "steps": [
         {
           "id": "residency",
           "title": "Return the experts a long prompt moves off the card and size a prompt's memory to Strata's",
           "status": "open",
-          "verify": "go test ./internal/modeldevice -count=1 -run '^TestPromptReservationRestoresExperts$'",
+          "verify": "go test ./internal/modeldevice -count=1 -run '^TestExpertResidencyFillsTheCardWhenItFrees$'",
           "rationale": "From the Strata bench run on 2026-10-19: Overgo's server ended with 17,014 of 73,728 expert matrices on the card (13.95 GB), where the probe of the same recipe holds 42,354 (32.8 GB); routes found on the card fell to 72%.\nA 20,605-token prompt asked for 46 GB beyond the weights (about 2.2 MB a token) and ran as two chunks; memory a prompt reserves moves experts to host memory (ReserveExpertMemory), and nothing returns them.\nStrata lends a prompt its coldest cache slots and copies them back after it (generate.cpp:11416-11427, 11823), and its prompt takes about 0.4 MB a token, the attention and expert halves sharing their scratch (prefill.cpp:974-978).\nThe step returns lent experts after the prompt and measures and cuts the per-token prompt memory.\nEvidence: the experts on the card after a long prompt, the per-token reservation, decode speed after a long prompt.\nServes: throughput after long prompts; first-output of prompts that now split.\nBatch: device.\n\nFrom the owner's direction of 2026-10-20: the lend-and-refill arena is a residency object for every routed-expert model, not for Flash-Next alone: every MoE model's long prompt makes room for its staging by moving experts off the card (15.7 GB copied back to host and 2,449 pinned allocations in a 20,605-token Flash-Next prompt), and every one decodes slower after. The step builds it in internal/modeldevice's expert residency, which all of them load through, and measures it on Flash-Next and on a second MoE model."
+        },
+        {
+          "id": "prompt-memory",
+          "title": "Cut a long prompt's memory a token toward Strata's 0.4 MB",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "From a residency measurement on master 1b8a1c3bb's server on 2026-10-20: one 10,673-token Flash-Next prompt moved 27,128 of the card's 52,106 expert matrices (22 GB) to host memory to make room, copying 24 GB back across the link, and a 20,605-token prompt asked for 46 GB beyond the weights and ran as two chunks: about 2.2 MB a prompt token.\nStrata reads an 8,192-token chunk in 4.55 GiB borrowed from its cache's coldest slots, about 0.4 MB a token, its attention and expert halves sharing one scratch region (prefill.cpp:974-978).\nThe step measures which tensors a long prompt's graph holds at its peak (the executor's memory plan for the prefill graph), and cuts the per-token memory by sharing the halves' scratch and freeing each layer's intermediates as Strata's walk does, so a long prompt moves fewer experts and runs as fewer chunks; it serves every model's long prompts, not Flash-Next's alone.\nEvidence: the per-token reservation before and after, the experts a 10,673-token prompt moves, the chunks of a 20,605-token prompt, and its time.\nServes: first-output for long prompts; peak-device-memory; throughput after a long prompt.\nBatch: device."
         },
         {
           "id": "attention-mma",
@@ -287,25 +294,6 @@
           "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestNextNSpeculationReplaysItsSpans$'",
           "rationale": "From step span-frames: Qwen3.8-27B's NextN speculation (three drafts a round) runs at 26.4 to 26.7 tokens a second against 27.7 to 27.9 plain, because its loop compiles 23 span graphs (span lengths 4 to 8 and draftless spans across four cache capacities), 46 frames a request, more than the kept graphs hold, so nearly every round recaptures.\nThe step gives NextN the policy MTP uses (a draftless two-token re-span after a rejection, or a single span length a round) so its frames fit the kept graphs, or stops speculating where acceptance does not pay, measured per model.\nAcceptance: the 27B's speculative decoding at or above plain, text identical; recaptures a warm request.\nServes: throughput for NextN models; failure-rate unchanged.\nBatch: device."
-        }
-      ]
-    },
-    {
-      "id": "expert-residency",
-      "title": "Keep routed experts on the card when it frees and copy them beside the compute",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 423,
-        "reason": "load-guard measured +417; copy-overlap's +477 moved to long-prompt/expert-groups, which carries that change"
-      },
-      "steps": [
-        {
-          "id": "load-guard",
-          "title": "Move experts to the card when it frees after a load that found it held",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/modeldevice -count=1 -run '^TestExpertResidencyFillsTheCardWhenItFrees$'",
-          "rationale": "From the chunked step's re-measure at 969b07704: a Flash-Next load that started while another process held the card (right after the executor's device tests) found about 0.9 GB free, filled almost every routed expert into pinned host memory, took 47 s to acquire instead of about 20, and then made no visible progress for nine minutes with the card idle: a served model whose experts all sit behind PCIe is unusably slow, though nothing failed.\nThe step makes the residency move experts to the card when card memory frees after the load (between runs, as the advance already moves single experts, but in whole allocations up to free memory less the reserve), and reports a load that found the card held, so a request is not served for minutes at host-memory speed without a sign.\nAcceptance: a residency filled under a held card moves its experts to the card once memory frees, and the short chat then runs at its usual speed; the load records how much of the experts it placed on the card.\nServes: failure-rate and throughput for file-backed routed-expert models loaded while the card is shared.\nBatch: device."
         }
       ]
     },
@@ -551,7 +539,8 @@
             "plan-long-prompt-count/do",
             "plan-long-prompt-owner/do",
             "plan-long-prompt-general/do",
-            "plan-fold-overlap/do"
+            "plan-fold-overlap/do",
+            "plan-fold-loadguard/do"
           ]
         }
       ]

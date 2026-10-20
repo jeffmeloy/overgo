@@ -213,16 +213,30 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "measured: flashnext-decode/quiet-residency adds 1550 production syntax nodes (staging, landing and promotion beside the runs on the residency's copy stream, and the driver's asynchronous copy to host memory)"
+        "nodes": 907,
+        "reason": "measured: flashnext-decode/fewer-kernels adds 907 production syntax nodes (the stream-sum rewrite, its launcher and kernels)"
       },
       "steps": [
         {
           "id": "fewer-kernels",
           "title": "Fuse the decode graph's chains of small elementwise kernels",
           "status": "open",
-          "verify": "go run ./cmd/plan -status",
+          "verify": "go test ./internal/cuda/executor -count=1 -run '^TestCompileFusesStreamSum$' \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestExecutorStreamSumMatchesTheUnfusedGraph$'",
           "rationale": "From an Nsight trace with graph nodes of the same decode: 4,012 kernels a token. About 2,300 of them are elementwise kernels of about 1 us each: group_slice_f32 560 a token, add_f32 440, scale_f32 387, quantize_q8_0_input_f32 325, broadcast_multiply_f32 285, sigmoid_f32 181 and silu_f32 134. Together they take about 2.5 ms a token of kernel time, plus each node's launch gap in the graph.\nThe kernels doing the work take the rest of the card's 12.8 ms: dense Q8_0 products 4.8 ms, expert products 3.9 ms, the route 0.6 ms and the output head 0.6 ms.\nThe step finds the chains these small kernels come from (the delta-net's gates and slices, residual adds and scales, quantizing a product's input) and fuses each into the kernel that produces or reads its values, as a rewrite of the compiled graph that every model's decode uses.\nEvidence: kernels a token and the probe's decode milliseconds a token, a decode-graph device test holding each fused chain to the unfused one.\nServes: throughput of every model's decode.\nBatch: device."
+        },
+        {
+          "id": "hyper-gates",
+          "title": "Fuse a hyper-connection mix's injection gate and its stream combine",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "From fewer-kernels (stream-sum: decode 14.62-14.88 to 13.73-13.83 ms a token) and an Nsight trace with graph nodes of Flash-Next's short chat: each gated hyper-connection mix still runs its injection as an F32 product and then scale, sigmoid and scale, three elementwise kernels (block_gated_hyper.go:36-38), and each combine (graph_dispatch.go:343-345) runs repeat_heads, broadcast_multiply and add: out[w,s,t] = residual[w,s,t] + current[w,t] * injection[s,t]. That is about 290 kernels of about 1 us a token over two mixes a layer.\nThe step adds two rewrites to the executor's fusion catalog: an affine-sigmoid chain (Scale, Sigmoid, Scale of one tensor) as one elementwise kernel, and a stream combine (Add of a residual and the product of a stream-repeated tensor with a per-stream gate) as one kernel. Each keeps the unfused kernels' rounding, held bit for bit by a device test against the unfused graph.\nEvidence: kernels a token and the probe's decode milliseconds a token with the CPU prompt path off, every run's text identical to master's.\nServes: throughput of every hyper-connection model's decode.\nBatch: device."
+        },
+        {
+          "id": "hyper-norms",
+          "title": "Normalize a hyper-connection mix's streams in one kernel that writes its products' Q8_0 blocks",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "From the same trace: each gated hyper-connection mix normalizes its [width, streams, tokens] input with rms_norm, then broadcast_multiply by a [width, streams] weight, and quantizes it for its Q8_0 down product (block_gated_hyper.go:20-22). The weighted-RMS fusion refuses it because its weight covers several rows (rmsWeightCompatible), and the product reads the normalized tensor through a reshape, so no producer writes its Q8_0 blocks. The down product's output is scaled and SiLU'd, then quantized again for the up product. That is about 380 kernels a token.\nThe step lets weighted-RMS take a weight of several rows, row r taking weight row r mod k, and Q8_0 emission read through a reshape that keeps whole 32-value blocks. A Scale and SiLU feeding a one-token Q8_0 product become one kernel that writes the product's blocks. Each is held bit for bit to the unfused graph by a device test, and the Q8_0 paths to the dequantized reference.\nEvidence: kernels a token and the probe's decode milliseconds a token with the CPU prompt path off, every run's text identical to master's.\nServes: throughput of every hyper-connection model's decode.\nBatch: device."
         },
         {
           "id": "decode-experts",
@@ -275,6 +289,13 @@
           "status": "open",
           "verify": "go test ./internal/overgodb -count=1 -run '^Test(ReleaseKeepsChainAuthority|HeadBoundDeltaReconciliation)$'",
           "rationale": "SQA-173 (P2, confirmed defect, 2026-10-20, at 38879a6e1): Store.DeltasSince (internal/overgodb/head_bound_delta.go) copies a walked commit's artifacts, contents, aliases and lineage and advances the head without looking at its Releases. A peer at the head before a release is then told it has reconciled (resync false) while the released bytes are gone.\nThe step returns the existing empty delta with resync true when a walked commit holds Releases, before crediting any part of the window. Ordinary windows, continuation, cancellation and divergence keep their behaviour.\nTestReleaseKeepsChainAuthority gains the one-commit delta from its captured pre-release head, before and after reopening, on its existing fixture.\nServes: failure-rate of store peers reconciling across a release.\nBatch: host."
+        },
+        {
+          "id": "host-row-tests",
+          "title": "Merge the host-row tests into the existing row-and-dot test",
+          "status": "open",
+          "verify": "go test ./internal/model -count=1 -run '^TestLoadHostRowsAndDotRows$'",
+          "rationale": "SQA-177 (P3, 2026-10-20, at bf50cfbc3): TestHostRowsReadEachRowOnceAndKeepIt and TestLoadHostRowsAndDotRows build the same F32 fixture, counted reader and parsed GGUF, and both prove repeated rows read once, in order, and cancellation returning no partial values.\nThe step keeps TestLoadHostRowsAndDotRows as the one owner on the 300-row fixture: the cache's eight-way eviction and re-read, the real file's offset and handles' Close, DotRows' values, invalid first, later and empty rows, the cancelled read touching no file, and both in-flight cancellation ceilings (two distinct rows; the 32 readers). It removes the other test and its duplicated setup.\nEvidence: go test ./internal/model -run '^TestLoadHostRowsAndDotRows$' and the net test AST change.\nServes: test upkeep; no user metric moves.\nBatch: host."
         }
       ]
     },
@@ -587,7 +608,8 @@
             "hybrid-layer-terms/do",
             "decode-plan/do",
             "ngram-reads-terms/do",
-            "quiet-residency-terms/do"
+            "quiet-residency-terms/do",
+            "fewer-kernels-terms/do"
           ]
         }
       ]

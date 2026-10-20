@@ -213,15 +213,15 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "measured: flashnext-decode/fewer-kernels adds 907 production syntax nodes (the stream-sum rewrite, its launcher and kernels)"
+        "nodes": 798,
+        "reason": "measured: flashnext-decode/hyper-gates adds 798 production syntax nodes (the stream-combine rewrite with its scaled-sigmoid fold, its launcher and kernel)"
       },
       "steps": [
         {
           "id": "hyper-gates",
           "title": "Fuse a hyper-connection mix's injection gate and its stream combine",
           "status": "open",
-          "verify": "go run ./cmd/plan -status",
+          "verify": "go test ./internal/cuda/executor -count=1 -run '^TestCompileFusesStreamCombine$' \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestExecutorStreamCombineMatchesTheUnfusedGraph$'",
           "rationale": "From fewer-kernels (stream-sum: decode 14.62-14.88 to 13.73-13.83 ms a token) and an Nsight trace with graph nodes of Flash-Next's short chat: each gated hyper-connection mix still runs its injection as an F32 product and then scale, sigmoid and scale, three elementwise kernels (block_gated_hyper.go:36-38), and each combine (graph_dispatch.go:343-345) runs repeat_heads, broadcast_multiply and add: out[w,s,t] = residual[w,s,t] + current[w,t] * injection[s,t]. That is about 290 kernels of about 1 us a token over two mixes a layer.\nThe step adds two rewrites to the executor's fusion catalog: an affine-sigmoid chain (Scale, Sigmoid, Scale of one tensor) as one elementwise kernel, and a stream combine (Add of a residual and the product of a stream-repeated tensor with a per-stream gate) as one kernel. Each keeps the unfused kernels' rounding, held bit for bit by a device test against the unfused graph.\nEvidence: kernels a token and the probe's decode milliseconds a token with the CPU prompt path off, every run's text identical to master's.\nServes: throughput of every hyper-connection model's decode.\nBatch: device."
         },
         {
@@ -602,7 +602,8 @@
             "decode-plan/do",
             "ngram-reads-terms/do",
             "quiet-residency-terms/do",
-            "fewer-kernels-terms/do"
+            "fewer-kernels-terms/do",
+            "hyper-gates-terms/do"
           ]
         }
       ]

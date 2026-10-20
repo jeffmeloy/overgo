@@ -213,15 +213,15 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "measured: hybrid-experts/cpu-pool adds 854 production syntax nodes (the worker pool and the expert layer)"
+        "nodes": 2852,
+        "reason": "measured: hybrid-experts/hybrid-layer adds 2852 production syntax nodes (the IQ3_S and Q8_0 kernels, the exported pool and formats, and the executor's host-expert plan, gather, compute and placement)"
       },
       "steps": [
         {
           "id": "hybrid-layer",
           "title": "Compute a layer's host experts on the CPU while the card computes its own",
           "status": "open",
-          "verify": "go run ./cmd/plan -status",
+          "verify": "go test ./internal/hostexpert -count=1 -run '^(TestRowsMatchTheFormulas|TestLayerMatchesTheSerialLayer)$' \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestPromptHostExpertsComputeOnTheCPU$'",
           "rationale": "The routed-expert launch copies every host expert a prompt group routes to the card (moe_matrix.go) and decode reads them over the link.\nThe step routes on the card as now, brings the routes and the routed rows' activations to host memory, computes the host experts' rows on the pool into pinned output while the card computes its own, and folds both in the combine.\nEvidence: the bench's first and follow-up turns and decode, the answers held against the copy path by top log-probabilities.\nServes: first-output and throughput of every routed-expert model larger than its card.\nBatch: device."
         },
         {
@@ -557,7 +557,8 @@
             "tool-decode-terms/do",
             "hybrid-plan/do",
             "cpu-dots-terms/do",
-            "cpu-pool-terms/do"
+            "cpu-pool-terms/do",
+            "hybrid-layer-terms/do"
           ]
         }
       ]

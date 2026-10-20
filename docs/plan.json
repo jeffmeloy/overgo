@@ -218,18 +218,18 @@
       },
       "steps": [
         {
-          "id": "expert-copies",
-          "title": "Copy a long prompt's host experts in few large transfers beside the products",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "From prefill-rate's Nsight of Flash-Next's 20,605-token prompt on master (2026-10-20): the host experts a prompt group routes cross the link as 43,039 transfers averaging about 825 KB, 35.5 GB in 2.72 s (about 13 GB/s on a link that carries about 25), and about 1.65 s of them run with no kernel beside them; the card is idle 0.2 s.\nA long prompt's group routes nearly every host expert of a layer, and the residency keeps each bank's host experts in pinned chunks, so runs of them lie back to back in host memory.\nThe step copies runs of a group's host experts that lie together in host memory and in the staging as one transfer each, and starts a layer's copies as soon as its routes are known, so the copies run at the link's rate beside the card's own experts' products.\nEvidence: Nsight's copy count, rate and the time copies run alone; the 4K and 16K first outputs; answers identical to master's.\nServes: first-output of every routed-expert model larger than its card.\nBatch: device."
-        },
-        {
           "id": "expert-products",
           "title": "Run a long prompt's grouped expert products at the tensor cores' rate",
           "status": "open",
           "verify": "go run ./cmd/plan -status",
           "rationale": "From the same profile: moe_grouped_hidden_f32 and moe_grouped_down_f32 take 3.16 and 0.93 s for about 97 TFLOP of expert products, about 24 TFLOPS on fp16 tensor cores that reach several times that. Dropping the low fp16 part of each input (MOE_INPUT_PARTS 1, half the mma work) saved only 0.6 s (13.47 to 12.88 s), so decoding and staging each weight tile, not the mma, sets the pace: a tile of MOE_TILE_TOKENS tokens decodes its weights again for every token tile of the same expert.\nThe step profiles the grouped kernels (ncu: decode, shared-memory and mma pipes) and cuts the largest cost, such as decoding an expert's weight tile once for more of its routed tokens, holding the products' bits.\nEvidence: the grouped kernels' time in Nsight, the 4K and 16K first outputs, a device test holding the products to the reference.\nServes: first-output of every routed-expert model's long prompts.\nBatch: device."
+        },
+        {
+          "id": "expert-ring",
+          "title": "Stream a long prompt's host experts beside the attention through a ring",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "From Nsight of Flash-Next's 20,605-token prompt with expert-copies' prototypes (2026-10-20): the card's link runs at PCIe 4.0 x8 under load and the prompt's 40.9 GB of host expert copies take 3.1 s at its rate, 13.1 GB/s; merged transfers and more copy buffers changed nothing (11.97 to 12.20 s against 12.05 to 12.45 s).\nToday a layer's products (about 90 ms) outlast its copies (about 65 ms), so the copies stall the products only 0.66 s; once long-prompt/expert-products shortens the products below the copies, the link sets each layer's pace while the attention and delta-net run with the link idle, because a layer's copies wait for its routes.\nStrata streams every non-resident expert once per 8,192-token chunk through a 384-slot ring on its own copy stream, beside the attention halves (src/prefill/prefill.cpp:2337-2502), and its 16K prompt copies about 46 GB in its 5.0 s.\nThe step copies a long prompt's layer's host experts into a ring before its routes are known, beside the layers before it, each buffer released by its own event so copies run ahead of the products.\nEvidence: Nsight's time with copies alone; the 4K and 16K first outputs; answers identical to master's.\nServes: first-output of every routed-expert model larger than its card.\nBatch: device."
         }
       ]
     },
@@ -584,7 +584,8 @@
             "own-findings-terms/do",
             "agent-thread-terms/do",
             "spec-plan/do",
-            "prefill-rate-terms/do"
+            "prefill-rate-terms/do",
+            "copies-rescope/do"
           ]
         }
       ]

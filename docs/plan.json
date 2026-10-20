@@ -213,15 +213,15 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 121,
-        "reason": "measured: flashnext-decode/hyper-gates adds 798 production syntax nodes (the stream-combine rewrite with its scaled-sigmoid fold, its launcher and kernel)"
+        "nodes": 602,
+        "reason": "measured: flashnext-decode/hyper-norms adds 602 production syntax nodes (multi-row weighted RMS, Q8_0 emission through reshapes, the scaled-activation rewrite and kernels)"
       },
       "steps": [
         {
           "id": "hyper-norms",
           "title": "Normalize a hyper-connection mix's streams in one kernel that writes its products' Q8_0 blocks",
           "status": "open",
-          "verify": "go run ./cmd/plan -status",
+          "verify": "go test ./internal/cuda/executor -count=1 -run '^TestCompileFusesHyperNorms$' \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestExecutorHyperNormsMatchTheUnfusedGraph$'",
           "rationale": "From the same trace: each gated hyper-connection mix normalizes its [width, streams, tokens] input with rms_norm, then broadcast_multiply by a [width, streams] weight, and quantizes it for its Q8_0 down product (block_gated_hyper.go:20-22). The weighted-RMS fusion refuses it because its weight covers several rows (rmsWeightCompatible), and the product reads the normalized tensor through a reshape, so no producer writes its Q8_0 blocks. The down product's output is scaled and SiLU'd, then quantized again for the up product. That is about 380 kernels a token.\nThe step lets weighted-RMS take a weight of several rows, row r taking weight row r mod k, and Q8_0 emission read through a reshape that keeps whole 32-value blocks. A Scale and SiLU feeding a one-token Q8_0 product become one kernel that writes the product's blocks. Each is held bit for bit to the unfused graph by a device test, and the Q8_0 paths to the dequantized reference.\nEvidence: kernels a token and the probe's decode milliseconds a token with the CPU prompt path off, every run's text identical to master's.\nServes: throughput of every hyper-connection model's decode.\nBatch: device."
         },
         {
@@ -596,7 +596,8 @@
             "ngram-reads-terms/do",
             "quiet-residency-terms/do",
             "fewer-kernels-terms/do",
-            "hyper-gates-terms/do"
+            "hyper-gates-terms/do",
+            "hyper-norms-terms/do"
           ]
         }
       ]

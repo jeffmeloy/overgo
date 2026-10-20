@@ -64,7 +64,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "15e3535972d51204bd3a82ec95d7be96eb1802d4c86972335fa6a8d3d3f5191e",
+      "sourceSha256": "f2f92d3dd946440c649d0b56bc2a98ea534159dfec5704e2eff4c9408a84ae34",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -72,7 +72,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "3c0b1a4e6e324c0da73a8536b733c387dbe5b3a79451f0f39acbfb61ef30cb99",
+      "assetSha256": "cb70b8d9d562e71e67b87ee868795c372becd62c3071d4c86015347b79467af7",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -251,6 +251,8 @@
         "sam_attention_grouped_f32",
         "scale_f32",
         "scale_fp8_product_f32",
+        "scaled_activation_f32",
+        "scaled_activation_q8_0_f32",
         "short_conv_backward_f32",
         "sigmoid_f32",
         "signed_sqrt_f32",
@@ -912,7 +914,8 @@
             ".f32"
           ],
           "functions": [
-            "group_norm_grouped_f32"
+            "group_norm_grouped_f32",
+            "weighted_rms_norm_q8_0_f32"
           ]
         },
         {
@@ -979,8 +982,7 @@
           ],
           "functions": [
             "l2_norm_backward_f32",
-            "softmax_ce_grad_rows_f32",
-            "weighted_rms_norm_f32"
+            "softmax_ce_grad_rows_f32"
           ]
         },
         {
@@ -1042,8 +1044,7 @@
           ],
           "functions": [
             "mad_norm_backward_f32",
-            "weighted_rms_norm_add_f32",
-            "weighted_rms_norm_q8_0_f32"
+            "weighted_rms_norm_add_f32"
           ]
         },
         {
@@ -1447,6 +1448,31 @@
           "parameters": [
             ".u64",
             ".u64",
+            ".u32",
+            ".f32",
+            ".u32"
+          ],
+          "functions": [
+            "scaled_activation_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".f32",
+            ".u32"
+          ],
+          "functions": [
+            "scaled_activation_q8_0_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
             ".u64",
             ".u64",
             ".u64",
@@ -1753,6 +1779,20 @@
           ],
           "functions": [
             "weighted_rms_gate_q8_0_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".f32"
+          ],
+          "functions": [
+            "weighted_rms_norm_f32"
           ]
         },
         {

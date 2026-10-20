@@ -811,27 +811,29 @@ const (
 	compiledFusionQ8ArgmaxReduction
 	compiledFusionStreamSum
 	compiledFusionStreamCombine
+	compiledFusionScaledActivation
 )
 
 type compiledFusion struct {
-	kind          compiledFusionKind
-	operandOffset int
-	operandCount  int
-	operands      []*tensor.Tensor
-	emitQ8        bool
-	peer          *tensor.Tensor
-	weightedRMS   weightedRMSFusion
-	activatedGate activatedGateFusion
-	geluTanh      geluTanhFusion
-	layerNorm     layerNormModulateFusion
-	weightedGate  weightedRMSGateFusion
-	bf16Append    bf16AppendFusion
-	ropeAppend    ropeAppendFusion
-	bf16Gate      bf16GateFusion
-	bf16ProjAdd   bf16ProjAddFusion
-	bf16Attention bf16AttentionFusion
-	streamSum     streamSumFusion
-	streamCombine streamCombineFusion
+	kind             compiledFusionKind
+	operandOffset    int
+	operandCount     int
+	operands         []*tensor.Tensor
+	emitQ8           bool
+	peer             *tensor.Tensor
+	weightedRMS      weightedRMSFusion
+	activatedGate    activatedGateFusion
+	geluTanh         geluTanhFusion
+	layerNorm        layerNormModulateFusion
+	weightedGate     weightedRMSGateFusion
+	bf16Append       bf16AppendFusion
+	ropeAppend       ropeAppendFusion
+	bf16Gate         bf16GateFusion
+	bf16ProjAdd      bf16ProjAddFusion
+	bf16Attention    bf16AttentionFusion
+	streamSum        streamSumFusion
+	streamCombine    streamCombineFusion
+	scaledActivation scaledActivationFusion
 }
 
 type dynamicAttributeSlot struct {
@@ -1855,6 +1857,8 @@ func launchCompiledFusion(
 		return "stream_sum", launchStreamSum(state, functions, q8Input, node, fusion.streamSum, fusion.emitQ8, pointers)
 	case compiledFusionStreamCombine:
 		return "stream_combine", launchStreamCombine(state, functions, node, fusion.streamCombine, pointers)
+	case compiledFusionScaledActivation:
+		return "scaled_activation", launchScaledActivation(state, functions, q8Input, node, fusion.scaledActivation, fusion.emitQ8, pointers)
 	default:
 		return "", errors.New("compiled CUDA fusion is invalid")
 	}

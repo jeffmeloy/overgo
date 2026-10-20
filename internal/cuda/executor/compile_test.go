@@ -737,6 +737,47 @@ func TestCompileFusesStreamCombine(t *testing.T) {
 	}
 }
 
+// hyperNorms builds a gated hyper-connection mix's normalization of input
+// [width, streams, tokens] by a [width, streams] weight, its low-rank down
+// product and gate SiLU(Scale(down·normalized, 1/streams)), and the up
+// product reading the gate. It returns the normalization, the gate and the
+// two products.
+func hyperNorms(builder *tensor.Builder, input, weight, down, up *tensor.Tensor) (normalized, gate, low, high *tensor.Tensor) {
+	width, streams, tokens := input.Shape.Dims[0], input.Shape.Dims[1], input.Shape.Dims[2]
+	normalized = builder.Multiply(builder.RMSNorm(input, 1e-6), weight)
+	low = builder.MulMat(down, builder.Reshape(normalized, width*streams, tokens))
+	gate = builder.SiLU(builder.Scale(low, 1/float32(streams)))
+	return normalized, gate, low, builder.MulMat(up, gate)
+}
+
+// TestCompileFusesHyperNorms holds a hyper-connection mix's normalization to
+// a weighted-RMS fusion of one weight row a stream, writing the Q8_0 blocks
+// its product reads through a reshape, and its gate to a scaled-activation
+// fusion writing the up product's blocks.
+func TestCompileFusesHyperNorms(t *testing.T) {
+	const width, streams, rank = 64, 4, 32
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(width, streams, 1))
+	weight := builder.Input("weight", dtype.F32, tensor.MustShape(width, streams))
+	down := builder.Input("down", dtype.Q8_0, tensor.MustShape(width*streams, rank))
+	up := builder.Input("up", dtype.Q8_0, tensor.MustShape(rank, width))
+	normalized, gate, low, output := hyperNorms(builder, input, weight, down, up)
+	compiled, err := Compile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	descriptor := compiled.nodes[compiled.orderIndexes[normalized]].fusion
+	if descriptor == nil || descriptor.kind != compiledFusionWeightedRMS || descriptor.weightedRMS.weightRows != streams || !descriptor.emitQ8 {
+		t.Fatalf("hyper-connection normalization fusion = %+v", descriptor)
+	}
+	descriptor = compiled.nodes[compiled.orderIndexes[gate]].fusion
+	if descriptor == nil || descriptor.kind != compiledFusionScaledActivation || !descriptor.emitQ8 ||
+		descriptor.scaledActivation.input != low || descriptor.scaledActivation.kind != activatedGateSiLU ||
+		descriptor.scaledActivation.scale != 1/float32(streams) {
+		t.Fatalf("scaled activation fusion = %+v", descriptor)
+	}
+}
+
 func TestCompileFusesWeightedRMSNormAndActivatedGate(t *testing.T) {
 	const fixtureWidth = 8
 	builder := tensor.NewBuilder()

@@ -291,7 +291,7 @@ func launchLinearLayout(
 				if q8Input == nil || q8Input.staging == 0 {
 					return fmt.Errorf("%s mul_mat input workspace is unavailable", leftNode.Type)
 				}
-				if q8Input.stagedNode != rightNode {
+				if q8Input.stagedNode != rightNode && q8Input.stagedNode != q8Source(rightNode) {
 					blocks := uint64(inner) * uint64(rightRows) / q8InputTraits.BlockSize
 					if blocks > math.MaxUint32 {
 						return fmt.Errorf("%s mul_mat input block count exceeds uint32", leftNode.Type)
@@ -915,6 +915,8 @@ func launchWeightedRMSNorm(
 	weight := pointers.input(1)
 	result := pointers.output()
 	epsilon := attributes.Epsilon
+	// A weight of several rows gives row r its row r mod weightRows.
+	weightRows := uint32(max(fusion.weightRows, 1))
 	if fusion.addLeft != nil {
 		left, right := pointers.input(2), pointers.input(3)
 		if emitQ8 {
@@ -941,7 +943,7 @@ func launchWeightedRMSNorm(
 		}
 		if err := launchNormalizationABI(
 			state, functions[kernelWeightedRmsNormQ80F32], rows,
-			&input, &weight, &result, &q8Input.staging, &width, &rows, &epsilon,
+			&input, &weight, &result, &q8Input.staging, &width, &rows, &weightRows, &epsilon,
 		); err != nil {
 			return err
 		}
@@ -950,7 +952,7 @@ func launchWeightedRMSNorm(
 	}
 	return launchNormalizationABI(
 		state, functions[kernelWeightedRmsNormF32], rows,
-		&input, &weight, &result, &width, &rows, &epsilon,
+		&input, &weight, &result, &width, &rows, &weightRows, &epsilon,
 	)
 }
 
@@ -1126,6 +1128,41 @@ func launchStreamCombine(
 	inner, outer := fusion.inner, fusion.outer
 	return launch1DABI(state, functions[kernelStreamCombineF32], count,
 		&residual, &current, &gate, &result, &width, &streams, &scaled, &inner, &outer, &count)
+}
+
+// launchScaledActivation writes the activation of the scaled input, and its
+// Q8_0 blocks where a product reads them.
+func launchScaledActivation(
+	state *device.State,
+	functions functionSet,
+	q8Input *q8InputState,
+	output *tensor.Tensor,
+	fusion scaledActivationFusion,
+	emitQ8 bool,
+	pointers launchPointerFrame,
+) error {
+	count, err := elementCount32(output.Shape)
+	if err != nil {
+		return err
+	}
+	input, result := pointers.input(0), pointers.output()
+	kind, scale := uint32(fusion.kind), fusion.scale
+	if !emitQ8 {
+		return launch1DABI(state, functions[kernelScaledActivationF32], count, &input, &result, &kind, &scale, &count)
+	}
+	if q8Input == nil || q8Input.staging == 0 || uint64(count)%q8InputTraits.BlockSize != 0 {
+		return errors.New("scaled-activation Q8 workspace is unavailable")
+	}
+	blocks, threads := count/uint32(q8InputTraits.BlockSize), uint32(q8InputTraits.BlockSize)
+	if err := launchGridABI(
+		state, functions[kernelScaledActivationQ80F32],
+		kernel.Grid1D(int(blocks)), kernel.Grid1D(int(threads)),
+		&input, &result, &q8Input.staging, &kind, &scale, &count,
+	); err != nil {
+		return err
+	}
+	q8Input.stagedNode = output
+	return nil
 }
 
 func launchWeightedRMSGate(

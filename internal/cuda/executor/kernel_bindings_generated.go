@@ -184,6 +184,8 @@ const (
 	kernelSamAttentionGroupedF32
 	kernelScaleF32
 	kernelScaleFp8ProductF32
+	kernelScaledActivationF32
+	kernelScaledActivationQ80F32
 	kernelShortConvBackwardF32
 	kernelSigmoidF32
 	kernelSignedSqrtF32
@@ -413,6 +415,8 @@ var kernelFunctionNames = [...]string{
 	"sam_attention_grouped_f32",
 	"scale_f32",
 	"scale_fp8_product_f32",
+	"scaled_activation_f32",
+	"scaled_activation_q8_0_f32",
 	"short_conv_backward_f32",
 	"sigmoid_f32",
 	"signed_sqrt_f32",
@@ -641,6 +645,8 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	17,
 	4,
 	5,
+	5,
+	6,
 	12,
 	3,
 	4,
@@ -684,8 +690,8 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	11,
 	7,
 	8,
-	6,
 	7,
+	8,
 	7,
 	7,
 	7,

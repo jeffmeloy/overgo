@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"math"
 	"slices"
 
 	"overgo/internal/tensor"
@@ -12,6 +13,8 @@ type weightedRMSFusion struct {
 	weight        *tensor.Tensor
 	addLeft       *tensor.Tensor
 	addRight      *tensor.Tensor
+	// weightRows are the rows of weight: input row r takes weight row r mod weightRows.
+	weightRows uint64
 }
 
 type activatedGateKind uint32
@@ -64,6 +67,14 @@ type streamSumFusion struct {
 	kind           activatedGateKind
 	width, streams uint64
 	scale          float32
+}
+
+// scaledActivationFusion: the SiLU or sigmoid of input times scale, in one
+// pass.
+type scaledActivationFusion struct {
+	input *tensor.Tensor
+	kind  activatedGateKind
+	scale float32
 }
 
 // streamCombineFusion: residual + current*gate, current a token's row
@@ -146,6 +157,7 @@ var graphRewriteCatalog = [...]graphRewrite{
 	{name: "activated-gate", apply: applyActivatedGateRewrite},
 	{name: "stream-sum", apply: applyStreamSumRewrite},
 	{name: "stream-combine", apply: applyStreamCombineRewrite},
+	{name: "scaled-activation", apply: applyScaledActivationRewrite},
 	{name: "gelu-tanh", apply: applyGELUTanhRewrite},
 	{name: "layer-norm-modulate", apply: applyLayerNormModulateRewrite},
 	{name: "q8-emission", apply: applyQ8EmissionRewrite},
@@ -192,18 +204,19 @@ func applyWeightedRMSRewrite(context *rewriteContext) {
 		if normalization.Op != tensor.OpRMSNorm || context.uses[normalization] != 1 {
 			continue
 		}
+		weightRows, compatible := rmsWeightRows(normalization, weight)
 		if _, retained := context.outputSet[normalization]; retained ||
-			!rmsWeightCompatible(normalization, weight) {
+			!compatible {
 			continue
 		}
 		compiled := context.compiled
 		if compiled.skipped == nil {
 			compiled.skipped = make(map[*tensor.Tensor]struct{})
 		}
-		fusion := weightedRMSFusion{normalization: normalization, weight: weight}
+		fusion := weightedRMSFusion{normalization: normalization, weight: weight, weightRows: weightRows}
 		// The fused add kernel reads both operands at full row extent; a
 		// broadcast add (e.g. a rank-1 bias) must stay unfused.
-		if source := normalization.Inputs[0]; source.Op == tensor.OpAdd && context.uses[source] == 1 &&
+		if source := normalization.Inputs[0]; weightRows == 1 && source.Op == tensor.OpAdd && context.uses[source] == 1 &&
 			source.Inputs[0].Shape.Equal(source.Shape) && source.Inputs[1].Shape.Equal(source.Shape) {
 			if _, retained := context.outputSet[source]; !retained {
 				fusion.addLeft, fusion.addRight = source.Inputs[0], source.Inputs[1]
@@ -238,7 +251,7 @@ func applyActivatedGateRewrite(context *rewriteContext) {
 		if _, retained := context.outputSet[activation]; retained {
 			continue
 		}
-		if prior := compiled.fusions[up]; prior != nil && prior.kind == compiledFusionWeightedRMS && context.uses[up] == 1 {
+		if prior := compiled.fusions[up]; prior != nil && prior.kind == compiledFusionWeightedRMS && prior.weightedRMS.weightRows == 1 && context.uses[up] == 1 {
 			if _, retained := context.outputSet[up]; !retained {
 				weighted := prior.weightedRMS
 				operands := []*tensor.Tensor{weighted.normalization.Inputs[0], activation.Inputs[0], weighted.weight}
@@ -368,6 +381,36 @@ func applyStreamCombineRewrite(context *rewriteContext) {
 		}
 		compiled.setFusion(node, &compiledFusion{
 			kind: compiledFusionStreamCombine, operands: []*tensor.Tensor{residual, current, fusion.gate}, streamCombine: fusion,
+		})
+	}
+}
+
+// applyScaledActivationRewrite: SiLU or Sigmoid of Scale(x), the scale read
+// by the activation alone, becomes one kernel, which writes the Q8_0 blocks
+// of a product reading it: a gated hyper-connection mix's low-rank gate ran
+// scale, silu and a quantization as three kernels.
+func applyScaledActivationRewrite(context *rewriteContext) {
+	compiled := context.compiled
+	for _, node := range context.order {
+		kind, ok := activatedGateKindFor(node)
+		if !ok || node.Type != dtype.F32 || compiled.fusions[node] != nil {
+			continue
+		}
+		if _, skipped := compiled.skipped[node]; skipped {
+			continue
+		}
+		scaled := node.Inputs[0]
+		scale, ok := scaleFactorFor(scaled)
+		if !ok || scaled.Type != dtype.F32 || !context.fusableIntermediate(scaled, 1) {
+			continue
+		}
+		if compiled.skipped == nil {
+			compiled.skipped = make(map[*tensor.Tensor]struct{})
+		}
+		compiled.skipped[scaled] = struct{}{}
+		compiled.setFusion(node, &compiledFusion{
+			kind: compiledFusionScaledActivation, operands: []*tensor.Tensor{scaled.Inputs[0]},
+			scaledActivation: scaledActivationFusion{input: scaled.Inputs[0], kind: kind, scale: scale},
 		})
 	}
 }
@@ -653,10 +696,12 @@ func applyQ8EmissionRewrite(context *rewriteContext) {
 			node.Inputs[1].Shape.Rank != 2 || node.Inputs[1].Shape.Dims[1] != 1 {
 			continue
 		}
-		producer := node.Inputs[1]
+		// A producer read through a reshape serves the product's blocks where its rows hold whole blocks.
+		producer := q8Source(node.Inputs[1])
 		if !compiled.hasFusion(
 			producer, compiledFusionWeightedRMS, compiledFusionActivatedGate, compiledFusionWeightedRMSGate, compiledFusionStreamSum,
-		) {
+			compiledFusionScaledActivation,
+		) || producer.Shape.Dims[0]%q8InputTraits.BlockSize != 0 {
 			continue
 		}
 		if compiled.q8Emit == nil {
@@ -961,11 +1006,32 @@ func activatedGateKindFor(node *tensor.Tensor) (activatedGateKind, bool) {
 	}
 }
 
-func rmsWeightCompatible(normalization, weight *tensor.Tensor) bool {
+// rmsWeightRows reports the rows of an F32 weight the normalization's rows
+// take in turn: one row of its width, or [width, k] over a
+// [width, k, tokens] normalization, row r taking weight row r mod k, as a
+// gated hyper-connection mix weighs each of its streams.
+func rmsWeightRows(normalization, weight *tensor.Tensor) (uint64, bool) {
 	if normalization == nil || weight == nil || len(normalization.Inputs) != 1 || weight.Type != dtype.F32 {
-		return false
+		return 0, false
 	}
 	width := normalization.Shape.Dims[0]
 	elements, err := weight.Shape.Elements()
-	return err == nil && elements == width && weight.Shape.Dims[0] == width
+	if err != nil || weight.Shape.Dims[0] != width {
+		return 0, false
+	}
+	if elements == width {
+		return 1, true
+	}
+	shape := normalization.Shape
+	return weight.Shape.Dims[1], weight.Shape.Rank == tensor.PairedExtent && shape.Rank == tensor.TripleExtent &&
+		weight.Shape.Dims[1] == shape.Dims[1] && weight.Shape.Dims[1] <= math.MaxUint32
+}
+
+// q8Source is the tensor whose Q8_0 input blocks serve node's: node, or the
+// tensor its reshapes view, whose values they hold in the same order.
+func q8Source(node *tensor.Tensor) *tensor.Tensor {
+	for node != nil && node.Op == tensor.OpReshape && len(node.Inputs) == 1 {
+		node = node.Inputs[0]
+	}
+	return node
 }

@@ -1032,6 +1032,41 @@ extern "C" __global__ void stream_combine_f32(
     output[index] = __fadd_rn(residual[index], __fmul_rn(current[(row / streams) * width + index % width], value));
 }
 
+// scaled_activation_f32 writes the activation of the scaled input, rounded
+// as scale_f32 and then silu_f32 or sigmoid_f32 round it.
+extern "C" __global__ void scaled_activation_f32(
+        const float * input,
+        float * output,
+        unsigned int activation,
+        float scale,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < count) {
+        output[index] = activated_gate_value(__fmul_rn(input[index], scale), activation);
+    }
+}
+
+// scaled_activation_q8_0_f32 is scaled_activation_f32 that also writes its
+// output as the Q8_0 input of the product reading it, a block of 32 values a
+// warp.
+extern "C" __global__ void scaled_activation_q8_0_f32(
+        const float * input,
+        float * output,
+        unsigned char * quantized,
+        unsigned int activation,
+        float scale,
+        unsigned int count) {
+    const unsigned int block = blockIdx.x;
+    const unsigned int lane = threadIdx.x;
+    const unsigned int index = block * Q8_0_BLOCK_WIDTH + lane;
+    if (index >= count || lane >= Q8_0_BLOCK_WIDTH) {
+        return;
+    }
+    const float value = activated_gate_value(__fmul_rn(input[index], scale), activation);
+    output[index] = value;
+    store_q8_input_warp(quantized, block, value, lane);
+}
+
 extern "C" __global__ void gelu_f32(
         const float * input,
         float * output,
@@ -3874,6 +3909,7 @@ extern "C" __global__ void weighted_rms_norm_f32(
         float * output,
         unsigned int width,
         unsigned int rows,
+        unsigned int weight_rows,
         float epsilon) {
     const unsigned int row = blockIdx.x;
     if (row >= rows) {
@@ -3889,7 +3925,7 @@ extern "C" __global__ void weighted_rms_norm_f32(
     sum_squares = block_sum_f32(sum_squares, partial);
     const float inverse = rsqrtf(sum_squares / (float) width + epsilon);
     for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
-        output[offset + column] = input[offset + column] * inverse * weight[column];
+        output[offset + column] = input[offset + column] * inverse * weight[(row % weight_rows) * width + column];
     }
 }
 
@@ -3925,6 +3961,7 @@ extern "C" __global__ void weighted_rms_norm_q8_0_f32(
         unsigned char * quantized,
         unsigned int width,
         unsigned int rows,
+        unsigned int weight_rows,
         float epsilon) {
     const unsigned int row = blockIdx.x;
     if (row >= rows) {
@@ -3942,7 +3979,7 @@ extern "C" __global__ void weighted_rms_norm_q8_0_f32(
     const unsigned int blocks_per_row = width / Q8_0_BLOCK_WIDTH;
     const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
     for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
-        const float value = input[offset + column] * inverse * weight[column];
+        const float value = input[offset + column] * inverse * weight[(row % weight_rows) * width + column];
         output[offset + column] = value;
         store_q8_input_warp(
             quantized,

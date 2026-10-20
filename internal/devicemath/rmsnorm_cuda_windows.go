@@ -36,10 +36,10 @@ func RMSNormForward(worker *device.Worker, x, weight []float32, rows, d int, eps
 		if err := scope.fill([]deviceSlot{{&xPtr, x, 0}, {&wPtr, weight, 0}, {&outPtr, nil, rows * d}}); err != nil {
 			return err
 		}
-		widthU, rowsU, epsF := uint32(d), uint32(rows), float32(eps)
+		widthU, rowsU, weightRows, epsF := uint32(d), uint32(rows), uint32(1), float32(eps)
 		if err := scope.launch1D(fn, uint32(rows)*deviceBlockThreads,
 			unsafe.Pointer(&xPtr), unsafe.Pointer(&wPtr), unsafe.Pointer(&outPtr),
-			unsafe.Pointer(&widthU), unsafe.Pointer(&rowsU), unsafe.Pointer(&epsF),
+			unsafe.Pointer(&widthU), unsafe.Pointer(&rowsU), unsafe.Pointer(&weightRows), unsafe.Pointer(&epsF),
 		); err != nil {
 			return err
 		}

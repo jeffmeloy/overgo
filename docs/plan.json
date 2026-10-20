@@ -213,16 +213,23 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "measured: long-prompt/attention-mma adds 223 production syntax nodes (the tensor-core launch, its geometry and shared-memory opt-in)"
+        "nodes": 80,
+        "reason": "measured: long-prompt/kernel-audit adds 80 production syntax nodes (the grouped group-norm launch)"
       },
       "steps": [
         {
           "id": "kernel-audit",
           "title": "Rewrite every kernel whose output element recomputes a reduction its row shares, where models reach it",
           "status": "open",
-          "verify": "go run ./cmd/plan -status",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestExecutorAudioConvolutionPrimitivesMatchReference$'",
           "rationale": "From the owner's direction of 2026-10-20: the Strata effort's point is durable lessons and general code objects that every model uses, applied throughout for speed and memory.\nThe long-prompt row found sparse_attention_f32 spending 94.8% of a 2,625-token prompt because each thread computed one output channel and recomputed the row's whole dot product and softmax for it, 512 times the work; the grouped kernel that replaced it is bit-identical and 9 to 12 times faster across the sweep.\nOther kernels launch a thread per output element over a shared reduction the same way: attention_f32 (the attention fallback), indexer_score_f32 (a thread per query and key, looping over heads), and the per-row routed-expert fallbacks among them.\nThe step lists every kernel whose output element recomputes a reduction its row shares (a scan of kernels/cuda/ops_f32.cu), records for each the models and request shapes that reach it (the operation's launch conditions), measures the reached ones on those models, and rewrites the costly ones as the grouped attention was: the shared reduction once, the same operations and order, bits held against the old kernel.\nEvidence: the list with each kernel's reach, and before-and-after times on the models that reach the rewritten ones.\nServes: first-output and throughput of every model whose paths reach such a kernel.\nBatch: device."
+        },
+        {
+          "id": "kernel-audit-attention",
+          "title": "Compute SAM attention's scores once a head, as the grouped sparse attention does",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "From long-prompt/kernel-audit's scan of kernels/cuda/ops_f32.cu on 2026-10-20 (owner direction: general objects for every model).\nOf the 46 kernels that launch a thread per output element and loop inside, three recompute a reduction their row shares: sparse_attention_f32 (replaced by the grouped and tensor-core kernels), group_norm_f32 (94.8% of SimpleDiffusion's GPU time, replaced by group_norm_grouped_f32 in kernel-audit), and sam_attention_f32, whose thread for each (token, head, value channel) recomputes every key's score with its relative-position terms twice, so a head's channels repeat the softmax once each.\nsam_attention_f32 serves the DeepSeek-OCR vision projector (internal/projector/deepseekocr.go); attention_f32, the attention fallback past the online and BLAS paths, has the same shape for the requests that reach it.\nThe step measures an OCR request's SAM attention, rewrites sam_attention_f32 as the grouped sparse attention was (each key's score once a head in shared memory, the same operations and order, bits held against the old kernel through a scratch switch and its SASS read for fused products), and lists which requests reach attention_f32.\nEvidence: the OCR request's time and outputs before and after, and the list.\nServes: first-output for OCR and SAM-encoder image understanding.\nBatch: device."
         },
         {
           "id": "length-cells",
@@ -519,7 +526,8 @@
             "plan-fold-loadguard/do",
             "plan-prompt-memory-check/do",
             "plan-prompt-memory-count/do",
-            "plan-attention-mma-count/do"
+            "plan-attention-mma-count/do",
+            "plan-kernel-audit/do"
           ]
         }
       ]

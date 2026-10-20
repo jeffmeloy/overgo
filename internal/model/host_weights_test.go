@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"sync/atomic"
 	"testing"
 
 	"overgo/internal/gguf"
@@ -39,13 +40,13 @@ func TestLoadHostRowsAndDotRows(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	reader.calls = 0
+	reader.calls.Store(0)
 	value, err := LoadHostRows(t.Context(), file, file.Tensors[0], []uint32{2, 0, 2})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if reader.calls != 2 {
-		t.Fatalf("row read requests = %d, want 2", reader.calls)
+	if reader.calls.Load() != 2 {
+		t.Fatalf("row read requests = %d, want 2", reader.calls.Load())
 	}
 	want := []float32{5, 6, 1, 2, 5, 6}
 	for index := range want {
@@ -70,25 +71,27 @@ func TestLoadHostRowsAndDotRows(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
-	reader.calls, reader.after = 0, cancel
+	reader.calls.Store(0)
+	reader.after = cancel
 	value, err = LoadHostRows(ctx, file, file.Tensors[0], []uint32{2, 2, 0})
-	if !errors.Is(err, context.Canceled) || reader.calls != 1 || len(value.Data) != 0 {
-		t.Fatalf("interrupted rows = %v, reads %d, error %v", value.Data, reader.calls, err)
+	// Both distinct rows may be in flight when the first read cancels.
+	if !errors.Is(err, context.Canceled) || reader.calls.Load() > 2 || len(value.Data) != 0 {
+		t.Fatalf("interrupted rows = %v, reads %d, error %v", value.Data, reader.calls.Load(), err)
 	}
-	reader.calls = 0
-	if _, err := LoadHostRows(ctx, file, file.Tensors[0], []uint32{0}); !errors.Is(err, context.Canceled) || reader.calls != 0 {
-		t.Fatalf("cancelled read touched file %d times: %v", reader.calls, err)
+	reader.calls.Store(0)
+	if _, err := LoadHostRows(ctx, file, file.Tensors[0], []uint32{0}); !errors.Is(err, context.Canceled) || reader.calls.Load() != 0 {
+		t.Fatalf("cancelled read touched file %d times: %v", reader.calls.Load(), err)
 	}
 }
 
 type countedRowReader struct {
 	*bytes.Reader
-	calls int
+	calls atomic.Int64
 	after func()
 }
 
 func (r *countedRowReader) ReadAt(p []byte, off int64) (int, error) {
-	r.calls++
+	r.calls.Add(1)
 	n, err := r.Reader.ReadAt(p, off)
 	if r.after != nil {
 		r.after()

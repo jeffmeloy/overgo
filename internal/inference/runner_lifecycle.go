@@ -493,17 +493,18 @@ type preparedResources struct {
 	cuda          *executor.Executor
 	worker        *device.Worker
 	draft         *hyperDraft
+	ngramRows     *model.HostRows
 }
 
 func (m *preparedModel) detachResources() preparedResources {
 	resources := preparedResources{
 		file: m.file, hostWeights: m.hostWeights,
 		decodeWeights: m.decodeWeights, rawWeights: m.rawWeights,
-		deviceWeights: m.deviceWeights, cuda: m.cuda, worker: m.worker, draft: m.hyperDraft,
+		deviceWeights: m.deviceWeights, cuda: m.cuda, worker: m.worker, draft: m.hyperDraft, ngramRows: m.ngramRows,
 	}
 	m.file, m.hostWeights = nil, nil
 	m.decodeWeights, m.rawWeights, m.deviceWeights = nil, nil, nil
-	m.cuda, m.worker, m.hyperDraft = nil, nil, nil
+	m.cuda, m.worker, m.hyperDraft, m.ngramRows = nil, nil, nil, nil
 	return resources
 }
 
@@ -516,7 +517,7 @@ func (m *preparedResources) close() error {
 	errs = append(errs, closeAcceleratorResources(
 		m.decodeWeights, m.rawWeights, m.deviceWeights, m.cuda, m.worker,
 	))
-	errs = append(errs, m.draft.close())
+	errs = append(errs, m.draft.close(), m.ngramRows.Close())
 	if m.file != nil {
 		errs = append(errs, m.file.Close())
 	}

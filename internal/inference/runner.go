@@ -200,6 +200,8 @@ type preparedModel struct {
 	modelSignatureOnce  sync.Once
 	audioTables         *audioWaveformTables
 	audioTablesOnce     sync.Once
+	// ngramRows reads the n-gram table's rows and keeps those read, built by the first request that reads them.
+	ngramRows *model.HostRows
 
 	// hyperDraft is the attached draft layer of a hyper-connection trunk, nil without one.
 	hyperDraft *hyperDraft

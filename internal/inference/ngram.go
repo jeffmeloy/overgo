@@ -63,7 +63,15 @@ func (r *Runner) feedNGramInputs(ctx context.Context, embedding, nextHistory *te
 	}
 	feeds[nextHistory] = reference.Value{Shape: nextHistory.Shape, Data: values}
 	return func() error {
-		selected, err := model.LoadHostRows(ctx, r.file, *r.weights.NGramTokenEmbedding, rows)
+		// A request holds the runner, so the reader is built once.
+		if r.ngramRows == nil {
+			reader, err := model.NewHostRows(r.file, *r.weights.NGramTokenEmbedding, model.NGramCacheRows)
+			if err != nil {
+				return err
+			}
+			r.ngramRows = reader
+		}
+		selected, err := r.ngramRows.Load(ctx, rows)
 		if err != nil {
 			return err
 		}

@@ -3161,6 +3161,220 @@ extern "C" __global__ void sparse_attention_grouped_f32(
 	}
 }
 
+#define SPARSE_ATTENTION_MMA_WIDTH 256
+#define SPARSE_ATTENTION_MMA_ROWS 16
+#define SPARSE_ATTENTION_MMA_CELLS 32
+#define SPARSE_ATTENTION_MMA_THREADS 128
+#define SPARSE_ATTENTION_MMA_Q_STRIDE (SPARSE_ATTENTION_MMA_WIDTH + 4)
+#define SPARSE_ATTENTION_MMA_K_STRIDE (SPARSE_ATTENTION_MMA_WIDTH + 4)
+#define SPARSE_ATTENTION_MMA_V_STRIDE (SPARSE_ATTENTION_MMA_WIDTH + 8)
+#define SPARSE_ATTENTION_MMA_S_STRIDE (SPARSE_ATTENTION_MMA_CELLS + 4)
+
+__device__ __forceinline__ unsigned int tf32_round(float value) {
+	unsigned int bits;
+	asm("cvt.rna.tf32.f32 %0, %1;" : "=r"(bits) : "f"(value));
+	return bits;
+}
+
+__device__ __forceinline__ void mma_tf32_16x8x8(float * c, const unsigned int * a, const unsigned int * b) {
+	asm volatile(
+		"mma.sync.aligned.m16n8k8.row.col.f32.tf32.tf32.f32 {%0,%1,%2,%3}, {%4,%5,%6,%7}, {%8,%9}, {%0,%1,%2,%3};\n"
+		: "+f"(c[0]), "+f"(c[1]), "+f"(c[2]), "+f"(c[3])
+		: "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b[0]), "r"(b[1]));
+}
+
+// mma_3xtf32_16x8x8 multiplies f32 fragments on tensor cores at about f32's
+// precision: each value splits into a tf32 part and its remainder, and the
+// three products that matter add the small ones first.
+__device__ __forceinline__ void mma_3xtf32_16x8x8(float * c, const float * a, const float * b) {
+	unsigned int a_high[4], a_low[4], b_high[2], b_low[2];
+#pragma unroll
+	for (int i = 0; i < 4; ++i) {
+		a_high[i] = tf32_round(a[i]);
+		a_low[i] = tf32_round(a[i] - __uint_as_float(a_high[i]));
+	}
+#pragma unroll
+	for (int i = 0; i < 2; ++i) {
+		b_high[i] = tf32_round(b[i]);
+		b_low[i] = tf32_round(b[i] - __uint_as_float(b_high[i]));
+	}
+	mma_tf32_16x8x8(c, a_low, b_high);
+	mma_tf32_16x8x8(c, a_high, b_low);
+	mma_tf32_16x8x8(c, a_high, b_high);
+}
+
+// sparse_attention_mma_f32 computes a prompt's selected attention on tensor
+// cores for 256-channel heads, at most 16 query heads to a key/value head: a
+// block takes a query token and a key/value head, its query heads as the 16
+// rows of m16n8k8 products (absent rows zero), and walks the selected slots
+// 32 at a time with an online softmax. q.k and p.v run as 3xTF32 products;
+// the result differs from sparse_attention_grouped_f32 at rounding level by
+// summation order. A query with no valid slot writes zeros.
+extern "C" __global__ void __launch_bounds__(SPARSE_ATTENTION_MMA_THREADS) sparse_attention_mma_f32(
+		const float * query,
+		const float * key,
+		const float * value,
+		const float * indices,
+		float * output,
+		unsigned int query_heads,
+		unsigned int key_value_heads,
+		unsigned int query_tokens,
+		unsigned int key_value_tokens,
+		unsigned int selected,
+		float scale,
+		unsigned int causal,
+		const unsigned int * first_query) {
+	extern __shared__ float shared[];
+	float * queries = shared;
+	float * keys = queries + SPARSE_ATTENTION_MMA_ROWS * SPARSE_ATTENTION_MMA_Q_STRIDE;
+	float * values = keys + SPARSE_ATTENTION_MMA_CELLS * SPARSE_ATTENTION_MMA_K_STRIDE;
+	float * scores = values + SPARSE_ATTENTION_MMA_CELLS * SPARSE_ATTENTION_MMA_V_STRIDE;
+	float * maxima = scores + SPARSE_ATTENTION_MMA_ROWS * SPARSE_ATTENTION_MMA_S_STRIDE;
+	float * sums = maxima + SPARSE_ATTENTION_MMA_ROWS;
+	float * rescale = sums + SPARSE_ATTENTION_MMA_ROWS;
+	int * rows = reinterpret_cast<int *>(rescale + SPARSE_ATTENTION_MMA_ROWS);
+	const unsigned int query_token = blockIdx.x;
+	const unsigned int key_value_head = blockIdx.y;
+	if (query_token >= query_tokens) {
+		return;
+	}
+	const unsigned int group = query_heads / key_value_heads;
+	const unsigned int first_head = key_value_head * group;
+	const unsigned int query_start = *first_query;
+	const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+	const unsigned int warp = threadIdx.x / CUDA_WARP_WIDTH;
+	const unsigned int row = lane / 4;
+	const unsigned int column = lane % 4;
+	for (unsigned int element = threadIdx.x; element < SPARSE_ATTENTION_MMA_ROWS * SPARSE_ATTENTION_MMA_WIDTH; element += blockDim.x) {
+		const unsigned int head = element / SPARSE_ATTENTION_MMA_WIDTH;
+		const unsigned int channel = element % SPARSE_ATTENTION_MMA_WIDTH;
+		queries[head * SPARSE_ATTENTION_MMA_Q_STRIDE + channel] = head < group
+			? query[((size_t) query_token * query_heads + first_head + head) * SPARSE_ATTENTION_MMA_WIDTH + channel]
+			: 0.0f;
+	}
+	if (threadIdx.x < SPARSE_ATTENTION_MMA_ROWS) {
+		maxima[threadIdx.x] = -INFINITY;
+		sums[threadIdx.x] = 0.0f;
+	}
+	float accumulated[8][4];
+#pragma unroll
+	for (int tile = 0; tile < 8; ++tile) {
+		accumulated[tile][0] = accumulated[tile][1] = accumulated[tile][2] = accumulated[tile][3] = 0.0f;
+	}
+	const size_t index_base = (size_t) query_token * selected;
+	for (unsigned int base = 0; base < selected; base += SPARSE_ATTENTION_MMA_CELLS) {
+		const unsigned int count = min((unsigned int) SPARSE_ATTENTION_MMA_CELLS, selected - base);
+		__syncthreads();
+		if (threadIdx.x < SPARSE_ATTENTION_MMA_CELLS) {
+			int slot_row = -1;
+			if (threadIdx.x < count) {
+				const float raw = indices[index_base + base + threadIdx.x];
+				if (isfinite(raw) && raw >= 0.0f && raw < (float) key_value_tokens) {
+					const unsigned int key_token = (unsigned int) raw;
+					if (!(raw != (float) key_token || causal && key_token > query_start + query_token)) {
+						slot_row = (int) key_token;
+					}
+				}
+			}
+			rows[threadIdx.x] = slot_row;
+		}
+		__syncthreads();
+		for (unsigned int piece = threadIdx.x; piece < SPARSE_ATTENTION_MMA_CELLS * (SPARSE_ATTENTION_MMA_WIDTH / 4); piece += blockDim.x) {
+			const unsigned int cell = piece / (SPARSE_ATTENTION_MMA_WIDTH / 4);
+			const unsigned int quad = piece % (SPARSE_ATTENTION_MMA_WIDTH / 4);
+			float4 key_quad = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
+			float4 value_quad = key_quad;
+			if (rows[cell] >= 0) {
+				const size_t offset = ((size_t) rows[cell] * key_value_heads + key_value_head) * SPARSE_ATTENTION_MMA_WIDTH;
+				key_quad = reinterpret_cast<const float4 *>(key + offset)[quad];
+				value_quad = reinterpret_cast<const float4 *>(value + offset)[quad];
+			}
+			*reinterpret_cast<float4 *>(&keys[cell * SPARSE_ATTENTION_MMA_K_STRIDE + quad * 4]) = key_quad;
+			*reinterpret_cast<float4 *>(&values[cell * SPARSE_ATTENTION_MMA_V_STRIDE + quad * 4]) = value_quad;
+		}
+		__syncthreads();
+		// A warp scores its 8 cells for all 16 rows.
+		float score[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+		const unsigned int key_row = (8 * warp + row) * SPARSE_ATTENTION_MMA_K_STRIDE;
+		for (unsigned int step = 0; step < SPARSE_ATTENTION_MMA_WIDTH / 8; ++step) {
+			const unsigned int k = step * 8 + column;
+			const float a[4] = {
+				queries[row * SPARSE_ATTENTION_MMA_Q_STRIDE + k], queries[(row + 8) * SPARSE_ATTENTION_MMA_Q_STRIDE + k],
+				queries[row * SPARSE_ATTENTION_MMA_Q_STRIDE + k + 4], queries[(row + 8) * SPARSE_ATTENTION_MMA_Q_STRIDE + k + 4]};
+			const float b[2] = {keys[key_row + k], keys[key_row + k + 4]};
+			mma_3xtf32_16x8x8(score, a, b);
+		}
+		const unsigned int cell_column = 8 * warp + 2 * column;
+		scores[row * SPARSE_ATTENTION_MMA_S_STRIDE + cell_column] = score[0] * scale;
+		scores[row * SPARSE_ATTENTION_MMA_S_STRIDE + cell_column + 1] = score[1] * scale;
+		scores[(row + 8) * SPARSE_ATTENTION_MMA_S_STRIDE + cell_column] = score[2] * scale;
+		scores[(row + 8) * SPARSE_ATTENTION_MMA_S_STRIDE + cell_column + 1] = score[3] * scale;
+		__syncthreads();
+		// A thread a row: the running maximum, the rescale of what came before, the chunk's weights.
+		if (threadIdx.x < SPARSE_ATTENTION_MMA_ROWS) {
+			float * row_scores = scores + threadIdx.x * SPARSE_ATTENTION_MMA_S_STRIDE;
+			const float previous = maxima[threadIdx.x];
+			float maximum = previous;
+			for (unsigned int cell = 0; cell < count; ++cell) {
+				if (rows[cell] >= 0) {
+					maximum = fmaxf(maximum, row_scores[cell]);
+				}
+			}
+			float sum = 0.0f;
+			for (unsigned int cell = 0; cell < SPARSE_ATTENTION_MMA_CELLS; ++cell) {
+				const float weight = cell < count && rows[cell] >= 0 ? expf(row_scores[cell] - maximum) : 0.0f;
+				row_scores[cell] = weight;
+				sum += weight;
+			}
+			const float factor = maximum == -INFINITY ? 0.0f : expf(previous - maximum);
+			sums[threadIdx.x] = sums[threadIdx.x] * factor + sum;
+			maxima[threadIdx.x] = maximum;
+			rescale[threadIdx.x] = factor;
+		}
+		__syncthreads();
+		// A warp accumulates 64 output channels for all 16 rows.
+		const float low_factor = rescale[row];
+		const float high_factor = rescale[row + 8];
+#pragma unroll
+		for (int tile = 0; tile < 8; ++tile) {
+			accumulated[tile][0] *= low_factor;
+			accumulated[tile][1] *= low_factor;
+			accumulated[tile][2] *= high_factor;
+			accumulated[tile][3] *= high_factor;
+		}
+#pragma unroll
+		for (unsigned int step = 0; step < SPARSE_ATTENTION_MMA_CELLS / 8; ++step) {
+			const unsigned int k = step * 8 + column;
+			const float a[4] = {
+				scores[row * SPARSE_ATTENTION_MMA_S_STRIDE + k], scores[(row + 8) * SPARSE_ATTENTION_MMA_S_STRIDE + k],
+				scores[row * SPARSE_ATTENTION_MMA_S_STRIDE + k + 4], scores[(row + 8) * SPARSE_ATTENTION_MMA_S_STRIDE + k + 4]};
+#pragma unroll
+			for (int tile = 0; tile < 8; ++tile) {
+				const unsigned int channel = 64 * warp + 8 * tile + row;
+				const float b[2] = {
+					values[k * SPARSE_ATTENTION_MMA_V_STRIDE + channel], values[(k + 4) * SPARSE_ATTENTION_MMA_V_STRIDE + channel]};
+				mma_3xtf32_16x8x8(accumulated[tile], a, b);
+			}
+		}
+	}
+	__syncthreads();
+#pragma unroll
+	for (int tile = 0; tile < 8; ++tile) {
+		const unsigned int channel = 64 * warp + 8 * tile + 2 * column;
+#pragma unroll
+		for (int half = 0; half < 2; ++half) {
+			const unsigned int head = row + 8 * half;
+			if (head < group) {
+				const float total = sums[head];
+				const float inverse = total > 0.0f ? 1.0f / total : 0.0f;
+				float * out = output + ((size_t) query_token * query_heads + first_head + head) * SPARSE_ATTENTION_MMA_WIDTH + channel;
+				out[0] = accumulated[tile][2 * half] * inverse;
+				out[1] = accumulated[tile][2 * half + 1] * inverse;
+			}
+		}
+	}
+}
+
 extern "C" __global__ void indexer_score_f32(
 		const float * query,
 		const float * key,

@@ -213,20 +213,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 223,
+        "nodes": 0,
         "reason": "measured: long-prompt/attention-mma adds 223 production syntax nodes (the tensor-core launch, its geometry and shared-memory opt-in)"
       },
       "steps": [
-        {
-          "id": "attention-mma",
-          "title": "Compute the selected attention on tensor cores",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestExecutorGroupedSparseAttentionMatchesReference$'",
-          "rationale": "From Nsight over a 5,099-token Flash-Next prompt with long-prompt/attention built: sparse_attention_grouped_f32 takes 124 ms a layer, 1.5 s of the prompt's 14.3 s, about 3 TFLOPS on CUDA cores, with two dot passes.\nStrata's prompt_attn_i8_kernel walks the selected cells 32 at a time with an online softmax on m16n8k16 FP16 MMAs, q and p split high and low for FP32-level accuracy (src/kernels/cuda/qsa_prompt_attn.cu:681-702).\nThe step computes the same attention in one pass on tensor cores; its outputs change at rounding level, so held-out quality is its guard (quantized formats: the fast native path outranks output identity).\nEvidence: the reference tolerance, held-out quality unchanged, and the prompt's time.\nServes: first-output past 2,048 tokens.\nBatch: device.",
-          "depends_on": [
-            "long-prompt/attention"
-          ]
-        },
         {
           "id": "kernel-audit",
           "title": "Rewrite every kernel whose output element recomputes a reduction its row shares, where models reach it",

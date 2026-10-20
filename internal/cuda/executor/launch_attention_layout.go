@@ -34,9 +34,12 @@ const (
 // configureLargeSharedKernels: one-time dynamic-shared opt-in for kernels
 // above the 48KB default.
 func configureLargeSharedKernels(lib *driver.Library, functions functionSet) error {
-	return lib.FuncSetMaxDynamicShared(
+	if err := lib.FuncSetMaxDynamicShared(
 		functions[kernelAttentionTiledBf16F32].function, attentionBF16SharedBytes,
-	)
+	); err != nil {
+		return err
+	}
+	return lib.FuncSetMaxDynamicShared(functions[kernelSparseAttentionMmaF32].function, sparseAttentionMMASharedBytes)
 }
 
 // blasBF16AttentionStagingBytes: per-node BF16 K/V pack staging (the

@@ -61,6 +61,38 @@ func topKBlockCapacity(k uint32) (uint32, bool) {
 	return capacity, k <= capacity
 }
 
+const (
+	// sparseAttentionMMAWidth, sparseAttentionMMARows, sparseAttentionMMACells
+	// and sparseAttentionMMAThreads mirror the tensor-core kernel: 256-channel
+	// heads, at most 16 query heads a block, 32 slots a chunk, 4 warps.
+	sparseAttentionMMAWidth   = uint32(256)
+	sparseAttentionMMARows    = uint32(16)
+	sparseAttentionMMACells   = uint32(32)
+	sparseAttentionMMAThreads = uint32(128)
+	// sparseAttentionMMAPad*: the row padding of its query, key, value and
+	// score tiles, in floats.
+	sparseAttentionMMARowPad   = uint32(4)
+	sparseAttentionMMAValuePad = uint32(8)
+	// sparseAttentionMMARowWords: a row's maximum, sum and rescale.
+	sparseAttentionMMARowWords = uint32(3)
+	// sparseAttentionMMASharedBytes: the query, key, value and score tiles,
+	// the rows' words and the chunk's slot rows.
+	sparseAttentionMMASharedBytes = 4 * (sparseAttentionMMARows*(sparseAttentionMMAWidth+sparseAttentionMMARowPad) +
+		sparseAttentionMMACells*(sparseAttentionMMAWidth+sparseAttentionMMARowPad) +
+		sparseAttentionMMACells*(sparseAttentionMMAWidth+sparseAttentionMMAValuePad) +
+		sparseAttentionMMARows*(sparseAttentionMMACells+sparseAttentionMMARowPad) +
+		sparseAttentionMMARowWords*sparseAttentionMMARows + sparseAttentionMMACells)
+)
+
+// mmaSparseAttention reports whether a step's selected attention runs on
+// tensor cores: 256-channel keys and values, at most 16 query heads a
+// key/value head, and a prompt wide enough to fill the card with blocks.
+func mmaSparseAttention(keyWidth, valueWidth, queryHeads, keyValueHeads, queryTokens uint32) bool {
+	return keyWidth == sparseAttentionMMAWidth && valueWidth == sparseAttentionMMAWidth && keyValueHeads > 0 &&
+		queryHeads%keyValueHeads == 0 && queryHeads/keyValueHeads <= sparseAttentionMMARows &&
+		queryTokens*keyValueHeads >= sparseAttentionGroupedWideRows
+}
+
 // sparseAttentionGrouped sizes a grouped sparse attention launch: the query
 // heads a block takes, the selected slots each tile stages, and the shared
 // memory the block holds.
@@ -330,6 +362,16 @@ func launchRecurrentSelection(
 		queryStart := pointers.attribute
 		if queryStart == 0 {
 			return errors.New("sparse attention first-query storage is unavailable")
+		}
+		if mmaSparseAttention(keyWidth, valueWidth, queryHeads, keyValueHeads, queryTokens) {
+			return launchGridSharedABI(
+				state, functions[kernelSparseAttentionMmaF32],
+				driver.Dim3{X: queryTokens, Y: keyValueHeads, Z: 1},
+				driver.Dim3{X: sparseAttentionMMAThreads, Y: 1, Z: 1}, sparseAttentionMMASharedBytes,
+				&query, &key, &value, &indices, &output,
+				&queryHeads, &keyValueHeads, &queryTokens, &keyValueTokens, &selected,
+				&scale, &causal, &queryStart,
+			)
 		}
 		if geometry, ok := groupedSparseAttention(keyWidth, valueWidth, queryHeads, keyValueHeads, queryTokens); ok {
 			chunkHeads, tile := geometry.chunkHeads, geometry.tile

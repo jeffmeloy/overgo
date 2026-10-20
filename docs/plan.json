@@ -213,15 +213,15 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "measured: long-prompt/length-cells adds 1733 production syntax nodes (the measurement's longer prompts, the scorecard's length cells, their judging, history, table and page)"
+        "nodes": 160,
+        "reason": "measured: long-prompt/bench adds 160 production syntax nodes (the kept request lines, cached tokens on a serving attempt and the scorecard's sizing by tokens read)"
       },
       "steps": [
         {
           "id": "bench",
           "title": "Re-run Strata's frozen bench with each request's figures kept as it runs",
           "status": "open",
-          "verify": "go run ./cmd/plan -status",
+          "verify": "go test ./cmd/benchmark ./internal/scorecard -run '^(TestStrataSuiteAgainstAServedModel|TestALongerPromptIsTimedAsItsLengthAlone)$'",
           "rationale": "The 2026-10-19 bench run reached its one-hour limit inside the agent sessions, and the suite writes its result only at the end, so every per-request figure was lost; the server's counters kept the totals.\nThe step writes each request's figures as it completes and re-runs the suite against the server built from the steps above, against Strata's baseline-20261016 medians.\nServes: the parity measurement every step above is judged by.\nBatch: device.",
           "depends_on": [
             "long-prompt/attention",
@@ -230,6 +230,57 @@
             "long-prompt/expert-groups",
             "long-prompt/residency"
           ]
+        },
+        {
+          "id": "prefill-rate",
+          "title": "Read a fresh 16K Flash-Next prompt at the rate Strata reaches",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "From Strata's frozen bench re-run on master on 2026-10-20 (long-prompt/bench), against Strata's baseline-20261016 on this PC.\nA fresh 4K prompt's first token takes 3.43 s at 1,204 tokens a second (Strata 2.21 s, 1,837) and a fresh 16K prompt's 13.1 s at 1,249 (Strata 5.01 s, 3,229); the first prompt of each size took 5.96 and 23.7 s, after the short chat's answers.\nThe steps above took the 20,605-token prompt from 714.8 s to about 19.5 s; Nsight at 20,605 tokens before attention-mma gave grouped expert products about 3.4 s, delta-net about 2 s, the router about 1 s and host-to-device copies about 4.5 s, with stream waits between.\nThe step profiles the 16K prompt on master (nsys, cuda_gpu_kern_sum and cuda_gpu_mem_time_sum), cuts the largest remaining cost, and finds why a size's first prompt is slower (residency refill after the chat, or a lazy allocation).\nEvidence: the bench's 4K and 16K medians, and Flash-Next's 4K and 16K scorecard cells.\nServes: first-output of Flash-Next prompts past 2,048 tokens.\nBatch: device."
+        }
+      ]
+    },
+    {
+      "id": "prompt-reading",
+      "title": "Read every chat model's long prompts on tensor cores, within its memory",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "flash-attention",
+          "title": "Read a dense model's prompt attention on tensor cores with an online softmax, no score matrix in memory",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "From long-prompt/length-cells' 4K and 16K first outputs, measured on a copy of the store on 2026-10-20, and the owner's direction of 2026-10-20: general objects for every model.\nA 16K prompt takes 4 to 11 times a 4K prompt's time for 4 times its tokens: Qwen2.5-0.5B 0.32 / 3.56 s, MiniCPM5-1B 0.27 / 2.50 s, Qwen3.5-9B 0.97 / 3.95 s, gemma-4-E4B 0.58 / 2.63 s, Unlimited-OCR 0.37 / 2.10 s, gemma-4-12B native 1.26 / 5.83 s; gemma-4-12B bf16 fails its 16K prompt, its admission asking 24 GiB with 10 GiB free.\nDense prompt attention (launch_attention_layout.go, OpAttention) runs as F32 strided-batched SGEMMs that write each chunk's query-by-key scores to a staging buffer, a softmax over them, and a second SGEMM: its traffic and its staging grow with the square of the prompt.\nsparse_attention_mma_f32 (long-prompt/attention-mma) already reads Flash-Next's selected attention on tensor cores with 3xTF32 mma.sync and an online softmax, no score leaving shared memory.\nThe step carries that kernel's method to dense causal and grouped-query attention: a block per (query tile, key/value head), key and value tiles staged in shared memory, scores and softmax in registers, held to the reference by a device test over the head widths the served models use, before the SGEMM path in the launch order.\nProfile one small and one 12B model at 16K first (nsys, cuda_gpu_kern_sum) to confirm attention's share.\nEvidence: the 16K cells of the next measurement run, gemma-4-12B bf16 reading its 16K prompt, held-out quality holding.\nServes: first-output and peak-device-memory of every dense chat model at long prompts, and Flash-Next's full-attention layers below 2,048 tokens.\nBatch: device."
+        },
+        {
+          "id": "quant-prefill",
+          "title": "Multiply a k-quant dense model's prompt on tensor cores",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "From long-prompt/length-cells' 4K and 16K first outputs, measured on a copy of the store on 2026-10-20.\nQwen3.8-27B Q6_K reads a 4K prompt in 7.75 s (528 tokens a second) and a 16K prompt in 31.9 s, 4.1 times for 4 times the tokens: the cost grows with the tokens, so the matrix products, not attention, set it; Bonsai-27B Q1_0 reads 4K in 2.84 s.\nA 27B model's 4K prompt is about 221 TFLOP of products; at 528 tokens a second the card delivers about 29 TFLOPS of the RTX 4090 D's tensor-core rate.\nThe step profiles the 4K prompt (nsys, cuda_gpu_kern_sum), finds the kernels the k-quant products run on, and moves the largest onto tensor cores (dequantized tiles into mma, as the expert products' grouped path does), held to the reference by the quantized-product device tests.\nEvidence: Qwen3.8-27B's 4K and 16K cells on the next measurement run, held-out quality holding.\nServes: first-output of every k-quant dense chat model.\nBatch: device."
+        }
+      ]
+    },
+    {
+      "id": "agent-turns",
+      "title": "Answer Flash-Next's agent turns at the speed Strata reaches on this PC",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "tool-decode",
+          "title": "Decode a request that carries tools at the rate of one that does not",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "From Strata's frozen bench re-run on master on 2026-10-20 (long-prompt/bench), against Strata's baseline-20261016 on this PC.\nThe agent sessions' turns, each carrying the four tools, decode at 12.8 tokens a second (Strata 138.4); the same server decodes the short chat, which carries none, at 61.3.\nA request with tools is decoded under the tool-call grammar (ChatToolGrammar), which may run a token's mask on the host and leave speculation off; the step profiles one agent turn (pprof and nsys), finds where its token's time goes beside a chat token's, and moves it off the decode path (a lazy grammar that applies only once a tool call opens, as Strata's does, or the mask on the device).\nEvidence: the bench's agent decode median, its answers unchanged.\nServes: throughput of every agent client's requests on every chat model.\nBatch: device."
+        },
+        {
+          "id": "turn-prefill",
+          "title": "Read an agent turn's new tokens at the fresh prompt's rate",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "From Strata's frozen bench re-run on master on 2026-10-20 (long-prompt/bench), against Strata's baseline-20261016 on this PC.\nA follow-up turn's first token takes 4.34 s (Strata 2.27 s) for about 1,500 to 3,400 new tokens after a 68.9 % cache hit (Strata 68.8 %), so the turn reads its new tokens at about 680 tokens a second where a fresh 4K prompt is read at 1,204; the first turn, 645 tokens with the tools, takes 2.63 s (Strata 0.80).\nThe step profiles a follow-up turn and the first turn, and removes what the cached prefix and the tools' template cost beyond reading the new tokens.\nEvidence: the bench's agent first-token medians.\nServes: first-output of every agent client's turns.\nBatch: device."
         }
       ]
     },
@@ -508,7 +559,8 @@
             "plan-attention-mma-count/do",
             "plan-kernel-audit/do",
             "plan-sam-attention/do",
-            "length-cells-terms/do"
+            "length-cells-terms/do",
+            "bench-terms/do"
           ]
         }
       ]

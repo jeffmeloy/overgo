@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 
+	"overgo/internal/cuda/cublas"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/tensor"
@@ -189,12 +190,8 @@ func launchMoE(
 			if attributes.HasSelectedExperts {
 				groupSelected += driver.DevicePtr(tokenOffset * uint64(topK))
 			}
-			if err := launchGridSharedABI(
-				state, routerKernel,
-				driver.Dim3{X: (experts-1)/moeRouterExpertsPerBlock + 1, Y: count, Z: 1},
-				driver.Dim3{X: moeThreads, Y: 1, Z: 1}, 0,
-				&groupRouterInput, &router, &routerBias, &routerLogits, &routerHidden, &count, &experts,
-			); err != nil {
+			if err := launchRouterLogits(state, functions, blas, routerKernel, attributes.Compute,
+				groupRouterInput, router, routerBias, routerLogits, routerHidden, count, experts); err != nil {
 				return err
 			}
 			if err := launchGridSharedABI(
@@ -254,6 +251,45 @@ func launchMoE(
 	default:
 		return fmt.Errorf("unsupported CUDA operation %s", node.Op)
 	}
+}
+
+// launchRouterLogits writes a group's router logits, each token's experts
+// together. A native group of a tile or more takes them as one F32 product of
+// its router inputs with the router, then adds the router's bias: the kernel's
+// warp a logit reads the router again for every token, 1.09 s of Flash-Next's
+// 20,605-token prompt where the product takes milliseconds. A smaller group,
+// and every strict one, keeps the kernel and its order of sums.
+func launchRouterLogits(state *device.State, functions functionSet, blas *blasState, kernel boundKernel, compute tensor.MulMatCompute,
+	input, router, bias, logits driver.DevicePtr, hidden, count, experts uint32) error {
+	if compute != tensor.MulMatComputeNativeTensorCore || count < moeTileTokens {
+		return launchGridSharedABI(
+			state, kernel,
+			driver.Dim3{X: (experts-1)/moeRouterExpertsPerBlock + 1, Y: count, Z: 1},
+			driver.Dim3{X: moeThreads, Y: 1, Z: 1}, 0,
+			&input, &router, &bias, &logits, &hidden, &count, &experts,
+		)
+	}
+	if !traceExternalCall(state, traceTagSGEMM, uint64(router), uint64(input), uint64(logits), uint64(experts), uint64(count), uint64(hidden)) {
+		if err := blas.library.SGEMM(
+			blas.handle, cublas.OperationTranspose, cublas.OperationNone,
+			int32(experts), int32(count), int32(hidden), gemmProductScale,
+			router, int32(hidden), input, int32(hidden), gemmAccumulatorScale,
+			logits, int32(experts),
+		); err != nil {
+			return err
+		}
+	}
+	if bias == 0 {
+		return nil
+	}
+	total, one := experts*count, uint32(1)
+	return launch1DABI(
+		state, functions[kernelBroadcastAddF32], total,
+		&logits, &bias, &logits, &total,
+		&experts, &count, &one, &one,
+		&experts, &one, &one, &one,
+		&experts, &count, &one,
+	)
 }
 
 const (

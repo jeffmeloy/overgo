@@ -90,6 +90,7 @@ type Library struct {
 	cuStreamCreate       *syscall.Proc
 	cuStreamDestroy      *syscall.Proc
 	cuStreamSynchronize  *syscall.Proc
+	cuStreamQuery        *syscall.Proc
 	cuStreamWaitEvent    *syscall.Proc
 	cuEventCreate        *syscall.Proc
 	cuEventDestroy       *syscall.Proc
@@ -149,6 +150,7 @@ func Open() (*Library, error) {
 		{"cuStreamCreate", &lib.cuStreamCreate},
 		{"cuStreamDestroy_v2", &lib.cuStreamDestroy},
 		{"cuStreamSynchronize", &lib.cuStreamSynchronize},
+		{"cuStreamQuery", &lib.cuStreamQuery},
 		{"cuStreamWaitEvent", &lib.cuStreamWaitEvent},
 		{"cuEventCreate", &lib.cuEventCreate},
 		{"cuEventDestroy_v2", &lib.cuEventDestroy},
@@ -494,6 +496,22 @@ func (l *Library) StreamCreate(flags uint32) (Stream, error) {
 // StreamDestroy destroys stream
 func (l *Library) StreamDestroy(stream Stream) error {
 	return l.call(l.cuStreamDestroy, uintptr(stream))
+}
+
+// streamNotReady is cuStreamQuery's answer for a stream still working.
+const streamNotReady = 600
+
+// StreamQuery submits the work queued on stream to the device and reports
+// whether all of it has completed; a stream still working is no error. Under
+// Windows' display driver model queued work can wait unsubmitted in the
+// driver's buffer, so work another stream waits on starts late unless its
+// stream is queried.
+func (l *Library) StreamQuery(stream Stream) (bool, error) {
+	result, _, _ := l.cuStreamQuery.Call(uintptr(stream))
+	if result == streamNotReady {
+		return false, nil
+	}
+	return true, l.result("cuStreamQuery", result)
 }
 
 // StreamSynchronize waits for preceding work in stream

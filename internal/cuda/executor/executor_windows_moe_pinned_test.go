@@ -453,9 +453,13 @@ func TestExecutorMoENativeCompute(t *testing.T) {
 								compare(t, got, want, accuracyModel)
 								return
 							}
-							// The grouped products follow the router logits and routing; an F32 bank's weights multiply as f16.
+							// The grouped products follow the router logits, one F32 product and the router's bias where
+							// the case has one, and the routing; an F32 bank's weights multiply as f16.
 							compare(t, got, want, accuracyHalfStaged)
-							const firstProduct = (32 + 4*8 + 3*4) + (32 + 5*8 + 5*4)
+							firstProduct := 8 + 6*8 + (32 + 5*8 + 5*4)
+							if c.biases {
+								firstProduct += 32 + 3*8 + 12*4
+							}
 							if len(trace.Data()) < firstProduct+8 || binary.LittleEndian.Uint64(trace.Data()[firstProduct:]) != uint64(kernelMoeGroupedHiddenF32) {
 								t.Fatal("grouped expert products did not execute")
 							}
@@ -608,8 +612,9 @@ func TestPromptExpertsMultiplyEncodedWeights(t *testing.T) {
 	const (
 		// A launch record is four header words, then eight bytes a pointer and four a scalar.
 		headerBytes = 4 * 8
-		// The hidden launch follows the router logits and the routing.
-		firstProduct = (headerBytes + 4*8 + 3*4) + (headerBytes + 5*8 + 5*4)
+		// The hidden launch follows the router logits and the routing: a group of a tile or more takes
+		// its logits as one product, an external call of six words, and a smaller group by the kernel.
+		kernelLogits, productLogits, routeRecord = headerBytes + 4*8 + 3*4, 8 + 6*8, headerBytes + 5*8 + 5*4
 		// The grouped hidden launch's storages follow its eight pointers and three scalars, the down launch's its six pointers and two of four.
 		hiddenRecord = headerBytes + 8*8 + 10*4
 		gateStorage  = headerBytes + 8*8 + 3*4
@@ -666,6 +671,10 @@ func TestPromptExpertsMultiplyEncodedWeights(t *testing.T) {
 					}
 					c.offload, c.limit = true, run.limit
 					got, _ := c.run(t, cuda, dtype.F32)
+					firstProduct := kernelLogits + routeRecord
+					if run.tokens >= uint64(moeTileTokens) {
+						firstProduct = productLogits + routeRecord
+					}
 					hidden := trace.Data()[firstProduct:]
 					if !run.grouped {
 						if word(hidden) != uint64(kernelMoeHiddenDotF32) {
@@ -708,10 +717,12 @@ func TestPromptExpertsMultiplyEncodedWeights(t *testing.T) {
 //   - the run waits for the stream as often as the run with every expert on the card:
 //     no batch's copies hold the host until the kernels before them end
 //   - every expert in host memory is copied, once
-//   - the output keeps the card run's bits and the serial copy's, pinned from 7a396356b
+//   - the output keeps the card run's bits and the serial copy's, pinned from 7a396356b with the
+//     router's logits as one F32 product since long-prompt/prefill-rate
 func TestPromptExpertCopiesOverlapCompute(t *testing.T) {
-	// serialCopyBits: SHA-256 of the output as the serial copy at 7a396356b produced it.
-	const serialCopyBits = "f28997bd0f2fc93f1eefa5b6cc362e6a0e72327732819678cad596b4b1cae20e"
+	// serialCopyBits: SHA-256 of the output as the serial copy at 7a396356b produced it, with the router's
+	// logits as one F32 product (long-prompt/prefill-rate), which sums them in another order.
+	const serialCopyBits = "6356b2bc7f77d9335fff8ac023cc5e9b34951f55f5d6b515e4640bb6c7de0dcc"
 	banks := [3]dtype.Type{dtype.BF16, dtype.BF16, dtype.BF16}
 	c := moePinnedCase{
 		name: "copy-overlap", compute: tensor.MulMatComputeNativeTensorCore,

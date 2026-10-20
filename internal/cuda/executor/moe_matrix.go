@@ -309,10 +309,21 @@ func launchMoEMatrices(state *device.State, functions functionSet, blas *blasSta
 				}
 			}
 		}
+		// Each stream's queued work is submitted as soon as it is queued: under
+		// Windows' display driver model a batch's copies otherwise wait in the
+		// driver's buffer until the compute they overlap has ended, and every
+		// copy ran apart from the products (Flash-Next's 20,605-token prompt,
+		// 4.2 s of copies and none beside a kernel; submitted, 1.5 s beside).
+		if _, err := state.Driver.StreamQuery(blas.moeCopyStream); err != nil {
+			return false, err
+		}
 		if err := launch(blas.moeBatches[max(batch, 1)-1].tile, blas.moeBatches[batch].tile, copiedTables); err != nil {
 			return false, err
 		}
 		if err := launch(cardShare(batch), cardShare(batch+1), tables); err != nil {
+			return false, err
+		}
+		if _, err := state.Driver.StreamQuery(state.Stream); err != nil {
 			return false, err
 		}
 	}

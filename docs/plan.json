@@ -213,17 +213,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 342,
+        "nodes": 0,
         "reason": "measured: long-prompt/router-flush adds 342 production syntax nodes (the stream query, the copies' and products' submission, the router's product)"
       },
       "steps": [
-        {
-          "id": "router-flush",
-          "title": "Submit expert copies as they are queued, and take a prompt's router logits as one product",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/driver ./internal/cuda/executor -count=1 -run '^(TestStreamQueryReportsCompletedWork|TestExecutorMoENativeCompute|TestPromptExpertCopiesOverlapCompute|TestPromptExpertsMultiplyEncodedWeights)$'",
-          "rationale": "From long-prompt/prefill-rate's Nsight profile of Flash-Next's 20,605-token prompt on master, 2026-10-20 (warm 18.9 s).\nThe card ran 4.18 s of expert copies and 13.84 s of kernels with 0.005 s of overlap, although the grouped products queue each batch's copies on a second stream: under Windows' display driver model the queued copies wait in the driver's buffer until the compute before them ends.\nmoe_router_dot_f32 took 1.09 s over 96 launches: its warp a logit reads the 2,560 x 512 router again for every token.\nThe step submits each stream's queued work as it is queued (cuStreamQuery) and takes a native group's router logits as one F32 cuBLAS product with the router's bias after.\nMeasured: 18.91 s to 16.40 s; 95 of 96 answer tokens the same on the four sweep prompts, one near-tie flipped.\nServes: first-output of every routed-expert model's prompts.\nBatch: device."
-        },
         {
           "id": "prefill-rate",
           "title": "Read a fresh 16K Flash-Next prompt at the rate Strata reaches",

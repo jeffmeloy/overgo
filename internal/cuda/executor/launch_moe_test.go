@@ -205,11 +205,11 @@ func TestCompileReservesMoEScratch(t *testing.T) {
 	for _, fused := range []bool{false, true} {
 		native := compile(64, 896, 6, dtype.BF16, fused, tensor.MulMatComputeNativeTensorCore)
 		const slotBytes = 64 * ocrTokenBytes
-		if native.attentionScoreBytes != slotBytes || native.matmulStagingBytes == 0 || native.matmulStagingBytes > quantStagedChunkBytes {
+		if native.attentionScoreBytes != slotBytes || native.matmulStagingBytes == 0 || native.matmulStagingBytes > moeMatrixStagingBytes {
 			t.Fatalf("native scratch: scores=%d staging=%d", native.attentionScoreBytes, native.matmulStagingBytes)
 		}
 		bounded := compile(1<<20, 896, 6, dtype.BF16, fused, tensor.MulMatComputeNativeTensorCore)
-		if bounded.attentionScoreBytes > quantStagedChunkBytes || bounded.matmulStagingBytes > quantStagedChunkBytes {
+		if bounded.attentionScoreBytes > moeMatrixStagingBytes || bounded.matmulStagingBytes > moeMatrixStagingBytes {
 			t.Fatal("long prompt scratch is unbounded")
 		}
 		lowReuse := compile(1, 896, 6, dtype.BF16, fused, tensor.MulMatComputeNativeTensorCore)

@@ -571,7 +571,7 @@ func TestExecutorMoEExpertsUseBlockDots(t *testing.T) {
 
 // TestPromptExpertsMultiplyEncodedWeights holds a prompt's routed experts to
 // the grouped products over their encoded weights:
-//   - Flash-Next's routed layer takes the staging's tokens a group, so the 1,561-token document is one group and the 4,019-token prompt three of one size
+//   - Flash-Next's routed layer takes the staging's tokens a group, so the 1,561-token document and the 4,019-token prompt are one group each and a 20,605-token prompt two of one size
 //   - fixtures of Flash-Next's IQ3_S and IQ4_NL layer and its IQ4_XS and Q8_0 layer, fused IQ4_XS gate and up, and BF16 banks
 //     of 96 weights a row, which decode a weight at a time, keep the row dots for 16 tokens, under a tile
 //   - 64 tokens launch the grouped kernels with the banks' storages and stay within the model tolerance of the host reference,
@@ -586,7 +586,7 @@ func TestPromptExpertsMultiplyEncodedWeights(t *testing.T) {
 	for _, c := range []struct {
 		tokens uint64
 		group  uint32
-	}{{documentTokens, documentTokens}, {4019, 1340}} {
+	}{{documentTokens, documentTokens}, {4019, 4019}, {20605, 10303}} {
 		const hidden, intermediate, experts = 2560, 640, 512
 		builder := tensor.NewBuilder()
 		builder.SetMulMatCompute(tensor.MulMatComputeNativeTensorCore)
@@ -698,6 +698,86 @@ func TestPromptExpertsMultiplyEncodedWeights(t *testing.T) {
 				})
 			}
 		})
+	}
+}
+
+// TestPromptExpertCopiesOverlapCompute runs a prompt group of 64 tokens over
+// five BF16 experts of 24 MiB, each more than half a copy buffer, with only
+// expert 0 on the card: the four experts in host memory copy in a batch
+// each, so each copy buffer takes two batches in turn.
+//   - the run waits for the stream as often as the run with every expert on the card:
+//     no batch's copies hold the host until the kernels before them end
+//   - every expert in host memory is copied, once
+//   - the output keeps the card run's bits and the serial copy's, pinned from 7a396356b
+func TestPromptExpertCopiesOverlapCompute(t *testing.T) {
+	// serialCopyBits: SHA-256 of the output as the serial copy at 7a396356b produced it.
+	const serialCopyBits = "f28997bd0f2fc93f1eefa5b6cc362e6a0e72327732819678cad596b4b1cae20e"
+	banks := [3]dtype.Type{dtype.BF16, dtype.BF16, dtype.BF16}
+	c := moePinnedCase{
+		name: "copy-overlap", compute: tensor.MulMatComputeNativeTensorCore,
+		hidden: 2048, routerHidden: 2048, intermediate: 2048, experts: 5, tokens: 64, divisor: 1, topK: 2,
+		routing: tensor.MoERoutingSoftmax, activation: tensor.MoEActivationSiLU, normalize: true, scale: 1.25,
+		banks: banks,
+	}
+	// The residency's tables hold a pointer an expert, and one 256-byte-aligned slot of each bank holds expert 0 alone.
+	const pointerBytes, slotAlignment = 8, 256
+	c.limit = uint64(len(banks)) * c.experts * pointerBytes
+	var expertBytes uint64
+	for _, storage := range banks {
+		size, err := tensor.MustShape(c.hidden, c.intermediate).Bytes(storage)
+		if err != nil {
+			t.Fatal(err)
+		}
+		size = (size + slotAlignment - 1) / slotAlignment * slotAlignment
+		c.limit += size
+		expertBytes += size
+	}
+	if expertBytes > moeBatchBytes || 2*expertBytes <= moeBatchBytes {
+		t.Fatalf("an expert of %d bytes shares a copy buffer of %d bytes or overflows it", expertBytes, moeBatchBytes)
+	}
+	// run executes the node once and returns its output bits and the
+	// executor's stream waits and host-to-device bytes during the run.
+	run := func(offload bool) ([]byte, driver.ExecutionStats) {
+		t.Helper()
+		c.offload = offload
+		cuda := newFixtureExecutor(t)
+		output, host, pointers, _ := c.prepare(t, cuda, dtype.F32)
+		stats := func() (stats driver.ExecutionStats) {
+			if err := cuda.worker.Do(t.Context(), func(state *device.State) error { stats = state.Driver.ExecutionStats(); return nil }); err != nil {
+				t.Fatal(err)
+			}
+			return stats
+		}
+		before := stats()
+		retained, err := cuda.executeRetainedWithDeviceFeeds(t.Context(), []*tensor.Tensor{output}, host, pointers)
+		if err != nil {
+			t.Fatal(err)
+		}
+		value, copyErr := retained.CopyToHost(t.Context(), output)
+		if err := errors.Join(copyErr, retained.Release(t.Context())); err != nil {
+			t.Fatal(err)
+		}
+		after := stats()
+		return bytes.Clone(driver.Bytes(value.Data)), driver.ExecutionStats{
+			StreamSynchronizations: after.StreamSynchronizations - before.StreamSynchronizations,
+			HostToDeviceBytes:      after.HostToDeviceBytes - before.HostToDeviceBytes,
+		}
+	}
+	card, cardStats := run(false)
+	host, hostStats := run(true)
+	if hostStats.StreamSynchronizations != cardStats.StreamSynchronizations {
+		t.Errorf("the run with experts in host memory waited for the stream %d times, the card's run %d",
+			hostStats.StreamSynchronizations, cardStats.StreamSynchronizations)
+	}
+	if copied := hostStats.HostToDeviceBytes - cardStats.HostToDeviceBytes; copied < (c.experts-1)*expertBytes {
+		t.Errorf("the run moved %d more bytes to the card than the card's run, less than its %d experts in host memory", copied, c.experts-1)
+	}
+	if !bytes.Equal(host, card) {
+		t.Error("copied experts changed the card run's bits")
+	}
+	digest := sha256.Sum256(host)
+	if got := hex.EncodeToString(digest[:]); got != serialCopyBits {
+		t.Errorf("output bits %s, the serial copy's %s", got, serialCopyBits)
 	}
 }
 

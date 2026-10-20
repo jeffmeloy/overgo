@@ -213,17 +213,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 616,
+        "nodes": 125,
         "reason": "139 left after attention (+330), top-k (+132) and delta-net (+99), and copy-overlap's measured +477 moved from expert-residency: long-prompt/expert-groups measured +491 (the copy stream, its two buffers and the grouped staging cap)"
       },
       "steps": [
-        {
-          "id": "expert-groups",
-          "title": "Copy a layer's host experts once a prompt chunk, beside the compute",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestPromptExpertCopiesOverlapCompute$'",
-          "rationale": "From the sweep and Nsight with long-prompt/attention built: a prompt's routed experts run in groups of at most 1,962 tokens a layer, the tokens whose plan and outputs the 256 MiB staging holds beside 64 MiB of copies, and each group copies every host expert it routes again: 3 groups a layer at 5,099 tokens, 6 at 10,673; the 5,099-token prompt spends about 5 s of its 14.3 s copying, one synchronous copy an expert, the card idle during each.\nStrata streams every non-resident expert once per 8,192-token chunk through a 384-slot ring on its own copy stream, so the copies run beside the attention halves (src/prefill/prefill.cpp:2337-2502), and its 16K prompt copies about 46 GB in 5 s.\nThe step sizes a layer's group to the prompt chunk, copies each routed host expert once a chunk, and queues the copies on a second stream ahead of the compute (the expert-residency/copy-overlap change, measured without gain on a one-group prompt).\nEvidence: the same outputs, the bytes copied a prompt, and the prompt's time.\nServes: first-output for every prompt longer than one group.\nBatch: device."
-        },
         {
           "id": "residency",
           "title": "Return the experts a long prompt moves off the card and size a prompt's memory to Strata's",

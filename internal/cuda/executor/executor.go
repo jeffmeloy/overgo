@@ -2387,17 +2387,19 @@ type blasState struct {
 	moeCounts  []uint32
 	moeOffsets []uint32
 	moeTable   []uint32
-	// moeSources and moeHosted hold a group's expert addresses and host bytes a bank, and moeCopyTable a batch's copied addresses.
+	// moeSources and moeHosted hold a group's expert addresses and host bytes a bank, and moeCopyTable its copied addresses.
 	moeSources   []driver.DevicePtr
 	moeHosted    [][]byte
 	moeCopyTable []driver.DevicePtr
 	moeBatches   []moeBatch
 	moeCopied    []uint32
-	library      *cublas.Library
-	handle       cublas.Handle
-	staging      driver.DevicePtr
-	stagingBytes uint64
-	stagedNode   *tensor.Tensor
+	// moeCopyStream copies host experts beside the compute stream.
+	moeCopyStream driver.Stream
+	library       *cublas.Library
+	handle        cublas.Handle
+	staging       driver.DevicePtr
+	stagingBytes  uint64
+	stagedNode    *tensor.Tensor
 	// stagedType is the dtype the staged activation was packed to; a
 	// node feeding both F16 and BF16 weights repacks when it switches.
 	stagedType dtype.Type
@@ -2576,6 +2578,10 @@ func (e *Executor) closeResources(state *device.State) error {
 		errs = append(errs, err)
 	}
 	if e.resources.blas != nil {
+		// The copy stream is idle once a run ends, whose compute stream waited for each of its copies.
+		if e.resources.blas.moeCopyStream != 0 {
+			errs = append(errs, state.Driver.StreamDestroy(e.resources.blas.moeCopyStream))
+		}
 		if e.resources.blas.staging != 0 {
 			errs = append(errs, state.Driver.MemFree(e.resources.blas.staging))
 			e.resources.blas.staging = 0

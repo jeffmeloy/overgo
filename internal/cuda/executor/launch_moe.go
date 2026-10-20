@@ -297,7 +297,7 @@ func moeScratchGroup(node *tensor.Tensor) (uint32, uint64, error) {
 	if geometry, ok := nativeMoEMatrix(node); ok {
 		tokenLimit = min(tokenLimit, geometry.tokenLimit())
 		// A matrix group reads its experts once a tile, so a group takes as many tokens as the staging holds.
-		scratchLimit = quantStagedChunkBytes
+		scratchLimit = moeMatrixStagingBytes
 	}
 	activations := uint64(attributes.TopK) * intermediate
 	tokenBytes := (uint64(attributes.TopK)*moeSlotRouteWords + moeTokenRouteWords + activations + uint64(attributes.Experts)) * f32ScalarBytes

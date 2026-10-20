@@ -118,6 +118,16 @@ func (l *Library) MemcpyHtoD(destination DevicePtr, source []byte) error {
 	return errors.New("CUDA driver loading is currently supported only on Windows")
 }
 
+// MemcpyHtoDAsync reports that a queued copy needs the Windows driver.
+func (l *Library) MemcpyHtoDAsync(DevicePtr, []byte, Stream) error {
+	return errors.New("CUDA driver loading is currently supported only on Windows")
+}
+
+// StreamWait reports that ordering streams needs the Windows driver.
+func (l *Library) StreamWait(Stream, Stream) error {
+	return errors.New("CUDA driver loading is currently supported only on Windows")
+}
+
 func (l *Library) MemcpyDtoH(destination []byte, source DevicePtr) error {
 	return errors.New("CUDA driver loading is currently supported only on Windows")
 }

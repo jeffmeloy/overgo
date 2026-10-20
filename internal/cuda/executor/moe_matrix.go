@@ -29,11 +29,20 @@ const (
 	moeSlotAlignment = uint64(256)
 	// moeBanks bounds a routed node's banks: gate, up and down.
 	moeBanks = uint64(3)
-	// moeCopyBytes: the staging a batch of routed experts copied from host
-	// memory takes, 27 of Flash-Next's 2.33 MB experts. The copy runs at the
-	// link's rate, where the kernels' own reads of host memory ran at 9 to
-	// 33 GB/s, and once a group, where they ran once a tile.
+	// moeCopyBytes: the staging routed experts copied from host memory take.
+	// The copy runs at the link's rate, where the kernels' own reads of host
+	// memory ran at 9 to 33 GB/s, and once a group, where they ran once a tile.
 	moeCopyBytes = uint64(64 << 20)
+	// moeCopyBuffers: a batch, 14 of Flash-Next's 2.33 MB experts, copies into one while the batch before computes from the other.
+	moeCopyBuffers = 2
+	moeBatchBytes  = moeCopyBytes / moeCopyBuffers
+	// moeMatrixStagingBytes bounds a prompt group's grouped-product staging:
+	// its plan, each routed slot's output row and the copies. A group copies
+	// every host expert its tokens route once, so the tokens one group holds
+	// set how often a prompt copies a layer's host experts; at 2 GiB a
+	// Flash-Next group holds about 20,000 tokens where 256 MiB held 1,962.
+	// The prompt's memory check still bisects a chunk the card cannot hold.
+	moeMatrixStagingBytes = uint64(2 << 30)
 )
 
 // moeMatrixGeometry sizes a prompt group's grouped expert products in the
@@ -69,8 +78,8 @@ func nativeMoEMatrix(node *tensor.Tensor) (moeMatrixGeometry, bool) {
 	g.tokenBytes = uint64(a.TopK) * (g.hidden + moePlanWords) * f32ScalarBytes
 	// A tile's outputs take the staging beside the copies, and its activations the scratch.
 	activationBytes := uint64(a.TopK) * g.intermediate * f32ScalarBytes
-	return g, g.copyBytes() < quantStagedChunkBytes &&
-		max(g.tokenBytes, activationBytes)*uint64(moeTileTokens) <= quantStagedChunkBytes-g.copyBytes()
+	return g, g.copyBytes() < moeMatrixStagingBytes &&
+		max(g.tokenBytes, activationBytes)*uint64(moeTileTokens) <= moeMatrixStagingBytes-g.copyBytes()
 }
 
 // moeAlign rounds bytes up to moeSlotAlignment.
@@ -85,7 +94,7 @@ func (g moeMatrixGeometry) copyBytes() uint64 {
 
 // tokenLimit is the tokens whose plan and outputs the staging holds beside the copies.
 func (g moeMatrixGeometry) tokenLimit() uint64 {
-	return (quantStagedChunkBytes - g.copyBytes()) / g.tokenBytes
+	return (moeMatrixStagingBytes - g.copyBytes()) / g.tokenBytes
 }
 
 // planBytes is the staging a group's plan takes, aligned for its outputs.
@@ -106,7 +115,7 @@ func (g moeMatrixGeometry) stagingBytes(group uint32, topK uint32) uint64 {
 // products over the encoded experts.
 //   - the group's routes come to the host, and its routed rows, ordered by expert, form tiles of up to moeTileTokens rows
 //   - a tile reads each weight of its expert once for all its rows
-//   - experts on the card go first; experts in host memory follow in batches copied into the staging, each once a group
+//   - experts in host memory are copied into the staging in batches, each once a group, beside the compute
 //   - activations takes each routed row's activations in expert order, and the staging the plan and each slot's output
 func launchMoEMatrices(state *device.State, functions functionSet, blas *blasState, node *tensor.Tensor,
 	input, routeState, activations, output, gate, up, down, gateBias, upBias, downBias, expertScale driver.DevicePtr,
@@ -172,7 +181,7 @@ func launchMoEMatrices(state *device.State, functions functionSet, blas *blasSta
 				bytes += moeAlign(uint64(len(host)))
 			}
 		}
-		if bytes > moeCopyBytes {
+		if bytes > moeBatchBytes {
 			return 0
 		}
 		return bytes
@@ -192,6 +201,10 @@ func launchMoEMatrices(state *device.State, functions functionSet, blas *blasSta
 			addTiles(expert)
 		}
 	}
+	// One table names every batch's copies, each batch's in the next copy buffer, and keeps every other expert's address.
+	copyTables := blas.staging + driver.DevicePtr(g.copiesAt(count, topK))
+	copies := copyTables + driver.DevicePtr(moeAlign(moeBanks*g.experts*uint64(unsafe.Sizeof(driver.DevicePtr(0)))))
+	blas.moeCopyTable = append(blas.moeCopyTable[:0], blas.moeSources...)
 	free := uint64(0)
 	for expert := range experts {
 		bytes := copyBytes(expert)
@@ -200,7 +213,14 @@ func launchMoEMatrices(state *device.State, functions functionSet, blas *blasSta
 		}
 		if bytes > free {
 			blas.moeBatches = append(blas.moeBatches, moeBatch{tile: uint32(len(blas.moeTable)) / moeTileWords, copied: len(blas.moeCopied)})
-			free = moeCopyBytes
+			free = moeBatchBytes
+		}
+		at := copies + driver.DevicePtr(uint64(len(blas.moeBatches)-1)%moeCopyBuffers*moeBatchBytes+moeBatchBytes-free)
+		for index := range banks {
+			if host := blas.moeHosted[index*int(experts)+int(expert)]; len(host) > 0 {
+				blas.moeCopyTable[index*int(experts)+int(expert)] = at
+				at += driver.DevicePtr(moeAlign(uint64(len(host))))
+			}
 		}
 		free -= bytes
 		blas.moeCopied = append(blas.moeCopied, expert)
@@ -223,8 +243,6 @@ func launchMoEMatrices(state *device.State, functions functionSet, blas *blasSta
 	table := blas.staging
 	positionTable := table + driver.DevicePtr(uint64(tiles)*uint64(moeTileWords)*f32ScalarBytes)
 	slots := blas.staging + driver.DevicePtr(g.planBytes(count, topK))
-	copyTables := blas.staging + driver.DevicePtr(g.copiesAt(count, topK))
-	copies := copyTables + driver.DevicePtr(moeAlign(moeBanks*g.experts*uint64(unsafe.Sizeof(driver.DevicePtr(0)))))
 	blas.stagedNode = nil
 	if err := state.Driver.MemcpyHtoD(table, driver.Bytes(blas.moeTable)); err != nil {
 		return false, err
@@ -251,38 +269,50 @@ func launchMoEMatrices(state *device.State, functions functionSet, blas *blasSta
 			driver.Dim3{X: end - first, Y: (hidden-1)/moeTileRows + 1, Z: 1}, block, 0,
 			&activations, &tileTable, &positionTable, &down, &downBias, &slots, &hidden, &intermediate, &downType, &indexed)
 	}
-	if err := launch(0, blas.moeBatches[0].tile, tables); err != nil {
-		return false, err
-	}
-	// Each batch copies its experts' bytes in host memory into the staging
-	// after the previous batch's kernels, and names the copies in tables of
-	// its own that keep every other expert's address.
+	// Experts in host memory copy on the copy stream, a batch into each copy
+	// buffer in turn, while the compute stream multiplies the batch before and
+	// a share of the card's tiles: a batch's tiles wait for the copies queued
+	// before them, and a batch's copies for the tiles queued before them,
+	// which read its buffer's last batch.
+	hostBatches := len(blas.moeBatches) - 1
+	cardShare := func(part int) uint32 { return uint32(int(blas.moeBatches[0].tile) * part / (hostBatches + 1)) }
 	copiedTables := make([]driver.DevicePtr, len(banks))
 	for index := range copiedTables {
 		copiedTables[index] = copyTables + driver.DevicePtr(uint64(index)*g.experts*uint64(unsafe.Sizeof(driver.DevicePtr(0))))
 	}
-	for batch := 1; batch < len(blas.moeBatches); batch++ {
-		if err := state.Driver.StreamSynchronize(state.Stream); err != nil {
+	if blas.moeCopyStream == 0 {
+		stream, err := state.Driver.StreamCreate(0)
+		if err != nil {
 			return false, err
 		}
-		blas.moeCopyTable = append(blas.moeCopyTable[:0], blas.moeSources...)
-		at := copies
-		for _, expert := range blas.moeCopied[blas.moeBatches[batch-1].copied:blas.moeBatches[batch].copied] {
-			for index := range banks {
-				source := index*int(experts) + int(expert)
-				if host := blas.moeHosted[source]; len(host) > 0 {
-					if err := state.Driver.MemcpyHtoD(at, host); err != nil {
-						return false, err
+		blas.moeCopyStream = stream
+	}
+	if err := state.Driver.MemcpyHtoD(copyTables, driver.Bytes(blas.moeCopyTable)); err != nil {
+		return false, err
+	}
+	for batch := 0; batch <= hostBatches; batch++ {
+		if err := state.Driver.StreamWait(state.Stream, blas.moeCopyStream); err != nil {
+			return false, err
+		}
+		if batch < hostBatches {
+			if err := state.Driver.StreamWait(blas.moeCopyStream, state.Stream); err != nil {
+				return false, err
+			}
+			for _, expert := range blas.moeCopied[blas.moeBatches[batch].copied:blas.moeBatches[batch+1].copied] {
+				for index := range banks {
+					source := index*int(experts) + int(expert)
+					if host := blas.moeHosted[source]; len(host) > 0 {
+						if err := state.Driver.MemcpyHtoDAsync(blas.moeCopyTable[source], host, blas.moeCopyStream); err != nil {
+							return false, err
+						}
 					}
-					blas.moeCopyTable[source] = at
-					at += driver.DevicePtr(moeAlign(uint64(len(host))))
 				}
 			}
 		}
-		if err := state.Driver.MemcpyHtoD(copyTables, driver.Bytes(blas.moeCopyTable)); err != nil {
+		if err := launch(blas.moeBatches[max(batch, 1)-1].tile, blas.moeBatches[batch].tile, copiedTables); err != nil {
 			return false, err
 		}
-		if err := launch(blas.moeBatches[batch-1].tile, blas.moeBatches[batch].tile, copiedTables); err != nil {
+		if err := launch(cardShare(batch), cardShare(batch+1), tables); err != nil {
 			return false, err
 		}
 	}

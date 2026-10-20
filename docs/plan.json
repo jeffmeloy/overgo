@@ -213,8 +213,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "each step's count is measured when it is built"
+        "nodes": 62,
+        "reason": "measured: sqa-repairs/own-findings adds 62 production syntax nodes (the staging budget counted over every staged and staging copy)"
       },
       "steps": [
         {
@@ -592,7 +592,8 @@
             "hyper-gates-terms/do",
             "hyper-norms-terms/do",
             "hyper-norms-terms2/do",
-            "own-findings-plan/do"
+            "own-findings-plan/do",
+            "own-findings-terms/do"
           ]
         }
       ]

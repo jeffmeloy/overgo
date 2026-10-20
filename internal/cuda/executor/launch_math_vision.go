@@ -11,8 +11,16 @@ import (
 	"overgo/internal/tensor"
 )
 
-// groupNormGroupedThreads: the block that normalizes one group's values.
-const groupNormGroupedThreads = uint32(256)
+const (
+	// groupNormGroupedThreads: the block that normalizes one group's values.
+	groupNormGroupedThreads = uint32(256)
+	// samAttentionGroupedThreads: the block that scores one query's keys;
+	// samAttentionGroupedMaxTokens bounds the keys whose scores its shared
+	// memory holds, f32Words bytes each.
+	samAttentionGroupedThreads   = uint32(256)
+	samAttentionGroupedMaxTokens = uint32(8192)
+	f32Words                     = uint32(4)
+)
 
 func launchMathVision(
 	state *device.State,
@@ -214,6 +222,17 @@ func launchMathVision(
 		relativeWLength := uint32(node.Inputs[3].Shape.Dims[1])
 		relativeHLength := uint32(node.Inputs[4].Shape.Dims[1])
 		scale, relativeScale := attributes.Scale, attributes.RelativeScale
+		// A block a query token, head and batch scores each key once.
+		if tokens > 0 && tokens <= samAttentionGroupedMaxTokens && keyHeads > 0 && queryHeads%keyHeads == 0 {
+			return launchGridSharedABI(
+				state, functions[kernelSamAttentionGroupedF32],
+				driver.Dim3{X: tokens, Y: queryHeads, Z: batches}, driver.Dim3{X: samAttentionGroupedThreads, Y: 1, Z: 1},
+				tokens*f32Words,
+				&query, &key, &value, &relativeW, &relativeH, &output,
+				&keyWidth, &valueWidth, &queryHeads, &keyHeads, &tokens, &batches,
+				&spatialSize, &relativeWLength, &relativeHLength, &scale, &relativeScale,
+			)
+		}
 		return launch1DABI(
 			state, functions[kernelSamAttentionF32], count,
 			&query, &key, &value, &relativeW, &relativeH, &output,

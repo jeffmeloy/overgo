@@ -1347,6 +1347,74 @@ extern "C" __global__ void sam_attention_f32(
 	output[index] = result / sum;
 }
 
+// sam_attention_grouped_f32 computes sam_attention_f32's outputs with a block
+// a query token, head and batch: each key's score is computed once, with the
+// same function, into shared memory, and each value channel sums the
+// probabilities and weighted values over the keys in order, where
+// sam_attention_f32 computed every score again for each value channel, twice.
+extern "C" __global__ void sam_attention_grouped_f32(
+		const float * query,
+		const float * key,
+		const float * value,
+		const float * relative_w,
+		const float * relative_h,
+		float * output,
+		unsigned int key_width,
+		unsigned int value_width,
+		unsigned int query_heads,
+		unsigned int key_heads,
+		unsigned int tokens,
+		unsigned int batches,
+		unsigned int spatial_size,
+		unsigned int relative_w_length,
+		unsigned int relative_h_length,
+		float scale,
+		float relative_scale) {
+	extern __shared__ float probabilities[];
+	__shared__ float maxima[32];
+	const unsigned int query_token = blockIdx.x;
+	const unsigned int query_head = blockIdx.y;
+	const unsigned int batch = blockIdx.z;
+	if (query_token >= tokens || query_head >= query_heads || batch >= batches) {
+		return;
+	}
+	const unsigned int key_head = query_head / (query_heads / key_heads);
+	float maximum = -3.402823466e+38F;
+	for (unsigned int key_token = threadIdx.x; key_token < tokens; key_token += blockDim.x) {
+		const float score = sam_attention_score(query, key, relative_w, relative_h,
+			key_width, query_heads, key_heads, tokens, batch, query_token, key_token,
+			query_head, key_head, spatial_size, relative_w_length, relative_h_length, scale, relative_scale);
+		probabilities[key_token] = score;
+		maximum = fmaxf(maximum, score);
+	}
+	for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
+		maximum = fmaxf(maximum, __shfl_xor_sync(0xffffffff, maximum, offset));
+	}
+	if (threadIdx.x % CUDA_WARP_WIDTH == 0) {
+		maxima[threadIdx.x / CUDA_WARP_WIDTH] = maximum;
+	}
+	__syncthreads();
+	maximum = maxima[0];
+	for (unsigned int warp = 1; warp < blockDim.x / CUDA_WARP_WIDTH; ++warp) {
+		maximum = fmaxf(maximum, maxima[warp]);
+	}
+	for (unsigned int key_token = threadIdx.x; key_token < tokens; key_token += blockDim.x) {
+		probabilities[key_token] = expf(probabilities[key_token] - maximum);
+	}
+	__syncthreads();
+	for (unsigned int channel = threadIdx.x; channel < value_width; channel += blockDim.x) {
+		float sum = 0.0f;
+		float result = 0.0f;
+		for (unsigned int key_token = 0; key_token < tokens; ++key_token) {
+			const float probability = probabilities[key_token];
+			const unsigned int value_base = value_width * (key_head + key_heads * (key_token + tokens * batch));
+			sum += probability;
+			result += probability * value[value_base + channel];
+		}
+		output[channel + value_width * (query_head + query_heads * (query_token + tokens * batch))] = result / sum;
+	}
+}
+
 extern "C" __global__ void group_norm_f32(
 		const float * input,
 		const float * weight,

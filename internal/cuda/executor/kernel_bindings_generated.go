@@ -181,6 +181,7 @@ const (
 	kernelRwkv6F32
 	kernelRwkv7F32
 	kernelSamAttentionF32
+	kernelSamAttentionGroupedF32
 	kernelScaleF32
 	kernelScaleFp8ProductF32
 	kernelShortConvBackwardF32
@@ -405,6 +406,7 @@ var kernelFunctionNames = [...]string{
 	"rwkv6_f32",
 	"rwkv7_f32",
 	"sam_attention_f32",
+	"sam_attention_grouped_f32",
 	"scale_f32",
 	"scale_fp8_product_f32",
 	"short_conv_backward_f32",
@@ -628,6 +630,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	11,
 	12,
 	18,
+	17,
 	4,
 	5,
 	12,

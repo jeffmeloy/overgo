@@ -213,10 +213,17 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "measured: long-prompt/router-flush adds 342 production syntax nodes (the stream query, the copies' and products' submission, the router's product)"
+        "nodes": 67,
+        "reason": "measured: long-prompt/stream-complete adds 67 production syntax nodes (the stream's finish, read and data checks)"
       },
       "steps": [
+        {
+          "id": "stream-complete",
+          "title": "Count a Strata bench request answered only when its stream finished",
+          "status": "open",
+          "verify": "go test ./cmd/benchmark -count=1 -run '^(TestStrataRefusesUnfinishedStreams|TestStrataSuiteAgainstAServedModel)$'",
+          "rationale": "From SQA-176 (P2, confirmed defect, on 8224d3b6f).\nbenchmark strata counts a request answered once one piece of its reply came and no error event followed: a stream cut short after it, a failed or over-long read, and data that is no JSON all stand as answers, join the medians and continue an agent session from a partial reply.\nThe step counts a request answered only when its stream finished (a finish reason or [DONE]) with no failed read and no malformed data, and teaches the served fixture to break a stream after its first word.\nServes: the parity bench every long-prompt and agent-turns step is judged by."
+        },
         {
           "id": "prefill-rate",
           "title": "Read a fresh 16K Flash-Next prompt at the rate Strata reaches",
@@ -547,7 +554,8 @@
             "plan-sam-attention/do",
             "length-cells-terms/do",
             "bench-terms/do",
-            "router-flush-terms/do"
+            "router-flush-terms/do",
+            "stream-complete-terms/do"
           ]
         }
       ]

@@ -38,20 +38,7 @@ func TestExecutorStreamSumMatchesTheUnfusedGraph(t *testing.T) {
 			gate: patternedValue(gate.Shape, 7, 0.37, -0.2),
 			up:   patternedValue(up.Shape, 11, 0.21, 0.05),
 		}
-		cuda := newFixtureExecutor(t)
-		run := func(outputs ...*tensor.Tensor) []float32 {
-			program, err := tensor.CompileProgram(outputs...)
-			if err != nil {
-				t.Fatal(err)
-			}
-			got, err := cuda.ExecuteProgram(context.WithoutCancel(t.Context()), program, feeds)
-			if err != nil {
-				t.Fatal(err)
-			}
-			return got[output].Data
-		}
-		compareBits(t, run(output), run(output, first))
-		checkCUDAGraph(t, feeds, graphOutputCheck{output: output, tolerance: accuracyProjection})
+		matchesUnfused(t, feeds, output, first)
 	}
 	projectionShape := tensor.MustShape(width, 5)
 	projection := patternedValue(projectionShape, 13, 0.03, -0.1)
@@ -93,20 +80,7 @@ func TestExecutorStreamCombineMatchesTheUnfusedGraph(t *testing.T) {
 		current:  patternedValue(current.Shape, 9, 0.17, 0.1),
 		x:        patternedValue(x.Shape, 13, 0.73, -0.3),
 	}
-	cuda := newFixtureExecutor(t)
-	run := func(outputs ...*tensor.Tensor) []float32 {
-		program, err := tensor.CompileProgram(outputs...)
-		if err != nil {
-			t.Fatal(err)
-		}
-		got, err := cuda.ExecuteProgram(context.WithoutCancel(t.Context()), program, feeds)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return got[output].Data
-	}
-	compareBits(t, run(output), run(output, product))
-	checkCUDAGraph(t, feeds, graphOutputCheck{output: output, tolerance: accuracyProjection})
+	matchesUnfused(t, feeds, output, product)
 }
 
 // TestExecutorHyperNormsMatchTheUnfusedGraph runs a normalization of 4
@@ -131,23 +105,11 @@ func TestExecutorHyperNormsMatchTheUnfusedGraph(t *testing.T) {
 		weight: patternedValue(weight.Shape, 9, 0.07, 1),
 		x:      patternedValue(x.Shape, 13, 0.53, 0.1),
 	}
-	cuda := newFixtureExecutor(t)
-	run := func(output *tensor.Tensor, outputs ...*tensor.Tensor) []float32 {
-		program, err := tensor.CompileProgram(outputs...)
-		if err != nil {
-			t.Fatal(err)
-		}
-		got, err := cuda.ExecuteProgram(context.WithoutCancel(t.Context()), program, feeds)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return got[output].Data
-	}
 	for _, fused := range []struct{ output, kept *tensor.Tensor }{{normalized, normalization}, {gate, scaled}} {
 		if compiled, err := Compile(fused.output); err != nil || compiled.nodes[compiled.orderIndexes[fused.output]].fusion == nil {
 			t.Fatalf("tensor %d did not fuse: %v", fused.output.ID, err)
 		}
-		compareBits(t, run(fused.output, fused.output), run(fused.output, fused.output, fused.kept))
+		matchesUnfused(t, feeds, fused.output, fused.kept)
 	}
 	projectionShape := tensor.MustShape(width, 5)
 	projection := patternedValue(projectionShape, 13, 0.03, -0.1)
@@ -165,4 +127,17 @@ func TestExecutorHyperNormsMatchTheUnfusedGraph(t *testing.T) {
 		func(builder *tensor.Builder, left, right *tensor.Tensor) *tensor.Tensor {
 			return builder.MulMat(left, builder.SiLU(builder.Scale(right, 0.25)))
 		}, inputQuantizedDecodeTolerance)
+}
+
+// matchesUnfused holds output, fused, to the reference, and its card result
+// to the same graph's with kept an output too, which leaves it unfused, bit
+// for bit.
+func matchesUnfused(t *testing.T, feeds map[*tensor.Tensor]reference.Value, output, kept *tensor.Tensor) {
+	t.Helper()
+	fused := checkCUDAGraph(t, feeds, graphOutputCheck{output: output, tolerance: accuracyProjection})
+	unfused, err := newFixtureExecutor(t).Execute(context.WithoutCancel(t.Context()), []*tensor.Tensor{output, kept}, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compareBits(t, fused[output].Data, unfused[output].Data)
 }

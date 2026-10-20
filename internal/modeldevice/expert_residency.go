@@ -497,17 +497,25 @@ func (c *expertResidency) land(ctx context.Context, wait bool) error {
 // left unnamed longest and not this step, to pinned host memory beside the
 // next run, until expertStagedVictims of the stride are staged or staging.
 func (c *expertResidency) stage(ctx context.Context) error {
+	// Every staged or staging copy counts against its stride's budget, wherever the routes have since moved its expert.
+	held := make(map[*expertClass]int, len(c.classes))
+	for key := range c.staged {
+		held[c.classes[c.banks[key.bank].stride]]++
+	}
+	for _, move := range c.staging {
+		held[c.classes[c.banks[move.key.bank].stride]]++
+	}
 	for _, class := range c.classes {
-		count := 0
+		count := held[class]
 		for entry := class.order.Front(); entry != nil && count < expertStagedVictims; entry = entry.Next() {
 			resident := entry.Value.(*residentExpert)
 			if resident.step == c.step {
 				break
 			}
-			count++
 			if _, staged := c.staged[resident.key]; staged || c.moving[resident.key] {
 				continue
 			}
+			count++
 			if err := c.stream(ctx); err != nil {
 				return err
 			}

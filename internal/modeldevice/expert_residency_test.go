@@ -451,6 +451,89 @@ func TestFlashNextExpertResidency(t *testing.T) {
 	})
 }
 
+// TestExpertStagingHoldsItsBudget routes two banks of 70 experts, 68 of each
+// on the card: a miss stages the 32 coldest card experts of each stride, and
+// while those copies are in flight the routes move them to the back and a
+// second miss stages none, every stride's staged and staging copies within
+// the budget. Once the copies land each table entry reads its bytes.
+func TestExpertStagingHoldsItsBudget(t *testing.T) {
+	const experts, onCard = 70, 68
+	f := writeFixture(t, rand.New(rand.NewPCG(23, 29)), []fixtureTensor{
+		{name: "gate", shape: []uint64{2, 2, experts}, kind: dtype.BF16},
+		{name: "down", shape: []uint64{16, 16, experts}, kind: dtype.F32},
+	}, 0, 0)
+	file := f.parse(t)
+	const tableBytes, gateStride, downStride = 2 * experts * 8, 256, 1024
+	mem := newFakeExpertDevice()
+	weights, err := mem.loadExperts(t.Context(), file, tableBytes+onCard*(gateStride+downStride), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cache := weights.experts
+	defer func() {
+		if err := cache.close(); err != nil || mem.liveCount() != 0 {
+			t.Errorf("close left %d allocations: %v", mem.liveCount(), err)
+		}
+	}()
+	builder := tensor.NewBuilder()
+	nodes := []*tensor.Tensor{
+		builder.Input("gate", file.Tensors[0].Type, tensor.MustShape(file.Tensors[0].Shape[:file.Tensors[0].Dimensions]...)),
+		builder.Input("down", file.Tensors[1].Type, tensor.MustShape(file.Tensors[1].Shape[:file.Tensors[1].Dimensions]...)),
+	}
+	route := func(indices ...uint32) {
+		t.Helper()
+		flags, err := (&DeviceWeights{experts: cache}).ExpertRoutes(nil, nodes)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, index := range indices {
+			cache.routed[uint64(flags-cache.routedMap)+uint64(index)] = 1
+		}
+		if err := cache.advance(t.Context(), false); err != nil {
+			t.Fatal(err)
+		}
+		held := map[uint64]int{}
+		for key := range cache.staged {
+			held[cache.banks[key.bank].stride]++
+		}
+		for _, move := range cache.staging {
+			held[cache.banks[move.key.bank].stride]++
+		}
+		for stride, count := range held {
+			if count > expertStagedVictims {
+				t.Fatalf("stride %d holds %d staged and staging copies, past the budget of %d", stride, count, expertStagedVictims)
+			}
+		}
+	}
+	mem.hold = true
+	route(onCard)
+	if len(cache.staging) != 2*expertStagedVictims {
+		t.Fatalf("%d copies staging, want %d a stride", len(cache.staging), expertStagedVictims)
+	}
+	staged := make([]uint32, 0, expertStagedVictims+1)
+	for _, move := range cache.staging {
+		if move.key.bank == "gate" {
+			staged = append(staged, move.key.index)
+		}
+	}
+	route(append(staged, onCard+1)...)
+	mem.hold = false
+	route()
+	for _, name := range []string{"gate", "down"} {
+		bank := cache.banks[name]
+		table, err := mem.at(bank.table, experts*8)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for index := range uint64(experts) {
+			actual, err := mem.at(driver.DevicePtr(binary.LittleEndian.Uint64(table[index*8:])), bank.bytes)
+			if err != nil || !bytes.Equal(actual, f.payloads[name][index*bank.bytes:(index+1)*bank.bytes]) {
+				t.Fatalf("%s expert %d does not read its bytes: %v", name, index, err)
+			}
+		}
+	}
+}
+
 // TestExpertResidencyFillsTheCardWhenItFrees loads two banks of three experts
 // while the card is held, so the load's limit, free memory less the
 // headroom, holds one expert of each bank, then frees the card between runs.

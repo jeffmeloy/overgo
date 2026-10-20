@@ -442,11 +442,13 @@ func buildFixtureDenseBlockCachedWithMultiPositions(
 	})
 }
 
+// checkCUDAGraph holds each check's output on the card to the reference and
+// returns the card's outputs, for a caller that compares them further.
 func checkCUDAGraph(
 	t *testing.T,
 	feeds map[*tensor.Tensor]reference.Value,
 	checks ...graphOutputCheck,
-) {
+) map[*tensor.Tensor]reference.Value {
 	t.Helper()
 	cudatest.Require(t)
 	outputs := make([]*tensor.Tensor, len(checks))
@@ -473,6 +475,7 @@ func checkCUDAGraph(
 		}
 		compare(t, got[check.output].Data, want[check.output].Data, check.tolerance)
 	}
+	return got
 }
 
 func bitExactGraphCheck(output *tensor.Tensor) graphOutputCheck {

@@ -213,17 +213,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 62,
+        "nodes": 0,
         "reason": "measured: sqa-repairs/own-findings adds 62 production syntax nodes (the staging budget counted over every staged and staging copy)"
       },
       "steps": [
-        {
-          "id": "own-findings",
-          "title": "Repair SQA's findings in the staging budget, host-row tests and stream-fusion tests",
-          "status": "open",
-          "verify": "go test ./internal/model -count=1 -run '^TestLoadHostRowsAndDotRows$' \u0026\u0026 go test ./internal/modeldevice -count=1 -run '^TestExpertStagingHoldsItsBudget$'",
-          "rationale": "SQA-177, SQA-178 and SQA-179 (P3, 2026-10-20) name three faults in code this campaign landed; one step repairs them together.\nSQA-179: the residency's stage counted only the staged copies in each stride's cold prefix, so copies whose experts the routes moved to the back escaped the budget. A held-copy trace of 70 experts, 68 on the card, reaches 64 staged and staging copies of a stride against the 32 meant. The step counts every staged and staging copy of a stride against its budget, held by a test of that trace.\nSQA-178: both stream-fusion device tests ran the fused graph twice, once to compare with the unfused graph and once inside checkCUDAGraph. checkCUDAGraph returns the card result it checked, and the stream sum, combine and hyper-norms tests compare that result with one unfused run through a shared helper.\nSQA-177: TestHostRowsReadEachRowOnceAndKeepIt and TestLoadHostRowsAndDotRows build the same fixture and overlap. TestLoadHostRowsAndDotRows becomes the one owner on the 300-row fixture: reordered and duplicate rows read once, the eight-way cache's eviction and re-read, the real file's offset and handles' Close, DotRows' values, invalid first, later and empty rows, a cancelled read touching no file, and both in-flight cancellation ceilings.\nEvidence: go test ./internal/model -run '^TestLoadHostRowsAndDotRows$', go test ./internal/modeldevice -run '^TestExpertStagingHoldsItsBudget$', and the stream-fusion device tests.\nServes: failure-rate (the staging budget bounds pinned host memory); test upkeep otherwise.\nBatch: host."
-        },
         {
           "id": "agent-thread",
           "title": "Bound an agent thread's read by its exact session's entries, not its name's prefix",

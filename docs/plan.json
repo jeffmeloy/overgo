@@ -213,8 +213,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 720,
-        "reason": "span-commit-chain as built adds 350 production syntax nodes (the gate's preflight, 2026-10-21): a block context's and result's checkpoints as lists, the gated-delta scan in one launch a checkpoint, the n-gram window at each, a span cache's checkpoint a kept count with its session identity, and the speculation loop's commit at any kept prefix; with speculate-default's 144, span-experts' 20, expert-throughput's 589 and window-host's 111 the row's count is 1,070."
+        "nodes": 2458,
+        "reason": "gdn-fusion as built adds 2,458 production syntax nodes (the gate's preflight, 2026-10-21): two tensor operations (GatedDeltaConv, GatedDeltaGates) with their builders, layouts, operand positions and coverage rule, their host reference rounding as the composed operations do, the two kernels' launches, and the gated-delta builder's fused preparation beside the composed one, which prompts keep; the row may add 2,458."
       },
       "steps": [
         {
@@ -533,7 +533,8 @@
             "plan-chain-depth/do",
             "plan-draft-on-card/do",
             "plan-hc-fusion/do",
-            "plan-gdn-fusion/do"
+            "plan-gdn-fusion/do",
+            "plan-gdn-count/do"
           ]
         }
       ]

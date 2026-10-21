@@ -581,7 +581,8 @@
             "cells-carry/do",
             "publish-file/do",
             "coverage-carry/do",
-            "journey-carry/do"
+            "journey-carry/do",
+            "journey-check/do"
           ]
         }
       ]

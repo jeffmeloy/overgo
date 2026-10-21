@@ -17,7 +17,7 @@ func launchMoE(
 	state *device.State,
 	functions functionSet,
 	blas *blasState,
-	_ *q8InputState,
+	q8Input *q8InputState,
 	node *tensor.Tensor,
 	_ tensor.Attributes,
 	pointers launchPointerFrame,
@@ -216,19 +216,51 @@ func launchMoE(
 			hiddenGrid := count * topK * ((intermediate-1)/moeThreads + 1)
 			sharedBytes := moeHiddenSharedBytes
 			downThreads := downCount
+			hiddenInput, downActivations := groupInput, activations
+			var quantizeActivations bool
 			if attributes.Compute == tensor.MulMatComputeNativeTensorCore {
 				// Native execution gives each routed row and each output channel a warp.
 				hiddenThreads, hiddenErr := quantMulMatLaunchCount(dtype.BF16, intermediate, count*topK)
 				nativeDown, downErr := quantMulMatLaunchCount(dtype.BF16, hidden, count)
 				if hiddenErr == nil && downErr == nil {
 					hiddenKernel, downKernel = functions[kernelMoeHiddenDotF32], functions[kernelMoeDownDotF32]
-					if count > 1 && count <= moeSpanTokens {
-						// A verify span's tokens read each expert they share once.
-						hiddenKernel = functions[kernelMoeHiddenSpanDotF32]
-					}
 					hiddenGrid = (hiddenThreads-1)/moeThreads + 1
 					sharedBytes = 0
 					downThreads = nativeDown
+					// Products of a q8 storage take q8 activations in the q8 input staging: the input's blocks, then
+					// the slots'. A whole group's input stays staged for a product of the same input that follows.
+					hiddenQ8, downQ8 := moeQ8Products(attributes, node.Inputs[moeFirstBankInput].Type, upNode.Type, downNode.Type, hidden, intermediate)
+					inputBytes, q8Bytes := moeQ8Bytes(hidden, intermediate, topK, count)
+					if (hiddenQ8 || downQ8) && q8Input != nil && q8Input.staging != 0 && q8Bytes <= q8Input.stagingBytes {
+						whole := start == 0 && count == tokens
+						if hiddenQ8 {
+							inputNode := node.Inputs[0]
+							if !whole || (q8Input.stagedNode != inputNode && q8Input.stagedNode != q8Source(inputNode)) {
+								if err := launchQ8InputQuantization(
+									state, functions[kernelQuantizeQ80InputF32], groupInput, q8Input.staging, count*hidden/moeQ8Width,
+								); err != nil {
+									return err
+								}
+							}
+							q8Input.stagedNode = nil
+							if whole {
+								q8Input.stagedNode = inputNode
+							}
+							hiddenInput, hiddenKernel = q8Input.staging, functions[kernelMoeHiddenQ8F32]
+							if count > 1 && count <= moeSpanTokens {
+								// A verify span's tokens read each expert they share once.
+								hiddenKernel = functions[kernelMoeHiddenSpanQ8F32]
+							}
+							hiddenGrid = (hiddenCount*moeQ8RowLanes-1)/moeThreads + 1
+						}
+						if downQ8 {
+							if !hiddenQ8 || !whole {
+								q8Input.stagedNode = nil
+							}
+							downActivations, downKernel = q8Input.staging+driver.DevicePtr(inputBytes), functions[kernelMoeDownQ8F32]
+							quantizeActivations = true
+						}
+					}
 				}
 			}
 			if err := launchGridSharedABI(
@@ -236,15 +268,22 @@ func launchMoE(
 				driver.Dim3{X: hiddenGrid, Y: 1, Z: 1},
 				driver.Dim3{X: moeThreads, Y: 1, Z: 1},
 				sharedBytes,
-				&groupInput, &routeState, &gate, &up, &gateBias, &upBias, &activations,
+				&hiddenInput, &routeState, &gate, &up, &gateBias, &upBias, &activations,
 				&hidden, &topK, &intermediate, &routing, &gateStorage, &upStorage, &gated, &fusedGateUp,
 				&activation, &expertIndexDivisor, &swigluClamp, &indexed, &hiddenCount,
 			); err != nil {
 				return err
 			}
+			if quantizeActivations {
+				if err := launchQ8InputQuantization(
+					state, functions[kernelQuantizeQ80InputF32], activations, downActivations, hiddenCount/moeQ8Width,
+				); err != nil {
+					return err
+				}
+			}
 			if err := launch1DABI(
 				state, downKernel, downThreads,
-				&routeState, &activations, &down, &expertScale, &downBias, &groupOutput,
+				&routeState, &downActivations, &down, &expertScale, &downBias, &groupOutput,
 				&hidden, &topK, &intermediate, &normalize, &scale, &downStorage,
 				&expertIndexDivisor, &indexed, &downCount,
 			); err != nil {
@@ -307,6 +346,11 @@ const (
 	// moeSpanTokens: the most tokens of a native group that read each routed
 	// expert's gate and up rows once, the CUDA MOE_SPAN_TOKENS.
 	moeSpanTokens = 4
+	// moeQ8Width: the weights of a q8 block and of a routed row's sub-block,
+	// the CUDA MOE_Q8_WIDTH; moeQ8RowLanes: the lanes that share a routed row
+	// of the q8 products, MOE_Q8_ROW_LANES.
+	moeQ8Width    = uint32(32)
+	moeQ8RowLanes = uint32(16)
 	// moeHiddenSharedBytes holds two banks of sector-wide F32 rows with one padding word.
 	// Keep this ABI equal to the CUDA tile and reconsider it with measured occupancy.
 	moeHiddenSharedBytes = 2 * moeThreads * (32/4 + 1) * 4
@@ -318,6 +362,58 @@ const (
 	// longer prompt runs as several groups.
 	moeScratchLimitBytes = uint64(32 << 20)
 )
+
+// moeQ8Storage reports whether an expert storage dots q8 activations in
+// integers, the storages the CUDA visit_q8_format names.
+func moeQ8Storage(storage dtype.Type) bool {
+	switch storage {
+	case dtype.IQ3S, dtype.IQ4XS, dtype.IQ4NL, dtype.Q8_0:
+		return true
+	}
+	return false
+}
+
+// moeQ8Products reports which of a native group's routed products take q8
+// activations: the gate and up when the layer is gated and both share a q8
+// storage, and the down when its storage has one. A product's inner width is
+// whole q8 blocks.
+func moeQ8Products(attributes tensor.MoEAttributes, gate, up, down dtype.Type, hidden, intermediate uint32) (bool, bool) {
+	if attributes.Compute != tensor.MulMatComputeNativeTensorCore {
+		return false, false
+	}
+	hiddenQ8 := attributes.Gated && gate == up && moeQ8Storage(up) && hidden%moeQ8Width == 0
+	return hiddenQ8, moeQ8Storage(down) && intermediate%moeQ8Width == 0
+}
+
+// moeQ8Bytes returns the q8 staging a group of count tokens takes: its
+// input's blocks, then those and its slots' activations' blocks together.
+func moeQ8Bytes(hidden, intermediate, topK, count uint32) (uint64, uint64) {
+	input := uint64(count) * uint64(hidden/moeQ8Width) * q8InputTraits.TypeSize
+	activations := uint64(count) * uint64(topK) * uint64(intermediate/moeQ8Width) * q8InputTraits.TypeSize
+	return input, input + activations
+}
+
+// moeQ8StagingBytes returns the q8 staging a routed-expert node's groups of
+// at most group tokens take, zero when none of its products takes q8
+// activations; a group of a tile or more takes the grouped products instead.
+func moeQ8StagingBytes(node *tensor.Tensor, group uint32) uint64 {
+	attributes, ok := node.Attrs.(tensor.MoEAttributes)
+	down := moeFirstBankInput + 1
+	if attributes.Gated && !attributes.FusedGateUp {
+		down++
+	}
+	if !ok || len(node.Inputs) <= down || node.Shape.Dims[0] > math.MaxUint32 ||
+		node.Inputs[down].Shape.Dims[0] > math.MaxUint32 {
+		return 0
+	}
+	hidden, intermediate := uint32(node.Shape.Dims[0]), uint32(node.Inputs[down].Shape.Dims[0])
+	if hiddenQ8, downQ8 := moeQ8Products(attributes, node.Inputs[moeFirstBankInput].Type, node.Inputs[down-1].Type,
+		node.Inputs[down].Type, hidden, intermediate); !hiddenQ8 && !downQ8 {
+		return 0
+	}
+	_, bytes := moeQ8Bytes(hidden, intermediate, attributes.TopK, min(group, moeTileTokens-1))
+	return bytes
+}
 
 // moeScratchGroup: the tokens one routed-expert launch group covers and the
 // scratch bytes each of them holds -- its route words and one activation per

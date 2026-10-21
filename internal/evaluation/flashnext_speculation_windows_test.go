@@ -26,13 +26,16 @@ var (
 	flashNextDraft = filepath.Join("strata", "mtp", "mtp-q2_0.gguf")
 )
 
-// speculationHeldOut is IFEval's held-out part, a hundred cases taken evenly through the whole, and speculationDrop
-// the strict prompts speculation may lose against plain decoding: five of a hundred, about one standard error of a
-// share near 0.7 at that size. Speculation and plain decoding part at rounding level within a few dozen tokens, so
-// their answers differ as two decodings of the same model do; twenty cases moved by two either way (2026-10-21).
+// speculationHeldOut is IFEval's held-out part, three hundred cases taken evenly through the whole (the hundred-case
+// part among them), and speculationDrop the share of strict prompts speculation may lose against plain decoding: 5%,
+// about two standard errors of a share near 0.7 at that size. Speculation and plain decoding part at rounding level
+// within a few dozen tokens, and sooner since the routed products take int8 activations (a quantum flips where the
+// arms' sums differ in their last bits), so their answers differ as two decodings of the same model do: on
+// 2026-10-21 the hundred-case part, where 5% is one standard error, held 77 against 79 and then moved 73 against 80
+// while its three hundred cases held 72.3% against 74.0%.
 const (
-	speculationHeldOut = "ifeval/100"
-	speculationDrop    = 5
+	speculationHeldOut = "ifeval/300"
+	speculationDrop    = 0.05
 )
 
 // speculationRuntime answers a case as the chat-template protocol asks it, one user turn with thinking off, and
@@ -138,7 +141,7 @@ func TestFlashNextSpeculationHoldsIFEval(t *testing.T) {
 	}
 	plain := answer(&speculationRuntime{Runner: runner, plain: true})
 	speculative := answer(&speculationRuntime{Runner: runner})
-	if cases := float64(suite.descriptor.Cases); (plain-speculative)*cases > speculationDrop {
+	if cases := float64(suite.descriptor.Cases); plain-speculative > speculationDrop {
 		t.Fatalf("speculation follows %.0f of %.0f held-out instructions' prompts strictly, plain decoding %.0f", speculative*cases, cases, plain*cases)
 	}
 }

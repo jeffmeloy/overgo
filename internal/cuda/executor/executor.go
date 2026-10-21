@@ -1275,6 +1275,10 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 			}
 			compiled.needBlas = true
 			compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, uint64(group)*tokenBytes)
+			// A decode group of q8 products stages its q8 activations with the q8 inputs.
+			if q8Bytes := moeQ8StagingBytes(node, group); q8Bytes > 0 {
+				compiled.q8InputBytes = max(compiled.q8InputBytes, q8Bytes)
+			}
 			if geometry, ok := nativeMoEMatrix(node); ok {
 				compiled.readsRoutes = true
 				compiled.matmulStagingBytes = max(compiled.matmulStagingBytes, geometry.stagingBytes(group, node.Attrs.(tensor.MoEAttributes).TopK))

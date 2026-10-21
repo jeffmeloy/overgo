@@ -213,17 +213,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 760,
+        "nodes": 171,
         "reason": "expert-throughput as built adds 589 production syntax nodes (the gate's preflight, 2026-10-21): the routed-expert launch's choice of q8 products, its staging of the input and the slots' activations with the q8 inputs' reuse (moeQ8Storage, moeQ8Products, moeQ8Bytes, moeQ8StagingBytes) and the regenerated kernel bindings; with speculate-default's 144 and span-experts' 20 the row's count is 760."
       },
       "steps": [
-        {
-          "id": "expert-throughput",
-          "title": "Bring one token's native expert products to the card's bandwidth, as Strata's dp4a products run",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "One token's native routed products run at about half the card's bandwidth: Flash-Next's gate and up products read 14.1 MB of IQ3_S in 27 us (about 520 GB/s) and its down products 9.2 MB of IQ4_NL in 15 us (about 610 GB/s), where the RTX 4090 D reads about 1 TB/s; they take about 2 ms of a plain token's 12 to 14, and a verify span's products (45 and 28 us at their medians since span-experts) the same share of a window.\nEach lane of overgo's block dots reads its group's bytes as separate one- and two-byte loads, looks its codebook up in shared memory, and multiplies F32 activations a weight at a time. Strata's native_gu_kernel and native_down_kernel quantize the activations to q8_1 once and dot whole words with dp4a (src/kernels/cuda/iq_kernels.cu row_dot, the vec_dot_*_q8_1 dots transcribed from llama.cpp), and its plain token takes about 10 ms.\nThe step profiles one token's products with Nsight Compute over the block-dot fixture at Flash-Next's geometry, then removes the limiter it names: word loads of a group's bytes keep every output bit, and q8_1 activations with integer dots change them within the model tolerance, the held-out part's score then measured with and without.\nEvidence: the products' medians for one token and a two-token span, plain and speculative milliseconds a token, and the held-out score where the bits change.\nServes: throughput of plain and speculative decoding on every block-format MoE.\nBatch: device."
-        },
         {
           "id": "span-commit-chain",
           "title": "Commit a verify span's kept prefix without a second span, as Strata's Verifier::commit does",

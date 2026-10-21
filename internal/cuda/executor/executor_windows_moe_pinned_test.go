@@ -14,6 +14,7 @@ import (
 	"math"
 	"overgo/internal/gguf"
 	"overgo/internal/modeldevice"
+	"slices"
 	"sync"
 	"testing"
 
@@ -450,6 +451,11 @@ func TestExecutorMoENativeCompute(t *testing.T) {
 								want = reference
 							}
 							if tokens == 1 {
+								// A product of a q8 storage takes q8 activations.
+								if slices.ContainsFunc(c.banks[:], moeQ8Storage) {
+									compareRelativeRMS(t, got, want, accuracyQ8Experts)
+									return
+								}
 								compare(t, got, want, accuracyModel)
 								return
 							}
@@ -538,11 +544,15 @@ func TestExecutorMoEExpertsUseBlockDots(t *testing.T) {
 					t.Fatal(err)
 				}
 				raw := trace.Data()
-				hidden, down := raw[moeDecodeRecords:], raw[moeDecodeRecords+hiddenRecord:]
+				inputs, hidden := raw[moeDecodeRecords:], raw[moeDecodeRecords+moeQuantizeRecord:]
+				activations, down := hidden[hiddenRecord:], hidden[hiddenRecord+moeQuantizeRecord:]
 				word, scalar := binary.LittleEndian.Uint64, binary.LittleEndian.Uint32
-				if word(hidden) != uint64(kernelMoeHiddenSpanDotF32) || word(down) != uint64(kernelMoeDownDotF32) {
+				if word(inputs) != uint64(kernelQuantizeQ80InputF32) || word(activations) != uint64(kernelQuantizeQ80InputF32) {
+					t.Fatalf("%s: launches %d and %d, want the q8 quantizations %d", variant.name, word(inputs), word(activations), kernelQuantizeQ80InputF32)
+				}
+				if word(hidden) != uint64(kernelMoeHiddenSpanQ8F32) || word(down) != uint64(kernelMoeDownQ8F32) {
 					t.Fatalf("%s: launches %d and %d, want the dot kernels %d and %d",
-						variant.name, word(hidden), word(down), kernelMoeHiddenSpanDotF32, kernelMoeDownDotF32)
+						variant.name, word(hidden), word(down), kernelMoeHiddenSpanQ8F32, kernelMoeDownQ8F32)
 				}
 				if got := [3]dtype.Type{dtype.Type(scalar(hidden[hiddenGateStorage:])), dtype.Type(scalar(hidden[hiddenGateStorage+4:])), dtype.Type(scalar(down[downStorage:]))}; got != banks {
 					t.Fatalf("%s: dot kernels received storages %v, want %v", variant.name, got, banks)
@@ -553,8 +563,8 @@ func TestExecutorMoEExpertsUseBlockDots(t *testing.T) {
 						t.Fatal("indexed banks changed the resident output bits")
 					}
 				case variant.shifted:
-					// An unaligned input takes the per-weight dots, whose sums differ in their last bits.
-					compare(t, value.Data, want, accuracyModel)
+					// An unaligned input takes the router's per-weight dots, whose sums differ in their last bits.
+					compareRelativeRMS(t, value.Data, want, accuracyQ8Experts)
 				default:
 					resident = bytes.Clone(driver.Bytes(value.Data))
 					spanFeeds = moeTokenFeeds(host)
@@ -567,7 +577,7 @@ func TestExecutorMoEExpertsUseBlockDots(t *testing.T) {
 						t.Fatal(err)
 					}
 					want = expected[output].Data
-					compare(t, value.Data, want, accuracyModel)
+					compareRelativeRMS(t, value.Data, want, accuracyQ8Experts)
 				}
 			}
 			if !bytes.Equal(moeTokensAlone(t, c, spanFeeds), resident) {
@@ -605,8 +615,8 @@ func TestExecutorMoESpanRepeatedRoutes(t *testing.T) {
 	if err := errors.Join(copyErr, retained.Release(t.Context())); err != nil {
 		t.Fatal(err)
 	}
-	if kernel := binary.LittleEndian.Uint64(trace.Data()[moeDecodeRecords:]); kernel != uint64(kernelMoeHiddenSpanDotF32) {
-		t.Fatalf("hidden launch %d, want the span kernel %d", kernel, kernelMoeHiddenSpanDotF32)
+	if kernel := binary.LittleEndian.Uint64(trace.Data()[moeDecodeRecords+moeQuantizeRecord:]); kernel != uint64(kernelMoeHiddenSpanQ8F32) {
+		t.Fatalf("hidden launch %d, want the span kernel %d", kernel, kernelMoeHiddenSpanQ8F32)
 	}
 	if !bytes.Equal(moeTokensAlone(t, c, moeTokenFeeds(host)), driver.Bytes(value.Data)) {
 		t.Fatal("a repeated route changed a token's output bits")
@@ -616,9 +626,35 @@ func TestExecutorMoESpanRepeatedRoutes(t *testing.T) {
 const (
 	// A launch record is four header words, then eight bytes a pointer and four a scalar.
 	moeRecordHeader = 4 * 8
-	// moeDecodeRecords: a decode group's router-logits and route records, which its hidden launch follows.
-	moeDecodeRecords = moeRecordHeader + 4*8 + 3*4 + moeRecordHeader + 5*8 + 5*4
+	// moeDecodeRecords: a decode group's router-logits and route records, which its hidden launch, or its q8
+	// quantization of moeQuantizeRecord bytes, follows.
+	moeDecodeRecords  = moeRecordHeader + 4*8 + 3*4 + moeRecordHeader + 5*8 + 5*4
+	moeQuantizeRecord = moeRecordHeader + 2*8 + 4
 )
+
+// accuracyQ8Experts bounds the q8 routed products' relative RMS error against
+// the F32 reference: int8 activations in the gate and up products and again
+// in the down product measured 1.0% on every block storage of the block-dot
+// case.
+const accuracyQ8Experts = 2e-2
+
+// compareRelativeRMS holds got to want by the RMS of their difference over
+// the RMS of want.
+func compareRelativeRMS(t *testing.T, got, want []float32, tolerance float64) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("length = %d, want %d", len(got), len(want))
+	}
+	var difference, norm float64
+	for index := range want {
+		delta := float64(got[index] - want[index])
+		difference += delta * delta
+		norm += float64(want[index]) * float64(want[index])
+	}
+	if relative := math.Sqrt(difference / norm); !(relative <= tolerance) {
+		t.Fatalf("relative RMS error %g, want at most %g", relative, tolerance)
+	}
+}
 
 // moeFullMantissas scales BF16-representable values by 1.1, which fills their
 // mantissas: a weight group's sum of them then depends on its order, where
@@ -696,7 +732,7 @@ var groupedProductBits = map[string]map[uint64]string{
 // the grouped products over their encoded weights:
 //   - Flash-Next's routed layer takes the staging's tokens a group, so the 1,561-token document and the 4,019-token prompt are one group each and a 20,605-token prompt two of one size
 //   - fixtures of Flash-Next's IQ3_S and IQ4_NL layer and its IQ4_XS and Q8_0 layer, fused IQ4_XS gate and up, and BF16 banks
-//     of 96 weights a row, which decode a weight at a time, keep the row dots for 16 tokens, under a tile
+//     of 96 weights a row, which decode a weight at a time; 16 tokens, under a tile, take the q8 products, and BF16 banks the row dots
 //   - 64 tokens launch the grouped kernels with the banks' storages and stay within the model tolerance of the host reference,
 //     with the experts on the card and in host memory alike: block formats' whole numbers and BF16 weights hold exactly in f16,
 //     and each input splits into two f16 parts; three experts take 128 routed rows, so one of them takes two tiles;
@@ -797,10 +833,18 @@ func TestPromptExpertsMultiplyEncodedWeights(t *testing.T) {
 					}
 					hidden := trace.Data()[firstProduct:]
 					if !run.grouped {
-						if word(hidden) != uint64(kernelMoeHiddenDotF32) {
-							t.Fatalf("a group under a tile launched kernel %d, not the row dots", word(hidden))
+						if !moeQ8Storage(fixture.banks[1]) {
+							if word(hidden) != uint64(kernelMoeHiddenDotF32) {
+								t.Fatalf("a group under a tile launched kernel %d, not the row dots", word(hidden))
+							}
+							compare(t, got, want, accuracyModel)
+							return
 						}
-						compare(t, got, want, accuracyModel)
+						// Block storages take the q8 products after the input's quantization.
+						if word(hidden) != uint64(kernelQuantizeQ80InputF32) || word(hidden[moeQuantizeRecord:]) != uint64(kernelMoeHiddenQ8F32) {
+							t.Fatalf("a group under a tile launched kernels %d and %d, not the q8 products", word(hidden), word(hidden[moeQuantizeRecord:]))
+						}
+						compareRelativeRMS(t, got, want, accuracyQ8Experts)
 						return
 					}
 					down := hidden[hiddenRecord:]

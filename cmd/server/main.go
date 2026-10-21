@@ -133,7 +133,7 @@ func run() error {
 		"read the /v1 bearer token from this file (or OVERGO_API_KEY)",
 	)
 	projectorPath := flag.String("mmproj", "", "multimodal projector GGUF")
-	draftPath := flag.String("draft", "", "draft layer GGUF opened beside the model (Flash-Next's MTP layer), which a greedy request with \"speculative\": true drafts through")
+	draftPath := flag.String("draft", "", "draft layer GGUF the model speculates its greedy requests through (Flash-Next's MTP layer); a request with \"speculative\": false decodes a token a step")
 	projectorCUDA := clioptions.BoolOverride(flag.CommandLine, "mmproj-cuda", "offload projector operations to CUDA; unset follows active inference placement")
 	mediaPolicyPath := flag.String("media-policy", "", "remote-media JSON policy; empty (the default) disables URLs")
 	resourcePolicyPath := flag.String("resource-policy", "", "Responses file-ID JSON policy; empty (the default) disables file IDs")

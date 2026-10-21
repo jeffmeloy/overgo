@@ -15,14 +15,18 @@ import (
 // draftGenerator is a served model with a draft head of three tokens: a
 // speculative turn reports two verify spans, one accepting two drafts and
 // one accepting all three, and records the options it ran under.
+//   - attached => the model was served with a draft, and its greedy turns speculate unless they say
 type draftGenerator struct {
 	*recipeInspectorGenerator
-	ran []inference.GenerateOptions
+	ran      []inference.GenerateOptions
+	attached bool
 }
 
 func (*draftGenerator) SpeculativeDraftTokens() int { return 3 }
 
 func (*draftGenerator) SupportsPromptCache() bool { return true }
+
+func (generator *draftGenerator) SpeculatesByDefault() bool { return generator.attached }
 
 func (generator *draftGenerator) Generate(_ context.Context, _ string, options inference.GenerateOptions) ([]tokenizer.TokenID, string, error) {
 	generator.ran = append(generator.ran, options)
@@ -45,7 +49,8 @@ func (generator *draftGenerator) Generate(_ context.Context, _ string, options i
 // declares a draft head and context shifting is off; a speculative turn runs
 // greedily on the device, keeping the prompt cache, and reports its drafted
 // and accepted tokens; a request without a draft head or under non-greedy
-// sampling is refused with why.
+// sampling is refused with why; a turn that does not ask takes the model's
+// default.
 func TestSpeculativeDecodingDeclaredOption(t *testing.T) {
 	t.Parallel()
 	offered := func(handler *Handler) *workspaceSpeculative {
@@ -82,11 +87,44 @@ func TestSpeculativeDecodingDeclaredOption(t *testing.T) {
 		t.Fatalf("inspection = %d %s", inspection.Code, inspection.Body.String())
 	}
 	ran := generator.ran[len(generator.ran)-1]
-	if !ran.SpeculativeDecode || !ran.DeviceGreedy || !ran.CachePrompt {
-		t.Fatalf("speculative options = speculative %v greedy %v cached %v", ran.SpeculativeDecode, ran.DeviceGreedy, ran.CachePrompt)
+	if !ran.SpeculativeDecode || !ran.DeviceGreedy || !ran.CachePrompt || ran.PlainDecode {
+		t.Fatalf("speculative options = speculative %v greedy %v cached %v plain %v", ran.SpeculativeDecode, ran.DeviceGreedy, ran.CachePrompt, ran.PlainDecode)
 	}
 	if code, body := turn(handler, "0.8"); code != http.StatusBadRequest || !strings.Contains(body, "set temperature 0") {
 		t.Fatalf("a sampled speculative turn = %d %s", code, body)
+	}
+	// unasked runs a greedy or sampled turn that does not say whether it speculates, and returns its options.
+	unasked := func(handler *Handler, generator *draftGenerator, temperature string) inference.GenerateOptions {
+		t.Helper()
+		response := serveTestRequest(handler, http.MethodPost, "/v1/responses",
+			`{"model":"`+testModelID+`","input":"hello","temperature":`+temperature+`,"max_output_tokens":4}`)
+		if response.Code != http.StatusOK {
+			t.Fatalf("an unasked turn = %d %s", response.Code, response.Body.String())
+		}
+		return generator.ran[len(generator.ran)-1]
+	}
+	if declared := offered(handler); declared.Default {
+		t.Fatalf("a model's own draft head offered speculation by default: %+v", declared)
+	}
+	if ran := unasked(handler, generator, "0"); ran.SpeculativeDecode || !ran.PlainDecode {
+		t.Fatalf("a greedy turn on a model's own draft head speculated: speculative %v plain %v", ran.SpeculativeDecode, ran.PlainDecode)
+	}
+	// A model served with a draft speculates a greedy turn that does not say, and decodes plainly one that declines.
+	attached := &draftGenerator{recipeInspectorGenerator: responseRecipeGenerator(t, &fakeGenerator{}), attached: true}
+	served := newTestHandlerWithRepository(t, attached)
+	if declared := offered(served); declared == nil || !declared.Default {
+		t.Fatalf("a model served with a draft offered %+v", declared)
+	}
+	if ran := unasked(served, attached, "0"); !ran.SpeculativeDecode || !ran.DeviceGreedy || ran.PlainDecode {
+		t.Fatalf("a greedy turn on a served draft = speculative %v greedy %v plain %v", ran.SpeculativeDecode, ran.DeviceGreedy, ran.PlainDecode)
+	}
+	if ran := unasked(served, attached, "0.8"); ran.SpeculativeDecode || !ran.PlainDecode {
+		t.Fatalf("a sampled turn on a served draft = speculative %v plain %v", ran.SpeculativeDecode, ran.PlainDecode)
+	}
+	declined := serveTestRequest(served, http.MethodPost, "/v1/responses",
+		`{"model":"`+testModelID+`","input":"hello","temperature":0,"max_output_tokens":4,"speculative":false}`)
+	if ran := attached.ran[len(attached.ran)-1]; declined.Code != http.StatusOK || ran.SpeculativeDecode || !ran.PlainDecode {
+		t.Fatalf("a declining turn on a served draft = %d, speculative %v plain %v", declined.Code, ran.SpeculativeDecode, ran.PlainDecode)
 	}
 
 	plain := newTestHandler(t, &fakeGenerator{})

@@ -50,7 +50,7 @@ func TestSpeculationStopsAtTheContextLimit(t *testing.T) {
 			emitted, drafted, overdrafted := 0, 0, 0
 			generate := func(speculative bool) ([]tokenizer.TokenID, error) {
 				ids, _, err := runner.Generate(t.Context(), "", GenerateOptions{
-					MaxNewTokens: tokens, Sampler: greedy, DeviceGreedy: true, SpeculativeDecode: speculative,
+					MaxNewTokens: tokens, Sampler: greedy, DeviceGreedy: true, SpeculativeDecode: speculative, PlainDecode: !speculative,
 					PromptTokenIDs: prompt, ContinueAfterEOG: true,
 					OnToken: func(TokenEvent) error { emitted++; return nil },
 					OnDraftSpan: func(count, _ int) {

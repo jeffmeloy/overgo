@@ -62,6 +62,12 @@ func (r *Runner) SpeculativeDraftTokens() int {
 	return r.speculationDraftTokens()
 }
 
+// SpeculatesByDefault reports whether the runner's raw-greedy device decoding speculates unless a request decodes
+// plainly: a draft the runner was opened with, which a model's own draft head is not.
+func (r *Runner) SpeculatesByDefault() bool {
+	return r.hyperDraft != nil && r.SpeculativeDraftTokens() > 0
+}
+
 func greedyTokenID(logits []float32) tokenizer.TokenID {
 	best := 0
 	for index, value := range logits {

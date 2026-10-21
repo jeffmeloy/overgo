@@ -264,7 +264,7 @@ func TestFlashNextMTPKeepsGreedyText(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if tokens := plainRunner.SpeculativeDraftTokens(); tokens != 0 {
+		if tokens := plainRunner.SpeculativeDraftTokens(); tokens != 0 || plainRunner.SpeculatesByDefault() {
 			t.Fatalf("%s: the trunk alone declares %d draft tokens", residency, tokens)
 		}
 		// The lookahead past the generation covers drafts accepted beyond its last token.
@@ -284,13 +284,13 @@ func TestFlashNextMTPKeepsGreedyText(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if tokens := runner.SpeculativeDraftTokens(); tokens != hyperDraftTokens {
+			if tokens := runner.SpeculativeDraftTokens(); tokens != hyperDraftTokens || !runner.SpeculatesByDefault() {
 				_ = runner.Close()
-				t.Fatalf("%s: the attached draft declares %d draft tokens", residency, tokens)
+				t.Fatalf("%s: the attached draft declares %d draft tokens, speculating by default %t", residency, tokens, runner.SpeculatesByDefault())
 			}
 			var drafted, accepted int
 			options := GenerateOptions{
-				MaxNewTokens: generated, Sampler: greedy, DeviceGreedy: true, SpeculativeDecode: true,
+				MaxNewTokens: generated, Sampler: greedy, DeviceGreedy: true,
 				PromptTokenIDs: prompt, ContinueAfterEOG: true,
 				OnDraftSpan: func(count, kept int) { drafted, accepted = drafted+count, accepted+kept },
 			}
@@ -323,7 +323,8 @@ func TestFlashNextMTPKeepsGreedyText(t *testing.T) {
 				_ = runner.Close()
 				t.Fatalf("%s copy=%t: a later draft step launched %d graphs and %d kernels (%v), want one replay", residency, copyTrunk, graphs, kernels, err)
 			}
-			options.SpeculativeDecode, options.OnDraftSpan = false, nil
+			// The runner speculates by default (the arm above asked nothing); a plain request decodes a token a step.
+			options.PlainDecode, options.OnDraftSpan = true, nil
 			plain, plainText, err := runner.Generate(t.Context(), "", options)
 			if closeErr := runner.Close(); err != nil || closeErr != nil {
 				t.Fatal(err, closeErr)

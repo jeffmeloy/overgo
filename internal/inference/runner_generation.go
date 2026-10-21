@@ -51,6 +51,8 @@ func (r *Runner) Generate(
 		return nil, "", err
 	}
 	defer r.mu.Unlock()
+	// A draft the runner was opened with speculates its greedy decoding unless the request decodes plainly.
+	options.SpeculativeDecode = !options.PlainDecode && (options.SpeculativeDecode || r.hyperDraft != nil)
 	restoreLoRA, err := r.applyGenerationLoRA(&options)
 	if err != nil {
 		return nil, "", err

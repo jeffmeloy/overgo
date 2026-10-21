@@ -64,7 +64,8 @@ type protocolGenerationPlan struct {
 	// lora: the request's adapter scales, when it named them.
 	lora           []inference.LoRAScale
 	loraConfigured bool
-	// speculative: the request drafts from the served model's draft head.
+	// speculative: the request drafts from the served model's draft head;
+	// otherwise it decodes a token a step, whatever the model does by default.
 	speculative bool
 }
 
@@ -175,7 +176,8 @@ func (h *Handler) prepareProtocolGenerationPlan(
 		writeInvalidRequest(response, err)
 		return nil, false
 	}
-	if err := h.admitSpeculation(parameters.Speculative, sampler); err != nil {
+	speculative, err := h.admitSpeculation(parameters.Speculative, sampler)
+	if err != nil {
 		writeInvalidRequest(response, err)
 		return nil, false
 	}
@@ -186,7 +188,7 @@ func (h *Handler) prepareProtocolGenerationPlan(
 	plan := &protocolGenerationPlan{
 		handler: h, request: request, session: lease,
 		sampler: sampler, maxTokens: maxTokens, stops: stops,
-		lora: lora, loraConfigured: loraConfigured, speculative: parameters.Speculative,
+		lora: lora, loraConfigured: loraConfigured, speculative: speculative,
 	}
 	if err := plan.admit(prompt); err != nil {
 		plan.release()
@@ -296,7 +298,7 @@ func (plan *protocolGenerationPlan) runWithSampler(
 		options.CachePrompt = provider.SupportsPromptCache()
 	}
 	// A speculative turn decodes greedily on the device, from and into the prompt cache.
-	options.SpeculativeDecode = plan.speculative
+	options.SpeculativeDecode, options.PlainDecode = plan.speculative, !plan.speculative
 	options.OnPromptEvaluated = func(evaluation inference.PromptEvaluation) {
 		plan.evaluation = evaluation
 	}

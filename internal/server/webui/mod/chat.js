@@ -165,8 +165,9 @@
       if (draft.tokens !== "" && Number.isFinite(Number(draft.tokens)) && Number(draft.tokens) >= 1) maxTokens.value = Math.min(Math.floor(Number(draft.tokens)), tokenLimit);
       if (draft.topP && Number(draft.topP) >= 0 && Number(draft.topP) <= 1) topP.value = draft.topP;
       // Speculation is offered only when the served model declares a draft head; its drafts verify greedily.
+      // It starts as the model speculates by default, on for a model served with a draft.
       const speculative = capabilities.speculative ? el("input", { type: "checkbox", "aria-label": "speculative decoding", "data-draft-setting": "speculative" }) : null;
-      if (speculative) speculative.checked = draft.speculative === true;
+      if (speculative) speculative.checked = typeof draft.speculative === "boolean" ? draft.speculative : capabilities.speculative.default === true;
       // A reasoning level is offered only when the chat template reads one, with the settings that change its prompt.
       function reasoningChoices(declared) {
         if (!declared) return [];
@@ -825,7 +826,9 @@
         if (system.value.trim()) request.instructions = system.value.trim();
         turnSampling(request);
         if (reasoning && reasoning.value) request.reasoning = { effort: reasoning.value === "off" ? "none" : reasoning.value };
-        if (speculative && speculative.checked) Object.assign(request, { speculative: true, temperature: 0 });
+        // The toggle's state is sent either way, so a turn with it off decodes a token a step even at temperature 0.
+        if (speculative) request.speculative = speculative.checked;
+        if (speculative && speculative.checked) request.temperature = 0;
         return request;
       }
 

@@ -90,9 +90,11 @@ func (h *Handler) probeTemplateReasoning() *workspaceReasoning {
 	return &reasoning
 }
 
-// workspaceSpeculative is the tokens each speculative verify span drafts.
+// workspaceSpeculative is the tokens each speculative verify span drafts, and whether a greedy turn that does not
+// say speculates.
 type workspaceSpeculative struct {
-	DraftTokens int `json:"draft_tokens"`
+	DraftTokens int  `json:"draft_tokens"`
+	Default     bool `json:"default,omitempty"`
 }
 
 // workspaceAdapter: one loaded adapter by its request ID, file name and
@@ -170,7 +172,7 @@ func (h *Handler) workspaceModelCapabilities(ctx context.Context, listing worksp
 		},
 	}
 	if tokens := h.speculativeDraftTokens(); tokens > 0 {
-		document.Speculative = &workspaceSpeculative{DraftTokens: tokens}
+		document.Speculative = &workspaceSpeculative{DraftTokens: tokens, Default: h.speculatesByDefault()}
 	}
 	document.Reasoning = h.templateReasoning()
 	document.Adapters = []workspaceAdapter{}

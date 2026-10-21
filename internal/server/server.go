@@ -224,23 +224,35 @@ type loRAControlAPI interface {
 }
 
 // speculativeDraftAPI declares the tokens a speculative verify span drafts
-// from the served model's draft head, or zero without one.
+// from the served model's draft head, or zero without one, and whether its
+// greedy decoding speculates unless a request decodes plainly.
 type speculativeDraftAPI interface {
 	SpeculativeDraftTokens() int
+	SpeculatesByDefault() bool
 }
 
 // admitSpeculation holds a speculative request to the served model's draft
-// head and to the greedy sampling the drafts are verified under.
-func (h *Handler) admitSpeculation(speculative bool, sampler *sampling.Sampler) error {
+// head and to the greedy sampling the drafts are verified under, and decides
+// whether the request speculates: as it asks, else as the served model does
+// by default, for a greedy request.
+func (h *Handler) admitSpeculation(requested *bool, sampler *sampling.Sampler) (bool, error) {
 	switch {
-	case !speculative:
-		return nil
+	case requested == nil:
+		return h.speculatesByDefault() && sampler.IsRawGreedy(), nil
+	case !*requested:
+		return false, nil
 	case h.speculativeDraftTokens() == 0:
-		return errors.New("speculative decoding needs a served model that declares a draft head")
+		return false, errors.New("speculative decoding needs a served model that declares a draft head")
 	case !sampler.IsRawGreedy():
-		return errors.New("speculative decoding verifies greedy drafts: set temperature 0 and no other sampler")
+		return false, errors.New("speculative decoding verifies greedy drafts: set temperature 0 and no other sampler")
 	}
-	return nil
+	return true, nil
+}
+
+// speculatesByDefault reports whether the served model speculates a greedy request that does not say.
+func (h *Handler) speculatesByDefault() bool {
+	declared, ok := h.generator.(speculativeDraftAPI)
+	return ok && h.speculativeDraftTokens() > 0 && declared.SpeculatesByDefault()
 }
 
 // speculativeDraftTokens is the served model's declared draft span; context

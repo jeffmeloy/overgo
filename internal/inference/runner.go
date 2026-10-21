@@ -64,9 +64,11 @@ type GenerateOptions struct {
 	// DeviceGreedy: device argmax; TokenEvent.Logits omitted.
 	DeviceGreedy bool
 	// SpeculativeDecode: NextN MTP speculation under raw-greedy device
-	// decode — several emissions per trunk weight read. Opt-in until span
-	// decode sessions amortize per-round graph compilation.
+	// decode — several emissions per trunk weight read. A model's own draft
+	// head is opt-in; a runner opened with a draft speculates by default.
 	SpeculativeDecode bool
+	// PlainDecode decodes a token a step though the runner holds an attached draft.
+	PlainDecode bool
 	// OnDraftSpan: each speculative verify span's drafted tokens and how
 	// many of them the trunk accepted.
 	OnDraftSpan func(drafted, accepted int)

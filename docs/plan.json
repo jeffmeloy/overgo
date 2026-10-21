@@ -227,17 +227,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 500,
+        "nodes": 6,
         "reason": "step-overheads as built adds 494 production syntax nodes (the gate's preflight, 2026-10-21): the residency's deferred copy start (start, StartExpertCopies and its interface method), its one-array tables and coalesced publish, device greedy for the protocols with the prompt cache, and the compiled graph's slot, output and expert-use indexes."
       },
       "steps": [
-        {
-          "id": "step-overheads",
-          "title": "Remove the host's work between a decode step's graphs",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "From Nsight Systems over Flash-Next's 200-token short chat with its MTP draft (2026-10-21, master b26668f06, graph-level trace): in the measured run the step graphs filled 2.41 s of 3.24, so about 2.3 ms a token passes outside them. A plain step's graph takes 11 to 14 ms and a two-token span's 15 to 17 (an extra token about 3.5 ms), but plain decoding takes 14.8 ms a token (2.97 s for 200).\nBetween one span's graph and the next the host spends about 1.9 ms on the critical path: the selection and the seed rows copied down (about 70 us), the draft step (1.52 ms on the card), 300 us of host work, cuMemGetInfo (28 us), 316 us more, eleven synchronous 4 KB table writes of the expert residency (cuMemcpyHtoD, about 25 us each), then cuGraphLaunch itself (149 us); a step that promotes experts waits for their copies (about 0.6 ms of 0.7 and 0.9 MB copies on the residency's stream) before its graph starts. The residency's copies of evicted experts back to host memory (about 10 MB a token) run beside the graph.\nStrata decodes a plain token in about 10 ms on this machine (strata-unsloth-ud-iq4_xs.log: \"1 generated in 10 ms\") and 100 tokens with its MTP windows in 547 to 824 ms.\nThe step removes the host's share of a step: the residency's tables written as one copy (or none when nothing moved), no memory query a step, a step's promotions not awaited by the step that triggered them, and the host work between graphs found with a CPU profile of the worker and cut.\nEvidence: the trace's time outside step graphs a token (2.3 ms now) and the probe's milliseconds a token, plain and speculative; outputs unchanged.\nServes: throughput of every device-resident decode, Flash-Next's most.\nBatch: device."
-        },
         {
           "id": "miss-poller",
           "title": "Compute a decode step's hosted experts on the CPU from mapped memory, as Strata's verify window does",

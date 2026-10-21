@@ -93,8 +93,8 @@ func (r *Runner) Generate(
 	// deviceGreedy: raw-greedy decode selects on device; only the winning
 	// token id crosses PCIe. Callbacks receive TokenEvent without Logits, so
 	// callback users must opt in via options.DeviceGreedy.
-	// A speculating request keeps its prompt cache: it starts from a cached prefix and keeps its last boundary.
-	deviceGreedy := useDeviceCache && (!options.CachePrompt || options.SpeculativeDecode) &&
+	// It keeps the prompt cache: it starts from a cached prefix and keeps its last state.
+	deviceGreedy := useDeviceCache &&
 		options.PostSamplingProbabilities == 0 && options.Sampler.IsRawGreedy() &&
 		(options.DeviceGreedy || (options.OnToken == nil && options.ShouldStop == nil))
 	defer func() {

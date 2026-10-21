@@ -296,9 +296,7 @@ func (plan *protocolGenerationPlan) runWithSampler(
 		options.CachePrompt = provider.SupportsPromptCache()
 	}
 	// A speculative turn decodes greedily on the device, from and into the prompt cache.
-	if plan.speculative {
-		options.SpeculativeDecode, options.DeviceGreedy = true, true
-	}
+	options.SpeculativeDecode = plan.speculative
 	options.OnPromptEvaluated = func(evaluation inference.PromptEvaluation) {
 		plan.evaluation = evaluation
 	}
@@ -592,6 +590,9 @@ func boundedProtocolTokens(
 	return value, nil
 }
 
+// protocolGenerationOptions are a protocol request's generation options.
+//   - a raw-greedy request selects its tokens on the device: the protocols return no logits, and a decode step that
+//     copied its vocabulary's logits back and sampled them on the host spent about 0.4 ms of Flash-Next's 14.6
 func (h *Handler) protocolGenerationOptions(
 	maxTokens int,
 	sampler *sampling.Sampler,
@@ -601,6 +602,7 @@ func (h *Handler) protocolGenerationOptions(
 	return inference.GenerateOptions{
 		MaxNewTokens:    maxTokens,
 		Sampler:         sampler,
+		DeviceGreedy:    true,
 		ParseSpecial:    true,
 		ContextShift:    h.config.ContextShift,
 		PromptTokenIDs:  promptIDs,

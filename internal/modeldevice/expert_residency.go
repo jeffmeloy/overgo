@@ -17,7 +17,7 @@ import (
 )
 
 type expertKey struct {
-	bank  string
+	bank  *expertBank
 	index uint32
 }
 
@@ -78,11 +78,13 @@ type expertBank struct {
 	info          gguf.TensorInfo
 	bytes, stride uint64
 	table         driver.DevicePtr
-	pointers      []driver.DevicePtr
-	hosted        [][]byte
-	routed        uint64
-	group         []*expertBank
-	changed       bool
+	// pointers is the bank's table on the host, the part of the residency's pointers from first.
+	pointers []driver.DevicePtr
+	first    int
+	hosted   [][]byte
+	routed   uint64
+	group    []*expertBank
+	changed  bool
 }
 
 // expertClass keeps the experts of one stride: those on the card, least
@@ -146,6 +148,8 @@ type expertResidency struct {
 	cards             []expertChunk
 	pinned            [][]byte
 	tables, routedMap driver.DevicePtr
+	// pointers is every bank's table on the host, in the order the card's tables lie, each bank's pointers a part.
+	pointers          []driver.DevicePtr
 	routed            []byte
 	bytes, tableBytes uint64
 	step              uint64
@@ -159,8 +163,11 @@ type expertResidency struct {
 	copies    driver.Stream
 	promoting []expertMove
 	staging   []expertMove
-	moving    map[expertKey]bool
-	staged    map[expertKey]expertSlot
+	// queuedPromoting and queuedStaging count the leading moves of promoting and staging whose copies are queued; an
+	// advance records the rest, whose copies start once the next run is launched.
+	queuedPromoting, queuedStaging int
+	moving                         map[expertKey]bool
+	staged                         map[expertKey]expertSlot
 }
 
 // newExpertResidency allocates the tables, the route flags and every
@@ -202,10 +209,13 @@ func newExpertResidency(ctx context.Context, file *gguf.File, infos []gguf.Tenso
 	if err != nil {
 		return nil, err
 	}
+	c.pointers = make([]driver.DevicePtr, c.tableBytes/pointerBytes)
 	c.tables, c.bytes = pointer, c.tableBytes
+	first := 0
 	for _, bank := range c.ordered {
-		bank.table = pointer
-		pointer += driver.DevicePtr(uint64(len(bank.pointers)) * pointerBytes)
+		last := first + len(bank.pointers)
+		bank.table, bank.pointers, bank.first = pointer+driver.DevicePtr(uint64(first)*pointerBytes), c.pointers[first:last:last], first
+		first = last
 	}
 	routed, mapped, err := mem.hostAlloc(ctx, flags)
 	if err == nil {
@@ -244,7 +254,7 @@ func (c *expertResidency) allocate(ctx context.Context, limit uint64) error {
 			c.cards = append(c.cards, expertChunk{card, onCard * bank.stride, bank.stride})
 			for index := range onCard {
 				bank.pointers[index] = card + driver.DevicePtr(index*bank.stride)
-				key := expertKey{bank.info.Name, uint32(index)}
+				key := expertKey{bank, uint32(index)}
 				c.entries[key] = c.classes[bank.stride].order.PushBack(&residentExpert{key: key})
 			}
 		}
@@ -402,6 +412,17 @@ func (w *DeviceWeights) AdvanceExperts(ctx context.Context, state *device.State,
 	return w.experts.advance(ctx, prompt)
 }
 
+// StartExpertCopies starts the copies the last advance recorded, once the run it prepared is launched.
+func (w *DeviceWeights) StartExpertCopies(ctx context.Context, state *device.State) error {
+	if w == nil || w.experts == nil {
+		return nil
+	}
+	if w.experts.state != state {
+		return errors.New("expert residency requires its owning CUDA worker")
+	}
+	return w.experts.start(ctx)
+}
+
 // advance reads the flags the last run's routes set, which its synchronization made visible, and clears them for the next run.
 // The copies an earlier advance queued apply once they have landed, and the coldest card experts are staged for the next.
 func (c *expertResidency) advance(ctx context.Context, prompt bool) error {
@@ -429,7 +450,7 @@ func (c *expertResidency) advance(ctx context.Context, prompt bool) error {
 				continue
 			}
 			for _, bank := range head.group {
-				key := expertKey{bank.info.Name, uint32(index)}
+				key := expertKey{bank, uint32(index)}
 				c.routes++
 				if entry := c.entries[key]; entry != nil {
 					c.cardRoutes++
@@ -465,6 +486,10 @@ func (c *expertResidency) advance(ctx context.Context, prompt bool) error {
 // and frees its host slot, and a staged copy is kept while its expert is on
 // the card.
 func (c *expertResidency) land(ctx context.Context, wait bool) error {
+	// Moves no launched run started copying start here, before any lands.
+	if err := c.start(ctx); err != nil {
+		return err
+	}
 	if len(c.promoting) == 0 && len(c.staging) == 0 {
 		return nil
 	}
@@ -473,7 +498,7 @@ func (c *expertResidency) land(ctx context.Context, wait bool) error {
 		return err
 	}
 	for _, move := range c.promoting {
-		bank := c.banks[move.key.bank]
+		bank := move.key.bank
 		class := c.classes[bank.stride]
 		bank.pointers[move.key.index], bank.hosted[move.key.index], bank.changed = move.card, nil, true
 		class.free = append(class.free, move.slot)
@@ -485,11 +510,11 @@ func (c *expertResidency) land(ctx context.Context, wait bool) error {
 		if c.entries[move.key] != nil {
 			c.staged[move.key] = move.slot
 		} else {
-			class := c.classes[c.banks[move.key.bank].stride]
+			class := c.classes[move.key.bank.stride]
 			class.free = append(class.free, move.slot)
 		}
 	}
-	c.promoting, c.staging = c.promoting[:0], c.staging[:0]
+	c.promoting, c.staging, c.queuedPromoting, c.queuedStaging = c.promoting[:0], c.staging[:0], 0, 0
 	return nil
 }
 
@@ -500,10 +525,10 @@ func (c *expertResidency) stage(ctx context.Context) error {
 	// Every staged or staging copy counts against its stride's budget, wherever the routes have since moved its expert.
 	held := make(map[*expertClass]int, len(c.classes))
 	for key := range c.staged {
-		held[c.classes[c.banks[key.bank].stride]]++
+		held[c.classes[key.bank.stride]]++
 	}
 	for _, move := range c.staging {
-		held[c.classes[c.banks[move.key.bank].stride]]++
+		held[c.classes[move.key.bank.stride]]++
 	}
 	for _, class := range c.classes {
 		count := held[class]
@@ -516,27 +541,61 @@ func (c *expertResidency) stage(ctx context.Context) error {
 				continue
 			}
 			count++
-			if err := c.stream(ctx); err != nil {
-				return err
-			}
 			slot, err := c.hostSlot(ctx, class)
 			if err != nil {
 				return err
 			}
-			bank := c.banks[resident.key.bank]
-			if err := c.mem.copyToHost(ctx, c.copies, slot.host[:bank.bytes], bank.pointers[resident.key.index]); err != nil {
-				class.free = append(class.free, slot)
-				return err
-			}
-			c.staging = append(c.staging, expertMove{key: resident.key, slot: slot})
+			// The copy starts once the next run is launched (start).
+			c.staging = append(c.staging, expertMove{key: resident.key, card: resident.key.bank.pointers[resident.key.index], slot: slot})
 			c.moving[resident.key] = true
 		}
 	}
-	if len(c.staging) == 0 && len(c.promoting) == 0 {
+	return nil
+}
+
+// start queues the copies of the moves an advance recorded, on the residency's stream: an advance runs before the
+// run it prepares, whose own small copies to the card would otherwise wait behind them on the copy engine (Flash-Next
+// decode steps waited about 0.5 ms a step). A move whose copy is refused is dropped: a promoted expert stays in host
+// memory and a staging copy's slot is freed.
+func (c *expertResidency) start(ctx context.Context) error {
+	if c.queuedPromoting == len(c.promoting) && c.queuedStaging == len(c.staging) {
 		return nil
 	}
+	if err := c.stream(ctx); err != nil {
+		return err
+	}
+	var err error
+	for _, move := range c.promoting[c.queuedPromoting:] {
+		bank := move.key.bank
+		if err = c.mem.copyToCard(ctx, c.copies, move.card, move.slot.host[:bank.bytes]); err != nil {
+			break
+		}
+		c.queuedPromoting++
+	}
+	if err != nil {
+		for _, move := range c.promoting[c.queuedPromoting:] {
+			delete(c.moving, move.key)
+		}
+		c.promoting = c.promoting[:c.queuedPromoting]
+	}
+	for _, move := range c.staging[c.queuedStaging:] {
+		if err == nil {
+			bank := move.key.bank
+			if err = c.mem.copyToHost(ctx, c.copies, move.slot.host[:bank.bytes], move.card); err == nil {
+				c.queuedStaging++
+				continue
+			}
+		}
+		delete(c.moving, move.key)
+		class := c.classes[move.key.bank.stride]
+		class.free = append(class.free, move.slot)
+	}
+	c.staging = c.staging[:c.queuedStaging]
+	if err != nil {
+		return err
+	}
 	// Asking after the copies submits them, which the driver may otherwise hold until the next run's wait.
-	_, err := c.mem.copied(ctx, c.copies, false)
+	_, err = c.mem.copied(ctx, c.copies, false)
 	return err
 }
 
@@ -592,7 +651,7 @@ func (c *expertResidency) refill(ctx context.Context) error {
 		c.cards, c.bytes = append(c.cards, expertChunk{card, count * bank.stride, bank.stride}), c.bytes+count*bank.stride
 		for index := 0; count > 0; index++ {
 			if bank.hosted[index] != nil {
-				if err := c.move(ctx, expertKey{bank.info.Name, uint32(index)}, card); err != nil {
+				if err := c.move(ctx, expertKey{bank, uint32(index)}, card); err != nil {
 					return err
 				}
 				card += driver.DevicePtr(bank.stride)
@@ -611,7 +670,7 @@ func (c *expertResidency) refill(ctx context.Context) error {
 // expert back first; it stays in host memory when every card expert of its
 // stride was routed this step.
 func (c *expertResidency) promote(ctx context.Context, key expertKey) error {
-	bank := c.banks[key.bank]
+	bank := key.bank
 	class := c.classes[bank.stride]
 	if err := ctx.Err(); err != nil {
 		return err
@@ -624,13 +683,9 @@ func (c *expertResidency) promote(ctx context.Context, key expertKey) error {
 		if _, staged := c.staged[resident.key]; !staged {
 			continue
 		}
-		if err := c.stream(ctx); err != nil {
-			return err
-		}
-		card := c.banks[resident.key.bank].pointers[resident.key.index]
-		if err := c.mem.copyToCard(ctx, c.copies, card, bank.hosted[key.index][:bank.bytes]); err != nil {
-			return err
-		}
+		// The copy starts once the next run is launched (start); the run reads the victim's staged copy and the
+		// promoted expert where it is.
+		card := resident.key.bank.pointers[resident.key.index]
 		c.promoting = append(c.promoting, expertMove{key, card, expertSlot{bank.pointers[key.index], bank.hosted[key.index]}})
 		c.moving[key] = true
 		_, err := c.demote(ctx, entry)
@@ -650,7 +705,7 @@ func (c *expertResidency) promote(ctx context.Context, key expertKey) error {
 // move copies a host expert to its card slot, whose table entry it becomes;
 // the host slot stays pinned for a later demotion.
 func (c *expertResidency) move(ctx context.Context, key expertKey, card driver.DevicePtr) error {
-	bank := c.banks[key.bank]
+	bank := key.bank
 	class := c.classes[bank.stride]
 	if err := c.mem.write(ctx, card, bank.hosted[key.index][:bank.bytes]); err != nil {
 		return err
@@ -665,7 +720,7 @@ func (c *expertResidency) move(ctx context.Context, key expertKey, card driver.D
 // pinned host slot, and returns the card slot it left.
 func (c *expertResidency) demote(ctx context.Context, entry *list.Element) (driver.DevicePtr, error) {
 	key := entry.Value.(*residentExpert).key
-	bank := c.banks[key.bank]
+	bank := key.bank
 	class := c.classes[bank.stride]
 	card := bank.pointers[key.index]
 	slot, staged := c.staged[key]
@@ -705,15 +760,25 @@ func (c *expertResidency) hostSlot(ctx context.Context, class *expertClass) (exp
 	return slot, nil
 }
 
-// publish writes the tables whose experts moved.
+// publish writes the tables whose experts moved as one copy, from the first such table through the last: the tables
+// lie in one allocation in the residency's order, and a decode step that wrote each in turn waited about 25 us a table
+// (eleven a Flash-Next step).
 func (c *expertResidency) publish(ctx context.Context) error {
-	for _, bank := range c.ordered {
+	first, last := len(c.ordered), -1
+	for index, bank := range c.ordered {
 		if bank.changed {
-			if err := c.mem.write(ctx, bank.table, driver.Bytes(bank.pointers)); err != nil {
-				return err
-			}
-			bank.changed = false
+			first, last = min(first, index), index
 		}
+	}
+	if last < 0 {
+		return nil
+	}
+	from, through := c.ordered[first], c.ordered[last]
+	if err := c.mem.write(ctx, from.table, driver.Bytes(c.pointers[from.first:through.first+len(through.pointers)])); err != nil {
+		return err
+	}
+	for _, bank := range c.ordered[first : last+1] {
+		bank.changed = false
 	}
 	return nil
 }
@@ -758,7 +823,7 @@ func (c *expertResidency) release(ctx context.Context) error {
 	for entry := class.order.Front(); entry != nil; {
 		next := entry.Next()
 		key := entry.Value.(*residentExpert).key
-		if pointer := c.banks[key.bank].pointers[key.index]; pointer >= chunk.pointer && uint64(pointer-chunk.pointer) < chunk.bytes {
+		if pointer := key.bank.pointers[key.index]; pointer >= chunk.pointer && uint64(pointer-chunk.pointer) < chunk.bytes {
 			if _, err := c.demote(ctx, entry); err != nil {
 				return err
 			}

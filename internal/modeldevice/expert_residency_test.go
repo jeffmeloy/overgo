@@ -199,7 +199,7 @@ func TestFlashNextExpertResidency(t *testing.T) {
 				if err != nil || !bytes.Equal(actual, f.payloads[name][start:start+bank.bytes]) {
 					t.Fatalf("%s expert %d does not read its bytes: %v", name, index, err)
 				}
-				_, resident := cache.entries[expertKey{name, index}]
+				_, resident := cache.entries[expertKey{cache.banks[name], index}]
 				if resident != (bank.hosted[index] == nil) || resident != slices.Contains(want, index) {
 					t.Fatalf("%s expert %d on the card %t, want the card to hold %v", name, index, resident, want)
 				}
@@ -309,8 +309,15 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		writes, pinned := mem.writes, len(cache.pinned)
 		advance(t, cache)
 		readable(t, cache, mem, map[string][]uint32{"gate": {2}, "down": {2}})
-		if len(cache.promoting) != 2 || mem.writes-writes != 2 {
-			t.Fatalf("%d promotions in flight after %d writes, want two promotions and their two table writes", len(cache.promoting), mem.writes-writes)
+		if len(cache.promoting) != 2 || mem.writes-writes != 1 {
+			t.Fatalf("%d promotions in flight after %d writes, want two promotions and one write of both banks' tables", len(cache.promoting), mem.writes-writes)
+		}
+		// The moves' copies wait for the run the advance prepared to be launched, behind its own copies.
+		if len(mem.queued) != 0 {
+			t.Fatalf("the advance queued %d copies before its run was launched", len(mem.queued))
+		}
+		if err := cache.start(t.Context()); err != nil || len(mem.queued) != len(cache.promoting)+len(cache.staging) {
+			t.Fatalf("starting the moves queued %d copies (%v), want one for each of %d moves", len(mem.queued), err, len(cache.promoting)+len(cache.staging))
 		}
 		mem.hold = false
 		advance(t, cache)
@@ -494,10 +501,10 @@ func TestExpertStagingHoldsItsBudget(t *testing.T) {
 		}
 		held := map[uint64]int{}
 		for key := range cache.staged {
-			held[cache.banks[key.bank].stride]++
+			held[key.bank.stride]++
 		}
 		for _, move := range cache.staging {
-			held[cache.banks[move.key.bank].stride]++
+			held[move.key.bank.stride]++
 		}
 		for stride, count := range held {
 			if count > expertStagedVictims {
@@ -512,7 +519,7 @@ func TestExpertStagingHoldsItsBudget(t *testing.T) {
 	}
 	staged := make([]uint32, 0, expertStagedVictims+1)
 	for _, move := range cache.staging {
-		if move.key.bank == "gate" {
+		if move.key.bank.info.Name == "gate" {
 			staged = append(staged, move.key.index)
 		}
 	}
@@ -629,7 +636,7 @@ func TestExpertResidencyFillsTheCardWhenItFrees(t *testing.T) {
 func onCard(cache *expertResidency, name string) []uint32 {
 	var indices []uint32
 	for key := range cache.entries {
-		if key.bank == name {
+		if key.bank.info.Name == name {
 			indices = append(indices, key.index)
 		}
 	}

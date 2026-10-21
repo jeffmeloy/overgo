@@ -844,7 +844,7 @@
      "contains": "func Compile(",
      "path": "internal/cuda/executor/executor.go",
      "role": "source",
-     "identity": "file:sha256:f5d6a1c2ff7c1109f375c1b4fc977d857aec6d7cf8cbc636f04aa37d4aaeddbd"
+     "identity": "file:sha256:cc9e42b30fa91e1a72071afe013f9575d45f38615ecde6d729f8550075c85468"
     },
     {
      "contains": "func TestIndexedGraphOwnsCompilation(",
@@ -1103,7 +1103,7 @@
      "contains": "func (h *Handler) prepareProtocolGenerationPlan(",
      "path": "internal/server/protocol_common.go",
      "role": "source",
-     "identity": "file:sha256:93992a4050078dd8d5faf04b002b1fa263462dd7e804b95b8b8d18c7284a90e4"
+     "identity": "file:sha256:3407dd18b6476d204973130897d31124b9ef84e22d87d541dc6e58abfc61db25"
     },
     {
      "contains": "func TestPreparedPromptGenerationAndTokenCountParity(",

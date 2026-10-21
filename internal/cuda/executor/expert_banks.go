@@ -14,6 +14,8 @@ import (
 // An expert bank's input is its table of expert pointers, each always readable by the card.
 // ExpertRoutes names the flags a routed node's routes mark, in host memory the card maps, so a run's routes reach the host with no copy.
 // AdvanceExperts applies the last run's routes to residency before the next run, and moves no expert after a prompt.
+// StartExpertCopies starts the copies the last advance recorded, once the run is launched, so the run's own copies to
+// the card do not wait behind them.
 // ReserveExpertMemory releases only completed expert reads before another owner allocates.
 // ExpertSources writes each expert's table address in a routed node's bank, and the pinned bytes of each expert in host memory.
 type ExpertBanks interface {
@@ -21,6 +23,7 @@ type ExpertBanks interface {
 	ExpertRoutes(*device.State, []*tensor.Tensor) (driver.DevicePtr, error)
 	ExpertSources(*device.State, *tensor.Tensor, []driver.DevicePtr, [][]byte) error
 	AdvanceExperts(context.Context, *device.State, bool) error
+	StartExpertCopies(context.Context, *device.State) error
 	ReserveExpertMemory(*device.State, uint64) error
 	ExpertMemory(*device.State) (reclaimable uint64, err error)
 }
@@ -47,12 +50,32 @@ func (e *Executor) SetExpertBanks(source ExpertBanks) error {
 	return nil
 }
 
+// expertUse is what validateExpertUses found of a compiled graph for one source.
+type expertUse struct {
+	source ExpertBanks
+	used   bool
+	tokens uint64
+	err    error
+}
+
 // validateExpertUses reports whether a graph routes through file-backed expert banks and the most tokens one of its routed nodes takes.
+//   - a graph keeps the answer for its source: a decode step that scanned its every node's inputs each run spent
+//     about 0.15 ms of Flash-Next's
 func validateExpertUses(compiled *CompiledGraph, source ExpertBanks) (bool, uint64, error) {
-	used, tokens := false, uint64(0)
 	if source == nil {
 		return false, 0, nil
 	}
+	if found := compiled.expertUse.Load(); found != nil && found.source == source {
+		return found.used, found.tokens, found.err
+	}
+	used, tokens, err := scanExpertUses(compiled, source)
+	compiled.expertUse.Store(&expertUse{source: source, used: used, tokens: tokens, err: err})
+	return used, tokens, err
+}
+
+// scanExpertUses is validateExpertUses over the graph's nodes.
+func scanExpertUses(compiled *CompiledGraph, source ExpertBanks) (bool, uint64, error) {
+	used, tokens := false, uint64(0)
 	for _, node := range compiled.order {
 		for index, input := range node.Inputs {
 			if input.Op != tensor.OpInput || !source.IsExpertBank(input.Name) {

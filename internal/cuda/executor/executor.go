@@ -9,6 +9,7 @@ import (
 	"slices"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"unsafe"
 
 	"overgo/internal/checked"
@@ -478,21 +479,15 @@ func (c *CompiledGraph) InputSlot(input *tensor.Tensor) (InputSlot, bool) {
 // smaller buffer would be read past its end by the kernels that consume
 // the slot.
 func (c *CompiledGraph) InputBytes(slot InputSlot) (uint64, bool) {
-	if c == nil {
+	if c == nil || int(slot) >= len(c.inputs) {
 		return 0, false
 	}
-	for index, node := range c.order {
-		if node == nil || node.Op != tensor.OpInput || c.nodes[index].operandOffset >= 0 ||
-			InputSlot(-c.nodes[index].operandOffset-1) != slot {
-			continue
-		}
-		bytes, err := node.Shape.Bytes(node.Type)
-		if err != nil {
-			return 0, false
-		}
-		return bytes, true
+	node := c.inputs[slot]
+	bytes, err := node.Shape.Bytes(node.Type)
+	if err != nil {
+		return 0, false
 	}
-	return 0, false
+	return bytes, true
 }
 
 func (c *CompiledGraph) NewDeviceInputs() *DeviceInputs {
@@ -744,14 +739,18 @@ func (t *RetainedTargets) SetSlot(slot OutputSlot, value DeviceValue) error {
 // CompiledGraph: validated order and memory plan for repeated execution.
 type CompiledGraph struct {
 	// serial is this compilation's unique number; see compiledSerials.
-	serial              uint64
-	outputs             []*tensor.Tensor
-	outputIndexes       map[*tensor.Tensor]int
-	outputViews         []retainedStorageView
-	outputAliases       []bool
-	order               []*tensor.Tensor
-	orderIndexes        map[*tensor.Tensor]int
-	inputCount          uint32
+	serial        uint64
+	outputs       []*tensor.Tensor
+	outputIndexes map[*tensor.Tensor]int
+	outputViews   []retainedStorageView
+	outputAliases []bool
+	order         []*tensor.Tensor
+	orderIndexes  map[*tensor.Tensor]int
+	inputCount    uint32
+	// inputs is each input slot's node, in slot order.
+	inputs []*tensor.Tensor
+	// expertUse is the last validateExpertUses answer and its source.
+	expertUse           atomic.Pointer[expertUse]
 	operandSlots        []int
 	nodes               []compiledNode
 	launches            []int
@@ -790,6 +789,15 @@ type compiledNode struct {
 	aliases       bool
 	skipped       bool
 	launcher      nodeLauncher
+	// output is the node's output index plus one, zero for a node no output names: a run reads it for every node,
+	// where outputIndexes would take a map lookup each.
+	output int32
+}
+
+// outputIndex is the output index a node's frame names, as outputIndexes holds it: zero and false for a node no
+// output names.
+func (n compiledNode) outputIndex() (int, bool) {
+	return max(int(n.output)-1, 0), n.output > 0
 }
 
 type compiledFusionKind uint8
@@ -1388,6 +1396,7 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 			}
 		} else {
 			compiled.inputCount++
+			compiled.inputs = append(compiled.inputs, node)
 		}
 		fusion, fusionErr := compileFusion(compiled, node)
 		if fusionErr != nil {
@@ -1396,6 +1405,9 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 		frame := compiledNode{
 			operandOffset: offset, fusion: fusion,
 			view: view, aliases: aliases, skipped: skipped,
+		}
+		if outputIndex, output := compiled.outputIndexes[node]; output {
+			frame.output = int32(outputIndex) + 1
 		}
 		if node.Op != tensor.OpInput {
 			descriptor, ok := tensor.DescribeOperation(node.Op)
@@ -2023,7 +2035,7 @@ func execute(
 			continue
 		}
 		pointer, deviceFed := driver.DevicePtr(0), false
-		outputIndex, retainedInput := compiled.outputIndexes[node]
+		outputIndex, retainedInput := frame.outputIndex()
 		retainedInput = retainedInput && retainOutputs
 		var inputTarget driver.DevicePtr
 		if retainedInput {
@@ -2180,7 +2192,7 @@ func execute(
 		if frame.skipped {
 			continue
 		}
-		outputIndex, retainedOutput := compiled.outputIndexes[node]
+		outputIndex, retainedOutput := frame.outputIndex()
 		retainStorage := retainedStorage[nodeIndex]
 		if frame.aliases {
 			offset, offsetErr := frame.view.ByteOffset(node.Type)
@@ -2269,7 +2281,7 @@ func execute(
 				attribute: attributePointers[nodeIndex],
 			}
 			if frame.aliases {
-				outputIndex, retainedOutput := compiled.outputIndexes[node]
+				outputIndex, retainedOutput := frame.outputIndex()
 				retainedAlias := retainedOutput && ownsOutput(outputIndex) && compiled.outputAliases[outputIndex]
 				if retainedAlias || !(retainOutputs && retainedOutput) {
 					continue
@@ -2361,6 +2373,13 @@ func execute(
 			if err := state.Driver.GraphLaunch(exec, state.Stream); err != nil {
 				return nil, err
 			}
+		}
+	}
+	// The residency's copies start behind the run's own, which they would otherwise delay on the copy engine.
+	if experts != nil {
+		// A failure returns once the run is done (the deferred wait).
+		if err := experts.StartExpertCopies(ctx, state); err != nil {
+			return nil, err
 		}
 	}
 	if err := state.Driver.StreamSynchronize(state.Stream); err != nil {

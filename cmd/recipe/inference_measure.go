@@ -228,6 +228,10 @@ func verifiedCase(ctx context.Context, store *overgodb.Store, model artifact.ID)
 	verified := activation.Verified
 	// A gate records at least one step, its candidate execution first.
 	planID, _ := exactEvidence(verified.Gate.Steps[0].Evidence)
+	if !planID.Valid() {
+		// A protocol acceptance names the exact plan it recorded on its candidate.
+		planID = protocolEvidencePlan(verified.Gate.Steps[0].Evidence)
+	}
 	content, err := artifact.RequireTypedContent(ctx, store, planID)
 	if err != nil {
 		return active, nil, fmt.Errorf("recipe: the verification of %s names no exact plan; verify it again with -input: %w", model, err)

@@ -71,7 +71,7 @@ func verifyInference(
 		return openExactCandidate(ctx, path, candidate)
 	}
 	if protocol {
-		_, err = acceptProtocol(ctx, store, candidate.Definition, revision, input, open)
+		_, err = acceptProtocol(ctx, store, candidate.Definition, candidate.Resolved.Document.ID, revision, input, open)
 	} else {
 		_, err = verifyExactRuntime(ctx, store, candidate.Definition, revision, suite, exactPlan, candidate.Resolved.Document.ID, &deferredExactRuntime{open: open})
 	}
@@ -408,16 +408,14 @@ func (runtime *deferredExactRuntime) Close() error {
 	return nil
 }
 
-// verifyExactRuntime shares real execution, failure publication and release for
-// language-only and projected generation. Compilation alone cannot publish
-// success. It returns the verification it published or replayed, which
-// succeeded when it returns no error.
-func verifyExactRuntime(ctx context.Context, store *overgodb.Store, definition recipe.Definition, revision string,
-	suite evaluation.ExactSuite, exactPlan evaluation.ExactPlan, modelDefinition artifact.ID, runtime *deferredExactRuntime,
-) (modelrecipe.Verification, error) {
+// bindExactPlan binds an exact plan to the candidate recipe, its model's definition, the code and this machine's
+// environment, which it publishes where the store lacks it.
+func bindExactPlan(ctx context.Context, store *overgodb.Store, definition recipe.Definition, revision string,
+	exactPlan evaluation.ExactPlan, modelDefinition artifact.ID,
+) (evaluation.Plan, runrecord.Environment, error) {
 	environment, err := runrecord.CurrentEnvironment("cuda:0", "cuda")
 	if err != nil {
-		return modelrecipe.Verification{}, errors.Join(err, runtime.Close())
+		return evaluation.Plan{}, environment, err
 	}
 	evaluationPlan, err := evaluation.BindExact(exactPlan, evaluation.ExactAuthorities{
 		ModelDefinition: modelDefinition,
@@ -427,7 +425,7 @@ func verifyExactRuntime(ctx context.Context, store *overgodb.Store, definition r
 		Execution:       evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident},
 	})
 	if err != nil {
-		return modelrecipe.Verification{}, errors.Join(fmt.Errorf("recipe: bind exact evaluation: %w", err), runtime.Close())
+		return evaluation.Plan{}, environment, fmt.Errorf("recipe: bind exact evaluation: %w", err)
 	}
 	_, found, err := artifact.ReadContent(ctx, store, environment.ID)
 	if err == nil && !found {
@@ -437,6 +435,17 @@ func verifyExactRuntime(ctx context.Context, store *overgodb.Store, definition r
 			_, err = artifact.Publish(ctx, store, batch)
 		}
 	}
+	return evaluationPlan, environment, err
+}
+
+// verifyExactRuntime shares real execution, failure publication and release for
+// language-only and projected generation. Compilation alone cannot publish
+// success. It returns the verification it published or replayed, which
+// succeeded when it returns no error.
+func verifyExactRuntime(ctx context.Context, store *overgodb.Store, definition recipe.Definition, revision string,
+	suite evaluation.ExactSuite, exactPlan evaluation.ExactPlan, modelDefinition artifact.ID, runtime *deferredExactRuntime,
+) (modelrecipe.Verification, error) {
+	evaluationPlan, environment, err := bindExactPlan(ctx, store, definition, revision, exactPlan, modelDefinition)
 	if err != nil {
 		return modelrecipe.Verification{}, errors.Join(err, runtime.Close())
 	}
@@ -529,8 +538,10 @@ type protocolCase struct {
 // runtime open loads. Only when every case is accepted, the runtime closes and
 // the process then holds no device memory does it publish the verification,
 // whose run binds the observation as its input; otherwise it publishes nothing.
-func acceptProtocol(ctx context.Context, store *overgodb.Store, definition recipe.Definition, revision, input string,
-	open func(context.Context) (exactRuntime, error),
+// It also records the first chat case as an exact plan on the same runtime and
+// names the plan in the gate's evidence, so recipe measure can replay it.
+func acceptProtocol(ctx context.Context, store *overgodb.Store, definition recipe.Definition, modelDefinition artifact.ID,
+	revision, input string, open func(context.Context) (exactRuntime, error),
 ) (modelrecipe.Verification, error) {
 	var cases []protocolCase
 	if err := strictjson.DecodeBytes([]byte(input), &cases); err != nil || len(cases) == 0 {
@@ -551,6 +562,10 @@ func acceptProtocol(ctx context.Context, store *overgodb.Store, definition recip
 			failure = errors.Join(failure, fmt.Errorf("recipe: protocol case %s answered %q, finishing %q", test.Name, test.Answer, test.Finish))
 		}
 	}
+	var planID, reportID artifact.ID
+	if failure == nil {
+		planID, reportID, failure = bindProtocolExact(ctx, store, definition, modelDefinition, revision, runtime, cases)
+	}
 	failure = errors.Join(failure, handler.Close(), runtime.Close())
 	if held := driver.ProcessCurrentBytes(); held != 0 {
 		failure = errors.Join(failure, fmt.Errorf("recipe: the process holds %d device bytes after close", held))
@@ -561,11 +576,79 @@ func acceptProtocol(ctx context.Context, store *overgodb.Store, definition recip
 	var verification modelrecipe.Verification
 	if failure == nil {
 		verification, failure = modelintake.PublishMeasuredVerification(ctx, store, definition, revision, time.Since(started), "cuda:0", "cuda",
-			fmt.Sprintf("contract=protocol;observation=%s;cases=%d; every case answered as expected through the serving handlers, the runtime closed and the process held no device bytes after", observation.Descriptor.ID, len(cases)),
+			fmt.Sprintf("contract=protocol;observation=%s;cases=%d;plan=%s;report=%s; every case answered as expected through the serving handlers, the runtime closed and the process held no device bytes after", observation.Descriptor.ID, len(cases), planID, reportID),
 			capabilityruntime.Measured{Input: observation})
 		result["gate_id"], result["run_id"] = verification.Gate.String(), verification.Run.String()
 	}
 	return verification, errors.Join(failure, json.NewEncoder(os.Stdout).Encode(result))
+}
+
+// protocolChatRoute is the route whose cases bind the exact plan a protocol acceptance names.
+const protocolChatRoute = "/v1/chat/completions"
+
+// bindProtocolExact records a protocol acceptance's first chat case on the runtime as an exact case, its
+// conversation formatted as the served model formats a chat under that case's token budget, and evaluates the
+// suite it makes on the same runtime: the plan and report recipe measure replays.
+func bindProtocolExact(ctx context.Context, store *overgodb.Store, definition recipe.Definition, modelDefinition artifact.ID,
+	revision string, runtime exactRuntime, cases []protocolCase,
+) (plan, report artifact.ID, err error) {
+	formatter, ok := runtime.(interface {
+		FormatChatWithOptions([]inference.ChatMessage, inference.ChatFormatOptions) (string, error)
+	})
+	if !ok {
+		return plan, report, errors.New("recipe: the served model formats no chat to bind as an exact plan")
+	}
+	for _, test := range cases {
+		var body struct {
+			Messages  []inference.ChatMessage `json:"messages"`
+			MaxTokens int                     `json:"max_tokens"`
+		}
+		if test.Route != protocolChatRoute || test.Cancel || json.Unmarshal(test.Body, &body) != nil ||
+			len(body.Messages) == 0 || body.MaxTokens <= 0 {
+			continue
+		}
+		prompt, err := formatter.FormatChatWithOptions(body.Messages, inference.ChatFormatOptions{AddGenerationPrompt: true})
+		if err != nil {
+			return plan, report, err
+		}
+		recorded, err := evaluation.Record(ctx, runtime, test.Name, prompt, body.MaxTokens)
+		if err != nil {
+			return plan, report, err
+		}
+		suite := evaluation.ExactSuite{
+			Schema: "overgo/protocol-exact/v1", Source: "the protocol acceptance's first chat case, recorded on its candidate",
+			Cases: []evaluation.ExactCase{{
+				Name: test.Name, Prompt: prompt, MaxTokens: body.MaxTokens, Text: recorded.Text,
+				PromptTokens: recorded.PromptTokens, GeneratedTokens: recorded.GeneratedTokens,
+			}},
+		}
+		exactPlan, err := evaluation.CompileExact(suite)
+		if err != nil {
+			return plan, report, err
+		}
+		evaluationPlan, _, err := bindExactPlan(ctx, store, definition, revision, exactPlan, modelDefinition)
+		if err != nil {
+			return plan, report, err
+		}
+		report, err = evaluation.EvaluateExactSharded(ctx, store, runtime, exactPlan, evaluationPlan, nil)
+		return evaluationPlan.Identity(), report, err
+	}
+	return plan, report, errors.New("recipe: the protocol input lists no chat case to bind as an exact plan")
+}
+
+// protocolEvidencePlan reads the exact plan a protocol verification's evidence names, zero where it names none.
+func protocolEvidencePlan(evidence string) artifact.ID {
+	fields := strings.Split(evidence, ";")
+	if strings.TrimSpace(fields[0]) != "contract=protocol" {
+		return artifact.ID{}
+	}
+	for _, field := range fields[1:] {
+		if text, declared := strings.CutPrefix(strings.TrimSpace(field), "plan="); declared {
+			plan, _ := artifact.ParseID(text)
+			return plan
+		}
+	}
+	return artifact.ID{}
 }
 
 // serveProtocolCase sends one case through the handler and records what came

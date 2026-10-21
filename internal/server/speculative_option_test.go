@@ -22,6 +22,8 @@ type draftGenerator struct {
 
 func (*draftGenerator) SpeculativeDraftTokens() int { return 3 }
 
+func (*draftGenerator) SupportsPromptCache() bool { return true }
+
 func (generator *draftGenerator) Generate(_ context.Context, _ string, options inference.GenerateOptions) ([]tokenizer.TokenID, string, error) {
 	generator.ran = append(generator.ran, options)
 	if options.SpeculativeDecode && options.OnDraftSpan != nil {
@@ -41,7 +43,7 @@ func (generator *draftGenerator) Generate(_ context.Context, _ string, options i
 // TestSpeculativeDecodingDeclaredOption: the capability document offers
 // speculative decoding, with its draft span, only when the served model
 // declares a draft head and context shifting is off; a speculative turn runs
-// greedily on the device from an uncached prompt and reports its drafted
+// greedily on the device, keeping the prompt cache, and reports its drafted
 // and accepted tokens; a request without a draft head or under non-greedy
 // sampling is refused with why.
 func TestSpeculativeDecodingDeclaredOption(t *testing.T) {
@@ -80,7 +82,7 @@ func TestSpeculativeDecodingDeclaredOption(t *testing.T) {
 		t.Fatalf("inspection = %d %s", inspection.Code, inspection.Body.String())
 	}
 	ran := generator.ran[len(generator.ran)-1]
-	if !ran.SpeculativeDecode || !ran.DeviceGreedy || ran.CachePrompt {
+	if !ran.SpeculativeDecode || !ran.DeviceGreedy || !ran.CachePrompt {
 		t.Fatalf("speculative options = speculative %v greedy %v cached %v", ran.SpeculativeDecode, ran.DeviceGreedy, ran.CachePrompt)
 	}
 	if code, body := turn(handler, "0.8"); code != http.StatusBadRequest || !strings.Contains(body, "set temperature 0") {

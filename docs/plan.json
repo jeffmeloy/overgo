@@ -241,17 +241,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 79,
+        "nodes": 0,
         "reason": "serve-draft as built adds 79 production syntax nodes (the gate's preflight, 2026-10-21): the server's -draft flag, the speculative turn's prompt cache (its cached start and its retained last boundary), and the context clamp's merge. The speculative default and its held-out check do not land with it (draft-depth's note says why)."
       },
       "steps": [
-        {
-          "id": "serve-draft",
-          "title": "Serve Flash-Next with its MTP draft and speculate greedy requests by default, keeping the prompt cache",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "The server opens no draft (inference.OpenOptions.Draft is set only by probes and tests), and a speculative request turns the prompt cache off (protocol_common.go:298-300), so an agent's follow-up turns would read their whole prompt again.\nThe step binds the draft to the model's library entry as the projector is bound, speculates a greedy request when the draft pays (measured by window-cost and draft-depth), and keeps the prompt cache for speculative requests.\nEvidence: Strata's bench on master, the short chat's and agent turns' decode against plain, follow-up turns' cached tokens unchanged.\nServes: throughput and setup-steps.\nBatch: device.\n\nFrom the owner's review of 2026-10-20: speculation changes outputs at rounding level (on the short chat the one-draft window departs from plain greedy at about the 37th token, \"During a brutal nineteenth-century\" against \"During a nineteenth-century\"), so a default holds only where held-out quality holds. The step's check runs Flash-Next's held-out score (flashnext-cells' scorecard cells) with and without speculation. speculation/clamp landed first (d9d96d5db), so a speculating request ends at its context limit as plain decoding does. Folded in from flashnext-efficiency/reuse: follow-up turns keep their cached prompt, measured by Strata's agent session (cached tokens and first output of each turn)."
-        },
         {
           "id": "draft-depth",
           "title": "Draft up to three tokens a window while the draft is confident, as Strata's min-p window does",

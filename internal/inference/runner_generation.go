@@ -93,7 +93,8 @@ func (r *Runner) Generate(
 	// deviceGreedy: raw-greedy decode selects on device; only the winning
 	// token id crosses PCIe. Callbacks receive TokenEvent without Logits, so
 	// callback users must opt in via options.DeviceGreedy.
-	deviceGreedy := useDeviceCache && !options.CachePrompt &&
+	// A speculating request keeps its prompt cache: it starts from a cached prefix and keeps its last boundary.
+	deviceGreedy := useDeviceCache && (!options.CachePrompt || options.SpeculativeDecode) &&
 		options.PostSamplingProbabilities == 0 && options.Sampler.IsRawGreedy() &&
 		(options.DeviceGreedy || (options.OnToken == nil && options.ShouldStop == nil))
 	defer func() {
@@ -130,6 +131,11 @@ func (r *Runner) Generate(
 				if cached > 0 &&
 					cached < len(selectedPromptCache.Tokens) &&
 					r.hasRecurrentCache() {
+					cached = 0
+				}
+				// Device greedy selects from the prompt's last token, which an entry holding the whole prompt
+				// does not keep, and a recurrent state cannot step back a token: the prompt is read again.
+				if deviceGreedy && cached == len(ids) {
 					cached = 0
 				}
 				if cached > 0 {
@@ -322,7 +328,11 @@ func (r *Runner) Generate(
 			// A failed span ends the request with the ids decoded so far, as a failed step does.
 			return ids, "", err
 		}
-		return ids, speculatedText, nil
+		// The last boundary holds every id before its pending ones, which a continuation forwards again.
+		if options.CachePrompt && deviceCache != nil && int(deviceCache.Tokens) < len(ids) {
+			err = r.retainDecodedPromptCache(context.WithoutCancel(ctx), ids[:deviceCache.Tokens+1], reference.Value{}, nil, deviceCache)
+		}
+		return ids, speculatedText, err
 	}
 
 	var generatedText strings.Builder

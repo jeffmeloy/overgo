@@ -248,8 +248,11 @@ func (r *Runner) generateDeviceSpeculativeGreedy(
 		if accepted == len(drafts) {
 			previous := boundary
 			boundary = span
-			if err := previous.Release(ctx); err != nil {
-				return ids, boundary, "", err
+			// A boundary the prompt cache holds stays its entry.
+			if !r.ownsDevicePromptCache(previous) {
+				if err := previous.Release(ctx); err != nil {
+					return ids, boundary, "", err
+				}
 			}
 			pending = []tokenizer.TokenID{correction}
 		} else {

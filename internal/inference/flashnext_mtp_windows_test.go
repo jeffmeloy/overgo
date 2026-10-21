@@ -172,6 +172,76 @@ func copyDraftAcceptance(plain []tokenizer.TokenID, generated int) (drafted, acc
 	return drafted, accepted
 }
 
+// TestFlashNextMTPKeepsThePromptCache speculates two turns of one conversation with the prompt cache on: the second
+// turn reads only what follows the first turn's last boundary, and both keep the trunk's plain greedy tokens, with a
+// mostly rejected draft layer (whose last boundary lags its tokens) and a copying one.
+func TestFlashNextMTPKeepsThePromptCache(t *testing.T) {
+	// Serial: the generations share the one CUDA device.
+	requireIntegration(t)
+	cudatest.Require(t)
+	trunk := writeHermeticFlashNextGGUF(t)
+	greedy, err := sampling.New(sampling.Config{Temperature: 0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const generated = 12
+	first := []tokenizer.TokenID{4, 9, 17}
+	// The follow-up turn adds a user's tokens after the first turn's answer.
+	followUp := []tokenizer.TokenID{21, 30}
+	plainRunner, err := openFixtureRunnerWithResidency(trunk, OpenOptions{}, recipe.ResidencyDeviceNative)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain := func(prompt []tokenizer.TokenID) []tokenizer.TokenID {
+		t.Helper()
+		ids, _, err := plainRunner.Generate(t.Context(), "", GenerateOptions{
+			MaxNewTokens: generated, Sampler: greedy, DeviceGreedy: true, PromptTokenIDs: prompt, ContinueAfterEOG: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ids
+	}
+	plainFirst := plain(first)
+	plainSecond := plain(append(slices.Clone(plainFirst), followUp...))
+	if err := plainRunner.Close(); err != nil {
+		t.Fatal(err)
+	}
+	for _, copyTrunk := range []bool{false, true} {
+		runner, err := openFixtureRunnerWithResidency(trunk,
+			OpenOptions{Draft: writeHermeticFlashNextMTPGGUF(t, trunk, copyTrunk), PromptCacheEntries: 1}, recipe.ResidencyDeviceNative)
+		if err != nil {
+			t.Fatal(err)
+		}
+		turn := func(prompt []tokenizer.TokenID) ([]tokenizer.TokenID, int) {
+			t.Helper()
+			cached := -1
+			ids, _, err := runner.Generate(t.Context(), "", GenerateOptions{
+				MaxNewTokens: generated, Sampler: greedy, DeviceGreedy: true, SpeculativeDecode: true, CachePrompt: true,
+				PromptTokenIDs: prompt, ContinueAfterEOG: true,
+				OnPromptEvaluated: func(evaluation PromptEvaluation) { cached = evaluation.Cached },
+			})
+			if err != nil {
+				_ = runner.Close()
+				t.Fatal(err)
+			}
+			return ids, cached
+		}
+		one, _ := turn(first)
+		two, cached := turn(append(slices.Clone(one), followUp...))
+		if closeErr := runner.Close(); closeErr != nil {
+			t.Fatal(closeErr)
+		}
+		if !slices.Equal(one, plainFirst) || !slices.Equal(two, plainSecond) {
+			t.Fatalf("copy=%t: speculative turns %v and %v differ from plain %v and %v", copyTrunk, one, two, plainFirst, plainSecond)
+		}
+		if cached <= len(first) || cached >= len(one) {
+			t.Fatalf("copy=%t: the second turn reused %d cached tokens of the first turn's %d", copyTrunk, cached, len(one))
+		}
+		t.Logf("copy=%t: the second turn reused %d of %d tokens", copyTrunk, cached, len(two)-generated)
+	}
+}
+
 // TestFlashNextMTPKeepsGreedyText drafts with a Flash-Next-shaped draft layer attached from its own file and holds speculative greedy generation to plain greedy generation token for token.
 //   - a random draft layer is mostly rejected, so verify spans re-span from their boundary
 //   - a copying draft layer drafts the token the trunk selected from the same streams, so its accepted drafts are exactly the plain text's repeats

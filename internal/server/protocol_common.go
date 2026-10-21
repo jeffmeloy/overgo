@@ -295,9 +295,9 @@ func (plan *protocolGenerationPlan) runWithSampler(
 	if provider, ok := plan.session.Model().(promptCacheProvider); ok {
 		options.CachePrompt = provider.SupportsPromptCache()
 	}
-	// A speculative turn decodes greedily on the device from an uncached prompt.
+	// A speculative turn decodes greedily on the device, from and into the prompt cache.
 	if plan.speculative {
-		options.SpeculativeDecode, options.DeviceGreedy, options.CachePrompt = true, true, false
+		options.SpeculativeDecode, options.DeviceGreedy = true, true
 	}
 	options.OnPromptEvaluated = func(evaluation inference.PromptEvaluation) {
 		plan.evaluation = evaluation

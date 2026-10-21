@@ -208,24 +208,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "cache-restore-bounds",
-      "title": "Validate a compressed cache's bounds before synthesizing its positions",
-      "status": "open",
-      "budget": {
-        "nodes": 65,
-        "reason": "cache-restore-bounds as built adds 65 production syntax nodes (the gate's preflight, 2026-10-21): validateCacheBounds, the token, position, context and layer checks LoadCache runs before synthesizing positions, and the positions built only once a layer lacks them."
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Validate a compressed cache's bounds before synthesizing its positions",
-          "status": "open",
-          "verify": "go test ./internal/inference -count=1 -run '^(TestDeepSeek4CacheStateRoundTrip|TestKVCacheStateRejectsLayerCountBeyondPayload)$'",
-          "rationale": "From SQA-180 (P2, 4334943e5): a compressed-attention runner's LoadCache synthesizes a position array of the header's token count (materializeCompressedCachePositions) before validateCache checks the tokens against the context and the layers: a 20-byte header claiming 2^32 tokens asks about 17 GB before its refusal, and a complete cache allocates and fills a discarded array of 4 bytes a token on every restore.\nThe step moves the existing token, context and layer checks ahead of the synthesis, sharing them between LoadCache and validateCache, and synthesizes positions only for a validated layer that lacks them; missing-position caches keep restoring with their values.\nEvidence: TestDeepSeek4CacheStateRoundTrip with a missing-position restore and independent layer edits; the malformed-header refusal on the compressed runner before any token-sized allocation.\nServes: failure-rate of restored prompt state.\nBatch: cpu."
-        }
-      ]
-    },
-    {
       "id": "flashnext-speculation",
       "title": "Decode Flash-Next through its MTP draft at the rate Strata's MTP windows reach",
       "owner": "master-lead",

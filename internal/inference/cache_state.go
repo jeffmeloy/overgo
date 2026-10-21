@@ -43,6 +43,10 @@ func (r *Runner) LoadCache(data []byte) (*KVCache, error) {
 	if err != nil {
 		return nil, err
 	}
+	// The header's tokens are checked before anything sized by them is built: a 20-byte header may claim 2^32.
+	if err := r.validateCacheBounds(cache); err != nil {
+		return nil, err
+	}
 	if r.program.Model.HasCache(model.CacheCompressedAttention) {
 		materializeCompressedCachePositions(cache)
 	}
@@ -52,19 +56,24 @@ func (r *Runner) LoadCache(data []byte) (*KVCache, error) {
 	return cache, nil
 }
 
+// materializeCompressedCachePositions gives each layer that holds no positions the cache's own, consecutive up to its
+// position; a cache whose every layer holds them builds none.
 func materializeCompressedCachePositions(cache *KVCache) {
 	if cache == nil || cache.Tokens == 0 || effectiveCachePosition(cache) < cache.Tokens {
 		return
 	}
-	start := effectiveCachePosition(cache) - cache.Tokens
-	data := make([]float32, cache.Tokens)
-	for index := range data {
-		data[index] = float32(start + uint32(index))
-	}
+	var data []float32
 	shape := tensor.MustShape(1, 1, uint64(cache.Tokens))
 	for index := range cache.Layers {
 		if _, present := cache.Layers[index].States[model.CacheStatePositions]; present {
 			continue
+		}
+		if data == nil {
+			start := effectiveCachePosition(cache) - cache.Tokens
+			data = make([]float32, cache.Tokens)
+			for item := range data {
+				data[item] = float32(start + uint32(item))
+			}
 		}
 		if cache.Layers[index].States == nil {
 			cache.Layers[index].States = make(LayerStates)
@@ -75,7 +84,9 @@ func materializeCompressedCachePositions(cache *KVCache) {
 	}
 }
 
-func (r *Runner) validateCache(cache *KVCache) error {
+// validateCacheBounds checks a cache's tokens against the model's position invariant and its context, and its layers
+// against the program's.
+func (r *Runner) validateCacheBounds(cache *KVCache) error {
 	if cache == nil {
 		return errors.New("inference: KV cache is nil")
 	}
@@ -102,6 +113,13 @@ func (r *Runner) validateCache(cache *KVCache) error {
 			len(cache.Layers),
 			expectedLayers,
 		)
+	}
+	return nil
+}
+
+func (r *Runner) validateCache(cache *KVCache) error {
+	if err := r.validateCacheBounds(cache); err != nil {
+		return err
 	}
 	var deepSeekPositions []float32
 	for index, layer := range cache.Layers {

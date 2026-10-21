@@ -213,17 +213,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 506,
+        "nodes": 486,
         "reason": "speculate-default as built adds 144 production syntax nodes (the gate's preflight, 2026-10-21): GenerateOptions.PlainDecode and the runner's default, the protocols' optional speculative field and its admission, the capability document's default and SpeculatesByDefault; with step-overheads' 494 the row's count is 650."
       },
       "steps": [
-        {
-          "id": "span-experts",
-          "title": "Group a verify span's routed rows by expert so a shared expert is read once",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "From Nsight Systems over Flash-Next's speculative short chat (master fcba3efe6, kernel trace): a two-token verify span's routed products take 50 us (moe_hidden_dot_f32) and 28 us (moe_down_dot_f32) at their medians against 27 and 15 for one token, so a span's second token pays its experts in full, about 1.8 ms of the 3.5 ms an extra token costs; its 90th percentiles (307 and 172 us) are the layers with experts in host memory. Each warp dots one routed row of one token, so an expert two tokens share is read twice.\nStrata's decode-once kernels read each weight block once for every column that needs it (src/kernels/cuda/iq_kernels.cu, \"decode once, apply to every column\"), its window's tokens sharing their experts' reads.\nThe step groups a span's routed rows by expert in the native decode products: a warp reads an expert row once and dots it with each of the span's tokens routed to it, the rows and outputs bit for bit those of the per-token dots.\nEvidence: the products' medians for two- and four-token spans and the probe's milliseconds a token, speculative; outputs unchanged.\nServes: throughput of speculative decoding and every verify span.\nBatch: device."
-        },
         {
           "id": "span-commit-chain",
           "title": "Commit a verify span's kept prefix without a second span, as Strata's Verifier::commit does",

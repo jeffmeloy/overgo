@@ -9194,36 +9194,17 @@ __device__ __forceinline__ float moe_down_channel(
     return result;
 }
 
-// moe_hidden_dot_f32 gives each routed row of a launch group a warp.
-//   - the warp dots the row's gate and up weights with its token's input and stores the row's activation
+// moe_hidden_row stores the activation of routed row index of a launch group, its warp's.
+//   - the warp dots the row's gate and up weights with its token's input
 //   - a block storage takes block dots
 //   - another storage, or an input off 16-byte alignment, takes one weight a lane in turn
-extern "C" __global__ void moe_hidden_dot_f32(
-        const float * input,
-        const unsigned int * route_state,
-        const void * gate,
-        const void * up,
-        const float * gate_bias,
-        const float * up_bias,
-        float * activations,
-        unsigned int hidden,
-        unsigned int top_k,
-        unsigned int intermediate,
-        unsigned int routing,
-        unsigned int gate_storage,
-        unsigned int up_storage,
-        unsigned int gated,
-        unsigned int fused_gate_up,
-        unsigned int activation,
-        unsigned int expert_index_divisor,
-        float swiglu_clamp,
-        unsigned int indexed_experts,
-        unsigned int count) {
-    __shared__ block_dot_codebooks codebooks;
-    block_dot_codebooks_load(codebooks, gate_storage, up_storage);
-    const unsigned int index = (blockIdx.x * blockDim.x + threadIdx.x) / CUDA_WARP_WIDTH;
-    if (index >= count) return;
-    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+__device__ __forceinline__ void moe_hidden_row(
+        const float * input, const unsigned int * route_state, const void * gate, const void * up,
+        const float * gate_bias, const float * up_bias, float * activations, unsigned int hidden, unsigned int top_k,
+        unsigned int intermediate, unsigned int routing, unsigned int gate_storage, unsigned int up_storage,
+        unsigned int gated, unsigned int fused_gate_up, unsigned int activation, unsigned int expert_index_divisor,
+        float swiglu_clamp, unsigned int indexed_experts, unsigned int index, unsigned int lane,
+        const block_dot_codebooks & codebooks) {
     const unsigned int inner_index = index % intermediate;
     const unsigned int selected = index / intermediate;
     const unsigned int slot = selected % top_k;
@@ -9262,7 +9243,188 @@ extern "C" __global__ void moe_hidden_dot_f32(
     activations[index] = moe_activation(gate_dot, up_dot, gated, activation, routing, swiglu_clamp);
 }
 
+// moe_hidden_dot_f32 gives each routed row of a launch group a warp, which stores the row's activation.
+extern "C" __global__ void moe_hidden_dot_f32(
+        const float * input,
+        const unsigned int * route_state,
+        const void * gate,
+        const void * up,
+        const float * gate_bias,
+        const float * up_bias,
+        float * activations,
+        unsigned int hidden,
+        unsigned int top_k,
+        unsigned int intermediate,
+        unsigned int routing,
+        unsigned int gate_storage,
+        unsigned int up_storage,
+        unsigned int gated,
+        unsigned int fused_gate_up,
+        unsigned int activation,
+        unsigned int expert_index_divisor,
+        float swiglu_clamp,
+        unsigned int indexed_experts,
+        unsigned int count) {
+    __shared__ block_dot_codebooks codebooks;
+    block_dot_codebooks_load(codebooks, gate_storage, up_storage);
+    const unsigned int index = (blockIdx.x * blockDim.x + threadIdx.x) / CUDA_WARP_WIDTH;
+    if (index >= count) return;
+    moe_hidden_row(input, route_state, gate, up, gate_bias, up_bias, activations, hidden, top_k, intermediate, routing,
+        gate_storage, up_storage, gated, fused_gate_up, activation, expert_index_divisor, swiglu_clamp, indexed_experts,
+        index, threadIdx.x % CUDA_WARP_WIDTH, codebooks);
+}
+
+// MOE_SPAN_TOKENS: the most tokens of a launch group that read their shared experts' rows once, a verify span's.
+//   - a routed slot, token * top_k + slot, takes MOE_SPAN_SLOT_BITS bits of a packed word
+constexpr unsigned int MOE_SPAN_TOKENS = 4;
+constexpr unsigned int MOE_SPAN_SLOT_BITS = 8;
+
+// moe_span_rows stores the activations of one expert's gate and up row for each of COLUMNS routed slots.
+//   - slots packs the routed slots, MOE_SPAN_SLOT_BITS bits each, the first in the low bits
+//   - a slot's sums are block_rows_dot's, so its activation is bit for bit the one moe_hidden_row stores
+//   - the slots' dots of one weight group read and decode the same bytes, which the compiler does once: the IQ3_S
+//     codebook reads and byte permutes of two slots' SASS number one slot's
+template <typename Format, unsigned int COLUMNS>
+__device__ __forceinline__ void moe_span_rows(
+        const unsigned char * gate_row, const unsigned char * up_row, const float * input, unsigned int slots,
+        const float * gate_bias, const float * up_bias, float * activations, unsigned int hidden, unsigned int top_k,
+        unsigned int intermediate, unsigned int inner_index, unsigned int expert, unsigned int routing,
+        unsigned int activation, float swiglu_clamp, unsigned int lane, const block_dot_codebooks & codebooks) {
+    constexpr unsigned int groups = Format::width / BLOCK_DOT_WEIGHTS;
+    const unsigned int group = lane % groups;
+    const unsigned char * rows[2] = {gate_row, up_row};
+    const float * xs[COLUMNS];
+    #pragma unroll
+    for (unsigned int column = 0; column < COLUMNS; ++column) {
+        const unsigned int slot = slots >> (MOE_SPAN_SLOT_BITS * column) & ((1u << MOE_SPAN_SLOT_BITS) - 1);
+        xs[column] = input + (size_t) (slot / top_k) * hidden;
+    }
+    float dots[2][COLUMNS] = {};
+    #pragma unroll 1
+    for (unsigned int block = lane / groups; block < hidden / Format::width; block += block_dot_step<Format>()) {
+        #pragma unroll
+        for (unsigned int row = 0; row < 2; ++row) {
+            #pragma unroll
+            for (unsigned int column = 0; column < COLUMNS; ++column) {
+                dots[row][column] += Format::dot(rows[row] + (size_t) block * Format::bytes, group,
+                    xs[column] + (size_t) block * Format::width, codebooks);
+            }
+        }
+    }
+    #pragma unroll
+    for (unsigned int column = 0; column < COLUMNS; ++column) {
+        float gate_dot = warp_sum_down(dots[0][column]);
+        float up_dot = warp_sum_down(dots[1][column]);
+        if (lane == 0) {
+            if (gate_bias) {
+                gate_dot += gate_bias[(size_t) expert * intermediate + inner_index];
+                up_dot += up_bias[(size_t) expert * intermediate + inner_index];
+            }
+            const unsigned int slot = slots >> (MOE_SPAN_SLOT_BITS * column) & ((1u << MOE_SPAN_SLOT_BITS) - 1);
+            activations[(size_t) slot * intermediate + inner_index] =
+                moe_activation(gate_dot, up_dot, 1, activation, routing, swiglu_clamp);
+        }
+    }
+}
+
+// moe_hidden_span_dot_f32 is moe_hidden_dot_f32 for a launch group of at most MOE_SPAN_TOKENS tokens, which reads each
+// routed expert's gate and up rows once for all the group's tokens that route to it.
+//   - the warp of a row's first token that routes to its expert dots it with that token's input and every later one's,
+//     and a later token's warp leaves the row to it
+//   - a gate and up of one block storage, over an input 16-byte aligned, take the shared reads; others take moe_hidden_row's
+//   - three blocks a multiprocessor hold its 80 registers, where its four-slot dots would take 96 unbounded
+extern "C" __global__ void __launch_bounds__(256, 3) moe_hidden_span_dot_f32(
+        const float * input,
+        const unsigned int * route_state,
+        const void * gate,
+        const void * up,
+        const float * gate_bias,
+        const float * up_bias,
+        float * activations,
+        unsigned int hidden,
+        unsigned int top_k,
+        unsigned int intermediate,
+        unsigned int routing,
+        unsigned int gate_storage,
+        unsigned int up_storage,
+        unsigned int gated,
+        unsigned int fused_gate_up,
+        unsigned int activation,
+        unsigned int expert_index_divisor,
+        float swiglu_clamp,
+        unsigned int indexed_experts,
+        unsigned int count) {
+    __shared__ block_dot_codebooks codebooks;
+    block_dot_codebooks_load(codebooks, gate_storage, up_storage);
+    const unsigned int index = (blockIdx.x * blockDim.x + threadIdx.x) / CUDA_WARP_WIDTH;
+    if (index >= count) return;
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const unsigned int tokens = count / (top_k * intermediate);
+    // A storage's eligibility depends on the launch alone, so every warp of the group decides alike.
+    const bool spanned = gated && gate_storage == up_storage && tokens <= MOE_SPAN_TOKENS &&
+        visit_block_format(up_storage, input, [](auto) {});
+    const unsigned int inner_index = index % intermediate;
+    const unsigned int selected = index / intermediate;
+    const unsigned int token = selected / top_k;
+    const unsigned int token_words = 2 * top_k + 1;
+    const unsigned int expert = route_state[(size_t) token * token_words + selected % top_k] / expert_index_divisor;
+    // Lane s < top_k reads slot s of each token, and top_k <= MaxMoETopK < CUDA_WARP_WIDTH.
+    //   - a token that routes twice to the expert, through the index divisor or repeated selections, leaves each of the
+    //     expert's warps its own row, as every one of them finds
+    unsigned int slots = selected;
+    unsigned int columns = 1;
+    bool earlier = false;
+    bool repeated = false;
+    for (unsigned int other = 0; spanned && other < tokens; ++other) {
+        const unsigned int routes = __ballot_sync(0xffffffffu,
+            lane < top_k && route_state[(size_t) other * token_words + lane] / expert_index_divisor == expert);
+        repeated |= __popc(routes) > 1;
+        if (other == token || routes == 0) continue;
+        earlier |= other < token;
+        if (other > token) slots |= (other * top_k + __ffs(routes) - 1) << (MOE_SPAN_SLOT_BITS * columns++);
+    }
+    if (!spanned || repeated) {
+        moe_hidden_row(input, route_state, gate, up, gate_bias, up_bias, activations, hidden, top_k, intermediate,
+            routing, gate_storage, up_storage, gated, fused_gate_up, activation, expert_index_divisor, swiglu_clamp,
+            indexed_experts, index, lane, codebooks);
+        return;
+    }
+    if (earlier) return;
+    if (indexed_experts) {
+        gate = reinterpret_cast<const void * const *>(gate)[expert];
+        up = reinterpret_cast<const void * const *>(up)[expert];
+    }
+    const size_t gate_row =
+        (size_t) (indexed_experts ? 0 : expert) * (fused_gate_up ? 2 : 1) * intermediate * hidden +
+        (size_t) inner_index * hidden;
+    const size_t up_row = gate_row + (fused_gate_up ? (size_t) intermediate * hidden : 0);
+    visit_block_format(up_storage, input, [&](auto format) {
+        using Format = decltype(format);
+        const unsigned char * gate_blocks = block_row<Format>(gate, gate_row);
+        const unsigned char * up_blocks = block_row<Format>(up, up_row);
+        switch (columns) {
+        case 1:
+            moe_span_rows<Format, 1>(gate_blocks, up_blocks, input, slots, gate_bias, up_bias, activations, hidden,
+                top_k, intermediate, inner_index, expert, routing, activation, swiglu_clamp, lane, codebooks);
+            break;
+        case 2:
+            moe_span_rows<Format, 2>(gate_blocks, up_blocks, input, slots, gate_bias, up_bias, activations, hidden,
+                top_k, intermediate, inner_index, expert, routing, activation, swiglu_clamp, lane, codebooks);
+            break;
+        case 3:
+            moe_span_rows<Format, 3>(gate_blocks, up_blocks, input, slots, gate_bias, up_bias, activations, hidden,
+                top_k, intermediate, inner_index, expert, routing, activation, swiglu_clamp, lane, codebooks);
+            break;
+        default:
+            moe_span_rows<Format, MOE_SPAN_TOKENS>(gate_blocks, up_blocks, input, slots, gate_bias, up_bias,
+                activations, hidden, top_k, intermediate, inner_index, expert, routing, activation, swiglu_clamp,
+                lane, codebooks);
+        }
+    });
+}
+
 // moe_down_dot_f32 gives each output channel of a launch group's tokens a warp, which sums the channel over its routed slots.
+//   - a channel's tokens take adjacent warps, so the rows of the experts they share are read together
 extern "C" __global__ void moe_down_dot_f32(
         const unsigned int * route_state,
         const float * activations,
@@ -9281,9 +9443,11 @@ extern "C" __global__ void moe_down_dot_f32(
         unsigned int count) {
     __shared__ block_dot_codebooks codebooks;
     block_dot_codebooks_load(codebooks, expert_storage, expert_storage);
-    const unsigned int index = (blockIdx.x * blockDim.x + threadIdx.x) / CUDA_WARP_WIDTH;
-    if (index >= count) return;
+    const unsigned int warp = (blockIdx.x * blockDim.x + threadIdx.x) / CUDA_WARP_WIDTH;
+    if (warp >= count) return;
     const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const unsigned int tokens = count / hidden;
+    const unsigned int index = warp % tokens * hidden + warp / tokens;
     const float result = moe_down_channel(route_state, activations, down, expert_scale, down_bias, hidden, top_k,
         intermediate, normalize_top_k, routed_scale, expert_storage, expert_index_divisor, indexed_experts,
         index, lane, CUDA_WARP_WIDTH, &codebooks);

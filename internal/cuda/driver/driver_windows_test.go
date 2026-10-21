@@ -4,6 +4,7 @@
 package driver_test
 
 import (
+	"runtime"
 	"testing"
 
 	"overgo/internal/cuda/driver"
@@ -50,6 +51,9 @@ func TestDriverIntegration(t *testing.T) {
 // queued copy was waited for; neither is an error.
 func TestStreamQueryReportsCompletedWork(t *testing.T) {
 	cudatest.Require(t)
+	// The context it creates is current on this thread alone.
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	lib, err := driver.Open()
 	if err != nil {
 		t.Fatal(err)

@@ -474,20 +474,17 @@ func TestExecutorMoENativeCompute(t *testing.T) {
 // TestExecutorMoEExpertsUseBlockDots runs routed-expert decode natively over
 // each block storage of Qwen3.8-Flash-Next's UD-IQ4_XS experts and holds the
 // output to the host reference over the dequantized banks. The hidden and
-// down launches are the dot kernels with the banks' storages, indexed banks
-// keep the output's bits, and an input that starts off 16-byte alignment
-// stays within the reference.
+// down launches are the span's dot kernels with the banks' storages, indexed
+// banks keep the output's bits, an input that starts off 16-byte alignment
+// stays within the reference, and each token run alone, through the
+// one-token kernels, computes the span's bits for it.
 func TestExecutorMoEExpertsUseBlockDots(t *testing.T) {
 	// Serial: device fixtures share the one card.
 	const (
-		// A launch record is four header words, then eight bytes a pointer and four a scalar.
-		headerBytes  = 4 * 8
-		logitsRecord = headerBytes + 4*8 + 3*4
-		routeRecord  = headerBytes + 5*8 + 5*4
-		hiddenRecord = headerBytes + 7*8 + 13*4
+		hiddenRecord = moeRecordHeader + 7*8 + 13*4
 		// The hidden record's storages follow its pointers and four scalars, the down record's its pointers and five.
-		hiddenGateStorage = headerBytes + 7*8 + 4*4
-		downStorage       = headerBytes + 6*8 + 5*4
+		hiddenGateStorage = moeRecordHeader + 7*8 + 4*4
+		downStorage       = moeRecordHeader + 6*8 + 5*4
 	)
 	for _, banks := range [][3]dtype.Type{
 		// Flash-Next's routed layers pair IQ3_S gate and up with IQ4_NL down, and IQ4_XS with Q8_0.
@@ -500,15 +497,17 @@ func TestExecutorMoEExpertsUseBlockDots(t *testing.T) {
 	} {
 		name := fmt.Sprintf("%s-%s-%s", banks[0], banks[1], banks[2])
 		t.Run(name, func(t *testing.T) {
-			// Gate and up rows of two 256-weight blocks; three decode tokens stay below grouped matrix reuse.
+			// Gate and up rows of two 256-weight blocks; four decode tokens, a span's most, stay below grouped matrix reuse,
+			// and their eight routes over four experts share some.
 			c := moePinnedCase{
 				name: "block-dots-" + name, compute: tensor.MulMatComputeNativeTensorCore,
-				hidden: 512, routerHidden: 512, intermediate: 256, experts: 4, tokens: 3, divisor: 1, topK: 2,
+				hidden: 512, routerHidden: 512, intermediate: 256, experts: 4, tokens: moeSpanTokens, divisor: 1, topK: 2,
 				routing: tensor.MoERoutingSoftmax, activation: tensor.MoEActivationSiLU, normalize: true, scale: 1.25,
 				banks: banks, reference: true,
 			}
-			// The resident run sets the reference and the bits; it runs first.
+			// The resident run sets the reference, the bits and the span's token feeds; it runs first.
 			var want []float32
+			var spanFeeds map[string][]float32
 			var resident []byte
 			for _, variant := range []struct {
 				name             string
@@ -521,10 +520,11 @@ func TestExecutorMoEExpertsUseBlockDots(t *testing.T) {
 				}
 				c.offload = variant.offload
 				output, host, pointers, bankValues := c.prepare(t, cuda, dtype.F32)
+				input := output.Inputs[0]
+				host[input] = reference.Value{Shape: input.Shape, Data: moeFullMantissas(host[input].Data)}
 				feeds := maps.Clone(host)
 				if variant.shifted {
 					// One float ahead of an allocation leaves the input 4 bytes past 16-byte alignment.
-					input := output.Inputs[0]
 					shifted := append([]float32{0}, host[input].Data...)
 					pointers[input] = copyFixtureDeviceBytes(t, cuda.worker, driver.Bytes(shifted)) + driver.DevicePtr(f32ScalarBytes)
 					delete(feeds, input)
@@ -538,11 +538,11 @@ func TestExecutorMoEExpertsUseBlockDots(t *testing.T) {
 					t.Fatal(err)
 				}
 				raw := trace.Data()
-				hidden, down := raw[logitsRecord+routeRecord:], raw[logitsRecord+routeRecord+hiddenRecord:]
+				hidden, down := raw[moeDecodeRecords:], raw[moeDecodeRecords+hiddenRecord:]
 				word, scalar := binary.LittleEndian.Uint64, binary.LittleEndian.Uint32
-				if word(hidden) != uint64(kernelMoeHiddenDotF32) || word(down) != uint64(kernelMoeDownDotF32) {
+				if word(hidden) != uint64(kernelMoeHiddenSpanDotF32) || word(down) != uint64(kernelMoeDownDotF32) {
 					t.Fatalf("%s: launches %d and %d, want the dot kernels %d and %d",
-						variant.name, word(hidden), word(down), kernelMoeHiddenDotF32, kernelMoeDownDotF32)
+						variant.name, word(hidden), word(down), kernelMoeHiddenSpanDotF32, kernelMoeDownDotF32)
 				}
 				if got := [3]dtype.Type{dtype.Type(scalar(hidden[hiddenGateStorage:])), dtype.Type(scalar(hidden[hiddenGateStorage+4:])), dtype.Type(scalar(down[downStorage:]))}; got != banks {
 					t.Fatalf("%s: dot kernels received storages %v, want %v", variant.name, got, banks)
@@ -557,6 +557,7 @@ func TestExecutorMoEExpertsUseBlockDots(t *testing.T) {
 					compare(t, value.Data, want, accuracyModel)
 				default:
 					resident = bytes.Clone(driver.Bytes(value.Data))
+					spanFeeds = moeTokenFeeds(host)
 					maps.Copy(host, bankValues)
 					for bank := range bankValues {
 						bank.Type = dtype.F32
@@ -569,8 +570,105 @@ func TestExecutorMoEExpertsUseBlockDots(t *testing.T) {
 					compare(t, value.Data, want, accuracyModel)
 				}
 			}
+			if !bytes.Equal(moeTokensAlone(t, c, spanFeeds), resident) {
+				t.Fatal("the span's shared expert reads changed a token's output bits")
+			}
 		})
 	}
+}
+
+// TestExecutorMoESpanRepeatedRoutes runs a span whose tokens route twice to
+// one bank expert through the index divisor, among experts they share, and
+// holds each token's output to its bits run alone.
+func TestExecutorMoESpanRepeatedRoutes(t *testing.T) {
+	// Serial: device fixtures share the one card.
+	// Token t selects experts t, t+3, t+6 and t+1 of eight, two a bank: an even token routes twice to bank t/2.
+	c := moePinnedCase{
+		name: "span-repeated", compute: tensor.MulMatComputeNativeTensorCore,
+		hidden: 512, routerHidden: 512, intermediate: 256, experts: 8, tokens: moeSpanTokens, divisor: 2, topK: 4,
+		routing: tensor.MoERoutingSoftmax, activation: tensor.MoEActivationSiLU, normalize: true, scale: 1.25,
+		selected: true, banks: [3]dtype.Type{dtype.IQ3S, dtype.IQ3S, dtype.IQ4NL},
+	}
+	cuda := newFixtureExecutor(t)
+	trace := &device.LaunchTrace{}
+	if err := cuda.worker.Do(t.Context(), func(state *device.State) error { state.Trace = trace; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	output, host, pointers, _ := c.prepare(t, cuda, dtype.F32)
+	input := output.Inputs[0]
+	host[input] = reference.Value{Shape: input.Shape, Data: moeFullMantissas(host[input].Data)}
+	retained, err := cuda.executeRetainedWithDeviceFeeds(t.Context(), []*tensor.Tensor{output}, host, pointers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	value, copyErr := retained.CopyToHost(t.Context(), output)
+	if err := errors.Join(copyErr, retained.Release(t.Context())); err != nil {
+		t.Fatal(err)
+	}
+	if kernel := binary.LittleEndian.Uint64(trace.Data()[moeDecodeRecords:]); kernel != uint64(kernelMoeHiddenSpanDotF32) {
+		t.Fatalf("hidden launch %d, want the span kernel %d", kernel, kernelMoeHiddenSpanDotF32)
+	}
+	if !bytes.Equal(moeTokensAlone(t, c, moeTokenFeeds(host)), driver.Bytes(value.Data)) {
+		t.Fatal("a repeated route changed a token's output bits")
+	}
+}
+
+const (
+	// A launch record is four header words, then eight bytes a pointer and four a scalar.
+	moeRecordHeader = 4 * 8
+	// moeDecodeRecords: a decode group's router-logits and route records, which its hidden launch follows.
+	moeDecodeRecords = moeRecordHeader + 4*8 + 3*4 + moeRecordHeader + 5*8 + 5*4
+)
+
+// moeFullMantissas scales BF16-representable values by 1.1, which fills their
+// mantissas: a weight group's sum of them then depends on its order, where
+// the cases' own values sum exactly in any.
+func moeFullMantissas(values []float32) []float32 {
+	full := make([]float32, len(values))
+	for index, value := range values {
+		full[index] = value * float32(1.1)
+	}
+	return full
+}
+
+// moeTokenFeeds returns a case's feeds that hold one column a token, by name.
+func moeTokenFeeds(host map[*tensor.Tensor]reference.Value) map[string][]float32 {
+	feeds := make(map[string][]float32)
+	for node, value := range host {
+		if node.Name == "input" || node.Name == "router_input" || node.Name == "selected" {
+			feeds[node.Name] = value.Data
+		}
+	}
+	return feeds
+}
+
+// moeTokensAlone runs each token of a case alone, its token feeds cut from
+// the span's, and returns the outputs in token order.
+func moeTokensAlone(t *testing.T, c moePinnedCase, span map[string][]float32) []byte {
+	t.Helper()
+	alone := c
+	alone.tokens = 1
+	var outputs []byte
+	for token := range c.tokens {
+		cuda := newFixtureExecutor(t)
+		output, host, pointers, _ := alone.prepare(t, cuda, dtype.F32)
+		for node, value := range host {
+			if values, ok := span[node.Name]; ok {
+				width := uint64(len(values)) / c.tokens
+				host[node] = reference.Value{Shape: value.Shape, Data: values[token*width : (token+1)*width]}
+			}
+		}
+		retained, err := cuda.executeRetainedWithDeviceFeeds(t.Context(), []*tensor.Tensor{output}, host, pointers)
+		if err != nil {
+			t.Fatal(err)
+		}
+		value, copyErr := retained.CopyToHost(t.Context(), output)
+		if err := errors.Join(copyErr, retained.Release(t.Context())); err != nil {
+			t.Fatal(err)
+		}
+		outputs = append(outputs, driver.Bytes(value.Data)...)
+	}
+	return outputs
 }
 
 // groupedProductBits: SHA-256 of each fixture's grouped output by its tokens, on the card and from host memory alike,

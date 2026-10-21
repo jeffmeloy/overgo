@@ -120,6 +120,7 @@ const (
 	kernelMoeGroupedHiddenF32
 	kernelMoeHiddenDotF32
 	kernelMoeHiddenF32
+	kernelMoeHiddenSpanDotF32
 	kernelMoeHostSlotsF32
 	kernelMoeRouteF32
 	kernelMoeRouterDotF32
@@ -355,6 +356,7 @@ var kernelFunctionNames = [...]string{
 	"moe_grouped_hidden_f32",
 	"moe_hidden_dot_f32",
 	"moe_hidden_f32",
+	"moe_hidden_span_dot_f32",
 	"moe_host_slots_f32",
 	"moe_route_f32",
 	"moe_router_dot_f32",
@@ -587,6 +589,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	15,
 	10,
 	18,
+	20,
 	20,
 	20,
 	5,

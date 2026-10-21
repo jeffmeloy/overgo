@@ -222,6 +222,10 @@ func launchMoE(
 				nativeDown, downErr := quantMulMatLaunchCount(dtype.BF16, hidden, count)
 				if hiddenErr == nil && downErr == nil {
 					hiddenKernel, downKernel = functions[kernelMoeHiddenDotF32], functions[kernelMoeDownDotF32]
+					if count > 1 && count <= moeSpanTokens {
+						// A verify span's tokens read each expert they share once.
+						hiddenKernel = functions[kernelMoeHiddenSpanDotF32]
+					}
 					hiddenGrid = (hiddenThreads-1)/moeThreads + 1
 					sharedBytes = 0
 					downThreads = nativeDown
@@ -300,6 +304,9 @@ const (
 	moeThreads = uint32(256)
 	// moeRouterExpertsPerBlock: the router logits give one warp of a block to each expert.
 	moeRouterExpertsPerBlock = moeThreads / 32
+	// moeSpanTokens: the most tokens of a native group that read each routed
+	// expert's gate and up rows once, the CUDA MOE_SPAN_TOKENS.
+	moeSpanTokens = 4
 	// moeHiddenSharedBytes holds two banks of sector-wide F32 rows with one padding word.
 	// Keep this ABI equal to the CUDA tile and reconsider it with measured occupancy.
 	moeHiddenSharedBytes = 2 * moeThreads * (32/4 + 1) * 4

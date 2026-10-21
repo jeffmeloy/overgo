@@ -64,7 +64,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "718a6e256d59763d9b9445f9a901eb6426c21491c45f24329854dd3fc8b38d1e",
+      "sourceSha256": "c440bc8cf61928b7caeca6a7cd90038b60e22c87dde5d1162a0df355df85fbec",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -72,7 +72,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "c07739e40f8aed237f9187f127786d57979eeb3414439854c30cd56678a2ac97",
+      "assetSha256": "f2daaedd33a881f3d98b1a8f3c2a1ccc08e7830a0026bad8f0672497c726c34f",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -187,6 +187,7 @@
         "moe_grouped_hidden_f32",
         "moe_hidden_dot_f32",
         "moe_hidden_f32",
+        "moe_hidden_span_dot_f32",
         "moe_host_slots_f32",
         "moe_route_f32",
         "moe_router_dot_f32",
@@ -1180,7 +1181,8 @@
           ],
           "functions": [
             "moe_hidden_dot_f32",
-            "moe_hidden_f32"
+            "moe_hidden_f32",
+            "moe_hidden_span_dot_f32"
           ]
         },
         {

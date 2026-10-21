@@ -179,7 +179,7 @@
     "docs/image_video_routed_images.json": "70456dd2c5a3c7dbfd5800ed4f32b3b1bee1a78e65460569f0035c8043c0b7c7",
     "docs/image_video_validation.json": "b68b5a3308e78c0dc9df260d6d75bb9aedfeba59ea2d7524993865f65dad8c6b",
     "docs/image_video_wan.json": "559c811d0a7f10d6ca90c4088805250435d78eb57736a95175e7d86a0c68157a",
-    "internal/diffusionimage/frozen_generation_cuda_windows_test.go": "82c6a387330ea00c8bbb64622730c9b815813125d1c12e3ace68423aa539d10b",
+    "internal/diffusionimage/frozen_generation_cuda_windows_test.go": "e6b856e7bed7799c315ce6f84a249eb7066b4394a41b1be5130606c6d17e6f14",
     "internal/latentvideo/frozen_generation_cuda_windows_test.go": "89b6c8660e1cdc829efad7a3a43d96862051c0397de5f24fde72d4f3fedea325",
     "internal/mediacapability/frozen_krea_cuda_windows_test.go": "7e03196f082e97c0726f9805310afaefec01beb12ed5a2d180bee4e323c3b1a4",
     "internal/oscillatorimage/frozen_modalities_test.go": "18b376a50a7a2eb9a612ec4d22e64d7f33895cefc946027f2efac74498343dd0",

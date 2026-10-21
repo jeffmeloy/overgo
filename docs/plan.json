@@ -303,25 +303,6 @@
       ]
     },
     {
-      "id": "lane-failures",
-      "title": "Repair the measurement run's lane failures",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 200,
-        "reason": "estimate for the diffusion fix once its cause is found"
-      },
-      "steps": [
-        {
-          "id": "diffusion",
-          "title": "Find and fix why a frozen diffusion request does no GPU work",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/diffusionimage -count=1 -run '^TestFrozenDiffusionGeneration$'",
-          "rationale": "From the measurement run's models lane at 32b26610e: internal/diffusionimage TestFrozenDiffusionGeneration/case-2 fails with \"request performed no GPU work\" (frozen_generation_cuda_windows_test.go:145; resource task=SimpleDiffusion state=not_busy scope=owned-session close=completed). The 2026-10-14 run passed the lane. Between them master took the decode, residency, buffer-pool and graph-capture changes of strata-decode and strata-prefill and the MOSS lane's pipeline registration.\nThe step finds the commit that broke it (the test at a few commits between the two runs) and fixes the cause.\nAcceptance: TestFrozenDiffusionGeneration passes on the card.\nServes: failure-rate for diffusion image generation.\nBatch: device."
-        }
-      ]
-    },
-    {
       "id": "training-reuse",
       "title": "Stop repeating training's per-step device setup and its padding to the run's longest sequence",
       "status": "open",

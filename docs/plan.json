@@ -227,8 +227,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "prompt-chunks/bound as built adds 284 production syntax nodes (the gate's preflight, 2026-10-21): the indexer's query-chunked block selection (selectBlocksByChunk, its blockSelection and the chunk's score bound) in internal/model/block_sparse_selection.go."
+        "nodes": 143,
+        "reason": "prompt-chunks/near-limit as built adds 143 production syntax nodes (the gate's preflight, 2026-10-21): a prefill's reserve sized from its whole prompt (deviceBatchAppend.Reserve), the capacity rule that reads a past cache's stored capacity (cacheCapacity, storedCapacity) and the bounded prefill setting the reserve."
       },
       "steps": [
         {
@@ -570,7 +570,8 @@
             "journey-carry/do",
             "journey-check/do",
             "serve-draft-carry/do",
-            "chunks-carry/do"
+            "chunks-carry/do",
+            "near-carry/do"
           ]
         }
       ]

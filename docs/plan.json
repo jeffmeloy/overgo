@@ -218,13 +218,6 @@
       },
       "steps": [
         {
-          "id": "draft-binding",
-          "title": "Bind Flash-Next's draft to its library entry so every launcher serves it",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "serve-draft (2026-10-21) attaches Flash-Next's MTP draft through the server's -draft flag. A launcher that names no draft (the desktop launcher, the swap proxy, the browser lane, the evaluator's workers) serves Flash-Next without it, so a person who starts it from the library is offered no speculation, and the default draft-depth makes would not reach them.\nThe step binds the draft to the model's library entry as the projector is bound (discovery.ActiveProjector, modelrecipe.ProjectionDefinition): the draft file registered as an artifact, a recipe that names it for the model, and the open resolving it when the command line names none, so every launcher serves the draft the store declares. A draft whose recorded bytes are absent or differ is refused, as a projector's is.\nEvidence: the server started from the library with no -draft offers speculation in its capability document and speculates a turn that asks (draft_n in its timings), by default once draft-depth has made it the default; the first-run journey's picker serves Flash-Next with the toggle offered.\nServes: setup-steps and throughput.\nBatch: none."
-        },
-        {
           "id": "span-experts",
           "title": "Group a verify span's routed rows by expert so a shared expert is read once",
           "status": "open",
@@ -244,6 +237,13 @@
           "status": "open",
           "verify": "go run ./cmd/plan -status",
           "rationale": "Strata grows its MTP window while the last draft's top probability is at least --spec-min-p, to four tokens with --spec 4 (src/core/mtp.cpp:1313-1336, 1651; generate.cpp:13754-13758); on this machine it verifies about 3 drafts a window and a window costs about 15 ms (strata-unsloth-ud-iq4_xs.log: 49 of 106 drafts accepted over 100 tokens in 784 ms).\nOvergo drafts one token a window. Its builds so far, kept in overgo_data/scratch/long-prompt-20261019: the confidence floor (draft-floor.patch: acceptance 57 to 62% ungated, 80 to 88% at 0.7, time within noise at depth one); a chain of fresh cells (draft-chain.patch: 14.8 to 18.2 ms a token against 12.4 to 13.8, a kept prefix forwarded again and dropped deeper drafts costing draft steps); the draft layer's own cells over the generation (draft-cells.patch: acceptance at depth one 58 to 62% against 58 to 64% without, no gain).\nThe step chains up to three drafts gated by the floor once a span's extra tokens are cheap (span-experts) and a kept prefix commits without a second span (span-commit), the depth and floor taken from Flash-Next's measured accepted tokens against the window's cost.\nEvidence: tokens a window and the probe's milliseconds a token, speculative; the held-out part's score with and without speculation.\nServes: throughput.\nBatch: device."
+        },
+        {
+          "id": "draft-library",
+          "title": "Bind Flash-Next's draft to its library entry so every launcher serves it",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "serve-draft (2026-10-21) attaches Flash-Next's MTP draft through the server's -draft flag, and since speculate-default a model served with its draft speculates greedy requests by default. A launcher that names no draft (the desktop launcher, the swap proxy, the browser lane, the evaluator's workers) serves Flash-Next without it, so a person who starts it from the library gets neither speculation nor its toggle.\nThe step binds the draft to the model's library entry as the projector is bound (discovery.ActiveProjector, modelrecipe.ProjectionDefinition): the draft file registered as an artifact, a recipe that names it for the model, and the open resolving it when the command line names none, so every launcher serves the draft the store declares. A draft whose recorded bytes are absent or differ is refused, as a projector's is. It needs a recipe task, a dependency role and an artifact kind of its own (recipe/schema.go, artifact), as projection has.\nEvidence: the server started from the library with no -draft offers speculation in its capability document and speculates a greedy turn by default (draft_n in its timings); the first-run journey's picker serves Flash-Next with the toggle on.\nServes: setup-steps and throughput.\nBatch: none.\n\nMoved behind the window's own cost (2026-10-21): the -draft flag serves the draft today, and span-experts, span-commit-chain and chain-depth decide how much a served draft pays."
         }
       ]
     },
@@ -555,7 +555,8 @@
             "plan-steps-20261021b/do",
             "count-cache-restore-bounds/do",
             "plan-steps-20261021c/do",
-            "count-speculate-default/do"
+            "count-speculate-default/do",
+            "plan-steps-20261021d/do"
           ]
         }
       ]

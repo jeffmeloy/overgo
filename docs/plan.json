@@ -218,11 +218,11 @@
       },
       "steps": [
         {
-          "id": "hc-fusion",
-          "title": "Read Flash-Next's hyper-connections in two kernels, for a token and a verify span, as Strata's fused_gr does",
+          "id": "decode-latency",
+          "title": "Keep Flash-Next's decode kernels' reads in flight: the attention's key walk and the hyper-connection norm's row",
           "status": "open",
           "verify": "go run ./cmd/plan -status",
-          "rationale": "A Flash-Next decode step runs 2,294 kernels a token, 1,800 of them shorter than 5 us (node-level trace of the probe's plain decoding, 166 tokens, 2026-10-21): a window's speculative verify span repeats them for its tokens. The gated hyper-connection read (model.buildGatedHyperMix), 96 a token, is about nine of them: the weighted norm (0.56 ms a token), the down projection, the scaled SiLU, the up projection (10,240 rows of 320 in Q8_0: 12.4 us a launch, 280 GB/s, 1.19 ms a token), the sigmoid gate, the gated product, the four streams' slices and sum, and the injection's projection and sigmoid; the write (stream_combine) is one more. Together about 2.8 ms of a 12.2 ms token on the card.\nStrata reads a hyper-connection in two kernels: the down kernel normalizes the streams, projects them down with the SiLU and projects the injection, with the previous half's write folded in, and the up kernel projects up, gates and averages the streams; its multi-token read serves a verify window of up to 8 tokens reading the weights once (include/strata/kernels/fused_gr.hpp; src/kernels/cuda/fused_gr.cu fused_gr_read, fused_gr_read_multi, the Q8_0 variants gr_down_q8 and gr_up_q8).\nThe step adds that read as one graph operation with its two kernels, over the GGUF's Q8_0 projections, for one token and for a span's tokens, and folds the previous write into it; the composed graph stays the reference its test compares against. At the bytes it reads (7.1 MB a read) it costs about 0.9 ms a token, so a plain token runs about 1.9 ms faster and a verify span more.\nEvidence: kernels a token and the probe's milliseconds a token, plain and speculative, against master; the fused read against the composed one on the hermetic Flash-Next (relative error) and the probe's tokens.\nServes: throughput.\nBatch: device."
+          "rationale": "A node-level trace of Flash-Next's plain decoding (166 tokens, 2026-10-21) puts 2,294 kernels in a token. Most of the large products read their weights at 850 to 910 GB/s; the waste is in kernels that wait on memory a read at a time. The decode attention (attention_decode_f32, 12 a token) ran one block a query head that summed each key's channels and each key's values one read after another: 48 us a launch over a 35- to 235-key cache, 0.57 ms a token, growing with the context. The hyper-connection's weighted norm (weighted_rms_norm_q8_0_f32, 96 a token) read its 2,560-wide row ten reads deep twice: 5.0 us for 40 KB.\nThe step keeps those reads in flight without changing a sum's order: the attention reads eight channels of a key, and eight keys' values, before adding them in order, and the norm holds its row in registers from one read. The bits are the same, so the decoded tokens are.\nEvidence: the probe's milliseconds a token, plain and speculative, against master, and its decoded texts the same; the decode attention's guard and reference tests.\nServes: throughput.\nBatch: device."
         },
         {
           "id": "draft-library",
@@ -531,7 +531,8 @@
             "plan-draft-vocab/do",
             "plan-scc-count/do",
             "plan-chain-depth/do",
-            "plan-draft-on-card/do"
+            "plan-draft-on-card/do",
+            "plan-hc-fusion/do"
           ]
         }
       ]

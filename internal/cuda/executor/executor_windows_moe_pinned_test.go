@@ -573,6 +573,27 @@ func TestExecutorMoEExpertsUseBlockDots(t *testing.T) {
 	}
 }
 
+// groupedProductBits: SHA-256 of each fixture's grouped output by its tokens, on the card and from host memory alike,
+// as the grouped kernels of 96c26fe39 produced them.
+var groupedProductBits = map[string]map[uint64]string{
+	"iq3_s-iq4_nl": {
+		64:   "85ca62ddc7eaa55f104785fe0e4f8afde61f3ba07a119d2f6a38e7105ebd85ca",
+		1561: "3daee7bdc21ff70e224ba28b072adade8fa89a8a2f037e4824e4077beacf45eb",
+	},
+	"iq4_xs-q8_0": {
+		64:   "661196ae744de1ea3d1fe146679a9a7fd0bfab650cbc07b2d23f4081bb1def24",
+		1561: "53b0669d0c71f543f664a3c6f163b36d5f0e7888a30d37639571348a947824e0",
+	},
+	"fused-iq4_xs-iq4_nl": {
+		64:   "07b8aa28f29069cb5236523c20bf112df374dc625de4271e487faac8ce92d8af",
+		1561: "5104b870f80186aa673f51a7e8f40bec802888bfd978e80e923d16954900bc33",
+	},
+	"bf16": {
+		64:   "6842569667228c993f306bf88fb0d48d6357d7698ddc4a80258a1eece8ad049f",
+		1561: "646e4542efe6232ad69b55284f00cf537eaacf36eabf12d3c891dc0ee269c68b",
+	},
+}
+
 // TestPromptExpertsMultiplyEncodedWeights holds a prompt's routed experts to
 // the grouped products over their encoded weights:
 //   - Flash-Next's routed layer takes the staging's tokens a group, so the 1,561-token document and the 4,019-token prompt are one group each and a 20,605-token prompt two of one size
@@ -583,6 +604,7 @@ func TestExecutorMoEExpertsUseBlockDots(t *testing.T) {
 //     and each input splits into two f16 parts; three experts take 128 routed rows, so one of them takes two tiles;
 //     experts in host memory are copied to the card and multiply in a batch after the card's
 //   - the document's 1,561 tokens on experts in host memory keep the direct banks' bits
+//   - every grouped run keeps the bits groupedProductBits pins
 func TestPromptExpertsMultiplyEncodedWeights(t *testing.T) {
 	// Serial: device fixtures share the one card.
 	// documentTokens: the frozen Strata document's prompt tokens under Flash-Next's chat template.
@@ -696,6 +718,10 @@ func TestPromptExpertsMultiplyEncodedWeights(t *testing.T) {
 					}
 					if tiles <= c.experts || (batches > 1) != (run.placement == "host") {
 						t.Fatalf("%d tiles in %d batches for %d experts, want more tiles than experts and a copied batch in host memory", tiles, batches, c.experts)
+					}
+					digest := sha256.Sum256(driver.Bytes(got))
+					if bits := hex.EncodeToString(digest[:]); bits != groupedProductBits[fixture.name][run.tokens] {
+						t.Errorf("output %s, pinned %s", bits, groupedProductBits[fixture.name][run.tokens])
 					}
 					if want == nil {
 						if !bytes.Equal(driver.Bytes(got), driver.Bytes(direct)) {

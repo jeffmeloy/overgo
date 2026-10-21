@@ -19,6 +19,9 @@ const (
 	moeTileTokens  = uint32(32)
 	moeTileRows    = uint32(64)
 	moeTileThreads = uint32(128)
+	// moeHiddenThreads mirrors MOE_HIDDEN_THREADS: the hidden products take a block of four warps for the gate rows and
+	// four for the up rows.
+	moeHiddenThreads = 2 * moeTileThreads
 	// moeTileWords: a tile's plan words, its expert, first position and rows.
 	moeTileWords = uint32(3)
 	// moePlanWords bounds a routed row's plan words: its position and at
@@ -277,7 +280,7 @@ func launchMoEMatrices(state *device.State, functions functionSet, blas *blasSta
 		tileTable := table + driver.DevicePtr(uint64(first)*uint64(moeTileWords)*f32ScalarBytes)
 		gate, up, down := tables[0], tables[upAt-moeFirstBankInput], tables[upAt-moeFirstBankInput+1]
 		if err := launchGridSharedABI(state, functions[kernelMoeGroupedHiddenF32],
-			driver.Dim3{X: end - first, Y: (intermediate-1)/moeTileRows + 1, Z: 1}, block, 0,
+			driver.Dim3{X: end - first, Y: (intermediate-1)/moeTileRows + 1, Z: 1}, driver.Dim3{X: moeHiddenThreads, Y: 1, Z: 1}, 0,
 			&input, &tileTable, &positionTable, &gate, &up, &gateBias, &upBias, &activations, &hidden, &intermediate, &topK,
 			&gateType, &upType, &fused, &activation, &routing, &clamp, &indexed); err != nil {
 			return err

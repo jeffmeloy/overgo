@@ -9285,8 +9285,8 @@ struct moe_tile_source {
 
 // moe_tile_elements decodes weights k0 to k0 + MOE_TILE_DEPTH of a tile's rows one weight a thread in turn, as f16 under a scale of 1.
 //   - it serves a storage without a block format, and stays out of line so the block formats' steps keep their code compact
-__device__ __noinline__ void moe_tile_elements(__half * tile, float * scales, moe_tile_source source, unsigned int k0) {
-    for (unsigned int item = threadIdx.x; item < MOE_TILE_ROWS * MOE_TILE_DEPTH; item += MOE_TILE_THREADS) {
+__device__ __noinline__ void moe_tile_elements(__half * tile, float * scales, moe_tile_source source, unsigned int k0, unsigned int thread) {
+    for (unsigned int item = thread; item < MOE_TILE_ROWS * MOE_TILE_DEPTH; item += MOE_TILE_THREADS) {
         const unsigned int row = item / MOE_TILE_DEPTH;
         const unsigned int column = item % MOE_TILE_DEPTH;
         tile[row * MOE_TILE_STRIDE + column] = __float2half_rn(row < source.rows && k0 + column < source.depth
@@ -9301,12 +9301,12 @@ __device__ __noinline__ void moe_tile_elements(__half * tile, float * scales, mo
 //   - the groups of a span write its scale alike; rows past the bank, and blocks past the row, take zeros
 template <typename Format>
 __device__ __forceinline__ void moe_tile_blocks(__half * tile, float * scales, const moe_tile_source & source, unsigned int k0,
-        const block_dot_codebooks & codebooks) {
+        const block_dot_codebooks & codebooks, unsigned int thread) {
     constexpr unsigned int groups = MOE_TILE_DEPTH / BLOCK_DOT_WEIGHTS;
     constexpr unsigned int block_groups = Format::width / BLOCK_DOT_WEIGHTS;
     #pragma unroll 2
     for (unsigned int pass = 0; pass < MOE_TILE_ROWS * groups / MOE_TILE_THREADS; ++pass) {
-        const unsigned int item = pass * MOE_TILE_THREADS + threadIdx.x;
+        const unsigned int item = pass * MOE_TILE_THREADS + thread;
         const unsigned int row = item / groups;
         const unsigned int global = k0 / BLOCK_DOT_WEIGHTS + item % groups;
         const unsigned int block = global / block_groups;
@@ -9327,28 +9327,55 @@ __device__ __forceinline__ void moe_tile_blocks(__half * tile, float * scales, c
 
 // moe_tile_weights decodes weights k0 to k0 + MOE_TILE_DEPTH of a tile's rows and their spans' scales into shared memory.
 __device__ __forceinline__ void moe_tile_weights(__half * tile, float * scales, const moe_tile_source & source, unsigned int k0,
-        const block_dot_codebooks & codebooks) {
+        const block_dot_codebooks & codebooks, unsigned int thread) {
     if (!visit_block_storage(source.storage, [&](auto format) {
-            moe_tile_blocks<decltype(format)>(tile, scales, source, k0, codebooks);
+            moe_tile_blocks<decltype(format)>(tile, scales, source, k0, codebooks, thread);
         })) {
-        moe_tile_elements(tile, scales, source, k0);
+        moe_tile_elements(tile, scales, source, k0, thread);
     }
 }
 
-// moe_tile_inputs gathers columns k0 to k0 + MOE_TILE_DEPTH of a tile's input rows as their high and low f16 parts,
-// all of whose reads are in flight together.
+// moe_tile_inputs gathers columns k0 to k0 + MOE_TILE_DEPTH of a tile's input rows as their high and low f16 parts.
+//   - THREADS threads share the gather, thread being this one's place among them
+//   - a thread reads four columns at once where they lie 16-byte aligned, and splits them once all its reads are in flight
 //   - row_input(row) = the input row of tile row row; rows from count and columns from depth take zeros
-template <typename RowInput>
-__device__ __forceinline__ void moe_tile_inputs(__half * tile, unsigned int count, unsigned int k0, unsigned int depth, RowInput row_input) {
-    #pragma unroll 4
-    for (unsigned int pass = 0; pass < MOE_TILE_TOKENS * MOE_TILE_DEPTH / MOE_TILE_THREADS; ++pass) {
-        const unsigned int item = pass * MOE_TILE_THREADS + threadIdx.x;
-        const unsigned int row = item / MOE_TILE_DEPTH;
-        const unsigned int column = item % MOE_TILE_DEPTH;
-        const float value = row < count && k0 + column < depth ? row_input(row)[k0 + column] : 0.0f;
-        const __half high = __float2half_rn(value);
-        tile[row * MOE_TILE_STRIDE + column] = high;
-        tile[(MOE_TILE_TOKENS + row) * MOE_TILE_STRIDE + column] = __float2half_rn(value - __half2float(high));
+template <unsigned int THREADS, typename RowInput>
+__device__ __forceinline__ void moe_tile_inputs(__half * tile, unsigned int count, unsigned int k0, unsigned int depth, RowInput row_input, unsigned int thread) {
+    constexpr unsigned int quad = sizeof(float4) / sizeof(float);
+    constexpr unsigned int quads = MOE_TILE_TOKENS * MOE_TILE_DEPTH / quad / THREADS;
+    float4 values[quads];
+    #pragma unroll
+    for (unsigned int pass = 0; pass < quads; ++pass) {
+        const unsigned int item = pass * THREADS + thread;
+        const unsigned int row = item / (MOE_TILE_DEPTH / quad);
+        const unsigned int column = item % (MOE_TILE_DEPTH / quad) * quad;
+        values[pass] = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
+        if (row >= count) continue;
+        const float * source = row_input(row) + k0 + column;
+        if (k0 + column + quad - 1 < depth && reinterpret_cast<size_t>(source) % sizeof(float4) == 0) {
+            values[pass] = *reinterpret_cast<const float4 *>(source);
+        } else {
+            if (k0 + column < depth) values[pass].x = source[0];
+            if (k0 + column + 1 < depth) values[pass].y = source[1];
+            if (k0 + column + 2 < depth) values[pass].z = source[2];
+            if (k0 + column + 3 < depth) values[pass].w = source[3];
+        }
+    }
+    #pragma unroll
+    for (unsigned int pass = 0; pass < quads; ++pass) {
+        const unsigned int item = pass * THREADS + thread;
+        const unsigned int row = item / (MOE_TILE_DEPTH / quad);
+        const unsigned int column = item % (MOE_TILE_DEPTH / quad) * quad;
+        const float w[quad] = {values[pass].x, values[pass].y, values[pass].z, values[pass].w};
+        float high[quad], low[quad];
+        #pragma unroll
+        for (unsigned int i = 0; i < quad; ++i) {
+            const __half h = __float2half_rn(w[i]);
+            high[i] = __half2float(h);
+            low[i] = w[i] - high[i];
+        }
+        moe_tile_store(tile + row * MOE_TILE_STRIDE + column, high);
+        moe_tile_store(tile + (MOE_TILE_TOKENS + row) * MOE_TILE_STRIDE + column, low);
     }
 }
 
@@ -9395,16 +9422,23 @@ __device__ __forceinline__ void moe_tile_product(const __half * weights, const f
     }
 }
 
-// moe_tile_element names the row and the tile token of a lane's accumulator element of one mma tile column.
-__device__ __forceinline__ void moe_tile_element(unsigned int column, unsigned int element, unsigned int & row, unsigned int & token) {
+// moe_tile_element names the row and the tile token of a lane's accumulator element of one mma tile column of the warp
+// whose rows start at warp_row.
+__device__ __forceinline__ void moe_tile_element(unsigned int warp_row, unsigned int column, unsigned int element,
+        unsigned int & row, unsigned int & token) {
     const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
-    row = threadIdx.x / CUDA_WARP_WIDTH * MOE_MMA_ROWS + lane / 4 + element / 2 * 8;
+    row = warp_row + lane / 4 + element / 2 * 8;
     token = column * MOE_MMA_TOKENS + lane % 4 * 2 + element % 2;
 }
 
+// MOE_HIDDEN_THREADS: the hidden products' block, a MOE_TILE_THREADS half for the gate rows and one for the up rows.
+constexpr unsigned int MOE_HIDDEN_THREADS = 2 * MOE_TILE_THREADS;
+
 // moe_grouped_hidden_f32 gives a tile's routed rows their activations: a block takes MOE_TILE_ROWS gate rows and the same up rows.
+//   - the first half of the block decodes and multiplies the gate rows, the second the up rows, and the up half takes
+//     the gate half's sums through shared memory
 //   - activations[p * intermediate + r] = the activation of position p's row r
-extern "C" __global__ void __launch_bounds__(MOE_TILE_THREADS) moe_grouped_hidden_f32(
+extern "C" __global__ void __launch_bounds__(MOE_HIDDEN_THREADS) moe_grouped_hidden_f32(
         const float * input,
         const unsigned int * tiles,
         const unsigned int * positions,
@@ -9439,39 +9473,51 @@ extern "C" __global__ void __launch_bounds__(MOE_TILE_THREADS) moe_grouped_hidde
     const size_t gate_first = (indexed ? 0 : (size_t) expert * (fused ? 2 : 1) * intermediate * hidden) + (size_t) row0 * hidden;
     const unsigned int rows = min(MOE_TILE_ROWS, intermediate - row0);
     // Gate rows fill the tile's first half and the same up rows its second; a fused bank holds its up rows after its gate rows.
-    const moe_tile_source sources[2] = {
-        {gate, gate_first, hidden, rows, gate_storage},
-        {up, gate_first + (fused ? (size_t) intermediate * hidden : 0), hidden, rows, up_storage},
-    };
+    const unsigned int half = threadIdx.x / MOE_TILE_THREADS;
+    const unsigned int thread = threadIdx.x % MOE_TILE_THREADS;
+    const moe_tile_source source = half == 0
+        ? moe_tile_source{gate, gate_first, hidden, rows, gate_storage}
+        : moe_tile_source{up, gate_first + (fused ? (size_t) intermediate * hidden : 0), hidden, rows, up_storage};
     // The tile's input rows, read once; the first step's barrier publishes them.
     if (threadIdx.x < count) input_rows[threadIdx.x] = input + (size_t) (positions[first + threadIdx.x] / top_k) * hidden;
     const auto input_row = [&](unsigned int row) { return input_rows[row]; };
-    const unsigned int warp_row = threadIdx.x / CUDA_WARP_WIDTH * MOE_MMA_ROWS;
-    float gate_sums[MOE_TILE_COLUMNS][MOE_MMA_ELEMENTS] = {};
-    float up_sums[MOE_TILE_COLUMNS][MOE_MMA_ELEMENTS] = {};
+    const unsigned int warp_row = thread / CUDA_WARP_WIDTH * MOE_MMA_ROWS;
+    const unsigned int half_row = half * MOE_TILE_ROWS + warp_row;
+    float sums[MOE_TILE_COLUMNS][MOE_MMA_ELEMENTS] = {};
     for (unsigned int k0 = 0; k0 < hidden; k0 += MOE_TILE_DEPTH) {
         __syncthreads();
-        #pragma unroll 1
-        for (unsigned int half = 0; half < 2; ++half) {
-            moe_tile_weights(weights + half * MOE_TILE_ROWS * MOE_TILE_STRIDE, scales + half * MOE_TILE_ROWS * MOE_TILE_SPANS,
-                sources[half], k0, codebooks);
-        }
-        moe_tile_inputs(inputs, count, k0, hidden, input_row);
+        moe_tile_weights(weights + half * MOE_TILE_ROWS * MOE_TILE_STRIDE, scales + half * MOE_TILE_ROWS * MOE_TILE_SPANS,
+            source, k0, codebooks, thread);
+        moe_tile_inputs<MOE_HIDDEN_THREADS>(inputs, count, k0, hidden, input_row, threadIdx.x);
         __syncthreads();
-        moe_tile_product(weights + warp_row * MOE_TILE_STRIDE, scales + warp_row * MOE_TILE_SPANS, inputs, gate_sums);
-        moe_tile_product(weights + (MOE_TILE_ROWS + warp_row) * MOE_TILE_STRIDE,
-            scales + (MOE_TILE_ROWS + warp_row) * MOE_TILE_SPANS, inputs, up_sums);
+        moe_tile_product(weights + half_row * MOE_TILE_STRIDE, scales + half_row * MOE_TILE_SPANS, inputs, sums);
     }
+    // The gate half's sums cross to the up half through the weights' shared memory.
+    float * gate_dots = reinterpret_cast<float *>(weights);
+    __syncthreads();
+    if (half == 0) {
+        #pragma unroll
+        for (unsigned int column = 0; column < MOE_TILE_COLUMNS; ++column) {
+            #pragma unroll
+            for (unsigned int element = 0; element < MOE_MMA_ELEMENTS; ++element) {
+                unsigned int row, token;
+                moe_tile_element(warp_row, column, element, row, token);
+                gate_dots[row * MOE_TILE_TOKENS + token] = sums[column][element];
+            }
+        }
+    }
+    __syncthreads();
+    if (half == 0) return;
     #pragma unroll
     for (unsigned int column = 0; column < MOE_TILE_COLUMNS; ++column) {
         #pragma unroll
         for (unsigned int element = 0; element < MOE_MMA_ELEMENTS; ++element) {
             unsigned int row, token;
-            moe_tile_element(column, element, row, token);
+            moe_tile_element(warp_row, column, element, row, token);
+            float gate_dot = gate_dots[row * MOE_TILE_TOKENS + token];
             row += row0;
             if (token >= count || row >= intermediate) continue;
-            float gate_dot = gate_sums[column][element];
-            float up_dot = up_sums[column][element];
+            float up_dot = sums[column][element];
             if (gate_bias) {
                 gate_dot += gate_bias[(size_t) expert * intermediate + row];
                 up_dot += up_bias[(size_t) expert * intermediate + row];
@@ -9511,8 +9557,8 @@ extern "C" __global__ void __launch_bounds__(MOE_TILE_THREADS) moe_grouped_down_
     float sums[MOE_TILE_COLUMNS][MOE_MMA_ELEMENTS] = {};
     for (unsigned int k0 = 0; k0 < intermediate; k0 += MOE_TILE_DEPTH) {
         __syncthreads();
-        moe_tile_weights(weights, scales, source, k0, codebooks);
-        moe_tile_inputs(inputs, count, k0, intermediate, input_row);
+        moe_tile_weights(weights, scales, source, k0, codebooks, threadIdx.x);
+        moe_tile_inputs<MOE_TILE_THREADS>(inputs, count, k0, intermediate, input_row, threadIdx.x);
         __syncthreads();
         moe_tile_product(weights + warp_row * MOE_TILE_STRIDE, scales + warp_row * MOE_TILE_SPANS, inputs, sums);
     }
@@ -9521,7 +9567,7 @@ extern "C" __global__ void __launch_bounds__(MOE_TILE_THREADS) moe_grouped_down_
         #pragma unroll
         for (unsigned int element = 0; element < MOE_MMA_ELEMENTS; ++element) {
             unsigned int channel, token;
-            moe_tile_element(column, element, channel, token);
+            moe_tile_element(warp_row, column, element, channel, token);
             channel += row0;
             if (token >= count || channel >= hidden) continue;
             slots[(size_t) positions[first + token] * hidden + channel] =

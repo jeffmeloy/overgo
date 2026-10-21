@@ -213,17 +213,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 2458,
+        "nodes": 0,
         "reason": "gdn-fusion as built adds 2,458 production syntax nodes (the gate's preflight, 2026-10-21): two tensor operations (GatedDeltaConv, GatedDeltaGates) with their builders, layouts, operand positions and coverage rule, their host reference rounding as the composed operations do, the two kernels' launches, and the gated-delta builder's fused preparation beside the composed one, which prompts keep; the row may add 2,458."
       },
       "steps": [
-        {
-          "id": "gdn-fusion",
-          "title": "Run Flash-Next's gated-delta preparation in Strata's three kernels, for a token and a verify span",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "A node-level trace of Flash-Next's plain decoding (2026-10-21) runs 17 kernels in each gated-delta layer between its qkv product and its gate product: the transpose and concat of the convolution history, four group slices, the convolution, SiLU, the q and k heads' L2 norms, the alpha and beta products (F32, 48 rows each), a broadcast add, softplus, a broadcast multiply and a sigmoid, then the gated-delta step (5.1 us) and the gated RMS norm. Each but the step takes about 1 us, bound by its launch and one read: about 23.5 us of a 205 us layer, 0.85 ms of a token over 36 layers, and as many a verify span.\nStrata runs them as three kernels (src/kernels/cuda/fused_gdn.cu): gdn_conv_l2_kernel (the convolution over the history and the new row, SiLU, the q and k heads' L2 norms and the history's shift), gdn_ab_kernel (the alpha and beta products with softplus(alpha + dt) * a and sigmoid(beta)) and gdn_step_norm_kernel (the state step, the output and its gated RMS norm).\nThe step ports those three kernels for a decode token and a verify span, the composed graph the reference its test compares against, keeping the span's checkpoints and the cache's convolution window.\nEvidence: kernels a token and the probe's milliseconds a token, plain and speculative, against master; the fused layer against the composed one on the hermetic Flash-Next.\nServes: throughput.\nBatch: device."
-        },
         {
           "id": "draft-library",
           "title": "Bind Flash-Next's draft to its library entry so every launcher serves it",

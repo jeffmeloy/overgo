@@ -4586,6 +4586,135 @@ extern "C" __global__ void mul_mat_f32(
     }
 }
 
+// GATED_DELTA_FUSED_KERNEL and GATED_DELTA_FUSED_STATE_WIDTH = the largest convolution kernel and the widest state
+// gated_delta_conv_f32 takes (tensor.GatedDeltaFused).
+#define GATED_DELTA_FUSED_KERNEL 8
+#define GATED_DELTA_FUSED_STATE_WIDTH 1024
+
+// gated_delta_conv_f32 is tensor.Builder.GatedDeltaConv: a block takes one head's state_width channels, a thread one
+// channel, holding its window and taps in registers. A channel's value at a token adds its taps in order over the
+// window's rows and the token's, as ssm_conv_f32 does, then takes the SiLU; a query or key head divides its values by
+// max(their L2 norm, epsilon), summed as l2_norm_f32 sums it. The window after each token is written for the next
+// state and a span's checkpoints.
+extern "C" __global__ void gated_delta_conv_f32(
+        const float * state,
+        const float * qkv,
+        const float * weights,
+        float * output,
+        unsigned int channels,
+        unsigned int state_width,
+        unsigned int key_heads,
+        unsigned int value_heads,
+        unsigned int kernel,
+        unsigned int tokens,
+        float epsilon) {
+    __shared__ float sums[GATED_DELTA_FUSED_STATE_WIDTH];
+    const unsigned int head = blockIdx.x;
+    const unsigned int channel = head * state_width + threadIdx.x;
+    const unsigned int history = kernel - 1;
+    const unsigned int key_channels = key_heads * state_width;
+    const unsigned int value_channels = value_heads * state_width;
+    const bool normalized = head < 2 * key_heads;
+    float window[GATED_DELTA_FUSED_KERNEL];
+    float taps[GATED_DELTA_FUSED_KERNEL];
+#pragma unroll
+    for (unsigned int index = 0; index < GATED_DELTA_FUSED_KERNEL; ++index) {
+        window[index] = index < history ? state[channel * history + index] : 0.0f;
+        taps[index] = index < kernel ? weights[channel * kernel + index] : 0.0f;
+    }
+    for (unsigned int token = 0; token < tokens; ++token) {
+        const float x = qkv[token * channels + channel];
+        float sum = 0.0f;
+#pragma unroll
+        for (unsigned int index = 0; index < GATED_DELTA_FUSED_KERNEL; ++index) {
+            if (index < history) {
+                sum += window[index] * taps[index];
+            } else if (index == history) {
+                sum += x * taps[index];
+            }
+        }
+        float value = sum / (1.0f + expf(-sum));
+        // The window moves on by the token, and the rows after it are written.
+        float * after = output + (size_t) channels * (tokens + token * history) + (size_t) channel * history;
+#pragma unroll
+        for (unsigned int index = 0; index < GATED_DELTA_FUSED_KERNEL; ++index) {
+            if (index + 1 < history) {
+                window[index] = window[index + 1];
+            } else if (index + 1 == history) {
+                window[index] = x;
+            }
+            if (index < history) {
+                after[index] = window[index];
+            }
+        }
+        if (normalized) {
+            // l2_norm_f32's reduction tree, so the norm's bits are its.
+            const float total = block_sum_f32(value * value, sums);
+            value *= 1.0f / fmaxf(sqrtf(total), epsilon);
+        }
+        if (channel < key_channels) {
+            output[token * key_channels + channel] = value;
+        } else if (channel < 2 * key_channels) {
+            output[(size_t) key_channels * tokens + token * key_channels + channel - key_channels] = value;
+        } else {
+            output[(size_t) 2 * key_channels * tokens + token * value_channels + channel - 2 * key_channels] = value;
+        }
+    }
+}
+
+// gated_delta_gates_f32 is tensor.Builder.GatedDeltaGates: a block an alpha row, then a beta row, each product summed
+// as mul_mat_f32 sums it (f32_row_dots, then the warps' sums in warp order), so its bits are the composed product's; the
+// alpha rows' gate is then softplus(product + time step) * decay and the beta rows' the sigmoid of the product, as
+// broadcast_add_f32, softplus_f32, broadcast_multiply_f32 and sigmoid_f32 round them.
+extern "C" __global__ void gated_delta_gates_f32(
+        const float * input,
+        const float * alpha,
+        const float * beta,
+        const float * time_step,
+        const float * decay,
+        float * output,
+        unsigned int embedding,
+        unsigned int heads,
+        unsigned int tokens) {
+    __shared__ float partials[F32_ROW_WARPS_MAX][Q8_INPUT_SPAN_MAX];
+    const unsigned int row = blockIdx.x;
+    if (row >= 2 * heads || tokens > Q8_INPUT_SPAN_MAX) return;
+    const bool is_beta = row >= heads;
+    const unsigned int head = is_beta ? row - heads : row;
+    const float * weights = (is_beta ? beta : alpha) + (size_t) head * embedding;
+    const unsigned int warp = threadIdx.x / CUDA_WARP_WIDTH;
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    float sums[Q8_INPUT_SPAN_MAX] = {};
+    if (tokens == 1) {
+        f32_row_dots<1>(weights, input, embedding, threadIdx.x, blockDim.x, tokens, sums);
+    } else if (tokens == 2) {
+        f32_row_dots<2>(weights, input, embedding, threadIdx.x, blockDim.x, tokens, sums);
+    } else if (tokens <= 4) {
+        f32_row_dots<4>(weights, input, embedding, threadIdx.x, blockDim.x, tokens, sums);
+    } else {
+        f32_row_dots<Q8_INPUT_SPAN_MAX>(weights, input, embedding, threadIdx.x, blockDim.x, tokens, sums);
+    }
+    #pragma unroll
+    for (unsigned int token = 0; token < Q8_INPUT_SPAN_MAX; ++token) {
+        if (token >= tokens) break;
+        const float sum = warp_sum_down(sums[token]);
+        if (lane == 0) partials[warp][token] = sum;
+    }
+    __syncthreads();
+    if (threadIdx.x != 0) return;
+    for (unsigned int token = 0; token < tokens; ++token) {
+        float sum = 0.0f;
+        for (unsigned int part = 0; part < blockDim.x / CUDA_WARP_WIDTH; ++part) sum += partials[part][token];
+        if (is_beta) {
+            output[heads * tokens + token * heads + head] = 1.0f / (1.0f + expf(-sum));
+        } else {
+            const float value = sum + time_step[head];
+            output[token * heads + head] = (fmaxf(value, 0.0f) + log1pf(expf(-fabsf(value)))) * decay[head];
+        }
+    }
+}
+
+
 extern "C" __global__ void get_rows_f32(
         const float * table,
         const unsigned int * rows,

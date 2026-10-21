@@ -22,7 +22,7 @@ func (emptyAttributes) validFor(op Op) bool {
 		OpSigmoid, OpSoftplus, OpSSMConv, OpSSMScan, OpTranspose2D, OpGELU,
 		OpReLUSquared, OpGroupedMulMat, OpTanh, OpExp, OpWKV6, OpSumRows,
 		OpWKV7, OpFWHT, OpGatherLast, OpReLU, OpDivide, OpBF16Round, OpGELUErf,
-		OpAtan:
+		OpAtan, OpGatedDeltaGates:
 		return true
 	default:
 		return false
@@ -76,6 +76,8 @@ func (HyperConnectionAttributes) validFor(op Op) bool {
 	return sameOp(op, OpHyperConnectionInit) || sameOp(op, OpHyperConnectionPre) ||
 		sameOp(op, OpHyperConnectionPost) || sameOp(op, OpHyperConnectionHead)
 }
+
+func (GatedDeltaConvAttributes) validFor(op Op) bool { return sameOp(op, OpGatedDeltaConv) }
 
 func (TopKAttributes) validFor(op Op) bool {
 	return sameOp(op, OpTopK) || sameOp(op, OpTopKPairs) || sameOp(op, OpTopKPartials)

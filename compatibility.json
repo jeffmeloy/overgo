@@ -865,7 +865,7 @@
      "contains": "func DescribeOperation(",
      "path": "internal/tensor/operation.go",
      "role": "source",
-     "identity": "file:sha256:e593a86375b441193f30e29d915f73c22c427bf06d470bbe31af5cb4bbef6400"
+     "identity": "file:sha256:bf8e3d50d7c3f58d674a7fd20e7a2ffe4164c3a3da6d24e6a2188847b7d4991b"
     },
     {
      "contains": "func TestOperationCatalogIsDenseAndUnique(",

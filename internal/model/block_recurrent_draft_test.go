@@ -525,9 +525,10 @@ func TestBuildQwen35RecurrentBlock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Two tokens prepare in the fused convolution (GatedDeltaConv), a prompt's in SSMConv.
 	var conv, delta int
 	for _, node := range nodes {
-		if node.Op == tensor.OpSSMConv {
+		if node.Op == tensor.OpSSMConv || node.Op == tensor.OpGatedDeltaConv {
 			conv++
 		}
 		if node.Op == tensor.OpGatedDeltaNet {

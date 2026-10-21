@@ -946,8 +946,18 @@ func buildGatedDeltaMixCached(
 	} else {
 		z = builder.MulMat(weights.AttentionGate, normalized)
 	}
-	var beta, alpha *tensor.Tensor
-	if deltaPolicy == gatedDeltaInterleavedProjections {
+	// A decode step's or a verify span's separate-projection layer prepares its query, key, value, gate and beta in two
+	// operations (GatedDeltaConv, GatedDeltaGates) whose bits are the composed operations': Flash-Next's decode ran the
+	// composed preparation as 17 kernels a layer.
+	fused := deltaPolicy != gatedDeltaInterleavedProjections && sequences == tensor.SingletonExtent &&
+		tensor.GatedDeltaFused(stateWidth, uint64(spec.SSMConvKernel), tokens, weights.SSMConv1D.Type, weights.SSMAlpha.Type, weights.SSMBeta.Type)
+	var beta, alpha, gate *tensor.Tensor
+	switch {
+	case fused:
+		gates := builder.GatedDeltaGates(normalized, weights.SSMAlpha, weights.SSMBeta, weights.SSMTimeStep, weights.SSMA)
+		gate = builder.FlatSlice(gates, tensor.FirstOffset, tensor.SingletonExtent, valueHeads, tokens, sequences)
+		beta = builder.FlatSlice(gates, valueHeads*tokens, tensor.SingletonExtent, valueHeads, tokens, sequences)
+	case deltaPolicy == gatedDeltaInterleavedProjections:
 		valueHeadsPerGroup := valueHeads / keyHeads
 		betaAlpha := builder.MulMat(weights.SSMBetaAlpha, normalized)
 		beta = builder.GroupSlice(
@@ -959,7 +969,7 @@ func buildGatedDeltaMixCached(
 		)
 		beta = builder.Reshape(builder.Sigmoid(beta), tensor.SingletonExtent, valueHeads, tokens, sequences)
 		alpha = builder.Reshape(alpha, valueHeads, tokens, sequences)
-	} else {
+	default:
 		beta = builder.Reshape(
 			builder.Sigmoid(builder.MulMat(weights.SSMBeta, normalized)),
 			tensor.SingletonExtent, valueHeads, tokens, sequences,
@@ -969,45 +979,72 @@ func buildGatedDeltaMixCached(
 			alpha = builder.Reshape(alpha, valueHeads, tokens, sequences)
 		}
 	}
-	gate := builder.Multiply(
-		builder.Softplus(builder.Add(alpha, weights.SSMTimeStep)),
-		weights.SSMA,
-	)
-	gate = builder.Reshape(gate, tensor.SingletonExtent, valueHeads, tokens, sequences)
+	if !fused {
+		gate = builder.Multiply(
+			builder.Softplus(builder.Add(alpha, weights.SSMTimeStep)),
+			weights.SSMA,
+		)
+		gate = builder.Reshape(gate, tensor.SingletonExtent, valueHeads, tokens, sequences)
+	}
 
-	var qkvTime *tensor.Tensor
-	if sequences > tensor.SingletonExtent && tokens == tensor.SingletonExtent {
-		qkvTime = builder.Reshape(qkvMixed, tokens, convChannels, sequences)
-	} else {
-		qkvTime = builder.Transpose2D(qkvMixed)
-		if sequences > tensor.SingletonExtent {
-			qkvTime = builder.Reshape(qkvTime, tokens, convChannels, sequences)
+	var query, key, value, nextConvState *tensor.Tensor
+	// window is the convolution's window after the first at tokens, the state a checkpoint keeps.
+	var window func(at uint64) *tensor.Tensor
+	if fused {
+		layout := tensor.GatedDeltaConvLayout{
+			StateWidth: stateWidth, KeyHeads: keyHeads, ValueHeads: valueHeads, Kernel: uint64(spec.SSMConvKernel), Tokens: tokens,
 		}
-	}
-	convInput := builder.Concat(convState, qkvTime, tensor.FirstOffset)
-	nextConvState := builder.GroupSlice(
-		convInput,
-		tokens,
-		uint64(spec.SSMConvKernel-tensor.SingletonExtent),
-		tensor.SingletonExtent,
-		uint64(spec.SSMConvKernel-tensor.SingletonExtent),
-	)
-	if sequences == tensor.SingletonExtent {
-		nextConvState = builder.Reshape(
-			nextConvState, uint64(spec.SSMConvKernel-tensor.SingletonExtent), convChannels,
+		prepared := builder.GatedDeltaConv(
+			convState, qkvProjection, weights.SSMConv1D, uint32(stateWidth), uint32(keyHeads), uint32(valueHeads), spec.RMSNormEpsilon,
 		)
+		query = builder.FlatSlice(prepared, tensor.FirstOffset, stateWidth, keyHeads, tokens, sequences)
+		key = builder.FlatSlice(prepared, layout.Key(), stateWidth, keyHeads, tokens, sequences)
+		value = builder.FlatSlice(prepared, layout.Value(), stateWidth, valueHeads, tokens, sequences)
+		window = func(at uint64) *tensor.Tensor {
+			return builder.FlatSlice(prepared, layout.Window(at-tensor.SingletonExtent), convStateWidth, convChannels)
+		}
+		nextConvState = window(tokens)
 	} else {
-		nextConvState = builder.Reshape(
-			nextConvState, uint64(spec.SSMConvKernel-tensor.SingletonExtent), convChannels, sequences,
+		var qkvTime *tensor.Tensor
+		if sequences > tensor.SingletonExtent && tokens == tensor.SingletonExtent {
+			qkvTime = builder.Reshape(qkvMixed, tokens, convChannels, sequences)
+		} else {
+			qkvTime = builder.Transpose2D(qkvMixed)
+			if sequences > tensor.SingletonExtent {
+				qkvTime = builder.Reshape(qkvTime, tokens, convChannels, sequences)
+			}
+		}
+		convInput := builder.Concat(convState, qkvTime, tensor.FirstOffset)
+		nextConvState = builder.GroupSlice(
+			convInput,
+			tokens,
+			uint64(spec.SSMConvKernel-tensor.SingletonExtent),
+			tensor.SingletonExtent,
+			uint64(spec.SSMConvKernel-tensor.SingletonExtent),
 		)
+		if sequences == tensor.SingletonExtent {
+			nextConvState = builder.Reshape(
+				nextConvState, uint64(spec.SSMConvKernel-tensor.SingletonExtent), convChannels,
+			)
+		} else {
+			nextConvState = builder.Reshape(
+				nextConvState, uint64(spec.SSMConvKernel-tensor.SingletonExtent), convChannels, sequences,
+			)
+		}
+		window = func(at uint64) *tensor.Tensor {
+			return builder.Reshape(
+				builder.GroupSlice(convInput, at, convStateWidth, tensor.SingletonExtent, convStateWidth),
+				convStateWidth, convChannels,
+			)
+		}
+		convolved := builder.SiLU(builder.SSMConv(convInput, weights.SSMConv1D))
+		query = builder.GroupSlice(convolved, tensor.FirstOffset, stateWidth, keyHeads, stateWidth)
+		key = builder.GroupSlice(convolved, keyDimension, stateWidth, keyHeads, stateWidth)
+		value = builder.GroupSlice(convolved, tensor.PairedExtent*keyDimension, stateWidth, valueHeads, stateWidth)
+		query = builder.Reshape(builder.L2Norm(query, spec.RMSNormEpsilon), stateWidth, keyHeads, tokens, sequences)
+		key = builder.Reshape(builder.L2Norm(key, spec.RMSNormEpsilon), stateWidth, keyHeads, tokens, sequences)
+		value = builder.Reshape(value, stateWidth, valueHeads, tokens, sequences)
 	}
-	convolved := builder.SiLU(builder.SSMConv(convInput, weights.SSMConv1D))
-	query := builder.GroupSlice(convolved, tensor.FirstOffset, stateWidth, keyHeads, stateWidth)
-	key := builder.GroupSlice(convolved, keyDimension, stateWidth, keyHeads, stateWidth)
-	value := builder.GroupSlice(convolved, tensor.PairedExtent*keyDimension, stateWidth, valueHeads, stateWidth)
-	query = builder.Reshape(builder.L2Norm(query, spec.RMSNormEpsilon), stateWidth, keyHeads, tokens, sequences)
-	key = builder.Reshape(builder.L2Norm(key, spec.RMSNormEpsilon), stateWidth, keyHeads, tokens, sequences)
-	value = builder.Reshape(value, stateWidth, valueHeads, tokens, sequences)
 	// scan advances the state over count tokens from first and returns their outputs and the state after them.
 	scan := func(first, count uint64, state *tensor.Tensor) (*tensor.Tensor, *tensor.Tensor) {
 		slice := func(input *tensor.Tensor) *tensor.Tensor {
@@ -1037,10 +1074,7 @@ func buildGatedDeltaMixCached(
 			var part *tensor.Tensor
 			var checkpoint LayerCheckpoint
 			part, checkpoint.Value = scan(start, uint64(at)-start, state)
-			checkpoint.Key = builder.Reshape(
-				builder.GroupSlice(convInput, uint64(at), convStateWidth, tensor.SingletonExtent, convStateWidth),
-				convStateWidth, convChannels,
-			)
+			checkpoint.Key = window(uint64(at))
 			attention = concatTokens(builder, attention, part)
 			checkpoints = append(checkpoints, checkpoint)
 			state, start = checkpoint.Value, uint64(at)

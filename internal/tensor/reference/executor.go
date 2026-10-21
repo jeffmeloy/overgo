@@ -266,6 +266,10 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 		return l2Norm(node.Shape, inputs[0], node.Attrs.(tensor.L2NormAttributes).Epsilon)
 	case tensor.OpSSMConv:
 		return ssmConv(node.Shape, inputs[0], inputs[1])
+	case tensor.OpGatedDeltaConv:
+		return gatedDeltaConv(node, inputs)
+	case tensor.OpGatedDeltaGates:
+		return gatedDeltaGates(node, inputs)
 	case tensor.OpSSMScan:
 		return ssmScan(node.Shape, inputs)
 	case tensor.OpGatedDeltaNet:

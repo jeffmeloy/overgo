@@ -74,11 +74,11 @@ The preamble's row is the plan's step shape-reading/launch-checks, and TestNoLau
 == switches ==
 family: internal/tensor.Op
 switches: 10
-lines: 1681
+lines: 1689
 functions: 10
 packages: 4
-constants: 66
-operations-by-switches: 1=3 2=30 3=25 4=8
+constants: 68
+operations-by-switches: 1=3 2=31 3=26 4=8
 
 switch: internal/cuda/executor/executor.go#validateRuntimeAttributes
 lines: 75
@@ -117,11 +117,11 @@ row: the entry of each operation and, as a column, the kernel each elementwise o
 table: yes
 
 switch: internal/cuda/executor/launch_recurrent_selection.go#launchRecurrentSelection
-lines: 327
-constants: 14
-clauses: 15
-dispatch-lines: 18
-decides: the device launch of the state-space and recurrent operations (ssm_conv, ssm_scan, gated_delta_net, gated_linear_attention, wkv6, wkv7), the row reductions and selections (sum_rows, fwht, the top-k operations, gather_last) and the sparse attention operations (sparse_attention, indexer_score), each by reading its dimensions, narrowing them to 32-bit words and launching its kernel
+lines: 331
+constants: 16
+clauses: 17
+dispatch-lines: 20
+decides: the device launch of the state-space and recurrent operations (ssm_conv, ssm_scan, gated_delta_net, gated_linear_attention, wkv6, wkv7), the fused gated-delta preparation (gated_delta_conv, gated_delta_gates), the row reductions and selections (sum_rows, fwht, the top-k operations, gather_last) and the sparse attention operations (sparse_attention, indexer_score), each by reading its dimensions, narrowing them to 32-bit words and launching its kernel
 row: the entry of each operation, while each body marshals its own kernel's arguments
 table: yes
 
@@ -154,7 +154,7 @@ table: no
 
 switch: internal/tensor/attributes.go#emptyAttributes.validFor
 lines: 10
-constants: 27
+constants: 28
 clauses: 2
 dispatch-lines: 9
 decides: which operations carry no attributes
@@ -162,23 +162,23 @@ row: a column of internal/tensor/operation.go#operationDescriptors naming each o
 table: yes
 
 switch: internal/tensor/reference/executor.go#executeNode
-lines: 211
-constants: 63
-clauses: 64
-dispatch-lines: 67
+lines: 215
+constants: 65
+clauses: 66
+dispatch-lines: 69
 decides: the host arithmetic of every operation that is not a view or an input, by an inline loop for scale, clamp, signed_sqrt, xielu and the unary activations and by a named function for the rest
 row: one entry per operation holding its function or a function literal, with each case of one statement folded onto its row
 table: yes
 
 == estimate ==
-table-dispatch-lines: 159
+table-dispatch-lines: 163
 estimated-scaffolding-deleted: 192
-table-deleted: 351
+table-deleted: 355
 estimated-rows-added: 128
 estimated-frames-added: 67
 estimated-machinery-added: 44
 table-added: 239
-table-net: 112
+table-net: 116
 table-net-range: -54 144
 makes-possible: a device operation declared in one place where the tree holds two that must agree (its family in the descriptors and its case in that family's switch), and a test that refuses an operation a descriptor claims for a backend whose table lacks it, with no device and no graph run
 not-made-possible: adding an operation in one place, because the host and the device executors import package tensor, so each keeps its own table and an operation stays a constant, a descriptor, a builder method, a host entry, a device entry and a kernel

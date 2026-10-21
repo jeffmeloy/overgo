@@ -84,7 +84,19 @@ const (
 	OpPixelShuffle2D
 	// OpSignedSqrt preserves sign while taking the square root of a floored magnitude.
 	OpSignedSqrt
+	// OpGatedDeltaConv convolves a gated-delta layer's qkv rows over its history, with the SiLU and the query and key
+	// heads' L2 norms, and keeps the window after each token (Builder.GatedDeltaConv).
+	OpGatedDeltaConv
+	// OpGatedDeltaGates projects a gated-delta layer's decay gate and beta from its input (Builder.GatedDeltaGates).
+	OpGatedDeltaGates
 )
+
+// GatedDeltaConvAttributes declares a gated-delta layer's state width, its key and value heads, and the epsilon of its
+// query and key heads' L2 norms.
+type GatedDeltaConvAttributes struct {
+	StateWidth, KeyHeads, ValueHeads uint32
+	Epsilon                          float32
+}
 
 // SignedSqrtAttributes declares the positive magnitude floor and preserves exact zero.
 type SignedSqrtAttributes struct{ Minimum float32 }

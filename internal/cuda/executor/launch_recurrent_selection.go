@@ -226,6 +226,10 @@ func launchRecurrentSelection(
 ) error {
 	output := pointers.output()
 	switch node.Op {
+	case tensor.OpGatedDeltaConv:
+		return launchGatedDeltaConv(state, functions, node, pointers)
+	case tensor.OpGatedDeltaGates:
+		return launchGatedDeltaGates(state, functions, node, pointers)
 	case tensor.OpSSMConv:
 		count := shapeCount32(node.Shape)
 		window := uint32(node.Inputs[0].Shape.Dims[0])

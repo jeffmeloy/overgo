@@ -85,7 +85,7 @@ func TestExpertPromotionsCopyBesideTheRunsOnTheCard(t *testing.T) {
 							return err
 						}
 					}
-					_, resident := cache.entries[expertKey{cache.banks[name], index}]
+					resident := cache.banks[name].entries[index] != nil
 					if table[index] != bank.pointers[index] || !bytes.Equal(actual[:bank.bytes], want) || resident != (bank.hosted[index] == nil) {
 						t.Fatalf("%s expert %d does not read its bytes through the device's table", name, index)
 					}

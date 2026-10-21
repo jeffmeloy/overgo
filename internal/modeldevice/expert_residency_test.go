@@ -199,7 +199,7 @@ func TestFlashNextExpertResidency(t *testing.T) {
 				if err != nil || !bytes.Equal(actual, f.payloads[name][start:start+bank.bytes]) {
 					t.Fatalf("%s expert %d does not read its bytes: %v", name, index, err)
 				}
-				_, resident := cache.entries[expertKey{cache.banks[name], index}]
+				resident := cache.banks[name].entries[index] != nil
 				if resident != (bank.hosted[index] == nil) || resident != slices.Contains(want, index) {
 					t.Fatalf("%s expert %d on the card %t, want the card to hold %v", name, index, resident, want)
 				}
@@ -253,7 +253,7 @@ func TestFlashNextExpertResidency(t *testing.T) {
 			t.Fatalf("placement = %+v, want %+v: %v", placement, want, err)
 		}
 		all, _ := open(t, tableBytes+experts*(gateStride+downStride))
-		if len(all.pinned) != 1 || len(all.entries) != 2*experts {
+		if len(all.pinned) != 1 || all.cardExperts() != 2*experts {
 			t.Fatal("a limit that holds every expert left one in host memory")
 		}
 	})
@@ -299,8 +299,8 @@ func TestFlashNextExpertResidency(t *testing.T) {
 			t.Fatalf("%d copies of card experts are staging, want expert 1 of each bank", len(cache.staging))
 		}
 		advance(t, cache)
-		if len(cache.staged) != 2 || len(cache.staging) != 0 {
-			t.Fatalf("%d staged copies landed and %d in flight, want both landed", len(cache.staged), len(cache.staging))
+		if stagedCopies(cache) != 2 || len(cache.staging) != 0 {
+			t.Fatalf("%d staged copies landed and %d in flight, want both landed", stagedCopies(cache), len(cache.staging))
 		}
 		// Expert 0's miss takes staged expert 1's slot: 1 reads its staged copy at once, with no copy back, and 0 stays
 		// in host memory while its copy to the card is in flight.
@@ -500,8 +500,8 @@ func TestExpertStagingHoldsItsBudget(t *testing.T) {
 			t.Fatal(err)
 		}
 		held := map[uint64]int{}
-		for key := range cache.staged {
-			held[key.bank.stride]++
+		for _, class := range cache.classes {
+			held[class.stride] += class.staged
 		}
 		for _, move := range cache.staging {
 			held[move.key.bank.stride]++
@@ -635,10 +635,19 @@ func TestExpertResidencyFillsTheCardWhenItFrees(t *testing.T) {
 // onCard lists a bank's experts on the card.
 func onCard(cache *expertResidency, name string) []uint32 {
 	var indices []uint32
-	for key := range cache.entries {
-		if key.bank.info.Name == name {
-			indices = append(indices, key.index)
+	for index, entry := range cache.banks[name].entries {
+		if entry != nil {
+			indices = append(indices, uint32(index))
 		}
 	}
 	return indices
+}
+
+// stagedCopies counts the card experts whose copies in host memory have landed.
+func stagedCopies(cache *expertResidency) int {
+	copies := 0
+	for _, class := range cache.classes {
+		copies += class.staged
+	}
+	return copies
 }

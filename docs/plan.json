@@ -213,17 +213,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 171,
+        "nodes": 60,
         "reason": "expert-throughput as built adds 589 production syntax nodes (the gate's preflight, 2026-10-21): the routed-expert launch's choice of q8 products, its staging of the input and the slots' activations with the q8 inputs' reuse (moeQ8Storage, moeQ8Products, moeQ8Bytes, moeQ8StagingBytes) and the regenerated kernel bindings; with speculate-default's 144 and span-experts' 20 the row's count is 760."
       },
       "steps": [
-        {
-          "id": "window-host",
-          "title": "Cut a speculative window's host work between its graphs",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "A speculative window leaves the card idle about 3.5 ms between its graphs (Nsight Systems, graph-level, Flash-Next's 200-token chat after expert-throughput: per window a 15.65 ms verify graph, a 1.08 ms draft graph, 0.5 ms of other kernels and 3.5 ms idle, against Strata's whole 15.8 ms window). The host is the cause, not the copies: the expert copies run on their own stream beside the graphs (289 of 308 ms overlapped), and a CPU profile spends 86% of the run in StreamSynchronize and 12% between synchronizations, while the card waits.\nThat host time's largest parts: the expert residency's advance after every run, 3.7% of the run (about 0.56 ms a window), looking up and reordering every routed expert in maps and a list; the window's synchronous reads, 4.4 a window at about 82 us each; and graph captures, where a request cycles through more span graphs than the sixteen kept (a third request on the probe recaptured six, none with 48 kept).\nThe step cuts them: the residency indexes its experts by bank and expert in arrays, a window reads its results in one copy, and a speculating runner keeps enough graphs for its span lengths, capacities and frames.\nEvidence: the idle time between a window's graphs and the probe's milliseconds a token, speculative and plain; the CPU profile's advance.\nServes: throughput of speculative and plain decoding on models with experts in host memory.\nBatch: device."
-        },
         {
           "id": "span-commit-chain",
           "title": "Commit a verify span's kept prefix without a second span, as Strata's Verifier::commit does",

@@ -213,15 +213,15 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "measured: long-prompt/prefill-rate adds 148 production syntax nodes (the key-head gated delta-net kernels' selection)"
+        "nodes": 20,
+        "reason": "measured: long-prompt/expert-products adds 20 production syntax nodes (the hidden products' block of eight warps, moeHiddenThreads)"
       },
       "steps": [
         {
           "id": "expert-products",
           "title": "Run a long prompt's grouped expert products at the tensor cores' rate",
           "status": "open",
-          "verify": "go run ./cmd/plan -status",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^(TestPromptExpertsMultiplyEncodedWeights|TestPromptExpertCopiesOverlapCompute)$'",
           "rationale": "From the same profile: moe_grouped_hidden_f32 and moe_grouped_down_f32 take 3.16 and 0.93 s for about 97 TFLOP of expert products, about 24 TFLOPS on fp16 tensor cores that reach several times that. Dropping the low fp16 part of each input (MOE_INPUT_PARTS 1, half the mma work) saved only 0.6 s (13.47 to 12.88 s), so decoding and staging each weight tile, not the mma, sets the pace: a tile of MOE_TILE_TOKENS tokens decodes its weights again for every token tile of the same expert.\nThe step profiles the grouped kernels (ncu: decode, shared-memory and mma pipes) and cuts the largest cost, such as decoding an expert's weight tile once for more of its routed tokens, holding the products' bits.\nEvidence: the grouped kernels' time in Nsight, the 4K and 16K first outputs, a device test holding the products to the reference.\nServes: first-output of every routed-expert model's long prompts.\nBatch: device."
         },
         {
@@ -585,7 +585,8 @@
             "agent-thread-terms/do",
             "spec-plan/do",
             "prefill-rate-terms/do",
-            "copies-rescope/do"
+            "copies-rescope/do",
+            "products-count/do"
           ]
         }
       ]

@@ -208,21 +208,16 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "long-prompt",
-      "title": "Read Flash-Next prompts longer than 2,048 tokens at the speed Strata reaches on this PC",
-      "owner": "master-lead",
+      "id": "cache-restore-bounds",
+      "title": "Validate a compressed cache's bounds before synthesizing its positions",
       "status": "open",
-      "budget": {
-        "nodes": 18,
-        "reason": "measured: long-prompt/expert-products adds 20 production syntax nodes (the hidden products' block of eight warps, moeHiddenThreads)"
-      },
       "steps": [
         {
-          "id": "expert-ring",
-          "title": "Stream a long prompt's host experts beside the attention through a ring",
+          "id": "do",
+          "title": "Validate a compressed cache's bounds before synthesizing its positions",
           "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "From Nsight of Flash-Next's 20,605-token prompt with expert-copies' prototypes (2026-10-20): the card's link runs at PCIe 4.0 x8 under load and the prompt's 40.9 GB of host expert copies take 3.1 s at its rate, 13.1 GB/s; merged transfers and more copy buffers changed nothing (11.97 to 12.20 s against 12.05 to 12.45 s).\nToday a layer's products (about 90 ms) outlast its copies (about 65 ms), so the copies stall the products only 0.66 s; once long-prompt/expert-products shortens the products below the copies, the link sets each layer's pace while the attention and delta-net run with the link idle, because a layer's copies wait for its routes.\nStrata streams every non-resident expert once per 8,192-token chunk through a 384-slot ring on its own copy stream, beside the attention halves (src/prefill/prefill.cpp:2337-2502), and its 16K prompt copies about 46 GB in its 5.0 s.\nThe step copies a long prompt's layer's host experts into a ring before its routes are known, beside the layers before it, each buffer released by its own event so copies run ahead of the products.\nEvidence: Nsight's time with copies alone; the 4K and 16K first outputs; answers identical to master's.\nServes: first-output of every routed-expert model larger than its card.\nBatch: device."
+          "verify": "go test ./internal/inference -count=1 -run '^(TestDeepSeek4CacheStateRoundTrip|TestKVCacheStateRejectsLayerCountBeyondPayload)$'",
+          "rationale": "From SQA-180 (P2, 4334943e5): a compressed-attention runner's LoadCache synthesizes a position array of the header's token count (materializeCompressedCachePositions) before validateCache checks the tokens against the context and the layers: a 20-byte header claiming 2^32 tokens asks about 17 GB before its refusal, and a complete cache allocates and fills a discarded array of 4 bytes a token on every restore.\nThe step moves the existing token, context and layer checks ahead of the synthesis, sharing them between LoadCache and validateCache, and synthesizes positions only for a validated layer that lacks them; missing-position caches keep restoring with their values.\nEvidence: TestDeepSeek4CacheStateRoundTrip with a missing-position restore and independent layer edits; the malformed-header refusal on the compressed runner before any token-sized allocation.\nServes: failure-rate of restored prompt state.\nBatch: cpu."
         }
       ]
     },
@@ -256,6 +251,20 @@
           "status": "open",
           "verify": "go run ./cmd/plan -status",
           "rationale": "The server opens no draft (inference.OpenOptions.Draft is set only by probes and tests), and a speculative request turns the prompt cache off (protocol_common.go:298-300), so an agent's follow-up turns would read their whole prompt again.\nThe step binds the draft to the model's library entry as the projector is bound, speculates a greedy request when the draft pays (measured by window-cost and draft-depth), and keeps the prompt cache for speculative requests.\nEvidence: Strata's bench on master, the short chat's and agent turns' decode against plain, follow-up turns' cached tokens unchanged.\nServes: throughput and setup-steps.\nBatch: device."
+        }
+      ]
+    },
+    {
+      "id": "prompt-memory",
+      "title": "Keep a long prompt's experts on the card by shrinking the prompt's own buffers",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Keep a long prompt's experts on the card by shrinking the prompt's own buffers",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "From long-prompt/expert-ring's prototype and the device-memory ledger of a 16,718-token Flash-Next prompt on master d36ab798a (2026-10-20): the prompt's own buffers peak at about 9.9 GB (the arena 6.08 GB, the grouped-product staging 1.95 GB, the routed and attention scratch 1.88 GB), lent from the expert residency. The card then keeps 40,739 expert banks (about 13,600 experts, 32.7 GB) where a 5,099-token prompt keeps 50,298 (about 16,800), and Strata keeps 17,493 experts (39.4 GiB) through its prompts.\nThat prompt copies 23.4 GB of experts, 1.8 s of the x8 link, and the copies stall its products 0.44 s. A 256 MB copy-ahead area beside the attention cut the stall to 0.26 s but displaced its own size of experts (26.0 GB copied) and gained about 0.05 s; on the 20,605-token prompt it tipped the memory check into reading the prompt in two chunks (prototype: overgo_data/scratch/long-prompt-20261019/expert-prefetch.patch).\nThe step lists the prompt's largest buffers at 16K tokens and shrinks the largest the work allows, such as the arena's live activations or the routed slots' outputs, keeping the outputs' bits, so the residency keeps more experts through the prompt.\nEvidence: the ledger's peak and the card's experts at 16,718 tokens; the host bytes copied; the 4K and 16K first outputs with the same tokens.\nServes: first-output of every offloaded routed-expert model's long prompts; peak-device-memory of every model's long prompts.\nBatch: device."
         }
       ]
     },
@@ -580,7 +589,10 @@
             "prefill-rate-terms/do",
             "copies-rescope/do",
             "products-count/do",
-            "attention-file/do"
+            "attention-file/do",
+            "cache-restore-bounds/do",
+            "prompt-memory/do",
+            "ring-retire/do"
           ]
         }
       ]

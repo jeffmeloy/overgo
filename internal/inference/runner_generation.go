@@ -319,7 +319,8 @@ func (r *Runner) Generate(
 			ctx, ids, deviceCache, options,
 		)
 		if err != nil {
-			return nil, "", err
+			// A failed span ends the request with the ids decoded so far, as a failed step does.
+			return ids, "", err
 		}
 		return ids, speculatedText, nil
 	}

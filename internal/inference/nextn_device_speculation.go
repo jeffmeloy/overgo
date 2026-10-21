@@ -167,7 +167,7 @@ func (r *Runner) generateDeviceSpeculativeGreedy(
 	}
 	boundary := prefill
 	if err := emit(boundary.Selected); err != nil {
-		return nil, boundary, "", err
+		return ids, boundary, "", err
 	}
 	pending := []tokenizer.TokenID{boundary.Selected}
 	depth := r.speculationDraftTokens()
@@ -185,16 +185,20 @@ func (r *Runner) generateDeviceSpeculativeGreedy(
 		// A one-draft round collapses after every rejection, so each span
 		// it verifies is two tokens long and replays one of two frames a
 		// cache capacity.
-		if haveSeed && len(pending)+depth <= int(q8InputSpanColumnsWindow) && (depth > 1 || len(pending) == 1) {
+		// A round drafts no more than the output and the context have left: its span emits the accepted drafts and
+		// one token more and appends its pending tokens and drafts to the boundary, so the request ends where plain
+		// decoding ends.
+		room := min(depth, options.MaxNewTokens-emitted-1, int(r.spec.ContextLength)-int(boundary.Tokens)-len(pending))
+		if haveSeed && room > 0 && len(pending)+depth <= int(q8InputSpanColumnsWindow) && (depth > 1 || len(pending) == 1) {
 			session, sessionErr := r.newDeviceMTPSessionLocked(seedHidden, seedPosition)
 			if sessionErr != nil {
-				return nil, boundary, "", sessionErr
+				return ids, boundary, "", sessionErr
 			}
 			token := pending[len(pending)-1]
-			for len(drafts) < depth {
+			for len(drafts) < room {
 				drafted, next, draftErr := r.draftDeviceTokenLocked(ctx, token, session)
 				if draftErr != nil {
-					return nil, boundary, "", draftErr
+					return ids, boundary, "", draftErr
 				}
 				session = next
 				token = drafted
@@ -206,12 +210,12 @@ func (r *Runner) generateDeviceSpeculativeGreedy(
 			ctx, deviceOutputGreedySpan, spanTokens, boundary,
 		)
 		if err != nil {
-			return nil, boundary, "", err
+			return ids, boundary, "", err
 		}
 		selections := span.SpanSelected
 		if len(selections) != len(spanTokens) {
 			releaseErr := span.Release(context.Background())
-			return nil, boundary, "", errors.Join(
+			return ids, boundary, "", errors.Join(
 				errors.New("inference: span selections are incomplete"), releaseErr,
 			)
 		}
@@ -225,19 +229,19 @@ func (r *Runner) generateDeviceSpeculativeGreedy(
 		}
 		for index := 0; index < accepted && !stopped; index++ {
 			if err := emit(drafts[index]); err != nil {
-				return nil, boundary, "", errors.Join(err, span.Release(context.Background()))
+				return ids, boundary, "", errors.Join(err, span.Release(context.Background()))
 			}
 		}
 		correction := selections[base+accepted]
 		if !stopped {
 			if err := emit(correction); err != nil {
-				return nil, boundary, "", errors.Join(err, span.Release(context.Background()))
+				return ids, boundary, "", errors.Join(err, span.Release(context.Background()))
 			}
 		}
 		spanStart := span.Position - uint32(len(spanTokens))
 		seedHidden, err = spanHiddenRow(span.SpanHidden, width, base+accepted)
 		if err != nil {
-			return nil, boundary, "", errors.Join(err, span.Release(context.Background()))
+			return ids, boundary, "", errors.Join(err, span.Release(context.Background()))
 		}
 		seedPosition = spanStart + uint32(base+accepted) + 1
 		haveSeed = true
@@ -245,19 +249,19 @@ func (r *Runner) generateDeviceSpeculativeGreedy(
 			previous := boundary
 			boundary = span
 			if err := previous.Release(ctx); err != nil {
-				return nil, boundary, "", err
+				return ids, boundary, "", err
 			}
 			pending = []tokenizer.TokenID{correction}
 		} else {
 			if err := span.Release(ctx); err != nil {
-				return nil, boundary, "", err
+				return ids, boundary, "", err
 			}
 			pending = append(append(pending, drafts[:accepted]...), correction)
 		}
 	}
 	text, err := r.vocab.Decode(ids, false)
 	if err != nil {
-		return nil, boundary, "", err
+		return ids, boundary, "", err
 	}
 	return ids, boundary, text, nil
 }

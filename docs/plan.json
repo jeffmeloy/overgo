@@ -296,17 +296,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1100,
+        "nodes": 1067,
         "reason": "full-history measured by host simulation (document 79 to about 104 tokens a second with the prompt filled into the draft layer's cache); its design (the draft layer inside the span and prefill graphs over a device cache) is estimated at 800 to 1,000 production nodes; clamp measured +24"
       },
       "steps": [
-        {
-          "id": "clamp",
-          "title": "Stop a speculating request at its context limit as plain decoding does",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestSpeculationStopsAtTheContextLimit$'",
-          "rationale": "From step mtp: the speculation loop can push a request past the end of its context: a 16-token fixture asked for more new tokens than fit failed with \"cached plus new token count 17 exceeds context length 16\", where plain decoding stops at the limit. A speculating request near its context end fails instead of finishing.\nThe step clamps each round's draft and verify span to the tokens left in the context (no draft when one token is left), so a speculating request ends where plain decoding would, with the same text.\nAcceptance: a speculating request that reaches its context limit finishes with plain decoding's tokens and finish reason.\nServes: failure-rate for speculating requests near their context limit.\nBatch: device.\n\nSQA-167 (P2, 2026-10-19) names the same gap independently: bound speculative verification by the remaining context and the requested output."
-        },
         {
           "id": "nextn-spans",
           "title": "Give NextN speculation span lengths its kept graphs can replay",

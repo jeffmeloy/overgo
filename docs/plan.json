@@ -227,8 +227,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1,
-        "reason": "measured: flashnext-cells/cells adds 507 production syntax nodes (recipe verify -protocol binds its first chat case as an exact plan; recipe measure reads it)"
+        "nodes": 122,
+        "reason": "measured: flashnext-cells/coverage adds 122 production syntax nodes (a coverage proof citing a recipe verification's gate)"
       },
       "steps": [
         {
@@ -586,7 +586,8 @@
             "context-sweep/do",
             "review-order/do",
             "cells-carry/do",
-            "publish-file/do"
+            "publish-file/do",
+            "coverage-carry/do"
           ]
         }
       ]

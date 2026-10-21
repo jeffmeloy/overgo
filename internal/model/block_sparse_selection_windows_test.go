@@ -20,6 +20,10 @@ func TestFlashNextNGramCUDA(t *testing.T) {
 	runFlashNextCUDA(t, model.RunFlashNextNGram)
 }
 
+func TestBlockSelectionChunksCUDA(t *testing.T) {
+	runFlashNextCUDA(t, model.RunBlockSelectionChunks)
+}
+
 func runFlashNextCUDA(t *testing.T, check func(*testing.T, func([]*tensor.Tensor, map[*tensor.Tensor]reference.Value) (map[*tensor.Tensor]reference.Value, error))) {
 	t.Helper()
 	cudatest.Require(t)

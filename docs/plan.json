@@ -218,11 +218,11 @@
       },
       "steps": [
         {
-          "id": "chain-depth",
-          "title": "Chain up to three confident drafts a window, as Strata's min-p window does",
+          "id": "draft-on-card",
+          "title": "Draft each window on the card from the verify span's own rows, as Strata's draft round does",
           "status": "open",
           "verify": "go run ./cmd/plan -status",
-          "rationale": "Strata grows its MTP window while the last draft's top probability is at least --spec-min-p, to four tokens with --spec 4 (src/core/mtp.cpp:1313-1336, 1651; generate.cpp:13754-13758); on this machine it verifies about 3 drafts a window and a window costs about 15 ms (strata-unsloth-ud-iq4_xs.log: 49 of 106 drafts accepted over 100 tokens in 784 ms).\nOvergo drafts one token a window. Its builds so far, kept in overgo_data/scratch/long-prompt-20261019: the confidence floor (draft-floor.patch: acceptance 57 to 62% ungated, 80 to 88% at 0.7, time within noise at depth one); a chain of fresh cells (draft-chain.patch: 14.8 to 18.2 ms a token against 12.4 to 13.8, a kept prefix forwarded again and dropped deeper drafts costing draft steps); the draft layer's own cells over the generation (draft-cells.patch: acceptance at depth one 58 to 62% against 58 to 64% without, no gain).\nThe step chains up to three drafts gated by the floor once a span's extra tokens are cheap (span-experts) and a kept prefix commits without a second span (span-commit), the depth and floor taken from Flash-Next's measured accepted tokens against the window's cost.\nEvidence: tokens a window and the probe's milliseconds a token, speculative; the held-out part's score with and without speculation.\nServes: throughput.\nBatch: device."
+          "rationale": "chain-depth's measurements (2026-10-21, the probe's speculative chats, a build that logged every window: overgo_data/scratch/long-prompt-20261019/draft-chain-gated.patch): a verify span costs 12.7, 15.4, 18.4 and 20.9 ms at one to four tokens; a window's first draft costs 2.05 ms of wall time, of which its graph is 1.08 ms on the card (graph-level trace), and each chained draft 1.6 to 2.0 ms more. The rest of the first draft is the host's: the span's hidden rows copied to the host, the seed row uploaded again, a launch, a wait and the token read back, while the card idles.\nStrata's draft round reads the verify window's residual rows where they lie on the card, takes its tokens, cells and accepted row through mapped pinned memory in one copy kernel, writes its token and probability to mapped memory, and launches its chained steps after the round without waiting between them, the host reading each step's output by an event (src/core/mtp.cpp capture_round 1265-1311, chain_launch 1733-1784, chain_outputs_ready 1786-1798).\nThe step drafts on the card the same way: the draft step reads the span's hidden row at the accepted index from the span's own output on the card, its token and position come through the staged attribute words rather than a host feed, its token and probability return in one small read, and a span no longer copies its hidden rows to the host. Replaying 403 three-draft windows with these costs: one draft at a 1.0 ms step runs 10.45 ms a token against 11.10 today; a second chained draft (first draft verified at 0.6, the second at 0.5) adds about 1% more, so the step chains it only if its own replay says it pays.\nEvidence: the probe's milliseconds a token and a window's draft time, speculative, against master; the held-out part's score with and without speculation.\nServes: throughput.\nBatch: device."
         },
         {
           "id": "draft-library",
@@ -529,7 +529,8 @@
             "plan-window-host/do",
             "plan-span-columns/do",
             "plan-draft-vocab/do",
-            "plan-scc-count/do"
+            "plan-scc-count/do",
+            "plan-chain-depth/do"
           ]
         }
       ]

@@ -222,6 +222,53 @@
       ]
     },
     {
+      "id": "flashnext-cells",
+      "title": "Measure Flash-Next on the scorecard",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 200,
+        "reason": "estimate: recipe verify -protocol also runs a short exact suite on the candidate and binds its plan to the gate"
+      },
+      "steps": [
+        {
+          "id": "cells",
+          "title": "Bind an exact plan to protocol acceptance and publish Flash-Next's benchmark",
+          "status": "open",
+          "verify": "go test ./cmd/recipe -count=1 -run '^TestVerifyProtocolBindsAnExactPlan$'",
+          "rationale": "From the measurement run at 32b26610e (log overgo_data/scratch/measure-run-20261018.log), Flash-Next's first cells: the guard cell failed (\"has no bound finite positive short-prompt benchmark; publish one with cmd/benchmark before measurement\") and the serving cell failed (\"the verification of model:sha256:d7ff4ba5... names no exact plan; verify it again with -input\"): recipe measure replays the first case of the exact suite the activation's gate ran, and a recipe accepted by recipe verify -protocol (93d566915) binds the protocol observation, not an exact plan.\nThe step lets a protocol-accepted recipe be measured: recipe verify -protocol also runs and binds a short exact suite on the same candidate (Flash-Next's smoke oracle, integer addition, already declared in docs/verification/smoke-oracles.json), so the gate's first step names an exact plan recipe measure can replay; then Flash-Next is verified again with it, and a short-prompt benchmark is published for its active recipe with cmd/benchmark.\nAcceptance: recipe measure on Flash-Next records a serving attempt, the guard cell's benchmark exists, and both cells pass in the next measurement run.\nServes: setup-steps and the scorecard's first-output, throughput, load-time and peak-device-memory cells for Flash-Next.\nBatch: device.\n\nSQA-168 (P2, 2026-10-19) names the same gap independently: protocol-accepted recipes must be consumable by the existing serving measurement."
+        },
+        {
+          "id": "coverage",
+          "title": "Carry or rebind Flash-Next's accepted coverage to its capacity recipe",
+          "status": "open",
+          "verify": "go run ./cmd/validate -media json",
+          "rationale": "From the measurement run's models lane at 32b26610e: TestAcceptedModalityCoverage/text-vision and TestAcceptedProtocolCoverageProjection fail with \"coverage: missing, duplicate or changed activation model:sha256:d7ff4ba5.../inference\": Flash-Next's accepted coverage binds the request-session recipe (recipe:sha256:4b391840...), and the capacity recipe activated on 2026-10-18 (recipe:sha256:81d75bcb...) is not carried, although acceptanceCovers carries acceptance across a session-policy change by recipe.Definition.SameComputation; the two definitions must differ beyond their sessions.\nThe step finds what differs, carries the acceptance where only execution policy differs and the protocol acceptance (recipe verify -protocol, eight cases) re-ran on the new recipe, else rebinds the coverage cell to the capacity recipe with that acceptance, as 77f131776 rebound Granite's.\nAcceptance: go run ./cmd/validate -media json and the model-tagged coverage tests pass with the capacity recipe active.\nServes: failure-rate of the checks; setup-steps.\nBatch: host."
+        },
+        {
+          "id": "journey",
+          "title": "Let the first-run journey serve Flash-Next from the picker",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane -run '^TestModelJourneyFirstRun$'",
+          "rationale": "From the measurement run at 32b26610e: the model-journey lane's TestModelJourneyFirstRun chose Qwen3.8-Flash-Next (first-run journey: model Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf) and failed: after the cold-page declaration leg the picker's row for the model, with its Serve button, never appeared (internal/server/webui_browser_firstrun_test.go:267). The 2026-10-14 run failed the same test on Qwen2.5-0.5B differently.\nThe step finds why the picker does not list Flash-Next's row in the journey (a load-size or memory filter, a slow catalog, or the row's text) and fixes the page or the journey's choice, so the first-run journey serves the model a new user would pick.\nAcceptance: TestModelJourneyFirstRun passes in the model-journey lane with Flash-Next active.\nServes: setup-steps and failure-rate of a person's first run.\nBatch: browser."
+        }
+      ]
+    },
+    {
+      "id": "context-sweep",
+      "title": "Sweep Flash-Next's prompts at 64K, 128K and 262K tokens for the next slowdown",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Sweep Flash-Next's prompts at 64K, 128K and 262K tokens for the next slowdown",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "From the owner's review of 2026-10-20: nothing has been measured past 20,605 tokens, though Flash-Next's requirement is a 262,144-token context. The worst slowdowns so far sat where the code switches paths (past 2,048 selected cells, at the staging's 20,000-token group), and the prompt's own buffers already take about 9.9 GB at 16,718 tokens.\nThe step runs one time-limited sweep of prompts of about 64K, 128K and 262K tokens on master, as flashnext-context's own batch asks for the smallest bounded diagnostic before a near-limit acceptance attempt: each length's first output, phase profile and peak device memory, or the bound or failure it hit. It files the next slowdown and decides whether prompt-memory and a smaller key/value format matter there (f32 keys and values at 262K are an estimated 12.9 GB of the card; Strata stores them as int8).\nEvidence: the sweep's first outputs and peak memory at each length, or the bound each run hit.\nServes: first-output and failure-rate of long prompts; flashnext-context's reservation and accept.\nBatch: device."
+        }
+      ]
+    },
+    {
       "id": "flashnext-speculation",
       "title": "Decode Flash-Next through its MTP draft at the rate Strata's MTP windows reach",
       "owner": "master-lead",
@@ -236,14 +283,14 @@
           "title": "Serve Flash-Next with its MTP draft and speculate greedy requests by default, keeping the prompt cache",
           "status": "open",
           "verify": "go run ./cmd/plan -status",
-          "rationale": "The server opens no draft (inference.OpenOptions.Draft is set only by probes and tests), and a speculative request turns the prompt cache off (protocol_common.go:298-300), so an agent's follow-up turns would read their whole prompt again.\nThe step binds the draft to the model's library entry as the projector is bound, speculates a greedy request when the draft pays (measured by window-cost and draft-depth), and keeps the prompt cache for speculative requests.\nEvidence: Strata's bench on master, the short chat's and agent turns' decode against plain, follow-up turns' cached tokens unchanged.\nServes: throughput and setup-steps.\nBatch: device."
+          "rationale": "The server opens no draft (inference.OpenOptions.Draft is set only by probes and tests), and a speculative request turns the prompt cache off (protocol_common.go:298-300), so an agent's follow-up turns would read their whole prompt again.\nThe step binds the draft to the model's library entry as the projector is bound, speculates a greedy request when the draft pays (measured by window-cost and draft-depth), and keeps the prompt cache for speculative requests.\nEvidence: Strata's bench on master, the short chat's and agent turns' decode against plain, follow-up turns' cached tokens unchanged.\nServes: throughput and setup-steps.\nBatch: device.\n\nFrom the owner's review of 2026-10-20: speculation changes outputs at rounding level (on the short chat the one-draft window departs from plain greedy at about the 37th token, \"During a brutal nineteenth-century\" against \"During a nineteenth-century\"), so a default holds only where held-out quality holds. The step's check runs Flash-Next's held-out score (flashnext-cells' scorecard cells) with and without speculation. speculation/clamp landed first (d9d96d5db), so a speculating request ends at its context limit as plain decoding does. Folded in from flashnext-efficiency/reuse: follow-up turns keep their cached prompt, measured by Strata's agent session (cached tokens and first output of each turn)."
         },
         {
           "id": "draft-depth",
           "title": "Draft up to three tokens a window while the draft is confident, as Strata's min-p window does",
           "status": "open",
           "verify": "go run ./cmd/plan -status",
-          "rationale": "Strata drafts with its MTP layer chaining the layer's own residual, one step graph a draft (src/core/mtp.cpp:1313-1336), its own K/V over the last 32,768 cells filled at prefill (mtp.cpp:360-363, generate.cpp:8504-8518), and grows the window while the last draft's top probability is at least 0.5 (--spec-min-p, mtp.cpp:1651, generate.cpp:13754-13758), to four tokens with --spec 4. Its documents report 66% acceptance on stories and 90% on code (INTEL.md:782-783), 2 to 3 tokens a window.\nOvergo's hyper draft drafts one token a window (hyperDraftTokens, nextn_device_speculation.go:24): from a fresh session 63% held at depth one and 43 and 27 at depths two and three.\nThe step drafts while the draft's top probability stays above Strata's 0.5, to three drafts, with the draft's history filled from the prompt; a two-token window already costs about 1.26 times a plain token (window-cost, retired).\nEvidence: tokens a window and the probe's milliseconds a token, the generated ids against plain greedy decoding (the one-draft window already departs from them at about the 37th token of the short chat, at rounding level).\nServes: throughput.\nBatch: device."
+          "rationale": "Strata drafts with its MTP layer chaining the layer's own residual, one step graph a draft (src/core/mtp.cpp:1313-1336), its own K/V over the last 32,768 cells filled at prefill (mtp.cpp:360-363, generate.cpp:8504-8518), and grows the window while the last draft's top probability is at least 0.5 (--spec-min-p, mtp.cpp:1651, generate.cpp:13754-13758), to four tokens with --spec 4. Its documents report 66% acceptance on stories and 90% on code (INTEL.md:782-783), 2 to 3 tokens a window.\nOvergo's hyper draft drafts one token a window (hyperDraftTokens, nextn_device_speculation.go:24): from a fresh session 63% held at depth one and 43 and 27 at depths two and three.\nThe step drafts while the draft's top probability stays above Strata's 0.5, to three drafts, with the draft's history filled from the prompt; a two-token window already costs about 1.26 times a plain token (window-cost, retired).\nEvidence: tokens a window and the probe's milliseconds a token, the generated ids against plain greedy decoding (the one-draft window already departs from them at about the 37th token of the short chat, at rounding level).\nServes: throughput.\nBatch: device.\n\nFrom the owner's review of 2026-10-20 and flashnext-efficiency/reuse (folded in): the window's depth and its confidence threshold come from Flash-Next's measured accepted tokens against the window's cost, Strata's 0.5 one starting candidate, not a ported constant."
         },
         {
           "id": "cpu-misses",
@@ -310,39 +357,6 @@
       ]
     },
     {
-      "id": "flashnext-cells",
-      "title": "Measure Flash-Next on the scorecard",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 200,
-        "reason": "estimate: recipe verify -protocol also runs a short exact suite on the candidate and binds its plan to the gate"
-      },
-      "steps": [
-        {
-          "id": "cells",
-          "title": "Bind an exact plan to protocol acceptance and publish Flash-Next's benchmark",
-          "status": "open",
-          "verify": "go test ./cmd/recipe -count=1 -run '^TestVerifyProtocolBindsAnExactPlan$'",
-          "rationale": "From the measurement run at 32b26610e (log overgo_data/scratch/measure-run-20261018.log), Flash-Next's first cells: the guard cell failed (\"has no bound finite positive short-prompt benchmark; publish one with cmd/benchmark before measurement\") and the serving cell failed (\"the verification of model:sha256:d7ff4ba5... names no exact plan; verify it again with -input\"): recipe measure replays the first case of the exact suite the activation's gate ran, and a recipe accepted by recipe verify -protocol (93d566915) binds the protocol observation, not an exact plan.\nThe step lets a protocol-accepted recipe be measured: recipe verify -protocol also runs and binds a short exact suite on the same candidate (Flash-Next's smoke oracle, integer addition, already declared in docs/verification/smoke-oracles.json), so the gate's first step names an exact plan recipe measure can replay; then Flash-Next is verified again with it, and a short-prompt benchmark is published for its active recipe with cmd/benchmark.\nAcceptance: recipe measure on Flash-Next records a serving attempt, the guard cell's benchmark exists, and both cells pass in the next measurement run.\nServes: setup-steps and the scorecard's first-output, throughput, load-time and peak-device-memory cells for Flash-Next.\nBatch: device.\n\nSQA-168 (P2, 2026-10-19) names the same gap independently: protocol-accepted recipes must be consumable by the existing serving measurement."
-        },
-        {
-          "id": "coverage",
-          "title": "Carry or rebind Flash-Next's accepted coverage to its capacity recipe",
-          "status": "open",
-          "verify": "go run ./cmd/validate -media json",
-          "rationale": "From the measurement run's models lane at 32b26610e: TestAcceptedModalityCoverage/text-vision and TestAcceptedProtocolCoverageProjection fail with \"coverage: missing, duplicate or changed activation model:sha256:d7ff4ba5.../inference\": Flash-Next's accepted coverage binds the request-session recipe (recipe:sha256:4b391840...), and the capacity recipe activated on 2026-10-18 (recipe:sha256:81d75bcb...) is not carried, although acceptanceCovers carries acceptance across a session-policy change by recipe.Definition.SameComputation; the two definitions must differ beyond their sessions.\nThe step finds what differs, carries the acceptance where only execution policy differs and the protocol acceptance (recipe verify -protocol, eight cases) re-ran on the new recipe, else rebinds the coverage cell to the capacity recipe with that acceptance, as 77f131776 rebound Granite's.\nAcceptance: go run ./cmd/validate -media json and the model-tagged coverage tests pass with the capacity recipe active.\nServes: failure-rate of the checks; setup-steps.\nBatch: host."
-        },
-        {
-          "id": "journey",
-          "title": "Let the first-run journey serve Flash-Next from the picker",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestModelJourneyFirstRun$'",
-          "rationale": "From the measurement run at 32b26610e: the model-journey lane's TestModelJourneyFirstRun chose Qwen3.8-Flash-Next (first-run journey: model Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf) and failed: after the cold-page declaration leg the picker's row for the model, with its Serve button, never appeared (internal/server/webui_browser_firstrun_test.go:267). The 2026-10-14 run failed the same test on Qwen2.5-0.5B differently.\nThe step finds why the picker does not list Flash-Next's row in the journey (a load-size or memory filter, a slow catalog, or the row's text) and fixes the page or the journey's choice, so the first-run journey serves the model a new user would pick.\nAcceptance: TestModelJourneyFirstRun passes in the model-journey lane with Flash-Next active.\nServes: setup-steps and failure-rate of a person's first run.\nBatch: browser."
-        }
-      ]
-    },
-    {
       "id": "lane-failures",
       "title": "Repair the measurement run's lane failures",
       "owner": "master-lead",
@@ -398,18 +412,6 @@
         "reason": ""
       },
       "steps": [
-        {
-          "id": "reuse",
-          "title": "Reduce follow-up and streaming cost and adopt speculation only when beneficial",
-          "status": "open",
-          "verify": "go test -tags models ./internal/evaluation -run '^TestFlashNextRetainedEvidence$/reuse-comparison' -count=1",
-          "rationale": "Serves: Measure follow-up prefill, model reactivation, first visible output and browser work before changing them.\nReuse current prompt and recurrent state with exact model, recipe, history, image and preprocessing identity.\nAdd only the missing qwen4exp integration to existing MTP or prompt-lookup verification if the common decode gap remains.\nDerive speculative choices from accepted-token benefit and measured total cost rather than porting Strata's policy constants.\nDisappears: Reuse internal/inference/prompt_cache.go, single_head_mtp_speculative.go, nextn_device_speculation.go and device_recurrent_checkpoint owners.\nRetain TestRecurrentCheckpoint and TestProjectedPromptCacheRequiresExactMediaSignature and move new cases into those owners.\nRemove repeated full-prefix work or reloads only where profiling establishes them.\nFor webui/composer.js prefer existing frame-coalesced updates and remove proven redundant reconstruction rather than adding a new renderer or telemetry stream.\nEvidence: Strata src/spec/controller.cpp and serve/web/app.js illustrate speculation, cache reporting and request timing but do not establish an Overgo gap.\nPrompt reuse, MTP, sampled rejection, terminal flush, accessibility, user scroll position and actual cancellation release keep their distinct contracts.\nMeasure accepted output tokens rather than proposed tokens.\nClosure requires matched follow-up and user-visible results and the smallest retained implementation.\nBatch: Acquire MTP only if this comparison requires it and account for draft weights and cache in the same resource envelope.\nA no-change outcome is valid when existing owners already meet the target.\nAn engine-only gain does not excuse a required end-to-end or memory regression.\n\nFrom step strata-decode/mtp (filed 2026-10-18): Flash-Next's MTP drafting and span verification is that step's work; this step keeps follow-up prefill, reactivation, streaming cost and other speculation choices, and reuses what mtp lands.",
-          "depends_on": [
-            "flashnext-efficiency/processing",
-            "flashnext-vision/images",
-            "flashnext-context/capacity"
-          ]
-        },
         {
           "id": "parity",
           "title": "Confirm all required common workloads and expose the results through existing GUI views",
@@ -587,7 +589,9 @@
             "prompt-memory/do",
             "ring-retire/do",
             "misses-file/do",
-            "spec-reorder/do"
+            "spec-reorder/do",
+            "context-sweep/do",
+            "review-order/do"
           ]
         }
       ]

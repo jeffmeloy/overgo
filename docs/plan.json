@@ -218,6 +218,13 @@
       },
       "steps": [
         {
+          "id": "draft-cache",
+          "title": "Give the draft layer its own cells over the sequence, as Strata's MTP drafter keeps them",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "Strata's MTP drafter keeps its own key and value cells over the sequence (the last 32,768 by default): its prefill runs the draft layer over the prompt's rows chunk by chunk (Prefill::draft_kv, src/core/mtp.cpp:1371-1475), each verify window appends the kept tokens' cells (catch-up rows), and a draft step attends over them. On this machine its log accepts 70 of 83 drafts over 100 tokens (strata-unsloth-ud-iq4_xs.log), with the same draft file (mtp-q2_0.gguf).\nOvergo's hyper draft attends over one fresh cell a window: with the confidence floor at 0.7 its drafts are accepted at 84%, Strata's rate, but it drafts 77 to 94 times over 200 tokens against Strata's 83 over 100, and a chain of fresh cells holds 43 and 27% at depths two and three (draft-chain.patch).\nThe step gives the draft layer a device cache of its own cells: a verify span's kept rows and their next tokens append their cells (the span already returns its rows for the seed), a prompt's last chunk appends its rows' cells, and the draft step attends over the cache, capped at Strata's 32,768 cells.\nEvidence: drafts a window and their acceptance at depth one, with and without the cache; the probe's milliseconds a token, speculative, on the short chat and a 4K prompt; the cache's device bytes.\nServes: throughput of speculative decoding, the prerequisite of deeper windows.\nBatch: device."
+        },
+        {
           "id": "span-commit",
           "title": "Commit a verify span's kept prefix without a second span, as Strata's Verifier::commit does",
           "status": "open",
@@ -553,7 +560,8 @@
             "plan-steps-20261021/do",
             "count-step-overheads/do",
             "plan-steps-20261021b/do",
-            "count-cache-restore-bounds/do"
+            "count-cache-restore-bounds/do",
+            "plan-steps-20261021c/do"
           ]
         }
       ]

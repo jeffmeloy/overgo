@@ -9,6 +9,7 @@ import (
 	"slices"
 	"testing"
 
+	"overgo/internal/cuda/executor"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/testutil"
@@ -71,6 +72,24 @@ func TestDeviceBoundedPrefill(t *testing.T) {
 			compare(split, whole[0])
 			if split.Selected != whole[0].Selected {
 				t.Fatalf("split selection = %d, whole = %d", split.Selected, whole[0].Selected)
+			}
+			// A prompt read in chunks sizes its storage for the whole prompt at its first chunk, and a later chunk
+			// writes into it rather than into a new storage beside it.
+			reserve := uint32(len(tokens))
+			first, err := runner.forwardDeviceCachedBranchedBatchLocked(ctx, []deviceBatchAppend{{Tokens: tokens[:2], Reserve: reserve}}, plan)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer first[0].Release(context.Background())
+			prefix := *first[0]
+			prefix.Selection = executor.DeviceValue{}
+			second, err := runner.forwardDeviceCachedBranchedBatchLocked(ctx, []deviceBatchAppend{{Tokens: tokens[2:4], Past: &prefix, Reserve: reserve}}, plan)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer second[0].Release(context.Background())
+			if first[0].storedCapacity() < reserve || second[0].storage != first[0].storage {
+				t.Fatalf("the first chunk holds %d tokens and the second chunk shares its storage: %t", first[0].storedCapacity(), second[0].storage == first[0].storage)
 			}
 			// A refused later chunk releases its intermediate cache and preserves the supplied prefix.
 			refs := split.storage.refs

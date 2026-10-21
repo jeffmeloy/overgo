@@ -472,6 +472,32 @@ func (r *Runner) forwardDeviceCachedModeLocked(
 type deviceBatchAppend struct {
 	Tokens []tokenizer.TokenID
 	Past   *deviceKVCache
+	// Reserve is the tokens the cache holds once its prompt is read, so a prompt read in chunks sizes its storage once,
+	// at its first chunk, rather than in each chunk that outgrows a page beside the storage it replaces.
+	Reserve uint32
+}
+
+// cacheCapacity is the tokens an append's cache storage holds: its past storage's capacity where that holds the
+// append's tokens, else the page of the append's tokens or its reserve, whichever is more.
+func (r *Runner) cacheCapacity(past *deviceKVCache, tokens, reserve uint32) uint32 {
+	if stored := past.storedCapacity(); stored >= tokens {
+		return stored
+	}
+	return cachePageCapacity(max(tokens, reserve), r.spec.ContextLength, r.program.Decode.Session)
+}
+
+// storedCapacity is the tokens the cache's storage holds, the trailing extent of its first token-aligned key, or zero
+// without one.
+func (c *deviceKVCache) storedCapacity() uint32 {
+	if c == nil || c.storage == nil {
+		return 0
+	}
+	for _, key := range c.storage.keys {
+		if key.Pointer != 0 && key.Shape.Rank > 0 {
+			return uint32(key.Shape.Dims[key.Shape.Rank-tensor.SingletonExtent])
+		}
+	}
+	return 0
 }
 
 type deviceBatchGraph struct {
@@ -639,8 +665,8 @@ func (r *Runner) cacheAppendPlan(appends []deviceBatchAppend, plan deviceOutputP
 			return deviceCacheAppendPlan{}
 		}
 		result.replay = result.replay && (span || appended == 1) && (!plan.is(deviceOutputGreedy) || past.Selection.Pointer != 0)
-		current := cachePageCapacity(past.Tokens, r.spec.ContextLength, r.program.Decode.Session)
-		next := cachePageCapacity(past.Tokens+appended, r.spec.ContextLength, r.program.Decode.Session)
+		current := r.cacheCapacity(past, past.Tokens, 0)
+		next := r.cacheCapacity(past, past.Tokens+appended, item.Reserve)
 		if current < past.Tokens || next < past.Tokens+appended {
 			return deviceCacheAppendPlan{}
 		}
@@ -1108,7 +1134,7 @@ func (r *Runner) compileDeviceCacheTargetPlans(
 	plans := make([]deviceCacheTargetPlan, len(graphs))
 	for branch, graph := range graphs {
 		plan := deviceCacheTargetPlan{layers: make([]deviceCacheTargetLayer, len(graph.keys))}
-		capacity := uint64(cachePageCapacity(graph.pastTokens+graph.tokenCount, r.spec.ContextLength, r.program.Decode.Session))
+		capacity := uint64(r.cacheCapacity(appends[branch].Past, graph.pastTokens+graph.tokenCount, appends[branch].Reserve))
 		target := func(node *tensor.Tensor, schema model.CacheState[model.CacheValueSchema]) (deviceCacheTargetValue, error) {
 			if !schema.Value.AcceptsTokenTarget(schema.Mode, node.Shape) {
 				return deviceCacheTargetValue{}, nil

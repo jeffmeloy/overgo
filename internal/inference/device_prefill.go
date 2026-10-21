@@ -22,6 +22,13 @@ func (r *Runner) prefillDeviceCachedLocked(ctx context.Context, appendInput devi
 			err = errors.Join(err, past.Release(context.Background()))
 		}
 	}()
+	// The prompt's cache is sized for the whole prompt at its first chunk: a later chunk that outgrew its page would
+	// allocate a new storage beside the one it replaces, and near the context limit that pair outgrows the card at any
+	// chunk size (Flash-Next at 129K tokens: 14.5 GB beside 7.3 GB, so the chunks fell to one token each).
+	reserve := uint32(len(appendInput.Tokens))
+	if past != nil {
+		reserve += past.Tokens
+	}
 	for remaining := appendInput.Tokens; len(remaining) > 0; {
 		chunk = min(chunk, len(remaining))
 		source := past
@@ -31,7 +38,7 @@ func (r *Runner) prefillDeviceCachedLocked(ctx context.Context, appendInput devi
 			prefix.Selection = executor.DeviceValue{}
 			source = &prefix
 		}
-		next, runErr := r.forwardDeviceCachedBranchedBatchLocked(ctx, []deviceBatchAppend{{Tokens: remaining[:chunk], Past: source}}, plan)
+		next, runErr := r.forwardDeviceCachedBranchedBatchLocked(ctx, []deviceBatchAppend{{Tokens: remaining[:chunk], Past: source, Reserve: reserve}}, plan)
 		var refused *executor.MemoryCapacityError
 		if errors.As(runErr, &refused) && chunk > 1 {
 			// Bisection reduces the candidate without assuming linear memory growth.

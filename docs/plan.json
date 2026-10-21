@@ -222,25 +222,6 @@
       ]
     },
     {
-      "id": "prompt-chunks",
-      "title": "Score a long prompt's attention blocks a query chunk at a time, so 128K and 262K prompts run",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 143,
-        "reason": "prompt-chunks/near-limit as built adds 143 production syntax nodes (the gate's preflight, 2026-10-21): a prefill's reserve sized from its whole prompt (deviceBatchAppend.Reserve), the capacity rule that reads a past cache's stored capacity (cacheCapacity, storedCapacity) and the bounded prefill setting the reserve."
-      },
-      "steps": [
-        {
-          "id": "near-limit",
-          "title": "Read a near-262K prompt within the card and the host: the first output waits on cold n-gram rows, expert swaps and host expert products",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "From prompt-chunks/bound (2026-10-21, its chunked indexer on 33aa71412): a 257,946-token Flash-Next prompt runs but gives no first token within 40 minutes, where 126,660 tokens take 67.1 s.\nNsight Systems over its first 480 s: 49 s of kernels, 418.7 GB copied to the card and 111.6 GB back (the copies 55 s of the copy engines), cuStreamSynchronize 61.5 s. A Go CPU profile over 300 s of it (570 s of samples): model.HostRows.read 129.6 s in os.File.ReadAt (the n-gram table's rows, 16 a token from its 28.8 GB, read cold from disk: the probe holds 63 GB of the 96, so the file cache keeps little), the host experts' dots 139 s (hostexpert iq3S/iq4NL), the expert residency's promote 121 s and demote 67 s (stateMemory.read and write, synchronous memcpy each way).\nSo past 128K the prompt's own device memory (f32 keys and values, about 12.9 GB at 262K, and the chunk's buffers) leaves few experts on the card, the residency swaps them in and back for each chunk, and the n-gram rows come from disk.\nThe step reads a near-262K prompt within the card and the host: it measures which of the three costs the first output is waiting on and removes the largest first, such as keys and values in a smaller format or in host memory (Strata stores int8 above 4K and streams the key/value cache from host memory past 64K, docs/DETAILS.md), the prompt's n-gram rows read ahead in one batch, or an eviction that copies nothing back (an expert kept in pinned host memory).\nEvidence: the sweep at 262K (first output, the card's peak and experts on it, host bytes copied, the host's peak), and 16K, 64K and 128K unchanged or better.\nServes: failure-rate and first-output of near-limit prompts; flashnext-context/accept.\nBatch: device."
-        }
-      ]
-    },
-    {
       "id": "flashnext-speculation",
       "title": "Decode Flash-Next through its MTP draft at the rate Strata's MTP windows reach",
       "owner": "master-lead",

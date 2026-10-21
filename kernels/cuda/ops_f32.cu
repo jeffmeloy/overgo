@@ -55,6 +55,11 @@ constexpr unsigned int F32_ROW_WARPS_MAX = 32;
 // ROW_READS_IN_FLIGHT = the weight reads a thread of an F32 row dot issues before it uses any.
 //   - a one-token product reads each weight once, so the reads in flight bound its rate where few warps share the card
 constexpr unsigned int ROW_READS_IN_FLIGHT = 4;
+// DECODE_READS_IN_FLIGHT = the key channels or keys' values a thread of attention_decode_f32 reads before it adds any.
+constexpr unsigned int DECODE_READS_IN_FLIGHT = 8;
+// NORM_ROW_VALUES = the values a normalization thread holds in registers, so a row of up to blockDim.x times as many is
+// read once.
+constexpr unsigned int NORM_ROW_VALUES = 16;
 
 __device__ __forceinline__ int load_i32_unaligned(const unsigned char * source) {
     const size_t address = reinterpret_cast<size_t>(source);
@@ -4161,24 +4166,50 @@ extern "C" __global__ void weighted_rms_norm_q8_0_f32(
         return;
     }
     const unsigned int offset = row * width;
+    const float * row_weight = weight + (row % weight_rows) * width;
+    const unsigned int blocks_per_row = width / Q8_0_BLOCK_WIDTH;
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    __shared__ float partial[256];
+    // A row of at most NORM_ROW_VALUES values a thread is read once, every load in flight at once, and normalized from
+    // the registers; the sum keeps the strided loop's order, so either way gives the same bits.
+    if (width <= NORM_ROW_VALUES * blockDim.x) {
+        float values[NORM_ROW_VALUES], weights[NORM_ROW_VALUES];
+#pragma unroll
+        for (unsigned int index = 0; index < NORM_ROW_VALUES; ++index) {
+            const unsigned int column = threadIdx.x + index * blockDim.x;
+            values[index] = column < width ? input[offset + column] : 0.0f;
+            weights[index] = column < width ? row_weight[column] : 0.0f;
+        }
+        float sum_squares = 0.0f;
+#pragma unroll
+        for (unsigned int index = 0; index < NORM_ROW_VALUES; ++index) {
+            sum_squares += values[index] * values[index];
+        }
+        sum_squares = block_sum_f32(sum_squares, partial);
+        const float inverse = rsqrtf(sum_squares / (float) width + epsilon);
+#pragma unroll
+        for (unsigned int index = 0; index < NORM_ROW_VALUES; ++index) {
+            const unsigned int column = threadIdx.x + index * blockDim.x;
+            if (column >= width) {
+                break;
+            }
+            const float value = values[index] * inverse * weights[index];
+            output[offset + column] = value;
+            store_q8_input_warp(quantized, row * blocks_per_row + column / Q8_0_BLOCK_WIDTH, value, lane);
+        }
+        return;
+    }
     float sum_squares = 0.0f;
     for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
         const float value = input[offset + column];
         sum_squares += value * value;
     }
-    __shared__ float partial[256];
     sum_squares = block_sum_f32(sum_squares, partial);
     const float inverse = rsqrtf(sum_squares / (float) width + epsilon);
-    const unsigned int blocks_per_row = width / Q8_0_BLOCK_WIDTH;
-    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
     for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
-        const float value = input[offset + column] * inverse * weight[(row % weight_rows) * width + column];
+        const float value = input[offset + column] * inverse * row_weight[column];
         output[offset + column] = value;
-        store_q8_input_warp(
-            quantized,
-            row * blocks_per_row + column / Q8_0_BLOCK_WIDTH,
-            value,
-            lane);
+        store_q8_input_warp(quantized, row * blocks_per_row + column / Q8_0_BLOCK_WIDTH, value, lane);
     }
 }
 
@@ -5633,7 +5664,21 @@ extern "C" __global__ void attention_decode_f32(
             const unsigned int key_offset =
                 ((sequence * key_value_stride + token) * key_value_heads + key_value_head) * key_width;
             float dot = 0.0f;
-            for (unsigned int channel = 0; channel < key_width; ++channel) {
+            unsigned int channel = 0;
+            // DECODE_READS_IN_FLIGHT channels are read before any is added, in channel order, so the walk waits on
+            // one read in that many and keeps the serial sum's bits.
+            for (; channel + DECODE_READS_IN_FLIGHT <= key_width; channel += DECODE_READS_IN_FLIGHT) {
+                float keys[DECODE_READS_IN_FLIGHT];
+#pragma unroll
+                for (unsigned int read = 0; read < DECODE_READS_IN_FLIGHT; ++read) {
+                    keys[read] = key[key_offset + channel + read];
+                }
+#pragma unroll
+                for (unsigned int read = 0; read < DECODE_READS_IN_FLIGHT; ++read) {
+                    dot += query[query_offset + channel + read] * keys[read];
+                }
+            }
+            for (; channel < key_width; ++channel) {
                 dot += query[query_offset + channel] * key[key_offset + channel];
             }
             float score = dot * scale;
@@ -5669,7 +5714,24 @@ extern "C" __global__ void attention_decode_f32(
             const unsigned int channel = channel_first + threadIdx.x % value_lanes;
             float weighted = 0.0f;
             if (group < value_groups) {
-                for (unsigned int token = tile_first + group; token < tile_end; token += value_groups) {
+                unsigned int token = tile_first + group;
+                // DECODE_READS_IN_FLIGHT keys' values are read before any is added, in key order: one block a head
+                // walked a 235-key cache in 48 us, waiting on each key's read.
+                for (; token + (DECODE_READS_IN_FLIGHT - 1) * value_groups < tile_end;
+                        token += DECODE_READS_IN_FLIGHT * value_groups) {
+                    float values[DECODE_READS_IN_FLIGHT];
+#pragma unroll
+                    for (unsigned int read = 0; read < DECODE_READS_IN_FLIGHT; ++read) {
+                        const unsigned int value_offset = ((sequence * key_value_stride + token + read * value_groups) *
+                            key_value_heads + key_value_head) * value_width;
+                        values[read] = value[value_offset + channel];
+                    }
+#pragma unroll
+                    for (unsigned int read = 0; read < DECODE_READS_IN_FLIGHT; ++read) {
+                        weighted += scores[token + read * value_groups - tile_first] * values[read];
+                    }
+                }
+                for (; token < tile_end; token += value_groups) {
                     const unsigned int value_offset =
                         ((sequence * key_value_stride + token) * key_value_heads + key_value_head) * value_width;
                     weighted += scores[token - tile_first] * value[value_offset + channel];

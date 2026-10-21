@@ -218,13 +218,6 @@
       },
       "steps": [
         {
-          "id": "decode-latency",
-          "title": "Keep Flash-Next's decode kernels' reads in flight: the attention's key walk and the hyper-connection norm's row",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "A node-level trace of Flash-Next's plain decoding (166 tokens, 2026-10-21) puts 2,294 kernels in a token. Most of the large products read their weights at 850 to 910 GB/s; the waste is in kernels that wait on memory a read at a time. The decode attention (attention_decode_f32, 12 a token) ran one block a query head that summed each key's channels and each key's values one read after another: 48 us a launch over a 35- to 235-key cache, 0.57 ms a token, growing with the context. The hyper-connection's weighted norm (weighted_rms_norm_q8_0_f32, 96 a token) read its 2,560-wide row ten reads deep twice: 5.0 us for 40 KB.\nThe step keeps those reads in flight without changing a sum's order: the attention reads eight channels of a key, and eight keys' values, before adding them in order, and the norm holds its row in registers from one read. The bits are the same, so the decoded tokens are.\nEvidence: the probe's milliseconds a token, plain and speculative, against master, and its decoded texts the same; the decode attention's guard and reference tests.\nServes: throughput.\nBatch: device."
-        },
-        {
           "id": "draft-library",
           "title": "Bind Flash-Next's draft to its library entry so every launcher serves it",
           "status": "open",

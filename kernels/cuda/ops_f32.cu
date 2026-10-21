@@ -4529,8 +4529,14 @@ extern "C" __global__ void mul_mat_f32(
     const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
     const float * weights = left + (size_t) row * inner;
     float sums[Q8_INPUT_SPAN_MAX] = {};
+    // A span's columns take the instantiation of their count: eight sums for two columns ran Flash-Next's 4-, 48- and
+    // 1-row products 7.7, 3.3 and 3.1 us a launch against 2.3, 1.8 and 1.4 for one column.
     if (right_rows == 1) {
         f32_row_dots<1>(weights, right, inner, threadIdx.x, blockDim.x, right_rows, sums);
+    } else if (right_rows == 2) {
+        f32_row_dots<2>(weights, right, inner, threadIdx.x, blockDim.x, right_rows, sums);
+    } else if (right_rows <= 4) {
+        f32_row_dots<4>(weights, right, inner, threadIdx.x, blockDim.x, right_rows, sums);
     } else {
         f32_row_dots<Q8_INPUT_SPAN_MAX>(weights, right, inner, threadIdx.x, blockDim.x, right_rows, sums);
     }
@@ -8614,7 +8620,8 @@ extern "C" __global__ void mul_mat_q6_K_input_f32(
                     (super * 8 + column / 32) * Q8_INPUT_BLOCK_BYTES;
                 const float input_scale =
                     *reinterpret_cast<const float *>(input_block);
-                const int input_word = load_i32_unaligned(
+                // A q8 block's values start a word in, and a run of four stays word-aligned.
+                const int input_word = *reinterpret_cast<const int *>(
                     input_block + sizeof(float) + (column % 32));
                 int dot = __dp4a((int) packed, input_word, 0);
                 dot -= 32 * __dp4a(0x01010101, input_word, 0);
@@ -8674,7 +8681,7 @@ extern "C" __global__ void mul_mat_q6_K_input_f32(
                     right + span * input_stride + input_offset;
                 const float input_scale =
                     *reinterpret_cast<const float *>(input_block);
-                const int input_word = load_i32_unaligned(
+                const int input_word = *reinterpret_cast<const int *>(
                     input_block + sizeof(float) + (column % 32));
                 int dot = __dp4a((int) packed, input_word, 0);
                 dot -= 32 * __dp4a(0x01010101, input_word, 0);

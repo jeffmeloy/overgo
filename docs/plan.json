@@ -218,13 +218,6 @@
       },
       "steps": [
         {
-          "id": "span-columns",
-          "title": "Run a span's small products and head at its own column count",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "A verify window's kernels take 17.4 ms against a plain step's 12.2 (Nsight Systems, node-level, Flash-Next's 200-token chat after window-host): besides its experts (+2.1 ms), its small F32 products, about 97 a window, run 7.7 us a launch at two columns against 2.3 at one (+0.53 ms), the Q6_K head's two columns cost about 1.44 times one (+0.25 ms), and the split gated-delta scans' 72 flat_slice copies 0.2 ms.\nmul_mat_f32 takes every multi-column call through f32_row_dots\u003cQ8_INPUT_SPAN_MAX\u003e, eight sums with the columns past the span's predicated off; the head's q8-input product and the split scans' packed outputs may hold the same pattern.\nThe step instantiates the products for the span's column count and lets the scans write where their outputs are read, each column's sums in their order, so a token's outputs keep their bits.\nEvidence: the products' microseconds a launch at one and two columns, the window's kernel milliseconds and the probe's milliseconds a token, speculative; outputs unchanged.\nServes: throughput of speculative decoding and every multi-token span.\nBatch: device."
-        },
-        {
           "id": "draft-vocab",
           "title": "Draft through a head over a token subset, as Strata's MTP drafter does",
           "status": "open",

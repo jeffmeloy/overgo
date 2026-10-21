@@ -226,6 +226,10 @@
       "title": "Score a long prompt's attention blocks a query chunk at a time, so 128K and 262K prompts run",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 284,
+        "reason": "prompt-chunks/bound as built adds 284 production syntax nodes (the gate's preflight, 2026-10-21): the indexer's query-chunked block selection (selectBlocksByChunk, its blockSelection and the chunk's score bound) in internal/model/block_sparse_selection.go."
+      },
       "steps": [
         {
           "id": "bound",
@@ -565,7 +569,8 @@
             "coverage-carry/do",
             "journey-carry/do",
             "journey-check/do",
-            "serve-draft-carry/do"
+            "serve-draft-carry/do",
+            "chunks-carry/do"
           ]
         }
       ]

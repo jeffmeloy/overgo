@@ -218,6 +218,13 @@
       },
       "steps": [
         {
+          "id": "attention-rate",
+          "title": "Read a long prompt's selected attention at the rate its cache reads allow",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^(TestExecutorGroupedSparseAttentionMatchesReference|TestExecutorSparsePrimitivesMatchReference)$'",
+          "rationale": "From Strata's own prompt timing on the same 20,605 token ids (STRATA_PREFILL_TIMING, 2026-10-20): Strata reads the prompt in 7.20 s, its selected attention in 0.70 s (projections 294 ms, selection 98 ms, attention 311 ms), its expert products in about 3.2 s and its copies stall it 66 ms; overgo reads it in 10.5 s, sparse_attention_mma_f32 alone 2.27 s over the 12 full-attention layers, its expert products 2.57 s.\nNsight Compute on the 5,099-token prompt: the kernel stages 32 cells' f32 keys and values in 86 KB of shared memory a block, so one block of four warps fits an SM (8% occupancy); 99% of its reads hit L2, and it uses 16% of the memory and compute throughput.\nThe step reads each warp's keys and values from L2 straight into its mma fragments, the same products in the same order, so the shared memory holds the queries and the scores alone and several blocks share an SM; the outputs keep their bits.\nEvidence: Nsight's attention time at 20,605 tokens; the 4K and 16K first outputs with the same tokens; a device test holding the outputs to the current kernel's bits.\nServes: first-output of Flash-Next's prompts past 2,048 tokens.\nBatch: device."
+        },
+        {
           "id": "expert-ring",
           "title": "Stream a long prompt's host experts beside the attention through a ring",
           "status": "open",
@@ -579,7 +586,8 @@
             "spec-plan/do",
             "prefill-rate-terms/do",
             "copies-rescope/do",
-            "products-count/do"
+            "products-count/do",
+            "attention-file/do"
           ]
         }
       ]

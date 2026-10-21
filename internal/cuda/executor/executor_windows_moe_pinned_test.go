@@ -30,24 +30,24 @@ import (
 // 8.9 device. The routed-expert kernels keep every sum's order, so the bits
 // hold; a case whose bits move has changed what an MoE model computes.
 var moePinnedOutputs = map[string]string{
-	"ocr":                  "678e3172935d2c8ce6833a1c58472a18f176f185459113445d068d98ed6caabf",
-	"normalized-scaled":    "434dca90ea8f34491bf170da37f0d8ff993da47cafc0a3a13638b70bf526448a",
+	"ocr":                  "9253e13814f673bce32b8bd0cbf98c34bcf3468f878d9576362f2000b6d259f2",
+	"normalized-scaled":    "640ea20b02c7661d9652975cd2edc2af866d3baaa856172b434295b815c12749",
 	"sigmoid-fused-biased": "45d83c6d13ad937bc48f0d610a381002eec7670beb805c83b55aeb972ff4f2d5",
 	"selected-clamped":     "bfa6d790cc1f1ae664718c651a0efa865922f091e12b3274be2fb81d92186a32",
 	"openai":               "4cc7a250477280ae72ea113dc262d2e0edd52bb061f86f1e63f6643e54463cbb",
 	"grouped-relu-squared": "f2448f5f3fe386cce4e82486ab3e1c14ec2efbe8cde7010947fb7b7299173680",
-	"gelu":                 "86582c49baf8236c0874847695b85e2ebfd5f3ba6fffc2c7d2b2e52dabd1aab8",
-	"relu":                 "5fba2652baf8082bbf3d9e57ec970bcf95563e86d1a0087178f0c2a4df616a92",
+	"gelu":                 "51c6670faa75e6c294ac195c72d092d8bfe1f3b74305e614c2cce4b2e4293430",
+	"relu":                 "354125a8456ac723740d45746522ae7244b90b0940e7069ba0378760949fa835",
 	"ungated":              "39402f6fb65ba43a17ec952c92ee4f9865db08da2052ad048815533938a08336",
-	"many-experts":         "f3122a649204f1c36f85e761649d1ea85fd307ffaee6686fb6b71e20d5e37255",
-	"token-groups":         "d5809012afc231b750caa4bf34e3c46da106f2eccfa41e977a01755a8922966e",
+	"many-experts":         "631b08ca5de2a032145799cf8cb391508e26e855bdadc311ea2ff0034a229527",
+	"token-groups":         "8bd27bb1dec8dabefb79dc85c263d2e650b81b43c812e19ff1e7f4ac4ba8d7cb",
 	"q8_0":                 "dae2e73fd8c5dab0a7bc6a2162bc5519064ccb6ab2d90c94cf956b2e83a073a8",
-	"q4_0":                 "046eb93ba939d8e2b2643dd4b67eb12c1785252895d2cd7fec6fe637a6e98539",
+	"q4_0":                 "60edb9a269683abdef966b9ee10641270672792a44999cebb83d3bdd0edfe518",
 	"q4_K":                 "a9cc720814154ede1118c99e0d80b83f78ecfef1fce2f698ca9a922afde13232",
 	"iq4_xs":               "d0875e8f5f01b2f74882ff1420976e728f13741cac8a0e5e11b3aa88ad46dcfc",
 	"tq2_0":                "3dfd1b21c7b4960d90c66634699a27b12fe4bd18023429059566f803f809a120",
-	"mxfp4":                "61ee218b40ffb2382b75817b2d7dbf93e570154204090744d5cc86b38638e240",
-	"q1_0":                 "8424da30050035770cd2e2cf96dafabc8b7b3039f4267f4a111e9d566b9a2b33",
+	"mxfp4":                "a4e2408298fa943bedca343e29a2a352fb4aa04e35ed26bc4501dd0bb60ca7b1",
+	"q1_0":                 "aae0a71f90ec9cc301dfc136aa71f7fe1d7059a3512d0ee507657df67aa9827c",
 }
 
 // TestExecutorMoEOutputBitsArePinned runs each case's node with its expert
@@ -577,20 +577,20 @@ func TestExecutorMoEExpertsUseBlockDots(t *testing.T) {
 // as the grouped kernels of 96c26fe39 produced them.
 var groupedProductBits = map[string]map[uint64]string{
 	"iq3_s-iq4_nl": {
-		64:   "85ca62ddc7eaa55f104785fe0e4f8afde61f3ba07a119d2f6a38e7105ebd85ca",
-		1561: "3daee7bdc21ff70e224ba28b072adade8fa89a8a2f037e4824e4077beacf45eb",
+		64:   "23d007dba6496d751f07f78f3a73c13b038e4622c6a6f6cf999b00531156301d",
+		1561: "b1b58415fdcc92ae933b7f5521ed366fe5c808896bcae561d8050e43b3db865e",
 	},
 	"iq4_xs-q8_0": {
-		64:   "661196ae744de1ea3d1fe146679a9a7fd0bfab650cbc07b2d23f4081bb1def24",
-		1561: "53b0669d0c71f543f664a3c6f163b36d5f0e7888a30d37639571348a947824e0",
+		64:   "96039559c245146fe93871befd04376253bbeead4f01198e66aeeda2e6715ef9",
+		1561: "9c4996472e1feed6bc0f3812f9d4ab5129feb8fcf83e4322202eb3aa323bebee",
 	},
 	"fused-iq4_xs-iq4_nl": {
-		64:   "07b8aa28f29069cb5236523c20bf112df374dc625de4271e487faac8ce92d8af",
-		1561: "5104b870f80186aa673f51a7e8f40bec802888bfd978e80e923d16954900bc33",
+		64:   "220fd780786fd9b88c9ac3a3b5b11486862e64e5280972c21e12db0980ff0ef3",
+		1561: "6dac3cb05cf1d5308fc7a80fc9066aae3d38bdf2d0f34b739d34fb98cdb0a8f5",
 	},
 	"bf16": {
-		64:   "6842569667228c993f306bf88fb0d48d6357d7698ddc4a80258a1eece8ad049f",
-		1561: "646e4542efe6232ad69b55284f00cf537eaacf36eabf12d3c891dc0ee269c68b",
+		64:   "c711491e313fb45fe4ba5bcbe82db392c24bc29b4ebc2136f7f9d0a916ca35d7",
+		1561: "1628bed78504dcf1dee872e6fae4751b305eaa7ed645dc9b3fd1f8c58723898c",
 	},
 }
 
@@ -748,7 +748,7 @@ func TestPromptExpertsMultiplyEncodedWeights(t *testing.T) {
 func TestPromptExpertCopiesOverlapCompute(t *testing.T) {
 	// serialCopyBits: SHA-256 of the output as the serial copy at 7a396356b produced it, with the router's
 	// logits as one F32 product (long-prompt/prefill-rate), which sums them in another order.
-	const serialCopyBits = "6356b2bc7f77d9335fff8ac023cc5e9b34951f55f5d6b515e4640bb6c7de0dcc"
+	const serialCopyBits = "4c15ae63debccec8af99062e4163b780ef53dd3357eae3585dae8af4135567f0"
 	banks := [3]dtype.Type{dtype.BF16, dtype.BF16, dtype.BF16}
 	c := moePinnedCase{
 		name: "copy-overlap", compute: tensor.MulMatComputeNativeTensorCore,

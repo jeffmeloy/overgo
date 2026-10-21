@@ -4983,6 +4983,9 @@ extern "C" __global__ void moe_router_dot_f32(
     if (lane == 0) logits[(size_t) token * experts + expert] = router_bias ? logit + router_bias[expert] : logit;
 }
 
+// MOE_ROUTE_WARP_EXPERTS: the most experts one warp selects among, a lane's chosen experts a bit of one word.
+constexpr unsigned int MOE_ROUTE_WARP_EXPERTS = CUDA_WARP_WIDTH * 32;
+
 // moe_route_f32 turns one token's expert logits into its routed experts and weights.
 //   - routed_experts != nullptr => each routed bank expert (expert / expert_index_divisor) sets its flag there
 //   - a flag is a plain store of one value, because the flags may be host memory the card maps, which a device atomic does not reach over PCIe
@@ -5025,11 +5028,17 @@ extern "C" __global__ void moe_route_f32(
     const float maximum = block_scalar;
     float denominator = 0.0f;
     if (routing == 1) {
-        // The softmax denominator is summed in expert order, so its bits match a serial sum.
+        // The softmax denominator is summed across the block: one thread's serial sum over 512 experts took about
+        // half of a Flash-Next decode layer's 12 us of routing.
+        float sum = 0.0f;
+        for (unsigned int expert = threadIdx.x; expert < experts; expert += blockDim.x) sum += expf(logits[expert] - maximum);
+        for (unsigned int offset = 16u; offset > 0u; offset >>= 1) sum += __shfl_down_sync(0xffffffffu, sum, offset);
+        if (lane == 0u) warp_score[warp] = sum;
+        __syncthreads();
         if (threadIdx.x == 0u) {
-            float sum = 0.0f;
-            for (unsigned int expert = 0; expert < experts; ++expert) sum += expf(logits[expert] - maximum);
-            block_scalar = sum;
+            float total = 0.0f;
+            for (unsigned int index = 0; index < warps; ++index) total += warp_score[index];
+            block_scalar = total;
         }
         __syncthreads();
         denominator = block_scalar;
@@ -5057,52 +5066,89 @@ extern "C" __global__ void moe_route_f32(
         }
     } else {
         // Each slot takes the highest score among unchosen experts, the lowest index on a tie, as a serial scan would.
-        if (threadIdx.x == 0u) *selected_sum = 0.0f;
-        __syncthreads();
-        for (unsigned int slot = 0; slot < top_k; ++slot) {
-            int best = -1;
-            float best_score = -3.402823466e+38F;
-            for (unsigned int expert = threadIdx.x; expert < experts; expert += blockDim.x) {
-                bool used = false;
-                for (unsigned int prior = 0; prior < slot; ++prior) used = used || selected[prior] == expert;
-                if (used) continue;
-                const float score = logits[expert] + (selection_bias ? selection_bias[expert] : 0.0f);
-                if (best < 0 || score > best_score) {
-                    best = (int) expert;
-                    best_score = score;
-                }
-            }
-            for (unsigned int offset = 16u; offset > 0u; offset >>= 1) {
-                const float other_score = __shfl_down_sync(0xffffffffu, best_score, offset);
-                const int other = __shfl_down_sync(0xffffffffu, best, offset);
-                if (other >= 0 && (best < 0 || other_score > best_score || (other_score == best_score && other < best))) {
-                    best = other;
-                    best_score = other_score;
-                }
-            }
-            if (lane == 0u) {
-                warp_score[warp] = best_score;
-                warp_expert[warp] = best;
-            }
-            __syncthreads();
-            if (threadIdx.x == 0u) {
-                int chosen = -1;
-                float chosen_score = -3.402823466e+38F;
-                for (unsigned int index = 0; index < warps; ++index) {
-                    const int candidate = warp_expert[index];
-                    const float candidate_score = warp_score[index];
-                    if (candidate >= 0 && (chosen < 0 || candidate_score > chosen_score || (candidate_score == chosen_score && candidate < chosen))) {
-                        chosen = candidate;
-                        chosen_score = candidate_score;
+        if (experts <= MOE_ROUTE_WARP_EXPERTS) {
+            // One warp selects: lane l holds experts l, l + 32, ..., and a slot is a warp argmax, with no block barrier
+            // (ten of them took about half of a Flash-Next decode layer's routing).
+            if (warp != 0u) return;
+            unsigned int chosen_bits = 0u;
+            float sum = 0.0f;
+            for (unsigned int slot = 0; slot < top_k; ++slot) {
+                int best = -1;
+                float best_score = -3.402823466e+38F;
+                for (unsigned int expert = lane, bit = 0; expert < experts; expert += CUDA_WARP_WIDTH, ++bit) {
+                    if (chosen_bits >> bit & 1u) continue;
+                    const float score = logits[expert] + (selection_bias ? selection_bias[expert] : 0.0f);
+                    if (best < 0 || score > best_score) {
+                        best = (int) expert;
+                        best_score = score;
                     }
                 }
-                selected[slot] = (unsigned int) chosen;
-                routes[slot] = logits[chosen];
-                *selected_sum += logits[chosen];
+                // A butterfly leaves every lane the warp's winner under one total order.
+                for (unsigned int offset = 16u; offset > 0u; offset >>= 1) {
+                    const float other_score = __shfl_xor_sync(0xffffffffu, best_score, offset);
+                    const int other = __shfl_xor_sync(0xffffffffu, best, offset);
+                    if (other >= 0 && (best < 0 || other_score > best_score || (other_score == best_score && other < best))) {
+                        best = other;
+                        best_score = other_score;
+                    }
+                }
+                if (best >= 0 && (unsigned int) best % CUDA_WARP_WIDTH == lane) chosen_bits |= 1u << ((unsigned int) best / CUDA_WARP_WIDTH);
+                if (lane == 0u) {
+                    selected[slot] = (unsigned int) best;
+                    routes[slot] = logits[best];
+                }
+                sum += logits[best];
             }
+            if (lane != 0u) return;
+            *selected_sum = sum;
+        } else {
+            if (threadIdx.x == 0u) *selected_sum = 0.0f;
             __syncthreads();
+            for (unsigned int slot = 0; slot < top_k; ++slot) {
+                int best = -1;
+                float best_score = -3.402823466e+38F;
+                for (unsigned int expert = threadIdx.x; expert < experts; expert += blockDim.x) {
+                    bool used = false;
+                    for (unsigned int prior = 0; prior < slot; ++prior) used = used || selected[prior] == expert;
+                    if (used) continue;
+                    const float score = logits[expert] + (selection_bias ? selection_bias[expert] : 0.0f);
+                    if (best < 0 || score > best_score) {
+                        best = (int) expert;
+                        best_score = score;
+                    }
+                }
+                for (unsigned int offset = 16u; offset > 0u; offset >>= 1) {
+                    const float other_score = __shfl_down_sync(0xffffffffu, best_score, offset);
+                    const int other = __shfl_down_sync(0xffffffffu, best, offset);
+                    if (other >= 0 && (best < 0 || other_score > best_score || (other_score == best_score && other < best))) {
+                        best = other;
+                        best_score = other_score;
+                    }
+                }
+                if (lane == 0u) {
+                    warp_score[warp] = best_score;
+                    warp_expert[warp] = best;
+                }
+                __syncthreads();
+                if (threadIdx.x == 0u) {
+                    int chosen = -1;
+                    float chosen_score = -3.402823466e+38F;
+                    for (unsigned int index = 0; index < warps; ++index) {
+                        const int candidate = warp_expert[index];
+                        const float candidate_score = warp_score[index];
+                        if (candidate >= 0 && (chosen < 0 || candidate_score > chosen_score || (candidate_score == chosen_score && candidate < chosen))) {
+                            chosen = candidate;
+                            chosen_score = candidate_score;
+                        }
+                    }
+                    selected[slot] = (unsigned int) chosen;
+                    routes[slot] = logits[chosen];
+                    *selected_sum += logits[chosen];
+                }
+                __syncthreads();
+            }
+            if (threadIdx.x != 0u) return;
         }
-        if (threadIdx.x != 0u) return;
     }
     if (routed_experts) {
         for (unsigned int slot = 0; slot < top_k; ++slot) {

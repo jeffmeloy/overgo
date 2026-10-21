@@ -232,13 +232,6 @@
       },
       "steps": [
         {
-          "id": "route-kernel",
-          "title": "Route a token's experts with block-wide sums and warp-level selection",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "From Nsight Systems over Flash-Next's 200-token short chat (master 392444ee8, kernel trace): moe_route_f32 takes 12.4 us at its median in each of a token's 48 routed layers, about 0.6 ms a token, as long as the expert products of a layer whose experts are all on the card take together (27 and 15 us): one thread sums the softmax denominator over the 512 experts in expert order, so its bits match a serial sum, and each of the ten slots takes a block-wide reduction in turn.\nStrata decodes a plain token in about 10 ms on this machine against overgo's 13.3 to 14.4.\nThe step sums the denominator across the block and selects the top slots with warp-level reductions, the routes within rounding of the serial sum's (a near tie may pick another expert), timed in-graph.\nEvidence: the kernel's median (12.4 us now) and the probe's milliseconds a token, plain and speculative; the routing kernel's tests against the reference; outputs within the model tolerance.\nServes: throughput of every routed-expert model's decode and prompt.\nBatch: device."
-        },
-        {
           "id": "draft-depth",
           "title": "Draft up to three tokens a window while the draft is confident, as Strata's min-p window does",
           "status": "open",

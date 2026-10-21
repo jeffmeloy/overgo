@@ -227,15 +227,15 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 200,
-        "reason": "estimate: recipe verify -protocol also runs a short exact suite on the candidate and binds its plan to the gate"
+        "nodes": 507,
+        "reason": "measured: flashnext-cells/cells adds 507 production syntax nodes (recipe verify -protocol binds its first chat case as an exact plan; recipe measure reads it)"
       },
       "steps": [
         {
           "id": "cells",
           "title": "Bind an exact plan to protocol acceptance and publish Flash-Next's benchmark",
           "status": "open",
-          "verify": "go test ./cmd/recipe -count=1 -run '^TestVerifyProtocolBindsAnExactPlan$'",
+          "verify": "go test ./cmd/recipe -count=1 -run '^TestVerifyPublishesProtocolAcceptance$'",
           "rationale": "From the measurement run at 32b26610e (log overgo_data/scratch/measure-run-20261018.log), Flash-Next's first cells: the guard cell failed (\"has no bound finite positive short-prompt benchmark; publish one with cmd/benchmark before measurement\") and the serving cell failed (\"the verification of model:sha256:d7ff4ba5... names no exact plan; verify it again with -input\"): recipe measure replays the first case of the exact suite the activation's gate ran, and a recipe accepted by recipe verify -protocol (93d566915) binds the protocol observation, not an exact plan.\nThe step lets a protocol-accepted recipe be measured: recipe verify -protocol also runs and binds a short exact suite on the same candidate (Flash-Next's smoke oracle, integer addition, already declared in docs/verification/smoke-oracles.json), so the gate's first step names an exact plan recipe measure can replay; then Flash-Next is verified again with it, and a short-prompt benchmark is published for its active recipe with cmd/benchmark.\nAcceptance: recipe measure on Flash-Next records a serving attempt, the guard cell's benchmark exists, and both cells pass in the next measurement run.\nServes: setup-steps and the scorecard's first-output, throughput, load-time and peak-device-memory cells for Flash-Next.\nBatch: device.\n\nSQA-168 (P2, 2026-10-19) names the same gap independently: protocol-accepted recipes must be consumable by the existing serving measurement."
         },
         {
@@ -591,7 +591,8 @@
             "misses-file/do",
             "spec-reorder/do",
             "context-sweep/do",
-            "review-order/do"
+            "review-order/do",
+            "cells-carry/do"
           ]
         }
       ]

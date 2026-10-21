@@ -11,22 +11,47 @@ import (
 	"overgo/internal/tokenizer"
 )
 
-// deviceCacheCheckpoint is a verify span's cache at its checkpoint: the tokens and position after the span's first
-// tokens, and each layer's fixed state there (zero where a layer keeps none), which commitSpanCheckpoint keeps when the
-// window's drafts are rejected.
+// deviceCacheCheckpoint is a verify span's cache at one of its checkpoints: the tokens and position after the span's
+// first tokens, and each layer's fixed state there (zero where a layer keeps none), which commitSpanCheckpoint keeps
+// when a window keeps those tokens alone.
 type deviceCacheCheckpoint struct {
 	tokens, position uint32
 	keys, values     []executor.DeviceValue
 	states           []deviceLayerStates
 }
 
-// collectSpanCheckpoint reads a span's checkpoint outputs from its retained results; nil for a graph without one.
-func collectSpanCheckpoint(retained *executor.RetainedOutputs, graph deviceBatchGraph) (*deviceCacheCheckpoint, error) {
-	if graph.checkpoint == 0 || graph.checkpoint >= graph.tokenCount {
+// maxSpanCheckpoints bounds a span's checkpoints, one fewer than the q8-input span's columns.
+const maxSpanCheckpoints = q8InputSpanColumnsWindow - 1
+
+// spanCheckpointIdentity is a span's checkpoint token counts as a decode session's identity holds them.
+func spanCheckpointIdentity(checkpoints []uint32) [maxSpanCheckpoints]uint32 {
+	var identity [maxSpanCheckpoints]uint32
+	copy(identity[:], checkpoints)
+	return identity
+}
+
+// collectSpanCheckpoints reads a span's checkpoint outputs from its retained results, one checkpoint a token count;
+// none for a graph without them.
+func collectSpanCheckpoints(retained *executor.RetainedOutputs, graph deviceBatchGraph) ([]*deviceCacheCheckpoint, error) {
+	checkpoints := make([]*deviceCacheCheckpoint, 0, len(graph.checkpointTokens))
+	for index, at := range graph.checkpointTokens {
+		checkpoint, err := collectSpanCheckpoint(retained, graph, index, at)
+		if err != nil || checkpoint == nil {
+			return nil, err
+		}
+		checkpoints = append(checkpoints, checkpoint)
+	}
+	return checkpoints, nil
+}
+
+// collectSpanCheckpoint reads the span's checkpoint after its first at tokens, the index-th; nil where its layers kept
+// none there.
+func collectSpanCheckpoint(retained *executor.RetainedOutputs, graph deviceBatchGraph, index int, at uint32) (*deviceCacheCheckpoint, error) {
+	if at == 0 || at >= graph.tokenCount {
 		return nil, nil
 	}
 	checkpoint := &deviceCacheCheckpoint{
-		tokens: graph.pastTokens + graph.checkpoint, position: graph.nextPosition + graph.checkpoint,
+		tokens: graph.pastTokens + at, position: graph.nextPosition + at,
 		keys: make([]executor.DeviceValue, len(graph.checkpoints)), values: make([]executor.DeviceValue, len(graph.checkpoints)),
 		states: make([]deviceLayerStates, len(graph.checkpoints)),
 	}
@@ -37,7 +62,11 @@ func collectSpanCheckpoint(retained *executor.RetainedOutputs, graph deviceBatch
 		}
 		return value, nil
 	}
-	for layer, kept := range graph.checkpoints {
+	for layer, layerCheckpoints := range graph.checkpoints {
+		if index >= len(layerCheckpoints) {
+			continue
+		}
+		kept := layerCheckpoints[index]
 		var err error
 		if kept.Key != nil {
 			if checkpoint.keys[layer], err = read(kept.Key, layer, "key"); err != nil {
@@ -65,10 +94,20 @@ func collectSpanCheckpoint(retained *executor.RetainedOutputs, graph deviceBatch
 
 // commitSpanCheckpoint keeps a verify span's cache at its checkpoint: its layers' fixed state there, its token-aligned
 // keys, values and states narrowed to the tokens kept (a later span writes the rows after them again), and the lexical
-// history of the kept tokens after the boundary's. kept are the span's tokens before its checkpoint.
+// history of the kept tokens after the boundary's. kept are the span's tokens before the checkpoint it keeps: its pending
+// tokens and a prefix of its drafts.
 func (r *Runner) commitSpanCheckpoint(ctx context.Context, span, boundary *deviceKVCache, kept []tokenizer.TokenID) error {
-	checkpoint := span.checkpoint
-	if checkpoint == nil || boundary == nil || checkpoint.tokens != boundary.Tokens+uint32(len(kept)) || len(checkpoint.keys) != len(span.Keys) {
+	if boundary == nil {
+		return errors.New("inference: a span commits onto its boundary")
+	}
+	// The checkpoint after the kept tokens: the pending tokens and a prefix of the drafts.
+	var checkpoint *deviceCacheCheckpoint
+	for _, candidate := range span.checkpoints {
+		if candidate.tokens == boundary.Tokens+uint32(len(kept)) && len(candidate.keys) == len(span.Keys) {
+			checkpoint = candidate
+		}
+	}
+	if checkpoint == nil {
 		return errors.New("inference: the span holds no checkpoint after its kept tokens")
 	}
 	narrow := func(value executor.DeviceValue) executor.DeviceValue {
@@ -145,6 +184,6 @@ func (r *Runner) commitSpanCheckpoint(ctx context.Context, span, boundary *devic
 		}
 	}
 	span.Tokens, span.Position = checkpoint.tokens, checkpoint.position
-	span.Selection, span.session, span.checkpoint = executor.DeviceValue{}, nil, nil
+	span.Selection, span.session, span.checkpoints = executor.DeviceValue{}, nil, nil
 	return rebuildDeviceCachePages(span, r.program.Decode.Session)
 }

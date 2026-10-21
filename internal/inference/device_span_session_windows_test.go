@@ -50,7 +50,7 @@ func TestSpanDecodeSession(t *testing.T) {
 		}
 	}
 	boundary, err := runner.forwardDeviceCachedModeLocked(
-		ctx, deviceOutputGreedySpan, tokens[:2], nil, 0,
+		ctx, deviceOutputGreedySpan, tokens[:2], nil,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -76,7 +76,7 @@ func TestSpanDecodeSession(t *testing.T) {
 	}
 
 	first, err := runner.forwardDeviceCachedModeLocked(
-		ctx, deviceOutputGreedySpan, tokens[2:], boundary, 0,
+		ctx, deviceOutputGreedySpan, tokens[2:], boundary,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -92,7 +92,7 @@ func TestSpanDecodeSession(t *testing.T) {
 	release(first)
 
 	second, err := runner.forwardDeviceCachedModeLocked(
-		ctx, deviceOutputGreedySpan, tokens[2:], boundary, 0,
+		ctx, deviceOutputGreedySpan, tokens[2:], boundary,
 	)
 	if err != nil {
 		t.Fatal(err)

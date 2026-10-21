@@ -69,7 +69,7 @@ func decodePagePairOnce(t *testing.T, runner *Runner, length int) tokenizer.Toke
 	}
 	runner.mu.Lock()
 	defer runner.mu.Unlock()
-	past, err := runner.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedy, tokens, nil, 0)
+	past, err := runner.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedy, tokens, nil)
 	if err != nil {
 		t.Fatalf("prefill of %d tokens: %v", length, err)
 	}
@@ -77,7 +77,7 @@ func decodePagePairOnce(t *testing.T, runner *Runner, length int) tokenizer.Toke
 	if past.Tokens != uint32(length) {
 		t.Fatalf("prefill of %d tokens left %d in the cache", length, past.Tokens)
 	}
-	next, err := runner.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedy, []tokenizer.TokenID{past.Selected}, past, 0)
+	next, err := runner.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedy, []tokenizer.TokenID{past.Selected}, past)
 	if err != nil {
 		t.Fatalf("decode step after %d tokens: %v", length, err)
 	}

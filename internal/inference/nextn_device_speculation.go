@@ -3,6 +3,7 @@ package inference
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 
 	"overgo/internal/tensor"
@@ -212,13 +213,14 @@ func (r *Runner) generateDeviceSpeculativeGreedy(
 			}
 		}
 		spanTokens := append(append([]tokenizer.TokenID(nil), pending...), drafts...)
-		// A window with drafts keeps its layers' state after its pending tokens, which a rejection commits to.
-		var checkpoint uint32
-		if len(drafts) > 0 {
-			checkpoint = uint32(len(pending))
+		// A window with drafts keeps its layers' state after its pending tokens and after each prefix of its drafts
+		// but the whole, so a window that keeps part of them commits to it without reading them again.
+		checkpoints := make([]uint32, len(drafts))
+		for index := range checkpoints {
+			checkpoints[index] = uint32(len(pending) + index)
 		}
 		span, err := r.forwardDeviceCachedModeLocked(
-			ctx, deviceOutputGreedySpan, spanTokens, boundary, checkpoint,
+			ctx, deviceOutputGreedySpan, spanTokens, boundary, checkpoints...,
 		)
 		if err != nil {
 			return ids, boundary, "", err
@@ -256,11 +258,12 @@ func (r *Runner) generateDeviceSpeculativeGreedy(
 		}
 		seedPosition = spanStart + uint32(base+accepted) + 1
 		haveSeed = true
-		// A window whose drafts were all accepted is the next boundary; one rejected at its first draft keeps the span
-		// at its checkpoint, the pending tokens read, so the correction is all that is pending.
+		// A window whose drafts were all accepted is the next boundary; one that rejected a draft keeps the span at its
+		// checkpoint after the pending tokens and the drafts accepted, so the correction is all that is pending.
 		committed := accepted == len(drafts)
-		if !committed && accepted == 0 && span.checkpoint != nil {
-			if err := r.commitSpanCheckpoint(ctx, span, boundary, pending); err != nil {
+		if !committed && len(span.checkpoints) != 0 {
+			kept := append(slices.Clone(pending), drafts[:accepted]...)
+			if err := r.commitSpanCheckpoint(ctx, span, boundary, kept); err != nil {
 				return ids, boundary, "", errors.Join(err, span.Release(context.Background()))
 			}
 			committed = true

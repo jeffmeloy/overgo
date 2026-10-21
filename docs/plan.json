@@ -213,17 +213,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1070,
+        "nodes": 720,
         "reason": "span-commit-chain as built adds 350 production syntax nodes (the gate's preflight, 2026-10-21): a block context's and result's checkpoints as lists, the gated-delta scan in one launch a checkpoint, the n-gram window at each, a span cache's checkpoint a kept count with its session identity, and the speculation loop's commit at any kept prefix; with speculate-default's 144, span-experts' 20, expert-throughput's 589 and window-host's 111 the row's count is 1,070."
       },
       "steps": [
-        {
-          "id": "span-commit-chain",
-          "title": "Commit a verify span's kept prefix without a second span, as Strata's Verifier::commit does",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "A verify span of more tokens than one pending and one draft keeps its state at one checkpoint, after its pending tokens (window-commit), so a window that keeps part of a chain forwards the kept tokens again. Strata's verify window records each token's recurrent inputs per layer and Verifier::commit(n_keep) launches a captured commit graph that advances each gated-delta layer's state by the kept tokens only (src/core/verify.cpp:2645-2700, gdn_commit_layers).\nThe step ports it: a span returns its gated-delta layers' per-token inputs, and a commit graph for each kept count advances the boundary's states by the kept tokens with the span's own kernels, the attention cells and the n-gram history kept at that count.\nEvidence: a partly accepted span committed against the same tokens forwarded alone, state for state; the probe's milliseconds a token with a chained build (overgo_data/scratch/long-prompt-20261019/draft-chain.patch, which forwarded kept tokens again and ran 14.8 to 18.2 ms a token against 12.4 to 13.8 for the one-draft window).\nServes: throughput of speculative decoding on recurrent models.\nBatch: device."
-        },
         {
           "id": "chain-depth",
           "title": "Chain up to three confident drafts a window, as Strata's min-p window does",

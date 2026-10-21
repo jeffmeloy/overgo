@@ -27,9 +27,10 @@ type CachedBlockContext struct {
 	Recurrent        bool
 	CacheWrite       tensor.CacheWriteMode
 	Sequences        uint64
-	// Checkpoint is the block's tokens after which a recurrent or lexical layer also returns its fixed state
-	// (DenseBlockResult.Checkpoint), for a verify span that may keep only its first tokens; zero returns none.
-	Checkpoint uint32
+	// Checkpoints are the block's token counts, ascending, after which a recurrent or lexical layer also returns its fixed
+	// state (DenseBlockResult.Checkpoints), for a verify span that may keep only its first tokens: its pending tokens and
+	// each prefix of its drafts.
+	Checkpoints []uint32
 }
 
 type blockDispatchOptions struct {
@@ -143,14 +144,20 @@ func mergeLayerResult(destination *DenseBlockResult, result DenseBlockResult) {
 			maps.Copy(destination.States, result.States)
 		}
 	}
-	if result.Checkpoint.Key != nil || result.Checkpoint.Value != nil {
-		destination.Checkpoint.Key, destination.Checkpoint.Value = result.Checkpoint.Key, result.Checkpoint.Value
+	if len(destination.Checkpoints) < len(result.Checkpoints) {
+		destination.Checkpoints = append(destination.Checkpoints, make([]LayerCheckpoint, len(result.Checkpoints)-len(destination.Checkpoints))...)
 	}
-	if len(result.Checkpoint.States) > tensor.FirstOffset {
-		if destination.Checkpoint.States == nil {
-			destination.Checkpoint.States = result.Checkpoint.States
-		} else {
-			maps.Copy(destination.Checkpoint.States, result.Checkpoint.States)
+	for index, checkpoint := range result.Checkpoints {
+		kept := &destination.Checkpoints[index]
+		if checkpoint.Key != nil || checkpoint.Value != nil {
+			kept.Key, kept.Value = checkpoint.Key, checkpoint.Value
+		}
+		if len(checkpoint.States) > tensor.FirstOffset {
+			if kept.States == nil {
+				kept.States = checkpoint.States
+			} else {
+				maps.Copy(kept.States, checkpoint.States)
+			}
 		}
 	}
 }
@@ -287,7 +294,7 @@ func executeRecurrentOperator(
 			c.Builder, execution.current, options.Spec, options.Weights,
 			c.Positions, c.Sequences,
 			operands.caches[runtimeCachePrimaryKey], operands.caches[runtimeCachePrimaryValue],
-			plan.AttentionGraph.deltaProjection, uint64(c.Checkpoint),
+			plan.AttentionGraph.deltaProjection, c.Checkpoints,
 		)
 	case recurrentMixerShortConvolution:
 		return buildShortConvolutionMixCached(

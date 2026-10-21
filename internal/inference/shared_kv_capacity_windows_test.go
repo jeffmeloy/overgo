@@ -82,7 +82,7 @@ func stepSharedKVLogits(t *testing.T, path string, session modelrecipe.DecodeSes
 	tokens := slices.Clone(sharedKVPrompt)
 	var steps [][]float32
 	for range sharedKVSteps {
-		next, err := runner.forwardDeviceCachedModeLocked(ctx, deviceOutputLogits, tokens, past, 0)
+		next, err := runner.forwardDeviceCachedModeLocked(ctx, deviceOutputLogits, tokens, past)
 		if err != nil {
 			t.Fatalf("%s session step %d: %v", session, len(steps), err)
 		}

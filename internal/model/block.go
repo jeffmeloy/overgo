@@ -47,8 +47,8 @@ type DenseBlockResult struct {
 	// Optional exact-attention replay inputs.
 	Query          *tensor.Tensor
 	AttentionScale float32
-	// Checkpoint is the layer's fixed cache state after the block's first CachedBlockContext.Checkpoint tokens.
-	Checkpoint LayerCheckpoint
+	// Checkpoints are the layer's fixed cache states after each of CachedBlockContext.Checkpoints' token counts.
+	Checkpoints []LayerCheckpoint
 }
 
 // LayerCheckpoint is a layer's fixed cache state at a checkpoint inside its block: the recurrent pair and the fixed
@@ -869,7 +869,7 @@ func buildGatedDeltaMixCached(
 	sequences uint64,
 	convState, ssmState *tensor.Tensor,
 	deltaPolicy gatedDeltaPolicy,
-	checkpointTokens uint64,
+	checkpointTokens []uint32,
 ) (DenseBlockResult, error) {
 	if builder == nil || normalized == nil || convState == nil || ssmState == nil {
 		return DenseBlockResult{}, errors.New("gated-delta recurrent mix input/state is nil")
@@ -1027,19 +1027,27 @@ func buildGatedDeltaMixCached(
 		return builder.FlatSlice(packed, tensor.FirstOffset, stateWidth, valueHeads, count, sequences),
 			builder.FlatSlice(packed, outputs, stateWidth, stateWidth, valueHeads, sequences)
 	}
-	var checkpoint LayerCheckpoint
+	var checkpoints []LayerCheckpoint
 	var attention, nextSSMState *tensor.Tensor
-	if checkpointTokens > tensor.FirstOffset && checkpointTokens < tokens && sequences == tensor.SingletonExtent {
-		// A verify span keeps the state after its pending tokens: the same scan in two launches, the first ending there.
-		var head *tensor.Tensor
-		head, checkpoint.Value = scan(tensor.FirstOffset, checkpointTokens, ssmState)
+	if spanCheckpoints(checkpointTokens, tokens) && sequences == tensor.SingletonExtent {
+		// A verify span keeps the state after its pending tokens and after each prefix of its drafts: the same scan in
+		// one launch a checkpoint and one more, each ending at its checkpoint.
+		state, start := ssmState, uint64(tensor.FirstOffset)
+		for _, at := range checkpointTokens {
+			var part *tensor.Tensor
+			var checkpoint LayerCheckpoint
+			part, checkpoint.Value = scan(start, uint64(at)-start, state)
+			checkpoint.Key = builder.Reshape(
+				builder.GroupSlice(convInput, uint64(at), convStateWidth, tensor.SingletonExtent, convStateWidth),
+				convStateWidth, convChannels,
+			)
+			attention = concatTokens(builder, attention, part)
+			checkpoints = append(checkpoints, checkpoint)
+			state, start = checkpoint.Value, uint64(at)
+		}
 		var tail *tensor.Tensor
-		tail, nextSSMState = scan(checkpointTokens, tokens-checkpointTokens, checkpoint.Value)
-		attention = builder.Concat(head, tail, gatedDeltaTokenAxis)
-		checkpoint.Key = builder.Reshape(
-			builder.GroupSlice(convInput, checkpointTokens, convStateWidth, tensor.SingletonExtent, convStateWidth),
-			convStateWidth, convChannels,
-		)
+		tail, nextSSMState = scan(start, tokens-start, state)
+		attention = concatTokens(builder, attention, tail)
 	} else {
 		attention, nextSSMState = scan(tensor.FirstOffset, tokens, ssmState)
 	}
@@ -1058,11 +1066,29 @@ func buildGatedDeltaMixCached(
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
-	return DenseBlockResult{Output: attention, Key: nextConvState, Value: nextSSMState, Checkpoint: checkpoint}, nil
+	return DenseBlockResult{Output: attention, Key: nextConvState, Value: nextSSMState, Checkpoints: checkpoints}, nil
 }
 
 // gatedDeltaTokenAxis is the token axis of a gated-delta scan's per-token outputs (width, heads, tokens, sequences).
 const gatedDeltaTokenAxis uint32 = 2
+
+// spanCheckpoints reports checkpoint token counts a block of tokens can keep: some, ascending, each inside the block.
+func spanCheckpoints(checkpoints []uint32, tokens uint64) bool {
+	for index, at := range checkpoints {
+		if at == tensor.FirstOffset || uint64(at) >= tokens || index > 0 && at <= checkpoints[index-1] {
+			return false
+		}
+	}
+	return len(checkpoints) > 0
+}
+
+// concatTokens appends a scan's per-token outputs to those before it, nil before the first.
+func concatTokens(builder *tensor.Builder, before, part *tensor.Tensor) *tensor.Tensor {
+	if before == nil {
+		return part
+	}
+	return builder.Concat(before, part, gatedDeltaTokenAxis)
+}
 
 func buildRoutedSwiGLUFeedForwardMix(
 	builder *tensor.Builder,

@@ -148,7 +148,7 @@ func TestRecurrentCheckpoint(t *testing.T) {
 
 	// Boundary: committed prefix with live recurrent state.
 	boundary, err := runner.forwardDeviceCachedModeLocked(
-		ctx, deviceOutputGreedySpan, []tokenizer.TokenID{1, 4}, nil, 0,
+		ctx, deviceOutputGreedySpan, []tokenizer.TokenID{1, 4}, nil,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -158,7 +158,7 @@ func TestRecurrentCheckpoint(t *testing.T) {
 	// Draft span from the boundary, twice: identical selections prove the
 	// append is a pure function of the boundary state.
 	first, err := runner.forwardDeviceCachedModeLocked(
-		ctx, deviceOutputGreedySpan, []tokenizer.TokenID{5, 6}, boundary, 0,
+		ctx, deviceOutputGreedySpan, []tokenizer.TokenID{5, 6}, boundary,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -167,7 +167,7 @@ func TestRecurrentCheckpoint(t *testing.T) {
 	// Reject the draft: roll back by releasing the speculative cache.
 	release(first)
 	second, err := runner.forwardDeviceCachedModeLocked(
-		ctx, deviceOutputGreedySpan, []tokenizer.TokenID{5, 6}, boundary, 0,
+		ctx, deviceOutputGreedySpan, []tokenizer.TokenID{5, 6}, boundary,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -189,14 +189,14 @@ func TestRecurrentCheckpoint(t *testing.T) {
 	// decode of the full history — the boundary state survived both
 	// speculative appends unchanged.
 	alternative, err := runner.forwardDeviceCachedModeLocked(
-		ctx, deviceOutputGreedySpan, []tokenizer.TokenID{7}, boundary, 0,
+		ctx, deviceOutputGreedySpan, []tokenizer.TokenID{7}, boundary,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer release(alternative)
 	fresh, err := runner.forwardDeviceCachedModeLocked(
-		ctx, deviceOutputGreedySpan, []tokenizer.TokenID{1, 4, 7}, nil, 0,
+		ctx, deviceOutputGreedySpan, []tokenizer.TokenID{1, 4, 7}, nil,
 	)
 	if err != nil {
 		t.Fatal(err)

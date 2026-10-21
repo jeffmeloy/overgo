@@ -65,7 +65,7 @@ func TestDeviceDecodeSpan(t *testing.T) {
 	defer runner.mu.Unlock()
 
 	// Whole-history span from an empty cache.
-	span, err := runner.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedySpan, tokens, nil, 0)
+	span, err := runner.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedySpan, tokens, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +102,7 @@ func TestDeviceDecodeSpan(t *testing.T) {
 			t.Fatal(err)
 		}
 	}()
-	draft, err := runner.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedySpan, tokens[1:], prefix, 0)
+	draft, err := runner.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedySpan, tokens[1:], prefix)
 	if err != nil {
 		t.Fatal(err)
 	}

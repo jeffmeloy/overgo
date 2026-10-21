@@ -232,6 +232,13 @@
       },
       "steps": [
         {
+          "id": "decode-misses",
+          "title": "Compute a decode step's experts in host memory on the CPU beside the card's",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "From Nsight Systems over Flash-Next's 200-token short chat on master d8d27e41d (2026-10-20): a plain token takes about 13.4 ms, the card busy about 13 ms of it. moe_hidden_dot_f32 takes 27 us at its median launch (about 520 GB/s of expert reads) but 197 us at the 90th percentile and 606 us at the 99th; moe_down_dot_f32 15, 158 and 394 us. The slow launches are the layers whose routed experts lie in host memory, which the kernels read through mapped memory over the x8 link: about 4 of a token's 480 routed experts (99.0% of routes hit the card, which holds about 17,370 experts, 42.0 GB, as Strata's cache holds 17,493), and they cost about 4 ms a token.\nStrata's decode reads almost none over the link (0.0% of routes in its log): its expert pool decides each layer's misses on the host, publishes the card's share first so the GPU starts, and computes the misses on the CPU beside it (src/core/expert_source.cpp:3715-3760, \"the pool computes a layer's misses before it starts the next\"). Overgo's hostexpert pool computes a Flash-Next expert's slot in about 5 us on the 9950X's 32 workers, where the link takes about 180 us.\nThe step computes a decode step's routed experts in host memory on the CPU beside the card's products, inside the captured step (a host node on its own branch of each routed layer, or what the profile shows cheaper), the card's kernels skipping them; the outputs stay within the model tolerance of the reference.\nEvidence: Nsight's expert-dot launches at the 90th and 99th percentile; the probe's milliseconds a token, plain and speculative; the generated ids against plain decoding before the change.\nServes: throughput of every offloaded routed-expert model's decode and verify windows.\nBatch: device."
+        },
+        {
           "id": "window-cost",
           "title": "Verify a draft window at close to one token's cost",
           "status": "open",
@@ -592,7 +599,8 @@
             "attention-file/do",
             "cache-restore-bounds/do",
             "prompt-memory/do",
-            "ring-retire/do"
+            "ring-retire/do",
+            "misses-file/do"
           ]
         }
       ]

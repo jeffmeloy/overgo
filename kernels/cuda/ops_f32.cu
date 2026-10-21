@@ -2900,6 +2900,12 @@ __device__ bool top_k_before(
 	return left > right;
 }
 
+// ARGMAX_THREADS: a row's block; a wide row (a vocabulary's logits) is read four values a load across them, so the
+// row's reads stay in flight together.
+constexpr unsigned int ARGMAX_THREADS = 1024;
+constexpr unsigned int ARGMAX_VECTOR = 4;
+
+// argmax_f32 writes each row's index of its largest value, the lower index on a tie, or -1 where the row holds a NaN.
 extern "C" __global__ void argmax_f32(
 		const float * input,
 		float * output,
@@ -2914,17 +2920,33 @@ extern "C" __global__ void argmax_f32(
 	unsigned int best_index = 0xffffffffU;
 	float best_value = 0.0f;
 	unsigned int invalid = 0;
-	for (unsigned int candidate = lane; candidate < width; candidate += blockDim.x) {
-		const float value = input[base + candidate];
+	const auto consider = [&](float value, unsigned int candidate) {
 		invalid |= isnan(value);
 		if (best_index == 0xffffffffU || top_k_before(value, candidate, best_value, best_index)) {
 			best_index = candidate;
 			best_value = value;
 		}
+	};
+	// The ordering is total, so the order the values are read in leaves the result as a serial scan's.
+	unsigned int vectored = 0;
+	if (reinterpret_cast<size_t>(input + base) % sizeof(float4) == 0) {
+		vectored = width / ARGMAX_VECTOR * ARGMAX_VECTOR;
+		const float4 * quads = reinterpret_cast<const float4 *>(input + base);
+		for (unsigned int quad = lane; quad < vectored / ARGMAX_VECTOR; quad += blockDim.x) {
+			const float4 value = quads[quad];
+			const unsigned int candidate = quad * ARGMAX_VECTOR;
+			consider(value.x, candidate);
+			consider(value.y, candidate + 1);
+			consider(value.z, candidate + 2);
+			consider(value.w, candidate + 3);
+		}
 	}
-	__shared__ float values[256];
-	__shared__ unsigned int indices[256];
-	__shared__ unsigned int invalids[256];
+	for (unsigned int candidate = vectored + lane; candidate < width; candidate += blockDim.x) {
+		consider(input[base + candidate], candidate);
+	}
+	__shared__ float values[ARGMAX_THREADS];
+	__shared__ unsigned int indices[ARGMAX_THREADS];
+	__shared__ unsigned int invalids[ARGMAX_THREADS];
 	values[lane] = best_value;
 	indices[lane] = best_index;
 	invalids[lane] = invalid;

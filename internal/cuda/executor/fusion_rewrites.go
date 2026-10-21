@@ -689,11 +689,14 @@ func applyLayerNormModulateRewrite(context *rewriteContext) {
 	}
 }
 
+// applyQ8EmissionRewrite has a Q8_0 product's fused producer write the product's Q8_0 input beside its F32 output,
+// for a decode step's column and a verify span's columns alike: the producers' kernels write each column's blocks where
+// the separate quantization would (a span's two columns ran weighted_rms_norm_f32 and quantize_q8_0_input_f32 apart).
 func applyQ8EmissionRewrite(context *rewriteContext) {
 	compiled := context.compiled
 	for _, node := range context.order {
 		if node.Op != tensor.OpMulMat || node.Inputs[0].Type != dtype.Q8_0 ||
-			node.Inputs[1].Shape.Rank != 2 || node.Inputs[1].Shape.Dims[1] != 1 {
+			node.Inputs[1].Shape.Rank != 2 || node.Inputs[1].Shape.Dims[1] > q8InputSpanColumns {
 			continue
 		}
 		// A producer read through a reshape serves the product's blocks where its rows hold whole blocks.

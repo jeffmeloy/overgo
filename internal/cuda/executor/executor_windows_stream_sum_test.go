@@ -4,8 +4,10 @@ package executor
 
 import (
 	"context"
+	"slices"
 	"testing"
 
+	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/quant"
 	"overgo/internal/tensor"
@@ -57,6 +59,59 @@ func TestExecutorStreamSumMatchesTheUnfusedGraph(t *testing.T) {
 			sum, _ := streamMix(builder, right, width, streams)
 			return builder.MulMat(left, sum)
 		}, inputQuantizedDecodeTolerance)
+}
+
+// TestExecutorQ8EmissionKeepsASpansColumns runs a hyper-connection mix's normalization and gate, each read by a Q8_0
+// product that takes its blocks from the fused kernel, over a verify span's two columns and over each column alone:
+// the span's fused kernels write each column's blocks where one column's do, so its products agree bit for bit.
+func TestExecutorQ8EmissionKeepsASpansColumns(t *testing.T) {
+	cudatest.Require(t)
+	const width, streams, rank, span = 64, 4, 32, 2
+	quantized := func(shape tensor.Shape, seed int) []byte {
+		storage, err := quant.Quantize(dtype.Q8_0, patternedValue(shape, seed, 0.03, -0.1).Data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return storage
+	}
+	downShape, upShape := tensor.MustShape(width*streams, rank), tensor.MustShape(rank, width)
+	downBytes, upBytes := quantized(downShape, 13), quantized(upShape, 17)
+	inputs := patternedValue(tensor.MustShape(width, streams, span), 5, 0.31, -0.2)
+	weights := patternedValue(tensor.MustShape(width, streams), 9, 0.07, 1)
+	worker := newFixtureWorker(t)
+	down, up := copyFixtureDeviceBytes(t, worker, downBytes), copyFixtureDeviceBytes(t, worker, upBytes)
+	cuda := newFixtureExecutorWithWorker(t, worker)
+	// run multiplies tokens columns of the inputs from first and returns both products.
+	run := func(first, tokens uint64) (low, high []float32) {
+		t.Helper()
+		builder := tensor.NewBuilder()
+		input := builder.Input("input", dtype.F32, tensor.MustShape(width, streams, tokens))
+		weight := builder.Input("weight", dtype.F32, weights.Shape)
+		downNode, upNode := builder.Input("down", dtype.Q8_0, downShape), builder.Input("up", dtype.Q8_0, upShape)
+		normalized, _, lowNode, highNode := hyperNorms(builder, input, weight, downNode, upNode)
+		compiled, err := Compile(highNode)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if descriptor := compiled.nodes[compiled.orderIndexes[normalized]].fusion; descriptor == nil || !descriptor.emitQ8 {
+			t.Fatalf("%d columns: the normalization writes no Q8_0 blocks", tokens)
+		}
+		columns := inputs.Data[first*width*streams : (first+tokens)*width*streams]
+		got, err := cuda.executeWithDeviceFeeds(t.Context(), []*tensor.Tensor{lowNode, highNode},
+			map[*tensor.Tensor]reference.Value{input: {Shape: input.Shape, Data: columns}, weight: weights},
+			map[*tensor.Tensor]driver.DevicePtr{downNode: down, upNode: up})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got[lowNode].Data, got[highNode].Data
+	}
+	spanLow, spanHigh := run(0, span)
+	for column := range uint64(span) {
+		low, high := run(column, 1)
+		if !slices.Equal(spanLow[column*rank:(column+1)*rank], low) || !slices.Equal(spanHigh[column*width:(column+1)*width], high) {
+			t.Fatalf("column %d of the span differs from the column alone", column)
+		}
+	}
 }
 
 // TestExecutorStreamCombineMatchesTheUnfusedGraph runs a combine of 4

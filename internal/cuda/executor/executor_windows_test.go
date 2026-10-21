@@ -403,6 +403,58 @@ func TestExecutorTopKRowsMatchReference(t *testing.T) {
 	checkCUDAGraph(t, feeds, uniformGraphChecks(outputs, accuracyExact)...)
 }
 
+// TestExecutorArgmaxWideRowsMatchReference picks each row's largest value, the lower index of a tie, over a
+// vocabulary-wide row read four values a load and an odd width whose later rows are not 16-byte aligned, as the host
+// reference does; a row with a NaN picks -1, the card's mark of invalid logits.
+func TestExecutorArgmaxWideRowsMatchReference(t *testing.T) {
+	const (
+		vocabulary, odd, rows = 248320, 5001, 3
+		gridSteps, gridCenter = 64, 2048
+		peak                  = 1000
+		nanRow                = 2
+		invalid               = -1
+	)
+	withNaN := false
+	scores := func(shape tensor.Shape) reference.Value {
+		elements, _ := shape.Elements()
+		width := int(shape.Dims[0])
+		data := make([]float32, elements)
+		state := uint32(23)
+		for index := range data {
+			state = state*1664525 + 1013904223
+			data[index] = float32(int32(state>>20)-gridCenter) / gridSteps
+		}
+		for row := range rows {
+			// A tie at the peak: the lower index wins.
+			data[row*width+width/3], data[row*width+width-1] = peak, peak
+		}
+		if withNaN {
+			data[nanRow*width+width/2] = float32(math.NaN())
+		}
+		return reference.Value{Shape: shape, Data: data}
+	}
+	builder := tensor.NewBuilder()
+	wide := builder.Input("wide", dtype.F32, tensor.MustShape(vocabulary, rows))
+	unaligned := builder.Input("unaligned", dtype.F32, tensor.MustShape(odd, rows))
+	outputs := []*tensor.Tensor{builder.TopK(wide, 1), builder.TopK(unaligned, 1)}
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	feeds := map[*tensor.Tensor]reference.Value{wide: scores(wide.Shape), unaligned: scores(unaligned.Shape)}
+	checkCUDAGraph(t, feeds, uniformGraphChecks(outputs, accuracyExact)...)
+	withNaN = true
+	feeds = map[*tensor.Tensor]reference.Value{wide: scores(wide.Shape), unaligned: scores(unaligned.Shape)}
+	values, err := newFixtureExecutor(t).Execute(t.Context(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, output := range outputs {
+		if picked := values[output].Data; picked[nanRow] != invalid || picked[0] == invalid {
+			t.Fatalf("picks with a NaN in row %d = %v", nanRow, picked)
+		}
+	}
+}
+
 func TestExecutorTopKPairsMultiChunkMatchesReference(t *testing.T) {
 	const (
 		fixtureWidth = 4099

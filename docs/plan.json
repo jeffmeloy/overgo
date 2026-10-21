@@ -227,17 +227,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 85,
+        "nodes": 0,
         "reason": "window-overheads as built adds 85 production syntax nodes (the gate's preflight, 2026-10-21): the draft's BF16 matrices on the raw route with its routers kept F32, argmax_f32's wider block, and Q8_0 emission for a verify span's columns."
       },
       "steps": [
-        {
-          "id": "window-overheads",
-          "title": "Remove a speculative window's own overheads: the draft's F32 matrices, a one-block argmax and the span's unfused columns",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "From Nsight Systems over Flash-Next's 200-token short chat with its MTP draft (2026-10-21, window-commit's build): a one-draft window costs 19 to 21 ms against a plain token's 13.5. Beside the second token's experts (moe_hidden_dot_f32 and moe_down_dot_f32 about 1.65 times a plain token's, +2.65 ms), the window pays overheads a plain token does not:\n- the draft step's F32 matrices (the hyper draft uploads every tensor but its routed experts as F32; mul_mat_f32 about 1.1 ms a window against 0.33 ms a plain token) and its own output head (0.58 ms);\n- argmax_f32 at 248 us a call, twice a window: the span's two rows and the draft's one each take one block of a 248,320-entry row (launch_recurrent_selection.go, OpTopK K=1), where a plain token is sampled on the host;\n- the span's two columns miss the one-column fusions: weighted_rms_norm_f32 with quantize_q8_0_input_f32 (89,461 launches) where a plain token runs weighted_rms_norm_q8_0_f32, stream_sum_f32 where it runs stream_sum_q8_0_f32.\nThe step removes them: the draft's dense matrices in the trunk's q8_0 decode format, an argmax a row split across blocks (or the q8 and bf16 argmax partials extended to the q6_K head and to a span's columns), and the one-column fusions widened to a span's columns.\nEvidence: Nsight's per-window kernel time and the probe's milliseconds a window, plain and speculative; the generated ids against plain greedy decoding.\nServes: throughput of speculative decoding on every model with a draft.\nBatch: device."
-        },
         {
           "id": "cpu-misses",
           "title": "Compute a decode step's experts in host memory on the CPU beside the card's",

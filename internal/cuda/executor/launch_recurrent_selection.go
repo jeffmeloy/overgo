@@ -357,10 +357,11 @@ func launchRecurrentSelection(
 		input := pointers.input(0)
 		k := attributes.K
 		if k == 1 && attributes.BlockSize == 0 {
+			// A row takes a block of argmaxThreads (ARGMAX_THREADS): a verify span's few wide rows took 248 us each on 256.
 			return launchGridABI(
 				state, functions[kernelArgmaxF32],
 				kernel.Grid1D(int(rows)),
-				kernel.DefaultBlock1D(),
+				driver.Dim3{X: argmaxThreads, Y: 1, Z: 1},
 				&input, &output, &width, &rows,
 			)
 		}
@@ -552,3 +553,6 @@ func launchRecurrentSelection(
 		return fmt.Errorf("unsupported CUDA operation %s", node.Op)
 	}
 }
+
+// argmaxThreads is argmax_f32's block, its ARGMAX_THREADS.
+const argmaxThreads = uint32(1024)

@@ -62,19 +62,30 @@ func (d *hyperDraft) close() error {
 	return err
 }
 
-// loadHyperDraft uploads an attached draft layer: its routed-expert banks as stored, every other tensor as F32.
+// loadHyperDraft uploads an attached draft layer: its routed-expert banks and its BF16 matrices as stored, every other
+// tensor as F32.
+//   - a BF16 matrix takes the trunk's raw route, read as stored by the draft step's products at half an F32 copy's bytes
+//     (its F32 copies took about 1.1 ms of mul_mat_f32 a Flash-Next draft step); the draft holds no convolution kernel
+//     that the trunk keeps in F32
 //   - it runs before the trunk's pass, so an expert residency sizes itself to the memory the draft leaves
 func loadHyperDraft(ctx context.Context, draft *hyperDraft, raw *modeldevice.DeviceWeights, converted *modeldevice.DeviceConvertedWeights) error {
 	if draft == nil {
 		return nil
 	}
 	loader := modeldevice.NewLoader(draft.file)
-	banks := map[string]bool{
-		draft.weights.Layer.FeedForwardGateUpExperts.Name: true, draft.weights.Layer.FeedForwardDownExperts.Name: true,
+	layer := draft.weights.Layer
+	banks := map[string]bool{layer.FeedForwardGateUpExperts.Name: true, layer.FeedForwardDownExperts.Name: true}
+	// The routers stay F32, as the routed product reads them (the trunk's file stores its routers so).
+	routers := map[string]bool{}
+	for _, router := range []*gguf.TensorInfo{layer.FeedForwardRouter, layer.FeedForwardSharedRouter} {
+		if router != nil {
+			routers[router.Name] = true
+		}
 	}
 	var native, f32 []gguf.TensorInfo
 	for _, info := range draft.weights.Tensors() {
-		if raw != nil && banks[info.Name] && info.Type != dtype.F32 {
+		matrix := info.Type == dtype.BF16 && info.Dimensions == tensor.PairedExtent && !routers[info.Name]
+		if raw != nil && (banks[info.Name] && info.Type != dtype.F32 || matrix) {
 			native = append(native, info)
 		} else {
 			f32 = append(f32, info)

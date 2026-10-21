@@ -19,9 +19,6 @@
 // _ZZ24quantize_fp8_columns_f32E9warp_amax has been demoted
 // _ZZ25sam_attention_grouped_f32E6maxima has been demoted
 // _ZZ11l2_norm_f32E7partial has been demoted
-// _ZZ10argmax_f32E6values has been demoted
-// _ZZ10argmax_f32E7indices has been demoted
-// _ZZ10argmax_f32E8invalids has been demoted
 // _ZZ15top_k_block_f32E9histogram has been demoted
 // _ZZ15top_k_block_f32E6prefix has been demoted
 // _ZZ15top_k_block_f32E9remaining has been demoted
@@ -97,6 +94,9 @@
 // _ZZ23gated_delta_net_keyheadILj4EEvPKfS1_S1_S1_S1_S1_PfjjjjjE2sb has been demoted
 // _ZZ23gated_delta_net_keyheadILj4EEvPKfS1_S1_S1_S1_S1_PfjjjjjE8key_sums has been demoted
 // _ZZ23gated_delta_net_keyheadILj4EEvPKfS1_S1_S1_S1_S1_PfjjjjjE10query_sums has been demoted
+// _ZZ10argmax_f32PKfPfjjE6values has been demoted
+// _ZZ10argmax_f32PKfPfjjE7indices has been demoted
+// _ZZ10argmax_f32PKfPfjjE8invalids has been demoted
 // _ZZ18moe_hidden_dot_f32PKfPKjPKvS4_S0_S0_PfjjjjjjjjjjfjjE9codebooks has been demoted
 // _ZZ22moe_grouped_hidden_f32PKfPKjS2_PKvS4_S0_S0_PfjjjjjjjjfjE9codebooks has been demoted
 // _ZZ22moe_grouped_hidden_f32PKfPKjS2_PKvS4_S0_S0_PfjjjjjjjjfjE7weights has been demoted
@@ -26306,184 +26306,354 @@ $L__BB89_27:
 	.param .u32 argmax_f32_param_3
 )
 {
-	.reg .pred 	%p<37>;
-	.reg .f32 	%f<17>;
-	.reg .b32 	%r<48>;
-	.reg .b64 	%rd<14>;
+	.reg .pred 	%p<90>;
+	.reg .f32 	%f<48>;
+	.reg .b32 	%r<87>;
+	.reg .b64 	%rd<20>;
 	// demoted variable
-	.shared .align 4 .b8 _ZZ10argmax_f32E6values[1024];
+	.shared .align 4 .b8 _ZZ10argmax_f32PKfPfjjE6values[4096];
 	// demoted variable
-	.shared .align 4 .b8 _ZZ10argmax_f32E7indices[1024];
+	.shared .align 4 .b8 _ZZ10argmax_f32PKfPfjjE7indices[4096];
 	// demoted variable
-	.shared .align 4 .b8 _ZZ10argmax_f32E8invalids[1024];
+	.shared .align 4 .b8 _ZZ10argmax_f32PKfPfjjE8invalids[4096];
 
-	ld.param.u64 	%rd4, [argmax_f32_param_0];
-	ld.param.u64 	%rd5, [argmax_f32_param_1];
-	ld.param.u32 	%r20, [argmax_f32_param_2];
-	ld.param.u32 	%r21, [argmax_f32_param_3];
+	ld.param.u64 	%rd5, [argmax_f32_param_0];
+	ld.param.u64 	%rd6, [argmax_f32_param_1];
+	ld.param.u32 	%r41, [argmax_f32_param_2];
+	ld.param.u32 	%r42, [argmax_f32_param_3];
+	cvta.to.global.u64 	%rd1, %rd5;
 	mov.u32 	%r1, %tid.x;
 	mov.u32 	%r2, %ctaid.x;
-	setp.ge.u32 	%p9, %r2, %r21;
-	@%p9 bra 	$L__BB90_25;
+	setp.ge.u32 	%p25, %r2, %r42;
+	mov.f32 	%f44, 0f00000000;
+	@%p25 bra 	$L__BB90_56;
 
-	cvt.u64.u32 	%rd1, %r2;
-	setp.lt.u32 	%p10, %r1, %r20;
-	@%p10 bra 	$L__BB90_3;
-	bra.uni 	$L__BB90_2;
+	cvt.u64.u32 	%rd2, %r2;
+	mul.wide.u32 	%rd3, %r41, %r2;
+	shl.b64 	%rd7, %rd3, 2;
+	add.s64 	%rd8, %rd5, %rd7;
+	and.b64  	%rd9, %rd8, 15;
+	setp.ne.s64 	%p26, %rd9, 0;
+	mov.u32 	%r77, 0;
+	mov.u32 	%r78, -1;
+	mov.u32 	%r79, %r77;
+	@%p26 bra 	$L__BB90_31;
 
-$L__BB90_3:
-	mov.u32 	%r3, %ntid.x;
-	cvta.to.global.u64 	%rd2, %rd4;
-	cvt.u64.u32 	%rd6, %r20;
-	mul.lo.s64 	%rd3, %rd6, %rd1;
-	mov.u32 	%r45, -1;
-	mov.f32 	%f16, 0f00000000;
-	mov.u32 	%r46, 0;
-	mov.u32 	%r42, %r1;
+	and.b32  	%r79, %r41, -4;
+	shr.u32 	%r4, %r41, 2;
+	setp.ge.u32 	%p27, %r1, %r4;
+	@%p27 bra 	$L__BB90_31;
+
+	mov.u32 	%r5, %ntid.x;
+	add.s64 	%rd4, %rd1, %rd7;
+	mov.u32 	%r77, 0;
+	mov.u32 	%r78, -1;
+	mov.f32 	%f44, 0f00000000;
+	mov.u32 	%r72, %r1;
 
 $L__BB90_4:
-	cvt.u64.u32 	%rd7, %r42;
-	add.s64 	%rd8, %rd3, %rd7;
-	shl.b64 	%rd9, %rd8, 2;
-	add.s64 	%rd10, %rd2, %rd9;
-	ld.global.f32 	%f2, [%rd10];
-	abs.ftz.f32 	%f3, %f2;
-	setp.gtu.ftz.f32 	%p12, %f3, 0f7F800000;
-	selp.u32 	%r26, 1, 0, %p12;
-	or.b32  	%r46, %r46, %r26;
-	setp.eq.s32 	%p13, %r45, -1;
-	mov.pred 	%p35, -1;
-	@%p13 bra 	$L__BB90_10;
+	mul.wide.u32 	%rd11, %r72, 16;
+	add.s64 	%rd12, %rd4, %rd11;
+	ld.global.v4.f32 	{%f30, %f31, %f32, %f33}, [%rd12];
+	shl.b32 	%r9, %r72, 2;
+	abs.ftz.f32 	%f6, %f30;
+	setp.eq.s32 	%p28, %r78, -1;
+	@%p28 bra 	$L__BB90_11;
 
-	abs.ftz.f32 	%f11, %f16;
-	setp.gtu.ftz.f32 	%p15, %f11, 0f7F800000;
-	xor.pred  	%p16, %p12, %p15;
-	@%p16 bra 	$L__BB90_9;
+	setp.gtu.ftz.f32 	%p29, %f6, 0f7F800000;
+	abs.ftz.f32 	%f40, %f44;
+	setp.gtu.ftz.f32 	%p30, %f40, 0f7F800000;
+	xor.pred  	%p31, %p29, %p30;
+	@%p31 bra 	$L__BB90_9;
 	bra.uni 	$L__BB90_6;
 
 $L__BB90_9:
-	setp.le.ftz.f32 	%p35, %f3, 0f7F800000;
+	setp.le.ftz.f32 	%p84, %f6, 0f7F800000;
 	bra.uni 	$L__BB90_10;
 
 $L__BB90_6:
-	setp.eq.ftz.f32 	%p18, %f2, %f16;
-	or.pred  	%p19, %p18, %p12;
-	@%p19 bra 	$L__BB90_8;
+	setp.eq.ftz.f32 	%p33, %f30, %f44;
+	or.pred  	%p34, %p33, %p29;
+	@%p34 bra 	$L__BB90_8;
 	bra.uni 	$L__BB90_7;
 
 $L__BB90_8:
-	setp.lt.u32 	%p35, %r42, %r45;
+	setp.lt.u32 	%p84, %r9, %r78;
 	bra.uni 	$L__BB90_10;
 
 $L__BB90_7:
-	setp.gt.ftz.f32 	%p35, %f2, %f16;
+	setp.gt.ftz.f32 	%p84, %f30, %f44;
 
 $L__BB90_10:
-	selp.b32 	%r45, %r42, %r45, %p35;
-	selp.f32 	%f16, %f2, %f16, %p35;
-	add.s32 	%r42, %r42, %r3;
-	setp.lt.u32 	%p20, %r42, %r20;
-	@%p20 bra 	$L__BB90_4;
-	bra.uni 	$L__BB90_11;
-
-$L__BB90_2:
-	mov.u32 	%r46, 0;
-	mov.f32 	%f16, 0f00000000;
-	mov.u32 	%r45, -1;
+	not.pred 	%p35, %p84;
+	@%p35 bra 	$L__BB90_12;
 
 $L__BB90_11:
-	shl.b32 	%r27, %r1, 2;
-	mov.u32 	%r28, _ZZ10argmax_f32E6values;
-	add.s32 	%r12, %r28, %r27;
-	st.shared.f32 	[%r12], %f16;
-	mov.u32 	%r29, _ZZ10argmax_f32E7indices;
-	add.s32 	%r13, %r29, %r27;
-	st.shared.u32 	[%r13], %r45;
-	mov.u32 	%r30, _ZZ10argmax_f32E8invalids;
-	add.s32 	%r14, %r30, %r27;
-	st.shared.u32 	[%r14], %r46;
-	bar.sync 	0;
-	mov.u32 	%r31, %ntid.x;
-	shr.u32 	%r47, %r31, 1;
-	setp.eq.s32 	%p21, %r47, 0;
-	@%p21 bra 	$L__BB90_23;
+	mov.f32 	%f40, %f6;
+	mov.u32 	%r78, %r9;
+	mov.f32 	%f44, %f30;
 
 $L__BB90_12:
-	setp.ge.u32 	%p22, %r1, %r47;
-	@%p22 bra 	$L__BB90_22;
-
-	shl.b32 	%r32, %r47, 2;
-	add.s32 	%r33, %r14, %r32;
-	ld.shared.u32 	%r34, [%r14];
-	ld.shared.u32 	%r35, [%r33];
-	or.b32  	%r36, %r34, %r35;
-	st.shared.u32 	[%r14], %r36;
-	add.s32 	%r37, %r13, %r32;
-	ld.shared.u32 	%r17, [%r37];
-	setp.eq.s32 	%p23, %r17, -1;
-	@%p23 bra 	$L__BB90_22;
-
-	ld.shared.u32 	%r18, [%r13];
-	setp.eq.s32 	%p24, %r18, -1;
-	add.s32 	%r39, %r12, %r32;
-	ld.shared.f32 	%f6, [%r39];
-	@%p24 bra 	$L__BB90_21;
-
-	ld.shared.f32 	%f7, [%r12];
-	abs.ftz.f32 	%f8, %f6;
-	setp.gtu.ftz.f32 	%p25, %f8, 0f7F800000;
-	abs.ftz.f32 	%f12, %f7;
-	setp.gtu.ftz.f32 	%p26, %f12, 0f7F800000;
-	xor.pred  	%p27, %p25, %p26;
-	@%p27 bra 	$L__BB90_19;
-	bra.uni 	$L__BB90_16;
-
-$L__BB90_19:
-	setp.le.ftz.f32 	%p36, %f8, 0f7F800000;
-	bra.uni 	$L__BB90_20;
+	add.s32 	%r11, %r9, 1;
+	abs.ftz.f32 	%f10, %f31;
+	setp.gtu.ftz.f32 	%p36, %f10, 0f7F800000;
+	selp.u32 	%r50, 1, 0, %p36;
+	setp.gtu.ftz.f32 	%p37, %f6, 0f7F800000;
+	selp.u32 	%r51, 1, 0, %p37;
+	or.b32  	%r52, %r77, %r51;
+	or.b32  	%r12, %r52, %r50;
+	setp.gtu.ftz.f32 	%p38, %f40, 0f7F800000;
+	xor.pred  	%p39, %p36, %p38;
+	@%p39 bra 	$L__BB90_16;
+	bra.uni 	$L__BB90_13;
 
 $L__BB90_16:
-	setp.eq.ftz.f32 	%p29, %f6, %f7;
-	or.pred  	%p30, %p29, %p25;
-	@%p30 bra 	$L__BB90_18;
+	setp.le.ftz.f32 	%p85, %f10, 0f7F800000;
 	bra.uni 	$L__BB90_17;
 
-$L__BB90_18:
-	setp.lt.u32 	%p36, %r17, %r18;
-	bra.uni 	$L__BB90_20;
+$L__BB90_13:
+	setp.eq.ftz.f32 	%p41, %f31, %f44;
+	or.pred  	%p42, %p41, %p36;
+	@%p42 bra 	$L__BB90_15;
+	bra.uni 	$L__BB90_14;
+
+$L__BB90_15:
+	setp.lt.u32 	%p85, %r11, %r78;
+	bra.uni 	$L__BB90_17;
+
+$L__BB90_14:
+	setp.gt.ftz.f32 	%p85, %f31, %f44;
 
 $L__BB90_17:
-	setp.gt.ftz.f32 	%p36, %f6, %f7;
+	selp.f32 	%f43, %f31, %f44, %p85;
+	add.s32 	%r13, %r9, 2;
+	abs.ftz.f32 	%f12, %f32;
+	selp.b32 	%r76, %r11, %r78, %p85;
+	setp.eq.s32 	%p43, %r76, -1;
+	@%p43 bra 	$L__BB90_24;
 
-$L__BB90_20:
-	not.pred 	%p31, %p36;
-	@%p31 bra 	$L__BB90_22;
-
-$L__BB90_21:
-	st.shared.f32 	[%r12], %f6;
-	st.shared.u32 	[%r13], %r17;
+	setp.gtu.ftz.f32 	%p44, %f12, 0f7F800000;
+	abs.ftz.f32 	%f42, %f43;
+	setp.gtu.ftz.f32 	%p45, %f42, 0f7F800000;
+	xor.pred  	%p46, %p44, %p45;
+	@%p46 bra 	$L__BB90_22;
+	bra.uni 	$L__BB90_19;
 
 $L__BB90_22:
-	bar.sync 	0;
-	shr.u32 	%r47, %r47, 1;
-	setp.ne.s32 	%p32, %r47, 0;
-	@%p32 bra 	$L__BB90_12;
+	setp.le.ftz.f32 	%p86, %f12, 0f7F800000;
+	bra.uni 	$L__BB90_23;
+
+$L__BB90_19:
+	setp.eq.ftz.f32 	%p48, %f32, %f43;
+	or.pred  	%p49, %p48, %p44;
+	@%p49 bra 	$L__BB90_21;
+	bra.uni 	$L__BB90_20;
+
+$L__BB90_21:
+	setp.lt.u32 	%p86, %r13, %r76;
+	bra.uni 	$L__BB90_23;
+
+$L__BB90_20:
+	setp.gt.ftz.f32 	%p86, %f32, %f43;
 
 $L__BB90_23:
-	setp.ne.s32 	%p33, %r1, 0;
-	@%p33 bra 	$L__BB90_25;
+	not.pred 	%p50, %p86;
+	@%p50 bra 	$L__BB90_25;
 
-	ld.shared.u32 	%r40, [_ZZ10argmax_f32E8invalids];
-	setp.eq.s32 	%p34, %r40, 0;
-	ld.shared.u32 	%r41, [_ZZ10argmax_f32E7indices];
-	cvt.rn.f32.u32 	%f13, %r41;
-	selp.f32 	%f14, %f13, 0fBF800000, %p34;
-	cvta.to.global.u64 	%rd11, %rd5;
-	shl.b64 	%rd12, %rd1, 2;
-	add.s64 	%rd13, %rd11, %rd12;
-	st.global.f32 	[%rd13], %f14;
+$L__BB90_24:
+	mov.f32 	%f42, %f12;
+	mov.u32 	%r76, %r13;
+	mov.f32 	%f43, %f32;
 
 $L__BB90_25:
+	add.s32 	%r16, %r9, 3;
+	abs.ftz.f32 	%f16, %f33;
+	setp.gtu.ftz.f32 	%p51, %f16, 0f7F800000;
+	selp.u32 	%r53, 1, 0, %p51;
+	setp.gtu.ftz.f32 	%p52, %f12, 0f7F800000;
+	selp.u32 	%r54, 1, 0, %p52;
+	or.b32  	%r55, %r12, %r54;
+	or.b32  	%r77, %r55, %r53;
+	setp.gtu.ftz.f32 	%p53, %f42, 0f7F800000;
+	xor.pred  	%p54, %p51, %p53;
+	@%p54 bra 	$L__BB90_29;
+	bra.uni 	$L__BB90_26;
+
+$L__BB90_29:
+	setp.le.ftz.f32 	%p87, %f16, 0f7F800000;
+	bra.uni 	$L__BB90_30;
+
+$L__BB90_26:
+	setp.eq.ftz.f32 	%p56, %f33, %f43;
+	or.pred  	%p57, %p56, %p51;
+	@%p57 bra 	$L__BB90_28;
+	bra.uni 	$L__BB90_27;
+
+$L__BB90_28:
+	setp.lt.u32 	%p87, %r16, %r76;
+	bra.uni 	$L__BB90_30;
+
+$L__BB90_27:
+	setp.gt.ftz.f32 	%p87, %f33, %f43;
+
+$L__BB90_30:
+	selp.b32 	%r78, %r16, %r76, %p87;
+	selp.f32 	%f44, %f33, %f43, %p87;
+	add.s32 	%r72, %r72, %r5;
+	setp.lt.u32 	%p58, %r72, %r4;
+	@%p58 bra 	$L__BB90_4;
+
+$L__BB90_31:
+	add.s32 	%r80, %r79, %r1;
+	setp.lt.u32 	%p59, %r80, %r41;
+	@%p59 bra 	$L__BB90_32;
+	bra.uni 	$L__BB90_42;
+
+$L__BB90_32:
+	mov.u32 	%r24, %ntid.x;
+
+$L__BB90_33:
+	cvt.u64.u32 	%rd13, %r80;
+	add.s64 	%rd14, %rd3, %rd13;
+	shl.b64 	%rd15, %rd14, 2;
+	add.s64 	%rd16, %rd1, %rd15;
+	ld.global.f32 	%f20, [%rd16];
+	abs.ftz.f32 	%f21, %f20;
+	setp.gtu.ftz.f32 	%p60, %f21, 0f7F800000;
+	selp.u32 	%r56, 1, 0, %p60;
+	or.b32  	%r77, %r77, %r56;
+	setp.eq.s32 	%p61, %r78, -1;
+	@%p61 bra 	$L__BB90_40;
+
+	abs.ftz.f32 	%f34, %f44;
+	setp.gtu.ftz.f32 	%p63, %f34, 0f7F800000;
+	xor.pred  	%p64, %p60, %p63;
+	@%p64 bra 	$L__BB90_38;
+	bra.uni 	$L__BB90_35;
+
+$L__BB90_38:
+	setp.le.ftz.f32 	%p88, %f21, 0f7F800000;
+	bra.uni 	$L__BB90_39;
+
+$L__BB90_35:
+	setp.eq.ftz.f32 	%p66, %f20, %f44;
+	or.pred  	%p67, %p66, %p60;
+	@%p67 bra 	$L__BB90_37;
+	bra.uni 	$L__BB90_36;
+
+$L__BB90_37:
+	setp.lt.u32 	%p88, %r80, %r78;
+	bra.uni 	$L__BB90_39;
+
+$L__BB90_36:
+	setp.gt.ftz.f32 	%p88, %f20, %f44;
+
+$L__BB90_39:
+	not.pred 	%p68, %p88;
+	@%p68 bra 	$L__BB90_41;
+
+$L__BB90_40:
+	mov.u32 	%r78, %r80;
+	mov.f32 	%f44, %f20;
+
+$L__BB90_41:
+	add.s32 	%r80, %r80, %r24;
+	setp.lt.u32 	%p69, %r80, %r41;
+	@%p69 bra 	$L__BB90_33;
+
+$L__BB90_42:
+	shl.b32 	%r57, %r1, 2;
+	mov.u32 	%r58, _ZZ10argmax_f32PKfPfjjE6values;
+	add.s32 	%r33, %r58, %r57;
+	st.shared.f32 	[%r33], %f44;
+	mov.u32 	%r59, _ZZ10argmax_f32PKfPfjjE7indices;
+	add.s32 	%r34, %r59, %r57;
+	st.shared.u32 	[%r34], %r78;
+	mov.u32 	%r60, _ZZ10argmax_f32PKfPfjjE8invalids;
+	add.s32 	%r35, %r60, %r57;
+	st.shared.u32 	[%r35], %r77;
+	bar.sync 	0;
+	mov.u32 	%r61, %ntid.x;
+	shr.u32 	%r86, %r61, 1;
+	setp.eq.s32 	%p70, %r86, 0;
+	@%p70 bra 	$L__BB90_54;
+
+$L__BB90_43:
+	setp.ge.u32 	%p71, %r1, %r86;
+	@%p71 bra 	$L__BB90_53;
+
+	shl.b32 	%r62, %r86, 2;
+	add.s32 	%r63, %r35, %r62;
+	ld.shared.u32 	%r64, [%r35];
+	ld.shared.u32 	%r65, [%r63];
+	or.b32  	%r66, %r64, %r65;
+	st.shared.u32 	[%r35], %r66;
+	add.s32 	%r67, %r34, %r62;
+	ld.shared.u32 	%r38, [%r67];
+	setp.eq.s32 	%p72, %r38, -1;
+	@%p72 bra 	$L__BB90_53;
+
+	ld.shared.u32 	%r39, [%r34];
+	setp.eq.s32 	%p73, %r39, -1;
+	add.s32 	%r69, %r33, %r62;
+	ld.shared.f32 	%f24, [%r69];
+	@%p73 bra 	$L__BB90_52;
+
+	ld.shared.f32 	%f25, [%r33];
+	abs.ftz.f32 	%f26, %f24;
+	setp.gtu.ftz.f32 	%p74, %f26, 0f7F800000;
+	abs.ftz.f32 	%f35, %f25;
+	setp.gtu.ftz.f32 	%p75, %f35, 0f7F800000;
+	xor.pred  	%p76, %p74, %p75;
+	@%p76 bra 	$L__BB90_50;
+	bra.uni 	$L__BB90_47;
+
+$L__BB90_50:
+	setp.le.ftz.f32 	%p89, %f26, 0f7F800000;
+	bra.uni 	$L__BB90_51;
+
+$L__BB90_47:
+	setp.eq.ftz.f32 	%p78, %f24, %f25;
+	or.pred  	%p79, %p78, %p74;
+	@%p79 bra 	$L__BB90_49;
+	bra.uni 	$L__BB90_48;
+
+$L__BB90_49:
+	setp.lt.u32 	%p89, %r38, %r39;
+	bra.uni 	$L__BB90_51;
+
+$L__BB90_48:
+	setp.gt.ftz.f32 	%p89, %f24, %f25;
+
+$L__BB90_51:
+	not.pred 	%p80, %p89;
+	@%p80 bra 	$L__BB90_53;
+
+$L__BB90_52:
+	st.shared.f32 	[%r33], %f24;
+	st.shared.u32 	[%r34], %r38;
+
+$L__BB90_53:
+	bar.sync 	0;
+	shr.u32 	%r86, %r86, 1;
+	setp.ne.s32 	%p81, %r86, 0;
+	@%p81 bra 	$L__BB90_43;
+
+$L__BB90_54:
+	setp.ne.s32 	%p82, %r1, 0;
+	@%p82 bra 	$L__BB90_56;
+
+	ld.shared.u32 	%r70, [_ZZ10argmax_f32PKfPfjjE8invalids];
+	setp.eq.s32 	%p83, %r70, 0;
+	ld.shared.u32 	%r71, [_ZZ10argmax_f32PKfPfjjE7indices];
+	cvt.rn.f32.u32 	%f36, %r71;
+	selp.f32 	%f37, %f36, 0fBF800000, %p83;
+	cvta.to.global.u64 	%rd17, %rd6;
+	shl.b64 	%rd18, %rd2, 2;
+	add.s64 	%rd19, %rd17, %rd18;
+	st.global.f32 	[%rd19], %f37;
+
+$L__BB90_56:
 	ret;
 
 }

@@ -213,8 +213,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 486,
-        "reason": "speculate-default as built adds 144 production syntax nodes (the gate's preflight, 2026-10-21): GenerateOptions.PlainDecode and the runner's default, the protocols' optional speculative field and its admission, the capability document's default and SpeculatesByDefault; with step-overheads' 494 the row's count is 650."
+        "nodes": 760,
+        "reason": "expert-throughput as built adds 589 production syntax nodes (the gate's preflight, 2026-10-21): the routed-expert launch's choice of q8 products, its staging of the input and the slots' activations with the q8 inputs' reuse (moeQ8Storage, moeQ8Products, moeQ8Bytes, moeQ8StagingBytes) and the regenerated kernel bindings; with speculate-default's 144 and span-experts' 20 the row's count is 760."
       },
       "steps": [
         {
@@ -538,7 +538,8 @@
             "plan-steps-20261021c/do",
             "count-speculate-default/do",
             "plan-steps-20261021d/do",
-            "plan-expert-throughput/do"
+            "plan-expert-throughput/do",
+            "plan-q8-count/do"
           ]
         }
       ]

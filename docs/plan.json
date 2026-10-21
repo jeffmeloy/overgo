@@ -213,8 +213,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 60,
-        "reason": "expert-throughput as built adds 589 production syntax nodes (the gate's preflight, 2026-10-21): the routed-expert launch's choice of q8 products, its staging of the input and the slots' activations with the q8 inputs' reuse (moeQ8Storage, moeQ8Products, moeQ8Bytes, moeQ8StagingBytes) and the regenerated kernel bindings; with speculate-default's 144 and span-experts' 20 the row's count is 760."
+        "nodes": 1070,
+        "reason": "span-commit-chain as built adds 350 production syntax nodes (the gate's preflight, 2026-10-21): a block context's and result's checkpoints as lists, the gated-delta scan in one launch a checkpoint, the n-gram window at each, a span cache's checkpoint a kept count with its session identity, and the speculation loop's commit at any kept prefix; with speculate-default's 144, span-experts' 20, expert-throughput's 589 and window-host's 111 the row's count is 1,070."
       },
       "steps": [
         {
@@ -535,7 +535,8 @@
             "plan-q8-count/do",
             "plan-window-host/do",
             "plan-span-columns/do",
-            "plan-draft-vocab/do"
+            "plan-draft-vocab/do",
+            "plan-scc-count/do"
           ]
         }
       ]

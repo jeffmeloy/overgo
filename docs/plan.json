@@ -211,6 +211,10 @@
       "id": "cache-restore-bounds",
       "title": "Validate a compressed cache's bounds before synthesizing its positions",
       "status": "open",
+      "budget": {
+        "nodes": 65,
+        "reason": "cache-restore-bounds as built adds 65 production syntax nodes (the gate's preflight, 2026-10-21): validateCacheBounds, the token, position, context and layer checks LoadCache runs before synthesizing positions, and the positions built only once a layer lacks them."
+      },
       "steps": [
         {
           "id": "do",
@@ -566,7 +570,8 @@
             "oh-carry/do",
             "plan-steps-20261021/do",
             "count-step-overheads/do",
-            "plan-steps-20261021b/do"
+            "plan-steps-20261021b/do",
+            "count-cache-restore-bounds/do"
           ]
         }
       ]

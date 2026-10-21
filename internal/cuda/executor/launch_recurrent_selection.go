@@ -81,17 +81,15 @@ const (
 	sparseAttentionMMARows    = uint32(16)
 	sparseAttentionMMACells   = uint32(32)
 	sparseAttentionMMAThreads = uint32(128)
-	// sparseAttentionMMAPad*: the row padding of its query, key, value and
-	// score tiles, in floats.
-	sparseAttentionMMARowPad   = uint32(4)
-	sparseAttentionMMAValuePad = uint32(8)
+	// sparseAttentionMMARowPad: the row padding of its query and score
+	// tiles, in floats.
+	sparseAttentionMMARowPad = uint32(4)
 	// sparseAttentionMMARowWords: a row's maximum, sum and rescale.
 	sparseAttentionMMARowWords = uint32(3)
-	// sparseAttentionMMASharedBytes: the query, key, value and score tiles,
-	// the rows' words and the chunk's slot rows.
+	// sparseAttentionMMASharedBytes: the query and score tiles, the rows'
+	// words and the chunk's slot rows; the keys and values go from the cache
+	// to the lanes' fragments.
 	sparseAttentionMMASharedBytes = 4 * (sparseAttentionMMARows*(sparseAttentionMMAWidth+sparseAttentionMMARowPad) +
-		sparseAttentionMMACells*(sparseAttentionMMAWidth+sparseAttentionMMARowPad) +
-		sparseAttentionMMACells*(sparseAttentionMMAWidth+sparseAttentionMMAValuePad) +
 		sparseAttentionMMARows*(sparseAttentionMMACells+sparseAttentionMMARowPad) +
 		sparseAttentionMMARowWords*sparseAttentionMMARows + sparseAttentionMMACells)
 )

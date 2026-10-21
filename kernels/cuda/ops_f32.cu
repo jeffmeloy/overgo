@@ -3759,8 +3759,6 @@ extern "C" __global__ void __launch_bounds__(SPARSE_ATTENTION_SPLIT_THREADS) spa
 #define SPARSE_ATTENTION_MMA_CELLS 32
 #define SPARSE_ATTENTION_MMA_THREADS 128
 #define SPARSE_ATTENTION_MMA_Q_STRIDE (SPARSE_ATTENTION_MMA_WIDTH + 4)
-#define SPARSE_ATTENTION_MMA_K_STRIDE (SPARSE_ATTENTION_MMA_WIDTH + 4)
-#define SPARSE_ATTENTION_MMA_V_STRIDE (SPARSE_ATTENTION_MMA_WIDTH + 8)
 #define SPARSE_ATTENTION_MMA_S_STRIDE (SPARSE_ATTENTION_MMA_CELLS + 4)
 
 __device__ __forceinline__ unsigned int tf32_round(float value) {
@@ -3803,6 +3801,9 @@ __device__ __forceinline__ void mma_3xtf32_16x8x8(float * c, const float * a, co
 // 32 at a time with an online softmax. q.k and p.v run as 3xTF32 products;
 // the result differs from sparse_attention_grouped_f32 at rounding level by
 // summation order. A query with no valid slot writes zeros.
+//   - each lane reads the keys and values of its mma fragments from the cache
+//     itself, so the shared memory holds the queries and the scores alone and
+//     several blocks share a multiprocessor
 extern "C" __global__ void __launch_bounds__(SPARSE_ATTENTION_MMA_THREADS) sparse_attention_mma_f32(
 		const float * query,
 		const float * key,
@@ -3819,9 +3820,7 @@ extern "C" __global__ void __launch_bounds__(SPARSE_ATTENTION_MMA_THREADS) spars
 		const unsigned int * first_query) {
 	extern __shared__ float shared[];
 	float * queries = shared;
-	float * keys = queries + SPARSE_ATTENTION_MMA_ROWS * SPARSE_ATTENTION_MMA_Q_STRIDE;
-	float * values = keys + SPARSE_ATTENTION_MMA_CELLS * SPARSE_ATTENTION_MMA_K_STRIDE;
-	float * scores = values + SPARSE_ATTENTION_MMA_CELLS * SPARSE_ATTENTION_MMA_V_STRIDE;
+	float * scores = queries + SPARSE_ATTENTION_MMA_ROWS * SPARSE_ATTENTION_MMA_Q_STRIDE;
 	float * maxima = scores + SPARSE_ATTENTION_MMA_ROWS * SPARSE_ATTENTION_MMA_S_STRIDE;
 	float * sums = maxima + SPARSE_ATTENTION_MMA_ROWS;
 	float * rescale = sums + SPARSE_ATTENTION_MMA_ROWS;
@@ -3872,29 +3871,22 @@ extern "C" __global__ void __launch_bounds__(SPARSE_ATTENTION_MMA_THREADS) spars
 			rows[threadIdx.x] = slot_row;
 		}
 		__syncthreads();
-		for (unsigned int piece = threadIdx.x; piece < SPARSE_ATTENTION_MMA_CELLS * (SPARSE_ATTENTION_MMA_WIDTH / 4); piece += blockDim.x) {
-			const unsigned int cell = piece / (SPARSE_ATTENTION_MMA_WIDTH / 4);
-			const unsigned int quad = piece % (SPARSE_ATTENTION_MMA_WIDTH / 4);
-			float4 key_quad = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
-			float4 value_quad = key_quad;
-			if (rows[cell] >= 0) {
-				const size_t offset = ((size_t) rows[cell] * key_value_heads + key_value_head) * SPARSE_ATTENTION_MMA_WIDTH;
-				key_quad = reinterpret_cast<const float4 *>(key + offset)[quad];
-				value_quad = reinterpret_cast<const float4 *>(value + offset)[quad];
-			}
-			*reinterpret_cast<float4 *>(&keys[cell * SPARSE_ATTENTION_MMA_K_STRIDE + quad * 4]) = key_quad;
-			*reinterpret_cast<float4 *>(&values[cell * SPARSE_ATTENTION_MMA_V_STRIDE + quad * 4]) = value_quad;
-		}
-		__syncthreads();
+		// A cell's key and value rows in the cache, or none for a cell that is not attended, whose weights read as zeros.
+		const auto cell_row = [&](const float * cache, unsigned int cell) -> const float * {
+			return rows[cell] >= 0
+				? cache + ((size_t) rows[cell] * key_value_heads + key_value_head) * SPARSE_ATTENTION_MMA_WIDTH
+				: nullptr;
+		};
 		// A warp scores its 8 cells for all 16 rows.
 		float score[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-		const unsigned int key_row = (8 * warp + row) * SPARSE_ATTENTION_MMA_K_STRIDE;
+		const float * key_row = cell_row(key, 8 * warp + row);
+#pragma unroll 8
 		for (unsigned int step = 0; step < SPARSE_ATTENTION_MMA_WIDTH / 8; ++step) {
 			const unsigned int k = step * 8 + column;
 			const float a[4] = {
 				queries[row * SPARSE_ATTENTION_MMA_Q_STRIDE + k], queries[(row + 8) * SPARSE_ATTENTION_MMA_Q_STRIDE + k],
 				queries[row * SPARSE_ATTENTION_MMA_Q_STRIDE + k + 4], queries[(row + 8) * SPARSE_ATTENTION_MMA_Q_STRIDE + k + 4]};
-			const float b[2] = {keys[key_row + k], keys[key_row + k + 4]};
+			const float b[2] = {key_row ? __ldg(key_row + k) : 0.0f, key_row ? __ldg(key_row + k + 4) : 0.0f};
 			mma_3xtf32_16x8x8(score, a, b);
 		}
 		const unsigned int cell_column = 8 * warp + 2 * column;
@@ -3941,11 +3933,12 @@ extern "C" __global__ void __launch_bounds__(SPARSE_ATTENTION_MMA_THREADS) spars
 			const float a[4] = {
 				scores[row * SPARSE_ATTENTION_MMA_S_STRIDE + k], scores[(row + 8) * SPARSE_ATTENTION_MMA_S_STRIDE + k],
 				scores[row * SPARSE_ATTENTION_MMA_S_STRIDE + k + 4], scores[(row + 8) * SPARSE_ATTENTION_MMA_S_STRIDE + k + 4]};
+			const float * low_row = cell_row(value, k);
+			const float * high_row = cell_row(value, k + 4);
 #pragma unroll
 			for (int tile = 0; tile < 8; ++tile) {
 				const unsigned int channel = 64 * warp + 8 * tile + row;
-				const float b[2] = {
-					values[k * SPARSE_ATTENTION_MMA_V_STRIDE + channel], values[(k + 4) * SPARSE_ATTENTION_MMA_V_STRIDE + channel]};
+				const float b[2] = {low_row ? __ldg(low_row + channel) : 0.0f, high_row ? __ldg(high_row + channel) : 0.0f};
 				mma_3xtf32_16x8x8(accumulated[tile], a, b);
 			}
 		}

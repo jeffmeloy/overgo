@@ -4,7 +4,9 @@ package executor
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"math"
 	"testing"
 
@@ -190,12 +192,15 @@ func TestExecutorSparsePrimitivesMatchReference(t *testing.T) {
 // as a prompt (whole head groups a block, several tiles of slots) and as a
 // short step (a head a block), with skipped slots and slots after the query;
 // and a value row wider than a block's accumulators, which the per-channel
-// kernel serves.
+// kernel serves. The prompt's 260 rows take the tensor-core kernel, whose
+// output keeps the bits its staged kernel of 8f99c6c26 produced.
 func TestExecutorGroupedSparseAttentionMatchesReference(t *testing.T) {
 	type fixture struct {
 		keyWidth, valueWidth, queryHeads, keyValueHeads uint64
 		queryTokens, keyValueTokens, selected           uint64
 		queryStart                                      uint32
+		// bits: SHA-256 of the output, where it is pinned.
+		bits string
 	}
 	const (
 		flashNextWidth    = 256
@@ -221,9 +226,10 @@ func TestExecutorGroupedSparseAttentionMatchesReference(t *testing.T) {
 		inputScale       = 0.01
 	)
 	fixtures := []fixture{
-		{flashNextWidth, flashNextWidth, flashNextHeads, flashNextKVHeads, promptQueries, flashNextCache, flashNextSelected, promptStart},
-		{flashNextWidth, flashNextWidth, flashNextHeads, flashNextKVHeads, stepQueries, flashNextCache, flashNextSelected, stepStart},
-		{wideKeyWidth, wideValueWidth, 1, 1, wideQueries, wideCache, wideSelected, wideStart},
+		{flashNextWidth, flashNextWidth, flashNextHeads, flashNextKVHeads, promptQueries, flashNextCache, flashNextSelected, promptStart,
+			"e7c2d85879f44ffdb1bb8067ff7f07b75d0e519f4d567fdf5c8a4a425ad8580e"},
+		{flashNextWidth, flashNextWidth, flashNextHeads, flashNextKVHeads, stepQueries, flashNextCache, flashNextSelected, stepStart, ""},
+		{wideKeyWidth, wideValueWidth, 1, 1, wideQueries, wideCache, wideSelected, wideStart, ""},
 	}
 	for _, f := range fixtures {
 		builder := tensor.NewBuilder()
@@ -251,7 +257,14 @@ func TestExecutorGroupedSparseAttentionMatchesReference(t *testing.T) {
 			value:   patternedValue(value.Shape, 7, 1, 0),
 			indices: {Shape: indices.Shape, Data: slots},
 		}
-		checkCUDAGraph(t, feeds, uniformGraphChecks([]*tensor.Tensor{attention}, accuracySparse)...)
+		got := checkCUDAGraph(t, feeds, uniformGraphChecks([]*tensor.Tensor{attention}, accuracySparse)...)
+		if f.bits == "" {
+			continue
+		}
+		digest := sha256.Sum256(driver.Bytes(got[attention].Data))
+		if bits := hex.EncodeToString(digest[:]); bits != f.bits {
+			t.Errorf("%d queries: output %s, pinned %s", f.queryTokens, bits, f.bits)
+		}
 	}
 }
 

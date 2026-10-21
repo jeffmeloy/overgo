@@ -232,6 +232,13 @@
       },
       "steps": [
         {
+          "id": "publish",
+          "title": "Publish a benchmark under the model its runner measured",
+          "status": "open",
+          "verify": "go test ./cmd/benchmark -count=1 -run '^TestBenchmarkPublishesUnderTheRunnersModel$'",
+          "rationale": "From publishing Flash-Next's short-prompt benchmark after flashnext-cells/cells (2026-10-20): benchmark -publish measured the model (first token 234 ms, decode 71.5 tokens a second) and refused to publish, \"publishing weights differ from the measured model\". Publication identified the model by hashing the file it was given, while the runner's loaded program identifies every GGUF by its inventory of the shards it declares: Flash-Next's first shard hashes to model:sha256:5ce89370..., its inventory to its model, model:sha256:d7ff4ba5...; a model of one file differs too (a speech model's file a5c435f2..., its inventory 64152fc7...). No measured model could be published.\nThe step identifies the published model by the inventory, as the runner does, and publishes Flash-Next's benchmark, the guard cell's input.\nEvidence: TestBenchmarkPublishesUnderTheRunnersModel on a hermetic model whole and split in two; Flash-Next's benchmark published.\nServes: setup-steps; the scorecard's guard cell for every model.\nBatch: host."
+        },
+        {
           "id": "coverage",
           "title": "Carry or rebind Flash-Next's accepted coverage to its capacity recipe",
           "status": "open",
@@ -585,7 +592,8 @@
             "spec-reorder/do",
             "context-sweep/do",
             "review-order/do",
-            "cells-carry/do"
+            "cells-carry/do",
+            "publish-file/do"
           ]
         }
       ]

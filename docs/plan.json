@@ -218,11 +218,11 @@
       },
       "steps": [
         {
-          "id": "draft-on-card",
-          "title": "Draft each window on the card from the verify span's own rows, as Strata's draft round does",
+          "id": "hc-fusion",
+          "title": "Read Flash-Next's hyper-connections in two kernels, for a token and a verify span, as Strata's fused_gr does",
           "status": "open",
           "verify": "go run ./cmd/plan -status",
-          "rationale": "chain-depth's measurements (2026-10-21, the probe's speculative chats, a build that logged every window: overgo_data/scratch/long-prompt-20261019/draft-chain-gated.patch): a verify span costs 12.7, 15.4, 18.4 and 20.9 ms at one to four tokens; a window's first draft costs 2.05 ms of wall time, of which its graph is 1.08 ms on the card (graph-level trace), and each chained draft 1.6 to 2.0 ms more. The rest of the first draft is the host's: the span's hidden rows copied to the host, the seed row uploaded again, a launch, a wait and the token read back, while the card idles.\nStrata's draft round reads the verify window's residual rows where they lie on the card, takes its tokens, cells and accepted row through mapped pinned memory in one copy kernel, writes its token and probability to mapped memory, and launches its chained steps after the round without waiting between them, the host reading each step's output by an event (src/core/mtp.cpp capture_round 1265-1311, chain_launch 1733-1784, chain_outputs_ready 1786-1798).\nThe step drafts on the card the same way: the draft step reads the span's hidden row at the accepted index from the span's own output on the card, its token and position come through the staged attribute words rather than a host feed, its token and probability return in one small read, and a span no longer copies its hidden rows to the host. Replaying 403 three-draft windows with these costs: one draft at a 1.0 ms step runs 10.45 ms a token against 11.10 today; a second chained draft (first draft verified at 0.6, the second at 0.5) adds about 1% more, so the step chains it only if its own replay says it pays.\nEvidence: the probe's milliseconds a token and a window's draft time, speculative, against master; the held-out part's score with and without speculation.\nServes: throughput.\nBatch: device."
+          "rationale": "A Flash-Next decode step runs 2,294 kernels a token, 1,800 of them shorter than 5 us (node-level trace of the probe's plain decoding, 166 tokens, 2026-10-21): a window's speculative verify span repeats them for its tokens. The gated hyper-connection read (model.buildGatedHyperMix), 96 a token, is about nine of them: the weighted norm (0.56 ms a token), the down projection, the scaled SiLU, the up projection (10,240 rows of 320 in Q8_0: 12.4 us a launch, 280 GB/s, 1.19 ms a token), the sigmoid gate, the gated product, the four streams' slices and sum, and the injection's projection and sigmoid; the write (stream_combine) is one more. Together about 2.8 ms of a 12.2 ms token on the card.\nStrata reads a hyper-connection in two kernels: the down kernel normalizes the streams, projects them down with the SiLU and projects the injection, with the previous half's write folded in, and the up kernel projects up, gates and averages the streams; its multi-token read serves a verify window of up to 8 tokens reading the weights once (include/strata/kernels/fused_gr.hpp; src/kernels/cuda/fused_gr.cu fused_gr_read, fused_gr_read_multi, the Q8_0 variants gr_down_q8 and gr_up_q8).\nThe step adds that read as one graph operation with its two kernels, over the GGUF's Q8_0 projections, for one token and for a span's tokens, and folds the previous write into it; the composed graph stays the reference its test compares against. At the bytes it reads (7.1 MB a read) it costs about 0.9 ms a token, so a plain token runs about 1.9 ms faster and a verify span more.\nEvidence: kernels a token and the probe's milliseconds a token, plain and speculative, against master; the fused read against the composed one on the hermetic Flash-Next (relative error) and the probe's tokens.\nServes: throughput.\nBatch: device."
         },
         {
           "id": "draft-library",
@@ -530,7 +530,8 @@
             "plan-span-columns/do",
             "plan-draft-vocab/do",
             "plan-scc-count/do",
-            "plan-chain-depth/do"
+            "plan-chain-depth/do",
+            "plan-draft-on-card/do"
           ]
         }
       ]

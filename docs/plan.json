@@ -227,17 +227,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 122,
+        "nodes": 0,
         "reason": "measured: flashnext-cells/coverage adds 122 production syntax nodes (a coverage proof citing a recipe verification's gate)"
       },
       "steps": [
-        {
-          "id": "coverage",
-          "title": "Carry or rebind Flash-Next's accepted coverage to its capacity recipe",
-          "status": "open",
-          "verify": "go run ./cmd/validate -media json",
-          "rationale": "From the measurement run's models lane at 32b26610e: TestAcceptedModalityCoverage/text-vision and TestAcceptedProtocolCoverageProjection fail with \"coverage: missing, duplicate or changed activation model:sha256:d7ff4ba5.../inference\": Flash-Next's accepted coverage binds the request-session recipe (recipe:sha256:4b391840...), and the capacity recipe activated on 2026-10-18 (recipe:sha256:81d75bcb...) is not carried, although acceptanceCovers carries acceptance across a session-policy change by recipe.Definition.SameComputation; the two definitions must differ beyond their sessions.\nThe step finds what differs, carries the acceptance where only execution policy differs and the protocol acceptance (recipe verify -protocol, eight cases) re-ran on the new recipe, else rebinds the coverage cell to the capacity recipe with that acceptance, as 77f131776 rebound Granite's.\nAcceptance: go run ./cmd/validate -media json and the model-tagged coverage tests pass with the capacity recipe active.\nServes: failure-rate of the checks; setup-steps.\nBatch: host."
-        },
         {
           "id": "journey",
           "title": "Let the first-run journey serve Flash-Next from the picker",

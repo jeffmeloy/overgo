@@ -65,7 +65,17 @@ type modalityCellProjection struct {
 	Gap, RepairOwner                           string
 }
 
+// loadAcceptedGate reads the gate a proof cites: a landing's acceptance, through its finalized preparation, or,
+// for a proof with no preparation, the gate a recipe verification published for the activation it accepted, since
+// landings stopped finalizing their acceptance in the store.
 func loadAcceptedGate(ctx context.Context, store *overgodb.Store, proof acceptedGateProof) (runrecord.GateResult, error) {
+	if proof.Preparation == (artifact.ID{}) {
+		gate, err := runrecord.RequireGateResult(ctx, store, proof.Result)
+		if err != nil {
+			return gate, err
+		}
+		return gate, checkAcceptedGate(proof, gate)
+	}
 	finalized, found, err := runrecord.GateFinalizationForPreparation(ctx, store, proof.Preparation)
 	if err != nil {
 		return runrecord.GateResult{}, err
@@ -424,8 +434,10 @@ func acceptanceCovers(ctx context.Context, store artifact.Reader, accepted, acti
 
 type acceptedGateProof struct {
 	Reference, Commit, Verify string
-	Preparation, Result       artifact.ID
-	Check                     string `json:",omitzero"`
+	// Preparation is a landing's; a proof citing a recipe verification has none.
+	Preparation artifact.ID `json:",omitzero"`
+	Result      artifact.ID
+	Check       string `json:",omitzero"`
 }
 
 func checkAcceptedGate(proof acceptedGateProof, gate runrecord.GateResult) error {
@@ -434,10 +446,26 @@ func checkAcceptedGate(proof acceptedGateProof, gate runrecord.GateResult) error
 	}
 	for _, step := range gate.Steps {
 		if step.Name == cmp.Or(proof.Check, "acceptance") && (step.Outcome == runrecord.StepSucceeded || step.Outcome == runrecord.StepReused) {
+			if proof.Preparation == (artifact.ID{}) {
+				return checkRecipeVerification(step.Evidence, proof.Verify)
+			}
 			return runrecord.VerifyCompletionAcceptanceEvidence(step.Evidence, proof.Reference, proof.Verify)
 		}
 	}
 	return errors.New("coverage: required acceptance was not completed")
+}
+
+// recipeVerifier is the command a recipe verification's proof names: the one that publishes verification gates.
+const recipeVerifier = "go run ./cmd/recipe verify "
+
+// checkRecipeVerification accepts a recipe verification's candidate execution: an exact suite or protocol cases
+// its candidate answered, under the contract the verifier wrote.
+func checkRecipeVerification(evidence, verify string) error {
+	if !strings.HasPrefix(verify, recipeVerifier) ||
+		!strings.HasPrefix(evidence, "contract=protocol;") && !strings.HasPrefix(evidence, "contract=exact;") {
+		return errors.New("coverage: the cited gate is no recipe verification's accepted execution")
+	}
+	return nil
 }
 
 type imageVideoCoverage struct {

@@ -227,8 +227,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 900,
-        "reason": "window-commit is estimated at 900 production syntax nodes (2026-10-21): checkpoint states from the gated-delta and n-gram layers through the layer results, the cache schema and the span slot, and a commit of a span cache to its checkpoint; measured when built."
+        "nodes": 1558,
+        "reason": "window-commit as built adds 1,558 production syntax nodes (the gate's preflight, 2026-10-21): the checkpoint through the gated-delta and n-gram layers, the layer results, the branch graph, its outputs and session identity, the cache's checkpoint and its commit."
       },
       "steps": [
         {
@@ -237,6 +237,13 @@
           "status": "open",
           "verify": "go run ./cmd/plan -status",
           "rationale": "From serve-draft's held-out check (2026-10-21): Flash-Next's one-draft window accepts 60% of its drafts on the store's IFEval part and pays 5.5% (57.4 against 54.4 tokens a second), because a rejected window releases its span and re-forwards the pending pair in a second, draft-less span (nextn_device_speculation.go, the collapse after a rejected one-draft round): about 2.7 plain tokens' time for two tokens.\nA span never updates recurrent state in place: each gated-delta layer reads the boundary's conv and SSM state and writes only the state after all its tokens into the span slot (internal/model/block.go buildGatedDeltaMixCached, span_slots.go bindSpanSlot); attention keys and values are written in place at the boundary's offset. No API keeps the state at an earlier position (overgo_data/scratch/long-prompt-20261019/draft-depth-map.txt).\nStrata keeps a window's accepted prefix: its verify window records each token's recurrent inputs and Verifier::commit(n_keep) advances the gated delta state by the kept tokens only (src/core/verify.cpp:2645).\nThe step gives a verify span a checkpoint after its pending tokens: each gated-delta layer scans the pending tokens and the drafts in two GatedDeltaNet launches, the first ending at the checkpoint (the same sequential scan, so the states are bitwise those of one launch), its conv window and the n-gram layer's state taken there too; a rejected window commits the span cache to the checkpoint plus the accepted drafts' correction instead of re-spanning, as long as the accepted prefix ends at the checkpoint (a one-draft window always does).\nEvidence: the generated ids against plain greedy decoding (TestFlashNextMTPKeepsGreedyText and the prompt-cache test), the held-out IFEval part's tokens a second plain and speculative (predicted about +13% at 60% acceptance: 1.6 tokens a 1.4-token window), and a span's added launch time.\nServes: throughput.\nBatch: device."
+        },
+        {
+          "id": "cpu-misses",
+          "title": "Compute a decode step's experts in host memory on the CPU beside the card's",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "From Nsight Systems over Flash-Next's 200-token short chat on master d8d27e41d (2026-10-20): a plain token takes about 13.4 ms. moe_hidden_dot_f32 takes 27 us at its median launch but 197 us at the 90th percentile and 606 us at the 99th, moe_down_dot_f32 15, 158 and 394 us: the slow launches are the layers whose routed experts lie in host memory, about 5 a token although 99% of routes hit the card (about 17,370 experts on it, 42.0 GB; Strata's cache holds 17,493). The residency's swaps add about 15.7 MB of promotions and 17 MB of staging back to host memory a token on the same link.\nA miss costs link time, whatever reads it: a prototype that fetched a step's missed experts to the card with 16-byte reads before the dots (overgo_data/scratch/long-prompt-20261019/decode-fetch.patch) left 200 tokens at 2.73 to 2.87 s against 2.63 to 2.76; with the swaps off the card's routes fell to 69.6% and 200 tokens took 7.75 s, about 0.17 ms a miss.\nStrata's decode reads almost none over the link (0.0% of routes in its log): its pool decides each layer's misses on the host, starts the card's share first and computes the misses on the CPU beside it (src/core/expert_source.cpp:3715-3760), and its arena keeps every expert in pinned host memory, so an eviction copies nothing back. Overgo's hostexpert pool computes a Flash-Next expert's slot in about 5 us on the 9950X's 32 workers.\nThe step computes a decode step's routed experts in host memory on the CPU beside the card's products, inside the captured step (a host node on its own branch of each routed layer, or what the profile shows cheaper), the card's kernels skipping them, and measures whether keeping every expert in pinned host memory (57 GB of the 96) pays by removing the staging copies.\nEvidence: Nsight's expert-dot launches at the 90th and 99th percentile and the link's bytes a token; the probe's milliseconds a token, plain and speculative; outputs within the model tolerance.\nServes: throughput of every offloaded routed-expert model's decode and verify windows.\nBatch: device.\nMoved before draft-depth (2026-10-21, from window-commit's measure on the 200-token short chat): a one-draft window's two-token verify span takes 19 to 20 ms, about 1.4 plain tokens (13.5 to 14.5 ms), and its draft step 1.7 ms, so a window pays each of its tokens' misses and a deeper window pays only once a span's extra token costs little; the held-out IFEval part speculates at 59.0 against 55.5 tokens a second plain."
         },
         {
           "id": "draft-depth",
@@ -258,13 +265,6 @@
           "status": "open",
           "verify": "go run ./cmd/plan -status",
           "rationale": "serve-draft (2026-10-21) attaches Flash-Next's MTP draft through the server's -draft flag. A launcher that names no draft (the desktop launcher, the swap proxy, the browser lane, the evaluator's workers) serves Flash-Next without it, so a person who starts it from the library is offered no speculation, and the default draft-depth makes would not reach them.\nThe step binds the draft to the model's library entry as the projector is bound (discovery.ActiveProjector, modelrecipe.ProjectionDefinition): the draft file registered as an artifact, a recipe that names it for the model, and the open resolving it when the command line names none, so every launcher serves the draft the store declares. A draft whose recorded bytes are absent or differ is refused, as a projector's is.\nEvidence: the server started from the library with no -draft offers speculation in its capability document and speculates a turn that asks (draft_n in its timings), by default once draft-depth has made it the default; the first-run journey's picker serves Flash-Next with the toggle offered.\nServes: setup-steps and throughput.\nBatch: none."
-        },
-        {
-          "id": "cpu-misses",
-          "title": "Compute a decode step's experts in host memory on the CPU beside the card's",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "From Nsight Systems over Flash-Next's 200-token short chat on master d8d27e41d (2026-10-20): a plain token takes about 13.4 ms. moe_hidden_dot_f32 takes 27 us at its median launch but 197 us at the 90th percentile and 606 us at the 99th, moe_down_dot_f32 15, 158 and 394 us: the slow launches are the layers whose routed experts lie in host memory, about 5 a token although 99% of routes hit the card (about 17,370 experts on it, 42.0 GB; Strata's cache holds 17,493). The residency's swaps add about 15.7 MB of promotions and 17 MB of staging back to host memory a token on the same link.\nA miss costs link time, whatever reads it: a prototype that fetched a step's missed experts to the card with 16-byte reads before the dots (overgo_data/scratch/long-prompt-20261019/decode-fetch.patch) left 200 tokens at 2.73 to 2.87 s against 2.63 to 2.76; with the swaps off the card's routes fell to 69.6% and 200 tokens took 7.75 s, about 0.17 ms a miss.\nStrata's decode reads almost none over the link (0.0% of routes in its log): its pool decides each layer's misses on the host, starts the card's share first and computes the misses on the CPU beside it (src/core/expert_source.cpp:3715-3760), and its arena keeps every expert in pinned host memory, so an eviction copies nothing back. Overgo's hostexpert pool computes a Flash-Next expert's slot in about 5 us on the 9950X's 32 workers.\nThe step computes a decode step's routed experts in host memory on the CPU beside the card's products, inside the captured step (a host node on its own branch of each routed layer, or what the profile shows cheaper), the card's kernels skipping them, and measures whether keeping every expert in pinned host memory (57 GB of the 96) pays by removing the staging copies.\nEvidence: Nsight's expert-dot launches at the 90th and 99th percentile and the link's bytes a token; the probe's milliseconds a token, plain and speculative; outputs within the model tolerance.\nServes: throughput of every offloaded routed-expert model's decode and verify windows.\nBatch: device."
         }
       ]
     },
@@ -567,7 +567,8 @@
             "serve-draft-carry/do",
             "chunks-carry/do",
             "near-carry/do",
-            "split-carry/do"
+            "split-carry/do",
+            "window-carry/do"
           ]
         }
       ]

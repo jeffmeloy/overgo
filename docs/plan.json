@@ -241,8 +241,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "each step's count is measured when it is built"
+        "nodes": 79,
+        "reason": "serve-draft as built adds 79 production syntax nodes (the gate's preflight, 2026-10-21): the server's -draft flag, the speculative turn's prompt cache (its cached start and its retained last boundary), and the context clamp's merge. The speculative default and its held-out check do not land with it (draft-depth's note says why)."
       },
       "steps": [
         {
@@ -257,7 +257,14 @@
           "title": "Draft up to three tokens a window while the draft is confident, as Strata's min-p window does",
           "status": "open",
           "verify": "go run ./cmd/plan -status",
-          "rationale": "Strata drafts with its MTP layer chaining the layer's own residual, one step graph a draft (src/core/mtp.cpp:1313-1336), its own K/V over the last 32,768 cells filled at prefill (mtp.cpp:360-363, generate.cpp:8504-8518), and grows the window while the last draft's top probability is at least 0.5 (--spec-min-p, mtp.cpp:1651, generate.cpp:13754-13758), to four tokens with --spec 4. Its documents report 66% acceptance on stories and 90% on code (INTEL.md:782-783), 2 to 3 tokens a window.\nOvergo's hyper draft drafts one token a window (hyperDraftTokens, nextn_device_speculation.go:24): from a fresh session 63% held at depth one and 43 and 27 at depths two and three.\nThe step drafts while the draft's top probability stays above Strata's 0.5, to three drafts, with the draft's history filled from the prompt; a two-token window already costs about 1.26 times a plain token (window-cost, retired).\nEvidence: tokens a window and the probe's milliseconds a token, the generated ids against plain greedy decoding (the one-draft window already departs from them at about the 37th token of the short chat, at rounding level).\nServes: throughput.\nBatch: device.\n\nFrom the owner's review of 2026-10-20 and flashnext-efficiency/reuse (folded in): the window's depth and its confidence threshold come from Flash-Next's measured accepted tokens against the window's cost, Strata's 0.5 one starting candidate, not a ported constant."
+          "rationale": "Strata drafts with its MTP layer chaining the layer's own residual, one step graph a draft (src/core/mtp.cpp:1313-1336), its own K/V over the last 32,768 cells filled at prefill (mtp.cpp:360-363, generate.cpp:8504-8518), and grows the window while the last draft's top probability is at least 0.5 (--spec-min-p, mtp.cpp:1651, generate.cpp:13754-13758), to four tokens with --spec 4. Its documents report 66% acceptance on stories and 90% on code (INTEL.md:782-783), 2 to 3 tokens a window.\nOvergo's hyper draft drafts one token a window (hyperDraftTokens, nextn_device_speculation.go:24): from a fresh session 63% held at depth one and 43 and 27 at depths two and three.\nThe step drafts while the draft's top probability stays above Strata's 0.5, to three drafts, with the draft's history filled from the prompt; a two-token window already costs about 1.26 times a plain token (window-cost, retired).\nEvidence: tokens a window and the probe's milliseconds a token, the generated ids against plain greedy decoding (the one-draft window already departs from them at about the 37th token of the short chat, at rounding level).\nServes: throughput.\nBatch: device.\n\nFrom the owner's review of 2026-10-20 and flashnext-efficiency/reuse (folded in): the window's depth and its confidence threshold come from Flash-Next's measured accepted tokens against the window's cost, Strata's 0.5 one starting candidate, not a ported constant.\n\nFrom serve-draft's held-out check (2026-10-21): the store's IFEval part (ifeval/20, chat template, thinking off) on Flash-Next with its MTP draft attached, plain then speculative with the one-draft window: prompt-strict 0.85 plain against 0.75 speculative (17 and 15 of 20), 54.4 against 57.4 tokens a second, 2,566 of 4,299 drafts accepted (60%).\nThe window pays 5.5% because a rejection costs a second span: the boundary is released and the pending pair re-forwarded in a draft-less span that emits one token (nextn_device_speculation.go, the collapse after a rejected one-draft round), so a rejected window spends about 2.5 plain tokens' time on two tokens while an accepted one saves about 0.6.\nSo serve-draft landed the served draft as an opt-in (-draft, \"speculative\": true) and its prompt cache, and the default moves here: greedy requests speculate by default when the measured window pays and the held-out check holds. The default's code (a runner opened with a draft speculates unless a request decodes plainly, the API's optional speculative field, the toggle starting on) and the check (TestFlashNextSpeculationHoldsIFEval, each arm answering into a store of its own) are saved in overgo_data/scratch/long-prompt-20261019 (serve-draft-default.patch, flashnext_speculation_windows_test.go.saved).\nThe step also commits a rejected window's accepted prefix without re-forwarding it, as Strata does: its verify window records each token's recurrent inputs per layer and leaves the state alone, and Verifier::commit(n_keep) advances the gated delta state by the kept tokens only (src/core/verify.cpp:2645, gdn_commit_layers), attention keys and values being rewound by writing from the kept position again (src/program/generate.cpp:1492)."
+        },
+        {
+          "id": "draft-binding",
+          "title": "Bind Flash-Next's draft to its library entry so every launcher serves it",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "serve-draft (2026-10-21) attaches Flash-Next's MTP draft through the server's -draft flag. A launcher that names no draft (the desktop launcher, the swap proxy, the browser lane, the evaluator's workers) serves Flash-Next without it, so a person who starts it from the library is offered no speculation, and the default draft-depth makes would not reach them.\nThe step binds the draft to the model's library entry as the projector is bound (discovery.ActiveProjector, modelrecipe.ProjectionDefinition): the draft file registered as an artifact, a recipe that names it for the model, and the open resolving it when the command line names none, so every launcher serves the draft the store declares. A draft whose recorded bytes are absent or differ is refused, as a projector's is.\nEvidence: the server started from the library with no -draft offers speculation in its capability document and speculates a turn that asks (draft_n in its timings), by default once draft-depth has made it the default; the first-run journey's picker serves Flash-Next with the toggle offered.\nServes: setup-steps and throughput.\nBatch: none."
         },
         {
           "id": "cpu-misses",
@@ -563,7 +570,8 @@
             "publish-file/do",
             "coverage-carry/do",
             "journey-carry/do",
-            "journey-check/do"
+            "journey-check/do",
+            "serve-draft-carry/do"
           ]
         }
       ]

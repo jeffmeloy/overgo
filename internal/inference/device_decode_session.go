@@ -46,6 +46,8 @@ type decodeSessionIdentity struct {
 	// blockSelection holds whether the step's block-sparse layers select attention blocks, which changes the graph's structure.
 	blockSelection bool
 	lora           [32]byte
+	// checkpoint is the span's tokens after which its layers keep their fixed state, which adds a scan and outputs.
+	checkpoint uint32
 }
 
 func (i decodeSessionIdentity) matches(
@@ -223,6 +225,14 @@ func decodeGraphOutputs(graph deviceBatchGraph, output deviceOutputPlan) []*tens
 		result = appendUniqueGraphOutputs(result, seen, graph.states[layer].AppendValues(
 			[]*tensor.Tensor{graph.keys[layer], graph.values[layer]},
 		)...)
+	}
+	// A span's checkpoint follows every layer's state, so the states keep their places in a span slot.
+	for _, checkpoint := range graph.checkpoints {
+		for _, node := range checkpoint.States.AppendValues([]*tensor.Tensor{checkpoint.Key, checkpoint.Value}) {
+			if node != nil {
+				result = appendUniqueGraphOutputs(result, seen, node)
+			}
+		}
 	}
 	if graph.hidden != nil {
 		result = appendUniqueGraphOutputs(result, seen, graph.hidden)

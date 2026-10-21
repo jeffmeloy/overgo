@@ -180,11 +180,11 @@ func (r *Runner) generateDeviceSpeculativeGreedy(
 	haveSeed := false
 	for !stopped {
 		var drafts []tokenizer.TokenID
-		// A long pending run means the last drafts were rejected twice
-		// over; run a draft-less span to collapse it into a new boundary.
-		// A one-draft round collapses after every rejection, so each span
-		// it verifies is two tokens long and replays one of two frames a
-		// cache capacity.
+		// A long pending run means the last drafts were rejected past the
+		// first; run a draft-less span to collapse it into a new boundary.
+		// A one-draft round commits its checkpoint after every rejection,
+		// so each span it verifies is two tokens long and replays one of
+		// two frames a cache capacity.
 		// A round drafts no more than the output and the context have left: its span emits the accepted drafts and
 		// one token more and appends its pending tokens and drafts to the boundary, so the request ends where plain
 		// decoding ends.
@@ -206,8 +206,13 @@ func (r *Runner) generateDeviceSpeculativeGreedy(
 			}
 		}
 		spanTokens := append(append([]tokenizer.TokenID(nil), pending...), drafts...)
+		// A window with drafts keeps its layers' state after its pending tokens, which a rejection commits to.
+		var checkpoint uint32
+		if len(drafts) > 0 {
+			checkpoint = uint32(len(pending))
+		}
 		span, err := r.forwardDeviceCachedModeLocked(
-			ctx, deviceOutputGreedySpan, spanTokens, boundary,
+			ctx, deviceOutputGreedySpan, spanTokens, boundary, checkpoint,
 		)
 		if err != nil {
 			return ids, boundary, "", err
@@ -245,7 +250,16 @@ func (r *Runner) generateDeviceSpeculativeGreedy(
 		}
 		seedPosition = spanStart + uint32(base+accepted) + 1
 		haveSeed = true
-		if accepted == len(drafts) {
+		// A window whose drafts were all accepted is the next boundary; one rejected at its first draft keeps the span
+		// at its checkpoint, the pending tokens read, so the correction is all that is pending.
+		committed := accepted == len(drafts)
+		if !committed && accepted == 0 && span.checkpoint != nil {
+			if err := r.commitSpanCheckpoint(ctx, span, boundary, pending); err != nil {
+				return ids, boundary, "", errors.Join(err, span.Release(context.Background()))
+			}
+			committed = true
+		}
+		if committed {
 			previous := boundary
 			boundary = span
 			// A boundary the prompt cache holds stays its entry.

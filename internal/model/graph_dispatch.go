@@ -27,6 +27,9 @@ type CachedBlockContext struct {
 	Recurrent        bool
 	CacheWrite       tensor.CacheWriteMode
 	Sequences        uint64
+	// Checkpoint is the block's tokens after which a recurrent or lexical layer also returns its fixed state
+	// (DenseBlockResult.Checkpoint), for a verify span that may keep only its first tokens; zero returns none.
+	Checkpoint uint32
 }
 
 type blockDispatchOptions struct {
@@ -138,6 +141,16 @@ func mergeLayerResult(destination *DenseBlockResult, result DenseBlockResult) {
 			destination.States = result.States
 		} else {
 			maps.Copy(destination.States, result.States)
+		}
+	}
+	if result.Checkpoint.Key != nil || result.Checkpoint.Value != nil {
+		destination.Checkpoint.Key, destination.Checkpoint.Value = result.Checkpoint.Key, result.Checkpoint.Value
+	}
+	if len(result.Checkpoint.States) > tensor.FirstOffset {
+		if destination.Checkpoint.States == nil {
+			destination.Checkpoint.States = result.Checkpoint.States
+		} else {
+			maps.Copy(destination.Checkpoint.States, result.Checkpoint.States)
 		}
 	}
 }
@@ -274,7 +287,7 @@ func executeRecurrentOperator(
 			c.Builder, execution.current, options.Spec, options.Weights,
 			c.Positions, c.Sequences,
 			operands.caches[runtimeCachePrimaryKey], operands.caches[runtimeCachePrimaryValue],
-			plan.AttentionGraph.deltaProjection,
+			plan.AttentionGraph.deltaProjection, uint64(c.Checkpoint),
 		)
 	case recurrentMixerShortConvolution:
 		return buildShortConvolutionMixCached(

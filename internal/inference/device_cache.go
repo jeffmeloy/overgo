@@ -48,6 +48,8 @@ type deviceKVCache struct {
 	spanSlot *spanSlot
 	// ngramHistory is the lexical history the step that made the cache fed, which its state holds on the card; nil => only the card holds it.
 	ngramHistory []float32
+	// checkpoint is a verify span's cache after its pending tokens, which a rejected window keeps; nil without one.
+	checkpoint *deviceCacheCheckpoint
 }
 
 type deviceCacheStorage struct {
@@ -442,26 +444,29 @@ func (r *Runner) forwardDeviceCachedGreedyStepLocked(
 	tokenIDs []tokenizer.TokenID,
 	past *deviceKVCache,
 ) (*deviceKVCache, error) {
-	return r.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedy, tokenIDs, past)
+	return r.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedy, tokenIDs, past, 0)
 }
 
 // forwardDeviceCachedModeLocked: single-branch forward under a chosen output
 // plan. With deviceOutputGreedySpan every appended position stays in the
 // output head and selects greedily — the MTP verify batch; the result cache
 // carries SpanSelected, one token per consumed position.
+// A span with a checkpoint also keeps its layers' fixed state after its first checkpoint tokens.
 func (r *Runner) forwardDeviceCachedModeLocked(
 	ctx context.Context,
 	mode deviceOutputMode,
 	tokenIDs []tokenizer.TokenID,
 	past *deviceKVCache,
+	checkpoint uint32,
 ) (*deviceKVCache, error) {
 	plan, err := compileDeviceOutputPlan(mode, 0, r.spec.VocabularySize)
 	if err != nil {
 		return nil, err
 	}
 	next, err := r.forwardDeviceCachedBatchLocked(ctx, []deviceBatchAppend{{
-		Tokens: tokenIDs,
-		Past:   past,
+		Tokens:     tokenIDs,
+		Past:       past,
+		Checkpoint: checkpoint,
 	}}, plan)
 	if err != nil {
 		return nil, err
@@ -472,6 +477,9 @@ func (r *Runner) forwardDeviceCachedModeLocked(
 type deviceBatchAppend struct {
 	Tokens []tokenizer.TokenID
 	Past   *deviceKVCache
+	// Checkpoint is the tokens of a verify span after which its layers also keep their fixed state, so a window whose
+	// drafts are rejected keeps its pending tokens without reading them again; zero keeps none.
+	Checkpoint uint32
 	// Reserve is the tokens the cache holds once its prompt is read, so a prompt read in chunks sizes its storage once,
 	// at its first chunk, rather than in each chunk that outgrows a page beside the storage it replaces.
 	Reserve uint32
@@ -517,11 +525,14 @@ type deviceBatchGraph struct {
 	keys           []*tensor.Tensor
 	values         []*tensor.Tensor
 	states         []deviceGraphStates
-	cacheInputs    []layerGraphCacheInputs
-	pastTokens     uint32
-	nextPosition   uint32
-	tokenCount     uint32
-	sequences      uint32
+	// checkpoint is the span's tokens after which checkpoints holds each layer's fixed state, zero for none.
+	checkpoint   uint32
+	checkpoints  []model.LayerCheckpoint
+	cacheInputs  []layerGraphCacheInputs
+	pastTokens   uint32
+	nextPosition uint32
+	tokenCount   uint32
+	sequences    uint32
 }
 
 type deviceCacheTargetLayer struct {
@@ -900,6 +911,7 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 			branches: uint32(len(appends)), tokenCount: tokenCount, output: plan,
 			blockSelection: r.program.Model.SelectsAttentionBlocks(appendPlan.ActiveTokens + tokenCount),
 			lora:           r.currentLoRASignature(),
+			checkpoint:     appends[0].Checkpoint,
 		}
 		if session := r.keptDecodeSession(identity, appends); session != nil {
 			return r.executeParameterizedDecodeSession(ctx, session, appends)
@@ -920,7 +932,7 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	for index, appendInput := range appends {
 		graph, err := r.buildDeviceCachedBatchBranch(
 			ctx, builder, index, appendInput.Tokens, appendInput.Past, 1, plan,
-			cacheWrite, hostFeeds, &deviceFeeds,
+			cacheWrite, hostFeeds, &deviceFeeds, appendInput.Checkpoint,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("inference: device batch branch %d: %w", index, err)
@@ -1110,6 +1122,10 @@ func (r *Runner) assembleDeviceBatchCaches(
 					cache.States[layer][name] = deviceLayerState{Mode: state.Mode, Value: value}
 				}
 			}
+		}
+		var checkpointErr error
+		if cache.checkpoint, checkpointErr = collectSpanCheckpoint(retained, graph); checkpointErr != nil {
+			return fail(checkpointErr)
 		}
 		if pageErr := rebuildDeviceCachePages(cache, r.program.Decode.Session); pageErr != nil {
 			return fail(pageErr)
@@ -1339,6 +1355,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	cacheWrite tensor.CacheWriteMode,
 	hostFeeds map[*tensor.Tensor]reference.Value,
 	deviceFeeds *tensor.InputBindings[driver.DevicePtr],
+	checkpoint uint32,
 ) (deviceBatchGraph, error) {
 	fail := func(err error) (deviceBatchGraph, error) {
 		return deviceBatchGraph{}, err
@@ -1464,6 +1481,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	values := make([]*tensor.Tensor, len(r.weights.Layers))
 	var streams *tensor.Tensor
 	states := make([]deviceGraphStates, len(r.weights.Layers))
+	checkpoints := make([]model.LayerCheckpoint, len(r.weights.Layers))
 	cacheBindings := make([]layerGraphCacheInputs, len(r.weights.Layers))
 	var positionFeeds []*tensor.Tensor
 	var ngramEmbedding, ngramHistory *tensor.Tensor
@@ -1531,7 +1549,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			CurrentPositions: boundSideInputs.currentPositions,
 			PerLayerInput:    graphWeights.PerLayerInput,
 			Layer:            uint32(layerIndex), Recurrent: plan.Recurrent,
-			CacheWrite: cacheWrite, Sequences: sequences,
+			CacheWrite: cacheWrite, Sequences: sequences, Checkpoint: checkpoint,
 		}, graphWeights)
 		if buildErr != nil {
 			return fail(buildErr)
@@ -1539,6 +1557,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		current, streams = result.Output, result.Streams
 		keys[layerIndex], values[layerIndex] = result.Key, result.Value
 		states[layerIndex] = result.States
+		checkpoints[layerIndex] = result.Checkpoint
 	}
 	// Span plans retain the pre-output-norm hidden rows: the NextN draft
 	// head normalizes the trunk hidden itself, so speculation seeds from
@@ -1602,6 +1621,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		hidden: spanHidden, tokenInput: tokenRowInput, perLayerRows: perLayerRows, positionRows: positionRows,
 		positionFeeds: positionFeeds, ngramEmbedding: ngramEmbedding, ngramHistory: ngramHistory,
 		keys: keys, values: values, states: states, cacheInputs: cacheBindings,
+		checkpoint: checkpoint, checkpoints: checkpoints,
 		pastTokens: pastTokens, nextPosition: nextPosition,
 		tokenCount: uint32(tokensPerSequence), sequences: uint32(sequences),
 	}, nil

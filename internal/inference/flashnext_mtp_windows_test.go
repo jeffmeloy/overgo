@@ -153,7 +153,8 @@ func copyDraftAcceptance(plain []tokenizer.TokenID, generated int) (drafted, acc
 	for emitted < generated {
 		count := 0
 		if haveSeed && pending+hyperDraftTokens <= q8InputSpanColumnsWindow && (hyperDraftTokens > 1 || pending == 1) {
-			count = hyperDraftTokens
+			// A window drafts no more than the output has left after its own token.
+			count = min(hyperDraftTokens, generated-emitted-1)
 		}
 		last := plain[emitted-1]
 		run := 0
@@ -163,7 +164,8 @@ func copyDraftAcceptance(plain []tokenizer.TokenID, generated int) (drafted, acc
 		drafted, accepted = drafted+count, accepted+run
 		emitted += run + 1
 		haveSeed = true
-		if run == count {
+		// A window whose drafts were all accepted, or rejected at the first, leaves only its correction pending.
+		if run == count || run == 0 {
 			pending = 1
 		} else {
 			pending += run + 1

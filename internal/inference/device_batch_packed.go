@@ -140,7 +140,7 @@ func (r *Runner) forwardPackedDeviceBatchLocked(
 	var deviceFeeds tensor.InputBindings[driver.DevicePtr]
 	graph, err := r.buildDeviceCachedBatchBranch(
 		ctx, builder, 0, tokens, packedPast, uint64(len(appends)), plan,
-		tensor.CacheWriteConcat, hostFeeds, &deviceFeeds,
+		tensor.CacheWriteConcat, hostFeeds, &deviceFeeds, 0,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("inference: packed device batch: %w", err)

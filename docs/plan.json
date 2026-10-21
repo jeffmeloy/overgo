@@ -227,17 +227,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1558,
+        "nodes": 0,
         "reason": "window-commit as built adds 1,558 production syntax nodes (the gate's preflight, 2026-10-21): the checkpoint through the gated-delta and n-gram layers, the layer results, the branch graph, its outputs and session identity, the cache's checkpoint and its commit."
       },
       "steps": [
-        {
-          "id": "window-commit",
-          "title": "Keep a verify window's accepted prefix without a second span",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "From serve-draft's held-out check (2026-10-21): Flash-Next's one-draft window accepts 60% of its drafts on the store's IFEval part and pays 5.5% (57.4 against 54.4 tokens a second), because a rejected window releases its span and re-forwards the pending pair in a second, draft-less span (nextn_device_speculation.go, the collapse after a rejected one-draft round): about 2.7 plain tokens' time for two tokens.\nA span never updates recurrent state in place: each gated-delta layer reads the boundary's conv and SSM state and writes only the state after all its tokens into the span slot (internal/model/block.go buildGatedDeltaMixCached, span_slots.go bindSpanSlot); attention keys and values are written in place at the boundary's offset. No API keeps the state at an earlier position (overgo_data/scratch/long-prompt-20261019/draft-depth-map.txt).\nStrata keeps a window's accepted prefix: its verify window records each token's recurrent inputs and Verifier::commit(n_keep) advances the gated delta state by the kept tokens only (src/core/verify.cpp:2645).\nThe step gives a verify span a checkpoint after its pending tokens: each gated-delta layer scans the pending tokens and the drafts in two GatedDeltaNet launches, the first ending at the checkpoint (the same sequential scan, so the states are bitwise those of one launch), its conv window and the n-gram layer's state taken there too; a rejected window commits the span cache to the checkpoint plus the accepted drafts' correction instead of re-spanning, as long as the accepted prefix ends at the checkpoint (a one-draft window always does).\nEvidence: the generated ids against plain greedy decoding (TestFlashNextMTPKeepsGreedyText and the prompt-cache test), the held-out IFEval part's tokens a second plain and speculative (predicted about +13% at 60% acceptance: 1.6 tokens a 1.4-token window), and a span's added launch time.\nServes: throughput.\nBatch: device."
-        },
         {
           "id": "cpu-misses",
           "title": "Compute a decode step's experts in host memory on the CPU beside the card's",

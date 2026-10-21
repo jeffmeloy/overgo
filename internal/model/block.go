@@ -47,6 +47,15 @@ type DenseBlockResult struct {
 	// Optional exact-attention replay inputs.
 	Query          *tensor.Tensor
 	AttentionScale float32
+	// Checkpoint is the layer's fixed cache state after the block's first CachedBlockContext.Checkpoint tokens.
+	Checkpoint LayerCheckpoint
+}
+
+// LayerCheckpoint is a layer's fixed cache state at a checkpoint inside its block: the recurrent pair and the fixed
+// states, nil where the layer keeps none.
+type LayerCheckpoint struct {
+	Key, Value *tensor.Tensor
+	States     CacheStates[*tensor.Tensor]
 }
 
 type denseBlockContext struct {
@@ -860,6 +869,7 @@ func buildGatedDeltaMixCached(
 	sequences uint64,
 	convState, ssmState *tensor.Tensor,
 	deltaPolicy gatedDeltaPolicy,
+	checkpointTokens uint64,
 ) (DenseBlockResult, error) {
 	if builder == nil || normalized == nil || convState == nil || ssmState == nil {
 		return DenseBlockResult{}, errors.New("gated-delta recurrent mix input/state is nil")
@@ -998,29 +1008,41 @@ func buildGatedDeltaMixCached(
 	query = builder.Reshape(builder.L2Norm(query, spec.RMSNormEpsilon), stateWidth, keyHeads, tokens, sequences)
 	key = builder.Reshape(builder.L2Norm(key, spec.RMSNormEpsilon), stateWidth, keyHeads, tokens, sequences)
 	value = builder.Reshape(value, stateWidth, valueHeads, tokens, sequences)
-	var packed *tensor.Tensor
-	if deltaPolicy == gatedDeltaInterleavedProjections {
-		packed = builder.GatedDeltaNetRepeatInterleave(query, key, value, gate, beta, ssmState)
-	} else {
-		packed = builder.GatedDeltaNet(query, key, value, gate, beta, ssmState)
+	// scan advances the state over count tokens from first and returns their outputs and the state after them.
+	scan := func(first, count uint64, state *tensor.Tensor) (*tensor.Tensor, *tensor.Tensor) {
+		slice := func(input *tensor.Tensor) *tensor.Tensor {
+			if first == tensor.FirstOffset && count == tokens {
+				return input
+			}
+			width, heads := input.Shape.Dims[0], input.Shape.Dims[1]
+			return builder.FlatSlice(input, first*width*heads, width, heads, count, sequences)
+		}
+		var packed *tensor.Tensor
+		if deltaPolicy == gatedDeltaInterleavedProjections {
+			packed = builder.GatedDeltaNetRepeatInterleave(slice(query), slice(key), slice(value), slice(gate), slice(beta), state)
+		} else {
+			packed = builder.GatedDeltaNet(slice(query), slice(key), slice(value), slice(gate), slice(beta), state)
+		}
+		outputs := stateWidth * valueHeads * count * sequences
+		return builder.FlatSlice(packed, tensor.FirstOffset, stateWidth, valueHeads, count, sequences),
+			builder.FlatSlice(packed, outputs, stateWidth, stateWidth, valueHeads, sequences)
 	}
-	attentionElements := stateWidth * valueHeads * tokens * sequences
-	attention := builder.FlatSlice(
-		packed,
-		tensor.FirstOffset,
-		stateWidth,
-		valueHeads,
-		tokens,
-		sequences,
-	)
-	nextSSMState := builder.FlatSlice(
-		packed,
-		attentionElements,
-		stateWidth,
-		stateWidth,
-		valueHeads,
-		sequences,
-	)
+	var checkpoint LayerCheckpoint
+	var attention, nextSSMState *tensor.Tensor
+	if checkpointTokens > tensor.FirstOffset && checkpointTokens < tokens && sequences == tensor.SingletonExtent {
+		// A verify span keeps the state after its pending tokens: the same scan in two launches, the first ending there.
+		var head *tensor.Tensor
+		head, checkpoint.Value = scan(tensor.FirstOffset, checkpointTokens, ssmState)
+		var tail *tensor.Tensor
+		tail, nextSSMState = scan(checkpointTokens, tokens-checkpointTokens, checkpoint.Value)
+		attention = builder.Concat(head, tail, gatedDeltaTokenAxis)
+		checkpoint.Key = builder.Reshape(
+			builder.GroupSlice(convInput, checkpointTokens, convStateWidth, tensor.SingletonExtent, convStateWidth),
+			convStateWidth, convChannels,
+		)
+	} else {
+		attention, nextSSMState = scan(tensor.FirstOffset, tokens, ssmState)
+	}
 	z = builder.Reshape(z, stateWidth, valueHeads, tokens, sequences)
 	if deltaPolicy == gatedDeltaSeparateSigmoid {
 		z = builder.Sigmoid(z)
@@ -1036,8 +1058,11 @@ func buildGatedDeltaMixCached(
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
-	return DenseBlockResult{Output: attention, Key: nextConvState, Value: nextSSMState}, nil
+	return DenseBlockResult{Output: attention, Key: nextConvState, Value: nextSSMState, Checkpoint: checkpoint}, nil
 }
+
+// gatedDeltaTokenAxis is the token axis of a gated-delta scan's per-token outputs (width, heads, tokens, sequences).
+const gatedDeltaTokenAxis uint32 = 2
 
 func buildRoutedSwiGLUFeedForwardMix(
 	builder *tensor.Builder,

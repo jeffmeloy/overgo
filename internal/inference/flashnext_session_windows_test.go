@@ -238,7 +238,7 @@ func TestGreedySessionReplaysAcrossCapacityClasses(t *testing.T) {
 	//   - forced = nil => each step feeds the token the last one selected, else forced[step]
 	generate := func(mode deviceOutputMode, fresh bool, forced []tokenizer.TokenID) generation {
 		t.Helper()
-		past, err := runner.forwardDeviceCachedModeLocked(ctx, mode, prompt, nil)
+		past, err := runner.forwardDeviceCachedModeLocked(ctx, mode, prompt, nil, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -251,7 +251,7 @@ func TestGreedySessionReplaysAcrossCapacityClasses(t *testing.T) {
 			if forced != nil {
 				token = forced[step]
 			}
-			next, err := runner.forwardDeviceCachedModeLocked(ctx, mode, []tokenizer.TokenID{token}, past)
+			next, err := runner.forwardDeviceCachedModeLocked(ctx, mode, []tokenizer.TokenID{token}, past, 0)
 			if releaseErr := past.Release(ctx); err != nil || releaseErr != nil {
 				t.Fatalf("decode step %d: %v %v", step, err, releaseErr)
 			}

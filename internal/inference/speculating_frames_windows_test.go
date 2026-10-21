@@ -84,7 +84,7 @@ func TestSpeculatingSessionReplaysItsFrames(t *testing.T) {
 			runner.mu.Lock()
 			defer runner.mu.Unlock()
 			ctx := t.Context()
-			boundary, err := runner.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedy, prompt, nil)
+			boundary, err := runner.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedy, prompt, nil, 0)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -101,7 +101,7 @@ func TestSpeculatingSessionReplaysItsFrames(t *testing.T) {
 				if !keep {
 					draft = (next + 1) % tokenizer.TokenID(runner.vocab.Len())
 				}
-				result, err := runner.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedySpan, append(slices.Clone(pending), draft), boundary)
+				result, err := runner.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedySpan, append(slices.Clone(pending), draft), boundary, 0)
 				if err != nil {
 					t.Fatalf("%s round %d: %v", residency, round, err)
 				}

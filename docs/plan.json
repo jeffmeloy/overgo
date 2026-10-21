@@ -218,6 +218,20 @@
       },
       "steps": [
         {
+          "id": "span-columns",
+          "title": "Run a span's small products and head at its own column count",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "A verify window's kernels take 17.4 ms against a plain step's 12.2 (Nsight Systems, node-level, Flash-Next's 200-token chat after window-host): besides its experts (+2.1 ms), its small F32 products, about 97 a window, run 7.7 us a launch at two columns against 2.3 at one (+0.53 ms), the Q6_K head's two columns cost about 1.44 times one (+0.25 ms), and the split gated-delta scans' 72 flat_slice copies 0.2 ms.\nmul_mat_f32 takes every multi-column call through f32_row_dots\u003cQ8_INPUT_SPAN_MAX\u003e, eight sums with the columns past the span's predicated off; the head's q8-input product and the split scans' packed outputs may hold the same pattern.\nThe step instantiates the products for the span's column count and lets the scans write where their outputs are read, each column's sums in their order, so a token's outputs keep their bits.\nEvidence: the products' microseconds a launch at one and two columns, the window's kernel milliseconds and the probe's milliseconds a token, speculative; outputs unchanged.\nServes: throughput of speculative decoding and every multi-token span.\nBatch: device."
+        },
+        {
+          "id": "draft-vocab",
+          "title": "Draft through a head over a token subset, as Strata's MTP drafter does",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "Every speculative window drafts through Flash-Next's full output head: 248,320 Q6_K rows, 520 MB read, about 0.58 ms a draft (Nsight Systems, node-level). Strata's MTP drafter reads only a subset of the vocabulary's rows (src/core/mtp.cpp MtpDrafter::bind, data/draft_vocab*.bin: 106,299 tokens by default, 40,525 for English and code), gathered once into a draft head, and maps the subset's argmax back to its token; a token outside the subset is never drafted, which it measures in acceptance.\nThe step gives the draft step a head over a token subset gathered from the model's own head rows, the subset taken from token frequencies over a corpus the store holds (as Strata's tools/draft_vocab.py takes it), so the verify span, which decides every kept token, keeps the full head.\nEvidence: the draft graph's milliseconds, acceptance with and without the subset, and the probe's milliseconds a token, speculative; the held-out part's score holds (the verify keeps every token greedy).\nServes: throughput of speculative decoding.\nBatch: device."
+        },
+        {
           "id": "span-commit-chain",
           "title": "Commit a verify span's kept prefix without a second span, as Strata's Verifier::commit does",
           "status": "open",
@@ -533,7 +547,8 @@
             "plan-steps-20261021d/do",
             "plan-expert-throughput/do",
             "plan-q8-count/do",
-            "plan-window-host/do"
+            "plan-window-host/do",
+            "plan-span-columns/do"
           ]
         }
       ]

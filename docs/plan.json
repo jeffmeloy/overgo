@@ -222,16 +222,17 @@
       ]
     },
     {
-      "id": "context-sweep",
-      "title": "Sweep Flash-Next's prompts at 64K, 128K and 262K tokens for the next slowdown",
+      "id": "prompt-chunks",
+      "title": "Score a long prompt's attention blocks a query chunk at a time, so 128K and 262K prompts run",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
-          "id": "do",
-          "title": "Sweep Flash-Next's prompts at 64K, 128K and 262K tokens for the next slowdown",
+          "id": "bound",
+          "title": "Bound the block-sparse indexer's scores by query chunks, so Flash-Next reads 128K and 262K prompts",
           "status": "open",
           "verify": "go run ./cmd/plan -status",
-          "rationale": "From the owner's review of 2026-10-20: nothing has been measured past 20,605 tokens, though Flash-Next's requirement is a 262,144-token context. The worst slowdowns so far sat where the code switches paths (past 2,048 selected cells, at the staging's 20,000-token group), and the prompt's own buffers already take about 9.9 GB at 16,718 tokens.\nThe step runs one time-limited sweep of prompts of about 64K, 128K and 262K tokens on master, as flashnext-context's own batch asks for the smallest bounded diagnostic before a near-limit acceptance attempt: each length's first output, phase profile and peak device memory, or the bound or failure it hit. It files the next slowdown and decides whether prompt-memory and a smaller key/value format matter there (f32 keys and values at 262K are an estimated 12.9 GB of the card; Strata stores them as int8).\nEvidence: the sweep's first outputs and peak memory at each length, or the bound each run hit.\nServes: first-output and failure-rate of long prompts; flashnext-context's reservation and accept.\nBatch: device."
+          "rationale": "From context-sweep (2026-10-21, master ebd29a6ec, Flash-Next UD-IQ4_XS, eight output tokens): a 62,498-token prompt gives its first token in 31.3 s (about 1,995 tokens a second, the card's peak 47.8 GB, 10,834 experts on the card against about 39,000 at 16K); prompts of 126,660 and 257,946 tokens are refused before execution: \"CUDA relu (tensor 548) counts 16044782224 elements, past the 4294967295 a kernel word holds\" (66,539,750,208 at 262K). So Flash-Next reads no prompt past about 65,536 tokens of its 262,144-token context.\nThe tensor is the block-sparse indexer's scores (internal/model/block_sparse_selection.go:84): ReLU(MulMat(pooled blocks, queries)) over the stored tokens' blocks (a quarter of them), the indexer's four heads and every query of the forward, so stored x chunk elements: 126,668 squared at 128K. In f32 that is about 15.6 GB at 64K (part of why the experts leave the card), 64 GB at 128K and 266 GB at 262K, so a wider index alone would not run it. The bounded prefill (internal/inference/device_prefill.go) starts with the whole prompt as one chunk and halves it only on a memory refusal, which this is not.\nThe step bounds the scores by query chunks: the indexer scores and selects its blocks a query chunk at a time (its output, the top-k block indices per query, is small), or the prefill's chunk is bounded so stored x chunk stays within a budget, whichever the measurement favours (smaller prefill chunks re-read the host experts they route a chunk). Strata reads 262K prompts at 1,304 tokens a second on a 12 GB RTX 5070 (Q2_0, int8 keys and values, its key/value cache streamed from host memory past 64K; docs/DETAILS.md).\nEvidence: the sweep again at 64K, 128K and 262K: each length's first output, the card's peak and experts on the card, and the 16K prompt's first output unchanged or better.\nServes: failure-rate and first-output of long prompts; flashnext-context.\nBatch: device."
         }
       ]
     },

@@ -227,8 +227,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "window-commit as built adds 1,558 production syntax nodes (the gate's preflight, 2026-10-21): the checkpoint through the gated-delta and n-gram layers, the layer results, the branch graph, its outputs and session identity, the cache's checkpoint and its commit."
+        "nodes": 85,
+        "reason": "window-overheads as built adds 85 production syntax nodes (the gate's preflight, 2026-10-21): the draft's BF16 matrices on the raw route with its routers kept F32, argmax_f32's wider block, and Q8_0 emission for a verify span's columns."
       },
       "steps": [
         {
@@ -569,7 +569,8 @@
             "near-carry/do",
             "split-carry/do",
             "window-carry/do",
-            "overheads-carry/do"
+            "overheads-carry/do",
+            "oh-carry/do"
           ]
         }
       ]

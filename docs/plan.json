@@ -218,20 +218,6 @@
       },
       "steps": [
         {
-          "id": "verify-columns",
-          "title": "Read the F32 products' and the head's weights once for a verify's third column",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "draft-depth (2026-10-22) found a chained draft cannot pay while a verify's third column costs about 2.6 ms of its window (13.0 to 15.6 ms), where Strata's verify grows little with its tokens (11.9 to 12.2 ms over 2.52 to 2.72 tokens, its clean run on the probe's prompt ids at 7.8 ms a token). A node-level trace of verify windows of two and three tokens times the third column's kernels: the routed hidden products 0.63 ms (more distinct experts' bytes), mul_mat_f32 0.42 ms (0.39 to 0.81: the hyper-connections' and gated deltas' small F32 products more than double at a third column), the Q6_K head 0.19 ms (555 us at two columns, 94 percent of the card's DRAM rate, 775 at three, 67), the dense Q8_0 products 0.17, the down products 0.15, the gated delta rows 0.14 and the span's state copies (flat_slice) 0.14.\nThe step makes mul_mat_f32 and the head read their weights once for three or more columns at their two-column rate, measured by kernel under Nsight Compute at Flash-Next's shapes, then replays the depth policies with the costs it leaves (the chain is kept at overgo_data/scratch/long-prompt-20261019/draft-chain-device.patch and its logging arms in the scratch worktree) and builds the chain only where the probe, not the replay alone, finds a policy faster than one draft.\nCeiling: about 0.6 ms of a three-token verify; through a chain that pays, toward Strata's 1.74 tokens a window.\nEvidence: the kernels' times by column count in a fixture; the verify's ms by span length from the logged arms; the probe's speculative ms a token against master.\nServes: throughput.\nBatch: device."
-        },
-        {
-          "id": "residency-stamps",
-          "title": "Stamp routed experts densely and settle the residency's recency order only where it is walked",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "spec-idle timed the residency's advance at 0.16 to 0.27 ms of every decode run, almost all of it the routes' bookkeeping: each routed expert of each of a node's three banks takes a type assertion and a move to the back of its stride's linked list (about 2,400 a speculative window, 1,440 a plain token), each a cache miss on a list element scattered across 52,000 card experts. The scan of the flags and their clearing take under 5 us.\nThe step keeps a dense per-bank stamp of each expert's last routed step, written on a route, and settles the recency order only where the victim and staging searches walk it: an element at the front routed since its place moves to the back as the walk passes it, so the front stays the least recently routed and a route costs one write.\nCeiling: about 0.15 ms a speculative window and 0.1 ms a plain token, the advance's bookkeeping.\nEvidence: the advance's time a run unprofiled before and after; the residency's tests of promotion, staging and release unchanged; the probe's ms a token plain and speculative against master, the decoded texts the same.\nServes: throughput.\nBatch: device."
-        },
-        {
           "id": "draft-library",
           "title": "Bind Flash-Next's draft to its library entry so every launcher serves it",
           "status": "open",

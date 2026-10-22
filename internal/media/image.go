@@ -7,6 +7,8 @@ import (
 	"image/color"
 	"image/png"
 	"math"
+
+	"overgo/internal/hostmath"
 )
 
 const (
@@ -145,46 +147,83 @@ func CubicConvolutionWeight(value float64) float64 {
 	return 0
 }
 
+// ResizeBicubic resamples source to width by height with an antialiased cubic, one pass along each axis, each
+// pass's rows spread over the host's workers. A source pixel is read once, from an RGBA image's own bytes or else
+// through At as before, and every output byte is the one a pixel-by-pixel reading gives.
 func ResizeBicubic(source image.Image, width, height int) *image.RGBA {
 	bounds := source.Bounds()
 	inputWidth, inputHeight := bounds.Dx(), bounds.Dy()
+	pixels, stride := rgbaRows(source)
 	xMin, xCount, xWeights := antialiasWeights(inputWidth, width)
 	intermediate := make([][RGBChannels]uint8, inputHeight*width)
-	for y := range inputHeight {
-		for outX := range width {
-			values := [RGBChannels]float64{}
-			for offset := 0; offset < xCount[outX]; offset++ {
-				r, g, b, _ := source.At(bounds.Min.X+xMin[outX]+offset, bounds.Min.Y+y).RGBA()
-				weight := xWeights[outX][offset]
-				values[0] += weight * float64(RGBAChannel8(r))
-				values[1] += weight * float64(RGBAChannel8(g))
-				values[2] += weight * float64(RGBAChannel8(b))
-			}
-			for channel := range values {
-				intermediate[y*width+outX][channel] = RoundedUint8(values[channel])
-			}
-		}
-	}
-	yMin, yCount, yWeights := antialiasWeights(inputHeight, height)
-	output := image.NewRGBA(image.Rect(0, 0, width, height))
-	for outY := range height {
-		for x := range width {
-			values := [RGBChannels]float64{}
-			for offset := 0; offset < yCount[outY]; offset++ {
-				pixel := intermediate[(yMin[outY]+offset)*width+x]
-				weight := yWeights[outY][offset]
+	hostmath.ParallelRangeF64(inputHeight, width*cubicTaps*RGBChannels, func(start, end int) {
+		for y := start; y < end; y++ {
+			row := pixels[y*stride:]
+			for outX := range width {
+				values := [RGBChannels]float64{}
+				for offset := 0; offset < xCount[outX]; offset++ {
+					pixel := row[(xMin[outX]+offset)*rgbaBytes:]
+					weight := xWeights[outX][offset]
+					for channel := range values {
+						values[channel] += weight * float64(pixel[channel])
+					}
+				}
 				for channel := range values {
-					values[channel] += weight * float64(pixel[channel])
+					intermediate[y*width+outX][channel] = RoundedUint8(values[channel])
 				}
 			}
-			index := output.PixOffset(x, outY)
-			for channel := range values {
-				output.Pix[index+channel] = RoundedUint8(values[channel])
-			}
-			output.Pix[index+RGBChannels] = ^uint8(0)
 		}
-	}
+	})
+	yMin, yCount, yWeights := antialiasWeights(inputHeight, height)
+	output := image.NewRGBA(image.Rect(0, 0, width, height))
+	hostmath.ParallelRangeF64(height, width*cubicTaps*RGBChannels, func(start, end int) {
+		for outY := start; outY < end; outY++ {
+			for x := range width {
+				values := [RGBChannels]float64{}
+				for offset := 0; offset < yCount[outY]; offset++ {
+					pixel := intermediate[(yMin[outY]+offset)*width+x]
+					weight := yWeights[outY][offset]
+					for channel := range values {
+						values[channel] += weight * float64(pixel[channel])
+					}
+				}
+				index := output.PixOffset(x, outY)
+				for channel := range values {
+					output.Pix[index+channel] = RoundedUint8(values[channel])
+				}
+				output.Pix[index+RGBChannels] = ^uint8(0)
+			}
+		}
+	})
 	return output
+}
+
+// rgbaBytes is the bytes of one RGBA pixel, and cubicTaps the taps a cubic reads at unit scale, what one output
+// pixel of a pass is priced at when its rows are spread.
+const (
+	rgbaBytes = RGBChannels + 1
+	cubicTaps = 4
+)
+
+// rgbaRows gives source's pixels as premultiplied 8-bit RGBA rows from its first pixel, and the bytes between
+// rows: an RGBA image's own bytes, and any other image's read through At once a pixel.
+func rgbaRows(source image.Image) ([]uint8, int) {
+	bounds := source.Bounds()
+	if rgba, ok := source.(*image.RGBA); ok {
+		return rgba.Pix[rgba.PixOffset(bounds.Min.X, bounds.Min.Y):], rgba.Stride
+	}
+	width := bounds.Dx()
+	pixels := make([]uint8, width*bounds.Dy()*rgbaBytes)
+	hostmath.ParallelRangeF64(bounds.Dy(), width, func(start, end int) {
+		for y := start; y < end; y++ {
+			for x := range width {
+				r, g, b, _ := source.At(bounds.Min.X+x, bounds.Min.Y+y).RGBA()
+				at := (y*width + x) * rgbaBytes
+				pixels[at], pixels[at+1], pixels[at+RGBChannels-1] = RGBAChannel8(r), RGBAChannel8(g), RGBAChannel8(b)
+			}
+		}
+	})
+	return pixels, width * rgbaBytes
 }
 
 func antialiasWeights(input, output int) ([]int, []int, [][]float64) {

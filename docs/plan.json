@@ -235,17 +235,10 @@
       "title": "Deliver image understanding and its web GUI as the next native increment",
       "status": "open",
       "budget": {
-        "nodes": 240,
+        "nodes": 18,
         "reason": "measured 222 at the gate: the resize reads a source's own bytes, or each pixel through At once, and spreads its passes' rows over the host's workers"
       },
       "steps": [
-        {
-          "id": "resize",
-          "title": "Resample a picture from its own bytes on every core",
-          "status": "open",
-          "verify": "go test ./internal/media -count=1 -run '^TestResizeBicubicReadsEachPixelAsAtDoes$'",
-          "rationale": "Measured 2026-10-22 on master 7f517ac0c, Flash-Next's frozen screenshot case timed by stage (temporary stages in the projector and Generate, not kept): a warm request spends 0.38 s preparing the picture, 0.95 s in the vision encoder, 1.70 s reading the prompt on the host and about 0.9 s decoding. A CPU profile puts 0.36 s of the preparing in media.ResizeBicubic, which reads every tap of its horizontal pass through image.Image.At on one goroutine.\nThe step reads an RGBA source's own bytes (any other source through At once a pixel) and spreads each pass's rows over the host's workers; every output byte stays the one the tap-by-tap reading gives, which the test holds for RGBA, sub-image, NRGBA and YCbCr sources. Measured with the change: preparation 0.03 s, the warm request 3.63 s.\nServes: first-output of image requests through every projector that resizes, toward Strata's 0.1 to 0.5 s a picture (docs/DETAILS.md of the reference)."
-        },
         {
           "id": "images",
           "title": "Reuse the vision projector and composer for image, OCR and multi-image conversations",

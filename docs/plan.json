@@ -208,6 +208,25 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "attention-half",
+      "title": "Gather a prompt's selected keys and values as FP16",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 120,
+        "reason": "the staging's reservation for a prompt's selected attention and its two conversion launches"
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "Gather a prompt's selected keys and values as FP16",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestExecutorGroupedSparseAttentionMatchesReference$' -count=1",
+          "rationale": "From prompt-attention/do (2026-10-22): on FP16 products sparse_attention_mma_f32 takes 44.9 ms in each of Flash-Next's 12 full-attention layers over a 16,718-token prompt (57.3 on 3xTF32), bound by gathering each query token's selected f32 keys and values, about 134 GB a layer through L2; Strata gathers int8 rows and its timer gives its attention 311 ms over 20,605 tokens.\nThe step converts a prompt layer's keys and values to FP16 into the score staging before the kernel (f32_to_f16 over the logical tokens, about 0.1 ms a layer) and has the kernel read FP16 rows, halving the bytes it gathers; its products already round those operands to FP16, so the outputs keep their bits. The staging reserves the cache's capacity in FP16 for a prompt's selected attention, 34 MB at 16K where Flash-Next's score staging already holds 464 MB.\nEvidence: the kernel's time a layer and the 16,718- and 20,605-token first outputs; the grouped sparse attention test's pinned bits unchanged.\nServes: first-output of every model with selected attention past 2,048 tokens."
+        }
+      ]
+    },
+    {
       "id": "speculation",
       "title": "Speculate safely and further on Flash-Next and NextN models",
       "owner": "master-lead",
@@ -483,7 +502,8 @@
             "request-clock/do",
             "component-activation/do",
             "prompt-memory/do",
-            "prompt-attention/do"
+            "prompt-attention/do",
+            "attention-half/do"
           ]
         }
       ]

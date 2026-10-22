@@ -401,6 +401,28 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		route(t, cache, 1)
 		advance(t, cache)
 		readable(t, cache, mem, map[string][]uint32{})
+		// A release while promotions are in flight lands them first: expert 0's copies target the allocations the
+		// releases free, into staged expert 1's slots, and no table names a freed allocation, then or after the next
+		// advance.
+		cache, mem = open(t, tableBytes+2*(gateStride+downStride))
+		route(t, cache, 2)
+		advance(t, cache)
+		advance(t, cache)
+		route(t, cache, 0)
+		mem.hold = true
+		advance(t, cache)
+		if err := cache.start(t.Context()); err != nil || len(cache.promoting) != 2 {
+			t.Fatalf("%d promotions in flight before the release (%v), want one a bank", len(cache.promoting), err)
+		}
+		for range 2 {
+			if err := cache.release(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		mem.hold = false
+		readable(t, cache, mem, map[string][]uint32{})
+		advance(t, cache)
+		readable(t, cache, mem, map[string][]uint32{})
 	})
 	t.Run("failed-promotion-keeps-tables-readable", func(t *testing.T) {
 		for _, fail := range []string{"write", "pinning", "cancel"} {

@@ -680,24 +680,17 @@ func (c *expertResidency) stream(ctx context.Context) error {
 // refill moves experts in host memory to the card once expertRefillBytes
 // beyond the headroom is free, up to free memory less the headroom and
 // within the limit, bank by bank in one card allocation a bank. Memory
-// another process takes first ends the refill.
+// another process takes first ends the refill. Its one caller, advance,
+// has landed every copy in flight, so the host experts it counts are settled.
 func (c *expertResidency) refill(ctx context.Context) error {
 	free, err := c.mem.available(ctx)
 	if err != nil || free < expertFillHeadroomBytes+expertRefillBytes {
 		return err
 	}
 	budget := min(free-expertFillHeadroomBytes, c.limit-min(c.limit, c.bytes))
-	landed := false
 	for _, bank := range c.ordered {
 		if budget < bank.stride {
 			continue
-		}
-		if !landed {
-			// A promotion in flight still names its expert's host slot: the copies land before host experts are counted.
-			if err := c.land(ctx, false); err != nil {
-				return err
-			}
-			landed = true
 		}
 		var count uint64
 		for _, host := range bank.hosted {
@@ -921,7 +914,7 @@ func (w *DeviceWeights) ReserveExpertMemory(state *device.State, required uint64
 // publishes their tables and frees the allocation.
 func (c *expertResidency) release(ctx context.Context) error {
 	// Copies in flight land first: a promotion may be copying into this allocation.
-	if err := c.land(ctx, false); err != nil {
+	if err := c.land(ctx, true); err != nil {
 		return err
 	}
 	chunk := c.cards[len(c.cards)-1]

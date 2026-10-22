@@ -213,23 +213,16 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
+        "nodes": 35,
         "reason": "spec-idle: the waited residency landing, the retained run's read-back into pinned memory taken before launch, and each plan's arena offsets by node index cut a speculative token from about 9.85 to 9.53 ms on Flash-Next and made its decoded text independent of the host's speed"
       },
       "steps": [
-        {
-          "id": "verify-experts",
-          "title": "Bring a verify window's routed expert products to the rate of their bytes",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "The decode ledger (2026-10-21) times a verify window's routed expert products at 3.72 ms (moe_hidden_span_q8_f32 1.86, moe_down_q8_f32 1.86) for 2 tokens, where Strata's card-resident experts take 2.79 ms for 2.55: about 0.93 ms a window, 0.58 ms a token. The span kernel reads an expert's gate and up rows once for the tokens that share it; the down kernel reads each token's experts' rows apart, and both read through the q8 block dots at about two thirds of the card's bandwidth.\nThe step times the two kernels at a verify window's shape in a fixture (decode clocks, 2 and 3 tokens, Flash-Next's IQ3_S and IQ4_NL banks), measures each against the bytes it must read, and closes the larger gap first: the down products sharing an expert's rows across the window's tokens as the span kernel does, or the block dots' reads kept in flight.\nCeiling: about 0.58 ms a token speculative and about 0.4 plain (the plain decode's experts, 3.2 ms a token, at the same rate).\nEvidence: the fixture's kernel times against their bytes; the probe's ms a token plain and speculative against master; the bits master's.\nServes: throughput.\nBatch: device."
-        },
         {
           "id": "dense-q8-columns",
           "title": "Raise the dense Q8_0 products to the rate Strata's reach at one and two columns",
           "status": "open",
           "verify": "go run ./cmd/plan -status",
-          "rationale": "The decode ledger (2026-10-21) times a verify window's dense Q8_0 products (mul_mat_q8_0_input_f32: the gated-delta qkv, z and out projections, attention's q and out) at 4.62 ms for 2 tokens, about 630 GB/s over their 2.9 GB, where Strata's take about 3.8 ms for 2.55 tokens, about 760 GB/s; a plain token's take 4.32 ms.\nThe step times the kernel at one and two columns over Flash-Next's shapes in a fixture against the bytes it reads, and raises the rate where it falls short: more rows in flight a warp, a second column sharing the row reads, or the qkv and z products of one input in one launch as the shared expert's pair does.\nCeiling: about 0.5 ms a token speculative, about 0.7 plain (4.32 ms at 760 GB/s would be 3.8).\nEvidence: the fixture's GB/s at one and two columns; the probe's ms a token plain and speculative against master; the bits master's.\nServes: throughput.\nBatch: device."
+          "rationale": "The decode ledger (2026-10-21) times a verify window's dense Q8_0 products (mul_mat_q8_0_input_f32: the gated-delta qkv, z and out projections, attention's q and out) at 4.62 ms for 2 tokens, about 630 GB/s over their 2.9 GB, where Strata's take about 3.8 ms for 2.55 tokens, about 760 GB/s; a plain token's take 4.32 ms.\nThe step times the kernel at one and two columns over Flash-Next's shapes in a fixture against the bytes it reads, and raises the rate where it falls short: more rows in flight a warp, a second column sharing the row reads, or the qkv and z products of one input in one launch as the shared expert's pair does.\nCeiling: about 0.5 ms a token speculative, about 0.7 plain (4.32 ms at 760 GB/s would be 3.8).\nEvidence: the fixture's GB/s at one and two columns; the probe's ms a token plain and speculative against master; the bits master's.\nServes: throughput.\nBatch: device.\n\nverify-experts (2026-10-22) measured the routed expert kernels in a fixture at Flash-Next's shapes under Nsight Compute (locked clocks, cold caches, a few launches a variant): nsys's fixture timings moved by up to twice between runs, and the expert kernels ran at 60 to 70 percent of the card's DRAM rate whatever their registers, block size, unrolling or bytes, the IQ3_S decode and its loads holding them. The step measures the dense products the same way before choosing a change, and reads the instruction and stall counts to tell a rate the bytes hold from one the instructions hold."
         },
         {
           "id": "head-columns",
@@ -237,6 +230,13 @@
           "status": "open",
           "verify": "go run ./cmd/plan -status",
           "rationale": "The decode ledger (2026-10-21) times the Q6_K head (mul_mat_q6_K_input_f32) at 0.84 ms for a verify window's 2 columns and 0.585 ms for the draft's one, 1.43 ms a window, where Strata's head takes 0.59 ms for 2.55 columns. A column reads the head's 520 MB at about 900 GB/s; the second column of a window adds 0.26 ms where it could add almost nothing.\nThe step makes the head's columns share its row reads (the verify's columns in one pass at the one-column time), then measures whether the draft's head can read a share of the vocabulary the draft's tokens fall in, as Strata's MTP head does, with the verify's full head unchanged.\nCeiling: about 0.4 ms a token speculative (0.25 of the verify's head and up to 0.585 of the draft's a window), 0 plain.\nEvidence: the head's time at one, two and three columns in a fixture; the probe's speculative ms a token and the drafts' acceptance against master.\nServes: throughput.\nBatch: device."
+        },
+        {
+          "id": "draft-depth",
+          "title": "Draft deeper while the draft is confident, if the measured costs pay",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "verify-experts (2026-10-22) found a speculative window as long as Strata's (about 15.3 ms against 15.0) and the per-token gap in the tokens a window keeps: 1.61 at a verify of 2 tokens against Strata's 1.74 at 2.59, its drafts going deeper while its draft's own probability stays above 0.5 (--spec 4 --spec-min-p 0.5). hyperDraftTokens holds Flash-Next at one draft because fixed-depth chains kept 43 and 27 percent at depths two and three, and the 2026-10-21 replay of min-p policies found none beating one draft at a draft step of 2.05 ms and 2.8 ms a verified token.\nThe step logs one always-deepest run's windows (each draft's probability, the kept count, the verify and draft times by depth) once head-columns has made the draft's head and the verify's columns cheaper, replays the min-p policies against those costs, and makes the draft's depth a min-p chain where the replay finds one that pays, one draft where none does.\nCeiling: Strata's 1.74 tokens a window at our window's length would be about 8.8 ms a token speculative, against 9.5.\nEvidence: the replay's ms a token by policy from the logged run; the probe's speculative ms a token against master over several prompts (the texts differ with the drafts kept).\nServes: throughput.\nBatch: device."
         },
         {
           "id": "spec-chain",

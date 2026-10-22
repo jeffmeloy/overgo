@@ -2496,24 +2496,24 @@ func execute(
 			return nil, err
 		}
 	}
-	// A retained run's read-back outputs come down behind its graph, before the one wait the run ends with.
-	if err := queueReadBack(state, readBack, retainedValues, scratch.readBack); err != nil {
-		if rings {
-			doorbell.abandon()
-		}
-		return nil, err
-	}
 	var serveErr error
 	if rings {
 		serveErr = doorbell.serve(ctx, state, experts, compiled.doorbellRings, ringBase)
+	}
+	// A retained run's read-back outputs come down behind its graph, before the one wait the run ends with, queued
+	// once the doorbell is answered: a profiler's tracing made the queueing wait for the run, whose ring then went
+	// unanswered.
+	if serveErr == nil {
+		serveErr = queueReadBack(state, readBack, retainedValues, scratch.readBack)
 	}
 	if err := state.Driver.StreamSynchronize(state.Stream); err != nil {
 		return nil, errors.Join(serveErr, err)
 	}
 	if rings {
-		if err := errors.Join(serveErr, doorbell.failure()); err != nil {
-			return nil, err
-		}
+		serveErr = errors.Join(serveErr, doorbell.failure())
+	}
+	if serveErr != nil {
+		return nil, serveErr
 	}
 	submitted = false
 	if retainOutputs {

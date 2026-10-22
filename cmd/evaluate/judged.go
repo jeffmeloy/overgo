@@ -77,13 +77,18 @@ func openJudgedSession(ctx context.Context, store *overgodb.Store, value manifes
 		return nil, errors.Join(err, fmt.Errorf("evaluate: %s has no active %s recipe", request.Path, task))
 	}
 	opened, err := openCapabilitySession(ctx, store, value, source, task, nil, func(recipe.Definition) (evaluation.Runtime, func(context.Context) error, error) {
-		runner, err := modelcli.OpenRunner(ctx, value.Repository, request.Judge, inference.OpenOptions{DeviceOrdinal: value.Device})
+		// The judge's projector opens first: the judge's expert cache takes the device memory it leaves.
+		judge, _, err := modelcli.ResolveModel(ctx, store, request.Judge)
 		if err != nil {
 			return nil, nil, err
 		}
-		vision, err := projector.OpenActiveSession(ctx, store, runner.ModelID(), request.Projector, projector.OpenOptions{CUDA: true, DeviceOrdinal: value.Device})
+		vision, err := projector.OpenActiveSession(ctx, store, judge, request.Projector, projector.OpenOptions{CUDA: true, DeviceOrdinal: value.Device})
 		if err != nil {
-			return nil, nil, errors.Join(err, runner.Close())
+			return nil, nil, err
+		}
+		runner, err := modelcli.OpenRunner(ctx, value.Repository, request.Judge, inference.OpenOptions{DeviceOrdinal: value.Device})
+		if err != nil {
+			return nil, nil, errors.Join(err, vision.Close())
 		}
 		runtime := projectionRuntime{runner: runner, vision: vision, mediaFiles: &mediaFiles{root: request.MediaRoot}, ffmpeg: os.Getenv("OVERGO_FFMPEG")}
 		runtime.identity, err = projectionIdentity(ctx, store, runtime)

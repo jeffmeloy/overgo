@@ -420,25 +420,6 @@ func (r *Runner) compactDeviceCacheForAppend(
 	return next, nil
 }
 
-func (r *Runner) forwardDeviceCachedLocked(
-	ctx context.Context,
-	tokenIDs []tokenizer.TokenID,
-	past *deviceKVCache,
-) (reference.Value, *deviceKVCache, error) {
-	plan, err := compileDeviceOutputPlan(deviceOutputLogits, 0, r.spec.VocabularySize)
-	if err != nil {
-		return reference.Value{}, nil, err
-	}
-	next, err := r.forwardDeviceCachedBatchLocked(ctx, []deviceBatchAppend{{
-		Tokens: tokenIDs,
-		Past:   past,
-	}}, plan)
-	if err != nil {
-		return reference.Value{}, nil, err
-	}
-	return reference.Value{}, next[0], nil
-}
-
 // forwardDeviceCachedGreedyStepLocked: raw-greedy single-branch forward; the
 // argmax token stays resident and only its id is copied back.
 func (r *Runner) forwardDeviceCachedGreedyStepLocked(
@@ -446,7 +427,7 @@ func (r *Runner) forwardDeviceCachedGreedyStepLocked(
 	tokenIDs []tokenizer.TokenID,
 	past *deviceKVCache,
 ) (*deviceKVCache, error) {
-	return r.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedy, tokenIDs, past, 0)
+	return r.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedy, tokenIDs, past, nil, 0)
 }
 
 // forwardDeviceCachedModeLocked: single-branch forward under a chosen output
@@ -454,11 +435,13 @@ func (r *Runner) forwardDeviceCachedGreedyStepLocked(
 // output head and selects greedily — the MTP verify batch; the result cache
 // carries SpanSelected, one token per consumed position.
 // A span with checkpoints also keeps its layers' fixed state after each of those token counts.
+// A prompt's projected inputs, nil for text, are its media rows, multi-axis positions and deepstack streams.
 func (r *Runner) forwardDeviceCachedModeLocked(
 	ctx context.Context,
 	mode deviceOutputMode,
 	tokenIDs []tokenizer.TokenID,
 	past *deviceKVCache,
+	projected *ProjectedInputs,
 	checkpoints ...uint32,
 ) (*deviceKVCache, error) {
 	plan, err := compileDeviceOutputPlan(mode, 0, r.spec.VocabularySize)
@@ -469,23 +452,8 @@ func (r *Runner) forwardDeviceCachedModeLocked(
 		Tokens:      tokenIDs,
 		Past:        past,
 		Checkpoints: checkpoints,
+		Projected:   projected,
 	}}, plan)
-	if err != nil {
-		return nil, err
-	}
-	return next[0], nil
-}
-
-// forwardDeviceCachedPromptLocked reads a prompt on the device under mode, with its projected inputs where it has
-// them, a prompt the bounded prefill reads in chunks.
-func (r *Runner) forwardDeviceCachedPromptLocked(
-	ctx context.Context, mode deviceOutputMode, tokenIDs []tokenizer.TokenID, past *deviceKVCache, projected *ProjectedInputs,
-) (*deviceKVCache, error) {
-	plan, err := compileDeviceOutputPlan(mode, 0, r.spec.VocabularySize)
-	if err != nil {
-		return nil, err
-	}
-	next, err := r.forwardDeviceCachedBatchLocked(ctx, []deviceBatchAppend{{Tokens: tokenIDs, Past: past, Projected: projected}}, plan)
 	if err != nil {
 		return nil, err
 	}

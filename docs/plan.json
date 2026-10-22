@@ -235,17 +235,10 @@
       "title": "Deliver image understanding and its web GUI as the next native increment",
       "status": "open",
       "budget": {
-        "nodes": 9,
+        "nodes": 32,
         "reason": "measured 19 at the gate: plain heads batch whole in the strided-batched attention's two products"
       },
       "steps": [
-        {
-          "id": "sqa-image",
-          "title": "Fold the projected prompt into the single-branch forward and release evicted pictures",
-          "status": "open",
-          "verify": "go test ./internal/projector -count=1 -run '^TestRememberImagesEncodesAPictureOnce$' \u0026\u0026 OVERGO_CUDA_TEST=1 go test -tags modeltest ./internal/inference -count=1 -run '^TestProjectedPromptDecodesOnTheDeviceCache$'",
-          "rationale": "The review of the image work (b089b834c) filed SQA-192 and SQA-193, both P3, both small and both reducing production code: fold the projected prompt forward and the logits-only forward into forwardDeviceCachedModeLocked, and evict and promote pictures in the image memory through slices.Delete so an evicted picture's rows are released. Measured at the gate: production -177 nodes, test +197 (the call sites take the projected argument, and the memory test gains its detachment check)."
-        },
         {
           "id": "images",
           "title": "Reuse the vision projector and composer for image, OCR and multi-image conversations",

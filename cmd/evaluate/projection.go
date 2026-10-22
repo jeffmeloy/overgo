@@ -151,15 +151,26 @@ type projectionSession struct {
 	vision projector.Session
 }
 
-// openProjectionSession opens the model and the projector the request names,
-// and binds the campaign to the model's active projection recipe over its
+// openProjectionSession opens the projector the request names and then the
+// model, whose expert cache takes the device memory the projector leaves, and
+// binds the campaign to the model's active projection recipe over its
 // definition.
 func openProjectionSession(ctx context.Context, store *overgodb.Store, value manifest, request modelRequest) (evaluationSession, error) {
-	runner, err := modelcli.OpenRunner(ctx, value.Repository, request.Path, inference.OpenOptions{DeviceOrdinal: value.Device})
+	model, _, err := modelcli.ResolveModel(ctx, store, request.Path)
 	if err != nil {
 		return nil, err
 	}
-	fail := func(cause error) (evaluationSession, error) { return nil, errors.Join(cause, runner.Close()) }
+	vision, err := projector.OpenActiveSession(ctx, store, model, request.Projector, projector.OpenOptions{CUDA: true, DeviceOrdinal: value.Device})
+	if err != nil {
+		return nil, err
+	}
+	runner, err := modelcli.OpenRunner(ctx, value.Repository, request.Path, inference.OpenOptions{DeviceOrdinal: value.Device})
+	if err != nil {
+		return nil, errors.Join(err, vision.Close())
+	}
+	fail := func(cause error) (evaluationSession, error) {
+		return nil, errors.Join(cause, vision.Close(), runner.Close())
+	}
 	description, err := runner.RecipeRuntimeDescription(recipe.TaskInference)
 	if err != nil {
 		return fail(err)
@@ -174,18 +185,14 @@ func openProjectionSession(ctx context.Context, store *overgodb.Store, value man
 	if err != nil {
 		return fail(err)
 	}
-	vision, err := projector.OpenActiveSession(ctx, store, runner.ModelID(), request.Projector, projector.OpenOptions{CUDA: true, DeviceOrdinal: value.Device})
-	if err != nil {
-		return fail(err)
-	}
 	runtime := projectionRuntime{runner: runner, vision: vision, mediaFiles: &mediaFiles{root: request.MediaRoot}, ffmpeg: os.Getenv("OVERGO_FFMPEG")}
 	runtime.identity, err = projectionIdentity(ctx, store, runtime)
 	if err != nil {
-		return fail(errors.Join(err, vision.Close()))
+		return fail(err)
 	}
 	campaign, err := evaluation.NewIsolatedCampaign(store, runtime, identity, environment, value.CodeCommit)
 	if err != nil {
-		return fail(errors.Join(err, vision.Close()))
+		return fail(err)
 	}
 	campaign.WithPrompting(evaluation.PromptingChatTemplate)
 	return &projectionSession{

@@ -259,7 +259,7 @@ func (r *Runner) scoreContinuationsDeviceLocked(
 	promptIDs []tokenizer.TokenID,
 	continuations [][]tokenizer.TokenID,
 ) ([]sequencescore.Score, error) {
-	_, prompt, err := r.forwardDeviceCachedLocked(ctx, promptIDs, nil)
+	prompt, err := r.forwardDeviceCachedModeLocked(ctx, deviceOutputLogits, promptIDs, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -287,7 +287,7 @@ func (r *Runner) scoreContinuationsDeviceLocked(
 			// candidates leave nothing for one another to read.
 			cache := prompt
 			for index, token := range continuation[:len(continuation)-1] {
-				_, next, stepErr := r.forwardDeviceCachedLocked(ctx, []tokenizer.TokenID{token}, cache)
+				next, stepErr := r.forwardDeviceCachedModeLocked(ctx, deviceOutputLogits, []tokenizer.TokenID{token}, cache, nil)
 				if cache != prompt {
 					_ = cache.Release(context.Background())
 				}

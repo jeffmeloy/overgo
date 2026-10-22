@@ -105,7 +105,7 @@ func TestDeviceBoundedPrefill(t *testing.T) {
 			}
 			var continued [2]*deviceKVCache
 			for i, past := range []*deviceKVCache{split, whole[0]} {
-				_, continued[i], err = runner.forwardDeviceCachedLocked(ctx, []tokenizer.TokenID{3}, past)
+				continued[i], err = runner.forwardDeviceCachedModeLocked(ctx, deviceOutputLogits, []tokenizer.TokenID{3}, past, nil)
 				if err != nil {
 					t.Fatal(err)
 				}

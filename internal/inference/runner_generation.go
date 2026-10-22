@@ -203,9 +203,9 @@ func (r *Runner) Generate(
 					projected = options.ProjectedInputs
 				}
 				if deviceGreedy {
-					nextDevice, err = r.forwardDeviceCachedPromptLocked(ctx, deviceOutputGreedy, ids[cached:], retainedPrefix, projected)
+					nextDevice, err = r.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedy, ids[cached:], retainedPrefix, projected, 0)
 				} else {
-					nextDevice, err = r.forwardDeviceCachedPromptLocked(ctx, deviceOutputLogits, ids[cached:], retainedPrefix, projected)
+					nextDevice, err = r.forwardDeviceCachedModeLocked(ctx, deviceOutputLogits, ids[cached:], retainedPrefix, projected)
 				}
 				if err == nil {
 					deviceCache = nextDevice
@@ -383,10 +383,8 @@ func (r *Runner) Generate(
 					deviceCache,
 				)
 			} else {
-				_, nextDeviceCache, err = r.forwardDeviceCachedLocked(
-					ctx,
-					[]tokenizer.TokenID{ids[len(ids)-1]},
-					deviceCache,
+				nextDeviceCache, err = r.forwardDeviceCachedModeLocked(
+					ctx, deviceOutputLogits, []tokenizer.TokenID{ids[len(ids)-1]}, deviceCache, nil,
 				)
 			}
 			if err == nil {

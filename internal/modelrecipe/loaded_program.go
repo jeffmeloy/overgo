@@ -162,6 +162,14 @@ func (l *LoadedProgram) Identity() (ProgramIdentity, error) {
 	return l.state.Program.Identity, nil
 }
 
+// Describe returns the resolved program's runtime description before transfer: its stages and their placements.
+func (l *LoadedProgram) Describe() (RuntimeDescription, error) {
+	if l == nil || l.state == nil || l.state.File == nil {
+		return RuntimeDescription{}, errors.New("model recipe: loaded program is unavailable or consumed")
+	}
+	return Describe(l.state.Program)
+}
+
 // RuntimePolicy returns the resolved request policy before transfer.
 func (l *LoadedProgram) RuntimePolicy() (RuntimePolicy, error) {
 	if l == nil || l.state == nil || l.state.File == nil {

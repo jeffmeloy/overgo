@@ -168,17 +168,26 @@ func ActiveDraft(ctx context.Context, repository, path string) (string, error) {
 		return "", err
 	}
 	defer store.Close()
-	memo := discovery.LoadMemo(ctx, store)
-	loaded, err := modelrecipe.ResolveClaimedGGUF(ctx, store, path, memo.Claim)
+	model, _, err := ResolveModel(ctx, store, path)
 	if err != nil {
 		return "", nil
 	}
-	identity, err := loaded.Identity()
-	if err = errors.Join(err, loaded.Close()); err != nil {
-		return "", err
-	}
-	draft, _, err := discovery.ActiveDraft(ctx, store, identity.Model, memo)
+	draft, _, err := discovery.ActiveDraft(ctx, store, model, discovery.LoadMemo(ctx, store))
 	return draft, err
+}
+
+// ResolveModel names the model at path as the store resolves it, through its identity memo and without loading its
+// weights, with its inference recipe's runtime description: the model a projector opened before it binds to, and the
+// placement the projector follows, so a hybrid model's expert cache takes the device memory the projector leaves, as
+// the reference engine keeps room for its image encoder.
+func ResolveModel(ctx context.Context, store *overgodb.Store, path string) (artifact.ID, modelrecipe.RuntimeDescription, error) {
+	loaded, err := modelrecipe.ResolveClaimedGGUF(ctx, store, path, discovery.LoadMemo(ctx, store).Claim)
+	if err != nil {
+		return artifact.ID{}, modelrecipe.RuntimeDescription{}, err
+	}
+	identity, err := loaded.Identity()
+	description, describeErr := loaded.Describe()
+	return identity.Model, description, errors.Join(err, describeErr, loaded.Close())
 }
 
 // OpenOptions returns inference model-loading options.

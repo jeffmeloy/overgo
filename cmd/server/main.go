@@ -241,6 +241,50 @@ func run() error {
 			return err
 		}
 	}
+	// The projector comes from the command line or from the store: with no
+	// -mmproj, the model's active projection recipe names the projector
+	// bytes, so every launcher serves the modalities the store declares. It opens
+	// before the model, whose hybrid expert cache takes the device memory it leaves.
+	var vision, audio projector.Session
+	{
+		store, openErr := overgodb.OpenReadOnly(repositoryPath)
+		if openErr != nil {
+			return fmt.Errorf("open model recipe repository: %w", openErr)
+		}
+		model, resolvedRecipe, identityErr := modelcli.ResolveModel(shutdownContext, store, modelReference)
+		if identityErr != nil {
+			return errors.Join(identityErr, store.Close())
+		}
+		clioptions.ApplyDefault(explicit, "mmproj-cuda", projectorCUDA, slices.ContainsFunc(resolvedRecipe.Stages, func(stage recipe.Stage) bool {
+			return stage.Node.Placement == recipe.PlacementDevice || stage.Node.Placement == recipe.PlacementHybrid
+		}))
+		resolved := *projectorPath
+		if resolved == "" {
+			declared, ok, resolveErr := discovery.ActiveProjector(shutdownContext, store, model, discovery.LoadMemo(shutdownContext, store))
+			if resolveErr != nil {
+				return errors.Join(fmt.Errorf("resolve declared projector: %w", resolveErr), store.Close())
+			}
+			if ok {
+				resolved = declared
+				log.Printf("serving the declared projector %s", resolved)
+			}
+		}
+		if resolved != "" {
+			vision, err = projector.OpenActiveSession(shutdownContext, store, model, resolved, projector.OpenOptions{
+				CUDA: *projectorCUDA, DeviceOrdinal: *modelFlags.DeviceOrdinal,
+			})
+		}
+		err = errors.Join(err, store.Close())
+		if err != nil {
+			return fmt.Errorf("open multimodal projector: %w", err)
+		}
+		if vision != nil {
+			defer vision.Close()
+			if vision.Capabilities().Audio {
+				audio = vision
+			}
+		}
+	}
 	runner, err := modelFlags.OpenRunnerWithOptions(shutdownContext, modelReference, openOptions)
 	if err != nil {
 		return err
@@ -250,9 +294,6 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	clioptions.ApplyDefault(explicit, "mmproj-cuda", projectorCUDA, slices.ContainsFunc(description.Stages, func(stage recipe.Stage) bool {
-		return stage.Node.Placement == recipe.PlacementDevice || stage.Node.Placement == recipe.PlacementHybrid
-	}))
 	policy := runner.RuntimePolicy()
 	agentRetrieval, err := newAgentRetrievalProvider(runner, runner.ModelID(), policy.ID)
 	if err != nil {
@@ -400,46 +441,6 @@ func run() error {
 		if err != nil {
 			log.Printf("evaluation workspace unavailable: %v", err)
 			evaluationWorkspace = nil
-		}
-	}
-	// The projector comes from the command line or from the store: with no
-	// -mmproj, the model's active projection recipe names the projector
-	// bytes, so every launcher serves the modalities the store declares.
-	var vision, audio projector.Session
-	{
-		repository, repositoryErr := modelFlags.RepositoryPath()
-		if repositoryErr != nil {
-			return repositoryErr
-		}
-		store, openErr := overgodb.OpenReadOnly(repository)
-		if openErr != nil {
-			return fmt.Errorf("open model recipe repository: %w", openErr)
-		}
-		resolved := *projectorPath
-		if resolved == "" {
-			declared, ok, resolveErr := discovery.ActiveProjector(shutdownContext, store, runner.ModelID(), discovery.LoadMemo(shutdownContext, store))
-			if resolveErr != nil {
-				return errors.Join(fmt.Errorf("resolve declared projector: %w", resolveErr), store.Close())
-			}
-			if ok {
-				resolved = declared
-				log.Printf("serving the declared projector %s", resolved)
-			}
-		}
-		if resolved != "" {
-			vision, err = projector.OpenActiveSession(shutdownContext, store, runner.ModelID(), resolved, projector.OpenOptions{
-				CUDA: *projectorCUDA, DeviceOrdinal: *modelFlags.DeviceOrdinal,
-			})
-		}
-		err = errors.Join(err, store.Close())
-		if err != nil {
-			return fmt.Errorf("open multimodal projector: %w", err)
-		}
-		if vision != nil {
-			defer vision.Close()
-			if vision.Capabilities().Audio {
-				audio = vision
-			}
 		}
 	}
 	var mediaPolicy *llamaserver.RemoteMediaPolicy

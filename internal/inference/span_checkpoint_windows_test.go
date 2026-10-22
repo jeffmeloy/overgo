@@ -38,7 +38,7 @@ func TestSpanCheckpointKeepsThePendingTokens(t *testing.T) {
 	ctx := t.Context()
 	span := func(tokens []tokenizer.TokenID, past *deviceKVCache, checkpoints ...uint32) *deviceKVCache {
 		t.Helper()
-		cache, err := runner.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedySpan, tokens, past, checkpoints...)
+		cache, err := runner.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedySpan, tokens, past, nil, checkpoints...)
 		if err != nil {
 			t.Fatal(err)
 		}

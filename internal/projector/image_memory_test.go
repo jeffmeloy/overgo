@@ -5,7 +5,9 @@ import (
 	"errors"
 	"image"
 	"image/color"
+	"runtime"
 	"testing"
+	"weak"
 )
 
 // TestRememberImagesEncodesAPictureOnce holds a session's image encoder to encoding a picture once while it is among
@@ -20,7 +22,7 @@ func TestRememberImagesEncodesAPictureOnce(t *testing.T) {
 			return imagePromptItem{}, errors.New("encoding failed")
 		}
 		encoded++
-		return imagePromptItem{Count: source.Bounds().Dx()}, nil
+		return imagePromptItem{Count: source.Bounds().Dx(), Embeddings: make([]float32, source.Bounds().Dx())}, nil
 	})
 	picture := func(width int, shade uint8) image.Image {
 		made := image.NewNRGBA(image.Rect(0, 0, width, width))
@@ -54,4 +56,27 @@ func TestRememberImagesEncodesAPictureOnce(t *testing.T) {
 	}
 	fail = false
 	ask(picture(9, 9), 7)
+	// An evicted picture's rows are released with it: in a new session, the four pictures after the first leave
+	// nothing that reaches its rows, the kept storage the fifth outgrew included.
+	fresh := rememberImages(func(_ context.Context, source image.Image) (imagePromptItem, error) {
+		return imagePromptItem{Count: source.Bounds().Dx(), Embeddings: make([]float32, source.Bounds().Dx())}, nil
+	})
+	rows := func() weak.Pointer[float32] {
+		item, err := fresh(t.Context(), picture(11, 3))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return weak.Make(&item.Embeddings[0])
+	}()
+	for width := 12; width < 12+rememberedImages; width++ {
+		if _, err := fresh(t.Context(), picture(width, 3)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	runtime.GC()
+	if rows.Value() != nil {
+		t.Fatal("an evicted picture's rows are still held")
+	}
+	// The session lives on past the collection, as a serving one does.
+	runtime.KeepAlive(fresh)
 }

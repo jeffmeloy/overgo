@@ -220,7 +220,7 @@ func (r *Runner) generateDeviceSpeculativeGreedy(
 			checkpoints[index] = uint32(len(pending) + index)
 		}
 		span, err := r.forwardDeviceCachedModeLocked(
-			ctx, deviceOutputGreedySpan, spanTokens, boundary, checkpoints...,
+			ctx, deviceOutputGreedySpan, spanTokens, boundary, nil, checkpoints...,
 		)
 		if err != nil {
 			return ids, boundary, "", err

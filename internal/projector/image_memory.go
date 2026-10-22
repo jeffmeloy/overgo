@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"image"
+	"slices"
 	"sync"
 )
 
@@ -32,8 +33,8 @@ func rememberImages(encode imagePromptEncoder) imagePromptEncoder {
 		mu.Lock()
 		for index, entry := range kept {
 			if entry.pixels == pixels {
-				// The picture asked for last is the last to go.
-				kept = append(append(kept[:index:index], kept[index+1:]...), entry)
+				// The picture asked for last is the last to go; Delete clears the slot it leaves.
+				kept = append(slices.Delete(kept, index, index+1), entry)
 				mu.Unlock()
 				return entry.item, nil
 			}
@@ -45,10 +46,11 @@ func rememberImages(encode imagePromptEncoder) imagePromptEncoder {
 		}
 		mu.Lock()
 		defer mu.Unlock()
-		kept = append(kept, rememberedImage{pixels: pixels, item: item})
-		if len(kept) > rememberedImages {
-			kept = kept[1:]
+		// The oldest goes first, and its rows with it, so the kept slice reuses its storage.
+		if len(kept) == rememberedImages {
+			kept = slices.Delete(kept, 0, 1)
 		}
+		kept = append(kept, rememberedImage{pixels: pixels, item: item})
 		return item, nil
 	}
 }

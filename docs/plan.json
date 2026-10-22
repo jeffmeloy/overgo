@@ -235,17 +235,10 @@
       "title": "Deliver image understanding and its web GUI as the next native increment",
       "status": "open",
       "budget": {
-        "nodes": 40,
+        "nodes": 21,
         "reason": "measured 19 at the gate: plain heads batch whole in the strided-batched attention's two products"
       },
       "steps": [
-        {
-          "id": "head-batch",
-          "title": "Batch plain attention heads in one product a tile pair",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^(TestExecutorBLASAttentionKeyBiasMatchesReference|TestExecutorPrefillAttentionMatchesReference)$'",
-          "rationale": "Measured 2026-10-22 on master e785f555e (the picture memory bypassed to time fresh encodes): the vision encoder takes about 0.95 s of a fresh 2.57 s Flash-Next screenshot request, where the reference engine's GPU encoder takes 0.1 to 0.5 s a picture. Its attention, 4032 patches in 16 heads of 72, reads on the strided-batched SGEMM path, which makes one cuBLAS call a key-value head for each of a layer's 98 query and key tile pairs, twice; with plain heads that is 16 small products where one would do.\nThe step batches every query head in one call when each has a key-value head of its own, the key and value pointers stepping a head's width a batch item; grouped heads keep a call a group. Measured with the change: the fresh request takes 2.09 s, the encoder about 0.5 s, with the same 1136 tokens.\nServes: first-output of fresh image requests, toward the reference engine's encoder time; every plain-head attention on that path."
-        },
         {
           "id": "images",
           "title": "Reuse the vision projector and composer for image, OCR and multi-image conversations",

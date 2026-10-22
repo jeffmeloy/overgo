@@ -373,6 +373,13 @@ func launchBlasFullAttention(
 	rowBytes := d * 4
 	kvRowBytes := kvD * 4
 	headBytes := uint64(keyWidth) * 4
+	// Plain heads, a key-value head each, batch whole in one call a product, each reading its key-value head a head
+	// further on, as a group's heads read the group's head (the vision encoders' 16 heads launched 16 products a
+	// tile pair); the key-value rows keep their width above.
+	keyValueStride := int64(0)
+	if group == 1 {
+		group, keyValueHeads, keyValueStride = queryHeads, 1, int64(keyWidth)
+	}
 	scores := blas.scores
 	stats := scores + driver.DevicePtr(uint64(queryHeads)*uint64(chunk)*uint64(keyChunk)*4)
 	statRows := queryHeads * chunk
@@ -424,7 +431,7 @@ func launchBlasFullAttention(
 						if err := blas.library.SGEMMStridedBatched(
 							blas.handle, cublas.OperationTranspose, cublas.OperationNone,
 							int32(keys), int32(rows), int32(keyWidth), 1,
-							kHead, int32(kvD), 0,
+							kHead, int32(kvD), keyValueStride,
 							qHead, int32(d), int64(keyWidth),
 							0,
 							scoreHead, int32(keyChunk), scoreStride,
@@ -456,7 +463,7 @@ func launchBlasFullAttention(
 						if err := blas.library.SGEMMStridedBatched(
 							blas.handle, cublas.OperationNone, cublas.OperationNone,
 							int32(keyWidth), int32(rows), int32(keys), 1,
-							vHead, int32(kvD), 0,
+							vHead, int32(kvD), keyValueStride,
 							scoreHead, int32(keyChunk), scoreStride,
 							1,
 							oHead, int32(d), int64(keyWidth),

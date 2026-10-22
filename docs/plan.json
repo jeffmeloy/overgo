@@ -208,17 +208,21 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "prompt-memory",
-      "title": "Keep a long prompt's experts on the card by shrinking the prompt's own buffers",
+      "id": "prompt-attention",
+      "title": "Compute selected prompt attention on FP16 tensor cores, as Strata's prompt attention does",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 40,
+        "reason": "the kernel keeps its launch, so the change is CUDA source and its test's tolerance"
+      },
       "steps": [
         {
           "id": "do",
-          "title": "Keep a long prompt's experts on the card by shrinking the prompt's own buffers",
+          "title": "Compute selected prompt attention on FP16 tensor cores, as Strata's prompt attention does",
           "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "From long-prompt/expert-ring's prototype and the device-memory ledger of a 16,718-token Flash-Next prompt on master d36ab798a (2026-10-20): the prompt's own buffers peak at about 9.9 GB (the arena 6.08 GB, the grouped-product staging 1.95 GB, the routed and attention scratch 1.88 GB), lent from the expert residency. The card then keeps 40,739 expert banks (about 13,600 experts, 32.7 GB) where a 5,099-token prompt keeps 50,298 (about 16,800), and Strata keeps 17,493 experts (39.4 GiB) through its prompts.\nThat prompt copies 23.4 GB of experts, 1.8 s of the x8 link, and the copies stall its products 0.44 s. A 256 MB copy-ahead area beside the attention cut the stall to 0.26 s but displaced its own size of experts (26.0 GB copied) and gained about 0.05 s; on the 20,605-token prompt it tipped the memory check into reading the prompt in two chunks (prototype: overgo_data/scratch/long-prompt-20261019/expert-prefetch.patch).\nThe step lists the prompt's largest buffers at 16K tokens and shrinks the largest the work allows, such as the arena's live activations or the routed slots' outputs, keeping the outputs' bits, so the residency keeps more experts through the prompt.\nEvidence: the ledger's peak and the card's experts at 16,718 tokens; the host bytes copied; the 4K and 16K first outputs with the same tokens.\nServes: first-output of every offloaded routed-expert model's long prompts; peak-device-memory of every model's long prompts.\nBatch: device."
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestExecutorGroupedSparseAttentionMatchesReference$' -count=1",
+          "rationale": "From prompt-memory's measurement at 24391599c (2026-10-22): Flash-Next's 16,718-token prompt reads in 6.65 s against Strata's 5.01 at 16,058, as one chunk (its retained plan's arena 4.96 GB), and Nsight over it gives 5.65 s of kernels in a 6.05 s span, so buffers that displace experts cost at most the 0.4 s the card idles. Strata's own timer over the 20,605-token prompt (STRATA_PREFILL_TIMING, overgo_data/scratch/long-prompt-20261019/strata-timing.err) gives its selected attention 311 ms of 6.76 s, where sparse_attention_mma_f32 takes 688 ms over 16,718 tokens (about 850 at 20,605): its 3xTF32 products run three m16n8k8 MMAs at the TF32 rate per product, and Strata's qsa_prompt_attn runs m16n8k16 FP16 MMAs (two a product over its int8 cache). Our expert products already run faster than Strata's (1.9 s at 16,718 against its 2.73 s of dequantize and GEMMs at 20,598).\nThe step moves sparse_attention_mma_f32 to m16n8k16 FP16 products with f32 accumulation, its keys, values, queries and probabilities rounded to FP16 as their fragments load, as the dense prompt kernel (attention_flash_\u003cwidth\u003e_f32) does, keeping its slot walk, online softmax and launch.\nEvidence: the 16,718- and 20,605-token prompts' first outputs and the attention's kernel time; greedy continuations through the server at 4K, 16K and 20K tokens against the 3xTF32 build; the grouped sparse attention device test at a tolerance FP16 operands earn.\nServes: first-output of every model with selected attention (Flash-Next past 2,048 tokens)."
         }
       ]
     },
@@ -497,7 +501,8 @@
             "request-clock/do",
             "request-clock/do",
             "component-activation/do",
-            "prompt-memory/do"
+            "prompt-memory/do",
+            "prompt-attention/do"
           ]
         }
       ]

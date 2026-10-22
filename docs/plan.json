@@ -208,25 +208,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "prompt-copies",
-      "title": "Run a prompt's host expert copies beside its products",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 380,
-        "reason": "two driver event calls with their stubs and the event-ordered batch loop measured 366 nodes at the gate"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Run a prompt's host expert copies beside its products",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "From Nsight over Flash-Next's 16,718-token prompt at attention-half (2026-10-22): the measured prompt spans 5.69 s with 5.29 s of kernels, about Strata's GPU timeline at this length, and the card idles 0.40 s, almost all inside the routed expert products: 243 ms between a layer's copy batches (moe_grouped_down to the next batch's moe_grouped_hidden, 208 gaps) and about 140 ms at each layer's start, where launchMoEMatrices synchronizes the stream, reads the routes back and plans the groups on the host. The prompt copies 18.1 GB of host experts in 1.39 s (about 13 GB/s over the x8 link); Strata's timer over 20,605 tokens gives its copy waits, host grouping and gathers 183 ms.\nThe step makes the copies run beside the products: the copy stream fills the next buffers while a batch computes (enough buffers that a batch's copy never waits for the tiles two batches back), and the layer's routes reach the host without draining the stream where the work allows; the residency's share of the prompt's memory (its arena 4.96 GB at 16,718 tokens, grouped staging 2 GiB) is the other lever where buffers can shrink.\nEvidence: the measured prompt's idle time and first output at 16,718 and 20,605 tokens, outputs unchanged.\nServes: first-output of every offloaded routed-expert model's long prompts."
-        }
-      ]
-    },
-    {
       "id": "decode-gap",
       "title": "Measure Flash-Next's decode against Strata's by phase and close the largest gap",
       "owner": "master-lead",

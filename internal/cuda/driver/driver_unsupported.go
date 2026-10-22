@@ -138,6 +138,16 @@ func (l *Library) StreamWait(Stream, Stream) error {
 	return errors.New("CUDA driver loading is currently supported only on Windows")
 }
 
+// RecordEvent reports that marking a stream needs the Windows driver.
+func (l *Library) RecordEvent(Stream) (Event, error) {
+	return 0, errors.New("CUDA driver loading is currently supported only on Windows")
+}
+
+// WaitEvent reports that ordering streams needs the Windows driver.
+func (l *Library) WaitEvent(Stream, Event) error {
+	return errors.New("CUDA driver loading is currently supported only on Windows")
+}
+
 func (l *Library) MemcpyDtoH(destination []byte, source DevicePtr) error {
 	return errors.New("CUDA driver loading is currently supported only on Windows")
 }

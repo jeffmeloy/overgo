@@ -35,9 +35,11 @@ const (
 	// moeCopyBytes: the staging routed experts copied from host memory take.
 	// The copy runs at the link's rate, where the kernels' own reads of host
 	// memory ran at 9 to 33 GB/s, and once a group, where they ran once a tile.
-	moeCopyBytes = uint64(64 << 20)
-	// moeCopyBuffers: a batch, 14 of Flash-Next's 2.33 MB experts, copies into one while the batch before computes from the other.
-	moeCopyBuffers = 2
+	moeCopyBytes = uint64(128 << 20)
+	// moeCopyBuffers: a batch, 14 of Flash-Next's 2.33 MB experts, copies into each in turn, up to three batches ahead of
+	// the one the products read: at the x8 link's 13 GB/s a batch copies in about the time its products take, and with
+	// two buffers a batch's copy waited for the products two batches back (243 ms of a 16,718-token prompt).
+	moeCopyBuffers = 4
 	moeBatchBytes  = moeCopyBytes / moeCopyBuffers
 	// moeMatrixStagingBytes bounds a prompt group's grouped-product staging:
 	// its plan, each routed slot's output row and the copies. A group copies
@@ -315,37 +317,75 @@ func launchMoEMatrices(state *device.State, functions functionSet, blas *blasSta
 			return false, err
 		}
 	}
-	for batch := 0; batch <= hostBatches; batch++ {
-		if err := state.Driver.StreamWait(state.Stream, blas.moeCopyStream); err != nil {
-			return false, err
-		}
-		if batch < hostBatches {
-			if err := state.Driver.StreamWait(blas.moeCopyStream, state.Stream); err != nil {
-				return false, err
+	// A batch's copies wait for the products that last read its buffer, moeCopyBuffers batches back, and a batch's
+	// products for its copies: copied marks each batch's copies on the copy stream, read each batch's products whose
+	// buffer a later batch takes.
+	copied := make([]driver.Event, hostBatches)
+	read := make([]driver.Event, hostBatches)
+	issue := func(batch int) error {
+		if batch >= moeCopyBuffers {
+			if err := state.Driver.WaitEvent(blas.moeCopyStream, read[batch-moeCopyBuffers]); err != nil {
+				return err
 			}
-			for _, expert := range blas.moeCopied[blas.moeBatches[batch].copied:blas.moeBatches[batch+1].copied] {
-				for index := range banks {
-					source := index*int(experts) + int(expert)
-					if host := blas.moeHosted[source]; len(host) > 0 {
-						if err := state.Driver.MemcpyHtoDAsync(blas.moeCopyTable[source], host, blas.moeCopyStream); err != nil {
-							return false, err
-						}
+		}
+		for _, expert := range blas.moeCopied[blas.moeBatches[batch].copied:blas.moeBatches[batch+1].copied] {
+			for index := range banks {
+				source := index*int(experts) + int(expert)
+				if host := blas.moeHosted[source]; len(host) > 0 {
+					if err := state.Driver.MemcpyHtoDAsync(blas.moeCopyTable[source], host, blas.moeCopyStream); err != nil {
+						return err
 					}
 				}
 			}
+		}
+		var err error
+		copied[batch], err = state.Driver.RecordEvent(blas.moeCopyStream)
+		if err != nil {
+			return err
 		}
 		// Each stream's queued work is submitted as soon as it is queued: under
 		// Windows' display driver model a batch's copies otherwise wait in the
 		// driver's buffer until the compute they overlap has ended, and every
 		// copy ran apart from the products (Flash-Next's 20,605-token prompt,
 		// 4.2 s of copies and none beside a kernel; submitted, 1.5 s beside).
-		if _, err := state.Driver.StreamQuery(blas.moeCopyStream); err != nil {
+		_, err = state.Driver.StreamQuery(blas.moeCopyStream)
+		return err
+	}
+	// The copy buffers' last readers were the products queued before this group; the card's own share multiplies while
+	// the first batch copies.
+	if err := state.Driver.StreamWait(blas.moeCopyStream, state.Stream); err != nil {
+		return false, err
+	}
+	if hostBatches > 0 {
+		if err := issue(0); err != nil {
 			return false, err
 		}
-		if err := launch(blas.moeBatches[max(batch, 1)-1].tile, blas.moeBatches[batch].tile, copiedTables); err != nil {
+	}
+	if err := launch(cardShare(0), cardShare(1), tables); err != nil {
+		return false, err
+	}
+	for batch := range hostBatches {
+		next := batch + 1
+		// The next batch copies while this one multiplies, queued one batch ahead: a copy stream queued deeper signals
+		// its first batch only once its last has copied under Windows' display driver model.
+		if next < hostBatches {
+			if err := issue(next); err != nil {
+				return false, err
+			}
+		}
+		if err := state.Driver.WaitEvent(state.Stream, copied[batch]); err != nil {
 			return false, err
 		}
-		if err := launch(cardShare(batch), cardShare(batch+1), tables); err != nil {
+		if err := launch(blas.moeBatches[batch].tile, blas.moeBatches[batch+1].tile, copiedTables); err != nil {
+			return false, err
+		}
+		if batch+moeCopyBuffers < hostBatches {
+			var err error
+			if read[batch], err = state.Driver.RecordEvent(state.Stream); err != nil {
+				return false, err
+			}
+		}
+		if err := launch(cardShare(next), cardShare(next+1), tables); err != nil {
 			return false, err
 		}
 		if _, err := state.Driver.StreamQuery(state.Stream); err != nil {

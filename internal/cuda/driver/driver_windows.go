@@ -538,6 +538,24 @@ func (l *Library) StreamWait(waiter, signaler Stream) error {
 	return errors.Join(l.call(l.cuEventRecord, event, uintptr(signaler)), l.call(l.cuStreamWaitEvent, uintptr(waiter), event, 0), l.call(l.cuEventDestroy, event))
 }
 
+// RecordEvent marks the work stream holds now, for one WaitEvent to order another stream after it.
+func (l *Library) RecordEvent(stream Stream) (Event, error) {
+	var event uintptr
+	result, _, _ := l.cuEventCreate.Call(uintptr(unsafe.Pointer(&event)), eventDisableTiming)
+	if err := l.result("cuEventCreate", result); err != nil {
+		return 0, err
+	}
+	if err := l.call(l.cuEventRecord, event, uintptr(stream)); err != nil {
+		return 0, errors.Join(err, l.call(l.cuEventDestroy, event))
+	}
+	return Event(event), nil
+}
+
+// WaitEvent makes the work waiter takes from now on wait for the mark RecordEvent made, and releases the mark.
+func (l *Library) WaitEvent(waiter Stream, event Event) error {
+	return errors.Join(l.call(l.cuStreamWaitEvent, uintptr(waiter), uintptr(event), 0), l.call(l.cuEventDestroy, uintptr(event)))
+}
+
 // MemAlloc: allocates bytes in current CUDA context
 func (l *Library) MemAlloc(bytes uint64) (DevicePtr, error) {
 	if bytes == 0 {

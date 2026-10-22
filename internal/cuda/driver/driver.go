@@ -17,6 +17,9 @@ type Context uintptr
 // Stream: CUDA stream handle
 type Stream uintptr
 
+// Event is a mark of a stream's work that another stream waits for once (RecordEvent, WaitEvent).
+type Event uintptr
+
 // DevicePtr: address in CUDA device memory
 type DevicePtr uint64
 

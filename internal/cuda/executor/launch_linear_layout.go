@@ -104,7 +104,10 @@ func launchLinearLayout(
 		left := pointers.input(0)
 		right := pointers.input(1)
 		if leftNode.Type == dtype.F16 || leftNode.Type == dtype.BF16 {
-			if tensorCoreMulMatAttributes(leftNode.Type, runtimeAttributes) && rightRows > 1 {
+			// A span the decode kernel serves keeps it: cuBLAS's smallest GEMM took 14.3 us for a 2,560 x 128 BF16 weight
+			// and two columns, about once a layer of a verify window, where the decode kernel reads the weight per column.
+			halfBytes, _ := leftNode.Type.ScalarBytes()
+			if tensorCoreMulMatAttributes(leftNode.Type, runtimeAttributes) && rightRows > 1 && !nativeDecodeSpanFits(halfBytes, rightRows) {
 				// Tensor-core prefill: the resident half-precision weight is
 				// multiplied as stored; the F32 activation is rounded to the
 				// same dtype in the staging workspace (one pack per node,

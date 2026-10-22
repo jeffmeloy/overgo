@@ -797,6 +797,10 @@
       "title": "Restore LiveEdit video-gen first-output to 16151.3154 ms",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 260,
+        "reason": "naming the video encoder checkpoint through the stored identity memo: admission's kept name, discovery's file identity, the runtime's naming context and store; measured 242 at the gate"
+      },
       "steps": [
         {
           "id": "do",

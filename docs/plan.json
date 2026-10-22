@@ -208,25 +208,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "prompt-attention",
-      "title": "Compute selected prompt attention on FP16 tensor cores, as Strata's prompt attention does",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 40,
-        "reason": "the kernel keeps its launch, so the change is CUDA source and its test's tolerance"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Compute selected prompt attention on FP16 tensor cores, as Strata's prompt attention does",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestExecutorGroupedSparseAttentionMatchesReference$' -count=1",
-          "rationale": "From prompt-memory's measurement at 24391599c (2026-10-22): Flash-Next's 16,718-token prompt reads in 6.65 s against Strata's 5.01 at 16,058, as one chunk (its retained plan's arena 4.96 GB), and Nsight over it gives 5.65 s of kernels in a 6.05 s span, so buffers that displace experts cost at most the 0.4 s the card idles. Strata's own timer over the 20,605-token prompt (STRATA_PREFILL_TIMING, overgo_data/scratch/long-prompt-20261019/strata-timing.err) gives its selected attention 311 ms of 6.76 s, where sparse_attention_mma_f32 takes 688 ms over 16,718 tokens (about 850 at 20,605): its 3xTF32 products run three m16n8k8 MMAs at the TF32 rate per product, and Strata's qsa_prompt_attn runs m16n8k16 FP16 MMAs (two a product over its int8 cache). Our expert products already run faster than Strata's (1.9 s at 16,718 against its 2.73 s of dequantize and GEMMs at 20,598).\nThe step moves sparse_attention_mma_f32 to m16n8k16 FP16 products with f32 accumulation, its keys, values, queries and probabilities rounded to FP16 as their fragments load, as the dense prompt kernel (attention_flash_\u003cwidth\u003e_f32) does, keeping its slot walk, online softmax and launch.\nEvidence: the 16,718- and 20,605-token prompts' first outputs and the attention's kernel time; greedy continuations through the server at 4K, 16K and 20K tokens against the 3xTF32 build; the grouped sparse attention device test at a tolerance FP16 operands earn.\nServes: first-output of every model with selected attention (Flash-Next past 2,048 tokens)."
-        }
-      ]
-    },
-    {
       "id": "speculation",
       "title": "Speculate safely and further on Flash-Next and NextN models",
       "owner": "master-lead",

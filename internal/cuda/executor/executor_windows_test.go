@@ -192,13 +192,15 @@ func TestExecutorSparsePrimitivesMatchReference(t *testing.T) {
 // as a prompt (whole head groups a block, several tiles of slots) and as a
 // short step (a head a block), with skipped slots and slots after the query;
 // and a value row wider than a block's accumulators, which the per-channel
-// kernel serves. The prompt's 260 rows take the tensor-core kernel, whose
-// output keeps the bits its staged kernel of 8f99c6c26 produced.
+// kernel serves. The prompt's 260 rows take the tensor-core kernel, its FP16
+// operands held to the reference within selectedHalfTolerance and its output to
+// the bits pinned here.
 func TestExecutorGroupedSparseAttentionMatchesReference(t *testing.T) {
 	type fixture struct {
 		keyWidth, valueWidth, queryHeads, keyValueHeads uint64
 		queryTokens, keyValueTokens, selected           uint64
 		queryStart                                      uint32
+		tolerance                                       float64
 		// bits: SHA-256 of the output, where it is pinned.
 		bits string
 	}
@@ -224,12 +226,15 @@ func TestExecutorGroupedSparseAttentionMatchesReference(t *testing.T) {
 		indexTokenStride = 31
 		indexSlotStride  = 7
 		inputScale       = 0.01
+		// selectedHalfTolerance bounds the tensor-core prompt kernel, whose keys, queries, values and probabilities round to
+		// FP16: its values reach 9, and the rounding moves an output by up to 7.9e-4.
+		selectedHalfTolerance = 2e-3
 	)
 	fixtures := []fixture{
-		{flashNextWidth, flashNextWidth, flashNextHeads, flashNextKVHeads, promptQueries, flashNextCache, flashNextSelected, promptStart,
-			"e7c2d85879f44ffdb1bb8067ff7f07b75d0e519f4d567fdf5c8a4a425ad8580e"},
-		{flashNextWidth, flashNextWidth, flashNextHeads, flashNextKVHeads, stepQueries, flashNextCache, flashNextSelected, stepStart, ""},
-		{wideKeyWidth, wideValueWidth, 1, 1, wideQueries, wideCache, wideSelected, wideStart, ""},
+		{flashNextWidth, flashNextWidth, flashNextHeads, flashNextKVHeads, promptQueries, flashNextCache, flashNextSelected, promptStart, selectedHalfTolerance,
+			"5fbf31f9a45ad17178140960761d49101b08844d03c7da5602ce308853cbaa0d"},
+		{flashNextWidth, flashNextWidth, flashNextHeads, flashNextKVHeads, stepQueries, flashNextCache, flashNextSelected, stepStart, accuracySparse, ""},
+		{wideKeyWidth, wideValueWidth, 1, 1, wideQueries, wideCache, wideSelected, wideStart, accuracySparse, ""},
 	}
 	for _, f := range fixtures {
 		builder := tensor.NewBuilder()
@@ -257,7 +262,7 @@ func TestExecutorGroupedSparseAttentionMatchesReference(t *testing.T) {
 			value:   patternedValue(value.Shape, 7, 1, 0),
 			indices: {Shape: indices.Shape, Data: slots},
 		}
-		got := checkCUDAGraph(t, feeds, uniformGraphChecks([]*tensor.Tensor{attention}, accuracySparse)...)
+		got := checkCUDAGraph(t, feeds, uniformGraphChecks([]*tensor.Tensor{attention}, f.tolerance)...)
 		if f.bits == "" {
 			continue
 		}

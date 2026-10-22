@@ -3788,46 +3788,29 @@ extern "C" __global__ void __launch_bounds__(SPARSE_ATTENTION_SPLIT_THREADS) spa
 #define SPARSE_ATTENTION_MMA_Q_STRIDE (SPARSE_ATTENTION_MMA_WIDTH + 4)
 #define SPARSE_ATTENTION_MMA_S_STRIDE (SPARSE_ATTENTION_MMA_CELLS + 4)
 
-__device__ __forceinline__ unsigned int tf32_round(float value) {
-	unsigned int bits;
-	asm("cvt.rna.tf32.f32 %0, %1;" : "=r"(bits) : "f"(value));
-	return bits;
+// half2_pack rounds two f32 values to an FP16 pair, the first in the low half, as an mma fragment register holds them.
+__device__ __forceinline__ unsigned int half2_pack(float low, float high) {
+	const __half2 packed = __floats2half2_rn(low, high);
+	return *reinterpret_cast<const unsigned int *>(&packed);
 }
 
-__device__ __forceinline__ void mma_tf32_16x8x8(float * c, const unsigned int * a, const unsigned int * b) {
-	asm volatile(
-		"mma.sync.aligned.m16n8k8.row.col.f32.tf32.tf32.f32 {%0,%1,%2,%3}, {%4,%5,%6,%7}, {%8,%9}, {%0,%1,%2,%3};\n"
+// mma_f16_16x8x16 multiplies FP16 fragments on tensor cores and accumulates in f32.
+__device__ __forceinline__ void mma_f16_16x8x16(float * c, const unsigned int * a, unsigned int b0, unsigned int b1) {
+	asm volatile("mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 "
+		"{%0,%1,%2,%3}, {%4,%5,%6,%7}, {%8,%9}, {%0,%1,%2,%3};"
 		: "+f"(c[0]), "+f"(c[1]), "+f"(c[2]), "+f"(c[3])
-		: "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b[0]), "r"(b[1]));
-}
-
-// mma_3xtf32_16x8x8 multiplies f32 fragments on tensor cores at about f32's
-// precision: each value splits into a tf32 part and its remainder, and the
-// three products that matter add the small ones first.
-__device__ __forceinline__ void mma_3xtf32_16x8x8(float * c, const float * a, const float * b) {
-	unsigned int a_high[4], a_low[4], b_high[2], b_low[2];
-#pragma unroll
-	for (int i = 0; i < 4; ++i) {
-		a_high[i] = tf32_round(a[i]);
-		a_low[i] = tf32_round(a[i] - __uint_as_float(a_high[i]));
-	}
-#pragma unroll
-	for (int i = 0; i < 2; ++i) {
-		b_high[i] = tf32_round(b[i]);
-		b_low[i] = tf32_round(b[i] - __uint_as_float(b_high[i]));
-	}
-	mma_tf32_16x8x8(c, a_low, b_high);
-	mma_tf32_16x8x8(c, a_high, b_low);
-	mma_tf32_16x8x8(c, a_high, b_high);
+		: "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b0), "r"(b1));
 }
 
 // sparse_attention_mma_f32 computes a prompt's selected attention on tensor
 // cores for 256-channel heads, at most 16 query heads to a key/value head: a
 // block takes a query token and a key/value head, its query heads as the 16
-// rows of m16n8k8 products (absent rows zero), and walks the selected slots
-// 32 at a time with an online softmax. q.k and p.v run as 3xTF32 products;
-// the result differs from sparse_attention_grouped_f32 at rounding level by
-// summation order. A query with no valid slot writes zeros.
+// rows of m16n8k16 products (absent rows zero), and walks the selected slots
+// 32 at a time with an online softmax. q.k and p.v are FP16 products with f32
+// accumulation: queries, keys, values and probabilities round to FP16 as their
+// fragments load, as attention_flash_<width>_f32's do, so the result differs
+// from sparse_attention_grouped_f32 at FP16 rounding of the operands. A query
+// with no valid slot writes zeros.
 //   - each lane reads the keys and values of its mma fragments from the cache
 //     itself, so the shared memory holds the queries and the scores alone and
 //     several blocks share a multiprocessor
@@ -3907,14 +3890,19 @@ extern "C" __global__ void __launch_bounds__(SPARSE_ATTENTION_MMA_THREADS) spars
 		// A warp scores its 8 cells for all 16 rows.
 		float score[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 		const float * key_row = cell_row(key, 8 * warp + row);
-#pragma unroll 8
-		for (unsigned int step = 0; step < SPARSE_ATTENTION_MMA_WIDTH / 8; ++step) {
-			const unsigned int k = step * 8 + column;
-			const float a[4] = {
-				queries[row * SPARSE_ATTENTION_MMA_Q_STRIDE + k], queries[(row + 8) * SPARSE_ATTENTION_MMA_Q_STRIDE + k],
-				queries[row * SPARSE_ATTENTION_MMA_Q_STRIDE + k + 4], queries[(row + 8) * SPARSE_ATTENTION_MMA_Q_STRIDE + k + 4]};
-			const float b[2] = {key_row ? __ldg(key_row + k) : 0.0f, key_row ? __ldg(key_row + k + 4) : 0.0f};
-			mma_3xtf32_16x8x8(score, a, b);
+		const float2 none = make_float2(0.0f, 0.0f);
+#pragma unroll 4
+		for (unsigned int step = 0; step < SPARSE_ATTENTION_MMA_WIDTH / 16; ++step) {
+			const unsigned int k = step * 16 + 2 * column;
+			const float2 low = *reinterpret_cast<const float2 *>(queries + row * SPARSE_ATTENTION_MMA_Q_STRIDE + k);
+			const float2 high = *reinterpret_cast<const float2 *>(queries + (row + 8) * SPARSE_ATTENTION_MMA_Q_STRIDE + k);
+			const float2 low_far = *reinterpret_cast<const float2 *>(queries + row * SPARSE_ATTENTION_MMA_Q_STRIDE + k + 8);
+			const float2 high_far = *reinterpret_cast<const float2 *>(queries + (row + 8) * SPARSE_ATTENTION_MMA_Q_STRIDE + k + 8);
+			const unsigned int a[4] = {
+				half2_pack(low.x, low.y), half2_pack(high.x, high.y), half2_pack(low_far.x, low_far.y), half2_pack(high_far.x, high_far.y)};
+			const float2 near_key = key_row ? __ldg(reinterpret_cast<const float2 *>(key_row + k)) : none;
+			const float2 far_key = key_row ? __ldg(reinterpret_cast<const float2 *>(key_row + k + 8)) : none;
+			mma_f16_16x8x16(score, a, half2_pack(near_key.x, near_key.y), half2_pack(far_key.x, far_key.y));
 		}
 		const unsigned int cell_column = 8 * warp + 2 * column;
 		scores[row * SPARSE_ATTENTION_MMA_S_STRIDE + cell_column] = score[0] * scale;
@@ -3955,18 +3943,25 @@ extern "C" __global__ void __launch_bounds__(SPARSE_ATTENTION_MMA_THREADS) spars
 			accumulated[tile][3] *= high_factor;
 		}
 #pragma unroll
-		for (unsigned int step = 0; step < SPARSE_ATTENTION_MMA_CELLS / 8; ++step) {
-			const unsigned int k = step * 8 + column;
-			const float a[4] = {
-				scores[row * SPARSE_ATTENTION_MMA_S_STRIDE + k], scores[(row + 8) * SPARSE_ATTENTION_MMA_S_STRIDE + k],
-				scores[row * SPARSE_ATTENTION_MMA_S_STRIDE + k + 4], scores[(row + 8) * SPARSE_ATTENTION_MMA_S_STRIDE + k + 4]};
-			const float * low_row = cell_row(value, k);
-			const float * high_row = cell_row(value, k + 4);
+		for (unsigned int step = 0; step < SPARSE_ATTENTION_MMA_CELLS / 16; ++step) {
+			const unsigned int k = step * 16 + 2 * column;
+			const float2 low = *reinterpret_cast<const float2 *>(scores + row * SPARSE_ATTENTION_MMA_S_STRIDE + k);
+			const float2 high = *reinterpret_cast<const float2 *>(scores + (row + 8) * SPARSE_ATTENTION_MMA_S_STRIDE + k);
+			const float2 low_far = *reinterpret_cast<const float2 *>(scores + row * SPARSE_ATTENTION_MMA_S_STRIDE + k + 8);
+			const float2 high_far = *reinterpret_cast<const float2 *>(scores + (row + 8) * SPARSE_ATTENTION_MMA_S_STRIDE + k + 8);
+			const unsigned int a[4] = {
+				half2_pack(low.x, low.y), half2_pack(high.x, high.y), half2_pack(low_far.x, low_far.y), half2_pack(high_far.x, high_far.y)};
+			// The four cells a lane's B fragment reads: k and k + 1, and the two eight further on.
+			const float * cells[4] = {cell_row(value, k), cell_row(value, k + 1), cell_row(value, k + 8), cell_row(value, k + 9)};
 #pragma unroll
 			for (int tile = 0; tile < 8; ++tile) {
 				const unsigned int channel = 64 * warp + 8 * tile + row;
-				const float b[2] = {low_row ? __ldg(low_row + channel) : 0.0f, high_row ? __ldg(high_row + channel) : 0.0f};
-				mma_3xtf32_16x8x8(accumulated[tile], a, b);
+				float v[4];
+#pragma unroll
+				for (int cell = 0; cell < 4; ++cell) {
+					v[cell] = cells[cell] ? __ldg(cells[cell] + channel) : 0.0f;
+				}
+				mma_f16_16x8x16(accumulated[tile], a, half2_pack(v[0], v[1]), half2_pack(v[2], v[3]));
 			}
 		}
 	}
@@ -6724,18 +6719,6 @@ extern "C" __global__ void __launch_bounds__(512, 1) attention_tiled_bf16_f32(
 #define ATTENTION_FLASH_KEY_PAD 8u
 #define ATTENTION_FLASH_VALUE_PAD 4u
 
-__device__ __forceinline__ unsigned int attention_flash_pack(float low, float high) {
-    const __half2 packed = __floats2half2_rn(low, high);
-    return *reinterpret_cast<const unsigned int *>(&packed);
-}
-
-__device__ __forceinline__ void attention_flash_mma(float * c, const unsigned int * a, unsigned int b0, unsigned int b1) {
-    asm volatile("mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 "
-        "{%0,%1,%2,%3}, {%4,%5,%6,%7}, {%8,%9}, {%0,%1,%2,%3};"
-        : "+f"(c[0]), "+f"(c[1]), "+f"(c[2]), "+f"(c[3])
-        : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b0), "r"(b1));
-}
-
 // attention_flash_stage copies a tile of KEYS cache rows from first into shared rows of STRIDE floats; rows past the
 // keys zero-fill, so a masked key's value multiplies a zero probability by zeros.
 template <unsigned int WIDTH, unsigned int KEYS, unsigned int STRIDE>
@@ -6824,10 +6807,10 @@ __device__ __forceinline__ void attention_flash(
             high = *reinterpret_cast<const float2 *>(query_row[1] + channel);
             high_far = *reinterpret_cast<const float2 *>(query_row[1] + channel + 8u);
         }
-        queries[step][0] = attention_flash_pack(low.x, low.y);
-        queries[step][1] = attention_flash_pack(high.x, high.y);
-        queries[step][2] = attention_flash_pack(low_far.x, low_far.y);
-        queries[step][3] = attention_flash_pack(high_far.x, high_far.y);
+        queries[step][0] = half2_pack(low.x, low.y);
+        queries[step][1] = half2_pack(high.x, high.y);
+        queries[step][2] = half2_pack(low_far.x, low_far.y);
+        queries[step][3] = half2_pack(high_far.x, high_far.y);
     }
 
     // The keys any row of the block reads.
@@ -6868,7 +6851,7 @@ __device__ __forceinline__ void attention_flash(
             for (unsigned int step = 0; step < WIDTH / 16u; ++step) {
                 const float2 near = *reinterpret_cast<const float2 *>(key_row + step * 16u);
                 const float2 far = *reinterpret_cast<const float2 *>(key_row + step * 16u + 8u);
-                attention_flash_mma(scores[column], queries[step], attention_flash_pack(near.x, near.y), attention_flash_pack(far.x, far.y));
+                mma_f16_16x8x16(scores[column], queries[step], half2_pack(near.x, near.y), half2_pack(far.x, far.y));
             }
         }
 
@@ -6932,18 +6915,18 @@ __device__ __forceinline__ void attention_flash(
         for (unsigned int step = 0; step < KEYS / 16u; ++step) {
             // Two score tiles' accumulators are the A fragment of 16 keys.
             const unsigned int probabilities[4] = {
-                attention_flash_pack(scores[2u * step][0], scores[2u * step][1]),
-                attention_flash_pack(scores[2u * step][2], scores[2u * step][3]),
-                attention_flash_pack(scores[2u * step + 1u][0], scores[2u * step + 1u][1]),
-                attention_flash_pack(scores[2u * step + 1u][2], scores[2u * step + 1u][3])};
+                half2_pack(scores[2u * step][0], scores[2u * step][1]),
+                half2_pack(scores[2u * step][2], scores[2u * step][3]),
+                half2_pack(scores[2u * step + 1u][0], scores[2u * step + 1u][1]),
+                half2_pack(scores[2u * step + 1u][2], scores[2u * step + 1u][3])};
             const float * value_rows = value_tile + (step * 16u + 2u * t) * VALUE_STRIDE + g;
 #pragma unroll
             for (unsigned int tile = 0; tile < WIDTH / 8u; ++tile) {
                 const float * column = value_rows + tile * 8u;
-                attention_flash_mma(
+                mma_f16_16x8x16(
                     weighted[tile], probabilities,
-                    attention_flash_pack(column[0], column[VALUE_STRIDE]),
-                    attention_flash_pack(column[8u * VALUE_STRIDE], column[9u * VALUE_STRIDE]));
+                    half2_pack(column[0], column[VALUE_STRIDE]),
+                    half2_pack(column[8u * VALUE_STRIDE], column[9u * VALUE_STRIDE]));
             }
         }
     }

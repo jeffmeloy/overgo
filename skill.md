@@ -1,6 +1,6 @@
 ---
 name: overgo-iteration
-description: The operator's rules for Overgo development, written as one logical statement per line. Use for implementation and explicit continue, resume or loop requests. Stay within user scope.
+description: The rules for Overgo development, written as one logical statement per line. Use for implementation and explicit continue, resume or loop requests. Refactor as needed to optimize development pace, reduce code and test surface area and improve processing times and memory usage based on observed behavior.
 ---
 
 # Intent
@@ -212,6 +212,7 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 - hand step = system defect => change the system so the step does not recur
 - landing cost = lanes reached + inference-surface guard expiry + pinned-media reconciliation
 - batch surface moves
+- landing grows its row past its count => raises the count with a reason in its own plan edit (gate rule)
 - land before an evaluation run
 - native `go test` selects
 - never time budgets, ratchets or a second selector
@@ -287,6 +288,17 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 - inconclusive optimization => new hypothesis or stop
 - never rerun for a favorable result
 - cheapest method first = reuse data and checkpoints -> post-hoc eval -> free training signals -> per-layer norms -> per-step decompositions
+
+### Speed work
+
+- speed row => its ceiling first = the work skipped or stubbed in the real step, timed in-graph != a kernel-level trace or an estimate
+- ceiling within the measurement's spread => the row is not built and records its ceiling
+- speed rows ranked by the measured gap against the reference, phase by phase on the same inputs != by estimates
+- port a reference's mechanism <=> its costs measure the same here (hit rates, link, launches, CPU time)
+- A/B = one loaded model, forced token ids, interleaved arms > a reload and free-running text an arm
+- probe or benchmark built from stale derived files (kernels, bindings, manifests) => refused before it runs
+- rare-path work (a handshake, a fallback) => folded into kernels that run anyway > a launch of its own
+- measured gains of one row => one landing (steps joined by commas) > a gate run each
 
 ## Compute and derived values
 
@@ -368,6 +380,7 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 ## Verification
 
 - test observable contracts and failure modes with controlled inputs
+- test pins a contract (outputs, the kernel chosen, launch counts) != an internal layout (a trace record's byte offsets)
 - missing, skipped, incomplete or zero-match check => earns no pass
 - framework = the safety net => a bold change ships with the check that would have caught its failure
 - framework has no such check => add it (a Go test, an invariant row, a gate rule) and never reduce the change

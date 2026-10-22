@@ -212,21 +212,11 @@
       "title": "Cut the development loop's measured waste: one gate run a code step, one-command kernels, a forced-token A/B",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 0,
+        "reason": "count-in-landing as built adds 81 production syntax nodes (the gate's preflight, 2026-10-21): the candidate's counts kept for the charge and the raise it admits; raised in its own landing, the rule it adds."
+      },
       "steps": [
-        {
-          "id": "doctrine",
-          "title": "Write the speed-work doctrine and skill.md's description in the owner's words",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "The owner asked why Strata parity takes so long and directed the lead to change doctrine and plan to remove the inefficiencies (2026-10-21), with skill.md's description in the owner's words. Of flashnext-speculation's last six speed steps three were built and retired or gained nothing as planned: they were ranked by estimates (the expert doorbell planned at 0.8 ms a token from a kernel-level trace, bounded at about 0.25 ms by skipping its work in-graph), and a reference mechanism was ported where its costs differ (Strata misses 3.5% of routes on the card, overgo under 1%).\nThe step writes skill.md's description in the owner's words and its Speed work rules: a measured in-graph ceiling before a speed row is built, ranking by the measured gap against the reference, ports only where costs match, a forced-token interleaved A/B, refusal of stale derived files, rare paths folded into running kernels, one landing for a row's measured gains; and a test pins contracts, not internal layouts.\nEvidence: skill.md carries the rules and the description; the plan's speed steps cite their ceilings.\nServes: development velocity.\nBatch: none."
-        },
-        {
-          "id": "count-in-landing",
-          "title": "Let a landing raise its own row's count in its own plan edit",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "The gate refuses a landing whose production code grows past its row's count unless the count was raised in an earlier landing that changes the plan alone (internal/landing rules: \"raise the count ... in a change to the plan alone before it\"). Every code step of flashnext-speculation since gdn-fusion paid a carrier landing first (plan-shared-count, plan-doorbell-count and earlier), each a full gate run of 15 to 25 minutes beside the step's own, with the same author raising the count either way.\nThe step lets a landing raise its own row's count in its own plan edit: the candidate plan's count for the row, with a reason, bounds the growth the gate measures, and the landed plan keeps the raised count less the growth, as a carrier's would. A raise without a reason, or of another row, is refused as before.\nEvidence: a landing that grows past its row's count and raises it in its own plan edit lands in one gate run; one that raises it without a reason, or raises another row's, is refused (internal/landing tests).\nServes: development velocity.\nDisappears: the count carrier landings and their rows.\nBatch: none."
-        },
         {
           "id": "kernels-one-command",
           "title": "Make cmd/build-kernels regenerate the kernels, manifest and bindings in one run",

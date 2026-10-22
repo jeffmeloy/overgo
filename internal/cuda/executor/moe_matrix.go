@@ -137,7 +137,7 @@ func (g moeMatrixGeometry) stagingBytes(group uint32, topK uint32) uint64 {
 //   - activations takes each routed row's activations in expert order, and the staging the plan and each slot's output
 func launchMoEMatrices(state *device.State, functions functionSet, blas *blasState, node *tensor.Tensor,
 	input, routeState, activations, output, gate, up, down, gateBias, upBias, downBias, expertScale driver.DevicePtr,
-	count uint32, residency ExpertBanks) (bool, error) {
+	count uint32, residency ExpertBanks) (launched bool, err error) {
 	g, eligible := nativeMoEMatrix(node)
 	if !eligible || count < moeTileTokens {
 		return false, nil
@@ -322,9 +322,22 @@ func launchMoEMatrices(state *device.State, functions functionSet, blas *blasSta
 	// buffer a later batch takes.
 	copied := make([]driver.Event, hostBatches)
 	read := make([]driver.Event, hostBatches)
+	// A launch that fails releases the marks it recorded and no stream waited for; a wait clears the mark it consumes.
+	defer func() {
+		if err == nil {
+			return
+		}
+		for _, mark := range slices.Concat(copied, read) {
+			if mark != 0 {
+				err = errors.Join(err, state.Driver.ReleaseEvent(mark))
+			}
+		}
+	}()
 	issue := func(batch int) error {
 		if batch >= moeCopyBuffers {
-			if err := state.Driver.WaitEvent(blas.moeCopyStream, read[batch-moeCopyBuffers]); err != nil {
+			mark := read[batch-moeCopyBuffers]
+			read[batch-moeCopyBuffers] = 0
+			if err := state.Driver.WaitEvent(blas.moeCopyStream, mark); err != nil {
 				return err
 			}
 		}
@@ -373,7 +386,9 @@ func launchMoEMatrices(state *device.State, functions functionSet, blas *blasSta
 				return false, err
 			}
 		}
-		if err := state.Driver.WaitEvent(state.Stream, copied[batch]); err != nil {
+		mark := copied[batch]
+		copied[batch] = 0
+		if err := state.Driver.WaitEvent(state.Stream, mark); err != nil {
 			return false, err
 		}
 		if err := launch(blas.moeBatches[batch].tile, blas.moeBatches[batch+1].tile, copiedTables); err != nil {

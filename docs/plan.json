@@ -208,25 +208,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "moe-events",
-      "title": "Release a grouped launch's outstanding stream marks when it fails",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 120,
-        "reason": "a driver release call with its stub and the launch's deferred release of unwaited marks"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Release a grouped launch's outstanding stream marks when it fails",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestPromptExpertCopiesOverlapCompute$'",
-          "rationale": "From SQA-190 (P2, filed 2026-10-22 against prompt-copies): launchMoEMatrices records copy and read marks (driver.RecordEvent) that only a WaitEvent releases, so a grouped launch that fails after recording a mark and before waiting for it (a StreamQuery error after issue, a failed launch after the next batch's copies are queued) leaves the marks' CUDA events live until the context closes, and a retained worker can repeat that path.\nThe step releases every mark the launch recorded and did not wait for when it fails: a driver call that releases a mark unwaited (with its non-Windows stub), and a deferred release in launchMoEMatrices joined to the launch's error, each mark cleared once a wait consumes it.\nEvidence: the grouped MoE device tests unchanged; the release covered by a test where the driver allows it.\nServes: failure-rate of every offloaded routed-expert model's long prompts."
-        }
-      ]
-    },
-    {
       "id": "training-reuse",
       "title": "Stop repeating training's per-step device setup and its padding to the run's longest sequence",
       "status": "open",

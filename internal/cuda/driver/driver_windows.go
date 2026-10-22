@@ -553,7 +553,12 @@ func (l *Library) RecordEvent(stream Stream) (Event, error) {
 
 // WaitEvent makes the work waiter takes from now on wait for the mark RecordEvent made, and releases the mark.
 func (l *Library) WaitEvent(waiter Stream, event Event) error {
-	return errors.Join(l.call(l.cuStreamWaitEvent, uintptr(waiter), uintptr(event), 0), l.call(l.cuEventDestroy, uintptr(event)))
+	return errors.Join(l.call(l.cuStreamWaitEvent, uintptr(waiter), uintptr(event), 0), l.ReleaseEvent(event))
+}
+
+// ReleaseEvent releases a mark RecordEvent made that no stream will wait for.
+func (l *Library) ReleaseEvent(event Event) error {
+	return l.call(l.cuEventDestroy, uintptr(event))
 }
 
 // MemAlloc: allocates bytes in current CUDA context

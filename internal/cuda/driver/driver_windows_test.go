@@ -46,7 +46,8 @@ func TestDriverIntegration(t *testing.T) {
 	}
 }
 
-// TestStreamQueryReportsCompletedWork holds StreamQuery to cuStreamQuery: a
+// TestStreamQueryReportsCompletedWork holds StreamQuery to cuStreamQuery, and a
+// stream's marks to their release (WaitEvent, ReleaseEvent): a
 // stream with nothing queued has completed its work, and so has one whose
 // queued copy was waited for; neither is an error.
 func TestStreamQueryReportsCompletedWork(t *testing.T) {
@@ -90,6 +91,20 @@ func TestStreamQueryReportsCompletedWork(t *testing.T) {
 	}
 	if _, err := lib.StreamQuery(stream); err != nil {
 		t.Fatalf("a working stream's query: %v", err)
+	}
+	// A mark of the copy releases with the wait that consumes it, and one no stream waits for releases on its own.
+	for _, wait := range []bool{true, false} {
+		mark, err := lib.RecordEvent(stream)
+		if err != nil {
+			t.Fatal(err)
+		}
+		release := lib.ReleaseEvent
+		if wait {
+			release = func(event driver.Event) error { return lib.WaitEvent(stream, event) }
+		}
+		if err := release(mark); err != nil {
+			t.Fatalf("releasing a mark (waited %t): %v", wait, err)
+		}
 	}
 	if err := lib.StreamSynchronize(stream); err != nil {
 		t.Fatal(err)

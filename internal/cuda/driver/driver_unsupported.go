@@ -148,6 +148,11 @@ func (l *Library) WaitEvent(Stream, Event) error {
 	return errors.New("CUDA driver loading is currently supported only on Windows")
 }
 
+// ReleaseEvent reports that releasing a mark needs the Windows driver.
+func (l *Library) ReleaseEvent(Event) error {
+	return errors.New("CUDA driver loading is currently supported only on Windows")
+}
+
 func (l *Library) MemcpyDtoH(destination []byte, source DevicePtr) error {
 	return errors.New("CUDA driver loading is currently supported only on Windows")
 }

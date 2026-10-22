@@ -213,8 +213,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 150,
-        "reason": "the copy schedule's buffers and the route read-back, estimated before measurement"
+        "nodes": 380,
+        "reason": "two driver event calls with their stubs and the event-ordered batch loop measured 366 nodes at the gate"
       },
       "steps": [
         {

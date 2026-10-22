@@ -43,6 +43,8 @@ const (
 	kernelConv2dWeightBackwardF32
 	kernelCopyF32
 	kernelCopyTokenOffsetF32
+	kernelDequantRowsIq4NlF16
+	kernelDequantRowsIq4XsF16
 	kernelDequantRowsQ10F16
 	kernelDequantRowsQ4KF16
 	kernelDequantRowsQ5KF16
@@ -288,6 +290,8 @@ var kernelFunctionNames = [...]string{
 	"conv_2d_weight_backward_f32",
 	"copy_f32",
 	"copy_token_offset_f32",
+	"dequant_rows_iq4_nl_f16",
+	"dequant_rows_iq4_xs_f16",
 	"dequant_rows_q1_0_f16",
 	"dequant_rows_q4_K_f16",
 	"dequant_rows_q5_K_f16",
@@ -531,6 +535,8 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	17,
 	17,
 	3,
+	5,
+	5,
 	5,
 	5,
 	5,

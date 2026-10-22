@@ -8850,6 +8850,42 @@ extern "C" __global__ void dequant_rows_q6_K_f16(
     output[index] = __float2half(dequant_q6_K_value(block, column % 256));
 }
 
+// dequant_rows_iq4_nl_f16 and dequant_rows_iq4_xs_f16 expand the non-linear 4-bit types the UD mixes carry beside
+// their K-quants, so those weights prefill on tensor cores with the rest instead of the per-row dot kernels.
+extern "C" __global__ void dequant_rows_iq4_nl_f16(
+        const unsigned char * weight,
+        __half * output,
+        unsigned int inner,
+        unsigned int start_row,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    const unsigned int column = index % inner;
+    const unsigned int row = start_row + index / inner;
+    const unsigned int blocks_per_row = inner / 32;
+    const unsigned char * block = weight + ((size_t) row * blocks_per_row + column / 32) * 18;
+    output[index] = __float2half(dequant_iq4_nl_value(block, column % 32));
+}
+
+extern "C" __global__ void dequant_rows_iq4_xs_f16(
+        const unsigned char * weight,
+        __half * output,
+        unsigned int inner,
+        unsigned int start_row,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    const unsigned int column = index % inner;
+    const unsigned int row = start_row + index / inner;
+    const unsigned int blocks_per_row = inner / 256;
+    const unsigned char * block = weight + ((size_t) row * blocks_per_row + column / 256) * 136;
+    output[index] = __float2half(dequant_iq4_xs_value(block, column % 256));
+}
+
 extern "C" __global__ void get_rows_q6_K_f32(
         const unsigned char * table,
         const unsigned int * rows,

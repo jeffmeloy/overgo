@@ -222,25 +222,6 @@
       ]
     },
     {
-      "id": "prompt-reading",
-      "title": "Read every chat model's long prompts on tensor cores, within its memory",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 20,
-        "reason": "the tensor-core attention's admission, launch and staging skip with the three kernels' generated bindings measured 460 nodes at the gate"
-      },
-      "steps": [
-        {
-          "id": "quant-prefill",
-          "title": "Multiply a k-quant dense model's prompt on tensor cores",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "From long-prompt/length-cells' 4K and 16K first outputs, measured on a copy of the store on 2026-10-20.\nQwen3.8-27B Q6_K reads a 4K prompt in 7.75 s (528 tokens a second) and a 16K prompt in 31.9 s, 4.1 times for 4 times the tokens: the cost grows with the tokens, so the matrix products, not attention, set it; Bonsai-27B Q1_0 reads 4K in 2.84 s.\nA 27B model's 4K prompt is about 221 TFLOP of products; at 528 tokens a second the card delivers about 29 TFLOPS of the RTX 4090 D's tensor-core rate.\nThe step profiles the 4K prompt (nsys, cuda_gpu_kern_sum), finds the kernels the k-quant products run on, and moves the largest onto tensor cores (dequantized tiles into mma, as the expert products' grouped path does), held to the reference by the quantized-product device tests.\nEvidence: Qwen3.8-27B's 4K and 16K cells on the next measurement run, held-out quality holding.\nServes: first-output of every k-quant dense chat model.\nBatch: device."
-        }
-      ]
-    },
-    {
       "id": "component-activation",
       "title": "Compile a verified component's activation without resolving its evidence twice",
       "owner": "master-lead",

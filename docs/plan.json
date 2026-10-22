@@ -208,21 +208,40 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "decode-gap",
-      "title": "Measure Flash-Next's decode against Strata's by phase and close the largest gap",
+      "id": "verify-states",
+      "title": "Keep a verify window's recurrent checkpoints without copying them out of the span",
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 200,
-        "reason": "a port the phase table names, estimated before measurement"
+        "nodes": 150,
+        "reason": "the checkpoint writes in the span's state kernels, estimated before building"
       },
       "steps": [
         {
           "id": "do",
-          "title": "Measure Flash-Next's decode against Strata's by phase and close the largest gap",
+          "title": "Keep a verify window's recurrent checkpoints without copying them out of the span",
           "status": "open",
           "verify": "go run ./cmd/plan -status",
-          "rationale": "From the draft-library step (2026-10-22): Flash-Next served from the library speculates at 9.05 ms a token once warm (the trunk keeping 62 of 92 drafts), where Strata decodes the same chat at 7.8 (8.6 with its stage stamps on). The decode work so far ported Strata's doorbell for host experts (78 us an expert against its 57), its draft vocabulary subset and its verify-window checks, and found the IQ3_S expert kernels at Strata's design.\nThe step times one warm speculative chat in both engines on the same token ids, phase by phase (Strata's STRATA_DECODE_TIMING against Nsight and the runner's own stage clock: draft, verify span per column count, host experts, sampling and the host between graphs), names the phases that hold the gap, and lands the largest that a port closes, filing the rest as rows.\nEvidence: the per-phase table for both engines and the warm ms a token before and after.\nServes: throughput of Flash-Next and every offloaded routed-expert model that speculates."
+          "rationale": "From decode-gap (2026-10-22): node-level Nsight over Flash-Next's speculative chat (one draft a window) against a plain decode of the same chat gives a verify window 12.26 ms of kernels and a plain step 9.95, so the window's second column costs 2.31 ms; Strata's own timer puts its marginal column near 1.6 ms (11.90 ms at 2.52 tokens a window, 12.22 at 2.72), which is why its deeper, gated drafts pay (1.74 to 1.89 tokens a window at 13.6 to 14.2 ms, 7.5 to 7.9 ms a token) and ours did not (1.63 at 14.3, 8.7). Of our 2.31 ms, the new experts' weights take 1.28 (moe_hidden_span_q8 and moe_down_q8), which any engine reads; flat_slice_f32 takes 0.27 ms that only verify windows run: each delta-net layer's recurrent state (128 x 128 x 48, 3 MB) and conv state sliced out of the span's output for the window's rollback checkpoints, about 72 copies a window.\nThe step keeps a window's checkpoints without the copies: the delta-net and conv kernels write the state after each checkpointed column into the checkpoint's place (or the commit reads it where the span left it), keeping the committed states' bits.\nEvidence: the verify window's kernel ledger with and without the copies; the probe's ms a token; the decoded texts unchanged.\nServes: throughput of Flash-Next and every hybrid model that speculates."
+        }
+      ]
+    },
+    {
+      "id": "verify-indexer",
+      "title": "Score a verify span's selections on the custom kernel, not a library GEMM",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 100,
+        "reason": "a span-columns admission for the selection's custom kernel, estimated before building"
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "Score a verify span's selections on the custom kernel, not a library GEMM",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "From decode-gap (2026-10-22): a verify window of Flash-Next's speculative chat runs a cuBLAS FP16 GEMM (cutlass wmma s161616gemm_f16_32x32, 14.3 us) about 11 times, about once a full-attention layer, 0.16 ms a window, where a plain decode step runs none: the selection's span columns take a library GEMM where one column takes the custom kernel.\nThe step identifies the node (OVERGO_OP_COUNTS over the span graph) and gives a span of a few columns the custom kernel or a span-columns variant of it, as the dense q8 span kernels do, with the same selections.\nEvidence: the verify window's kernel ledger; the probe's ms a token; the decoded texts unchanged.\nServes: throughput of Flash-Next and every model with selected attention that speculates."
         }
       ]
     },
@@ -505,7 +524,9 @@
             "prompt-attention/do",
             "attention-half/do",
             "prompt-copies/do",
-            "decode-gap/do"
+            "decode-gap/do",
+            "verify-states/do",
+            "verify-indexer/do"
           ]
         }
       ]

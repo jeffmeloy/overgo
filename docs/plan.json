@@ -235,10 +235,17 @@
       "title": "Deliver image understanding and its web GUI as the next native increment",
       "status": "open",
       "budget": {
-        "nodes": 18,
-        "reason": "measured 222 at the gate: the resize reads a source's own bytes, or each pixel through At once, and spreads its passes' rows over the host's workers"
+        "nodes": 640,
+        "reason": "measured 616 at the gate: the device prompt graph reads media rows, multi-axis positions and deepstack streams, a prompt's chunks take their share, and Generate routes projected prompts there"
       },
       "steps": [
+        {
+          "id": "image-prompt",
+          "title": "Read an image prompt on the device, as a text prompt is",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test -tags modeltest ./internal/inference -count=1 -run '^TestProjectedPromptDecodesOnTheDeviceCache$'",
+          "rationale": "Measured 2026-10-22 on master 7d3b449a6 with tmp/flashnext-vision/imageprobe.go and temporary stages: a warm Flash-Next screenshot request reads its 1065-token prompt on the host in 1.70 s, where a 1561-token text prompt on the same runner reads on the device in 0.81 s; the host forward computes the experts it holds no copy of on the processor and keeps a host cache the decode uploads once.\nThe step lets the device prompt graph read projected inputs as the host does: media rows in place of their tokens' rows, multi-axis positions to every layer's rotary embedding, deepstack streams at their layers, and the cache's next position past the largest position; chunks take their share. Generate reads a projected prompt on the device where it reads its inputs as the host does, and the host prefix forward and upload the image-decode step added are deleted. Measured with the change: prompt 0.66 s, warm request 2.57 s, the same 71 answer tokens; the two-image case's first run matches the host path's 2141 tokens; peak device memory unchanged.\nServes: first-output of image conversations toward matched image performance against Strata; SQA-155's projected host state."
+        },
         {
           "id": "images",
           "title": "Reuse the vision projector and composer for image, OCR and multi-image conversations",

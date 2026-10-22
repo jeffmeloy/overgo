@@ -9,10 +9,10 @@ import (
 	"fmt"
 	"image"
 	"strings"
-	"time"
 
 	"overgo/internal/inference"
 	"overgo/internal/media"
+	"overgo/internal/processmeasure"
 	"overgo/internal/projector"
 	"overgo/internal/strictjson"
 	"overgo/internal/tokenizer"
@@ -543,8 +543,8 @@ func (h *Handler) preparePrompt(
 	prompt nativePrompt,
 	tokenizeText bool,
 ) (preparedPrompt, error) {
-	started := time.Now()
-	defer func() { h.requests.addWaits(ctx, 0, time.Since(started)) }()
+	prepared := processmeasure.NewStopwatch()
+	defer func() { h.requests.addWaits(ctx, 0, sinceCounter(prepared)) }()
 	result := preparedPrompt{
 		nativePrompt: prompt,
 		Multimodal:   nativePromptHasMedia(prompt),

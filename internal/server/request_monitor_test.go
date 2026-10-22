@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"overgo/internal/processmeasure"
 	"overgo/internal/tokenizer"
 )
 
@@ -82,17 +83,21 @@ func TestRequestMonitorRecordsWhatTheServerAnswered(t *testing.T) {
 	}
 }
 
-// floatSlackMS is the rounding of a sum of two durations held as milliseconds, far below a clock tick.
+// floatSlackMS is the rounding of a sum of two durations held as milliseconds, far below the counter's resolution.
 const floatSlackMS = 1e-9
 
-// clockMoves returns once the clock the monitor times with has moved, which on a platform whose
-// monotonic clock ticks coarsely is the least a measured wait can show; the scheduler paces it.
-func clockMoves(t *testing.T) {
+// admissionHold is how long the test holds the place once the director counts a request waiting for it.
+const admissionHold = time.Millisecond
+
+// holdPlace spins until the counter the monitor times with has moved hold, and answers the milliseconds it read;
+// the scheduler paces it.
+func holdPlace(t *testing.T, hold time.Duration) float64 {
 	t.Helper()
-	begin := time.Now()
-	for time.Since(begin) <= 0 && t.Context().Err() == nil {
+	held := processmeasure.NewStopwatch()
+	for sinceCounter(held) < hold && t.Context().Err() == nil {
 		runtime.Gosched()
 	}
+	return float64(sinceCounter(held)) / float64(time.Millisecond)
 }
 
 // slowTokenizer is a generator whose prompts take a measurable time to tokenize.
@@ -107,8 +112,8 @@ func (generator slowTokenizer) TokenizeText(text string, addSpecial, parseSpecia
 }
 
 // TestRequestMonitorShowsAdmissionWait holds one place and sends a second request that has to
-// wait for it: the monitor shows the second one's wait for the place, which the first, that took
-// the free place at once, did not have, and the time each spent preparing its prompt, both
+// wait for it: the monitor shows the second one's wait for the place, at least as long as the
+// place was held after it queued, and the time each spent preparing its prompt, both
 // beside the duration that includes them, so a request that is slow to start says whether it
 // was waiting or preparing.
 func TestRequestMonitorShowsAdmissionWait(t *testing.T) {
@@ -134,8 +139,9 @@ func TestRequestMonitorShowsAdmissionWait(t *testing.T) {
 	for handler.sessions.Snapshot().Waiting == 0 && t.Context().Err() == nil {
 		runtime.Gosched()
 	}
-	// The place is released once the clock the monitor reads has moved, so the wait it measured is not a tick shorter than any.
-	clockMoves(t)
+	// The place is held for a span the counter times once the director counts the waiter: its admission, timed from
+	// before it was counted to after the release, is at least that span.
+	held := holdPlace(t, admissionHold)
 	close(generator.release)
 	served.Wait()
 	log := monitorLog(t, handler).Requests
@@ -143,11 +149,11 @@ func TestRequestMonitorShowsAdmissionWait(t *testing.T) {
 		t.Fatalf("the monitor holds %d requests, want the two completions: %+v", len(log), log)
 	}
 	first, second := log[1], log[0]
-	if second.AdmissionMS <= 0 || second.AdmissionMS <= first.AdmissionMS {
-		t.Errorf("the request that waited for the place shows %v ms of admission and the one that did not %v, want the waiter's the greater", second.AdmissionMS, first.AdmissionMS)
+	if second.AdmissionMS < held {
+		t.Errorf("the request that waited for the place shows %v ms of admission, want at least the %v ms the place was held", second.AdmissionMS, held)
 	}
 	for index, entry := range []requestEntry{first, second} {
-		// Whole clock ticks, as milliseconds: the two waits lie inside the duration, up to the floating point sum.
+		// Read on one counter, as milliseconds: the two waits lie inside the duration, up to the floating point sum.
 		if entry.PreparationMS <= 0 || entry.AdmissionMS+entry.PreparationMS > entry.DurationMS+floatSlackMS {
 			t.Errorf("request %d shows %v ms of admission and %v of preparation inside a duration of %v", index, entry.AdmissionMS, entry.PreparationMS, entry.DurationMS)
 		}

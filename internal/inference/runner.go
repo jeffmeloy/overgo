@@ -18,6 +18,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
+	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
 )
@@ -175,6 +176,45 @@ type ProjectedInputs struct {
 	DeepstackEmbeddings          []reference.Value
 	BidirectionalAttentionBlocks []AttentionBlock
 	VisualExpertBlocks           []AttentionBlock
+}
+
+// prefix gives the projected inputs of a prompt's first count tokens, and false where one reaches a later token or
+// count is none: a prompt whose last token is projected is read whole on the host. Deepstack streams keep their
+// first count columns; visual expert blocks, which no device path reads, are refused.
+func (inputs ProjectedInputs) prefix(count int) (ProjectedInputs, bool) {
+	if count <= 0 || len(inputs.VisualExpertBlocks) > 0 {
+		return ProjectedInputs{}, false
+	}
+	for _, override := range inputs.EmbeddingOverrides {
+		if int(override.TokenIndex) >= count {
+			return ProjectedInputs{}, false
+		}
+	}
+	for _, block := range inputs.BidirectionalAttentionBlocks {
+		if int(block.End) > count {
+			return ProjectedInputs{}, false
+		}
+	}
+	result := ProjectedInputs{EmbeddingOverrides: inputs.EmbeddingOverrides, BidirectionalAttentionBlocks: inputs.BidirectionalAttentionBlocks}
+	if inputs.MultiAxisPositions != nil {
+		var positions MultiAxisPositions
+		for axis, values := range inputs.MultiAxisPositions {
+			positions[axis] = values[:min(len(values), count)]
+		}
+		result.MultiAxisPositions = &positions
+	}
+	for _, stream := range inputs.DeepstackEmbeddings {
+		width, tokens, valid := stream.MatrixExtents()
+		if !valid || tokens < count {
+			return ProjectedInputs{}, false
+		}
+		shape, err := tensor.NewShape(uint64(width), uint64(count))
+		if err != nil {
+			return ProjectedInputs{}, false
+		}
+		result.DeepstackEmbeddings = append(result.DeepstackEmbeddings, reference.Value{Shape: shape, Data: stream.Data[:width*count]})
+	}
+	return result, true
 }
 
 // preparedModel: loaded assets; model-wide execution config.

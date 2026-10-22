@@ -208,6 +208,42 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "development-pace",
+      "title": "Cut the development loop's measured waste: one gate run a code step, one-command kernels, a forced-token A/B",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "doctrine",
+          "title": "Write the speed-work doctrine and skill.md's description in the owner's words",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "The owner asked why Strata parity takes so long and directed the lead to change doctrine and plan to remove the inefficiencies (2026-10-21), with skill.md's description in the owner's words. Of flashnext-speculation's last six speed steps three were built and retired or gained nothing as planned: they were ranked by estimates (the expert doorbell planned at 0.8 ms a token from a kernel-level trace, bounded at about 0.25 ms by skipping its work in-graph), and a reference mechanism was ported where its costs differ (Strata misses 3.5% of routes on the card, overgo under 1%).\nThe step writes skill.md's description in the owner's words and its Speed work rules: a measured in-graph ceiling before a speed row is built, ranking by the measured gap against the reference, ports only where costs match, a forced-token interleaved A/B, refusal of stale derived files, rare paths folded into running kernels, one landing for a row's measured gains; and a test pins contracts, not internal layouts.\nEvidence: skill.md carries the rules and the description; the plan's speed steps cite their ceilings.\nServes: development velocity.\nBatch: none."
+        },
+        {
+          "id": "count-in-landing",
+          "title": "Let a landing raise its own row's count in its own plan edit",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "The gate refuses a landing whose production code grows past its row's count unless the count was raised in an earlier landing that changes the plan alone (internal/landing rules: \"raise the count ... in a change to the plan alone before it\"). Every code step of flashnext-speculation since gdn-fusion paid a carrier landing first (plan-shared-count, plan-doorbell-count and earlier), each a full gate run of 15 to 25 minutes beside the step's own, with the same author raising the count either way.\nThe step lets a landing raise its own row's count in its own plan edit: the candidate plan's count for the row, with a reason, bounds the growth the gate measures, and the landed plan keeps the raised count less the growth, as a carrier's would. A raise without a reason, or of another row, is refused as before.\nEvidence: a landing that grows past its row's count and raises it in its own plan edit lands in one gate run; one that raises it without a reason, or raises another row's, is refused (internal/landing tests).\nServes: development velocity.\nDisappears: the count carrier landings and their rows.\nBatch: none."
+        },
+        {
+          "id": "kernels-one-command",
+          "title": "Make cmd/build-kernels regenerate the kernels, manifest and bindings in one run",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "A kernel whose parameters change needs a new ABI version in kernels/manifest.json, and then no single command regenerates the tree: cmd/build-kernels runs kernel-manifest -update, which refuses while the Go bindings still carry the old version (\"Go host kernel ABI identity is stale\"), and go generate's kernel-bindings refuses while the manifest lacks the new kernels' argument layouts. The expert doorbell went through the cycle by hand twice (the version set back, the layouts updated, the version set forward, the bindings generated), and a probe built in between ran the stale PTX of an earlier source for one A/B round.\nThe step makes cmd/build-kernels the one command: it compiles the PTX, updates the manifest's hashes and layouts, and regenerates the bindings with the manifest's version, in the order each needs, and refuses only a manifest that names a kernel the PTX lacks.\nEvidence: a kernel given a new parameter and a new ABI version regenerates with one go run ./cmd/build-kernels, and go run ./cmd/kernel-manifest verifies the tree.\nServes: development velocity.\nDisappears: the hand cycle of the ABI version.\nBatch: none."
+        },
+        {
+          "id": "forced-bench",
+          "title": "Decode forced token sequences in cmd/benchmark for speed A/B",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "A speed step's A/B ran the scratch chat probe: each arm reloads the model (about 22 s) and decodes three free-running chats of 200 tokens, about 4 minutes an arm, two alternating rounds a comparison. One repeat in three swung 0.5 to 2.5 ms a token, and a change that moves the decoded text (the expert doorbell, any CPU-side numerics) changes the work each token does, so the arms compared different texts.\ncmd/benchmark already loads the model once and interleaves a comparison factor (-compare cache_prompt or speculative). The step adds a forced token sequence (-forced \u003cfile of token ids\u003e): each run decodes that sequence, the next token fed whatever the model would have chosen, plain or through the draft, and reports the median and spread of the step time; and a comparison of two binaries' runs over the same sequence when the change is not a runtime factor.\nEvidence: the same build compared with itself over a forced sequence differs by less than the chat probe's spread; one comparison takes under two minutes an arm.\nServes: development velocity (every speed step's A/B) and throughput (the measurement it ranks by).\nDisappears: the scratch chat probe as the A/B of speed steps.\nBatch: device."
+        }
+      ]
+    },
+    {
       "id": "flashnext-speculation",
       "title": "Decode Flash-Next through its MTP draft at the rate Strata's MTP windows reach",
       "owner": "master-lead",
@@ -217,6 +253,13 @@
         "reason": "expert-doorbell as built adds 3,474 production syntax nodes (the gate's preflight, 2026-10-21): the doorbell's pinned words, slots and rows with its card descriptor, the worker's serve loop that answers each ring, the CPU's computation of a ring's experts, the residency's card flags of experts on host, and the spinning pool; the row may add 3,474."
       },
       "steps": [
+        {
+          "id": "decode-ledger",
+          "title": "Time Flash-Next's and Strata's decode by phase on the same token ids and rank the speed steps by the gaps",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "The speed steps of flashnext-speculation were ranked by estimates, and three of the last six missed: the hyper-connection fusion ran slower than its parts, chain depth and the draft on the card were retired, and the expert doorbell was planned at 0.8 ms a token from a kernel-level trace where an in-graph ablation (the card skipping its experts on host) bounded it at about 0.25 ms. Strata's decode is about 1 ms a token faster plain (10 against 11.0) and 1.7 ms speculative (8.1 against 9.8), and no measurement says which phases hold that gap.\nThe step times both engines' decode by phase on the same token ids: Strata by its own stage timers (session_replay_stages, the captured graph split at its halves; STRATA_PREFILL_TIMING for prompts), Flash-Next by the forced-sequence benchmark and a node-level split of the step (mixer, hyper-connections, router, routed experts with their misses, shared expert, head, the draft, a verify window's own work). The table, ms a token per phase for each and the gap, ranks the speed steps that follow; each of those then states its in-graph ceiling before it is built.\nEvidence: the ledger in tmp/flashnext-speculation/ with its commands, each phase's sum checked against the whole step time of each engine; the plan's speed steps re-ranked by its gaps.\nServes: throughput.\nBatch: device."
+        },
         {
           "id": "draft-library",
           "title": "Bind Flash-Next's draft to its library entry so every launcher serves it",
@@ -530,7 +573,10 @@
             "plan-gdn-count/do",
             "plan-shared-doorbell/do",
             "plan-shared-count/do",
-            "plan-doorbell-count/do"
+            "plan-doorbell-count/do",
+            "development-pace/do",
+            "development-pace/do",
+            "pace-doctrine/do"
           ]
         }
       ]

@@ -75,14 +75,20 @@ func testExperts(t testing.TB, formats Formats, counts []int) []Expert {
 }
 
 // TestLayerMatchesTheSerialLayer holds a layer of five experts with 1 to 7
-// tokens each, in each of Flash-Next's formats, spread across eight workers,
-// to the same rows computed one after another: each row's arithmetic is the
-// same, so the bits are.
+// tokens each, and one decode token's expert, in each of Flash-Next's
+// formats, spread across eight workers waiting and spinning, to the same rows
+// computed one after another: each row's arithmetic is the same, so the bits
+// are.
 func TestLayerMatchesTheSerialLayer(t *testing.T) {
 	workers := NewPool(8)
 	defer workers.Close()
-	for _, formats := range testFormats {
-		experts := testExperts(t, formats, []int{1, 2, 3, 4, 7})
+	for run := range 2 * len(testFormats) * 2 {
+		formats, counts, spin := testFormats[run/2%len(testFormats)], []int{1, 2, 3, 4, 7}, run%2 == 1
+		if run >= 2*len(testFormats) {
+			counts = []int{1}
+		}
+		workers.Spin(spin)
+		experts := testExperts(t, formats, counts)
 		if err := workers.Layer(experts, formats, testHidden, testIntermediate, silu); err != nil {
 			t.Fatal(err)
 		}
@@ -118,6 +124,29 @@ func TestLayerMatchesTheSerialLayer(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// BenchmarkDecodeExpert times one decode token's expert of Flash-Next's
+// common layer on 16 spinning workers, a different one of 256 each time, so
+// its weights come from memory as an expert on host's do (about 57 us on the
+// 9950X, 36 us for one in cache).
+func BenchmarkDecodeExpert(b *testing.B) {
+	const pool = 256
+	counts := make([]int, pool)
+	for index := range counts {
+		counts[index] = 1
+	}
+	experts := testExperts(b, testFormats[0], counts)
+	workers := NewPool(16)
+	defer workers.Close()
+	workers.Spin(true)
+	next := 0
+	for b.Loop() {
+		if err := workers.Layer(experts[next%pool:next%pool+1], testFormats[0], testHidden, testIntermediate, silu); err != nil {
+			b.Fatal(err)
+		}
+		next++
 	}
 }
 

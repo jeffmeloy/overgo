@@ -774,6 +774,10 @@ type CompiledGraph struct {
 	// attentionScoreBytes: cuBLAS attention score staging ([heads][chunk][keys] F32)
 	// and the routed-expert scratch, each live only inside its own node.
 	attentionScoreBytes uint64
+	// doorbellSlots and doorbellWidth bound the routed slots and the token width a decode group of a routed node hands
+	// the CPU (moeDoorbell); doorbellRings are the routed nodes a captured run rings for, in launch order.
+	doorbellSlots, doorbellWidth uint64
+	doorbellRings                []*tensor.Tensor
 }
 
 // IndexedGraph owns compiled topology and indexed device inputs.
@@ -886,8 +890,10 @@ func prepareAttributePointers(scratch *[]driver.DevicePtr, count int) []driver.D
 
 // launchPointerFrame: precompiled output/input slots.
 type launchPointerFrame struct {
-	ctx       context.Context
-	experts   ExpertBanks
+	ctx     context.Context
+	experts ExpertBanks
+	// doorbell is a captured run's, whose decode groups ring for the CPU's experts (moeDoorbell); nil otherwise.
+	doorbell  *moeDoorbell
 	values    []driver.DevicePtr
 	slots     []int
 	attribute driver.DevicePtr
@@ -1276,6 +1282,10 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 			group, tokenBytes, scratchErr := moeScratchGroup(node)
 			if scratchErr != nil {
 				return nil, scratchErr
+			}
+			if tokens := node.Shape.Dims[1]; tokens <= q8InputSpanColumns {
+				compiled.doorbellSlots = max(compiled.doorbellSlots, tokens*uint64(node.Attrs.(tensor.MoEAttributes).TopK))
+				compiled.doorbellWidth = max(compiled.doorbellWidth, node.Shape.Dims[0])
 			}
 			compiled.needBlas = true
 			compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, uint64(group)*tokenBytes)
@@ -1780,6 +1790,12 @@ func (e *Executor) runCompiled(
 			}
 			// A run of more tokens than a verify span is a prompt, whose routes the next advance applies without moves.
 			resources.promptRouted = routedTokens > q8InputSpanColumns
+			// A captured run's decode groups ring for the CPU's experts; its doorbell is sized before the capture.
+			if retain && cacheGraph && compiled.doorbellSlots > 0 && resources.blas != nil {
+				if err := resources.blas.doorbell.ensure(state, compiled.doorbellSlots, compiled.doorbellWidth); err != nil {
+					return err
+				}
+			}
 		}
 		var executeErr error
 		var graphExecs *graphExecCache
@@ -2276,6 +2292,11 @@ func execute(
 	}
 
 	capturing := retainOutputs && execCache != nil
+	// A captured run's decode groups ring for the CPU's experts on host, which this worker computes once it launches the run.
+	var doorbell *moeDoorbell
+	if capturing && experts != nil && blas != nil && blas.doorbell.host != nil && compiled.doorbellSlots > 0 {
+		doorbell = &blas.doorbell
+	}
 	resetStaged := func() {
 		if blas != nil {
 			blas.stagedNode = nil
@@ -2290,7 +2311,7 @@ func execute(
 			frame := compiled.nodes[nodeIndex]
 			node := compiled.order[nodeIndex]
 			operands := launchPointerFrame{
-				ctx: ctx, experts: experts,
+				ctx: ctx, experts: experts, doorbell: doorbell,
 				values:    pointers.values,
 				slots:     compiled.operandSlots[frame.operandOffset : frame.operandOffset+len(node.Inputs)+1],
 				attribute: attributePointers[nodeIndex],
@@ -2350,10 +2371,20 @@ func execute(
 	)
 	scratch.replayFrame = append(scratch.replayFrame, pointers.values...)
 	scratch.replayFrame = append(scratch.replayFrame, attributePointers...)
+	// A graph rings for the doorbell it was captured with, and for none where it was captured without one.
+	var doorbellDescriptor driver.DevicePtr
+	if doorbell != nil {
+		doorbellDescriptor = doorbell.descriptor
+	}
+	scratch.replayFrame = append(scratch.replayFrame, doorbellDescriptor)
 	frame := scratch.replayFrame
 	replayed := false
+	var ringBase uint32
 	if capturing {
 		if exec, ok := execCache.match(compiled, frame); ok {
+			if doorbell != nil {
+				ringBase = doorbell.prepare()
+			}
 			if err := state.Driver.GraphLaunch(exec, state.Stream); err != nil {
 				return nil, err
 			}
@@ -2366,6 +2397,9 @@ func execute(
 			if captureErr := state.Driver.StreamBeginCapture(state.Stream); captureErr != nil {
 				return nil, captureErr
 			}
+		}
+		if doorbell != nil {
+			doorbell.capture = doorbell.capture[:0]
 		}
 		launchErr := runLaunches()
 		if launchErr != nil {
@@ -2385,20 +2419,38 @@ func execute(
 			if storeErr != nil {
 				return nil, storeErr
 			}
+			// Every capture with a doorbell rings for the same nodes, so a replay serves the last capture's.
+			if doorbell != nil {
+				compiled.doorbellRings = slices.Clone(doorbell.capture)
+				ringBase = doorbell.prepare()
+			}
 			if err := state.Driver.GraphLaunch(exec, state.Stream); err != nil {
 				return nil, err
 			}
 		}
 	}
+	rings := doorbell != nil && len(compiled.doorbellRings) > 0
 	// The residency's copies start behind the run's own, which they would otherwise delay on the copy engine.
 	if experts != nil {
-		// A failure returns once the run is done (the deferred wait).
+		// A failure returns once the run is done (the deferred wait), which waits for no ring.
 		if err := experts.StartExpertCopies(ctx, state); err != nil {
+			if rings {
+				doorbell.abandon()
+			}
 			return nil, err
 		}
 	}
+	var serveErr error
+	if rings {
+		serveErr = doorbell.serve(ctx, state, experts, compiled.doorbellRings, ringBase)
+	}
 	if err := state.Driver.StreamSynchronize(state.Stream); err != nil {
-		return nil, err
+		return nil, errors.Join(serveErr, err)
+	}
+	if rings {
+		if err := errors.Join(serveErr, doorbell.failure()); err != nil {
+			return nil, err
+		}
 	}
 	submitted = false
 	if retainOutputs {
@@ -2490,6 +2542,8 @@ type blasState struct {
 	hostQuantized   []byte
 	hostTokens      []uint32
 	hostQuantizedAt []int
+	// doorbell hands a captured decode step's experts on host to the CPU.
+	doorbell moeDoorbell
 	// moeCopyStream copies host experts beside the compute stream.
 	moeCopyStream driver.Stream
 	library       *cublas.Library
@@ -2688,6 +2742,7 @@ func (e *Executor) closeResources(state *device.State) error {
 		if e.resources.blas.hostPool != nil {
 			e.resources.blas.hostPool.Close()
 		}
+		errs = append(errs, e.resources.blas.doorbell.close(state))
 		if e.resources.blas.staging != 0 {
 			errs = append(errs, state.Driver.MemFree(e.resources.blas.staging))
 			e.resources.blas.staging = 0

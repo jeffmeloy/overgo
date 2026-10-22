@@ -203,6 +203,17 @@ func launchMoE(
 			); err != nil {
 				return err
 			}
+			// A captured decode group's q8 products ring for the CPU's experts: the hidden products' first block rings,
+			// and the down products' last block waits for the answer.
+			var onHost, doorbell driver.DevicePtr
+			ring := indexed == 1 && start == 0 && count == tokens && pointers.doorbell.rings(node, q8Input, count)
+			if ring {
+				if onHost, err = residency.ExpertsOnHost(state, banks); err != nil {
+					return err
+				}
+				doorbell = pointers.doorbell.descriptor
+				pointers.doorbell.capture = append(pointers.doorbell.capture, node)
+			}
 			if used, err := launchMoEMatrices(state, functions, blas, node,
 				groupInput, routeState, activations, groupOutput, gate, up, down, gateBias, upBias, downBias, expertScale,
 				count, residency); err != nil {
@@ -263,14 +274,21 @@ func launchMoE(
 					}
 				}
 			}
+			hiddenArguments := []any{&hiddenInput, &routeState, &gate, &up, &gateBias, &upBias, &activations,
+				&hidden, &topK, &intermediate, &routing, &gateStorage, &upStorage, &gated, &fusedGateUp,
+				&activation, &expertIndexDivisor, &swigluClamp, &indexed, &hiddenCount}
+			// The q8 products skip the slots of experts the CPU computes.
+			if hiddenKernel.id == kernelMoeHiddenQ8F32 || hiddenKernel.id == kernelMoeHiddenSpanQ8F32 {
+				hiddenArguments = append(hiddenArguments, &onHost, &doorbell, &groupInput)
+			} else if ring {
+				return errors.New("a ringing routed group's hidden products are not q8 products")
+			}
 			if err := launchGridSharedABI(
 				state, hiddenKernel,
 				driver.Dim3{X: hiddenGrid, Y: 1, Z: 1},
 				driver.Dim3{X: moeThreads, Y: 1, Z: 1},
 				sharedBytes,
-				&hiddenInput, &routeState, &gate, &up, &gateBias, &upBias, &activations,
-				&hidden, &topK, &intermediate, &routing, &gateStorage, &upStorage, &gated, &fusedGateUp,
-				&activation, &expertIndexDivisor, &swigluClamp, &indexed, &hiddenCount,
+				hiddenArguments...,
 			); err != nil {
 				return err
 			}
@@ -281,12 +299,15 @@ func launchMoE(
 					return err
 				}
 			}
-			if err := launch1DABI(
-				state, downKernel, downThreads,
-				&routeState, &downActivations, &down, &expertScale, &downBias, &groupOutput,
+			downArguments := []any{&routeState, &downActivations, &down, &expertScale, &downBias, &groupOutput,
 				&hidden, &topK, &intermediate, &normalize, &scale, &downStorage,
-				&expertIndexDivisor, &indexed, &downCount,
-			); err != nil {
+				&expertIndexDivisor, &indexed, &downCount}
+			if downKernel.id == kernelMoeDownQ8F32 {
+				downArguments = append(downArguments, &onHost, &doorbell)
+			} else if ring {
+				return errors.New("a ringing routed group's down products are not q8 products")
+			}
+			if err := launch1DABI(state, downKernel, downThreads, downArguments...); err != nil {
 				return err
 			}
 		}

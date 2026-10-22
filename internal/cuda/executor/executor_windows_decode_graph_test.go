@@ -5,6 +5,7 @@ package executor
 import (
 	"bytes"
 	"cmp"
+	"encoding/binary"
 	"errors"
 	"maps"
 	"math"
@@ -104,11 +105,16 @@ func buildDecodeStepGraph(t *testing.T, row, position uint32) decodeStepGraph {
 // 0 of each bank on the card, so each token's routed experts are first read
 // from mapped host memory and the residency moves experts between tokens.
 // Every token after the first replays the captured graph with one graph
-// launch, no kernel launch and one stream synchronization, and each token's
-// logits and the final caches keep the launched step's bits.
+// launch, no kernel launch and one stream synchronization. The first token's
+// logits keep the launched step's bits, each later token's, whose experts on
+// host the CPU computes (moeDoorbell), stay within cpuLogitsShare of them,
+// and the final caches keep their bits.
 func TestDecodeStepReplaysAsOneGraph(t *testing.T) {
 	// The first query is 9 and six tokens follow, so the selection crosses blocks at 11 and 15.
 	const past, steps, vocabulary = 9, 6, 16
+	// cpuLogitsShare bounds a token's logits, whose experts on host the CPU computed, as a relative RMS difference
+	// from the launched step's: about twice the largest seen.
+	const cpuLogitsShare = 0.01
 	replayedGraph := buildDecodeStepGraph(t, 0, past)
 	g := replayedGraph
 
@@ -296,8 +302,13 @@ func TestDecodeStepReplaysAsOneGraph(t *testing.T) {
 		retained, err = replayed.ExecuteRetainedCompiled(t.Context(), g.compiled, feed(g), inputs, targets, attributes)
 		got := logits(retained, err, g.logits)
 		after := stats(replayed)
-		if !bytes.Equal(got, want) {
+		// The first token's capture reads every expert where it is; later tokens hand those on host to the CPU, whose
+		// Q8_K activations moved the logits 0.2% to 0.5% (relative RMS) here.
+		if token == 0 && !bytes.Equal(got, want) {
 			t.Fatalf("token %d: the replayed step's logits differ from the launched step's", token)
+		}
+		if difference := relativeRMS(got, want); token > 0 && !(difference <= cpuLogitsShare) {
+			t.Fatalf("token %d: the replayed step's logits differ from the launched step's by %g (relative RMS)", token, difference)
 		}
 		if bytes.Equal(got, previous) {
 			t.Fatalf("token %d: the logits repeat the last token's, so the step ignored its inputs", token)
@@ -319,4 +330,15 @@ func TestDecodeStepReplaysAsOneGraph(t *testing.T) {
 	if !bytes.Equal(readCaches(replayed, replayedData), readCaches(launched, launchedData)) {
 		t.Fatal("the replayed steps' caches differ from the launched steps'")
 	}
+}
+
+// relativeRMS is the relative root-mean-square difference of two outputs' F32 bits.
+func relativeRMS(got, want []byte) float64 {
+	var difference, norm float64
+	for at := 0; at+4 <= len(want); at += 4 {
+		have, expected := math.Float32frombits(binary.LittleEndian.Uint32(got[at:])), math.Float32frombits(binary.LittleEndian.Uint32(want[at:]))
+		difference += float64(have-expected) * float64(have-expected)
+		norm += float64(expected) * float64(expected)
+	}
+	return math.Sqrt(difference / norm)
 }

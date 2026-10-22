@@ -487,7 +487,8 @@ func TestExecutorMoENativeCompute(t *testing.T) {
 func TestExecutorMoEExpertsUseBlockDots(t *testing.T) {
 	// Serial: device fixtures share the one card.
 	const (
-		hiddenRecord = moeRecordHeader + 7*8 + 13*4
+		// The hidden record's seven pointers and thirteen scalars end in the doorbell's three pointers.
+		hiddenRecord = moeRecordHeader + 7*8 + 13*4 + 3*8
 		// The hidden record's storages follow its pointers and four scalars, the down record's its pointers and five.
 		hiddenGateStorage = moeRecordHeader + 7*8 + 4*4
 		downStorage       = moeRecordHeader + 6*8 + 5*4
@@ -963,10 +964,12 @@ func TestPromptExpertCopiesOverlapCompute(t *testing.T) {
 // TestExecutorMoEMissedExpertsKeepResidentBits routes three decode tokens of
 // Flash-Next's IQ4_XS and Q8_0 expert layer to six experts while the card
 // holds only expert 0 of each bank, so no routed expert was ever on the card
-// and the limit is below one layer's routed experts. The expert kernels read
-// each where it is, a run waits for the stream no more often than the
-// resident run, the next run finds routed experts moved to the card, and
-// every run keeps the resident run's output bits.
+// and the limit is below one layer's routed experts. The first run's expert
+// kernels read each where it is and keep the resident run's output bits; the
+// residency then names the experts on host to the card, whose later runs hand
+// them to the CPU (moeDoorbell), within its activations' rounding of the
+// resident bits. A run waits for the stream no more often than the resident
+// run, and the next run finds routed experts moved to the card.
 func TestExecutorMoEMissedExpertsKeepResidentBits(t *testing.T) {
 	banks := [3]dtype.Type{dtype.IQ4XS, dtype.IQ4XS, dtype.Q8_0}
 	c := moePinnedCase{
@@ -1031,10 +1034,31 @@ func TestExecutorMoEMissedExpertsKeepResidentBits(t *testing.T) {
 	cuda = newFixtureExecutor(t)
 	output, host, pointers, _ = c.prepare(t, cuda, dtype.F32)
 	reroute(host)
+	// hostShareLargest and hostShareMean bound a CPU-computed run's largest and mean difference from the resident
+	// run as shares of its largest value, as TestPromptHostExpertsComputeOnTheCPU's do.
+	const hostShareLargest, hostShareMean = 0.02, 0.005
+	values := func(bits []byte) []float32 {
+		floats := make([]float32, len(bits)/4)
+		for index := range floats {
+			floats[index] = math.Float32frombits(binary.LittleEndian.Uint32(bits[4*index:]))
+		}
+		return floats
+	}
 	for attempt := range 3 {
 		got, stats := run(t, cuda, output, host, pointers)
-		if !bytes.Equal(got, resident) {
+		if attempt == 0 && !bytes.Equal(got, resident) {
 			t.Fatalf("run %d: missed experts changed the resident output bits", attempt)
+		}
+		if attempt > 0 {
+			want, have := values(resident), values(got)
+			var scale, largest, mean float64
+			for index := range want {
+				difference := math.Abs(float64(have[index] - want[index]))
+				scale, largest, mean = max(scale, math.Abs(float64(want[index]))), max(largest, difference), mean+difference
+			}
+			if mean /= float64(len(want)); largest > hostShareLargest*scale || mean > hostShareMean*scale || math.IsNaN(mean) {
+				t.Fatalf("run %d: the CPU's experts differ from the resident output by %g at most and %g on average, largest value %g", attempt, largest, mean, scale)
+			}
 		}
 		if stats.StreamSynchronizations != residentStats.StreamSynchronizations {
 			t.Fatalf("run %d waited for the stream %d times, the resident run %d", attempt, stats.StreamSynchronizations, residentStats.StreamSynchronizations)

@@ -9887,8 +9887,178 @@ __device__ __forceinline__ void moe_q8_columns(
     }
 }
 
+// ---- The expert doorbell ----
+// A decode group's routed experts in host memory are computed by the CPU beside the card, as Strata's doorbell does
+// (src/core/layer.cpp, THE DOORBELL): the first block of the group's hidden products hands the CPU the group's routes
+// and inputs in host memory the card maps and rings, the card's products skip the experts on_host marks, and the last
+// block of its down products to finish waits for the CPU's answer and adds the CPU's slots, each weighed as
+// moe_down_q8_f32 weighs a slot. Neither takes a launch of its own: a decode step's 48 routed nodes would add 96.
+//   - words, host memory the card maps: the ring, the CPU's answer, the last ring that handed the CPU slots, the ring
+//     a wait gave up on, and the host's abandonment of the run
+//   - the CPU answers a ring with its number once its slots' products are written; rings and answers only grow, and a
+//     ring that hands slots over holds the card until its answer, so the CPU reads a later ring's words only after it
+constexpr unsigned int MOE_DOORBELL_RING = 0;
+constexpr unsigned int MOE_DOORBELL_ANSWER = 1;
+constexpr unsigned int MOE_DOORBELL_WORK = 2;
+constexpr unsigned int MOE_DOORBELL_FAILED = 3;
+constexpr unsigned int MOE_DOORBELL_ABANDONED = 4;
+// MOE_DOORBELL_HOST_SLOT marks a handed-over slot's expert the CPU computes.
+constexpr unsigned int MOE_DOORBELL_HOST_SLOT = 0x80000000u;
+// MOE_DOORBELL_WAIT_NS: the longest a wait for an answer lasts, well inside the display watchdog's two seconds.
+constexpr unsigned long long MOE_DOORBELL_WAIT_NS = 250000000ull;
+// MOE_DOORBELL_SLOTS: the most routed slots a group hands over; MOE_DOORBELL_VECTORS: the answer's float4s a thread
+// of the last block reads at once.
+constexpr unsigned int MOE_DOORBELL_SLOTS = 128;
+constexpr unsigned int MOE_DOORBELL_VECTORS = 4;
+
+// moe_doorbell is a doorbell's card memory: the rings so far, the ring the group's down products wait for (0: none),
+// the down products' blocks finished, then the addresses of the words, the slot ids, the input rows and the answer
+// rows in host memory the card maps.
+//   - ids[t * top_k + s] = token t's slot s's routed expert, with MOE_DOORBELL_HOST_SLOT where on_host marks it,
+//     rows[t * hidden + c] = token t's input, answer[(t * top_k + s) * hidden + c] = the CPU's down product of the slot
+struct moe_doorbell {
+    unsigned int rings;
+    unsigned int waiting;
+    unsigned int finished;
+    unsigned int padding;
+    unsigned int * words;
+    unsigned int * ids;
+    float * rows;
+    const float * answer;
+};
+
+// global_nanoseconds reads the card's global timer.
+__device__ __forceinline__ unsigned long long global_nanoseconds() {
+    unsigned long long now;
+    asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(now));
+    return now;
+}
+
+// moe_doorbell_publish: a block rings for a decode group of tokens, handing the CPU the group's routes and inputs when
+// one of its routed experts is on host. Every thread of the block calls it.
+//   - every writer fences its writes to the system before the block's barrier, so the ring follows them on the link
+__device__ __noinline__ void moe_doorbell_publish(
+        const unsigned int * route_state, const unsigned char * on_host, const float * input, moe_doorbell * doorbell,
+        unsigned int tokens, unsigned int top_k, unsigned int hidden, unsigned int expert_index_divisor) {
+    const unsigned int token_words = 2 * top_k + 1;
+    bool hosted = false;
+    for (unsigned int index = threadIdx.x; index < tokens * top_k; index += blockDim.x) {
+        hosted = hosted ||
+            on_host[route_state[(size_t) (index / top_k) * token_words + index % top_k] / expert_index_divisor] != 0;
+    }
+    const bool work = __syncthreads_or(hosted) != 0;
+    if (work) {
+        for (unsigned int index = threadIdx.x; index < tokens * top_k; index += blockDim.x) {
+            const unsigned int id = route_state[(size_t) (index / top_k) * token_words + index % top_k];
+            doorbell->ids[index] = on_host[id / expert_index_divisor] ? id | MOE_DOORBELL_HOST_SLOT : id;
+        }
+        for (unsigned int index = threadIdx.x; index < tokens * hidden; index += blockDim.x) {
+            doorbell->rows[index] = input[index];
+        }
+        __threadfence_system();
+    }
+    __syncthreads();
+    if (threadIdx.x != 0) return;
+    volatile unsigned int * words = doorbell->words;
+    const unsigned int ring = doorbell->rings + 1;
+    doorbell->rings = ring;
+    doorbell->waiting = work ? ring : 0u;
+    if (work) words[MOE_DOORBELL_WORK] = ring;
+    __threadfence_system();
+    words[MOE_DOORBELL_RING] = ring;
+}
+
+// moe_doorbell_add: the last block of a group's down products to finish waits for the CPU's answer to the group's
+// ring and adds the CPU's slots to every output. Every thread of every block calls it once its outputs are written.
+//   - a block's outputs are fenced before it counts itself finished, so the last block reads every block's
+//   - the answer is read past the card's caches, float4s at once, the rows' latency over the link overlapped
+//   - a wait past MOE_DOORBELL_WAIT_NS, or the host's abandonment, records the ring and writes NaN
+__device__ __noinline__ void moe_doorbell_add(
+        const unsigned int * route_state, const unsigned char * on_host, const float * expert_scale,
+        moe_doorbell * doorbell, float * output, unsigned int tokens, unsigned int hidden, unsigned int top_k,
+        unsigned int normalize_top_k, float routed_scale, unsigned int expert_index_divisor) {
+    __shared__ bool last;
+    __shared__ unsigned int host_slots;
+    __shared__ unsigned int slot_index[MOE_DOORBELL_SLOTS];
+    __shared__ float slot_weight[MOE_DOORBELL_SLOTS];
+    const unsigned int ring = doorbell->waiting;
+    if (ring == 0u) return;
+    __threadfence();
+    __syncthreads();
+    if (threadIdx.x == 0) last = atomicAdd(&doorbell->finished, 1u) == gridDim.x - 1;
+    __syncthreads();
+    if (!last) return;
+    if (threadIdx.x == 0) {
+        doorbell->finished = 0;
+        volatile unsigned int * words = doorbell->words;
+        const unsigned long long start = global_nanoseconds();
+        bool failed = false;
+        while ((int) (words[MOE_DOORBELL_ANSWER] - ring) < 0) {
+            if (words[MOE_DOORBELL_ABANDONED] != 0u || global_nanoseconds() - start > MOE_DOORBELL_WAIT_NS) {
+                failed = true;
+                break;
+            }
+        }
+        if (failed) words[MOE_DOORBELL_FAILED] = ring;
+        __threadfence();
+        // Each host slot's weight = its route, scaled, normalized when asked, times its expert's scale.
+        unsigned int count = 0;
+        for (unsigned int slot = 0; slot < tokens * top_k && !failed; ++slot) {
+            const unsigned int * selected = route_state + (size_t) (slot / top_k) * (2 * top_k + 1);
+            const float * routes = reinterpret_cast<const float *>(selected + top_k);
+            const unsigned int expert = selected[slot % top_k] / expert_index_divisor;
+            if (!on_host[expert]) continue;
+            float weight = routes[slot % top_k] * routed_scale;
+            if (normalize_top_k) weight /= fmaxf(routes[top_k], 6.103515625e-5f);
+            weight *= expert_scale ? expert_scale[expert] : 1.0f;
+            slot_index[count] = slot;
+            slot_weight[count++] = weight;
+        }
+        host_slots = failed ? MOE_DOORBELL_SLOTS + 1 : count;
+    }
+    __syncthreads();
+    const unsigned int vectors = tokens * hidden / 4;
+    float4 * output4 = reinterpret_cast<float4 *>(output);
+    const float4 * answer4 = reinterpret_cast<const float4 *>(doorbell->answer);
+    for (unsigned int first = threadIdx.x; first < vectors; first += blockDim.x * MOE_DOORBELL_VECTORS) {
+        float4 sums[MOE_DOORBELL_VECTORS] = {};
+        for (unsigned int host = 0; host < host_slots && host_slots <= MOE_DOORBELL_SLOTS; ++host) {
+            const unsigned int slot = slot_index[host];
+            const float weight = slot_weight[host];
+#pragma unroll
+            for (unsigned int part = 0; part < MOE_DOORBELL_VECTORS; ++part) {
+                const unsigned int vector = first + part * blockDim.x;
+                if (vector >= vectors || vector * 4 / hidden != slot / top_k) continue;
+                const float4 value = __ldcv(answer4 + (size_t) slot * (hidden / 4) + vector % (hidden / 4));
+                sums[part].x += weight * value.x;
+                sums[part].y += weight * value.y;
+                sums[part].z += weight * value.z;
+                sums[part].w += weight * value.w;
+            }
+        }
+#pragma unroll
+        for (unsigned int part = 0; part < MOE_DOORBELL_VECTORS; ++part) {
+            const unsigned int vector = first + part * blockDim.x;
+            if (vector >= vectors) continue;
+            float4 value = __ldcg(output4 + vector);
+            if (host_slots > MOE_DOORBELL_SLOTS) {
+                value = make_float4(__int_as_float(0x7fc00000), __int_as_float(0x7fc00000), __int_as_float(0x7fc00000),
+                    __int_as_float(0x7fc00000));
+            } else {
+                value.x += sums[part].x;
+                value.y += sums[part].y;
+                value.z += sums[part].z;
+                value.w += sums[part].w;
+            }
+            output4[vector] = value;
+        }
+    }
+}
+
 // moe_hidden_q8_f32 gives each routed row of a decode group half a warp, which stores the row's activation.
 //   - input = the group's q8 blocks, and gate and up share a q8 format
+//   - on_host != nullptr => a row of an expert it marks is the CPU's, and its half warp stores nothing
+//   - doorbell != nullptr => the first block rings it for the group, handing over doorbell_input (moe_doorbell_publish)
 extern "C" __global__ void moe_hidden_q8_f32(
         const unsigned char * input,
         const unsigned int * route_state,
@@ -9909,7 +10079,14 @@ extern "C" __global__ void moe_hidden_q8_f32(
         unsigned int expert_index_divisor,
         float swiglu_clamp,
         unsigned int indexed_experts,
-        unsigned int count) {
+        unsigned int count,
+        const unsigned char * on_host,
+        moe_doorbell * doorbell,
+        const float * doorbell_input) {
+    if (doorbell && blockIdx.x == 0) {
+        moe_doorbell_publish(route_state, on_host, doorbell_input, doorbell, count / (top_k * intermediate), top_k, hidden,
+            expert_index_divisor);
+    }
     __shared__ block_dot_codebooks codebooks;
     block_dot_codebooks_load(codebooks, gate_storage, up_storage);
     const unsigned int index = (blockIdx.x * blockDim.x + threadIdx.x) / MOE_Q8_ROW_LANES;
@@ -9917,6 +10094,7 @@ extern "C" __global__ void moe_hidden_q8_f32(
     const unsigned int selected = index / intermediate;
     const unsigned int expert =
         route_state[(size_t) (selected / top_k) * (2 * top_k + 1) + selected % top_k] / expert_index_divisor;
+    if (on_host && on_host[expert]) return;
     moe_q8_columns(input, gate, up, gate_bias, up_bias, activations, hidden, top_k, intermediate, routing, up_storage,
         fused_gate_up, activation, swiglu_clamp, indexed_experts, expert, index % intermediate, selected, 1,
         threadIdx.x % MOE_Q8_ROW_LANES, codebooks);
@@ -9929,6 +10107,7 @@ extern "C" __global__ void moe_hidden_q8_f32(
 //   - a token that routes twice to the expert, through the index divisor or repeated selections, leaves each of the
 //     expert's half warps its own row, as every one of them finds
 //   - a token's activations are bit for bit those it computes alone
+//   - a row of an expert on_host marks is the CPU's for every token, as in moe_hidden_q8_f32
 extern "C" __global__ void moe_hidden_span_q8_f32(
         const unsigned char * input,
         const unsigned int * route_state,
@@ -9949,7 +10128,14 @@ extern "C" __global__ void moe_hidden_span_q8_f32(
         unsigned int expert_index_divisor,
         float swiglu_clamp,
         unsigned int indexed_experts,
-        unsigned int count) {
+        unsigned int count,
+        const unsigned char * on_host,
+        moe_doorbell * doorbell,
+        const float * doorbell_input) {
+    if (doorbell && blockIdx.x == 0) {
+        moe_doorbell_publish(route_state, on_host, doorbell_input, doorbell, count / (top_k * intermediate), top_k, hidden,
+            expert_index_divisor);
+    }
     __shared__ block_dot_codebooks codebooks;
     block_dot_codebooks_load(codebooks, gate_storage, up_storage);
     const unsigned int index = (blockIdx.x * blockDim.x + threadIdx.x) / MOE_Q8_ROW_LANES;
@@ -9961,6 +10147,8 @@ extern "C" __global__ void moe_hidden_span_q8_f32(
     const unsigned int token = selected / top_k;
     const unsigned int token_words = 2 * top_k + 1;
     const unsigned int expert = route_state[(size_t) token * token_words + selected % top_k] / expert_index_divisor;
+    // The half warp's lanes share the row, so they leave together, before the ballots.
+    if (on_host && on_host[expert]) return;
     // Lane s of the half reads slots s, s + MOE_Q8_ROW_LANES, ... of each token.
     unsigned int slots = selected;
     unsigned int columns = 1;
@@ -9994,7 +10182,12 @@ extern "C" __global__ void moe_hidden_span_q8_f32(
 // slots' sub-blocks against their q8 activations.
 //   - activations = the group's q8 blocks, intermediate / MOE_Q8_WIDTH a routed slot
 //   - a channel's tokens take adjacent warps, so the rows of the experts they share are read together
-extern "C" __global__ void moe_down_q8_f32(
+//   - a slot of an expert on_host marks is the CPU's, which the last block to finish adds once the CPU answers (moe_doorbell_add)
+//   - its launch's blocks are MOE_DOWN_THREADS wide, and an SM keeps MOE_DOWN_RESIDENT_BLOCKS of them, as many as before
+//     the doorbell's epilogue, whose registers would otherwise cost one
+constexpr unsigned int MOE_DOWN_THREADS = 256;
+constexpr unsigned int MOE_DOWN_RESIDENT_BLOCKS = 6;
+extern "C" __global__ void __launch_bounds__(MOE_DOWN_THREADS, MOE_DOWN_RESIDENT_BLOCKS) moe_down_q8_f32(
         const unsigned int * route_state,
         const unsigned char * activations,
         const void * down,
@@ -10009,50 +10202,58 @@ extern "C" __global__ void moe_down_q8_f32(
         unsigned int expert_storage,
         unsigned int expert_index_divisor,
         unsigned int indexed_experts,
-        unsigned int count) {
+        unsigned int count,
+        const unsigned char * on_host,
+        moe_doorbell * doorbell) {
     __shared__ block_dot_codebooks codebooks;
     block_dot_codebooks_load(codebooks, expert_storage, expert_storage);
     const unsigned int warp = (blockIdx.x * blockDim.x + threadIdx.x) / CUDA_WARP_WIDTH;
-    if (warp >= count) return;
-    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
-    const unsigned int tokens = count / hidden;
-    const unsigned int index = warp % tokens * hidden + warp / tokens;
-    const unsigned int output_channel = index % hidden;
-    const unsigned int token = index / hidden;
-    const unsigned int * selected = route_state + (size_t) token * (2 * top_k + 1);
-    const float * routes = reinterpret_cast<const float *>(selected + top_k);
-    const float selected_sum = routes[top_k];
-    const unsigned int row_subs = intermediate / MOE_Q8_WIDTH;
-    const unsigned char * token_values = activations + (size_t) token * top_k * row_subs * Q8_INPUT_BLOCK_BYTES;
-    float sum = 0.0f;
-    if (!visit_q8_format(expert_storage, [&](auto format) {
-            using Format = decltype(format);
-            constexpr unsigned int subs = Format::width / MOE_Q8_WIDTH;
-            for (unsigned int item = lane; item < top_k * row_subs; item += CUDA_WARP_WIDTH) {
-                const unsigned int slot = item / row_subs;
-                const unsigned int sub = item % row_subs;
-                const unsigned int expert = selected[slot] / expert_index_divisor;
-                // A slot's weight = its route, scaled, normalized when asked, times its expert's scale.
-                float weight = routes[slot] * routed_scale;
-                if (normalize_top_k) weight /= fmaxf(selected_sum, 6.103515625e-5f);
-                weight *= expert_scale ? expert_scale[expert] : 1.0f;
-                const void * bank = indexed_experts ? reinterpret_cast<const void * const *>(down)[expert] : down;
-                const unsigned char * row = q8_row<Format>(
-                    bank, ((size_t) (indexed_experts ? 0 : expert) * hidden + output_channel) * intermediate);
-                const unsigned char * values = token_values + (size_t) (slot * row_subs + sub) * Q8_INPUT_BLOCK_BYTES;
-                int x[MOE_Q8_WORDS];
-                q8_values(values, x);
-                float scale;
-                const int dot = Format::dot(row + (size_t) (sub / subs) * Format::bytes, sub % subs, x, codebooks, scale);
-                float product = scale * q8_scale(values) * (float) dot;
-                if (down_bias && sub == 0) product += down_bias[(size_t) expert * hidden + output_channel];
-                sum += weight * product;
-            }
-        })) {
-        sum = __int_as_float(0x7fc00000);
+    if (warp < count) {
+        const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+        const unsigned int tokens = count / hidden;
+        const unsigned int index = warp % tokens * hidden + warp / tokens;
+        const unsigned int output_channel = index % hidden;
+        const unsigned int token = index / hidden;
+        const unsigned int * selected = route_state + (size_t) token * (2 * top_k + 1);
+        const float * routes = reinterpret_cast<const float *>(selected + top_k);
+        const float selected_sum = routes[top_k];
+        const unsigned int row_subs = intermediate / MOE_Q8_WIDTH;
+        const unsigned char * token_values = activations + (size_t) token * top_k * row_subs * Q8_INPUT_BLOCK_BYTES;
+        float sum = 0.0f;
+        if (!visit_q8_format(expert_storage, [&](auto format) {
+                using Format = decltype(format);
+                constexpr unsigned int subs = Format::width / MOE_Q8_WIDTH;
+                for (unsigned int item = lane; item < top_k * row_subs; item += CUDA_WARP_WIDTH) {
+                    const unsigned int slot = item / row_subs;
+                    const unsigned int sub = item % row_subs;
+                    const unsigned int expert = selected[slot] / expert_index_divisor;
+                    if (on_host && on_host[expert]) continue;
+                    // A slot's weight = its route, scaled, normalized when asked, times its expert's scale.
+                    float weight = routes[slot] * routed_scale;
+                    if (normalize_top_k) weight /= fmaxf(selected_sum, 6.103515625e-5f);
+                    weight *= expert_scale ? expert_scale[expert] : 1.0f;
+                    const void * bank = indexed_experts ? reinterpret_cast<const void * const *>(down)[expert] : down;
+                    const unsigned char * row = q8_row<Format>(
+                        bank, ((size_t) (indexed_experts ? 0 : expert) * hidden + output_channel) * intermediate);
+                    const unsigned char * values = token_values + (size_t) (slot * row_subs + sub) * Q8_INPUT_BLOCK_BYTES;
+                    int x[MOE_Q8_WORDS];
+                    q8_values(values, x);
+                    float scale;
+                    const int dot = Format::dot(row + (size_t) (sub / subs) * Format::bytes, sub % subs, x, codebooks, scale);
+                    float product = scale * q8_scale(values) * (float) dot;
+                    if (down_bias && sub == 0) product += down_bias[(size_t) expert * hidden + output_channel];
+                    sum += weight * product;
+                }
+            })) {
+            sum = __int_as_float(0x7fc00000);
+        }
+        sum = warp_sum_down(sum);
+        if (lane == 0) output[index] = sum;
     }
-    sum = warp_sum_down(sum);
-    if (lane == 0) output[index] = sum;
+    if (doorbell) {
+        moe_doorbell_add(route_state, on_host, expert_scale, doorbell, output, count / hidden, hidden, top_k,
+            normalize_top_k, routed_scale, expert_index_divisor);
+    }
 }
 
 // ---- Grouped expert products ----

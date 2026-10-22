@@ -18,9 +18,12 @@ import (
 // the card do not wait behind them.
 // ReserveExpertMemory releases only completed expert reads before another owner allocates.
 // ExpertSources writes each expert's table address in a routed node's bank, and the pinned bytes of each expert in host memory.
+// ExpertsOnHost names a routed node's card flags of the experts every bank of it holds in host memory, which a run reads
+// as the advance before it left them, and which ExpertSources' bytes then agree with.
 type ExpertBanks interface {
 	IsExpertBank(string) bool
 	ExpertRoutes(*device.State, []*tensor.Tensor) (driver.DevicePtr, error)
+	ExpertsOnHost(*device.State, []*tensor.Tensor) (driver.DevicePtr, error)
 	ExpertSources(*device.State, *tensor.Tensor, []driver.DevicePtr, [][]byte) error
 	AdvanceExperts(context.Context, *device.State, bool) error
 	StartExpertCopies(context.Context, *device.State) error

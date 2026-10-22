@@ -85,6 +85,10 @@ type expertBank struct {
 	routed   uint64
 	group    []*expertBank
 	changed  bool
+	// head is the first bank of the routed node the bank serves, once one names it; a head's onHostStale marks its
+	// group's card flags of experts on host for the next publish.
+	head        *expertBank
+	onHostStale bool
 	// entries are the bank's card experts by index, nil for one in host memory; staged holds a card expert's landed
 	// copy in pinned host memory, a slot with host bytes; moving marks an expert whose copy is in flight. An advance
 	// reads them for every routed expert, where maps keyed by bank and index took about 0.5 ms of a Flash-Next window.
@@ -169,18 +173,21 @@ type expertMemory interface {
 // between runs the experts the last run routed to host memory take the card
 // slots of experts it did not route.
 // routed is pinned host memory the card maps at routedMap, one byte an expert, which the route kernel sets and the advance after the run reads and clears.
+// onHost is the card's flags at onHostFlags, laid out as routed, a routed node's first bank's byte set where every
+// bank of the node holds the expert in host memory; the CPU computes those experts of a decode step (ExpertsOnHost).
 type expertResidency struct {
-	state             *device.State
-	mem               expertMemory
-	banks             map[string]*expertBank
-	ordered           []*expertBank
-	classes           map[uint64]*expertClass
-	cards             []expertChunk
-	pinned            [][]byte
-	tables, routedMap driver.DevicePtr
+	state                          *device.State
+	mem                            expertMemory
+	banks                          map[string]*expertBank
+	ordered                        []*expertBank
+	classes                        map[uint64]*expertClass
+	cards                          []expertChunk
+	pinned                         [][]byte
+	tables, routedMap, onHostFlags driver.DevicePtr
 	// pointers is every bank's table on the host, in the order the card's tables lie, each bank's pointers a part.
 	pointers          []driver.DevicePtr
-	routed            []byte
+	routed, onHost    []byte
+	onHostUnwritten   bool
 	bytes, tableBytes uint64
 	step              uint64
 	// routes, cardRoutes and loadCard are ExpertPlacement's counts.
@@ -250,6 +257,13 @@ func newExpertResidency(ctx context.Context, file *gguf.File, infos []gguf.Tenso
 	if err == nil {
 		clear(routed)
 		c.pinned, c.routedMap, c.routed = append(c.pinned, routed), mapped, routed
+		// The flags of experts on host start clear: until a publish sets them, the card reads every expert itself.
+		c.onHost = make([]byte, flags)
+		if c.onHostFlags, err = mem.alloc(ctx, flags); err == nil {
+			err = mem.write(ctx, c.onHostFlags, c.onHost)
+		}
+	}
+	if err == nil {
 		err = c.allocate(ctx, limit)
 		c.loadCard = c.cardExperts()
 	}
@@ -393,7 +407,35 @@ func (w *DeviceWeights) ExpertRoutes(state *device.State, nodes []*tensor.Tensor
 	if w == nil || w.experts == nil || w.experts.state != state || len(nodes) == 0 {
 		return 0, errors.New("expert routes require their owning CUDA worker")
 	}
-	c := w.experts
+	head, err := w.experts.routedGroup(nodes)
+	if err != nil {
+		return 0, err
+	}
+	return w.experts.routedMap + driver.DevicePtr(head.routed), nil
+}
+
+// ExpertsOnHost returns the card's flags of a routed node's experts, one byte an expert, set where every bank of the
+// node holds the expert in host memory, as the last publish left them: a run reads them unchanged, and the hosted
+// bytes ExpertSources names for those experts hold until the next advance. A node's flags are first set by the
+// advance after it is named. The nodes are the routed node's banks.
+func (w *DeviceWeights) ExpertsOnHost(state *device.State, nodes []*tensor.Tensor) (driver.DevicePtr, error) {
+	if w == nil || w.experts == nil || w.experts.state != state || len(nodes) == 0 {
+		return 0, errors.New("experts on host require their owning CUDA worker")
+	}
+	head, err := w.experts.routedGroup(nodes)
+	if err != nil {
+		return 0, err
+	}
+	for _, bank := range head.group {
+		if bank.head != head {
+			bank.head, head.onHostStale = head, true
+		}
+	}
+	return w.experts.onHostFlags + driver.DevicePtr(head.routed), nil
+}
+
+// routedGroup returns the first bank of a routed node, its group the node's banks.
+func (c *expertResidency) routedGroup(nodes []*tensor.Tensor) (*expertBank, error) {
 	head := c.banks[nodes[0].Name]
 	if head == nil || !slices.EqualFunc(head.group, nodes, func(bank *expertBank, node *tensor.Tensor) bool { return bank.info.Name == node.Name }) {
 		group := make([]*expertBank, len(nodes))
@@ -401,13 +443,13 @@ func (w *DeviceWeights) ExpertRoutes(state *device.State, nodes []*tensor.Tensor
 			bank := c.banks[node.Name]
 			if bank == nil || head == nil || node.Type != bank.info.Type || len(bank.pointers) != len(head.pointers) ||
 				!slices.Equal(node.Shape.Dims[:node.Shape.Rank], bank.info.Shape[:bank.info.Dimensions]) {
-				return 0, fmt.Errorf("expert bank %q differs from its file descriptor", node.Name)
+				return nil, fmt.Errorf("expert bank %q differs from its file descriptor", node.Name)
 			}
 			group[i] = bank
 		}
 		head.group = group
 	}
-	return c.routedMap + driver.DevicePtr(head.routed), nil
+	return head, nil
 }
 
 // ExpertSources writes, for each expert of a routed node's bank, the address
@@ -791,10 +833,13 @@ func (c *expertResidency) publish(ctx context.Context) error {
 	for index, bank := range c.ordered {
 		if bank.changed {
 			first, last = min(first, index), index
+			if bank.head != nil {
+				bank.head.onHostStale = true
+			}
 		}
 	}
-	if last < 0 {
-		return nil
+	if err := c.publishOnHost(ctx); err != nil || last < 0 {
+		return err
 	}
 	from, through := c.ordered[first], c.ordered[last]
 	if err := c.mem.write(ctx, from.table, driver.Bytes(c.pointers[from.first:through.first+len(through.pointers)])); err != nil {
@@ -804,6 +849,41 @@ func (c *expertResidency) publish(ctx context.Context) error {
 		bank.changed = false
 	}
 	return nil
+}
+
+// publishOnHost sets the card's flags of experts on host of each group whose banks moved an expert, as one copy from
+// the first flag that changed through the last.
+func (c *expertResidency) publishOnHost(ctx context.Context) error {
+	first, end := len(c.onHost), 0
+	for _, head := range c.ordered {
+		if !head.onHostStale {
+			continue
+		}
+		flags := c.onHost[head.routed : head.routed+uint64(len(head.pointers))]
+		for index := range flags {
+			onHost := byte(1)
+			for _, bank := range head.group {
+				if bank.hosted[index] == nil {
+					onHost = 0
+				}
+			}
+			if flags[index] != onHost {
+				flags[index] = onHost
+				first, end = min(first, int(head.routed)+index), max(end, int(head.routed)+index+1)
+			}
+		}
+		head.onHostStale = false
+	}
+	if c.onHostUnwritten {
+		first, end = 0, len(c.onHost)
+	}
+	if first >= end {
+		return nil
+	}
+	// A failed write leaves the card's flags unknown, so the next publish writes them all.
+	err := c.mem.write(ctx, c.onHostFlags+driver.DevicePtr(first), c.onHost[first:end])
+	c.onHostUnwritten = err != nil
+	return err
 }
 
 // ReserveExpertMemory makes room for another executor owner before allocation.
@@ -906,13 +986,15 @@ func (c *expertResidency) close() error {
 	for _, chunk := range c.cards {
 		errs = append(errs, c.mem.free(context.Background(), []driver.DevicePtr{chunk.pointer}))
 	}
-	if c.tables != 0 {
-		errs = append(errs, c.mem.free(context.Background(), []driver.DevicePtr{c.tables}))
+	for _, pointer := range []driver.DevicePtr{c.tables, c.onHostFlags} {
+		if pointer != 0 {
+			errs = append(errs, c.mem.free(context.Background(), []driver.DevicePtr{pointer}))
+		}
 	}
 	for _, host := range c.pinned {
 		errs = append(errs, c.mem.hostFree(host))
 	}
-	c.cards, c.tables, c.pinned, c.routed, c.classes = nil, 0, nil, nil, nil
+	c.cards, c.tables, c.onHostFlags, c.pinned, c.routed, c.onHost, c.classes = nil, 0, 0, nil, nil, nil, nil
 	return errors.Join(errs...)
 }
 

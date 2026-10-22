@@ -239,8 +239,9 @@ func TestFlashNextExpertResidency(t *testing.T) {
 	t.Run("fill-splits-card-and-host", func(t *testing.T) {
 		cache, mem := open(t, oneEach)
 		readable(t, cache, mem, map[string][]uint32{"gate": {0}, "down": {0}})
-		// The tables, the pinned route flags, and one card allocation and one pinned allocation a bank.
-		if len(cache.cards) != 2 || len(cache.pinned) != 3 || mem.liveCount() != 6 {
+		// The tables, the card flags of experts on host, the pinned route flags, and one card allocation and one
+		// pinned allocation a bank.
+		if len(cache.cards) != 2 || len(cache.pinned) != 3 || mem.liveCount() != 7 {
 			t.Fatalf("fill made %d card and %d pinned allocations, %d live", len(cache.cards), len(cache.pinned), mem.liveCount())
 		}
 		reclaimable, err := (&DeviceWeights{experts: cache}).ExpertMemory(nil)
@@ -286,6 +287,33 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		if err != nil || placement.Routes != 8 || placement.CardRoutes != 2 || placement.CardExperts != 2 {
 			t.Fatalf("placement after the runs = %+v: %v", placement, err)
 		}
+	})
+	t.Run("experts-on-host-follow-moves", func(t *testing.T) {
+		cache, mem := open(t, oneEach)
+		flags, err := (&DeviceWeights{experts: cache}).ExpertsOnHost(nil, nodes(t))
+		if err != nil {
+			t.Fatal(err)
+		}
+		// onCard holds the card's flags to the experts every bank holds on the card, and no other.
+		onCard := func(t *testing.T, card ...uint32) {
+			t.Helper()
+			got, err := mem.at(flags, experts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for index := range uint32(experts) {
+				if want := !slices.Contains(card, index); (got[index] == 1) != want {
+					t.Fatalf("expert %d on host %t, want %t", index, got[index] == 1, want)
+				}
+			}
+		}
+		// A node's flags are clear until the advance after it is named, so its first run reads every expert itself.
+		onCard(t, 0, 1, 2)
+		advance(t, cache)
+		onCard(t, 0)
+		route(t, cache, 2)
+		advance(t, cache)
+		onCard(t, 2)
 	})
 	t.Run("promotions-land-beside-the-next-run", func(t *testing.T) {
 		// Two experts of each bank fit: 0 and 1 on the card, 2 in host memory.

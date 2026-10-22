@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "abiVersion": 54,
+  "abiVersion": 55,
   "cudaToolkit": "12.9",
   "nvcc": "12.9.86",
   "target": "compute_89",
@@ -64,7 +64,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "fd8d2751198c6e6c6a07a9b0685a68def977ab1059826b3fb417fa1b1e9aa1d3",
+      "sourceSha256": "3e9e22a72c1586a10e723a6f6dda1713ecd337fbabdefa2aefa4d3edf269fd30",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -72,7 +72,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "012918c22ebffbcd5e85380da5e2411b77fe336f501dd74c77c5b51f534154bc",
+      "assetSha256": "a82fdffb3a689dfc4f808591c86ead588d3ac74550884436bd97146340b4e129",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -1151,7 +1151,30 @@
           ],
           "functions": [
             "moe_down_dot_f32",
-            "moe_down_f32",
+            "moe_down_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".f32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u64",
+            ".u64"
+          ],
+          "functions": [
             "moe_down_q8_f32"
           ]
         },
@@ -1222,7 +1245,36 @@
           ],
           "functions": [
             "moe_hidden_dot_f32",
-            "moe_hidden_f32",
+            "moe_hidden_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".f32",
+            ".u32",
+            ".u32",
+            ".u64",
+            ".u64",
+            ".u64"
+          ],
+          "functions": [
             "moe_hidden_q8_f32",
             "moe_hidden_span_q8_f32"
           ]

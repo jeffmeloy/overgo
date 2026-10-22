@@ -56,10 +56,11 @@ func (p *Pool) Layer(experts []Expert, formats Formats, hidden, intermediate int
 		ups[token] = scratch.ups[token*intermediate : (token+1)*intermediate]
 		quantized[token] = scratch.quantized[token*quantizedBytes : (token+1)*quantizedBytes]
 	}
-	spans := (intermediate + layerSpan - 1) / layerSpan
+	span := p.taskRows(intermediate, len(experts))
+	spans := (intermediate + span - 1) / span
 	if err := p.run(len(experts)*spans, func(task int) error {
-		expert, first := task/spans, task%spans*layerSpan
-		end := min(first+layerSpan, intermediate)
+		expert, first := task/spans, task%spans*span
+		end := min(first+span, intermediate)
 		work := experts[expert]
 		gate, up := gates[firsts[expert]:firsts[expert+1]], ups[firsts[expert]:firsts[expert+1]]
 		if err := gateRows(work.Gate, hidden, work.Activations, gate, first, end); err != nil {
@@ -82,10 +83,18 @@ func (p *Pool) Layer(experts []Expert, formats Formats, hidden, intermediate int
 	}); err != nil {
 		return err
 	}
-	spans = (hidden + layerSpan - 1) / layerSpan
+	span = p.taskRows(hidden, len(experts))
+	spans = (hidden + span - 1) / span
 	return p.run(len(experts)*spans, func(task int) error {
-		expert, first := task/spans, task%spans*layerSpan
+		expert, first := task/spans, task%spans*span
 		work := experts[expert]
-		return downRows(work.Down, intermediate, quantized[firsts[expert]:firsts[expert+1]], work.Out, first, min(first+layerSpan, hidden))
+		return downRows(work.Down, intermediate, quantized[firsts[expert]:firsts[expert+1]], work.Out, first, min(first+span, hidden))
 	})
+}
+
+// taskRows is how many of a phase's rows of each expert a task computes:
+// layerSpan, or fewer where its tasks would not reach every worker, as one
+// decode token's expert's would not.
+func (p *Pool) taskRows(rows, experts int) int {
+	return min(layerSpan, max(1, (rows*experts+p.workers-1)/p.workers))
 }

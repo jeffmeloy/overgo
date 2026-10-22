@@ -96,6 +96,8 @@ type executionScratch struct {
 	retainedStorage   []bool
 	retainedOffsets   []uint64
 	replayFrame       []driver.DevicePtr
+	// readBack is pinned host memory a retained run's read-back outputs come down into.
+	readBack []byte
 }
 
 // stagedHostBytes is one part of the bytes a run writes from the host: the feed of the input at order index node, or the attribute words at node -1, at offset in the run's lease.
@@ -251,6 +253,8 @@ type RetainedOutputs struct {
 	values   []DeviceValue
 	leases   []deviceBufferLease
 	released bool
+	// read is the run's read-back outputs' values by output index, which CopyToHost returns with no wait on the card.
+	read [][]float32
 }
 
 func (r *RetainedOutputs) Value(output *tensor.Tensor) (DeviceValue, bool) {
@@ -292,6 +296,9 @@ func (r *RetainedOutputs) CopyToHost(
 		return reference.Value{}, errors.New("CUDA retained output is unavailable")
 	}
 	value := r.values[index]
+	if index < len(r.read) && r.read[index] != nil {
+		return reference.Value{Shape: value.Shape, Data: slices.Clone(r.read[index])}, nil
+	}
 	elements, err := value.Shape.Elements()
 	if err != nil {
 		return reference.Value{}, err
@@ -438,6 +445,8 @@ type executionResult struct {
 	host   map[*tensor.Tensor]reference.Value
 	values []DeviceValue
 	leases []deviceBufferLease
+	// read holds the read-back outputs' values by output index (CompiledGraph.ReadBack), nil for the others.
+	read [][]float32
 }
 
 func hostResult(result *executionResult, err error) (map[*tensor.Tensor]reference.Value, error) {
@@ -759,6 +768,10 @@ type CompiledGraph struct {
 	memory              planner.Plan
 	retainedMemory      planner.Plan
 	retainedAliasMemory planner.Plan
+	// memoryAt, retainedAt and aliasAt are each plan's arena offset of every node in order, absentOffset where it
+	// places none.
+	//   - a run reads them by index because a map lookup a node held each Flash-Next launch about 60 us
+	memoryAt, retainedAt, aliasAt []uint64
 	// fusions: rewrite-only descriptors; released after launch compilation.
 	fusions         map[*tensor.Tensor]*compiledFusion
 	elided          map[*tensor.Tensor]struct{}
@@ -778,6 +791,8 @@ type CompiledGraph struct {
 	// the CPU (moeDoorbell); doorbellRings are the routed nodes a captured run rings for, in launch order.
 	doorbellSlots, doorbellWidth uint64
 	doorbellRings                []*tensor.Tensor
+	// readBack marks the outputs a retained run copies to host memory before it ends (ReadBack).
+	readBack []bool
 }
 
 // IndexedGraph owns compiled topology and indexed device inputs.
@@ -1398,6 +1413,7 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 		}
 	}
 	compiled.memory = memory
+	compiled.memoryAt, compiled.retainedAt, compiled.aliasAt = arenaOffsets(order, compiled.memory), arenaOffsets(order, compiled.retainedMemory), arenaOffsets(order, compiled.retainedAliasMemory)
 	compiled.nodes = make([]compiledNode, len(order))
 	for index, node := range order {
 		view, aliases, viewErr := tensor.ResolveStorageView(node)
@@ -1657,7 +1673,7 @@ func (e *Executor) ExecuteRetainedCompiled(
 		return nil, err
 	}
 	return &RetainedOutputs{
-		executor: e, compiled: compiled, values: execution.values, leases: execution.leases,
+		executor: e, compiled: compiled, values: execution.values, leases: execution.leases, read: execution.read,
 	}, nil
 }
 
@@ -1675,7 +1691,7 @@ func (e *Executor) ExecuteRetainedCompiledOnce(
 		return nil, err
 	}
 	return &RetainedOutputs{
-		executor: e, compiled: compiled, values: execution.values, leases: execution.leases,
+		executor: e, compiled: compiled, values: execution.values, leases: execution.leases, read: execution.read,
 	}, nil
 }
 
@@ -1717,27 +1733,60 @@ func boundRetainedPlan(candidate, bound planner.Plan) planner.Plan {
 }
 
 func (c *CompiledGraph) executionMemory(retain bool, targets *RetainedTargets) planner.Plan {
+	plan, _ := c.executionPlan(retain, targets)
+	return plan
+}
+
+// executionPlan returns the plan a run's arena follows and that plan's offset of every node in order.
+func (c *CompiledGraph) executionPlan(retain bool, targets *RetainedTargets) (planner.Plan, []uint64) {
 	if !retain {
-		return c.memory
+		return c.memory, c.memoryAt
 	}
 	if targets != nil && len(targets.values) != len(c.outputs) {
-		return c.retainedMemory
+		return c.retainedMemory, c.retainedAt
 	}
-	return c.retainedExecutionMemory(func(index int) bool { return targets != nil && targets.values[index].Pointer != 0 })
+	if c.retainedAliased(func(index int) bool { return targets != nil && targets.values[index].Pointer != 0 }) {
+		return c.retainedAliasMemory, c.aliasAt
+	}
+	return c.retainedMemory, c.retainedAt
 }
 
 func (c *CompiledGraph) retainedExecutionMemory(targeted func(int) bool) planner.Plan {
+	if c.retainedAliased(targeted) {
+		return c.retainedAliasMemory
+	}
+	return c.retainedMemory
+}
+
+// retainedAliased reports whether a retained run's targeted outputs let it follow the aliasing plan: every targeted
+// alias whose root the plain retained plan holds is held by the aliasing plan too.
+func (c *CompiledGraph) retainedAliased(targeted func(int) bool) bool {
 	for index, aliases := range c.outputAliases {
 		if aliases && targeted(index) {
 			root := c.outputViews[index].source
 			_, reserved := c.retainedAliasMemory.Allocations[root]
 			_, required := c.retainedMemory.Allocations[root]
 			if required && !reserved {
-				return c.retainedMemory
+				return false
 			}
 		}
 	}
-	return c.retainedAliasMemory
+	return true
+}
+
+// absentOffset marks a node a plan places no arena allocation for.
+const absentOffset = ^uint64(0)
+
+// arenaOffsets returns plan's arena offset of every node in order, absentOffset where it places none.
+func arenaOffsets(order []*tensor.Tensor, plan planner.Plan) []uint64 {
+	offsets := make([]uint64, len(order))
+	for index, node := range order {
+		offsets[index] = absentOffset
+		if allocation, ok := plan.Allocations[node]; ok {
+			offsets[index] = allocation.Offset
+		}
+	}
+	return offsets
 }
 
 func (e *Executor) runCompiled(
@@ -1927,7 +1976,7 @@ func execute(
 ) (_ *executionResult, err error) {
 	outputs := compiled.outputs
 	order := compiled.order
-	plan := compiled.executionMemory(retainOutputs, retainedTargets)
+	plan, arenaAt := compiled.executionPlan(retainOutputs, retainedTargets)
 	if runtimeAttributes != nil &&
 		(runtimeAttributes.compiled != compiled || len(runtimeAttributes.values) != len(order)) {
 		return nil, errors.New("CUDA runtime attributes belong to another compiled graph")
@@ -2236,7 +2285,7 @@ func execute(
 			if retainedAlias ||
 				!(retainOutputs && retainedOutput) {
 				pointer := input + driver.DevicePtr(offset)
-				pointers.set(node, pointer)
+				pointers.values[nodeIndex] = pointer
 				if retainedAlias {
 					if retainedView.source == nil {
 						return nil, errors.New("CUDA retained storage view is invalid")
@@ -2261,7 +2310,7 @@ func execute(
 					return nil, err
 				}
 				retainedValues[outputIndex] = target
-				pointers.set(node, target.Pointer)
+				pointers.values[nodeIndex] = target.Pointer
 				continue
 			}
 			offset := retainedOffsets[nodeIndex]
@@ -2278,19 +2327,26 @@ func execute(
 					Pointer: pointer, Shape: node.Shape, CapacityBytes: bytes,
 				}
 			}
-			pointers.set(node, pointer)
+			pointers.values[nodeIndex] = pointer
 			continue
 		}
-		allocation, ok := plan.Allocations[node]
-		if !ok {
+		offset := arenaAt[nodeIndex]
+		if offset == absentOffset {
 			return nil, fmt.Errorf("tensor %d has no arena allocation", node.ID)
 		}
-		if uint64(arena) > math.MaxUint64-allocation.Offset {
+		if uint64(arena) > math.MaxUint64-offset {
 			return nil, errors.New("device pointer offset overflows uint64")
 		}
-		pointers.set(node, arena+driver.DevicePtr(allocation.Offset))
+		pointers.values[nodeIndex] = arena + driver.DevicePtr(offset)
 	}
 
+	// A retained run's read-back outputs take their pinned places before the run is launched.
+	var readBack []readBackCopy
+	if retainOutputs && len(compiled.readBack) != 0 {
+		if readBack, err = compiled.planReadBack(state, retainedValues, &scratch.readBack); err != nil {
+			return nil, err
+		}
+	}
 	capturing := retainOutputs && execCache != nil
 	// A captured run's decode groups ring for the CPU's experts on host, which this worker computes once it launches the run.
 	var doorbell *moeDoorbell
@@ -2440,6 +2496,13 @@ func execute(
 			return nil, err
 		}
 	}
+	// A retained run's read-back outputs come down behind its graph, before the one wait the run ends with.
+	if err := queueReadBack(state, readBack, retainedValues, scratch.readBack); err != nil {
+		if rings {
+			doorbell.abandon()
+		}
+		return nil, err
+	}
 	var serveErr error
 	if rings {
 		serveErr = doorbell.serve(ctx, state, experts, compiled.doorbellRings, ringBase)
@@ -2458,6 +2521,7 @@ func execute(
 		return &executionResult{
 			values: retainedValues,
 			leases: retainedLeases,
+			read:   takeReadBack(readBack, scratch.readBack, len(outputs)),
 		}, nil
 	}
 
@@ -2724,6 +2788,10 @@ func (e *Executor) closeResources(state *device.State) error {
 		}
 		e.resources.arena = 0
 		e.resources.arenaSize = 0
+	}
+	if len(e.resources.scratch.readBack) > 0 {
+		errs = append(errs, state.Driver.MemFreeHost(e.resources.scratch.readBack))
+		e.resources.scratch.readBack = nil
 	}
 	if err := e.resources.graphExecs.close(state); err != nil {
 		errs = append(errs, err)

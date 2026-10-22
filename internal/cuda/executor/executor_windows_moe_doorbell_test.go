@@ -17,8 +17,9 @@ import (
 // IQ4_NL down, apart and fused, for a decode token, a verify span of three
 // that reads shared experts once and one of eight that does not, the card
 // holding expert 0 of each bank. The step's first run names its experts on
-// host and the second hands them over: the CPU's outputs stay within its
-// activations' rounding of the reference, as the prompt's do.
+// host and the second hands them over, reading its output back: the CPU's
+// outputs stay within its activations' rounding of the reference, as the
+// prompt's do.
 func TestDecodeHostExpertsRingTheDoorbell(t *testing.T) {
 	// Serial: device fixtures share the one card.
 	const (
@@ -65,7 +66,14 @@ func TestDecodeHostExpertsRingTheDoorbell(t *testing.T) {
 				t.Fatal(err)
 			}
 			var got []float32
-			for range 2 {
+			for run := range 2 {
+				// The ringing run reads its output back too, whose pinned memory it takes before its launch: taken
+				// after, it waited for the card, which waited for the ring the worker had not reached.
+				if run == 1 {
+					if err := compiled.ReadBack(output); err != nil {
+						t.Fatal(err)
+					}
+				}
 				retained, err := cuda.ExecuteRetainedCompiled(t.Context(), compiled, host, inputs, nil, nil)
 				if err != nil {
 					t.Fatal(err)

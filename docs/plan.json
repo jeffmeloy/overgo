@@ -214,16 +214,9 @@
       "status": "open",
       "budget": {
         "nodes": 0,
-        "reason": "expert-doorbell as built adds 3,474 production syntax nodes (the gate's preflight, 2026-10-21): the doorbell's pinned words, slots and rows with its card descriptor, the worker's serve loop that answers each ring, the CPU's computation of a ring's experts, the residency's card flags of experts on host, and the spinning pool; the row may add 3,474."
+        "reason": "spec-idle: the waited residency landing, the retained run's read-back into pinned memory taken before launch, and each plan's arena offsets by node index cut a speculative token from about 9.85 to 9.53 ms on Flash-Next and made its decoded text independent of the host's speed"
       },
       "steps": [
-        {
-          "id": "spec-idle",
-          "title": "Keep the card busy between a verify window and its draft",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "The decode ledger (tmp/flashnext-speculation/decode-ledger.md, 2026-10-21) times a speculative window at about 15.9 ms of wall clock against 14.4 ms of GPU work (the verify graph 13.2, the draft 1.24): the card idles about 1.5 ms a window, 0.9 ms of the 9.9 a token, where Strata's window idles about 0.2 (its commit and emit 0.07). Plain decoding idles about 0.1 ms a token, so the idle belongs to the speculation's host round trips: the verify's synchronization and the read of its accepted count, the commit of the kept tokens' state, the draft's launch and synchronization and the read of its token, then the next verify's launch.\nThe step measures the window's host time by part first (the round trips counted and timed, unprofiled: nsys inflates them to 7.5 ms a window), then removes the largest: each part whose input the card already holds runs on the card behind the graph before it, so the host reads only what it must return, once a window, as Strata's commit runs asynchronously (set_commit_async) and its draft starts from device-side tokens.\nCeiling: about 0.9 ms a token, the whole idle.\nEvidence: the probe's speculative ms a token and the idle a window (wall minus GPU busy) against master; the decoded texts the same.\nServes: throughput.\nBatch: device."
-        },
         {
           "id": "verify-experts",
           "title": "Bring a verify window's routed expert products to the rate of their bytes",
@@ -244,6 +237,20 @@
           "status": "open",
           "verify": "go run ./cmd/plan -status",
           "rationale": "The decode ledger (2026-10-21) times the Q6_K head (mul_mat_q6_K_input_f32) at 0.84 ms for a verify window's 2 columns and 0.585 ms for the draft's one, 1.43 ms a window, where Strata's head takes 0.59 ms for 2.55 columns. A column reads the head's 520 MB at about 900 GB/s; the second column of a window adds 0.26 ms where it could add almost nothing.\nThe step makes the head's columns share its row reads (the verify's columns in one pass at the one-column time), then measures whether the draft's head can read a share of the vocabulary the draft's tokens fall in, as Strata's MTP head does, with the verify's full head unchanged.\nCeiling: about 0.4 ms a token speculative (0.25 of the verify's head and up to 0.585 of the draft's a window), 0 plain.\nEvidence: the head's time at one, two and three columns in a fixture; the probe's speculative ms a token and the drafts' acceptance against master.\nServes: throughput.\nBatch: device."
+        },
+        {
+          "id": "spec-chain",
+          "title": "Decide a speculative window's acceptance on the card so its draft launches behind its verify",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "spec-idle removed the verify's readback round trips and part of each launch's prologue, and waited residency copies made a speculative window's misses fewer; the window still waits on the host between its verify and its draft: the verify's synchronization, the accepted count and the draft's hidden row read on the host, the commit's host work, the draft's prologue and launch, then its synchronization and token read before the next verify's prologue (Strata's window idles about 0.2 ms, its commit asynchronous and its draft fed from the card).\nThe step decides a window's acceptance on the card: a kernel behind the verify compares its drafts with the verify's selections, writes the accepted count, the correction token and the draft's input row and position where the draft graph reads them, so the draft graph launches right behind the verify with no host round trip, and the host reads the selections, the count and the draft's token once a window, after both. The next verify still waits for the draft's token on the host, which loads its n-gram rows.\nCeiling: the verify's synchronization, readbacks and the host decisions between the graphs and the draft's prologue, measured by part before it is built (about 0.5 ms a window by the spec-idle timings).\nEvidence: the window's host parts timed unprofiled before and after; the probe's speculative ms a token against master, the decoded texts the same.\nServes: throughput.\nBatch: device."
+        },
+        {
+          "id": "residency-stamps",
+          "title": "Stamp routed experts densely and settle the residency's recency order only where it is walked",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "spec-idle timed the residency's advance at 0.16 to 0.27 ms of every decode run, almost all of it the routes' bookkeeping: each routed expert of each of a node's three banks takes a type assertion and a move to the back of its stride's linked list (about 2,400 a speculative window, 1,440 a plain token), each a cache miss on a list element scattered across 52,000 card experts. The scan of the flags and their clearing take under 5 us.\nThe step keeps a dense per-bank stamp of each expert's last routed step, written on a route, and settles the recency order only where the victim and staging searches walk it: an element at the front routed since its place moves to the back as the walk passes it, so the front stays the least recently routed and a route costs one write.\nCeiling: about 0.15 ms a speculative window and 0.1 ms a plain token, the advance's bookkeeping.\nEvidence: the advance's time a run unprofiled before and after; the residency's tests of promotion, staging and release unchanged; the probe's ms a token plain and speculative against master, the decoded texts the same.\nServes: throughput.\nBatch: device."
         },
         {
           "id": "draft-library",

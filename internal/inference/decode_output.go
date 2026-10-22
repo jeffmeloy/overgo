@@ -72,6 +72,19 @@ func (p deviceOutputPlan) graphOutput(graph deviceBatchGraph) *tensor.Tensor {
 	}
 }
 
+// readBack names to a decode run's compiled graph the outputs collect reads on the host, which then come down with
+// the run: each branch's selection, candidates or logits, and a span's hidden rows.
+func (p deviceOutputPlan) readBack(compiled *executor.CompiledGraph, graphs ...deviceBatchGraph) error {
+	var outputs []*tensor.Tensor
+	for _, graph := range graphs {
+		outputs = append(outputs, p.graphOutput(graph))
+		if p.is(deviceOutputGreedySpan) && graph.hidden != nil {
+			outputs = append(outputs, graph.hidden)
+		}
+	}
+	return compiled.ReadBack(outputs...)
+}
+
 func (p deviceOutputPlan) collect(ctx context.Context, r *Runner, retained *executor.RetainedOutputs, graph deviceBatchGraph, caches []*deviceKVCache) error {
 	count := len(caches)
 	vocabulary := int(r.spec.VocabularySize)

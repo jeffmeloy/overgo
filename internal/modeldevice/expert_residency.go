@@ -495,9 +495,12 @@ func (w *DeviceWeights) StartExpertCopies(ctx context.Context, state *device.Sta
 }
 
 // advance reads the flags the last run's routes set, which its synchronization made visible, and clears them for the next run.
-// The copies an earlier advance queued apply once they have landed, and the coldest card experts are staged for the next.
+// The copies an earlier advance queued land first, waited for, and the coldest card experts are staged for the next.
+//   - waited for because where an expert lies decides who computes it (the doorbell's CPU or the card), so a copy
+//     that landed by one advance and not another changed a decoded text with the host's speed; a copy queued behind
+//     the last run has landed by its end on Flash-Next, so the wait costs nothing there
 func (c *expertResidency) advance(ctx context.Context, prompt bool) error {
-	if err := c.land(ctx, false); err != nil {
+	if err := c.land(ctx, true); err != nil {
 		return errors.Join(err, c.publish(context.WithoutCancel(ctx)))
 	}
 	if err := c.refill(ctx); err != nil {
@@ -691,7 +694,7 @@ func (c *expertResidency) refill(ctx context.Context) error {
 		}
 		if !landed {
 			// A promotion in flight still names its expert's host slot: the copies land before host experts are counted.
-			if err := c.land(ctx, true); err != nil {
+			if err := c.land(ctx, false); err != nil {
 				return err
 			}
 			landed = true
@@ -918,7 +921,7 @@ func (w *DeviceWeights) ReserveExpertMemory(state *device.State, required uint64
 // publishes their tables and frees the allocation.
 func (c *expertResidency) release(ctx context.Context) error {
 	// Copies in flight land first: a promotion may be copying into this allocation.
-	if err := c.land(ctx, true); err != nil {
+	if err := c.land(ctx, false); err != nil {
 		return err
 	}
 	chunk := c.cards[len(c.cards)-1]

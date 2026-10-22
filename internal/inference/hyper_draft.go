@@ -165,6 +165,10 @@ func (r *Runner) compileHyperDraftStep() (*hyperDraftStep, error) {
 	if step.graph, err = executor.CompileIndexed(step.selection); err != nil {
 		return nil, err
 	}
+	// The draft's token comes down with its run.
+	if err := step.graph.Graph.ReadBack(step.selection); err != nil {
+		return nil, err
+	}
 	if err := step.graph.Inputs.Bind(deviceFeeds); err != nil {
 		return nil, err
 	}

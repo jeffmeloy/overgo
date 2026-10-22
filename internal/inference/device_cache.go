@@ -949,6 +949,9 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	if err != nil {
 		return nil, err
 	}
+	if err := plan.readBack(execution.Graph, graphs...); err != nil {
+		return nil, err
+	}
 	if err := execution.Inputs.Bind(deviceFeeds); err != nil {
 		return nil, err
 	}

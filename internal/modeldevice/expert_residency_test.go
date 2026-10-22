@@ -347,7 +347,8 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		if err := cache.start(t.Context()); err != nil || len(mem.queued) != len(cache.promoting)+len(cache.staging) {
 			t.Fatalf("starting the moves queued %d copies (%v), want one for each of %d moves", len(mem.queued), err, len(cache.promoting)+len(cache.staging))
 		}
-		mem.hold = false
+		// The next advance waits for the copies still in flight, so where an expert lies never follows the host's
+		// speed.
 		advance(t, cache)
 		readable(t, cache, mem, map[string][]uint32{"gate": {0, 2}, "down": {0, 2}})
 		if len(cache.pinned) != pinned || len(cache.promoting) != 0 {

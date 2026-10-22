@@ -153,6 +153,9 @@ func (r *Runner) forwardPackedDeviceBatchLocked(
 	if err != nil {
 		return nil, err
 	}
+	if err := plan.readBack(execution.Graph, graph); err != nil {
+		return nil, err
+	}
 	if err := execution.Inputs.Bind(deviceFeeds); err != nil {
 		return nil, err
 	}

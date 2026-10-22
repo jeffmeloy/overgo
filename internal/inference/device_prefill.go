@@ -80,9 +80,10 @@ func (r *Runner) prefillDeviceCachedLocked(ctx context.Context, appendInput devi
 
 // readDevicePromptLocked reads the prompt's tokens after cached onto past under the output plan of mode, sizing the
 // cache for the prompt and the output tokens it may decode after it, within the context, so that no part of the read
-// nor a decode step outgrows the cache into a copy. A recurrent prompt its entry keeps (keep) is read in two parts, the
-// second its last turn, and the cache before that turn is answered too, nil otherwise: a recurrent state cannot step
-// back a token, so a later request that keeps the turns before it reads on from there.
+// nor a decode step outgrows the cache into a copy. A recurrent prompt its entry keeps (keep), with at least
+// promptBoundaryTokens before its last turn, is read in two parts, the second its last turn, and the cache before that
+// turn is answered too, nil otherwise: a recurrent state cannot step back a token, so a later request that keeps the
+// turns before it reads on from there.
 func (r *Runner) readDevicePromptLocked(
 	ctx context.Context,
 	mode deviceOutputMode,
@@ -110,7 +111,7 @@ func (r *Runner) readDevicePromptLocked(
 		return next[0], nil
 	}
 	turn := r.lastTurnStart(ids)
-	if !keep || projected != nil || turn <= cached || !r.hasRecurrentCache() {
+	if !keep || projected != nil || turn <= cached || turn < r.promptBoundaryTokens || !r.hasRecurrentCache() {
 		end, err := read(ids[cached:], past)
 		return end, nil, err
 	}

@@ -197,11 +197,13 @@ type preparedModel struct {
 	outputBias          []float32
 	outputExclusions    []tokenizer.TokenRange
 	promptCacheCapacity int
-	modelSignature      [32]byte
-	modelSignatureErr   error
-	modelSignatureOnce  sync.Once
-	audioTables         *audioWaveformTables
-	audioTablesOnce     sync.Once
+	// promptBoundaryTokens: the fewest tokens before a prompt's last turn for which its read keeps a boundary there.
+	promptBoundaryTokens int
+	modelSignature       [32]byte
+	modelSignatureErr    error
+	modelSignatureOnce   sync.Once
+	audioTables          *audioWaveformTables
+	audioTablesOnce      sync.Once
 	// ngramRows reads the n-gram table's rows and keeps those read, built by the first request that reads them.
 	ngramRows *model.HostRows
 

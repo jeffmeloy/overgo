@@ -212,17 +212,10 @@
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",
       "budget": {
-        "nodes": 87,
+        "nodes": 64,
         "reason": ""
       },
       "steps": [
-        {
-          "id": "turn-read",
-          "title": "Read a short chat prompt whole rather than at its last turn",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -run \"^TestRecurrentPromptCacheReadsOnFromItsTurn$\" -count=1",
-          "rationale": "The conversation step read every recurrent chat prompt in two parts so its entry keeps the cache before its last turn; the turn's own read builds and runs a second graph, which put a 42-token Flash-Next chat prompt at 0.21 to 0.55 s against 0.16 to 0.19 s read whole.\nServes: a prompt with fewer than promptBoundaryTokens (1,024) before its last turn is read whole; a longer history keeps its boundary, which a follow-up's read of the whole history would cost more than.\nEvidence: the hermetic hybrid's three-token history keeps no boundary before its turn, and with the bound at zero its follow-up still reads on from the turn to a cold read's tokens."
-        },
         {
           "id": "context-decode",
           "title": "Decode at a 4K to 16K context at Strata's rate",

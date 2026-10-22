@@ -31,6 +31,15 @@ func TestRecurrentPromptCacheReadsOnFromItsTurn(t *testing.T) {
 	defer runner.Close()
 	// Token 7 opens a turn: the prompt's history is 1 4 5 and the follow-up keeps it and that turn's opening token.
 	prompt, followUp := []tokenizer.TokenID{1, 4, 5, 7, 6, 4}, []tokenizer.TokenID{1, 4, 5, 7, 5, 6, 7, 4}
+	// A history shorter than promptBoundaryTokens is read whole: its turn read apart costs more than reading it again.
+	generatePromptCacheFixture(t, runner, prompt, true, false)
+	for _, boundary := range runner.promptCaches[0].Boundaries {
+		if boundary.Tokens < uint32(len(prompt)) {
+			t.Fatalf("a three-token history kept a boundary after %d tokens", boundary.Tokens)
+		}
+	}
+	clearPromptCaches(t, runner)
+	runner.promptBoundaryTokens = 0
 	cold := generatePromptCacheFixture(t, runner, followUp, false, false)
 	generatePromptCacheFixture(t, runner, prompt, true, false)
 	entry := runner.promptCaches[0]

@@ -265,6 +265,11 @@ func (r *Runner) ownsDevicePromptCache(cache *deviceKVCache) bool {
 // about 118 MB for Flash-Next).
 const promptBoundaryLimit = 4
 
+// promptBoundaryTokens is the fewest tokens before a prompt's last turn for which its read keeps a boundary: the
+// turn's own read costs its graph again (a 42-token Flash-Next chat prompt read in 0.21 to 0.55 s against 0.16 to
+// 0.19 s whole), which a follow-up reading fewer tokens again does not repay.
+const promptBoundaryTokens = 1024
+
 // readFromPromptBoundary keeps the entry's longest boundary within the common tokens as the entry itself, releasing its
 // longer caches, and answers the tokens it keeps; zero where none fits.
 func (r *Runner) readFromPromptBoundary(ctx context.Context, entry *cachedPrompt, common int) (int, error) {

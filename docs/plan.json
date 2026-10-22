@@ -208,25 +208,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "development-pace",
-      "title": "Cut the development loop's measured waste: one gate run a code step, one-command kernels, a forced-token A/B",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 127,
-        "reason": "count-in-landing as built adds 81 production syntax nodes (the gate's preflight, 2026-10-21): the candidate's counts kept for the charge and the raise it admits; raised in its own landing, the rule it adds."
-      },
-      "steps": [
-        {
-          "id": "forced-bench",
-          "title": "Decode forced token sequences in cmd/benchmark for speed A/B",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "A speed step's A/B ran the scratch chat probe: each arm reloads the model (about 22 s) and decodes three free-running chats of 200 tokens, about 4 minutes an arm, two alternating rounds a comparison. One repeat in three swung 0.5 to 2.5 ms a token, and a change that moves the decoded text (the expert doorbell, any CPU-side numerics) changes the work each token does, so the arms compared different texts.\ncmd/benchmark already loads the model once and interleaves a comparison factor (-compare cache_prompt or speculative). The step adds a forced token sequence (-forced \u003cfile of token ids\u003e): each run decodes that sequence, the next token fed whatever the model would have chosen, plain or through the draft, and reports the median and spread of the step time; and a comparison of two binaries' runs over the same sequence when the change is not a runtime factor.\nEvidence: the same build compared with itself over a forced sequence differs by less than the chat probe's spread; one comparison takes under two minutes an arm.\nServes: development velocity (every speed step's A/B) and throughput (the measurement it ranks by).\nDisappears: the scratch chat probe as the A/B of speed steps.\nBatch: device."
-        }
-      ]
-    },
-    {
       "id": "flashnext-speculation",
       "title": "Decode Flash-Next through its MTP draft at the rate Strata's MTP windows reach",
       "owner": "master-lead",
@@ -237,11 +218,32 @@
       },
       "steps": [
         {
-          "id": "decode-ledger",
-          "title": "Time Flash-Next's and Strata's decode by phase on the same token ids and rank the speed steps by the gaps",
+          "id": "spec-idle",
+          "title": "Keep the card busy between a verify window and its draft",
           "status": "open",
           "verify": "go run ./cmd/plan -status",
-          "rationale": "The speed steps of flashnext-speculation were ranked by estimates, and three of the last six missed: the hyper-connection fusion ran slower than its parts, chain depth and the draft on the card were retired, and the expert doorbell was planned at 0.8 ms a token from a kernel-level trace where an in-graph ablation (the card skipping its experts on host) bounded it at about 0.25 ms. Strata's decode is about 1 ms a token faster plain (10 against 11.0) and 1.7 ms speculative (8.1 against 9.8), and no measurement says which phases hold that gap.\nThe step times both engines' decode by phase on the same token ids: Strata by its own stage timers (session_replay_stages, the captured graph split at its halves; STRATA_PREFILL_TIMING for prompts), Flash-Next by the forced-sequence benchmark and a node-level split of the step (mixer, hyper-connections, router, routed experts with their misses, shared expert, head, the draft, a verify window's own work). The table, ms a token per phase for each and the gap, ranks the speed steps that follow; each of those then states its in-graph ceiling before it is built.\nEvidence: the ledger in tmp/flashnext-speculation/ with its commands, each phase's sum checked against the whole step time of each engine; the plan's speed steps re-ranked by its gaps.\nServes: throughput.\nBatch: device."
+          "rationale": "The decode ledger (tmp/flashnext-speculation/decode-ledger.md, 2026-10-21) times a speculative window at about 15.9 ms of wall clock against 14.4 ms of GPU work (the verify graph 13.2, the draft 1.24): the card idles about 1.5 ms a window, 0.9 ms of the 9.9 a token, where Strata's window idles about 0.2 (its commit and emit 0.07). Plain decoding idles about 0.1 ms a token, so the idle belongs to the speculation's host round trips: the verify's synchronization and the read of its accepted count, the commit of the kept tokens' state, the draft's launch and synchronization and the read of its token, then the next verify's launch.\nThe step measures the window's host time by part first (the round trips counted and timed, unprofiled: nsys inflates them to 7.5 ms a window), then removes the largest: each part whose input the card already holds runs on the card behind the graph before it, so the host reads only what it must return, once a window, as Strata's commit runs asynchronously (set_commit_async) and its draft starts from device-side tokens.\nCeiling: about 0.9 ms a token, the whole idle.\nEvidence: the probe's speculative ms a token and the idle a window (wall minus GPU busy) against master; the decoded texts the same.\nServes: throughput.\nBatch: device."
+        },
+        {
+          "id": "verify-experts",
+          "title": "Bring a verify window's routed expert products to the rate of their bytes",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "The decode ledger (2026-10-21) times a verify window's routed expert products at 3.72 ms (moe_hidden_span_q8_f32 1.86, moe_down_q8_f32 1.86) for 2 tokens, where Strata's card-resident experts take 2.79 ms for 2.55: about 0.93 ms a window, 0.58 ms a token. The span kernel reads an expert's gate and up rows once for the tokens that share it; the down kernel reads each token's experts' rows apart, and both read through the q8 block dots at about two thirds of the card's bandwidth.\nThe step times the two kernels at a verify window's shape in a fixture (decode clocks, 2 and 3 tokens, Flash-Next's IQ3_S and IQ4_NL banks), measures each against the bytes it must read, and closes the larger gap first: the down products sharing an expert's rows across the window's tokens as the span kernel does, or the block dots' reads kept in flight.\nCeiling: about 0.58 ms a token speculative and about 0.4 plain (the plain decode's experts, 3.2 ms a token, at the same rate).\nEvidence: the fixture's kernel times against their bytes; the probe's ms a token plain and speculative against master; the bits master's.\nServes: throughput.\nBatch: device."
+        },
+        {
+          "id": "dense-q8-columns",
+          "title": "Raise the dense Q8_0 products to the rate Strata's reach at one and two columns",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "The decode ledger (2026-10-21) times a verify window's dense Q8_0 products (mul_mat_q8_0_input_f32: the gated-delta qkv, z and out projections, attention's q and out) at 4.62 ms for 2 tokens, about 630 GB/s over their 2.9 GB, where Strata's take about 3.8 ms for 2.55 tokens, about 760 GB/s; a plain token's take 4.32 ms.\nThe step times the kernel at one and two columns over Flash-Next's shapes in a fixture against the bytes it reads, and raises the rate where it falls short: more rows in flight a warp, a second column sharing the row reads, or the qkv and z products of one input in one launch as the shared expert's pair does.\nCeiling: about 0.5 ms a token speculative, about 0.7 plain (4.32 ms at 760 GB/s would be 3.8).\nEvidence: the fixture's GB/s at one and two columns; the probe's ms a token plain and speculative against master; the bits master's.\nServes: throughput.\nBatch: device."
+        },
+        {
+          "id": "head-columns",
+          "title": "Share the Q6_K head's row reads across a window's columns and shrink the draft's head",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "The decode ledger (2026-10-21) times the Q6_K head (mul_mat_q6_K_input_f32) at 0.84 ms for a verify window's 2 columns and 0.585 ms for the draft's one, 1.43 ms a window, where Strata's head takes 0.59 ms for 2.55 columns. A column reads the head's 520 MB at about 900 GB/s; the second column of a window adds 0.26 ms where it could add almost nothing.\nThe step makes the head's columns share its row reads (the verify's columns in one pass at the one-column time), then measures whether the draft's head can read a share of the vocabulary the draft's tokens fall in, as Strata's MTP head does, with the verify's full head unchanged.\nCeiling: about 0.4 ms a token speculative (0.25 of the verify's head and up to 0.585 of the draft's a window), 0 plain.\nEvidence: the head's time at one, two and three columns in a fixture; the probe's speculative ms a token and the drafts' acceptance against master.\nServes: throughput.\nBatch: device."
         },
         {
           "id": "draft-library",

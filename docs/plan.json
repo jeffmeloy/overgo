@@ -235,10 +235,17 @@
       "title": "Deliver image understanding and its web GUI as the next native increment",
       "status": "open",
       "budget": {
-        "nodes": 24,
-        "reason": "measured 616 at the gate: the device prompt graph reads media rows, multi-axis positions and deepstack streams, a prompt's chunks take their share, and Generate routes projected prompts there"
+        "nodes": 440,
+        "reason": "measured 423 at the gate: a session's memory of its last encoded pictures by pixel digest, and flash attention admitting causal attention alone"
       },
       "steps": [
+        {
+          "id": "remember",
+          "title": "Encode a picture a chat sends again once",
+          "status": "open",
+          "verify": "go test ./internal/projector -count=1 -run '^TestRememberImagesEncodesAPictureOnce$'",
+          "rationale": "Measured 2026-10-22 on master 3fa5b9bf6: a chat sends its pictures again with every turn, and the projector session encodes each again, about 1.0 s of a 2.57 s warm Flash-Next screenshot request (0.95 s vision encoder, 0.03 s resampling); the reference engine encodes a picture sent again once (its docs/DETAILS.md, the vision section).\nThe step keeps what a session's image encoder made of its last four pictures, found by the digest of their pixels, the last asked kept longest, for every projector whose prompts encode a picture at a time. Measured with the change: the screenshot sent again takes 1.55 s, with the same 1136 tokens.\nThe gate's re-verification of the Gemma 4 multimodal claim, which the projector change sets off, found the Gemma E4B vision tower 0.61 and 2.07 percent from its reference past its 0.5 percent limit: the tensor-core prompt attention admitted non-causal attention. The step admits causal attention alone, so encoders keep their f32 paths.\nServes: first-output of an image conversation's later turns; held-out quality of encoders the tensor-core attention had read."
+        },
         {
           "id": "images",
           "title": "Reuse the vision projector and composer for image, OCR and multi-image conversations",

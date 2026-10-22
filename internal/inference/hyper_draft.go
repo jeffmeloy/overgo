@@ -2,8 +2,10 @@ package inference
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"os"
 
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
@@ -17,13 +19,23 @@ import (
 )
 
 // hyperDraft is the draft layer a draft file attaches to a hyper-connection trunk (Flash-Next's MTP layer).
+//   - vocabulary, when a file names it, is the token ids whose rows of the trunk's head the draft's head reads, head
+//     those rows on the card, so a draft step reads that share of the head (Flash-Next: 106,299 of 248,320 tokens)
 type hyperDraft struct {
-	file    *gguf.File
-	weights model.HyperDraftWeights
-	program model.CompiledLayerProgram
+	file       *gguf.File
+	weights    model.HyperDraftWeights
+	program    model.CompiledLayerProgram
+	vocabulary []uint32
+	head       gguf.TensorInfo
 	// step is the compiled draft step, nil until the first draft.
 	step *hyperDraftStep
 }
+
+// hyperDraftHead names the draft's head over its vocabulary among the device weights.
+const hyperDraftHead = "hyper_draft.head"
+
+// draftVocabularyIDBytes is a draft vocabulary file's token id, a little-endian int32.
+const draftVocabularyIDBytes = 4
 
 // hyperDraftStep is the compiled draft step, replayed as one captured graph with the token, the position and the streams of each draft.
 //   - a round drafts one token from a fresh cell, so the step attends over that cell alone
@@ -36,8 +48,16 @@ type hyperDraftStep struct {
 	streams, selection *tensor.Tensor
 }
 
-// openHyperDraft binds a draft file to the trunk the plan compiled.
-func openHyperDraft(path string, plan model.ModelPlan, spec model.Spec) (*hyperDraft, error) {
+// openHyperDraft binds a draft file, and the vocabulary file its head reads when one is named, to the trunk the plan
+// compiled.
+func openHyperDraft(path, vocabularyPath string, plan model.ModelPlan, spec model.Spec) (*hyperDraft, error) {
+	var vocabulary []uint32
+	if vocabularyPath != "" {
+		var err error
+		if vocabulary, err = readDraftVocabulary(vocabularyPath); err != nil {
+			return nil, err
+		}
+	}
 	file, err := gguf.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("inference: open draft %s: %w", path, err)
@@ -50,7 +70,23 @@ func openHyperDraft(path string, plan model.ModelPlan, spec model.Spec) (*hyperD
 	if err != nil {
 		return nil, errors.Join(fmt.Errorf("inference: draft %s: %w", path, err), file.Close())
 	}
-	return &hyperDraft{file: file, weights: weights, program: program}, nil
+	return &hyperDraft{file: file, weights: weights, program: program, vocabulary: vocabulary}, nil
+}
+
+// readDraftVocabulary reads a draft head's token ids, little-endian int32s; placing the head refuses one past its rows.
+func readDraftVocabulary(path string) ([]uint32, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("inference: draft vocabulary: %w", err)
+	}
+	if len(data) == 0 || len(data)%draftVocabularyIDBytes != 0 {
+		return nil, fmt.Errorf("inference: draft vocabulary %s holds no whole token ids", path)
+	}
+	vocabulary := make([]uint32, len(data)/draftVocabularyIDBytes)
+	for index := range vocabulary {
+		vocabulary[index] = binary.LittleEndian.Uint32(data[index*draftVocabularyIDBytes:])
+	}
+	return vocabulary, nil
 }
 
 func (d *hyperDraft) close() error {
@@ -67,10 +103,23 @@ func (d *hyperDraft) close() error {
 //   - a BF16 matrix takes the trunk's raw route, read as stored by the draft step's products at half an F32 copy's bytes
 //     (its F32 copies took about 1.1 ms of mul_mat_f32 a Flash-Next draft step); the draft holds no convolution kernel
 //     that the trunk keeps in F32
+//   - a draft with a vocabulary places its rows of the trunk's head, as the file stores them, read from the trunk's file
 //   - it runs before the trunk's pass, so an expert residency sizes itself to the memory the draft leaves
-func loadHyperDraft(ctx context.Context, draft *hyperDraft, raw *modeldevice.DeviceWeights, converted *modeldevice.DeviceConvertedWeights) error {
+func loadHyperDraft(
+	ctx context.Context, draft *hyperDraft, trunk *gguf.File, head gguf.TensorInfo, raw *modeldevice.DeviceWeights,
+	converted *modeldevice.DeviceConvertedWeights,
+) error {
 	if draft == nil {
 		return nil
+	}
+	if len(draft.vocabulary) != 0 {
+		if raw == nil {
+			return errors.New("inference: a draft vocabulary needs the trunk's head as stored on the card")
+		}
+		var err error
+		if draft.head, err = raw.PlaceRows(ctx, trunk, head, hyperDraftHead, draft.vocabulary); err != nil {
+			return err
+		}
 	}
 	loader := modeldevice.NewLoader(draft.file)
 	layer := draft.weights.Layer
@@ -158,7 +207,11 @@ func (r *Runner) compileHyperDraftStep() (*hyperDraftStep, error) {
 	if err != nil {
 		return nil, err
 	}
-	step.selection = builder.TopK(builder.MulMat(weight(r.outputTensor()), mixed), 1)
+	head := r.outputTensor()
+	if len(draft.vocabulary) != 0 {
+		head = draft.head
+	}
+	step.selection = builder.TopK(builder.MulMat(weight(head), mixed), 1)
 	if err := errors.Join(builder.Err(), bindErr); err != nil {
 		return nil, err
 	}
@@ -248,8 +301,16 @@ func (r *Runner) advanceHyperDraftLocked(
 	if err = errors.Join(err, retained.Release(context.Background())); err != nil {
 		return 0, nil, err
 	}
-	if len(selection.Data) != 1 || selection.Data[0] < 0 || int(selection.Data[0]) >= r.vocab.Len() {
+	// A head over a vocabulary selects its row, which names the token.
+	rows := r.vocab.Len()
+	if len(draft.vocabulary) != 0 {
+		rows = len(draft.vocabulary)
+	}
+	if len(selection.Data) != 1 || selection.Data[0] < 0 || int(selection.Data[0]) >= rows {
 		return 0, nil, errors.New("inference: hyper-connection draft selection is invalid")
+	}
+	if len(draft.vocabulary) != 0 {
+		return tokenizer.TokenID(draft.vocabulary[int(selection.Data[0])]), nil, nil
 	}
 	return tokenizer.TokenID(selection.Data[0]), nil, nil
 }

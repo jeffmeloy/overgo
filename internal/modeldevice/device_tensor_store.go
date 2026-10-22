@@ -3,10 +3,12 @@ package modeldevice
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/gguf"
 )
 
 // deviceMemory is the device surface a load needs: allocate, copy host bytes
@@ -76,6 +78,27 @@ func (s *deviceTensorStore) Lookup(name string) (DeviceTensor, bool) {
 	}
 	value, ok := s.tensors[name]
 	return value, ok
+}
+
+// place allocates a tensor, copies its bytes in and publishes it under its name; a failure frees the allocation.
+func (s *deviceTensorStore) place(ctx context.Context, info gguf.TensorInfo, data []byte) error {
+	pointer, err := s.mem.alloc(ctx, uint64(len(data)))
+	if err != nil {
+		return err
+	}
+	release := func(err error) error {
+		return errors.Join(err, s.mem.free(context.WithoutCancel(ctx), []driver.DevicePtr{pointer}))
+	}
+	if err := s.mem.write(ctx, pointer, data); err != nil {
+		return release(err)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, exists := s.tensors[info.Name]; exists || s.closed {
+		return release(fmt.Errorf("%s tensor %q cannot be placed", s.kind, info.Name))
+	}
+	s.tensors[info.Name] = DeviceTensor{Info: info, Pointer: pointer}
+	return nil
 }
 
 // Close frees every loaded tensor.

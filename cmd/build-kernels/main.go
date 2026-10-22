@@ -60,13 +60,17 @@ func run() error {
 		fmt.Printf("generated %s\n", item.output)
 	}
 	// The manifest's hashes and argument layouts first, then the Go bindings and pins generated from it, its ABI
-	// version included, then the check that holds the two together: a kernel's new parameters need no other step.
-	for _, args := range [][]string{{"run", "./cmd/kernel-manifest", "-update"}, {"generate", "./internal/cuda/executor"}, {"run", "./cmd/kernel-manifest"}} {
+	// version included, then the check that holds the two together, then the SBOM, which hashes the kernel sources and
+	// their PTX: a kernel's new parameters need no other step.
+	for _, args := range [][]string{
+		{"run", "./cmd/kernel-manifest", "-update"}, {"generate", "./internal/cuda/executor"}, {"run", "./cmd/kernel-manifest"},
+		{"run", "./cmd/sbom", "-update"},
+	} {
 		if out, err := exec.Command("go", args...).CombinedOutput(); err != nil {
 			return fmt.Errorf("go %s: %v: %s", strings.Join(args, " "), err, strings.TrimSpace(string(out)))
 		}
 	}
-	fmt.Println("kernel manifest updated, bindings regenerated and both verified")
+	fmt.Println("kernel manifest updated, bindings regenerated and both verified, SBOM updated")
 	return nil
 }
 

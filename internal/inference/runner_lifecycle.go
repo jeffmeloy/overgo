@@ -71,7 +71,7 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 		if !residency.deviceF32 && !residency.deviceNative {
 			return fail(errors.New("inference: a draft layer needs device-resident weights"))
 		}
-		if draft, err = openHyperDraft(options.Draft, program.Model, spec); err != nil {
+		if draft, err = openHyperDraft(options.Draft, options.DraftVocabulary, program.Model, spec); err != nil {
 			return fail(err)
 		}
 	}
@@ -319,7 +319,7 @@ func loadResidentWeights(
 			return err
 		}
 	}
-	if err := loadHyperDraft(ctx, draft, *rawWeights, *deviceWeights); err != nil {
+	if err := loadHyperDraft(ctx, draft, file, outputProjection, *rawWeights, *deviceWeights); err != nil {
 		return err
 	}
 	loader := modeldevice.NewLoader(file)

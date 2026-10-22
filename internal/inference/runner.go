@@ -256,6 +256,9 @@ type OpenOptions struct {
 	// Draft names a draft file that attaches a draft layer to the trunk (a qwen4exp-mtp file for Flash-Next);
 	// raw-greedy device decoding drafts with it when a request asks for speculation.
 	Draft string
+	// DraftVocabulary names a file of token ids, little-endian int32s (Strata's rt/draft_vocab.bin), whose rows of the
+	// trunk's head alone the draft's head reads; empty reads the whole head.
+	DraftVocabulary string
 }
 
 func (r *Runner) Spec() model.Spec {

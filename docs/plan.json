@@ -212,17 +212,10 @@
       "title": "Stop repeating training's per-step device setup and its padding to the run's longest sequence",
       "status": "open",
       "budget": {
-        "nodes": 300,
+        "nodes": 51,
         "reason": "estimate: a session owner for the streamed Muon step's operations and staging, and per-group lengths in the resident dense trainer, with their tests; no measured figure yet"
       },
       "steps": [
-        {
-          "id": "muon-scratch",
-          "title": "Keep the streamed Muon step's device operations and staging for the training session",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/optimizer -count=1 -run '^TestStreamedMuonSessionPreparesOnce$'",
-          "rationale": "From the owner's reuse review of 2026-10-18 (point 5), checked against the code.\ninternal/optimizer/muon_step_streamed_cuda_windows.go, DeviceMuonStepPlanStreamed: every call opens its device operations (newDeviceOps) and allocates the staging and Newton-Schulz scratch sized from the plan's largest matrix (ops.allocF32Set), and frees both on return, so each optimizer step of a run pays them again.\nMeasure first: on the streamed lane of a real plan, the time of the setup and allocations against the whole step; if it is within the step's own noise, the step is retired with that figure.\nThe step gives the streamed step a session that holds the operations and scratch from the first step to the run's end, bounded by the largest matrix as now, released when the run closes; the per-call setup it displaces is deleted.\nThe test runs several steps through one session and holds the weights and momentum to the per-call path's bits, and the allocations to one set.\nServes: training time on the streamed lane; peak-device-memory holds (the same bound, held longer).\nBatch: device.\n\nFrom the owner's review of 2026-10-18 (point 2): scratch kept for the session may now coexist with forward and backward allocations that used to run after it was freed.\nAcceptance measures the whole training session's device peak, before and after, not the optimizer step's alone; the scratch is held through the executor's memory owner, which may reclaim or share it between the forward, backward and optimizer phases, so the peak does not rise."
-        },
         {
           "id": "shape-groups",
           "title": "Run each dense training group at its own length, not the run's longest",

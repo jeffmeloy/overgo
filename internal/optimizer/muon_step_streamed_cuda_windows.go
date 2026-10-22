@@ -10,18 +10,53 @@ import (
 	"overgo/internal/cuda/driver"
 )
 
-// DeviceMuonStepPlanStreamed applies one Muon step to host-master flat storage
-// by staging one matrix group at a time on the device. This is the
-// host-master lane for plans whose full weight/gradient/momentum triple does
-// not fit device memory: staging and Newton-Schulz scratch are sized once
-// from the plan's largest group and reused across groups, so peak device use
-// is bounded by the largest matrix, not the parameter count. Weights and
-// momentum stream back to the host after each group; host gradients are
-// cleared exactly like the flat device step.
-func DeviceMuonStepPlanStreamed(worker *device.Worker, weights, gradients, momentum []float32, plan Plan, step int, config Config) error {
-	if worker == nil || plan.Identity() == "" || step <= 0 ||
+// StreamedMuon holds a worker's Muon operations (its cuBLAS library and
+// handles) across a training run's streamed steps: opening them took 75 to 86
+// ms a step, where a streamed step of a 60M-parameter plan takes about 370.
+// Each step still allocates its staging and Newton-Schulz scratch and frees
+// them on return, so nothing the session holds sits beside the run's forward
+// and backward passes.
+type StreamedMuon struct {
+	worker *device.Worker
+	ops    *deviceOps
+}
+
+// NewStreamedMuon opens worker's Muon operations for a run's streamed steps; Close releases them.
+func NewStreamedMuon(worker *device.Worker) (*StreamedMuon, error) {
+	if worker == nil {
+		return nil, errors.New("device Muon streamed step: a worker is required")
+	}
+	session := &StreamedMuon{worker: worker}
+	if err := worker.Do(context.Background(), func(state *device.State) error {
+		var err error
+		session.ops, err = newDeviceOps(state)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	return session, nil
+}
+
+// Close releases the session's Muon operations.
+func (s *StreamedMuon) Close() error {
+	return s.worker.Do(context.Background(), func(*device.State) error {
+		s.ops.close()
+		return nil
+	})
+}
+
+// Step applies one Muon step to host-master flat storage by staging one
+// matrix group at a time on the device. This is the host-master lane for
+// plans whose full weight/gradient/momentum triple does not fit device
+// memory: staging and Newton-Schulz scratch are sized once from the plan's
+// largest group and reused across groups, so peak device use is bounded by
+// the largest matrix, not the parameter count. Weights and momentum stream
+// back to the host after each group; host gradients are cleared exactly like
+// the flat device step.
+func (s *StreamedMuon) Step(weights, gradients, momentum []float32, plan Plan, step int, config Config) error {
+	if plan.Identity() == "" || step <= 0 ||
 		len(weights) != plan.ParameterCount() || len(gradients) != len(weights) || len(momentum) != len(weights) {
-		return errors.New("device Muon streamed step: invalid worker, plan, step, or storage")
+		return errors.New("device Muon streamed step: invalid plan, step, or storage")
 	}
 	if err := config.Validate(); err != nil {
 		return err
@@ -34,13 +69,8 @@ func DeviceMuonStepPlanStreamed(worker *device.Worker, weights, gradients, momen
 		return nil
 	}
 	rate := config.LearningRate(step)
-	return worker.Do(context.Background(), func(state *device.State) error {
-		ops, err := newDeviceOps(state)
-		if err != nil {
-			return err
-		}
-		defer ops.close()
-
+	return s.worker.Do(context.Background(), func(*device.State) error {
+		ops := s.ops
 		staging, err := ops.allocF32Set(plan.MaxMatrix(), plan.MaxMatrix(), plan.MaxMatrix())
 		if err != nil {
 			return err

@@ -16,6 +16,7 @@ import (
 type Trainer struct {
 	*Model
 	worker   *device.Worker
+	muon     *optimizer.StreamedMuon
 	config   optimizer.Config
 	momentum []float32
 	step     int
@@ -31,7 +32,16 @@ func NewTrainer(worker *device.Worker, model *Model, config optimizer.Config) (*
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	return &Trainer{Model: model, worker: worker, config: config, momentum: make([]float32, len(model.weights))}, nil
+	muon, err := optimizer.NewStreamedMuon(worker)
+	if err != nil {
+		return nil, err
+	}
+	return &Trainer{Model: model, worker: worker, muon: muon, config: config, momentum: make([]float32, len(model.weights))}, nil
+}
+
+// Close releases the trainer's Muon operations; the worker stays the caller's.
+func (t *Trainer) Close() error {
+	return t.muon.Close()
 }
 
 // Step takes one full-parameter update on the window and reports the loss
@@ -42,7 +52,7 @@ func (t *Trainer) Step() (optimizer.ObservedStepResult, error) {
 		return optimizer.ObservedStepResult{}, err
 	}
 	norm := t.gradientL2()
-	if err := optimizer.DeviceMuonStepPlanStreamed(t.worker, t.weights, t.gradients, t.momentum, t.plan, t.step+1, t.config); err != nil {
+	if err := t.muon.Step(t.weights, t.gradients, t.momentum, t.plan, t.step+1, t.config); err != nil {
 		return optimizer.ObservedStepResult{}, err
 	}
 	t.step++

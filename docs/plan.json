@@ -213,17 +213,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
+        "nodes": 127,
         "reason": "count-in-landing as built adds 81 production syntax nodes (the gate's preflight, 2026-10-21): the candidate's counts kept for the charge and the raise it admits; raised in its own landing, the rule it adds."
       },
       "steps": [
-        {
-          "id": "kernels-one-command",
-          "title": "Make cmd/build-kernels regenerate the kernels, manifest and bindings in one run",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "A kernel whose parameters change needs a new ABI version in kernels/manifest.json, and then no single command regenerates the tree: cmd/build-kernels runs kernel-manifest -update, which refuses while the Go bindings still carry the old version (\"Go host kernel ABI identity is stale\"), and go generate's kernel-bindings refuses while the manifest lacks the new kernels' argument layouts. The expert doorbell went through the cycle by hand twice (the version set back, the layouts updated, the version set forward, the bindings generated), and a probe built in between ran the stale PTX of an earlier source for one A/B round.\nThe step makes cmd/build-kernels the one command: it compiles the PTX, updates the manifest's hashes and layouts, and regenerates the bindings with the manifest's version, in the order each needs, and refuses only a manifest that names a kernel the PTX lacks.\nEvidence: a kernel given a new parameter and a new ABI version regenerates with one go run ./cmd/build-kernels, and go run ./cmd/kernel-manifest verifies the tree.\nServes: development velocity.\nDisappears: the hand cycle of the ABI version.\nBatch: none."
-        },
         {
           "id": "forced-bench",
           "title": "Decode forced token sequences in cmd/benchmark for speed A/B",

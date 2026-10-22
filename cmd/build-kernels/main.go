@@ -1,16 +1,13 @@
-// build-kernels: compile PTX, refresh pins, verify manifest.
+// build-kernels: compile PTX, update the manifest, regenerate the bindings, verify them together.
 package main
 
 import (
 	"bytes"
 	"cmp"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"overgo/internal/clioptions"
@@ -32,12 +29,6 @@ var kernels = []kernel{
 	{source: "kernels/cuda/vector_add.cu", output: "internal/cuda/kernel/vector_add.ptx"},
 	{source: "kernels/cuda/ops_f32.cu", output: "internal/cuda/kernel/ops_f32.ptx"},
 	{source: "kernels/cuda/torch_cuda_randn.cu", output: "internal/cuda/kernel/torch_cuda_randn.ptx", noFastMath: true},
-}
-
-var runtimePins = map[string]string{
-	"VectorAddSHA256":      "internal/cuda/kernel/vector_add.ptx",
-	"OpsF32SHA256":         "internal/cuda/kernel/ops_f32.ptx",
-	"TorchCUDARandnSHA256": "internal/cuda/kernel/torch_cuda_randn.ptx",
 }
 
 func main() {
@@ -63,18 +54,19 @@ func run() error {
 		if out, err := cmd.CombinedOutput(); err != nil {
 			return fmt.Errorf("nvcc %s: %v: %s", item.source, err, strings.TrimSpace(string(out)))
 		}
+		if err := normalizePTX(filepath.FromSlash(item.output)); err != nil {
+			return err
+		}
 		fmt.Printf("generated %s\n", item.output)
 	}
-	if err := refreshPins("internal/cuda/kernel/manifest_generated.go"); err != nil {
-		return err
-	}
-	for _, args := range [][]string{{"-update"}, nil} {
-		cmd := exec.Command("go", append([]string{"run", "./cmd/kernel-manifest"}, args...)...)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("kernel-manifest %v: %v: %s", args, err, strings.TrimSpace(string(out)))
+	// The manifest's hashes and argument layouts first, then the Go bindings and pins generated from it, its ABI
+	// version included, then the check that holds the two together: a kernel's new parameters need no other step.
+	for _, args := range [][]string{{"run", "./cmd/kernel-manifest", "-update"}, {"generate", "./internal/cuda/executor"}, {"run", "./cmd/kernel-manifest"}} {
+		if out, err := exec.Command("go", args...).CombinedOutput(); err != nil {
+			return fmt.Errorf("go %s: %v: %s", strings.Join(args, " "), err, strings.TrimSpace(string(out)))
 		}
 	}
-	fmt.Println("kernel manifest updated and verified")
+	fmt.Println("kernel manifest updated, bindings regenerated and both verified")
 	return nil
 }
 
@@ -100,27 +92,11 @@ func toolchain() (nvcc, compiler string, err error) {
 	return "", "", fmt.Errorf("no CUDA-compatible MSVC x64 compiler found")
 }
 
-func refreshPins(validationPath string) error {
-	raw, err := os.ReadFile(filepath.FromSlash(validationPath))
+// normalizePTX rewrites a generated PTX file with Unix line ends, which the pins hash whatever nvcc wrote.
+func normalizePTX(path string) error {
+	payload, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
-	text := string(raw)
-	for name, asset := range runtimePins {
-		payload, err := os.ReadFile(filepath.FromSlash(asset))
-		if err != nil {
-			return err
-		}
-		payload = bytes.ReplaceAll(payload, []byte("\r\n"), []byte("\n"))
-		if err := clioptions.WriteOutputFile(filepath.FromSlash(asset), payload); err != nil {
-			return err
-		}
-		digest := sha256.Sum256(payload)
-		pattern := regexp.MustCompile(`(?m)^(\s*` + regexp.QuoteMeta(name) + `\s*=\s*")[0-9a-f]{64}("\s*)$`)
-		if len(pattern.FindAllString(text, -1)) != 1 {
-			return fmt.Errorf("expected exactly one %s runtime pin in %s", name, validationPath)
-		}
-		text = pattern.ReplaceAllString(text, "${1}"+hex.EncodeToString(digest[:])+"${2}")
-	}
-	return clioptions.WriteOutputFile(filepath.FromSlash(validationPath), []byte(text))
+	return clioptions.WriteOutputFile(path, bytes.ReplaceAll(payload, []byte("\r\n"), []byte("\n")))
 }

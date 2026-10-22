@@ -92,10 +92,11 @@ func run(root string, update bool) error {
 		document.VAEConvTile <= 0 || document.SharedMemoryABI == "" {
 		return errors.New("kernel manifest: target or launch ABI is incomplete")
 	}
-	if document.ABIVersion != cudaKernel.BundleABIVersion ||
+	// An update runs before the Go bindings are regenerated from it (build-kernels), so only a check holds them to it.
+	if !update && (document.ABIVersion != cudaKernel.BundleABIVersion ||
 		document.Target != cudaKernel.BundleTarget ||
 		document.DefaultThreads != cudaKernel.BundleDefaultThreads ||
-		document.VAEConvTile != cudaKernel.BundleVAEConvTile {
+		document.VAEConvTile != cudaKernel.BundleVAEConvTile) {
 		return errors.New("kernel manifest: Go host kernel ABI identity is stale")
 	}
 	runtimePins := map[string]string{
@@ -152,7 +153,7 @@ func run(root string, update bool) error {
 				)
 			}
 		}
-		if pinned, ok := runtimePins[item.Asset]; ok && pinned != assetHash {
+		if pinned, ok := runtimePins[item.Asset]; ok && pinned != assetHash && !update {
 			return fmt.Errorf("kernel manifest: Go host hash for %q is stale", item.Asset)
 		}
 		gotFunctions := ptxEntries(assetData)

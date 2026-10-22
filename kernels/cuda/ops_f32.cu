@@ -10053,8 +10053,14 @@ __device__ __forceinline__ float moe_q8_row_sum(float value) {
     return value;
 }
 
+// moe_span_slot is column's routed slot among slots: the whole slot where one column is stored, else the column's
+// MOE_SPAN_SLOT_BITS bits of a span's packed word (a group of 26 Flash-Next tokens routes 260 slots, past those bits).
+__device__ __forceinline__ unsigned int moe_span_slot(unsigned int slots, unsigned int columns, unsigned int column) {
+    return columns == 1 ? slots : slots >> (MOE_SPAN_SLOT_BITS * column) & ((1u << MOE_SPAN_SLOT_BITS) - 1);
+}
+
 // moe_q8_hidden stores the activations of one expert's gate and up row for each of COLUMNS routed slots.
-//   - slots packs the routed slots, MOE_SPAN_SLOT_BITS bits each, the first in the low bits
+//   - slots is one column's slot, or packs a span's, MOE_SPAN_SLOT_BITS bits each, the first in the low bits
 //   - input holds each token's q8 blocks, hidden / MOE_Q8_WIDTH a token
 template <typename Format, unsigned int COLUMNS>
 __device__ __forceinline__ void moe_q8_hidden(
@@ -10066,7 +10072,7 @@ __device__ __forceinline__ void moe_q8_hidden(
     const unsigned char * columns[COLUMNS];
     #pragma unroll
     for (unsigned int column = 0; column < COLUMNS; ++column) {
-        const unsigned int slot = slots >> (MOE_SPAN_SLOT_BITS * column) & ((1u << MOE_SPAN_SLOT_BITS) - 1);
+        const unsigned int slot = moe_span_slot(slots, COLUMNS, column);
         columns[column] = input + (size_t) (slot / top_k) * (hidden / MOE_Q8_WIDTH) * Q8_INPUT_BLOCK_BYTES;
     }
     float dots[2][COLUMNS] = {};
@@ -10080,7 +10086,7 @@ __device__ __forceinline__ void moe_q8_hidden(
                 gate_dot += gate_bias[(size_t) expert * intermediate + inner_index];
                 up_dot += up_bias[(size_t) expert * intermediate + inner_index];
             }
-            const unsigned int slot = slots >> (MOE_SPAN_SLOT_BITS * column) & ((1u << MOE_SPAN_SLOT_BITS) - 1);
+            const unsigned int slot = moe_span_slot(slots, COLUMNS, column);
             activations[(size_t) slot * intermediate + inner_index] =
                 moe_activation(gate_dot, up_dot, 1, activation, routing, swiglu_clamp);
         }
@@ -10137,7 +10143,7 @@ __device__ __forceinline__ void moe_q8_columns(
                     swiglu_clamp, lane, codebooks);
             }
         }) && lane == 0) {
-        activations[(size_t) (slots & ((1u << MOE_SPAN_SLOT_BITS) - 1)) * intermediate + inner_index] = __int_as_float(0x7fc00000);
+        activations[(size_t) moe_span_slot(slots, columns, 0) * intermediate + inner_index] = __int_as_float(0x7fc00000);
     }
 }
 

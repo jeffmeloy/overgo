@@ -624,6 +624,29 @@ func TestExecutorMoESpanRepeatedRoutes(t *testing.T) {
 	}
 }
 
+// TestExecutorMoEQ8SlotsPastSpanBits runs a q8 routed group of more slots than a span's packed bits name, below the
+// grouped products' tokens, and holds it to the host reference: thirty tokens of ten routes are 300 slots, past 256, as
+// a 31-token Flash-Next prompt read routes 310.
+func TestExecutorMoEQ8SlotsPastSpanBits(t *testing.T) {
+	// Serial: device fixtures share the one card.
+	c := moePinnedCase{
+		name: "q8-past-span-bits", compute: tensor.MulMatComputeNativeTensorCore,
+		hidden: 512, routerHidden: 512, intermediate: 256, experts: 16, tokens: 30, divisor: 1, topK: 10,
+		routing: tensor.MoERoutingSoftmax, activation: tensor.MoEActivationSiLU, normalize: true, scale: 1.25,
+		banks: [3]dtype.Type{dtype.Q8_0, dtype.Q8_0, dtype.Q8_0}, reference: true,
+	}
+	cuda := newFixtureExecutor(t)
+	trace := &device.LaunchTrace{}
+	if err := cuda.worker.Do(t.Context(), func(state *device.State) error { state.Trace = trace; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	got, want := c.run(t, cuda, dtype.F32)
+	if kernel := binary.LittleEndian.Uint64(trace.Data()[moeDecodeRecords+moeQuantizeRecord:]); kernel != uint64(kernelMoeHiddenQ8F32) {
+		t.Fatalf("hidden launch %d, want the q8 kernel %d", kernel, kernelMoeHiddenQ8F32)
+	}
+	compareRelativeRMS(t, got, want, accuracyQ8Experts)
+}
+
 const (
 	// A launch record is four header words, then eight bytes a pointer and four a scalar.
 	moeRecordHeader = 4 * 8

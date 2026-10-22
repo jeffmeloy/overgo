@@ -208,21 +208,21 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "speculation",
-      "title": "Speculate safely and further on Flash-Next and NextN models",
+      "id": "moe-events",
+      "title": "Release a grouped launch's outstanding stream marks when it fails",
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1067,
-        "reason": "full-history measured by host simulation (document 79 to about 104 tokens a second with the prompt filled into the draft layer's cache); its design (the draft layer inside the span and prefill graphs over a device cache) is estimated at 800 to 1,000 production nodes; clamp measured +24"
+        "nodes": 120,
+        "reason": "a driver release call with its stub and the launch's deferred release of unwaited marks"
       },
       "steps": [
         {
-          "id": "nextn-spans",
-          "title": "Give NextN speculation span lengths its kept graphs can replay",
+          "id": "do",
+          "title": "Release a grouped launch's outstanding stream marks when it fails",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestNextNSpeculationReplaysItsSpans$'",
-          "rationale": "From step span-frames: Qwen3.8-27B's NextN speculation (three drafts a round) runs at 26.4 to 26.7 tokens a second against 27.7 to 27.9 plain, because its loop compiles 23 span graphs (span lengths 4 to 8 and draftless spans across four cache capacities), 46 frames a request, more than the kept graphs hold, so nearly every round recaptures.\nThe step gives NextN the policy MTP uses (a draftless two-token re-span after a rejection, or a single span length a round) so its frames fit the kept graphs, or stops speculating where acceptance does not pay, measured per model.\nAcceptance: the 27B's speculative decoding at or above plain, text identical; recaptures a warm request.\nServes: throughput for NextN models; failure-rate unchanged.\nBatch: device."
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestPromptExpertCopiesOverlapCompute$'",
+          "rationale": "From SQA-190 (P2, filed 2026-10-22 against prompt-copies): launchMoEMatrices records copy and read marks (driver.RecordEvent) that only a WaitEvent releases, so a grouped launch that fails after recording a mark and before waiting for it (a StreamQuery error after issue, a failed launch after the next batch's copies are queued) leaves the marks' CUDA events live until the context closes, and a retained worker can repeat that path.\nThe step releases every mark the launch recorded and did not wait for when it fails: a driver call that releases a mark unwaited (with its non-Windows stub), and a deferred release in launchMoEMatrices joined to the launch's error, each mark cleared once a wait consumes it.\nEvidence: the grouped MoE device tests unchanged; the release covered by a test where the driver allows it.\nServes: failure-rate of every offloaded routed-expert model's long prompts."
         }
       ]
     },
@@ -507,7 +507,8 @@
             "prompt-copies/do",
             "decode-gap/do",
             "verify-states/do",
-            "verify-indexer/do"
+            "verify-indexer/do",
+            "moe-events/do"
           ]
         }
       ]

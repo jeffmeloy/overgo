@@ -35,14 +35,14 @@ func ActiveDraft(ctx context.Context, store *overgodb.Store, modelID artifact.ID
 func activeComponent(
 	ctx context.Context, store *overgodb.Store, modelID artifact.ID, task recipe.Task, role recipe.DependencyRole, memo *Memo,
 ) (string, bool, error) {
-	_, active, err := modelrecipe.ActiveRecord(ctx, store, modelID, task)
+	activation, active, err := modelrecipe.ActiveRecord(ctx, store, modelID, task)
 	if err != nil {
 		return "", false, err
 	}
 	if !active {
 		return "", false, nil
 	}
-	_, program, err := modelrecipe.ResolveActiveCapability(ctx, store, modelID, task)
+	program, err := modelrecipe.CompileCapability(activation.Definition)
 	if err != nil {
 		return "", false, err
 	}

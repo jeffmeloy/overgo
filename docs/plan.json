@@ -210,6 +210,7 @@
     {
       "id": "prompt-memory",
       "title": "Keep a long prompt's experts on the card by shrinking the prompt's own buffers",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -218,21 +219,6 @@
           "status": "open",
           "verify": "go run ./cmd/plan -status",
           "rationale": "From long-prompt/expert-ring's prototype and the device-memory ledger of a 16,718-token Flash-Next prompt on master d36ab798a (2026-10-20): the prompt's own buffers peak at about 9.9 GB (the arena 6.08 GB, the grouped-product staging 1.95 GB, the routed and attention scratch 1.88 GB), lent from the expert residency. The card then keeps 40,739 expert banks (about 13,600 experts, 32.7 GB) where a 5,099-token prompt keeps 50,298 (about 16,800), and Strata keeps 17,493 experts (39.4 GiB) through its prompts.\nThat prompt copies 23.4 GB of experts, 1.8 s of the x8 link, and the copies stall its products 0.44 s. A 256 MB copy-ahead area beside the attention cut the stall to 0.26 s but displaced its own size of experts (26.0 GB copied) and gained about 0.05 s; on the 20,605-token prompt it tipped the memory check into reading the prompt in two chunks (prototype: overgo_data/scratch/long-prompt-20261019/expert-prefetch.patch).\nThe step lists the prompt's largest buffers at 16K tokens and shrinks the largest the work allows, such as the arena's live activations or the routed slots' outputs, keeping the outputs' bits, so the residency keeps more experts through the prompt.\nEvidence: the ledger's peak and the card's experts at 16,718 tokens; the host bytes copied; the 4K and 16K first outputs with the same tokens.\nServes: first-output of every offloaded routed-expert model's long prompts; peak-device-memory of every model's long prompts.\nBatch: device."
-        }
-      ]
-    },
-    {
-      "id": "component-activation",
-      "title": "Compile a verified component's activation without resolving its evidence twice",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Compile a verified component's activation without resolving its evidence twice",
-          "status": "open",
-          "verify": "go test ./internal/discovery -run '^TestActiveComponents(ResolveDeclaredBytes|AbsentWithoutActivation)$' -count=1",
-          "rationale": "From SQA-187 (P3, filed 2026-10-22 against draft-library): discovery.activeComponent, which ActiveProjector and ActiveDraft share, calls modelrecipe.ActiveRecord to learn whether the component is active and then ResolveActiveCapability, which calls ActiveRecord again before CompileCapability, so each lookup rebuilds the definition, lifecycle, decisions, gate and environment evidence twice.\nThe step compiles the activation the first ActiveRecord returned (CompileCapability on its definition), keeping the absent and error branches, the task and role wrappers and the exact-byte presence check; ResolveActiveCapability stays for its other callers.\nEvidence: the discovery component tests and the modelrecipe lifecycle and compiler tests pass unchanged.\nServes: load-time of every model with a projector or draft, by one store read of its evidence fewer."
         }
       ]
     },
@@ -510,7 +496,8 @@
             "pace-doctrine/do",
             "request-clock/do",
             "request-clock/do",
-            "component-activation/do"
+            "component-activation/do",
+            "prompt-memory/do"
           ]
         }
       ]

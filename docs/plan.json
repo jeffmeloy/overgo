@@ -240,6 +240,13 @@
       },
       "steps": [
         {
+          "id": "softmax",
+          "title": "Run the strided attention's online softmax a warp a row",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^(TestExecutorBLASAttentionKeyBiasMatchesReference|TestExecutorPrefillAttentionMatchesReference)$'",
+          "rationale": "Measured 2026-10-22 on master 5a98df021 under nsys, the screenshot's second encode: 460 ms of GPU time, of which the strided path's online softmax is 229 ms (86 us a call, 98 calls a layer, one 256-thread block a row over 288 keys with FP64 shared-memory reductions), its two products 152 ms and the linear layers about 70 ms. The reference engine's strata-vision encodes the same picture in 175 ms.\nThe step reads a row a warp, eight rows a block, the FP64 sum and the maximum reduced by warp shuffles; arguments unchanged. Measured with the change (picture memory bypassed for fresh encodes): the warm request 1.89 s against 2.09, the same 1136 tokens; the executor's attention tests hold the path to the reference.\nServes: first-output of fresh image requests toward the reference engine's encoder time, and every attention on the strided-batched path."
+        },
+        {
           "id": "images",
           "title": "Reuse the vision projector and composer for image, OCR and multi-image conversations",
           "status": "open",

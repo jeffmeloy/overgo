@@ -158,6 +158,8 @@ var graphRewriteCatalog = [...]graphRewrite{
 	{name: "stream-sum", apply: applyStreamSumRewrite},
 	{name: "stream-combine", apply: applyStreamCombineRewrite},
 	{name: "scaled-activation", apply: applyScaledActivationRewrite},
+	{name: "q8-pair", apply: applyQ8PairRewrite},
+	{name: "q8-gated-add", apply: applyQ8GatedAddRewrite},
 	{name: "gelu-tanh", apply: applyGELUTanhRewrite},
 	{name: "layer-norm-modulate", apply: applyLayerNormModulateRewrite},
 	{name: "q8-emission", apply: applyQ8EmissionRewrite},
@@ -468,6 +470,91 @@ func scaleFactorFor(node *tensor.Tensor) (float32, bool) {
 }
 
 // fusableIntermediate: single-consumer interior node available for elision.
+// applyQ8PairRewrite: a gated layer's gate and up Q8_0 decode products of one input, read by their activated gate
+// alone, run as one launch whose sums are each product's: Flash-Next's shared expert ran them as two launches of 4 us.
+// The later product in the graph's order launches both, so the earlier one's output already holds its place.
+func applyQ8PairRewrite(context *rewriteContext) {
+	compiled := context.compiled
+	position := make(map[*tensor.Tensor]int, len(context.order))
+	for index, node := range context.order {
+		position[node] = index
+	}
+	for _, node := range context.order {
+		descriptor := compiled.fusions[node]
+		if descriptor == nil || descriptor.kind != compiledFusionActivatedGate {
+			continue
+		}
+		gate, up := descriptor.activatedGate.gate, descriptor.activatedGate.up
+		if gate == up || !context.q8DecodeProduct(gate) || !context.q8DecodeProduct(up) || gate.Inputs[1] != up.Inputs[1] ||
+			!gate.Inputs[0].Shape.Equal(up.Inputs[0].Shape) {
+			continue
+		}
+		earlier, later := gate, up
+		if position[later] < position[earlier] {
+			earlier, later = later, earlier
+		}
+		operands := []*tensor.Tensor{gate.Inputs[0], up.Inputs[0], gate.Inputs[1], earlier}
+		compiled.setFusion(later, &compiledFusion{kind: compiledFusionQ8Pair, operands: operands, q8Pair: q8PairFusion{gate: gate, up: up}})
+		compiled.setFusion(earlier, &compiledFusion{kind: compiledFusionQ8PairPeer, peer: later})
+	}
+}
+
+// applyQ8GatedAddRewrite: Add(addend, Multiply(product, Sigmoid(gate))) with product a Q8_0 decode product and gate
+// one value a column runs as one launch, rounded as the kernels it replaces: Flash-Next's gated shared expert ran its
+// down product, sigmoid, product and addition as four kernels.
+func applyQ8GatedAddRewrite(context *rewriteContext) {
+	compiled := context.compiled
+	for _, node := range context.order {
+		if node.Op != tensor.OpAdd || len(node.Inputs) != tensor.PairedExtent || node.Type != dtype.F32 ||
+			node.Shape.Rank != tensor.PairedExtent || compiled.fusions[node] != nil {
+			continue
+		}
+		if _, skipped := compiled.skipped[node]; skipped {
+			continue
+		}
+		addend, product := node.Inputs[0], node.Inputs[1]
+		if product.Op != tensor.OpMultiply {
+			addend, product = product, addend
+		}
+		if product.Op != tensor.OpMultiply || len(product.Inputs) != tensor.PairedExtent || !addend.Shape.Equal(node.Shape) ||
+			!product.Shape.Equal(node.Shape) || compiled.fusions[product] != nil || !context.fusableIntermediate(product, 1) {
+			continue
+		}
+		matrix, sigmoid := product.Inputs[0], product.Inputs[1]
+		if matrix.Op != tensor.OpMulMat {
+			matrix, sigmoid = sigmoid, matrix
+		}
+		if sigmoid.Op != tensor.OpSigmoid || compiled.fusions[sigmoid] != nil || !context.fusableIntermediate(sigmoid, 1) ||
+			!context.q8DecodeProduct(matrix) || !matrix.Shape.Equal(node.Shape) {
+			continue
+		}
+		gate := sigmoid.Inputs[0]
+		if gate.Type != dtype.F32 || !gate.Shape.Equal(tensor.MustShape(tensor.SingletonExtent, node.Shape.Dims[1])) {
+			continue
+		}
+		if compiled.skipped == nil {
+			compiled.skipped = make(map[*tensor.Tensor]struct{})
+		}
+		for _, item := range []*tensor.Tensor{product, sigmoid, matrix} {
+			compiled.skipped[item] = struct{}{}
+		}
+		compiled.setFusion(node, &compiledFusion{
+			kind: compiledFusionQ8GatedAdd, operands: []*tensor.Tensor{matrix.Inputs[0], matrix.Inputs[1], gate, addend},
+		})
+	}
+}
+
+// q8DecodeProduct reports a Q8_0 product of an F32 input of at most q8InputSpanColumns columns, a decode step's or a
+// verify span's, that one node reads and no fusion has taken.
+func (context *rewriteContext) q8DecodeProduct(node *tensor.Tensor) bool {
+	if node == nil || node.Op != tensor.OpMulMat || len(node.Inputs) != tensor.PairedExtent || node.Inputs[0].Type != dtype.Q8_0 {
+		return false
+	}
+	right := node.Inputs[1]
+	return right.Type == dtype.F32 && right.Shape.Rank == tensor.PairedExtent && right.Shape.Dims[1] <= q8InputSpanColumns &&
+		context.compiled.fusions[node] == nil && context.fusableIntermediate(node, 1)
+}
+
 func (context *rewriteContext) fusableIntermediate(node *tensor.Tensor, uses int) bool {
 	if node == nil || context.uses[node] != uses {
 		return false

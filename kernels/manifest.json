@@ -64,7 +64,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "927ea0dadd4fe8066f0af5d58c1184d99630097e9dc99afba7f056ce3a918fb2",
+      "sourceSha256": "fd8d2751198c6e6c6a07a9b0685a68def977ab1059826b3fb417fa1b1e9aa1d3",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -72,7 +72,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "c35685f6157832532aad488faad76e2a4ba7abdede53db2a6b2b8728c3b9bf06",
+      "assetSha256": "012918c22ebffbcd5e85380da5e2411b77fe336f501dd74c77c5b51f534154bc",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -232,6 +232,8 @@
         "mul_mat_q8_0_f32",
         "mul_mat_q8_0_input_argmax_partials_f32",
         "mul_mat_q8_0_input_f32",
+        "mul_mat_q8_0_input_gated_add_f32",
+        "mul_mat_q8_0_input_pair_f32",
         "mul_mat_q8_1_f32",
         "mul_mat_q8_K_f32",
         "mul_mat_tq1_0_f32",
@@ -1304,6 +1306,23 @@
             "mul_mat_tq1_0_f32",
             "mul_mat_tq2_0_f32",
             "vae_channel_rms_norm_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "mul_mat_q8_0_input_gated_add_f32",
+            "mul_mat_q8_0_input_pair_f32"
           ]
         },
         {

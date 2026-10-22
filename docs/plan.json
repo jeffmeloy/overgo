@@ -213,17 +213,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1318,
+        "nodes": 0,
         "reason": "shared-expert as built adds 1,318 production syntax nodes (the gate's preflight, 2026-10-21): the fused Q8_0 launches' frame (their operands, the input's staging and the launch shape), the pair and gated-add launches, the two rewrites with the decode-product rule they share, and the fusion kinds; the row may add 1,318."
       },
       "steps": [
-        {
-          "id": "shared-expert",
-          "title": "Read the shared expert's gate and up rows in one launch and fold its scalar gate into the down product",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "A node-level trace of Flash-Next's plain decoding after gdn-fusion (2026-10-21) runs the shared expert in eight kernels a layer, 16.9 us of it: the gate and up products (Q8_0, 2560 to 640, 4.0 us each, 435 GB/s), the SiLU product (1.0), the down product (3.6), the scalar gate's F32 product (1.5), its sigmoid (0.9), the gated product (1.0) and the addition to the routed output (0.9): 0.81 ms of a token over 48 layers, and as many a verify span.\nThe step reads the gate and up rows in one launch with the SiLU product and the down product's Q8 input in its epilogue, as the BF16 gate pair does (bf16GateFusion), and folds the scalar gate's sigmoid, the gated product and the addition into the down product's epilogue; each product sums as mul_mat_q8_0_input_f32 sums it and each epilogue rounds as the kernels it replaces, so the bits are master's.\nEvidence: kernels a layer and the probe's milliseconds a token, plain and speculative, against master, and its decoded texts the same; the fused products against the composed ones on the card, bit for bit.\nServes: throughput.\nBatch: device."
-        },
         {
           "id": "expert-doorbell",
           "title": "Compute a decode step's host-memory experts on the CPU beside the card, as Strata's doorbell does",

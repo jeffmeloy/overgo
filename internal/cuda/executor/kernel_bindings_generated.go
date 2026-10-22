@@ -165,6 +165,8 @@ const (
 	kernelMulMatQ80F32
 	kernelMulMatQ80InputArgmaxPartialsF32
 	kernelMulMatQ80InputF32
+	kernelMulMatQ80InputGatedAddF32
+	kernelMulMatQ80InputPairF32
 	kernelMulMatQ81F32
 	kernelMulMatQ8KF32
 	kernelMulMatTq10F32
@@ -405,6 +407,8 @@ var kernelFunctionNames = [...]string{
 	"mul_mat_q8_0_f32",
 	"mul_mat_q8_0_input_argmax_partials_f32",
 	"mul_mat_q8_0_input_f32",
+	"mul_mat_q8_0_input_gated_add_f32",
+	"mul_mat_q8_0_input_pair_f32",
 	"mul_mat_q8_1_f32",
 	"mul_mat_q8_K_f32",
 	"mul_mat_tq1_0_f32",
@@ -644,6 +648,8 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	6,
 	5,
 	7,
+	9,
+	9,
 	6,
 	6,
 	6,

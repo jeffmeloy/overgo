@@ -820,6 +820,9 @@ const (
 	compiledFusionStreamSum
 	compiledFusionStreamCombine
 	compiledFusionScaledActivation
+	compiledFusionQ8Pair
+	compiledFusionQ8PairPeer
+	compiledFusionQ8GatedAdd
 )
 
 type compiledFusion struct {
@@ -842,6 +845,7 @@ type compiledFusion struct {
 	streamSum        streamSumFusion
 	streamCombine    streamCombineFusion
 	scaledActivation scaledActivationFusion
+	q8Pair           q8PairFusion
 }
 
 type dynamicAttributeSlot struct {
@@ -1875,6 +1879,13 @@ func launchCompiledFusion(
 		return "stream_combine", launchStreamCombine(state, functions, node, fusion.streamCombine, pointers)
 	case compiledFusionScaledActivation:
 		return "scaled_activation", launchScaledActivation(state, functions, q8Input, node, fusion.scaledActivation, fusion.emitQ8, pointers)
+	case compiledFusionQ8Pair:
+		return "q8_pair", launchQ8Pair(state, functions, q8Input, node, fusion.q8Pair, pointers)
+	case compiledFusionQ8PairPeer:
+		// The pair's later product writes this one's output.
+		return "q8_pair", nil
+	case compiledFusionQ8GatedAdd:
+		return "q8_gated_add", launchQ8GatedAdd(state, functions, q8Input, node, pointers)
 	default:
 		return "", errors.New("compiled CUDA fusion is invalid")
 	}

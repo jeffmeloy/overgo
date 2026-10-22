@@ -6962,6 +6962,124 @@ extern "C" __global__ void mul_mat_q8_0_input_f32(
     }
 }
 
+// q8_0_input_product_row sums the block's warp's Q8_0 weight row with each of right_rows q8 input columns as
+// mul_mat_q8_0_input_f32 sums it, into sums, and returns whether this thread holds a row's sums (the row's first lane of
+// its first warp), setting left_row; partials is the block's scratch for the row's warps.
+__device__ __forceinline__ bool q8_0_input_product_row(
+        const unsigned char * left,
+        const unsigned char * right,
+        unsigned int inner,
+        unsigned int left_rows,
+        unsigned int right_rows,
+        unsigned int row_warps,
+        float (*partials)[Q8_INPUT_SPAN_MAX],
+        float * sums,
+        unsigned int & left_row) {
+    const unsigned int warp = threadIdx.x / CUDA_WARP_WIDTH;
+    const unsigned int part = warp % row_warps;
+    left_row = blockIdx.x * (Q8_INPUT_BLOCK_WARPS / row_warps) + warp / row_warps;
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const unsigned int first = part * CUDA_WARP_WIDTH + lane;
+    const unsigned int step = row_warps * CUDA_WARP_WIDTH;
+    const unsigned int blocks_per_row = inner / Q8_0_BLOCK_WIDTH;
+#pragma unroll
+    for (unsigned int span = 0; span < Q8_INPUT_SPAN_MAX; ++span) {
+        sums[span] = 0.0f;
+    }
+    if (left_row < left_rows && right_rows == 1) {
+        sums[0] = q8_0_input_dot_row(left, right, inner, left_row, first, step);
+    } else if (left_row < left_rows) {
+        q8_0_input_span_dots(left, right, blocks_per_row, left_row, first, step, right_rows, sums);
+    }
+    if (row_warps > 1) {
+        if (lane == 0) {
+#pragma unroll
+            for (unsigned int span = 0; span < Q8_INPUT_SPAN_MAX; ++span) {
+                partials[warp][span] = sums[span];
+            }
+        }
+        __syncthreads();
+        if (part == 0 && lane == 0) {
+#pragma unroll
+            for (unsigned int span = 0; span < Q8_INPUT_SPAN_MAX; ++span) {
+                float sum = 0.0f;
+                for (unsigned int other = 0; other < row_warps; ++other) {
+                    sum += partials[warp + other][span];
+                }
+                sums[span] = sum;
+            }
+        }
+    }
+    return left_row < left_rows && part == 0 && lane == 0;
+}
+
+// mul_mat_q8_0_input_pair_f32 is two mul_mat_q8_0_input_f32 products of one q8 input in one launch, a gated layer's
+// gate and up rows: a warp sums its row of each, so each output's bits are the single product's.
+extern "C" __global__ void mul_mat_q8_0_input_pair_f32(
+        const unsigned char * gate,
+        const unsigned char * up,
+        const unsigned char * right,
+        float * gate_output,
+        float * up_output,
+        unsigned int inner,
+        unsigned int left_rows,
+        unsigned int right_rows,
+        unsigned int row_warps) {
+    __shared__ float gate_partials[Q8_INPUT_BLOCK_WARPS][Q8_INPUT_SPAN_MAX];
+    __shared__ float up_partials[Q8_INPUT_BLOCK_WARPS][Q8_INPUT_SPAN_MAX];
+    if (right_rows > Q8_INPUT_SPAN_MAX) {
+        return;
+    }
+    float gate_sums[Q8_INPUT_SPAN_MAX], up_sums[Q8_INPUT_SPAN_MAX];
+    unsigned int left_row;
+    const bool holds = q8_0_input_product_row(gate, right, inner, left_rows, right_rows, row_warps, gate_partials, gate_sums, left_row);
+    q8_0_input_product_row(up, right, inner, left_rows, right_rows, row_warps, up_partials, up_sums, left_row);
+    if (!holds) {
+        return;
+    }
+#pragma unroll
+    for (unsigned int span = 0; span < Q8_INPUT_SPAN_MAX; ++span) {
+        if (span >= right_rows) {
+            break;
+        }
+        gate_output[span * left_rows + left_row] = gate_sums[span];
+        up_output[span * left_rows + left_row] = up_sums[span];
+    }
+}
+
+// mul_mat_q8_0_input_gated_add_f32 is a mul_mat_q8_0_input_f32 product scaled by the sigmoid of its column's gate and
+// added to addend, as sigmoid_f32, broadcast_multiply_f32 and add_f32 round them: a gated shared expert's down product
+// into the routed output.
+extern "C" __global__ void mul_mat_q8_0_input_gated_add_f32(
+        const unsigned char * left,
+        const unsigned char * right,
+        const float * gate,
+        const float * addend,
+        float * output,
+        unsigned int inner,
+        unsigned int left_rows,
+        unsigned int right_rows,
+        unsigned int row_warps) {
+    __shared__ float partials[Q8_INPUT_BLOCK_WARPS][Q8_INPUT_SPAN_MAX];
+    if (right_rows > Q8_INPUT_SPAN_MAX) {
+        return;
+    }
+    float sums[Q8_INPUT_SPAN_MAX];
+    unsigned int left_row;
+    if (!q8_0_input_product_row(left, right, inner, left_rows, right_rows, row_warps, partials, sums, left_row)) {
+        return;
+    }
+#pragma unroll
+    for (unsigned int span = 0; span < Q8_INPUT_SPAN_MAX; ++span) {
+        if (span >= right_rows) {
+            break;
+        }
+        const unsigned int index = span * left_rows + left_row;
+        const float sigmoid = 1.0f / (1.0f + expf(-gate[span]));
+        output[index] = __fadd_rn(addend[index], __fmul_rn(sums[span], sigmoid));
+    }
+}
+
 // warp-per-row BF16 matvec: packed pair loads keep coalesced 128B segments;
 // fp32 input and accumulation. Decode-regime replacement for staged GEMMEx.
 extern "C" __global__ void mul_mat_bf16_f32(

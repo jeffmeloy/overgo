@@ -6096,16 +6096,19 @@ extern "C" __global__ void attention_online_init_f32(
 
 // attention_online_softmax_f32: exact online softmax over one L2-resident
 // score tile (SGEMM QK^T staging, layout [heads][chunk][key_chunk]). One
-// block per (head, row): update the running max, rescale the accumulated
-// output row (skip the exact *1.0 identity), write probabilities in place
-// for the PV accumulate, fold the tile sum into the running sum. FP64
-// shared reductions. Port of the proven external online softmax structure;
+// warp per (head, row), ATTENTION_ONLINE_ROWS rows a block: update the running
+// max, rescale the accumulated output row (skip the exact *1.0 identity), write
+// probabilities in place for the PV accumulate, fold the tile sum into the
+// running sum. The sum accumulates in FP64 in registers and reduces across the
+// warp (a block a row, reducing through shared memory, took half a vision
+// encoder's attention). Port of the proven external online softmax structure;
 // output rows live in the interleaved [token][head][channel] layout.
 // query_start is the absolute position of the chunk's first row; with
 // causal set a row reads keys below its own position plus one, and a
 // window keeps only the last `window` of those; a masked key writes a
 // zero probability so the PV accumulate ignores it. softcap > 0 caps
 // the scaled score with tanh before the bias, as the reference does.
+#define ATTENTION_ONLINE_ROWS 8u
 extern "C" __global__ void attention_online_softmax_f32(
         float * scores,
         float * output,
@@ -6123,19 +6126,20 @@ extern "C" __global__ void attention_online_softmax_f32(
         unsigned int causal,
         unsigned int window,
         float softcap) {
-    extern __shared__ double reduce_shared[];
-    __shared__ float alpha_shared;
-    __shared__ float maximum_shared;
-    const unsigned int head = blockIdx.x / rows;
-    const unsigned int row = blockIdx.x % rows;
-    const unsigned int tid = threadIdx.x;
+    const unsigned int lane = threadIdx.x & 31u;
+    const unsigned int pair = blockIdx.x * ATTENTION_ONLINE_ROWS + (threadIdx.x >> 5u);
+    if (pair >= heads * rows) {
+        return;
+    }
+    const unsigned int head = pair / rows;
+    const unsigned int row = pair % rows;
     const unsigned int base = (head * chunk + row) * key_chunk;
     const unsigned int stat = head * chunk + row;
     const unsigned int stat_rows = heads * chunk;
     const unsigned int causal_limit = causal ? query_start + row + 1 : 0xFFFFFFFFu;
     const unsigned int key_first = window > 0 && causal_limit > window ? causal_limit - window : 0;
     float local_maximum = -3.402823466e+38F;
-    for (unsigned int j = tid; j < keys; j += blockDim.x) {
+    for (unsigned int j = lane; j < keys; j += 32u) {
         const unsigned int key_token = key_start + j;
         if (key_token >= causal_limit || key_token < key_first) {
             continue;
@@ -6147,32 +6151,24 @@ extern "C" __global__ void attention_online_softmax_f32(
         const float bias = key_bias != nullptr ? key_bias[key_token] : 0.0f;
         local_maximum = fmaxf(local_maximum, score + bias);
     }
-    reduce_shared[tid] = (double) local_maximum;
-    __syncthreads();
-    for (unsigned int stride = blockDim.x >> 1; stride > 0; stride >>= 1) {
-        if (tid < stride) {
-            reduce_shared[tid] = fmax(reduce_shared[tid], reduce_shared[tid + stride]);
-        }
-        __syncthreads();
+    for (unsigned int offset = 16u; offset > 0u; offset >>= 1u) {
+        local_maximum = fmaxf(local_maximum, __shfl_xor_sync(0xFFFFFFFFu, local_maximum, offset));
     }
-    if (tid == 0) {
-        const float old = stats[stat];
-        const float next = fmaxf(old, (float) reduce_shared[0]);
-        maximum_shared = next;
-        alpha_shared = old <= -3.4028233e+38F ? 0.0f : expf(old - next);
-        stats[stat] = next;
+    const float old = stats[stat];
+    const float maximum = fmaxf(old, local_maximum);
+    const float alpha = old <= -3.4028233e+38F ? 0.0f : expf(old - maximum);
+    __syncwarp();
+    if (lane == 0) {
+        stats[stat] = maximum;
     }
-    __syncthreads();
-    const float alpha = alpha_shared;
-    const float maximum = maximum_shared;
     if (alpha != 1.0f) {
         float * output_row = output + (row * heads + head) * width;
-        for (unsigned int channel = tid; channel < width; channel += blockDim.x) {
+        for (unsigned int channel = lane; channel < width; channel += 32u) {
             output_row[channel] *= alpha;
         }
     }
     double sum = 0.0;
-    for (unsigned int j = tid; j < keys; j += blockDim.x) {
+    for (unsigned int j = lane; j < keys; j += 32u) {
         const unsigned int key_token = key_start + j;
         if (key_token >= causal_limit || key_token < key_first) {
             scores[base + j] = 0.0f;
@@ -6187,16 +6183,11 @@ extern "C" __global__ void attention_online_softmax_f32(
         scores[base + j] = probability;
         sum += (double) probability;
     }
-    reduce_shared[tid] = sum;
-    __syncthreads();
-    for (unsigned int stride = blockDim.x >> 1; stride > 0; stride >>= 1) {
-        if (tid < stride) {
-            reduce_shared[tid] += reduce_shared[tid + stride];
-        }
-        __syncthreads();
+    for (unsigned int offset = 16u; offset > 0u; offset >>= 1u) {
+        sum += __shfl_xor_sync(0xFFFFFFFFu, sum, offset);
     }
-    if (tid == 0) {
-        stats[stat_rows + stat] = stats[stat_rows + stat] * alpha + (float) reduce_shared[0];
+    if (lane == 0) {
+        stats[stat_rows + stat] = stats[stat_rows + stat] * alpha + (float) sum;
     }
 }
 

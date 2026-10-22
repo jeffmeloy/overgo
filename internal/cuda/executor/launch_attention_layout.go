@@ -8,6 +8,7 @@ import (
 	"overgo/internal/cuda/cublas"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/cuda/kernel"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 )
@@ -357,8 +358,9 @@ func launchBlasFullAttention(
 	query, key, value, keyBias, output driver.DevicePtr,
 	geometry blasAttentionLaunch,
 ) error {
+	// The softmax reads a row a warp, eight rows a block (ATTENTION_ONLINE_ROWS).
 	const softmaxThreads = uint32(256)
-	const f64Bytes = uint32(8)
+	softmaxRows := softmaxThreads / uint32(kernel.WarpThreads())
 	queryHeads, keyValueHeads := geometry.queryHeads, geometry.keyValueHeads
 	queryTokens, keyValueTokens, keyWidth := geometry.queryTokens, geometry.keyValueTokens, geometry.keyWidth
 	chunk, keyChunk, scale := geometry.chunk, geometry.keyChunk, geometry.scale
@@ -443,8 +445,8 @@ func launchBlasFullAttention(
 				}
 				if err := launchGridSharedABI(
 					state, functions[kernelAttentionOnlineSoftmaxF32],
-					driver.Dim3{X: queryHeads * rows, Y: 1, Z: 1},
-					driver.Dim3{X: softmaxThreads, Y: 1, Z: 1}, softmaxThreads*f64Bytes,
+					driver.Dim3{X: (queryHeads*rows + softmaxRows - 1) / softmaxRows, Y: 1, Z: 1},
+					driver.Dim3{X: softmaxThreads, Y: 1, Z: 1}, 0,
 					&scores, &oChunk, &stats,
 					&keyBias, &keyStart, &keys, &keyChunk, &rows, &chunk, &keyWidth, &queryHeads, &scale,
 					&chunkPosition, &causal, &window, &softcap,

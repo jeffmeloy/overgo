@@ -213,8 +213,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "shared-expert as built adds 1,318 production syntax nodes (the gate's preflight, 2026-10-21): the fused Q8_0 launches' frame (their operands, the input's staging and the launch shape), the pair and gated-add launches, the two rewrites with the decode-product rule they share, and the fusion kinds; the row may add 1,318."
+        "nodes": 3474,
+        "reason": "expert-doorbell as built adds 3,474 production syntax nodes (the gate's preflight, 2026-10-21): the doorbell's pinned words, slots and rows with its card descriptor, the worker's serve loop that answers each ring, the CPU's computation of a ring's experts, the residency's card flags of experts on host, and the spinning pool; the row may add 3,474."
       },
       "steps": [
         {
@@ -536,7 +536,8 @@
             "plan-gdn-fusion/do",
             "plan-gdn-count/do",
             "plan-shared-doorbell/do",
-            "plan-shared-count/do"
+            "plan-shared-count/do",
+            "plan-doorbell-count/do"
           ]
         }
       ]

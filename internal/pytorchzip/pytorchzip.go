@@ -81,7 +81,10 @@ type Admission struct {
 
 // Admit reads every archive byte once and holds the platform's read-only admission.
 // Platforms without enforced immutability require a fresh admission before reuse.
-func Admit(filename string) (*Admission, error) {
+// known, where given, is asked while the file is held for a name it keeps for these
+// bytes (a digest validated by their size and modification time); the bytes are read
+// only where it has none.
+func Admit(filename string, known func(path string) (string, bool)) (*Admission, error) {
 	file, immutable, err := openAdmission(filename)
 	if err != nil {
 		return nil, err
@@ -93,6 +96,11 @@ func Admit(filename string) (*Admission, error) {
 	}
 	if _, err := zip.NewReader(file, info.Size()); err != nil {
 		return fail(err)
+	}
+	if known != nil {
+		if name, ok := known(filename); ok {
+			return &Admission{File: file, Identity: name, Immutable: immutable}, nil
+		}
 	}
 	digest := sha256.New()
 	if n, err := io.Copy(digest, io.NewSectionReader(file, 0, info.Size())); err != nil {

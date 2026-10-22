@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
@@ -175,7 +176,7 @@ func TestPromptRowsFollowTheBytesTheyAreMadeFrom(t *testing.T) {
 	}
 	named := func() string {
 		t.Helper()
-		name, err := TextPipelineIdentity(directory)
+		name, err := TextPipelineIdentity(t.Context(), nil, directory)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -352,18 +353,73 @@ func TestPromptRowsFollowTheBytesTheyAreMadeFrom(t *testing.T) {
 
 	// A pipeline with a file missing, and a checkpoint that is no archive.
 	absent := WanTextConditioningSpec(t.TempDir(), length)
-	if name, err := TextPipelineIdentity(filepath.Dir(absent.EncoderCheckpoint)); err != nil || name == "" || name == named() {
+	if name, err := TextPipelineIdentity(t.Context(), nil, filepath.Dir(absent.EncoderCheckpoint)); err != nil || name == "" || name == named() {
 		t.Fatalf("a model with no text pipeline is named %q (%v); want a name of its own, for a request that brings its contexts", name, err)
 	}
-	if _, _, err := absent.content(false); !errors.Is(err, fs.ErrNotExist) {
+	if _, _, err := absent.content(false, nil); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("rows asked of a pipeline that is not there = %v, want it refused as not there", err)
 	}
 	forget()
 	if err := os.WriteFile(spec.EncoderCheckpoint, []byte("no archive"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if name, err := TextPipelineIdentity(directory); err == nil {
+	if name, err := TextPipelineIdentity(t.Context(), nil, directory); err == nil {
 		t.Fatalf("a checkpoint that is no archive is named %q; want no name, and so no answer kept under one", name)
+	}
+}
+
+// TestTextPipelineNamesItsCheckpointThroughTheStore names the encoder
+// checkpoint through the store's identity memo: the next process takes the
+// digest kept for the checkpoint's size and modification time without reading
+// it, which other bytes kept at that size and time show, and reads it again
+// once either moves.
+func TestTextPipelineNamesItsCheckpointThroughTheStore(t *testing.T) {
+	// Not parallel: the admissions this process keeps are this test's to forget.
+	directory := t.TempDir()
+	spec := WanTextConditioningSpec(directory, 1)
+	if err := os.MkdirAll(spec.TokenizerDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeSyntheticTokenizer(t, spec.TokenizerDir)
+	if err := os.WriteFile(spec.EncoderCheckpoint, syntheticEncoder(t, 1), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	// named is what a process names the pipeline, with the store or without one, before it ends and lets the checkpoint go.
+	named := func(store artifact.Repository) string {
+		t.Helper()
+		name, err := TextPipelineIdentity(t.Context(), store, directory)
+		forgetPromptEncoders(t)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return name
+	}
+	first := named(store)
+	before, err := os.Stat(spec.EncoderCheckpoint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(spec.EncoderCheckpoint, syntheticEncoder(t, 2), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(spec.EncoderCheckpoint, before.ModTime(), before.ModTime()); err != nil {
+		t.Fatal(err)
+	}
+	read := named(nil)
+	if kept := named(store); kept != first || read == first {
+		t.Fatalf("other bytes at the kept size and time: the next process keeps the first name %t, and reading them names them anew %t", kept == first, read != first)
+	}
+	later := before.ModTime().Add(time.Second)
+	if err := os.Chtimes(spec.EncoderCheckpoint, later, later); err != nil {
+		t.Fatal(err)
+	}
+	if moved := named(store); moved != read {
+		t.Fatal("a checkpoint whose modification time moved is named by the digest kept for the old time, not read again")
 	}
 }
 

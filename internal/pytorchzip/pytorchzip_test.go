@@ -179,7 +179,7 @@ func TestRecordNamesWhatAnArchiveRecords(t *testing.T) {
 	values := []float32{-2.5, 0, 1.25, 255, -0.375, 8}
 	record := func(path string) string {
 		t.Helper()
-		admission, err := Admit(path)
+		admission, err := Admit(path, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -202,7 +202,7 @@ func TestRecordNamesWhatAnArchiveRecords(t *testing.T) {
 		t.Fatalf("the same values written again have the first's record: %t; another value has it too: %t", record(again) == record(first), record(other) == record(first))
 	}
 
-	admitted, err := Admit(first)
+	admitted, err := Admit(first, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,6 +215,10 @@ func TestRecordNamesWhatAnArchiveRecords(t *testing.T) {
 	}
 	if admitted.Identity != record(first) {
 		t.Fatal("admission identity differs")
+	}
+	kept := func(string) (string, bool) { return "kept", true }
+	if named, err := Admit(again, kept); err != nil || named.Identity != "kept" || named.File.Close() != nil {
+		t.Fatalf("an admission did not take the name kept for its bytes: %v", err)
 	}
 	if err := admitted.File.Close(); err != nil {
 		t.Fatal(err)
@@ -255,11 +259,11 @@ func TestRecordNamesWhatAnArchiveRecords(t *testing.T) {
 	if err := os.WriteFile(plain, []byte("no archive"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if admitted, err := Admit(plain); err == nil {
+	if admitted, err := Admit(plain, kept); err == nil {
 		admitted.File.Close()
 		t.Fatalf("a file that is no archive was admitted")
 	}
-	if _, err := Admit(filepath.Join(t.TempDir(), "absent.pth")); !errors.Is(err, fs.ErrNotExist) {
+	if _, err := Admit(filepath.Join(t.TempDir(), "absent.pth"), nil); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("a checkpoint that is not there = %v, want it refused as not there", err)
 	}
 }

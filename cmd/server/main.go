@@ -134,7 +134,6 @@ func run() error {
 	)
 	projectorPath := flag.String("mmproj", "", "multimodal projector GGUF")
 	draftPath := flag.String("draft", "", "draft layer GGUF the model speculates its greedy requests through (Flash-Next's MTP layer); a request with \"speculative\": false decodes a token a step")
-	draftVocabulary := flag.String("draft-vocab", "", "token ids, little-endian int32s (Strata's rt/draft_vocab.bin), whose rows of the model's head alone the draft's head reads; empty reads the whole head")
 	projectorCUDA := clioptions.BoolOverride(flag.CommandLine, "mmproj-cuda", "offload projector operations to CUDA; unset follows active inference placement")
 	mediaPolicyPath := flag.String("media-policy", "", "remote-media JSON policy; empty (the default) disables URLs")
 	resourcePolicyPath := flag.String("resource-policy", "", "Responses file-ID JSON policy; empty (the default) disables file IDs")
@@ -193,7 +192,6 @@ func run() error {
 	}
 	openOptions := modelFlags.OpenOptions(loraScale)
 	openOptions.Draft = *draftPath
-	openOptions.DraftVocabulary = *draftVocabulary
 	if _, set := explicit["prompt-cache-entries"]; set {
 		openOptions.PromptCacheEntries = *promptCacheEntries
 	}
@@ -237,6 +235,11 @@ func run() error {
 			address: *address, apiKey: apiKey, modelID: *modelID, maxConcurrent: *maxConcurrent,
 			requestTimeout: *requestTimeout, repository: repositoryPath, webuiDir: *webuiDir,
 		})
+	}
+	if openOptions.Draft == "" {
+		if openOptions.Draft, err = activeDraft(shutdownContext, repositoryPath, modelReference); err != nil {
+			return err
+		}
 	}
 	runner, err := modelFlags.OpenRunnerWithOptions(shutdownContext, modelReference, openOptions)
 	if err != nil {

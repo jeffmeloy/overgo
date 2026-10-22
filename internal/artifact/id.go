@@ -42,6 +42,8 @@ const (
 	KindEvaluation
 	KindTensorInventory
 	KindModelDefinition
+	// KindDraft is a draft layer a model speculates its decoding through (Flash-Next's MTP layer).
+	KindDraft
 )
 
 var kindNames = [...]string{
@@ -63,6 +65,7 @@ var kindNames = [...]string{
 	KindEvaluation:      "evaluation",
 	KindTensorInventory: "tensor-inventory",
 	KindModelDefinition: "model-definition",
+	KindDraft:           "draft",
 }
 
 func (k Kind) String() string {

@@ -19,7 +19,9 @@ const (
 	ModuleCaptureRepresentation recipe.ModuleID = "model.capture-representation"
 	// ModuleInjectRepresentation identifies the model-boundary representation injection stage.
 	ModuleInjectRepresentation recipe.ModuleID = "model.inject-representation"
-	ModuleThoughtBankGenerate  recipe.ModuleID = "model.thoughtbank-generate"
+	// moduleDraftTokens drafts the tokens a model's decoding verifies with the draft layer the speculation recipe binds.
+	moduleDraftTokens         recipe.ModuleID = "model.draft-tokens"
+	ModuleThoughtBankGenerate recipe.ModuleID = "model.thoughtbank-generate"
 	// ModuleForecastSeries: host forward for series-forecast capability
 	// packages; input series tensor, output quantile-forecast tensor.
 	ModuleForecastSeries recipe.ModuleID = "model.forecast-series"
@@ -240,6 +242,20 @@ var sessionComponentRoles = map[recipe.ModuleID]recipe.DependencyRole{
 	workflowrecipe.ModuleProjectImage: recipe.DependencyProjector,
 	workflowrecipe.ModuleProjectAudio: recipe.DependencyProjector,
 	workflowrecipe.ModuleProjectVideo: recipe.DependencyProjector,
+}
+
+// DraftDefinition returns the speculation recipe binding a model to the draft layer its decoding drafts through, as a
+// projection recipe binds its projector: a launcher that names no draft serves the one the model's active speculation
+// recipe binds.
+func DraftDefinition(modelID, draftID artifact.ID) (recipe.Definition, error) {
+	return recipe.NewDefinitionWithDependencies(
+		recipe.TaskSpeculation,
+		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}, {Role: recipe.DependencyDraft, Artifact: draftID}},
+		[]recipe.Node{{ID: "draft", Module: moduleDraftTokens, Placement: recipe.PlacementDevice}},
+		nil,
+		[]recipe.Input{{Name: "tokens", Data: recipe.DataTokens, Target: recipe.Endpoint{Node: "draft", Port: "tokens"}}},
+		[]recipe.Output{{Name: "drafts", Data: recipe.DataTokens, Source: recipe.Endpoint{Node: "draft", Port: "drafts"}}},
+	)
 }
 
 // ProjectionDefinition returns one exact projector bundle with one branch per supported modality.
@@ -781,6 +797,11 @@ func mustCatalog() *recipe.Catalog {
 			ID: ModuleInjectRepresentation, Tasks: []recipe.Task{recipe.TaskProjection}, Placements: placements,
 			Inputs:  []recipe.Port{{Name: "representation", Data: recipe.DataTensor, Cardinality: recipe.CardinalityOne}},
 			Outputs: []recipe.Port{{Name: "output", Data: recipe.DataTensor, Cardinality: recipe.CardinalityOne}},
+		},
+		{
+			ID: moduleDraftTokens, Tasks: []recipe.Task{recipe.TaskSpeculation}, Placements: []recipe.Placement{recipe.PlacementDevice},
+			Inputs:  []recipe.Port{{Name: "tokens", Data: recipe.DataTokens, Cardinality: recipe.CardinalityOne}},
+			Outputs: []recipe.Port{{Name: "drafts", Data: recipe.DataTokens, Cardinality: recipe.CardinalityOne}},
 		},
 	}
 	for _, task := range []recipe.Task{

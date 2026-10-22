@@ -208,25 +208,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "flashnext-speculation",
-      "title": "Decode Flash-Next through its MTP draft at the rate Strata's MTP windows reach",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 799,
-        "reason": "head-columns: the head's columns read in one function of their count and the draft's head over Strata's vocabulary subset, placed by a general DeviceWeights.PlaceRows, cut a speculative token from about 9.47 to 9.10 ms on Flash-Next with plain decoding held"
-      },
-      "steps": [
-        {
-          "id": "draft-library",
-          "title": "Bind Flash-Next's draft to its library entry so every launcher serves it",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "serve-draft (2026-10-21) attaches Flash-Next's MTP draft through the server's -draft flag, and since speculate-default a model served with its draft speculates greedy requests by default. A launcher that names no draft (the desktop launcher, the swap proxy, the browser lane, the evaluator's workers) serves Flash-Next without it, so a person who starts it from the library gets neither speculation nor its toggle.\nThe step binds the draft to the model's library entry as the projector is bound (discovery.ActiveProjector, modelrecipe.ProjectionDefinition): the draft file registered as an artifact, a recipe that names it for the model, and the open resolving it when the command line names none, so every launcher serves the draft the store declares. A draft whose recorded bytes are absent or differ is refused, as a projector's is. It needs a recipe task, a dependency role and an artifact kind of its own (recipe/schema.go, artifact), as projection has.\nEvidence: the server started from the library with no -draft offers speculation in its capability document and speculates a greedy turn by default (draft_n in its timings); the first-run journey's picker serves Flash-Next with the toggle on.\nServes: setup-steps and throughput.\nBatch: none.\n\nMoved behind the window's own cost (2026-10-21): the -draft flag serves the draft today, and span-experts, span-commit-chain and chain-depth decide how much a served draft pays.\n\nhead-columns (2026-10-22) gave the draft a vocabulary file, OpenOptions.DraftVocabulary and the server's -draft-vocab (Strata's rt/draft_vocab.bin, 106,299 token ids), whose rows of the trunk's head alone the draft's head reads; it binds with the draft, so the recipe that names the draft names the vocabulary too, and a launcher serves both."
-        }
-      ]
-    },
-    {
       "id": "prompt-memory",
       "title": "Keep a long prompt's experts on the card by shrinking the prompt's own buffers",
       "status": "open",

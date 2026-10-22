@@ -12,6 +12,16 @@ import (
 // hyperDraftArchitecture names a draft file that attaches a multi-token-prediction layer to a hyper-connection trunk: Qwen3.8-Flash-Next's mtp.* block, in its checkpoint's tensor names.
 const hyperDraftArchitecture = "qwen4exp-mtp"
 
+// HyperDraftVocabulary names a draft file's vocabulary subset: the token ids, int32s, whose rows of the trunk's head
+// the draft's head reads (Strata's rt/draft_vocab.bin); a file without it reads the whole head.
+const HyperDraftVocabulary = "mtp.draft_vocab"
+
+// DescribesHyperDraft reports whether a GGUF file declares a draft layer for a hyper-connection trunk.
+func DescribesHyperDraft(file *gguf.File) bool {
+	value, ok := file.MetadataValue("general.architecture")
+	return ok && value.Data == hyperDraftArchitecture
+}
+
 // HyperDraftWeights is the draft layer a draft file attaches to a hyper-connection trunk.
 //   - Layer has the shape of one of the trunk's attention layers: gated attention, both hyper-connection mixes, and routed experts in one gate-and-up bank
 //   - the layer's input fuses the next token's embedding (EmbeddingNorm, EmbeddingProjection) with the trunk's residual streams (HiddenNorm over all streams at once, then HiddenProjection on each)

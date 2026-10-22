@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"os"
 
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
@@ -34,7 +33,7 @@ type hyperDraft struct {
 // hyperDraftHead names the draft's head over its vocabulary among the device weights.
 const hyperDraftHead = "hyper_draft.head"
 
-// draftVocabularyIDBytes is a draft vocabulary file's token id, a little-endian int32.
+// draftVocabularyIDBytes is a draft vocabulary's token id, a little-endian int32.
 const draftVocabularyIDBytes = 4
 
 // hyperDraftStep is the compiled draft step, replayed as one captured graph with the token, the position and the streams of each draft.
@@ -48,16 +47,9 @@ type hyperDraftStep struct {
 	streams, selection *tensor.Tensor
 }
 
-// openHyperDraft binds a draft file, and the vocabulary file its head reads when one is named, to the trunk the plan
-// compiled.
-func openHyperDraft(path, vocabularyPath string, plan model.ModelPlan, spec model.Spec) (*hyperDraft, error) {
-	var vocabulary []uint32
-	if vocabularyPath != "" {
-		var err error
-		if vocabulary, err = readDraftVocabulary(vocabularyPath); err != nil {
-			return nil, err
-		}
-	}
+// openHyperDraft binds a draft file to the trunk the plan compiled, with the vocabulary its head reads when the file
+// holds one.
+func openHyperDraft(path string, plan model.ModelPlan, spec model.Spec) (*hyperDraft, error) {
 	file, err := gguf.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("inference: open draft %s: %w", path, err)
@@ -70,19 +62,28 @@ func openHyperDraft(path, vocabularyPath string, plan model.ModelPlan, spec mode
 	if err != nil {
 		return nil, errors.Join(fmt.Errorf("inference: draft %s: %w", path, err), file.Close())
 	}
+	vocabulary, err := readDraftVocabulary(file)
+	if err != nil {
+		return nil, errors.Join(fmt.Errorf("inference: draft %s: %w", path, err), file.Close())
+	}
 	return &hyperDraft{file: file, weights: weights, program: program, vocabulary: vocabulary}, nil
 }
 
-// readDraftVocabulary reads a draft head's token ids, little-endian int32s; placing the head refuses one past its rows.
-func readDraftVocabulary(path string) ([]uint32, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("inference: draft vocabulary: %w", err)
+// readDraftVocabulary reads the token ids of the draft file's vocabulary tensor, none when it holds none; placing the
+// head refuses one past its rows.
+func readDraftVocabulary(file *gguf.File) ([]uint32, error) {
+	info, ok := file.Tensor(model.HyperDraftVocabulary)
+	if !ok {
+		return nil, nil
 	}
-	if len(data) == 0 || len(data)%draftVocabularyIDBytes != 0 {
-		return nil, fmt.Errorf("inference: draft vocabulary %s holds no whole token ids", path)
+	if info.Type != dtype.I32 || info.Dimensions != 1 || info.Shape[0] == 0 || info.Size != info.Shape[0]*draftVocabularyIDBytes {
+		return nil, fmt.Errorf("vocabulary tensor %s is not a list of int32 token ids", info.Name)
 	}
-	vocabulary := make([]uint32, len(data)/draftVocabularyIDBytes)
+	data := make([]byte, info.Size)
+	if err := file.ReadTensorData(info, data); err != nil {
+		return nil, err
+	}
+	vocabulary := make([]uint32, info.Shape[0])
 	for index := range vocabulary {
 		vocabulary[index] = binary.LittleEndian.Uint32(data[index*draftVocabularyIDBytes:])
 	}

@@ -2,7 +2,6 @@ package discovery
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"overgo/internal/artifact"
@@ -20,31 +19,47 @@ import (
 // the recorded artifact is refused, never served: presence means the
 // recorded bytes, as it does for the model itself.
 func ActiveProjector(ctx context.Context, store *overgodb.Store, modelID artifact.ID, memo *Memo) (string, bool, error) {
-	_, active, err := modelrecipe.ActiveRecord(ctx, store, modelID, recipe.TaskProjection)
+	return activeComponent(ctx, store, modelID, recipe.TaskProjection, recipe.DependencyProjector, memo)
+}
+
+// ActiveDraft resolves the draft bytes a model's active speculation recipe
+// binds, as ActiveProjector resolves a projector's: the draft the server
+// loads when its command line names none, so every launcher speculates
+// through the draft the store declares for the model. A model without a
+// speculation activation decodes a token a step (ok false, no error).
+func ActiveDraft(ctx context.Context, store *overgodb.Store, modelID artifact.ID, memo *Memo) (string, bool, error) {
+	return activeComponent(ctx, store, modelID, recipe.TaskSpeculation, recipe.DependencyDraft, memo)
+}
+
+// activeComponent resolves the bytes of the role a model's active recipe for task binds.
+func activeComponent(
+	ctx context.Context, store *overgodb.Store, modelID artifact.ID, task recipe.Task, role recipe.DependencyRole, memo *Memo,
+) (string, bool, error) {
+	_, active, err := modelrecipe.ActiveRecord(ctx, store, modelID, task)
 	if err != nil {
 		return "", false, err
 	}
 	if !active {
 		return "", false, nil
 	}
-	_, program, err := modelrecipe.ResolveActiveCapability(ctx, store, modelID, recipe.TaskProjection)
+	_, program, err := modelrecipe.ResolveActiveCapability(ctx, store, modelID, task)
 	if err != nil {
 		return "", false, err
 	}
-	projectorID, ok := program.Definition().PrimaryDependency(recipe.DependencyProjector)
+	componentID, ok := program.Definition().PrimaryDependency(role)
 	if !ok {
-		return "", false, errors.New("discovery: the active projection recipe binds no projector")
+		return "", false, fmt.Errorf("discovery: the active %s recipe binds no %s", task, role)
 	}
-	manifest, found, err := store.Manifest(ctx, projectorID)
+	manifest, found, err := store.Manifest(ctx, componentID)
 	if err != nil {
 		return "", false, err
 	}
 	if !found {
-		return "", false, fmt.Errorf("discovery: projector %s has no manifest in the store", projectorID)
+		return "", false, fmt.Errorf("discovery: %s %s has no manifest in the store", role, componentID)
 	}
 	location, present := presence(ctx, store, manifest, map[string]fileIdentity{}, memo)
 	if !present {
-		return "", false, fmt.Errorf("discovery: projector %s for model %s has no recorded bytes on disk (recorded location %q)", projectorID, modelID, location)
+		return "", false, fmt.Errorf("discovery: %s %s for model %s has no recorded bytes on disk (recorded location %q)", role, componentID, modelID, location)
 	}
 	return location, true, nil
 }

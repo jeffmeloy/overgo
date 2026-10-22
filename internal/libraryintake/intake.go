@@ -17,8 +17,11 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/discovery"
 	"overgo/internal/evaluation"
+	"overgo/internal/gguf"
 	"overgo/internal/inference"
+	"overgo/internal/model"
 	"overgo/internal/modelintake"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/operation"
@@ -26,8 +29,15 @@ import (
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/sampling"
 	"overgo/internal/strictjson"
 )
+
+// draftAcceptanceFloor is the least share of its drafts a speculative replay of the validation prompts keeps for the
+// draft beside a model to activate: the trunk keeps every token it would have decoded whatever the draft proposes,
+// so the share measures whether the draft is the model's; Flash-Next's MTP layer keeps about 0.6, another model's
+// draft almost none.
+const draftAcceptanceFloor = 0.3
 
 // refusal marks an intake error the request itself caused (an artifact the
 // store cannot admit), which a route answers as a refusal rather than a
@@ -58,6 +68,10 @@ func ModelFiles(path, explicitProjector string) (model, projectorPath string, er
 	var projectors []string
 	var models []string
 	for _, candidate := range candidates {
+		// A draft beside the model is the model's draft (draftBeside), not a model of its own.
+		if draftFile(candidate) {
+			continue
+		}
 		describes, err := projector.DescribesProjection(candidate)
 		if err != nil {
 			return "", "", fmt.Errorf("library: %s is not a GGUF the store can read: %w", candidate, err)
@@ -84,6 +98,38 @@ func ModelFiles(path, explicitProjector string) (model, projectorPath string, er
 		return models[0], projectors[0], nil
 	}
 	return models[0], "", nil
+}
+
+// draftFile reports whether a GGUF declares a draft layer; a file the store cannot read declares none.
+func draftFile(path string) bool {
+	file, err := gguf.Open(path)
+	if err != nil {
+		return false
+	}
+	defer file.Close()
+	return model.DescribesHyperDraft(file)
+}
+
+// draftBeside finds the draft layer GGUF in a model file's directory, the draft its decoding speculates through, or
+// none; two drafts are refused, since the model's draft would be a guess.
+func draftBeside(modelPath string) (string, error) {
+	candidates, err := filepath.Glob(filepath.Join(filepath.Dir(modelPath), "*.gguf"))
+	if err != nil {
+		return "", err
+	}
+	var drafts []string
+	for _, candidate := range candidates {
+		if !strings.EqualFold(filepath.Clean(candidate), filepath.Clean(modelPath)) && draftFile(candidate) {
+			drafts = append(drafts, candidate)
+		}
+	}
+	if len(drafts) > 1 {
+		return "", fmt.Errorf("library: %s holds %d draft GGUF files beside the model", filepath.Dir(modelPath), len(drafts))
+	}
+	if len(drafts) == 0 {
+		return "", nil
+	}
+	return drafts[0], nil
 }
 
 // Register publishes the model's facts and candidate recipe (known to the
@@ -113,6 +159,21 @@ func Register(ctx context.Context, repository *overgodb.Store, path, projectorPa
 			return nil, err
 		}
 		receipt["projector"], receipt["projection"], receipt["media"] = projectorPath, projection.Definition.ID, projection.Media
+	}
+	// A draft beside the model registers as the model's speculation candidate, servable once validated with the model.
+	draftPath, err := draftBeside(path)
+	if err != nil {
+		return nil, refusal{err}
+	}
+	if draftPath != "" {
+		draft, err := modelintake.PrepareDraftCandidate(candidate.Inventory.Manifest.ID, draftPath)
+		if err != nil {
+			return nil, refusal{err}
+		}
+		if err := modelintake.RegisterDraftCandidate(context.WithoutCancel(ctx), repository, draft); err != nil {
+			return nil, err
+		}
+		receipt["draft"], receipt["speculation"] = draftPath, draft.Definition.ID
 	}
 	return receipt, nil
 }
@@ -163,6 +224,81 @@ func Validate(ctx context.Context, repository *overgodb.Store, path, projectorPa
 		return validate(ctx, repository, reporter, path, projectorPath, candidate, revision, policy.Prompts, policy.MaxTokens)
 	}
 	return candidate.Definition.ID, execute, nil
+}
+
+// ValidateDraft validates the draft beside a model the library has activated, as its validation validates a newly
+// registered model's draft: it reads the model through its active recipe and records nothing of the model's own, so
+// adding a draft re-records no golden. It returns the draft's verification gate and whether the draft activated.
+func ValidateDraft(ctx context.Context, repository *overgodb.Store, path string) (artifact.ID, bool, error) {
+	var policy validationPolicy
+	if err := strictjson.DecodeBytes(validationDocument, &policy); err != nil {
+		return artifact.ID{}, false, err
+	}
+	revision, err := modelintake.CleanRevision(ctx)
+	if err != nil {
+		return artifact.ID{}, false, err
+	}
+	draftPath, err := draftBeside(path)
+	if err == nil && draftPath == "" {
+		err = fmt.Errorf("library: %s has no draft GGUF beside it", path)
+	}
+	if err != nil {
+		return artifact.ID{}, false, err
+	}
+	return validateDraft(ctx, repository, path, draftPath, revision, policy.Prompts, policy.MaxTokens)
+}
+
+// validateDraft registers a draft beside an activated model, replays the validation prompts speculatively through it,
+// and activates the speculation recipe when the trunk keeps at least draftAcceptanceFloor of the drafts; it returns
+// the draft's verification gate. A draft that keeps fewer records its failure and stays a candidate: the model
+// serves, decoding a token a step.
+func validateDraft(ctx context.Context, repository *overgodb.Store, path, draftPath, revision string, prompts []string, maxTokens int) (artifact.ID, bool, error) {
+	loaded, err := modelrecipe.ResolveClaimedGGUF(ctx, repository, path, discovery.LoadMemo(ctx, repository).Claim)
+	if err != nil {
+		return artifact.ID{}, false, err
+	}
+	identity, err := loaded.Identity()
+	if err != nil {
+		return artifact.ID{}, false, errors.Join(err, loaded.Close())
+	}
+	draft, err := modelintake.PrepareDraftCandidate(identity.Model, draftPath)
+	if err == nil {
+		err = modelintake.RegisterDraftCandidate(ctx, repository, draft)
+	}
+	if err != nil {
+		return artifact.ID{}, false, errors.Join(err, loaded.Close())
+	}
+	runner, err := inference.OpenWithProgram(ctx, &loaded, inference.OpenOptions{Draft: draftPath})
+	if err != nil {
+		return artifact.ID{}, false, err
+	}
+	defer runner.Close()
+	greedy, err := sampling.New(sampling.Config{Temperature: 0})
+	if err != nil {
+		return artifact.ID{}, false, err
+	}
+	started := time.Now()
+	drafted, kept := 0, 0
+	for _, prompt := range prompts {
+		if _, _, err := runner.Generate(ctx, prompt, inference.GenerateOptions{
+			MaxNewTokens: maxTokens, Sampler: greedy, DeviceGreedy: true, SpeculativeDecode: true,
+			OnDraftSpan: func(spanDrafted, spanKept int) { drafted, kept = drafted+spanDrafted, kept+spanKept },
+		}); err != nil {
+			return artifact.ID{}, false, err
+		}
+	}
+	evidence := fmt.Sprintf("contract=draft-acceptance;floor=%g;drafted=%d;kept=%d;prompts=%d", draftAcceptanceFloor, drafted, kept, len(prompts))
+	if drafted == 0 || float64(kept) < draftAcceptanceFloor*float64(drafted) {
+		failure, err := modelintake.PublishFailure(ctx, repository, draft.Definition, revision, time.Since(started), "cuda:0", "cuda", evidence, "draft-acceptance")
+		return failure.Gate, false, err
+	}
+	verification, err := modelintake.PublishVerification(ctx, repository, draft.Definition, revision, time.Since(started), "cuda:0", "cuda", evidence)
+	if err != nil {
+		return artifact.ID{}, false, err
+	}
+	err = modelrecipe.ActivateCapability(ctx, repository, draft.Definition, verification, recipe.EvidenceVerified,
+		"validated from the library: the trunk kept its share of the draft's tokens on the validation prompts")
+	return verification.Gate, err == nil, err
 }
 
 // validate is the validation operation: register, record, replay, publish,
@@ -237,6 +373,21 @@ func validate(ctx context.Context, repository *overgodb.Store, reporter operatio
 		return operation.Completion{}, err
 	}
 	outputs := []artifact.ID{verification.Gate, reportID}
+	if err := runner.Close(); err != nil {
+		return operation.Completion{}, err
+	}
+	// A draft beside the model validates once the model is active, through its active recipe.
+	draftPath, err := draftBeside(path)
+	if err != nil {
+		return operation.Completion{}, err
+	}
+	if draftPath != "" {
+		draftGate, _, err := validateDraft(ctx, repository, path, draftPath, revision, prompts, maxTokens)
+		if err != nil {
+			return operation.Completion{}, err
+		}
+		outputs = append(outputs, draftGate)
+	}
 	reporter.Publishing()
 	reporter.Progress(total, &total)
 	return operation.Completion{Run: verification.Run, Outputs: outputs}, nil

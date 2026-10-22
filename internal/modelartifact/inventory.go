@@ -203,7 +203,7 @@ func VerifyClaims(file *gguf.File, claims []artifact.ID) error {
 }
 
 func tensorBearingKind(kind artifact.Kind) bool {
-	return kind == artifact.KindModel || kind == artifact.KindProjector
+	return kind == artifact.KindModel || kind == artifact.KindProjector || kind == artifact.KindDraft
 }
 
 // FromHFRepository: inventory from an already-validated Safetensors repository

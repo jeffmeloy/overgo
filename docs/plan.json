@@ -235,17 +235,10 @@
       "title": "Complete multimodal journeys with native video and existing speech composition",
       "status": "open",
       "budget": {
-        "nodes": 320,
+        "nodes": 24,
         "reason": "measured 296 at the gate: a video's temporal groups encoded a few at a time and their rows joined"
       },
       "steps": [
-        {
-          "id": "video-encode",
-          "title": "Encode a video's temporal groups a few at a time",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/projector -count=1 -run '^TestQwen3VLOriginalFixture$'",
-          "rationale": "Measured 2026-10-22: with Flash-Next's projection active, a VidGen clip's encode asked the device for 3.56 GB at once, past the 2 GiB the hybrid expert cache leaves, and was refused, on the server as in evaluation. The Qwen3-VL vision encoder attends within a temporal group and every other operation reads a patch or a merged cell, so the step encodes a video's temporal groups a few at a time (at most 4096 patches, a 1024-token picture's) and joins the rows in order. Measured with the change through the real server: 5 of the first 6 caption-matching clips answered correctly, 3.8 to 7.8 s each. The fixture test also encodes its two-group video a group at a time on host and CUDA, held to the original model's rows."
-        },
         {
           "id": "journeys",
           "title": "Add temporal video acceptance and compose speech around the model in the GUI",

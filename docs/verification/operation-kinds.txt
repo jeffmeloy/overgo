@@ -74,7 +74,7 @@ The preamble's row is the plan's step shape-reading/launch-checks, and TestNoLau
 == switches ==
 family: internal/tensor.Op
 switches: 10
-lines: 1705
+lines: 1718
 functions: 10
 packages: 4
 constants: 68
@@ -117,7 +117,7 @@ row: the entry of each operation and, as a column, the kernel each elementwise o
 table: yes
 
 switch: internal/cuda/executor/launch_recurrent_selection.go#launchRecurrentSelection
-lines: 331
+lines: 344
 constants: 16
 clauses: 17
 dispatch-lines: 20

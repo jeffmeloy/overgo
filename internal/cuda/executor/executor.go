@@ -1360,9 +1360,10 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 			compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, bytes)
 		}
 	}
-	// A selected attention too narrow for tensor cores folds its spans' partials through the score staging.
+	// A prompt's selected attention gathers FP16 keys and values from the score staging, and one too narrow for
+	// tensor cores folds its spans' partials through it.
 	for _, node := range order {
-		if bytes, ok := sparseSplitPartialBytes(node); ok {
+		if bytes, ok := sparseStagingBytes(node); ok {
 			compiled.needBlas = true
 			compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, bytes)
 		}
@@ -2658,6 +2659,7 @@ var (
 	q8InputTraits, _   = dtype.Q8_1.Traits()
 	f32ScalarBytes, _  = dtype.F32.ScalarBytes()
 	bf16ScalarBytes, _ = dtype.BF16.ScalarBytes()
+	f16ScalarBytes, _  = dtype.F16.ScalarBytes()
 )
 
 type q8InputState struct {

@@ -160,10 +160,11 @@ const (
 // and heads.
 const sparseAttentionTokenAxis = 2
 
-// sparseSplitPartialBytes is the score staging a selected attention node's
-// split launch folds its spans through, and false where the node takes one
-// span or another kernel.
-func sparseSplitPartialBytes(node *tensor.Tensor) (uint64, bool) {
+// sparseStagingBytes is the score staging a selected attention node takes: the
+// FP16 keys and values of its cache the tensor-core prompt kernel gathers, or
+// the partials a split launch folds its spans through; false where it takes
+// one span or another kernel.
+func sparseStagingBytes(node *tensor.Tensor) (uint64, bool) {
 	if node.Op != tensor.OpSparseAttention || len(node.Inputs) < sparseAttentionInputs {
 		return 0, false
 	}
@@ -173,7 +174,8 @@ func sparseSplitPartialBytes(node *tensor.Tensor) (uint64, bool) {
 	queryHeads, keyValueHeads := uint32(query.Dims[1]), uint32(key.Dims[1])
 	queryTokens, selected := uint32(query.Dims[sparseAttentionTokenAxis]), uint32(indices.Dims[0])
 	if mmaSparseAttention(keyWidth, valueWidth, queryHeads, keyValueHeads, queryTokens) {
-		return 0, false
+		// A cache token's FP16 key and value rows, of one width, take one f32 a channel.
+		return key.Dims[sparseAttentionTokenAxis] * key.Dims[1] * query.Dims[0] * f32ScalarBytes, true
 	}
 	geometry, ok := splitSparseAttention(keyWidth, valueWidth, queryHeads, keyValueHeads, queryTokens, selected)
 	if !ok || geometry.splits == 1 {
@@ -468,11 +470,24 @@ func launchRecurrentSelection(
 			return errors.New("sparse attention first-query storage is unavailable")
 		}
 		if mmaSparseAttention(keyWidth, valueWidth, queryHeads, keyValueHeads, queryTokens) {
+			// The cache's keys and values convert to FP16 in the score staging, so each query token gathers half the bytes.
+			// Compile reserved the staging (sparseStagingBytes) wherever the node takes this kernel.
+			if blas == nil || blas.scores == 0 {
+				return errors.New("sparse attention FP16 staging is unavailable")
+			}
+			cacheCount := keyValueTokens * keyValueHeads * keyWidth
+			valueStage := blas.scores + driver.DevicePtr(uint64(cacheCount)*f16ScalarBytes)
+			if err := launch1DABI(state, functions[kernelF32ToF16], cacheCount, &key, &blas.scores, &cacheCount); err != nil {
+				return err
+			}
+			if err := launch1DABI(state, functions[kernelF32ToF16], cacheCount, &value, &valueStage, &cacheCount); err != nil {
+				return err
+			}
 			return launchGridSharedABI(
 				state, functions[kernelSparseAttentionMmaF32],
 				driver.Dim3{X: queryTokens, Y: keyValueHeads, Z: 1},
 				driver.Dim3{X: sparseAttentionMMAThreads, Y: 1, Z: 1}, sparseAttentionMMASharedBytes,
-				&query, &key, &value, &indices, &output,
+				&query, &blas.scores, &valueStage, &indices, &output,
 				&queryHeads, &keyValueHeads, &queryTokens, &keyValueTokens, &selected,
 				&scale, &causal, &queryStart,
 			)
@@ -481,7 +496,7 @@ func launchRecurrentSelection(
 		// it holds them: one block a query head walked 2,048 slots in 2.3 ms of each Flash-Next decode layer.
 		if geometry, ok := splitSparseAttention(keyWidth, valueWidth, queryHeads, keyValueHeads, queryTokens, selected); ok {
 			rows := uint64(queryTokens) * uint64(queryHeads)
-			partialBytes, _ := sparseSplitPartialBytes(node)
+			partialBytes, _ := sparseStagingBytes(node)
 			if geometry.splits == 1 || blas != nil && blas.scores != 0 && partialBytes <= blas.scoreBytes {
 				span, splits := geometry.span, geometry.splits
 				var partials driver.DevicePtr

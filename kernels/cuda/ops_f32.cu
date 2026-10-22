@@ -3807,17 +3807,18 @@ __device__ __forceinline__ void mma_f16_16x8x16(float * c, const unsigned int * 
 // block takes a query token and a key/value head, its query heads as the 16
 // rows of m16n8k16 products (absent rows zero), and walks the selected slots
 // 32 at a time with an online softmax. q.k and p.v are FP16 products with f32
-// accumulation: queries, keys, values and probabilities round to FP16 as their
-// fragments load, as attention_flash_<width>_f32's do, so the result differs
-// from sparse_attention_grouped_f32 at FP16 rounding of the operands. A query
-// with no valid slot writes zeros.
-//   - each lane reads the keys and values of its mma fragments from the cache
-//     itself, so the shared memory holds the queries and the scores alone and
-//     several blocks share a multiprocessor
+// accumulation over the keys and values the launcher converts to FP16 (half the
+// bytes each query token gathers); queries and probabilities round to FP16 as
+// their fragments load, as attention_flash_<width>_f32's do, so the result
+// differs from sparse_attention_grouped_f32 at FP16 rounding of the operands. A
+// query with no valid slot writes zeros.
+//   - each lane reads the keys and values of its mma fragments from the FP16
+//     rows itself, so the shared memory holds the queries and the scores alone
+//     and several blocks share a multiprocessor
 extern "C" __global__ void __launch_bounds__(SPARSE_ATTENTION_MMA_THREADS) sparse_attention_mma_f32(
 		const float * query,
-		const float * key,
-		const float * value,
+		const __half * key,
+		const __half * value,
 		const float * indices,
 		float * output,
 		unsigned int query_heads,
@@ -3882,15 +3883,14 @@ extern "C" __global__ void __launch_bounds__(SPARSE_ATTENTION_MMA_THREADS) spars
 		}
 		__syncthreads();
 		// A cell's key and value rows in the cache, or none for a cell that is not attended, whose weights read as zeros.
-		const auto cell_row = [&](const float * cache, unsigned int cell) -> const float * {
+		const auto cell_row = [&](const __half * cache, unsigned int cell) -> const __half * {
 			return rows[cell] >= 0
 				? cache + ((size_t) rows[cell] * key_value_heads + key_value_head) * SPARSE_ATTENTION_MMA_WIDTH
 				: nullptr;
 		};
 		// A warp scores its 8 cells for all 16 rows.
 		float score[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-		const float * key_row = cell_row(key, 8 * warp + row);
-		const float2 none = make_float2(0.0f, 0.0f);
+		const __half * key_row = cell_row(key, 8 * warp + row);
 #pragma unroll 4
 		for (unsigned int step = 0; step < SPARSE_ATTENTION_MMA_WIDTH / 16; ++step) {
 			const unsigned int k = step * 16 + 2 * column;
@@ -3900,9 +3900,9 @@ extern "C" __global__ void __launch_bounds__(SPARSE_ATTENTION_MMA_THREADS) spars
 			const float2 high_far = *reinterpret_cast<const float2 *>(queries + (row + 8) * SPARSE_ATTENTION_MMA_Q_STRIDE + k + 8);
 			const unsigned int a[4] = {
 				half2_pack(low.x, low.y), half2_pack(high.x, high.y), half2_pack(low_far.x, low_far.y), half2_pack(high_far.x, high_far.y)};
-			const float2 near_key = key_row ? __ldg(reinterpret_cast<const float2 *>(key_row + k)) : none;
-			const float2 far_key = key_row ? __ldg(reinterpret_cast<const float2 *>(key_row + k + 8)) : none;
-			mma_f16_16x8x16(score, a, half2_pack(near_key.x, near_key.y), half2_pack(far_key.x, far_key.y));
+			const unsigned int near_key = key_row ? __ldg(reinterpret_cast<const unsigned int *>(key_row + k)) : 0u;
+			const unsigned int far_key = key_row ? __ldg(reinterpret_cast<const unsigned int *>(key_row + k + 8)) : 0u;
+			mma_f16_16x8x16(score, a, near_key, far_key);
 		}
 		const unsigned int cell_column = 8 * warp + 2 * column;
 		scores[row * SPARSE_ATTENTION_MMA_S_STRIDE + cell_column] = score[0] * scale;
@@ -3952,16 +3952,16 @@ extern "C" __global__ void __launch_bounds__(SPARSE_ATTENTION_MMA_THREADS) spars
 			const unsigned int a[4] = {
 				half2_pack(low.x, low.y), half2_pack(high.x, high.y), half2_pack(low_far.x, low_far.y), half2_pack(high_far.x, high_far.y)};
 			// The four cells a lane's B fragment reads: k and k + 1, and the two eight further on.
-			const float * cells[4] = {cell_row(value, k), cell_row(value, k + 1), cell_row(value, k + 8), cell_row(value, k + 9)};
+			const __half * cells[4] = {cell_row(value, k), cell_row(value, k + 1), cell_row(value, k + 8), cell_row(value, k + 9)};
 #pragma unroll
 			for (int tile = 0; tile < 8; ++tile) {
 				const unsigned int channel = 64 * warp + 8 * tile + row;
-				float v[4];
+				unsigned short v[4];
 #pragma unroll
 				for (int cell = 0; cell < 4; ++cell) {
-					v[cell] = cells[cell] ? __ldg(cells[cell] + channel) : 0.0f;
+					v[cell] = cells[cell] ? __ldg(reinterpret_cast<const unsigned short *>(cells[cell] + channel)) : 0u;
 				}
-				mma_f16_16x8x16(accumulated[tile], a, half2_pack(v[0], v[1]), half2_pack(v[2], v[3]));
+				mma_f16_16x8x16(accumulated[tile], a, v[0] | (unsigned int) v[1] << 16, v[2] | (unsigned int) v[3] << 16);
 			}
 		}
 	}

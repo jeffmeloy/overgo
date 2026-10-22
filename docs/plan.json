@@ -208,27 +208,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "training-reuse",
-      "title": "Stop repeating training's per-step device setup and its padding to the run's longest sequence",
-      "status": "open",
-      "budget": {
-        "nodes": 51,
-        "reason": "estimate: a session owner for the streamed Muon step's operations and staging, and per-group lengths in the resident dense trainer, with their tests; no measured figure yet"
-      },
-      "steps": [
-        {
-          "id": "shape-groups",
-          "title": "Run each dense training group at its own length, not the run's longest",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/densecausaltrain -count=1 -run '^TestResidentTrainingRunsEachGroupAtItsLength$'",
-          "rationale": "From the owner's reuse review of 2026-10-18 (point 5), checked against the code.\ninternal/densecausaltrain/train_resident_cuda_windows.go, trainDeviceResident: the run's length is its longest sequence's, and every group runs at that length.\nMeasure first: the padded share of positions over the registered training datasets the dense recipes train on; the step proceeds where it is a measured share of the run's work.\nThe step keeps the buffers sized once for the longest sequence and runs each group at its own length (a few length classes where graphs are reused), preserving masks, token weights, gradient accumulation and update boundaries.\nThe test trains the same groups padded and at their own lengths and holds losses and updated weights within the reference tolerance, and the work to the group's length.\nServes: training time on the resident dense lane; held-out-quality holds (the same updates); peak-device-memory holds.\nBatch: device.\n\nFrom the owner's review of 2026-10-18 (point 3): the step removes padded arithmetic, not memory: buffers stay sized for the longest sequence, so peak-device-memory is expected to hold and is reported as such.\nAcceptance also measures preparation across varied lengths: graphs compiled, their preparation time and the retained host memory of the graph cache, so saved arithmetic is not replaced by compilation; length classes are bounded and chosen from the measured length distribution.",
-          "depends_on": [
-            "training-reuse/muon-scratch"
-          ]
-        }
-      ]
-    },
-    {
       "id": "flashnext-efficiency",
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",
@@ -255,7 +234,18 @@
       "id": "flashnext-vision",
       "title": "Deliver image understanding and its web GUI as the next native increment",
       "status": "open",
+      "budget": {
+        "nodes": 340,
+        "reason": "measured 324 at the gate: a projected prompt's leading tokens read on the host and uploaded once, its last token read and its answer decoded on the device cache, and the projected inputs of a prefix"
+      },
       "steps": [
+        {
+          "id": "image-decode",
+          "title": "Decode an image conversation on the device cache, as a text one is",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test -tags modeltest ./internal/inference -count=1 -run '^TestProjectedPromptDecodesOnTheDeviceCache$'",
+          "rationale": "Measured 2026-10-22 on master 64faacba0 with tmp/flashnext-vision/imageprobe.go (the real chat handler, prompt caching off, one warm-up then one run): Flash-Next's frozen screenshot case, 1065 prompt tokens of which 1008 are image rows and a 71-token answer, takes 9.43 s warm: about 1.34 s projection, 1.68 s prompt and 6.38 s decode, 90 ms a token, where a text answer on the same runner decodes at about 12 ms a token without a draft. Runner.Generate keeps every projected prompt off the device cache (useDeviceCache requires no ProjectedInputs), so an image conversation decodes on the host-cache path a step at a time.\nThe step reads a projected prompt's tokens before its last on the host as now, uploads that cache once through uploadDeviceCache (the prompt-restore owner, which keeps the multi-axis next position and the recurrent states), and lets the device read the last token and decode, with speculation where a draft is loaded. A prompt whose last token is projected, a runner with no persistent device cache, and visual expert blocks keep the host path. Measured with the change: the same 71 tokens in 3.98 s, decode 0.85 s; device peak 48.57 GB against 48.08 before and 48.53 for a 1561-token text request on the same runner.\nServes: first-output and throughput of image conversations, toward matched image performance against Strata (flashnext-vision/images); SQA-155's per-step host round trips."
+        },
         {
           "id": "images",
           "title": "Reuse the vision projector and composer for image, OCR and multi-image conversations",

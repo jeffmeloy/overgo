@@ -38,7 +38,11 @@ func (r *Runner) prefillDeviceCachedLocked(ctx context.Context, appendInput devi
 			prefix.Selection = executor.DeviceValue{}
 			source = &prefix
 		}
-		next, runErr := r.forwardDeviceCachedBranchedBatchLocked(ctx, []deviceBatchAppend{{Tokens: remaining[:chunk], Past: source, Reserve: reserve}}, plan)
+		chunkInput := deviceBatchAppend{Tokens: remaining[:chunk], Past: source, Reserve: reserve}
+		if appendInput.Projected != nil {
+			chunkInput.Projected = appendInput.Projected.span(len(appendInput.Tokens)-len(remaining), chunk)
+		}
+		next, runErr := r.forwardDeviceCachedBranchedBatchLocked(ctx, []deviceBatchAppend{chunkInput}, plan)
 		var refused *executor.MemoryCapacityError
 		if errors.As(runErr, &refused) && chunk > 1 {
 			// Bisection reduces the candidate without assuming linear memory growth.

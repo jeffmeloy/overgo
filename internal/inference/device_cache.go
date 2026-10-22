@@ -1,6 +1,7 @@
 package inference
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -475,6 +476,22 @@ func (r *Runner) forwardDeviceCachedModeLocked(
 	return next[0], nil
 }
 
+// forwardDeviceCachedPromptLocked reads a prompt on the device under mode, with its projected inputs where it has
+// them, a prompt the bounded prefill reads in chunks.
+func (r *Runner) forwardDeviceCachedPromptLocked(
+	ctx context.Context, mode deviceOutputMode, tokenIDs []tokenizer.TokenID, past *deviceKVCache, projected *ProjectedInputs,
+) (*deviceKVCache, error) {
+	plan, err := compileDeviceOutputPlan(mode, 0, r.spec.VocabularySize)
+	if err != nil {
+		return nil, err
+	}
+	next, err := r.forwardDeviceCachedBatchLocked(ctx, []deviceBatchAppend{{Tokens: tokenIDs, Past: past, Projected: projected}}, plan)
+	if err != nil {
+		return nil, err
+	}
+	return next[0], nil
+}
+
 type deviceBatchAppend struct {
 	Tokens []tokenizer.TokenID
 	Past   *deviceKVCache
@@ -484,6 +501,8 @@ type deviceBatchAppend struct {
 	// Reserve is the tokens the cache holds once its prompt is read, so a prompt read in chunks sizes its storage once,
 	// at its first chunk, rather than in each chunk that outgrows a page beside the storage it replaces.
 	Reserve uint32
+	// Projected is the media rows, multi-axis positions and deepstack streams of the append's own tokens; nil for text.
+	Projected *ProjectedInputs
 }
 
 // cacheCapacity is the tokens an append's cache storage holds: its past storage's capacity where that holds the
@@ -533,8 +552,10 @@ type deviceBatchGraph struct {
 	cacheInputs      []layerGraphCacheInputs
 	pastTokens       uint32
 	nextPosition     uint32
-	tokenCount       uint32
-	sequences        uint32
+	// positionAfter is the cache's next position past a projected prompt's largest; zero past one whose tokens follow it.
+	positionAfter uint32
+	tokenCount    uint32
+	sequences     uint32
 }
 
 type deviceCacheTargetLayer struct {
@@ -903,7 +924,8 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	plan deviceOutputPlan,
 ) ([]*deviceKVCache, error) {
 	appendPlan := r.cacheAppendPlan(appends, plan)
-	capacity, source, parameterized := appendPlan.CapacityTokens, appendPlan.SourceCapacityTokens, appendPlan.replay
+	// A kept session replays a step's token rows and positions, not a projected prompt's media inputs.
+	capacity, source, parameterized := appendPlan.CapacityTokens, appendPlan.SourceCapacityTokens, appendPlan.replay && appends[0].Projected == nil
 	tokenCount := uint32(1)
 	var identity decodeSessionIdentity
 	if parameterized {
@@ -934,7 +956,7 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	for index, appendInput := range appends {
 		graph, err := r.buildDeviceCachedBatchBranch(
 			ctx, builder, index, appendInput.Tokens, appendInput.Past, 1, plan,
-			cacheWrite, hostFeeds, &deviceFeeds, appendInput.Checkpoints,
+			cacheWrite, hostFeeds, &deviceFeeds, appendInput.Checkpoints, appendInput.Projected,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("inference: device batch branch %d: %w", index, err)
@@ -1071,7 +1093,7 @@ func (r *Runner) assembleDeviceBatchCaches(
 			Values:   make([]executor.DeviceValue, len(graph.values)),
 			States:   make([]deviceLayerStates, len(graph.states)),
 			Tokens:   graph.pastTokens + graph.tokenCount,
-			Position: graph.nextPosition + graph.tokenCount,
+			Position: cmp.Or(graph.positionAfter, graph.nextPosition+graph.tokenCount),
 		}
 		if graph.ngramHistory != nil {
 			cache.ngramHistory = hostFeeds[graph.ngramHistory].Data
@@ -1361,9 +1383,13 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	hostFeeds map[*tensor.Tensor]reference.Value,
 	deviceFeeds *tensor.InputBindings[driver.DevicePtr],
 	checkpoints []uint32,
+	projected *ProjectedInputs,
 ) (deviceBatchGraph, error) {
 	fail := func(err error) (deviceBatchGraph, error) {
 		return deviceBatchGraph{}, err
+	}
+	if projected == nil {
+		projected = &ProjectedInputs{}
 	}
 	if r.spec.NonCausalAttention {
 		return fail(errors.New("non-causal models do not support a device KV cache"))
@@ -1392,6 +1418,22 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		return fail(err)
 	}
 	positions := sequence.positions
+	// A projected prompt's tokens take the multi-axis positions its media were placed at, and the cache's next
+	// position follows the largest of them, as the host's forward keeps it.
+	var multiPositions *[tensor.MaxDimensions][]uint32
+	var positionAfter uint32
+	if projected.MultiAxisPositions != nil {
+		axes := [tensor.MaxDimensions][]uint32(*projected.MultiAxisPositions)
+		multiPositions, positions = &axes, axes[0]
+		for _, axis := range axes {
+			for _, position := range axis {
+				positionAfter = max(positionAfter, position+1)
+			}
+		}
+		if positionAfter < nextPosition {
+			return fail(errors.New("projected positions precede the cache's next position"))
+		}
+	}
 	var positionRows []*tensor.Tensor
 	prefix := fmt.Sprintf("seq.%d.", branch)
 	embeddingTable, embeddingPointer, err := r.deviceInput(builder, r.weights.TokenEmbedding)
@@ -1401,6 +1443,9 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	tokenRowInput := builder.GetRows(embeddingTable, tokenIndices)
 	current := tokenRowInput
 	deviceFeeds.Add(embeddingTable, embeddingPointer)
+	if len(projected.EmbeddingOverrides) > 0 {
+		current = overrideDeviceRows(builder, prefix, current, projected.EmbeddingOverrides, len(tokenIDs), hostFeeds)
+	}
 	dynamicEmbedding := embeddingTable.Type == dtype.F32 || embeddingTable.Type == dtype.Q8_0
 	var feedback *tensor.Tensor
 	if plan.is(deviceOutputGreedy) && dynamicEmbedding && past != nil && past.Selection.Pointer != 0 && tokensPerSequence == 1 {
@@ -1505,7 +1550,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			return fail(layerErr)
 		}
 		*deviceFeeds = append(*deviceFeeds, layerFeeds...)
-		sideInputs := layerSideInputs{embeddingSkip: embeddingSkip}
+		sideInputs := layerSideInputs{embeddingSkip: embeddingSkip, multiPositions: projected.MultiAxisPositions}
 		if len(perLayerInputs) > 0 {
 			sideInputs.perLayerInput = perLayerInputs[layerIndex]
 		}
@@ -1546,9 +1591,10 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			}
 			ngramEmbedding, ngramHistory = graphWeights.PerLayerInput, layerHistory
 		}
+		current = addDeepstackRows(builder, prefix+fmt.Sprintf("blk.%d.deepstack_input", layerIndex), current, plan.DeepstackBefore, projected.DeepstackEmbeddings, hostFeeds)
 		result, buildErr := program.Build(model.CachedBlockContext{
-			NGramHistory: layerHistory,
-			Builder:      builder, Input: current, Positions: positions, TokenRows: tokenIndices,
+			NGramHistory: layerHistory, MultiPositions: multiPositions,
+			Builder: builder, Input: current, Positions: positions, TokenRows: tokenIndices,
 			PastKey: cacheInputs.key, PastValue: cacheInputs.value,
 			PastStates:       cacheInputs.states,
 			CurrentPositions: boundSideInputs.currentPositions,
@@ -1560,6 +1606,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			return fail(buildErr)
 		}
 		current, streams = result.Output, result.Streams
+		current = addDeepstackRows(builder, prefix+fmt.Sprintf("blk.%d.deepstack_output", layerIndex), current, plan.DeepstackAfter, projected.DeepstackEmbeddings, hostFeeds)
 		keys[layerIndex], values[layerIndex] = result.Key, result.Value
 		states[layerIndex] = result.States
 		layerCheckpoints[layerIndex] = result.Checkpoints
@@ -1627,7 +1674,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		positionFeeds: positionFeeds, ngramEmbedding: ngramEmbedding, ngramHistory: ngramHistory,
 		keys: keys, values: values, states: states, cacheInputs: cacheBindings,
 		checkpointTokens: checkpoints, checkpoints: layerCheckpoints,
-		pastTokens: pastTokens, nextPosition: nextPosition,
+		pastTokens: pastTokens, nextPosition: nextPosition, positionAfter: positionAfter,
 		tokenCount: uint32(tokensPerSequence), sequences: uint32(sequences),
 	}, nil
 }

@@ -290,6 +290,78 @@ func deepstackInputForLayer(
 	return &inputs[index]
 }
 
+// deviceProjectable reports whether a device prompt reads these inputs as the host's forward does: rows put in place
+// of their tokens', multi-axis positions, and deepstack streams added at their layers. Attention and visual expert
+// blocks, per-layer embeddings, and rows scaled or mapped from a base are read on the host alone.
+func (r *Runner) deviceProjectable(inputs ProjectedInputs) bool {
+	program := r.program.Model.ProjectedInput()
+	return len(inputs.BidirectionalAttentionBlocks) == 0 && len(inputs.VisualExpertBlocks) == 0 && !program.PerLayerEmbeddings &&
+		program.Overrides != model.EmbeddingOverrideVisualSpan && program.Overrides != model.EmbeddingOverrideRawScaled &&
+		program.Overrides != model.EmbeddingOverrideMappedBase
+}
+
+// span gives the projected inputs of count tokens from start, each indexed from start: a chunk of a prompt the
+// device reads in parts. Attention and visual expert blocks, which no device prompt reads, are not carried.
+func (inputs ProjectedInputs) span(start, count int) *ProjectedInputs {
+	result := &ProjectedInputs{}
+	for _, override := range inputs.EmbeddingOverrides {
+		if index := int(override.TokenIndex) - start; index >= 0 && index < count {
+			result.EmbeddingOverrides = append(result.EmbeddingOverrides, EmbeddingOverride{TokenIndex: uint32(index), Embedding: override.Embedding})
+		}
+	}
+	if inputs.MultiAxisPositions != nil {
+		var positions MultiAxisPositions
+		for axis, values := range inputs.MultiAxisPositions {
+			positions[axis] = values[start : start+count]
+		}
+		result.MultiAxisPositions = &positions
+	}
+	for _, stream := range inputs.DeepstackEmbeddings {
+		width, _, _ := stream.MatrixExtents()
+		shape := tensor.MustShape(uint64(width), uint64(count))
+		result.DeepstackEmbeddings = append(result.DeepstackEmbeddings, reference.Value{Shape: shape, Data: stream.Data[start*width : (start+count)*width]})
+	}
+	return result
+}
+
+// overrideDeviceRows puts projected rows in place of their tokens' embedding rows on the device: the rows times a
+// mask that is zero at a replaced token and one elsewhere, plus the replacing rows laid at their tokens, each exact.
+func overrideDeviceRows(
+	builder *tensor.Builder, prefix string, rows *tensor.Tensor, overrides []EmbeddingOverride, tokens int,
+	hostFeeds map[*tensor.Tensor]reference.Value,
+) *tensor.Tensor {
+	width := int(rows.Shape.Dims[0])
+	keep := make([]float32, tokens)
+	for index := range keep {
+		keep[index] = 1
+	}
+	placed := make([]float32, width*tokens)
+	for _, override := range overrides {
+		keep[override.TokenIndex] = 0
+		copy(placed[int(override.TokenIndex)*width:], override.Embedding)
+	}
+	keepShape, placedShape := tensor.MustShape(1, uint64(tokens)), tensor.MustShape(uint64(width), uint64(tokens))
+	keepInput := builder.Input(prefix+"projected.keep", dtype.F32, keepShape)
+	placedInput := builder.Input(prefix+"projected.rows", dtype.F32, placedShape)
+	hostFeeds[keepInput] = reference.Value{Shape: keepShape, Data: keep}
+	hostFeeds[placedInput] = reference.Value{Shape: placedShape, Data: placed}
+	return builder.Add(builder.Multiply(rows, keepInput), placedInput)
+}
+
+// addDeepstackRows adds to a layer's rows the deepstack stream source names, fed from the host; none adds nothing.
+func addDeepstackRows(
+	builder *tensor.Builder, name string, rows *tensor.Tensor, source model.DeepstackSource, streams []reference.Value,
+	hostFeeds map[*tensor.Tensor]reference.Value,
+) *tensor.Tensor {
+	stream := deepstackInputForLayer(source, reference.Value{}, streams)
+	if stream == nil || len(stream.Data) == 0 {
+		return rows
+	}
+	input := builder.Input(name, dtype.F32, stream.Shape)
+	hostFeeds[input] = *stream
+	return builder.Add(rows, input)
+}
+
 func addDeepstackEmbedding(activation, deepstack reference.Value) (reference.Value, error) {
 	if !activation.Shape.Equal(deepstack.Shape) || len(activation.Data) != len(deepstack.Data) {
 		return reference.Value{}, errors.New("activation and deepstack shapes differ")

@@ -91,12 +91,14 @@ func (r *Runner) Generate(
 	if options.ProjectedInputs != nil {
 		projectionSignature = projectedInputsSignature(*options.ProjectedInputs)
 	}
-	// A projected prompt whose last token is text decodes on the device as a text prompt does: the host reads the
-	// tokens before that one with their media rows in place, and the device reads it on the cache that makes. No
-	// entry keeps that cache, since an entry is found by tokens an image's placeholders do not tell apart.
-	projectedPrefix, projectedOnDevice := ProjectedInputs{}, false
-	if options.ProjectedInputs != nil {
-		projectedPrefix, projectedOnDevice = options.ProjectedInputs.prefix(len(ids) - 1)
+	// A projected prompt the device reads as the host does is read on the device, and its answer decoded there, as a
+	// text prompt's is. No entry keeps its cache, since an entry is found by tokens an image's placeholders do not
+	// tell apart.
+	projectedOnDevice := options.ProjectedInputs != nil && r.deviceProjectable(*options.ProjectedInputs)
+	if projectedOnDevice {
+		if _, err := r.compileProjectedRequestPlan(len(ids), false, *options.ProjectedInputs); err != nil {
+			return nil, "", err
+		}
 	}
 	useDeviceCache := (options.ProjectedInputs == nil || projectedOnDevice) && aloraID < 0 && r.persistentDeviceCache()
 	options.CachePrompt = options.CachePrompt && !(useDeviceCache && projectedOnDevice)
@@ -121,16 +123,6 @@ func (r *Runner) Generate(
 		cached := 0
 		if useDeviceCache {
 			var retainedPrefix *deviceKVCache
-			if projectedOnDevice {
-				var prefix *KVCache
-				if _, prefix, err = r.forwardCachedWithProjectedInputsLocked(ctx, ids[:len(ids)-1], nil, projectedPrefix); err == nil {
-					retainedPrefix, err = r.uploadDeviceCache(ctx, prefix)
-				}
-				if err != nil {
-					return nil, "", err
-				}
-				cached = len(ids) - 1
-			}
 			if options.CachePrompt {
 				selectedPromptCache, cached = r.selectPromptCache(
 					ids,
@@ -206,28 +198,18 @@ func (r *Runner) Generate(
 			} else {
 				deviceCache = retainedPrefix
 				var nextDevice *deviceKVCache
+				var projected *ProjectedInputs
+				if projectedOnDevice {
+					projected = options.ProjectedInputs
+				}
 				if deviceGreedy {
-					nextDevice, err = r.forwardDeviceCachedGreedyStepLocked(
-						ctx, ids[cached:], retainedPrefix,
-					)
+					nextDevice, err = r.forwardDeviceCachedPromptLocked(ctx, deviceOutputGreedy, ids[cached:], retainedPrefix, projected)
 				} else {
-					hidden, nextDevice, err = r.forwardDeviceCachedLocked(
-						ctx,
-						ids[cached:],
-						retainedPrefix,
-					)
+					nextDevice, err = r.forwardDeviceCachedPromptLocked(ctx, deviceOutputLogits, ids[cached:], retainedPrefix, projected)
 				}
 				if err == nil {
 					deviceCache = nextDevice
-					if projectedOnDevice {
-						// The uploaded prefix is no entry's; the cache its last token made holds what the decode needs.
-						err = retainedPrefix.Release(ctx)
-					}
 				}
-			}
-			if projectedOnDevice {
-				// The tokens before the last were read, not reused.
-				cached = 0
 			}
 		} else if aloraID >= 0 && aloraStart >= 0 {
 			r.loraAdapters[aloraID].scale = 0

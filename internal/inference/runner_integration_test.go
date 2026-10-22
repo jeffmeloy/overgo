@@ -265,10 +265,10 @@ func TestEmbeddingOverrideMatchesTokenLookupAndProducesUsableCache(t *testing.T)
 	}
 }
 
-// TestProjectedPromptDecodesOnTheDeviceCache holds a projected prompt to the decode a text prompt takes: with a
-// token's row put in place of another's, the prompt generates greedily what the prompt naming that token does, and
-// each token is the device's selection, no logits sent to the host. A prompt whose last token is projected is read
-// whole on the host, as before.
+// TestProjectedPromptDecodesOnTheDeviceCache holds a projected prompt to the path a text prompt takes: with a
+// token's row put in place of another's, in the middle of the prompt or at its last token, the prompt generates
+// greedily what the prompt naming that token does, read and decoded on the device, each token the device's selection
+// with no logits sent to the host.
 func TestProjectedPromptDecodesOnTheDeviceCache(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
@@ -312,8 +312,8 @@ func TestProjectedPromptDecodesOnTheDeviceCache(t *testing.T) {
 		t.Fatalf("a projected row generates %v, sending logits to the host %t; want %v, the device selecting each", projected, logits, named)
 	}
 	last, logits := generate([]tokenizer.TokenID{9707, 18, 13, 9707}, row(3))
-	if want, _ := generate([]tokenizer.TokenID{9707, 18, 13, 27}, nil); len(last) == 0 || !logits || !slices.Equal(last, want) {
-		t.Fatalf("a projected last token generates %v, read on the host %t; want %v read there", last, logits, want)
+	if want, _ := generate([]tokenizer.TokenID{9707, 18, 13, 27}, nil); len(last) == 0 || logits || !slices.Equal(last, want) {
+		t.Fatalf("a projected last token generates %v, sending logits to the host %t; want %v, the device selecting each", last, logits, want)
 	}
 }
 

@@ -122,6 +122,9 @@ type OpenOptions struct {
 	DeviceOrdinal       int
 	DisableDynamicTiles bool
 	MediaPreprocess     *MediaPreprocessProfile
+	// MemoryReserve is asked for room before the projector's executor allocates, by the model beside it on the card,
+	// whose experts make room; nil where nothing shares it.
+	MemoryReserve func(bytes uint64) error
 }
 
 func validatePromptSequence(

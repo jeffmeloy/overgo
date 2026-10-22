@@ -245,6 +245,21 @@ type cachedPrompt struct {
 	// Decoded: the entry ends in generated tokens, and its Hidden holds only
 	// the last row, the one that predicts the pending token after Tokens.
 	Decoded bool
+	// Boundaries are a recurrent model's device caches of the entry's leading tokens on its storage, ascending, each
+	// before a turn it read: a request that keeps a boundary's tokens and not the entry's reads on from the longest.
+	Boundaries []*deviceKVCache
+}
+
+// deviceCaches is the entry's device caches, its boundaries and its own.
+func (p *cachedPrompt) deviceCaches() []*deviceKVCache {
+	if p == nil {
+		return nil
+	}
+	caches := slices.Clone(p.Boundaries)
+	if p.Device != nil {
+		caches = append(caches, p.Device)
+	}
+	return caches
 }
 
 type OpenOptions struct {

@@ -160,7 +160,8 @@ func openProjectionSession(ctx context.Context, store *overgodb.Store, value man
 	if err != nil {
 		return nil, err
 	}
-	vision, err := projector.OpenActiveSession(ctx, store, model, request.Projector, projector.OpenOptions{CUDA: true, DeviceOrdinal: value.Device})
+	reserve, bind := modelcli.ModelReserve(ctx)
+	vision, err := projector.OpenActiveSession(ctx, store, model, request.Projector, projector.OpenOptions{CUDA: true, DeviceOrdinal: value.Device, MemoryReserve: reserve})
 	if err != nil {
 		return nil, err
 	}
@@ -168,6 +169,7 @@ func openProjectionSession(ctx context.Context, store *overgodb.Store, value man
 	if err != nil {
 		return nil, errors.Join(err, vision.Close())
 	}
+	bind(runner)
 	fail := func(cause error) (evaluationSession, error) {
 		return nil, errors.Join(cause, vision.Close(), runner.Close())
 	}

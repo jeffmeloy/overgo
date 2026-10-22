@@ -9,6 +9,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync/atomic"
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
@@ -174,6 +175,14 @@ func ActiveDraft(ctx context.Context, repository, path string) (string, error) {
 	}
 	draft, _, err := discovery.ActiveDraft(ctx, store, model, discovery.LoadMemo(ctx, store))
 	return draft, err
+}
+
+// ModelReserve answers the memory reserve of a projector opened before its model: reserve asks the runner bind binds,
+// once it opens, for room as its own allocations do, however much context it holds (a screenshot's 663 MB beside a
+// 240,000-token cache was refused); nothing before then.
+func ModelReserve(ctx context.Context) (reserve func(bytes uint64) error, bind func(*inference.Runner)) {
+	var served atomic.Pointer[inference.Runner]
+	return func(bytes uint64) error { return served.Load().ReserveDeviceMemory(ctx, bytes) }, served.Store
 }
 
 // ResolveModel names the model at path as the store resolves it, through its identity memo and without loading its

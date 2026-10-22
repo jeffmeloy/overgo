@@ -87,6 +87,8 @@ func (r *Runner) Generate(
 	var cache *KVCache
 	var deviceCache *deviceKVCache
 	var selectedPromptCache *cachedPrompt
+	// boundary is the cache before the prompt's last turn, which its entry keeps (nil where it keeps none).
+	var boundary *deviceKVCache
 	var projectionSignature [32]byte
 	if options.ProjectedInputs != nil {
 		projectionSignature = projectedInputsSignature(*options.ProjectedInputs)
@@ -140,10 +142,14 @@ func (r *Runner) Generate(
 					selectedPromptCache = nil
 					cached = 0
 				}
+				// A recurrent state cannot step back a token: the prompt reads on from the entry's longest boundary
+				// within it, or from its start.
 				if cached > 0 &&
 					cached < len(selectedPromptCache.Tokens) &&
 					r.hasRecurrentCache() {
-					cached = 0
+					if cached, err = r.readFromPromptBoundary(ctx, selectedPromptCache, cached); err != nil {
+						return nil, "", err
+					}
 				}
 				// Device greedy selects from the prompt's last token, which an entry holding the whole prompt
 				// does not keep, and a recurrent state cannot step back a token: the prompt is read again.
@@ -202,11 +208,11 @@ func (r *Runner) Generate(
 				if projectedOnDevice {
 					projected = options.ProjectedInputs
 				}
+				mode := deviceOutputLogits
 				if deviceGreedy {
-					nextDevice, err = r.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedy, ids[cached:], retainedPrefix, projected, 0)
-				} else {
-					nextDevice, err = r.forwardDeviceCachedModeLocked(ctx, deviceOutputLogits, ids[cached:], retainedPrefix, projected)
+					mode = deviceOutputGreedy
 				}
+				nextDevice, boundary, err = r.readDevicePromptLocked(ctx, mode, ids, cached, options.MaxNewTokens, retainedPrefix, projected, options.CachePrompt)
 				if err == nil {
 					deviceCache = nextDevice
 				}
@@ -291,6 +297,9 @@ func (r *Runner) Generate(
 				LoRASignature:       r.currentLoRASignature(),
 				ProjectionSignature: projectionSignature,
 				HasProjection:       options.ProjectedInputs != nil,
+			}
+			if boundary != nil {
+				nextPromptCache.Boundaries = []*deviceKVCache{boundary}
 			}
 			if storeErr := r.storePromptCache(
 				ctx,

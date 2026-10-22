@@ -428,17 +428,10 @@
       "title": "Make 256K context practical within the PC memory envelope",
       "status": "open",
       "budget": {
-        "nodes": 2100,
+        "nodes": 396,
         "reason": "Measured 1,704 production nodes for the conversation step (in-place appends beside prompt-cache prefixes, turn boundaries kept and inherited, the output reservation, the prompt cache yielding to a refused read, the projector reserving through the model's experts, SQA-195) and an estimated 300 for the recovery step; reused the existing prompt-cache, prefill, storage and expert-reservation owners rather than a new cache or allocator."
       },
       "steps": [
-        {
-          "id": "conversation",
-          "title": "Keep a long conversation's cache in place across its turns, and room for the projector beside it",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -run '^(TestRecurrentPromptCacheReadsOnFromItsTurn|TestPromptCacheReuseAfterDecodeTokens|TestPromptCacheRetainsDecodedTokensDevice|TestMultiplePromptCacheSelectionAndEviction|TestRecurrentCheckpoint|TestDeviceBoundedPrefill)$' -count=1",
-          "rationale": "A 240,000-token Flash-Next conversation is refused or forgotten at every turn. The first read's second decode step copies the whole 14 GiB cache because the prompt-cache entry holds its storage, and the card cannot hold two. A follow-up that changes the last turn reads every token again, because a recurrent state cannot step back. An unrelated long prompt is refused while the old entry holds its storage. The image encoder's allocations ask the driver directly while the model's experts hold the card to its 2 GiB headroom, so a screenshot beside a long context is refused.\n\nServes: an append writes in place when nothing but prompt-cache entries ending at or before it holds the storage. A recurrent prompt's entry keeps the caches before its last turn (Strata's conversation checkpoints at the last turn token), and a follow-up reads on from the longest one its tokens keep. A new entry inherits the boundaries of the entry it replaces on the same storage, the latest four. A prompt's read reserves its output tokens, so decoding never outgrows its page into a copy. A refused prompt read releases the entries it does not extend before its chunk shrinks. The projector's executor asks the model's experts for room through the model's own reservation. SQA-195's evicted prompt-cache tail is cleared while the store is rewritten.\n\nDisappears: storage exclusivity as the in-place test; the second decode step's full-cache copy.\n\nEvidence: on this PC, a 258,753-token conversation (WikiText articles with five archive codes at 5% to 95% depth) answers its first read in 3 m 04 s and each follow-up in about 5 s with the whole context cached; an image request beside the retained 237,290-token context answers in 12 to 17 s; the card peaks at 47.6 GiB of 48. The step's check holds the hybrid's boundary read-on against a cold read and the in-place decode beside the entry, the dense model's cache reuse, the recurrent checkpoint and bounded prefill contracts, and the eviction's release."
-        },
         {
           "id": "recovery",
           "title": "Recover a conversation after a cancelled speculative window",

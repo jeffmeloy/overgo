@@ -77,13 +77,17 @@ func (s *deviceCacheStorage) retain() bool {
 	return true
 }
 
-func (s *deviceCacheStorage) exclusive() bool {
+// holders is the caches that hold the storage, none while it is released.
+func (s *deviceCacheStorage) holders() int {
 	if s == nil {
-		return false
+		return 0
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.refs == 1 && !s.releasing
+	if s.releasing {
+		return 0
+	}
+	return s.refs
 }
 
 // aliases admits append only from the start of each owned token allocation.
@@ -1233,7 +1237,7 @@ func (r *Runner) prepareDeviceCacheTargets(
 		}
 		past := appends[branch].Past
 		var storage *deviceCacheStorage
-		if reusableDeviceCacheStorage(past, plans[branch]) != nil {
+		if r.reusableDeviceCacheStorage(past, plans[branch]) != nil {
 			if _, duplicate := used[past.storage]; !duplicate && past.storage.retain() {
 				storage = past.storage
 				used[storage] = struct{}{}

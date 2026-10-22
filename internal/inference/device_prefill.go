@@ -3,10 +3,12 @@ package inference
 import (
 	"context"
 	"errors"
+	"math"
 
 	"overgo/internal/cuda/executor"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/tokenizer"
 )
 
 // prefillDeviceCachedLocked appends prompt chunks and retains final-position outputs.
@@ -29,6 +31,7 @@ func (r *Runner) prefillDeviceCachedLocked(ctx context.Context, appendInput devi
 	if past != nil {
 		reserve += past.Tokens
 	}
+	reserve = max(reserve, appendInput.Reserve)
 	for remaining := appendInput.Tokens; len(remaining) > 0; {
 		chunk = min(chunk, len(remaining))
 		source := past
@@ -44,6 +47,17 @@ func (r *Runner) prefillDeviceCachedLocked(ctx context.Context, appendInput devi
 		}
 		next, runErr := r.forwardDeviceCachedBranchedBatchLocked(ctx, []deviceBatchAppend{chunkInput}, plan)
 		var refused *executor.MemoryCapacityError
+		if errors.As(runErr, &refused) {
+			// The prompt cache yields before the chunk shrinks: an entry the prompt does not extend holds a whole
+			// storage, which no chunk size frees (14 GiB beside a new 240,000-token prompt).
+			yielded, yieldErr := r.yieldPromptCaches(ctx, source)
+			if yieldErr != nil {
+				return nil, errors.Join(runErr, yieldErr)
+			}
+			if yielded {
+				continue
+			}
+		}
 		if errors.As(runErr, &refused) && chunk > 1 {
 			// Bisection reduces the candidate without assuming linear memory growth.
 			chunk = (chunk + 1) / tensor.PairedExtent
@@ -64,11 +78,77 @@ func (r *Runner) prefillDeviceCachedLocked(ctx context.Context, appendInput devi
 	return past, nil
 }
 
-func reusableDeviceCacheStorage(past *deviceKVCache, plan deviceCacheTargetPlan) *deviceCacheStorage {
-	if past != nil && past.storage.aliases(past) && past.storage.exclusive() && deviceCacheStorageFits(past.storage, plan) {
-		return past.storage
+// readDevicePromptLocked reads the prompt's tokens after cached onto past under the output plan of mode, sizing the
+// cache for the prompt and the output tokens it may decode after it, within the context, so that no part of the read
+// nor a decode step outgrows the cache into a copy. A recurrent prompt its entry keeps (keep) is read in two parts, the
+// second its last turn, and the cache before that turn is answered too, nil otherwise: a recurrent state cannot step
+// back a token, so a later request that keeps the turns before it reads on from there.
+func (r *Runner) readDevicePromptLocked(
+	ctx context.Context,
+	mode deviceOutputMode,
+	ids []tokenizer.TokenID,
+	cached, output int,
+	past *deviceKVCache,
+	projected *ProjectedInputs,
+	keep bool,
+) (*deviceKVCache, *deviceKVCache, error) {
+	plan, err := compileDeviceOutputPlan(mode, 0, r.spec.VocabularySize)
+	if err != nil {
+		return nil, nil, err
 	}
-	return nil
+	reserve := uint64(len(ids)) + uint64(max(output, 0))
+	if limit := uint64(r.spec.ContextLength); limit > 0 {
+		reserve = min(reserve, max(limit, uint64(len(ids))))
+	}
+	read := func(tokens []tokenizer.TokenID, from *deviceKVCache) (*deviceKVCache, error) {
+		next, err := r.forwardDeviceCachedBatchLocked(ctx, []deviceBatchAppend{{
+			Tokens: tokens, Past: from, Projected: projected, Reserve: uint32(min(reserve, math.MaxUint32)),
+		}}, plan)
+		if err != nil {
+			return nil, err
+		}
+		return next[0], nil
+	}
+	turn := r.lastTurnStart(ids)
+	if !keep || projected != nil || turn <= cached || !r.hasRecurrentCache() {
+		end, err := read(ids[cached:], past)
+		return end, nil, err
+	}
+	boundary, err := read(ids[cached:turn], past)
+	if err != nil {
+		return nil, nil, err
+	}
+	end, err := read(ids[turn:], boundary)
+	if err != nil {
+		return nil, nil, errors.Join(err, boundary.Release(context.Background()))
+	}
+	return end, boundary, nil
+}
+
+// reusableDeviceCacheStorage is the storage an append from past writes in place: past's own where it fits the append
+// and nothing holds it but past and prompt-cache entries that end at or before past's tokens, which an append after
+// them leaves as they are (a copy beside a 240,000-token Flash-Next cache asked another 14 GiB); nil otherwise.
+//   - past is one of those entries or the one cache beside them, since the runner's own steps hold a storage in turn
+func (r *Runner) reusableDeviceCacheStorage(past *deviceKVCache, plan deviceCacheTargetPlan) *deviceCacheStorage {
+	if past == nil || !past.storage.aliases(past) || !deviceCacheStorageFits(past.storage, plan) {
+		return nil
+	}
+	entries := make(map[*deviceKVCache]struct{})
+	for _, entry := range r.promptCaches {
+		for _, cache := range entry.deviceCaches() {
+			if cache.storage != past.storage {
+				continue
+			}
+			if cache.Tokens > past.Tokens {
+				return nil
+			}
+			entries[cache] = struct{}{}
+		}
+	}
+	if holders := past.storage.holders(); holders == 0 || holders > len(entries)+1 {
+		return nil
+	}
+	return past.storage
 }
 
 func (r *Runner) checkDevicePrefillMemory(ctx context.Context, execution *executor.IndexedGraph, plan deviceCacheTargetPlan, past *deviceKVCache) error {
@@ -86,7 +166,7 @@ func (r *Runner) checkDevicePrefillMemory(ctx context.Context, execution *execut
 		}
 	}
 	var capacities []uint64
-	if plan.elements > 0 && reusableDeviceCacheStorage(past, plan) == nil {
+	if plan.elements > 0 && r.reusableDeviceCacheStorage(past, plan) == nil {
 		shape, err := tensor.NewShape(plan.elements)
 		if err != nil {
 			return err

@@ -27,9 +27,9 @@ func openProjectorCUDA(
 	ctx context.Context,
 	file *gguf.File,
 	required, optional []string,
-	ordinal int,
+	options OpenOptions,
 ) (*projectorCUDA, error) {
-	worker, err := device.New(ordinal)
+	worker, err := device.New(options.DeviceOrdinal)
 	if err != nil {
 		return nil, err
 	}
@@ -40,6 +40,9 @@ func openProjectorCUDA(
 	}
 	state.executor, err = executor.NewWithWorker(worker)
 	if err != nil {
+		return fail(err)
+	}
+	if err := state.executor.SetMemoryReserve(options.MemoryReserve); err != nil {
 		return fail(err)
 	}
 	state.weights, err = modeldevice.NewDeviceConvertedWeights(worker, dtype.F32)

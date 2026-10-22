@@ -435,6 +435,15 @@ func (r *Runner) Close() error {
 	)
 }
 
+// ReserveDeviceMemory makes room on the runner's card for another owner's allocation of bytes (a projector's beside it),
+// moving its experts to host memory as its own allocations do; nothing for a runner without them.
+func (r *Runner) ReserveDeviceMemory(ctx context.Context, bytes uint64) error {
+	if r == nil {
+		return nil
+	}
+	return r.cuda.ReserveMemory(ctx, bytes)
+}
+
 func (s *runnerState) detachPromptCaches() []*cachedPrompt {
 	caches := s.promptCaches
 	s.promptCaches = nil
@@ -446,6 +455,14 @@ func releasePromptCaches(ctx context.Context, caches []*cachedPrompt) ([]*cached
 	var errs []error
 	failed := caches[:0]
 	for _, promptCache := range caches {
+		held := promptCache.Boundaries[:0]
+		for _, boundary := range promptCache.Boundaries {
+			if err := boundary.Release(ctx); err != nil {
+				errs = append(errs, err)
+				held = append(held, boundary)
+			}
+		}
+		promptCache.Boundaries = held
 		if promptCache.Device != nil {
 			if err := promptCache.Device.Release(ctx); err != nil {
 				errs = append(errs, err)
@@ -454,6 +471,9 @@ func releasePromptCaches(ctx context.Context, caches []*cachedPrompt) ([]*cached
 			}
 		}
 		promptCache.Device = nil
+		if len(held) != 0 {
+			failed = append(failed, promptCache)
+		}
 	}
 	return failed, errors.Join(errs...)
 }

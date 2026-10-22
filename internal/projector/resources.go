@@ -145,7 +145,7 @@ func buildCatalogProjector[S, R any](
 	}
 	var cuda *projectorCUDA
 	if options.CUDA {
-		cuda, err = openProjectorCUDA(ctx, file, catalog, excluded, options.DeviceOrdinal)
+		cuda, err = openProjectorCUDA(ctx, file, catalog, excluded, options)
 		if err != nil {
 			return zero, fmt.Errorf("projector: initialize %s CUDA: %w", label, err)
 		}

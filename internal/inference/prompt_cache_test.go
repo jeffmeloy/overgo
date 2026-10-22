@@ -3,7 +3,9 @@ package inference
 import (
 	"context"
 	"reflect"
+	"runtime"
 	"testing"
+	"weak"
 
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
@@ -97,6 +99,22 @@ func TestMultiplePromptCacheSelectionAndEviction(t *testing.T) {
 		t.Fatalf("after eviction under a cancelled request: caches %+v, evicted device %v with %d refs, shared device %v with %d refs",
 			runner.promptCaches, second.Device, evictedOwner.refs, third.Device, sharedOwner.refs)
 	}
+	// An evicted entry's host rows go with it while the runner serves on.
+	rows := func() weak.Pointer[float32] {
+		evicted := &cachedPrompt{Tokens: []tokenizer.TokenID{8}, Cache: &KVCache{}, Hidden: reference.Value{Data: make([]float32, 4)}}
+		if err := runner.storePromptCache(t.Context(), evicted); err != nil {
+			t.Fatal(err)
+		}
+		return weak.Make(&evicted.Hidden.Data[0])
+	}()
+	if err := runner.storePromptCache(t.Context(), &cachedPrompt{Tokens: []tokenizer.TokenID{9}, Cache: &KVCache{}}); err != nil {
+		t.Fatal(err)
+	}
+	runtime.GC()
+	if rows.Value() != nil {
+		t.Fatal("an evicted entry's host rows are still held")
+	}
+	runtime.KeepAlive(runner)
 }
 
 func TestProjectedPromptCacheRequiresExactMediaSignature(t *testing.T) {

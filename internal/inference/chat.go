@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/jinja"
 	"overgo/internal/strictjson"
+	"overgo/internal/tokenizer"
 )
 
 const (
@@ -402,6 +403,22 @@ func (r *Runner) FormatChatWithOptions(
 		}
 	}
 	return "", errors.New("inference: vocabulary has no supported chat-template boundaries")
+}
+
+// lastTurnStart is the index of the prompt's last turn-opening token, where its history ends and its newest turn
+// begins (the assistant turn a chat prompt asks for); zero without one.
+func (r *Runner) lastTurnStart(ids []tokenizer.TokenID) int {
+	for _, marker := range []string{chatMLStart, gemmaTurnStart, llama3HeaderStart} {
+		if id, ok := r.vocab.ID(marker); ok {
+			for index := len(ids) - 1; index > 0; index-- {
+				if ids[index] == id {
+					return index
+				}
+			}
+			return 0
+		}
+	}
+	return 0
 }
 
 // buildChatContext assembles the variables a chat template is rendered over,

@@ -246,6 +246,7 @@ func run() error {
 	// bytes, so every launcher serves the modalities the store declares. It opens
 	// before the model, whose hybrid expert cache takes the device memory it leaves.
 	var vision, audio projector.Session
+	reserve, bind := modelcli.ModelReserve(shutdownContext)
 	{
 		store, openErr := overgodb.OpenReadOnly(repositoryPath)
 		if openErr != nil {
@@ -271,7 +272,7 @@ func run() error {
 		}
 		if resolved != "" {
 			vision, err = projector.OpenActiveSession(shutdownContext, store, model, resolved, projector.OpenOptions{
-				CUDA: *projectorCUDA, DeviceOrdinal: *modelFlags.DeviceOrdinal,
+				CUDA: *projectorCUDA, DeviceOrdinal: *modelFlags.DeviceOrdinal, MemoryReserve: reserve,
 			})
 		}
 		err = errors.Join(err, store.Close())
@@ -290,6 +291,7 @@ func run() error {
 		return err
 	}
 	defer runner.Close()
+	bind(runner)
 	description, err := runner.RecipeRuntimeDescription(recipe.TaskInference)
 	if err != nil {
 		return err
@@ -345,11 +347,15 @@ func run() error {
 		if workspaceStore == nil {
 			return errors.New("transcription workspace requires a repository")
 		}
+		// A policy found beside the store serves transcription where it can (a build of a committed tree); one named
+		// on the command line must.
+		var workspace *llamaserver.TranscriptionWorkspace
 		commit, err := runrecord.ExecutableCodeCommit(".")
 		if err != nil {
-			return fmt.Errorf("bind transcription source: %w", err)
+			err = fmt.Errorf("bind transcription source: %w", err)
+		} else {
+			workspace, err = llamaserver.NewTranscriptionWorkspace(shutdownContext, workspaceStore, *transcriptionPolicy, commit)
 		}
-		workspace, err := llamaserver.NewTranscriptionWorkspace(shutdownContext, workspaceStore, *transcriptionPolicy, commit)
 		switch {
 		case err != nil && discovered:
 			log.Printf("transcription workspace unavailable under the declared policy: %v", err)

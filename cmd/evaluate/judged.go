@@ -82,7 +82,8 @@ func openJudgedSession(ctx context.Context, store *overgodb.Store, value manifes
 		if err != nil {
 			return nil, nil, err
 		}
-		vision, err := projector.OpenActiveSession(ctx, store, judge, request.Projector, projector.OpenOptions{CUDA: true, DeviceOrdinal: value.Device})
+		reserve, bind := modelcli.ModelReserve(ctx)
+		vision, err := projector.OpenActiveSession(ctx, store, judge, request.Projector, projector.OpenOptions{CUDA: true, DeviceOrdinal: value.Device, MemoryReserve: reserve})
 		if err != nil {
 			return nil, nil, err
 		}
@@ -90,6 +91,7 @@ func openJudgedSession(ctx context.Context, store *overgodb.Store, value manifes
 		if err != nil {
 			return nil, nil, errors.Join(err, vision.Close())
 		}
+		bind(runner)
 		runtime := projectionRuntime{runner: runner, vision: vision, mediaFiles: &mediaFiles{root: request.MediaRoot}, ffmpeg: os.Getenv("OVERGO_FFMPEG")}
 		runtime.identity, err = projectionIdentity(ctx, store, runtime)
 		if err != nil {

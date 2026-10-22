@@ -31,6 +31,11 @@ const (
 // recurrent layers followed by one gated-attention layer — the 27B's block
 // pattern at hermetic scale.
 func writeHermeticQwen35GGUF(t *testing.T) string {
+	return writeHermeticQwen35GGUFLast(t, "d")
+}
+
+// writeHermeticQwen35GGUFLast is writeHermeticQwen35GGUF with last as its last token's text.
+func writeHermeticQwen35GGUFLast(t *testing.T, last string) string {
 	t.Helper()
 	metadata := []gguf.Metadata{
 		testutil.GGUFScalar("general.architecture", gguf.ValueTypeString, "qwen35"),
@@ -55,7 +60,7 @@ func writeHermeticQwen35GGUF(t *testing.T) string {
 		testutil.GGUFScalar("qwen35.ssm.group_count", gguf.ValueTypeUint32, uint32(hybridGroups)),
 		testutil.GGUFScalar("tokenizer.ggml.model", gguf.ValueTypeString, "llama"),
 		testutil.GGUFArray("tokenizer.ggml.tokens", gguf.ValueTypeString,
-			[]string{"<unk>", "<s>", "</s>", "â–", "a", "b", "c", "d"}),
+			[]string{"<unk>", "<s>", "</s>", "â–", "a", "b", "c", last}),
 		testutil.GGUFArray("tokenizer.ggml.scores", gguf.ValueTypeFloat32, make([]float32, hermeticVocab)),
 		testutil.GGUFArray("tokenizer.ggml.token_type", gguf.ValueTypeInt32,
 			[]int32{2, 3, 3, 1, 1, 1, 1, 1}),

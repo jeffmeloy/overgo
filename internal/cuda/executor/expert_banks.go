@@ -53,6 +53,39 @@ func (e *Executor) SetExpertBanks(source ExpertBanks) error {
 	return nil
 }
 
+// SetMemoryReserve binds the reservation another owner of the card answers before this executor allocates: an
+// executor beside a model, a projector's, asks the model's experts for room as the model's own allocations do.
+func (e *Executor) SetMemoryReserve(reserve func(bytes uint64) error) error {
+	if e == nil {
+		return errors.New("memory reserve executor is unavailable")
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.closed || e.resources.experts != nil {
+		return errors.New("memory reserve executor is closed or reserves through its own experts")
+	}
+	e.resources.buffers.reserve = nil
+	if reserve != nil {
+		e.resources.buffers.reserve = func(_ *device.State, bytes uint64) error { return reserve(bytes) }
+	}
+	return nil
+}
+
+// ReserveMemory makes room on the card for another owner's allocation of bytes, moving this executor's experts to host
+// memory as its own allocations do; nothing without them.
+func (e *Executor) ReserveMemory(ctx context.Context, bytes uint64) error {
+	if e == nil {
+		return nil
+	}
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.closed || e.resources.experts == nil {
+		return nil
+	}
+	experts := e.resources.experts
+	return e.worker.Do(ctx, func(state *device.State) error { return experts.ReserveExpertMemory(state, bytes) })
+}
+
 // expertUse is what validateExpertUses found of a compiled graph for one source.
 type expertUse struct {
 	source ExpertBanks
@@ -109,8 +142,14 @@ func scanExpertUses(compiled *CompiledGraph, source ExpertBanks) (bool, uint64, 
 }
 
 func (r *executorResources) allocate(state *device.State, bytes uint64) (driver.DevicePtr, error) {
-	if r.experts != nil {
-		if err := r.experts.ReserveExpertMemory(state, bytes); err != nil {
+	if r.buffers.reserve != nil {
+		if err := r.buffers.reserve(state, bytes); err != nil {
+			// Room the experts cannot free is a capacity refusal, which a prompt's read answers by releasing the prompt
+			// caches it does not extend, then with a smaller chunk (a new 240,000-token prompt asked 15 GB beside the
+			// cache of the last).
+			if free, _, infoErr := state.Driver.MemInfo(); infoErr == nil && free < bytes {
+				return 0, errors.Join(err, &MemoryCapacityError{Required: bytes, Available: free})
+			}
 			return 0, err
 		}
 	}

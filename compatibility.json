@@ -612,7 +612,7 @@
      "contains": "func OpenAs[T Projector](",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:860d95ccc2c33c3ea5423f3ea6a8c07576ea235f64032eee0b5ffc6576b5133f"
+     "identity": "file:sha256:c959287c9e4ea738c07bf404da6c7248efc05064dfe0f595fb82a60a7317a976"
     },
     {
      "contains": "func TestMultimodalInputMatrix(",
@@ -886,13 +886,13 @@
      "contains": "func (r *Runner) selectPromptCache(",
      "path": "internal/inference/prompt_cache.go",
      "role": "source",
-     "identity": "file:sha256:d5d00e46127fc2143710ffdfb854a91b65bd9d49b033a3305ed15ba71ca0014c"
+     "identity": "file:sha256:6bae73c2820dc50544b957f2a1e209b4a0da42b7d02e0bd1d51670bf3f6712c1"
     },
     {
      "contains": "func TestProjectedPromptCacheRequiresExactMediaSignature(",
      "path": "internal/inference/prompt_cache_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:2c9b81c36c6cb6322ee500b8a4176afbe37790ff8e89efb3d6d0ea603a074cf1"
+     "identity": "evidence:sha256:66ec7e29837a1351339f59ebee098be47e9a06b518a7d2a5b0c3cb89ce51aa1f"
     }
    ],
    "id": "editable-prompt-cache",
@@ -929,7 +929,7 @@
      "contains": "func compileQwen3VLImagePrompt(",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:860d95ccc2c33c3ea5423f3ea6a8c07576ea235f64032eee0b5ffc6576b5133f"
+     "identity": "file:sha256:c959287c9e4ea738c07bf404da6c7248efc05064dfe0f595fb82a60a7317a976"
     },
     {
      "contains": "func TestResponsesMultipleImagesPreservesContentOrder(",
@@ -950,7 +950,7 @@
      "contains": "func compileGemma4MediaPrompt(",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:860d95ccc2c33c3ea5423f3ea6a8c07576ea235f64032eee0b5ffc6576b5133f"
+     "identity": "file:sha256:c959287c9e4ea738c07bf404da6c7248efc05064dfe0f595fb82a60a7317a976"
     },
     {
      "contains": "func TestChatImageHistoryPreservesTurnPositionAndReplay(",
@@ -971,7 +971,7 @@
      "contains": "func compileGemma4MediaPrompt(",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:860d95ccc2c33c3ea5423f3ea6a8c07576ea235f64032eee0b5ffc6576b5133f"
+     "identity": "file:sha256:c959287c9e4ea738c07bf404da6c7248efc05064dfe0f595fb82a60a7317a976"
     },
     {
      "contains": "func TestChatMixedImageAudioPreservesChunkOrder(",

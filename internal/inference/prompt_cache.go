@@ -1,6 +1,7 @@
 package inference
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
@@ -253,11 +254,91 @@ func (r *Runner) ownsDevicePromptCache(cache *deviceKVCache) bool {
 		return false
 	}
 	for _, candidate := range r.promptCaches {
-		if candidate != nil && candidate.Device == cache {
+		if slices.Contains(candidate.deviceCaches(), cache) {
 			return true
 		}
 	}
 	return false
+}
+
+// promptBoundaryLimit bounds an entry's boundaries; each holds a recurrent model's fixed state (Strata keeps six of
+// about 118 MB for Flash-Next).
+const promptBoundaryLimit = 4
+
+// readFromPromptBoundary keeps the entry's longest boundary within the common tokens as the entry itself, releasing its
+// longer caches, and answers the tokens it keeps; zero where none fits.
+func (r *Runner) readFromPromptBoundary(ctx context.Context, entry *cachedPrompt, common int) (int, error) {
+	index := -1
+	for at, boundary := range entry.Boundaries {
+		if int(boundary.Tokens) <= common {
+			index = at
+		}
+	}
+	if index < 0 {
+		return 0, nil
+	}
+	boundary := entry.Boundaries[index]
+	longer := append([]*deviceKVCache{entry.Device}, entry.Boundaries[index+1:]...)
+	entry.Device, entry.Boundaries = boundary, slices.Clone(entry.Boundaries[:index])
+	entry.Tokens, entry.Hidden, entry.Decoded = slices.Clone(entry.Tokens[:boundary.Tokens]), reference.Value{}, false
+	var errs []error
+	for _, cache := range longer {
+		errs = append(errs, cache.Release(context.WithoutCancel(ctx)))
+	}
+	return int(boundary.Tokens), errors.Join(errs...)
+}
+
+// inheritPromptBoundaries moves to next, as its boundaries, the caches of an entry it replaces that hold next's leading
+// tokens on next's storage (the entry's boundaries and its own cache), keeping the latest promptBoundaryLimit; it answers
+// those it drops. A recurrent model's alone: another reads a shorter prefix from the entry itself.
+func (r *Runner) inheritPromptBoundaries(next, replaced *cachedPrompt) []*deviceKVCache {
+	if next.Device == nil || !r.hasRecurrentCache() {
+		return nil
+	}
+	moves := func(cache *deviceKVCache) bool {
+		return cache == next.Device || cache.storage == next.Device.storage && int(cache.Tokens) < len(next.Tokens) &&
+			int(cache.Tokens) <= len(replaced.Tokens) && slices.Equal(replaced.Tokens[:cache.Tokens], next.Tokens[:cache.Tokens])
+	}
+	candidates := next.Boundaries
+	for _, cache := range replaced.deviceCaches() {
+		if cache != next.Device && moves(cache) {
+			candidates = append(candidates, cache)
+		}
+	}
+	replaced.Boundaries = slices.DeleteFunc(replaced.Boundaries, moves)
+	if replaced.Device != nil && replaced.Device != next.Device && moves(replaced.Device) {
+		replaced.Device = nil
+	}
+	slices.SortStableFunc(candidates, func(a, b *deviceKVCache) int { return cmp.Compare(b.Tokens, a.Tokens) })
+	var dropped []*deviceKVCache
+	next.Boundaries = nil
+	for _, cache := range candidates {
+		if len(next.Boundaries) == promptBoundaryLimit || len(next.Boundaries) != 0 && next.Boundaries[0].Tokens == cache.Tokens {
+			dropped = append(dropped, cache)
+			continue
+		}
+		next.Boundaries = append([]*deviceKVCache{cache}, next.Boundaries...)
+	}
+	return dropped
+}
+
+// yieldPromptCaches releases the device entries that hold none of keep's storage, for a request whose memory was
+// refused, and reports whether it released any.
+func (r *Runner) yieldPromptCaches(ctx context.Context, keep *deviceKVCache) (bool, error) {
+	var kept, released []*cachedPrompt
+	for _, entry := range r.promptCaches {
+		if entry == nil || entry.Device == nil || keep != nil && entry.Device.storage == keep.storage {
+			kept = append(kept, entry)
+			continue
+		}
+		released = append(released, entry)
+	}
+	if len(released) == 0 {
+		return false, nil
+	}
+	failed, err := releasePromptCaches(context.WithoutCancel(ctx), released)
+	r.promptCaches = append(kept, failed...)
+	return len(failed) < len(released), err
 }
 
 func (r *Runner) storePromptCache(
@@ -286,11 +367,19 @@ func (r *Runner) storePromptCache(
 	r.promptCaches = append([]*cachedPrompt{next}, filtered...)
 	if len(r.promptCaches) > capacity {
 		release = append(release, r.promptCaches[capacity:]...)
-		r.promptCaches = r.promptCaches[:capacity]
+		// Deleting clears the tail, which a truncation left reaching the evicted entries' host payloads.
+		r.promptCaches = slices.Delete(r.promptCaches, capacity, len(r.promptCaches))
 	}
 	evicted := release[:0]
+	var dropped []*deviceKVCache
 	for _, candidate := range release {
-		if candidate.Device != nil && candidate.Device != next.Device {
+		dropped = append(dropped, r.inheritPromptBoundaries(next, candidate)...)
+		if candidate.Device == next.Device {
+			// The cache it shares with next stays; its remaining boundaries go.
+			dropped, candidate.Boundaries = append(dropped, candidate.Boundaries...), nil
+			continue
+		}
+		if len(candidate.deviceCaches()) != 0 {
 			evicted = append(evicted, candidate)
 		}
 	}
@@ -298,6 +387,9 @@ func (r *Runner) storePromptCache(
 	// regardless; a release that still fails keeps its owner listed, so a later eviction or Close retries it.
 	failed, err := releasePromptCaches(context.WithoutCancel(ctx), evicted)
 	r.promptCaches = append(r.promptCaches, failed...)
+	for _, cache := range dropped {
+		err = errors.Join(err, cache.Release(context.WithoutCancel(ctx)))
+	}
 	return err
 }
 

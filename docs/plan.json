@@ -213,8 +213,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 40,
-        "reason": "a clock type the request and its waits are timed on"
+        "nodes": 50,
+        "reason": "the counter helper, the clock field and the imports at the three timed sites measured 45 nodes at the gate"
       },
       "steps": [
         {

@@ -3,12 +3,15 @@
 package executor
 
 import (
+	"context"
 	"math"
 	"sync/atomic"
 	"testing"
 
+	"overgo/internal/cuda/device"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/tensor/reference"
 )
 
 // TestDecodeHostExpertsRingTheDoorbell holds a captured decode step's experts
@@ -103,5 +106,60 @@ func TestDecodeHostExpertsRingTheDoorbell(t *testing.T) {
 				t.Fatalf("largest difference from the reference %g at %d (value %g), mean %g, largest value %g", difference, at, want[at], mean, scale)
 			}
 		})
+	}
+}
+
+// countedBanks counts the advances of the expert banks it wraps.
+type countedBanks struct {
+	ExpertBanks
+	advances int
+}
+
+func (b *countedBanks) AdvanceExperts(ctx context.Context, state *device.State, prompt bool) error {
+	b.advances++
+	return b.ExpertBanks.AdvanceExperts(ctx, state, prompt)
+}
+
+// TestRunsOfNoExpertApplyTheLastRoutes holds the residency's advances to the
+// runs between them, as a speculative window's verify and draft take turns:
+// an expert run advances before its launch unless a run that reads no routed
+// expert has applied the last expert run's routes while its graph ran, and
+// such a run applies them once.
+func TestRunsOfNoExpertApplyTheLastRoutes(t *testing.T) {
+	c := moePinnedCase{
+		name: "advance", compute: tensor.MulMatComputeNativeTensorCore,
+		hidden: 512, routerHidden: 512, intermediate: 128, experts: 48, divisor: 1, topK: 4,
+		routing: tensor.MoERoutingSoftmax, activation: tensor.MoEActivationSiLU, normalize: true, scale: 1,
+		banks: [3]dtype.Type{dtype.IQ4XS, dtype.IQ4XS, dtype.IQ4NL}, tokens: 1, offload: true,
+	}
+	cuda := newFixtureExecutor(t)
+	output, host, device, _ := c.prepare(t, cuda, dtype.F32)
+	banks := &countedBanks{ExpertBanks: cuda.resources.experts}
+	if err := cuda.SetExpertBanks(banks); err != nil {
+		t.Fatal(err)
+	}
+	compiled, inputs, err := compileDeviceFeeds([]*tensor.Tensor{output}, device)
+	if err != nil {
+		t.Fatal(err)
+	}
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(4))
+	plain := builder.Scale(input, 2)
+	for step, run := range []struct {
+		experts  bool
+		advances int
+	}{{true, 1}, {true, 2}, {false, 3}, {true, 3}, {false, 4}, {false, 4}, {true, 4}} {
+		if run.experts {
+			_, err = cuda.ExecuteCompiled(t.Context(), compiled, host, inputs)
+		} else {
+			_, err = cuda.executeWithDeviceFeeds(t.Context(), []*tensor.Tensor{plain},
+				map[*tensor.Tensor]reference.Value{input: {Shape: input.Shape, Data: []float32{1, 2, 3, 4}}}, nil)
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if banks.advances != run.advances {
+			t.Fatalf("run %d (experts %t): %d advances, want %d", step, run.experts, banks.advances, run.advances)
+		}
 	}
 }

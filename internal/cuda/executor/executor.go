@@ -48,6 +48,9 @@ type executorResources struct {
 	arenaUse   arenaMetrics
 	// promptRouted: the last run through the expert banks was a prompt.
 	promptRouted bool
+	// routesApplied: an advance has applied the last expert run's routes, while a later run that reads no routed expert
+	// ran (a speculative window's draft), so the next expert run launches without one.
+	routesApplied bool
 }
 
 // ExecutionMetrics is a point-in-time, executor-owned evidence view. Counters
@@ -1832,11 +1835,17 @@ func (e *Executor) runCompiled(
 		if arenaErr != nil {
 			return arenaErr
 		}
-		// Between runs, so no expert moves while a kernel reads its table.
+		// Between runs, so no expert moves while a kernel reads its table: before an expert run's launch, or while a run
+		// that reads none runs, which hides the advance's bookkeeping behind its graph (a draft's 0.74 ms on Flash-Next
+		// against the advance's 0.16).
+		var whileRunning func() error
 		if usesExperts {
-			if err := resources.experts.AdvanceExperts(ctx, state, resources.promptRouted); err != nil {
-				return err
+			if !resources.routesApplied {
+				if err := resources.experts.AdvanceExperts(ctx, state, resources.promptRouted); err != nil {
+					return err
+				}
 			}
+			resources.routesApplied = false
 			// A run of more tokens than a verify span is a prompt, whose routes the next advance applies without moves.
 			resources.promptRouted = routedTokens > q8InputSpanColumns
 			// A captured run's decode groups ring for the CPU's experts; its doorbell is sized before the capture.
@@ -1844,6 +1853,12 @@ func (e *Executor) runCompiled(
 				if err := resources.blas.doorbell.ensure(state, compiled.doorbellSlots, compiled.doorbellWidth); err != nil {
 					return err
 				}
+			}
+		} else if resources.experts != nil && !resources.routesApplied {
+			whileRunning = func() error {
+				err := resources.experts.AdvanceExperts(ctx, state, resources.promptRouted)
+				resources.routesApplied = err == nil
+				return err
 			}
 		}
 		var executeErr error
@@ -1865,6 +1880,7 @@ func (e *Executor) runCompiled(
 			&resources.scratch,
 			&resources.buffers,
 			graphExecs,
+			whileRunning,
 			retain,
 		)
 		// A cache keeping its frames (a speculating runner's) keeps the
@@ -1972,6 +1988,8 @@ func execute(
 	scratch *executionScratch,
 	buffers *deviceBufferPool,
 	execCache *graphExecCache,
+	// whileRunning runs between the launch and the run's one synchronization, nil for none.
+	whileRunning func() error,
 	retainOutputs bool,
 ) (_ *executionResult, err error) {
 	outputs := compiled.outputs
@@ -2505,6 +2523,9 @@ func execute(
 	// unanswered.
 	if serveErr == nil {
 		serveErr = queueReadBack(state, readBack, retainedValues, scratch.readBack)
+	}
+	if serveErr == nil && whileRunning != nil {
+		serveErr = whileRunning()
 	}
 	if err := state.Driver.StreamSynchronize(state.Stream); err != nil {
 		return nil, errors.Join(serveErr, err)

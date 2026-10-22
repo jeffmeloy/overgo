@@ -297,17 +297,16 @@
     },
     {
       "id": "verify-states",
-      "title": "Keep a verify window's recurrent checkpoints without copying them out of the span",
-      "owner": "master-lead",
+      "title": "Keep a verify window's recurrent states without copying them into the cache",
       "status": "open",
       "budget": {
-        "nodes": 150,
-        "reason": "the checkpoint writes in the span's state kernels, estimated before building"
+        "nodes": 400,
+        "reason": "the delta-net's state written in place: kernels, reference and block slices, estimated before building"
       },
       "steps": [
         {
           "id": "do",
-          "title": "Keep a verify window's recurrent checkpoints without copying them out of the span",
+          "title": "Keep a verify window's recurrent states without copying them into the cache",
           "status": "open",
           "verify": "go run ./cmd/plan -status",
           "rationale": "From decode-gap (2026-10-22): node-level Nsight over Flash-Next's speculative chat (one draft a window) against a plain decode of the same chat gives a verify window 12.26 ms of kernels and a plain step 9.95, so the window's second column costs 2.31 ms; Strata's own timer puts its marginal column near 1.6 ms (11.90 ms at 2.52 tokens a window, 12.22 at 2.72), which is why its deeper, gated drafts pay (1.74 to 1.89 tokens a window at 13.6 to 14.2 ms, 7.5 to 7.9 ms a token) and ours did not (1.63 at 14.3, 8.7). Of our 2.31 ms, the new experts' weights take 1.28 (moe_hidden_span_q8 and moe_down_q8), which any engine reads; flat_slice_f32 takes 0.27 ms that only verify windows run: each delta-net layer's recurrent state (128 x 128 x 48, 3 MB) and conv state sliced out of the span's output for the window's rollback checkpoints, about 72 copies a window.\nThe step keeps a window's checkpoints without the copies: the delta-net and conv kernels write the state after each checkpointed column into the checkpoint's place (or the commit reads it where the span left it), keeping the committed states' bits.\nEvidence: the verify window's kernel ledger with and without the copies; the probe's ms a token; the decoded texts unchanged.\nServes: throughput of Flash-Next and every hybrid model that speculates.\n\nScoped at verify-indexer (2026-10-22): the copies are not the checkpoints alone. Every span run, draftless or not, copies each delta-net layer's final (or checkpoint) state (128 x 128 x 48) and conv window (3 x 10240) into the cache's caller-bound fixed places, about 36 of each a run: the run does not own a target-bound output, so a view of the scan's packed output (per-token outputs, then the state) cannot alias it, and the fixed places are what keep the span graphs' frames from multiplying. Writing the state in place means the delta-net writing its state where the cache keeps it: a packed layout with the state first (every gated_delta_net kernel, the reference executor, training's backward and the block's slices) or a state output of its own, a large change for about 0.27 ms a window (about 2 percent of decode), so the row waits behind the capability rows."
@@ -482,7 +481,8 @@
             "decode-gap/do",
             "verify-states/do",
             "verify-indexer/do",
-            "moe-events/do"
+            "moe-events/do",
+            "verify-states/do"
           ]
         }
       ]

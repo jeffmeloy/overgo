@@ -270,7 +270,9 @@ func promptPrograms[T Projector](
 	return func(source T) promptDispatch {
 		dispatch := promptDispatch{}
 		if imageProgram != nil {
-			dispatch.images = imageProgram(source).execute
+			program := imageProgram(source)
+			program.Encode = rememberImages(program.Encode)
+			dispatch.images = program.execute
 		}
 		if mediaProgram != nil {
 			program := mediaProgram(source)

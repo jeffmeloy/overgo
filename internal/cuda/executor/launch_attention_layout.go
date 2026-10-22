@@ -172,10 +172,11 @@ func flashAttentionKernel(width uint64) (kernelFunctionID, uint32, bool) {
 	return 0, 0, false
 }
 
-// flashAttention reports a prompt's dense attention the tensor-core kernel reads: causal or not, grouped or not, with
-// an optional causal window, softcap and key bias, its keys and values as wide as its queries and as a kernel takes,
-// and at least the strided-batched path's floor of queries (a decode span keeps the decode kernel). NaiveF32 keeps the
-// f32 paths.
+// flashAttention reports a prompt's causal attention the tensor-core kernel reads: grouped or not, with an optional
+// window, softcap and key bias, its keys and values as wide as its queries and as a kernel takes, and at least the
+// strided-batched path's floor of queries (a decode span keeps the decode kernel). An encoder's attention, which
+// is not causal, keeps the f32 paths its reference tolerances hold (Gemma E4B's vision tower read half-precision
+// keys 0.6 percent from its reference, past its 0.5 percent limit), as NaiveF32 does.
 func flashAttention(node *tensor.Tensor, attributes tensor.AttentionAttributes) bool {
 	if len(node.Inputs) <= attentionFlashValueInput || node.Inputs[0].Shape.Rank < attentionMinimumRank || node.Inputs[1].Shape.Rank < attentionMinimumRank {
 		return false
@@ -185,8 +186,7 @@ func flashAttention(node *tensor.Tensor, attributes tensor.AttentionAttributes) 
 	return ok && key[0] == query[0] && value[0] == query[0] && key[1] != 0 && query[1]%key[1] == 0 &&
 		query[attentionTokenAxis] >= uint64(attentionBlasQueryFloor) && !attributes.NaiveF32 &&
 		attributes.RelativeBuckets == 0 && !attributes.HasSinks && !attributes.HasBlockMask && attributes.MaxALiBiBias == 0 &&
-		!attributes.SymmetricWindow && !attributes.ChunkedWindow &&
-		(attributes.Causal || attributes.Window == 0 && attributes.QueryStart == 0)
+		!attributes.SymmetricWindow && !attributes.ChunkedWindow && attributes.Causal
 }
 
 // blasAttentionGeometry: strided-batched SGEMM attention admission

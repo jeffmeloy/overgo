@@ -19,8 +19,9 @@ const flashAttentionTolerance = 5e-4
 
 // TestExecutorFlashAttentionMatchesReference holds a prompt's dense attention on tensor cores to the reference across
 // the head widths the kernel takes: plain and grouped heads (groups of 7 and 8, the 0.5B and 1B models' shapes), a past
-// context, a causal window, a softcap, a logical key count below the cache's capacity, a key bias, a non-causal
-// attention and two sequences. The graph reserves no score staging, and a replay reproduces every bit.
+// context, a causal window, a softcap, a logical key count below the cache's capacity, a key bias and two sequences.
+// The graph reserves no score staging, and a replay reproduces every bit. A non-causal attention, an encoder's, keeps
+// the f32 paths and the staging they read.
 func TestExecutorFlashAttentionMatchesReference(t *testing.T) {
 	cases := []struct {
 		name                    string
@@ -42,7 +43,7 @@ func TestExecutorFlashAttentionMatchesReference(t *testing.T) {
 		{name: "causal_softcap_128", width: 128, queryHeads: 4, keyValHeads: 4, queryTokens: 96, softcap: 50, causal: true},
 		{name: "causal_capacity_256", width: 256, queryHeads: 4, keyValHeads: 2, queryTokens: 64, pastTokens: 40, capacity: 160, causal: true},
 		{name: "causal_window_capacity_64", width: 64, queryHeads: 8, keyValHeads: 2, queryTokens: 48, pastTokens: 100, capacity: 256, window: 64, softcap: 30, causal: true},
-		{name: "key_bias_128", width: 128, queryHeads: 12, keyValHeads: 12, queryTokens: 64, pastTokens: 448, keyBias: true},
+		{name: "key_bias_128", width: 128, queryHeads: 12, keyValHeads: 12, queryTokens: 64, pastTokens: 448, keyBias: true, causal: true},
 		{name: "sequences_128", width: 128, queryHeads: 4, keyValHeads: 2, queryTokens: 40, pastTokens: 30, sequences: 2, causal: true},
 	}
 	cuda := newFixtureExecutor(t)
@@ -124,5 +125,13 @@ func TestExecutorFlashAttentionMatchesReference(t *testing.T) {
 				t.Fatalf("max abs diff %.6g > %.6g", worst, flashAttentionTolerance)
 			}
 		})
+	}
+	builder := tensor.NewBuilder()
+	query := builder.Input("q", dtype.F32, tensor.MustShape(128, 4, 96))
+	key := builder.Input("k", dtype.F32, tensor.MustShape(128, 4, 96))
+	value := builder.Input("v", dtype.F32, tensor.MustShape(128, 4, 96))
+	encoder, err := Compile(builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{Scale: 0.0883883}))
+	if err != nil || encoder.attentionScoreBytes == 0 {
+		t.Fatalf("an encoder's attention reserved no score staging (%v), so the tensor-core kernel read it", err)
 	}
 }

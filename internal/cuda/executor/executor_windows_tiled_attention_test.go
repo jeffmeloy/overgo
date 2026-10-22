@@ -107,7 +107,8 @@ func TestExecutorBF16AttentionMatchesRoundedReference(t *testing.T) {
 
 // TestExecutorTiledAttentionMatchesReference: the tiled exact attention path
 // (non-causal, featureless, >=32 query rows) vs the reference backend across
-// widths, GQA groupings, and non-multiple-of-32 KV extents.
+// widths the tensor-core kernel does not take, GQA groupings, and
+// non-multiple-of-32 KV extents.
 func TestExecutorTiledAttentionMatchesReference(t *testing.T) {
 	cases := []struct {
 		name                    string
@@ -118,11 +119,11 @@ func TestExecutorTiledAttentionMatchesReference(t *testing.T) {
 		tolerance               float64
 		masked                  bool
 	}{
-		{"w128_mha_dense", 128, 4, 4, 96, 96, 0.0883883, 5e-5, false},
-		{"w128_gqa_tail", 128, 4, 2, 100, 77, 0.0883883, 5e-5, false},
-		{"w128_gqa_mask", 128, 4, 2, 100, 77, 0.0883883, 5e-5, true},
-		{"w64_mha_tail", 64, 6, 6, 33, 41, 0.125, 5e-5, false},
-		{"w128_cross_long", 128, 12, 12, 64, 512, 0.0883883, 5e-5, false},
+		{"w96_mha_dense", 96, 4, 4, 96, 96, 0.0883883, 5e-5, false},
+		{"w96_gqa_tail", 96, 4, 2, 100, 77, 0.0883883, 5e-5, false},
+		{"w96_gqa_mask", 96, 4, 2, 100, 77, 0.0883883, 5e-5, true},
+		{"w80_mha_tail", 80, 6, 6, 33, 41, 0.125, 5e-5, false},
+		{"w96_cross_long", 96, 12, 12, 64, 512, 0.0883883, 5e-5, false},
 	}
 	cuda := newFixtureExecutor(t)
 	for _, testCase := range cases {
@@ -174,7 +175,7 @@ func TestExecutorTiledAttentionMatchesReference(t *testing.T) {
 
 func TestExecutorBLASAttentionKeyBiasMatchesReference(t *testing.T) {
 	const (
-		width       = uint64(128)
+		width       = uint64(96)
 		heads       = uint64(12)
 		queryTokens = uint64(64)
 		keyTokens   = uint64(512)
@@ -226,7 +227,8 @@ func TestExecutorBLASAttentionKeyBiasMatchesReference(t *testing.T) {
 // the strided-batched SGEMM path vs the reference backend: plain causal,
 // grouped-query heads, a past context (query start), a causal sliding
 // window, a softcap, and a logical KV count below the cache capacity
-// page, every case at or above the SGEMM query floor.
+// page, every case at or above the SGEMM query floor and at a head width
+// the tensor-core kernel does not take.
 func TestExecutorPrefillAttentionMatchesReference(t *testing.T) {
 	cases := []struct {
 		name                    string
@@ -237,14 +239,14 @@ func TestExecutorPrefillAttentionMatchesReference(t *testing.T) {
 		window                  uint32
 		softcap                 float32
 	}{
-		{"causal_mha", 128, 4, 4, 96, 0, 0, 0, 0},
-		{"causal_gqa", 128, 4, 2, 100, 0, 0, 0, 0},
-		{"causal_past", 64, 6, 3, 64, 40, 0, 0, 0},
-		{"causal_window", 128, 4, 2, 100, 0, 0, 48, 0},
-		{"causal_window_past", 64, 4, 1, 40, 70, 0, 32, 0},
-		{"causal_softcap", 128, 4, 4, 96, 0, 0, 0, 50},
-		{"causal_capacity", 128, 4, 2, 64, 40, 160, 0, 0},
-		{"causal_window_capacity", 64, 8, 2, 48, 100, 256, 64, 30},
+		{"causal_mha", 96, 4, 4, 96, 0, 0, 0, 0},
+		{"causal_gqa", 96, 4, 2, 100, 0, 0, 0, 0},
+		{"causal_past", 80, 6, 3, 64, 40, 0, 0, 0},
+		{"causal_window", 96, 4, 2, 100, 0, 0, 48, 0},
+		{"causal_window_past", 80, 4, 1, 40, 70, 0, 32, 0},
+		{"causal_softcap", 96, 4, 4, 96, 0, 0, 0, 50},
+		{"causal_capacity", 96, 4, 2, 64, 40, 160, 0, 0},
+		{"causal_window_capacity", 80, 8, 2, 48, 100, 256, 64, 30},
 	}
 	cuda := newFixtureExecutor(t)
 	for _, testCase := range cases {

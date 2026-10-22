@@ -1347,6 +1347,10 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 			compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, bytes)
 			continue
 		}
+		// The tensor-core kernel keeps a prompt's scores in registers, so its attention reserves no score staging.
+		if attributes, ok := node.Attrs.(tensor.AttentionAttributes); ok && flashAttention(node, attributes) {
+			continue
+		}
 		if bytes, ok := blasAttentionScoreBytes(node); ok {
 			compiled.needBlas = true
 			compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, bytes)

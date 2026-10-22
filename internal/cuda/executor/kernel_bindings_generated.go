@@ -16,6 +16,9 @@ const (
 	kernelAttentionDecodeCombineF32
 	kernelAttentionDecodeF32
 	kernelAttentionF32
+	kernelAttentionFlash128F32
+	kernelAttentionFlash256F32
+	kernelAttentionFlash64F32
 	kernelAttentionOnlineF32
 	kernelAttentionOnlineFinalizeF32
 	kernelAttentionOnlineInitF32
@@ -258,6 +261,9 @@ var kernelFunctionNames = [...]string{
 	"attention_decode_combine_f32",
 	"attention_decode_f32",
 	"attention_f32",
+	"attention_flash_128_f32",
+	"attention_flash_256_f32",
+	"attention_flash_64_f32",
 	"attention_online_f32",
 	"attention_online_finalize_f32",
 	"attention_online_init_f32",
@@ -499,6 +505,9 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	5,
 	18,
 	25,
+	15,
+	15,
+	15,
 	24,
 	6,
 	5,

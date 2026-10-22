@@ -74,7 +74,7 @@ The preamble's row is the plan's step shape-reading/launch-checks, and TestNoLau
 == switches ==
 family: internal/tensor.Op
 switches: 10
-lines: 1689
+lines: 1705
 functions: 10
 packages: 4
 constants: 68
@@ -90,11 +90,11 @@ row: a method of each of the seven attribute types with per-step values, in one 
 table: yes
 
 switch: internal/cuda/executor/launch_attention_layout.go#launchAttentionLayout
-lines: 288
+lines: 304
 constants: 4
 clauses: 5
 dispatch-lines: 8
-decides: the device launch of reshape as a copy, of attention by one of five paths (the split single-query decode kernel, the batched matrix products, the tiled kernel, the online kernel and the plain kernel), of concat as an append in place when its output is its left input, and of cache_append as a copy and a write at a device-resident offset
+decides: the device launch of reshape as a copy, of attention by one of six paths (the split single-query decode kernel, the tensor-core prompt kernel, the batched matrix products, the tiled kernel, the online kernel and the plain kernel), of concat as an append in place when its output is its left input, and of cache_append as a copy and a write at a device-resident offset
 row: the entry of each operation, while attention's choice of path is attention's own and stays whole in its function
 table: yes
 

@@ -227,17 +227,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 480,
+        "nodes": 20,
         "reason": "the tensor-core attention's admission, launch and staging skip with the three kernels' generated bindings measured 460 nodes at the gate"
       },
       "steps": [
-        {
-          "id": "flash-attention",
-          "title": "Read a dense model's prompt attention on tensor cores with an online softmax, no score matrix in memory",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "From long-prompt/length-cells' 4K and 16K first outputs, measured on a copy of the store on 2026-10-20, and the owner's direction of 2026-10-20: general objects for every model.\nA 16K prompt takes 4 to 11 times a 4K prompt's time for 4 times its tokens: Qwen2.5-0.5B 0.32 / 3.56 s, MiniCPM5-1B 0.27 / 2.50 s, Qwen3.5-9B 0.97 / 3.95 s, gemma-4-E4B 0.58 / 2.63 s, Unlimited-OCR 0.37 / 2.10 s, gemma-4-12B native 1.26 / 5.83 s; gemma-4-12B bf16 fails its 16K prompt, its admission asking 24 GiB with 10 GiB free.\nDense prompt attention (launch_attention_layout.go, OpAttention) runs as F32 strided-batched SGEMMs that write each chunk's query-by-key scores to a staging buffer, a softmax over them, and a second SGEMM: its traffic and its staging grow with the square of the prompt.\nsparse_attention_mma_f32 (long-prompt/attention-mma) already reads Flash-Next's selected attention on tensor cores with 3xTF32 mma.sync and an online softmax, no score leaving shared memory.\nThe step carries that kernel's method to dense causal and grouped-query attention: a block per (query tile, key/value head), key and value tiles staged in shared memory, scores and softmax in registers, held to the reference by a device test over the head widths the served models use, before the SGEMM path in the launch order.\nProfile one small and one 12B model at 16K first (nsys, cuda_gpu_kern_sum) to confirm attention's share.\nEvidence: the 16K cells of the next measurement run, gemma-4-12B bf16 reading its 16K prompt, held-out quality holding.\nServes: first-output and peak-device-memory of every dense chat model at long prompts, and Flash-Next's full-attention layers below 2,048 tokens.\nBatch: device."
-        },
         {
           "id": "quant-prefill",
           "title": "Multiply a k-quant dense model's prompt on tensor cores",

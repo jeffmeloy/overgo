@@ -6709,6 +6709,288 @@ extern "C" __global__ void __launch_bounds__(512, 1) attention_tiled_bf16_f32(
     }
 }
 
+
+// Dense prompt attention on tensor cores (attention_flash_<width>_f32): a block takes 64 rows of one sequence's
+// key/value head, a row being a query token and one of the group's query heads (token-major, so a group's heads
+// share every key and value tile), four warps of 16 rows. Key and value tiles of ATTENTION_FLASH_KEYS(width) tokens
+// copy from the f32 cache into shared memory by cp.async (the value tile during the scores, the next key tile during
+// the value product); each warp keeps its queries as FP16 mma fragments, its scores and an online softmax in
+// registers and its output in f32 accumulators, so no score leaves the multiprocessor. Products are m16n8k16 FP16
+// with f32 accumulation: queries, keys, values and probabilities round to FP16 as their fragments load, which
+// differs from the strided-batched f32 path at FP16 rounding of the operands. The scores scale, cap and take the key
+// bias as attention_online_softmax_f32 does, and a row with no key it may read writes zeros.
+#define ATTENTION_FLASH_ROWS 64u
+#define ATTENTION_FLASH_THREADS 128u
+#define ATTENTION_FLASH_KEY_PAD 8u
+#define ATTENTION_FLASH_VALUE_PAD 4u
+
+__device__ __forceinline__ unsigned int attention_flash_pack(float low, float high) {
+    const __half2 packed = __floats2half2_rn(low, high);
+    return *reinterpret_cast<const unsigned int *>(&packed);
+}
+
+__device__ __forceinline__ void attention_flash_mma(float * c, const unsigned int * a, unsigned int b0, unsigned int b1) {
+    asm volatile("mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 "
+        "{%0,%1,%2,%3}, {%4,%5,%6,%7}, {%8,%9}, {%0,%1,%2,%3};"
+        : "+f"(c[0]), "+f"(c[1]), "+f"(c[2]), "+f"(c[3])
+        : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b0), "r"(b1));
+}
+
+// attention_flash_stage copies a tile of KEYS cache rows from first into shared rows of STRIDE floats; rows past the
+// keys zero-fill, so a masked key's value multiplies a zero probability by zeros.
+template <unsigned int WIDTH, unsigned int KEYS, unsigned int STRIDE>
+__device__ __forceinline__ void attention_flash_stage(
+        const float * cache, float * tile, unsigned int first, unsigned int keys, size_t token_stride) {
+    const unsigned int copies = KEYS * (WIDTH / 4u);
+    for (unsigned int copy = threadIdx.x; copy < copies; copy += ATTENTION_FLASH_THREADS) {
+        const unsigned int row = copy / (WIDTH / 4u);
+        const unsigned int channel = (copy % (WIDTH / 4u)) * 4u;
+        float * destination = tile + row * STRIDE + channel;
+        if (first + row < keys) {
+            __pipeline_memcpy_async(destination, cache + (size_t) (first + row) * token_stride + channel, 16);
+        } else {
+            *reinterpret_cast<float4 *>(destination) = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
+        }
+    }
+}
+
+template <unsigned int WIDTH, unsigned int KEYS>
+__device__ __forceinline__ void attention_flash(
+        const float * query,
+        const float * key,
+        const float * value,
+        const float * key_bias,
+        float * output,
+        unsigned int query_heads,
+        unsigned int key_value_heads,
+        unsigned int query_tokens,
+        unsigned int key_value_tokens,
+        unsigned int key_capacity_tokens,
+        float scale,
+        unsigned int query_start,
+        unsigned int causal,
+        unsigned int window,
+        float softcap) {
+    constexpr unsigned int KEY_STRIDE = WIDTH + ATTENTION_FLASH_KEY_PAD;
+    constexpr unsigned int VALUE_STRIDE = WIDTH + ATTENTION_FLASH_VALUE_PAD;
+    extern __shared__ float attention_flash_shared[];
+    float * key_tile = attention_flash_shared;
+    float * value_tile = key_tile + KEYS * KEY_STRIDE;
+    const unsigned int key_value_head = blockIdx.y;
+    const unsigned int sequence = blockIdx.z;
+    const unsigned int group = query_heads / key_value_heads;
+    const unsigned int rows = query_tokens * group;
+    const unsigned int block_row = blockIdx.x * ATTENTION_FLASH_ROWS;
+    if (block_row >= rows) {
+        return;
+    }
+    const unsigned int warp = threadIdx.x / CUDA_WARP_WIDTH;
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const unsigned int g = lane / 4u;
+    const unsigned int t = lane % 4u;
+
+    // A lane's two rows: g and g + 8 of its warp's 16.
+    unsigned int row_token[2];
+    unsigned int row_head[2];
+    bool row_valid[2];
+    unsigned int row_limit[2];
+    unsigned int row_first[2];
+    for (unsigned int half = 0; half < 2u; ++half) {
+        const unsigned int row = block_row + warp * 16u + g + 8u * half;
+        row_valid[half] = row < rows;
+        row_token[half] = row_valid[half] ? row / group : 0u;
+        row_head[half] = key_value_head * group + (row_valid[half] ? row % group : 0u);
+        // A causal row reads keys below its position plus one, and a window keeps the last window of those.
+        const unsigned int limit = causal ? query_start + row_token[half] + 1u : key_value_tokens;
+        row_limit[half] = row_valid[half] ? min(limit, key_value_tokens) : 0u;
+        row_first[half] = causal && window > 0u && limit > window ? limit - window : 0u;
+    }
+
+    // Queries as m16n8k16 A fragments, one per 16 channels.
+    unsigned int queries[WIDTH / 16u][4];
+    const float * query_row[2];
+    for (unsigned int half = 0; half < 2u; ++half) {
+        query_row[half] = query + (((size_t) sequence * query_tokens + row_token[half]) * query_heads + row_head[half]) * WIDTH;
+    }
+#pragma unroll
+    for (unsigned int step = 0; step < WIDTH / 16u; ++step) {
+        const unsigned int channel = step * 16u + 2u * t;
+        float2 low = make_float2(0.0f, 0.0f), high = low, low_far = low, high_far = low;
+        if (row_valid[0]) {
+            low = *reinterpret_cast<const float2 *>(query_row[0] + channel);
+            low_far = *reinterpret_cast<const float2 *>(query_row[0] + channel + 8u);
+        }
+        if (row_valid[1]) {
+            high = *reinterpret_cast<const float2 *>(query_row[1] + channel);
+            high_far = *reinterpret_cast<const float2 *>(query_row[1] + channel + 8u);
+        }
+        queries[step][0] = attention_flash_pack(low.x, low.y);
+        queries[step][1] = attention_flash_pack(high.x, high.y);
+        queries[step][2] = attention_flash_pack(low_far.x, low_far.y);
+        queries[step][3] = attention_flash_pack(high_far.x, high_far.y);
+    }
+
+    // The keys any row of the block reads.
+    const unsigned int last_row = min(rows, block_row + ATTENTION_FLASH_ROWS) - 1u;
+    const unsigned int first_limit = causal ? query_start + block_row / group + 1u : key_value_tokens;
+    const unsigned int key_end = causal ? min(key_value_tokens, query_start + last_row / group + 1u) : key_value_tokens;
+    const unsigned int key_begin = causal && window > 0u && first_limit > window ? first_limit - window : 0u;
+
+    const size_t token_stride = (size_t) key_value_heads * WIDTH;
+    const float * key_cache = key + (size_t) sequence * key_capacity_tokens * token_stride + key_value_head * WIDTH;
+    const float * value_cache = value + (size_t) sequence * key_capacity_tokens * token_stride + key_value_head * WIDTH;
+
+    float weighted[WIDTH / 8u][4];
+#pragma unroll
+    for (unsigned int tile = 0; tile < WIDTH / 8u; ++tile) {
+        weighted[tile][0] = weighted[tile][1] = weighted[tile][2] = weighted[tile][3] = 0.0f;
+    }
+    float maximum[2] = {-INFINITY, -INFINITY};
+    float sum[2] = {0.0f, 0.0f};
+
+    if (key_begin < key_end) {
+        attention_flash_stage<WIDTH, KEYS, KEY_STRIDE>(key_cache, key_tile, key_begin, key_end, token_stride);
+        __pipeline_commit();
+    }
+    for (unsigned int base = key_begin; base < key_end; base += KEYS) {
+        // The key tile is in, and every warp finished the last value product, so the value tile is free.
+        __pipeline_wait_prior(0);
+        __syncthreads();
+        attention_flash_stage<WIDTH, KEYS, VALUE_STRIDE>(value_cache, value_tile, base, key_end, token_stride);
+        __pipeline_commit();
+
+        float scores[KEYS / 8u][4];
+#pragma unroll
+        for (unsigned int column = 0; column < KEYS / 8u; ++column) {
+            scores[column][0] = scores[column][1] = scores[column][2] = scores[column][3] = 0.0f;
+            const float * key_row = key_tile + (column * 8u + g) * KEY_STRIDE + 2u * t;
+#pragma unroll
+            for (unsigned int step = 0; step < WIDTH / 16u; ++step) {
+                const float2 near = *reinterpret_cast<const float2 *>(key_row + step * 16u);
+                const float2 far = *reinterpret_cast<const float2 *>(key_row + step * 16u + 8u);
+                attention_flash_mma(scores[column], queries[step], attention_flash_pack(near.x, near.y), attention_flash_pack(far.x, far.y));
+            }
+        }
+
+        // Scale, cap, bias and mask the scores, then the running maximum of each of the lane's rows over its quad.
+        float tile_maximum[2] = {-INFINITY, -INFINITY};
+#pragma unroll
+        for (unsigned int column = 0; column < KEYS / 8u; ++column) {
+#pragma unroll
+            for (unsigned int element = 0; element < 4u; ++element) {
+                const unsigned int half = element / 2u;
+                const unsigned int key_token = base + column * 8u + 2u * t + element % 2u;
+                float score = scores[column][element] * scale;
+                if (softcap > 0.0f) {
+                    score = softcap * tanhf(score / softcap);
+                }
+                if (key_bias != nullptr && key_token < key_value_tokens) {
+                    score += key_bias[key_token];
+                }
+                const bool attended = key_token < row_limit[half] && key_token >= row_first[half];
+                scores[column][element] = attended ? score : -INFINITY;
+                tile_maximum[half] = fmaxf(tile_maximum[half], scores[column][element]);
+            }
+        }
+        float rescale[2];
+#pragma unroll
+        for (unsigned int half = 0; half < 2u; ++half) {
+            tile_maximum[half] = fmaxf(tile_maximum[half], __shfl_xor_sync(0xffffffffu, tile_maximum[half], 1));
+            tile_maximum[half] = fmaxf(tile_maximum[half], __shfl_xor_sync(0xffffffffu, tile_maximum[half], 2));
+            const float next = fmaxf(maximum[half], tile_maximum[half]);
+            rescale[half] = maximum[half] == -INFINITY ? 0.0f : expf(maximum[half] - next);
+            maximum[half] = next;
+            sum[half] *= rescale[half];
+        }
+#pragma unroll
+        for (unsigned int column = 0; column < KEYS / 8u; ++column) {
+#pragma unroll
+            for (unsigned int element = 0; element < 4u; ++element) {
+                const unsigned int half = element / 2u;
+                const float score = scores[column][element];
+                const float probability = score == -INFINITY ? 0.0f : expf(score - maximum[half]);
+                scores[column][element] = probability;
+                sum[half] += probability;
+            }
+        }
+#pragma unroll
+        for (unsigned int tile = 0; tile < WIDTH / 8u; ++tile) {
+            weighted[tile][0] *= rescale[0];
+            weighted[tile][1] *= rescale[0];
+            weighted[tile][2] *= rescale[1];
+            weighted[tile][3] *= rescale[1];
+        }
+
+        // The value tile is in, and every warp finished its scores, so the next key tile may load during the product.
+        __pipeline_wait_prior(0);
+        __syncthreads();
+        if (base + KEYS < key_end) {
+            attention_flash_stage<WIDTH, KEYS, KEY_STRIDE>(key_cache, key_tile, base + KEYS, key_end, token_stride);
+            __pipeline_commit();
+        }
+#pragma unroll
+        for (unsigned int step = 0; step < KEYS / 16u; ++step) {
+            // Two score tiles' accumulators are the A fragment of 16 keys.
+            const unsigned int probabilities[4] = {
+                attention_flash_pack(scores[2u * step][0], scores[2u * step][1]),
+                attention_flash_pack(scores[2u * step][2], scores[2u * step][3]),
+                attention_flash_pack(scores[2u * step + 1u][0], scores[2u * step + 1u][1]),
+                attention_flash_pack(scores[2u * step + 1u][2], scores[2u * step + 1u][3])};
+            const float * value_rows = value_tile + (step * 16u + 2u * t) * VALUE_STRIDE + g;
+#pragma unroll
+            for (unsigned int tile = 0; tile < WIDTH / 8u; ++tile) {
+                const float * column = value_rows + tile * 8u;
+                attention_flash_mma(
+                    weighted[tile], probabilities,
+                    attention_flash_pack(column[0], column[VALUE_STRIDE]),
+                    attention_flash_pack(column[8u * VALUE_STRIDE], column[9u * VALUE_STRIDE]));
+            }
+        }
+    }
+
+#pragma unroll
+    for (unsigned int half = 0; half < 2u; ++half) {
+        sum[half] += __shfl_xor_sync(0xffffffffu, sum[half], 1);
+        sum[half] += __shfl_xor_sync(0xffffffffu, sum[half], 2);
+    }
+#pragma unroll
+    for (unsigned int half = 0; half < 2u; ++half) {
+        if (!row_valid[half]) {
+            continue;
+        }
+        const float inverse = sum[half] > 0.0f ? 1.0f / sum[half] : 0.0f;
+        float * out = output + (((size_t) sequence * query_tokens + row_token[half]) * query_heads + row_head[half]) * WIDTH + 2u * t;
+#pragma unroll
+        for (unsigned int tile = 0; tile < WIDTH / 8u; ++tile) {
+            *reinterpret_cast<float2 *>(out + tile * 8u) =
+                make_float2(weighted[tile][2u * half] * inverse, weighted[tile][2u * half + 1u] * inverse);
+        }
+    }
+}
+
+// attention_flash_64_f32, attention_flash_128_f32 and attention_flash_256_f32 take heads of 64, 128 and 256
+// channels; the key tiles narrow as the heads widen, so a block's accumulators and tiles fit two blocks a
+// multiprocessor.
+#define ATTENTION_FLASH_ARGUMENTS \
+        const float * query, const float * key, const float * value, const float * key_bias, float * output, \
+        unsigned int query_heads, unsigned int key_value_heads, unsigned int query_tokens, \
+        unsigned int key_value_tokens, unsigned int key_capacity_tokens, float scale, unsigned int query_start, \
+        unsigned int causal, unsigned int window, float softcap
+#define ATTENTION_FLASH_FORWARD \
+        query, key, value, key_bias, output, query_heads, key_value_heads, query_tokens, key_value_tokens, \
+        key_capacity_tokens, scale, query_start, causal, window, softcap
+
+extern "C" __global__ void __launch_bounds__(ATTENTION_FLASH_THREADS) attention_flash_64_f32(ATTENTION_FLASH_ARGUMENTS) {
+    attention_flash<64u, 64u>(ATTENTION_FLASH_FORWARD);
+}
+
+extern "C" __global__ void __launch_bounds__(ATTENTION_FLASH_THREADS) attention_flash_128_f32(ATTENTION_FLASH_ARGUMENTS) {
+    attention_flash<128u, 32u>(ATTENTION_FLASH_FORWARD);
+}
+
+extern "C" __global__ void __launch_bounds__(ATTENTION_FLASH_THREADS) attention_flash_256_f32(ATTENTION_FLASH_ARGUMENTS) {
+    attention_flash<256u, 16u>(ATTENTION_FLASH_FORWARD);
+}
 extern "C" __global__ void concat_f32(
         const float * left,
         const float * right,

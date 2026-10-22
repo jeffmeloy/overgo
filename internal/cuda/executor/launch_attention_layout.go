@@ -143,6 +143,52 @@ func launchBF16Attention(
 // launch overhead (same floor as the tiled kernel's 32-row tile).
 const attentionBlasQueryFloor = uint32(32)
 
+// Tensor-core flash attention geometry (attention_flash_<width>_f32): a block takes 64 rows, each a query token and one
+// of its key/value head's query heads, in four warps of 16; key rows pad 8 floats and value rows 4, so a warp's fragment
+// reads fall in distinct banks. The key tile narrows as the heads widen, so a block's accumulators and tiles leave room
+// for two blocks a multiprocessor.
+const (
+	// attentionFlashValueInput is the values' place among an attention's inputs, after its queries and keys.
+	attentionFlashValueInput                            = 2
+	attentionFlashRows                                  = uint32(64)
+	attentionFlashThreads                               = uint32(128)
+	attentionFlashKeyPad                                = uint32(8)
+	attentionFlashValuePad                              = uint32(4)
+	attentionFlashNarrowWidth, attentionFlashNarrowKeys = uint32(64), uint32(64)
+	attentionFlashMiddleWidth, attentionFlashMiddleKeys = uint32(128), uint32(32)
+	attentionFlashWideWidth, attentionFlashWideKeys     = uint32(256), uint32(16)
+)
+
+// flashAttentionKernel answers the tensor-core kernel of a head width and the keys its tiles hold.
+func flashAttentionKernel(width uint64) (kernelFunctionID, uint32, bool) {
+	switch width {
+	case uint64(attentionFlashNarrowWidth):
+		return kernelAttentionFlash64F32, attentionFlashNarrowKeys, true
+	case uint64(attentionFlashMiddleWidth):
+		return kernelAttentionFlash128F32, attentionFlashMiddleKeys, true
+	case uint64(attentionFlashWideWidth):
+		return kernelAttentionFlash256F32, attentionFlashWideKeys, true
+	}
+	return 0, 0, false
+}
+
+// flashAttention reports a prompt's dense attention the tensor-core kernel reads: causal or not, grouped or not, with
+// an optional causal window, softcap and key bias, its keys and values as wide as its queries and as a kernel takes,
+// and at least the strided-batched path's floor of queries (a decode span keeps the decode kernel). NaiveF32 keeps the
+// f32 paths.
+func flashAttention(node *tensor.Tensor, attributes tensor.AttentionAttributes) bool {
+	if len(node.Inputs) <= attentionFlashValueInput || node.Inputs[0].Shape.Rank < attentionMinimumRank || node.Inputs[1].Shape.Rank < attentionMinimumRank {
+		return false
+	}
+	query, key, value := node.Inputs[0].Shape.Dims, node.Inputs[1].Shape.Dims, node.Inputs[attentionFlashValueInput].Shape.Dims
+	_, _, ok := flashAttentionKernel(query[0])
+	return ok && key[0] == query[0] && value[0] == query[0] && key[1] != 0 && query[1]%key[1] == 0 &&
+		query[attentionTokenAxis] >= uint64(attentionBlasQueryFloor) && !attributes.NaiveF32 &&
+		attributes.RelativeBuckets == 0 && !attributes.HasSinks && !attributes.HasBlockMask && attributes.MaxALiBiBias == 0 &&
+		!attributes.SymmetricWindow && !attributes.ChunkedWindow &&
+		(attributes.Causal || attributes.Window == 0 && attributes.QueryStart == 0)
+}
+
 // blasAttentionGeometry: strided-batched SGEMM attention admission
 // (featureless dense attention, causal or not, with an optional causal
 // sliding window and softcap, grouped-query heads batched per key-value
@@ -574,6 +620,22 @@ func launchAttentionLayout(
 				state, functions[kernelAttentionDecodeCombineF32],
 				driver.Dim3{X: rowCount, Y: 1, Z: 1}, driver.Dim3{X: attentionDecodeThreads, Y: 1, Z: 1},
 				&partials, &output, &valueWidth, &splits, &rowCount,
+			)
+		}
+		// A prompt's dense attention reads on tensor cores, its scores in registers.
+		if function, keys, ok := flashAttentionKernel(uint64(keyWidth)); ok && flashAttention(node, attributes) {
+			rows := uint64(queryTokens) * uint64(queryHeads/keyValueHeads)
+			blocks := (rows + uint64(attentionFlashRows) - 1) / uint64(attentionFlashRows)
+			if blocks > math.MaxUint32 {
+				return errors.New("flash attention launch size exceeds uint32")
+			}
+			sharedBytes := uint64(keys) * uint64(keyWidth+attentionFlashKeyPad+valueWidth+attentionFlashValuePad) * f32Bytes
+			return launchGridSharedABI(
+				state, functions[function],
+				driver.Dim3{X: uint32(blocks), Y: keyValueHeads, Z: sequences},
+				driver.Dim3{X: attentionFlashThreads, Y: 1, Z: 1}, uint32(sharedBytes),
+				&query, &key, &value, &keyBias, &output, &queryHeads, &keyValueHeads, &queryTokens,
+				&keyValueTokens, &keyCapacityTokens, &scale, &queryStart, &causal, &window, &softcap,
 			)
 		}
 		// Strided-batched SGEMM path: exact F32 gemm+softmax+gemm with the

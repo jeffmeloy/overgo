@@ -221,7 +221,7 @@
           "id": "do",
           "title": "Time a request's duration on the counter its prefill and decode are timed on",
           "status": "open",
-          "verify": "go test ./internal/server -run TestMetricsReportDeviceAndExpertState -count 30",
+          "verify": "go test ./internal/server -run '^(TestMetricsReportDeviceAndExpertState|TestRequestMonitorShowsAdmissionWait)$' -count=1",
           "rationale": "The Requests tab reads a request's duration from Go's clock and its prefill and decode from the performance counter. On Windows Go's clock advances in steps of about 0.5 ms, so a request's duration reads up to one step short and its decode can read longer than the request that holds it: the draft-library landing was refused once by internal/server TestMetricsReportDeviceAndExpertState (decode 3.51 ms in a request read as 3.41). Reading the duration through the counter the stages read makes the parts sum within the whole, and keeps a landing from failing on a test that is right about the defect."
         }
       ]

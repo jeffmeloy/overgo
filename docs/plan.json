@@ -208,25 +208,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "served-speculation",
-      "title": "Score a draft inside its model's served inference, measured through the draft the server uses",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 80,
-        "reason": "estimate: a speculation entry in the scorecard's not-applicable table with its reason, the draft resolver moved from cmd/server to a shared CLI package, and the measured runner opened with it"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Score a draft inside its model's served inference, measured through the draft the server uses",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestScorecardStatesInapplicableMetrics$'",
-          "rationale": "Measured 2026-10-22 on master ceabcef2d: the user scorecard lists Flash-Next's speculation activation as a row of its own with six gaps (no first output, throughput, held-out quality, failures, load or peak memory), and recipe measure -task speculation is refused (\"task speculation has no registered runtime\"). A draft runs only inside its model's inference request, as a projector runs inside a multimodal one, whose cells the scorecard already states not applicable on the projection row (internal/scorecard stateNotApplicable). Separately, recipe measure -task inference opens the runner with no draft (cmd/recipe/inference_measure.go measureRunner), where cmd/server opens it with the draft the store's active speculation recipe binds (cmd/server/draft.go activeDraft): the scorecard's Flash-Next throughput, 28.3 tok/s on the verified 16-token answer, is a decode a served greedy request does not take.\nThe step states a speculation row's cells not applicable with that reason, where no attempt measured them, and opens the measured runner with the active draft through one resolver the server and the measurement share (moved out of cmd/server). The test extends TestScorecardStatesInapplicableMetrics with a speculation row. Measure the served request before and after; the throughput cell reads what the served path decodes.\nServes: a scorecard that reads what a user gets from Flash-Next, the Strata-parity model; throughput and first-output readings of the served path."
-        }
-      ]
-    },
-    {
       "id": "training-reuse",
       "title": "Stop repeating training's per-step device setup and its padding to the run's longest sequence",
       "status": "open",

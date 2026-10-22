@@ -390,12 +390,16 @@ func editsVideo(definition recipe.Definition) bool {
 // projectionInRequest is why a projection cell no attempt measured is not applicable.
 const projectionInRequest = "a projector runs inside the model's multimodal request, whose timing, memory and failures are measured on the model's inference and vqa rows"
 
+// draftInRequest is why a speculation cell no attempt measured is not applicable.
+const draftInRequest = "a draft runs inside its model's inference request, which verifies every token it drafts, so the model's inference row measures its timing, memory, failures and quality"
+
 // vqaStreamsWeights is why a vqa row's load time, when no attempt measured one, is not applicable.
 const vqaStreamsWeights = "vqa reads each layer's weights during its first pass, so its load is part of its first output and no separate load phase exists"
 
 // stateNotApplicable states, on a row, each cell no attempt measured that is not a measurement
 // missing: a projector runs inside the model's multimodal request, whose first output, throughput,
-// load, memory and failures the model's own rows measure, and the vqa pipeline reads its weights
+// load, memory and failures the model's own rows measure, a draft inside its model's inference
+// request, whose row measures its quality too, and the vqa pipeline reads its weights
 // layer by layer during its first pass, so it has no load phase of its own. A cell an attempt
 // measured stays.
 func stateNotApplicable(row *Row) {
@@ -403,6 +407,10 @@ func stateNotApplicable(row *Row) {
 		recipe.TaskProjection: {
 			metric.FirstOutput: projectionInRequest, metric.Throughput: projectionInRequest, metric.Failures: projectionInRequest,
 			metric.Load: projectionInRequest, metric.PeakMemory: projectionInRequest,
+		},
+		recipe.TaskSpeculation: {
+			metric.FirstOutput: draftInRequest, metric.Throughput: draftInRequest, metric.Quality: draftInRequest, metric.Failures: draftInRequest,
+			metric.Load: draftInRequest, metric.PeakMemory: draftInRequest,
 		},
 		recipe.TaskVQA: {metric.Load: vqaStreamsWeights},
 	}

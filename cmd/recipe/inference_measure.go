@@ -43,12 +43,17 @@ type servedModel interface {
 }
 
 // measureRunner measures the model at path on the runner its active recipe
-// resolves, as every serving command opens it, and prints the request's result.
-// Asked for the journey, it prints where a first request's time goes and
-// records nothing (journeyInference).
+// resolves, as every serving command opens it, with the draft its active
+// speculation recipe binds, as the server opens it, and prints the request's
+// result. Asked for the journey, it prints where a first request's time goes
+// and records nothing (journeyInference).
 func measureRunner(repository, path string, journey bool) error {
 	open := func(ctx context.Context) (servedModel, error) {
-		runner, err := modelcli.OpenRunner(ctx, repository, path, inference.OpenOptions{})
+		draft, err := modelcli.ActiveDraft(ctx, repository, path)
+		if err != nil {
+			return nil, err
+		}
+		runner, err := modelcli.OpenRunner(ctx, repository, path, inference.OpenOptions{Draft: draft})
 		if err != nil {
 			return nil, err
 		}

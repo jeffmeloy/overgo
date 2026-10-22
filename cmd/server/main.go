@@ -237,7 +237,7 @@ func run() error {
 		})
 	}
 	if openOptions.Draft == "" {
-		if openOptions.Draft, err = activeDraft(shutdownContext, repositoryPath, modelReference); err != nil {
+		if openOptions.Draft, err = modelcli.ActiveDraft(shutdownContext, repositoryPath, modelReference); err != nil {
 			return err
 		}
 	}

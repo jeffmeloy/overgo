@@ -158,6 +158,29 @@ func openRunner(
 	return inference.OpenWithProgram(ctx, &loaded, options)
 }
 
+// ActiveDraft resolves the draft the active speculation recipe of the model at path binds, none when the store
+// declares none: the draft a server started without -draft speculates through, and a measured request decodes
+// through, so the swap proxy, the desktop launcher, the browser lane and the scorecard serve the model's draft as
+// they serve its projector. A model the store cannot resolve gets none here, and its open reports why.
+func ActiveDraft(ctx context.Context, repository, path string) (string, error) {
+	store, err := overgodb.OpenReadOnly(repository)
+	if err != nil {
+		return "", err
+	}
+	defer store.Close()
+	memo := discovery.LoadMemo(ctx, store)
+	loaded, err := modelrecipe.ResolveClaimedGGUF(ctx, store, path, memo.Claim)
+	if err != nil {
+		return "", nil
+	}
+	identity, err := loaded.Identity()
+	if err = errors.Join(err, loaded.Close()); err != nil {
+		return "", err
+	}
+	draft, _, err := discovery.ActiveDraft(ctx, store, identity.Model, memo)
+	return draft, err
+}
+
 // OpenOptions returns inference model-loading options.
 func (flags *ModelFlags) OpenOptions(loraScale float32) inference.OpenOptions {
 	return BuildOpenOptions(*flags.DeviceOrdinal, flags.loraPaths, loraScale)

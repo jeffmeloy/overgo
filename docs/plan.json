@@ -218,6 +218,20 @@
       },
       "steps": [
         {
+          "id": "shared-expert",
+          "title": "Read the shared expert's gate and up rows in one launch and fold its scalar gate into the down product",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "A node-level trace of Flash-Next's plain decoding after gdn-fusion (2026-10-21) runs the shared expert in eight kernels a layer, 16.9 us of it: the gate and up products (Q8_0, 2560 to 640, 4.0 us each, 435 GB/s), the SiLU product (1.0), the down product (3.6), the scalar gate's F32 product (1.5), its sigmoid (0.9), the gated product (1.0) and the addition to the routed output (0.9): 0.81 ms of a token over 48 layers, and as many a verify span.\nThe step reads the gate and up rows in one launch with the SiLU product and the down product's Q8 input in its epilogue, as the BF16 gate pair does (bf16GateFusion), and folds the scalar gate's sigmoid, the gated product and the addition into the down product's epilogue; each product sums as mul_mat_q8_0_input_f32 sums it and each epilogue rounds as the kernels it replaces, so the bits are master's.\nEvidence: kernels a layer and the probe's milliseconds a token, plain and speculative, against master, and its decoded texts the same; the fused products against the composed ones on the card, bit for bit.\nServes: throughput.\nBatch: device."
+        },
+        {
+          "id": "expert-doorbell",
+          "title": "Compute a decode step's host-memory experts on the CPU beside the card, as Strata's doorbell does",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "The same trace times the routed expert kernels' launches: moe_hidden_q8_f32 at a median of 20.7 us and a mean of 30.5 (p99 247 us), moe_down_q8_f32 at 14.4 and 21.2 (p99 159). The difference is the launches that read an expert from host memory over the x8 link (about 0.9% of a decode's routes, 1.4 MB of gate and up in about 108 us): 0.8 ms of a plain token, and a verify span's tokens add theirs.\nStrata computes those experts on the CPU while the card computes the rest (src/core/layer.cpp moe_route and its Doorbell, include/strata/core/layer.hpp): after routing, a kernel publishes the token's input, routes and weights to mapped pinned memory and rings a sequence; a CPU pool already spinning on it computes the experts the card lacks and writes their outputs and the ring it served to mapped memory; the combine waits on that flag on the card. Overgo's CPU expert kernels exist (internal/hostexpert, which prompts use); the decode path reads its misses over the link instead. An earlier attempt joined the CPU through host functions in the captured step and lost 3 to 9 ms a token, then hung (the lessons' cuLaunchHostFunc note); the doorbell's thread spins before the step and the card's wait is bounded.\nThe step publishes a decode step's and a verify span's routes the same way, computes their host-memory experts in the hostexpert pool on a spinning thread, has the card's expert kernels skip them, and adds the CPU's outputs in the combine after a bounded wait on the card.\nEvidence: the expert kernels' mean against their median, the probe's milliseconds a token plain and speculative against master, and the held-out part's score with and without (the CPU's sums round differently).\nServes: throughput.\nBatch: device."
+        },
+        {
           "id": "draft-library",
           "title": "Bind Flash-Next's draft to its library entry so every launcher serves it",
           "status": "open",
@@ -527,7 +541,8 @@
             "plan-draft-on-card/do",
             "plan-hc-fusion/do",
             "plan-gdn-fusion/do",
-            "plan-gdn-count/do"
+            "plan-gdn-count/do",
+            "plan-shared-doorbell/do"
           ]
         }
       ]

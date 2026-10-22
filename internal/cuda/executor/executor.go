@@ -2784,16 +2784,8 @@ func (r *executorResources) ensureArena(state *device.State, size uint64) (drive
 	if r.arena != 0 && r.arenaSize >= size {
 		return r.arena, nil
 	}
-	if r.arena != 0 {
-		// Captured graphs address the arena directly; none may replay
-		// over the range being freed.
-		if err := r.graphExecs.drop(state); err != nil {
-			return 0, err
-		}
-		if err := state.Driver.MemFree(r.arena); err != nil {
-			return 0, err
-		}
-		r.arena, r.arenaSize = 0, 0
+	if err := r.releaseArena(state); err != nil {
+		return 0, err
 	}
 	next, err := r.allocate(state, size)
 	if err != nil {
@@ -2802,6 +2794,21 @@ func (r *executorResources) ensureArena(state *device.State, size uint64) (drive
 	r.arena, r.arenaSize = next, size
 	r.arenaUse.growths++
 	return r.arena, nil
+}
+
+// releaseArena frees the arena; captured graphs address it directly, so none may replay over the range freed.
+func (r *executorResources) releaseArena(state *device.State) error {
+	if r.arena == 0 {
+		return nil
+	}
+	if err := r.graphExecs.drop(state); err != nil {
+		return err
+	}
+	if err := state.Driver.MemFree(r.arena); err != nil {
+		return err
+	}
+	r.arena, r.arenaSize = 0, 0
+	return nil
 }
 
 func (e *Executor) closeResources(state *device.State) error {

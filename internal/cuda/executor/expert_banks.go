@@ -71,8 +71,10 @@ func (e *Executor) SetMemoryReserve(reserve func(bytes uint64) error) error {
 	return nil
 }
 
-// ReserveMemory makes room on the card for another owner's allocation of bytes, moving this executor's experts to host
-// memory as its own allocations do; nothing without them.
+// ReserveMemory makes room on the card for another owner's allocation of bytes: an arena a run grew past the last
+// run's needs gives its room first, as the next run allocates its own (a 258,753-token prompt left 19.2 GB idle beside
+// a decode step's), and then this executor's experts move to host memory as its own allocations move them; nothing
+// without experts.
 func (e *Executor) ReserveMemory(ctx context.Context, bytes uint64) error {
 	if e == nil {
 		return nil
@@ -82,8 +84,15 @@ func (e *Executor) ReserveMemory(ctx context.Context, bytes uint64) error {
 	if e.closed || e.resources.experts == nil {
 		return nil
 	}
-	experts := e.resources.experts
-	return e.worker.Do(ctx, func(state *device.State) error { return experts.ReserveExpertMemory(state, bytes) })
+	resources := &e.resources
+	return e.worker.Do(ctx, func(state *device.State) error {
+		if free, _, err := state.Driver.MemInfo(); err == nil && free < bytes && resources.arenaSize > resources.arenaUse.requiredBytes {
+			if err := resources.releaseArena(state); err != nil {
+				return err
+			}
+		}
+		return resources.experts.ReserveExpertMemory(state, bytes)
+	})
 }
 
 // expertUse is what validateExpertUses found of a compiled graph for one source.

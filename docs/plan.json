@@ -213,8 +213,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "gdn-fusion as built adds 2,458 production syntax nodes (the gate's preflight, 2026-10-21): two tensor operations (GatedDeltaConv, GatedDeltaGates) with their builders, layouts, operand positions and coverage rule, their host reference rounding as the composed operations do, the two kernels' launches, and the gated-delta builder's fused preparation beside the composed one, which prompts keep; the row may add 2,458."
+        "nodes": 1318,
+        "reason": "shared-expert as built adds 1,318 production syntax nodes (the gate's preflight, 2026-10-21): the fused Q8_0 launches' frame (their operands, the input's staging and the launch shape), the pair and gated-add launches, the two rewrites with the decode-product rule they share, and the fusion kinds; the row may add 1,318."
       },
       "steps": [
         {
@@ -542,7 +542,8 @@
             "plan-hc-fusion/do",
             "plan-gdn-fusion/do",
             "plan-gdn-count/do",
-            "plan-shared-doorbell/do"
+            "plan-shared-doorbell/do",
+            "plan-shared-count/do"
           ]
         }
       ]

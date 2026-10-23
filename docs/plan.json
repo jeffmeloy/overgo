@@ -217,13 +217,6 @@
       },
       "steps": [
         {
-          "id": "streamfile",
-          "title": "File the prompt stream's measurement",
-          "status": "open",
-          "verify": "go test ./cmd/loophook -run '^TestDoctrineNamesNoPerson$' -count=1",
-          "rationale": "Files the prompt stream's measurement and the doctrine line its record taught.\nServes: the measurement's filing."
-        },
-        {
           "id": "prompt-stream",
           "title": "Stream a long prompt chunk's host experts ahead of their layers, as Strata does",
           "status": "open",

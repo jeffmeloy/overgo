@@ -208,6 +208,20 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "doctrine-persons",
+      "title": "State every doctrine rule as the system's, naming no person as its source",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "State every doctrine rule as the system's, naming no person as its source",
+          "status": "open",
+          "verify": "! grep -q -i -e \"the [o]perator\" -e \"[o]perator's \" -e \"an [o]perator\" -e \"[(][o]wner\" -e \"[o]wner rul\" -e \"[o]wner's \" skill.md cmd/loophook/doctrine.go cmd/longform/main.go cmd/overgodb/rebuild.go docs/plan.json",
+          "rationale": "The system-doctrine landing (682c652) removed the plan's dated attributions but left the doctrine naming a person as a rule's source: skill.md names the person who sets goals 12 times (pushes, boundaries with security settings among them, a Terms entry, scope, decisions only that person makes), the plan's paragraphs and rationales name a person's requirements and decisions, the loop hook's turn contract cites a person's dated rule, and two code comments cite such rules (report 2026-10-23). A rule framed as a person's reads as a preference to cite, not a statement of how the system works to correct on evidence.\nEach such statement is restated as the system's: boundaries (scope, budgets, stops, pushes, downloads, security settings) are inputs the system follows and never changes; a push happens on a request for it; a limit outside the system's authority is recorded as a decision; requirements are stated as the campaign's; replies to a person are plain sentences. The notation's relations become symbols, so no line reads as a person. The MOSS rows keep their own text, which this row does not touch, and decisions keep naming that an outside answer decides them.\nServes: every statement of the doctrine reads as how the system works.\nDisappears: a person as the source of rules in the doctrine, the hook and the comments.\nEvidence: the check refuses every person-framed phrase in skill.md, the hook's contract, the two comments and the plan."
+        }
+      ]
+    },
+    {
       "id": "decode-loop",
       "title": "Port Strata's decode loop as one unit",
       "status": "open",
@@ -476,7 +490,8 @@
             "system-doctrine/do",
             "sqa-oracle/do",
             "tail-off/do",
-            "decode-loop/do"
+            "decode-loop/do",
+            "doctrine-persons/do"
           ]
         }
       ]

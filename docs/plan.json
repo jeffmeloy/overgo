@@ -217,6 +217,13 @@
       },
       "steps": [
         {
+          "id": "promotion-cap",
+          "title": "Move the most used misses to the card, a bounded number a step",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/modeldevice -run Expert -count=1",
+          "rationale": "A per-kernel profile of a Flash-Next agent document turn (system prompt, four tools, a 4,000-token document, 90 to 95% of routed experts on the card): the residency moved about 125 experts a forward, 220 to 340 copies on its stream that ran up to 25 ms against a 21 ms verify, and the step's own copy of its selection waited about 4.6 ms behind them on the copy engine; Strata's adaptive tier moves 2 to 16 experts a window (its log), counting each expert's use, decayed by 0.7 every 4 windows, and moving a candidate used at least twice ahead of the least used, at most 96 a round.\nServes: an expert counts the decode runs that route it, decayed by 0.7 every 4 of them; a miss moves to the card once its count reaches 2, the most used first, at most 64 an advance.\nEvidence: by hand, the same requests in order, admission 2 with 32, 64 and 128 an advance and no admission with 64: agent document turns 53, 62, 69 and 80 tok/s at 64 against 47, 54, 58 and 67 moving every miss, the 16K word list 51 against 49, the 4K word list 78 against 76, the chat after them 83 against 87, every arm within about 5% of the others."
+        },
+        {
           "id": "context-decode",
           "title": "Decode at a 4K to 16K context at Strata's rate",
           "status": "open",

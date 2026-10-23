@@ -208,6 +208,34 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "system-doctrine",
+      "title": "Name the doctrine's rules as the system's",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Name the doctrine's rules as the system's",
+          "status": "open",
+          "verify": "grep -q \"system's doctrine\" skill.md \u0026\u0026 ! grep -q \"operator's rules\" skill.md \u0026\u0026 ! grep -q 'owner rule' cmd/loophook/main.go \u0026\u0026 ! grep -q '(owner, 20' docs/plan.json",
+          "rationale": "The doctrine says what the system does, yet it names its rules as people's: skill.md's file table calls itself the operator's rules, the plan's standing paragraphs attribute requirements to the owner with dates, and the loop hook tells every session a rule is the owner's. A rule held as a person's is cited as authority where it should be corrected on evidence, and a session reads it as someone else's preference rather than how the system works. The review of the record before a plan update, which found lessons recorded in memory and never applied at their decision points, is likewise the system's practice and belongs in the doctrine every session and the loop read.\nServes: the doctrine names its rules as the system's, which every session and the loop follow and correct on evidence, the operator setting goals, budgets and stops; every plan update reviews the record and applies its patterns; two builds' timings alternate them over at least three rounds.\nDisappears: the people's attributions in skill.md, the plan's standing paragraphs and the loop hook's messages.\nEvidence: skill.md, docs/plan.json and cmd/loophook read without them.\n\nThe review's patterns change the doctrine as well as the plan: where the record shows a rule the system should hold (a comparison protocol, a check to run before a landing), the plan update edits skill.md in the same landing, and keeping the doctrine current is part of the lead's role, as ranking the plan is."
+        }
+      ]
+    },
+    {
+      "id": "device-lane-reach",
+      "title": "Run the device tests whose binaries import a changed package",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Run the device tests whose binaries import a changed package",
+          "status": "open",
+          "verify": "go test ./internal/devicescope -run '^TestPlanForReachesImportingTests$' -count=1 -v 2\u003e\u00261 | grep -q -- '--- PASS: TestPlanForReachesImportingTests'",
+          "rationale": "A change in a package outside the device scopes reaches the device lane through a test binary that imports it (the gate's lane reach includes test imports), but the lane's own plan (devicescope.PlanFor) selects only the scopes that hold a changed path or own a changed kernel function, so the tests that reached it never run: a residency change in internal/modeldevice (on-demand staging) broke two internal/cuda/executor tests whose binaries import it, and they failed only when a later landing changed the executor, a day after.\nServes: a landing runs every device test whose package or test binary imports a changed package, so a change's breakage is refused in its own landing.\nDisappears: the run of dependents' device tests by hand before a landing.\nEvidence: a devicescope test plans a changed internal/modeldevice path into the executor's device tests."
+        }
+      ]
+    },
+    {
       "id": "flashnext-efficiency",
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",
@@ -221,7 +249,7 @@
           "title": "Read a 16K prompt and the agent's first turn at Strata's rate",
           "status": "open",
           "verify": "false",
-          "rationale": "Strata's bench suite on this PC (2026-10-23, after expert-profile, pool-share, draft-prompt and tail-skip): a fresh 16K-token prompt answers its first token in 6.5 s (2,510 tok/s) against Strata's 4.89 s (3,365 tok/s), and the agent session's first turn (645 tokens with tool definitions) in 0.99 s against 0.83; the 4K prompt already answers sooner (1.86 s against 2.22). A prompt chunk of 8,192 tokens routes most of a layer's experts many times, so each expert in host memory is copied to the card for the chunk (about 160 us an expert over the link, moe_host.go hostExpertSlots), where Strata streams those experts on a copy ring beside the chunk's products (prefill.cpp, stream_all_min_tokens).\nServes: a 16K prompt's first token and the agent's first turn no later than Strata's.\nFirst: the 16K read's phases by chunk (the products, the experts' copies and how much of them overlaps the products) against STRATA_PREFILL_TIMING on the same token ids, and the agent first turn's split between reading and decoding.\nEvidence: the suite's 16K and agent first-turn medians on both engines.\nVerify: set with -setverify once the measured cause is known; false until then."
+          "rationale": "Strata's bench suite on this PC (2026-10-23, after expert-profile, pool-share, draft-prompt and tail-skip): a fresh 16K-token prompt answers its first token in 6.5 s (2,510 tok/s) against Strata's 4.89 s (3,365 tok/s), and the agent session's first turn (645 tokens with tool definitions) in 0.99 s against 0.83; the 4K prompt already answers sooner (1.86 s against 2.22). A prompt chunk of 8,192 tokens routes most of a layer's experts many times, so each expert in host memory is copied to the card for the chunk (about 160 us an expert over the link, moe_host.go hostExpertSlots), where Strata streams those experts on a copy ring beside the chunk's products (prefill.cpp, stream_all_min_tokens).\nServes: a 16K prompt's first token and the agent's first turn no later than Strata's.\nFirst: the 16K read's phases by chunk (the products, the experts' copies and how much of them overlaps the products) against STRATA_PREFILL_TIMING on the same token ids, and the agent first turn's split between reading and decoding.\nEvidence: the suite's 16K and agent first-turn medians on both engines.\nVerify: set with -setverify once the measured cause is known; false until then.\n\nReviewed 2026-10-23 before this plan update: the large gains of the campaign came from requests or bytes that missed the fast path (tool requests that never speculated, card memory withheld from experts), while most kernel fusions and tunings were retired. So the step's first measurement is a fast-path audit of the 16K and agent first-turn requests: whether each reads on the device in 8,192-token chunks, which experts each chunk copies and which it computes on the CPU, how long the copies wait and whether they overlap the products; only then the phases against STRATA_PREFILL_TIMING."
         },
         {
           "id": "context-decode",
@@ -439,7 +467,9 @@
             "verify-indexer/do",
             "moe-events/do",
             "verify-states/do",
-            "served-speculation/do"
+            "served-speculation/do",
+            "device-lane-reach/do",
+            "system-doctrine/do"
           ]
         }
       ]

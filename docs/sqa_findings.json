@@ -1616,6 +1616,53 @@
     "agent": "Overgo lead developer in the former SQA chat",
     "comments": [
       {
+        "comment": "Landed with sqa-oracle/do. maxAbsDifference fails a NaN difference with its index and values before it updates the maximum, and treats equal values (an infinity among them) as no difference; compare reuses it in place of its own loop, so both owners and the doorbell tests' bounds, which call maxAbsDifference first, refuse an unexpected NaN. compareBits keeps its admitted NaN and Inf payloads. TestNumericalComparisonsRejectNaN substitutes a NaN into a finite fixture through both callers (got and reference) and keeps finite boundary, above-bound and equal-infinity cases; disabling the guard fails its three NaN cases. The executor's device tests pass with the guard.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestNumericalComparisonsRejectNaN",
+          "internal/cuda/executor/executor_compare_windows_test.go maxAbsDifference, compare"
+        ],
+        "finding_id": "SQA-189",
+        "plan_steps": [
+          "sqa-oracle/do"
+        ]
+      },
+      {
+        "comment": "Landed with sqa-oracle/do. The eight device-sized allocate-and-release requests and their free-byte bound are gone; the class-reuse rounds and the derived free limit remain as TestDeviceBufferPoolReusesClasses, and TestDeviceBufferPoolReleaseBound and TestDeviceBufferPoolCapacityRefusalReclaimsIdle are unchanged.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestDeviceBufferPoolReusesClasses",
+          "TestDeviceBufferPoolReleaseBound"
+        ],
+        "finding_id": "SQA-201",
+        "plan_steps": [
+          "sqa-oracle/do"
+        ]
+      },
+      {
+        "comment": "Landed with sqa-oracle/do. DeviceTensorBinder moved unchanged into device_weights.go, BindDeviceLayerGraphInputs calls model.BindLayerGraphInventory with the same callback, and bindDeviceLayerGraphFields and layer_binding.go are deleted; validation order, error propagation and feed order are unchanged.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestBindDeviceLayerGraphInputsPreservesStorageTypes"
+        ],
+        "finding_id": "SQA-203",
+        "plan_steps": [
+          "sqa-oracle/do"
+        ]
+      },
+      {
+        "comment": "The tail skip stays as the port of Strata's default (STRATA_ROUTE_TAIL_SKIP 7) and keeps the collision case. Its supported domain is decided by the parity step's held-out comparison: Flash-Next's IFEval 300 per prompt with the skip and without it (doorbellTailRank 0), kept only where per-prompt outcomes and the aggregate show no loss beyond the run-to-run spread; otherwise every hosted contribution is restored through the existing owner.",
+        "disposition": "deferred",
+        "evidence": [
+          "014f69850ec252e6a6426ced7033c5c660d18c5f",
+          "TestDecodeHostExpertsSkipTheTail"
+        ],
+        "finding_id": "SQA-202",
+        "plan_steps": [
+          "flashnext-efficiency/parity"
+        ]
+      },
+      {
         "comment": "Landed 414840f0605560d4f4ebc01faddc1f45b9bf2c39. Failed startup closes its unpublished log directly. Close checks closed state before nonblocking optional checkpoint admission and holds the existing local mutex through cleanup. The pre-fix diagnostic captured cancelled replay and contended Close blocked in AcquireContext; both regression cases pass after the repair. First and repeated Close release the actual log handle while preserving foreign ownership and committed data. Existing checkpoint-tail, refresh and transaction tests remain. Gate measured +15 production AST nodes and +456 test nodes with no fixture, schema or framework additions. The test growth buys previously missing cancellation and resource-lifetime coverage; it is not a simplification claim. A contended close can leave more replay work for the next open.",
         "disposition": "implemented",
         "evidence": [

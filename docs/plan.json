@@ -208,20 +208,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "sqa-oracle",
-      "title": "Fail an unexpected NaN in the CUDA numerical checks and drop two redundant surfaces",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Fail an unexpected NaN in the CUDA numerical checks and drop two redundant surfaces",
-          "status": "open",
-          "verify": "go test ./internal/cuda/executor -run '^TestNumericalComparisonsRejectNaN$' -count=1",
-          "rationale": "SQA-189 (P2, confirmed): the executor's shared numerical comparisons (compare, maxAbsDifference in executor_compare_windows_test.go) and the doorbell tests' maximum and mean bounds pass a NaN difference, because NaN fails no greater-than test; the prompt-read and decode steps after this one change kernels and copies whose acceptance is exactly these checks. maxAbsDifference rejects a NaN difference with its index and values, compare reuses it in place of its own loop, and compareBits keeps its admitted NaN and Inf payloads; a bounded NaN substitution in an existing finite fixture is refused through both callers.\nSQA-201 (P3): TestDeviceBufferPoolReusesClassesAndTrims ends with eight device-sized allocate-and-release requests that on this card round to one class and prove nothing TestDeviceBufferPoolReleaseBound does not; the tail goes, the class reuse and the default limit stay.\nSQA-203 (P3): bindDeviceLayerGraphFields has one caller (BindDeviceLayerGraphInputs); it is inlined into its caller in internal/modeldevice.\nServes: an unexpected NaN fails the CUDA numerical checks the efficiency steps rely on, with less test and adapter surface.\nDisappears: the NaN-blind comparison loop duplicated in compare, the device-sized trim tail, the one-caller adapter.\nEvidence: the new NaN test; the executor lane, which a modeldevice change now reaches.\nBatch: the three share one executor device-lane run."
-        }
-      ]
-    },
-    {
       "id": "flashnext-efficiency",
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",

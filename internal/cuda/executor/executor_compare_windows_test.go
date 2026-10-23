@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"runtime"
 	"testing"
 
 	"overgo/internal/cuda/device"
@@ -500,15 +501,10 @@ func patternedValue(shape tensor.Shape, seed int, scale, bias float32) reference
 	return value
 }
 
-func compare(t *testing.T, got, want []float32, tolerance float64) {
+func compare(t testing.TB, got, want []float32, tolerance float64) {
 	t.Helper()
-	if len(got) != len(want) {
-		t.Fatalf("length = %d, want %d", len(got), len(want))
-	}
-	for index := range want {
-		if difference := math.Abs(float64(got[index] - want[index])); difference > tolerance {
-			t.Fatalf("value[%d] = %v, want %v (difference %g)", index, got[index], want[index], difference)
-		}
+	if difference, at := maxAbsDifference(t, got, want); difference > tolerance {
+		t.Fatalf("value[%d] = %v, want %v (difference %g)", at, got[at], want[at], difference)
 	}
 }
 
@@ -527,6 +523,9 @@ func compareBits(t *testing.T, got, want []float32) {
 	}
 }
 
+// maxAbsDifference is the largest difference between got and want and where
+// it lies. A NaN difference fails, as no tolerance bound would catch it; equal
+// values, infinities among them, differ by nothing.
 func maxAbsDifference(t testing.TB, got, want []float32) (float64, int) {
 	t.Helper()
 	if len(got) != len(want) {
@@ -534,10 +533,60 @@ func maxAbsDifference(t testing.TB, got, want []float32) (float64, int) {
 	}
 	maximum, at := float64(0), -1
 	for index := range want {
+		if got[index] == want[index] {
+			continue
+		}
 		difference := math.Abs(float64(got[index] - want[index]))
+		if math.IsNaN(difference) {
+			t.Fatalf("value[%d] = %v, want %v (difference NaN)", index, got[index], want[index])
+		}
 		if difference > maximum {
 			maximum, at = difference, index
 		}
 	}
 	return maximum, at
+}
+
+// TestNumericalComparisonsRejectNaN holds that the shared comparisons refuse
+// an unexpected NaN, which passes every tolerance bound, while equal values
+// (an infinity among them) and a difference inside the tolerance pass.
+func TestNumericalComparisonsRejectNaN(t *testing.T) {
+	want := []float32{1, float32(math.Inf(1)), 3}
+	nan := []float32{1, float32(math.Inf(1)), float32(math.NaN())}
+	for _, check := range []struct {
+		name string
+		run  func(testing.TB)
+		fail bool
+	}{
+		{"maxAbsDifference NaN", func(tb testing.TB) { maxAbsDifference(tb, nan, want) }, true},
+		{"compare NaN", func(tb testing.TB) { compare(tb, nan, want, accuracyExact) }, true},
+		{"compare NaN reference", func(tb testing.TB) { compare(tb, want, nan, accuracyExact) }, true},
+		{"compare within tolerance", func(tb testing.TB) { compare(tb, []float32{1, float32(math.Inf(1)), 3.5}, want, 1) }, false},
+		{"compare beyond tolerance", func(tb testing.TB) { compare(tb, []float32{1, float32(math.Inf(1)), 5}, want, 1) }, true},
+	} {
+		recorder := &fatalRecorder{TB: t}
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			check.run(recorder)
+		}()
+		<-done
+		if recorder.failed != check.fail {
+			t.Errorf("%s failed %t, want %t", check.name, recorder.failed, check.fail)
+		}
+	}
+}
+
+// fatalRecorder records a fatal failure and ends the goroutine it was reported
+// on, as testing.T does, without failing the test that holds it.
+type fatalRecorder struct {
+	testing.TB
+	failed bool
+}
+
+func (r *fatalRecorder) Helper() {}
+
+func (r *fatalRecorder) Fatalf(string, ...any) {
+	r.failed = true
+	runtime.Goexit()
 }

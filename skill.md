@@ -16,13 +16,13 @@ description: The rules for Overgo development, written as one logical statement 
 - `go run ./cmd/loop -improve` = measure -> publish the scorecard -> file each regression as a row
 - `master` takes landings
 - local `main` = GitHub staging, which nothing reads
-- push <=> the operator asked
+- push <=> a request to push, never the system's own initiative
 - this file and the plan's standing paragraphs = the system's doctrine
 - doctrine = how the system works, which every session and the loop follow and correct on evidence
-- doctrine != the operator's preferences and != any person's rules
+- doctrine != any person's preferences or rules
 - a rule that evidence shows costly or wrong => correct it in the doctrine != cite it as authority
 - humans or models propose
-- the operator sets goals, budgets and stops
+- goals, budgets and stops = inputs the system follows (the plan's intent, resource ceilings, a recorded stop) and never sets itself
 - executable policy admits and activates
 - OvergoDB holds state
 - the plan holds implementation
@@ -35,8 +35,8 @@ description: The rules for Overgo development, written as one logical statement 
 - never hedge a change with flags or shims
 - never defer a change for fear of breaking what the framework checks
 - refused landing = information != failure
-- ambition governs the code and never the operator's boundaries
-- scope, budgets, stops, pushes, downloads and security settings = the operator's
+- ambition governs the code and never the system's boundaries
+- boundaries = scope, budgets, stops, pushes, downloads and security settings, which the system follows and never changes
 - keep correctness and quality
 - simpler implementation > larger one
 - ambition = size of the gain != size of the change
@@ -45,7 +45,6 @@ description: The rules for Overgo development, written as one logical statement 
 
 A term used in this file is plain English or is defined here.
 
-- operator = the person who sets goals, budgets and stops
 - lead = the session that holds the main checkout, ranks the plan and keeps the doctrine current
 - session = one running agent
 - row = one unit of work in `docs/plan.json`
@@ -66,7 +65,7 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 - writing = objective logic != shortened prose
 - one statement per line
 - statement = subject + relation + object
-- relation = one operator from the table or one plain verb
+- relation = one symbol from the table or one plain verb
 - colon or semicolon never joins two clauses because it hides the relation
 - colon allowed <=> inside code, a path, a time, a quotation, or after a field label a tool requires (`Cause:`)
 - statement cannot name its relation => find what it claims or delete it
@@ -81,7 +80,7 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 - unnecessary = a word, clause or entry whose removal changes nothing a reader does
 - redundant = stated twice, or already told by the code or a command's help or Git or the plan
 - each rule has one home
-- reply to the operator = plain standard English sentences != this notation
+- reply to a person = plain standard English sentences != this notation
 
 | Write | Read as |
 | --- | --- |
@@ -148,7 +147,7 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 
 ## Autonomous feedback
 
-- stay inside the operator's scope and resource ceilings
+- stay inside the scope and resource ceilings the inputs set
 - robustness governs autonomy
 - efficiency guides selection
 - runs, regressions, failures and recurring costs -> durable obligations
@@ -218,6 +217,7 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 - batch surface moves
 - landing grows its row past its count => raises the count with a reason in its own plan edit (gate rule)
 - step's check that refuses text in `docs/plan.json` => its pattern never matches itself, because the plan stores the check
+- correction of a kind of error => its check refuses the kind wherever the doctrine lives, never only the instance reported
 - step's check that runs `go test` = the bare command with an anchored `-run`, never piped, because the verifier reads its test events
 - filing a check => run it once (`plan -verify`): it fails as a test or names a test not yet written, never vacuous by its form (a pipe, a wrong package), because a landing is judged by the check its row held before it
 - land before an evaluation run
@@ -382,14 +382,14 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 ### Cleanup
 
 - cleanup = deterministic code
-- cleanup != a model's judgement and != a question to the operator
+- cleanup != a model's judgement and != a question to a person
 - every place => a rule that ends in keep or delete
 - entry kept <=> named by the store or a committed file or an open plan row or a running process
 - entry not kept and its run's record landed => deleted
 - command that makes leftovers => deletes them when it writes its record
-- decision only the operator can make (a branch is retired) => recorded once as data -> code acts on it
+- decision outside the system's authority (a branch is retired) => recorded once as data -> code acts on it
 - cleanup request met <=> bytes or files or code are gone
-- tooling, a plan row or a command handed back to the operator != cleanup
+- tooling, a plan row or a command handed back to a person != cleanup
 - campaign close-out refused <=> a deletable entry remains
 - fixture => named by a test
 

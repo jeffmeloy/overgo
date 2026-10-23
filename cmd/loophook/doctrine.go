@@ -61,9 +61,8 @@ STOPS. The Stop gate protects WORK and the LOOP: it blocks a turn-end that
 would orphan turn-created uncommitted work (commit through the gate or
 revert), and it blocks a turn-end while the plan holds ANY open row -- a
 landed commit is necessary progress, never a sanctioned end; the loop runs
-until the plan is EMPTY. A prompt from the user NEVER pauses the loop (owner
-rule 2026-08-20): answer it, then continue the dispatched row in the same
-turn. The one sanctioned pause is an explicit user stop, recorded with
+until the plan is EMPTY. A prompt from the user NEVER pauses the loop (system
+doctrine): answer it, then continue the dispatched row in the same turn. The one sanctioned pause is an explicit user stop, recorded with
 go run ./cmd/plan -stop <user-stop|irreversible|external-prereq>:<detail>.
 For unattended continuity run go run ./cmd/loop.
 

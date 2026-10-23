@@ -208,20 +208,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "tail-off",
-      "title": "Compute every routed slot, as Strata's measured configuration does",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Compute every routed slot, as Strata's measured configuration does",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestDecodeHostExpertsComputeEveryRank$' -count=1",
-          "rationale": "The tail skip (fbcc552, made per slot in 014f698) was ported as Strata's served default, its landing stating that Strata's bench figures for this model ran with it. They did not: Strata's setup writes STRATA_ROUTE_TAIL_SKIP=0 into a model's run configuration wherever every expert fits in host memory, \"the skip costs KL there\" (setup.py unsloth_default_env), and the configuration its bench figures on this PC ran under, strata-unsloth-ud-iq4_xs.json, holds it; its log has no line of the skip being on. The engine's default (generate.cpp, on under 90% of experts cached) applies only to Strata's RAM-budget mode, which Overgo does not have. So every Strata figure the parity rows compare against computes the full mixture, while our decode drops hosted experts at ranks 7 to 9, an approximation SQA-202 asks to qualify or remove.\nThe doorbell computes every routed slot again: moe_doorbell_tail, the descriptor's tail rank and doorbellTailRank go, the descriptor word returns to padding, and TestDecodeHostExpertsSkipTheTail becomes TestDecodeHostExpertsComputeEveryRank, a top-10 group whose host experts at ranks 7 to 9 reach the full layer's output. The kernels, manifest, bindings and SBOM are regenerated.\nServes: decode computes the same mixture Strata's measured configuration computes, and speculation keeps plain decoding's text with no rank rule.\nDisappears: the tail rank, its kernel test and its descriptor field.\nEvidence: the doorbell test; the bench's decode cells against the build with the skip (fbcc552 measured chat 108.6 tok/s with it against 104.3 without, a deliberate return); Flash-Next's IFEval 300, plain and speculating."
-        }
-      ]
-    },
-    {
       "id": "flashnext-efficiency",
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",

@@ -219,7 +219,7 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 - landing grows its row past its count => raises the count with a reason in its own plan edit (gate rule)
 - step's check that refuses text in `docs/plan.json` => its pattern never matches itself, because the plan stores the check
 - step's check that runs `go test` = the bare command with an anchored `-run`, never piped, because the verifier reads its test events
-- filing a check => run it once (`plan -verify`) and see it fail as a test, never as vacuous, because a landing is judged by the check its row held before it
+- filing a check => run it once (`plan -verify`): it fails as a test or names a test not yet written, never vacuous by its form (a pipe, a wrong package), because a landing is judged by the check its row held before it
 - land before an evaluation run
 - native `go test` selects
 - lane's selection = every package whose test binary compiles a changed package, read from what the binary compiles (all its test files, every package under a recursive pattern), never from a proxy (production imports, a pattern's top directory)
@@ -306,6 +306,7 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 - ceiling within the measurement's spread => the row is not built and records its ceiling
 - speed rows ranked by the measured gap against the reference, phase by phase on the same inputs != by estimates
 - port a reference's mechanism <=> its costs measure the same here (hit rates, link, launches, CPU time)
+- port a reference's default or compare against its figures => read the configuration those figures ran under (its setup's defaults, launch arguments, environment), never its engine's default alone, because a default the measured configuration turns off adds work or an approximation the figures never paid for
 - A/B = one loaded model, forced token ids, interleaved arms > a reload and free-running text an arm
 - probe or benchmark built from stale derived files (kernels, bindings, manifests) => refused before it runs
 - rare-path work (a handshake, a fallback) => folded into kernels that run anyway > a launch of its own

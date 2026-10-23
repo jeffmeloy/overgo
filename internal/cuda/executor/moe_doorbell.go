@@ -68,13 +68,6 @@ const (
 )
 
 const (
-	// doorbellTailRank is the rank from which a slot's expert on host is neither computed nor added for the slot's
-	// token, its contribution zero, as Strata's serve skips such an expert (STRATA_ROUTE_TAIL_SKIP=7, on by default on
-	// CUDA with under 90% of the experts on the card: +10 to 20% decode on cards that miss experts, answers moving by
-	// KL 0.003 to 0.006); the token's own rank decides, so a verify window computes each token as decoding it alone
-	// does; doorbellTailShift places it above the down products' finished count.
-	doorbellTailRank  = 7
-	doorbellTailShift = 32
 	// doorbellHostSlot marks a handed-over slot of an expert the CPU computes, the CUDA MOE_DOORBELL_HOST_SLOT.
 	doorbellHostSlot = uint32(1) << 31
 	// doorbellSlots is the most routed slots a group hands over, the CUDA MOE_DOORBELL_SLOTS.
@@ -109,9 +102,8 @@ func (d *moeDoorbell) ensure(state *device.State, slots, width uint64) error {
 	}
 	idsAt := mapped + doorbellWordCount*driver.DevicePtr(unsafe.Sizeof(uint32(0)))
 	rowsAt := idsAt + driver.DevicePtr(idBytes)
-	// The CUDA moe_doorbell: three counts, each zero at first, and the tail rank in two eight-byte fields, then the four
-	// addresses.
-	fields := []uint64{0, uint64(doorbellTailRank) << doorbellTailShift, uint64(mapped), uint64(idsAt), uint64(rowsAt), uint64(rowsAt) + rowBytes}
+	// The CUDA moe_doorbell: four counts, each zero at first, in two eight-byte fields, then the four addresses.
+	fields := []uint64{0, 0, uint64(mapped), uint64(idsAt), uint64(rowsAt), uint64(rowsAt) + rowBytes}
 	descriptor, err := state.Driver.MemAlloc(uint64(len(fields)) * uint64(unsafe.Sizeof(uint64(0))))
 	if err == nil {
 		if err = state.Driver.MemcpyHtoD(descriptor, driver.Bytes(fields)); err != nil {

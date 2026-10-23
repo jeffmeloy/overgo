@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"overgo/internal/cuda/device"
-	"overgo/internal/cuda/driver"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
@@ -111,101 +110,82 @@ func TestDecodeHostExpertsRingTheDoorbell(t *testing.T) {
 	}
 }
 
-// TestDecodeHostExpertsSkipTheTail holds a captured decode step's slots that route an expert on host at the tail rank
-// or lower to no contribution, as Strata's tail skip drops them: four selected experts a token, token t's slot s
-// routing expert (t + 3s) mod the experts, unnormalized, so the step equals the same layer with its top k the tail
-// rank, the card holding expert 0 of each bank. With a tail rank of two each token hands the CPU its expert at slot 1
-// alone; with one, only the card's expert 0 is computed and a token hands the CPU nothing. Over eight experts token 0's
-// slot 3 and token 1's slot 0 route the same expert, which token 1 computes and token 0 still drops, as alone.
-func TestDecodeHostExpertsSkipTheTail(t *testing.T) {
+// TestDecodeHostExpertsComputeEveryRank holds a captured decode step at Flash-Next's top 10 to the full layer, as
+// Strata's measured configuration computes it (STRATA_ROUTE_TAIL_SKIP=0): token t's slot s routes expert (t + 3s) mod
+// 48, unnormalized, the card holding expert 0 of each bank, and every slot of an expert on host, its lowest ranks
+// too, goes to the CPU and is added.
+func TestDecodeHostExpertsComputeEveryRank(t *testing.T) {
 	const (
 		pointerBytes, slotAlignment     = 8, 256
 		hostShareLargest, hostShareMean = 0.02, 0.005
-		// tailRankOffset is the tail rank's place in the CUDA moe_doorbell, after three counts.
-		tailRankOffset = 12
+		// topK is Flash-Next's routed experts a token.
+		topK = 10
 	)
-	for _, tail := range []uint32{1, 2} {
-		for _, group := range []struct{ tokens, experts uint64 }{{1, 48}, {3, 48}, {2, 8}} {
-			tokens := group.tokens
-			t.Run(fmt.Sprintf("tail-%d-tokens-%d-experts-%d", tail, tokens, group.experts), func(t *testing.T) {
-				banks := [3]dtype.Type{dtype.IQ4XS, dtype.IQ4XS, dtype.IQ4NL}
-				c := moePinnedCase{
-					name: "doorbell-tail", compute: tensor.MulMatComputeNativeTensorCore,
-					hidden: 512, routerHidden: 512, intermediate: 128, experts: group.experts, divisor: 1, topK: tail,
-					routing: tensor.MoERoutingSoftmax, activation: tensor.MoEActivationSiLU, scale: 1.25,
-					banks: banks, tokens: tokens, selected: true, reference: true,
-				}
-				_, want := c.run(t, newFixtureExecutor(t), dtype.F32)
-				limit := 3 * c.experts * pointerBytes
-				for index, shape := range []tensor.Shape{tensor.MustShape(c.hidden, c.intermediate), tensor.MustShape(c.hidden, c.intermediate), tensor.MustShape(c.intermediate, c.hidden)} {
-					expert, err := shape.Bytes(banks[index])
-					if err != nil {
-						t.Fatal(err)
-					}
-					limit += (expert + slotAlignment - 1) / slotAlignment * slotAlignment
-				}
-				cuda := newFixtureExecutor(t)
-				c.topK, c.offload, c.limit, c.reference = 4, true, limit, false
-				output, host, cardFeeds, _ := c.prepare(t, cuda, dtype.F32)
-				compiled, inputs, err := compileDeviceFeeds([]*tensor.Tensor{output}, cardFeeds)
+	for _, tokens := range []uint64{1, 3} {
+		t.Run(fmt.Sprintf("tokens-%d", tokens), func(t *testing.T) {
+			banks := [3]dtype.Type{dtype.IQ4XS, dtype.IQ4XS, dtype.IQ4NL}
+			c := moePinnedCase{
+				name: "doorbell-ranks", compute: tensor.MulMatComputeNativeTensorCore,
+				hidden: 512, routerHidden: 512, intermediate: 128, experts: 48, divisor: 1, topK: topK,
+				routing: tensor.MoERoutingSoftmax, activation: tensor.MoEActivationSiLU, scale: 1.25,
+				banks: banks, tokens: tokens, selected: true, reference: true,
+			}
+			_, want := c.run(t, newFixtureExecutor(t), dtype.F32)
+			limit := 3 * c.experts * pointerBytes
+			for index, shape := range []tensor.Shape{tensor.MustShape(c.hidden, c.intermediate), tensor.MustShape(c.hidden, c.intermediate), tensor.MustShape(c.intermediate, c.hidden)} {
+				expert, err := shape.Bytes(banks[index])
 				if err != nil {
 					t.Fatal(err)
 				}
-				var got []float32
-				for run := range 2 {
-					if run == 1 {
-						if err := compiled.ReadBack(output); err != nil {
-							t.Fatal(err)
-						}
-						doorbell := &cuda.resources.blas.doorbell
-						if err := cuda.worker.Do(t.Context(), func(state *device.State) error {
-							return state.Driver.MemcpyHtoD(doorbell.descriptor+tailRankOffset, driver.Bytes([]uint32{tail}))
-						}); err != nil {
-							t.Fatal(err)
-						}
-					}
-					retained, err := cuda.ExecuteRetainedCompiled(t.Context(), compiled, host, inputs, nil, nil)
-					if err != nil {
+				limit += (expert + slotAlignment - 1) / slotAlignment * slotAlignment
+			}
+			cuda := newFixtureExecutor(t)
+			c.offload, c.limit, c.reference = true, limit, false
+			output, host, cardFeeds, _ := c.prepare(t, cuda, dtype.F32)
+			compiled, inputs, err := compileDeviceFeeds([]*tensor.Tensor{output}, cardFeeds)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got []float32
+			for run := range 2 {
+				if run == 1 {
+					if err := compiled.ReadBack(output); err != nil {
 						t.Fatal(err)
 					}
-					value, copyErr := retained.CopyToHost(t.Context(), output)
-					if err := retained.Release(t.Context()); err != nil {
-						t.Fatal(err)
-					}
-					if copyErr != nil {
-						t.Fatal(copyErr)
-					}
-					got = value.Data
 				}
-				// A slot goes to the CPU where its rank is below the tail and its expert is on host.
-				doorbell := &cuda.resources.blas.doorbell
-				work := false
-				hostSlot := func(slot uint32) bool {
-					token, rank := uint64(slot/4), slot%4
-					return rank < tail && (token+3*uint64(rank))%c.experts != 0
+				retained, err := cuda.ExecuteRetainedCompiled(t.Context(), compiled, host, inputs, nil, nil)
+				if err != nil {
+					t.Fatal(err)
 				}
-				for slot := range uint32(tokens) * 4 {
-					work = work || hostSlot(slot)
+				value, copyErr := retained.CopyToHost(t.Context(), output)
+				if err := retained.Release(t.Context()); err != nil {
+					t.Fatal(err)
 				}
-				if handed := atomic.LoadUint32(&doorbell.words[doorbellWork]) != 0; handed != work {
-					t.Fatalf("the step handed the CPU work %t, want %t", handed, work)
+				if copyErr != nil {
+					t.Fatal(copyErr)
 				}
-				for slot := range uint32(tokens) * 4 {
-					if flagged := doorbell.ids[slot]&doorbellHostSlot != 0; work && flagged != hostSlot(slot) {
-						t.Fatalf("token %d's slot %d handed to the CPU %t", slot/4, slot%4, flagged)
-					}
+				got = value.Data
+			}
+			doorbell := &cuda.resources.blas.doorbell
+			if atomic.LoadUint32(&doorbell.words[doorbellWork]) == 0 {
+				t.Fatal("no ring handed the CPU an expert on host")
+			}
+			for slot := range uint32(tokens) * topK {
+				hosted := (uint64(slot/topK)+3*uint64(slot%topK))%c.experts != 0
+				if flagged := doorbell.ids[slot]&doorbellHostSlot != 0; flagged != hosted {
+					t.Fatalf("token %d's slot %d handed to the CPU %t, want %t", slot/topK, slot%topK, flagged, hosted)
 				}
-				difference, at := maxAbsDifference(t, got, want)
-				var scale, mean float64
-				for index := range want {
-					scale = max(scale, math.Abs(float64(want[index])))
-					mean += math.Abs(float64(got[index] - want[index]))
-				}
-				if mean /= float64(len(want)); difference > hostShareLargest*scale || mean > hostShareMean*scale {
-					t.Fatalf("largest difference from the top-%d layer %g at %d (value %g), mean %g, largest value %g", tail, difference, at, want[at], mean, scale)
-				}
-			})
-		}
+			}
+			difference, at := maxAbsDifference(t, got, want)
+			var scale, mean float64
+			for index := range want {
+				scale = max(scale, math.Abs(float64(want[index])))
+				mean += math.Abs(float64(got[index] - want[index]))
+			}
+			if mean /= float64(len(want)); difference > hostShareLargest*scale || mean > hostShareMean*scale {
+				t.Fatalf("largest difference from the full layer %g at %d (value %g), mean %g, largest value %g", difference, at, want[at], mean, scale)
+			}
+		})
 	}
 }
 

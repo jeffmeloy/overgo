@@ -50,11 +50,6 @@ func (d *fakeExpertDevice) copyToCard(ctx context.Context, _ driver.Stream, dest
 	return nil
 }
 
-func (d *fakeExpertDevice) copyToHost(ctx context.Context, _ driver.Stream, destination []byte, source driver.DevicePtr) error {
-	d.queued = append(d.queued, func() error { return d.read(ctx, destination, source) })
-	return nil
-}
-
 func (d *fakeExpertDevice) copied(_ context.Context, _ driver.Stream, wait bool) (bool, error) {
 	if d.hold && !wait {
 		return false, nil
@@ -101,12 +96,6 @@ func (d *fakeExpertDevice) hostFree(data []byte) error {
 	delete(d.pinned, &data[0])
 	delete(d.live, pointer)
 	return nil
-}
-
-func (d *fakeExpertDevice) read(_ context.Context, data []byte, source driver.DevicePtr) error {
-	held, err := d.at(source, uint64(len(data)))
-	copy(data, held)
-	return err
 }
 
 // onDevice runs residency work on the fake directly, where a worker would run
@@ -253,9 +242,38 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		if err != nil || placement != want {
 			t.Fatalf("placement = %+v, want %+v: %v", placement, want, err)
 		}
+		// Every expert keeps its bytes in pinned host memory, those on the card too.
 		all, _ := open(t, tableBytes+experts*(gateStride+downStride))
-		if len(all.pinned) != 1 || all.cardExperts() != 2*experts {
-			t.Fatal("a limit that holds every expert left one in host memory")
+		if len(all.pinned) != 3 || all.cardExperts() != 2*experts {
+			t.Fatal("a limit that holds every expert left one in host memory or kept no host copies")
+		}
+	})
+	t.Run("every-expert-keeps-its-host-copy", func(t *testing.T) {
+		// Each expert's bytes lie in pinned host memory, a card expert's too, so releasing the card's allocations moves
+		// every expert to its host copy with nothing pinned or copied back.
+		cache, mem := open(t, tableBytes+2*(gateStride+downStride))
+		for _, name := range names {
+			bank := cache.banks[name]
+			for index := range uint32(experts) {
+				host := bank.hosted[index]
+				if bank.entries[index] != nil {
+					host = bank.home[index].host
+				}
+				start := uint64(index) * bank.bytes
+				if len(host) < int(bank.bytes) || !bytes.Equal(host[:bank.bytes], f.payloads[name][start:start+bank.bytes]) {
+					t.Fatalf("%s expert %d keeps no host copy of its bytes", name, index)
+				}
+			}
+		}
+		pinned := len(cache.pinned)
+		for len(cache.cards) > 0 {
+			if err := cache.release(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		readable(t, cache, mem, map[string][]uint32{})
+		if len(cache.pinned) != pinned {
+			t.Fatalf("releasing the card pinned %d more allocations", len(cache.pinned)-pinned)
 		}
 	})
 	t.Run("routes-promote-between-runs", func(t *testing.T) {
@@ -265,29 +283,27 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		if mem.writes != writes {
 			t.Fatal("a run that routed nothing moved experts")
 		}
-		// A miss is counted; its second, with nothing staged, stays in host memory and stages the coldest card expert, 0,
-		// beside the next run.
+		// A miss is counted; its second takes the slot of the coldest card expert, 0, which reads its host copy at once,
+		// and its own copy lands by the advance after.
 		route(t, cache, 2)
 		advance(t, cache)
-		if bytes.IndexByte(cache.routed, 1) >= 0 || len(cache.staging) != 0 {
-			t.Fatalf("the routes stayed marked or a first miss staged %d experts", len(cache.staging))
+		if bytes.IndexByte(cache.routed, 1) >= 0 || len(cache.promoting) != 0 {
+			t.Fatalf("the routes stayed marked or a first miss promoted %d experts", len(cache.promoting))
 		}
+		pinned := len(cache.pinned)
 		route(t, cache, 2)
 		advance(t, cache)
-		readable(t, cache, mem, map[string][]uint32{"gate": {0}, "down": {0}})
-		if len(cache.staging) != 2 {
-			t.Fatalf("%d experts are staging, want expert 0 of each bank", len(cache.staging))
+		readable(t, cache, mem, map[string][]uint32{})
+		if len(cache.promoting) != 2 {
+			t.Fatalf("%d experts are promoting, want expert 2 of each bank", len(cache.promoting))
 		}
-		// Its next miss takes staged expert 0's slot, and its copy lands by the advance after.
-		route(t, cache, 2)
-		advance(t, cache)
 		advance(t, cache)
 		readable(t, cache, mem, map[string][]uint32{"gate": {2}, "down": {2}})
-		pinned := len(cache.pinned)
 		// Expert 2 served this step too, and expert 0's first miss is only counted: it stays in host memory.
 		route(t, cache, 0, 2)
 		advance(t, cache)
 		readable(t, cache, mem, map[string][]uint32{"gate": {2}, "down": {2}})
+		// Expert 1's count decays at the fourth decode run, so its third run moves it.
 		for range 3 {
 			route(t, cache, 1)
 			advance(t, cache)
@@ -297,10 +313,10 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		if len(cache.pinned) != pinned {
 			t.Fatal("swaps pinned more host memory")
 		}
-		// Runs named expert 2 three times, then 0 and 2, then 1 three times, in both banks; only the fourth found its
-		// expert 2 on the card.
+		// Runs named expert 2 twice, then 0 and 2, then 1 three times, in both banks; only the third found its expert 2
+		// on the card.
 		placement, err := (&DeviceWeights{experts: cache}).ExpertPlacement(nil)
-		if err != nil || placement.Routes != 16 || placement.CardRoutes != 2 || placement.CardExperts != 2 {
+		if err != nil || placement.Routes != 14 || placement.CardRoutes != 2 || placement.CardExperts != 2 {
 			t.Fatalf("placement after the runs = %+v: %v", placement, err)
 		}
 	})
@@ -327,12 +343,10 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		onCard(t, 0, 1, 2)
 		advance(t, cache)
 		onCard(t, 0)
-		// Expert 2's second miss stages 0; its third leaves 0 to its staged copy while 2's copy is in flight.
-		for range 2 {
-			route(t, cache, 2)
-			advance(t, cache)
-			onCard(t, 0)
-		}
+		// Expert 2's second miss leaves 0 to its host copy while 2's copy is in flight.
+		route(t, cache, 2)
+		advance(t, cache)
+		onCard(t, 0)
 		route(t, cache, 2)
 		advance(t, cache)
 		onCard(t)
@@ -342,22 +356,11 @@ func TestFlashNextExpertResidency(t *testing.T) {
 	t.Run("promotions-land-beside-the-next-run", func(t *testing.T) {
 		// Two experts of each bank fit: 0 and 1 on the card, 2 in host memory.
 		cache, mem := open(t, tableBytes+2*(gateStride+downStride))
-		// Expert 2's second miss finds none staged: it stays in host memory, and the coldest card experts the step left
-		// unnamed, 0 and 1, are staged beside the next run.
-		for range 2 {
-			route(t, cache, 2)
-			advance(t, cache)
-		}
-		readable(t, cache, mem, map[string][]uint32{"gate": {0, 1}, "down": {0, 1}})
-		if len(cache.staging) != 4 {
-			t.Fatalf("%d copies of card experts are staging, want experts 0 and 1 of each bank", len(cache.staging))
-		}
+		// Expert 2's first miss is counted; its second takes the slot of the coldest card expert the step left unnamed,
+		// 0, which reads its host copy at once, with no copy back, and 2 stays in host memory while its copy to the card
+		// is in flight.
+		route(t, cache, 2)
 		advance(t, cache)
-		if stagedCopies(cache) != 4 || len(cache.staging) != 0 {
-			t.Fatalf("%d staged copies landed and %d in flight, want all four landed", stagedCopies(cache), len(cache.staging))
-		}
-		// Expert 2's next miss takes staged expert 0's slot: 0 reads its staged copy at once, with no copy back, and 2
-		// stays in host memory while its copy to the card is in flight.
 		route(t, cache, 2)
 		mem.hold = true
 		writes, pinned := mem.writes, len(cache.pinned)
@@ -370,8 +373,8 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		if len(mem.queued) != 0 {
 			t.Fatalf("the advance queued %d copies before its run was launched", len(mem.queued))
 		}
-		if err := cache.start(t.Context()); err != nil || len(mem.queued) != len(cache.promoting)+len(cache.staging) {
-			t.Fatalf("starting the moves queued %d copies (%v), want one for each of %d moves", len(mem.queued), err, len(cache.promoting)+len(cache.staging))
+		if err := cache.start(t.Context()); err != nil || len(mem.queued) != len(cache.promoting) {
+			t.Fatalf("starting the moves queued %d copies (%v), want one for each of %d moves", len(mem.queued), err, len(cache.promoting))
 		}
 		// The next advance waits for the copies still in flight, so where an expert lies never follows the host's
 		// speed.
@@ -394,7 +397,7 @@ func TestFlashNextExpertResidency(t *testing.T) {
 			t.Fatal("a prompt's routes moved experts or stayed marked")
 		}
 		// A decode run's routes move their experts though they name two of three, as a verify span may of a small bank:
-		// their second misses stage expert 0, then expert 1 takes its slot, and expert 2 finds no other.
+		// at their second misses expert 1 takes expert 0's slot, and expert 2 finds no other.
 		for range 3 {
 			route(t, cache, 1, 2)
 			advance(t, cache)
@@ -431,13 +434,9 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		advance(t, cache)
 		readable(t, cache, mem, map[string][]uint32{})
 		// A release while promotions are in flight lands them first: expert 2's copies target the allocations the
-		// releases free, into staged expert 0's slots, and no table names a freed allocation, then or after the next
-		// advance.
+		// releases free, into expert 0's slots, and no table names a freed allocation, then or after the next advance.
 		cache, mem = open(t, tableBytes+2*(gateStride+downStride))
-		for range 2 {
-			route(t, cache, 2)
-			advance(t, cache)
-		}
+		route(t, cache, 2)
 		advance(t, cache)
 		route(t, cache, 2)
 		mem.hold = true
@@ -456,44 +455,33 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		readable(t, cache, mem, map[string][]uint32{})
 	})
 	t.Run("failed-promotion-keeps-tables-readable", func(t *testing.T) {
-		for _, fail := range []string{"pinning", "write", "cancel"} {
+		for _, fail := range []string{"write", "cancel"} {
 			cache, mem := open(t, oneEach)
 			ctx, cancel := context.WithCancel(t.Context())
-			// The first miss is counted, the second stages.
+			// The first miss is counted, the second takes expert 0's slot.
 			route(t, cache, 2)
 			advance(t, cache)
 			route(t, cache, 2)
-			switch fail {
-			case "pinning":
-				// The pinned slot the miss stages expert 0 into.
-				mem.failHost = mem.hostCalls + 1
-			default:
-				// The miss stages expert 0, whose slot the next miss takes.
-				advance(t, cache)
-				route(t, cache, 2)
-				if fail == "write" {
-					// The tables naming the moves.
-					mem.failWrite = mem.writes + 1
-				} else {
-					cancel()
-				}
+			if fail == "write" {
+				// The tables naming the moves.
+				mem.failWrite = mem.writes + 1
+			} else {
+				cancel()
 			}
 			if err := cache.advance(ctx, false); err == nil {
 				t.Fatalf("%s: a failed promotion was accepted", fail)
 			}
 			cancel()
-			mem.failWrite, mem.failHost = 0, 0
+			mem.failWrite = 0
 			readable(t, cache, mem, nil)
 		}
 	})
 	t.Run("failed-publication-is-repaired-before-the-next-run", func(t *testing.T) {
-		// Expert 2's second miss takes staged expert 0's slots, then the table write fails: the tables still name the
-		// card slots 2's copies overwrite until a later advance writes them.
+		// Expert 2's second miss takes expert 0's slots, then the table write fails: the tables still name the card slots
+		// 2's copies overwrite until a later advance writes them.
 		cache, mem := open(t, oneEach)
-		for range 2 {
-			route(t, cache, 2)
-			advance(t, cache)
-		}
+		route(t, cache, 2)
+		advance(t, cache)
 		route(t, cache, 2)
 		mem.failWrite = mem.writes + 1
 		if err := cache.advance(t.Context(), false); err == nil {
@@ -552,92 +540,6 @@ func TestFlashNextExpertResidency(t *testing.T) {
 			t.Fatal("a bank of another shape was accepted")
 		}
 	})
-}
-
-// TestExpertStagingHoldsItsBudget routes two banks of 70 experts, 68 of each
-// on the card: a miss stages the 33 coldest card experts of each stride, the
-// 32 kept ahead and one for itself, and while those copies are in flight the
-// routes move them to the back and a second miss stages none, every stride's
-// staged and staging copies within the budget. Once the copies land each
-// table entry reads its bytes.
-func TestExpertStagingHoldsItsBudget(t *testing.T) {
-	const experts, onCard = 70, 68
-	f := writeFixture(t, rand.New(rand.NewPCG(23, 29)), []fixtureTensor{
-		{name: "gate", shape: []uint64{2, 2, experts}, kind: dtype.BF16},
-		{name: "down", shape: []uint64{16, 16, experts}, kind: dtype.F32},
-	}, 0, 0)
-	file := f.parse(t)
-	const tableBytes, gateStride, downStride = 2 * experts * 8, 256, 1024
-	mem := newFakeExpertDevice()
-	weights, err := mem.loadExperts(t.Context(), file, tableBytes+onCard*(gateStride+downStride), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cache := weights.experts
-	defer func() {
-		if err := cache.close(); err != nil || mem.liveCount() != 0 {
-			t.Errorf("close left %d allocations: %v", mem.liveCount(), err)
-		}
-	}()
-	builder := tensor.NewBuilder()
-	nodes := []*tensor.Tensor{
-		builder.Input("gate", file.Tensors[0].Type, tensor.MustShape(file.Tensors[0].Shape[:file.Tensors[0].Dimensions]...)),
-		builder.Input("down", file.Tensors[1].Type, tensor.MustShape(file.Tensors[1].Shape[:file.Tensors[1].Dimensions]...)),
-	}
-	route := func(indices ...uint32) {
-		t.Helper()
-		flags, err := (&DeviceWeights{experts: cache}).ExpertRoutes(nil, nodes)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, index := range indices {
-			cache.routed[uint64(flags-cache.routedMap)+uint64(index)] = 1
-		}
-		if err := cache.advance(t.Context(), false); err != nil {
-			t.Fatal(err)
-		}
-		held := map[uint64]int{}
-		for _, class := range cache.classes {
-			held[class.stride] += class.staged
-		}
-		for _, move := range cache.staging {
-			held[move.key.bank.stride]++
-		}
-		for stride, count := range held {
-			if count > expertStagedVictims+1 {
-				t.Fatalf("stride %d holds %d staged and staging copies, past the budget of %d", stride, count, expertStagedVictims+1)
-			}
-		}
-	}
-	// The first miss is counted, the second stages.
-	route(onCard)
-	mem.hold = true
-	route(onCard)
-	if len(cache.staging) != 2*(expertStagedVictims+1) {
-		t.Fatalf("%d copies staging, want %d a stride", len(cache.staging), expertStagedVictims+1)
-	}
-	staged := make([]uint32, 0, expertStagedVictims+2)
-	for _, move := range cache.staging {
-		if move.key.bank.info.Name == "gate" {
-			staged = append(staged, move.key.index)
-		}
-	}
-	route(append(staged, onCard+1)...)
-	mem.hold = false
-	route()
-	for _, name := range []string{"gate", "down"} {
-		bank := cache.banks[name]
-		table, err := mem.at(bank.table, experts*8)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for index := range uint64(experts) {
-			actual, err := mem.at(driver.DevicePtr(binary.LittleEndian.Uint64(table[index*8:])), bank.bytes)
-			if err != nil || !bytes.Equal(actual, f.payloads[name][index*bank.bytes:(index+1)*bank.bytes]) {
-				t.Fatalf("%s expert %d does not read its bytes: %v", name, index, err)
-			}
-		}
-	}
 }
 
 // TestExpertAdmissionTakesTheMostUsed: an advance moves its admitted misses the most used first, in routing order
@@ -805,13 +707,4 @@ func onCard(cache *expertResidency, name string) []uint32 {
 		}
 	}
 	return indices
-}
-
-// stagedCopies counts the card experts whose copies in host memory have landed.
-func stagedCopies(cache *expertResidency) int {
-	copies := 0
-	for _, class := range cache.classes {
-		copies += class.staged
-	}
-	return copies
 }

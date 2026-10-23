@@ -104,8 +104,8 @@ func buildDecodeStepGraph(t *testing.T, row, position uint32) decodeStepGraph {
 // passes each later token's values as runtime attributes, with only expert
 // 0 of each bank on the card, so each token's routed experts are first read
 // from mapped host memory and the residency moves experts between tokens:
-// three tokens route the same experts, whose first miss is counted, second
-// stages a victim and third moves one into its slot beside the next token.
+// three tokens route the same experts, whose first miss is counted and second
+// moves one into the slot of a card expert, which reads its host copy, beside the next token.
 // Every token after the first replays the captured graph with one graph
 // launch, no kernel launch and one stream synchronization. The first token's
 // logits keep the launched step's bits, each later token's, whose experts on
@@ -278,6 +278,9 @@ func TestDecodeStepReplaysAsOneGraph(t *testing.T) {
 	set(g.sparse, &sparse)
 
 	var previous []byte
+	// moved sums the bytes the tokens since a group's first moved to the card: a group's experts move beside its
+	// third token, or beside the next group's first where the usage counts decayed between its tokens.
+	var moved uint64
 	for token := range uint32(steps) {
 		position, row := past+token, (5*token+3)%vocabulary
 		rows.Rows[0] = row
@@ -327,8 +330,12 @@ func TestDecodeStepReplaysAsOneGraph(t *testing.T) {
 		if kernels, waits := after.KernelLaunches-before.KernelLaunches, after.StreamSynchronizations-before.StreamSynchronizations; kernels != 0 || waits != 1 {
 			t.Fatalf("token %d launched %d kernels and waited for the stream %d times, want a replay with one wait", token, kernels, waits)
 		}
-		if moved := after.HostToDeviceBytes - before.HostToDeviceBytes; token%3 == 0 && moved < smallest {
-			t.Fatalf("token %d moved %d bytes to the card, less than one routed expert of the three before", token, moved)
+		moved += after.HostToDeviceBytes - before.HostToDeviceBytes
+		if token%3 == 0 {
+			if moved < smallest {
+				t.Fatalf("tokens %d to %d moved %d bytes to the card, less than one routed expert of their group", token-2, token, moved)
+			}
+			moved = 0
 		}
 	}
 	if !bytes.Equal(readCaches(replayed, replayedData), readCaches(launched, launchedData)) {

@@ -992,9 +992,9 @@ func TestPromptExpertCopiesOverlapCompute(t *testing.T) {
 // residency then names the experts on host to the card, whose later runs hand
 // them to the CPU (moeDoorbell), within its activations' rounding of the
 // resident bits. A run waits for the stream no more often than the resident
-// run, and the fourth finds routed experts moved to the card: an expert's
-// first miss is counted, its second stages a victim and its third moves it
-// into the victim's slot.
+// run, and the third finds routed experts moved to the card: an expert's
+// first miss is counted and its second moves it into the slot of a card
+// expert, which reads its host copy.
 func TestExecutorMoEMissedExpertsKeepResidentBits(t *testing.T) {
 	banks := [3]dtype.Type{dtype.IQ4XS, dtype.IQ4XS, dtype.Q8_0}
 	c := moePinnedCase{
@@ -1088,8 +1088,8 @@ func TestExecutorMoEMissedExpertsKeepResidentBits(t *testing.T) {
 		if stats.StreamSynchronizations != residentStats.StreamSynchronizations {
 			t.Fatalf("run %d waited for the stream %d times, the resident run %d", attempt, stats.StreamSynchronizations, residentStats.StreamSynchronizations)
 		}
-		if attempt == 3 && stats.HostToDeviceBytes < smallest {
-			t.Fatalf("the run after the third routes moved %d bytes to the card, less than one expert", stats.HostToDeviceBytes)
+		if attempt == 2 && stats.HostToDeviceBytes < smallest {
+			t.Fatalf("the run after the second routes moved %d bytes to the card, less than one expert", stats.HostToDeviceBytes)
 		}
 	}
 }

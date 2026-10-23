@@ -17,11 +17,10 @@ import (
 
 // TestExpertPromotionsCopyBesideTheRunsOnTheCard drives a residency of two
 // banks of three experts, two of each on the card, through the driver: a
-// second miss with nothing staged stays in host memory and stages the coldest
-// card experts on the residency's own stream; once staged, its next miss takes the coldest
-// one's slot, which goes to its staged copy, while its own copy to the card is
-// in flight. After every step each table entry on the device names its
-// expert's bytes.
+// second miss takes the coldest card expert's slot, which reads its host copy
+// at once, while its own copy to the card is in flight on the residency's own
+// stream. After every step each table entry on the device names its expert's
+// bytes.
 func TestExpertPromotionsCopyBesideTheRunsOnTheCard(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
@@ -108,13 +107,8 @@ func TestExpertPromotionsCopyBesideTheRunsOnTheCard(t *testing.T) {
 		}
 		return cache.publish(t.Context())
 	}
-	// The first miss is counted, the second stages.
+	// The first miss is counted; the second takes expert 0's slot, 0 reading its host copy at once.
 	step(t, []uint32{0, 1}, advance, 2)
-	step(t, []uint32{0, 1}, advance, 2)
-	if len(cache.staging) != 4 {
-		t.Fatalf("%d card experts are staging, want experts 0 and 1 of each bank", len(cache.staging))
-	}
-	step(t, []uint32{0, 1}, landed)
 	step(t, []uint32{1}, advance, 2)
 	if len(cache.promoting) != 2 {
 		t.Fatalf("%d promotions copy beside the next run, want expert 2 of each bank", len(cache.promoting))

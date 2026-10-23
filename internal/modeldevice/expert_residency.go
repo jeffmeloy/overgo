@@ -34,11 +34,6 @@ const (
 	// on that boundary gives a kernel the alignment the expert's own
 	// allocation would.
 	expertSlotAlignment = 256
-	// expertHostChunkSlots: the host slots one pinned allocation adds once a
-	// stride has none free. A promotion frees the slot of the expert it
-	// brings to the card, so slots are added only as the card shrinks; a few
-	// at a time keep the pinning calls few.
-	expertHostChunkSlots = 16
 	// expertFillHeadroomBytes: the card memory a fill without an explicit
 	// limit leaves free, for CUDA library workspaces and module images, which
 	// allocate outside the reservation hook, and a short request's scratch
@@ -48,17 +43,6 @@ const (
 	// experts in host memory to the card between runs, as when a load found
 	// the card held; memory a run frees for a moment moves none.
 	expertRefillBytes = 2 << 30
-	// expertStagedVictims: the coldest card experts of a stride kept copied to
-	// pinned host memory ahead of need, so a promotion displaces one with no
-	// copy back. Flash-Next's short chat promotes about five experts a token.
-	// An advance stages one more for each miss it found none staged for, up to
-	// expertStagedLimit: a 16K-token word list's decode missed about 98 of one
-	// stride a step.
-	expertStagedVictims = 32
-	expertStagedLimit   = 256
-	// expertVictimSearch: the coldest card experts of a stride a promotion looks
-	// through for a staged one, those staged and those the routes named since.
-	expertVictimSearch = 2 * expertStagedLimit
 	// expertUsageDecay, expertUsageRounds, expertAdmission and expertPromotionsPerAdvance are Strata's adaptive tier
 	// (src/program/generate.cpp: --adapt-decay 0.7, --adapt-every 4, a candidate used at least twice, at most 96 swaps
 	// a round): an expert counts the decode runs that route it, the counts fall by expertUsageDecay every
@@ -104,11 +88,11 @@ type expertBank struct {
 	// group's card flags of experts on host for the next publish.
 	head        *expertBank
 	onHostStale bool
-	// entries are the bank's card experts by index, nil for one in host memory; staged holds a card expert's landed
-	// copy in pinned host memory, a slot with host bytes; moving marks an expert whose copy is in flight. An advance
-	// reads them for every routed expert, where maps keyed by bank and index took about 0.5 ms of a Flash-Next window.
+	// entries are the bank's card experts by index, nil for one in host memory; home holds a card expert's copy in
+	// pinned host memory, which every expert keeps; moving marks an expert whose copy is in flight. An advance reads
+	// them for every routed expert, where maps keyed by bank and index took about 0.5 ms of a Flash-Next window.
 	entries []*list.Element
-	staged  []expertSlot
+	home    []expertSlot
 	moving  []bool
 	// usage counts the decode runs that routed each expert, decayed (expertUsageDecay); decodeRuns counts them whole,
 	// from which an expert profile is ranked.
@@ -116,18 +100,6 @@ type expertBank struct {
 	decodeRuns []uint64
 	// class keeps the card experts of the bank's stride.
 	class *expertClass
-}
-
-// stage keeps a card expert's landed copy in host memory.
-func (b *expertBank) stage(index uint32, slot expertSlot) {
-	b.staged[index] = slot
-	b.class.staged++
-}
-
-// unstage forgets a card expert's copy in host memory.
-func (b *expertBank) unstage(index uint32) {
-	b.staged[index] = expertSlot{}
-	b.class.staged--
 }
 
 // cardExperts counts the experts on the card.
@@ -139,16 +111,10 @@ func (c *expertResidency) cardExperts() uint64 {
 	return experts
 }
 
-// expertClass keeps the experts of one stride: those on the card, least
-// recently routed first, and the pinned host slots that hold none.
+// expertClass keeps the card experts of one stride, least recently routed first.
 type expertClass struct {
 	stride uint64
 	order  list.List
-	free   []expertSlot
-	// staged counts the class's card experts whose copies in host memory have landed.
-	staged int
-	// wanted counts the misses of the class an advance found no staged victim for, which its staging adds to.
-	wanted int
 }
 
 // expertSlot is pinned host memory that holds one expert, at device on the card.
@@ -157,8 +123,7 @@ type expertSlot struct {
 	host   []byte
 }
 
-// expertMove is a copy of an expert in flight: to its card slot card from
-// its host slot, or from the card into its host slot.
+// expertMove is a promotion's copy in flight: an expert to its card slot card from its host slot.
 type expertMove struct {
 	key  expertKey
 	card driver.DevicePtr
@@ -174,25 +139,25 @@ type expertChunk struct {
 // expertMemory is the device surface a residency needs beyond a load.
 type expertMemory interface {
 	deviceMemory
-	read(ctx context.Context, destination []byte, source driver.DevicePtr) error
 	hostAlloc(ctx context.Context, size uint64) ([]byte, driver.DevicePtr, error)
 	hostFree(data []byte) error
 	available(ctx context.Context) (uint64, error)
 	// newStream makes a stream that copies beside the runs, and dropStream ends it.
 	newStream(ctx context.Context) (driver.Stream, error)
 	dropStream(stream driver.Stream) error
-	// copyToCard and copyToHost queue a copy on stream of pinned host bytes to the card and of card bytes to pinned
-	// host memory; copied reports whether every copy queued on stream has landed, waiting for them where wait is set.
+	// copyToCard queues a copy on stream of pinned host bytes to the card; copied reports whether every copy queued
+	// on stream has landed, waiting for them where wait is set.
 	copyToCard(ctx context.Context, stream driver.Stream, destination driver.DevicePtr, source []byte) error
-	copyToHost(ctx context.Context, stream driver.Stream, destination []byte, source driver.DevicePtr) error
 	copied(ctx context.Context, stream driver.Stream, wait bool) (bool, error)
 }
 
 // expertResidency keeps every expert of the file-backed banks readable by
-// the card: a card copy, or pinned host memory the card maps. The card's
-// share is filled once under the limit, by the load pass that reads the file;
-// between runs the experts the last run routed to host memory take the card
-// slots of experts it did not route.
+// the card: a card copy, or pinned host memory the card maps. Every expert's
+// bytes stay in pinned host memory, as Strata's expert arena keeps them, and
+// the card holds copies: its share is filled once under the limit, by the
+// load pass that reads the file; between runs the experts the last run routed
+// to host memory take the card slots of experts it did not route, which read
+// their host copies at once.
 // routed is pinned host memory the card maps at routedMap, one byte an expert, which the route kernel sets and the advance after the run reads and clears.
 // onHost is the card's flags at onHostFlags, laid out as routed, a routed node's first bank's byte set where every
 // bank of the node holds the expert in host memory; the CPU computes those experts of a decode step (ExpertsOnHost).
@@ -217,15 +182,13 @@ type expertResidency struct {
 	routes, cardRoutes, loadCard uint64
 	// limit bounds the card bytes a refill reaches: the load's limit, or none where the load read it from free memory.
 	limit uint64
-	// copies is the stream the residency copies on beside the runs. promoting are the promotions whose copies to
-	// the card are in flight and staging the copies of card experts to host memory in flight, moving the experts
-	// of either, and staged the card experts whose copy in host memory has landed.
+	// copies is the stream the residency copies on beside the runs, and promoting the promotions whose copies to the
+	// card are in flight, moving their experts.
 	copies    driver.Stream
 	promoting []expertMove
-	staging   []expertMove
-	// queuedPromoting and queuedStaging count the leading moves of promoting and staging whose copies are queued; an
-	// advance records the rest, whose copies start once the next run is launched.
-	queuedPromoting, queuedStaging int
+	// queuedPromoting counts the leading moves of promoting whose copies are queued; an advance records the rest,
+	// whose copies start once the next run is launched.
+	queuedPromoting int
 }
 
 // newExpertResidency allocates the tables, the route flags and every
@@ -251,7 +214,7 @@ func newExpertResidency(ctx context.Context, file *gguf.File, infos []gguf.Tenso
 		}
 		bank := &expertBank{info: info, bytes: info.Size / experts, stride: stride, routed: flags,
 			pointers: make([]driver.DevicePtr, experts), hosted: make([][]byte, experts),
-			entries: make([]*list.Element, experts), staged: make([]expertSlot, experts), moving: make([]bool, experts),
+			entries: make([]*list.Element, experts), home: make([]expertSlot, experts), moving: make([]bool, experts),
 			usage: make([]float32, experts), decodeRuns: make([]uint64, experts)}
 		if c.classes[stride] == nil {
 			c.classes[stride] = &expertClass{stride: stride}
@@ -326,22 +289,23 @@ func (c *expertResidency) allocate(ctx context.Context, limit uint64, profile *E
 			}
 			c.cards = append(c.cards, expertChunk{card, onCard * bank.stride, bank.stride})
 		}
-		if onCard < experts {
-			if host, mapped, err = c.mem.hostAlloc(ctx, (experts-onCard)*bank.stride); err != nil {
-				return err
-			}
-			c.pinned = append(c.pinned, host)
+		// Every expert keeps its bytes in pinned host memory, as Strata's expert arena does: a card expert's copy there
+		// is its home for good, so a demotion copies nothing back and the card is a cache of the host's experts.
+		if host, mapped, err = c.mem.hostAlloc(ctx, experts*bank.stride); err != nil {
+			return err
 		}
-		var cardSlot, hostSlot uint64
+		c.pinned = append(c.pinned, host)
+		var cardSlot uint64
 		for index := range experts {
+			offset := uint64(index) * bank.stride
+			slot := expertSlot{device: mapped + driver.DevicePtr(offset), host: host[offset : offset+bank.stride]}
 			if marks[bank][index] {
 				bank.pointers[index] = card + driver.DevicePtr(cardSlot*bank.stride)
 				bank.entries[index] = c.classes[bank.stride].order.PushBack(&residentExpert{key: expertKey{bank, uint32(index)}})
+				bank.home[index] = slot
 				cardSlot++
 			} else {
-				offset := hostSlot * bank.stride
-				bank.hosted[index], bank.pointers[index] = host[offset:offset+bank.stride], mapped+driver.DevicePtr(offset)
-				hostSlot++
+				bank.hosted[index], bank.pointers[index] = slot.host, slot.device
 			}
 		}
 		bank.changed = true
@@ -386,6 +350,9 @@ func (c *expertResidency) place(ctx context.Context, onDevice expertDevice, bank
 	for done := uint64(0); done < uint64(len(data)); {
 		index, within := (offset+done)/bank.bytes, (offset+done)%bank.bytes
 		length := min(uint64(len(data))-done, bank.bytes-within)
+		if home := bank.home[index].host; home != nil {
+			copy(home[within:], data[done:done+length])
+		}
 		if host := bank.hosted[index]; host != nil {
 			copy(host[within:], data[done:done+length])
 		} else if pointer := bank.pointers[index] + driver.DevicePtr(within); len(pending) != 0 && end == done && card+driver.DevicePtr(len(pending)) == pointer {
@@ -547,7 +514,8 @@ func (w *DeviceWeights) StartExpertCopies(ctx context.Context, state *device.Sta
 }
 
 // advance reads the flags the last run's routes set, which its synchronization made visible, and clears them for the next run.
-// The copies an earlier advance queued land first, waited for, and the coldest card experts are staged for the next.
+// The copies an earlier advance queued land first, waited for, and the misses the routes counted twice take the card
+// slots of the coldest card experts.
 //   - waited for because where an expert lies decides who computes it (the doorbell's CPU or the card), so a copy
 //     that landed by one advance and not another changed a decoded text with the host's speed; a copy queued behind
 //     the last run has landed by its end on Flash-Next, so the wait costs nothing there
@@ -585,11 +553,6 @@ func (c *expertResidency) advance(ctx context.Context, prompt bool) error {
 					c.cardRoutes++
 					entry.Value.(*residentExpert).step = c.step
 					bank.class.order.MoveToBack(entry)
-					// An expert the routes name is no victim; its staged copy's slot serves another.
-					if slot := bank.staged[index]; slot.host != nil {
-						bank.unstage(uint32(index))
-						bank.class.free = append(bank.class.free, slot)
-					}
 				} else if !prompt && !bank.moving[index] && bank.usage[index] >= expertAdmission {
 					missed = append(missed, expertKey{bank, uint32(index)})
 				}
@@ -613,10 +576,7 @@ func (c *expertResidency) advance(ctx context.Context, prompt bool) error {
 			return errors.Join(err, c.publish(context.WithoutCancel(ctx)))
 		}
 	}
-	if err := c.publish(ctx); err != nil || len(missed) == 0 {
-		return err
-	}
-	return c.stage(ctx)
+	return c.publish(ctx)
 }
 
 // admitMisses orders an advance's admitted misses the most used first, in their order among equals, and keeps as
@@ -626,16 +586,15 @@ func admitMisses(missed []expertKey) []expertKey {
 	return missed[:min(len(missed), expertPromotionsPerAdvance)]
 }
 
-// land applies the copies the residency queued once they have landed,
-// waiting for them where wait is set: a promoted expert takes its card slot
-// and frees its host slot, and a staged copy is kept while its expert is on
-// the card.
+// land applies the promotions the residency queued once their copies have
+// landed, waiting for them where wait is set: a promoted expert takes its card
+// slot and keeps its host slot as its copy.
 func (c *expertResidency) land(ctx context.Context, wait bool) error {
 	// Moves no launched run started copying start here, before any lands.
 	if err := c.start(ctx); err != nil {
 		return err
 	}
-	if len(c.promoting) == 0 && len(c.staging) == 0 {
+	if len(c.promoting) == 0 {
 		return nil
 	}
 	done, err := c.mem.copied(ctx, c.copies, wait)
@@ -645,64 +604,21 @@ func (c *expertResidency) land(ctx context.Context, wait bool) error {
 	for _, move := range c.promoting {
 		bank, index := move.key.bank, move.key.index
 		bank.pointers[index], bank.hosted[index], bank.changed = move.card, nil, true
-		bank.class.free = append(bank.class.free, move.slot)
+		// The promoted expert's host slot stays its copy, so a later demotion copies nothing back.
+		bank.home[index] = move.slot
 		bank.entries[index] = bank.class.order.PushBack(&residentExpert{key: move.key, step: c.step})
 		bank.moving[index] = false
 	}
-	for _, move := range c.staging {
-		bank, index := move.key.bank, move.key.index
-		bank.moving[index] = false
-		if bank.entries[index] != nil {
-			bank.stage(index, move.slot)
-		} else {
-			bank.class.free = append(bank.class.free, move.slot)
-		}
-	}
-	c.promoting, c.staging, c.queuedPromoting, c.queuedStaging = c.promoting[:0], c.staging[:0], 0, 0
+	c.promoting, c.queuedPromoting = c.promoting[:0], 0
 	return nil
 }
 
-// stage copies the coldest card experts of each stride, those the routes
-// left unnamed longest and not this step, to pinned host memory beside the
-// next run, until expertStagedVictims of the stride and one for each miss the
-// advance found none staged for are staged or staging, expertStagedLimit at most.
-func (c *expertResidency) stage(ctx context.Context) error {
-	// Every staged or staging copy counts against its stride's budget, wherever the routes have since moved its expert.
-	held := make(map[*expertClass]int, len(c.classes))
-	for _, move := range c.staging {
-		held[move.key.bank.class]++
-	}
-	for _, class := range c.classes {
-		count, budget := held[class]+class.staged, min(expertStagedVictims+class.wanted, expertStagedLimit)
-		class.wanted = 0
-		for entry := class.order.Front(); entry != nil && count < budget; entry = entry.Next() {
-			resident := entry.Value.(*residentExpert)
-			if resident.step == c.step {
-				break
-			}
-			bank, index := resident.key.bank, resident.key.index
-			if bank.staged[index].host != nil || bank.moving[index] {
-				continue
-			}
-			count++
-			slot, err := c.hostSlot(ctx, class)
-			if err != nil {
-				return err
-			}
-			// The copy starts once the next run is launched (start).
-			c.staging = append(c.staging, expertMove{key: resident.key, card: bank.pointers[index], slot: slot})
-			bank.moving[index] = true
-		}
-	}
-	return nil
-}
-
-// start queues the copies of the moves an advance recorded, on the residency's stream: an advance runs before the
+// start queues the copies of the promotions an advance recorded, on the residency's stream: an advance runs before the
 // run it prepares, whose own small copies to the card would otherwise wait behind them on the copy engine (Flash-Next
-// decode steps waited about 0.5 ms a step). A move whose copy is refused is dropped: a promoted expert stays in host
-// memory and a staging copy's slot is freed.
+// decode steps waited about 0.5 ms a step). A promotion whose copy is refused is dropped, its expert staying in host
+// memory.
 func (c *expertResidency) start(ctx context.Context) error {
-	if c.queuedPromoting == len(c.promoting) && c.queuedStaging == len(c.staging) {
+	if c.queuedPromoting == len(c.promoting) {
 		return nil
 	}
 	if err := c.stream(ctx); err != nil {
@@ -722,18 +638,6 @@ func (c *expertResidency) start(ctx context.Context) error {
 		}
 		c.promoting = c.promoting[:c.queuedPromoting]
 	}
-	for _, move := range c.staging[c.queuedStaging:] {
-		if err == nil {
-			bank := move.key.bank
-			if err = c.mem.copyToHost(ctx, c.copies, move.slot.host[:bank.bytes], move.card); err == nil {
-				c.queuedStaging++
-				continue
-			}
-		}
-		move.key.bank.moving[move.key.index] = false
-		move.key.bank.class.free = append(move.key.bank.class.free, move.slot)
-	}
-	c.staging = c.staging[:c.queuedStaging]
 	if err != nil {
 		return err
 	}
@@ -798,39 +702,27 @@ func (c *expertResidency) refill(ctx context.Context) error {
 	return nil
 }
 
-// promote moves a host expert the routes named to the card. It takes the
-// card slot of the coldest staged expert the routes did not name this step,
-// which goes to its staged copy at once, and is copied there beside the
-// next run, staying in host memory until the copy lands. Where none is
-// staged it stays in host memory, and its stride stages one more card expert
-// beside the next run for a later miss: copying the coldest back and the
-// expert in at once, each waited for, took about 9.6 ms of each Flash-Next
-// decode step after a 16K-token word list, as long as the step's own run.
+// promote moves a host expert the routes named to the card. It takes the card
+// slot of the coldest card expert the routes did not name this step, which
+// reads its host copy at once, and is copied there beside the next run,
+// staying in host memory until the copy lands. Where the routes named every
+// card expert of its stride this step it stays in host memory.
 func (c *expertResidency) promote(ctx context.Context, key expertKey) error {
 	bank := key.bank
-	class := c.classes[bank.stride]
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	for entry, seen := class.order.Front(), 0; entry != nil && seen < expertVictimSearch; entry, seen = entry.Next(), seen+1 {
-		resident := entry.Value.(*residentExpert)
-		if resident.step == c.step {
-			break
-		}
-		if resident.key.bank.staged[resident.key.index].host == nil {
-			continue
-		}
-		// The copy starts once the next run is launched (start); the run reads the victim's staged copy and the
-		// promoted expert where it is.
-		card := resident.key.bank.pointers[resident.key.index]
-		c.promoting = append(c.promoting, expertMove{key, card, expertSlot{bank.pointers[key.index], bank.hosted[key.index]}})
-		bank.moving[key.index] = true
-		_, err := c.demote(ctx, entry)
-		return err
+	victim := c.classes[bank.stride].order.Front()
+	if victim == nil || victim.Value.(*residentExpert).step == c.step {
+		return nil
 	}
-	if victim := class.order.Front(); victim != nil && victim.Value.(*residentExpert).step != c.step {
-		class.wanted++
-	}
+	// The copy starts once the next run is launched (start); the run reads the victim's host copy and the promoted
+	// expert where it is.
+	resident := victim.Value.(*residentExpert)
+	card := resident.key.bank.pointers[resident.key.index]
+	c.promoting = append(c.promoting, expertMove{key, card, expertSlot{bank.pointers[key.index], bank.hosted[key.index]}})
+	bank.moving[key.index] = true
+	c.demote(victim)
 	return nil
 }
 
@@ -842,54 +734,23 @@ func (c *expertResidency) move(ctx context.Context, key expertKey, card driver.D
 	if err := c.mem.write(ctx, card, bank.hosted[key.index][:bank.bytes]); err != nil {
 		return err
 	}
-	class.free = append(class.free, expertSlot{bank.pointers[key.index], bank.hosted[key.index]})
+	slot := expertSlot{bank.pointers[key.index], bank.hosted[key.index]}
 	bank.pointers[key.index], bank.hosted[key.index], bank.changed = card, nil, true
+	bank.home[key.index] = slot
 	bank.entries[key.index] = class.order.PushBack(&residentExpert{key: key, step: c.step})
 	return nil
 }
 
-// demote moves a card expert to its staged copy, or else copies it to a
-// pinned host slot, and returns the card slot it left.
-func (c *expertResidency) demote(ctx context.Context, entry *list.Element) (driver.DevicePtr, error) {
+// demote moves a card expert to its host copy, which the table names at once, and frees nothing: the caller keeps or
+// frees the card slot it left.
+func (c *expertResidency) demote(entry *list.Element) {
 	key := entry.Value.(*residentExpert).key
 	bank := key.bank
-	class := c.classes[bank.stride]
-	card := bank.pointers[key.index]
-	slot := bank.staged[key.index]
-	if slot.host != nil {
-		bank.unstage(key.index)
-	} else {
-		var err error
-		if slot, err = c.hostSlot(ctx, class); err != nil {
-			return 0, err
-		}
-		if err := c.mem.read(ctx, slot.host[:bank.bytes], card); err != nil {
-			class.free = append(class.free, slot)
-			return 0, err
-		}
-	}
+	slot := bank.home[key.index]
+	bank.home[key.index] = expertSlot{}
 	bank.pointers[key.index], bank.hosted[key.index], bank.changed = slot.device, slot.host, true
-	class.order.Remove(entry)
+	c.classes[bank.stride].order.Remove(entry)
 	bank.entries[key.index] = nil
-	return card, nil
-}
-
-// hostSlot takes a free pinned host slot of class, pinning
-// expertHostChunkSlots more where none is free.
-func (c *expertResidency) hostSlot(ctx context.Context, class *expertClass) (expertSlot, error) {
-	if len(class.free) == 0 {
-		host, mapped, err := c.mem.hostAlloc(ctx, expertHostChunkSlots*class.stride)
-		if err != nil {
-			return expertSlot{}, err
-		}
-		c.pinned = append(c.pinned, host)
-		for offset := uint64(0); offset < uint64(len(host)); offset += class.stride {
-			class.free = append(class.free, expertSlot{mapped + driver.DevicePtr(offset), host[offset : offset+class.stride]})
-		}
-	}
-	slot := class.free[len(class.free)-1]
-	class.free = class.free[:len(class.free)-1]
-	return slot, nil
 }
 
 // publish writes the tables whose experts moved as one copy, from the first such table through the last: the tables
@@ -994,9 +855,7 @@ func (c *expertResidency) release(ctx context.Context) error {
 		next := entry.Next()
 		key := entry.Value.(*residentExpert).key
 		if pointer := key.bank.pointers[key.index]; pointer >= chunk.pointer && uint64(pointer-chunk.pointer) < chunk.bytes {
-			if _, err := c.demote(ctx, entry); err != nil {
-				return err
-			}
+			c.demote(entry)
 		}
 		entry = next
 	}
@@ -1080,12 +939,6 @@ func (m stateMemory) write(ctx context.Context, pointer driver.DevicePtr, data [
 	}
 	return m.state.Driver.MemcpyHtoD(pointer, data)
 }
-func (m stateMemory) read(ctx context.Context, data []byte, pointer driver.DevicePtr) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	return m.state.Driver.MemcpyDtoH(data, pointer)
-}
 func (m stateMemory) free(_ context.Context, pointers []driver.DevicePtr) error {
 	var errs []error
 	for _, pointer := range pointers {
@@ -1114,12 +967,6 @@ func (m stateMemory) copyToCard(ctx context.Context, stream driver.Stream, desti
 		return err
 	}
 	return m.state.Driver.MemcpyHtoDAsync(destination, source, stream)
-}
-func (m stateMemory) copyToHost(ctx context.Context, stream driver.Stream, destination []byte, source driver.DevicePtr) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	return m.state.Driver.MemcpyDtoHAsync(destination, source, stream)
 }
 func (m stateMemory) copied(_ context.Context, stream driver.Stream, wait bool) (bool, error) {
 	// A query answers copies that have landed without a wait: a copy queued beside a run has landed by its end.

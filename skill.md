@@ -253,6 +253,7 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 - compare identical tasks, artifacts, protocols and budgets
 - two builds' timings => alternate the builds on fresh processes for at least 3 rounds each (a bench cell moves 10% between rounds)
 - difference inside the rounds' ranges = no difference
+- work across streams = the union of their intervals, never a sum of durations, and a copy's overlap = its intervals' intersection with the kernels'
 - aggregate gain never hides a required regression
 
 ## Robustness
@@ -307,6 +308,9 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 - speed rows ranked by the measured gap against the reference, phase by phase on the same inputs != by estimates
 - port a reference's mechanism <=> its costs measure the same here (hit rates, link, launches, CPU time)
 - port a reference's default or compare against its figures => read the configuration those figures ran under (its setup's defaults, launch arguments, environment), never its engine's default alone, because a default the measured configuration turns off adds work or an approximation the figures never paid for
+- reference loop whose parts are co-designed => ported as a unit: map it against ours on the same inputs, then build its parts in the order the measurement shows the others' gains rest on, judged together, because a part moved alone keeps our costs around it
+- reference's memory model (what it keeps where, what it caches) => ported before tuning what moves between places
+- a rate both engines report => check that both count the same thing before comparing (per routed slot != per expert a run)
 - A/B = one loaded model, forced token ids, interleaved arms > a reload and free-running text an arm
 - probe or benchmark built from stale derived files (kernels, bindings, manifests) => refused before it runs
 - rare-path work (a handshake, a fallback) => folded into kernels that run anyway > a launch of its own

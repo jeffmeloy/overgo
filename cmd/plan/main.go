@@ -34,8 +34,8 @@ func main() {
 	prompt := flag.Bool("prompt", false, "print the current step's task: -prompt [-json] [item/step]")
 	verify := flag.Bool("verify", false, "run the top open step's verify command; exit code is pass/fail")
 	status := flag.Bool("status", false, "one line per item")
-	decisions := flag.Bool("decisions", false, "the owner decisions still open, with how long each has waited")
-	answer := flag.Bool("answer", false, "record the owner's answer to a decision: -answer <decision-id> -title <one of its options>")
+	decisions := flag.Bool("decisions", false, "the decisions still open, outside the system's authority, with how long each has waited")
+	answer := flag.Bool("answer", false, "record the answer to a decision: -answer <decision-id> -title <one of its options>")
 	add := flag.Bool("add", false, "inject a new top-priority task owned by -role: -add <item-id> -title <t> [-before <id>] [-vcmd <cmd>]; or file a document's rows: -add -from <document> [-before <id>]")
 	from := flag.String("from", "", "with -add: a plan-shaped JSON document; every row and decision of it is filed, an id the plan holds is refused, and no row the plan holds changes")
 	setcount := flag.Bool("setcount", false, "set what a row may still add and why, running no check: -setcount -nodes <n> -reason <why> <item-id>")
@@ -50,8 +50,8 @@ func main() {
 	retitle := flag.Bool("retitle", false, "re-scope an open item and its single step: -retitle <item-id> -title <t>")
 	setverify := flag.Bool("setverify", false, "set an existing step's verify: -setverify <item> <step> -vcmd <cmd> (then runs it; exit code is the verdict)")
 	jsonFlag := flag.Bool("json", false, "with -next or -prompt: print typed JSON")
-	stop := flag.Bool("stop", false, "record a scoped stop until explicit resume: -stop <user-stop|irreversible|external-prereq>: <detail>")
-	resumeStop := flag.String("resume-stop", "", "explicitly resume the exact stop ID, preserving its owner and scope")
+	stop := flag.Bool("stop", false, "record a scoped stop until explicit resume: -stop <requested|irreversible|external-prereq>: <detail>")
+	resumeStop := flag.String("resume-stop", "", "explicitly resume the exact stop ID, preserving its lane and scope")
 	maintenanceStop := flag.String("maintenance-stop", "", "authorize one supervised task while the exact stop remains active: -maintenance-stop <stop-id> <item/step> <reason>")
 	stopMode := flag.String("stop-mode", "", "stop scope: all (default), interactive or unattended; resume preserves the recorded scope")
 	executionMode := flag.String("mode", "", "execution mode: interactive or unattended; default inherited from the driver")
@@ -199,7 +199,7 @@ func withPlanMutation(root string, mutate func(plan.Plan) error) (err error) {
 
 // addItem injects a new task as a top-priority item (one step "do"), inserted
 // before `before` (or at the top of the plan when empty). This is the mechanical
-// "inject a task" operation -- a merge, a fix, or any owner-requested work becomes
+// "inject a task" operation -- a merge, a fix, or any requested work becomes
 // a first-class dispatched/verified/advanced task without hand-editing plan.json.
 func addItem(root, id, title, class, before, verifyCmd, role string) error {
 	return mutatePlan(root, role, "added item "+id+" (step do)", func(document plan.Plan) (plan.Plan, error) {
@@ -211,7 +211,7 @@ func addItem(root, id, title, class, before, verifyCmd, role string) error {
 	})
 }
 
-// moveItem changes item order through the shared mutation owner.
+// moveItem changes item order through the shared mutation home.
 func moveItem(root, id, before, role string) error {
 	return mutatePlan(root, role, "moved item "+id, func(document plan.Plan) (plan.Plan, error) {
 		return relocateItem(document, id, before)
@@ -467,7 +467,7 @@ func setStepVerify(root, itemID, stepID, cmd, role string) error {
 	})
 }
 
-// printDecisions lists the owner decisions still open, oldest first as the
+// printDecisions lists the decisions still open, oldest first as the
 // plan holds them, with the days each has waited: a decision that sits
 // stalls the rows it blocks.
 func printDecisions(output io.Writer, document plan.Plan, now time.Time) {
@@ -552,7 +552,7 @@ func printPromptStep(it plan.Item, st plan.Step, output io.Writer) {
 SCRATCH tmp/%[1]s/ for this row's probes and documents only
 FINDINGS park off-scope work: go run ./cmd/finding -h
 RULES skill.md; only this task; port-first; gate advances atomically; then rerun plan -prompt.
-STOP only a user stop pauses the loop (plan -stop <reason>); rationale stays in docs/plan.json and landed rows in git (Landed-Row trailers).
+STOP only a recorded stop request pauses the loop (plan -stop <reason>); rationale stays in docs/plan.json and landed rows in git (Landed-Row trailers).
 `, it.ID, st.ID)
 	if st.VerificationBatch != nil {
 		for _, checkpoint := range st.VerificationBatch.Checkpoints {

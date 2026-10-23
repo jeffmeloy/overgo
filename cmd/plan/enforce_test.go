@@ -150,7 +150,7 @@ func TestEnforceSetVerify(t *testing.T) {
 // stop-gate can tell a real stop from an invented one.
 func TestEnforceStopReason(t *testing.T) {
 	t.Parallel()
-	for _, r := range []string{"user-stop", "user-stop: they said wait", "irreversible: needs confirm", "external-prereq: model missing"} {
+	for _, r := range []string{"requested", "requested: they said wait", "irreversible: needs confirm", "external-prereq: model missing"} {
 		if _, _, err := plan.ParseStopReason(r); err != nil {
 			t.Fatalf("valid stop %q rejected: %v", r, err)
 		}

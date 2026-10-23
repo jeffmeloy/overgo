@@ -208,20 +208,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "person-free",
-      "title": "State the doctrine and its records free of persons",
-      "status": "open",
-      "steps": [
-        {
-          "id": "records",
-          "title": "Rename the stored control vocabulary free of persons, with its records",
-          "status": "open",
-          "verify": "go test ./internal/plan -run '^TestControlVocabularyNamesNoPerson$' -count=1",
-          "rationale": "The stored control records' reason codes name a person: a stop is \"user-stop\", a resume \"operator-resume\", a maintenance task \"operator-maintenance\", and the hook prints \"user-stop\" as the way to pause. They are vocabulary of content-addressed evidence records that later events link to as their predecessors, so renaming them is a migration of the records and their readers, not a text edit: the control validation, the plan's stop command and its help, the workbench's stop, the hook's contract and the tests that record them.\nServes: control records and the commands that write them free of persons, as the doctrine is.\nDisappears: the doctrine test's exception for the record vocabulary.\nEvidence: a test holding the control vocabulary to person-free codes, and a stop and resume recorded and read under the new codes beside records written under the old."
-        }
-      ]
-    },
-    {
       "id": "decode-loop",
       "title": "Port Strata's decode loop as one unit",
       "status": "open",

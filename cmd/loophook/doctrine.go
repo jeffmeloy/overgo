@@ -63,7 +63,7 @@ revert), and it blocks a turn-end while the plan holds ANY open row -- a
 landed commit is necessary progress, never a sanctioned end; the loop runs
 until the plan is EMPTY. A prompt NEVER pauses the loop (system
 doctrine): answer it, then continue the dispatched row in the same turn. The one sanctioned pause is an explicit stop request, recorded with
-go run ./cmd/plan -stop <user-stop|irreversible|external-prereq>:<detail>.
+go run ./cmd/plan -stop <requested|irreversible|external-prereq>:<detail>.
 For unattended continuity run go run ./cmd/loop.
 
 SCOPE. A bounded request -- a status readout, an explanation, or a review --

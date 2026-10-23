@@ -178,11 +178,11 @@ func stopMessage(verdict string, progressed bool, dispatch plan.Dispatch) string
 		if progressed {
 			b.WriteString("overgo loop gate: the row landed, but the plan still holds open rows.\n")
 			b.WriteString("  * continue with the next dispatched row now; a turn ends only when the\n")
-			b.WriteString("    plan is EMPTY. To pause: go run ./cmd/plan -stop user-stop:<detail>.\n")
+			b.WriteString("    plan is EMPTY. To pause: go run ./cmd/plan -stop requested:<detail>.\n")
 		} else {
 			b.WriteString("overgo loop gate: a prompt answer does not pause the loop (system doctrine).\n")
 			b.WriteString("  * continue the dispatched row now; a turn ends only when the plan is\n")
-			b.WriteString("    EMPTY. To pause: go run ./cmd/plan -stop user-stop:<detail>.\n")
+			b.WriteString("    EMPTY. To pause: go run ./cmd/plan -stop requested:<detail>.\n")
 		}
 	}
 	b.WriteString("  Dispatched now: " + next + "\n")
@@ -326,7 +326,7 @@ func runPrompt(hookJSON string) {
 		return
 	}
 	if boundedRequestText(input.Prompt) {
-		fmt.Println("OVERGO BOUNDED REQUEST: answer this request concisely, THEN continue the dispatched plan row in this same turn -- a prompt never pauses the loop (system doctrine). Only an explicit stop request pauses; record it with go run ./cmd/plan -stop user-stop:<detail>.")
+		fmt.Println("OVERGO BOUNDED REQUEST: answer this request concisely, THEN continue the dispatched plan row in this same turn -- a prompt never pauses the loop (system doctrine). Only an explicit stop request pauses; record it with go run ./cmd/plan -stop requested:<detail>.")
 		return
 	}
 	command := exec.Command("go", "run", "./cmd/plan", "-prompt")

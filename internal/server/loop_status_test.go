@@ -33,7 +33,7 @@ func (loop *fakeLoop) StopLoop(_ context.Context, detail string) error {
 		return loop.refusal
 	}
 	loop.details = append(loop.details, detail)
-	loop.status.Stopped, loop.status.StopReason = true, "user-stop: "+detail
+	loop.status.Stopped, loop.status.StopReason = true, "requested: "+detail
 	return nil
 }
 
@@ -71,7 +71,7 @@ func TestLoopStatusAndStop(t *testing.T) {
 		t.Fatalf("status %d %+v", code, read)
 	}
 	code, stopped := status(handler, http.MethodPost, "/loop/stop")
-	if code != http.StatusOK || !stopped.Stopped || stopped.StopReason != "user-stop: "+loopStopDetail || len(loop.details) != 1 || loop.details[0] != loopStopDetail {
+	if code != http.StatusOK || !stopped.Stopped || stopped.StopReason != "requested: "+loopStopDetail || len(loop.details) != 1 || loop.details[0] != loopStopDetail {
 		t.Fatalf("stop %d %+v, recorded %v", code, stopped, loop.details)
 	}
 	loop.refusal = errors.New("plan: stop changed; review its current identity before retrying")

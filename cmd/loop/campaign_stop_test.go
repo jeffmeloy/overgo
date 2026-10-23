@@ -16,7 +16,7 @@ import (
 func TestCampaignActiveWorkerStop(t *testing.T) {
 	const helperRoot = "OVERGO_CAMPAIGN_STOP_TEST_ROOT"
 	if root := os.Getenv(helperRoot); root != "" {
-		_, err := plan.RecordStop(t.Context(), plan.ControlEvent{Kind: plan.ControlStop, Lane: worklease.UnassignedRole, Worker: "operator", Worktree: filepath.ToSlash(root), Mode: plan.ExecutionAll, CodeCommit: strings.Repeat("a", 40), ReasonCode: "user-stop", Detail: "active worker fixture"})
+		_, err := plan.RecordStop(t.Context(), plan.ControlEvent{Kind: plan.ControlStop, Lane: worklease.UnassignedRole, Worker: "operator", Worktree: filepath.ToSlash(root), Mode: plan.ExecutionAll, CodeCommit: strings.Repeat("a", 40), ReasonCode: "requested", Detail: "active worker fixture"})
 		if err != nil {
 			t.Fatal(err)
 		}

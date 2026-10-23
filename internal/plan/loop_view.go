@@ -86,7 +86,7 @@ func ReadLoopView(ctx context.Context, root string) (LoopView, error) {
 	return view, nil
 }
 
-// StopLoop records a user stop on the worktree at root from the workbench,
+// StopLoop records a requested stop on the worktree at root from the workbench,
 // scoped to every execution mode; recording it wakes a live supervisor to
 // honour it. A worktree a stop already holds is left as it is.
 func StopLoop(ctx context.Context, root, detail string) error {
@@ -107,7 +107,7 @@ func StopLoop(ctx context.Context, root, detail string) error {
 	}
 	_, err = RecordStop(ctx, ControlEvent{
 		Kind: ControlStop, Lane: role, Worker: workbenchWorker, Worktree: filepath.ToSlash(repository), Mode: ExecutionAll,
-		ReasonCode: "user-stop", Detail: detail, CodeCommit: head, Previous: current.ID,
+		ReasonCode: stopRequested, Detail: detail, CodeCommit: head, Previous: current.ID,
 	})
 	return err
 }

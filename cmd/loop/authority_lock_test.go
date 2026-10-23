@@ -20,7 +20,7 @@ func TestPersistentLoopStop(t *testing.T) {
 	if world.Paused() {
 		t.Fatal("absent stop paused loop")
 	}
-	event := plan.ControlEvent{Kind: "stop", Lane: worklease.UnassignedRole, Worker: "loop-stop-worker", Worktree: filepath.ToSlash(root), Mode: plan.ExecutionInteractive, ReasonCode: "user-stop", Detail: "pause interactive session", CodeCommit: strings.Repeat("a", sha1.Size*2)}
+	event := plan.ControlEvent{Kind: "stop", Lane: worklease.UnassignedRole, Worker: "loop-stop-worker", Worktree: filepath.ToSlash(root), Mode: plan.ExecutionInteractive, ReasonCode: "requested", Detail: "pause interactive session", CodeCommit: strings.Repeat("a", sha1.Size*2)}
 	stopped, err := plan.RecordStop(t.Context(), event)
 	if err != nil {
 		t.Fatal(err)
@@ -42,7 +42,7 @@ func TestPersistentLoopStop(t *testing.T) {
 		t.Fatalf("stopped loop invoked work: %+v %v", outcome, err)
 	}
 	event.Kind = "resume"
-	event.ReasonCode = "operator-resume"
+	event.ReasonCode = "resume"
 	event.Detail = "operator continued"
 	event.Previous = stopped.ID
 	if _, err := plan.RecordStop(t.Context(), event); err != nil {

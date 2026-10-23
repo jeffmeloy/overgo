@@ -139,7 +139,7 @@ func TestStopStatusProjection(t *testing.T) {
 	}
 	stopCLI := cli{stop: true, worker: "stop-command-worker"}
 	var output bytes.Buffer
-	if err := recordStopControlCommand(root, stopCLI, []string{"user-stop: operator paused"}, &output); err != nil {
+	if err := recordStopControlCommand(root, stopCLI, []string{"requested: operator paused"}, &output); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := commandOutput(root, "git", "-c", "core.hooksPath=", "commit", "--allow-empty", "-m", "another worker committed"); err != nil {

@@ -29,7 +29,7 @@ const stopFile = "stop.json"
 // current decision cannot replace it.
 const stopLock = "stop.lock"
 
-// stopFileMode keeps the stop state private to the operator.
+// stopFileMode keeps the stop state private to the account that runs the checkout.
 const stopFileMode = 0o600
 
 const (
@@ -41,11 +41,11 @@ const (
 	ExecutionInteractive = "interactive"
 	// ExecutionUnattended cannot consume a supervised maintenance grant.
 	ExecutionUnattended = "unattended"
-	// ExecutionAll scopes an operator stop to both execution modes.
+	// ExecutionAll scopes a recorded stop to both execution modes.
 	ExecutionAll = "all"
 )
 
-// ControlEvent is one operator decision on a worktree's execution: a stop,
+// ControlEvent is one recorded decision on a worktree's execution: a stop,
 // the resume that retires it, or a maintenance grant for one task under it.
 type ControlEvent struct {
 	Kind       string      `json:"kind"`
@@ -72,7 +72,7 @@ func validateControl(event ControlEvent) error {
 	if !worklease.ValidAutomationText(event.Lane) || !worklease.ValidAutomationText(event.ReasonCode) || !validAutomationDetail(event.Detail) ||
 		!worklease.ValidCommit(event.CodeCommit) || !filepath.IsAbs(event.Worktree) || strings.Contains(event.Worktree, worklease.NonCanonicalPathSeparator) ||
 		!worklease.ValidAutomationText(event.Worker) || event.Worker == worklease.UnassignedRole || !validStopMode(event.Mode) {
-		return errors.New("plan: stop control requires exact worktree, owner, worker and execution scope")
+		return errors.New("plan: stop control requires exact worktree, lane, worker and execution scope")
 	}
 	if event.Previous.Valid() && event.Previous.Kind() != artifact.KindEvidence {
 		return errors.New("plan: invalid stop predecessor")
@@ -85,11 +85,11 @@ func validateControl(event ControlEvent) error {
 		_, _, err := ParseStopReason(event.ReasonCode + ": " + event.Detail)
 		return err
 	case ControlResume:
-		if event.ReasonCode != "operator-resume" || !event.Previous.Valid() || event.Task != "" {
-			return errors.New("plan: resume requires an exact operator stop")
+		if event.ReasonCode != ResumeCode || !event.Previous.Valid() || event.Task != "" {
+			return errors.New("plan: resume requires an exact recorded stop")
 		}
 	case ControlMaintenance:
-		if event.ReasonCode != "operator-maintenance" || !event.Previous.Valid() || !strings.Contains(event.Task, stepReferenceSeparator) || !worklease.ValidAutomationText(event.Task) {
+		if event.ReasonCode != MaintenanceCode || !event.Previous.Valid() || !strings.Contains(event.Task, stepReferenceSeparator) || !worklease.ValidAutomationText(event.Task) {
 			return errors.New("plan: maintenance requires an exact stop and task")
 		}
 	default:
@@ -98,7 +98,7 @@ func validateControl(event ControlEvent) error {
 	return nil
 }
 
-// identify gives an event its content identity, the ID an operator names to
+// identify gives an event its content identity, the ID a request names to
 // resume a stop or to use a maintenance grant.
 func identify(event ControlEvent) (ControlEvent, error) {
 	id, err := artifact.JSONID(artifact.KindEvidence, event)
@@ -154,6 +154,11 @@ func ReadStop(ctx context.Context, root, head, mode string) (StopStatus, error) 
 	if err := strictjson.DecodeBytes(raw, &state); err != nil {
 		return StopStatus{State: stopInvalid, Blocked: true, Problem: "stop file is malformed: " + err.Error()}, nil
 	}
+	code := func(written string) string { return cmp.Or(writtenControlCodes[written], written) }
+	state.Current.ReasonCode = code(state.Current.ReasonCode)
+	for index := range state.Maintenance {
+		state.Maintenance[index].ReasonCode = code(state.Maintenance[index].ReasonCode)
+	}
 	current, err := identify(state.Current)
 	if err != nil || validateControl(current) != nil || current.Kind == ControlMaintenance || !strings.EqualFold(current.Worktree, root) {
 		return StopStatus{State: stopInvalid, Blocked: true, Problem: "stop file does not name a valid stop or resume for this worktree"}, nil
@@ -183,7 +188,7 @@ func (status StopStatus) String() string {
 	if status.Event == nil {
 		return fmt.Sprintf("stop=%s id=%s %s", status.State, status.ID, status.Problem)
 	}
-	return fmt.Sprintf("stop=%s id=%s owner=%s worker=%s scope=%s worktree=%s bound_head=%s current_head=%s reason=%s: %s %s", status.State, status.ID, status.Event.Lane, status.Event.Worker, status.Event.Mode, status.Event.Worktree, status.Event.CodeCommit, status.CurrentHead, status.Event.ReasonCode, status.Event.Detail, status.Problem)
+	return fmt.Sprintf("stop=%s id=%s lane=%s worker=%s scope=%s worktree=%s bound_head=%s current_head=%s reason=%s: %s %s", status.State, status.ID, status.Event.Lane, status.Event.Worker, status.Event.Mode, status.Event.Worktree, status.Event.CodeCommit, status.CurrentHead, status.Event.ReasonCode, status.Event.Detail, status.Problem)
 }
 
 // RequireExecution checks a current stop and an optional exact maintenance
@@ -214,10 +219,10 @@ func (status StopStatus) RequireExecution(role, worker, mode, task, grant string
 	return nil
 }
 
-// RecordStop writes one operator decision to the worktree's stop file: a
+// RecordStop writes one recorded decision to the worktree's stop file: a
 // stop or resume replaces the current decision, a maintenance grant joins
 // the stop it names. Each must name the decision it follows, so a stale
-// operator decision is refused rather than overwriting a newer one.
+// decision is refused rather than overwriting a newer one.
 func RecordStop(ctx context.Context, event ControlEvent) (ControlEvent, error) {
 	root, err := filepath.Abs(event.Worktree)
 	if err != nil {
@@ -243,7 +248,7 @@ func RecordStop(ctx context.Context, event ControlEvent) (ControlEvent, error) {
 		return ControlEvent{}, errors.New("plan: stop changed; review its current identity before retrying")
 	}
 	if current.Event != nil && current.State != stopResumed && (event.Lane != current.Event.Lane || event.Mode != current.Event.Mode && !(event.Kind == ControlStop && event.Mode == ExecutionAll)) {
-		return ControlEvent{}, errors.New("plan: stop owner or scope mismatch")
+		return ControlEvent{}, errors.New("plan: stop lane or scope mismatch")
 	}
 	if event.Kind != ControlStop && (current.Event == nil || current.State != stopActive || event.Mode != current.Event.Mode) {
 		return ControlEvent{}, errors.New("plan: resume or maintenance requires the exact scope of a valid active stop")
@@ -271,7 +276,21 @@ func RecordStop(ctx context.Context, event ControlEvent) (ControlEvent, error) {
 	return identified, nil
 }
 
-var validStopReasons = []string{"user-stop", "irreversible", "external-prereq"}
+// The control vocabulary: a requested stop's reason, and the codes of the resume that retires a stop and of a
+// maintenance grant under one.
+const (
+	stopRequested = "requested"
+	// ResumeCode is the code of the resume that retires a stop.
+	ResumeCode = "resume"
+	// MaintenanceCode is the code of a maintenance grant under a stop.
+	MaintenanceCode = "maintenance"
+)
+
+var validStopReasons = []string{stopRequested, "irreversible", "external-prereq"}
+
+// writtenControlCodes are the codes stop files written before 2026-10-23 hold, which a read takes as the codes that
+// replaced them: a stop file is each checkout's own state, and its next decision writes it in these.
+var writtenControlCodes = map[string]string{"user-stop": stopRequested, "operator-resume": ResumeCode, "operator-maintenance": MaintenanceCode}
 
 // ParseStopReason validates and splits the declared stop vocabulary.
 func ParseStopReason(reason string) (string, string, error) {
@@ -284,7 +303,7 @@ func ParseStopReason(reason string) (string, string, error) {
 		}
 	}
 	if matched == "" {
-		return "", "", fmt.Errorf("invalid stop reason %q -- must begin with one of: user-stop: / irreversible: / external-prereq: <detail>", reason)
+		return "", "", fmt.Errorf("invalid stop reason %q -- must begin with one of: requested: / irreversible: / external-prereq: <detail>", reason)
 	}
 	if matched == "external-prereq" {
 		// An external prerequisite is something OUTSIDE this process that the
@@ -300,21 +319,21 @@ func ParseStopReason(reason string) (string, string, error) {
 			}
 		}
 		external := false
-		for _, marker := range []string{"background", "running", "owner", "merge", "download", "provision", "lane", "device", "hashing", "gate ", "missing", "absent", "unavailable"} {
+		for _, marker := range []string{"background", "running", "decision", "merge", "download", "provision", "lane", "device", "hashing", "gate ", "missing", "absent", "unavailable"} {
 			if strings.Contains(detail, marker) {
 				external = true
 				break
 			}
 		}
 		if !external {
-			return "", "", errors.New("stop refused: external-prereq detail names nothing external (no background task, owner action, merge, or running work) -- continue the plan")
+			return "", "", errors.New("stop refused: external-prereq detail names nothing external (no background task, outside decision, merge, or running work) -- continue the plan")
 		}
 	}
 	code, detail, _ := strings.Cut(reason, stopReasonSeparator)
 	return strings.TrimSpace(code), strings.TrimSpace(detail), nil
 }
 
-// ControlStop records an operator stop; it never expires with HEAD.
+// ControlStop records a stop; it never expires with HEAD.
 const ControlStop = "stop"
 
 // ControlResume explicitly retires one scoped stop.

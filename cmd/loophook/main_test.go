@@ -131,7 +131,7 @@ func TestPersistentStopHook(t *testing.T) {
 	git("config", "user.email", "stop@example.invalid")
 	git("config", "user.name", "Stop Fixture")
 	git("commit", "--allow-empty", "-qm", "baseline")
-	event := plan.ControlEvent{Kind: "stop", Lane: worklease.UnassignedRole, Worker: "hook-worker", Worktree: filepath.ToSlash(root), Mode: plan.ExecutionAll, ReasonCode: "user-stop", Detail: "operator stopped", CodeCommit: gitHead()}
+	event := plan.ControlEvent{Kind: "stop", Lane: worklease.UnassignedRole, Worker: "hook-worker", Worktree: filepath.ToSlash(root), Mode: plan.ExecutionAll, ReasonCode: "requested", Detail: "operator stopped", CodeCommit: gitHead()}
 	stopped, err := plan.RecordStop(t.Context(), event)
 	if err != nil {
 		t.Fatal(err)
@@ -151,7 +151,7 @@ func TestPersistentStopHook(t *testing.T) {
 		t.Fatalf("hook nagged after operator stop: %d", got)
 	}
 	event.Kind = "resume"
-	event.ReasonCode = "operator-resume"
+	event.ReasonCode = "resume"
 	event.Detail = "operator continued"
 	event.Previous = stopped.ID
 	event.CodeCommit = gitHead()

@@ -12,9 +12,9 @@
 // orphan turn-created uncommitted work, and it refuses a turn-end while the
 // plan holds ANY open row -- committed progress changes the message, never
 // the verdict, so the loop runs until the plan is empty. The one sanctioned
-// pause is a recorded user stop. Valves keep it from ever wedging: a
+// pause is a recorded stop. Valves keep it from ever wedging: a
 // stop_hook_active retry passes, a live background gate steps aside, an active
-// scoped operator stop passes, plan-complete passes.
+// scoped recorded stop passes, plan-complete passes.
 package main
 
 import (
@@ -92,11 +92,11 @@ func parseHook(hookJSON string) (input hookInput) {
 // Stop verdict reasons. Allow whenever a valve fires; otherwise a turn-end is
 // refused for one of two reasons: it would orphan turn-created work, or it
 // would pause the loop while the plan still holds an open row (the system's
-// doctrine: the plan's work continues until an operator stop). Committed
+// doctrine: the plan's work continues until a recorded stop). Committed
 // progress is necessary, never sufficient: a turn under an
 // open plan row continues until the plan is EMPTY, and the only sanctioned
-// pause is a recorded user stop (go run ./cmd/plan -stop), which arms the
-// operator-stop decision.
+// pause is a recorded stop (go run ./cmd/plan -stop), which arms the
+// recorded-stop decision.
 const (
 	stopAllow    = ""
 	stopOrphan   = "orphan"
@@ -206,7 +206,7 @@ func runPostCommit(hookJSON string) {
 const takeoverDeclaration = "take over this worktree"
 
 // stateFileMode is the mode of a file the hooks keep in a worktree's process
-// state: the session's own, and its owner's to read.
+// state: the session's own, readable by the account that runs it alone.
 const stateFileMode = 0o600
 
 // holdWorktree takes the worktree for an implementing session as its turn
@@ -326,7 +326,7 @@ func runPrompt(hookJSON string) {
 		return
 	}
 	if boundedRequestText(input.Prompt) {
-		fmt.Println("OVERGO BOUNDED REQUEST: answer this request concisely, THEN continue the dispatched plan row in this same turn -- a prompt never pauses the loop (system doctrine). Only an explicit user stop pauses; record it with go run ./cmd/plan -stop user-stop:<detail>.")
+		fmt.Println("OVERGO BOUNDED REQUEST: answer this request concisely, THEN continue the dispatched plan row in this same turn -- a prompt never pauses the loop (system doctrine). Only an explicit stop request pauses; record it with go run ./cmd/plan -stop user-stop:<detail>.")
 		return
 	}
 	command := exec.Command("go", "run", "./cmd/plan", "-prompt")

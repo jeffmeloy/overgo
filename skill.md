@@ -7,7 +7,7 @@ description: The rules for Overgo development, written as one logical statement 
 
 - overgo = one Go-native system that serves, trains, evaluates and composes models on consumer hardware
 - purpose = recursive self-improvement through its own inference and training, unattended
-- goal = improvement a user sees = the scorecard (`go run ./cmd/validate -scorecard`)
+- goal = improvement in what the system serves = the scorecard (`go run ./cmd/validate -scorecard`)
 - scorecard columns = `first-output`, `throughput`, `held-out-quality`, `failure-rate`, `load-time`, `peak-device-memory`, `setup-steps`
 - loop = measure -> find the gap -> train or change -> judge on held-out data
 - row filed <=> it closes the loop or speeds the loop or serves inference or serves training
@@ -21,7 +21,7 @@ description: The rules for Overgo development, written as one logical statement 
 - doctrine = how the system works, which every session and the loop follow and correct on evidence
 - doctrine != any person's preferences or rules
 - a rule that evidence shows costly or wrong => correct it in the doctrine != cite it as authority
-- humans or models propose
+- requests and models propose
 - goals, budgets and stops = inputs the system follows (the plan's intent, resource ceilings, a recorded stop) and never sets itself
 - executable policy admits and activates
 - OvergoDB holds state
@@ -36,7 +36,7 @@ description: The rules for Overgo development, written as one logical statement 
 - never defer a change for fear of breaking what the framework checks
 - refused landing = information != failure
 - ambition governs the code and never the system's boundaries
-- boundaries = scope, budgets, stops, pushes, downloads and security settings, which the system follows and never changes
+- boundaries = scope, budgets, stops, pushes and downloads, which the system follows and never changes
 - keep correctness and quality
 - simpler implementation > larger one
 - ambition = size of the gain != size of the change
@@ -54,7 +54,7 @@ A term used in this file is plain English or is defined here.
 - lane = one of the gate's longer test runs (device, browser, cuda)
 - cycle = the full measurement run (`go run ./cmd/loop -improve`)
 - cell = one model, task and measure on the scorecard
-- owner = the one package that holds a mechanic
+- home = the one package that holds a mechanic
 - leftover = a file that a run, a build or a session wrote and that no later work reads
 - place = a directory where leftovers accumulate
 
@@ -132,11 +132,11 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 - build for the case that exists
 - generalize <=> a second case exists
 - existing tools and signals > new ones
-- before a new owner => add a mode or a consumer to an existing owner
+- before a new home => add a mode or a consumer to an existing home
 - refactor the growth pattern, never only its latest instance
 - rule that matters = code the gate runs
 - ledger of objects lives only until invalid objects are impossible
-- classify once, at the owner, from typed facts
+- classify once, at the home, from typed facts
 - never a regex over structured data
 - capability != dead code
 - path only tests reach = unwired => add its route or lane or command
@@ -151,7 +151,7 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 - robustness governs autonomy
 - efficiency guides selection
 - runs, regressions, failures and recurring costs -> durable obligations
-- proposal = measurement + prior attempts + owner + budget + hypothesis + benefit + cost + acceptance comparison + rollback
+- proposal = measurement + prior attempts + home + budget + hypothesis + benefit + cost + acceptance comparison + rollback
 - a measurement, or no action, = a valid outcome
 - rank by recorded outcomes and expected cost
 - exploration = bounded
@@ -164,15 +164,15 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 
 ## Working loop
 
-1. read `git status --short`, the plan row, the owner code and stored results
+1. read `git status --short`, the plan row, the home's code and stored results
    - after an interruption => read them again
    - preserve others' work
-2. user scope first
+2. the request's scope first
    - campaign => `go run ./cmd/plan -next`
    - honor dependencies, lanes, acceptance and stops
 3. state the change, its expected effect and the deciding comparison
    - probe <=> the uncertainty could change the design
-4. fix the cause in its owner -> migrate callers -> delete displaced code
+4. fix the cause in its home -> migrate callers -> delete displaced code
 5. the step's verify fails before the change and passes after it
    - preflight first = `go run ./cmd/gate -plan <item>/<step> -message-file - -preflight`
    - after a hand edit => `go run ./cmd/validate -claims`
@@ -187,7 +187,7 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 7. open decision => take the recommended default -> record `plan -answer` -> continue
 
 - landing returns to dispatch
-- pause <=> explicit user stop (`go run ./cmd/plan -stop user-stop:<detail>`)
+- pause <=> an explicit stop request (`go run ./cmd/plan -stop <reason>:<detail>`, its reasons in the command's help)
 - lift a pause = `-resume-stop`
 - prompt => answer -> continue
 - question => answer
@@ -217,7 +217,7 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 - batch surface moves
 - landing grows its row past its count => raises the count with a reason in its own plan edit (gate rule)
 - step's check that refuses text in `docs/plan.json` => its pattern never matches itself, because the plan stores the check
-- correction of a kind of error => its check refuses the kind wherever the doctrine lives, never only the instance reported
+- correction of a kind of error => a standing test refuses the kind wherever the doctrine lives, never a step's one-off match and never only the instance reported
 - step's check that runs `go test` = the bare command with an anchored `-run`, never piped, because the verifier reads its test events
 - filing a check => run it once (`plan -verify`): it fails as a test or names a test not yet written, never vacuous by its form (a pipe, a wrong package), because a landing is judged by the check its row held before it
 - land before an evaluation run
@@ -263,14 +263,14 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 - publish and retry = idempotent
 - recover from durable state
 - retried failed write never becomes a pass
-- one resource owner
+- one home a resource
 - bound workers
 - handle cancellation, error, death and release
 - OS locks only
 - never infer abandonment from elapsed time
 - never steal a lock
 - model, dataset and checkpoint inputs = immutable
-- publish through lifecycle owners
+- publish through the lifecycle's home
 - before retiring originals => validate rollback
 - execution, verification and activation = separate
 - keep rollback predecessors
@@ -292,7 +292,7 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 - reacquire <=> invalidated
 - selection, ordering, reuse and reporting = from typed facts (AST, types, parsed commands, declared capabilities)
 - external text => normalize at the boundary
-- scope verification through dependency owners
+- scope verification through the dependencies' homes
 - unknown dependency => keep the broader scope
 - conflicting mutations and isolated measurements => serialized
 - CPU work holds no GPU claim
@@ -319,7 +319,7 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 
 ## Compute and derived values
 
-- RAM, VRAM, CPU and GPU capability = resolved through resource owners with load, reservations and limits
+- RAM, VRAM, CPU and GPU capability = resolved through the resources' homes with load, reservations and limits
 - installed capacity != budget
 - never a machine-specific default
 - placement, batch, chunk, workers and residency = derived from workload, measurement and availability
@@ -371,7 +371,7 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 - `adaptive_new` = read-only
 - keep commits, licenses and artifact identities
 - model-family facts live in artifacts and recipes, never in model-specific code
-- cohesive owners
+- cohesive homes
 - clear errors and cancellation
 - reusable hot-path buffers
 - interface <=> real consumers
@@ -420,7 +420,7 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 | [kernels/manifest.json](kernels/manifest.json) | Kernel ABI, source and binary identities |
 | [API manifest](docs/api_manifest.json) | Public commands, routes, document contracts |
 
-- existing owners only
+- existing homes only
 - never parallel plans, ledgers, schedulers or recovery paths
 - contracts in docs, measurements in the store, history in Git
 - report = outcome + material measurements + checks + remaining obligations

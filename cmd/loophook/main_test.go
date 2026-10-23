@@ -14,7 +14,7 @@ import (
 // orphaned turn-created work blocks first, and ANY turn under an open plan
 // row blocks with the continue verdict -- committed progress is necessary,
 // never sufficient (system doctrine: the loop runs until the plan is empty; the
-// sanctioned pause is a recorded user stop, which arms the freshStop valve).
+// sanctioned pause is a recorded stop, which arms the freshStop valve).
 func TestStopDecision(t *testing.T) {
 	cases := []struct {
 		name                                                          string

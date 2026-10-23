@@ -91,9 +91,9 @@ func parseHook(hookJSON string) (input hookInput) {
 
 // Stop verdict reasons. Allow whenever a valve fires; otherwise a turn-end is
 // refused for one of two reasons: it would orphan turn-created work, or it
-// would pause the loop while the plan still holds an open row (owner rule
-// 2026-08-20: "the need to continue the plan doesn't go away unless I say
-// stop"). Committed progress is necessary, never sufficient: a turn under an
+// would pause the loop while the plan still holds an open row (the system's
+// doctrine: the plan's work continues until an operator stop). Committed
+// progress is necessary, never sufficient: a turn under an
 // open plan row continues until the plan is EMPTY, and the only sanctioned
 // pause is a recorded user stop (go run ./cmd/plan -stop), which arms the
 // operator-stop decision.
@@ -180,7 +180,7 @@ func stopMessage(verdict string, progressed bool, dispatch plan.Dispatch) string
 			b.WriteString("  * continue with the next dispatched row now; a turn ends only when the\n")
 			b.WriteString("    plan is EMPTY. To pause: go run ./cmd/plan -stop user-stop:<detail>.\n")
 		} else {
-			b.WriteString("overgo loop gate: a prompt answer does not pause the loop (owner rule).\n")
+			b.WriteString("overgo loop gate: a prompt answer does not pause the loop (system doctrine).\n")
 			b.WriteString("  * continue the dispatched row now; a turn ends only when the plan is\n")
 			b.WriteString("    EMPTY. To pause: go run ./cmd/plan -stop user-stop:<detail>.\n")
 		}
@@ -326,7 +326,7 @@ func runPrompt(hookJSON string) {
 		return
 	}
 	if boundedRequestText(input.Prompt) {
-		fmt.Println("OVERGO BOUNDED REQUEST: answer this request concisely, THEN continue the dispatched plan row in this same turn -- a prompt never pauses the loop (owner rule). Only an explicit user stop pauses; record it with go run ./cmd/plan -stop user-stop:<detail>.")
+		fmt.Println("OVERGO BOUNDED REQUEST: answer this request concisely, THEN continue the dispatched plan row in this same turn -- a prompt never pauses the loop (system doctrine). Only an explicit user stop pauses; record it with go run ./cmd/plan -stop user-stop:<detail>.")
 		return
 	}
 	command := exec.Command("go", "run", "./cmd/plan", "-prompt")

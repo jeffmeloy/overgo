@@ -89,6 +89,7 @@ func TestPromptContractProjection(t *testing.T) {
 func TestPromptReadsWithoutWriting(t *testing.T) {
 	t.Setenv(plan.AutomationRoleEnvironment, worklease.UnassignedRole)
 	t.Setenv(plan.AutomationWorkerEnvironment, "")
+	t.Setenv(plan.AutomationMaintenanceEnvironment, "")
 	root := initializePlanTestRepository(t, mutationPlan(t, "Prompt task"))
 	t.Chdir(root)
 	store, err := overgodb.Open(filepath.Join(root, "overgodb-store"))

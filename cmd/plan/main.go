@@ -52,7 +52,7 @@ func main() {
 	jsonFlag := flag.Bool("json", false, "with -next or -prompt: print typed JSON")
 	stop := flag.Bool("stop", false, "record a scoped stop until explicit resume: -stop <user-stop|irreversible|external-prereq>: <detail>")
 	resumeStop := flag.String("resume-stop", "", "explicitly resume the exact stop ID, preserving its owner and scope")
-	maintenanceStop := flag.String("maintenance-stop", "", "authorize one supervised task while the exact stop remains active: <item/step> <reason>")
+	maintenanceStop := flag.String("maintenance-stop", "", "authorize one supervised task while the exact stop remains active: -maintenance-stop <stop-id> <item/step> <reason>")
 	stopMode := flag.String("stop-mode", "", "stop scope: all (default), interactive or unattended; resume preserves the recorded scope")
 	executionMode := flag.String("mode", "", "execution mode: interactive or unattended; default inherited from the driver")
 	title := flag.String("title", "", "with -add or -addstep: the task title")

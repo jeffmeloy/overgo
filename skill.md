@@ -17,6 +17,10 @@ description: The rules for Overgo development, written as one logical statement 
 - `master` takes landings
 - local `main` = GitHub staging, which nothing reads
 - push <=> the operator asked
+- this file and the plan's standing paragraphs = the system's doctrine
+- doctrine = how the system works, which every session and the loop follow and correct on evidence
+- doctrine != the operator's preferences and != any person's rules
+- a rule that evidence shows costly or wrong => correct it in the doctrine != cite it as authority
 - humans or models propose
 - the operator sets goals, budgets and stops
 - executable policy admits and activates
@@ -42,7 +46,7 @@ description: The rules for Overgo development, written as one logical statement 
 A term used in this file is plain English or is defined here.
 
 - operator = the person who sets goals, budgets and stops
-- lead = the session that holds the main checkout and ranks the plan
+- lead = the session that holds the main checkout, ranks the plan and keeps the doctrine current
 - session = one running agent
 - row = one unit of work in `docs/plan.json`
 - step = one landing's worth of a row, with its check (`verify`)
@@ -213,6 +217,7 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 - landing cost = lanes reached + inference-surface guard expiry + pinned-media reconciliation
 - batch surface moves
 - landing grows its row past its count => raises the count with a reason in its own plan edit (gate rule)
+- step's check that refuses text in `docs/plan.json` => its pattern never matches itself, because the plan stores the check
 - land before an evaluation run
 - native `go test` selects
 - never time budgets, ratchets or a second selector
@@ -221,6 +226,7 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 ### Plan and SQA
 
 - `docs/plan.json` = sole dispatch authority
+- plan update => first review the record since the last update (landings, retirements, regressions with how each was found, fixes, findings) -> name the patterns that held and that failed -> apply them to the plan and to this doctrine in the same landing -> its message states them
 - rationale lines = Serves, Disappears, Evidence, Batch
 - `docs/sqa_findings.json` = independent, scheduled, advisory
 - the lead owns adoption and sequence
@@ -242,6 +248,8 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 - replay carries only bit-identical outputs
 - evaluate decides
 - compare identical tasks, artifacts, protocols and budgets
+- two builds' timings => alternate the builds on fresh processes for at least 3 rounds each (a bench cell moves 10% between rounds)
+- difference inside the rounds' ranges = no difference
 - aggregate gain never hides a required regression
 
 ## Robustness
@@ -396,7 +404,7 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 
 | Surface | Holds |
 | --- | --- |
-| [skill.md](skill.md) | The operator's rules. Sole root agent-instruction document |
+| [skill.md](skill.md) | The system's doctrine. Sole root agent-instruction document |
 | [docs/plan.json](docs/plan.json) | Rows, dependencies, acceptance, open work, and rules that bind one campaign only |
 | OvergoDB | Artifacts, lineage, runs, decisions, findings, receipts (`go run ./cmd/overgodb query`) |
 | [compatibility.json](compatibility.json) | Model and capability verification contracts |

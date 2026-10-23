@@ -13,7 +13,7 @@ import (
 // TestStopDecision pins the pure Stop verdict: any valve allows; otherwise
 // orphaned turn-created work blocks first, and ANY turn under an open plan
 // row blocks with the continue verdict -- committed progress is necessary,
-// never sufficient (owner rule: the loop runs until the plan is empty; the
+// never sufficient (system doctrine: the loop runs until the plan is empty; the
 // sanctioned pause is a recorded user stop, which arms the freshStop valve).
 func TestStopDecision(t *testing.T) {
 	cases := []struct {
@@ -42,7 +42,7 @@ func TestStopDecision(t *testing.T) {
 	}
 }
 
-// TestBoundedRequestScopesAnswerNotTurn pins the owner rule: a bounded
+// TestBoundedRequestScopesAnswerNotTurn pins the doctrine: a bounded
 // request classifies the ANSWER's scope and renders no verdict, with no
 // marker to consume; a bounded turn with no committed progress still draws
 // the continue block, and only a valve (e.g. a recorded user stop) allows it.

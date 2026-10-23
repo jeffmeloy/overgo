@@ -431,6 +431,7 @@ func (r *Runner) Close() error {
 	return errors.Join(
 		cacheErr,
 		r.releaseSpanSlots(context.Background()),
+		r.releaseHyperDraftHistory(context.Background()),
 		resources.close(),
 	)
 }

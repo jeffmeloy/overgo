@@ -196,6 +196,17 @@ func (r *Runner) generateDeviceSpeculativeGreedy(
 	var seedHidden reference.Value
 	var seedPosition uint32
 	haveSeed := false
+	// A hyper draft's round reads the last span's kept rows, each with the token after it, into its history (seedRows
+	// from the row at seedStart, seedTokens their next tokens), and drafts from the last.
+	var seedRows reference.Value
+	var seedTokens []tokenizer.TokenID
+	var seedStart uint32
+	if r.hyperDraft != nil {
+		cells := min(options.MaxNewTokens, int(r.spec.ContextLength)) + int(q8InputSpanColumnsWindow) + 1
+		if err := r.ensureHyperDraftHistory(ctx, uint32(cells)); err != nil {
+			return ids, boundary, false, "", err
+		}
+	}
 	for !stopped {
 		var drafts []tokenizer.TokenID
 		// A long pending run means the last drafts were rejected past the
@@ -207,7 +218,13 @@ func (r *Runner) generateDeviceSpeculativeGreedy(
 		// one token more and appends its pending tokens and drafts to the boundary, so the request ends where plain
 		// decoding ends.
 		room := min(depth, options.MaxNewTokens-emitted-1, int(r.spec.ContextLength)-int(boundary.Tokens)-len(pending))
-		if haveSeed && room > 0 && len(pending)+depth <= int(q8InputSpanColumnsWindow) && (depth > 1 || len(pending) == 1) {
+		if haveSeed && room > 0 && len(pending)+depth <= int(q8InputSpanColumnsWindow) && (depth > 1 || len(pending) == 1) && r.hyperDraft != nil {
+			drafted, draftErr := r.draftHyperFromHistoryLocked(ctx, seedRows, seedTokens, seedStart)
+			if draftErr != nil {
+				return ids, boundary, false, "", draftErr
+			}
+			drafts = append(drafts, drafted)
+		} else if haveSeed && room > 0 && len(pending)+depth <= int(q8InputSpanColumnsWindow) && (depth > 1 || len(pending) == 1) {
 			session, sessionErr := r.newDeviceMTPSessionLocked(seedHidden, seedPosition)
 			if sessionErr != nil {
 				return ids, boundary, false, "", sessionErr
@@ -273,6 +290,14 @@ func (r *Runner) generateDeviceSpeculativeGreedy(
 		}
 		seedPosition = spanStart + uint32(base+accepted) + 1
 		haveSeed = true
+		if r.hyperDraft != nil {
+			// The kept rows are the span's up to the correction's, each followed by the span's next token, the last by the
+			// correction.
+			kept := base + accepted + 1
+			seedRows = reference.Value{Shape: tensor.MustShape(width, uint64(kept)), Data: slices.Clone(span.SpanHidden.Data[:uint64(kept)*width])}
+			seedTokens = append(slices.Clone(spanTokens[1:kept]), correction)
+			seedStart = spanStart
+		}
 		// A window whose drafts were all accepted is the next boundary; one that rejected a draft keeps the span at its
 		// checkpoint after the pending tokens and the drafts accepted, so the correction is all that is pending.
 		committed := accepted == len(drafts)

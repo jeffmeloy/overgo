@@ -212,17 +212,10 @@
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",
       "budget": {
-        "nodes": 181,
-        "reason": "promotion-cap adds about 60 production nodes: each bank's decayed usage counts, their counting and decay at each decode advance, the admission of a miss by its count and the ordering and bound of an advance's admitted misses; the agent turns' copies waited on all of it."
+        "nodes": 61,
+        "reason": "mtp-history adds about 1,190 production nodes: the draft's history buffer and its sizing and release, a draft round compiled over it with its runtime rows, positions, attention extent and append offset and its in-place targets, the round's call and the speculative loop's kept rows; drafting from the layer's own history, as Strata's drafter does, waits on all of it."
       },
       "steps": [
-        {
-          "id": "mtp-history",
-          "title": "Draft from the MTP layer's own history, chaining while the draft is sure",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -run \"^TestFlashNextMTP\" -count=1",
-          "rationale": "Strata's MTP drafter keeps the draft layer's own K/V over every cell it has seen (include/strata/core/mtp.hpp: cell i pairs the trunk's final streams at position i with the token at i+1, at rope position i; the prompt path fills the prompt's cells in batches, each verify window's catch-up its accepted rows), attends densely over them, and chains up to four drafts a window while the draft's probability holds 0.5 (--spec 4 --spec-min-p 0.5): 1.9 to 2.2 tokens a window at about 15 ms. Ours drafts one token a round from a fresh cell that attends over itself alone (hyperDraftTokens 1: 63% kept at depth one, 43 and 27% at depths two and three without history), 1.6 to 1.7 tokens a forward at about 14 ms: the per-step time is at Strata's, the tokens a step are not.\nServes: the attached hyper draft layer keeps its K/V for the request's cells in a device cache of its own, written by a catch-up over each verify span's kept rows and by the prompt's read, so each draft attends over every earlier cell, as the layer was trained; a round drafts up to four tokens while the draft's top probability holds a floor, its verify span the pending tokens and those drafts.\nFirst: the catch-up and history alone at depth one (acceptance against 63%), then the chain with its floor, each against plain greedy's text token for token on the hermetic Flash-Next and timed on the served model.\nEvidence: the hermetic Flash-Next fixtures decode speculatively to plain greedy's tokens; the served model's chat and agent turns decode more tokens a forward than 1.65 at no more than 15 ms a forward."
-        },
         {
           "id": "context-decode",
           "title": "Decode at a 4K to 16K context at Strata's rate",

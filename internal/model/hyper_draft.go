@@ -116,7 +116,7 @@ func (p ModelPlan) HyperDraftProgram() (CompiledLayerProgram, error) {
 	return CompiledLayerProgram{}, errors.New("model plan has no attention layer to draft with")
 }
 
-// BuildHyperDraftInput fuses the next token's embedding, [embedding, 1], with the trunk's residual streams, [embedding*streams, 1], into the draft layer's streams, [embedding, streams, 1].
+// BuildHyperDraftInput fuses each cell's next token's embedding, [embedding, cells], with the trunk's residual streams, [embedding*streams, cells], into the draft layer's streams, [embedding, streams, cells].
 func BuildHyperDraftInput(
 	builder *tensor.Builder,
 	spec Spec,
@@ -125,11 +125,11 @@ func BuildHyperDraftInput(
 	if err := (graphWeights{embedding, streams, embeddingNorm, hiddenNorm, embeddingProjection, hiddenProjection}).validate("hyper-connection draft input"); err != nil {
 		return nil, err
 	}
-	width, count := uint64(spec.EmbeddingLength), uint64(spec.HyperConnectionCount)
+	width, count, tokens := uint64(spec.EmbeddingLength), uint64(spec.HyperConnectionCount), embedding.Shape.Dims[embedding.Shape.Rank-tensor.SingletonExtent]
 	fused := builder.MulMat(embeddingProjection, builder.WeightedRMSNorm(embedding, embeddingNorm, spec.RMSNormEpsilon))
-	normalized := builder.WeightedRMSNorm(builder.Reshape(streams, width*count, tensor.SingletonExtent), hiddenNorm, spec.RMSNormEpsilon)
-	hidden := builder.MulMat(hiddenProjection, builder.Reshape(normalized, width, count))
-	output := builder.Add(builder.Reshape(hidden, width, count, tensor.SingletonExtent), repeatHyperStreams(builder, fused, spec.HyperConnectionCount))
+	normalized := builder.WeightedRMSNorm(builder.Reshape(streams, width*count, tokens), hiddenNorm, spec.RMSNormEpsilon)
+	hidden := builder.MulMat(hiddenProjection, builder.Reshape(normalized, width, count*tokens))
+	output := builder.Add(builder.Reshape(hidden, width, count, tokens), repeatHyperStreams(builder, fused, spec.HyperConnectionCount))
 	return output, builder.Err()
 }
 

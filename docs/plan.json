@@ -208,6 +208,27 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "person-free",
+      "title": "State the doctrine and its records free of persons",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "State the doctrine and its records free of persons",
+          "status": "open",
+          "verify": "go test ./cmd/loophook -run '^TestDoctrineNamesNoPerson$' -count=1",
+          "rationale": "The person-free landing (94a0f46) refused only the phrases reported, so the doctrine still named persons: skill.md \"a user sees\", \"user scope first\", \"explicit user stop\", \"humans or models propose\", and \"owner\" in its package sense on twelve lines; the plan's standing and campaign paragraphs \"owner\" on fourteen and \"user-facing\", \"User-journey\" and \"user-visible\"; the hook's contract \"user-scorecard\", \"USER INPUT\", \"a user request\", \"a prompt from the user\" and \"user stop\". And the boundaries line held OS security settings as something the system never changes, where the efficiency section changes them as needed: a session that cannot change them wrote its own limit as the system's rule, which an agent driving with full permissions would read as forbidding what the other line asks.\nThe change: the boundaries are scope, budgets, stops, pushes and downloads; a package that holds a mechanic is its home; requests and models propose; the goal is improvement in what the system serves; the hook's contract speaks of requests and recorded stops. A test refuses the kind wherever the doctrine lives (skill.md, the plan's standing and campaign paragraphs, the hook's contract): no user, human, owner or operator, a path's segments and the stored record vocabulary excepted, and no line holding security settings as never changed.\nServes: a doctrine every agent reads as the system's own, whatever its permissions.\nDisappears: the person words and the session limit stated as a system rule.\nEvidence: the test, failing on the doctrine at 00f1671 and passing after."
+        },
+        {
+          "id": "records",
+          "title": "Rename the stored control vocabulary free of persons, with its records",
+          "status": "open",
+          "verify": "go test ./internal/plan -run '^TestControlVocabularyNamesNoPerson$' -count=1",
+          "rationale": "The stored control records' reason codes name a person: a stop is \"user-stop\", a resume \"operator-resume\", a maintenance task \"operator-maintenance\", and the hook prints \"user-stop\" as the way to pause. They are vocabulary of content-addressed evidence records that later events link to as their predecessors, so renaming them is a migration of the records and their readers, not a text edit: the control validation, the plan's stop command and its help, the workbench's stop, the hook's contract and the tests that record them.\nServes: control records and the commands that write them free of persons, as the doctrine is.\nDisappears: the doctrine test's exception for the record vocabulary.\nEvidence: a test holding the control vocabulary to person-free codes, and a stop and resume recorded and read under the new codes beside records written under the old."
+        }
+      ]
+    },
+    {
       "id": "decode-loop",
       "title": "Port Strata's decode loop as one unit",
       "status": "open",
@@ -477,7 +498,8 @@
             "sqa-oracle/do",
             "tail-off/do",
             "decode-loop/do",
-            "doctrine-persons/do"
+            "doctrine-persons/do",
+            "person-free/do"
           ]
         }
       ]

@@ -256,6 +256,7 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 - a cost each request pays once => weighed against the measured cell's own request (its tokens and time), never a longer run's
 - a timing taken under a tracer => an untraced clock of the same stage confirms it before it decides (per-node graph tracing slows a graph's launch)
 - work across streams = the union of their intervals, never a sum of durations, and a copy's overlap = its intervals' intersection with the kernels'
+- an idle card in a trace => each kernel's launch joined to its start (the correlation id) before a change, because work launched and waiting and work not yet launched take different fixes (the prompt layers' products waited 5.2 ms each after their launch)
 - aggregate gain never hides a required regression
 
 ## Robustness
@@ -316,6 +317,8 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 - A/B = one loaded model, forced token ids, interleaved arms > a reload and free-running text an arm
 - probe or benchmark built from stale derived files (kernels, bindings, manifests) => refused before it runs
 - rare-path work (a handshake, a fallback) => folded into kernels that run anyway > a launch of its own
+- work that waits for nothing => queued and submitted before work that waits (a copy batch, an event), because under Windows' display driver model a stream's work waits behind the submissions made before it
+- a buffer sized to a run's need => rounded up before it grows, because each growth frees it, drops what names it and waits while Windows clears the new memory (about 100 ms at 2.8 GB); a share to spare costs what that memory would hold (experts)
 - measured gains of one row => one landing (steps joined by commas) > a gate run each
 
 ## Compute and derived values

@@ -128,11 +128,12 @@ func pinned(state *device.State, buffer *[]byte, bytes uint64) error {
 	return nil
 }
 
-// gatherHostInputs brings to host memory the input rows of the tokens the
-// plan's experts read, gathered on the card into the staging and copied back
-// together, each token once: the whole group's rows took a 5,099-token
-// prompt about 4 ms a layer. It runs before the card's products are queued,
-// so its copy waits for nothing else.
+// gatherHostInputs queues the input rows of the tokens the plan's experts
+// read to host memory, gathered on the card into the staging and copied back
+// together on the read stream, each token once: the whole group's rows took
+// a 5,099-token prompt about 4 ms a layer, which the card's products, queued
+// next, run beside. It is queued before them, so its copy waits for nothing
+// else; computeHostExperts waits for it.
 func (b *blasState) gatherHostInputs(state *device.State, functions functionSet, plan hostExperts, g moeMatrixGeometry,
 	a tensor.MoEAttributes, input driver.DevicePtr, count uint32, positions []uint32) error {
 	topK := a.TopK
@@ -167,7 +168,25 @@ func (b *blasState) gatherHostInputs(state *device.State, functions functionSet,
 	if err := launch1DABI(state, functions[kernelGetRowsF32], total, &input, &indicesAt, &rowsAt, &width, &total); err != nil {
 		return err
 	}
-	return state.Driver.MemcpyDtoH(b.hostInput[:gatheredBytes], rowsAt)
+	if b.moeReadStream == 0 {
+		stream, err := state.Driver.StreamCreate(0)
+		if err != nil {
+			return err
+		}
+		b.moeReadStream = stream
+	}
+	if err := state.Driver.StreamWait(b.moeReadStream, state.Stream); err != nil {
+		return err
+	}
+	if err := state.Driver.MemcpyDtoHAsync(b.hostInput[:gatheredBytes], rowsAt, b.moeReadStream); err != nil {
+		return err
+	}
+	// Both streams submitted now, the read runs beside the products queued after it (StreamQuery).
+	if _, err := state.Driver.StreamQuery(state.Stream); err != nil {
+		return err
+	}
+	_, err := state.Driver.StreamQuery(b.moeReadStream)
+	return err
 }
 
 // computeHostExperts computes the plan's experts on the CPU from the rows
@@ -177,6 +196,10 @@ func (b *blasState) gatherHostInputs(state *device.State, functions functionSet,
 func (b *blasState) computeHostExperts(state *device.State, functions functionSet, plan hostExperts, g moeMatrixGeometry,
 	a tensor.MoEAttributes, slots driver.DevicePtr, count uint32, positions []uint32) error {
 	hidden, intermediate, topK, experts := int(g.hidden), int(g.intermediate), a.TopK, int(g.experts)
+	// The input rows gatherHostInputs queued have reached host memory.
+	if err := state.Driver.StreamSynchronize(b.moeReadStream); err != nil {
+		return err
+	}
 	if b.hostPool == nil {
 		b.hostPool = hostexpert.NewPool(runtime.NumCPU())
 	}

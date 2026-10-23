@@ -369,13 +369,16 @@ func launchMoEMatrices(state *device.State, functions functionSet, blas *blasSta
 	if err := state.Driver.StreamWait(blas.moeCopyStream, state.Stream); err != nil {
 		return false, err
 	}
+	if err := launch(cardShare(0), cardShare(1), tables); err != nil {
+		return false, err
+	}
+	if _, err := state.Driver.StreamQuery(state.Stream); err != nil {
+		return false, err
+	}
 	if hostBatches > 0 {
 		if err := issue(0); err != nil {
 			return false, err
 		}
-	}
-	if err := launch(cardShare(0), cardShare(1), tables); err != nil {
-		return false, err
 	}
 	for batch := range hostBatches {
 		next := batch + 1

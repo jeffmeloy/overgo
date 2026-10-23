@@ -2634,8 +2634,10 @@ type blasState struct {
 	hostQuantizedAt []int
 	// doorbell hands a captured decode step's experts on host to the CPU.
 	doorbell moeDoorbell
-	// moeCopyStream copies host experts beside the compute stream.
+	// moeCopyStream copies host experts beside the compute stream, and moeReadStream brings the CPU's input rows
+	// back beside both.
 	moeCopyStream driver.Stream
+	moeReadStream driver.Stream
 	library       *cublas.Library
 	handle        cublas.Handle
 	staging       driver.DevicePtr
@@ -2787,13 +2789,34 @@ func (r *executorResources) ensureArena(state *device.State, size uint64) (drive
 	if err := r.releaseArena(state); err != nil {
 		return 0, err
 	}
-	next, err := r.allocate(state, size)
+	// A growing arena rounds its need up (arenaGranule), and takes its need alone where the card has no room for the
+	// rest.
+	grown := arenaBytes(size)
+	next, err := r.allocate(state, grown)
 	if err != nil {
-		return 0, err
+		grown = size
+		if next, err = r.allocate(state, size); err != nil {
+			return 0, err
+		}
 	}
-	r.arena, r.arenaSize = next, size
+	r.arena, r.arenaSize = next, grown
 	r.arenaUse.growths++
 	return r.arena, nil
+}
+
+// arenaGranule rounds a growing arena's need up: a prompt a token longer than the last needs a few bytes more, and
+// each growth frees the arena, drops the graphs that name it and waits while Windows clears the new allocation (a
+// Flash-Next 16K prompt's read waited about 100 ms for its 2.8 GB). A share of the need to spare (a quarter) also kept
+// a long prompt's second chunk from growing it again, but held card memory the experts lost: agent turns decoded 2.8%
+// slower over three alternating rounds.
+const arenaGranule = uint64(64 << 20)
+
+// arenaBytes is the arena a run needing need bytes grows to.
+func arenaBytes(need uint64) uint64 {
+	if need > math.MaxUint64-arenaGranule {
+		return need
+	}
+	return (need + arenaGranule - 1) / arenaGranule * arenaGranule
 }
 
 // releaseArena frees the arena; captured graphs address it directly, so none may replay over the range freed.
@@ -2831,9 +2854,12 @@ func (e *Executor) closeResources(state *device.State) error {
 		errs = append(errs, err)
 	}
 	if e.resources.blas != nil {
-		// The copy stream is idle once a run ends, whose compute stream waited for each of its copies.
-		if e.resources.blas.moeCopyStream != 0 {
-			errs = append(errs, state.Driver.StreamDestroy(e.resources.blas.moeCopyStream))
+		// The copy and read streams are idle once a run ends: its compute stream waited for each copy, and its
+		// host for each read.
+		for _, stream := range []driver.Stream{e.resources.blas.moeCopyStream, e.resources.blas.moeReadStream} {
+			if stream != 0 {
+				errs = append(errs, state.Driver.StreamDestroy(stream))
+			}
 		}
 		// The host experts' buffers are idle once a run ends, whose stream finished each upload from them.
 		for _, buffer := range [][]byte{e.resources.blas.hostInput, e.resources.blas.hostRows} {

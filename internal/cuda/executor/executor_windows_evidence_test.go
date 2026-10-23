@@ -85,7 +85,7 @@ func TestArenaMetrics(t *testing.T) {
 	}
 	if metrics.ArenaRequiredBytes != small.memory.ArenaSize ||
 		metrics.ArenaPeakRequiredBytes != large.memory.ArenaSize ||
-		metrics.ArenaCommittedBytes != large.memory.ArenaSize {
+		metrics.ArenaCommittedBytes != arenaBytes(large.memory.ArenaSize) {
 		t.Fatalf("arena byte evidence is invalid: %+v", metrics)
 	}
 	if metrics.ArenaUnusedBytes != metrics.ArenaCommittedBytes-metrics.ArenaRequiredBytes {

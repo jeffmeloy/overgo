@@ -212,17 +212,10 @@
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",
       "budget": {
-        "nodes": 33,
-        "reason": "The draft-prompt step adds about 1,300 production syntax nodes: the output plan's streams flag and the prompt read's target buffer, the write-only draft round and the shared round runner, the prompt recorder with its window and joining cell, the history readied before the read, and the first round seeded from the prompt's last row. Nothing smaller lets the draft attend over the prompt it read."
+        "nodes": 0,
+        "reason": "The copy-order step adds about 223 production syntax nodes: the read stream the CPU experts' input rows come back on (its creation, wait, asynchronous copy, submission and its release with the copy stream), the host's wait for it before the CPU computes, the card share's launch and submission moved ahead of the first copies, and the arena's rounding with its fallback to the exact need and its use in the memory reservation. Nothing smaller keeps the card's own products from waiting behind the copies and the arena from growing for a few bytes."
       },
       "steps": [
-        {
-          "id": "copy-order",
-          "title": "Queue a prompt layer's own products before its expert copies",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^(TestArenaMetrics|TestPromptHostExpertsComputeOnTheCPU|TestPromptExpertsMultiplyEncodedWeights)$' -count=1",
-          "rationale": "Traced 2026-10-23 (a fresh server's 16K reads, Nsight Systems' GPU and API traces joined by correlation id, tmp/flashnext-efficiency/readtrace): a prompt expert layer launched its first products about 5.2 ms before they ran, the card idle, 96 layers and 0.46 s of a 6.6 s read. The products of the experts on the card were queued after the first batch of host experts' copies was submitted, and under Windows' display driver model ran only once the copies submitted ahead of them had landed, about two batches. Between a 16K read's two chunks the arena, sized to each run's exact need, was freed and allocated again (the second chunk attends over twice the context and needed 2.82 GB against the first's 2.32, and a prompt a token longer than the last needs a few bytes more), dropping the captured graphs and waiting about 100 ms while Windows cleared the new allocation. And the CPU experts' input rows came back to host memory while the card waited (about 4 ms a layer at 5,099 tokens).\nThe card's share of a layer's products is queued and submitted before its first batch of copies; the CPU's input rows come back on a stream of their own beside the products; a growing arena rounds its need up to 64 MiB. A quarter of the need to spare also kept a long read's second chunk from growing the arena, but agent turns decoded 2.8% slower over three alternating rounds (89.4 to 86.9 tok/s), the memory taken from the experts.\nServes: the prompt reads' idle card time, prompt-read's gap.\nDisappears: the stall before each layer's products, and the arena's growth for a prompt a few tokens longer than the last.\nEvidence: the read sequence on fresh servers; the bench over three alternating rounds; the max-context and image acceptance on both builds."
-        },
         {
           "id": "route-flags",
           "title": "Mark a prompt group's routed experts on the host, not over the link",

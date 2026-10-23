@@ -86,7 +86,7 @@ func (e *Executor) ReserveMemory(ctx context.Context, bytes uint64) error {
 	}
 	resources := &e.resources
 	return e.worker.Do(ctx, func(state *device.State) error {
-		if free, _, err := state.Driver.MemInfo(); err == nil && free < bytes && resources.arenaSize > resources.arenaUse.requiredBytes {
+		if free, _, err := state.Driver.MemInfo(); err == nil && free < bytes && resources.arenaSize > arenaBytes(resources.arenaUse.requiredBytes) {
 			if err := resources.releaseArena(state); err != nil {
 				return err
 			}

@@ -212,17 +212,10 @@
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",
       "budget": {
-        "nodes": 64,
+        "nodes": 57,
         "reason": ""
       },
       "steps": [
-        {
-          "id": "stage-demand",
-          "title": "Stage a victim for a decode miss rather than swap it in while the step waits",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/modeldevice -run Expert -count=1",
-          "rationale": "Nsight Systems on the served Flash-Next at b9781e30, a 16,818-token word list's decode (STRATA's 16K bench prompt): each verify forward took 37.8 ms against 17.8 ms after the short chat, and 9.6 ms of it was 84 synchronous pairs of expert copies (an expert back to host, another in, each waited for), the residency's promotions that found no staged victim; the next forward also waited for the staged copies queued beside the run.\nServes: a decode miss that finds no staged victim stays in host memory, where the doorbell's CPU computes it, and stages one more card expert beside the next run, so the expert's next miss moves it with no copy on the step's path; Strata's adaptive tier likewise moves only experts used again (usage at least 2) and leaves misses to its CPU pool.\nEvidence: the same server with the change, same requests in the same order: first request after load 60 against 43 tok/s, short chat 107 against 105, 4K word list 76 against 69, first 16K 49 against 44, a second 16K 77; hit rates 98.4%, 98.5%, 90.9% and 98.6% (before 98.6%, 98.0%, 95.9%)."
-        },
         {
           "id": "context-decode",
           "title": "Decode at a 4K to 16K context at Strata's rate",

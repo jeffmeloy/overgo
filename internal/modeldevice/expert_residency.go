@@ -50,10 +50,14 @@ const (
 	// expertStagedVictims: the coldest card experts of a stride kept copied to
 	// pinned host memory ahead of need, so a promotion displaces one with no
 	// copy back. Flash-Next's short chat promotes about five experts a token.
+	// An advance stages one more for each miss it found none staged for, up to
+	// expertStagedLimit: a 16K-token word list's decode missed about 98 of one
+	// stride a step.
 	expertStagedVictims = 32
+	expertStagedLimit   = 256
 	// expertVictimSearch: the coldest card experts of a stride a promotion looks
 	// through for a staged one, those staged and those the routes named since.
-	expertVictimSearch = 2 * expertStagedVictims
+	expertVictimSearch = 2 * expertStagedLimit
 	// expertStreamNonBlocking is CU_STREAM_NON_BLOCKING: the residency's
 	// copies run beside the synchronous writes of the legacy stream, which
 	// would otherwise wait for them.
@@ -128,6 +132,8 @@ type expertClass struct {
 	free   []expertSlot
 	// staged counts the class's card experts whose copies in host memory have landed.
 	staged int
+	// wanted counts the misses of the class an advance found no staged victim for, which its staging adds to.
+	wanted int
 }
 
 // expertSlot is pinned host memory that holds one expert, at device on the card.
@@ -591,7 +597,8 @@ func (c *expertResidency) land(ctx context.Context, wait bool) error {
 
 // stage copies the coldest card experts of each stride, those the routes
 // left unnamed longest and not this step, to pinned host memory beside the
-// next run, until expertStagedVictims of the stride are staged or staging.
+// next run, until expertStagedVictims of the stride and one for each miss the
+// advance found none staged for are staged or staging, expertStagedLimit at most.
 func (c *expertResidency) stage(ctx context.Context) error {
 	// Every staged or staging copy counts against its stride's budget, wherever the routes have since moved its expert.
 	held := make(map[*expertClass]int, len(c.classes))
@@ -599,8 +606,9 @@ func (c *expertResidency) stage(ctx context.Context) error {
 		held[move.key.bank.class]++
 	}
 	for _, class := range c.classes {
-		count := held[class] + class.staged
-		for entry := class.order.Front(); entry != nil && count < expertStagedVictims; entry = entry.Next() {
+		count, budget := held[class]+class.staged, min(expertStagedVictims+class.wanted, expertStagedLimit)
+		class.wanted = 0
+		for entry := class.order.Front(); entry != nil && count < budget; entry = entry.Next() {
 			resident := entry.Value.(*residentExpert)
 			if resident.step == c.step {
 				break
@@ -727,9 +735,10 @@ func (c *expertResidency) refill(ctx context.Context) error {
 // card slot of the coldest staged expert the routes did not name this step,
 // which goes to its staged copy at once, and is copied there beside the
 // next run, staying in host memory until the copy lands. Where none is
-// staged it takes the slot of the coldest card expert at once, copying that
-// expert back first; it stays in host memory when every card expert of its
-// stride was routed this step.
+// staged it stays in host memory, and its stride stages one more card expert
+// beside the next run for a later miss: copying the coldest back and the
+// expert in at once, each waited for, took about 9.6 ms of each Flash-Next
+// decode step after a 16K-token word list, as long as the step's own run.
 func (c *expertResidency) promote(ctx context.Context, key expertKey) error {
 	bank := key.bank
 	class := c.classes[bank.stride]
@@ -752,15 +761,10 @@ func (c *expertResidency) promote(ctx context.Context, key expertKey) error {
 		_, err := c.demote(ctx, entry)
 		return err
 	}
-	victim := class.order.Front()
-	if victim == nil || victim.Value.(*residentExpert).step == c.step {
-		return nil
+	if victim := class.order.Front(); victim != nil && victim.Value.(*residentExpert).step != c.step {
+		class.wanted++
 	}
-	card, err := c.demote(ctx, victim)
-	if err != nil {
-		return err
-	}
-	return c.move(ctx, key, card)
+	return nil
 }
 
 // move copies a host expert to its card slot, whose table entry it becomes;

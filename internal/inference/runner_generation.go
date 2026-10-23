@@ -216,7 +216,17 @@ func (r *Runner) Generate(
 				if deviceGreedy {
 					mode = deviceOutputGreedy
 				}
+				// A request that drafts reads its prompt into the draft's history, as Strata's drafter does.
+				if deviceGreedy && r.hyperDraft != nil && r.deviceSpeculationReady(options) {
+					if err := r.beginHyperDraftPromptLocked(ctx, len(ids), cached, options.MaxNewTokens); err != nil {
+						return nil, "", err
+					}
+					defer func() { r.hyperDraft.prompt = nil }()
+				}
 				nextDevice, boundary, err = r.readDevicePromptLocked(ctx, mode, ids, cached, options.MaxNewTokens, retainedPrefix, projected, options.CachePrompt)
+				if r.hyperDraft != nil {
+					err = errors.Join(err, r.hyperDraft.prompt.releaseStreams(context.WithoutCancel(ctx)))
+				}
 				if err == nil {
 					deviceCache = nextDevice
 				}

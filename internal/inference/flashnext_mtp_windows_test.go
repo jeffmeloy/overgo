@@ -146,13 +146,13 @@ func writeHermeticFlashNextMTPGGUF(t *testing.T, trunkPath string, copyTrunk boo
 }
 
 // copyDraftAcceptance replays generateDeviceSpeculativeGreedy's rounds over the plain greedy tokens when every draft repeats the last emitted token: what the copying draft layer drafts.
+//   - the first window drafts too, from the prompt's last row, which the prompt's read wrote into the draft's history
 func copyDraftAcceptance(plain []tokenizer.TokenID, generated int) (drafted, accepted int) {
 	emitted := 1
 	pending := 1
-	haveSeed := false
 	for emitted < generated {
 		count := 0
-		if haveSeed && pending+hyperDraftTokens <= q8InputSpanColumnsWindow && (hyperDraftTokens > 1 || pending == 1) {
+		if pending+hyperDraftTokens <= q8InputSpanColumnsWindow && (hyperDraftTokens > 1 || pending == 1) {
 			// A window drafts no more than the output has left after its own token.
 			count = min(hyperDraftTokens, generated-emitted-1)
 		}
@@ -163,7 +163,6 @@ func copyDraftAcceptance(plain []tokenizer.TokenID, generated int) (drafted, acc
 		}
 		drafted, accepted = drafted+count, accepted+run
 		emitted += run + 1
-		haveSeed = true
 		// A window whose drafts were all accepted, or rejected at the first, leaves only its correction pending.
 		if run == count || run == 0 {
 			pending = 1

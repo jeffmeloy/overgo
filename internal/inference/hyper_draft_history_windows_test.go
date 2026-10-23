@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"math"
+	"slices"
 	"testing"
 
 	"overgo/internal/cuda/driver"
@@ -106,6 +107,80 @@ func TestFlashNextMTPHistoryDraftsAsOneRead(t *testing.T) {
 	drafted, err := runner.draftHyperFromHistoryLocked(ctx, rows, ids[at+2:at+3], uint32(at+1))
 	if err != nil || drafted != alone[at+1] || runner.hyperDraft.history.cells != 1 {
 		t.Fatalf("a round past the history drafted %d (%v), alone %d, the history holding %d cells", drafted, err, alone[at+1], runner.hyperDraft.history.cells)
+	}
+}
+
+// TestFlashNextMTPHistoryHoldsThePrompt: a speculating request on the hermetic Flash-Next, its prompt read in chunks of
+// four, writes the prompt's cells into the draft's history as the layer reading every cell at once writes them, drafts
+// on its first forward, from the prompt's last row, and keeps greedy's text.
+func TestFlashNextMTPHistoryHoldsThePrompt(t *testing.T) {
+	requireIntegration(t)
+	cudatest.Require(t)
+	trunk := writeHermeticFlashNextGGUF(t)
+	runner, err := openFixtureRunnerWithResidency(trunk, OpenOptions{Draft: writeHermeticFlashNextMTPGGUF(t, trunk, false)}, recipe.ResidencyDeviceF32)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runner.Close()
+	// Chunks of four read the eleven tokens in three reads, each writing its rows' cells and the last row's before it.
+	runner.promptChunkTokens = 4
+	prompt := []tokenizer.TokenID{4, 9, 17, 3, 22, 8, 15, 6, 11, 2, 19}
+	generate := func(plain bool) ([]tokenizer.TokenID, int) {
+		t.Helper()
+		greedy, err := sampling.New(sampling.Config{Temperature: 0})
+		if err != nil {
+			t.Fatal(err)
+		}
+		emitted, firstDraft := 0, -1
+		ids, _, err := runner.Generate(t.Context(), "", GenerateOptions{
+			MaxNewTokens: 8, Sampler: greedy, DeviceGreedy: true, PromptTokenIDs: prompt, ContinueAfterEOG: true,
+			PlainDecode: plain, SpeculativeDecode: !plain,
+			OnToken: func(TokenEvent) error { emitted++; return nil },
+			OnDraftSpan: func(int, int) {
+				if firstDraft < 0 {
+					firstDraft = emitted
+				}
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ids, firstDraft
+	}
+	ids, _ := generate(true)
+	speculative, firstDraft := generate(false)
+	if !slices.Equal(speculative, ids) {
+		t.Fatalf("the speculating request decoded %v, greedy %v", speculative, ids)
+	}
+	if firstDraft != 1 {
+		t.Fatalf("the first draft followed %d tokens, want only the prompt's", firstDraft)
+	}
+	runner.mu.Lock()
+	defer runner.mu.Unlock()
+	ctx := t.Context()
+	span, err := runner.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedySpan, ids, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer span.Release(context.Background())
+	_, wholeKeys, err := runner.draftOverCells(ctx, span.SpanHidden, ids, 0, len(ids)-1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	history := runner.hyperDraft.history
+	if history.start != 0 || history.cells < uint32(len(prompt)) {
+		t.Fatalf("the history holds %d cells from position %d, want the prompt's %d from 0", history.cells, history.start, len(prompt))
+	}
+	stored, err := runner.cuda.ReadDeviceValues(ctx, []executor.DeviceValue{history.keys})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The prompt's cells, the last written by the first round with the token the prompt selected.
+	cellElements := uint64(runner.spec.KeyLength) * uint64(runner.spec.HeadCountKV)
+	for index := range uint64(len(prompt)) * cellElements {
+		if delta := math.Abs(float64(stored[0][index] - wholeKeys.Data[index])); !(delta <= 1e-3) {
+			t.Fatalf("prompt cell %d holds key element %d off the one read's by %g", index/cellElements, index%cellElements, delta)
+		}
 	}
 }
 

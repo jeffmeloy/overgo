@@ -212,17 +212,10 @@
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",
       "budget": {
-        "nodes": 92,
-        "reason": "The step adds about 1,900 production syntax nodes: the profile file's reader and writer in Strata's layout, the ranking from counted decode runs, the ranked fill and its copy-run correction, the loader's ranking hook, the runner's open option and profile export, the sidecar default every runner open takes, and the command that builds a model's profile from a fixed corpus. Nothing smaller serves a load that starts with the experts requests route most on the card."
+        "nodes": 49,
+        "reason": "The draft-prompt step adds about 1,300 production syntax nodes: the output plan's streams flag and the prompt read's target buffer, the write-only draft round and the shared round runner, the prompt recorder with its window and joining cell, the history readied before the read, and the first round seeded from the prompt's last row. Nothing smaller lets the draft attend over the prompt it read."
       },
       "steps": [
-        {
-          "id": "draft-prompt",
-          "title": "Draft over the prompt's cells, as Strata's drafter does",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -run '^TestFlashNextMTPHistory' -count=1",
-          "rationale": "The draft layer attends only over the answer's own cells: its history starts at the first decoded token, and the first forward after a prompt drafts nothing (no seed). Strata's drafter writes its layer's keys and values for every prompt cell as the prompt is read (prefill.cpp, the draft K/V pass: the cell's hyper-connection input, then the K and V projections, norm and rope, no attention or feed-forward) and attends over the last 32,768 cells (--mtp-window), so its draft copies what the prompt holds and drafts from the prompt's last row at once.\nMeasured 2026-10-23 in process (tmp/flashnext-efficiency/mtp_history_probe_windows_test.go.txt, Flash-Next, greedy, two project documents and the 4K and 16K word lists, thinking on): the draft's next-next token over the answer's cells alone 66.6%, over the prompt's cells too 71.3%; over the first 24 answer cells, 18 to 19 of 24 against 20 to 23. Served, a 24-token answer after a fresh 4K or 16K prompt verifies 1.26 to 1.33 tokens a forward (5 to 6 of 15 to 16 drafts kept) where the bench's tags and the list's words are copied from the prompt, and its first forward drafts nothing; Strata keeps 2.0 to 2.2 a window on the same prompts.\nServes: a request's draft attends over the cells of the prompt it read, within a window, and its first forward drafts from the prompt's last row, as Strata's does.\nEvidence: on the hermetic Flash-Next, a prompt read with the draft attached leaves the history holding the prompt's cells as the layer reading them at once writes them, and the first forward's draft equals that read's; served, the bench's 4K, 16K and agent decode with more tokens a forward."
-        },
         {
           "id": "context-decode",
           "title": "Decode at a 4K to 16K context at Strata's rate",

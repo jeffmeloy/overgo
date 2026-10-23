@@ -23,9 +23,11 @@ const (
 )
 
 // deviceOutputPlan: graph reduction and publication contract.
+//   - streams keeps every row's draft streams on the card too, as a span does: a prompt read whose request drafts over it
 type deviceOutputPlan struct {
-	mode deviceOutputMode
-	topK uint32
+	mode    deviceOutputMode
+	topK    uint32
+	streams bool
 }
 
 func compileDeviceOutputPlan(mode deviceOutputMode, topK, vocabulary uint32) (deviceOutputPlan, error) {

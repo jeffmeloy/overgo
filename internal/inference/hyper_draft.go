@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math/bits"
 
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
@@ -26,16 +27,82 @@ type hyperDraft struct {
 	program    model.CompiledLayerProgram
 	vocabulary []uint32
 	head       gguf.TensorInfo
-	// steps are the compiled draft rounds by their rows, over the history's capacity.
-	steps map[uint32]*hyperDraftStep
-	// history is the draft layer's own keys and values of the request's decoded cells, nil until the first draft.
+	// steps are the compiled draft rounds by their rows, over the history's capacity, and writes the rounds that only
+	// write their cells, a prompt's.
+	steps, writes map[uint32]*hyperDraftStep
+	// history is the draft layer's own keys and values of the request's cells, nil until the first draft.
 	history *hyperDraftHistory
+	// prompt is the request's prompt read into the history, nil where the request reads none into it.
+	prompt *hyperDraftPrompt
 }
+
+// hyperDraftPrompt is a prompt read's place in the draft's history: from is the first position the window keeps, and
+// last the streams of the last row read, at position, whose cell waits for the token after it (pending).
+//   - streams is the card memory a read writes its rows' streams into for the history's rounds, held while the prompt
+//     is read: beside the outputs a read's cache keeps, an 8,192-token read's 335 MB went with the cache
+type hyperDraftPrompt struct {
+	from, position uint32
+	last           reference.Value
+	pending        bool
+	streams        *executor.DeviceBuffer
+}
+
+// promptStreamsLocked answers card memory for a prompt read's streams of shape: the prompt's buffer, grown to fit.
+func (r *Runner) promptStreamsLocked(ctx context.Context, shape tensor.Shape) (executor.DeviceValue, error) {
+	prompt := r.hyperDraft.prompt
+	if prompt.streams != nil {
+		if value, err := prompt.streams.Value(shape); err == nil {
+			return value, nil
+		}
+	}
+	bytes, err := shape.Bytes(dtype.F32)
+	if err = errors.Join(err, prompt.releaseStreams(ctx)); err != nil {
+		return executor.DeviceValue{}, err
+	}
+	if prompt.streams, err = r.cuda.AllocateDeviceBuffer(ctx, bytes); err != nil {
+		return executor.DeviceValue{}, err
+	}
+	return prompt.streams.Value(shape)
+}
+
+// releaseStreams frees the prompt's streams buffer, once the prompt is read.
+func (p *hyperDraftPrompt) releaseStreams(ctx context.Context) error {
+	if p == nil || p.streams == nil {
+		return nil
+	}
+	err := p.streams.Release(ctx)
+	p.streams = nil
+	return err
+}
+
+// promptRead is the prompt the request read into the history, with its last row waiting for the token after it; nil
+// where it read none.
+func (d *hyperDraft) promptRead() *hyperDraftPrompt {
+	if d == nil || d.prompt == nil || !d.prompt.pending {
+		return nil
+	}
+	return d.prompt
+}
+
+// hyperDraftWindowCells is the most cells of a prompt the draft attends over, its last. Strata's drafter attends over
+// the last 32,768 (--mtp-window); the draft's attention here reads every cell in one pass, and on Flash-Next a round
+// took 1.27 ms over 16 cells, 1.46 over 4,096 and 2.26 over 16,384, so a window past an agent turn's newest document
+// costs the decode more than its drafts return.
+const hyperDraftWindowCells = 4096
+
+// hyperDraftStreamBytes is a stream element's bytes on the card: the trunk keeps its streams as F32, which a read checks.
+const hyperDraftStreamBytes = 4
+
+// hyperDraftPromptRound is the most cells a round of a prompt writes at once; a read's cells go in rounds of powers of
+// two up to it, so a few compiled rounds serve every read.
+const hyperDraftPromptRound = 512
 
 // hyperDraftHistory is the draft layer's keys and values of a request's cells, as Strata's drafter keeps its layer's:
 // cell c pairs the trunk's streams at position start+c with the token after them, at rope position start+c, so a
 // draft attends over every cell before its own, as the layer was trained, where a cell alone drafted 73% of Flash-Next's
-// greedy answers' next-next tokens and the answer's cells 80%.
+// greedy answers' next-next tokens and the answer's cells 80%. A request that reads its prompt into it attends over the
+// prompt's cells too, as Strata's drafter does: over two documents and two word lists its answers' first 24 cells drafted
+// 20 to 23 where the answer's own cells drafted 18 to 19.
 //   - keys and values are [key length, kv heads, capacity] each in one buffer, cells of them written
 type hyperDraftHistory struct {
 	buffer       *executor.DeviceBuffer
@@ -209,7 +276,7 @@ func (r *Runner) ensureHyperDraftHistory(ctx context.Context, cells uint32) erro
 			history.values, err = deviceCacheStorageView(whole, keyElements, valueShape)
 		}
 		if err == nil {
-			draft.history, draft.steps = history, map[uint32]*hyperDraftStep{}
+			draft.history, draft.steps, draft.writes = history, map[uint32]*hyperDraftStep{}, map[uint32]*hyperDraftStep{}
 			return nil
 		}
 	}
@@ -222,15 +289,17 @@ func (r *Runner) releaseHyperDraftHistory(ctx context.Context) error {
 		return nil
 	}
 	err := r.hyperDraft.history.buffer.Release(ctx)
-	r.hyperDraft.history, r.hyperDraft.steps = nil, nil
+	r.hyperDraft.history, r.hyperDraft.steps, r.hyperDraft.writes = nil, nil, nil
 	return err
 }
 
-// compileHyperDraftStep builds a draft round of rows cells over the history.
+// compileHyperDraftStep builds a round of rows cells over the history, which drafts where drafts is set and otherwise
+// only writes its cells, as Strata's drafter writes a prompt's: their keys and values without the attention, the
+// feed-forward or the head.
 //   - the draft file stores the checkpoint's norms, scaled by one plus the weight, so the step adds the unit offset
 //   - the cells append to the history in place at the round's offset, and attend over it and over the cells before
 //     them in the round, the last cell's mixed streams drafting
-func (r *Runner) compileHyperDraftStep(rows uint32) (*hyperDraftStep, error) {
+func (r *Runner) compileHyperDraftStep(rows uint32, drafts bool) (*hyperDraftStep, error) {
 	draft, builder, history := r.hyperDraft, r.newGraphBuilder(), r.hyperDraft.history
 	builder.SetCacheAppendPlan(tensor.CacheAppendPlan{ActiveTokens: 0, SourceCapacityTokens: history.capacity, CapacityTokens: history.capacity})
 	step := &hyperDraftStep{feeds: map[*tensor.Tensor]reference.Value{}, cells: rows}
@@ -263,7 +332,12 @@ func (r *Runner) compileHyperDraftStep(rows uint32) (*hyperDraftStep, error) {
 	}
 	w := draft.weights
 	embedding := builder.GetRows(weight(r.weights.TokenEmbedding), make([]uint32, rows))
-	step.streams = host("hyper_draft.streams", tensor.MustShape(r.hyperDraftWidth(), uint64(rows)), 0)
+	// A drafting round's streams come from the host; a writing round's lie on the card, where a prompt read left them.
+	if drafts {
+		step.streams = host("hyper_draft.streams", tensor.MustShape(r.hyperDraftWidth(), uint64(rows)), 0)
+	} else {
+		step.streams = builder.Input("hyper_draft.streams", dtype.F32, tensor.MustShape(r.hyperDraftWidth(), uint64(rows)))
+	}
 	current, err := model.BuildHyperDraftInput(
 		builder, r.spec, embedding, step.streams, offset(weight(w.EmbeddingNorm)), offset(weight(w.HiddenNorm)),
 		weight(w.EmbeddingProjection), weight(w.HiddenProjection),
@@ -287,26 +361,32 @@ func (r *Runner) compileHyperDraftStep(rows uint32) (*hyperDraftStep, error) {
 	if err != nil {
 		return nil, err
 	}
-	mixed, err := model.BuildHyperDraftHeadInput(builder, r.spec, block.Output, offset(weight(w.MixerNorm)), weight(w.MixerDown), weight(w.MixerUp))
-	if err != nil {
-		return nil, err
+	outputs := []*tensor.Tensor{block.Key, block.Value}
+	if drafts {
+		mixed, err := model.BuildHyperDraftHeadInput(builder, r.spec, block.Output, offset(weight(w.MixerNorm)), weight(w.MixerDown), weight(w.MixerUp))
+		if err != nil {
+			return nil, err
+		}
+		width := uint64(r.spec.EmbeddingLength)
+		last := builder.FlatSlice(mixed, width*uint64(rows-1), width, 1)
+		head := r.outputTensor()
+		if len(draft.vocabulary) != 0 {
+			head = draft.head
+		}
+		step.selection = builder.TopK(builder.MulMat(weight(head), last), 1)
+		outputs = append([]*tensor.Tensor{step.selection}, outputs...)
 	}
-	width := uint64(r.spec.EmbeddingLength)
-	last := builder.FlatSlice(mixed, width*uint64(rows-1), width, 1)
-	head := r.outputTensor()
-	if len(draft.vocabulary) != 0 {
-		head = draft.head
-	}
-	step.selection = builder.TopK(builder.MulMat(weight(head), last), 1)
 	if err := errors.Join(builder.Err(), bindErr); err != nil {
 		return nil, err
 	}
-	if step.graph, err = executor.CompileIndexed(step.selection, block.Key, block.Value); err != nil {
+	if step.graph, err = executor.CompileIndexed(outputs...); err != nil {
 		return nil, err
 	}
 	// The draft's token comes down with its run; the history's keys and values are written in place.
-	if err := step.graph.Graph.ReadBack(step.selection); err != nil {
-		return nil, err
+	if drafts {
+		if err := step.graph.Graph.ReadBack(step.selection); err != nil {
+			return nil, err
+		}
 	}
 	if err := step.graph.Inputs.Bind(deviceFeeds); err != nil {
 		return nil, err
@@ -330,7 +410,7 @@ func (r *Runner) compileHyperDraftStep(rows uint32) (*hyperDraftStep, error) {
 	if err := step.attributes.Set(embedding, step.rows); err != nil {
 		return nil, err
 	}
-	nodes, err := tensor.Topological(step.selection, block.Key, block.Value)
+	nodes, err := tensor.Topological(outputs...)
 	if err != nil {
 		return nil, err
 	}
@@ -368,24 +448,60 @@ func (r *Runner) compileHyperDraftStep(rows uint32) (*hyperDraftStep, error) {
 // draftHyperFromHistoryLocked drafts the token after the round's last cell: cells are the trunk's streams of
 // consecutive positions from position, rows of streams, each with the token after it in tokens; they are written to the
 // history at their place, and the draft attends over the history's cells before them and the round's own.
-//   - a round whose cells do not follow the history's last starts it again at them
 func (r *Runner) draftHyperFromHistoryLocked(
 	ctx context.Context,
 	streams reference.Value,
 	tokens []tokenizer.TokenID,
 	position uint32,
 ) (tokenizer.TokenID, error) {
+	retained, step, err := r.runHyperDraftRoundLocked(ctx, streams, 0, tokens, position, true)
+	if err != nil {
+		return 0, err
+	}
+	draft := r.hyperDraft
+	selection, err := retained.CopyToHost(ctx, step.selection)
+	if err = errors.Join(err, retained.Release(context.Background())); err != nil {
+		draft.history.cells = 0
+		return 0, err
+	}
+	// A head over a vocabulary selects its row, which names the token.
+	vocabulary := r.vocab.Len()
+	if len(draft.vocabulary) != 0 {
+		vocabulary = len(draft.vocabulary)
+	}
+	if len(selection.Data) != 1 || selection.Data[0] < 0 || int(selection.Data[0]) >= vocabulary {
+		return 0, errors.New("inference: hyper-connection draft selection is invalid")
+	}
+	if len(draft.vocabulary) != 0 {
+		return tokenizer.TokenID(draft.vocabulary[int(selection.Data[0])]), nil
+	}
+	return tokenizer.TokenID(selection.Data[0]), nil
+}
+
+// runHyperDraftRoundLocked writes a round's cells to the history at their place and answers its run, which drafts
+// where drafts is set: cells are the trunk's streams of consecutive positions from position, rows of streams, each with
+// the token after it in tokens; a drafting round reads them from streams, a writing one from the card at device.
+//   - a round whose cells do not follow the history's last starts it again at them
+//   - a writing round's streams change place each run, so it runs uncaptured
+func (r *Runner) runHyperDraftRoundLocked(
+	ctx context.Context,
+	streams reference.Value,
+	device driver.DevicePtr,
+	tokens []tokenizer.TokenID,
+	position uint32,
+	drafts bool,
+) (*executor.RetainedOutputs, *hyperDraftStep, error) {
 	draft := r.hyperDraft
 	rows := uint32(len(tokens))
 	if draft == nil || draft.history == nil || rows == 0 || !r.hasPreloadedWeights() {
-		return 0, errors.New("inference: hyper-connection draft is unavailable")
+		return nil, nil, errors.New("inference: hyper-connection draft is unavailable")
 	}
-	if uint64(len(streams.Data)) != uint64(rows)*r.hyperDraftWidth() {
-		return 0, errors.New("inference: hyper-connection draft streams are incompatible")
+	if drafts && uint64(len(streams.Data)) != uint64(rows)*r.hyperDraftWidth() || !drafts && device == 0 {
+		return nil, nil, errors.New("inference: hyper-connection draft streams are incompatible")
 	}
 	for _, token := range tokens {
 		if token < 0 || int(token) >= r.vocab.Len() {
-			return 0, fmt.Errorf("inference: token ID %d is out of range", token)
+			return nil, nil, fmt.Errorf("inference: token ID %d is out of range", token)
 		}
 	}
 	history := draft.history
@@ -396,16 +512,20 @@ func (r *Runner) draftHyperFromHistoryLocked(
 	if at+rows > history.capacity {
 		history.start, history.cells, at = position, 0, 0
 		if rows > history.capacity {
-			return 0, errors.New("inference: a hyper-connection draft round outgrows its history")
+			return nil, nil, errors.New("inference: a hyper-connection draft round outgrows its history")
 		}
 	}
-	step := draft.steps[rows]
+	steps := draft.steps
+	if !drafts {
+		steps = draft.writes
+	}
+	step := steps[rows]
 	if step == nil {
 		var err error
-		if step, err = r.compileHyperDraftStep(rows); err != nil {
-			return 0, err
+		if step, err = r.compileHyperDraftStep(rows, drafts); err != nil {
+			return nil, nil, err
 		}
-		draft.steps[rows] = step
+		steps[rows] = step
 	}
 	for index, token := range tokens {
 		step.rows.Rows[index] = uint32(token)
@@ -421,30 +541,73 @@ func (r *Runner) draftHyperFromHistoryLocked(
 	for _, write := range step.appends {
 		write.Offset = at
 	}
-	step.feeds[step.streams] = reference.Value{Shape: tensor.MustShape(r.hyperDraftWidth(), uint64(rows)), Data: streams.Data}
-	retained, err := r.cuda.ExecuteRetainedCompiled(ctx, step.graph.Graph, step.feeds, step.graph.Inputs, step.targets, step.attributes)
+	execute := r.cuda.ExecuteRetainedCompiled
+	if drafts {
+		step.feeds[step.streams] = reference.Value{Shape: tensor.MustShape(r.hyperDraftWidth(), uint64(rows)), Data: streams.Data}
+	} else if err := step.graph.Inputs.Set(step.streams, device); err != nil {
+		return nil, nil, err
+	} else {
+		execute = r.cuda.ExecuteRetainedCompiledOnce
+	}
+	retained, err := execute(ctx, step.graph.Graph, step.feeds, step.graph.Inputs, step.targets, step.attributes)
 	if err != nil {
 		history.cells = 0
-		return 0, err
-	}
-	selection, err := retained.CopyToHost(ctx, step.selection)
-	if err = errors.Join(err, retained.Release(context.Background())); err != nil {
-		history.cells = 0
-		return 0, err
+		return nil, nil, err
 	}
 	history.cells = at + rows
-	// A head over a vocabulary selects its row, which names the token.
-	vocabulary := r.vocab.Len()
-	if len(draft.vocabulary) != 0 {
-		vocabulary = len(draft.vocabulary)
+	return retained, step, nil
+}
+
+// beginHyperDraftPromptLocked readies the draft's history for a request that reads its prompt into it: empty, with
+// room for the window of the prompt's tokens after cached and the output, and the read keeping its rows' streams from
+// the window's first position.
+func (r *Runner) beginHyperDraftPromptLocked(ctx context.Context, prompt, cached, output int) error {
+	from := max(cached, prompt-hyperDraftWindowCells)
+	cells := prompt - from + min(output, int(r.spec.ContextLength)) + int(q8InputSpanColumnsWindow) + 1
+	if err := r.ensureHyperDraftHistory(ctx, uint32(cells)); err != nil {
+		return err
 	}
-	if len(selection.Data) != 1 || selection.Data[0] < 0 || int(selection.Data[0]) >= vocabulary {
-		return 0, errors.New("inference: hyper-connection draft selection is invalid")
+	r.hyperDraft.prompt = &hyperDraftPrompt{from: uint32(from)}
+	return nil
+}
+
+// recordHyperDraftPromptLocked writes into the history the cells a prompt read's rows make, the first row at position
+// first, from the read's streams on the card: the last row read before them with this read's first token (a drafting
+// round of one cell, its draft unused), then each row but the last with the token after it, those before the window
+// left out; the last row comes down to wait for the token after it.
+func (r *Runner) recordHyperDraftPromptLocked(ctx context.Context, streams executor.DeviceValue, kind dtype.Type, tokens []tokenizer.TokenID, first uint32) error {
+	prompt, width, rows := r.hyperDraft.prompt, r.hyperDraftWidth(), uint64(len(tokens))
+	if elements, err := streams.Shape.Elements(); err != nil || kind != dtype.F32 || rows == 0 || streams.Pointer == 0 || elements != rows*width {
+		return errors.New("inference: a prompt read's draft streams are incompatible")
 	}
-	if len(draft.vocabulary) != 0 {
-		return tokenizer.TokenID(draft.vocabulary[int(selection.Data[0])]), nil
+	if prompt.pending && prompt.position+1 == first && prompt.position >= prompt.from {
+		if _, err := r.draftHyperFromHistoryLocked(ctx, prompt.last, tokens[:1], prompt.position); err != nil {
+			return err
+		}
 	}
-	return tokenizer.TokenID(selection.Data[0]), nil
+	rowBytes := width * hyperDraftStreamBytes
+	cells, position, row := tokens[1:], first, uint64(0)
+	if skip := min(uint32(len(cells)), prompt.from-min(prompt.from, position)); skip != 0 {
+		cells, position, row = cells[skip:], position+skip, uint64(skip)
+	}
+	for len(cells) != 0 {
+		round := min(hyperDraftPromptRound, 1<<(bits.Len(uint(len(cells)))-1))
+		retained, _, err := r.runHyperDraftRoundLocked(ctx, reference.Value{}, streams.Pointer+driver.DevicePtr(row*rowBytes), cells[:round], position, false)
+		if err != nil {
+			return err
+		}
+		if err := retained.Release(context.Background()); err != nil {
+			return err
+		}
+		cells, position, row = cells[round:], position+uint32(round), row+uint64(round)
+	}
+	last, err := r.cuda.ReadDeviceValues(ctx, []executor.DeviceValue{{Pointer: streams.Pointer + driver.DevicePtr((rows-1)*rowBytes), Shape: tensor.MustShape(width, 1)}})
+	if err != nil {
+		return err
+	}
+	prompt.last = reference.Value{Shape: tensor.MustShape(width, 1), Data: last[0]}
+	prompt.position, prompt.pending = first+uint32(rows-1), true
+	return nil
 }
 
 // advanceHyperDraftLocked drafts the token after tokenID from the session's streams, a round of one cell at the

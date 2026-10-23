@@ -103,6 +103,8 @@ func (r *Runner) readDevicePromptLocked(
 	if err != nil {
 		return nil, nil, err
 	}
+	// A request that drafts over its prompt reads its rows' streams into the draft's history.
+	plan.streams = r.hyperDraft != nil && r.hyperDraft.prompt != nil
 	reserve := uint64(len(ids)) + uint64(max(output, 0))
 	if limit := uint64(r.spec.ContextLength); limit > 0 {
 		reserve = min(reserve, max(limit, uint64(len(ids))))

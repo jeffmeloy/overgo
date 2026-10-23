@@ -899,9 +899,17 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	appends []deviceBatchAppend,
 	plan deviceOutputPlan,
 ) ([]*deviceKVCache, error) {
+	// A prompt read keeps its rows' streams for the draft where some lie in the window the draft attends over; the read
+	// builds its graph afresh, as a kept session keeps no streams.
+	var first uint32
+	if appends[0].Past != nil {
+		first = appends[0].Past.Tokens
+	}
+	draftPrompt := r.hyperDraft != nil && r.hyperDraft.prompt != nil
+	plan.streams = plan.streams && draftPrompt && len(appends) == 1 && first+uint32(len(appends[0].Tokens)) > r.hyperDraft.prompt.from
 	appendPlan := r.cacheAppendPlan(appends, plan)
 	// A kept session replays a step's token rows and positions, not a projected prompt's media inputs.
-	capacity, source, parameterized := appendPlan.CapacityTokens, appendPlan.SourceCapacityTokens, appendPlan.replay && appends[0].Projected == nil
+	capacity, source, parameterized := appendPlan.CapacityTokens, appendPlan.SourceCapacityTokens, appendPlan.replay && appends[0].Projected == nil && !plan.streams
 	tokenCount := uint32(1)
 	var identity decodeSessionIdentity
 	if parameterized {
@@ -1015,6 +1023,16 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 		}
 		return errors.Join(errs...)
 	}
+	// A prompt read writes its draft streams into the prompt's buffer, not beside the outputs the read's cache keeps.
+	var streams executor.DeviceValue
+	if plan.streams {
+		if streams, err = r.promptStreamsLocked(ctx, graphs[0].hidden.Shape); err == nil {
+			err = targets.Set(graphs[0].hidden, streams)
+		}
+		if err != nil {
+			return nil, errors.Join(err, releaseStorages())
+		}
+	}
 	slot, err := r.bindSpanSlot(ctx, execution.Graph, graphs, appends, targetPlans, targets, plan)
 	if err != nil {
 		return nil, errors.Join(err, releaseStorages())
@@ -1032,6 +1050,11 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	)
 	if err == nil {
 		holdSpanSlot(next, slot)
+	}
+	if err == nil && plan.streams {
+		if err = r.recordHyperDraftPromptLocked(ctx, streams, graphs[0].hidden.Type, appends[0].Tokens, first); err != nil {
+			return nil, errors.Join(err, next[0].Release(context.Background()))
+		}
 	}
 	return next, err
 }
@@ -1640,7 +1663,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	}
 	selection, candidates := plan.reduce(builder, logits)
 	var spanHidden *tensor.Tensor
-	if plan.is(deviceOutputGreedySpan) {
+	if plan.is(deviceOutputGreedySpan) || plan.streams {
 		spanHidden = preNormHidden
 	}
 	return deviceBatchGraph{

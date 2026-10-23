@@ -201,7 +201,11 @@ func (r *Runner) generateDeviceSpeculativeGreedy(
 	var seedRows reference.Value
 	var seedTokens []tokenizer.TokenID
 	var seedStart uint32
-	if r.hyperDraft != nil {
+	if prompt := r.hyperDraft.promptRead(); prompt != nil && prompt.position+1 == boundary.Tokens {
+		// The prompt's cells are in the history: the first round writes its last row's, with the token it selected, and
+		// drafts from it.
+		seedRows, seedTokens, seedStart, haveSeed = prompt.last, []tokenizer.TokenID{boundary.Selected}, prompt.position, true
+	} else if r.hyperDraft != nil {
 		cells := min(options.MaxNewTokens, int(r.spec.ContextLength)) + int(q8InputSpanColumnsWindow) + 1
 		if err := r.ensureHyperDraftHistory(ctx, uint32(cells)); err != nil {
 			return ids, boundary, false, "", err

@@ -212,17 +212,10 @@
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",
       "budget": {
-        "nodes": 34,
+        "nodes": 33,
         "reason": "The draft-prompt step adds about 1,300 production syntax nodes: the output plan's streams flag and the prompt read's target buffer, the write-only draft round and the shared round runner, the prompt recorder with its window and joining cell, the history readied before the read, and the first round seeded from the prompt's last row. Nothing smaller lets the draft attend over the prompt it read."
       },
       "steps": [
-        {
-          "id": "tail-token",
-          "title": "Skip a hosted expert by the token's own rank",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run 'Doorbell|SkipTheTail' -count=1",
-          "rationale": "The tail skip decides per decode group: a host expert is dropped only where no slot of the group routes it above the tail rank, so a token's output depends on the other tokens of its verify window, and a speculating request's verified token need not equal the token plain decoding selects (SQA-202: token A routing a hosted expert at rank 7 drops it alone and computes it beside token B routing it at rank 0). Strata's rule has the same dependence, which is why its serve turns the skip off for batched slots.\nServes: a token drops a hosted expert its own route places at the tail rank or lower, whatever the window's other tokens route, so a verify window computes each token as decoding it alone does and speculation keeps plain decoding's text.\nEvidence: the doorbell test holds a two-token group whose second token routes the first token's tail expert at rank 0 to the same layer with its top k the tail rank, token by token; Flash-Next's IFEval 300, plain and speculating."
-        },
         {
           "id": "context-decode",
           "title": "Decode at a 4K to 16K context at Strata's rate",

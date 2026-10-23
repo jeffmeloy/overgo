@@ -111,11 +111,12 @@ func TestDecodeHostExpertsRingTheDoorbell(t *testing.T) {
 	}
 }
 
-// TestDecodeHostExpertsSkipTheTail holds a captured decode step's experts on host that no slot of its group routes
-// above the tail rank to no contribution, as Strata's tail skip drops them: four selected experts a token, token t's
-// slot s routing expert (t + 3s) mod 48, unnormalized, so the step equals the same layer with its top k the tail rank,
-// the card holding expert 0 of each bank. With a tail rank of two each token hands the CPU its expert at slot 1 alone;
-// with one, only the card's expert 0 is computed and the step hands the CPU nothing.
+// TestDecodeHostExpertsSkipTheTail holds a captured decode step's slots that route an expert on host at the tail rank
+// or lower to no contribution, as Strata's tail skip drops them: four selected experts a token, token t's slot s
+// routing expert (t + 3s) mod the experts, unnormalized, so the step equals the same layer with its top k the tail
+// rank, the card holding expert 0 of each bank. With a tail rank of two each token hands the CPU its expert at slot 1
+// alone; with one, only the card's expert 0 is computed and a token hands the CPU nothing. Over eight experts token 0's
+// slot 3 and token 1's slot 0 route the same expert, which token 1 computes and token 0 still drops, as alone.
 func TestDecodeHostExpertsSkipTheTail(t *testing.T) {
 	const (
 		pointerBytes, slotAlignment     = 8, 256
@@ -124,12 +125,13 @@ func TestDecodeHostExpertsSkipTheTail(t *testing.T) {
 		tailRankOffset = 12
 	)
 	for _, tail := range []uint32{1, 2} {
-		for _, tokens := range []uint64{1, 3} {
-			t.Run(fmt.Sprintf("tail-%d-tokens-%d", tail, tokens), func(t *testing.T) {
+		for _, group := range []struct{ tokens, experts uint64 }{{1, 48}, {3, 48}, {2, 8}} {
+			tokens := group.tokens
+			t.Run(fmt.Sprintf("tail-%d-tokens-%d-experts-%d", tail, tokens, group.experts), func(t *testing.T) {
 				banks := [3]dtype.Type{dtype.IQ4XS, dtype.IQ4XS, dtype.IQ4NL}
 				c := moePinnedCase{
 					name: "doorbell-tail", compute: tensor.MulMatComputeNativeTensorCore,
-					hidden: 512, routerHidden: 512, intermediate: 128, experts: 48, divisor: 1, topK: tail,
+					hidden: 512, routerHidden: 512, intermediate: 128, experts: group.experts, divisor: 1, topK: tail,
 					routing: tensor.MoERoutingSoftmax, activation: tensor.MoEActivationSiLU, scale: 1.25,
 					banks: banks, tokens: tokens, selected: true, reference: true,
 				}
@@ -175,8 +177,7 @@ func TestDecodeHostExpertsSkipTheTail(t *testing.T) {
 					}
 					got = value.Data
 				}
-				// A slot goes to the CPU where its rank is below the tail and its expert is on host: no expert of a slot
-				// at or past the tail is routed above it by another token of the group.
+				// A slot goes to the CPU where its rank is below the tail and its expert is on host.
 				doorbell := &cuda.resources.blas.doorbell
 				work := false
 				hostSlot := func(slot uint32) bool {

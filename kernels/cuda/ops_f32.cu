@@ -10194,23 +10194,18 @@ __device__ __forceinline__ unsigned long long global_nanoseconds() {
     return now;
 }
 
-// moe_doorbell_tail: whether a group's expert on host is one no slot of the group routes above the tail rank, the
-// smallest weights of the top k, which the group neither computes nor adds, its contribution zero without
-// renormalization, as Strata's serve skips it (STRATA_ROUTE_TAIL_SKIP); a tail rank of zero or past the top k skips none.
-__device__ __forceinline__ bool moe_doorbell_tail(
-        const unsigned int * route_state, unsigned int tokens, unsigned int top_k, unsigned int expert_index_divisor,
-        unsigned int tail_rank, unsigned int expert) {
-    if (tail_rank == 0u || tail_rank >= top_k) return false;
-    for (unsigned int token = 0; token < tokens; ++token) {
-        for (unsigned int slot = 0; slot < tail_rank; ++slot) {
-            if (route_state[(size_t) token * (2 * top_k + 1) + slot] / expert_index_divisor == expert) return false;
-        }
-    }
-    return true;
+// moe_doorbell_tail: whether a slot of an expert on host routes it at the tail rank or lower, the smallest weights of
+// its token's top k, which the slot neither computes nor adds, its contribution zero without renormalization, as
+// Strata's serve skips such an expert (STRATA_ROUTE_TAIL_SKIP); a tail rank of zero or past the top k skips none. The
+// slot's own rank decides, not the group's other tokens', so a verify window computes each token as decoding it alone
+// does. A slot's rank is its place among its token's slots, the routes keeping the highest score first.
+__device__ __forceinline__ bool moe_doorbell_tail(unsigned int slot, unsigned int top_k, unsigned int tail_rank) {
+    return tail_rank != 0u && tail_rank < top_k && slot % top_k >= tail_rank;
 }
 
 // moe_doorbell_publish: a block rings for a decode group of tokens, handing the CPU the group's routes and inputs when
-// one of its routed experts is on host and not in its tail (moe_doorbell_tail). Every thread of the block calls it.
+// one of its slots routes an expert on host outside its token's tail (moe_doorbell_tail). Every thread of the block
+// calls it.
 //   - every writer fences its writes to the system before the block's barrier, so the ring follows them on the link
 __device__ __noinline__ void moe_doorbell_publish(
         const unsigned int * route_state, const unsigned char * on_host, const float * input, moe_doorbell * doorbell,
@@ -10220,17 +10215,14 @@ __device__ __noinline__ void moe_doorbell_publish(
     bool hosted = false;
     for (unsigned int index = threadIdx.x; index < tokens * top_k; index += blockDim.x) {
         const unsigned int expert = route_state[(size_t) (index / top_k) * token_words + index % top_k] / expert_index_divisor;
-        hosted = hosted ||
-            on_host[expert] != 0 && !moe_doorbell_tail(route_state, tokens, top_k, expert_index_divisor, tail_rank, expert);
+        hosted = hosted || on_host[expert] != 0 && !moe_doorbell_tail(index, top_k, tail_rank);
     }
     const bool work = __syncthreads_or(hosted) != 0;
     if (work) {
         for (unsigned int index = threadIdx.x; index < tokens * top_k; index += blockDim.x) {
             const unsigned int id = route_state[(size_t) (index / top_k) * token_words + index % top_k];
             const unsigned int expert = id / expert_index_divisor;
-            doorbell->ids[index] =
-                on_host[expert] && !moe_doorbell_tail(route_state, tokens, top_k, expert_index_divisor, tail_rank, expert)
-                ? id | MOE_DOORBELL_HOST_SLOT : id;
+            doorbell->ids[index] = on_host[expert] && !moe_doorbell_tail(index, top_k, tail_rank) ? id | MOE_DOORBELL_HOST_SLOT : id;
         }
         for (unsigned int index = threadIdx.x; index < tokens * hidden; index += blockDim.x) {
             doorbell->rows[index] = input[index];
@@ -10287,10 +10279,7 @@ __device__ __noinline__ void moe_doorbell_add(
             const unsigned int * selected = route_state + (size_t) (slot / top_k) * (2 * top_k + 1);
             const float * routes = reinterpret_cast<const float *>(selected + top_k);
             const unsigned int expert = selected[slot % top_k] / expert_index_divisor;
-            if (!on_host[expert] ||
-                moe_doorbell_tail(route_state, tokens, top_k, expert_index_divisor, doorbell->tail_rank, expert)) {
-                continue;
-            }
+            if (!on_host[expert] || moe_doorbell_tail(slot, top_k, doorbell->tail_rank)) continue;
             float weight = routes[slot % top_k] * routed_scale;
             if (normalize_top_k) weight /= fmaxf(routes[top_k], 6.103515625e-5f);
             weight *= expert_scale ? expert_scale[expert] : 1.0f;

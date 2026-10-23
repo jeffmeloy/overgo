@@ -68,10 +68,11 @@ const (
 )
 
 const (
-	// doorbellTailRank is the rank from which a group's expert on host, routed by none of the group's slots above it,
-	// is neither computed nor added, its contribution zero, as Strata's serve skips it (STRATA_ROUTE_TAIL_SKIP=7, on by
-	// default on CUDA with under 90% of the experts on the card: +10 to 20% decode on cards that miss experts, answers
-	// moving by KL 0.003 to 0.006); doorbellTailShift places it above the down products' finished count.
+	// doorbellTailRank is the rank from which a slot's expert on host is neither computed nor added for the slot's
+	// token, its contribution zero, as Strata's serve skips such an expert (STRATA_ROUTE_TAIL_SKIP=7, on by default on
+	// CUDA with under 90% of the experts on the card: +10 to 20% decode on cards that miss experts, answers moving by
+	// KL 0.003 to 0.006); the token's own rank decides, so a verify window computes each token as decoding it alone
+	// does; doorbellTailShift places it above the down products' finished count.
 	doorbellTailRank  = 7
 	doorbellTailShift = 32
 	// doorbellHostSlot marks a handed-over slot of an expert the CPU computes, the CUDA MOE_DOORBELL_HOST_SLOT.

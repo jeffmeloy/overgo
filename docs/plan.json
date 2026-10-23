@@ -208,24 +208,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "device-lane-reach",
-      "title": "Run the device tests whose binaries import a changed package",
-      "status": "open",
-      "budget": {
-        "nodes": 560,
-        "reason": "The planner reads each lane package's test files (all of them once one declares a test the lane runs, since the test binary compiles them all) and walks every package under the recursive internal/cuda scope, so it adds about 510 production syntax nodes to internal/devicescope."
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Run the device tests whose binaries import a changed package",
-          "status": "open",
-          "verify": "go test ./internal/devicescope -run '^TestPlanForReachesImportingTests$' -count=1",
-          "rationale": "A change in a package outside the device scopes reaches the device lane through a test binary that imports it (the gate's lane reach includes test imports), but the lane's own plan (devicescope.PlanFor) selects only the scopes that hold a changed path or own a changed kernel function, so the tests that reached it never run: a residency change in internal/modeldevice (on-demand staging) broke two internal/cuda/executor tests whose binaries import it, and they failed only when a later landing changed the executor, a day after.\nServes: a landing runs every device test whose package or test binary imports a changed package, so a change's breakage is refused in its own landing.\nDisappears: the run of dependents' device tests by hand before a landing.\nEvidence: a devicescope test plans a changed internal/modeldevice path into the executor's device tests."
-        }
-      ]
-    },
-    {
       "id": "sqa-oracle",
       "title": "Fail an unexpected NaN in the CUDA numerical checks and drop two redundant surfaces",
       "status": "open",

@@ -218,8 +218,11 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 - batch surface moves
 - landing grows its row past its count => raises the count with a reason in its own plan edit (gate rule)
 - step's check that refuses text in `docs/plan.json` => its pattern never matches itself, because the plan stores the check
+- step's check that runs `go test` = the bare command with an anchored `-run`, never piped, because the verifier reads its test events
+- filing a check => run it once (`plan -verify`) and see it fail as a test, never as vacuous, because a landing is judged by the check its row held before it
 - land before an evaluation run
 - native `go test` selects
+- lane's selection = every package whose test binary compiles a changed package, read from what the binary compiles (all its test files, every package under a recursive pattern), never from a proxy (production imports, a pattern's top directory)
 - never time budgets, ratchets or a second selector
 - pin boundaries as table rows
 

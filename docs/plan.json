@@ -212,17 +212,10 @@
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",
       "budget": {
-        "nodes": 141,
+        "nodes": 92,
         "reason": "The step adds about 1,900 production syntax nodes: the profile file's reader and writer in Strata's layout, the ranking from counted decode runs, the ranked fill and its copy-run correction, the loader's ranking hook, the runner's open option and profile export, the sidecar default every runner open takes, and the command that builds a model's profile from a fixed corpus. Nothing smaller serves a load that starts with the experts requests route most on the card."
       },
       "steps": [
-        {
-          "id": "pool-share",
-          "title": "Give the pool's idle buffers to the experts",
-          "status": "open",
-          "verify": "go test ./internal/modeldevice -run ExpertProfile -count=1 \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run DeviceBufferPool -count=1",
-          "rationale": "The executor's buffer pool keeps freed buffers for reuse up to an eighth of the card (6 GB on this one), and nothing gives them to the expert residency, which takes only memory the card reports free: on a fresh server, after two 16K word-list prompts the pool held 6.42 GB of which 5.14 GB were freed buffers no request used, and the card's experts had fallen from 47,925 to 34,790 (OVERGO_MEMORY_PLAN, 2026-10-23).\nMeasured 2026-10-23, Strata's bench suite on Flash-Next with its expert profile, the pool's share a sixty-fourth against an eighth, three rounds each on a fresh server: agent turns' decode 81.8, 83.0 and 85.9 tok/s against 73.3, 79.6 and 79.5; chat 106.7, 106.4 and 106.7 against 96.7, 97.9 and 101.1; the 4K prompt's decode 77.5, 75.2 and 75.1 against 67.5, 65.3 and 71.0; the 16K prompt's 60.1, 58.3 and 56.0 against 54.8, 59.5 and 62.4 (within its run-to-run spread); first tokens no later anywhere (16K 6.49 s against 6.70, 4K 1.82 against 1.95, agent turns 1.67 against 1.79).\nThe same change takes the expert profile review's repairs: a profile is published through atomicfile.Write, so a failed rewrite keeps the profile a load reads (SQA-199), and a ranking refuses a geometry whose layer or expert indices the format's 16-bit pairs cannot hold (SQA-200).\nServes: the card memory a request's freed buffers held goes back to the experts, which hold more of what decode routes after long prompts.\nEvidence: the bench medians above; the pool's tests and the profile's tests."
-        },
         {
           "id": "draft-prompt",
           "title": "Draft over the prompt's cells, as Strata's drafter does",

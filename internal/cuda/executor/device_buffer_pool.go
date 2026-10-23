@@ -40,8 +40,11 @@ const (
 	// eighth of its octave, so a class wastes at most an eighth.
 	deviceBufferClassSteps = uint64(8)
 	// deviceBufferFreeShare: the free lists hold at most this fraction of
-	// the device's memory; a fresh allocation trims them past it.
-	deviceBufferFreeShare = uint64(8)
+	// the device's memory; a fresh allocation trims them past it. Memory
+	// they hold is lost to a file-backed expert residency, which fills only
+	// what the card reports free: at an eighth, two 16K-token prompts left
+	// Flash-Next's pool 5.1 GB of idle buffers and the card 27% fewer experts.
+	deviceBufferFreeShare = uint64(64)
 )
 
 func (p *deviceBufferPool) acquire(state *device.State, size uint64) (deviceBufferLease, error) {

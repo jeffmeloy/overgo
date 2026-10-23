@@ -1122,10 +1122,12 @@ func (m stateMemory) copyToHost(ctx context.Context, stream driver.Stream, desti
 	return m.state.Driver.MemcpyDtoHAsync(destination, source, stream)
 }
 func (m stateMemory) copied(_ context.Context, stream driver.Stream, wait bool) (bool, error) {
-	if wait {
-		return true, m.state.Driver.StreamSynchronize(stream)
+	// A query answers copies that have landed without a wait: a copy queued beside a run has landed by its end.
+	done, err := m.state.Driver.StreamQuery(stream)
+	if err != nil || done || !wait {
+		return done, err
 	}
-	return m.state.Driver.StreamQuery(stream)
+	return true, m.state.Driver.StreamSynchronize(stream)
 }
 func (m stateMemory) available(context.Context) (uint64, error) {
 	free, _, err := m.state.Driver.MemInfo()

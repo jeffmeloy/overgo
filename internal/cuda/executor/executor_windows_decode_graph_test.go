@@ -103,7 +103,9 @@ func buildDecodeStepGraph(t *testing.T, row, position uint32) decodeStepGraph {
 // on the card. The replayed step compiles the first token's graph once and
 // passes each later token's values as runtime attributes, with only expert
 // 0 of each bank on the card, so each token's routed experts are first read
-// from mapped host memory and the residency moves experts between tokens.
+// from mapped host memory and the residency moves experts between tokens:
+// three tokens route the same experts, whose first miss is counted, second
+// stages a victim and third moves one into its slot beside the next token.
 // Every token after the first replays the captured graph with one graph
 // launch, no kernel launch and one stream synchronization. The first token's
 // logits keep the launched step's bits, each later token's, whose experts on
@@ -287,11 +289,13 @@ func TestDecodeStepReplaysAsOneGraph(t *testing.T) {
 		}
 		attention.QueryStart, attention.KeyValueTokens = position, position+1
 		selection.QueryStart, sparse.QueryStart = position, position
-		// Token t routes to experts t%7+1 and (t+3)%7+1: never expert 0, and never an expert the last token routed.
+		// Tokens 3g to 3g+2 route to experts g%7+1 and (g+3)%7+1: never expert 0, and never an expert the three before
+		// routed.
+		group := token / 3
 		feed := func(graph decodeStepGraph) map[*tensor.Tensor]reference.Value {
 			return map[*tensor.Tensor]reference.Value{
 				graph.scores:   {Shape: graph.scores.Shape, Data: moePinnedValues("decode-graph/scores", uint64(token), graph.capacity/graph.blockSize, 1)},
-				graph.selected: {Shape: graph.selected.Shape, Data: []float32{float32(token%7 + 1), float32((token+3)%7 + 1)}},
+				graph.selected: {Shape: graph.selected.Shape, Data: []float32{float32(group%7 + 1), float32((group+3)%7 + 1)}},
 			}
 		}
 		fresh := buildDecodeStepGraph(t, row, position)
@@ -323,8 +327,8 @@ func TestDecodeStepReplaysAsOneGraph(t *testing.T) {
 		if kernels, waits := after.KernelLaunches-before.KernelLaunches, after.StreamSynchronizations-before.StreamSynchronizations; kernels != 0 || waits != 1 {
 			t.Fatalf("token %d launched %d kernels and waited for the stream %d times, want a replay with one wait", token, kernels, waits)
 		}
-		if moved := after.HostToDeviceBytes - before.HostToDeviceBytes; moved < smallest {
-			t.Fatalf("token %d moved %d bytes to the card, less than one routed expert of the last token", token, moved)
+		if moved := after.HostToDeviceBytes - before.HostToDeviceBytes; token%3 == 0 && moved < smallest {
+			t.Fatalf("token %d moved %d bytes to the card, less than one routed expert of the three before", token, moved)
 		}
 	}
 	if !bytes.Equal(readCaches(replayed, replayedData), readCaches(launched, launchedData)) {

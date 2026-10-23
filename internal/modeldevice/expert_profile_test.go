@@ -21,9 +21,20 @@ func TestExpertProfile(t *testing.T) {
 	counts := [][]uint64{{1, 0, 5}, {0, 2, 0}}
 	ranked := []ExpertPair{{0, 2}, {1, 1}, {0, 0}, {1, 0}, {0, 1}, {1, 2}}
 	t.Run("file", func(t *testing.T) {
-		profile := rankExpertsByRoutes(2, 3, func(layer, expert uint32) uint64 { return counts[layer][expert] })
-		if !slices.Equal(profile.Pairs, ranked) {
-			t.Fatalf("ranking = %v, want the routed most first and then the rest across the layers, %v", profile.Pairs, ranked)
+		profile, err := rankExpertsByRoutes(2, 3, func(layer, expert uint32) uint64 { return counts[layer][expert] })
+		if err != nil || !slices.Equal(profile.Pairs, ranked) {
+			t.Fatalf("ranking = %v, want the routed most first and then the rest across the layers, %v: %v", profile.Pairs, ranked, err)
+		}
+		// A pair's 16-bit fields name 65,536 experts or layers, the last exactly, and refuse one more.
+		never := func(uint32, uint32) uint64 { return 0 }
+		widest, err := rankExpertsByRoutes(1, 1<<16, never)
+		if err != nil || widest.Pairs[len(widest.Pairs)-1] != (ExpertPair{0, 1<<16 - 1}) {
+			t.Fatalf("a profile of 65,536 experts ends at %v: %v", widest.Pairs[len(widest.Pairs)-1:], err)
+		}
+		for _, geometry := range [][2]uint32{{1, 1<<16 + 1}, {1<<16 + 1, 1}} {
+			if _, err := rankExpertsByRoutes(geometry[0], geometry[1], never); err == nil {
+				t.Fatalf("a profile of %d layers of %d experts was ranked", geometry[0], geometry[1])
+			}
 		}
 		path := filepath.Join(t.TempDir(), "profile.strp")
 		if err := profile.Write(path); err != nil {

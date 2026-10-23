@@ -6,9 +6,11 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"slices"
 
+	"overgo/internal/atomicfile"
 	"overgo/internal/cuda/device"
 )
 
@@ -81,12 +83,16 @@ func (p ExpertProfile) Write(path string) error {
 			return err
 		}
 	}
-	return os.WriteFile(path, data.Bytes(), expertProfileFileMode)
+	return atomicfile.Write(path, data.Bytes(), expertProfileFileMode)
 }
 
 // rankExpertsByRoutes ranks every (layer, expert) pair by the runs that routed it, the most first, then each never
-// routed in turn across the layers, as Strata's make_profile.py appends the missing pairs.
-func rankExpertsByRoutes(layers, experts uint32, routes func(layer, expert uint32) uint64) ExpertProfile {
+// routed in turn across the layers, as Strata's make_profile.py appends the missing pairs; it refuses layers or experts
+// beyond the indices a pair's uint16 fields name.
+func rankExpertsByRoutes(layers, experts uint32, routes func(layer, expert uint32) uint64) (ExpertProfile, error) {
+	if max(layers, experts) > math.MaxUint16+1 {
+		return ExpertProfile{}, fmt.Errorf("an expert profile's pairs name at most %d layers and experts, not %d layers of %d", math.MaxUint16+1, layers, experts)
+	}
 	type counted struct {
 		pair  ExpertPair
 		count uint64
@@ -109,7 +115,7 @@ func rankExpertsByRoutes(layers, experts uint32, routes func(layer, expert uint3
 		profile.Pairs = append(profile.Pairs, item.pair)
 	}
 	profile.Pairs = append(profile.Pairs, missing...)
-	return profile
+	return profile, nil
 }
 
 // expertBankLayer reads the routed layer a bank's GGUF name ("blk.N.") names.
@@ -178,5 +184,5 @@ func (w *DeviceWeights) ExpertProfile(state *device.State) (ExpertProfile, error
 			return counts[expert]
 		}
 		return 0
-	}), nil
+	})
 }

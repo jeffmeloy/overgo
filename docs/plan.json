@@ -212,17 +212,10 @@
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",
       "budget": {
-        "nodes": 49,
+        "nodes": 34,
         "reason": "The draft-prompt step adds about 1,300 production syntax nodes: the output plan's streams flag and the prompt read's target buffer, the write-only draft round and the shared round runner, the prompt recorder with its window and joining cell, the history readied before the read, and the first round seeded from the prompt's last row. Nothing smaller lets the draft attend over the prompt it read."
       },
       "steps": [
-        {
-          "id": "tail-skip",
-          "title": "Skip missed experts only the tail ranks route, as Strata's serve does",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run 'Doorbell' -count=1",
-          "rationale": "A decode window's routed expert that lies in host memory is computed by the CPU through the doorbell, and every routed layer whose group hands the CPU a slot waits for its answer: on content the card has not adapted to, a Flash-Next verify forward took 25 to 47 ms against 16 to 17 ms once warm (2026-10-23). Strata's serve skips a missed expert that every token of a verify window routes at rank 7 or lower, the three smallest weights of the top 10: neither copied nor computed, its contribution zero without renormalization (STRATA_ROUTE_TAIL_SKIP, expert_source.cpp expert_pool_dispatch_multi; on by default on CUDA, owner decision 0.1.42, when under 90% of the experts are on the card, as here at about 65%; its docs measure +10 to 20% decode on cards that miss experts and answers moving by KL 0.003 to 0.006). Strata's bench figures for this model ran with it on.\nServes: a decode window computes no missed expert that only its tail ranks route, and a routed layer whose missed experts are all such waits for no CPU answer, as Strata's serve does.\nEvidence: the executor's doorbell test holds a group whose host experts only tail ranks route to the resident output without them and to no ring; Flash-Next's IFEval 300, plain and speculative, against 0.703 and 0.720; the bench's decode cells against the same build without the skip."
-        },
         {
           "id": "context-decode",
           "title": "Decode at a 4K to 16K context at Strata's rate",

@@ -253,6 +253,7 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 - compare identical tasks, artifacts, protocols and budgets
 - two builds' timings => alternate the builds on fresh processes for at least 3 rounds each (a bench cell moves 10% between rounds)
 - difference inside the rounds' ranges = no difference
+- a cost each request pays once => weighed against the measured cell's own request (its tokens and time), never a longer run's
 - work across streams = the union of their intervals, never a sum of durations, and a copy's overlap = its intervals' intersection with the kernels'
 - aggregate gain never hides a required regression
 

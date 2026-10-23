@@ -28,11 +28,13 @@ const speculatingGraphExecs = 48
 // spanSlotAlignment: each output's offset in a span slot, the device allocation alignment.
 const spanSlotAlignment = 256
 
-// spanSlotCount: the span slots a speculating runner keeps, one its newest past holds and one the next span writes.
-const spanSlotCount = 2
+// spanSlotCount: the span slots a speculating runner keeps, one its newest past holds, one the next span writes and one
+// the prompt's read, which its prompt-cache entry holds while the request decodes.
+const spanSlotCount = 3
 
-// spanSlot is one of the two buffers a speculating runner's verify spans write every output into that is not a token cache: the recurrent states, the hidden rows and the selections.
-//   - a span reads its past's states from one slot and writes the other, so a span session replays with two frames whichever span made its past
+// spanSlot is one of the buffers a speculating runner's verify spans write every output into that is not a token cache: the recurrent states, the hidden rows and the selections.
+//   - a span reads its past's states from one slot and writes another, so a span session replays with two frames whichever span made its past
+//   - a prompt's read writes its layers' fixed states into a slot too, at the offsets a span's take, so the first span after it reads them where later spans read their past's: in the pool they sat at an address of the pool's reuse order, and each Flash-Next request recaptured its first verify
 //   - in the buffer pool the outputs took a lease of their own, whose address followed the pool's reuse order and the layout of the span that made it, so a session's frames rarely repeated
 type spanSlot struct {
 	buffer *executor.DeviceBuffer
@@ -59,8 +61,11 @@ type spanSlotOutput struct {
 	offset uint64
 }
 
-// bindSpanSlot binds a speculating runner's single-branch verify span's outputs that are not token caches to a span slot its past does not hold, and returns the slot; nil keeps them in the pool.
-//   - the outputs keep the graph's output order, the recurrent states before the hidden rows and selections, so a state sits at one offset whatever the span's length
+// bindSpanSlot binds a speculating runner's single-branch verify span's outputs that are not token caches, or a prompt
+// read's layer states that are not, to a span slot its past does not hold, and returns the slot; nil keeps them in the
+// pool.
+//   - the outputs keep the graph's output order, the layers' states before the checkpoints, hidden rows and selections, so a state sits at one offset whatever the span's length, and a prompt read's where a span's does
+//   - a prompt's read is an append with a reserve
 func (r *Runner) bindSpanSlot(
 	ctx context.Context,
 	compiled *executor.CompiledGraph,
@@ -70,10 +75,15 @@ func (r *Runner) bindSpanSlot(
 	targets *executor.RetainedTargets,
 	output deviceOutputPlan,
 ) (*spanSlot, error) {
-	if !r.speculating || !output.is(deviceOutputGreedySpan) || len(graphs) != 1 || len(appends) != 1 || len(plans) != 1 {
+	if !r.speculating || len(graphs) != 1 || len(appends) != 1 || len(plans) != 1 {
+		return nil, nil
+	}
+	span := output.is(deviceOutputGreedySpan)
+	if !span && appends[0].Reserve == 0 {
 		return nil, nil
 	}
 	tokenTargets := make(map[*tensor.Tensor]bool)
+	layerStates := make(map[*tensor.Tensor]bool)
 	for layer, target := range plans[0].layers {
 		tokenTargets[graphs[0].keys[layer]] = tokenTargets[graphs[0].keys[layer]] || target.key.enabled
 		tokenTargets[graphs[0].values[layer]] = tokenTargets[graphs[0].values[layer]] || target.value.enabled
@@ -82,11 +92,14 @@ func (r *Runner) bindSpanSlot(
 				tokenTargets[graphs[0].states[layer][name].Value] = true
 			}
 		}
+		for _, node := range graphs[0].states[layer].AppendValues([]*tensor.Tensor{graphs[0].keys[layer], graphs[0].values[layer]}) {
+			layerStates[node] = true
+		}
 	}
 	var outputs []spanSlotOutput
 	var bytes uint64
 	for _, node := range decodeGraphOutputs(graphs[0], output) {
-		if tokenTargets[node] {
+		if tokenTargets[node] || !span && !layerStates[node] {
 			continue
 		}
 		slot, ok := compiled.OutputSlot(node)

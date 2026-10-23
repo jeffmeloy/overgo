@@ -7,6 +7,7 @@ import (
 	"slices"
 	"testing"
 
+	"overgo/internal/cuda/executor"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
@@ -147,6 +148,83 @@ func TestSpeculatingSessionReplaysItsFrames(t *testing.T) {
 		}
 		if captures != 0 {
 			t.Fatalf("%s: the second pass captured %d graphs, want every span to replay", residency, captures)
+		}
+	}
+}
+
+// TestPromptCachedRequestsReplayTheirFrames holds a speculating runner that keeps its prompt cache, as a server does,
+// to replays of the graphs its last request captured.
+//   - each request reads its prompt into the storage the last request's cache held, which the entry it evicts gave up
+//     before the read
+//   - once two requests have warmed it, a request that reads its prompt afresh captures nothing, its first verify reading
+//     the prompt's states from a span slot, and keeps the plain greedy text
+func TestPromptCachedRequestsReplayTheirFrames(t *testing.T) {
+	requireIntegration(t)
+	cudatest.Require(t)
+	prompt := []tokenizer.TokenID{1, 4, 5}
+	const served = 8
+	for _, residency := range []recipe.ResidencyPolicy{recipe.ResidencyDeviceF32, recipe.ResidencyDeviceNative} {
+		runner, err := openFixtureRunnerWithResidency(writeHermeticQwen35GGUF(t), OpenOptions{PromptCacheEntries: 1}, residency)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := runner.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		greedy, err := sampling.New(sampling.Config{Temperature: 0})
+		if err != nil {
+			t.Fatal(err)
+		}
+		// storage is the first address the prompt cache's entry holds in its token storage.
+		storage := func() uint64 {
+			t.Helper()
+			if len(runner.promptCaches) == 0 || runner.promptCaches[0].Device == nil || runner.promptCaches[0].Device.storage == nil {
+				t.Fatalf("%s: the request left no device prompt-cache entry", residency)
+			}
+			held := runner.promptCaches[0].Device.storage
+			for _, values := range [][]executor.DeviceValue{held.keys, held.values} {
+				for _, value := range values {
+					if value.Pointer != 0 {
+						return uint64(value.Pointer)
+					}
+				}
+			}
+			t.Fatalf("%s: the entry's storage holds no token cache", residency)
+			return 0
+		}
+		generate := func(speculative bool) ([]tokenizer.TokenID, uint64, uint64) {
+			t.Helper()
+			before, err := runner.cuda.Metrics(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			ids, _, err := runner.Generate(t.Context(), "", GenerateOptions{
+				MaxNewTokens: served, Sampler: greedy, DeviceGreedy: true, SpeculativeDecode: speculative, CachePrompt: true,
+				PromptTokenIDs: prompt, ContinueAfterEOG: true,
+			})
+			if err != nil {
+				t.Fatalf("%s: %v", residency, err)
+			}
+			after, err := runner.cuda.Metrics(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			return ids[len(prompt):], after.GraphCaptures - before.GraphCaptures, storage()
+		}
+		plain, _, first := generate(false)
+		for request := range 3 {
+			ids, captures, held := generate(true)
+			if !slices.Equal(ids, plain) {
+				t.Fatalf("%s: speculative request %d's text %v differs from the plain text %v", residency, request, ids, plain)
+			}
+			if held != first {
+				t.Fatalf("%s: speculative request %d's cache storage sits at %#x, the last request's at %#x", residency, request, held, first)
+			}
+			if request == 2 && captures != 0 {
+				t.Fatalf("%s: a warm request captured %d graphs, want its spans and draft steps to replay", residency, captures)
+			}
 		}
 	}
 }

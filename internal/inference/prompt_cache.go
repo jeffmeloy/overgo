@@ -346,6 +346,22 @@ func (r *Runner) yieldPromptCaches(ctx context.Context, keep *deviceKVCache) (bo
 	return len(failed) < len(released), err
 }
 
+// releaseEvictedPromptCaches releases, before a prompt is read from its start, the entries storing its cache will evict,
+// so the read's storage takes the memory they held: a Flash-Next request's storage then sits where the last one's did,
+// and its spans replay the graphs that request captured (beside the entry, each storage was new and a request
+// recaptured four to eight).
+func (r *Runner) releaseEvictedPromptCaches(ctx context.Context) error {
+	kept := max(r.promptCacheCapacity, 1) - 1
+	if len(r.promptCaches) <= kept {
+		return nil
+	}
+	evicted := slices.Clone(r.promptCaches[kept:])
+	r.promptCaches = slices.Delete(r.promptCaches, kept, len(r.promptCaches))
+	failed, err := releasePromptCaches(context.WithoutCancel(ctx), evicted)
+	r.promptCaches = append(r.promptCaches, failed...)
+	return err
+}
+
 func (r *Runner) storePromptCache(
 	ctx context.Context,
 	next *cachedPrompt,

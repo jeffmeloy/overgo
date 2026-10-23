@@ -227,7 +227,7 @@ type runnerState struct {
 	decodeSessions map[decodeSessionIdentity]*deviceDecodeSession
 	// speculating: a request has speculated, so the verify spans keep fixed output slots and the executor more captured graphs.
 	speculating bool
-	// spanSlots are the two buffers a speculating runner's verify spans write their non-token outputs into.
+	// spanSlots are the buffers a speculating runner's verify spans write their non-token outputs into, and its prompt reads their layers' states.
 	spanSlots [spanSlotCount]*spanSlot
 }
 

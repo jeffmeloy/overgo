@@ -216,6 +216,11 @@ func (r *Runner) Generate(
 				if deviceGreedy {
 					mode = deviceOutputGreedy
 				}
+				if retainedPrefix == nil && options.CachePrompt {
+					if err := r.releaseEvictedPromptCaches(ctx); err != nil {
+						return nil, "", err
+					}
+				}
 				// A request that drafts reads its prompt into the draft's history, as Strata's drafter does.
 				if deviceGreedy && r.hyperDraft != nil && r.deviceSpeculationReady(options) {
 					if err := r.beginHyperDraftPromptLocked(ctx, len(ids), cached, options.MaxNewTokens); err != nil {

@@ -213,6 +213,13 @@
       "status": "open",
       "steps": [
         {
+          "id": "arena",
+          "title": "Keep every expert in pinned host memory, the card a cache of them, as Strata does",
+          "status": "open",
+          "verify": "go test ./internal/modeldevice -run '^TestFlashNextExpertResidency$/^every-expert-keeps-its-host-copy$' -count=1",
+          "rationale": "Strata keeps every expert's bytes in pinned host memory for the life of the engine (its expert arena, cudaHostRegister over 55.4 GiB) and its card holds copies, so evicting a card expert costs nothing and a prompt borrows card slots (2,044, 4.55 GiB) and gives them back. Ours kept host bytes only for experts off the card: a demotion copied the expert back to a freshly pinned host slot unless a victim had been staged ahead, so a long prompt's scratch, which takes card memory from experts, paid a copy back of every expert it displaced (the prompt audit's first 16K read idled 1.35 s more than the second), and the residency carried a victim-staging scheme with its budgets to hide that cost from decode promotions.\nEvery expert keeps its pinned host copy from the load on: a card expert's is its home, a demotion moves it there with nothing copied, a promotion keeps its host slot, and victim staging, its budgets, the copy back and the pinning of host slots after the load go.\nMeasured 2026-10-23 (three alternating bench rounds against the build before, tmp/decode-loop): the 16K first token 6.53 to 6.22 s and its decode 59.4 to 65.1 tok/s, the 4K first token 1.85 to 1.75 s and its decode 73.0 to 76.1, the agent turns' first token 1.71 to 1.67 s, every range apart; chat decode and agent-turn decode unchanged; the load 2 to 3 s longer; the peak working set after a 16K prompt 25.9 to 57.2 GiB, under Strata's 62.1.\nServes: a prompt borrows card memory from experts with no copy back, and the residency moves experts both ways as Strata's cache does.\nDisappears: victim staging, its budgets, the copy back of demoted experts, the pinning of host slots after the load.\nEvidence: the residency's subtest holding every expert's host copy to its file bytes and a release that pins nothing; the bench above."
+        },
+        {
           "id": "dispatch",
           "title": "Port Strata's dispatch of a verify layer's missed experts",
           "status": "open",

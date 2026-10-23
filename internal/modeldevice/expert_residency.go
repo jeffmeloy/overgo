@@ -2,6 +2,7 @@ package modeldevice
 
 import (
 	"bytes"
+	"cmp"
 	"container/list"
 	"context"
 	"errors"
@@ -58,6 +59,16 @@ const (
 	// expertVictimSearch: the coldest card experts of a stride a promotion looks
 	// through for a staged one, those staged and those the routes named since.
 	expertVictimSearch = 2 * expertStagedLimit
+	// expertUsageDecay, expertUsageRounds, expertAdmission and expertPromotionsPerAdvance are Strata's adaptive tier
+	// (src/program/generate.cpp: --adapt-decay 0.7, --adapt-every 4, a candidate used at least twice, at most 96 swaps
+	// a round): an expert counts the decode runs that route it, the counts fall by expertUsageDecay every
+	// expertUsageRounds of them, and a miss moves to the card once its count reaches expertAdmission, the most used
+	// first, at most expertPromotionsPerAdvance an advance. Moving every miss moved about 125 experts a step of an
+	// agent turn, whose copies outlasted the step and held its own copy of its selection behind them.
+	expertUsageDecay           = 0.7
+	expertUsageRounds          = 4
+	expertAdmission            = 2
+	expertPromotionsPerAdvance = 64
 	// expertStreamNonBlocking is CU_STREAM_NON_BLOCKING: the residency's
 	// copies run beside the synchronous writes of the legacy stream, which
 	// would otherwise wait for them.
@@ -99,6 +110,8 @@ type expertBank struct {
 	entries []*list.Element
 	staged  []expertSlot
 	moving  []bool
+	// usage counts the decode runs that routed each expert, decayed (expertUsageDecay).
+	usage []float32
 	// class keeps the card experts of the bank's stride.
 	class *expertClass
 }
@@ -196,6 +209,8 @@ type expertResidency struct {
 	onHostUnwritten   bool
 	bytes, tableBytes uint64
 	step              uint64
+	// decodes counts the decode advances, whose every expertUsageRounds-th decays the usage counts.
+	decodes uint64
 	// routes, cardRoutes and loadCard are ExpertPlacement's counts.
 	routes, cardRoutes, loadCard uint64
 	// limit bounds the card bytes a refill reaches: the load's limit, or none where the load read it from free memory.
@@ -234,7 +249,8 @@ func newExpertResidency(ctx context.Context, file *gguf.File, infos []gguf.Tenso
 		}
 		bank := &expertBank{info: info, bytes: info.Size / experts, stride: stride, routed: flags,
 			pointers: make([]driver.DevicePtr, experts), hosted: make([][]byte, experts),
-			entries: make([]*list.Element, experts), staged: make([]expertSlot, experts), moving: make([]bool, experts)}
+			entries: make([]*list.Element, experts), staged: make([]expertSlot, experts), moving: make([]bool, experts),
+			usage: make([]float32, experts)}
 		if c.classes[stride] == nil {
 			c.classes[stride] = &expertClass{stride: stride}
 		}
@@ -531,6 +547,9 @@ func (c *expertResidency) advance(ctx context.Context, prompt bool) error {
 			}
 			for _, bank := range head.group {
 				c.routes++
+				if !prompt {
+					bank.usage[index]++
+				}
 				if entry := bank.entries[index]; entry != nil {
 					c.cardRoutes++
 					entry.Value.(*residentExpert).step = c.step
@@ -540,13 +559,23 @@ func (c *expertResidency) advance(ctx context.Context, prompt bool) error {
 						bank.unstage(uint32(index))
 						bank.class.free = append(bank.class.free, slot)
 					}
-				} else if !prompt && !bank.moving[index] {
+				} else if !prompt && !bank.moving[index] && bank.usage[index] >= expertAdmission {
 					missed = append(missed, expertKey{bank, uint32(index)})
 				}
 			}
 		}
 		clear(flags)
 	}
+	if !prompt {
+		if c.decodes++; c.decodes%expertUsageRounds == 0 {
+			for _, bank := range c.ordered {
+				for index := range bank.usage {
+					bank.usage[index] *= expertUsageDecay
+				}
+			}
+		}
+	}
+	missed = admitMisses(missed)
 	for _, key := range missed {
 		if err := c.promote(ctx, key); err != nil {
 			// The tables still name where each expert's bytes are.
@@ -557,6 +586,13 @@ func (c *expertResidency) advance(ctx context.Context, prompt bool) error {
 		return err
 	}
 	return c.stage(ctx)
+}
+
+// admitMisses orders an advance's admitted misses the most used first, in their order among equals, and keeps as
+// many as an advance moves.
+func admitMisses(missed []expertKey) []expertKey {
+	slices.SortStableFunc(missed, func(a, b expertKey) int { return cmp.Compare(b.bank.usage[b.index], a.bank.usage[a.index]) })
+	return missed[:min(len(missed), expertPromotionsPerAdvance)]
 }
 
 // land applies the copies the residency queued once they have landed,

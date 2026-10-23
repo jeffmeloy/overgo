@@ -265,12 +265,18 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		if mem.writes != writes {
 			t.Fatal("a run that routed nothing moved experts")
 		}
-		// A miss with nothing staged stays in host memory and stages the coldest card expert, 0, beside the next run.
+		// A miss is counted; its second, with nothing staged, stays in host memory and stages the coldest card expert, 0,
+		// beside the next run.
+		route(t, cache, 2)
+		advance(t, cache)
+		if bytes.IndexByte(cache.routed, 1) >= 0 || len(cache.staging) != 0 {
+			t.Fatalf("the routes stayed marked or a first miss staged %d experts", len(cache.staging))
+		}
 		route(t, cache, 2)
 		advance(t, cache)
 		readable(t, cache, mem, map[string][]uint32{"gate": {0}, "down": {0}})
-		if bytes.IndexByte(cache.routed, 1) >= 0 || len(cache.staging) != 2 {
-			t.Fatalf("the routes stayed marked or %d experts are staging, want expert 0 of each bank", len(cache.staging))
+		if len(cache.staging) != 2 {
+			t.Fatalf("%d experts are staging, want expert 0 of each bank", len(cache.staging))
 		}
 		// Its next miss takes staged expert 0's slot, and its copy lands by the advance after.
 		route(t, cache, 2)
@@ -278,23 +284,23 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		advance(t, cache)
 		readable(t, cache, mem, map[string][]uint32{"gate": {2}, "down": {2}})
 		pinned := len(cache.pinned)
-		// Expert 2 served this step too, so expert 0 stays in host memory and stages nothing.
+		// Expert 2 served this step too, and expert 0's first miss is only counted: it stays in host memory.
 		route(t, cache, 0, 2)
 		advance(t, cache)
 		readable(t, cache, mem, map[string][]uint32{"gate": {2}, "down": {2}})
-		route(t, cache, 1)
-		advance(t, cache)
-		route(t, cache, 1)
-		advance(t, cache)
+		for range 3 {
+			route(t, cache, 1)
+			advance(t, cache)
+		}
 		advance(t, cache)
 		readable(t, cache, mem, map[string][]uint32{"gate": {1}, "down": {1}})
 		if len(cache.pinned) != pinned {
 			t.Fatal("swaps pinned more host memory")
 		}
-		// Runs named expert 2 twice, then 0 and 2, then 1 twice, in both banks; only the third found its expert 2 on the
-		// card.
+		// Runs named expert 2 three times, then 0 and 2, then 1 three times, in both banks; only the fourth found its
+		// expert 2 on the card.
 		placement, err := (&DeviceWeights{experts: cache}).ExpertPlacement(nil)
-		if err != nil || placement.Routes != 12 || placement.CardRoutes != 2 || placement.CardExperts != 2 {
+		if err != nil || placement.Routes != 16 || placement.CardRoutes != 2 || placement.CardExperts != 2 {
 			t.Fatalf("placement after the runs = %+v: %v", placement, err)
 		}
 	})
@@ -321,10 +327,12 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		onCard(t, 0, 1, 2)
 		advance(t, cache)
 		onCard(t, 0)
-		// Expert 2's first miss stages 0; its second leaves 0 to its staged copy while 2's copy is in flight.
-		route(t, cache, 2)
-		advance(t, cache)
-		onCard(t, 0)
+		// Expert 2's second miss stages 0; its third leaves 0 to its staged copy while 2's copy is in flight.
+		for range 2 {
+			route(t, cache, 2)
+			advance(t, cache)
+			onCard(t, 0)
+		}
 		route(t, cache, 2)
 		advance(t, cache)
 		onCard(t)
@@ -334,10 +342,12 @@ func TestFlashNextExpertResidency(t *testing.T) {
 	t.Run("promotions-land-beside-the-next-run", func(t *testing.T) {
 		// Two experts of each bank fit: 0 and 1 on the card, 2 in host memory.
 		cache, mem := open(t, tableBytes+2*(gateStride+downStride))
-		// Expert 2's miss finds none staged: it stays in host memory, and the coldest card experts the step left
+		// Expert 2's second miss finds none staged: it stays in host memory, and the coldest card experts the step left
 		// unnamed, 0 and 1, are staged beside the next run.
-		route(t, cache, 2)
-		advance(t, cache)
+		for range 2 {
+			route(t, cache, 2)
+			advance(t, cache)
+		}
 		readable(t, cache, mem, map[string][]uint32{"gate": {0, 1}, "down": {0, 1}})
 		if len(cache.staging) != 4 {
 			t.Fatalf("%d copies of card experts are staging, want experts 0 and 1 of each bank", len(cache.staging))
@@ -384,11 +394,11 @@ func TestFlashNextExpertResidency(t *testing.T) {
 			t.Fatal("a prompt's routes moved experts or stayed marked")
 		}
 		// A decode run's routes move their experts though they name two of three, as a verify span may of a small bank:
-		// their misses stage expert 0, then expert 1 takes its slot, and expert 2 finds no other.
-		route(t, cache, 1, 2)
-		advance(t, cache)
-		route(t, cache, 1, 2)
-		advance(t, cache)
+		// their second misses stage expert 0, then expert 1 takes its slot, and expert 2 finds no other.
+		for range 3 {
+			route(t, cache, 1, 2)
+			advance(t, cache)
+		}
 		advance(t, cache)
 		readable(t, cache, mem, map[string][]uint32{"gate": {1}, "down": {1}})
 	})
@@ -424,8 +434,10 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		// releases free, into staged expert 0's slots, and no table names a freed allocation, then or after the next
 		// advance.
 		cache, mem = open(t, tableBytes+2*(gateStride+downStride))
-		route(t, cache, 2)
-		advance(t, cache)
+		for range 2 {
+			route(t, cache, 2)
+			advance(t, cache)
+		}
 		advance(t, cache)
 		route(t, cache, 2)
 		mem.hold = true
@@ -447,6 +459,9 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		for _, fail := range []string{"pinning", "write", "cancel"} {
 			cache, mem := open(t, oneEach)
 			ctx, cancel := context.WithCancel(t.Context())
+			// The first miss is counted, the second stages.
+			route(t, cache, 2)
+			advance(t, cache)
 			route(t, cache, 2)
 			switch fail {
 			case "pinning":
@@ -475,8 +490,10 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		// Expert 2's second miss takes staged expert 0's slots, then the table write fails: the tables still name the
 		// card slots 2's copies overwrite until a later advance writes them.
 		cache, mem := open(t, oneEach)
-		route(t, cache, 2)
-		advance(t, cache)
+		for range 2 {
+			route(t, cache, 2)
+			advance(t, cache)
+		}
 		route(t, cache, 2)
 		mem.failWrite = mem.writes + 1
 		if err := cache.advance(t.Context(), false); err == nil {
@@ -592,6 +609,8 @@ func TestExpertStagingHoldsItsBudget(t *testing.T) {
 			}
 		}
 	}
+	// The first miss is counted, the second stages.
+	route(onCard)
 	mem.hold = true
 	route(onCard)
 	if len(cache.staging) != 2*(expertStagedVictims+1) {
@@ -618,6 +637,71 @@ func TestExpertStagingHoldsItsBudget(t *testing.T) {
 				t.Fatalf("%s expert %d does not read its bytes: %v", name, index, err)
 			}
 		}
+	}
+}
+
+// TestExpertAdmissionTakesTheMostUsed: an advance moves its admitted misses the most used first, in routing order
+// among equals, and no more than expertPromotionsPerAdvance; decode runs count an expert's usage, decayed every
+// expertUsageRounds of them, and a prompt's count nothing.
+func TestExpertAdmissionTakesTheMostUsed(t *testing.T) {
+	const experts = 2 * expertPromotionsPerAdvance
+	bank := &expertBank{usage: make([]float32, experts)}
+	var missed []expertKey
+	for index := range uint32(experts) {
+		// Every third expert is used three times, the rest twice.
+		bank.usage[index] = 2 + float32(index%3/2)
+		missed = append(missed, expertKey{bank, index})
+	}
+	admitted := admitMisses(slices.Clone(missed))
+	if len(admitted) != expertPromotionsPerAdvance {
+		t.Fatalf("an advance admitted %d misses, want %d", len(admitted), expertPromotionsPerAdvance)
+	}
+	var most []uint32
+	for index := range uint32(experts) {
+		if index%3 == 2 {
+			most = append(most, index)
+		}
+	}
+	for at, key := range admitted[:len(most)] {
+		if key.index != most[at] {
+			t.Fatalf("admission %d took expert %d, want the most used in order, %v", at, key.index, most)
+		}
+	}
+	f := writeFixture(t, rand.New(rand.NewPCG(5, 7)), []fixtureTensor{{name: "gate", shape: []uint64{2, 2, 3}, kind: dtype.BF16}}, 0, 0)
+	file := f.parse(t)
+	mem := newFakeExpertDevice()
+	weights, err := mem.loadExperts(t.Context(), file, 3*8+3*256, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cache := weights.experts
+	defer cache.close()
+	node := tensor.NewBuilder().Input("gate", file.Tensors[0].Type, tensor.MustShape(file.Tensors[0].Shape[:file.Tensors[0].Dimensions]...))
+	run := func(prompt bool) {
+		t.Helper()
+		flags, err := (&DeviceWeights{experts: cache}).ExpertRoutes(nil, []*tensor.Tensor{node})
+		if err != nil {
+			t.Fatal(err)
+		}
+		cache.routed[uint64(flags-cache.routedMap)] = 1
+		if err := cache.advance(t.Context(), prompt); err != nil {
+			t.Fatal(err)
+		}
+	}
+	usage := cache.banks["gate"].usage
+	run(true)
+	if usage[0] != 0 {
+		t.Fatalf("a prompt counted expert 0's use: %v", usage[0])
+	}
+	for range expertUsageRounds - 1 {
+		run(false)
+	}
+	if usage[0] != expertUsageRounds-1 {
+		t.Fatalf("%d decode runs counted %v", expertUsageRounds-1, usage[0])
+	}
+	run(false)
+	if want := float32(expertUsageRounds) * expertUsageDecay; usage[0] != want {
+		t.Fatalf("the %dth decode run left a count of %v, want %v", expertUsageRounds, usage[0], want)
 	}
 }
 

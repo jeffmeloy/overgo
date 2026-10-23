@@ -26,6 +26,15 @@ func iq3SDots4(row *byte, blocks int, activations *[tokensPerKernel]*byte, resul
 //go:noescape
 func iq3SDots1(row *byte, blocks int, activation *byte) float32
 
+// iq3SDots4Z and iq3SDots1Z are the IQ3_S kernels in 512-bit lanes (rows_avx512_amd64.s), where the processor runs
+// them: a 64-value chunk decoded once and its signs a mask, Strata's iq_avx512 scheme.
+//
+//go:noescape
+func iq3SDots4Z(row *byte, blocks int, activations *[tokensPerKernel]*byte, results *[tokensPerKernel]float32)
+
+//go:noescape
+func iq3SDots1Z(row *byte, blocks int, activation *byte) float32
+
 //go:noescape
 func q80Dots4(row *byte, blocks int, activations *[tokensPerKernel]*byte, results *[tokensPerKernel]float32)
 
@@ -49,7 +58,24 @@ const (
 	ecxF16C              = 1 << 29
 	ebxAVX2              = 1 << 5
 	xcr0SSEAVX           = 0b110
+	// ebxAVX512F and ebxAVX512BW are leaf 7's 512-bit lanes and their byte and word instructions, and xcr0AVX512
+	// the opmask and upper ZMM state the system must save with SSE's and AVX's.
+	ebxAVX512F  = 1 << 16
+	ebxAVX512BW = 1 << 30
+	xcr0AVX512  = 0b1110_0110
 )
+
+// avx512 reports whether the processor and the system run the 512-bit kernels.
+var avx512 = func() bool {
+	if !avx2 {
+		return false
+	}
+	if state, _ := xgetbv(); state&xcr0AVX512 != xcr0AVX512 {
+		return false
+	}
+	_, extended, _, _ := cpuid(leafExtendedFeatures, 0)
+	return extended&(ebxAVX512F|ebxAVX512BW) == ebxAVX512F|ebxAVX512BW
+}()
 
 // avx2 reports whether the processor and the system run the kernels.
 var avx2 = func() bool {
@@ -71,9 +97,18 @@ var avx2 = func() bool {
 var (
 	iq4XSKernel = vectorKernel(iq4XSDots4, iq4XSDots1, iq4XSDot)
 	iq4NLKernel = vectorKernel(iq4NLDots4, iq4NLDots1, iq4NLDot)
-	iq3SKernel  = vectorKernel(iq3SDots4, iq3SDots1, iq3SDot)
+	iq3SKernel  = iq3SVector()
 	q80Kernel   = vectorKernel(q80Dots4, q80Dots1, q80Dot)
 )
+
+// iq3SVector is the IQ3_S kernel in 512-bit lanes where the processor runs them, whose grid lookups bound the AVX2
+// kernel's rate, and the AVX2 kernel elsewhere.
+func iq3SVector() rowKernel {
+	if avx512 {
+		return vectorKernel(iq3SDots4Z, iq3SDots1Z, iq3SDot)
+	}
+	return vectorKernel(iq3SDots4, iq3SDots1, iq3SDot)
+}
 
 // vectorKernel is the AVX2 kernel where the processor runs it and the scalar
 // formula elsewhere. A group of fewer than tokensPerKernel tokens of more

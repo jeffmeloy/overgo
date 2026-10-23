@@ -212,17 +212,10 @@
       "title": "Port Strata's decode loop as one unit",
       "status": "open",
       "budget": {
-        "nodes": 1011,
+        "nodes": 870,
         "reason": ""
       },
       "steps": [
-        {
-          "id": "cpu-experts",
-          "title": "Compute a missed expert on the CPU at Strata's cost",
-          "status": "open",
-          "verify": "go test ./internal/hostexpert -run '^TestIQ3SRowsInWideLanes$' -count=1",
-          "rationale": "Measured 2026-10-23 (probes in tmp/decode-loop): a decode layer's missed experts cost the window what the CPU takes beyond the card's own work after the ring, about 50 to 80 us of routed products, so the CPU's time an expert decides the stall. Our decode hit rate per routed slot matches Strata's (about 91.7% at one draft against its 91 to 94%), its share of misses the CPU computes about the same a layer; the CPU's cost an expert is ours 55 to 61 us against Strata's 46 (its decode timing's per-layer CPU over its CPU experts). Of that, Flash-Next's IQ3_S gate and up rows took 36.5 us of an expert (38.6 GB/s from memory on 16 workers; 5.0 GB/s a thread in cache, a quarter of IQ4_XS's rate, the grid lookups bounding it) and the IQ4_NL down rows 16.1 us (57 GB/s, the memory's rate). Tried and not kept: evicting the least used card expert a miss beats by 1.5 rather than the least recent (identical hit counts on the bench's chats: both take the same never-routed experts), pinning the doorbell's workers one a physical core as Strata's pool does (15 pinned workers 10 to 34% slower than 16 loose on a two-expert layer), and a link share of misses (the link reads an expert in about 170 us against the CPU's 55). So this step brings the CPU's cost an expert to Strata's: the IQ3_S rows in 512-bit lanes as Strata's iq_avx512 decodes them, then whatever the expert's remaining time shows.\n\nMeasured 2026-10-23 after the arena step, three alternating bench rounds (tmp/decode-loop): the IQ3_S rows in 512-bit lanes ran 6.95 GB/s a thread in cache against 5.0, a decode expert 52.6 to 54.3 us against 57.7, and the agent first turn answered in 0.90 s against 1.01 (Strata 0.83) and its turns decoded 88.4 tok/s against 83.4, both ranges apart; chat, 4K and 16K decode moved 3 to 7% inside their ranges.\nServes: a missed expert costs the CPU what it costs Strata's, so a window's misses fit beside the card's own work.\nDisappears: the AVX2 IQ3_S kernel where the processor runs 512-bit lanes.\nEvidence: the wide-lane kernel test against the formula; the bench above."
-        },
         {
           "id": "window",
           "title": "Port Strata's verify window: chained drafts on the device, a replayed commit",

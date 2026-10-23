@@ -217,6 +217,13 @@
       },
       "steps": [
         {
+          "id": "mtp-chain",
+          "title": "Chain the MTP drafts while the draft is sure",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -run \"^TestFlashNextMTP\" -count=1",
+          "rationale": "With its history the MTP layer keeps 78% of single drafts in the live loop (73% without), and Strata's drafter, history in hand, chains up to four drafts a window while the draft's probability holds 0.5, keeping 1.9 to 2.2 tokens a window to our 1.6 to 1.7. Chains lost without history (lessons: a draft step 1 to 2 ms, a verified token 2.3 to 2.8 ms, no chain beat one draft).\nServes: a round drafts after its first draft from the draft layer's own output streams with the token it drafted, a cell written to the history beside the round's own and overwritten by the next round's, while the draft's top-two logit gap holds a floor, up to a depth; the floor and depth chosen by replaying one always-deepest run's windows (gaps, kept count, verify and draft times) and confirmed on the probe.\nEvidence: the hermetic Flash-Next speculates to plain greedy's tokens with chained drafts; the served model's chat and agent turns keep more tokens a forward than 1.65 at a lower time a token."
+        },
+        {
           "id": "context-decode",
           "title": "Decode at a 4K to 16K context at Strata's rate",
           "status": "open",

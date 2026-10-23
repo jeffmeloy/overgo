@@ -199,11 +199,13 @@ type preparedModel struct {
 	promptCacheCapacity int
 	// promptBoundaryTokens: the fewest tokens before a prompt's last turn for which its read keeps a boundary there.
 	promptBoundaryTokens int
-	modelSignature       [32]byte
-	modelSignatureErr    error
-	modelSignatureOnce   sync.Once
-	audioTables          *audioWaveformTables
-	audioTablesOnce      sync.Once
+	// promptChunkTokens: the most tokens a prompt's read appends a chunk (devicePromptChunkTokens).
+	promptChunkTokens  int
+	modelSignature     [32]byte
+	modelSignatureErr  error
+	modelSignatureOnce sync.Once
+	audioTables        *audioWaveformTables
+	audioTablesOnce    sync.Once
 	// ngramRows reads the n-gram table's rows and keeps those read, built by the first request that reads them.
 	ngramRows *model.HostRows
 

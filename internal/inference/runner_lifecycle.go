@@ -183,7 +183,7 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 		hyperDraft:          draft,
 		outputBias:          outputBias,
 		outputExclusions:    vocab.NonTextGenerationRanges(),
-		promptCacheCapacity: promptCacheCapacity, promptBoundaryTokens: promptBoundaryTokens,
+		promptCacheCapacity: promptCacheCapacity, promptBoundaryTokens: promptBoundaryTokens, promptChunkTokens: devicePromptChunkTokens,
 	}, runnerState: runnerState{loraAdapters: loraAdapters}}, nil
 }
 

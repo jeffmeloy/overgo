@@ -640,7 +640,11 @@ func (r *Runner) forwardDeviceCachedBatchLocked(
 		return nil, errors.New("inference: device batch is empty")
 	}
 	if len(appends) == 1 && len(appends[0].Tokens) > 1 && !plan.is(deviceOutputGreedySpan) {
-		next, err := r.prefillDeviceCachedLocked(ctx, appends[0], plan, len(appends[0].Tokens))
+		chunk := len(appends[0].Tokens)
+		if r.promptChunkTokens > 0 {
+			chunk = min(chunk, r.promptChunkTokens)
+		}
+		next, err := r.prefillDeviceCachedLocked(ctx, appends[0], plan, chunk)
 		if err != nil {
 			return nil, err
 		}

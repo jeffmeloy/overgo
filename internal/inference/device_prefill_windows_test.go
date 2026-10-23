@@ -73,6 +73,33 @@ func TestDeviceBoundedPrefill(t *testing.T) {
 			if split.Selected != whole[0].Selected {
 				t.Fatalf("split selection = %d, whole = %d", split.Selected, whole[0].Selected)
 			}
+			// A prompt's read appends at most the runner's chunk bound a chunk: three chunks launch more than one, to
+			// the same state.
+			launches := func(chunk int) (*deviceKVCache, uint64) {
+				t.Helper()
+				runner.promptChunkTokens = chunk
+				before, err := runner.DeviceExecutionStats(ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				read, err := runner.forwardDeviceCachedBatchLocked(ctx, []deviceBatchAppend{{Tokens: tokens}}, plan)
+				if err != nil {
+					t.Fatal(err)
+				}
+				after, err := runner.DeviceExecutionStats(ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return read[0], after.KernelLaunches + after.GraphLaunches - before.KernelLaunches - before.GraphLaunches
+			}
+			bounded, chunked := launches(2)
+			defer bounded.Release(context.Background())
+			unbounded, once := launches(len(tokens))
+			defer unbounded.Release(context.Background())
+			compare(bounded, unbounded)
+			if chunked <= once || bounded.Selected != unbounded.Selected {
+				t.Fatalf("a bound of two read in %d launches against %d whole, selecting %d against %d", chunked, once, bounded.Selected, unbounded.Selected)
+			}
 			// A prompt read in chunks sizes its storage for the whole prompt at its first chunk, and a later chunk
 			// writes into it rather than into a new storage beside it.
 			reserve := uint32(len(tokens))

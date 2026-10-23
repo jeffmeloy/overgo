@@ -78,6 +78,12 @@ func (r *Runner) prefillDeviceCachedLocked(ctx context.Context, appendInput devi
 	return past, nil
 }
 
+// devicePromptChunkTokens bounds the tokens a prompt's read appends a chunk, as Strata's prompt path reads at most
+// 8,192 (--prefill auto): a chunk's activations take card memory the expert residency gives up, and after a
+// 16K-token Flash-Next prompt read whole 36,566 of 47,937 experts stayed on the card, read in chunks of 8,192 40,581,
+// the chats after it decoding about 6% faster and the prompt read as fast (a 237K-token one 3% slower).
+const devicePromptChunkTokens = 8192
+
 // readDevicePromptLocked reads the prompt's tokens after cached onto past under the output plan of mode, sizing the
 // cache for the prompt and the output tokens it may decode after it, within the context, so that no part of the read
 // nor a decode step outgrows the cache into a copy. A recurrent prompt its entry keeps (keep), with at least

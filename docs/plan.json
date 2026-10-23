@@ -212,17 +212,10 @@
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",
       "budget": {
-        "nodes": 216,
+        "nodes": 181,
         "reason": "promotion-cap adds about 60 production nodes: each bank's decayed usage counts, their counting and decay at each decode advance, the admission of a miss by its count and the ordering and bound of an advance's admitted misses; the agent turns' copies waited on all of it."
       },
       "steps": [
-        {
-          "id": "prompt-chunk",
-          "title": "Read a prompt in chunks of at most 8,192 tokens",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -run \"^TestDeviceBoundedPrefill$\" -count=1",
-          "rationale": "A Flash-Next prompt was read in one chunk whatever its length, its activations taking the card memory the expert residency gave up for them, which the decode after it never got back: a 16K-token word list left 34,906 of the 47,937 experts the load placed (5.0 GB of activations, 2.0 GB of matmul staging held after it), and the chats after it decoded at 79 to 97 tok/s against about 107 before any long prompt; Strata's prompt path reads at most 8,192 tokens a chunk (--prefill auto).\nServes: a prompt's read appends at most 8,192 tokens a chunk.\nEvidence: by hand, the same requests in order, whole against 8,192 and 4,096 a chunk: experts left after the 16K prompt 36,566, 40,581 and 42,236; its first token 8.76, 8.51 and 8.68 s; the 4K prompt's 2.17, 2.04 and 2.31 s; the three chats after them 93/94/110, 94/106/116 and 86/103/107 tok/s; a 237,290-token first read in chunks of 8,192 at 1,592 tok/s against 1,648 for 258,753 tokens read whole, its follow-ups, cancel recovery and image turn answered."
-        },
         {
           "id": "context-decode",
           "title": "Decode at a 4K to 16K context at Strata's rate",

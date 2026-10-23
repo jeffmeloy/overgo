@@ -108,8 +108,12 @@ func (r *Runner) Generate(
 	// token id crosses PCIe. Callbacks receive TokenEvent without Logits, so
 	// callback users must opt in via options.DeviceGreedy.
 	// It keeps the prompt cache: it starts from a cached prefix and keeps its last state.
+	// A lazy grammar awaiting its trigger masks no token, so its request selects on the device until a token triggers
+	// it (a tool request's tool call), and samples under it after: on device every token, Flash-Next's agent turns
+	// decoded a token a forward at about a third of the chat's rate.
+	awaitsTrigger := options.Sampler.GreedyUntilTrigger()
 	deviceGreedy := useDeviceCache &&
-		options.PostSamplingProbabilities == 0 && options.Sampler.IsRawGreedy() &&
+		options.PostSamplingProbabilities == 0 && (options.Sampler.IsRawGreedy() || awaitsTrigger) &&
 		(options.DeviceGreedy || (options.OnToken == nil && options.ShouldStop == nil))
 	defer func() {
 		if deviceCache != nil &&
@@ -335,30 +339,47 @@ func (r *Runner) Generate(
 		return ids, text, decodeErr
 	}
 
+	// start is the tokens decoded before the loop below: those a speculation decoded until a grammar triggered.
+	start, promptTokens := 0, len(ids)
 	if deviceGreedy && deviceCache != nil && r.deviceSpeculationReady(options) {
 		if err := r.startSpeculatingLocked(); err != nil {
 			return nil, "", err
 		}
 		var speculatedText string
-		ids, deviceCache, speculatedText, err = r.generateDeviceSpeculativeGreedy(
+		var sampled bool
+		ids, deviceCache, sampled, speculatedText, err = r.generateDeviceSpeculativeGreedy(
 			ctx, ids, deviceCache, options,
 		)
 		if err != nil {
 			// A failed span ends the request with the ids decoded so far, as a failed step does.
 			return ids, "", err
 		}
-		// The last boundary holds every id before its pending ones, which a continuation forwards again.
-		if options.CachePrompt && deviceCache != nil && int(deviceCache.Tokens) < len(ids) {
-			err = r.retainDecodedPromptCache(context.WithoutCancel(ctx), ids[:deviceCache.Tokens+1], reference.Value{}, nil, deviceCache)
+		if !sampled {
+			// The last boundary holds every id before its pending ones, which a continuation forwards again.
+			if options.CachePrompt && deviceCache != nil && int(deviceCache.Tokens) < len(ids) {
+				err = r.retainDecodedPromptCache(context.WithoutCancel(ctx), ids[:deviceCache.Tokens+1], reference.Value{}, nil, deviceCache)
+			}
+			return ids, speculatedText, err
 		}
-		return ids, speculatedText, err
+		// The grammar a token triggered chooses the rest: the ids the boundary does not hold are read for its logits.
+		next, err := r.forwardDeviceCachedModeLocked(ctx, deviceOutputLogits, ids[deviceCache.Tokens:], deviceCache, nil)
+		if err != nil {
+			return ids, "", err
+		}
+		previous := deviceCache
+		deviceCache, deviceGreedy, start = next, false, len(ids)-promptTokens
+		if !r.ownsDevicePromptCache(previous) {
+			if err := previous.Release(ctx); err != nil {
+				return ids, "", err
+			}
+		}
 	}
 
 	var generatedText strings.Builder
 	// loopErr: a failed step ends the loop with the ids decoded so far.
 	var loopErr error
-	for generatedIndex := range options.MaxNewTokens {
-		if generatedIndex > 0 {
+	for generatedIndex := start; generatedIndex < options.MaxNewTokens; generatedIndex++ {
+		if generatedIndex > start {
 			if options.ContextShift {
 				var shiftedDeviceCache *deviceKVCache
 				shiftedDeviceCache, err = r.compactDeviceCacheForAppend(
@@ -413,6 +434,13 @@ func (r *Runner) Generate(
 		var event TokenEvent
 		if deviceGreedy {
 			event = TokenEvent{ID: deviceCache.Selected}
+			if awaitsTrigger {
+				if loopErr = options.Sampler.AcceptToken(int(event.ID)); loopErr != nil {
+					break
+				}
+				// The next step reads logits, which the grammar a token triggered masks.
+				deviceGreedy = options.Sampler.GreedyUntilTrigger()
+			}
 		} else {
 			var sampleErr error
 			event, sampleErr = sampleGenerationToken(deviceCache.Logits, ids, options)

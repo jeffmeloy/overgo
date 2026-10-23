@@ -409,6 +409,52 @@ func TestGreedyGrammarSamplerChoosesThePipelinesToken(t *testing.T) {
 	}
 }
 
+// TestGreedyUntilTrigger: a greedy sampler with a lazy grammar decodes greedily until a token it accepts triggers the
+// grammar, and never with a strict grammar or a temperature.
+func TestGreedyUntilTrigger(t *testing.T) {
+	t.Parallel()
+	vocabulary, err := NewGBNFVocabulary(bytePieces("free", "other", "<trigger>", "x", ""), []int{4}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compile := func(lazy GBNFLazyOptions) *GBNFGrammar {
+		grammar, err := vocabulary.Compile(`root ::= <[2]> "x"`, "root", lazy)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return grammar
+	}
+	lazy := compile(GBNFLazyOptions{Enabled: true, Tokens: []int{2}})
+	sampler, err := New(Config{GBNF: lazy})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !sampler.GreedyUntilTrigger() || sampler.IsRawGreedy() {
+		t.Fatal("a greedy sampler awaiting its grammar's trigger does not decode greedily")
+	}
+	for _, token := range []int{0, 1} {
+		if err := sampler.AcceptToken(token); err != nil || !sampler.GreedyUntilTrigger() {
+			t.Fatalf("token %d before the trigger ended greedy decoding (%v)", token, err)
+		}
+	}
+	if err := sampler.AcceptToken(2); err != nil || sampler.GreedyUntilTrigger() {
+		t.Fatalf("the trigger left greedy decoding on (%v)", err)
+	}
+	for name, config := range map[string]Config{
+		"strict":      {GBNF: compile(GBNFLazyOptions{})},
+		"temperature": {GBNF: lazy, Temperature: 0.7},
+		"none":        {},
+	} {
+		sampler, err := New(config)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if sampler.GreedyUntilTrigger() {
+			t.Fatalf("%s: the sampler decodes greedily until a trigger", name)
+		}
+	}
+}
+
 func TestLazyGBNFRequiresValidTriggers(t *testing.T) {
 	t.Parallel()
 	vocabulary, err := NewGBNFVocabulary(bytePieces("a", ""), []int{1}, nil)

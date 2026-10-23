@@ -306,6 +306,12 @@ func (s *Sampler) IsRawGreedy() bool {
 	return s.greedyBeyondGrammar() && s.config.Grammar == nil && s.config.GBNF == nil
 }
 
+// GreedyUntilTrigger reports a sampler that is raw greedy but for a lazy grammar still awaiting its trigger, which
+// masks no token until then, so the device's argmax is its choice until a token it accepts (AcceptToken) triggers it.
+func (s *Sampler) GreedyUntilTrigger() bool {
+	return s.greedyBeyondGrammar() && s.config.Grammar == nil && s.gbnf != nil && s.gbnfState.awaitingTrigger
+}
+
 // greedyBeyondGrammar reports whether the sampler is raw greedy apart from a
 // grammar. A grammar masks the logits before the selection, so the token
 // chosen among those it allows is their argmax, which a scan finds where the

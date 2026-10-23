@@ -212,17 +212,10 @@
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",
       "budget": {
-        "nodes": 57,
-        "reason": ""
+        "nodes": 41,
+        "reason": "tool-decode adds about 260 production nodes: the sampler's check for a lazy grammar awaiting its trigger, the speculative loop's acceptance of each token into that grammar and its stop at the trigger with the span kept at its checkpoint before a triggering draft, the hand-off that reads the pending ids for logits and continues the sampled loop from the tokens decoded, and the server's admission of such requests to speculation; the agent turns' throughput (34 against Strata's 154 tok/s) waits on all of it."
       },
       "steps": [
-        {
-          "id": "tool-decode",
-          "title": "Decode a tool request on the device, speculating, until its grammar triggers",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -run \"^TestLazyGrammar\" -count=1 \u0026\u0026 go test ./internal/sampling -run \"^TestGreedyUntilTrigger$\" -count=1",
-          "rationale": "A request with tools carries a lazy tool-call grammar, and any grammar took the request off the device's greedy selection and off speculation: Flash-Next's agent turns (Strata's bench suite: system prompt, four tools, a document a turn) decoded a token a forward at 28 to 34 tok/s against the chat's 107 and Strata's 154, though a lazy grammar masks no token until its trigger.\nServes: a greedy request whose lazy grammar awaits its trigger decodes greedily on the device, speculating, until a token it accepts triggers the grammar; a trigger on an accepted draft keeps the span at its checkpoint before that draft; the grammar then samples every later token from the logits of the ids still pending.\nEvidence: by hand on the served Flash-Next, agent document turns 45 to 67 tok/s at 1.6 to 1.7 tokens a forward, a real read_file call still parsed; on the hermetic hybrid and Flash-Next fixtures, each trigger place decodes to greedy's tokens through the trigger and to the host sampler's after, a trigger on an accepted draft included."
-        },
         {
           "id": "context-decode",
           "title": "Decode at a 4K to 16K context at Strata's rate",

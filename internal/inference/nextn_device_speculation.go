@@ -152,16 +152,26 @@ func spanHiddenRow(hidden reference.Value, width uint64, row int) (reference.Val
 // The boundary cache is the recurrent-state checkpoint: a fully accepted
 // span becomes the next boundary, a rejected suffix is rolled back by
 // releasing the span cache and re-spanning from the boundary.
+//   - a lazy grammar awaiting its trigger takes each token, and the loop ends at the token that triggers it, the
+//     cache it answers then holding every id before the ones still pending; sampled reports that ending, after which
+//     the grammar chooses the tokens
 func (r *Runner) generateDeviceSpeculativeGreedy(
 	ctx context.Context,
 	ids []tokenizer.TokenID,
 	prefill *deviceKVCache,
 	options GenerateOptions,
-) ([]tokenizer.TokenID, *deviceKVCache, string, error) {
+) (_ []tokenizer.TokenID, _ *deviceKVCache, sampled bool, _ string, _ error) {
 	var generatedText strings.Builder
 	emitted := 0
-	stopped := false
+	stopped, ended, triggered := false, false, false
+	lazy := options.Sampler.GreedyUntilTrigger()
 	emit := func(id tokenizer.TokenID) error {
+		if lazy {
+			if err := options.Sampler.AcceptToken(int(id)); err != nil {
+				return err
+			}
+			triggered = !options.Sampler.GreedyUntilTrigger()
+		}
 		event := TokenEvent{ID: id, Index: emitted}
 		ids = append(ids, id)
 		emitted++
@@ -169,12 +179,13 @@ func (r *Runner) generateDeviceSpeculativeGreedy(
 		if err != nil {
 			return err
 		}
-		stopped = stop || emitted >= options.MaxNewTokens
+		ended = stop || emitted >= options.MaxNewTokens
+		stopped = ended || triggered
 		return nil
 	}
 	boundary := prefill
 	if err := emit(boundary.Selected); err != nil {
-		return ids, boundary, "", err
+		return ids, boundary, false, "", err
 	}
 	pending := []tokenizer.TokenID{boundary.Selected}
 	depth := r.speculationDraftTokens()
@@ -199,13 +210,13 @@ func (r *Runner) generateDeviceSpeculativeGreedy(
 		if haveSeed && room > 0 && len(pending)+depth <= int(q8InputSpanColumnsWindow) && (depth > 1 || len(pending) == 1) {
 			session, sessionErr := r.newDeviceMTPSessionLocked(seedHidden, seedPosition)
 			if sessionErr != nil {
-				return ids, boundary, "", sessionErr
+				return ids, boundary, false, "", sessionErr
 			}
 			token := pending[len(pending)-1]
 			for len(drafts) < room {
 				drafted, next, draftErr := r.draftDeviceTokenLocked(ctx, token, session)
 				if draftErr != nil {
-					return ids, boundary, "", draftErr
+					return ids, boundary, false, "", draftErr
 				}
 				session = next
 				token = drafted
@@ -223,12 +234,12 @@ func (r *Runner) generateDeviceSpeculativeGreedy(
 			ctx, deviceOutputGreedySpan, spanTokens, boundary, nil, checkpoints...,
 		)
 		if err != nil {
-			return ids, boundary, "", err
+			return ids, boundary, false, "", err
 		}
 		selections := span.SpanSelected
 		if len(selections) != len(spanTokens) {
 			releaseErr := span.Release(context.Background())
-			return ids, boundary, "", errors.Join(
+			return ids, boundary, false, "", errors.Join(
 				errors.New("inference: span selections are incomplete"), releaseErr,
 			)
 		}
@@ -240,21 +251,25 @@ func (r *Runner) generateDeviceSpeculativeGreedy(
 		if options.OnDraftSpan != nil && len(drafts) > 0 {
 			options.OnDraftSpan(len(drafts), accepted)
 		}
+		correction := selections[base+accepted]
 		for index := 0; index < accepted && !stopped; index++ {
 			if err := emit(drafts[index]); err != nil {
-				return ids, boundary, "", errors.Join(err, span.Release(context.Background()))
+				return ids, boundary, false, "", errors.Join(err, span.Release(context.Background()))
+			}
+			if triggered && !ended {
+				// The span keeps its state before the draft that triggered the grammar, which is all that is pending.
+				accepted, correction = index, drafts[index]
 			}
 		}
-		correction := selections[base+accepted]
 		if !stopped {
 			if err := emit(correction); err != nil {
-				return ids, boundary, "", errors.Join(err, span.Release(context.Background()))
+				return ids, boundary, false, "", errors.Join(err, span.Release(context.Background()))
 			}
 		}
 		spanStart := span.Position - uint32(len(spanTokens))
 		seedHidden, err = spanHiddenRow(span.SpanHidden, width, base+accepted)
 		if err != nil {
-			return ids, boundary, "", errors.Join(err, span.Release(context.Background()))
+			return ids, boundary, false, "", errors.Join(err, span.Release(context.Background()))
 		}
 		seedPosition = spanStart + uint32(base+accepted) + 1
 		haveSeed = true
@@ -264,7 +279,7 @@ func (r *Runner) generateDeviceSpeculativeGreedy(
 		if !committed && len(span.checkpoints) != 0 {
 			kept := append(slices.Clone(pending), drafts[:accepted]...)
 			if err := r.commitSpanCheckpoint(ctx, span, boundary, kept); err != nil {
-				return ids, boundary, "", errors.Join(err, span.Release(context.Background()))
+				return ids, boundary, false, "", errors.Join(err, span.Release(context.Background()))
 			}
 			committed = true
 		}
@@ -274,20 +289,20 @@ func (r *Runner) generateDeviceSpeculativeGreedy(
 			// A boundary the prompt cache holds stays its entry.
 			if !r.ownsDevicePromptCache(previous) {
 				if err := previous.Release(ctx); err != nil {
-					return ids, boundary, "", err
+					return ids, boundary, false, "", err
 				}
 			}
 			pending = []tokenizer.TokenID{correction}
 		} else {
 			if err := span.Release(ctx); err != nil {
-				return ids, boundary, "", err
+				return ids, boundary, false, "", err
 			}
 			pending = append(append(pending, drafts[:accepted]...), correction)
 		}
 	}
 	text, err := r.vocab.Decode(ids, false)
 	if err != nil {
-		return ids, boundary, "", err
+		return ids, boundary, false, "", err
 	}
-	return ids, boundary, text, nil
+	return ids, boundary, triggered && !ended, text, nil
 }

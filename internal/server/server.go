@@ -237,14 +237,16 @@ type speculativeDraftAPI interface {
 // whether the request speculates: as it asks, else as the served model does
 // by default, for a greedy request.
 func (h *Handler) admitSpeculation(requested *bool, sampler *sampling.Sampler) (bool, error) {
+	// A lazy grammar awaiting its trigger (a tool request's) leaves the drafts greedy until a token triggers it.
+	greedy := sampler.IsRawGreedy() || sampler.GreedyUntilTrigger()
 	switch {
 	case requested == nil:
-		return h.speculatesByDefault() && sampler.IsRawGreedy(), nil
+		return h.speculatesByDefault() && greedy, nil
 	case !*requested:
 		return false, nil
 	case h.speculativeDraftTokens() == 0:
 		return false, errors.New("speculative decoding needs a served model that declares a draft head")
-	case !sampler.IsRawGreedy():
+	case !greedy:
 		return false, errors.New("speculative decoding verifies greedy drafts: set temperature 0 and no other sampler")
 	}
 	return true, nil

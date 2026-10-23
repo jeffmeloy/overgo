@@ -217,6 +217,13 @@
       },
       "steps": [
         {
+          "id": "expert-profile",
+          "title": "Fill the card at load from a ranked expert profile",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/modeldevice -run Expert -count=1",
+          "rationale": "A load places each bank's experts on the card in index order, an arbitrary set, and only decode routes move them, so content the card was not adapted to misses: agent document turns kept 79 to 94% of their routed experts on the card. Strata fills its card from an expert profile, every (layer, expert) pair ranked by routing frequency over typical prompts (tools/make_profile.py, data/expert-profile.bin, STRP v1), and its requests kept 92.6 to 99.0%. Loading Strata's own profile for this model (an experiment, with the loader's run copy corrected) decoded the bench's chats at 71, 101 and 102 tok/s against 60, 85 and 96, the agent document turns at 60, 70, 76 and 90 against 53, 62, 69 and 80 (90 to 96% kept), the 4K word list at 82 against 78.\nServes: a command reads a fixed calibration corpus (prose, code and chat answers) through the model's prompt path in short runs and ranks every (layer, expert) pair by the runs that routed it, writing the ranking in Strata's STRP v1 format under the model's identity in the data root; a load whose model has a profile places each layer's top-ranked experts on the card, its banks together, while its limit allows.\nEvidence: on the served model, the bench's chats and agent turns keep more of their routed experts on the card from the first request than index order does, and decode faster; the residency tests hold a ranked fill to its experts' bytes."
+        },
+        {
           "id": "context-decode",
           "title": "Decode at a 4K to 16K context at Strata's rate",
           "status": "open",

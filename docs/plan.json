@@ -217,6 +217,13 @@
       },
       "steps": [
         {
+          "id": "frames",
+          "title": "Replay the last request's verify graphs: its storage and the prompt's states where the last request's were",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -run '^TestPromptCachedRequestsReplayTheirFrames$' -count=1",
+          "rationale": "The window's third part first, since it costs every request under one draft as well: a request's verify spans replay the graphs the last request captured. Probed over a bench round at 7213a92 (each capture named by the frame entries that moved against the nearest kept frame of its graph): a chat recaptured its first verify, whose past's recurrent states the prompt's read left in pool buffers at an address of the pool's reuse order; a 4K or 16K request recaptured 5 to 8 graphs (about 100 ms of a 24-token decode near 300 ms), because its cache storage was allocated beside the prompt-cache entry it was about to evict, so each request's storage sat at another address (two alternating for a chat, a new one each time for a 16K storage the pool frees at once), and every frame naming it moved. The bench decodes 24 tokens after its 4K and 16K prompts and 100 in a chat, so a fixed cost a request weighs four to ten times what it weighs in a long decode.\nThe port: a prompt read from its start first releases the prompt-cache entries storing it will evict, so its storage takes the memory theirs held; a speculating runner's prompt read writes its layers' fixed states into a span slot at the offsets a verify span's take, so the first verify reads them where later verifies read their past's, and the runner keeps three slots, one held by the prompt's entry while the request decodes. Measured on the change with the probe: after two warm requests every chat captured nothing, the 4K requests 1 each, the third 16K request nothing.\nServes: the bench's decode cells at Strata's per-request cost; less peak device memory (one storage at a time, not two).\nDisappears: 4 to 8 captures a 4K or 16K request, about one a chat.\nEvidence: a test holding a speculating runner that keeps its prompt cache to the storage address of the last request and to no capture once warm, with the plain greedy text; the bench's decode cells over three alternating rounds."
+        },
+        {
           "id": "window",
           "title": "Port Strata's verify window: chained drafts on the device, a replayed commit",
           "status": "open",

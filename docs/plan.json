@@ -217,6 +217,13 @@
       },
       "steps": [
         {
+          "id": "prompt-read",
+          "title": "Read a 16K prompt and the agent's first turn at Strata's rate",
+          "status": "open",
+          "verify": "false",
+          "rationale": "Strata's bench suite on this PC (2026-10-23, after expert-profile, pool-share, draft-prompt and tail-skip): a fresh 16K-token prompt answers its first token in 6.5 s (2,510 tok/s) against Strata's 4.89 s (3,365 tok/s), and the agent session's first turn (645 tokens with tool definitions) in 0.99 s against 0.83; the 4K prompt already answers sooner (1.86 s against 2.22). A prompt chunk of 8,192 tokens routes most of a layer's experts many times, so each expert in host memory is copied to the card for the chunk (about 160 us an expert over the link, moe_host.go hostExpertSlots), where Strata streams those experts on a copy ring beside the chunk's products (prefill.cpp, stream_all_min_tokens).\nServes: a 16K prompt's first token and the agent's first turn no later than Strata's.\nFirst: the 16K read's phases by chunk (the products, the experts' copies and how much of them overlaps the products) against STRATA_PREFILL_TIMING on the same token ids, and the agent first turn's split between reading and decoding.\nEvidence: the suite's 16K and agent first-turn medians on both engines.\nVerify: set with -setverify once the measured cause is known; false until then."
+        },
+        {
           "id": "context-decode",
           "title": "Decode at a 4K to 16K context at Strata's rate",
           "status": "open",
@@ -229,13 +236,6 @@
           "status": "open",
           "verify": "false",
           "rationale": "Strata's bench suite's short chat (three questions in turn, a new conversation each): our decode 59 tok/s against Strata's 133; replayed by hand, the first request of a run decodes at 36 tok/s and the rest at 73 to 94, while the same prompt repeated decodes at 110 to 118. A fresh conversation pays per-request costs a repeated one does not: its new cache storage and prompt length change the speculative windows' captured frames.\nServes: a fresh conversation's decode at the repeated prompt's rate and Strata's short-chat rate.\nEvidence: the suite's chat decode median on both engines, and the hand replay's per-request rates with the graph instantiations each request makes.\nVerify: set with -setverify once the measured cause is known; false until then."
-        },
-        {
-          "id": "prompt-rate",
-          "title": "Read a 16K prompt and the agent's first turn at Strata's rate",
-          "status": "open",
-          "verify": "false",
-          "rationale": "Strata's bench suite: a fresh 16K prompt reads at 2,504 tok/s (first token 6.56 s) against Strata's 3,365 (4.89 s), though our 4K prompt reads faster (2,164 against 1,871); the agent session's first turn (645 tokens with tool definitions) answers in 1.38 s against 0.83.\nServes: a 16K prompt's first token and the agent's first turn no later than Strata's.\nFirst: the 16K read's phases by chunk (attention, routed experts and their copies) against STRATA_PREFILL_TIMING at the same token ids, and the agent first turn's split between reading and decoding.\nEvidence: the suite's 16K and agent first-turn medians on both engines.\nVerify: set with -setverify once the measured cause is known; false until then."
         },
         {
           "id": "parity",

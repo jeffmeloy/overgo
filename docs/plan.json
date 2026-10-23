@@ -220,7 +220,7 @@
           "id": "route-flags",
           "title": "Mark a prompt group's routed experts on the host, not over the link",
           "status": "open",
-          "verify": "false",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^(TestPromptGroupMarksItsRoutedExperts|TestPromptExpertsMultiplyEncodedWeights|TestExecutorMoEMissedExpertsKeepResidentBits)$' -count=1",
           "rationale": "Traced 2026-10-23 (a 16K read, tmp/flashnext-efficiency/readtrace): moe_route_f32 takes about 1.5 ms a layer for a chunk of 8,192 tokens and 0.009 ms for 7, about 140 ms of a 16K read. Each token's block writes its ten routed experts' flags one byte at a time into the host memory the card maps for the expert residency (81,920 writes over the link a layer), which an advance reads between runs. A group taking the grouped products already brings its routes to the host (launchMoEMatrices), so the host marks its routed experts' flags there, and the route kernel writes none for it; a decode group's kernel writes them as now.\nServes: the prompt reads' route time, prompt-read's gap.\nDisappears: the route kernel's writes over the link for a prompt group.\nEvidence: a test holding a prompt group's flags to the route kernel's; the 16K read's route time; the bench's prompt cells over three alternating rounds.\nVerify: set with -setverify once the test exists; false until then."
         },
         {

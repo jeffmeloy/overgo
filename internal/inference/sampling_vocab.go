@@ -47,6 +47,21 @@ type DeviceMemoryOwner struct {
 	Bytes uint64 `json:"bytes"`
 }
 
+// ExpertProfile ranks the file-backed experts by the decode runs that routed them since the load: the profile a
+// later load given it fills the card from.
+func (r *Runner) ExpertProfile(ctx context.Context) (modeldevice.ExpertProfile, error) {
+	if r == nil || r.worker == nil {
+		return modeldevice.ExpertProfile{}, errRunnerNil
+	}
+	var profile modeldevice.ExpertProfile
+	err := r.worker.Do(ctx, func(state *device.State) error {
+		var err error
+		profile, err = r.rawWeights.ExpertProfile(state)
+		return err
+	})
+	return profile, err
+}
+
 // DeviceMemory reports the device's memory with the runner's live bytes
 // attributed to their owners; weights are the live bytes no executor owner
 // holds.

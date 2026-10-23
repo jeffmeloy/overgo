@@ -49,10 +49,12 @@ type Loader struct {
 // expertRoute is the banks a pass places in a store's expert residency, and
 // the card bytes the residency may hold; zero takes the free memory, read
 // once every other route holds its allocation, less expertFillHeadroomBytes.
+// ranking, when set, is the profile whose top-ranked experts take the card.
 type expertRoute struct {
-	store *DeviceWeights
-	infos []gguf.TensorInfo
-	limit uint64
+	store   *DeviceWeights
+	infos   []gguf.TensorInfo
+	limit   uint64
+	ranking *ExpertProfile
 }
 
 // segment is a routed tensor: where its bytes lie in its shard and where
@@ -111,6 +113,16 @@ func (l *Loader) Experts(store *DeviceWeights, infos []gguf.TensorInfo, limit ui
 	for _, info := range infos {
 		l.route(info, route{store: store.deviceTensorStore, expert: true})
 	}
+}
+
+// RankExperts places on the card the experts the profile ranks first, each layer's banks together, where the pass
+// would otherwise place them in index order.
+func (l *Loader) RankExperts(profile ExpertProfile) {
+	if l.experts == nil {
+		l.err = errors.New("an expert profile ranks no routed expert banks")
+		return
+	}
+	l.experts.ranking = &profile
 }
 
 func (l *Loader) route(info gguf.TensorInfo, destination route) {
@@ -270,7 +282,7 @@ func (r *loadRun) prepareExperts(ctx context.Context, file *gguf.File, experts *
 			}
 			limit = free - min(free, expertFillHeadroomBytes)
 		}
-		residency, err := newExpertResidency(ctx, file, experts.infos, limit, mem)
+		residency, err := newExpertResidency(ctx, file, experts.infos, limit, mem, experts.ranking)
 		if err != nil {
 			return err
 		}

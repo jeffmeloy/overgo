@@ -275,6 +275,9 @@ type OpenOptions struct {
 	// Draft names a draft file that attaches a draft layer to the trunk (a qwen4exp-mtp file for Flash-Next);
 	// raw-greedy device decoding drafts with it when a request asks for speculation.
 	Draft string
+	// ExpertProfile names an expert profile file (STRP) whose top-ranked experts a file-backed expert residency
+	// places on the card at load, where it would place them in index order.
+	ExpertProfile string
 }
 
 func (r *Runner) Spec() model.Spec {

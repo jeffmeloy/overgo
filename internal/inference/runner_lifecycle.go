@@ -75,6 +75,14 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 			return fail(err)
 		}
 	}
+	var expertProfile *modeldevice.ExpertProfile
+	if options.ExpertProfile != "" {
+		profile, err := modeldevice.ReadExpertProfile(options.ExpertProfile)
+		if err != nil {
+			return fail(err)
+		}
+		expertProfile = &profile
+	}
 	// Claimed shard identities are proved by the pass that uploads the weights.
 	// A residency that uploads none proves them by hashing before it serves.
 	if len(claims) != 0 && !residency.deviceF32 && !residency.deviceNative {
@@ -143,7 +151,7 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 		uploaded := processmeasure.Stage(ctx, "weights")
 		recovered, err = loadWithHostRecovery(residency.hostRecovery, func() error {
 			return loadResidentWeights(
-				ctx, file, weights, outputProjection, loraAdapters, residency, worker, claims, draft,
+				ctx, file, weights, outputProjection, loraAdapters, residency, worker, claims, draft, expertProfile,
 				&deviceWeights, &rawWeights, &decodeWeights,
 			)
 		}, func() error {
@@ -305,6 +313,7 @@ func loadResidentWeights(
 	worker *device.Worker,
 	claims []artifact.ID,
 	draft *hyperDraft,
+	expertProfile *modeldevice.ExpertProfile,
 	deviceWeights **modeldevice.DeviceConvertedWeights,
 	rawWeights **modeldevice.DeviceWeights,
 	decodeWeights **modeldevice.DeviceConvertedWeights,
@@ -381,6 +390,9 @@ func loadResidentWeights(
 		if len(fileBackedExperts) != 0 {
 			// The pass that reads, and with claims hashes, the file fills the experts.
 			loader.Experts(*rawWeights, fileBackedExperts, 0)
+			if expertProfile != nil {
+				loader.RankExperts(*expertProfile)
+			}
 		}
 		// native 2D BF16 matmul weights now live in the raw store (above),
 		// serving both decode (native kernel) and prefill (upconvert + SGEMM)

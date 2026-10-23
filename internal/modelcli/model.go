@@ -156,8 +156,17 @@ func openRunner(
 		_ = loaded.Close()
 		return nil, errors.Join(resolveErr, closeErr)
 	}
+	if profile := ExpertProfilePath(path); options.ExpertProfile == "" {
+		if _, err := os.Stat(profile); err == nil {
+			options.ExpertProfile = profile
+		}
+	}
 	return inference.OpenWithProgram(ctx, &loaded, options)
 }
+
+// ExpertProfilePath is where the expert profile of the model at path lies, beside it: a load of the model that finds
+// one there fills the card from it (cmd/expert-profile writes it).
+func ExpertProfilePath(path string) string { return path + ".experts.strp" }
 
 // ActiveDraft resolves the draft the active speculation recipe of the model at path binds, none when the store
 // declares none: the draft a server started without -draft speculates through, and a measured request decodes

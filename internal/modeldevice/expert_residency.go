@@ -110,8 +110,10 @@ type expertBank struct {
 	entries []*list.Element
 	staged  []expertSlot
 	moving  []bool
-	// usage counts the decode runs that routed each expert, decayed (expertUsageDecay).
-	usage []float32
+	// usage counts the decode runs that routed each expert, decayed (expertUsageDecay); decodeRuns counts them whole,
+	// from which an expert profile is ranked.
+	usage      []float32
+	decodeRuns []uint64
 	// class keeps the card experts of the bank's stride.
 	class *expertClass
 }
@@ -231,7 +233,7 @@ type expertResidency struct {
 // tables and the card experts but no other weight store. The slots hold the
 // experts once a load pass places them, and the tables name them once it
 // publishes.
-func newExpertResidency(ctx context.Context, file *gguf.File, infos []gguf.TensorInfo, limit uint64, mem expertMemory) (*expertResidency, error) {
+func newExpertResidency(ctx context.Context, file *gguf.File, infos []gguf.TensorInfo, limit uint64, mem expertMemory, profile *ExpertProfile) (*expertResidency, error) {
 	c := &expertResidency{mem: mem, banks: make(map[string]*expertBank),
 		classes: make(map[uint64]*expertClass)}
 	// Each table entry is a CUDA device address, whose ABI is uint64.
@@ -250,7 +252,7 @@ func newExpertResidency(ctx context.Context, file *gguf.File, infos []gguf.Tenso
 		bank := &expertBank{info: info, bytes: info.Size / experts, stride: stride, routed: flags,
 			pointers: make([]driver.DevicePtr, experts), hosted: make([][]byte, experts),
 			entries: make([]*list.Element, experts), staged: make([]expertSlot, experts), moving: make([]bool, experts),
-			usage: make([]float32, experts)}
+			usage: make([]float32, experts), decodeRuns: make([]uint64, experts)}
 		if c.classes[stride] == nil {
 			c.classes[stride] = &expertClass{stride: stride}
 		}
@@ -286,7 +288,7 @@ func newExpertResidency(ctx context.Context, file *gguf.File, infos []gguf.Tenso
 		}
 	}
 	if err == nil {
-		err = c.allocate(ctx, limit)
+		err = c.allocate(ctx, limit, profile)
 		c.loadCard = c.cardExperts()
 	}
 	if err != nil {
@@ -295,48 +297,73 @@ func newExpertResidency(ctx context.Context, file *gguf.File, infos []gguf.Tenso
 	return c, nil
 }
 
-// allocate places experts in index order across the banks on the card while
-// the limit allows, so each bank keeps the same share there, and every other
-// expert in pinned host memory: one card allocation and one pinned
-// allocation a bank.
-func (c *expertResidency) allocate(ctx context.Context, limit uint64) error {
-	cards := make([]uint64, len(c.ordered))
-	for index := range uint64(len(slices.MaxFunc(c.ordered, func(left, right *expertBank) int { return len(left.pointers) - len(right.pointers) }).pointers)) {
-		for i, bank := range c.ordered {
-			if index < uint64(len(bank.pointers)) && cards[i] == index && bank.stride <= limit-c.bytes {
-				cards[i]++
-				c.bytes += bank.stride
+// allocate places experts on the card while the limit allows and every other expert in pinned host memory: one card
+// allocation and one pinned allocation a bank. Without a profile it fills in index order across the banks, so each
+// bank keeps the same share there; with one, each layer's top-ranked experts, its banks together.
+func (c *expertResidency) allocate(ctx context.Context, limit uint64, profile *ExpertProfile) error {
+	var marks map[*expertBank][]bool
+	if profile != nil {
+		var err error
+		if marks, err = c.rankedCardExperts(*profile, limit); err != nil {
+			return err
+		}
+	} else {
+		marks = c.indexCardExperts(limit)
+	}
+	for _, bank := range c.ordered {
+		experts, onCard := uint64(len(bank.pointers)), uint64(0)
+		for _, card := range marks[bank] {
+			if card {
+				onCard++
 			}
 		}
-	}
-	for i, bank := range c.ordered {
-		experts, onCard := uint64(len(bank.pointers)), cards[i]
+		var card, mapped driver.DevicePtr
+		var host []byte
+		var err error
 		if onCard > 0 {
-			card, err := c.mem.alloc(ctx, onCard*bank.stride)
-			if err != nil {
+			if card, err = c.mem.alloc(ctx, onCard*bank.stride); err != nil {
 				return err
 			}
 			c.cards = append(c.cards, expertChunk{card, onCard * bank.stride, bank.stride})
-			for index := range onCard {
-				bank.pointers[index] = card + driver.DevicePtr(index*bank.stride)
-				key := expertKey{bank, uint32(index)}
-				bank.entries[index] = c.classes[bank.stride].order.PushBack(&residentExpert{key: key})
-			}
 		}
 		if onCard < experts {
-			host, mapped, err := c.mem.hostAlloc(ctx, (experts-onCard)*bank.stride)
-			if err != nil {
+			if host, mapped, err = c.mem.hostAlloc(ctx, (experts-onCard)*bank.stride); err != nil {
 				return err
 			}
 			c.pinned = append(c.pinned, host)
-			for index := onCard; index < experts; index++ {
-				offset := (index - onCard) * bank.stride
+		}
+		var cardSlot, hostSlot uint64
+		for index := range experts {
+			if marks[bank][index] {
+				bank.pointers[index] = card + driver.DevicePtr(cardSlot*bank.stride)
+				bank.entries[index] = c.classes[bank.stride].order.PushBack(&residentExpert{key: expertKey{bank, uint32(index)}})
+				cardSlot++
+			} else {
+				offset := hostSlot * bank.stride
 				bank.hosted[index], bank.pointers[index] = host[offset:offset+bank.stride], mapped+driver.DevicePtr(offset)
+				hostSlot++
 			}
 		}
 		bank.changed = true
 	}
 	return nil
+}
+
+// indexCardExperts marks experts in index order across the banks while the limit allows.
+func (c *expertResidency) indexCardExperts(limit uint64) map[*expertBank][]bool {
+	marks := make(map[*expertBank][]bool, len(c.ordered))
+	for _, bank := range c.ordered {
+		marks[bank] = make([]bool, len(bank.pointers))
+	}
+	for index := range len(slices.MaxFunc(c.ordered, func(left, right *expertBank) int { return len(left.pointers) - len(right.pointers) }).pointers) {
+		for _, bank := range c.ordered {
+			if index < len(bank.pointers) && (index == 0 || marks[bank][index-1]) && bank.stride <= limit-c.bytes {
+				marks[bank][index] = true
+				c.bytes += bank.stride
+			}
+		}
+	}
+	return marks
 }
 
 // place copies file bytes of a bank, offset bytes into it, to their experts'
@@ -345,6 +372,9 @@ func (c *expertResidency) allocate(ctx context.Context, limit uint64) error {
 func (c *expertResidency) place(ctx context.Context, onDevice expertDevice, bank *expertBank, offset uint64, data []byte) error {
 	var card driver.DevicePtr
 	var pending []byte
+	// end is where pending ends in data: a run grows only while both the card slots and the file bytes follow on,
+	// since a ranked fill gives neighbouring slots experts the file holds apart.
+	var end uint64
 	flush := func() error {
 		at, bytes := card, pending
 		pending = nil
@@ -358,13 +388,13 @@ func (c *expertResidency) place(ctx context.Context, onDevice expertDevice, bank
 		length := min(uint64(len(data))-done, bank.bytes-within)
 		if host := bank.hosted[index]; host != nil {
 			copy(host[within:], data[done:done+length])
-		} else if pointer := bank.pointers[index] + driver.DevicePtr(within); len(pending) != 0 && card+driver.DevicePtr(len(pending)) == pointer {
-			pending = data[done-uint64(len(pending)) : done+length]
+		} else if pointer := bank.pointers[index] + driver.DevicePtr(within); len(pending) != 0 && end == done && card+driver.DevicePtr(len(pending)) == pointer {
+			pending, end = data[done-uint64(len(pending)):done+length], done+length
 		} else {
 			if err := flush(); err != nil {
 				return err
 			}
-			card, pending = pointer, data[done:done+length]
+			card, pending, end = pointer, data[done:done+length], done+length
 		}
 		done += length
 	}
@@ -549,6 +579,7 @@ func (c *expertResidency) advance(ctx context.Context, prompt bool) error {
 				c.routes++
 				if !prompt {
 					bank.usage[index]++
+					bank.decodeRuns[index]++
 				}
 				if entry := bank.entries[index]; entry != nil {
 					c.cardRoutes++

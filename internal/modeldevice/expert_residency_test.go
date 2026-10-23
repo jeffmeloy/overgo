@@ -539,10 +539,10 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		changed := append([]gguf.TensorInfo(nil), file.Tensors...)
 		changed[0].Offset++
 		mem := newFakeExpertDevice()
-		if _, err := newExpertResidency(t.Context(), file, changed, oneEach, mem); err == nil || mem.liveCount() != 0 {
+		if _, err := newExpertResidency(t.Context(), file, changed, oneEach, mem, nil); err == nil || mem.liveCount() != 0 {
 			t.Fatal("foreign descriptor accepted or allocated")
 		}
-		if _, err := newExpertResidency(t.Context(), file, file.Tensors, tableBytes-1, mem); err == nil || mem.liveCount() != 0 {
+		if _, err := newExpertResidency(t.Context(), file, file.Tensors, tableBytes-1, mem, nil); err == nil || mem.liveCount() != 0 {
 			t.Fatal("tables beyond the limit accepted or allocated")
 		}
 		cache, _ := open(t, oneEach)

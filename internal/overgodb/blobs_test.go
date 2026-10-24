@@ -57,7 +57,7 @@ func TestBlobStorePublicationContract(t *testing.T) {
 	if _, err := blobs.open(id, uint64(len(payload))+1); err == nil {
 		t.Fatal("size mismatch opened")
 	}
-	if err := blobs.verify(id); err != nil {
+	if err := blobs.verify(t.Context(), id); err != nil {
 		t.Fatal(err)
 	}
 
@@ -85,7 +85,7 @@ func TestBlobStorePublicationContract(t *testing.T) {
 	if err := os.WriteFile(path, corrupted, storeFileMode); err != nil {
 		t.Fatal(err)
 	}
-	if err := blobs.verify(id); err == nil || !strings.Contains(err.Error(), "do not hash") {
+	if err := blobs.verify(t.Context(), id); err == nil || !strings.Contains(err.Error(), "do not hash") {
 		t.Fatalf("corrupted blob verified: %v", err)
 	}
 

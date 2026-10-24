@@ -216,17 +216,10 @@
       "title": "Repair the confirmed findings, measure every cell on one commit and push it to GitHub's main",
       "status": "open",
       "budget": {
-        "nodes": 71,
+        "nodes": 0,
         "reason": "The two defects' repairs add 71 production syntax nodes: the context threaded through verify, copyVerified, verifyPack, writePack and Backup's packed verification with verifyPack's admission check and the comments naming where cancellation stops, and the charge a GGUF sample takes before it allocates or reads. Nothing smaller stops a cancelled verification between reads."
       },
       "steps": [
-        {
-          "id": "defects",
-          "title": "Stop blob verification on cancellation and charge a GGUF sample before it reads (SQA-158, SQA-163)",
-          "status": "open",
-          "verify": "go test ./internal/overgodb ./cmd/overgodb ./internal/modelartifact -count=1 \u0026\u0026 go test ./internal/overgodb -run '^TestBlobVerificationStopsWhenCancelled$' -count=1",
-          "rationale": "Serves: the store every run writes through and model characterization. A cancelled blob verification or backup stops its disk and hash work at the next blob (SQA-158: VerifyBlobs holds the store's read lock and Backup its destination while they finish work nobody waits for), and a GGUF tensor's sample is charged to the read budget before it allocates or reads (SQA-163: a caller raising the sample count past the budget forces the reads it was to refuse).\nDisappears: nothing; the context reaches verify, copyVerified, verifyPack, Backup and writePack, and the sample's geometry is computed once at its checked boundary.\nEvidence: TestBlobVerificationStopsWhenCancelled (a cancelled context stops VerifyBlobs, a copy's verification and Backup's packed-content pass before the next blob, empty work included) and TestMeasurementChargesReadBudget's rejection case observing no tensor read, each failing before the change; the review closes the findings against the commit.\nBatch: overgodb, cmd/overgodb and modelartifact tests, no device lane; no measured cell moves."
-        },
         {
           "id": "long-context",
           "title": "Bring the 262K acceptance into the repository as a check that passes on HEAD",

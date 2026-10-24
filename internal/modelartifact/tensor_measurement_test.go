@@ -16,28 +16,13 @@ import (
 )
 
 func TestMeasureGGUFUsesBoundedDeterministicSamples(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "measurement.gguf")
 	values := make([]byte, 512*4)
 	for index := range 512 {
 		binary.LittleEndian.PutUint32(values[index*4:], math.Float32bits(float32(index-256)))
 	}
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := gguf.Write(file, nil, []gguf.TensorData{{
+	opened := openGGUF(t, []gguf.TensorData{{
 		Name: "weight", Shape: []uint64{512}, Type: gguf.DTypeF32, Data: bytes.NewReader(values),
-	}}, gguf.WriteOptions{}); err != nil {
-		t.Fatal(err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
-	opened, err := gguf.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer opened.Close()
+	}})
 	inventory, err := FromGGUF(opened, artifact.KindModel)
 	if err != nil {
 		t.Fatal(err)

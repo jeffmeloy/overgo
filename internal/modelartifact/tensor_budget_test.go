@@ -2,6 +2,8 @@ package modelartifact
 
 import (
 	"bytes"
+	"io"
+	"os"
 	"strings"
 	"testing"
 
@@ -62,11 +64,23 @@ func TestMeasurementChargesReadBudget(t *testing.T) {
 	if err != nil || deferred.Measurements[0].SpectralStatus != SpectralDeferred || deferred.ReadBytes != sampled.ReadBytes {
 		t.Fatalf("under-budget spectral read: status=%q read=%d sampled=%d err=%v", deferred.Measurements[0].SpectralStatus, deferred.ReadBytes, sampled.ReadBytes, err)
 	}
-	// Sampling itself still refuses a budget it cannot fit.
-	if _, err := MeasureGGUF(inventory.TensorInventory, file, MeasurementPolicy{
+	// Sampling itself still refuses a budget it cannot fit, before it reads a byte of the tensor.
+	encoded, err := os.ReadFile(testutil.TempGGUF(t, "counted.gguf", nil, []gguf.TensorData{
+		{Name: "matrix", Shape: []uint64{4, 4}, Type: gguf.DTypeF32, Data: bytes.NewReader(testutil.Float32LE(values))},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := &countedReader{source: bytes.NewReader(encoded)}
+	counted, err := gguf.Parse(source, uint64(len(encoded)), gguf.DefaultOptions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	source.reads = 0
+	if _, err := MeasureGGUF(inventory.TensorInventory, counted, MeasurementPolicy{
 		MaxSamplesPerTensor: 4, MaxReadBytes: sampled.ReadBytes - 1,
-	}); err == nil || !strings.Contains(err.Error(), "read budget") {
-		t.Fatalf("under-budget sampled read accepted: %v", err)
+	}); err == nil || !strings.Contains(err.Error(), "read budget") || source.reads != 0 {
+		t.Fatalf("under-budget sampled read: %v after %d tensor reads, want a refusal before any", err, source.reads)
 	}
 
 	// A nonzero spectral policy refuses measurements without a verdict.
@@ -76,4 +90,15 @@ func TestMeasurementChargesReadBudget(t *testing.T) {
 	if _, err := newTensorMeasurementDocument(spectral.Inventory, spectral.Policy, spectral.ReadBytes, bare); err == nil {
 		t.Fatal("empty spectral status accepted under a nonzero spectral policy")
 	}
+}
+
+// countedReader counts the reads made of a parsed GGUF's bytes.
+type countedReader struct {
+	source io.ReaderAt
+	reads  int
+}
+
+func (r *countedReader) ReadAt(buffer []byte, offset int64) (int, error) {
+	r.reads++
+	return r.source.ReadAt(buffer, offset)
 }

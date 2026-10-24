@@ -1,6 +1,7 @@
 package overgodb
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -65,10 +66,10 @@ func (b blobStore) prepare(id artifact.ID, payload []byte) error {
 		if info.Size() != int64(len(payload)) {
 			return fmt.Errorf("overgodb: blob %s exists with conflicting size", id)
 		}
-		return b.verify(id)
+		return b.verify(context.Background(), id)
 	}
 	if _, _, found := b.packed(id); found {
-		return b.verify(id)
+		return b.verify(context.Background(), id)
 	}
 	directory := filepath.Dir(destination)
 	if err := os.MkdirAll(directory, storeDirectoryMode); err != nil {
@@ -186,23 +187,24 @@ func (r *blobReader) Close() error {
 
 // verify re-derives the blob's digest from its bytes and compares it
 // to the identity that addresses it.
-func (b blobStore) verify(id artifact.ID) error {
-	_, err := b.copyVerified(io.Discard, id, nil)
+func (b blobStore) verify(ctx context.Context, id artifact.ID) error {
+	_, err := b.copyVerified(ctx, io.Discard, id, nil)
 	return err
 }
 
 // copyVerified streams the blob's bytes into destination through buffer and
 // holds them to the identity that addresses it, returning how many it wrote:
 // the one bounded read that verification and packing share, whatever the
-// blob's size. A nil buffer takes io.Copy's own.
-func (b blobStore) copyVerified(destination io.Writer, id artifact.ID, buffer []byte) (int64, error) {
+// blob's size, stopping between reads once ctx is done. A nil buffer takes
+// io.Copy's own.
+func (b blobStore) copyVerified(ctx context.Context, destination io.Writer, id artifact.ID, buffer []byte) (int64, error) {
 	file, err := b.reader(id)
 	if err != nil {
 		return 0, fmt.Errorf("overgodb: read blob %s: %w", id, err)
 	}
 	defer file.Close()
 	hash := sha256.New()
-	written, err := io.CopyBuffer(io.MultiWriter(destination, hash), file, buffer)
+	written, err := io.CopyBuffer(io.MultiWriter(destination, hash), &backupReader{ctx: ctx, source: file}, buffer)
 	if err != nil {
 		return written, fmt.Errorf("overgodb: copy blob %s: %w", id, err)
 	}

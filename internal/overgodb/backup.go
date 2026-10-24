@@ -175,7 +175,7 @@ func (s *Store) Backup(ctx context.Context, destinationRoot string) (*BackupRepo
 			return report, err
 		}
 		for _, id := range packed {
-			if err := destinationBlobs.verify(id); err != nil {
+			if err := destinationBlobs.verify(ctx, id); err != nil {
 				return report, err
 			}
 		}
@@ -386,7 +386,8 @@ type backupReader struct {
 	source io.Reader
 }
 
-// Read checks cancellation between source reads.
+// Read checks cancellation between source reads: a backup's copies and every
+// blob verification read through it.
 func (reader *backupReader) Read(buffer []byte) (int, error) {
 	if err := reader.ctx.Err(); err != nil {
 		return 0, err

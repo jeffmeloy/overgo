@@ -1,10 +1,61 @@
 {
   "branch": "master",
   "candidate_review": {
-      "assessment": "One new bounded reduction SQA-212: reuse the existing residency byte oracle in three real tests, estimated120..170 net test AST saved.32 active findings/3 deferrals. No previous closure or priority change.",
-      "priority": "Plan edit preservation211,legacy stop identity208 and physical host-memory reporting205 stay first. New optional oracle consolidation follows existing setup/execution reductions; no arbitrary savings quota.",
-      "declined_candidates": "No safe additional production reduction established beyond reconfirmed SQA-183. Keep meaningful new compaction coverage and distinct retention/stream/lane contracts; no common framework for unlike lifecycles."
-    },
+    "assessment": "One new bounded reduction SQA-212: reuse the existing residency byte oracle in three real tests, estimated120..170 net test AST saved.32 active findings/3 deferrals. No previous closure or priority change. Targeted owner follow-up adds SQA-213 at5622d7823:33 active/3 deferred; broad-review identities and other statuses remain as assessed at2419f85db.",
+    "declined_candidates": "No safe additional production reduction established beyond reconfirmed SQA-183. Keep meaningful new compaction coverage and distinct retention/stream/lane contracts; no common framework for unlike lifecycles.",
+    "priority": "Plan edit preservation211,legacy stop identity208 and physical host-memory reporting205 stay first. New optional oracle consolidation follows existing setup/execution reductions; no arbitrary savings quota.",
+    "targeted_followup": {
+      "assessment": "The owner is right that a coarse sweep does not justify a universal optimum. Correct earlier SQA inference:8192 is a local measured choice. A cost model must capture changing residency and exposed cost; its inputs are not all available merely because a probe once measured them.",
+      "ast": {
+        "files": [
+          "internal/inference/device_prefill.go",
+          "internal/modeldevice/expert_residency.go",
+          "internal/cuda/executor/graph_exec_cache.go",
+          "internal/inference/device_prefill_windows_test.go",
+          "internal/modeldevice/expert_residency_test.go"
+        ],
+        "functions": 77,
+        "method": "Existing Go AST analyzer over pinned blobs; source/caller resolution for request,chunk,residency and graph owners. No full-package/type proof; no workload/test/gate/benchmark/profile.",
+        "parser_local_bindings": 3360,
+        "production_nodes": 8238,
+        "test_nodes": 6772
+      },
+      "constant_review": [
+        "Chunk8192: fixed Runner default; capacity bisection already exists. Output argument reserves storage but does not optimize chunk choice. Shared prompt/continuation callers preserve existing output and resource contracts.",
+        "Promotion decay0.7/every4,admission2,cap64: per-run usage heuristics with real prior contention evidence, not a measured decision rule for variable copies,miss cost or reuse. Preserve sorted ties,slot compatibility and ordered publication. Existing parameter-based assertions validate implementation behavior, not economic optimality.",
+        "Headroom/refill2GiB: protect unhooked CUDA/module/workspace demand and avoid transient refills. Derive from existing resource reservations/cost evidence before replacing; do not remove the safety allowance simply because it is fixed.",
+        "NextN draft depth3 is backed by limited27B regime comparisons; Flash-Next uses a separate hyperDraftTokens=1. Acceptance,verify cost and context make the optimum workload-dependent; do not apply3 to every draft family.",
+        "Prompt boundary1024 and graph caps48/4 are reuse/capture/memory tradeoffs, with real recapture evidence but no universal cost derivation. Reuse existing boundaries,graph stats and LRU owner; preserve retained-buffer lifetime.",
+        "hyperDraftHistoryCells1024 is already a minimum, not a fixed history size. Actual capacity grows by powers of two from prompt/output needs. Review its floor/rounding tradeoff separately; no invented fixed-size defect.",
+        "Format sizes,rank/axes,alignment,packed IDs and exact ABI are separate contracts. No literal census, blanket lint, arbitrary count of about20 confirmed issues, or automatic adaptive replacement."
+      ],
+      "plan_git_blob": "deba5e761535f152830fa4702cea84ee6efb566e",
+      "plan_sha256": "292b309b46d3a116dadb948d480457d0d31dcc3e9170c9c2362545042ae9dc7a",
+      "proposed_doctrine": "A tuning value names the cost it minimizes, measured or derived inputs with units, and validity domain. Compute it in the existing owner when input variation changes the decision. Reference/sweep choices remain provisional until justified; use existing plan work for missing derivation. Compare predictions with measurements, keeping numerical acceptance separate. No doctrine/plan/gate edits by SQA.",
+      "reviewed_at": "2026-10-24T06:45:36Z",
+      "revision": "5622d7823aaf0d9dbf401d500c4ba75d88363910",
+      "scope": "Owner-requested targeted follow-up on tuning constants. This does not replace or requalify the last broad review at2419f85db. Dirty inference/executor/residency work excluded. New finding SQA-213; other finding statuses await their own pinned rechecks.",
+      "test_decisions": [
+        {
+          "classification": "retain",
+          "requirements": "Dense/recurrent whole-versus-chunk state and selection,continuation,storage reuse,late-error prefix preservation and cancellation; existing SQA-198 duplication remains separately assessed.",
+          "tests": [
+            "TestDeviceBoundedPrefill"
+          ]
+        },
+        {
+          "classification": "retain",
+          "requirements": "Real behavior/lifetime/shape cases stay. If policy changes, simplify only assertions that pin displaced parameters; one existing arithmetic table can own new nontrivial derivation. No new confidence suite.",
+          "tests": [
+            "TestExpertAdmissionTakesTheMostUsed",
+            "TestFlashNextExpertResidency",
+            "TestReleaseKeepsTheHottestExperts",
+            "TestExpertResidencyFillsTheCardWhenItFrees"
+          ]
+        }
+      ]
+    }
+  },
   "committed_plan": {
     "git_blob": "a0f71369886c5443f76426aca0c60070de8d1689",
     "path": "docs/plan.json",
@@ -344,6 +395,87 @@
         "Generic independent float64 reference, both magnitude bounds, format/tail and direct AVX512 availability/entrypoint requirements remain. No duplicate fixture or permanent test function."
       ],
       "comparison": "During the implementation edit, a controlled NaN substitution into either scalar/kernel result of the existing generic and direct-wide cases is the smallest deciding check; keep finite results and use the normal applicable lane. Existing sign-mutation evidence addresses a different failure. No model or extra confidence run; SQA ran neither substitutions nor tests."
+    },
+    {
+      "id": "SQA-213",
+      "status": "open",
+      "severity": "P3",
+      "category": "inference-policy-derivation",
+      "classification": "unsupported-generalization",
+      "title": "Derive chunk and promotion choices from request costs instead of generalizing a narrow sweep",
+      "evidence_commit": "5622d7823aaf0d9dbf401d500c4ba75d88363910",
+      "sources": [
+        {
+          "path": "internal/inference/device_prefill.go",
+          "symbol": "devicePromptChunkTokens85; readDevicePromptLocked108; prefillDeviceCachedLocked17"
+        },
+        {
+          "path": "internal/inference/device_cache.go",
+          "symbol": "forwardDeviceCachedBatchLocked633-650 caps every eligible single-branch prompt by runner.promptChunkTokens"
+        },
+        {
+          "path": "internal/inference/runner_lifecycle.go",
+          "symbol": "Open initialization194 fixes promptChunkTokens to8192"
+        },
+        {
+          "path": "internal/inference/runner_generation.go",
+          "symbol": "generation231 passes MaxNewTokens as output reservation"
+        },
+        {
+          "path": "internal/modeldevice/expert_residency.go",
+          "symbol": "advance531; admitMisses593; refill673; promote719; usage/promotion/headroom constants25-55; source6353 AST"
+        },
+        {
+          "path": "internal/inference/device_prefill_windows_test.go",
+          "symbol": "TestDeviceBoundedPrefill18;1067 AST; dense/recurrent state,selection,continuation,capacity,cancellation and prefix ownership"
+        },
+        {
+          "path": "internal/modeldevice/expert_residency_test.go",
+          "symbol": "TestExpertAdmissionTakesTheMostUsed563 and existing refill/release/ordered-publication owners;5705 AST"
+        },
+        {
+          "path": "skill.md",
+          "symbol": "threshold rule322 permits a sweep-selected constant; derived-value rules330,336-337"
+        },
+        {
+          "path": "docs/plan.json",
+          "symbol": "decode-loop/loan,token-cost and flashnext-efficiency/prompt-rest; earlier chunk-cost retirement recorded by fb5448ee5"
+        },
+        {
+          "path": "internal/inference/hyper_draft.go",
+          "symbol": "hyperDraftHistoryCells116 is a minimum; ensureHyperDraftHistory248 grows from requested cells; beginHyperDraftPromptLocked564 supplies prompt/output needs"
+        },
+        {
+          "path": "internal/inference/span_slots.go",
+          "symbol": "speculatingGraphExecs26; startSpeculatingLocked46"
+        },
+        {
+          "path": "internal/cuda/executor/graph_exec_cache.go",
+          "symbol": "store72 caps LRU entries; keepsFrames132 links retained frames to buffer lifetime"
+        }
+      ],
+      "evidence": "The retained fb5448ee5 message describes four powers-of-two chunks2048..16384, two rounds each, for a16K prompt.8192 read fastest among those points;2048's slower read was repaid after about700 decoded tokens. The same record concludes8192 is chosen for every served request. The source still installs8192 once per Runner and uses output length only for cache reservation, not this cap; memory-error bisection is capacity fallback, not a throughput cost decision. The sweep therefore does not establish a continuous optimum or request/hardware invariance. A long decode beyond the observed crossover is a supported-domain counter-scenario, not a reproduced current regression: compaction/promotions and new releases can change the crossover. SQA's earlier acceptance of the sweep was too broad.",
+      "recommended_change": "First correct the universal-choice claim and retain8192 only as a provisional value within the measured scope. In existing prompt read/residency owners, derive the choice from a cost expression for prompt work, transition work and subsequent decode under changing residency. Reuse actual planned memory, current reservations, bank bytes/strides, existing route/copy/execution observations and request facts. Promote an expert only when expected exposed miss cost avoided exceeds copy/submission/interference and displaced-victim cost over a justified reuse horizon; derive a transfer-work budget rather than an unconditional count. Do not implement a generic tuner or pretend absent measurements exist. The lead can use existing loan/token-cost/prompt-rest work for the derivation; SQA does not edit doctrine or plan.",
+      "impact": "An input-independent cap or promotion policy can trade away request latency, first-output or expert residency under a different prompt/decode length, available memory or device/link. No numerical error or measured current whole-request loss is established here. Prioritize chunk/promotion derivation within measured performance work after data-preservation repairs.",
+      "displaced_surface": "Smallest immediate change removes the unsupported universal claim, not required memory protection. Once a deciding cost comparison supports replacement, remove the fixed chunk/admission/promotion decision paths actually displaced and their parameter-pinning assertions in the same change; retain descriptor/ABI constants, reservation/refusal fallback, original exact bytes, cancellation, immutable host copies, ordered publication and cleanup. Existing Runner request inputs and expertResidency are the owners; no new API/config/export/dependency/telemetry/registry. Expected output length is not MaxNewTokens, and agent-session totals cannot be charged to one unchanged residency snapshot.",
+      "expected_benefit": {
+        "outcome": "A justified request-cost decision and clear applicability domain. No automatic speed, memory or code reduction is credited.",
+        "uncertainty": "Fresh five-file AST:8238 production/6772 test nodes,77 functions,3360 parser-local references. Immediate claim correction changes0 production/0 test AST. A runtime derivation's net AST/setup/measurement cost is not yet established because predictive miss cost, reuse horizon and overlap inputs are not all exposed as ready runtime measurements. Retain current fixtures/setup count and native gates; any small arithmetic cases belong in existing tests. A new controller would be growth and must justify its full cost rather than be called consolidation. User's13.1GB/s and0.55MB/token are illustrative inputs here, not independently requalified observations or universal memory slopes."
+      },
+      "likely_effort": "Small evidence-scope correction; bounded cost derivation in existing owners before deciding runtime implementation size.",
+      "plan_references": [
+        "decode-loop/loan",
+        "decode-loop/token-cost",
+        "flashnext-efficiency/prompt-rest"
+      ],
+      "plan_coverage": "Existing performance steps touch the actual memory/CPU/copy costs; none yet establishes this request-aware choice. Proposed doctrine is advice only: cost, inputs, units, validity domain and reconsideration trigger; compute when varying inputs change the decision. A reference value or coarse sweep is provisional until justified in that domain.",
+      "closure_criteria": [
+        "Published evidence distinguishes best tested point from optimum; records the prompt/decode/device/memory/routing domain and does not generalize a two-round16K sweep to every request.",
+        "Cost model states units and observables, uses current planned memory rather than an assumed universal linear slope, and accounts for changing residency, overlap, graph recapture and victim cost where material. It never substitutes requested output maximum for expected output without labeling the assumption.",
+        "Use retained data first; the smallest additional implementation-owned comparison validates predicted winners on short/long decode sides of the crossover, an interior chunk near the predicted optimum, and materially different memory pressure. No new SQA run or blanket sweep is authorized.",
+        "Runtime selection, if supported, reuses existing owners and removes replaced heuristic branches. Exact numerical/cancellation/lifetime tests stay; performance measurements separately validate predictions. Report full production/test/setup/gate cost, including any necessary growth."
+      ],
+      "comparison": "Write T(C)=T_prefill(P,C,S)+T_transition(C,S)+sum(t=1..D)T_decode(t,R_t(C),S), constrained by admitted peak memory and required first-output behavior; S is current hardware/resource state and R_t is evolving residency. This is a model structure, not a fitted result. Where D or reuse is unknown, expose the break-even dependency in evidence and use a justified conservative decision, not an invented predictor. Validate from retained comparable requests before acquiring only the missing deciding comparison. Numerical acceptance remains independent of noisy timings."
     },
     {
       "id": "SQA-197",
@@ -2307,13 +2439,12 @@
       }
     }
   },
-  "next_finding_number": 213,
+  "next_finding_number": 214,
   "publication_context": {
-    "assessment": "Assessment pins master2419f85db and its committed plan. Any newer HEAD is publication context only. Working-tree source is excluded; no implementation or plan is included in the report commit",
-    "checked_head": "f4aff44c1c94075b68de06b41514924ad06539fb",
-    "committed_plan_git_blob": "953cd9945155fad68d025d03d5be69bd4ab7e39e",
-    "newer_commit_note": "Review pins2419f85db and its committed plan. The later pool-wake landing and any further HEAD are publication context only and earn no finding closure without a separate pinned review; dirty residency changes are excluded.",
-    "publication": "Report-only commit under the existing landing/authority locks, preserving unrelated worktree/index and all implementation-owned report fields; no production gate."
+    "assessment": "Broad review remains pinned at2419f85db; targeted tuning follow-up pins5622d7823 and its plan. Subsequent HEAD and dirty source are publication context only.",
+    "checked_head": "5622d7823aaf0d9dbf401d500c4ba75d88363910",
+    "committed_plan_git_blob": "deba5e761535f152830fa4702cea84ee6efb566e",
+    "publication": "Report-only commit under existing landing/authority locks, preserving implementation-owned fields and unrelated index/worktree; no production gate."
   },
   "ranked_active_finding_ids": [
     "SQA-211",
@@ -2322,6 +2453,7 @@
     "SQA-163",
     "SQA-158",
     "SQA-206",
+    "SQA-213",
     "SQA-197",
     "SQA-204",
     "SQA-207",
@@ -2354,7 +2486,9 @@
   "review_notes": [
       "Net reductions remain primary; new compaction +338 production/+525 test AST has retained performance evidence and necessary unique behavior. Only repeated oracle logic is recommended for deletion.",
       "Fresh current ranking retains correctness/recovery ahead of optional reductions. SQA-212 keeps all fixtures, setups and executions; native Go cache/gate resume already own reuse.",
-      "Report-only Git publication is explicitly authorized separately from implementation landings. No plan edits, production gates, worker disturbance, settings/hook changes or push."
+      "Report-only Git publication is explicitly authorized separately from implementation landings. No plan edits, production gates, worker disturbance, settings/hook changes or push.",
+      "Owner correction accepted: the four-point/two-round16K sweep does not establish8192 as a universal optimum. SQA-213 records a cost-based derivation and the uncertainty in answer length,changing residency and available measurements.",
+      "Only the report is changed. Proposed doctrine remains advisory; no new policy test,adaptive framework,telemetry or implementation workload."
     ],
   "reviewed_at": "2026-10-24T05:38:44Z",
   "reviewed_master": "2419f85db4e13853ffc6b0ec4bb9b8208d105df5",
@@ -2364,26 +2498,37 @@
       "Rotated eight-file actual AST:11182 production/8894 test nodes,94 functions,4266 parser-local identifier references. Larger residency sample plus retention,GUI runtime stream and lane/test ownership; callers beyond the latest diff.",
       "Selected actual lane declarations passed go/types:140 uses,50 definitions,199 expressions,6 selections. No full-package/CUDA type proof, runtime validation or new workload.",
       "Provisional conclusions recorded before prior report read. All160 cited paths exist;157 unchanged objects and3 changed (plan and residency production/test). Changed finding owners205/183 rechecked;211/208 remain source-confirmed. No new implementation response.",
-      "This chat previously implemented Overgo changes; overlapping SQA, not independent third-party review. Only report publication is authorized in this role."
+      "This chat previously implemented Overgo changes; overlapping SQA, not independent third-party review. Only report publication is authorized in this role.",
+      "Targeted owner follow-up at5622d7823 on chunk/promotion derivation and listed tuning values; see candidate_review.targeted_followup. The top reviewed_master/time still identify the last broad review, not a fresh repository-wide assessment."
     ],
   "sqa_response": {
-      "reviewed_master": "2419f85db4e13853ffc6b0ec4bb9b8208d105df5",
-      "assessment": "Add SQA-212, a test-local reduction across three residency tests.32 active/3 deferred; no prior closure or reprioritization.",
-      "evidence": "Eight pinned-file AST samples and selected actual lane go/types; readable218 nodes plus two111-node byte loops.160 cited paths reconciled; new compaction retained results reviewed. Provisional conclusions preceded prior findings.",
-      "recommendation": "Reuse the existing byte oracle and delete the duplicate walks while retaining every placement,refill,lifetime and failure case. Keep211/208/205 ahead of optional cleanup.",
-      "uncertainty": "Estimated120..170 test AST removed; no setup/runtime saving or new production reduction claimed. No implementation, fault reproduction or test execution by SQA.",
-      "next_action": "Implementation lead owns adoption/sequencing. SQA publishes this report only.",
-      "implementation_response_context": {
-        "reviewed_at": "2026-10-15T18:25:52.1302923Z",
-        "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
-        "plan_git_blob": "a22ca7b01f13c6ab65ca38a35415348a4d9d0421",
-        "status": "No new implementation response; preserve all owner fields and experiments byte-for-byte. Current source reviewed independently of historical acceptance."
-      },
-      "resolved_findings": [],
-      "partially_addressed_findings": [],
-      "user_findings": [
-        "SQA-110"
+    "assessment": "Last broad review at2419f85db added SQA-212. Targeted owner follow-up at5622d7823 adds SQA-213;33 active/3 deferred. Other statuses have not been requalified by this focused follow-up.",
+    "evidence": "Eight pinned-file AST samples and selected actual lane go/types; readable218 nodes plus two111-node byte loops.160 cited paths reconciled; new compaction retained results reviewed. Provisional conclusions preceded prior findings.",
+    "implementation_response_context": {
+      "plan_git_blob": "a22ca7b01f13c6ab65ca38a35415348a4d9d0421",
+      "reviewed_at": "2026-10-15T18:25:52.1302923Z",
+      "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
+      "status": "No new implementation response; preserve all owner fields and experiments byte-for-byte. Current source reviewed independently of historical acceptance."
+    },
+    "next_action": "Implementation lead owns adoption/sequencing. SQA publishes this report only.",
+    "partially_addressed_findings": [],
+    "recommendation": "Treat8192 as a provisional measured choice and derive chunk/promotion decisions in existing owners from whole-request exposed costs and valid inputs. Keep the existing surface-reduction candidates and correctness priorities from the last broad review.",
+    "resolved_findings": [],
+    "reviewed_master": "2419f85db4e13853ffc6b0ec4bb9b8208d105df5",
+    "targeted_followup": {
+      "assessment": "Owner correction accepted: sweep-selected8192 is provisional, not a universal optimum. Cost derivation starts with chunk/promotion decisions; detailed evidence, constant distinctions and retained test requirements are in candidate_review.targeted_followup.",
+      "finding_ids": [
+        "SQA-213"
       ],
-      "user_finding_assessment": "SQA-110's high-priority owner question retains its response requirement; no admitted mixed-legacy producer established. SQA-124/120 remain conditional on their stated triggers."
-    }
+      "plan_git_blob": "deba5e761535f152830fa4702cea84ee6efb566e",
+      "plan_sha256": "292b309b46d3a116dadb948d480457d0d31dcc3e9170c9c2362545042ae9dc7a",
+      "reviewed_at": "2026-10-24T06:45:36Z",
+      "revision": "5622d7823aaf0d9dbf401d500c4ba75d88363910"
+    },
+    "uncertainty": "No new workload or numerical/elapsed claim. Output maximum is not expected length; residency evolves,so the old700-token crossover is not universal. Runtime derivation's full code/test/setup cost remains to be established.",
+    "user_finding_assessment": "SQA-110's high-priority owner question retains its response requirement; no admitted mixed-legacy producer established. SQA-124/120 remain conditional on their stated triggers.",
+    "user_findings": [
+      "SQA-110"
+    ]
+  }
 }

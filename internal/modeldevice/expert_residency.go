@@ -149,6 +149,8 @@ type expertMemory interface {
 	// on stream has landed, waiting for them where wait is set.
 	copyToCard(ctx context.Context, stream driver.Stream, destination driver.DevicePtr, source []byte) error
 	copied(ctx context.Context, stream driver.Stream, wait bool) (bool, error)
+	// copyOnCard copies bytes between two places on the card, synchronously.
+	copyOnCard(ctx context.Context, destination, source driver.DevicePtr, bytes uint64) error
 }
 
 // expertResidency keeps every expert of the file-backed banks readable by
@@ -845,8 +847,12 @@ func (w *DeviceWeights) ReserveExpertMemory(state *device.State, required uint64
 	return nil
 }
 
-// release moves the experts of the last card allocation to host memory,
-// publishes their tables and frees the allocation.
+// release frees the last card allocation for another owner, moving the coldest experts of its stride to host memory
+// rather than the allocation's own (Strata lends its cache's coldest slots, never a layer's): each expert the
+// allocation holds, the most used first, takes the card slot of the least used expert of its stride elsewhere where
+// that one is used less, copied on the card, and the expert it displaces and the rest of the allocation's go to host
+// memory. A long prompt that freed whole banks of the last layers had left those layers' every expert on host for the
+// decode after it. It publishes the tables once.
 func (c *expertResidency) release(ctx context.Context) error {
 	// Copies in flight land first: a promotion may be copying into this allocation.
 	if err := c.land(ctx, true); err != nil {
@@ -854,13 +860,37 @@ func (c *expertResidency) release(ctx context.Context) error {
 	}
 	chunk := c.cards[len(c.cards)-1]
 	class := c.classes[chunk.stride]
-	for entry := class.order.Front(); entry != nil; {
-		next := entry.Next()
+	inChunk := func(entry *list.Element) bool {
 		key := entry.Value.(*residentExpert).key
-		if pointer := key.bank.pointers[key.index]; pointer >= chunk.pointer && uint64(pointer-chunk.pointer) < chunk.bytes {
-			c.demote(entry)
+		pointer := key.bank.pointers[key.index]
+		return pointer >= chunk.pointer && uint64(pointer-chunk.pointer) < chunk.bytes
+	}
+	use := func(entry *list.Element) float32 {
+		key := entry.Value.(*residentExpert).key
+		return key.bank.usage[key.index]
+	}
+	var held, others []*list.Element
+	for entry := class.order.Front(); entry != nil; entry = entry.Next() {
+		if inChunk(entry) {
+			held = append(held, entry)
+		} else {
+			others = append(others, entry)
 		}
-		entry = next
+	}
+	slices.SortStableFunc(held, func(a, b *list.Element) int { return cmp.Compare(use(b), use(a)) })
+	slices.SortStableFunc(others, func(a, b *list.Element) int { return cmp.Compare(use(a), use(b)) })
+	for index, entry := range held {
+		if index < len(others) && use(others[index]) < use(entry) {
+			victim, key := others[index].Value.(*residentExpert).key, entry.Value.(*residentExpert).key
+			slot := victim.bank.pointers[victim.index]
+			if err := c.mem.copyOnCard(ctx, slot, key.bank.pointers[key.index], key.bank.bytes); err != nil {
+				return errors.Join(err, c.publish(context.WithoutCancel(ctx)))
+			}
+			c.demote(others[index])
+			key.bank.pointers[key.index], key.bank.changed = slot, true
+			continue
+		}
+		c.demote(entry)
 	}
 	if err := c.publish(ctx); err != nil {
 		return err
@@ -978,6 +1008,12 @@ func (m stateMemory) copied(_ context.Context, stream driver.Stream, wait bool) 
 		return done, err
 	}
 	return true, m.state.Driver.StreamSynchronize(stream)
+}
+func (m stateMemory) copyOnCard(ctx context.Context, destination, source driver.DevicePtr, bytes uint64) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return m.state.Driver.MemcpyDtoD(destination, source, bytes)
 }
 func (m stateMemory) available(context.Context) (uint64, error) {
 	free, _, err := m.state.Driver.MemInfo()

@@ -212,17 +212,10 @@
       "title": "Port Strata's decode loop as one unit",
       "status": "open",
       "budget": {
-        "nodes": 673,
+        "nodes": 335,
         "reason": ""
       },
       "steps": [
-        {
-          "id": "compaction",
-          "title": "Release a card allocation's coldest experts of its stride, not a layer's",
-          "status": "open",
-          "verify": "go test ./internal/modeldevice -run '^(TestReleaseKeepsTheHottestExperts|TestFlashNextExpertResidency)$' -count=1",
-          "rationale": "A long prompt's reservation freed the residency's last card allocations, one a bank in layer order, so whole banks of the last layers went to host memory and those layers missed on every token of the decode after the read, where Strata lends its cache's coldest slots across the layers (its profile fills the cache from the top). A release keeps the allocation's experts that are used more than the least used experts of their stride elsewhere on the card, each copied on the card into such a colder one's slot, which goes to host memory instead.\nServes: the decode after a prompt read, the card's routed experts the ones its decode uses.\nDisappears: whole layers' experts on host after a read.\nEvidence: a residency test holding a release to the hottest experts; the agent turns' card share of routed experts; the bench over three alternating rounds; the long-context and image acceptance on both builds."
-        },
         {
           "id": "token-cost",
           "title": "Verify a window's extra token at Strata's cost",

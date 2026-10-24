@@ -319,7 +319,8 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 - rare-path work (a handshake, a fallback) => folded into kernels that run anyway > a launch of its own
 - work that waits for nothing => queued and submitted before work that waits (a copy batch, an event), because under Windows' display driver model a stream's work waits behind the submissions made before it
 - a buffer sized to a run's need => rounded up before it grows, because each growth frees it, drops what names it and waits while Windows clears the new memory (about 100 ms at 2.8 GB); a share to spare costs what that memory would hold (experts)
-- a threshold that trades two measured costs (a chunk's tokens, a tile's rows, the slots below which the CPU takes an expert) => computed from those costs as this machine measures them, never a constant copied from a reference or frozen from one measurement, because the costs move with the card, the link, the CPU and the request
+- a threshold that trades two measured costs (a chunk's tokens, a tile's rows, the slots below which the CPU takes an expert) => computed from those costs as this machine measures them, or a constant where a sweep over what varies shows one value best (8,192-token chunks here), never a constant copied from a reference or frozen from one measurement, because the costs move with the card, the link, the CPU and the request
+- memory a reference frees for another use => taken where the reference takes it (its coldest slots, across layers), because freeing by allocation order took whole layers' hot experts (a release now keeps a freed allocation's hotter experts in colder ones' slots)
 - measured gains of one row => one landing (steps joined by commas) > a gate run each
 
 ## Compute and derived values

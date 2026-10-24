@@ -50,6 +50,14 @@ func (d *fakeExpertDevice) copyToCard(ctx context.Context, _ driver.Stream, dest
 	return nil
 }
 
+func (d *fakeExpertDevice) copyOnCard(ctx context.Context, destination, source driver.DevicePtr, size uint64) error {
+	data, err := d.at(source, size)
+	if err != nil {
+		return err
+	}
+	return d.write(ctx, destination, bytes.Clone(data))
+}
+
 func (d *fakeExpertDevice) copied(_ context.Context, _ driver.Stream, wait bool) (bool, error) {
 	if d.hold && !wait {
 		return false, nil
@@ -707,4 +715,71 @@ func onCard(cache *expertResidency, name string) []uint32 {
 		}
 	}
 	return indices
+}
+
+// TestReleaseKeepsTheHottestExperts releases the card allocation of a bank whose experts are used more than those of
+// another bank of their stride: the released bank's experts take the colder bank's card slots, copied on the card,
+// the colder experts go to host memory, and every table reads its expert's bytes; where the other bank's experts are
+// the more used, the released bank's own experts go.
+func TestReleaseKeepsTheHottestExperts(t *testing.T) {
+	f := writeFixture(t, rand.New(rand.NewPCG(31, 37)), []fixtureTensor{
+		{name: "gate", shape: []uint64{2, 2, 3}, kind: dtype.BF16},
+		{name: "up", shape: []uint64{2, 2, 3}, kind: dtype.BF16},
+	}, 0, 0)
+	file := f.parse(t)
+	const (
+		experts    = 3
+		tableBytes = 2 * experts * 8
+		stride     = 256
+		twoEach    = tableBytes + 2*2*stride
+	)
+	for _, hot := range []string{"up", "gate"} {
+		t.Run("hot="+hot, func(t *testing.T) {
+			mem := newFakeExpertDevice()
+			weights, err := mem.loadExperts(t.Context(), file, twoEach, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cache := weights.experts
+			t.Cleanup(func() {
+				if err := cache.close(); err != nil || mem.liveCount() != 0 {
+					t.Errorf("close left %d allocations: %v", mem.liveCount(), err)
+				}
+			})
+			placed := map[string][]uint32{"gate": onCard(cache, "gate"), "up": onCard(cache, "up")}
+			if len(placed["gate"]) != 2 || len(placed["up"]) != 2 || len(cache.cards) != 2 {
+				t.Fatalf("the load placed %v in %d allocations, want two experts of each bank in one a bank", placed, len(cache.cards))
+			}
+			for _, index := range placed[hot] {
+				cache.banks[hot].usage[index] = 5
+			}
+			// The up bank's allocation is the last, which the release frees.
+			if err := cache.release(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			kept, gone := "up", "gate"
+			if hot == "gate" {
+				kept, gone = "gate", "up"
+			}
+			if got := onCard(cache, kept); !slices.Equal(got, placed[kept]) {
+				t.Fatalf("the release left %s's experts %v on the card, want %v", kept, got, placed[kept])
+			}
+			if got := onCard(cache, gone); len(got) != 0 {
+				t.Fatalf("the release kept %s's experts %v on the card", gone, got)
+			}
+			for _, name := range []string{"gate", "up"} {
+				bank := cache.banks[name]
+				table, err := mem.at(bank.table, experts*8)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for index := range uint64(experts) {
+					actual, err := mem.at(driver.DevicePtr(binary.LittleEndian.Uint64(table[index*8:])), bank.bytes)
+					if err != nil || !bytes.Equal(actual, f.payloads[name][index*bank.bytes:(index+1)*bank.bytes]) {
+						t.Fatalf("%s expert %d does not read its bytes: %v", name, index, err)
+					}
+				}
+			}
+		})
+	}
 }

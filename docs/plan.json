@@ -212,17 +212,10 @@
       "title": "Hold every tuning value to the cost it trades",
       "status": "open",
       "budget": {
-        "nodes": 5,
+        "nodes": 6,
         "reason": ""
       },
       "steps": [
-        {
-          "id": "headroom",
-          "title": "Keep free what the card allocates outside the reservation",
-          "status": "open",
-          "verify": "go test ./internal/modeldevice -run '^(TestExpertResidencyFillsTheCardWhenItFrees|TestFlashNextExpertResidency)$' -count=1",
-          "rationale": "The residency leaves 2 GiB free at load (expertFillHeadroomBytes) and 1 GiB beyond a decode's spare slots (expertSpareHeadroomBytes), held for what the card allocates outside the reservation hook; neither is computed, and loaded the card holds 36,905 MiB of experts with about 490 MiB free where Strata holds 39,323 with 324 MiB free (its baseline's results), so the card's other owners take about 2.3 GB more than Strata's. The headroom is what the card allocates outside the hook, measured: a graph's instantiation (about 30 MB a Flash-Next exec, times the execs a runner may still capture), the libraries' workspaces, a module's image.\nFirst: the card's owners at load and through the bench beside Strata's (non-expert weights, K/V, workspaces, graphs, the context), each allocation outside the hook timed and sized; then this step's check is set and the headroom computed from them at load and at each spare.\nServes: the experts' share of the card at Strata's, decode in every cell.\nDisappears: expertFillHeadroomBytes and expertSpareHeadroomBytes as constants, and the card memory the gap holds.\nEvidence: the owners' measurement against Strata's; the card's experts at load; the bench over three alternating rounds; the long-context acceptance with an image.\nVerify: set with -setverify once the owners are measured; false until then.\n\nMeasured 2026-10-24 at 8413be5 (tmp/derive-tuning: startmem.sh sampling the card every 50 ms through a start, memory-probe-hooks.patch logging free memory at each load phase, the kept graphs every ten seconds and each graph's instantiation): the card shows 3,707 MiB used once the model's context exists (the projector's context and its 0.9 GB of weights loaded first, the driver's own), and a fill leaves 1,898 MiB free, which the first requests' KV cache, buffers, arena and staging take through the reservation hook. What allocates outside the hook is the captured graphs: through one bench run the cache grew to its 48 with 117 instantiations, and 30 instantiations took 156 MiB, the 2,673-launch span graphs 12 to 16 MiB each, most none; free memory fell to 96 MiB at its lowest. So the headroom is the graphs a runner may still capture at their measured size plus the libraries' workspaces, about 0.8 GB at load, not 2 GiB; with the fill's headroom at 1 GiB and the spare slots' at 512 MiB, over three alternating rounds against HEAD with no request failing, chat decode rose 9.8%, chat's prompt 10.5% and its first token came 7.1% sooner, the other cells level (agent turns' decode 2.6% lower inside overlapping ranges), and the long-context acceptance with an image passed at the card's fullest (237,290 tokens read in 2 m 12.6 s, card peak 47.8 GB). The non-expert gap to Strata's card (2.3 GB) is not the graphs; the projector's own context and the dense weights remain to compare, with Strata's own load accounting beside ours."
-        },
         {
           "id": "load-costs",
           "title": "Measure the machine's costs at load and compute the values that trade them",

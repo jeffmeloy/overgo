@@ -34,16 +34,16 @@ const (
 	// on that boundary gives a kernel the alignment the expert's own
 	// allocation would.
 	expertSlotAlignment = 256
-	// expertFillHeadroomBytes: the card memory a fill without an explicit
-	// limit leaves free, for CUDA library workspaces and module images, which
-	// allocate outside the reservation hook, and a short request's scratch
-	// (Flash-Next's short chat holds under 1 GiB beyond weights and experts).
-	expertFillHeadroomBytes = 2 << 30
-	// expertSpareHeadroomBytes: the card memory a decode's free slots leave free (spare), which minimizes the experts
-	// held off the card against a failed allocation outside the reservation hook (a graph's instantiation, about 30 MB a
-	// Flash-Next exec, and the libraries' workspaces): Strata keeps 700 MiB free (--vram-reserve-mib), and Flash-Next's
-	// requests ran down to 0.75 GB free. Provisional: the headroom step computes it from the transients the card measures.
-	expertSpareHeadroomBytes = 1 << 30
+	// expertFillHeadroomBytes and expertSpareHeadroomBytes: the card memory a fill without an explicit limit, and a
+	// decode's free slots (spare), leave free, which minimizes the experts held off the card against an allocation outside
+	// the reservation hook failing; what the requests allocate through the hook (their K/V, buffers, arenas, staging) the
+	// experts give up as it comes. Outside it are the graphs a runner may still capture, each up to 16 MiB on Flash-Next
+	// (30 instantiations took 156 MiB, the 2,673-launch span graphs 12 to 16 MiB, most none), 48 for a speculating
+	// runner, and the libraries' workspaces: about 0.8 GB at load, less once the graphs exist. At 2 GiB and 1 GiB the card
+	// held a gigabyte fewer experts and chats decoded 9.8% slower over three alternating rounds; Strata keeps 700 MiB
+	// free (--vram-reserve-mib). Provisional: the load-costs step computes them from the graphs' measured bytes.
+	expertFillHeadroomBytes  = 1 << 30
+	expertSpareHeadroomBytes = 512 << 20
 	// A decode's miss moves to the card on its first route, the most used first, at most expertPromotionsPerAdvance an
 	// advance, into the slot of the card expert of its stride routed least recently: a promotion pays where the uses it
 	// saves outlast the expert it displaces by more than a copy's cost over a miss's, and a copy beside the run (about

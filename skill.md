@@ -325,6 +325,7 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 - inputs that vary at runtime (the request, the free memory) => the value computed where it is used > a constant
 - a value taken from a reference engine or a sweep => provisional, with its derivation step filed
 - a sweep => checks the formula's prediction, and a disagreement names a cost the formula misses
+- a policy over a stream of requests (an admission, an eviction) => replayed on a recorded trace beside the hindsight bound before a bench, because the replay prices a policy in minutes and says how far any rule can go (admitting at a first miss came within 4.6 CPU experts a window of the bound, Strata's second use 22.5)
 - memory a reference frees for another use => taken where the reference takes it (its coldest slots, across layers), because freeing by allocation order took whole layers' hot experts (a release now keeps a freed allocation's hotter experts in colder ones' slots)
 - memory moved between two uses (a read's arena and the experts) => lent, the part the next use needs taken back, never freed and allocated again, because each allocation waits while Windows clears it and each free moves experts out (freed, a 16K read's arena and the expert releases added about 220 ms to its first token)
 - measured gains of one row => one landing (steps joined by commas) > a gate run each

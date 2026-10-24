@@ -186,23 +186,14 @@ func TestFlashNextExpertResidency(t *testing.T) {
 	// card is nil, the card to hold exactly the named experts.
 	readable := func(t *testing.T, cache *expertResidency, mem *fakeExpertDevice, card map[string][]uint32) {
 		t.Helper()
+		readsItsBytes(t, cache, mem, f.payloads)
 		for _, name := range names {
 			want := card[name]
 			if card == nil {
 				want = onCard(cache, name)
 			}
 			bank := cache.banks[name]
-			table, err := mem.at(bank.table, experts*8)
-			if err != nil {
-				t.Fatal(err)
-			}
 			for index := range uint32(experts) {
-				pointer := driver.DevicePtr(binary.LittleEndian.Uint64(table[index*8:]))
-				actual, err := mem.at(pointer, bank.bytes)
-				start := uint64(index) * bank.bytes
-				if err != nil || !bytes.Equal(actual, f.payloads[name][start:start+bank.bytes]) {
-					t.Fatalf("%s expert %d does not read its bytes: %v", name, index, err)
-				}
 				resident := cache.banks[name].entries[index] != nil
 				if resident != (bank.hosted[index] == nil) || resident != slices.Contains(want, index) {
 					t.Fatalf("%s expert %d on the card %t, want the card to hold %v", name, index, resident, want)
@@ -253,7 +244,7 @@ func TestFlashNextExpertResidency(t *testing.T) {
 			t.Fatalf("reclaimable card bytes = %d: %v", reclaimable, err)
 		}
 		placement, err := (&DeviceWeights{experts: cache}).ExpertPlacement(nil)
-		want := ExpertPlacement{CardExperts: 2, HostExperts: 2*experts - 2, CardBytes: gateStride + downStride, HostBytes: (experts - 1) * (gateStride + downStride), LoadCardExperts: 2}
+		want := ExpertPlacement{CardExperts: 2, HostExperts: 2 * experts, CardBytes: gateStride + downStride, HostBytes: experts * (gateStride + downStride), LoadCardExperts: 2}
 		if err != nil || placement != want {
 			t.Fatalf("placement = %+v, want %+v: %v", placement, want, err)
 		}
@@ -261,6 +252,10 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		all, _ := open(t, tableBytes+experts*(gateStride+downStride))
 		if len(all.pinned) != 3 || all.cardExperts() != 2*experts {
 			t.Fatal("a limit that holds every expert left one in host memory or kept no host copies")
+		}
+		// The host memory holds every expert's pinned copy however many the card holds.
+		if whole, err := (&DeviceWeights{experts: all}).ExpertPlacement(nil); err != nil || whole.HostExperts != want.HostExperts || whole.HostBytes != want.HostBytes {
+			t.Fatalf("a card holding every expert reports %+v (%v), want every pinned copy, %d bytes", whole, err, want.HostBytes)
 		}
 	})
 	t.Run("every-expert-keeps-its-host-copy", func(t *testing.T) {
@@ -289,6 +284,9 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		readable(t, cache, mem, map[string][]uint32{})
 		if len(cache.pinned) != pinned {
 			t.Fatalf("releasing the card pinned %d more allocations", len(cache.pinned)-pinned)
+		}
+		if released, err := (&DeviceWeights{experts: cache}).ExpertPlacement(nil); err != nil || released.CardBytes != 0 || released.HostBytes != experts*(gateStride+downStride) {
+			t.Fatalf("a released card reports %+v (%v), want every pinned copy and none on the card", released, err)
 		}
 	})
 	t.Run("routes-promote-between-runs", func(t *testing.T) {
@@ -666,22 +664,10 @@ func TestExpertResidencyFillsTheCardWhenItFrees(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		for _, name := range []string{"gate", "down"} {
-			bank := cache.banks[name]
-			table, err := mem.at(bank.table, experts*8)
-			if err != nil {
-				t.Fatal(err)
-			}
-			for index := range uint64(experts) {
-				actual, err := mem.at(driver.DevicePtr(binary.LittleEndian.Uint64(table[index*8:])), bank.bytes)
-				if err != nil || !bytes.Equal(actual, f.payloads[name][index*bank.bytes:(index+1)*bank.bytes]) {
-					t.Fatalf("%s expert %d does not read its bytes: %v", name, index, err)
-				}
-			}
-		}
+		readsItsBytes(t, cache, mem, f.payloads)
 		placement, err := (&DeviceWeights{experts: cache}).ExpertPlacement(nil)
-		if err != nil || placement.LoadCardExperts != 2 || placement.CardExperts+placement.HostExperts != 2*experts {
-			t.Fatalf("placement %+v, want the load's two card experts of six: %v", placement, err)
+		if err != nil || placement.LoadCardExperts != 2 || placement.HostExperts != 2*experts || placement.HostBytes != experts*(gateStride+downStride) {
+			t.Fatalf("placement %+v, want the load's two card experts and every expert's pinned copy: %v", placement, err)
 		}
 		return placement.CardExperts
 	}
@@ -831,19 +817,7 @@ func TestReleaseKeepsTheHottestExperts(t *testing.T) {
 			if got := onCard(cache, gone); len(got) != 0 {
 				t.Fatalf("the release kept %s's experts %v on the card", gone, got)
 			}
-			for _, name := range []string{"gate", "up"} {
-				bank := cache.banks[name]
-				table, err := mem.at(bank.table, experts*8)
-				if err != nil {
-					t.Fatal(err)
-				}
-				for index := range uint64(experts) {
-					actual, err := mem.at(driver.DevicePtr(binary.LittleEndian.Uint64(table[index*8:])), bank.bytes)
-					if err != nil || !bytes.Equal(actual, f.payloads[name][index*bank.bytes:(index+1)*bank.bytes]) {
-						t.Fatalf("%s expert %d does not read its bytes: %v", name, index, err)
-					}
-				}
-			}
+			readsItsBytes(t, cache, mem, f.payloads)
 		})
 	}
 }
@@ -900,16 +874,5 @@ func TestPublishQueuesBehindTheRun(t *testing.T) {
 		t.Fatalf("the promoting advance wrote %d times, %d of them ordered, want every write ordered", mem.writes-writes, mem.ordered-ordered)
 	}
 	advance()
-	for _, bank := range cache.banks {
-		table, err := mem.at(bank.table, experts*8)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for index := range uint64(experts) {
-			actual, err := mem.at(driver.DevicePtr(binary.LittleEndian.Uint64(table[index*8:])), bank.bytes)
-			if err != nil || !bytes.Equal(actual, f.payloads[bank.info.Name][index*bank.bytes:(index+1)*bank.bytes]) {
-				t.Fatalf("%s expert %d does not read its bytes: %v", bank.info.Name, index, err)
-			}
-		}
-	}
+	readsItsBytes(t, cache, mem, f.payloads)
 }

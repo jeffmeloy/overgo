@@ -212,17 +212,10 @@
       "title": "Port Strata's decode loop as one unit",
       "status": "open",
       "budget": {
-        "nodes": 125,
+        "nodes": 138,
         "reason": "The loan adds about 1,900 production syntax nodes, after removing the bulk refill and the selective graph drop it had used: the one-shot runs' own arena and its lending; the residency's loans, the spare slots carved from them or allocated beyond the headroom, a promotion's free slot before a victim's, one eviction (drop) shared by a release and a reclaim, and the partial reclaim a short read takes; and the interface the executor lends through. Measured over three alternating rounds it raised 4K decode 15%, agent turns' decode 8.5% and chat decode 8.2% with every cell level or better and no request failing."
       },
       "steps": [
-        {
-          "id": "host-bytes",
-          "title": "Count every expert's pinned copy in host memory",
-          "status": "open",
-          "verify": "go test ./internal/modeldevice -run '^(TestFlashNextExpertResidency|TestExpertResidencyFillsTheCardWhenItFrees|TestReleaseKeepsTheHottestExperts|TestPublishQueuesBehindTheRun)$' -count=1",
-          "rationale": "SQA-205 (confirmed defect, P2) and SQA-212 (P3): every expert keeps its bytes in pinned host memory, a card expert's too, since 2026-10-22, but the placement still subtracted the card's experts and bytes from the host's, so the monitor's Experts in RAM understated the pinned memory by the card's share and showed none for a model held whole on the card. The host totals count every pinned copy and the placement's comment says the copies overlap. The residency tests' three byte walks over the expert tables (the refill, release and publish tests beside the fill's) become the one the fill's test holds, lifted to the file.\nServes: the monitor's host memory as the process holds it; one residency table oracle.\nEvidence: the residency tests holding the host totals to every expert's pinned copy in the mixed, whole-card and released states, with the shared byte walk."
-        },
         {
           "id": "token-cost",
           "title": "Verify a window's extra token at Strata's cost",

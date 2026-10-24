@@ -402,7 +402,8 @@ func (c *expertResidency) place(ctx context.Context, onDevice expertDevice, bank
 }
 
 // ExpertPlacement is where a residency's experts are and where its runs found the experts they routed.
-//   - bytes are slot bytes, card memory and pinned host memory
+//   - bytes are slot bytes, card memory and pinned host memory; every expert keeps its pinned copy, a card expert's
+//     too, so HostExperts and HostBytes count them all and overlap CardExperts and CardBytes
 //   - Routes counts the experts the runs' routes named, a bank's expert once a run
 //   - CardRoutes counts those a run read on the card, and the rest it read over the PCIe link
 //   - LoadCardExperts counts the experts the load placed on the card, few when it found the card held
@@ -447,8 +448,6 @@ func (w *DeviceWeights) ExpertPlacement(state *device.State) (ExpertPlacement, e
 		placement.HostExperts += uint64(len(bank.pointers))
 		placement.HostBytes += uint64(len(bank.pointers)) * bank.stride
 	}
-	placement.HostExperts -= placement.CardExperts
-	placement.HostBytes -= placement.CardBytes
 	return placement, nil
 }
 

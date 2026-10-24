@@ -221,11 +221,18 @@
       },
       "steps": [
         {
+          "id": "peak",
+          "title": "Share the captured runs' arena with a prompt read where no experts take it back",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestPromptMemoryGivesBackItsLoan$' -count=1",
+          "rationale": "Serves: every dense model's peak device memory, up by about 128 MiB (210 on Unlimited-OCR) since the loan step gave a one-shot run an arena of its own: a model without experts has none to lend it to and held both arenas. A one-shot run takes its own arena only where experts are bound and shares the captured runs' arena otherwise.\nDisappears: the second arena on dense models.\nEvidence: TestPromptMemoryGivesBackItsLoan holds a read without experts to no arena of its own and, with experts, to its own, lent and reclaimed as before; the next measurement run's peak cells.\nBatch: cuda/executor device lane."
+        },
+        {
           "id": "scorecard",
           "title": "Measure every scorecard cell on one commit beside Strata's bench suite",
           "status": "open",
           "verify": "d=\"${OVERGO_DATA_ROOT:-$(git rev-parse --path-format=absolute --git-common-dir)/../../overgo_data}/scorecards\" \u0026\u0026 f=$(ls -t \"$d\"/scorecard-*.json | head -1) \u0026\u0026 grep -q \"\\\"commit\\\": \\\"$(git rev-parse HEAD)\\\"\" \"$f\"",
-          "rationale": "Serves: one measured baseline for the push and for the port. The last record (2026-10-19, at 32b2661) predates the campaign's decode, prompt and residency work; this one measures every cell on one commit, with Strata's bench suite (chat, 4K, 16K and agent turns; cmd/benchmark strata, three alternating rounds) run twice, greedy as today and at the model file's recommended sampling (temperature 1.0, top-p 0.95, top-k 20, seeded, both engines), and the long-context acceptance, on the same commit.\nDisappears: the bench figures scattered through the plan's notes, which this record replaces as the port's starting point.\nEvidence: go run ./cmd/loop -improve (about 6.5 hours, started outside a session) publishes the scorecard, and the rows it files land with this step: a decline since 2026-10-19 that the campaign's work caused is repaired and its cell measured again before the push; every other gap ranks into the port or after it. The sampled pass names today's gap where our card speculates only greedily: a sampled request decodes a token a forward.\nBatch: the measurement run; nothing builds, tests or pushes beside it (a build or a test on this machine moves its timing cells), so only plan-only landings while it runs.\n\nRead 2026-10-24 from the store's serving observations (tmp/release/attempts): the Flash-Next throughput cell (23.88 tok/s) is the median of the recipe's newest attempts that timed their load, three of 2026-10-22 (42 prompt tokens, 16 output tokens, 21 to 23 s of load, 565 to 824 ms of decode, 19 to 28 tok/s), a first request on a freshly loaded card, its graphs captured and its experts missed during those 16 tokens; the thousands of served requests since (the bench's, 60 to 120 tok/s warm) time no load, so the cell's window never reads them. The cell is neither stale nor another path: it is the scorecard's cold first request by design (first output = the first request after load), and the warm rate is the bench suite's. The measurement run re-measures the same cold request; the record is read as such beside the bench, and a warm decode cell, if wanted, is a scorecard change filed after the run.",
+          "rationale": "Serves: one measured baseline for the push and for the port. The last record (2026-10-19, at 32b2661) predates the campaign's decode, prompt and residency work; this one measures every cell on one commit, with Strata's bench suite (chat, 4K, 16K and agent turns; cmd/benchmark strata, three alternating rounds) run twice, greedy as today and at the model file's recommended sampling (temperature 1.0, top-p 0.95, top-k 20, seeded, both engines), and the long-context acceptance, on the same commit.\nDisappears: the bench figures scattered through the plan's notes, which this record replaces as the port's starting point.\nEvidence: go run ./cmd/loop -improve (about 6.5 hours, started outside a session) publishes the scorecard, and the rows it files land with this step: a decline since 2026-10-19 that the campaign's work caused is repaired and its cell measured again before the push; every other gap ranks into the port or after it. The sampled pass names today's gap where our card speculates only greedily: a sampled request decodes a token a forward.\nBatch: the measurement run; nothing builds, tests or pushes beside it (a build or a test on this machine moves its timing cells), so only plan-only landings while it runs.\n\nRead 2026-10-24 from the store's serving observations (tmp/release/attempts): the Flash-Next throughput cell (23.88 tok/s) is the median of the recipe's newest attempts that timed their load, three of 2026-10-22 (42 prompt tokens, 16 output tokens, 21 to 23 s of load, 565 to 824 ms of decode, 19 to 28 tok/s), a first request on a freshly loaded card, its graphs captured and its experts missed during those 16 tokens; the thousands of served requests since (the bench's, 60 to 120 tok/s warm) time no load, so the cell's window never reads them. The cell is neither stale nor another path: it is the scorecard's cold first request by design (first output = the first request after load), and the warm rate is the bench suite's. The measurement run re-measures the same cold request; the record is read as such beside the bench, and a warm decode cell, if wanted, is a scorecard change filed after the run.\n\nMeasured 2026-10-24 at 609b182 (tmp/release/bench.sh and benchsum; Strata's bench suite on both engines, each on a fresh server, three alternating rounds, greedy and at the model file's sampling, temperature 1.0, top-p 0.95, top-k 20, seed 7; every kept request succeeded except in Strata's first greedy round, discarded because a stray client of a stopped run shared its server, so Strata greedy stands on two rounds). Decode in tok/s, first output in seconds, the rounds' ranges. Ours greedy: chat 98.8 to 104.4, 4K first 1.46 to 1.47 and decode 75.8 to 83.2, 16K first 5.27 to 5.33 and decode 72.8 to 82.1, agent turns 90.5 to 93.4. Strata greedy: chat 132.8 to 136.3, 4K first 2.20 to 2.23 and decode 132.6 to 141.1, 16K first 4.97 to 4.99 and decode 103.6 to 103.9, agent turns 145.2 to 146.1. Ours sampled: chat 28.2 to 29.3, 4K first 1.52 to 1.54 and decode 25.8 to 27.8, 16K first 5.27 to 5.29 and decode 26.9 to 28.0, agent turns 26.7 to 27.9. Strata sampled: chat 136.5 to 141.8, 4K first 2.17 to 2.23 and decode 101.1 to 126.0, 16K first 4.86 to 4.97 and decode 94.8 to 99.9, agent turns 140.8 to 148.8. So first output leads Strata at 4K and in the agent turns and trails at 16K (5.3 against 5.0); greedy decode trails in every cell (chat by a quarter, 4K and the agent turns by about two fifths, 16K by a quarter); and a sampled request, which our card decodes a token a forward with the sampling on the host, runs at 28 tok/s against Strata's 95 to 148, a gap the port's window and sampling steps take. The long-context acceptance on the same commit: a 237,290-token read in 2m16s, every follow-up answered in about 0.8 s, the card's peak 45,009 MiB of 49,139.\n\nMeasured 2026-10-24, the run at 609b182 (go run ./cmd/loop -improve, started 12:50; scorecard-20261024T194833Z.json published at 15:48 after 112 cells, no cell failing). Flash-Next's inference row against the 2026-10-19 record: first output 986 to 936 ms, 1.78 to 1.5 s at 4,096 tokens, 5.27 to 5.23 s at 16,384; throughput 23.88 to 28.34 tok/s (the cold first request after a 23.2 s load); held-out quality 0.6245 on 1,209 MMLU-Pro cases, unchanged; failures 0%; peak 45.9 GiB. The run filed 28 rows: one failed gemma-4-12B-it-fp8 attempt; peak-device-memory up by about 128 MiB on every dense inference model (Bonsai, Carbon, MiniCPM, Qwen2.5-0.5B, Qwen3.5-4B and 9B, Qwen3.8-27B, the three gemma files, Unlimited-OCR by 210 MiB) and by less on the media models, which the loan step caused (a prompt read takes an arena of its own, meant for the experts to take back; a model without experts has none to lend it to and kept both arenas), repaired before the push; held-out-quality declines on gemma-4-12B-it-fp8 (BBH 0.657 to 0.643, 8 of 577 cases right to wrong and none back; IFEval 0.836 to 0.818), gemma-native (IFEval 0.891 to 0.873), Qwen3.5-9B (IFEval 0.818 to 0.782) and MiniCPM5 (IFEval 0.727 to 0.673), each a few cases of 55 or 577, all on dense models whose prompt attention moved to tensor cores on 2026-10-22 (e70ceee56, 5a98df021, 6c78ad384), the cause to be established by the same evaluation with that path off; webssl-dino load-time 213 to 243 ms; and the uncompared, unmeasured and unscored gaps the record carries from before. Six further quality moves the run did not file, their case flips within chance.",
           "depends_on": [
             "release/cell",
             "release/long-context"
@@ -678,6 +685,426 @@
           "depends_on": [
             "moss-evaluation/resources"
           ]
+        }
+      ]
+    },
+    {
+      "id": "scorecard-failing-inference",
+      "title": "Fix the inference attempts that failed",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Fix the inference attempts that failed",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-failing-inference",
+          "rationale": "- gemma-4-12B-it-fp8 failure-rate: 1 failed and 0 cancelled since the last success\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-00044e1690f36b22",
+      "title": "Restore Hy-Embodied-RxBrain-1.0 vqa peak-device-memory to 3.71820979e+09 bytes",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Hy-Embodied-RxBrain-1.0 vqa peak-device-memory to 3.71820979e+09 bytes",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-00044e1690f36b22 -target 3.718209792e+09",
+          "rationale": "- Hy-Embodied-RxBrain-1.0 peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:24f6d5c81c752c600bf32907c8ca4b34379bf0e1910dd30f7d3014091e1fbcbb}: 3.71820979e+09 to 3.78753024e+09 (+69320448, +1.9%, allowed 500000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-0d6c925abf0b1e14",
+      "title": "Restore gemma-4-12B-it-fp8-native inference peak-device-memory to 1.53707484e+10 bytes",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore gemma-4-12B-it-fp8-native inference peak-device-memory to 1.53707484e+10 bytes",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-0d6c925abf0b1e14 -target 1.5370748352e+10",
+          "rationale": "- gemma-4-12B-it-fp8-native peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:25268b97718fcd611d83280c93c66aaf9676a2063fb7fc767fb8f917131e6254}: 1.53707484e+10 to 1.54888004e+10 (+118052096, +0.8%, allowed 5000000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-1c8951167b5fa74c",
+      "title": "Restore Qwen2.5-0.5B inference peak-device-memory to 990643712 bytes",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Qwen2.5-0.5B inference peak-device-memory to 990643712 bytes",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-1c8951167b5fa74c -target 9.90643712e+08",
+          "rationale": "- Qwen2.5-0.5B peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:0fc96840f0fec7ba76f8f4e8e04cb967d24c3280e845a9e820ae997012cddfca}: 990643712 to 1.12321587e+09 (+132572160, +13.4%, allowed 50000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-26fa867a93de506e",
+      "title": "Restore gemma-4-12B-it-fp8 inference held-out-quality to 0.656845754 ",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore gemma-4-12B-it-fp8 inference held-out-quality to 0.656845754 ",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-26fa867a93de506e -target 0.6568457538994801",
+          "rationale": "- gemma-4-12B-it-fp8 held-out-quality, {Metric:accuracy Origin:evaluation Suite:store/bbh Protocol:raw-completion Comparison:profile:sha256:50356827f8e576872c7b2b1911f53ffebb5b991652b65542d3eb803aab6b1981 Scope:}: 0.656845754 to 0.642980936 (-0.013864818, -2.1%, allowed 5e-05; accuracy, store/bbh (raw-completion))\n- the decline stands because 8 of the 577 cases both readings answered went from right to wrong and 0 from wrong to right, and so many go wrong with chance 0.00391 where either way is as likely, against the 0.0228 a decline stands at\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-44a682d2f54919aa",
+      "title": "Restore Wan2.1-T2V-1.3B video-gen peak-device-memory to 3.8331476e+09 bytes",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Wan2.1-T2V-1.3B video-gen peak-device-memory to 3.8331476e+09 bytes",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-44a682d2f54919aa -target 3.833147596e+09",
+          "rationale": "- Wan2.1-T2V-1.3B peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:bff12bb8946afe0d8ca84d635e0ff275855c94a22a99df91e03d319c32ed54b4}: 3.8331476e+09 to 3.84255611e+09 (+9408512, +0.2%, allowed 500000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-50f41f360f714051",
+      "title": "Restore Qwen3.8-27B inference peak-device-memory to 2.27283201e+10 bytes",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Qwen3.8-27B inference peak-device-memory to 2.27283201e+10 bytes",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-50f41f360f714051 -target 2.2728320128e+10",
+          "rationale": "- Qwen3.8-27B peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:6595ed03c2b8ff87c5142946868cb841d9a685f77616f21a978ec93587546f1a}: 2.27283201e+10 to 2.2853584e+10 (+125263872, +0.6%, allowed 5000000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-514c2975ce629429",
+      "title": "Restore webssl-dino300m-full2b-224 image-embedding load-time to 230.6077 ms",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore webssl-dino300m-full2b-224 image-embedding load-time to 230.6077 ms",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-514c2975ce629429 -target 230.6077",
+          "rationale": "- webssl-dino300m-full2b-224 load-time, {Metric:load phase Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:1fd5b3b31c8a2f3868ce4f98cc32d2e36f61ac6deeacd1ed0604dc1636faa7fe}: 213.0601 to 242.5475 (+29.4874, +13.8%, allowed 17.5476; load phase, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-53dd0e6a7ae9ad60",
+      "title": "Restore gemma-4-12B-it-fp8 inference peak-device-memory to 2.38366082e+10 bytes",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore gemma-4-12B-it-fp8 inference peak-device-memory to 2.38366082e+10 bytes",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-53dd0e6a7ae9ad60 -target 2.3836608192e+10",
+          "rationale": "- gemma-4-12B-it-fp8 peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:2c889c2642ce5236e935dead92007c4f9baaea5e28cdc2e47b3e761364589ae4}: 2.38366082e+10 to 2.39756305e+10 (+139022336, +0.6%, allowed 5000000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-5af656f5f7fae370",
+      "title": "Restore Carbon-500M-f16-ropefix inference peak-device-memory to 1.03683635e+09 bytes",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Carbon-500M-f16-ropefix inference peak-device-memory to 1.03683635e+09 bytes",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-5af656f5f7fae370 -target 1.036836352e+09",
+          "rationale": "- Carbon-500M-f16-ropefix peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:cb2cdd27ff36e6d2d0edf607173eb94e8feb135b64890b5859e7c4abe8c460a2}: 1.03683635e+09 to 1.16546918e+09 (+128632832, +12.4%, allowed 500000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-6c8d4a845f501259",
+      "title": "Restore Unlimited-OCR-bf16 inference peak-device-memory to 5.87567878e+09 bytes",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Unlimited-OCR-bf16 inference peak-device-memory to 5.87567878e+09 bytes",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-6c8d4a845f501259 -target 5.875678776e+09",
+          "rationale": "- Unlimited-OCR-bf16 peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:53c17a9fabd7fe64203ddf7136b7e23763ca0b59d67c54deadf6ea54350188f3}: 5.87567878e+09 to 6.08557087e+09 (+209892096, +3.6%, allowed 500000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-70fb50ac9f3bfbbc",
+      "title": "Restore Qwen3.5-9B inference peak-device-memory to 9.71056768e+09 bytes",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Qwen3.5-9B inference peak-device-memory to 9.71056768e+09 bytes",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-70fb50ac9f3bfbbc -target 9.71056768e+09",
+          "rationale": "- Qwen3.5-9B peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:c753e314b7c50fe82d37361a99f1e46a2f95c9f9c7a0ff96890e4c2de507de84}: 9.71056768e+09 to 9.83956506e+09 (+128997376, +1.3%, allowed 500000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-7b102ed548f66278",
+      "title": "Restore MiniCPM5-1B-native-chat inference peak-device-memory to 2.16531456e+09 bytes",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore MiniCPM5-1B-native-chat inference peak-device-memory to 2.16531456e+09 bytes",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-7b102ed548f66278 -target 2.16531456e+09",
+          "rationale": "- MiniCPM5-1B-native-chat peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:5155b720ce15e6b05acf713a5f9c5bf86bf7e52963178c18503b03206578543c}: 2.16531456e+09 to 2.29720986e+09 (+131895296, +6.1%, allowed 500000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-8b083b7b94e498e7",
+      "title": "Restore Qwen3.5-4B inference peak-device-memory to 8.84844826e+09 bytes",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Qwen3.5-4B inference peak-device-memory to 8.84844826e+09 bytes",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-8b083b7b94e498e7 -target 8.848448256e+09",
+          "rationale": "- Qwen3.5-4B peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:49d1ed7c41e45abcc9c10ff13ec247ab775f7054123d5507caa1f63c0a19f803}: 8.84844826e+09 to 8.97761357e+09 (+129165312, +1.5%, allowed 500000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-8fd973275327b1ce",
+      "title": "Restore gemma-4-E4B-it inference peak-device-memory to 1.49349997e+10 bytes",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore gemma-4-E4B-it inference peak-device-memory to 1.49349997e+10 bytes",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-8fd973275327b1ce -target 1.493499972e+10",
+          "rationale": "- gemma-4-E4B-it peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:8fbd18e6c558f0d7bbda91a6d5acf340da3e241522ae3cc02f99793a58a72833}: 1.49349997e+10 to 1.50650395e+10 (+130039808, +0.9%, allowed 5000000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-9120aea1dab7f00f",
+      "title": "Restore Bonsai-27B-Q1_0 inference peak-device-memory to 4.54800486e+09 bytes",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Bonsai-27B-Q1_0 inference peak-device-memory to 4.54800486e+09 bytes",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-9120aea1dab7f00f -target 4.548004864e+09",
+          "rationale": "- Bonsai-27B-Q1_0 peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:b560464c52f7112f18aed570afc72b2e8a11f21fb2d028ff4b8dc78d3cfcf9d6}: 4.54800486e+09 to 4.67536589e+09 (+127361024, +2.8%, allowed 500000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-a458a0f2676f2950",
+      "title": "Restore SimpleDiffusion-TensorProductAttentionRope image-gen peak-device-memory to 559451660 bytes",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore SimpleDiffusion-TensorProductAttentionRope image-gen peak-device-memory to 559451660 bytes",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-a458a0f2676f2950 -target 5.5945166e+08",
+          "rationale": "- SimpleDiffusion-TensorProductAttentionRope peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:4f0b3b9dbad24278519b1a046195978ab0960c52c0b4b40a2d52e0bcec873e9d}: 559451660 to 613977356 (+54525696, +9.7%, allowed 50000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-b7732c229ffc7e14",
+      "title": "Restore Qwen3.5-9B inference held-out-quality to 0.818181818 ",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Qwen3.5-9B inference held-out-quality to 0.818181818 ",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-b7732c229ffc7e14 -target 0.8181818181818182",
+          "rationale": "- Qwen3.5-9B held-out-quality, {Metric:prompt-strict Origin:evaluation Suite:store/ifeval Protocol:chat-template Comparison:profile:sha256:6f2116e85efe74bf4b9b2cfce46ef2fbf2a4a622842b598e79b154989b6d3432 Scope:}: 0.818181818 to 0.781818182 (-0.0363636364, -4.4%, allowed 5e-05; prompt-strict, store/ifeval (chat-template))\n- the decline stands because a prompt-strict is no share of cases answered right, and no standard error is stated, so it is judged by its value\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-bb03bce8d732b5c2",
+      "title": "Restore gemma-4-12B-it-fp8 inference held-out-quality to 0.836363636 ",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore gemma-4-12B-it-fp8 inference held-out-quality to 0.836363636 ",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-bb03bce8d732b5c2 -target 0.8363636363636363",
+          "rationale": "- gemma-4-12B-it-fp8 held-out-quality, {Metric:prompt-strict Origin:evaluation Suite:store/ifeval Protocol:chat-template Comparison:profile:sha256:6f2116e85efe74bf4b9b2cfce46ef2fbf2a4a622842b598e79b154989b6d3432 Scope:}: 0.836363636 to 0.818181818 (-0.0181818182, -2.2%, allowed 5e-05; prompt-strict, store/ifeval (chat-template))\n- the decline stands because a prompt-strict is no share of cases answered right, and no standard error is stated, so it is judged by its value\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-bb68e1e58205bdab",
+      "title": "Restore gemma-4-12B-it-fp8-native inference held-out-quality to 0.890909091 ",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore gemma-4-12B-it-fp8-native inference held-out-quality to 0.890909091 ",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-bb68e1e58205bdab -target 0.8909090909090909",
+          "rationale": "- gemma-4-12B-it-fp8-native held-out-quality, {Metric:prompt-strict Origin:evaluation Suite:store/ifeval Protocol:chat-template Comparison:profile:sha256:6f2116e85efe74bf4b9b2cfce46ef2fbf2a4a622842b598e79b154989b6d3432 Scope:}: 0.890909091 to 0.872727273 (-0.0181818182, -2.0%, allowed 5e-05; prompt-strict, store/ifeval (chat-template))\n- the decline stands because a prompt-strict is no share of cases answered right, and no standard error is stated, so it is judged by its value\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-d16779910f30bfe8",
+      "title": "Restore LiveEdit video-gen peak-device-memory to 3.79271752e+09 bytes",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore LiveEdit video-gen peak-device-memory to 3.79271752e+09 bytes",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-d16779910f30bfe8 -target 3.792717516e+09",
+          "rationale": "- LiveEdit peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:7cd66ed08ebee5e566dca3682e7d6d9f0b06f8384f19b1f1dfb416a272126965}: 3.79271752e+09 to 3.80213422e+09 (+9416704, +0.2%, allowed 500000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-eeab4788f8674aab",
+      "title": "Restore SenseNova-U1-8B-MoT-Infographic-V3 image-gen peak-device-memory to 1.65914647e+10 bytes",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore SenseNova-U1-8B-MoT-Infographic-V3 image-gen peak-device-memory to 1.65914647e+10 bytes",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-eeab4788f8674aab -target 1.6591464708e+10",
+          "rationale": "- SenseNova-U1-8B-MoT-Infographic-V3 peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:5a729e98ef825033d4073d0d0046ef3e63cfb6a519f8076bda01a29d151569ee}: 1.65914647e+10 to 1.66648648e+10 (+73400064, +0.4%, allowed 5000000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-f720274acf031e2f",
+      "title": "Restore Krea-2-Turbo image-gen peak-device-memory to 2.69252724e+10 bytes",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Krea-2-Turbo image-gen peak-device-memory to 2.69252724e+10 bytes",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-f720274acf031e2f -target 2.6925272444e+10",
+          "rationale": "- Krea-2-Turbo peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:0b1bcc2fb9cf5f42cd2dd9c91a49dcce1a67c7b5a9afa0434aeddbe721d595d9}: 2.69252724e+10 to 2.69732407e+10 (+47968256, +0.2%, allowed 5000000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-fe1799b11ff64521",
+      "title": "Restore MiniCPM5-1B-native-chat inference held-out-quality to 0.727272727 ",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore MiniCPM5-1B-native-chat inference held-out-quality to 0.727272727 ",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-fe1799b11ff64521 -target 0.7272727272727273",
+          "rationale": "- MiniCPM5-1B-native-chat held-out-quality, {Metric:prompt-strict Origin:evaluation Suite:store/ifeval Protocol:chat-template Comparison:profile:sha256:6f2116e85efe74bf4b9b2cfce46ef2fbf2a4a622842b598e79b154989b6d3432 Scope:}: 0.727272727 to 0.672727273 (-0.0545454545, -7.5%, allowed 5e-05; prompt-strict, store/ifeval (chat-template))\n- the decline stands because a prompt-strict is no share of cases answered right, and no standard error is stated, so it is judged by its value\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-uncompared-inference",
+      "title": "Compare the path a inference request takes with a reference output for each model it is scored on",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Compare the path a inference request takes with a reference output for each model it is scored on",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-inference",
+          "rationale": "- Qwen3.8 Flash Next held-out-quality: no comparison of the path a request takes with a reference output is named for this reading, so a fault in that path would read as the model's score; name the test that makes the comparison in internal/scorecard/path_comparisons.json, write it where none exists, or record there why none is made and what would reopen it\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-uncompared-projection",
+      "title": "Compare the path a projection request takes with a reference output for each model it is scored on",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Compare the path a projection request takes with a reference output for each model it is scored on",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-projection",
+          "rationale": "- Qwen3.8 Flash Next held-out-quality: no comparison of the path a request takes with a reference output is named for this reading, so a fault in that path would read as the model's score; name the test that makes the comparison in internal/scorecard/path_comparisons.json, write it where none exists, or record there why none is made and what would reopen it\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unmeasured-image-gen",
+      "title": "Measure image-gen's unmeasured cells",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure image-gen's unmeasured cells",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-image-gen",
+          "rationale": "- MOSS-Image-SFT-797fa8e678b4f first-output: no benchmark time to first token and no serving prefill sample\n- MOSS-Image-SFT-797fa8e678b4f failure-rate: no completed serving attempts recorded\n- MOSS-Image-SFT-797fa8e678b4f load-time: no benchmark load time and no recorded load phase\n- MOSS-Image-SFT-797fa8e678b4f peak-device-memory: no benchmark or serving peak device memory\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unscored-image-gen",
+      "title": "Define the held-out evaluation that measures image-gen quality",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Define the held-out evaluation that measures image-gen quality",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-image-gen",
+          "rationale": "- MOSS-Image-SFT-797fa8e678b4f held-out-quality: no held-out evaluation for image-gen yet; proposed: TIFA v1.0 (github.com/Yushi-Hu/tifa, 10 MB) question answering over each image by a local vision-language model\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
         }
       ]
     }

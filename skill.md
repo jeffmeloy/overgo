@@ -230,6 +230,7 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 
 - `docs/plan.json` = sole dispatch authority
 - plan update => first review the record since the last update (landings, retirements, regressions with how each was found, fixes, findings) -> name the patterns that held and that failed -> apply them to the plan and to this doctrine in the same landing -> its message states them
+- retirement => its record names the change it waits for -> that change lands => the retired change is measured again on it
 - rationale lines = Serves, Disappears, Evidence, Batch
 - `docs/sqa_findings.json` = independent, scheduled, advisory
 - the lead owns adoption and sequence
@@ -253,6 +254,7 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 - compare identical tasks, artifacts, protocols and budgets
 - two builds' timings => alternate the builds on fresh processes for at least 3 rounds each (a bench cell moves 10% between rounds)
 - difference inside the rounds' ranges = no difference
+- an A/B => its failed requests counted beside its rates, because a pool of the requests that succeeded hid a build that corrupted the card's experts (14 requests failed, its rates within the others' ranges)
 - a cost each request pays once => weighed against the measured cell's own request (its tokens and time), never a longer run's
 - a timing taken under a tracer => an untraced clock of the same stage confirms it before it decides (per-node graph tracing slows a graph's launch)
 - work across streams = the union of their intervals, never a sum of durations, and a copy's overlap = its intervals' intersection with the kernels'
@@ -319,8 +321,12 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 - rare-path work (a handshake, a fallback) => folded into kernels that run anyway > a launch of its own
 - work that waits for nothing => queued and submitted before work that waits (a copy batch, an event), because under Windows' display driver model a stream's work waits behind the submissions made before it
 - a buffer sized to a run's need => rounded up before it grows, because each growth frees it, drops what names it and waits while Windows clears the new memory (about 100 ms at 2.8 GB); a share to spare costs what that memory would hold (experts)
-- a threshold that trades two measured costs (a chunk's tokens, a tile's rows, the slots below which the CPU takes an expert) => computed from those costs as this machine measures them, or a constant where a sweep over what varies shows one value best (8,192-token chunks here), never a constant copied from a reference or frozen from one measurement, because the costs move with the card, the link, the CPU and the request
+- a tuning value (a threshold, a size or a count that trades measured costs: a chunk's tokens, a tile's rows, an expert's admission) => its comment names the cost it minimizes and the measured inputs it is computed from (the link's rate, the bytes a token holds, an expert's bytes, a miss's cost, the request's tokens), because a sweep returns only a point it tried, for one request shape on one machine (2,048-token chunks paid for their slower read after about 700 decoded tokens)
+- inputs that vary at runtime (the request, the free memory) => the value computed where it is used > a constant
+- a value taken from a reference engine or a sweep => provisional, with its derivation step filed
+- a sweep => checks the formula's prediction, and a disagreement names a cost the formula misses
 - memory a reference frees for another use => taken where the reference takes it (its coldest slots, across layers), because freeing by allocation order took whole layers' hot experts (a release now keeps a freed allocation's hotter experts in colder ones' slots)
+- memory moved between two uses (a read's arena and the experts) => lent, the part the next use needs taken back, never freed and allocated again, because each allocation waits while Windows clears it and each free moves experts out (freed, a 16K read's arena and the expert releases added about 220 ms to its first token)
 - measured gains of one row => one landing (steps joined by commas) > a gate run each
 
 ## Compute and derived values

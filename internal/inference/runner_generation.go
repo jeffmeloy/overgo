@@ -232,6 +232,8 @@ func (r *Runner) Generate(
 				if r.hyperDraft != nil {
 					err = errors.Join(err, r.hyperDraft.prompt.releaseStreams(context.WithoutCancel(ctx)))
 				}
+				// The read lends the card memory it borrowed to the experts, which fill it while the request decodes.
+				err = errors.Join(err, r.cuda.ReleasePromptMemory(context.WithoutCancel(ctx)))
 				if err == nil {
 					deviceCache = nextDevice
 				}

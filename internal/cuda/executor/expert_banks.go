@@ -18,6 +18,8 @@ import (
 // StartExpertCopies starts the copies the last advance recorded, once the run is launched, so the run's own copies to
 // the card do not wait behind them.
 // ReserveExpertMemory releases only completed expert reads before another owner allocates.
+// LendExpertMemory lends the experts card memory the executor holds between its uses, and ReclaimExpertMemory takes back
+// the part the executor uses next, its experts moved out, before it does.
 // ExpertSources writes each expert's table address in a routed node's bank, and the pinned bytes of each expert in host memory.
 // ExpertsOnHost names a routed node's card flags of the experts every bank of it holds in host memory, which a run reads
 // as the advance before it left them, and which ExpertSources' bytes then agree with.
@@ -29,6 +31,8 @@ type ExpertBanks interface {
 	AdvanceExperts(context.Context, *device.State, bool) error
 	StartExpertCopies(context.Context, *device.State) error
 	ReserveExpertMemory(*device.State, uint64) error
+	LendExpertMemory(context.Context, *device.State, driver.DevicePtr, uint64) error
+	ReclaimExpertMemory(context.Context, *device.State, driver.DevicePtr, uint64) error
 	ExpertMemory(*device.State) (reclaimable uint64, err error)
 }
 
@@ -43,7 +47,16 @@ func (e *Executor) SetExpertBanks(source ExpertBanks) error {
 	if e.closed {
 		return errors.New("expert bank executor is closed")
 	}
-	if err := e.worker.Do(context.Background(), func(state *device.State) error { return e.resources.graphExecs.drop(state) }); err != nil {
+	// Memory lent to the previous owner comes back first.
+	if err := e.worker.Do(context.Background(), func(state *device.State) error {
+		var staging driver.DevicePtr
+		var stagingBytes uint64
+		if e.resources.blas != nil {
+			staging, stagingBytes = e.resources.blas.staging, e.resources.blas.stagingBytes
+		}
+		return errors.Join(e.resources.reclaim(state, e.resources.promptArena, e.resources.promptArenaSize, e.resources.promptArenaSize, &e.resources.promptArenaLent),
+			e.resources.reclaim(state, staging, stagingBytes, stagingBytes, &e.resources.stagingLent), e.resources.graphExecs.drop(state))
+	}); err != nil {
 		return err
 	}
 	e.resources.experts = source

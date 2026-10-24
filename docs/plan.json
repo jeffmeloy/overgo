@@ -212,17 +212,10 @@
       "title": "Port Strata's decode loop as one unit",
       "status": "open",
       "budget": {
-        "nodes": 294,
-        "reason": ""
+        "nodes": 137,
+        "reason": "The loan adds about 1,900 production syntax nodes, after removing the bulk refill and the selective graph drop it had used: the one-shot runs' own arena and its lending; the residency's loans, the spare slots carved from them or allocated beyond the headroom, a promotion's free slot before a victim's, one eviction (drop) shared by a release and a reclaim, and the partial reclaim a short read takes; and the interface the executor lends through. Measured over three alternating rounds it raised 4K decode 15%, agent turns' decode 8.5% and chat decode 8.2% with every cell level or better and no request failing."
       },
       "steps": [
-        {
-          "id": "loan",
-          "title": "Give a long read's card memory back to the experts",
-          "status": "open",
-          "verify": "go test ./internal/modeldevice -run '^(TestExpertResidencyFillsTheCardWhenItFrees|TestFlashNextExpertResidency)$' -count=1 \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestPromptMemoryGivesBackItsLoan$' -count=1",
-          "rationale": "A prompt's read borrows the card's memory for its activations and the matmul staging and keeps it through every decode after it: 5.6 GB of experts fewer after a 16K read, never refilled (the token-cost step's record of 2026-10-24). The loan was retired 2026-10-23 because each next long read took its memory back from the last card allocations, which held the experts the promotions had moved in last, so the decode after it started colder; its record named what it waited for, a release that keeps the hottest experts by copying them into the coldest slots of their stride elsewhere, which landed 2026-10-23 (TestReleaseKeepsTheHottestExperts). Ported from tmp/decode-loop/staging-loan.patch onto HEAD: a one-shot run's own arena, which no captured graph names, and the matmul staging, given back after a read of 1,024 tokens or more; between runs the residency refills down to Strata's free memory, its copies queued beside the run as a promotion's are, a bounded share an advance.\nServes: decode after a long read, and the agent's turns, at the experts' share of the card Strata keeps.\nDisappears: a long read's memory held idle through the decodes after it.\nEvidence: a GPU test giving a read's arena and staging back with the captured graphs that name neither kept; the residency's refill test; the card's experts after a 16K read (memprobe.sh); the bench over three alternating rounds; the long-context acceptance with an image."
-        },
         {
           "id": "follow-order",
           "title": "Write the follow's plan copies in order",

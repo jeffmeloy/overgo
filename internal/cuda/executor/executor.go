@@ -35,17 +35,24 @@ type Executor struct {
 }
 
 type executorResources struct {
-	experts    ExpertBanks
-	module     driver.Module
-	functions  functionSet
-	blas       *blasState
-	q8Input    q8InputState
-	arena      driver.DevicePtr
-	arenaSize  uint64
-	scratch    executionScratch
-	buffers    deviceBufferPool
-	graphExecs graphExecCache
-	arenaUse   arenaMetrics
+	experts   ExpertBanks
+	module    driver.Module
+	functions functionSet
+	blas      *blasState
+	q8Input   q8InputState
+	arena     driver.DevicePtr
+	arenaSize uint64
+	// promptArena is a one-shot run's arena, a prompt's read's, which no captured graph names and a long read gives
+	// back (ReleasePromptMemory).
+	promptArena     driver.DevicePtr
+	promptArenaSize uint64
+	// promptArenaLent and stagingLent: the prompt arena and the matmul staging are lent to the experts between reads
+	// (ReleasePromptMemory), and taken back before their next use (reclaim).
+	promptArenaLent, stagingLent bool
+	scratch                      executionScratch
+	buffers                      deviceBufferPool
+	graphExecs                   graphExecCache
+	arenaUse                     arenaMetrics
 	// promptRouted: the last run through the expert banks was a prompt.
 	promptRouted bool
 	// routesApplied: an advance has applied the last expert run's routes, while a later run that reads no routed expert
@@ -72,6 +79,8 @@ type ExecutionMetrics struct {
 	ArenaCommittedBytes    uint64 `json:"arenaCommittedBytes"`
 	ArenaUnusedBytes       uint64 `json:"arenaUnusedBytes"`
 	ArenaGrowths           uint64 `json:"arenaGrowths"`
+	// PromptArenaBytes is the one-shot runs' arena, a prompt's read's, which a long read gives back.
+	PromptArenaBytes uint64 `json:"promptArenaBytes"`
 	// Non-arena device-memory owners, so retained device bytes are fully
 	// attributed: cuBLAS matmul staging and attention-score staging, the
 	// Q8 activation staging, and the buffer pool's total driver residency
@@ -1570,6 +1579,9 @@ func (r *executorResources) releaseWeightStaging(state *device.State) error {
 	if r.blas == nil || r.blas.staging == 0 {
 		return nil
 	}
+	if err := r.reclaim(state, r.blas.staging, r.blas.stagingBytes, r.blas.stagingBytes, &r.stagingLent); err != nil {
+		return err
+	}
 	if err := state.Driver.MemFree(r.blas.staging); err != nil {
 		return err
 	}
@@ -1614,6 +1626,7 @@ func (e *Executor) Metrics(ctx context.Context) (ExecutionMetrics, error) {
 			ArenaPeakRequiredBytes: arena.peakRequiredBytes,
 			ArenaCommittedBytes:    e.resources.arenaSize,
 			ArenaGrowths:           arena.growths,
+			PromptArenaBytes:       e.resources.promptArenaSize,
 			Q8StagingBytes:         e.resources.q8Input.stagingBytes,
 			PoolTotalBytes:         poolTotal,
 			PoolRetainedBytes:      pool.freeBytes,
@@ -1836,7 +1849,12 @@ func (e *Executor) runCompiled(
 			return resourceErr
 		}
 		arenaSize := compiled.executionMemory(retain, targets).ArenaSize
-		arena, arenaErr := resources.ensureArena(state, arenaSize)
+		// A captured run's arena is the one its kept frames name; a one-shot run, a prompt's read, takes its own.
+		ensure := resources.ensureArena
+		if !cacheGraph {
+			ensure = resources.ensurePromptArena
+		}
+		arena, arenaErr := ensure(state, arenaSize)
 		if arenaErr != nil {
 			return arenaErr
 		}
@@ -2720,6 +2738,13 @@ func (e *Executor) ensureResources(
 		}
 		e.resources.blas = &blasState{library: library, handle: handle, lt: lt}
 	}
+	// A run takes back the whole staging: its launches size their rows to all of it and place their activations at its
+	// end, where the experts' slots are carved first (launch_linear_layout.go).
+	if matmulStagingBytes > 0 && e.resources.blas != nil {
+		if err := e.resources.reclaim(state, e.resources.blas.staging, e.resources.blas.stagingBytes, e.resources.blas.stagingBytes, &e.resources.stagingLent); err != nil {
+			return nil, err
+		}
+	}
 	if matmulStagingBytes > 0 && e.resources.blas != nil && e.resources.blas.stagingBytes < matmulStagingBytes {
 		staging, err := e.resources.allocate(state, matmulStagingBytes)
 		if err != nil {
@@ -2834,6 +2859,105 @@ func (r *executorResources) releaseArena(state *device.State) error {
 	return nil
 }
 
+// ensurePromptArena is ensureArena for a one-shot run: no captured graph names its arena, so it grows without dropping
+// a kept graph.
+func (r *executorResources) ensurePromptArena(state *device.State, size uint64) (driver.DevicePtr, error) {
+	r.arenaUse.requiredBytes = size
+	r.arenaUse.peakRequiredBytes = max(r.arenaUse.peakRequiredBytes, size)
+	if size == 0 {
+		return 0, nil
+	}
+	if err := r.reclaim(state, r.promptArena, size, r.promptArenaSize, &r.promptArenaLent); err != nil {
+		return 0, err
+	}
+	if r.promptArena != 0 && r.promptArenaSize >= size {
+		return r.promptArena, nil
+	}
+	if err := r.releasePromptArena(state); err != nil {
+		return 0, err
+	}
+	grown := arenaBytes(size)
+	next, err := r.allocate(state, grown)
+	if err != nil {
+		grown = size
+		if next, err = r.allocate(state, size); err != nil {
+			return 0, err
+		}
+	}
+	r.promptArena, r.promptArenaSize = next, grown
+	r.arenaUse.growths++
+	return next, nil
+}
+
+// releasePromptArena frees the one-shot runs' arena; each of those runs ended with its stream's wait.
+func (r *executorResources) releasePromptArena(state *device.State) error {
+	if r.promptArena == 0 {
+		return nil
+	}
+	if err := r.reclaim(state, r.promptArena, r.promptArenaSize, r.promptArenaSize, &r.promptArenaLent); err != nil {
+		return err
+	}
+	if err := state.Driver.MemFree(r.promptArena); err != nil {
+		return err
+	}
+	r.promptArena, r.promptArenaSize = 0, 0
+	return nil
+}
+
+// reclaim takes back the first need bytes of the size bytes at pointer from the experts where they are lent, before
+// the executor uses them, and all of them before it frees them.
+func (r *executorResources) reclaim(state *device.State, pointer driver.DevicePtr, need, size uint64, lent *bool) error {
+	if !*lent {
+		return nil
+	}
+	if r.experts != nil {
+		if err := r.experts.ReclaimExpertMemory(context.Background(), state, pointer, min(need, size)); err != nil {
+			return err
+		}
+	}
+	*lent = need < size
+	return nil
+}
+
+// ReleasePromptMemory lends the expert residency the card memory a prompt's read borrowed, its one-shot arena and the
+// matmul staging, which the decode's promotions fill while the request decodes and the next read takes back, as
+// Strata's prompt borrows its cache's slots and gives them back: a 16K-token read had left Flash-Next's card 5.6 GB of
+// experts short through every decode after it. Lent, not freed: freed, each next read cleared its arena again and
+// moved experts out of the card's allocations to allocate it (about 220 ms of a 16K read's first token). Without a
+// residency the memory stays the executor's.
+func (e *Executor) ReleasePromptMemory(ctx context.Context) error {
+	if e == nil {
+		return nil
+	}
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.closed || e.worker == nil || e.resources.experts == nil {
+		return nil
+	}
+	resources := &e.resources
+	return e.worker.Do(ctx, func(state *device.State) error {
+		// The read's runs end before the experts' copies, on a stream of their own, may write where they ran.
+		if err := state.Driver.StreamSynchronize(state.Stream); err != nil {
+			return err
+		}
+		// Memory already lent is lent again whole, the read done with the part it took back.
+		lend := func(pointer driver.DevicePtr, bytes uint64, lent *bool) error {
+			if pointer == 0 {
+				return nil
+			}
+			if err := resources.experts.LendExpertMemory(ctx, state, pointer, bytes); err != nil {
+				return err
+			}
+			*lent = true
+			return nil
+		}
+		if err := lend(resources.promptArena, resources.promptArenaSize, &resources.promptArenaLent); err != nil || resources.blas == nil {
+			return err
+		}
+		return lend(resources.blas.staging, resources.blas.stagingBytes, &resources.stagingLent)
+	})
+}
+
 func (e *Executor) closeResources(state *device.State) error {
 	var errs []error
 	if err := e.resources.buffers.close(state); err != nil {
@@ -2845,6 +2969,9 @@ func (e *Executor) closeResources(state *device.State) error {
 		}
 		e.resources.arena = 0
 		e.resources.arenaSize = 0
+	}
+	if err := e.resources.releasePromptArena(state); err != nil {
+		errs = append(errs, err)
 	}
 	if len(e.resources.scratch.readBack) > 0 {
 		errs = append(errs, state.Driver.MemFreeHost(e.resources.scratch.readBack))
@@ -2872,6 +2999,7 @@ func (e *Executor) closeResources(state *device.State) error {
 		}
 		errs = append(errs, e.resources.blas.doorbell.close(state))
 		if e.resources.blas.staging != 0 {
+			errs = append(errs, e.resources.reclaim(state, e.resources.blas.staging, e.resources.blas.stagingBytes, e.resources.blas.stagingBytes, &e.resources.stagingLent))
 			errs = append(errs, state.Driver.MemFree(e.resources.blas.staging))
 			e.resources.blas.staging = 0
 			e.resources.blas.stagingBytes = 0

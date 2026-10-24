@@ -90,6 +90,7 @@ func (r *Runner) DeviceMemory(ctx context.Context) (DeviceMemory, error) {
 	owners := []DeviceMemoryOwner{
 		{"KV cache and buffers", metrics.PoolTotalBytes},
 		{"activations", metrics.ArenaCommittedBytes},
+		{"prompt activations", metrics.PromptArenaBytes},
 		{"matmul staging", metrics.BLASStagingBytes},
 		{"attention scores", metrics.BLASScoreBytes},
 		{"quantized input staging", metrics.Q8StagingBytes},

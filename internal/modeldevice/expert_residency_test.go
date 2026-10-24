@@ -622,14 +622,14 @@ func TestExpertAdmissionTakesTheMostUsed(t *testing.T) {
 	}
 }
 
-// TestExpertResidencyFillsTheCardWhenItFrees loads two banks of three experts
-// while the card is held, so the load's limit, free memory less the
-// headroom, holds one expert of each bank, then frees the card between runs.
+// TestExpertResidencyFillsTheCardWhenItFrees loads two banks of three experts while the card is held, so the load's
+// limit, free memory less the headroom, holds one expert of each bank, then routes the other two as a decode does once
+// the card frees.
 //   - the placement reports the experts the load placed on the card
-//   - memory freed by less than the refill margin moves no expert
-//   - once the card frees, the next advance moves every expert in host memory to the card,
-//     in one allocation a bank, and every table entry still reads its expert's bytes
-//   - a load's explicit limit bounds the refill, and memory another process takes first fails no run
+//   - an admitted miss moves into a free slot of memory freed beyond the headroom, one allocation a stride class, and
+//     evicts no card expert: once its copies land every expert is on the card and every table entry reads its bytes
+//   - with no memory free beyond the headroom, past the load's limit, or where the allocation fails, a miss takes a
+//     card expert's slot as before, the card holding as many experts
 func TestExpertResidencyFillsTheCardWhenItFrees(t *testing.T) {
 	f := writeFixture(t, rand.New(rand.NewPCG(19, 31)), []fixtureTensor{
 		{name: "gate", shape: []uint64{2, 2, 3}, kind: dtype.BF16},
@@ -642,10 +642,15 @@ func TestExpertResidencyFillsTheCardWhenItFrees(t *testing.T) {
 		tableBytes             = 2 * experts * 8
 		gateStride, downStride = 256, 1024
 		oneEach                = tableBytes + gateStride + downStride
-		// held is the card a load finds held, freed the card once the holder exits.
+		// held is the card a load finds held, freed the card once the holder exits: a class's spare slots each.
 		held  = expertFillHeadroomBytes + oneEach
-		freed = expertFillHeadroomBytes + expertRefillBytes + experts*(gateStride+downStride)
+		freed = expertSpareHeadroomBytes + expertSpareSlots*(gateStride+downStride)
 	)
+	builder := tensor.NewBuilder()
+	var nodes []*tensor.Tensor
+	for _, bank := range file.Tensors {
+		nodes = append(nodes, builder.Input(bank.Name, bank.Type, tensor.MustShape(bank.Shape[:bank.Dimensions]...)))
+	}
 	open := func(t *testing.T, limit uint64) (*expertResidency, *fakeExpertDevice) {
 		t.Helper()
 		mem := newFakeExpertDevice()
@@ -662,12 +667,21 @@ func TestExpertResidencyFillsTheCardWhenItFrees(t *testing.T) {
 		})
 		return cache, mem
 	}
-	// advance runs the residency's work between runs and returns the experts
-	// on the card, holding every table entry to its expert's bytes.
-	advance := func(t *testing.T, cache *expertResidency, mem *fakeExpertDevice) uint64 {
+	// admit runs three advances after decode runs that routed experts 1 and 2, the first two admitting them and the
+	// third landing their copies, and returns the experts on the card, holding every table entry to its expert's bytes.
+	admit := func(t *testing.T, cache *expertResidency, mem *fakeExpertDevice) uint64 {
 		t.Helper()
-		if err := cache.advance(t.Context(), false); err != nil {
+		flags, _, err := (&DeviceWeights{experts: cache}).ExpertRoutes(nil, nodes)
+		if err != nil {
 			t.Fatal(err)
+		}
+		for range 3 {
+			for _, index := range []uint64{1, 2} {
+				cache.routed[uint64(flags-cache.routedMap)+index] = 1
+			}
+			if err := cache.advance(t.Context(), false); err != nil {
+				t.Fatal(err)
+			}
 		}
 		for _, name := range []string{"gate", "down"} {
 			bank := cache.banks[name]
@@ -689,27 +703,85 @@ func TestExpertResidencyFillsTheCardWhenItFrees(t *testing.T) {
 		return placement.CardExperts
 	}
 	cache, mem := open(t, 0)
-	mem.freeBytes = expertFillHeadroomBytes + expertRefillBytes - 1
-	allocs := mem.allocs
-	if card := advance(t, cache, mem); card != 2 || mem.allocs != allocs {
-		t.Fatalf("memory freed below the refill margin left %d experts on the card in %d allocations", card, mem.allocs-allocs)
-	}
 	mem.freeBytes = freed
-	if card := advance(t, cache, mem); card != 2*experts || mem.allocs != allocs+2 {
-		t.Fatalf("the freed card holds %d experts after %d allocations, want every expert in one a bank", card, mem.allocs-allocs)
+	allocs := mem.allocs
+	if card := admit(t, cache, mem); card != 2*experts || mem.allocs != allocs+2 {
+		t.Fatalf("the freed card holds %d experts after %d allocations, want every expert in one allocation a class", card, mem.allocs-allocs)
 	}
-	if card := advance(t, cache, mem); card != 2*experts || mem.allocs != allocs+2 {
-		t.Fatal("a refill with every expert on the card allocated")
+	if got := onCard(cache, "gate"); !slices.Contains(got, 0) {
+		t.Fatalf("a promotion into freed memory evicted the load's expert: the card holds %v", got)
+	}
+	full, mem := open(t, 0)
+	mem.freeBytes = expertSpareHeadroomBytes
+	if card := admit(t, full, mem); card != 2 {
+		t.Fatalf("with no memory free beyond the headroom the card holds %d experts", card)
 	}
 	limited, mem := open(t, oneEach)
 	mem.freeBytes = freed
-	if card := advance(t, limited, mem); card != 2 {
-		t.Fatalf("a refill took %d experts past the load's limit", card)
+	if card := admit(t, limited, mem); card != 2 {
+		t.Fatalf("promotions took %d experts past the load's limit", card)
 	}
 	taken, mem := open(t, 0)
 	mem.freeBytes, mem.failAlloc = freed, mem.allocs+1
-	if card := advance(t, taken, mem); card != 2 {
-		t.Fatalf("a refill whose allocation failed left %d experts on the card", card)
+	if card := admit(t, taken, mem); card != 2 {
+		t.Fatalf("promotions whose allocation failed left %d experts on the card", card)
+	}
+	// Memory another owner lends takes the misses without an allocation or a victim, carved from its end down; its owner
+	// takes back the part it uses next, the experts there moved out, the most used into the card slots of colder ones,
+	// and then all of it, none of it freed.
+	lending, mem := open(t, 0)
+	mem.freeBytes = expertSpareHeadroomBytes
+	const lentBytes = expertSpareSlots * (gateStride + downStride)
+	loan, err := mem.alloc(t.Context(), lentBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := mem.free(context.Background(), []driver.DevicePtr{loan}); err != nil {
+			t.Error(err)
+		}
+	})
+	lender := &DeviceWeights{experts: lending}
+	if err := lender.LendExpertMemory(t.Context(), nil, loan, lentBytes); err != nil {
+		t.Fatal(err)
+	}
+	allocs, live := mem.allocs, mem.liveCount()
+	if card := admit(t, lending, mem); card != 2*experts || mem.allocs != allocs {
+		t.Fatalf("lent memory holds %d experts after %d allocations, want every expert in it and none", card, mem.allocs-allocs)
+	}
+	// The down experts' slots, carved last, lie at the loan's start.
+	for _, taken := range []struct {
+		bytes uint64
+		card  int
+	}{{1, 2*experts - 2}, {lentBytes, 2}} {
+		if err := lender.ReclaimExpertMemory(t.Context(), nil, loan, taken.bytes); err != nil {
+			t.Fatal(err)
+		}
+		readsItsBytes(t, lending, mem, f.payloads)
+		if card := len(onCard(lending, "gate")) + len(onCard(lending, "down")); card != taken.card || mem.liveCount() != live {
+			t.Fatalf("taking back %d bytes left %d experts on the card and %d allocations of %d, want %d and none freed", taken.bytes, card, mem.liveCount(), live, taken.card)
+		}
+	}
+	if len(lending.loans) != 0 || lending.lentBytes != 0 {
+		t.Fatalf("taking back the whole loan left %d loans and %d lent bytes", len(lending.loans), lending.lentBytes)
+	}
+}
+
+// readsItsBytes holds every expert table entry of the residency to its expert's own bytes in payloads.
+func readsItsBytes(t *testing.T, cache *expertResidency, mem *fakeExpertDevice, payloads map[string][]byte) {
+	t.Helper()
+	for name, bank := range cache.banks {
+		experts := uint64(len(bank.pointers))
+		table, err := mem.at(bank.table, experts*8)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for index := range experts {
+			actual, err := mem.at(driver.DevicePtr(binary.LittleEndian.Uint64(table[index*8:])), bank.bytes)
+			if err != nil || !bytes.Equal(actual, payloads[name][index*bank.bytes:(index+1)*bank.bytes]) {
+				t.Fatalf("%s expert %d does not read its bytes: %v", name, index, err)
+			}
+		}
 	}
 }
 

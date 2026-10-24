@@ -79,8 +79,9 @@ func (e *Executor) CheckRetainedMemory(ctx context.Context, compiled *CompiledGr
 				return err
 			}
 		}
-		if arena > resources.arenaSize {
-			if growth, err = addMemoryBytes(growth, arena-resources.arenaSize); err != nil {
+		// A prompt's read, the graph admitted here, runs one-shot in its own arena.
+		if arena > resources.promptArenaSize {
+			if growth, err = addMemoryBytes(growth, arena-resources.promptArenaSize); err != nil {
 				return err
 			}
 		}

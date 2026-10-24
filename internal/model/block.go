@@ -951,6 +951,11 @@ func buildGatedDeltaMixCached(
 	// composed preparation as 17 kernels a layer.
 	fused := deltaPolicy != gatedDeltaInterleavedProjections && sequences == tensor.SingletonExtent &&
 		tensor.GatedDeltaFused(stateWidth, uint64(spec.SSMConvKernel), tokens, weights.SSMConv1D.Type, weights.SSMAlpha.Type, weights.SSMBeta.Type)
+	// Tokens no checkpoint divides (a prompt's) prepare their query, key and value in one operation too
+	// (GatedDeltaPromptConv), with the composed operations' bits: a Flash-Next 16K read ran the composed preparation's
+	// six kernels for about 450 ms.
+	promptConv := !fused && sequences == tensor.SingletonExtent && !spanCheckpoints(checkpointTokens, tokens) &&
+		tensor.GatedDeltaConvFits(stateWidth, uint64(spec.SSMConvKernel), weights.SSMConv1D.Type)
 	var beta, alpha, gate *tensor.Tensor
 	switch {
 	case fused:
@@ -990,12 +995,17 @@ func buildGatedDeltaMixCached(
 	var query, key, value, nextConvState *tensor.Tensor
 	// window is the convolution's window after the first at tokens, the state a checkpoint keeps.
 	var window func(at uint64) *tensor.Tensor
-	if fused {
+	if fused || promptConv {
 		layout := tensor.GatedDeltaConvLayout{
 			StateWidth: stateWidth, KeyHeads: keyHeads, ValueHeads: valueHeads, Kernel: uint64(spec.SSMConvKernel), Tokens: tokens,
+			LastWindow: promptConv,
 		}
-		prepared := builder.GatedDeltaConv(
-			convState, qkvProjection, weights.SSMConv1D, uint32(stateWidth), uint32(keyHeads), uint32(valueHeads), spec.RMSNormEpsilon,
+		conv := builder.GatedDeltaConv
+		if promptConv {
+			conv = builder.GatedDeltaPromptConv
+		}
+		prepared := conv(
+			convState, qkvMixed, weights.SSMConv1D, uint32(stateWidth), uint32(keyHeads), uint32(valueHeads), spec.RMSNormEpsilon,
 		)
 		query = builder.FlatSlice(prepared, tensor.FirstOffset, stateWidth, keyHeads, tokens, sequences)
 		key = builder.FlatSlice(prepared, layout.Key(), stateWidth, keyHeads, tokens, sequences)

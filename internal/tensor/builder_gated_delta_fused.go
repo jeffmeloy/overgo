@@ -50,16 +50,25 @@ const (
 // GatedDeltaGates: F32 weights, a kernel of 2 to gatedDeltaFusedKernel taps, a power-of-two state width up to
 // gatedDeltaFusedStateWidth and at most GatedDeltaFusedTokens tokens. The CUDA kernels take exactly these.
 func GatedDeltaFused(stateWidth, kernel, tokens uint64, conv, alpha, beta dtype.Type) bool {
-	return conv == dtype.F32 && alpha == dtype.F32 && beta == dtype.F32 && kernel >= PairedExtent && kernel <= gatedDeltaFusedKernel &&
-		stateWidth > 0 && stateWidth&(stateWidth-1) == 0 && stateWidth <= gatedDeltaFusedStateWidth &&
+	return alpha == dtype.F32 && beta == dtype.F32 && GatedDeltaConvFits(stateWidth, kernel, conv) &&
 		tokens > 0 && tokens <= GatedDeltaFusedTokens
+}
+
+// GatedDeltaConvFits reports whether a gated-delta layer of this state width and convolution kernel, with its
+// convolution's weights stored as conv, prepares its query, key and value with GatedDeltaPromptConv over any tokens: F32
+// weights, a kernel of 2 to gatedDeltaFusedKernel taps and a power-of-two state width up to gatedDeltaFusedStateWidth.
+func GatedDeltaConvFits(stateWidth, kernel uint64, conv dtype.Type) bool {
+	return conv == dtype.F32 && kernel >= PairedExtent && kernel <= gatedDeltaFusedKernel &&
+		stateWidth > 0 && stateWidth&(stateWidth-1) == 0 && stateWidth <= gatedDeltaFusedStateWidth
 }
 
 // GatedDeltaConvLayout is where a GatedDeltaConv output holds each part, in elements: the query [width, key heads,
 // tokens], the key [width, key heads, tokens], the value [width, value heads, tokens], then the convolution window after
-// each token [kernel - 1, channels] in token order.
+// each token [kernel - 1, channels] in token order, or after the last alone where LastWindow is set (a
+// GatedDeltaPromptConv output's).
 type GatedDeltaConvLayout struct {
 	StateWidth, KeyHeads, ValueHeads, Kernel, Tokens uint64
+	LastWindow                                       bool
 }
 
 // Channels is the layer's convolved channels: the query's and the key's heads and the value's.
@@ -73,13 +82,22 @@ func (l GatedDeltaConvLayout) Key() uint64 { return l.KeyHeads * l.StateWidth * 
 // Value is the value's first element.
 func (l GatedDeltaConvLayout) Value() uint64 { return PairedExtent * l.Key() }
 
-// Window is the first element of the convolution window after the token-th token (from zero).
+// Window is the first element of the convolution window after the token-th token (from zero); a LastWindow layout holds
+// the last token's alone.
 func (l GatedDeltaConvLayout) Window(token uint64) uint64 {
+	if l.LastWindow {
+		return l.Channels() * l.Tokens
+	}
 	return l.Channels() * (l.Tokens + token*(l.Kernel-1))
 }
 
 // Elements is the output's element count.
-func (l GatedDeltaConvLayout) Elements() uint64 { return l.Channels() * l.Tokens * l.Kernel }
+func (l GatedDeltaConvLayout) Elements() uint64 {
+	if l.LastWindow {
+		return l.Channels() * (l.Tokens + l.Kernel - 1)
+	}
+	return l.Channels() * l.Tokens * l.Kernel
+}
 
 // GatedDeltaConv prepares a gated-delta layer's query, key and value, the reads buildGatedDeltaMixCached composes from
 // a transpose, a concatenation, slices, SSMConv, SiLU and L2Norm, in one operation. For state [kernel - 1, channels]
@@ -88,6 +106,21 @@ func (l GatedDeltaConvLayout) Elements() uint64 { return l.Channels() * l.Tokens
 // each divided by max(their L2 norm, epsilon), and the output holds them in GatedDeltaConvLayout's order with the
 // window of the last kernel - 1 rows after each token.
 func (b *Builder) GatedDeltaConv(state, qkv, weights *Tensor, stateWidth, keyHeads, valueHeads uint32, epsilon float32) *Tensor {
+	return b.gatedDeltaConv(state, qkv, weights, GatedDeltaConvAttributes{
+		StateWidth: stateWidth, KeyHeads: keyHeads, ValueHeads: valueHeads, Epsilon: epsilon,
+	})
+}
+
+// GatedDeltaPromptConv is GatedDeltaConv for a prompt's tokens, which no checkpoint divides: the output keeps the window
+// after the last token alone (GatedDeltaConvLayout.LastWindow), where every token's would take kernel - 1 rows of the
+// channels a token (1.3 GB for a Flash-Next chunk of 8,192).
+func (b *Builder) GatedDeltaPromptConv(state, qkv, weights *Tensor, stateWidth, keyHeads, valueHeads uint32, epsilon float32) *Tensor {
+	return b.gatedDeltaConv(state, qkv, weights, GatedDeltaConvAttributes{
+		StateWidth: stateWidth, KeyHeads: keyHeads, ValueHeads: valueHeads, Epsilon: epsilon, LastWindow: true,
+	})
+}
+
+func (b *Builder) gatedDeltaConv(state, qkv, weights *Tensor, attributes GatedDeltaConvAttributes) *Tensor {
 	if b.err != nil {
 		return nil
 	}
@@ -96,10 +129,8 @@ func (b *Builder) GatedDeltaConv(state, qkv, weights *Tensor, stateWidth, keyHea
 		b.setError(errors.New("gated-delta convolution operands are invalid"))
 		return nil
 	}
-	layout := GatedDeltaConvLayout{
-		StateWidth: uint64(stateWidth), KeyHeads: uint64(keyHeads), ValueHeads: uint64(valueHeads),
-		Kernel: weights.Shape.Dims[0], Tokens: qkv.Shape.Dims[1],
-	}
+	keyHeads, valueHeads := attributes.KeyHeads, attributes.ValueHeads
+	layout := attributes.Layout(weights.Shape.Dims[0], qkv.Shape.Dims[1])
 	channels := layout.Channels()
 	if layout.Kernel < PairedExtent || keyHeads == 0 || valueHeads == 0 || weights.Shape.Dims[1] != channels ||
 		qkv.Shape.Dims[0] != channels || layout.Tokens == 0 || state.Shape != MustShape(layout.Kernel-1, channels) {
@@ -111,9 +142,7 @@ func (b *Builder) GatedDeltaConv(state, qkv, weights *Tensor, stateWidth, keyHea
 		b.setError(err)
 		return nil
 	}
-	return b.add("", dtype.F32, shape, OpGatedDeltaConv, []*Tensor{state, qkv, weights}, GatedDeltaConvAttributes{
-		StateWidth: stateWidth, KeyHeads: keyHeads, ValueHeads: valueHeads, Epsilon: epsilon,
-	})
+	return b.add("", dtype.F32, shape, OpGatedDeltaConv, []*Tensor{state, qkv, weights}, attributes)
 }
 
 // GatedDeltaGates projects a gated-delta layer's decay gate and beta from input [embedding, tokens], the reads

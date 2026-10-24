@@ -213,16 +213,9 @@
       "status": "open",
       "budget": {
         "nodes": 0,
-        "reason": "The route-flags step adds about 113 production syntax nodes: the residency's host view of a routed node's flags beside their card address, the group's choice of which writes them (the route kernel for a group under a tile, the host for one taking the grouped products), and the grouped products' marking of each routed expert with its check that the flags fit the bank. Nothing smaller keeps a prompt group's flags off the link while the residency reads the same flags."
+        "reason": "The prompt-conv step adds about 294 production syntax nodes: the convolution's LastWindow attribute and layout with the attributes' own layout, the prompt builder beside the decode's over one shared body, the fit predicate the decode's predicate now uses, the reference's last-window write, the launch's choice of the prompt kernel with its grid of a head at a token, and the block's choice of the prompt convolution for tokens no checkpoint divides. Nothing smaller replaces the six composed kernels a prompt layer ran."
       },
       "steps": [
-        {
-          "id": "prompt-conv",
-          "title": "Prepare a prompt chunk's gated-delta convolution in one kernel",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor ./internal/tensor/reference -run '^(TestGatedDeltaPromptConvMatchesTheComposedKernels|TestGatedDeltaKernelsMatchTheComposedKernels|TestGatedDeltaOperationsMatchTheComposedPreparation)$' -count=1",
-          "rationale": "Traced 2026-10-23 (a 16K read, tmp/flashnext-efficiency/readtrace): a prompt chunk's gated-delta layer prepares its convolution in composed operations (block.go: Transpose2D, Concat with the state, SSMConv, SiLU, three GroupSlices, two L2Norms), about 450 ms of a 16K read's 36 layers by two chunks: transpose_2d_f32 2 ms a layer (its reads strided by the 10,240 channels), ssm_conv_f32 2.1 ms, concat_f32, silu_f32, group_slice_f32 and l2_norm_f32 about 0.7 ms more, each reading and writing the chunk's 335 MB of qkv rows. A decode step's or a span's tokens (at most 8) take one kernel, gated_delta_conv_f32, whose block walks its tokens in turn. A prompt chunk's preparation is one kernel too, each token's channels a block's threads: the window read from the qkv rows where they lie (the state's rows before the first), the taps added in ssm_conv_f32's order, the SiLU, and a query or key head's L2 norm summed by l2_norm_f32's tree, so the outputs keep the composed operations' bits; the convolution's state after the chunk is its last rows.\nServes: the prompt reads' kernel time, prompt-read's gap.\nDisappears: the transpose, concatenation, slices and their intermediate tensors a prompt's gated-delta layer reads and writes.\nEvidence: a test holding the kernel's outputs and next state to the composed operations' bit for bit over a prompt chunk; the 16K read's kernel time; the bench's prompt cells over three alternating rounds.\nVerify: set with -setverify once the kernel's test exists; false until then."
-        },
         {
           "id": "prompt-tail",
           "title": "Read a prompt's last-turn header with the CPU taking its host experts",

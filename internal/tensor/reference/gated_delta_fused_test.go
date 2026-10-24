@@ -85,4 +85,55 @@ func TestGatedDeltaOperationsMatchTheComposedPreparation(t *testing.T) {
 			same("beta", gated[valueHeads*tokens:], got[beta].Data)
 		})
 	}
+	// GatedDeltaPromptConv: a prompt's tokens, past the decode's and a span's, with the window after the last alone.
+	t.Run("prompt", func(t *testing.T) {
+		const tokens = tensor.GatedDeltaFusedTokens + 4
+		random := rand.New(rand.NewPCG(tokens, 13))
+		b := tensor.NewBuilder()
+		feeds := map[*tensor.Tensor]Value{}
+		input := func(name string, dims ...uint64) *tensor.Tensor {
+			node := b.Input(name, dtype.F32, tensor.MustShape(dims...))
+			elements, _ := node.Shape.Elements()
+			data := make([]float32, elements)
+			for index := range data {
+				data[index] = 2*random.Float32() - 1
+			}
+			feeds[node] = Value{Shape: node.Shape, Data: data}
+			return node
+		}
+		state, qkv, weights := input("state", kernel-1, channels), input("qkv", channels, tokens), input("conv", kernel, channels)
+		convInput := b.Concat(state, b.Transpose2D(qkv), tensor.FirstOffset)
+		convolved := b.SiLU(b.SSMConv(convInput, weights))
+		keyDimension := uint64(width * keyHeads)
+		query := b.L2Norm(b.GroupSlice(convolved, tensor.FirstOffset, width, keyHeads, width), epsilon)
+		key := b.L2Norm(b.GroupSlice(convolved, keyDimension, width, keyHeads, width), epsilon)
+		value := b.GroupSlice(convolved, 2*keyDimension, width, valueHeads, width)
+		last := b.Reshape(b.GroupSlice(convInput, tokens, kernel-1, tensor.SingletonExtent, kernel-1), kernel-1, channels)
+		conv := b.GatedDeltaPromptConv(state, qkv, weights, width, keyHeads, valueHeads, epsilon)
+		if err := b.Err(); err != nil {
+			t.Fatal(err)
+		}
+		got, err := Execute([]*tensor.Tensor{query, key, value, last, conv}, feeds)
+		if err != nil {
+			t.Fatal(err)
+		}
+		layout := tensor.GatedDeltaConvLayout{StateWidth: width, KeyHeads: keyHeads, ValueHeads: valueHeads, Kernel: kernel, Tokens: tokens, LastWindow: true}
+		packed := got[conv].Data
+		if uint64(len(packed)) != layout.Elements() {
+			t.Fatalf("the prompt convolution holds %d values, want %d", len(packed), layout.Elements())
+		}
+		for _, part := range []struct {
+			name     string
+			fused    []float32
+			composed []float32
+		}{
+			{"query", packed[:layout.Key()], got[query].Data}, {"key", packed[layout.Key():layout.Value()], got[key].Data},
+			{"value", packed[layout.Value():layout.Window(tokens-1)], got[value].Data},
+			{"window after the last token", packed[layout.Window(tokens-1):], got[last].Data},
+		} {
+			if !slices.EqualFunc(part.fused, part.composed, func(x, y float32) bool { return math.Float32bits(x) == math.Float32bits(y) }) {
+				t.Fatalf("%s differs from the composed preparation", part.name)
+			}
+		}
+	})
 }

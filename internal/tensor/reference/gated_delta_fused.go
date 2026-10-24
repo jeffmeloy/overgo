@@ -15,10 +15,7 @@ func gatedDeltaConv(node *tensor.Tensor, inputs []Value) (Value, error) {
 		return Value{}, errors.New("gated-delta convolution operands are invalid")
 	}
 	state, qkv, weights := inputs[tensor.GatedDeltaConvState], inputs[tensor.GatedDeltaConvQKV], inputs[tensor.GatedDeltaConvTaps]
-	layout := tensor.GatedDeltaConvLayout{
-		StateWidth: uint64(attributes.StateWidth), KeyHeads: uint64(attributes.KeyHeads), ValueHeads: uint64(attributes.ValueHeads),
-		Kernel: weights.Shape.Dims[0], Tokens: qkv.Shape.Dims[1],
-	}
+	layout := attributes.Layout(weights.Shape.Dims[0], qkv.Shape.Dims[1])
 	channels, kernel, tokens, width := int(layout.Channels()), int(layout.Kernel), int(layout.Tokens), int(layout.StateWidth)
 	history := kernel - 1
 	if len(state.Data) != history*channels || len(qkv.Data) != channels*tokens || len(weights.Data) != kernel*channels {
@@ -41,6 +38,9 @@ func gatedDeltaConv(node *tensor.Tensor, inputs []Value) (Value, error) {
 				sum += row(token+tap, channel) * weights.Data[channel*kernel+tap]
 			}
 			convolved[channel] = sum / (1 + float32(math.Exp(float64(-sum))))
+			if layout.LastWindow && token+1 < tokens {
+				continue
+			}
 			for index := range history {
 				output[int(layout.Window(uint64(token)))+channel*history+index] = row(token+1+index, channel)
 			}

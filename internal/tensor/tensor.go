@@ -85,17 +85,27 @@ const (
 	// OpSignedSqrt preserves sign while taking the square root of a floored magnitude.
 	OpSignedSqrt
 	// OpGatedDeltaConv convolves a gated-delta layer's qkv rows over its history, with the SiLU and the query and key
-	// heads' L2 norms, and keeps the window after each token (Builder.GatedDeltaConv).
+	// heads' L2 norms, and keeps the window after each token (Builder.GatedDeltaConv) or after the last
+	// (Builder.GatedDeltaPromptConv).
 	OpGatedDeltaConv
 	// OpGatedDeltaGates projects a gated-delta layer's decay gate and beta from its input (Builder.GatedDeltaGates).
 	OpGatedDeltaGates
 )
 
-// GatedDeltaConvAttributes declares a gated-delta layer's state width, its key and value heads, and the epsilon of its
-// query and key heads' L2 norms.
+// GatedDeltaConvAttributes declares a gated-delta layer's state width, its key and value heads, the epsilon of its
+// query and key heads' L2 norms, and whether it keeps only the window after its last token (a prompt's).
 type GatedDeltaConvAttributes struct {
 	StateWidth, KeyHeads, ValueHeads uint32
 	Epsilon                          float32
+	LastWindow                       bool
+}
+
+// Layout is the output's layout for qkv's tokens and weights' kernel.
+func (a GatedDeltaConvAttributes) Layout(kernel, tokens uint64) GatedDeltaConvLayout {
+	return GatedDeltaConvLayout{
+		StateWidth: uint64(a.StateWidth), KeyHeads: uint64(a.KeyHeads), ValueHeads: uint64(a.ValueHeads),
+		Kernel: kernel, Tokens: tokens, LastWindow: a.LastWindow,
+	}
 }
 
 // SignedSqrtAttributes declares the positive magnitude floor and preserves exact zero.

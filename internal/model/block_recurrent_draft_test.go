@@ -725,14 +725,21 @@ func TestBuildQwen3NextLegacyQKVZBlock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var groupSlices int
+	// The legacy layout slices its query, key, value and z and its beta and alpha out of the interleaved projections;
+	// the prompt's convolution of them is one operation keeping the window after its last token.
+	var groupSlices, promptConvs int
 	for _, node := range nodes {
-		if node.Op == tensor.OpGroupSlice {
+		switch node.Op {
+		case tensor.OpGroupSlice:
 			groupSlices++
+		case tensor.OpGatedDeltaConv:
+			if node.Attrs.(tensor.GatedDeltaConvAttributes).LastWindow {
+				promptConvs++
+			}
 		}
 	}
-	if groupSlices < 9 {
-		t.Fatalf("Qwen3-Next legacy QKVZ group slices = %d, want at least 9", groupSlices)
+	if groupSlices < 6 || promptConvs != 1 {
+		t.Fatalf("Qwen3-Next legacy QKVZ group slices = %d and prompt convolutions = %d, want at least 6 and one", groupSlices, promptConvs)
 	}
 }
 

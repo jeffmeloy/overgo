@@ -4657,6 +4657,63 @@ extern "C" __global__ void gated_delta_conv_f32(
     }
 }
 
+// gated_delta_conv_row is the convolution input's row at time index of channel: the state's history rows, then the
+// tokens' qkv rows.
+__device__ __forceinline__ float gated_delta_conv_row(
+        const float * state, const float * qkv, unsigned int channel, unsigned int channels, unsigned int history,
+        unsigned int index) {
+    return index < history ? state[channel * history + index] : qkv[(size_t) (index - history) * channels + channel];
+}
+
+// gated_delta_conv_prompt_f32 is tensor.Builder.GatedDeltaPromptConv, gated_delta_conv_f32 for a prompt's tokens: a block
+// takes one head's state_width channels at one token (blockIdx.x the token, blockIdx.y the head), a thread one channel,
+// reading the rows that end at its token where they lie, so the tokens run side by side. A value adds its taps in
+// gated_delta_conv_f32's order, takes the same SiLU and the same norm, and only the window after the last token is
+// written.
+extern "C" __global__ void gated_delta_conv_prompt_f32(
+        const float * state,
+        const float * qkv,
+        const float * weights,
+        float * output,
+        unsigned int channels,
+        unsigned int state_width,
+        unsigned int key_heads,
+        unsigned int value_heads,
+        unsigned int kernel,
+        unsigned int tokens,
+        float epsilon) {
+    __shared__ float sums[GATED_DELTA_FUSED_STATE_WIDTH];
+    const unsigned int token = blockIdx.x;
+    const unsigned int head = blockIdx.y;
+    const unsigned int channel = head * state_width + threadIdx.x;
+    const unsigned int history = kernel - 1;
+    const unsigned int key_channels = key_heads * state_width;
+    const unsigned int value_channels = value_heads * state_width;
+    float sum = 0.0f;
+    for (unsigned int index = 0; index < kernel; ++index) {
+        sum += gated_delta_conv_row(state, qkv, channel, channels, history, token + index) * weights[channel * kernel + index];
+    }
+    float value = sum / (1.0f + expf(-sum));
+    if (head < 2 * key_heads) {
+        // l2_norm_f32's reduction tree, so the norm's bits are its.
+        const float total = block_sum_f32(value * value, sums);
+        value *= 1.0f / fmaxf(sqrtf(total), epsilon);
+    }
+    if (channel < key_channels) {
+        output[(size_t) token * key_channels + channel] = value;
+    } else if (channel < 2 * key_channels) {
+        output[(size_t) key_channels * tokens + (size_t) token * key_channels + channel - key_channels] = value;
+    } else {
+        output[(size_t) 2 * key_channels * tokens + (size_t) token * value_channels + channel - 2 * key_channels] = value;
+    }
+    if (token + 1 == tokens) {
+        float * after = output + (size_t) channels * tokens + (size_t) channel * history;
+        for (unsigned int index = 0; index < history; ++index) {
+            after[index] = gated_delta_conv_row(state, qkv, channel, channels, history, tokens + index);
+        }
+    }
+}
+
 // gated_delta_gates_f32 is tensor.Builder.GatedDeltaGates: a block an alpha row, then a beta row, each product summed
 // as mul_mat_f32 sums it (f32_row_dots, then the warps' sums in warp order), so its bits are the composed product's; the
 // alpha rows' gate is then softplus(product + time step) * decay and the beta rows' the sigmoid of the product, as

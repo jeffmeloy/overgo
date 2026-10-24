@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -49,7 +50,7 @@ const (
 	strataAgentWords    = 1500
 	strataHalfTurn      = strataAgentWords / 2
 	strataPercent       = 100
-	strataArguments     = 2
+	strataArguments     = 3
 )
 
 // The reference's three short questions (ab_engine.PROMPTS), and its agent
@@ -63,6 +64,20 @@ var (
 	}
 	strataDocs = []string{"README.md", "docs/HOW_IT_WORKS.md", "docs/DETAILS.md", "docs/INSTALL.md", "docs/MODELS.md", "docs/COMMUNITY_BENCHMARKS.md"}
 )
+
+// The sampling the model file recommends (general.sampling.temp, top_p and top_k of the Flash-Next GGUF) and the
+// seed that makes a sampled run repeat, which the third argument "sampled" sends in place of greedy decoding.
+const (
+	strataSampledWord        = "sampled"
+	strataSampledTemperature = 1.0
+	strataSampledTopP        = 0.95
+	strataSampledTopK        = 20
+	strataSampledSeed        = 7
+)
+
+var strataSampling = map[string]any{
+	"temperature": strataSampledTemperature, "top_p": strataSampledTopP, "top_k": strataSampledTopK, "seed": strataSampledSeed,
+}
 
 const (
 	strataSystem = "You are an autonomous coding agent working in the user's repository. You can read files, search the code, " +
@@ -144,6 +159,8 @@ type strataSuite struct {
 	// kept is where each measured request is written as it completes, so a run stopped short keeps
 	// what it measured.
 	kept io.Writer
+	// sampling is sent with every request in place of greedy decoding, strataSampling when the run is sampled.
+	sampling map[string]any
 }
 
 // keep writes a measured request of a part to the kept stream, a line of JSON.
@@ -162,9 +179,15 @@ func (s *strataSuite) keep(part string, request strataRequest) {
 // request is also written to kept as it completes.
 func runStrata(args []string, output, kept io.Writer) error {
 	if len(args) == 0 || len(args) > strataArguments {
-		return errors.New("usage: benchmark strata URL [FOLDER]")
+		return errors.New("usage: benchmark strata URL [FOLDER] [sampled]")
 	}
 	suite := &strataSuite{url: strings.TrimSuffix(args[0], "/"), nonce: fmt.Sprint(time.Now().Unix()), kept: kept}
+	if len(args) == strataArguments {
+		if args[len(args)-1] != strataSampledWord {
+			return errors.New("usage: benchmark strata URL [FOLDER] [sampled]")
+		}
+		suite.sampling = strataSampling
+	}
 	return clioptions.WritePrettyJSON(output, suite.run(append(args, "")[1]))
 }
 
@@ -203,7 +226,7 @@ func (s *strataSuite) run(docs string) map[string]any {
 		}
 		prompts[part] = strataSummary(requests)
 	}
-	return map[string]any{"chat": strataSummary(chat), "prompts": prompts, "agent": s.agent(strataFiles(docs))}
+	return map[string]any{"sampling": s.sampling, "chat": strataSummary(chat), "prompts": prompts, "agent": s.agent(strataFiles(docs))}
 }
 
 // prompt is a fresh prompt of about the given tokens: a tagged word list of
@@ -274,6 +297,7 @@ func (s *strataSuite) chat(messages []strataMessage, maxTokens int, tools bool) 
 		"stream": true, "max_tokens": maxTokens, "temperature": 0, "messages": messages,
 		"chat_template_kwargs": map[string]bool{"enable_thinking": false},
 	}
+	maps.Copy(body, s.sampling)
 	if tools {
 		body["tools"] = json.RawMessage(strataTools)
 	}

@@ -32,7 +32,8 @@ import (
 // What cannot be kept refuses the commit before the trunk moves, by name,
 // with the checkout as it was: an uncommitted change of the lead's to a file
 // the commit changes, and a working plan the commit's row cannot be taken
-// from, the lead having removed it.
+// from, the lead having removed it. A follow that cannot keep the lead's plan
+// beside the checkout's leaves the lead's plan as it was.
 func TestTrunkCheckoutFollowsWithItsOwnChangesKept(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
@@ -132,5 +133,16 @@ func TestTrunkCheckoutFollowsWithItsOwnChangesKept(t *testing.T) {
 	}
 	if trunk() != third || holds(fixture, plan.Path) != removed {
 		t.Fatalf("after the refusal the trunk is at %s and the lead's plan changed %t; want the trunk unmoved and the plan as the lead left it", trunk(), holds(fixture, plan.Path) != removed)
+	}
+
+	// A follow that cannot keep the lead's plan beside the checkout's leaves the lead's plan as it was.
+	fixture.git("checkout", "--", plan.Path)
+	working(func(document *plan.Plan) { document.Items[0].Title = retitled })
+	kept := holds(fixture, plan.Path)
+	if err := os.Mkdir(filepath.Join(fixture.repo, processlock.StateDirectory, planAside), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := land(linked, "second/do"); err == nil || holds(fixture, plan.Path) != kept {
+		t.Fatalf("a follow that could not keep the lead's plan = %v with the plan changed %t, want it refused and the plan as the lead left it", err, holds(fixture, plan.Path) != kept)
 	}
 }

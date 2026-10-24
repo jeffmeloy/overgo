@@ -212,17 +212,10 @@
       "title": "Port Strata's decode loop as one unit",
       "status": "open",
       "budget": {
-        "nodes": 137,
+        "nodes": 125,
         "reason": "The loan adds about 1,900 production syntax nodes, after removing the bulk refill and the selective graph drop it had used: the one-shot runs' own arena and its lending; the residency's loans, the spare slots carved from them or allocated beyond the headroom, a promotion's free slot before a victim's, one eviction (drop) shared by a release and a reclaim, and the partial reclaim a short read takes; and the interface the executor lends through. Measured over three alternating rounds it raised 4K decode 15%, agent turns' decode 8.5% and chat decode 8.2% with every cell level or better and no request failing."
       },
       "steps": [
-        {
-          "id": "follow-order",
-          "title": "Write the follow's plan copies in order",
-          "status": "open",
-          "verify": "go test ./internal/landing -run '^TestTrunkCheckoutFollowsWithItsOwnChangesKept$' -count=1",
-          "rationale": "SQA-211 (confirmed defect, P2): the trunk's checkout follows a commit landed from another worktree by keeping the lead's edited plan beside it, putting the tip's in its place for the merge, and publishing the lead's plan merged after. Each pair of writes ran joined, so a failure to keep the copy beside still replaced the lead's plan with the tip's, and a failure to publish the merged plan still removed the copy beside it: an uncommitted plan edit lost on a filesystem failure. Each write waits for the one before it to succeed, through the atomic whole-file write the plan's own saves use.\nServes: uncommitted plan edits through every follow.\nEvidence: the follow test, with a directory where the copy is kept: the follow refuses and the lead's plan stays as it was; it fails with the joined writes."
-        },
         {
           "id": "host-bytes",
           "title": "Count every expert's pinned copy in host memory",
@@ -320,6 +313,13 @@
       "title": "Retain the accepted evidence and remove completed campaign work",
       "status": "open",
       "steps": [
+        {
+          "id": "tuning-table",
+          "title": "Hold the tuning values by name to their costs",
+          "status": "open",
+          "verify": "false",
+          "rationale": "The inventory of 2026-10-24 (tmp/derive-tuning/inventory.txt, a read-only classification of the four tuning packages' 306 named numeric values) found 67 tuning values, 48 of which name no cost with its measured inputs, and showed the landed check (TestTuningValuesNameTheirCost) finds them by a comment's wording, which reaches 23: the values needing work are the ones with no measurement written. It also found a cost word passing a value before its named step is checked (expertSpareSlots names a promotion step the plan does not hold). The check holds the 67 by name, a table row each (the doctrine pins boundaries as rows), each naming the cost it trades with its measured inputs or the open step that derives it; a value missing from the tree or a row naming a step the plan does not hold fails; and the 48 are annotated, the kernels' block widths and tiles with what they trade and the load-costs step, the bounds with their failure cost.\nServes: every tuning value tied to the cost it trades, the doctrine's rule held by name rather than by wording.\nDisappears: the wording heuristic, and the tuning values whose comments name no cost.\nEvidence: the check refusing a planted value without a cost or step and a row naming a missing step; the tree passing with every row."
+        },
         {
           "id": "load-costs",
           "title": "Measure the machine's costs at load and compute the values that trade them",

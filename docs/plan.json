@@ -208,20 +208,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "sqa-repairs",
-      "title": "Close the executor before the expert residency it lends to, and reject unordered host-row differences (SQA-214, SQA-206)",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Close the executor before the expert residency it lends to, and reject unordered host-row differences (SQA-214, SQA-206)",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -run '^TestAcceleratorTeardownReclaimsPromptLoans$' -count=1 \u0026\u0026 go test ./internal/hostexpert -run '^(TestRowsMatchTheFormulas|TestIQ3SRowsInWideLanes)$' -count=1",
-          "rationale": "Two review findings with demonstrated failures, repaired together. SQA-214 (P2): the teardown the runner's closers share closes the weight stores before the executor, so an expert residency that holds a one-shot run's lent prompt memory is gone when the executor takes the loan back, and the close returns \"expert memory reclaim requires its owning worker\" and skips the arena's free; the executor closes first, the weights next, the worker last (the executor-owned-worker case has no weights, and partial-store recovery passes no executor). SQA-206 (P3): the host-row oracles' four rejections are written as a difference above its bound, which a NaN never is; each becomes the ordered \"not within the bound\".\nEvidence: TestAcceleratorTeardownReclaimsPromptLoans (the hermetic Flash-Next fixture's banks in a real residency on a shared worker, a one-shot run's arena lent, then the shared teardown) failed on the old order with the reported error and passes on the new; a NaN put into either row oracle's formula fails both tests, which passed it before."
-        }
-      ]
-    },
-    {
       "id": "flashnext-efficiency",
       "title": "Remove the measured work and memory gaps until native Strata parity is established",
       "status": "open",

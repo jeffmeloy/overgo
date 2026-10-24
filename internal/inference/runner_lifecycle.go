@@ -499,6 +499,10 @@ func closeAcceleratorResources(
 	worker *device.Worker,
 ) error {
 	var errs []error
+	// The executor closes first: memory it lent the expert residency comes back while the residency lives.
+	if cuda != nil {
+		errs = append(errs, cuda.Close())
+	}
 	if decodeWeights != nil {
 		errs = append(errs, decodeWeights.Close())
 	}
@@ -507,9 +511,6 @@ func closeAcceleratorResources(
 	}
 	if deviceWeights != nil {
 		errs = append(errs, deviceWeights.Close())
-	}
-	if cuda != nil {
-		errs = append(errs, cuda.Close())
 	}
 	if worker != nil {
 		errs = append(errs, worker.Close())

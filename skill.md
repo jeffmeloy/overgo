@@ -257,7 +257,7 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 - an A/B => its failed requests counted beside its rates, because a pool of the requests that succeeded hid a build that corrupted the card's experts (14 requests failed, its rates within the others' ranges)
 - a cost each request pays once => weighed against the measured cell's own request (its tokens and time), never a longer run's
 - a timing taken under a tracer => an untraced clock of the same stage confirms it before it decides (per-node graph tracing slows a graph's launch)
-- work across streams = the union of their intervals, never a sum of durations, and a copy's overlap = its intervals' intersection with the kernels'
+- work across streams = the union of their intervals, never a sum of durations, and a copy beside a run costs the run's time with it minus without, never its intervals' overlap, because a host-to-card copy slowed the draft round beside it by about its own time (2.1 against 1.15 ms) and the verify by the same 2 ms when started beside it
 - an idle card in a trace => each kernel's launch joined to its start (the correlation id) before a change, because work launched and waiting and work not yet launched take different fixes (the prompt layers' products waited 5.2 ms each after their launch)
 - aggregate gain never hides a required regression
 

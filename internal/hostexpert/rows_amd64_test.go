@@ -61,10 +61,10 @@ func TestIQ3SRowsInWideLanes(t *testing.T) {
 				magnitude += math.Abs(float64(decoded[row*depth+index]) * value)
 			}
 			bound := tolerance * magnitude
-			if got := float64(four[token]); math.Abs(got-formula) > bound {
+			if got := float64(four[token]); !(math.Abs(got-formula) <= bound) {
 				t.Fatalf("row %d token %d of four: the kernel %v, the formula %v", row, token, got, formula)
 			}
-			if got := float64(iq3SDots1Z(&weight[0], blocks, &activation[0])); math.Abs(got-formula) > bound {
+			if got := float64(iq3SDots1Z(&weight[0], blocks, &activation[0])); !(math.Abs(got-formula) <= bound) {
 				t.Fatalf("row %d token %d alone: the kernel %v, the formula %v", row, token, got, formula)
 			}
 		}

@@ -130,10 +130,10 @@ func TestRowsMatchTheFormulas(t *testing.T) {
 						exact += product
 						magnitude += math.Abs(product)
 					}
-					if math.Abs(float64(formula)-exact) > tolerance*magnitude {
+					if !(math.Abs(float64(formula)-exact) <= tolerance*magnitude) {
 						t.Fatalf("%s token %d row %d: the formula %v, the float64 sum %v", format.name, token, row, formula, exact)
 					}
-					if got := out[token][row]; math.Abs(float64(got-formula)) > tolerance*magnitude {
+					if got := out[token][row]; !(math.Abs(float64(got-formula)) <= tolerance*magnitude) {
 						t.Fatalf("%s %d tokens, token %d row %d: the kernel %v (AVX2 %t), the formula %v", format.name, tokens, token, row, got, avx2, formula)
 					}
 				}

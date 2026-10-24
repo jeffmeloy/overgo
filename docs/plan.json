@@ -217,17 +217,10 @@
       },
       "steps": [
         {
-          "id": "load-costs",
-          "title": "Measure the machine's costs at load and compute the values that trade them",
-          "status": "open",
-          "verify": "false",
-          "rationale": "The chunk's and the crossover's derivations (the chunk and machine-costs steps' records of 2026-10-24, flat optima on this PC) found the inputs that choose it are the machine's costs, not the request's: a chunk's read pays the card's time a token and a per-chunk overhead, the experts small enough to compute on the CPU (hostExpertSlots' crossover of a copy's link time against the CPU's time a slot); the decode after pays the displaced experts' misses. The promotion step trades the same costs (a miss on the CPU against a copy over the link), and the headroom step what the card allocates outside the reservation. Each is today a figure measured once on this PC and written into a comment or a constant (13.1 GB/s, 5 us a slot on 32 workers, 46 us an expert, 160 us a copy), so another card, link or CPU keeps this PC's choices.\nThe machine's costs are measured at load, on the loaded model's own experts: the link's rate (a host expert copied to the card), the CPU's time a slot and an expert (the pool computing a host expert), the card's time a token of an expert's products; and the values that trade them are computed from them: hostExpertSlots (a copy's time over the CPU's time a slot), the prompt's chunk (the chunk step's formula), then the promotion's test.\nFirst: the measurement's cost at load (a few milliseconds of copies and products), its spread over loads, and its figures against the ones the comments hold; then this step's check is set and the measurement built where the residency loads.\nServes: the tuning values computed from this machine's costs on any machine; the promote and headroom steps' inputs.\nDisappears: hostExpertSlots and devicePromptChunkTokens as constants, and the figures the comments carry as inputs.\nEvidence: the measured costs against the comments' figures; the computed values against the chunk sweep's minimizer (8,192) and the crossover's 32 here; the bench over three alternating rounds.\nVerify: set with -setverify once the measurement is designed; false until then."
-        },
-        {
           "id": "do",
           "title": "Hold every tuning value to the cost it trades",
           "status": "open",
-          "verify": "false",
+          "verify": "go test ./internal/repoanalysis -run '^TestTuningValuesNameTheirCost$' -count=1",
           "rationale": "The inference, expert-residency and executor packages hold about twenty tuning values (thresholds, sizes and counts that trade measured costs) copied from Strata or chosen by hand or by a sweep: among them the usage decay and rounds, the admission, the promotions an advance, the headrooms, the speculation's draft tokens, the prompt boundary, the kept graphs of a speculating runner and of the executor, the draft layer's history. The doctrine of 2026-10-24 asks each to name the cost it minimizes and its measured inputs, computed where they vary, and a reference's or a sweep's value to be provisional with its derivation step filed; a rule prose alone holds drifts, so a check holds it.\nFirst: the inventory, each value with the cost it trades, its inputs and whether they vary at runtime; then a repository test that finds the named numeric values of those packages outside format constants (sizes and alignments the formats fix) and refuses one whose comment names neither the cost it minimizes nor a derivation step the plan holds; then this step's check is set.\nServes: the tuning values' derivations, kept from drifting back into constants.\nEvidence: the inventory; the test refusing a value with neither, and passing the tree.\nVerify: set with -setverify once the test is written; false until then."
         }
       ]
@@ -345,6 +338,13 @@
       "title": "Retain the accepted evidence and remove completed campaign work",
       "status": "open",
       "steps": [
+        {
+          "id": "load-costs",
+          "title": "Measure the machine's costs at load and compute the values that trade them",
+          "status": "open",
+          "verify": "false",
+          "rationale": "The chunk's and the crossover's derivations (the chunk and machine-costs steps' records of 2026-10-24, flat optima on this PC) found the inputs that choose it are the machine's costs, not the request's: a chunk's read pays the card's time a token and a per-chunk overhead, the experts small enough to compute on the CPU (hostExpertSlots' crossover of a copy's link time against the CPU's time a slot); the decode after pays the displaced experts' misses. The promotion step trades the same costs (a miss on the CPU against a copy over the link), and the headroom step what the card allocates outside the reservation. Each is today a figure measured once on this PC and written into a comment or a constant (13.1 GB/s, 5 us a slot on 32 workers, 46 us an expert, 160 us a copy), so another card, link or CPU keeps this PC's choices.\nThe machine's costs are measured at load, on the loaded model's own experts: the link's rate (a host expert copied to the card), the CPU's time a slot and an expert (the pool computing a host expert), the card's time a token of an expert's products; and the values that trade them are computed from them: hostExpertSlots (a copy's time over the CPU's time a slot), the prompt's chunk (the chunk step's formula), then the promotion's test.\nFirst: the measurement's cost at load (a few milliseconds of copies and products), its spread over loads, and its figures against the ones the comments hold; then this step's check is set and the measurement built where the residency loads.\nServes: the tuning values computed from this machine's costs on any machine; the promote and headroom steps' inputs.\nDisappears: hostExpertSlots and devicePromptChunkTokens as constants, and the figures the comments carry as inputs.\nEvidence: the measured costs against the comments' figures; the computed values against the chunk sweep's minimizer (8,192) and the crossover's 32 here; the bench over three alternating rounds.\nVerify: set with -setverify once the measurement is designed; false until then."
+        },
         {
           "id": "close",
           "title": "Close only after multimodal delivery and Strata parity are established",

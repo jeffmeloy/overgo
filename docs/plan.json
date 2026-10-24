@@ -212,17 +212,10 @@
       "title": "Port Strata's decode loop as one unit",
       "status": "open",
       "budget": {
-        "nodes": 335,
+        "nodes": 370,
         "reason": ""
       },
       "steps": [
-        {
-          "id": "pool-wake",
-          "title": "Wake the CPU pool's workers without waiting for them",
-          "status": "open",
-          "verify": "go test ./internal/hostexpert -run '^(TestPoolRunsWithoutItsWorkers|TestLayerMatchesTheSerialLayer)$' -count=1",
-          "rationale": "Traced 2026-10-24 (a Go execution trace of a served decode, the scheduler's latency by stack): the CPU expert pool handed each batch to each worker in turn over an unbuffered channel and waited for every worker to check in, so the caller waited for the workers to be scheduled: the decode doorbell's start of spinning about 1.6 ms a window (Pool.Spin, 174 ms in 2 s), and a prompt's CPU experts behind every worker's turn (Pool.run, 564 ms of scheduler delay). The pool wakes its workers through a buffered channel without blocking, the caller takes tasks itself, and a batch ends when its tasks have run, whichever workers ran them.\nServes: every window's CPU experts and every prompt's, without the caller waiting on the scheduler.\nEvidence: a test holding a pool whose workers never run to every task, spinning or not; the bench over three alternating rounds; the long-context and image acceptance on both builds."
-        },
         {
           "id": "token-cost",
           "title": "Verify a window's extra token at Strata's cost",

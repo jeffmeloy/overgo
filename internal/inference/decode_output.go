@@ -28,6 +28,9 @@ type deviceOutputPlan struct {
 	mode    deviceOutputMode
 	topK    uint32
 	streams bool
+	// promptExperts marks a prompt read's routed nodes (tensor.Builder.SetPromptExperts): the second part of a
+	// two-part read, whose few tokens follow the part before it.
+	promptExperts bool
 }
 
 func compileDeviceOutputPlan(mode deviceOutputMode, topK, vocabulary uint32) (deviceOutputPlan, error) {

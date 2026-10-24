@@ -199,7 +199,7 @@ func launchMoE(
 			// A group taking the grouped products brings its routes to the host, which marks its experts' flags there:
 			// the kernel's writes, a byte a routed slot over the link, took 1.5 ms a Flash-Next layer of 8,192 tokens.
 			groupRouted, groupFlags := routed, []byte(nil)
-			if matrixNode && count >= moeTileTokens {
+			if matrixNode && count >= moeMatrixTokens(attributes) {
 				groupRouted, groupFlags = 0, routedFlags
 			}
 			if err := launchGridSharedABI(

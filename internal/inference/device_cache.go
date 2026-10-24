@@ -929,6 +929,7 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	if capacity != 0 {
 		builder.SetCacheAppendPlan(appendPlan.CacheAppendPlan)
 	}
+	builder.SetPromptExperts(plan.promptExperts)
 	hostFeeds := make(map[*tensor.Tensor]reference.Value)
 	var deviceFeeds tensor.InputBindings[driver.DevicePtr]
 	graphs := make([]deviceBatchGraph, len(appends))

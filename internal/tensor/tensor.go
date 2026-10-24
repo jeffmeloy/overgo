@@ -271,6 +271,8 @@ type MoEAttributes struct {
 	HasExpertBiases    bool
 	HasSelectedExperts bool
 	SwiGLUClamp        float32
+	// Prompt marks a prompt read's node (Builder.SetPromptExperts), whose groups take the grouped products at any size.
+	Prompt bool
 }
 
 type HyperConnectionAttributes struct {
@@ -439,6 +441,15 @@ type Builder struct {
 	loraInputs    map[string]*Tensor
 	cacheAppend   *CacheAppendPlan
 	mulMatCompute MulMatCompute
+	promptExperts bool
+}
+
+// SetPromptExperts marks the routed-expert nodes built from now on as a prompt read's (MoEAttributes.Prompt): a read
+// of a few tokens after a long one, whose experts the long read moved to host memory, which the q8 decode products read
+// over the link inside their kernels and the grouped products hand to the CPU (a 16K Flash-Next prompt's last-turn
+// header of 7 tokens, 183 ms against 68).
+func (b *Builder) SetPromptExperts(prompt bool) {
+	b.promptExperts = prompt
 }
 
 // CacheAppendPlan: logical range inside fixed-capacity cache storage.

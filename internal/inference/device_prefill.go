@@ -127,6 +127,10 @@ func (r *Runner) readDevicePromptLocked(
 	if err != nil {
 		return nil, nil, err
 	}
+	// The turn's header, a few tokens after the part before it moved experts to host memory, takes the grouped
+	// products, the CPU computing those experts (a 16K Flash-Next prompt's header of 7 tokens: 68 ms against 183).
+	// A header of one token is a decode step's append, which a kept decode session replays.
+	plan.promptExperts = len(ids)-turn > 1
 	end, err := read(ids[turn:], boundary)
 	if err != nil {
 		return nil, nil, errors.Join(err, boundary.Release(context.Background()))

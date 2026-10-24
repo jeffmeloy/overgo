@@ -59,12 +59,21 @@ type moeMatrixGeometry struct {
 	tokenBytes uint64
 }
 
+// moeMatrixTokens is the fewest tokens a group of a routed node takes the grouped products with: a tile, or one for a
+// prompt read's node (MoEAttributes.Prompt), whose few tokens follow a long read and its experts moved to host memory.
+func moeMatrixTokens(a tensor.MoEAttributes) uint32 {
+	if a.Prompt {
+		return 1
+	}
+	return moeTileTokens
+}
+
 // nativeMoEMatrix reports the geometry of a routed node whose prompt groups
 // take the grouped products: native compute over gated experts, in a prompt
-// that fills a tile.
+// that fills a tile or is marked as a prompt read's.
 func nativeMoEMatrix(node *tensor.Tensor) (moeMatrixGeometry, bool) {
 	a, ok := node.Attrs.(tensor.MoEAttributes)
-	if !ok || a.Compute != tensor.MulMatComputeNativeTensorCore || !a.Gated || node.Shape.Dims[1] < uint64(moeTileTokens) {
+	if !ok || a.Compute != tensor.MulMatComputeNativeTensorCore || !a.Gated || node.Shape.Dims[1] < uint64(moeMatrixTokens(a)) {
 		return moeMatrixGeometry{}, false
 	}
 	down := moeFirstBankInput + 1
@@ -140,7 +149,7 @@ func launchMoEMatrices(state *device.State, functions functionSet, blas *blasSta
 	input, routeState, activations, output, gate, up, down, gateBias, upBias, downBias, expertScale driver.DevicePtr,
 	count uint32, residency ExpertBanks, routed []byte) (launched bool, err error) {
 	g, eligible := nativeMoEMatrix(node)
-	if !eligible || count < moeTileTokens {
+	if !eligible || count < moeMatrixTokens(node.Attrs.(tensor.MoEAttributes)) {
 		return false, nil
 	}
 	a := node.Attrs.(tensor.MoEAttributes)

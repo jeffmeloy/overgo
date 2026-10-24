@@ -116,6 +116,8 @@ type moePinnedCase struct {
 	// reference also holds the F32-bank output to the host reference; the
 	// real geometry is too wide for the host.
 	reference bool
+	// prompt marks the node as a prompt read's (tensor.Builder.SetPromptExperts).
+	prompt bool
 }
 
 var moePinnedCases = []moePinnedCase{
@@ -277,6 +279,7 @@ func (c moePinnedCase) prepare(t testing.TB, cuda *Executor, bankType dtype.Type
 	t.Helper()
 	builder := tensor.NewBuilder()
 	builder.SetMulMatCompute(c.compute)
+	builder.SetPromptExperts(c.prompt)
 	host := make(map[*tensor.Tensor]reference.Value)
 	device := make(map[*tensor.Tensor]driver.DevicePtr)
 	withReference := c.reference && bankType == dtype.F32 && !c.offload
@@ -898,6 +901,70 @@ func TestPromptExpertsMultiplyEncodedWeights(t *testing.T) {
 					compare(t, got, want, accuracyModel)
 				})
 			}
+		})
+	}
+}
+
+// TestPromptHeaderTakesTheGroupedProducts runs a group of 7 tokens, a prompt's
+// last-turn header, over Flash-Next's IQ4_XS and Q8_0 experts with every
+// expert but the first in host memory: marked as a prompt read's node it takes
+// the grouped products, the CPU computing its experts in host memory, and
+// unmarked the q8 decode products as before, each within its rounding of the
+// host reference.
+func TestPromptHeaderTakesTheGroupedProducts(t *testing.T) {
+	// Serial: device fixtures share the one card.
+	const (
+		// A launch record is four header words, then eight bytes a pointer and four a scalar; a group under a tile
+		// takes its router logits by the kernel, then the routing.
+		headerBytes               = 4 * 8
+		kernelLogits, routeRecord = headerBytes + 4*8 + 3*4, headerBytes + 5*8 + 5*4
+		// The card keeps expert 0 of each bank beside the tables of a pointer an expert.
+		pointerBytes, slotAlignment = 8, 256
+	)
+	banks := [3]dtype.Type{dtype.IQ4XS, dtype.IQ4XS, dtype.Q8_0}
+	for _, prompt := range []bool{false, true} {
+		t.Run(fmt.Sprintf("prompt=%v", prompt), func(t *testing.T) {
+			c := moePinnedCase{
+				name: "prompt-header", compute: tensor.MulMatComputeNativeTensorCore, offload: true,
+				hidden: 512, routerHidden: 512, intermediate: 128, experts: 6, tokens: 7, divisor: 1, topK: 2,
+				routing: tensor.MoERoutingSoftmax, activation: tensor.MoEActivationSiLU, normalize: true, scale: 1.25,
+				banks: banks, prompt: prompt, reference: true,
+			}
+			c.limit = uint64(len(banks)) * c.experts * pointerBytes
+			for index, shape := range []tensor.Shape{tensor.MustShape(c.hidden, c.intermediate), tensor.MustShape(c.hidden, c.intermediate), tensor.MustShape(c.intermediate, c.hidden)} {
+				expert, err := shape.Bytes(banks[index])
+				if err != nil {
+					t.Fatal(err)
+				}
+				c.limit += (expert + slotAlignment - 1) / slotAlignment * slotAlignment
+			}
+			c.offload = false
+			_, want := c.run(t, newFixtureExecutor(t), dtype.F32)
+			c.offload = true
+			cuda := newFixtureExecutor(t)
+			trace := &device.LaunchTrace{}
+			if err := cuda.worker.Do(t.Context(), func(state *device.State) error { state.Trace = trace; return nil }); err != nil {
+				t.Fatal(err)
+			}
+			got, _ := c.run(t, cuda, dtype.F32)
+			hidden := trace.Data()[kernelLogits+routeRecord:]
+			word := binary.LittleEndian.Uint64
+			if prompt {
+				// The CPU's experts gather their input rows (get_rows_f32, three pointers and two scalars), then the
+				// card's products follow.
+				const gatherRecord = headerBytes + 3*8 + 2*4
+				if word(hidden) != uint64(kernelGetRowsF32) || word(hidden[gatherRecord:]) != uint64(kernelMoeGroupedHiddenF32) {
+					t.Fatalf("a prompt read's header launched kernels %d and %d, not the CPU's gather and the grouped products",
+						word(hidden), word(hidden[gatherRecord:]))
+				}
+				// The CPU computes its experts from Q8_K activations, the decode doorbell's rounding.
+				compareRelativeRMS(t, got, want, accuracyQ8Experts)
+				return
+			}
+			if word(hidden) != uint64(kernelQuantizeQ80InputF32) || word(hidden[moeQuantizeRecord:]) != uint64(kernelMoeHiddenQ8F32) {
+				t.Fatalf("an unmarked group under a tile launched kernels %d and %d, not the q8 products", word(hidden), word(hidden[moeQuantizeRecord:]))
+			}
+			compareRelativeRMS(t, got, want, accuracyQ8Experts)
 		})
 	}
 }

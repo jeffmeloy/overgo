@@ -213,16 +213,9 @@
       "status": "open",
       "budget": {
         "nodes": 0,
-        "reason": "The prompt-conv step adds about 294 production syntax nodes: the convolution's LastWindow attribute and layout with the attributes' own layout, the prompt builder beside the decode's over one shared body, the fit predicate the decode's predicate now uses, the reference's last-window write, the launch's choice of the prompt kernel with its grid of a head at a token, and the block's choice of the prompt convolution for tokens no checkpoint divides. Nothing smaller replaces the six composed kernels a prompt layer ran."
+        "reason": "The prompt-tail step adds about 98 production syntax nodes: the routed node's prompt mark and the builder's setting of it, the grouped products' smallest group read from the mark (moeMatrixTokens) at its three uses, the output plan's mark and the second part of a two-part prompt read setting it. Nothing smaller tells a prompt's header from a verify span of its size."
       },
       "steps": [
-        {
-          "id": "prompt-tail",
-          "title": "Read a prompt's last-turn header with the CPU taking its host experts",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^(TestPromptHeaderTakesTheGroupedProducts|TestPromptGroupMarksItsRoutedExperts|TestPromptExpertsMultiplyEncodedWeights)$' -count=1",
-          "rationale": "Traced 2026-10-23: a prompt the cache keeps, with 1,024 tokens or more before its last turn, is read in two parts (readDevicePromptLocked), as Strata's is (generate.cpp, its read cut at the last \u003c|im_start|\u003e for the conversation's checkpoint), and the second part, the turn's header of 4 to 7 tokens, runs as a decode group: its q8 products read the experts in host memory where they lie, over the link, inside the kernels. After a 16K read displaced 5 GB of experts the header's 48 layers took about 160 ms (one layer's hidden products 9.2 ms), 2.5% of the read. Strata reads such a part through its verify windows (read_windows), the CPU computing the missed experts beside the card's hits.\nFirst: the header's time after a 16K read through each path that keeps its output (the q8 group as now; the CPU computing its experts in host memory, as the doorbell and the grouped path do), against Strata's read of the same part; then this step's check is set and the path built.\nServes: the 16K first token, prompt-read's gap.\nEvidence: the header's time after a 16K read; the bench's 16K first token over three alternating rounds.\nVerify: set with -setverify once the path is chosen; false until then.\n\nMeasured 2026-10-23 (an experiment letting groups of 4 tokens or more take the grouped products, traced on a fresh server): after a 16K read the last turn's header of 7 tokens read in 68 ms through the grouped products, the CPU computing its experts in host memory, against 183 ms through the q8 decode products (159 ms of them the expert kernels reading host experts over the link); the second 16K read 5.24 s against 5.38. By its size alone a header is a verify span's (both within q8InputSpanColumns), so the read says which it is: the second part of a two-part prompt read marks its routed nodes (MoEAttributes.Prompt), whose groups of any size take the grouped products; chat prompts, spans and decode steps keep the q8 products."
-        },
         {
           "id": "prompt-read",
           "title": "Read a 16K prompt and the agent's first turn at Strata's rate",

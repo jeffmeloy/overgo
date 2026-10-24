@@ -208,6 +208,41 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "derive-tuning",
+      "title": "Hold every tuning value to the cost it trades",
+      "status": "open",
+      "steps": [
+        {
+          "id": "chunk",
+          "title": "Size a prompt's chunks from the costs they trade",
+          "status": "open",
+          "verify": "false",
+          "rationale": "A prompt's chunk is a constant 8,192 tokens, the best of four powers of two over two rounds of one request shape, a 16K read and one decode length, on this machine (2026-10-23); the sweep itself showed the best chunk moving with the request (2,048 tokens paid for their slower read after about 700 decoded tokens), and the loan of 2026-10-24 moved the trade (a chunk's memory now goes back to the experts after the read, so a bigger chunk costs the decode only until its misses are promoted again). SQA-213 recorded the same. The chunk is computed per request from what it trades: the read's time falls with the chunk (fewer chunks, each with its overhead and its experts' copies), and the decode after it pays for the experts the chunk's working memory moves off the card, each a miss on every decode token that routes it, until the promotions bring it back.\nFirst: the cost formula with the inputs the system measures (the link's rate, the working memory a token takes, an expert's bytes, a miss's cost, a chunk's overhead, the free memory) and the request's own (its prompt tokens, its token budget as its answer's bound), its prediction set beside the 2026-10-23 sweep and a new one at 1K to 16K chunks for a short and a long decode; then this step's check is set and the computation built where the chunk is chosen.\nServes: first-output and decode after a long read at once, for every request shape and machine.\nDisappears: devicePromptChunkTokens as a constant.\nEvidence: the formula's prediction against the sweeps; the bench's prompt and decode cells over three alternating rounds; the long-context acceptance.\nVerify: set with -setverify once the formula is written; false until then."
+        },
+        {
+          "id": "promote",
+          "title": "Promote an expert where its misses outweigh its copy",
+          "status": "open",
+          "verify": "false",
+          "rationale": "An expert moves to the card once routed twice, its count falling by 0.7 every four decode runs, at most 64 an advance, and a decode's spare slots come 64 at once: Strata's adaptive tier's values (2, 0.7, 4, 96 swaps) and one chosen by hand (expertSpareSlots), none computed from what they trade. A promotion is worth its copy where the misses it saves outweigh the copy's cost and the misses the expert it displaces then adds: the expected uses from an expert's decayed count, a miss's cost (the CPU's 46 us an expert, the part the card waits for), an expert's bytes over the link's rate beside the run, and the victim's own expected uses.\nFirst: that test written with the measured costs, its admissions predicted against the residency's actual promotions and hit rates on the bench's agent turns and chats (overgo_expert_routes), and against Strata's 1.5 margin; then this step's check is set and the admission built on it, with the per-advance bound and the spare slots from the copies a run hides.\nServes: decode, the experts a window hands the CPU (the token-cost step's record: about 2.5 times Strata's misses a verified token on a chained window).\nDisappears: expertAdmission, expertUsageDecay, expertUsageRounds, expertPromotionsPerAdvance and expertSpareSlots as constants.\nEvidence: the predicted and the measured admissions; the hit rates; the bench's decode cells over three alternating rounds.\nVerify: set with -setverify once the test is written; false until then."
+        },
+        {
+          "id": "headroom",
+          "title": "Keep free what the card allocates outside the reservation",
+          "status": "open",
+          "verify": "false",
+          "rationale": "The residency leaves 2 GiB free at load (expertFillHeadroomBytes) and 1 GiB beyond a decode's spare slots (expertSpareHeadroomBytes), held for what the card allocates outside the reservation hook; neither is computed, and loaded the card holds 36,905 MiB of experts with about 490 MiB free where Strata holds 39,323 with 324 MiB free (its baseline's results), so the card's other owners take about 2.3 GB more than Strata's. The headroom is what the card allocates outside the hook, measured: a graph's instantiation (about 30 MB a Flash-Next exec, times the execs a runner may still capture), the libraries' workspaces, a module's image.\nFirst: the card's owners at load and through the bench beside Strata's (non-expert weights, K/V, workspaces, graphs, the context), each allocation outside the hook timed and sized; then this step's check is set and the headroom computed from them at load and at each spare.\nServes: the experts' share of the card at Strata's, decode in every cell.\nDisappears: expertFillHeadroomBytes and expertSpareHeadroomBytes as constants, and the card memory the gap holds.\nEvidence: the owners' measurement against Strata's; the card's experts at load; the bench over three alternating rounds; the long-context acceptance with an image.\nVerify: set with -setverify once the owners are measured; false until then."
+        },
+        {
+          "id": "do",
+          "title": "Hold every tuning value to the cost it trades",
+          "status": "open",
+          "verify": "false",
+          "rationale": "The inference, expert-residency and executor packages hold about twenty tuning values (thresholds, sizes and counts that trade measured costs) copied from Strata or chosen by hand or by a sweep: among them the usage decay and rounds, the admission, the promotions an advance, the headrooms, the speculation's draft tokens, the prompt boundary, the kept graphs of a speculating runner and of the executor, the draft layer's history. The doctrine of 2026-10-24 asks each to name the cost it minimizes and its measured inputs, computed where they vary, and a reference's or a sweep's value to be provisional with its derivation step filed; a rule prose alone holds drifts, so a check holds it.\nFirst: the inventory, each value with the cost it trades, its inputs and whether they vary at runtime; then a repository test that finds the named numeric values of those packages outside format constants (sizes and alignments the formats fix) and refuses one whose comment names neither the cost it minimizes nor a derivation step the plan holds; then this step's check is set.\nServes: the tuning values' derivations, kept from drifting back into constants.\nEvidence: the inventory; the test refusing a value with neither, and passing the tree.\nVerify: set with -setverify once the test is written; false until then."
+        }
+      ]
+    },
+    {
       "id": "decode-loop",
       "title": "Port Strata's decode loop as one unit",
       "status": "open",
@@ -492,7 +527,8 @@
             "tail-off/do",
             "decode-loop/do",
             "doctrine-persons/do",
-            "person-free/do"
+            "person-free/do",
+            "derive-tuning/do"
           ]
         }
       ]

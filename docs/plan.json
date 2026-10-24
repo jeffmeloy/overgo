@@ -212,17 +212,10 @@
       "title": "Port Strata's decode loop as one unit",
       "status": "open",
       "budget": {
-        "nodes": 290,
+        "nodes": 294,
         "reason": ""
       },
       "steps": [
-        {
-          "id": "stop-identity",
-          "title": "Keep a legacy stop's identities as written",
-          "status": "open",
-          "verify": "go test ./internal/plan -run '^(TestLegacyStopKeepsItsIdentity|TestControlVocabularyNamesNoPerson|TestStopStateContract)$' -count=1",
-          "rationale": "SQA-208 (confirmed defect, P2): a stop file written before 2026-10-23 had its reason codes rewritten before its events were identified, so its stop and its maintenance grants read with new IDs and a grant issued before the rewrite, or the stop's own ID, no longer matched. The events keep the codes they were written with and the identities those give; the old codes are read as their replacements only where a code is judged (validation) or shown (the status line, the loop view).\nServes: recovery references that hold across the vocabulary change.\nEvidence: a test holding a legacy stop and grant to their written identities, the grant to its exact work after a new grant is appended, the status to the current codes, and the stop's own ID to its resume."
-        },
         {
           "id": "token-cost",
           "title": "Verify a window's extra token at Strata's cost",

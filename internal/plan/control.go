@@ -154,13 +154,8 @@ func ReadStop(ctx context.Context, root, head, mode string) (StopStatus, error) 
 	if err := strictjson.DecodeBytes(raw, &state); err != nil {
 		return StopStatus{State: stopInvalid, Blocked: true, Problem: "stop file is malformed: " + err.Error()}, nil
 	}
-	code := func(written string) string { return cmp.Or(writtenControlCodes[written], written) }
-	state.Current.ReasonCode = code(state.Current.ReasonCode)
-	for index := range state.Maintenance {
-		state.Maintenance[index].ReasonCode = code(state.Maintenance[index].ReasonCode)
-	}
 	current, err := identify(state.Current)
-	if err != nil || validateControl(current) != nil || current.Kind == ControlMaintenance || !strings.EqualFold(current.Worktree, root) {
+	if err != nil || validateWritten(current) != nil || current.Kind == ControlMaintenance || !strings.EqualFold(current.Worktree, root) {
 		return StopStatus{State: stopInvalid, Blocked: true, Problem: "stop file does not name a valid stop or resume for this worktree"}, nil
 	}
 	status := StopStatus{State: stopActive, ID: current.ID, Event: &current, CurrentHead: head}
@@ -169,7 +164,7 @@ func ReadStop(ctx context.Context, root, head, mode string) (StopStatus, error) 
 	}
 	for _, grant := range state.Maintenance {
 		identified, err := identify(grant)
-		if err != nil || validateControl(identified) != nil || identified.Kind != ControlMaintenance {
+		if err != nil || validateWritten(identified) != nil || identified.Kind != ControlMaintenance {
 			return StopStatus{State: stopInvalid, ID: current.ID, Blocked: true, Problem: "stop file holds an invalid maintenance grant"}, nil
 		}
 		status.grants = append(status.grants, identified)
@@ -188,7 +183,7 @@ func (status StopStatus) String() string {
 	if status.Event == nil {
 		return fmt.Sprintf("stop=%s id=%s %s", status.State, status.ID, status.Problem)
 	}
-	return fmt.Sprintf("stop=%s id=%s lane=%s worker=%s scope=%s worktree=%s bound_head=%s current_head=%s reason=%s: %s %s", status.State, status.ID, status.Event.Lane, status.Event.Worker, status.Event.Mode, status.Event.Worktree, status.Event.CodeCommit, status.CurrentHead, status.Event.ReasonCode, status.Event.Detail, status.Problem)
+	return fmt.Sprintf("stop=%s id=%s lane=%s worker=%s scope=%s worktree=%s bound_head=%s current_head=%s reason=%s: %s %s", status.State, status.ID, status.Event.Lane, status.Event.Worker, status.Event.Mode, status.Event.Worktree, status.Event.CodeCommit, status.CurrentHead, controlCode(status.Event.ReasonCode), status.Event.Detail, status.Problem)
 }
 
 // RequireExecution checks a current stop and an optional exact maintenance
@@ -288,9 +283,19 @@ const (
 
 var validStopReasons = []string{stopRequested, "irreversible", "external-prereq"}
 
-// writtenControlCodes are the codes stop files written before 2026-10-23 hold, which a read takes as the codes that
-// replaced them: a stop file is each checkout's own state, and its next decision writes it in these.
+// writtenControlCodes are the codes stop files written before 2026-10-23 hold, which a read judges and shows as the
+// codes that replaced them while each event keeps the identity its written codes give, the ID its stop or grant was
+// issued with: a stop file is each checkout's own state, and its next stop or resume writes it in the current codes.
 var writtenControlCodes = map[string]string{"user-stop": stopRequested, "operator-resume": ResumeCode, "operator-maintenance": MaintenanceCode}
+
+// controlCode is the current code of a written one.
+func controlCode(written string) string { return cmp.Or(writtenControlCodes[written], written) }
+
+// validateWritten validates a read event in the current codes.
+func validateWritten(event ControlEvent) error {
+	event.ReasonCode = controlCode(event.ReasonCode)
+	return validateControl(event)
+}
 
 // ParseStopReason validates and splits the declared stop vocabulary.
 func ParseStopReason(reason string) (string, string, error) {

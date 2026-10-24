@@ -61,7 +61,7 @@ func ReadLoopView(ctx context.Context, root string) (LoopView, error) {
 	if stop.Blocked {
 		view.StopReason = stop.Problem
 		if stop.Event != nil {
-			view.StopReason = stop.Event.ReasonCode + stopReasonSeparator + " " + stop.Event.Detail
+			view.StopReason = controlCode(stop.Event.ReasonCode) + stopReasonSeparator + " " + stop.Event.Detail
 		}
 	}
 	if !dispatch.Complete {

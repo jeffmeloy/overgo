@@ -212,17 +212,10 @@
       "title": "Port Strata's decode loop as one unit",
       "status": "open",
       "budget": {
-        "nodes": 370,
+        "nodes": 290,
         "reason": ""
       },
       "steps": [
-        {
-          "id": "publish-order",
-          "title": "Queue the residency's table writes behind the run in flight",
-          "status": "open",
-          "verify": "go test ./internal/modeldevice -run '^(TestPublishQueuesBehindTheRun|TestFlashNextExpertResidency)$' -count=1",
-          "rationale": "Traced 2026-10-24 (a served chat's API trace): the residency's publish wrote the expert tables and the card's flags of experts on host with a synchronous copy while the decode window's draft graph ran, as the advance is placed to hide its bookkeeping behind that graph, and Windows' synchronous copy waited for the graph to end (about 1 ms a window; 302 synchronous copies, 62.6 ms in a second of decode). The publish queues its writes behind the compute stream's work instead, so the next run reads them and the host goes on.\nServes: the decode window's host time.\nEvidence: a residency test holding a promoting advance's writes to the ordered write; the API trace's synchronous copies; the bench over three alternating rounds."
-        },
         {
           "id": "stop-identity",
           "title": "Keep a legacy stop's identities as written",

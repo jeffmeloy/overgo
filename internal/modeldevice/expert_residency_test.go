@@ -31,6 +31,8 @@ type fakeExpertDevice struct {
 	queued  []func() error
 	hold    bool
 	streams int
+	// ordered counts the writes queued behind the compute stream's work (writeOrdered).
+	ordered int
 }
 
 func (d *fakeExpertDevice) newStream(context.Context) (driver.Stream, error) {
@@ -48,6 +50,11 @@ func (d *fakeExpertDevice) dropStream(driver.Stream) error {
 func (d *fakeExpertDevice) copyToCard(ctx context.Context, _ driver.Stream, destination driver.DevicePtr, source []byte) error {
 	d.queued = append(d.queued, func() error { return d.write(ctx, destination, source) })
 	return nil
+}
+
+func (d *fakeExpertDevice) writeOrdered(ctx context.Context, destination driver.DevicePtr, data []byte) error {
+	d.ordered++
+	return d.write(ctx, destination, data)
 }
 
 func (d *fakeExpertDevice) copyOnCard(ctx context.Context, destination, source driver.DevicePtr, size uint64) error {
@@ -781,5 +788,72 @@ func TestReleaseKeepsTheHottestExperts(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestPublishQueuesBehindTheRun holds the residency's publishes to the ordered write: an advance that promotes a
+// twice-routed expert into a card expert's slot writes the tables and the card's flags of experts on host only behind
+// the compute stream's work, never with a write that waits for the run in flight, and every table still reads its
+// expert's bytes once the promotion lands.
+func TestPublishQueuesBehindTheRun(t *testing.T) {
+	f := writeFixture(t, rand.New(rand.NewPCG(41, 43)), []fixtureTensor{
+		{name: "gate", shape: []uint64{2, 2, 3}, kind: dtype.BF16},
+		{name: "down", shape: []uint64{16, 16, 3}, kind: dtype.F32},
+	}, 0, 0)
+	file := f.parse(t)
+	const (
+		experts                = 3
+		tableBytes             = 2 * experts * 8
+		gateStride, downStride = 256, 1024
+		oneEach                = tableBytes + gateStride + downStride
+	)
+	mem := newFakeExpertDevice()
+	weights, err := mem.loadExperts(t.Context(), file, oneEach, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cache := weights.experts
+	t.Cleanup(func() {
+		if err := cache.close(); err != nil || mem.liveCount() != 0 {
+			t.Errorf("close left %d allocations: %v", mem.liveCount(), err)
+		}
+	})
+	builder := tensor.NewBuilder()
+	var nodes []*tensor.Tensor
+	for _, bank := range file.Tensors {
+		nodes = append(nodes, builder.Input(bank.Name, bank.Type, tensor.MustShape(bank.Shape[:bank.Dimensions]...)))
+	}
+	flags, _, err := (&DeviceWeights{experts: cache}).ExpertRoutes(nil, nodes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	advance := func() {
+		t.Helper()
+		cache.routed[uint64(flags-cache.routedMap)+2] = 1
+		if err := cache.advance(t.Context(), false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	advance()
+	writes, ordered := mem.writes, mem.ordered
+	advance()
+	if len(cache.promoting) == 0 {
+		t.Fatal("the second advance promoted no expert")
+	}
+	if mem.ordered == ordered || mem.writes-writes != mem.ordered-ordered {
+		t.Fatalf("the promoting advance wrote %d times, %d of them ordered, want every write ordered", mem.writes-writes, mem.ordered-ordered)
+	}
+	advance()
+	for _, bank := range cache.banks {
+		table, err := mem.at(bank.table, experts*8)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for index := range uint64(experts) {
+			actual, err := mem.at(driver.DevicePtr(binary.LittleEndian.Uint64(table[index*8:])), bank.bytes)
+			if err != nil || !bytes.Equal(actual, f.payloads[bank.info.Name][index*bank.bytes:(index+1)*bank.bytes]) {
+				t.Fatalf("%s expert %d does not read its bytes: %v", bank.info.Name, index, err)
+			}
+		}
 	}
 }

@@ -151,6 +151,10 @@ type expertMemory interface {
 	copied(ctx context.Context, stream driver.Stream, wait bool) (bool, error)
 	// copyOnCard copies bytes between two places on the card, synchronously.
 	copyOnCard(ctx context.Context, destination, source driver.DevicePtr, bytes uint64) error
+	// writeOrdered queues a write of data behind the work the compute stream holds, data copied before it returns, so
+	// the next run reads it without the host waiting for the run in flight: a table published while a decode window's
+	// draft ran waited about 1 ms a window for the draft to end.
+	writeOrdered(ctx context.Context, destination driver.DevicePtr, data []byte) error
 }
 
 // expertResidency keeps every expert of the file-backed banks readable by
@@ -775,7 +779,7 @@ func (c *expertResidency) publish(ctx context.Context) error {
 		return err
 	}
 	from, through := c.ordered[first], c.ordered[last]
-	if err := c.mem.write(ctx, from.table, driver.Bytes(c.pointers[from.first:through.first+len(through.pointers)])); err != nil {
+	if err := c.mem.writeOrdered(ctx, from.table, driver.Bytes(c.pointers[from.first:through.first+len(through.pointers)])); err != nil {
 		return err
 	}
 	for _, bank := range c.ordered[first : last+1] {
@@ -814,7 +818,7 @@ func (c *expertResidency) publishOnHost(ctx context.Context) error {
 		return nil
 	}
 	// A failed write leaves the card's flags unknown, so the next publish writes them all.
-	err := c.mem.write(ctx, c.onHostFlags+driver.DevicePtr(first), c.onHost[first:end])
+	err := c.mem.writeOrdered(ctx, c.onHostFlags+driver.DevicePtr(first), c.onHost[first:end])
 	c.onHostUnwritten = err != nil
 	return err
 }
@@ -1008,6 +1012,12 @@ func (m stateMemory) copied(_ context.Context, stream driver.Stream, wait bool) 
 		return done, err
 	}
 	return true, m.state.Driver.StreamSynchronize(stream)
+}
+func (m stateMemory) writeOrdered(ctx context.Context, destination driver.DevicePtr, data []byte) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return m.state.Driver.MemcpyHtoDAsync(destination, data, m.state.Stream)
 }
 func (m stateMemory) copyOnCard(ctx context.Context, destination, source driver.DevicePtr, bytes uint64) error {
 	if err := ctx.Err(); err != nil {

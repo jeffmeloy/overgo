@@ -120,8 +120,11 @@ type stagedHostBytes struct {
 }
 
 const (
-	gemmProductScale       = float32(1)
-	gemmAccumulatorScale   = float32(0)
+	gemmProductScale     = float32(1)
+	gemmAccumulatorScale = float32(0)
+	// graphExecCacheCapacity: the captured graphs an executor keeps unless its runner raises it (SetGraphExecCapacity), a
+	// decode step's; it trades a recapture against the card memory a kept graph holds. Provisional: the load-costs step
+	// derives it.
 	graphExecCacheCapacity = 4
 )
 const nativeWeightStagingLimitBytes = uint64(32 << 20)
@@ -2833,7 +2836,8 @@ func (r *executorResources) ensureArena(state *device.State, size uint64) (drive
 // each growth frees the arena, drops the graphs that name it and waits while Windows clears the new allocation (a
 // Flash-Next 16K prompt's read waited about 100 ms for its 2.8 GB). A share of the need to spare (a quarter) also kept
 // a long prompt's second chunk from growing it again, but held card memory the experts lost: agent turns decoded 2.8%
-// slower over three alternating rounds.
+// slower over three alternating rounds. It trades the growths a rounding saves against the card memory it holds
+// idle. Provisional: the load-costs step derives it from a growth's measured cost.
 const arenaGranule = uint64(64 << 20)
 
 // arenaBytes is the arena a run needing need bytes grows to.

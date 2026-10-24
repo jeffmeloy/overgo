@@ -18,6 +18,9 @@ import (
 // three matrices take about 160 us over the link and about 5 us a slot on
 // the 9950X's 32 workers (hostexpert's BenchmarkLayer), so up to about 32
 // slots the CPU costs less.
+// It trades a copy's link time against the CPU's time a slot, both beside the card's own products, which made its
+// choice flat from 16 to 64 on Flash-Next (the derive-tuning record of 2026-10-24; the CPU takes about 9 us a slot
+// today). Provisional: the load-costs step computes it from the link's and the CPU's measured rates.
 const hostExpertSlots = 32
 
 // gatedBanks is a gated expert layer's banks, gate, up and down in order, and

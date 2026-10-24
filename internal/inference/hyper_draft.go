@@ -87,7 +87,8 @@ func (d *hyperDraft) promptRead() *hyperDraftPrompt {
 // hyperDraftWindowCells is the most cells of a prompt the draft attends over, its last. Strata's drafter attends over
 // the last 32,768 (--mtp-window); the draft's attention here reads every cell in one pass, and on Flash-Next a round
 // took 1.27 ms over 16 cells, 1.46 over 4,096 and 2.26 over 16,384, so a window past an agent turn's newest document
-// costs the decode more than its drafts return.
+// costs the decode more than its drafts return. It trades a round's time over the window's cells against the drafts the
+// older cells keep accepted. Provisional: the load-costs step derives it from a round's measured time a cell.
 const hyperDraftWindowCells = 4096
 
 // hyperDraftStreamBytes is a stream element's bytes on the card: the trunk keeps its streams as F32, which a read checks.
@@ -112,7 +113,8 @@ type hyperDraftHistory struct {
 }
 
 // hyperDraftHistoryCells is the fewest cells a history holds: a request's own decoded tokens, rounded up to a power of
-// two so a capacity serves many requests' compiled rounds.
+// two so a capacity serves many requests' compiled rounds: it trades the rounds compiled again against the cells
+// held. Provisional: the load-costs step derives it.
 const hyperDraftHistoryCells = 1024
 
 // hyperDraftHead names the draft's head over its vocabulary among the device weights.

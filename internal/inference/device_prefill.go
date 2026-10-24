@@ -82,6 +82,11 @@ func (r *Runner) prefillDeviceCachedLocked(ctx context.Context, appendInput devi
 // 8,192 (--prefill auto): a chunk's activations take card memory the expert residency gives up, and after a
 // 16K-token Flash-Next prompt read whole 36,566 of 47,937 experts stayed on the card, read in chunks of 8,192 40,581,
 // the chats after it decoding about 6% faster and the prompt read as fast (a 237K-token one 3% slower).
+// It minimizes the read's per-chunk overhead (the experts of few slots the CPU computes, about 165, 90, 50 and 76 ms
+// a chunk of 2,048 to 16,384 tokens) plus the decode's misses on the experts a chunk's memory displaced (0.16 s over
+// 300 tokens at 8,192 against 2,048, no more over 440): 1.32, 0.56, 0.26 and 0.50 s at a 16K read, 8,192 for every
+// answer's length (the derive-tuning chunk record of 2026-10-24). Provisional: the load-costs step computes it from
+// the CPU's time a slot and the card's time a token.
 const devicePromptChunkTokens = 8192
 
 // promptReadPlan is the output plan of mode for a prompt read of tokens tokens: a request that drafts over its prompt

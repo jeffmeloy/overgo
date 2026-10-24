@@ -381,7 +381,7 @@ const (
 	moeQ8Width    = uint32(32)
 	moeQ8RowLanes = uint32(16)
 	// moeHiddenSharedBytes holds two banks of sector-wide F32 rows with one padding word.
-	// Keep this ABI equal to the CUDA tile and reconsider it with measured occupancy.
+	// Keep this ABI equal to the CUDA tile, the kernel's layout, and reconsider it with the occupancy a profile shows.
 	moeHiddenSharedBytes = 2 * moeThreads * (32/4 + 1) * 4
 	// A token's route words: each routed slot's expert and route weight, then
 	// the route weights' sum.

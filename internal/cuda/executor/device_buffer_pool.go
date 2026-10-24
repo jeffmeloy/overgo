@@ -44,6 +44,8 @@ const (
 	// they hold is lost to a file-backed expert residency, which fills only
 	// what the card reports free: at an eighth, two 16K-token prompts left
 	// Flash-Next's pool 5.1 GB of idle buffers and the card 27% fewer experts.
+	// It trades the allocations a reuse saves (each cleared by Windows, about 18 ms a GB) against the experts idle
+	// buffers hold off the card. Provisional: the load-costs step derives it.
 	deviceBufferFreeShare = uint64(64)
 )
 

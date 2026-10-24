@@ -15,13 +15,17 @@ import (
 // Audited on the 27B across draft depths two, three, and four: three wins
 // on both a predictable-text regime (28.5 tokens per second, 74-78 percent
 // chain acceptance) and open-ended prose (17.2, about 40 percent); two
-// under-drafts and four over-pays for decayed tail acceptance.
+// under-drafts and four over-pays for decayed tail acceptance: it trades a
+// deeper chain's accepted drafts against its decayed tail's verify. Provisional:
+// the load-costs step derives it from the acceptance measured by depth.
 const deviceSpeculationDraftTokens = 3
 
 // hyperDraftTokens: a hyper-connection draft layer's depth per verify span.
 // On Flash-Next's short chat a draft from a fresh session holds 63 percent
 // at depth one and 43 and 27 percent at depths two and three, so deeper
-// spans pay more in verify and draft time than their accepted tokens return.
+// spans pay more in verify and draft time than their accepted tokens return:
+// it trades a span's accepted drafts against its verify and draft time. The
+// window step's chained drafts replace it.
 const hyperDraftTokens = 1
 
 // speculationDraftTokens is the depth the runner's draft program drafts per verify span.

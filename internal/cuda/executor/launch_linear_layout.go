@@ -523,7 +523,8 @@ const quantStagedColumnFloor = uint32(32)
 // dequantizes per GEMM. Wider than the F32 exact path's 32 MiB so the
 // 27B's 22 GB of weights take about a hundred GEMMs per forward rather
 // than seven hundred, each large enough to run the tensor cores near
-// their rate.
+// their rate: it trades the GEMMs a forward takes against the staging it
+// holds. Provisional: the load-costs step derives it.
 const quantStagedChunkBytes = uint64(256 << 20)
 
 // quantStagedStagingBytes: one f16 weight chunk plus the f16-packed
@@ -870,7 +871,8 @@ const (
 	// least that many blocks, share each row. A warp a row gave Flash-Next's
 	// 320 hyper-connection rows of 320 blocks 40 blocks of the card's 114
 	// multiprocessors (7.75 us, 450 GB/s); its 512- and 640-row products of
-	// 80 blocks take about 3.5 us either way, bound by the launch.
+	// 80 blocks take about 3.5 us either way, bound by the launch. They trade a row's share of the card's
+	// multiprocessors against the launch a product is bound by. Provisional: the load-costs step derives them.
 	q8_0SplitRowLimit   = uint32(2048)
 	q8_0SplitBlockFloor = uint32(256)
 )

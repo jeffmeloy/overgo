@@ -844,7 +844,7 @@
      "contains": "func Compile(",
      "path": "internal/cuda/executor/executor.go",
      "role": "source",
-     "identity": "file:sha256:f6ce038faf46749495e7ccccd31d86c98c708a65f1acbd372807d1ac55ab04b8"
+     "identity": "file:sha256:26f941df9e54419f19f58564e0f9e9a347e55b21d65a1e192dca17f8d4395e61"
     },
     {
      "contains": "func TestIndexedGraphOwnsCompilation(",
@@ -886,7 +886,7 @@
      "contains": "func (r *Runner) selectPromptCache(",
      "path": "internal/inference/prompt_cache.go",
      "role": "source",
-     "identity": "file:sha256:3615c3dd2fd4cdbe52f45c02b6ef8d6a1f78c4a2a870819350340641aea2b8b1"
+     "identity": "file:sha256:4e2f09ffe7b4d4912773a9d7984e470930da160733cd1a5d530b78d5e5fe2a4e"
     },
     {
      "contains": "func TestProjectedPromptCacheRequiresExactMediaSignature(",

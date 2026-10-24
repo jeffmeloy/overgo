@@ -17,7 +17,7 @@ import (
 
 // TestExpertPromotionsCopyBesideTheRunsOnTheCard drives a residency of two
 // banks of three experts, two of each on the card, through the driver: a
-// second miss takes the coldest card expert's slot, which reads its host copy
+// miss takes the coldest card expert's slot, which reads its host copy
 // at once, while its own copy to the card is in flight on the residency's own
 // stream. After every step each table entry on the device names its expert's
 // bytes.
@@ -107,8 +107,7 @@ func TestExpertPromotionsCopyBesideTheRunsOnTheCard(t *testing.T) {
 		}
 		return cache.publish(t.Context())
 	}
-	// The first miss is counted; the second takes expert 0's slot, 0 reading its host copy at once.
-	step(t, []uint32{0, 1}, advance, 2)
+	// The miss takes expert 0's slot, 0 reading its host copy at once.
 	step(t, []uint32{1}, advance, 2)
 	if len(cache.promoting) != 2 {
 		t.Fatalf("%d promotions copy beside the next run, want expert 2 of each bank", len(cache.promoting))

@@ -211,14 +211,11 @@
       "id": "derive-tuning",
       "title": "Hold every tuning value to the cost it trades",
       "status": "open",
+      "budget": {
+        "nodes": 5,
+        "reason": ""
+      },
       "steps": [
-        {
-          "id": "promote",
-          "title": "Promote an expert where its misses outweigh its copy",
-          "status": "open",
-          "verify": "go test ./internal/modeldevice -run '^(TestFlashNextExpertResidency|TestExpertResidencyFillsTheCardWhenItFrees|TestPublishQueuesBehindTheRun)$' -count=1",
-          "rationale": "An expert moves to the card once routed twice, its count falling by 0.7 every four decode runs, at most 64 an advance, and a decode's spare slots come 64 at once: Strata's adaptive tier's values (2, 0.7, 4, 96 swaps) and one chosen by hand (expertSpareSlots), none computed from what they trade. A promotion is worth its copy where the misses it saves outweigh the copy's cost and the misses the expert it displaces then adds: the expected uses from an expert's decayed count, a miss's cost (the CPU's 46 us an expert, the part the card waits for), an expert's bytes over the link's rate beside the run, and the victim's own expected uses.\nFirst: that test written with the measured costs, its admissions predicted against the residency's actual promotions and hit rates on the bench's agent turns and chats (overgo_expert_routes), and against Strata's 1.5 margin; then this step's check is set and the admission built on it, with the per-advance bound and the spare slots from the copies a run hides.\nServes: decode, the experts a window hands the CPU (the token-cost step's record: about 2.5 times Strata's misses a verified token on a chained window).\nDisappears: expertAdmission, expertUsageDecay, expertUsageRounds, expertPromotionsPerAdvance and expertSpareSlots as constants.\nEvidence: the predicted and the measured admissions; the hit rates; the bench's decode cells over three alternating rounds.\nVerify: set with -setverify once the test is written; false until then.\n\nMeasured 2026-10-24 at 8c4dab4 (tmp/derive-tuning: zz_route_trace.go.txt and route-trace-hook.patch record each advance's routed experts over one bench run; routesim replays them at the card's capacity, 65% of the experts): 1,124 decode advances of about 800 routed experts each. Admitted at a second use, as Strata's tier admits, the CPU computes 32.0 experts a window for 2.9 copies (96.0% of routes on the card); at a first, 14.1 for 9.9 (98.2%); the hindsight bound (Belady) 9.5 for 8.3; Strata's tier as it reads (a 1.5 margin over the least used of a layer, every fourth window) 43.9 for 1.7. A promotion pays where the uses it saves outlast its victim's by more than a copy's cost over a miss's; served, admitted at a first use over three alternating rounds against HEAD with no request failing: 4K decode +5.2%, agent prompt +6.1%, chat prompt +15.4%, chat first token 10.8% and the agent's 5.7% sooner, chat decode +3.2% and agent decode +1.0% inside the ranges, 16K level. So a copy beside the run costs less than the misses it saves here; the threshold is the first use, and load-costs computes it from a copy's and a miss's measured costs. The check holds the residency to a miss promoted at its first route."
-        },
         {
           "id": "headroom",
           "title": "Keep free what the card allocates outside the reservation",

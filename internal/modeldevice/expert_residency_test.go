@@ -298,40 +298,34 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		if mem.writes != writes {
 			t.Fatal("a run that routed nothing moved experts")
 		}
-		// A miss is counted; its second takes the slot of the coldest card expert, 0, which reads its host copy at once,
-		// and its own copy lands by the advance after.
-		route(t, cache, 2)
-		advance(t, cache)
-		if bytes.IndexByte(cache.routed, 1) >= 0 || len(cache.promoting) != 0 {
-			t.Fatalf("the routes stayed marked or a first miss promoted %d experts", len(cache.promoting))
-		}
+		// A miss takes the slot of the coldest card expert, 0, which reads its host copy at once, and its own copy lands
+		// by the advance after.
 		pinned := len(cache.pinned)
 		route(t, cache, 2)
 		advance(t, cache)
 		readable(t, cache, mem, map[string][]uint32{})
-		if len(cache.promoting) != 2 {
-			t.Fatalf("%d experts are promoting, want expert 2 of each bank", len(cache.promoting))
+		if bytes.IndexByte(cache.routed, 1) >= 0 || len(cache.promoting) != 2 {
+			t.Fatalf("the routes stayed marked or %d experts are promoting, want expert 2 of each bank", len(cache.promoting))
 		}
 		advance(t, cache)
 		readable(t, cache, mem, map[string][]uint32{"gate": {2}, "down": {2}})
-		// Expert 2 served this step too, and expert 0's first miss is only counted: it stays in host memory.
+		// Expert 2 served this step too, so expert 0's miss finds no card expert the step left unnamed: it stays in host
+		// memory.
 		route(t, cache, 0, 2)
 		advance(t, cache)
+		advance(t, cache)
 		readable(t, cache, mem, map[string][]uint32{"gate": {2}, "down": {2}})
-		// Expert 1's count decays at the fourth decode run, so its third run moves it.
-		for range 3 {
-			route(t, cache, 1)
-			advance(t, cache)
-		}
+		// Expert 1's miss takes the slot of expert 2, unnamed this step.
+		route(t, cache, 1)
+		advance(t, cache)
 		advance(t, cache)
 		readable(t, cache, mem, map[string][]uint32{"gate": {1}, "down": {1}})
 		if len(cache.pinned) != pinned {
 			t.Fatal("swaps pinned more host memory")
 		}
-		// Runs named expert 2 twice, then 0 and 2, then 1 three times, in both banks; only the third found its expert 2
-		// on the card.
+		// Runs named expert 2, then 0 and 2, then 1, in both banks; only the second found its expert 2 on the card.
 		placement, err := (&DeviceWeights{experts: cache}).ExpertPlacement(nil)
-		if err != nil || placement.Routes != 14 || placement.CardRoutes != 2 || placement.CardExperts != 2 {
+		if err != nil || placement.Routes != 8 || placement.CardRoutes != 2 || placement.CardExperts != 2 {
 			t.Fatalf("placement after the runs = %+v: %v", placement, err)
 		}
 	})
@@ -358,10 +352,7 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		onCard(t, 0, 1, 2)
 		advance(t, cache)
 		onCard(t, 0)
-		// Expert 2's second miss leaves 0 to its host copy while 2's copy is in flight.
-		route(t, cache, 2)
-		advance(t, cache)
-		onCard(t, 0)
+		// Expert 2's miss leaves 0 to its host copy while 2's copy is in flight.
 		route(t, cache, 2)
 		advance(t, cache)
 		onCard(t)
@@ -371,11 +362,9 @@ func TestFlashNextExpertResidency(t *testing.T) {
 	t.Run("promotions-land-beside-the-next-run", func(t *testing.T) {
 		// Two experts of each bank fit: 0 and 1 on the card, 2 in host memory.
 		cache, mem := open(t, tableBytes+2*(gateStride+downStride))
-		// Expert 2's first miss is counted; its second takes the slot of the coldest card expert the step left unnamed,
-		// 0, which reads its host copy at once, with no copy back, and 2 stays in host memory while its copy to the card
+		// Expert 2's miss takes the slot of the coldest card expert the step left unnamed, 0, which reads its host copy
+		// at once, with no copy back, and 2 stays in host memory while its copy to the card
 		// is in flight.
-		route(t, cache, 2)
-		advance(t, cache)
 		route(t, cache, 2)
 		mem.hold = true
 		writes, pinned := mem.writes, len(cache.pinned)
@@ -412,7 +401,7 @@ func TestFlashNextExpertResidency(t *testing.T) {
 			t.Fatal("a prompt's routes moved experts or stayed marked")
 		}
 		// A decode run's routes move their experts though they name two of three, as a verify span may of a small bank:
-		// at their second misses expert 1 takes expert 0's slot, and expert 2 finds no other.
+		// at their first misses expert 1 takes expert 0's slot, and expert 2 finds no other.
 		for range 3 {
 			route(t, cache, 1, 2)
 			advance(t, cache)
@@ -452,8 +441,6 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		// releases free, into expert 0's slots, and no table names a freed allocation, then or after the next advance.
 		cache, mem = open(t, tableBytes+2*(gateStride+downStride))
 		route(t, cache, 2)
-		advance(t, cache)
-		route(t, cache, 2)
 		mem.hold = true
 		advance(t, cache)
 		if err := cache.start(t.Context()); err != nil || len(cache.promoting) != 2 {
@@ -473,9 +460,7 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		for _, fail := range []string{"write", "cancel"} {
 			cache, mem := open(t, oneEach)
 			ctx, cancel := context.WithCancel(t.Context())
-			// The first miss is counted, the second takes expert 0's slot.
-			route(t, cache, 2)
-			advance(t, cache)
+			// The miss takes expert 0's slot.
 			route(t, cache, 2)
 			if fail == "write" {
 				// The tables naming the moves.
@@ -492,11 +477,9 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		}
 	})
 	t.Run("failed-publication-is-repaired-before-the-next-run", func(t *testing.T) {
-		// Expert 2's second miss takes expert 0's slots, then the table write fails: the tables still name the card slots
+		// Expert 2's miss takes expert 0's slots, then the table write fails: the tables still name the card slots
 		// 2's copies overwrite until a later advance writes them.
 		cache, mem := open(t, oneEach)
-		route(t, cache, 2)
-		advance(t, cache)
 		route(t, cache, 2)
 		mem.failWrite = mem.writes + 1
 		if err := cache.advance(t.Context(), false); err == nil {
@@ -667,8 +650,8 @@ func TestExpertResidencyFillsTheCardWhenItFrees(t *testing.T) {
 		})
 		return cache, mem
 	}
-	// admit runs three advances after decode runs that routed experts 1 and 2, the first two admitting them and the
-	// third landing their copies, and returns the experts on the card, holding every table entry to its expert's bytes.
+	// admit runs three advances after decode runs that routed experts 1 and 2, the first admitting them and the second
+	// landing their copies, and returns the experts on the card, holding every table entry to its expert's bytes.
 	admit := func(t *testing.T, cache *expertResidency, mem *fakeExpertDevice) uint64 {
 		t.Helper()
 		flags, _, err := (&DeviceWeights{experts: cache}).ExpertRoutes(nil, nodes)
@@ -723,8 +706,10 @@ func TestExpertResidencyFillsTheCardWhenItFrees(t *testing.T) {
 	}
 	taken, mem := open(t, 0)
 	mem.freeBytes, mem.failAlloc = freed, mem.allocs+1
-	if card := admit(t, taken, mem); card != 2 {
-		t.Fatalf("promotions whose allocation failed left %d experts on the card", card)
+	// The failed allocation fails no run: its misses take the load's experts' slots, and the next advance's allocation
+	// takes the rest.
+	if card := admit(t, taken, mem); card != 2*experts-2 {
+		t.Fatalf("promotions after an allocation failed left %d experts on the card, want %d", card, 2*experts-2)
 	}
 	// Memory another owner lends takes the misses without an allocation or a victim, carved from its end down; its owner
 	// takes back the part it uses next, the experts there moved out, the most used into the card slots of colder ones,
@@ -864,7 +849,7 @@ func TestReleaseKeepsTheHottestExperts(t *testing.T) {
 }
 
 // TestPublishQueuesBehindTheRun holds the residency's publishes to the ordered write: an advance that promotes a
-// twice-routed expert into a card expert's slot writes the tables and the card's flags of experts on host only behind
+// routed expert into a card expert's slot writes the tables and the card's flags of experts on host only behind
 // the compute stream's work, never with a write that waits for the run in flight, and every table still reads its
 // expert's bytes once the promotion lands.
 func TestPublishQueuesBehindTheRun(t *testing.T) {
@@ -906,11 +891,10 @@ func TestPublishQueuesBehindTheRun(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	advance()
 	writes, ordered := mem.writes, mem.ordered
 	advance()
 	if len(cache.promoting) == 0 {
-		t.Fatal("the second advance promoted no expert")
+		t.Fatal("the advance promoted no expert")
 	}
 	if mem.ordered == ordered || mem.writes-writes != mem.ordered-ordered {
 		t.Fatalf("the promoting advance wrote %d times, %d of them ordered, want every write ordered", mem.writes-writes, mem.ordered-ordered)

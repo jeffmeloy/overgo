@@ -44,15 +44,20 @@ const (
 	// Flash-Next exec, and the libraries' workspaces): Strata keeps 700 MiB free (--vram-reserve-mib), and Flash-Next's
 	// requests ran down to 0.75 GB free. Provisional: the headroom step computes it from the transients the card measures.
 	expertSpareHeadroomBytes = 1 << 30
-	// expertUsageDecay, expertUsageRounds, expertAdmission and expertPromotionsPerAdvance are Strata's adaptive tier
-	// (src/program/generate.cpp: --adapt-decay 0.7, --adapt-every 4, a candidate used at least twice, at most 96 swaps
-	// a round): an expert counts the decode runs that route it, the counts fall by expertUsageDecay every
-	// expertUsageRounds of them, and a miss moves to the card once its count reaches expertAdmission, the most used
-	// first, at most expertPromotionsPerAdvance an advance. Moving every miss moved about 125 experts a step of an
-	// agent turn, whose copies outlasted the step and held its own copy of its selection behind them.
+	// A decode's miss moves to the card on its first route, the most used first, at most expertPromotionsPerAdvance an
+	// advance, into the slot of the card expert of its stride routed least recently: a promotion pays where the uses it
+	// saves outlast the expert it displaces by more than a copy's cost over a miss's, and a copy beside the run (about
+	// 1.5 MB over the link) cost less than the misses it saved (the CPU's 50 us an expert, the card waiting): the bench's
+	// routes replayed (tmp/derive-tuning/routesim) admitted at a first miss, the CPU computed 14.1 experts a window for
+	// 9.9 copies, at a second 32.0 for 2.9 (the hindsight bound 9.5 for 8.3), and served, over three alternating rounds,
+	// 4K decode rose 5.2%, the agent's prompt 6.1% and chat's 15.4%, no cell falling. expertUsageDecay and
+	// expertUsageRounds are Strata's adaptive tier's (src/program/generate.cpp: --adapt-decay 0.7, --adapt-every 4): an
+	// expert counts the decode runs that route it, the counts falling by expertUsageDecay every expertUsageRounds of them,
+	// which orders the misses an advance admits and the experts a release keeps. The bound binds rarely (the replay at 64
+	// and at 256 moved the same). Provisional: the load-costs step computes the threshold from a copy's and a miss's
+	// measured costs.
 	expertUsageDecay           = 0.7
 	expertUsageRounds          = 4
-	expertAdmission            = 2
 	expertPromotionsPerAdvance = 64
 	// expertSpareSlots: the free card slots a stride class takes at once (spare), which trades an allocation's cost (an
 	// allocation and Windows clearing it, about 18 ms a GB) against slots held empty until misses fill them; carved from
@@ -545,8 +550,8 @@ func (w *DeviceWeights) StartExpertCopies(ctx context.Context, state *device.Sta
 }
 
 // advance reads the flags the last run's routes set, which its synchronization made visible, and clears them for the next run.
-// The copies an earlier advance queued land first, waited for, and the misses the routes counted twice take the card
-// slots of the coldest card experts.
+// The copies an earlier advance queued land first, waited for, and the decode's misses take the card slots of the
+// coldest card experts.
 //   - waited for because where an expert lies decides who computes it (the doorbell's CPU or the card), so a copy
 //     that landed by one advance and not another changed a decoded text with the host's speed; a copy queued behind
 //     the last run has landed by its end on Flash-Next, so the wait costs nothing there
@@ -581,7 +586,7 @@ func (c *expertResidency) advance(ctx context.Context, prompt bool) error {
 					c.cardRoutes++
 					entry.Value.(*residentExpert).step = c.step
 					bank.class.order.MoveToBack(entry)
-				} else if !prompt && !bank.moving[index] && bank.usage[index] >= expertAdmission {
+				} else if !prompt && !bank.moving[index] {
 					missed = append(missed, expertKey{bank, uint32(index)})
 				}
 			}

@@ -210,7 +210,7 @@ func TestFlashNextExpertResidency(t *testing.T) {
 	// route sets the flags of experts the node routes, as the route kernel does in host memory the card maps.
 	route := func(t *testing.T, cache *expertResidency, indices ...uint32) {
 		t.Helper()
-		bitmap, err := (&DeviceWeights{experts: cache}).ExpertRoutes(nil, nodes(t))
+		bitmap, _, err := (&DeviceWeights{experts: cache}).ExpertRoutes(nil, nodes(t))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -536,7 +536,7 @@ func TestFlashNextExpertResidency(t *testing.T) {
 		cache, _ := open(t, oneEach)
 		wrong := nodes(t)
 		wrong[1] = tensor.NewBuilder().Input("down", dtype.F32, tensor.MustShape(16, 8, 6))
-		if _, err := (&DeviceWeights{experts: cache}).ExpertRoutes(nil, wrong); err == nil {
+		if _, _, err := (&DeviceWeights{experts: cache}).ExpertRoutes(nil, wrong); err == nil {
 			t.Fatal("a bank of another shape was accepted")
 		}
 	})
@@ -581,7 +581,7 @@ func TestExpertAdmissionTakesTheMostUsed(t *testing.T) {
 	node := tensor.NewBuilder().Input("gate", file.Tensors[0].Type, tensor.MustShape(file.Tensors[0].Shape[:file.Tensors[0].Dimensions]...))
 	run := func(prompt bool) {
 		t.Helper()
-		flags, err := (&DeviceWeights{experts: cache}).ExpertRoutes(nil, []*tensor.Tensor{node})
+		flags, _, err := (&DeviceWeights{experts: cache}).ExpertRoutes(nil, []*tensor.Tensor{node})
 		if err != nil {
 			t.Fatal(err)
 		}

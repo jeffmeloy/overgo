@@ -902,6 +902,53 @@ func TestPromptExpertsMultiplyEncodedWeights(t *testing.T) {
 	}
 }
 
+// TestPromptGroupMarksItsRoutedExperts routes each token to its own selected
+// experts of 300 file-backed ones, as a prompt group of 64 tokens, whose
+// routes come to the host, which marks the residency's flags, and as a group
+// of 16 under a tile, whose route kernel marks them: after either run the
+// flags name exactly the experts the tokens selected.
+func TestPromptGroupMarksItsRoutedExperts(t *testing.T) {
+	// Serial: device fixtures share the one card.
+	for _, tokens := range []uint64{16, 64} {
+		t.Run(fmt.Sprintf("tokens=%d", tokens), func(t *testing.T) {
+			c := moePinnedCase{
+				name: "route-flags", compute: tensor.MulMatComputeNativeTensorCore, offload: true,
+				hidden: 96, routerHidden: 96, intermediate: 128, experts: 300, tokens: tokens, divisor: 1, topK: 4,
+				routing: tensor.MoERoutingSoftmax, activation: tensor.MoEActivationSiLU, normalize: true, scale: 1,
+				selected: true, banks: [3]dtype.Type{dtype.BF16, dtype.BF16, dtype.BF16},
+			}
+			cuda := newFixtureExecutor(t)
+			output, host, pointers, _ := c.prepare(t, cuda, dtype.F32)
+			retained, err := cuda.executeRetainedWithDeviceFeeds(t.Context(), []*tensor.Tensor{output}, host, pointers)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := retained.Release(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			var flags []byte
+			banks := output.Inputs[moeFirstBankInput : moeFirstBankInput+3]
+			if err := cuda.worker.Do(t.Context(), func(state *device.State) error {
+				_, routed, err := cuda.resources.experts.ExpertRoutes(state, banks)
+				flags = bytes.Clone(routed)
+				return err
+			}); err != nil {
+				t.Fatal(err)
+			}
+			// prepare's selection: token t's slot s takes expert (t + 3s) mod the experts.
+			want := make([]byte, c.experts)
+			for token := range tokens {
+				for slot := range uint64(c.topK) {
+					want[(token+3*slot)%c.experts] = 1
+				}
+			}
+			if !bytes.Equal(flags, want) {
+				t.Fatalf("route flags %v, want %v", flags, want)
+			}
+		})
+	}
+}
+
 // TestPromptExpertCopiesOverlapCompute runs a prompt group of 64 tokens over
 // five BF16 experts of 24 MiB, each more than half a copy buffer, with only
 // expert 0 on the card: the four experts in host memory copy in a batch

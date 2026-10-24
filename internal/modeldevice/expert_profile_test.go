@@ -135,7 +135,7 @@ func TestExpertProfile(t *testing.T) {
 				bank := cache.banks[name].info
 				nodes = append(nodes, builder.Input(name, bank.Type, tensor.MustShape(bank.Shape[:bank.Dimensions]...)))
 			}
-			bitmap, err := weights.ExpertRoutes(nil, nodes)
+			bitmap, _, err := weights.ExpertRoutes(nil, nodes)
 			if err != nil {
 				t.Fatal(err)
 			}

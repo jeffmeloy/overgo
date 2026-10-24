@@ -12,7 +12,8 @@ import (
 
 // ExpertBanks owns encoded expert residency on the executor's CUDA worker.
 // An expert bank's input is its table of expert pointers, each always readable by the card.
-// ExpertRoutes names the flags a routed node's routes mark, in host memory the card maps, so a run's routes reach the host with no copy.
+// ExpertRoutes names the flags a routed node's routes mark, in host memory the card maps, so a run's routes reach the host with no copy,
+// and the host's view of them, which a group whose routes come to the host marks there.
 // AdvanceExperts applies the last run's routes to residency before the next run, and moves no expert after a prompt.
 // StartExpertCopies starts the copies the last advance recorded, once the run is launched, so the run's own copies to
 // the card do not wait behind them.
@@ -22,7 +23,7 @@ import (
 // as the advance before it left them, and which ExpertSources' bytes then agree with.
 type ExpertBanks interface {
 	IsExpertBank(string) bool
-	ExpertRoutes(*device.State, []*tensor.Tensor) (driver.DevicePtr, error)
+	ExpertRoutes(*device.State, []*tensor.Tensor) (driver.DevicePtr, []byte, error)
 	ExpertsOnHost(*device.State, []*tensor.Tensor) (driver.DevicePtr, error)
 	ExpertSources(*device.State, *tensor.Tensor, []driver.DevicePtr, [][]byte) error
 	AdvanceExperts(context.Context, *device.State, bool) error

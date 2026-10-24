@@ -167,14 +167,16 @@ func launchMoE(
 		// the routed experts for the residency to read between runs.
 		indexed := uint32(0)
 		var routed driver.DevicePtr
+		var routedFlags []byte
 		var residency ExpertBanks
 		banks := node.Inputs[moeFirstBankInput:wantInputs]
 		if pointers.experts != nil && pointers.experts.IsExpertBank(banks[0].Name) {
 			indexed, residency = 1, pointers.experts
-			if routed, err = pointers.experts.ExpertRoutes(state, banks); err != nil {
+			if routed, routedFlags, err = pointers.experts.ExpertRoutes(state, banks); err != nil {
 				return err
 			}
 		}
+		_, matrixNode := nativeMoEMatrix(node)
 		for start := uint32(0); start < tokens; start += group {
 			if pointers.ctx != nil {
 				if err := pointers.ctx.Err(); err != nil {
@@ -194,11 +196,17 @@ func launchMoE(
 				groupRouterInput, router, routerBias, routerLogits, routerHidden, count, experts); err != nil {
 				return err
 			}
+			// A group taking the grouped products brings its routes to the host, which marks its experts' flags there:
+			// the kernel's writes, a byte a routed slot over the link, took 1.5 ms a Flash-Next layer of 8,192 tokens.
+			groupRouted, groupFlags := routed, []byte(nil)
+			if matrixNode && count >= moeTileTokens {
+				groupRouted, groupFlags = 0, routedFlags
+			}
 			if err := launchGridSharedABI(
 				state, functions[kernelMoeRouteF32],
 				driver.Dim3{X: count, Y: 1, Z: 1},
 				driver.Dim3{X: moeThreads, Y: 1, Z: 1}, logitBytes,
-				&routerLogits, &selectionBias, &groupSelected, &routeState, &routed, &count, &experts, &topK, &routing,
+				&routerLogits, &selectionBias, &groupSelected, &routeState, &groupRouted, &count, &experts, &topK, &routing,
 				&expertIndexDivisor,
 			); err != nil {
 				return err
@@ -216,7 +224,7 @@ func launchMoE(
 			}
 			if used, err := launchMoEMatrices(state, functions, blas, node,
 				groupInput, routeState, activations, groupOutput, gate, up, down, gateBias, upBias, downBias, expertScale,
-				count, residency); err != nil {
+				count, residency, groupFlags); err != nil {
 				return err
 			} else if used {
 				continue

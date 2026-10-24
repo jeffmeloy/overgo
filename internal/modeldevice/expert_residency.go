@@ -419,18 +419,21 @@ func (w *DeviceWeights) ExpertPlacement(state *device.State) (ExpertPlacement, e
 	return placement, nil
 }
 
-// ExpertRoutes returns the flags a routed node's routes mark, in host
-// memory the card maps, for the residency to read between runs. The nodes
-// are the routed node's banks.
-func (w *DeviceWeights) ExpertRoutes(state *device.State, nodes []*tensor.Tensor) (driver.DevicePtr, error) {
+// ExpertRoutes returns the flags a routed node's routes mark, one byte a bank
+// expert, in host memory the card maps, for the residency to read between
+// runs: their address on the card and the host's view of them, which a run
+// whose routes reach the host marks there. The nodes are the routed node's
+// banks.
+func (w *DeviceWeights) ExpertRoutes(state *device.State, nodes []*tensor.Tensor) (driver.DevicePtr, []byte, error) {
 	if w == nil || w.experts == nil || w.experts.state != state || len(nodes) == 0 {
-		return 0, errors.New("expert routes require their owning CUDA worker")
+		return 0, nil, errors.New("expert routes require their owning CUDA worker")
 	}
 	head, err := w.experts.routedGroup(nodes)
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
-	return w.experts.routedMap + driver.DevicePtr(head.routed), nil
+	flags := w.experts.routed[head.routed : head.routed+uint64(len(head.pointers))]
+	return w.experts.routedMap + driver.DevicePtr(head.routed), flags, nil
 }
 
 // ExpertsOnHost returns the card's flags of a routed node's experts, one byte an expert, set where every bank of the

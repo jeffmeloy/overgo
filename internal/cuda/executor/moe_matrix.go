@@ -135,9 +135,10 @@ func (g moeMatrixGeometry) stagingBytes(group uint32, topK uint32) uint64 {
 //   - a tile reads each weight of its expert once for all its rows
 //   - experts in host memory are copied into the staging in batches, each once a group, beside the compute
 //   - activations takes each routed row's activations in expert order, and the staging the plan and each slot's output
+//   - routed, the host's view of the residency's flags where it keeps them, takes a flag for each routed expert
 func launchMoEMatrices(state *device.State, functions functionSet, blas *blasState, node *tensor.Tensor,
 	input, routeState, activations, output, gate, up, down, gateBias, upBias, downBias, expertScale driver.DevicePtr,
-	count uint32, residency ExpertBanks) (launched bool, err error) {
+	count uint32, residency ExpertBanks, routed []byte) (launched bool, err error) {
 	g, eligible := nativeMoEMatrix(node)
 	if !eligible || count < moeTileTokens {
 		return false, nil
@@ -175,7 +176,13 @@ func launchMoEMatrices(state *device.State, functions functionSet, blas *blasSta
 			blas.moeOffsets[expert+1]++
 		}
 	}
+	if routed != nil && len(routed) != int(experts) {
+		return false, errors.New("MoE route flags disagree with the expert bank")
+	}
 	for expert := range experts {
+		if routed != nil && blas.moeOffsets[expert+1] > 0 {
+			routed[expert] = 1
+		}
 		blas.moeOffsets[expert+1] += blas.moeOffsets[expert]
 	}
 	// Each bank's expert addresses, and the pinned bytes of those in host memory.

@@ -60,7 +60,7 @@ func TestExpertPromotionsCopyBesideTheRunsOnTheCard(t *testing.T) {
 	step := func(t *testing.T, card []uint32, work func(state *device.State) error, indices ...uint32) {
 		t.Helper()
 		err := worker.Do(t.Context(), func(state *device.State) error {
-			flags, err := weights.ExpertRoutes(state, nodes)
+			flags, _, err := weights.ExpertRoutes(state, nodes)
 			if err != nil {
 				return err
 			}

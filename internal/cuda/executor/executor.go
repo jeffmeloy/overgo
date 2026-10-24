@@ -1852,9 +1852,11 @@ func (e *Executor) runCompiled(
 			return resourceErr
 		}
 		arenaSize := compiled.executionMemory(retain, targets).ArenaSize
-		// A captured run's arena is the one its kept frames name; a one-shot run, a prompt's read, takes its own.
+		// A captured run's arena is the one its kept frames name; a one-shot run, a prompt's read, takes its own where
+		// experts can take it back after the read, and shares the captured runs' otherwise, so a model without experts
+		// holds one arena, the larger, not both (every dense model's peak rose by a prompt arena, 2026-10-24).
 		ensure := resources.ensureArena
-		if !cacheGraph {
+		if !cacheGraph && resources.experts != nil {
 			ensure = resources.ensurePromptArena
 		}
 		arena, arenaErr := ensure(state, arenaSize)

@@ -233,9 +233,10 @@ func TestPromptMemoryGivesBackItsLoan(t *testing.T) {
 	spanWant := runSpan()
 	stepWant := run(false, stepGraph, stepFeeds, nil, step)
 	run(false, stepGraph, stepFeeds, nil, step)
-	held, err := cuda.Metrics(t.Context())
-	if err != nil || held.PromptArenaBytes == 0 || held.BLASStagingBytes == 0 || held.GraphCacheEntries != 2 {
-		t.Fatalf("the read took arena %d and staging %d beside %d kept graphs (%v), want both beside the step's and the span's", held.PromptArenaBytes, held.BLASStagingBytes, held.GraphCacheEntries, err)
+	// Without experts to take it back, the read shares the captured runs' arena: a model without experts holds one.
+	shared, err := cuda.Metrics(t.Context())
+	if err != nil || shared.PromptArenaBytes != 0 || shared.BLASStagingBytes == 0 || shared.GraphCacheEntries != 2 {
+		t.Fatalf("the read took an arena of %d and staging %d beside %d kept graphs (%v), want no arena of its own and the staging beside the step's and the span's", shared.PromptArenaBytes, shared.BLASStagingBytes, shared.GraphCacheEntries, err)
 	}
 	before := current()
 	if err := cuda.ReleasePromptMemory(t.Context()); err != nil || current() != before {
@@ -248,6 +249,11 @@ func TestPromptMemoryGivesBackItsLoan(t *testing.T) {
 	// Binding the experts drops the kept graphs, which the span and the step capture again.
 	spanWant, stepWant = runSpan(), run(false, stepGraph, stepFeeds, nil, step)
 	readWant = runRead()
+	held, err := cuda.Metrics(t.Context())
+	if err != nil || held.PromptArenaBytes == 0 {
+		t.Fatalf("with experts the read took an arena of %d (%v), want its own", held.PromptArenaBytes, err)
+	}
+	before = current()
 	arena, staging := cuda.resources.promptArena, cuda.resources.blas.staging
 	if err := cuda.ReleasePromptMemory(t.Context()); err != nil {
 		t.Fatal(err)

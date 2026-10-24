@@ -216,17 +216,10 @@
       "title": "Repair the confirmed findings, measure every cell on one commit and push it to GitHub's main",
       "status": "open",
       "budget": {
-        "nodes": 71,
+        "nodes": 65,
         "reason": "The defects took 71 production syntax nodes (the context through blob verification and the GGUF sample's early charge). The bench's sampled pass adds 90: the sampling the model file recommends and its seed as named constants in one map, the third argument naming it, the suite's field, its copy into each request's body and the run's record of it. Nothing smaller sends the same requests to both engines at the file's sampling."
       },
       "steps": [
-        {
-          "id": "peak",
-          "title": "Share the captured runs' arena with a prompt read where no experts take it back",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestPromptMemoryGivesBackItsLoan$' -count=1",
-          "rationale": "Serves: every dense model's peak device memory, up by about 128 MiB (210 on Unlimited-OCR) since the loan step gave a one-shot run an arena of its own: a model without experts has none to lend it to and held both arenas. A one-shot run takes its own arena only where experts are bound and shares the captured runs' arena otherwise.\nDisappears: the second arena on dense models.\nEvidence: TestPromptMemoryGivesBackItsLoan holds a read without experts to no arena of its own and, with experts, to its own, lent and reclaimed as before; the next measurement run's peak cells.\nBatch: cuda/executor device lane."
-        },
         {
           "id": "scorecard",
           "title": "Measure every scorecard cell on one commit beside Strata's bench suite",

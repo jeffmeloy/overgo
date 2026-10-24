@@ -213,16 +213,9 @@
       "status": "open",
       "budget": {
         "nodes": 0,
-        "reason": "The prompt-tail step adds about 98 production syntax nodes: the routed node's prompt mark and the builder's setting of it, the grouped products' smallest group read from the mark (moeMatrixTokens) at its three uses, the output plan's mark and the second part of a two-part prompt read setting it. Nothing smaller tells a prompt's header from a verify span of its size."
+        "reason": "The prompt-groups step adds about 59 production syntax nodes: promptReadPlan, which makes a prompt read's output plan with its draft streams and its mark on the routed nodes for a read of more than one token, in place of the read's inline plan. Nothing smaller marks every prompt read where the header alone was."
       },
       "steps": [
-        {
-          "id": "prompt-groups",
-          "title": "Mark every prompt read's routed nodes for the grouped products",
-          "status": "open",
-          "verify": "go test ./internal/inference -run '^TestPromptReadsMarkTheirExperts$' -count=1",
-          "rationale": "Traced 2026-10-23 (a chat right after a 16K read, Nsight Systems): the chat's prompt, under a tile of tokens, ran as a decode group, whose q8 products read the experts the long read had moved to host memory (whole banks of the last layers) over the link inside their kernels: 750 ms of the chat's 0.84 s of card time, its first token 0.78 s and the next chat's 0.58 against about 0.15 on a card the read had not touched. The header's mark (prompt-tail) taken by every prompt read of more than one token, its small groups take the grouped products, the CPU computing the experts in host memory: on one server's sequence the chat after the 16K read answered its first token in 0.166 s and the next in 0.139.\nServes: every prompt read's first token after a read that moved experts out, the agent's turns after a long document among them.\nDisappears: the decode products' reads of host experts over the link in a prompt's small groups.\nEvidence: a test holding every prompt read of more than one token to the mark; the chats after a 16K read; the bench over three alternating rounds; the long-context and image acceptance on both builds."
-        },
         {
           "id": "chunk-cost",
           "title": "Derive the prompt chunk's size from its measured costs",

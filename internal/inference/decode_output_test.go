@@ -48,3 +48,22 @@ func TestCompiledOutputPolicyOwnsAllDecodePaths(t *testing.T) {
 		}
 	}
 }
+
+// TestPromptReadsMarkTheirExperts holds a prompt read of more than one token to the prompt's mark on its routed nodes,
+// whose small groups take the grouped products, and a read of one token, a decode step's append, to none.
+func TestPromptReadsMarkTheirExperts(t *testing.T) {
+	runner := &Runner{}
+	runner.spec.VocabularySize = 32
+	for _, c := range []struct {
+		tokens int
+		marked bool
+	}{{1, false}, {2, true}, {31, true}, {8192, true}} {
+		plan, err := runner.promptReadPlan(deviceOutputGreedy, c.tokens)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if plan.promptExperts != c.marked || !plan.is(deviceOutputGreedy) {
+			t.Errorf("a read of %d tokens marks its experts %t in mode %v, want %t", c.tokens, plan.promptExperts, plan.mode, c.marked)
+		}
+	}
+}

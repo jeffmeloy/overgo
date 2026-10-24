@@ -84,6 +84,21 @@ func (r *Runner) prefillDeviceCachedLocked(ctx context.Context, appendInput devi
 // the chats after it decoding about 6% faster and the prompt read as fast (a 237K-token one 3% slower).
 const devicePromptChunkTokens = 8192
 
+// promptReadPlan is the output plan of mode for a prompt read of tokens tokens: a request that drafts over its prompt
+// reads its rows' streams into the draft's history, and a read of more than one token marks its routed nodes as a
+// prompt's (tensor.Builder.SetPromptExperts), whose small groups then take the grouped products, the CPU computing the
+// experts in host memory: a chat right after a 16K Flash-Next read ran its prompt through the decode products, which
+// read the experts the long read had moved out over the link, its first token 0.78 s against 0.17.
+func (r *Runner) promptReadPlan(mode deviceOutputMode, tokens int) (deviceOutputPlan, error) {
+	plan, err := compileDeviceOutputPlan(mode, 0, r.spec.VocabularySize)
+	if err != nil {
+		return deviceOutputPlan{}, err
+	}
+	plan.streams = r.hyperDraft != nil && r.hyperDraft.prompt != nil
+	plan.promptExperts = tokens > 1
+	return plan, nil
+}
+
 // readDevicePromptLocked reads the prompt's tokens after cached onto past under the output plan of mode, sizing the
 // cache for the prompt and the output tokens it may decode after it, within the context, so that no part of the read
 // nor a decode step outgrows the cache into a copy. A recurrent prompt its entry keeps (keep), with at least
@@ -99,12 +114,10 @@ func (r *Runner) readDevicePromptLocked(
 	projected *ProjectedInputs,
 	keep bool,
 ) (*deviceKVCache, *deviceKVCache, error) {
-	plan, err := compileDeviceOutputPlan(mode, 0, r.spec.VocabularySize)
+	plan, err := r.promptReadPlan(mode, len(ids)-cached)
 	if err != nil {
 		return nil, nil, err
 	}
-	// A request that drafts over its prompt reads its rows' streams into the draft's history.
-	plan.streams = r.hyperDraft != nil && r.hyperDraft.prompt != nil
 	reserve := uint64(len(ids)) + uint64(max(output, 0))
 	if limit := uint64(r.spec.ContextLength); limit > 0 {
 		reserve = min(reserve, max(limit, uint64(len(ids))))
@@ -127,9 +140,8 @@ func (r *Runner) readDevicePromptLocked(
 	if err != nil {
 		return nil, nil, err
 	}
-	// The turn's header, a few tokens after the part before it moved experts to host memory, takes the grouped
-	// products, the CPU computing those experts (a 16K Flash-Next prompt's header of 7 tokens: 68 ms against 183).
-	// A header of one token is a decode step's append, which a kept decode session replays.
+	// The turn's header is marked as the read is (promptReadPlan), unless one token, a decode step's append, which a
+	// kept decode session replays (a 16K Flash-Next prompt's header of 7 tokens: 68 ms against 183).
 	plan.promptExperts = len(ids)-turn > 1
 	end, err := read(ids[turn:], boundary)
 	if err != nil {

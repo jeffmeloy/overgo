@@ -81,7 +81,7 @@ func TestExecutorFlashAttentionMatchesReference(t *testing.T) {
 				feeds[pastValue] = patternedValue(pastValue.Shape, 3, 0.07, 0)
 				feeds[newValue] = patternedValue(newValue.Shape, 5, 0.07, 0)
 			}
-			options := tensor.AttentionOptions{Scale: 0.0883883, Causal: testCase.causal, Window: testCase.window, Softcap: testCase.softcap}
+			options := tensor.AttentionOptions{Scale: 0.0883883, Causal: testCase.causal, Window: testCase.window, Softcap: testCase.softcap, TensorCores: true}
 			if testCase.causal {
 				options.QueryStart = uint32(testCase.pastTokens)
 			}

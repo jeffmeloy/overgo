@@ -216,17 +216,10 @@
       "title": "Repair the confirmed findings, measure every cell on one commit and push it to GitHub's main",
       "status": "open",
       "budget": {
-        "nodes": 65,
-        "reason": "The defects took 71 production syntax nodes (the context through blob verification and the GGUF sample's early charge). The bench's sampled pass adds 90: the sampling the model file recommends and its seed as named constants in one map, the third argument naming it, the suite's field, its copy into each request's body and the run's record of it. Nothing smaller sends the same requests to both engines at the file's sampling."
+        "nodes": 189,
+        "reason": "The defects took 71 production syntax nodes and the bench's sampled pass 90; the peak repair adds the condition and its comment, and the attention step 31: the TensorCores attention option and attribute, their mapping and the kernel's admission on it. Nothing smaller keeps the kernel admitted per model."
       },
       "steps": [
-        {
-          "id": "attention",
-          "title": "Keep a prompt's attention off the tensor-core kernel until its products hold the models' quality",
-          "status": "open",
-          "verify": "go test ./internal/cuda/executor -run '^TestPromptAttentionKeepsTheF32PathByDefault$' -count=1",
-          "rationale": "Serves: the dense models' held-out quality, which the tensor-core prompt attention of 2026-10-22 (e70ceee56, with 5a98df021 and 6c78ad384) moved: gemma-4-12B-it-fp8's BBH fell from 0.657 to 0.643 (8 of 577 cases right to wrong, none back) in the run of 2026-10-24, and at the same commit with that path off the f32 path scores 0.6568457539, the earlier reading to the digit (tmp/release/ab, the evaluator with OVERGO_PROBE_NOFLASH on a store copy); the IFEval declines of gemma, Qwen3.5-9B and MiniCPM5 share the path. A speed path may not change quality (P18), so the kernel is admitted only by the switch its precision row turns back on.\nDisappears: the tensor-core path from every dense prompt by default; its kernels and their reference test stay, the test forcing the path on for its cases.\nEvidence: TestPromptAttentionKeepsTheF32PathByDefault (an admissible causal prompt node is not read by the tensor-core kernel unless the switch is on); the next measurement run's held-out cells for the four models.\nBatch: cuda/executor host and device tests; dense models' 16K first output returns to the strided-batched path's time until the precision row."
-        },
         {
           "id": "scorecard",
           "title": "Measure every scorecard cell on one commit beside Strata's bench suite",

@@ -173,7 +173,9 @@ func flashAttentionKernel(width uint64) (kernelFunctionID, uint32, bool) {
 	return 0, 0, false
 }
 
-// flashAttention reports a prompt's causal attention the tensor-core kernel reads: grouped or not, with an optional
+// flashAttention reports a prompt's causal attention the tensor-core kernel reads, where its model admits the kernel
+// (AttentionAttributes.TensorCores, off by default since its half-precision products moved dense models' held-out
+// quality): grouped or not, with an optional
 // window, softcap and key bias, its keys and values as wide as its queries and as a kernel takes, and at least the
 // strided-batched path's floor of queries (a decode span keeps the decode kernel). An encoder's attention, which
 // is not causal, keeps the f32 paths its reference tolerances hold (Gemma E4B's vision tower read half-precision
@@ -185,7 +187,7 @@ func flashAttention(node *tensor.Tensor, attributes tensor.AttentionAttributes) 
 	query, key, value := node.Inputs[0].Shape.Dims, node.Inputs[1].Shape.Dims, node.Inputs[attentionFlashValueInput].Shape.Dims
 	_, _, ok := flashAttentionKernel(query[0])
 	return ok && key[0] == query[0] && value[0] == query[0] && key[1] != 0 && query[1]%key[1] == 0 &&
-		query[attentionTokenAxis] >= uint64(attentionBlasQueryFloor) && !attributes.NaiveF32 &&
+		query[attentionTokenAxis] >= uint64(attentionBlasQueryFloor) && attributes.TensorCores && !attributes.NaiveF32 &&
 		attributes.RelativeBuckets == 0 && !attributes.HasSinks && !attributes.HasBlockMask && attributes.MaxALiBiBias == 0 &&
 		!attributes.SymmetricWindow && !attributes.ChunkedWindow && attributes.Causal
 }

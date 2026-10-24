@@ -224,6 +224,10 @@ type AttentionAttributes struct {
 	// (skip the blas-chunked scores path) so the reduction matches a reference
 	// per-query two-pass attn_fwd; opt-in for F32 parity-critical towers.
 	NaiveF32 bool
+	// TensorCores admits a prompt's causal attention to the executor's half-precision tensor-core kernel. Off, the
+	// attention keeps its f32 paths: the kernel's products moved dense models' held-out quality (gemma-4-12B-it-fp8's
+	// BBH 0.657 to 0.643, restored to 0.657 by the f32 path at the same commit, 2026-10-24), which a speed path may not.
+	TensorCores bool
 }
 
 type Conv1DAttributes struct {

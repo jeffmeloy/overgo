@@ -426,7 +426,8 @@
             "lane-failures-20261025/do",
             "readme-scorecard/do",
             "readme-models/do",
-            "readme-models/do"
+            "readme-models/do",
+            "run-rows-20261025/do"
           ]
         }
       ]
@@ -722,22 +723,10 @@
           "title": "Fix the inference attempts that failed",
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-failing-inference",
-          "rationale": "- gemma-4-12B-it-fp8 failure-rate: 1 failed and 0 cancelled since the last success\n\nRead 2026-10-24 from the runs' logs: gemma-4-12B-it-fp8's one failed attempt is its 16,384-token prompt, refused by the card's memory admission for 25,769,803,776 bytes, which is its K/V storage in F32 at the 32,768-token page the capacity rounds up to (cachePageCapacity: the page is the prompt's highest power of two, so 16,384 tokens plus the output's reserve take a 32,768-token page): 48 layers × 2 × 32,768 × 2,048 (4 K/V heads × 512) × 4 bytes, beside 24 GB of weights on a 49 GB card; its long-form guard's 8,192 rung, lost to the second arena in the first run, is back in the second. The kv step's int8 K/V takes that storage to 6.4 GB, and a page at the prompt's length rather than its power of two would halve it before that; the failing-attempt row stands until one of them lands.\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-00044e1690f36b22",
-      "title": "Restore Hy-Embodied-RxBrain-1.0 vqa peak-device-memory to 3.71820979e+09 bytes",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Hy-Embodied-RxBrain-1.0 vqa peak-device-memory to 3.71820979e+09 bytes",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-00044e1690f36b22 -target 3.718209792e+09",
-          "rationale": "- Hy-Embodied-RxBrain-1.0 peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:24f6d5c81c752c600bf32907c8ca4b34379bf0e1910dd30f7d3014091e1fbcbb}: 3.71820979e+09 to 3.78753024e+09 (+69320448, +1.9%, allowed 500000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+          "rationale": "- gemma-4-12B-it-fp8 failure-rate: 1 failed and 0 cancelled since the last success\n\nRead 2026-10-24 from the runs' logs: gemma-4-12B-it-fp8's one failed attempt is its 16,384-token prompt, refused by the card's memory admission for 25,769,803,776 bytes, which is its K/V storage in F32 at the 32,768-token page the capacity rounds up to (cachePageCapacity: the page is the prompt's highest power of two, so 16,384 tokens plus the output's reserve take a 32,768-token page): 48 layers × 2 × 32,768 × 2,048 (4 K/V heads × 512) × 4 bytes, beside 24 GB of weights on a 49 GB card; its long-form guard's 8,192 rung, lost to the second arena in the first run, is back in the second. The kv step's int8 K/V takes that storage to 6.4 GB, and a page at the prompt's length rather than its power of two would halve it before that; the failing-attempt row stands until one of them lands.\n\nHeld to strata-port/kv (2026-10-25): the port's int8 K/V resident cells take the 16,384-token prompt's 25.8 GB of F32 storage at a 32,768-token page to 6.4 GB, which admits the attempt beside the 24 GB of weights; a page at the prompt's length instead of its power of two would be an interim mechanism the port replaces, so this row waits on the kv step rather than adding one, and the record after the port judges it.\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it.",
+          "depends_on": [
+            "strata-port/kv"
+          ]
         }
       ]
     },
@@ -753,51 +742,6 @@
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-0d6c925abf0b1e14 -target 1.5370748352e+10",
           "rationale": "- gemma-4-12B-it-fp8-native peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:25268b97718fcd611d83280c93c66aaf9676a2063fb7fc767fb8f917131e6254}: 1.53707484e+10 to 1.54888004e+10 (+118052096, +0.8%, allowed 5000000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-1c8951167b5fa74c",
-      "title": "Restore Qwen2.5-0.5B inference peak-device-memory to 990643712 bytes",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Qwen2.5-0.5B inference peak-device-memory to 990643712 bytes",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-1c8951167b5fa74c -target 9.90643712e+08",
-          "rationale": "- Qwen2.5-0.5B peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:0fc96840f0fec7ba76f8f4e8e04cb967d24c3280e845a9e820ae997012cddfca}: 990643712 to 1.12321587e+09 (+132572160, +13.4%, allowed 50000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-44a682d2f54919aa",
-      "title": "Restore Wan2.1-T2V-1.3B video-gen peak-device-memory to 3.8331476e+09 bytes",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Wan2.1-T2V-1.3B video-gen peak-device-memory to 3.8331476e+09 bytes",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-44a682d2f54919aa -target 3.833147596e+09",
-          "rationale": "- Wan2.1-T2V-1.3B peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:bff12bb8946afe0d8ca84d635e0ff275855c94a22a99df91e03d319c32ed54b4}: 3.8331476e+09 to 3.84255611e+09 (+9408512, +0.2%, allowed 500000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-50f41f360f714051",
-      "title": "Restore Qwen3.8-27B inference peak-device-memory to 2.27283201e+10 bytes",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Qwen3.8-27B inference peak-device-memory to 2.27283201e+10 bytes",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-50f41f360f714051 -target 2.2728320128e+10",
-          "rationale": "- Qwen3.8-27B peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:6595ed03c2b8ff87c5142946868cb841d9a685f77616f21a978ec93587546f1a}: 2.27283201e+10 to 2.2853584e+10 (+125263872, +0.6%, allowed 5000000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
         }
       ]
     },
@@ -832,21 +776,6 @@
       ]
     },
     {
-      "id": "scorecard-regressed-5af656f5f7fae370",
-      "title": "Restore Carbon-500M-f16-ropefix inference peak-device-memory to 1.03683635e+09 bytes",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Carbon-500M-f16-ropefix inference peak-device-memory to 1.03683635e+09 bytes",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-5af656f5f7fae370 -target 1.036836352e+09",
-          "rationale": "- Carbon-500M-f16-ropefix peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:cb2cdd27ff36e6d2d0edf607173eb94e8feb135b64890b5859e7c4abe8c460a2}: 1.03683635e+09 to 1.16546918e+09 (+128632832, +12.4%, allowed 500000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
       "id": "scorecard-regressed-6c8d4a845f501259",
       "title": "Restore Unlimited-OCR-bf16 inference peak-device-memory to 5.87567878e+09 bytes",
       "owner": "master-lead",
@@ -858,96 +787,6 @@
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-6c8d4a845f501259 -target 5.875678776e+09",
           "rationale": "- Unlimited-OCR-bf16 peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:53c17a9fabd7fe64203ddf7136b7e23763ca0b59d67c54deadf6ea54350188f3}: 5.87567878e+09 to 6.08557087e+09 (+209892096, +3.6%, allowed 500000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-70fb50ac9f3bfbbc",
-      "title": "Restore Qwen3.5-9B inference peak-device-memory to 9.71056768e+09 bytes",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Qwen3.5-9B inference peak-device-memory to 9.71056768e+09 bytes",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-70fb50ac9f3bfbbc -target 9.71056768e+09",
-          "rationale": "- Qwen3.5-9B peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:c753e314b7c50fe82d37361a99f1e46a2f95c9f9c7a0ff96890e4c2de507de84}: 9.71056768e+09 to 9.83956506e+09 (+128997376, +1.3%, allowed 500000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-7b102ed548f66278",
-      "title": "Restore MiniCPM5-1B-native-chat inference peak-device-memory to 2.16531456e+09 bytes",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore MiniCPM5-1B-native-chat inference peak-device-memory to 2.16531456e+09 bytes",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-7b102ed548f66278 -target 2.16531456e+09",
-          "rationale": "- MiniCPM5-1B-native-chat peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:5155b720ce15e6b05acf713a5f9c5bf86bf7e52963178c18503b03206578543c}: 2.16531456e+09 to 2.29720986e+09 (+131895296, +6.1%, allowed 500000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-8b083b7b94e498e7",
-      "title": "Restore Qwen3.5-4B inference peak-device-memory to 8.84844826e+09 bytes",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Qwen3.5-4B inference peak-device-memory to 8.84844826e+09 bytes",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-8b083b7b94e498e7 -target 8.848448256e+09",
-          "rationale": "- Qwen3.5-4B peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:49d1ed7c41e45abcc9c10ff13ec247ab775f7054123d5507caa1f63c0a19f803}: 8.84844826e+09 to 8.97761357e+09 (+129165312, +1.5%, allowed 500000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-8fd973275327b1ce",
-      "title": "Restore gemma-4-E4B-it inference peak-device-memory to 1.49349997e+10 bytes",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore gemma-4-E4B-it inference peak-device-memory to 1.49349997e+10 bytes",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-8fd973275327b1ce -target 1.493499972e+10",
-          "rationale": "- gemma-4-E4B-it peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:8fbd18e6c558f0d7bbda91a6d5acf340da3e241522ae3cc02f99793a58a72833}: 1.49349997e+10 to 1.50650395e+10 (+130039808, +0.9%, allowed 5000000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-9120aea1dab7f00f",
-      "title": "Restore Bonsai-27B-Q1_0 inference peak-device-memory to 4.54800486e+09 bytes",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Bonsai-27B-Q1_0 inference peak-device-memory to 4.54800486e+09 bytes",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-9120aea1dab7f00f -target 4.548004864e+09",
-          "rationale": "- Bonsai-27B-Q1_0 peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:b560464c52f7112f18aed570afc72b2e8a11f21fb2d028ff4b8dc78d3cfcf9d6}: 4.54800486e+09 to 4.67536589e+09 (+127361024, +2.8%, allowed 500000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-a458a0f2676f2950",
-      "title": "Restore SimpleDiffusion-TensorProductAttentionRope image-gen peak-device-memory to 559451660 bytes",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore SimpleDiffusion-TensorProductAttentionRope image-gen peak-device-memory to 559451660 bytes",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-a458a0f2676f2950 -target 5.5945166e+08",
-          "rationale": "- SimpleDiffusion-TensorProductAttentionRope peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:4f0b3b9dbad24278519b1a046195978ab0960c52c0b4b40a2d52e0bcec873e9d}: 559451660 to 613977356 (+54525696, +9.7%, allowed 50000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
         }
       ]
     },
@@ -978,51 +817,6 @@
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-bb68e1e58205bdab -target 0.8909090909090909",
           "rationale": "- gemma-4-12B-it-fp8-native held-out-quality, {Metric:prompt-strict Origin:evaluation Suite:store/ifeval Protocol:chat-template Comparison:profile:sha256:6f2116e85efe74bf4b9b2cfce46ef2fbf2a4a622842b598e79b154989b6d3432 Scope:}: 0.890909091 to 0.872727273 (-0.0181818182, -2.0%, allowed 5e-05; prompt-strict, store/ifeval (chat-template))\n- the decline stands because a prompt-strict is no share of cases answered right, and no standard error is stated, so it is judged by its value\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-d16779910f30bfe8",
-      "title": "Restore LiveEdit video-gen peak-device-memory to 3.79271752e+09 bytes",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore LiveEdit video-gen peak-device-memory to 3.79271752e+09 bytes",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-d16779910f30bfe8 -target 3.792717516e+09",
-          "rationale": "- LiveEdit peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:7cd66ed08ebee5e566dca3682e7d6d9f0b06f8384f19b1f1dfb416a272126965}: 3.79271752e+09 to 3.80213422e+09 (+9416704, +0.2%, allowed 500000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-eeab4788f8674aab",
-      "title": "Restore SenseNova-U1-8B-MoT-Infographic-V3 image-gen peak-device-memory to 1.65914647e+10 bytes",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore SenseNova-U1-8B-MoT-Infographic-V3 image-gen peak-device-memory to 1.65914647e+10 bytes",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-eeab4788f8674aab -target 1.6591464708e+10",
-          "rationale": "- SenseNova-U1-8B-MoT-Infographic-V3 peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:5a729e98ef825033d4073d0d0046ef3e63cfb6a519f8076bda01a29d151569ee}: 1.65914647e+10 to 1.66648648e+10 (+73400064, +0.4%, allowed 5000000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-f720274acf031e2f",
-      "title": "Restore Krea-2-Turbo image-gen peak-device-memory to 2.69252724e+10 bytes",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Krea-2-Turbo image-gen peak-device-memory to 2.69252724e+10 bytes",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-f720274acf031e2f -target 2.6925272444e+10",
-          "rationale": "- Krea-2-Turbo peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:0b1bcc2fb9cf5f42cd2dd9c91a49dcce1a67c7b5a9afa0434aeddbe721d595d9}: 2.69252724e+10 to 2.69732407e+10 (+47968256, +0.2%, allowed 5000000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
         }
       ]
     },
